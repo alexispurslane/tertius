@@ -28,72 +28,16 @@ public class OutlineRenderBenchmarks
     [GlobalSetup]
     public void Setup()
     {
-        renderer = VulkanRenderer.CreateHeadless(
-            new()
-            {
-                Validation = false,
-                Width = 1280,
-                Height = 720,
-                FramesInFlight = 1,
-                Impostors = false,
-            }
-        );
-        MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
-        MeshId plane = renderer.CreateMesh(Primitives.Plane(1f));
-        MaterialId gray = renderer.CreateMaterial(
-            MaterialDesc.Color(new(x: 0.55f, y: 0.55f, z: 0.55f, w: 1), roughness: 0.55f)
-        );
-        snapshot = new()
-        {
-            Camera = new()
-            {
-                Rotation = Quaternion.Identity,
-                PreviousRotation = Quaternion.Identity,
-                VerticalFov = MathF.PI / 3,
-            },
-            Lights = { BenchmarkLights.Star(direction: new(0.4f, 0.8f, 0.5f), irradiance: 3, chainDepth: 0) },
-            Ambient = new()
-            {
-                SkyColor = new(0.09f, 0.11f, 0.15f),
-                GroundColor = new(0.05f),
-                Intensity = 1,
-            },
-        };
-        var up = HemisphereUp.Along(Vector3.UnitY);
-        snapshot.Instances.Add(
-            RenderInstance.Create(
-                mesh: plane,
-                material: gray,
-                position: new(0, -2, -200),
-                rotation: Quaternion.Identity,
-                scale: new(250, 1, 250),
-                boundingRadius: 0,
-                hemisphere: up,
-                chainDepth: 0,
-                flags: RenderFlags.Visible | RenderFlags.CastsShadow
-            )
-        );
+        renderer = GroundAndBoxesScene.Renderer();
         var random = new Random(7);
-        for (int i = 0; i < 100; i++)
-        {
-            float depth = 10 + 190 * random.NextSingle();
-            var position = new Vector3((random.NextSingle() * 2 - 1) * depth, -1, -depth);
-            snapshot.Instances.Add(
-                RenderInstance.Create(
-                    mesh: box,
-                    material: gray,
-                    position: position,
-                    rotation: Quaternion.CreateFromYawPitchRoll(random.NextSingle() * 3, 0, 0),
-                    scale: new(2),
-                    boundingRadius: 0,
-                    hemisphere: up,
-                    chainDepth: 0,
-                    flags: RenderFlags.Visible | RenderFlags.CastsShadow,
-                    entityIndex: (uint)i + 1
-                )
-            );
-        }
+        snapshot = GroundAndBoxesScene.Snapshot(renderer, random);
+        AddOutlines(random);
+        GroundAndBoxesScene.WarmUp(renderer, snapshot);
+    }
 
+    /// <summary>Adds the outlines from 20 m to 400 m ahead, which cycle through the five cases.</summary>
+    private void AddOutlines(Random random)
+    {
         for (int i = 0; i < Outlines; i++)
         {
             float depth = 20 + 380 * random.NextSingle();
@@ -118,10 +62,6 @@ public class OutlineRenderBenchmarks
                 }
             );
         }
-
-        // The first frames upload the meshes and the materials and grow the buffers.
-        for (int i = 0; i < 4; i++)
-            renderer.Render(snapshot, 1f);
     }
 
     [GlobalCleanup]

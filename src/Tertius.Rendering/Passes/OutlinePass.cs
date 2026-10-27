@@ -189,39 +189,9 @@ internal sealed class OutlinePass : RenderPass
         barriers.Image(context.Output, ImageUse.ColorAttachment);
         barriers.Flush(vk, commandBuffer);
 
-        var color = new RenderingAttachmentInfo
-        {
-            SType = StructureType.RenderingAttachmentInfo,
-            ImageView = context.Output.View,
-            ImageLayout = ImageLayout.ColorAttachmentOptimal,
-            LoadOp = AttachmentLoadOp.Load,
-            StoreOp = AttachmentStoreOp.Store,
-        };
-        var rendering = new RenderingInfo
-        {
-            SType = StructureType.RenderingInfo,
-            RenderArea = new(new Offset2D(0, 0), context.Output.Extent),
-            LayerCount = 1,
-            ColorAttachmentCount = 1,
-            PColorAttachments = &color,
-        };
-        vk.CmdBeginRendering(commandBuffer, &rendering);
+        context.BeginRenderingInto(context.Output, AttachmentLoadOp.Load);
         vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Graphics, pipeline);
-        DescriptorSet* sets = stackalloc[] {
-            context.Frame.FrameSet,
-            context.Frame.TextureSet,
-            context.Targets.GBufferSet,
-        };
-        vk.CmdBindDescriptorSets(
-            commandBuffer: commandBuffer,
-            pipelineBindPoint: PipelineBindPoint.Graphics,
-            layout: layouts.OverlayLayout,
-            firstSet: 0,
-            descriptorSetCount: 3,
-            pDescriptorSets: sets,
-            dynamicOffsetCount: 0,
-            pDynamicOffsets: null
-        );
+        context.BindSceneSets(PipelineBindPoint.Graphics, layouts.OverlayLayout);
         context.SetFullViewport();
         var push = new OutlinePushConstants { EncodeSrgb = context.EncodeSrgb ? 1u : 0u };
         vk.CmdPushConstants(

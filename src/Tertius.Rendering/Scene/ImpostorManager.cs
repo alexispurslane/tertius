@@ -249,46 +249,58 @@ internal sealed partial class ImpostorManager : IInstanceProcessor
             decisions = new int[Math.Max(visible.Length, decisions.Length * 2)];
 
         for (int i = 0; i < visible.Length; i++)
-        {
-            decisions[i] = -1;
-            ref PreparedInstance instance = ref visible[i];
-            if (!MayBecomeImpostor(scene, instance))
-                continue;
-            float height = ProjectedHeight(instance.Distance, instance.Radius, camera);
-            var key = ImpostorKey.Of(instance);
-            ref int slot = ref CollectionsMarshal.GetValueRefOrAddDefault(lookup, key, out bool exists);
-            if (!exists)
-                slot = AllocateState(key);
-            ref State state = ref states[slot];
-            if (state.LastSeen == Frame)
-                continue;
-            state.LastSeen = Frame;
-            state.Height = height;
-            if (state.Impostor ? height > ExitHeight : height < EnterHeight)
-                state.Impostor = !state.Impostor;
-            if (!state.Impostor)
-                continue;
-
-            decisions[i] = slot;
-            if (state.Tile >= 0)
-            {
-                float error = CaptureError(state, instance, light) * height;
-                bool current = error <= RecaptureError;
-                // A stale capture is drawn only by an impostor that was drawn last frame, until its recapture. An
-                // object that just became an impostor again, or came back into view, waits as geometry instead.
-                state.Drawable = current || state.DrawnFrame == Frame - 1;
-                if (!current)
-                    recaptures.Push(state.Drawable ? error : MathF.PI * height, i);
-            }
-            else
-            {
-                state.Drawable = false;
-                firstCaptures.Push(MathF.PI * height, i);
-            }
-        }
+            decisions[i] = Decide(scene: scene, instance: ref visible[i], index: i, light: light, camera: camera);
 
         SelectCaptures(visible, light, camera);
         EmitDraws(scene, visible);
+    }
+
+    /// <summary>
+    /// Decides whether the visible instance at <paramref name="index"/> draws as an impostor this frame, and queues its
+    /// capture when it needs one. Gives its state's slot when it is an impostor, and -1 when it draws as geometry.
+    /// </summary>
+    private int Decide(
+        PreparedScene scene,
+        ref PreparedInstance instance,
+        int index,
+        in SceneLight light,
+        in CameraView camera
+    )
+    {
+        if (!MayBecomeImpostor(scene, instance))
+            return -1;
+        float height = ProjectedHeight(instance.Distance, instance.Radius, camera);
+        var key = ImpostorKey.Of(instance);
+        ref int slot = ref CollectionsMarshal.GetValueRefOrAddDefault(lookup, key, out bool exists);
+        if (!exists)
+            slot = AllocateState(key);
+        ref State state = ref states[slot];
+        if (state.LastSeen == Frame)
+            return -1;
+        state.LastSeen = Frame;
+        state.Height = height;
+        if (state.Impostor ? height > ExitHeight : height < EnterHeight)
+            state.Impostor = !state.Impostor;
+        if (!state.Impostor)
+            return -1;
+
+        if (state.Tile >= 0)
+        {
+            float error = CaptureError(state, instance, light) * height;
+            bool current = error <= RecaptureError;
+            // A stale capture is drawn only by an impostor that was drawn last frame, until its recapture. An
+            // object that just became an impostor again, or came back into view, waits as geometry instead.
+            state.Drawable = current || state.DrawnFrame == Frame - 1;
+            if (!current)
+                recaptures.Push(state.Drawable ? error : MathF.PI * height, index);
+        }
+        else
+        {
+            state.Drawable = false;
+            firstCaptures.Push(MathF.PI * height, index);
+        }
+
+        return slot;
     }
 
     /// <summary>

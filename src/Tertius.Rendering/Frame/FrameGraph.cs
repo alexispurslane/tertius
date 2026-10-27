@@ -111,7 +111,7 @@ internal sealed class FrameContext
     }
 
     /// <summary>Begins rendering into <paramref name="target"/> alone, its whole extent, stored at the end.</summary>
-    private unsafe void BeginRenderingInto(GpuImage target, AttachmentLoadOp loadOp)
+    public unsafe void BeginRenderingInto(GpuImage target, AttachmentLoadOp loadOp)
     {
         var color = new RenderingAttachmentInfo
         {

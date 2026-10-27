@@ -44,6 +44,66 @@ public sealed class ShadowTests
         return point - l * ((point.Y - groundY) / l.Y);
     }
 
+    /// <summary>
+    /// The scene of the box on the ground at <paramref name="ground"/>, lit by <paramref name="sun"/>, a star with almost
+    /// no disc, seen through <paramref name="camera"/>. An invisible sphere far toward the sun eclipses part of the ground.
+    /// </summary>
+    private static RenderSnapshot BoxAndFarSphereScene(
+        Kit kit,
+        Vector3 sun,
+        Quaternion camera,
+        float ground,
+        Vector3 box
+    )
+    {
+        RenderSnapshot snapshot = Gpu.Snapshot(sun);
+        snapshot.Camera.Rotation = camera;
+        snapshot.Camera.PreviousRotation = camera;
+        snapshot.Instances.Add(
+            Gpu.Instance(
+                mesh: kit.Plane,
+                material: kit.Ground,
+                position: new(0, ground, -15),
+                scale: new(30, 1, 30),
+                flags: Caster,
+                chainDepth: TestChains.CamerasFrame
+            )
+        );
+        // Turned so that its sunlit +X face looks toward the camera.
+        snapshot.Instances.Add(
+            Gpu.Instance(
+                mesh: kit.Box,
+                material: kit.White,
+                position: box,
+                scale: new(1.5f),
+                rotation: Quaternion.CreateFromAxisAngle(Vector3.UnitY, -0.5f),
+                flags: Caster,
+                chainDepth: TestChains.CamerasFrame
+            )
+        );
+        // The analytic term: an invisible sphere of 20 m radius 2.2 km toward the sun from the ground at (28, ground, -10).
+        // It stays farther than 2 km from the camera, so it casts a far shadow, an ellipse on the ground 25 m along x and
+        // 20 m along z. Its edge passes between the box, which stays lit, and the patch at x = 4, which it covers. A sun
+        // with almost no disc keeps that edge sharp; the disc plays no part in the shadow maps.
+        Gpu.Star(snapshot: snapshot, angularRadius: 0f);
+        snapshot.Instances.Add(
+            RenderInstance.Create(
+                mesh: kit.Sphere,
+                material: kit.White,
+                position: new Vector3(28f, ground, -10f) + Vector3.Normalize(sun) * 2_200f,
+                rotation: Quaternion.Identity,
+                scale: new(20f),
+                boundingRadius: 0,
+                hemisphere: HemisphereUp.Even,
+                chainDepth: TestChains.CamerasFrame,
+                flags: RenderFlags.CastsShadow,
+                entityIndex: 0,
+                part: 0
+            )
+        );
+        return snapshot;
+    }
+
     [Fact]
     public void BoxCastsAShadowOnTheGroundAndTheEclipseTermStillApplies()
     {
@@ -56,53 +116,16 @@ public sealed class ShadowTests
             // The sun is up and to the right, so the box's shadow falls to its left.
             var sun = new Vector3(0.6f, 0.8f, 0f);
             Quaternion camera = Gpu.PitchDown(0.25f);
-            RenderSnapshot snapshot = Gpu.Snapshot(sun);
-            snapshot.Camera.Rotation = camera;
-            snapshot.Camera.PreviousRotation = camera;
             const float ground = -3f;
             var box = new Vector3(0, ground + 0.75f, -8);
-            snapshot.Instances.Add(
-                Gpu.Instance(
-                    mesh: kit.Plane,
-                    material: kit.Ground,
-                    position: new(0, ground, -15),
-                    scale: new(30, 1, 30),
-                    flags: Caster,
-                    chainDepth: TestChains.CamerasFrame
-                )
-            );
-            // Turned so that its sunlit +X face looks toward the camera.
-            snapshot.Instances.Add(
-                Gpu.Instance(
-                    mesh: kit.Box,
-                    material: kit.White,
-                    position: box,
-                    scale: new(1.5f),
-                    rotation: Quaternion.CreateFromAxisAngle(Vector3.UnitY, -0.5f),
-                    flags: Caster,
-                    chainDepth: TestChains.CamerasFrame
-                )
-            );
-            // The analytic term: an invisible sphere of 20 m radius 2.2 km toward the sun from the ground at (28, ground, -10).
-            // It stays farther than 2 km from the camera, so it casts a far shadow, an ellipse on the ground 25 m along x and
-            // 20 m along z. Its edge passes between the box, which stays lit, and the patch at x = 4, which it covers. A sun
-            // with almost no disc keeps that edge sharp; the disc plays no part in the shadow maps.
+            // The far sphere's shadow covers the patch at x = 4.
             Vector3 eclipsed = new(4f, ground, -10f);
-            Gpu.Star(snapshot: snapshot, angularRadius: 0f);
-            snapshot.Instances.Add(
-                RenderInstance.Create(
-                    mesh: kit.Sphere,
-                    material: kit.White,
-                    position: new Vector3(28f, ground, -10f) + Vector3.Normalize(sun) * 2_200f,
-                    rotation: Quaternion.Identity,
-                    scale: new(20f),
-                    boundingRadius: 0,
-                    hemisphere: HemisphereUp.Even,
-                    chainDepth: TestChains.CamerasFrame,
-                    flags: RenderFlags.CastsShadow,
-                    entityIndex: 0,
-                    part: 0
-                )
+            RenderSnapshot snapshot = BoxAndFarSphereScene(
+                kit: kit,
+                sun: sun,
+                camera: camera,
+                ground: ground,
+                box: box
             );
 
             Capture image = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "shadow-box");
@@ -133,6 +156,50 @@ public sealed class ShadowTests
         }
     }
 
+    /// <summary>
+    /// The scene of the 20 m box at <paramref name="box"/> inside the bounding sphere of an invisible caster, 1 km in
+    /// radius and 5 km away, lit by <paramref name="sun"/> and seen through <paramref name="camera"/> with the narrow
+    /// view <paramref name="fov"/>.
+    /// </summary>
+    private static RenderSnapshot BoxInsideAFarCasterScene(
+        Kit kit,
+        Vector3 sun,
+        Vector3 box,
+        Quaternion camera,
+        float fov
+    )
+    {
+        RenderSnapshot snapshot = Gpu.Snapshot(sun);
+        snapshot.Camera.Rotation = camera;
+        snapshot.Camera.PreviousRotation = camera;
+        snapshot.Camera.VerticalFov = fov;
+        snapshot.Instances.Add(
+            Gpu.Instance(
+                mesh: kit.Box,
+                material: kit.White,
+                position: box,
+                scale: new(10f),
+                chainDepth: TestChains.CamerasFrame
+            )
+        );
+        snapshot.Instances.Add(
+            RenderInstance.Create(
+                mesh: kit.Sphere,
+                material: kit.White,
+                position: new(0, 0, -5_000),
+                rotation: Quaternion.Identity,
+                scale: new(1_000f),
+                boundingRadius: 0,
+                hemisphere: HemisphereUp.Even,
+                chainDepth: TestChains.CamerasFrame,
+                flags: Caster,
+                entityIndex: 0,
+                part: 0
+            )
+        );
+        return snapshot;
+    }
+
     [Fact]
     public void AnObjectInsideTheBoundingSphereOfAFarCasterIsNotShadowedByIt()
     {
@@ -149,34 +216,7 @@ public sealed class ShadowTests
             var sun = new Vector3(0, 1, 1);
             var box = new Vector3(0, -500, -5_000);
             Quaternion camera = Gpu.PitchDown(MathF.Atan2(500, 5_000));
-            RenderSnapshot snapshot = Gpu.Snapshot(sun);
-            snapshot.Camera.Rotation = camera;
-            snapshot.Camera.PreviousRotation = camera;
-            snapshot.Camera.VerticalFov = fov;
-            snapshot.Instances.Add(
-                Gpu.Instance(
-                    mesh: kit.Box,
-                    material: kit.White,
-                    position: box,
-                    scale: new(10f),
-                    chainDepth: TestChains.CamerasFrame
-                )
-            );
-            snapshot.Instances.Add(
-                RenderInstance.Create(
-                    mesh: kit.Sphere,
-                    material: kit.White,
-                    position: new(0, 0, -5_000),
-                    rotation: Quaternion.Identity,
-                    scale: new(1_000f),
-                    boundingRadius: 0,
-                    hemisphere: HemisphereUp.Even,
-                    chainDepth: TestChains.CamerasFrame,
-                    flags: Caster,
-                    entityIndex: 0,
-                    part: 0
-                )
-            );
+            RenderSnapshot snapshot = BoxInsideAFarCasterScene(kit: kit, sun: sun, box: box, camera: camera, fov: fov);
 
             Capture image = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "far-caster-inside");
 
@@ -199,6 +239,48 @@ public sealed class ShadowTests
         }
     }
 
+    /// <summary>
+    /// The scene of the 150 m sphere at <paramref name="center"/> above the ground at <paramref name="ground"/>, lit by the
+    /// low <paramref name="sun"/> alone, without ambient light, and seen through <paramref name="camera"/> with the view
+    /// <paramref name="fov"/>.
+    /// </summary>
+    private static RenderSnapshot SphereAboveWideGroundScene(
+        Kit kit,
+        Vector3 sun,
+        Quaternion camera,
+        float fov,
+        float ground,
+        Vector3 center
+    )
+    {
+        RenderSnapshot snapshot = Gpu.Snapshot(sun);
+        snapshot.Camera.Rotation = camera;
+        snapshot.Camera.PreviousRotation = camera;
+        snapshot.Camera.VerticalFov = fov;
+        // No ambient light, so that the low sun alone lights the ground and the shadow shows plainly.
+        snapshot.Ambient = default;
+        snapshot.Instances.Add(
+            Gpu.Instance(
+                mesh: kit.Plane,
+                material: kit.Ground,
+                position: new(0, ground, -3_000f),
+                scale: new(3_000f, 1, 3_000f),
+                chainDepth: TestChains.CamerasFrame
+            )
+        );
+        snapshot.Instances.Add(
+            Gpu.Instance(
+                mesh: kit.Sphere,
+                material: kit.White,
+                position: center,
+                scale: new(150f),
+                flags: Caster,
+                chainDepth: TestChains.CamerasFrame
+            )
+        );
+        return snapshot;
+    }
+
     [Fact]
     public void ACasterInTheShadowMapsAlsoShadowsTheGroundBeyondThemWithItsSphere()
     {
@@ -219,30 +301,13 @@ public sealed class ShadowTests
             var center = new Vector3(0, ground + 150f, -1_500f);
             Vector3 shadow = center - Vector3.Normalize(sun) * (150f / MathF.Sin(elevation));
             Quaternion camera = Gpu.PitchDown(6f * MathF.PI / 180f);
-            RenderSnapshot snapshot = Gpu.Snapshot(sun);
-            snapshot.Camera.Rotation = camera;
-            snapshot.Camera.PreviousRotation = camera;
-            snapshot.Camera.VerticalFov = fov;
-            // No ambient light, so that the low sun alone lights the ground and the shadow shows plainly.
-            snapshot.Ambient = default;
-            snapshot.Instances.Add(
-                Gpu.Instance(
-                    mesh: kit.Plane,
-                    material: kit.Ground,
-                    position: new(0, ground, -3_000f),
-                    scale: new(3_000f, 1, 3_000f),
-                    chainDepth: TestChains.CamerasFrame
-                )
-            );
-            snapshot.Instances.Add(
-                Gpu.Instance(
-                    mesh: kit.Sphere,
-                    material: kit.White,
-                    position: center,
-                    scale: new(150f),
-                    flags: Caster,
-                    chainDepth: TestChains.CamerasFrame
-                )
+            RenderSnapshot snapshot = SphereAboveWideGroundScene(
+                kit: kit,
+                sun: sun,
+                camera: camera,
+                fov: fov,
+                ground: ground,
+                center: center
             );
 
             Capture image = Gpu.RenderAndCapture(
@@ -417,6 +482,46 @@ public sealed class ShadowTests
         }
     }
 
+    /// <summary>
+    /// The scene of the 40 m box at <paramref name="box"/> on the ground at <paramref name="ground"/>, both casting, lit
+    /// by <paramref name="sun"/> and seen through <paramref name="camera"/> with the view <paramref name="fov"/>.
+    /// </summary>
+    private static RenderSnapshot FarBoxOnGroundScene(
+        Kit kit,
+        Vector3 sun,
+        Quaternion camera,
+        float fov,
+        float ground,
+        Vector3 box
+    )
+    {
+        RenderSnapshot snapshot = Gpu.Snapshot(sun);
+        snapshot.Camera.Rotation = camera;
+        snapshot.Camera.PreviousRotation = camera;
+        snapshot.Camera.VerticalFov = fov;
+        snapshot.Instances.Add(
+            Gpu.Instance(
+                mesh: kit.Plane,
+                material: kit.Ground,
+                position: new(0, ground, -1_500f),
+                scale: new(2_500f, 1, 2_500f),
+                flags: Caster,
+                chainDepth: TestChains.CamerasFrame
+            )
+        );
+        snapshot.Instances.Add(
+            Gpu.Instance(
+                mesh: kit.Box,
+                material: kit.White,
+                position: box,
+                scale: new(40f),
+                flags: Caster,
+                chainDepth: TestChains.CamerasFrame
+            )
+        );
+        return snapshot;
+    }
+
     [Fact]
     public void TheLastCascadeStillShadowsAtOnePointFiveKilometres()
     {
@@ -430,31 +535,15 @@ public sealed class ShadowTests
             // The camera looks 20 degrees down at a 40 m box 1.5 km away. The sun is 45 degrees up from +X.
             var sun = new Vector3(1f, 1f, 0f);
             Quaternion camera = Gpu.PitchDown(20f * MathF.PI / 180f);
-            RenderSnapshot snapshot = Gpu.Snapshot(sun);
-            snapshot.Camera.Rotation = camera;
-            snapshot.Camera.PreviousRotation = camera;
-            snapshot.Camera.VerticalFov = fov;
             float ground = -1_500f * MathF.Tan(20f * MathF.PI / 180f);
             var box = new Vector3(0, ground + 20f, -1_500f);
-            snapshot.Instances.Add(
-                Gpu.Instance(
-                    mesh: kit.Plane,
-                    material: kit.Ground,
-                    position: new(0, ground, -1_500f),
-                    scale: new(2_500f, 1, 2_500f),
-                    flags: Caster,
-                    chainDepth: TestChains.CamerasFrame
-                )
-            );
-            snapshot.Instances.Add(
-                Gpu.Instance(
-                    mesh: kit.Box,
-                    material: kit.White,
-                    position: box,
-                    scale: new(40f),
-                    flags: Caster,
-                    chainDepth: TestChains.CamerasFrame
-                )
+            RenderSnapshot snapshot = FarBoxOnGroundScene(
+                kit: kit,
+                sun: sun,
+                camera: camera,
+                fov: fov,
+                ground: ground,
+                box: box
             );
 
             Capture image = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "shadow-1500m");
@@ -484,6 +573,89 @@ public sealed class ShadowTests
         }
     }
 
+    /// <summary>
+    /// The scene of the two walls on the ground at <paramref name="ground"/>, lit by <paramref name="sun"/> and seen
+    /// through <paramref name="camera"/> with the view <paramref name="fov"/>: a 40 m wall from 1.5 km to 3 km straight
+    /// ahead, and a short one beyond 2 km to its left.
+    /// </summary>
+    private static RenderSnapshot TwoWallsScene(Kit kit, Vector3 sun, Quaternion camera, float fov, float ground)
+    {
+        RenderSnapshot snapshot = Gpu.Snapshot(sun);
+        snapshot.Camera.Rotation = camera;
+        snapshot.Camera.PreviousRotation = camera;
+        snapshot.Camera.VerticalFov = fov;
+        snapshot.Instances.Add(
+            Gpu.Instance(
+                mesh: kit.Plane,
+                material: kit.Ground,
+                position: new(0, ground, -2_500f),
+                scale: new(3_000f, 1, 3_000f),
+                flags: Caster,
+                chainDepth: TestChains.CamerasFrame
+            )
+        );
+        // Its bounding sphere reaches within 1 km of the camera, so it is a caster.
+        snapshot.Instances.Add(
+            Gpu.Instance(
+                mesh: kit.Box,
+                material: kit.White,
+                position: new(0, ground + 20f, -2_250f),
+                scale: new(10f, 40f, 1_500f),
+                flags: Caster,
+                chainDepth: TestChains.CamerasFrame
+            )
+        );
+        // A second wall entirely beyond 2 km is not in the shadow maps. It casts a far shadow instead: the sphere of its
+        // bounding radius, 173 m.
+        snapshot.Instances.Add(
+            Gpu.Instance(
+                mesh: kit.Box,
+                material: kit.White,
+                position: new(-600f, ground + 20f, -2_600f),
+                scale: new(10f, 40f, 200f),
+                flags: Caster,
+                chainDepth: TestChains.CamerasFrame
+            )
+        );
+        return snapshot;
+    }
+
+    /// <summary>
+    /// Checks, at depths from 2 km to 3 km along the long wall, that nothing is shadowed beyond the maps, while the far
+    /// wall's sphere still shadows the ground beside it. <paramref name="luma"/> gives the luma of the ground at a point.
+    /// </summary>
+    private static void AssertOnlyFarShadowsBeyondTheMaps(Func<Vector3, float> luma, Quaternion camera, float ground)
+    {
+        foreach (float z in (float[])[2_050f, 2_200f, 2_400f, 2_600f, 2_800f, 2_950f])
+        {
+            var shadowPoint = new Vector3(-40f, ground, -z);
+            float depth = Gpu.ViewDepth(shadowPoint, camera);
+            depth.Should().BeGreaterThan(ShadowCascades.Distance, "the sample is beyond the maps");
+            float shadowed = luma(shadowPoint),
+                lit = luma(new(40f, ground, -z));
+            MathF
+                .Abs(shadowed - lit)
+                .Should()
+                .BeLessThan(
+                    0.02f,
+                    "at {0:F0} m, beyond the maps, nothing is shadowed ({1} vs {2})",
+                    depth,
+                    shadowed,
+                    lit
+                );
+            // 300 m left of the second wall: outside its bounding sphere, inside that sphere's shadow.
+            float beside = luma(new(-900f, ground, -2_600f));
+            beside
+                .Should()
+                .BeLessThan(
+                    0.5f * lit,
+                    "the far wall shadows the ground beside it as a sphere ({0} vs {1})",
+                    beside,
+                    lit
+                );
+        }
+    }
+
     [Fact]
     public void ShadowMapsEndAtTwoKilometres()
     {
@@ -499,44 +671,8 @@ public sealed class ShadowTests
             // throws its shadow 69 m to the left over its whole length. The camera is 300 m up, looking 10 degrees down.
             var sun = new Vector3(MathF.Cos(MathF.PI / 6f), MathF.Sin(MathF.PI / 6f), 0f);
             Quaternion camera = Gpu.PitchDown(pitch);
-            RenderSnapshot snapshot = Gpu.Snapshot(sun);
-            snapshot.Camera.Rotation = camera;
-            snapshot.Camera.PreviousRotation = camera;
-            snapshot.Camera.VerticalFov = fov;
             const float ground = -300f;
-            snapshot.Instances.Add(
-                Gpu.Instance(
-                    mesh: kit.Plane,
-                    material: kit.Ground,
-                    position: new(0, ground, -2_500f),
-                    scale: new(3_000f, 1, 3_000f),
-                    flags: Caster,
-                    chainDepth: TestChains.CamerasFrame
-                )
-            );
-            // Its bounding sphere reaches within 1 km of the camera, so it is a caster.
-            snapshot.Instances.Add(
-                Gpu.Instance(
-                    mesh: kit.Box,
-                    material: kit.White,
-                    position: new(0, ground + 20f, -2_250f),
-                    scale: new(10f, 40f, 1_500f),
-                    flags: Caster,
-                    chainDepth: TestChains.CamerasFrame
-                )
-            );
-            // A second wall entirely beyond 2 km is not in the shadow maps. It casts a far shadow instead: the sphere of its
-            // bounding radius, 173 m.
-            snapshot.Instances.Add(
-                Gpu.Instance(
-                    mesh: kit.Box,
-                    material: kit.White,
-                    position: new(-600f, ground + 20f, -2_600f),
-                    scale: new(10f, 40f, 200f),
-                    flags: Caster,
-                    chainDepth: TestChains.CamerasFrame
-                )
-            );
+            RenderSnapshot snapshot = TwoWallsScene(kit: kit, sun: sun, camera: camera, fov: fov, ground: ground);
 
             Capture image = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "shadow-2km-cutoff");
             renderer.LastFrameStats.ShadowCasters.Should().Be(2, "the wall beyond 2 km is not in the shadow maps");
@@ -557,38 +693,108 @@ public sealed class ShadowTests
                 shadowed.Should().BeLessThan(0.5f * lit, "the wall shadows the ground at {0:F0} m", depth);
             }
 
-            foreach (float z in (float[])[2_050f, 2_200f, 2_400f, 2_600f, 2_800f, 2_950f])
-            {
-                var shadowPoint = new Vector3(-40f, ground, -z);
-                float depth = Gpu.ViewDepth(shadowPoint, camera);
-                depth.Should().BeGreaterThan(ShadowCascades.Distance, "the sample is beyond the maps");
-                float shadowed = Luma(shadowPoint),
-                    lit = Luma(new(40f, ground, -z));
-                MathF
-                    .Abs(shadowed - lit)
-                    .Should()
-                    .BeLessThan(
-                        0.02f,
-                        "at {0:F0} m, beyond the maps, nothing is shadowed ({1} vs {2})",
-                        depth,
-                        shadowed,
-                        lit
-                    );
-                // 300 m left of the second wall: outside its bounding sphere, inside that sphere's shadow.
-                float beside = Luma(new(-900f, ground, -2_600f));
-                beside
-                    .Should()
-                    .BeLessThan(
-                        0.5f * lit,
-                        "the far wall shadows the ground beside it as a sphere ({0} vs {1})",
-                        beside,
-                        lit
-                    );
-            }
+            AssertOnlyFarShadowsBeyondTheMaps(luma: Luma, camera: camera, ground: ground);
         }
         finally
         {
             Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>
+    /// The scene of the acne test: wide ground <paramref name="heightAboveGround"/> below the camera, which casts only
+    /// when <paramref name="groundCasts"/> is set, and a box that always casts, so that the cascades are drawn.
+    /// </summary>
+    private static RenderSnapshot AcneScene(
+        Kit kit,
+        Vector3 sun,
+        Quaternion camera,
+        float heightAboveGround,
+        bool groundCasts
+    )
+    {
+        RenderSnapshot snapshot = Gpu.Snapshot(sun);
+        snapshot.Camera.Rotation = camera;
+        snapshot.Camera.PreviousRotation = camera;
+        snapshot.Instances.Add(
+            Gpu.Instance(
+                mesh: kit.Plane,
+                material: kit.Ground,
+                position: new(0, -heightAboveGround, -1_000f),
+                scale: new(1_500f, 1, 1_500f),
+                flags: groundCasts ? Caster : RenderFlags.None,
+                chainDepth: TestChains.CamerasFrame
+            )
+        );
+        // Something else casts, so the cascades are drawn in both images.
+        snapshot.Instances.Add(
+            Gpu.Instance(
+                mesh: kit.Box,
+                material: kit.White,
+                position: new(-40f, -heightAboveGround + 1f, -30f),
+                scale: new(2f),
+                flags: Caster,
+                chainDepth: TestChains.CamerasFrame
+            )
+        );
+        return snapshot;
+    }
+
+    /// <summary>
+    /// Checks that the lit ground of <paramref name="reference"/>, in which the ground casts no shadow, is mostly the
+    /// view, and that <paramref name="image"/> differs from it in almost none of those pixels.
+    /// </summary>
+    private static void AssertLitGroundUnchanged(Capture reference, Capture image, string view)
+    {
+        int width = image.Width,
+            height = image.Height;
+        int ground = 0,
+            differing = 0;
+        for (int y = 0; y < height; y++)
+        for (int x = 0; x < width; x++)
+        {
+            float expected = reference.Luma(x, y);
+            if (expected < 0.15f)
+                continue;
+            ground++;
+            if (MathF.Abs(image.Luma(x, y) - expected) > 2.5f / 255f)
+                differing++;
+        }
+
+        ground.Should().BeGreaterThan(width * height / 3, "the {0} view is mostly lit ground", view);
+        differing
+            .Should()
+            .BeLessThanOrEqualTo(
+                ground / 1000,
+                "in the {0} view, lit ground must not change when it casts shadows itself ({1} pixels)",
+                view,
+                ground
+            );
+    }
+
+    /// <summary>Checks that the lit ground of <paramref name="image"/> has a small variance in strips across the screen.</summary>
+    private static void AssertLitGroundSmooth(Capture image, string view)
+    {
+        int width = image.Width,
+            height = image.Height;
+        for (int row = height / 2 + 10; row < height - 4; row += 40)
+        {
+            float sum = 0,
+                sumSquares = 0;
+            int count = 0;
+            for (int y = row - 2; y <= row + 2; y++)
+            for (int x = width / 2; x < width - 40; x++)
+            {
+                float luma = image.Luma(x, y);
+                sum += luma;
+                sumSquares += luma * luma;
+                count++;
+            }
+
+            float mean = sum / count,
+                variance = sumSquares / count - mean * mean;
+            mean.Should().BeGreaterThan(0.15f, "row {0} of the {1} view is lit ground", row, view);
+            variance.Should().BeLessThan(1e-4f, "lit ground at row {0} of the {1} view is smooth", row, view);
         }
     }
 
@@ -623,91 +829,32 @@ public sealed class ShadowTests
             )
             {
                 Quaternion camera = Gpu.PitchDown(pitch);
-
-                RenderSnapshot Scene(bool groundCasts)
-                {
-                    RenderSnapshot snapshot = Gpu.Snapshot(sun);
-                    snapshot.Camera.Rotation = camera;
-                    snapshot.Camera.PreviousRotation = camera;
-                    snapshot.Instances.Add(
-                        Gpu.Instance(
-                            mesh: kit.Plane,
-                            material: kit.Ground,
-                            position: new(0, -heightAboveGround, -1_000f),
-                            scale: new(1_500f, 1, 1_500f),
-                            flags: groundCasts ? Caster : RenderFlags.None,
-                            chainDepth: TestChains.CamerasFrame
-                        )
-                    );
-                    // Something else casts, so the cascades are drawn in both images.
-                    snapshot.Instances.Add(
-                        Gpu.Instance(
-                            mesh: kit.Box,
-                            material: kit.White,
-                            position: new(-40f, -heightAboveGround + 1f, -30f),
-                            scale: new(2f),
-                            flags: Caster,
-                            chainDepth: TestChains.CamerasFrame
-                        )
-                    );
-                    return snapshot;
-                }
-
                 Capture reference = Gpu.RenderAndCapture(
                     renderer: renderer,
-                    snapshot: Scene(groundCasts: false),
+                    snapshot: AcneScene(
+                        kit: kit,
+                        sun: sun,
+                        camera: camera,
+                        heightAboveGround: heightAboveGround,
+                        groundCasts: false
+                    ),
                     name: $"acne-{sunElevationDegrees:F0}-{name}-reference"
                 );
                 Capture image = Gpu.RenderAndCapture(
                     renderer: renderer,
-                    snapshot: Scene(groundCasts: true),
+                    snapshot: AcneScene(
+                        kit: kit,
+                        sun: sun,
+                        camera: camera,
+                        heightAboveGround: heightAboveGround,
+                        groundCasts: true
+                    ),
                     name: $"acne-{sunElevationDegrees:F0}-{name}"
                 );
                 renderer.LastFrameStats.ShadowCascades.Should().Be(4);
-
-                int ground = 0,
-                    differing = 0;
-                for (int y = 0; y < height; y++)
-                for (int x = 0; x < width; x++)
-                {
-                    float expected = reference.Luma(x, y);
-                    if (expected < 0.15f)
-                        continue;
-                    ground++;
-                    if (MathF.Abs(image.Luma(x, y) - expected) > 2.5f / 255f)
-                        differing++;
-                }
-
-                ground.Should().BeGreaterThan(width * height / 3, "the {0} view is mostly lit ground", name);
-                differing
-                    .Should()
-                    .BeLessThanOrEqualTo(
-                        ground / 1000,
-                        "in the {0} view, lit ground must not change when it casts shadows itself ({1} pixels)",
-                        name,
-                        ground
-                    );
-
+                AssertLitGroundUnchanged(reference, image, name);
                 // And the lit ground is smooth: small variance in strips across the screen at several distances.
-                for (int row = height / 2 + 10; row < height - 4; row += 40)
-                {
-                    float sum = 0,
-                        sumSquares = 0;
-                    int count = 0;
-                    for (int y = row - 2; y <= row + 2; y++)
-                    for (int x = width / 2; x < width - 40; x++)
-                    {
-                        float luma = image.Luma(x, y);
-                        sum += luma;
-                        sumSquares += luma * luma;
-                        count++;
-                    }
-
-                    float mean = sum / count,
-                        variance = sumSquares / count - mean * mean;
-                    mean.Should().BeGreaterThan(0.15f, "row {0} of the {1} view is lit ground", row, name);
-                    variance.Should().BeLessThan(1e-4f, "lit ground at row {0} of the {1} view is smooth", row, name);
-                }
+                AssertLitGroundSmooth(image, name);
             }
         }
         finally
@@ -716,131 +863,213 @@ public sealed class ShadowTests
         }
     }
 
+    // ---- The wall along the cascade seams ------------------------------------------------------------------------
+    // A wall 16 m tall and 4 m thick runs straight away from 20 m to 440 m. The sun, 30 degrees up from +X, throws a
+    // 28 m shadow to its left, through the cascade seams at about 51 m, 109 m and 277 m. Every sample is compared with the
+    // same pixel rendered without the wall.
+
+    private const int SeamsWidth = 960,
+        SeamsHeight = 540;
+    private const float SeamsFov = 50f * MathF.PI / 180f,
+        SeamsWallHeight = 16f;
+    private static readonly float SeamsSunElevation = 30f * MathF.PI / 180f;
+    private static readonly Vector3 SeamsSun = new(MathF.Cos(SeamsSunElevation), MathF.Sin(SeamsSunElevation), 0f);
+
+    /// <summary>
+    /// The scene of the seams: the ground <paramref name="cameraHeight"/> below a camera looking down by
+    /// <paramref name="pitch"/>, and with <paramref name="wall"/> the wall at <paramref name="wallX"/>.
+    /// </summary>
+    private static RenderSnapshot SeamsScene(Kit kit, float cameraHeight, float pitch, float wallX, bool wall)
+    {
+        Quaternion camera = Gpu.PitchDown(pitch);
+        RenderSnapshot snapshot = Gpu.Snapshot(SeamsSun);
+        snapshot.Camera.Rotation = camera;
+        snapshot.Camera.PreviousRotation = camera;
+        snapshot.Camera.VerticalFov = SeamsFov;
+        snapshot.Instances.Add(
+            Gpu.Instance(
+                mesh: kit.Plane,
+                material: kit.Ground,
+                position: new(0, -cameraHeight, -400f),
+                scale: new(800f, 1, 800f),
+                flags: Caster,
+                chainDepth: TestChains.CamerasFrame
+            )
+        );
+        if (wall)
+            snapshot.Instances.Add(
+                Gpu.Instance(
+                    mesh: kit.Box,
+                    material: kit.White,
+                    position: new(wallX, -cameraHeight + SeamsWallHeight / 2, -230f),
+                    scale: new(4f, SeamsWallHeight, 420f),
+                    flags: Caster,
+                    chainDepth: TestChains.CamerasFrame
+                )
+            );
+        return snapshot;
+    }
+
+    /// <summary>Renders the scene of the seams with the wall, then without it as the reference.</summary>
+    private static (Capture Image, Capture Reference) RenderSeams(
+        VulkanRenderer renderer,
+        Kit kit,
+        string name,
+        float cameraHeight,
+        float pitch,
+        float wallX
+    ) =>
+        (
+            Gpu.RenderAndCapture(
+                renderer: renderer,
+                snapshot: SeamsScene(kit: kit, cameraHeight: cameraHeight, pitch: pitch, wallX: wallX, wall: true),
+                name: name
+            ),
+            Gpu.RenderAndCapture(
+                renderer: renderer,
+                snapshot: SeamsScene(kit: kit, cameraHeight: cameraHeight, pitch: pitch, wallX: wallX, wall: false),
+                name: name + "-reference"
+            )
+        );
+
+    /// <summary>
+    /// From 20 m up, looking 12 degrees down, with the wall to the right: checks the shadow side from 30 m to 420 m, and
+    /// that the samples cross every seam.
+    /// </summary>
+    private static void AssertShadowContinuesAcrossSeams(VulkanRenderer renderer, Kit kit)
+    {
+        Quaternion low = Gpu.PitchDown(12f * MathF.PI / 180f);
+        const float rightWall = 8f;
+        float shadowCenterX = rightWall - 2f - 0.5f * SeamsWallHeight / MathF.Tan(SeamsSunElevation);
+        (Capture image, Capture reference) = RenderSeams(
+            renderer: renderer,
+            kit: kit,
+            name: "shadow-seams",
+            cameraHeight: 20f,
+            pitch: 12f * MathF.PI / 180f,
+            wallX: rightWall
+        );
+        int seamsCrossed = 0;
+        float previousDepth = 0;
+        for (float z = 30f; z <= 420f; z += 2.5f)
+        {
+            var point = new Vector3(shadowCenterX, -20f, -z);
+            Vector2 pixel = Gpu.Project(
+                point: point,
+                cameraRotation: low,
+                width: SeamsWidth,
+                height: SeamsHeight,
+                fov: SeamsFov
+            );
+            float depth = Gpu.ViewDepth(point, low);
+            for (int i = 0; i < ShadowCascades.Count - 1; i++)
+                seamsCrossed += previousDepth < ShadowCascades.Split(i) && depth >= ShadowCascades.Split(i) ? 1 : 0;
+            previousDepth = depth;
+            image
+                .Luma(pixel)
+                .Should()
+                .BeLessThan(0.5f * reference.Luma(pixel), "the wall's shadow continues at view depth {0:F1} m", depth);
+        }
+
+        seamsCrossed.Should().Be(3, "the samples cross every seam between cascades");
+    }
+
+    /// <summary>
+    /// From 60 m up, looking 25 degrees down, with the wall to the left so that its sunlit face looks at the camera:
+    /// checks that the ground in front of that face is as bright as without the wall, in the coarse last cascade too.
+    /// </summary>
+    private static void AssertSunlitSideUnchanged(VulkanRenderer renderer, Kit kit)
+    {
+        // A receiver-plane bias that also extrapolated downhill would let the kernel find the wall there and darken
+        // several meters of it.
+        Quaternion high = Gpu.PitchDown(25f * MathF.PI / 180f);
+        const float leftWall = -8f;
+        (Capture side, Capture sideReference) = RenderSeams(
+            renderer: renderer,
+            kit: kit,
+            name: "shadow-sunlit-side",
+            cameraHeight: 60f,
+            pitch: 25f * MathF.PI / 180f,
+            wallX: leftWall
+        );
+        foreach (float z in (float[])[80f, 150f, 250f, 320f, 400f])
+        foreach (float distance in (float[])[1.5f, 3f, 6f])
+        {
+            var point = new Vector3(leftWall + 2f + distance, -60f, -z);
+            Vector2 pixel = Gpu.Project(
+                point: point,
+                cameraRotation: high,
+                width: SeamsWidth,
+                height: SeamsHeight,
+                fov: SeamsFov
+            );
+            float lit = side.Luma(pixel),
+                expected = sideReference.Luma(pixel);
+            MathF
+                .Abs(lit - expected)
+                .Should()
+                .BeLessThan(
+                    0.01f,
+                    "{0} m in front of the sunlit face at view depth {1:F0} m the ground is as bright as without the wall ({2} vs {3})",
+                    distance,
+                    Gpu.ViewDepth(point, high),
+                    lit,
+                    expected
+                );
+        }
+    }
+
     [Fact]
     public void ShadowIsContinuousAcrossCascadeSeamsAndDoesNotCreepOntoTheSunlitSide()
     {
-        const int width = 960,
-            height = 540;
-        const float fov = 50f * MathF.PI / 180f;
-        VulkanRenderer renderer = Gpu.Headless(width: width, height: height);
+        VulkanRenderer renderer = Gpu.Headless(width: SeamsWidth, height: SeamsHeight);
         try
         {
             var kit = Kit.Create(renderer);
-            // A wall 16 m tall and 4 m thick runs straight away from 20 m to 440 m, 6 m to the right of the camera.
-            // The sun, 30 degrees up from +X, throws a 28 m shadow to its left, through the cascade seams at about
-            // 51 m, 109 m and 277 m. Every sample is compared with the same pixel rendered without the wall.
-            float elevation = 30f * MathF.PI / 180f;
-            var sun = new Vector3(MathF.Cos(elevation), MathF.Sin(elevation), 0f);
-            const float wallHeight = 16f;
-
-            (Capture Image, Capture Reference) Render(string name, float cameraHeight, float pitch, float wallX)
-            {
-                Quaternion camera = Gpu.PitchDown(pitch);
-
-                RenderSnapshot Scene(bool wall)
-                {
-                    RenderSnapshot snapshot = Gpu.Snapshot(sun);
-                    snapshot.Camera.Rotation = camera;
-                    snapshot.Camera.PreviousRotation = camera;
-                    snapshot.Camera.VerticalFov = fov;
-                    snapshot.Instances.Add(
-                        Gpu.Instance(
-                            mesh: kit.Plane,
-                            material: kit.Ground,
-                            position: new(0, -cameraHeight, -400f),
-                            scale: new(800f, 1, 800f),
-                            flags: Caster,
-                            chainDepth: TestChains.CamerasFrame
-                        )
-                    );
-                    if (wall)
-                        snapshot.Instances.Add(
-                            Gpu.Instance(
-                                mesh: kit.Box,
-                                material: kit.White,
-                                position: new(wallX, -cameraHeight + wallHeight / 2, -230f),
-                                scale: new(4f, wallHeight, 420f),
-                                flags: Caster,
-                                chainDepth: TestChains.CamerasFrame
-                            )
-                        );
-                    return snapshot;
-                }
-
-                return (
-                    Gpu.RenderAndCapture(renderer: renderer, snapshot: Scene(true), name: name),
-                    Gpu.RenderAndCapture(renderer: renderer, snapshot: Scene(false), name: name + "-reference")
-                );
-            }
-
-            // From 20 m up, looking 12 degrees down, with the wall to the right: the shadow side, from 30 m to 420 m.
-            Quaternion low = Gpu.PitchDown(12f * MathF.PI / 180f);
-            const float rightWall = 8f;
-            float shadowCenterX = rightWall - 2f - 0.5f * wallHeight / MathF.Tan(elevation);
-            (Capture image, Capture reference) = Render(
-                name: "shadow-seams",
-                cameraHeight: 20f,
-                pitch: 12f * MathF.PI / 180f,
-                wallX: rightWall
-            );
-            int seamsCrossed = 0;
-            float previousDepth = 0;
-            for (float z = 30f; z <= 420f; z += 2.5f)
-            {
-                var point = new Vector3(shadowCenterX, -20f, -z);
-                Vector2 pixel = Gpu.Project(point: point, cameraRotation: low, width: width, height: height, fov: fov);
-                float depth = Gpu.ViewDepth(point, low);
-                for (int i = 0; i < ShadowCascades.Count - 1; i++)
-                    seamsCrossed += previousDepth < ShadowCascades.Split(i) && depth >= ShadowCascades.Split(i) ? 1 : 0;
-                previousDepth = depth;
-                image
-                    .Luma(pixel)
-                    .Should()
-                    .BeLessThan(
-                        0.5f * reference.Luma(pixel),
-                        "the wall's shadow continues at view depth {0:F1} m",
-                        depth
-                    );
-            }
-
-            seamsCrossed.Should().Be(3, "the samples cross every seam between cascades");
-
-            // From 60 m up, looking 25 degrees down, with the wall to the left so that its sunlit face looks at the
-            // camera: the ground in front of that face is as bright as without the wall, in the coarse last cascade
-            // too. A receiver-plane bias that also extrapolated downhill would let the kernel find the wall there and
-            // darken several meters of it.
-            Quaternion high = Gpu.PitchDown(25f * MathF.PI / 180f);
-            const float leftWall = -8f;
-            (Capture side, Capture sideReference) = Render(
-                name: "shadow-sunlit-side",
-                cameraHeight: 60f,
-                pitch: 25f * MathF.PI / 180f,
-                wallX: leftWall
-            );
-            foreach (float z in (float[])[80f, 150f, 250f, 320f, 400f])
-            foreach (float distance in (float[])[1.5f, 3f, 6f])
-            {
-                var point = new Vector3(leftWall + 2f + distance, -60f, -z);
-                Vector2 pixel = Gpu.Project(point: point, cameraRotation: high, width: width, height: height, fov: fov);
-                float lit = side.Luma(pixel),
-                    expected = sideReference.Luma(pixel);
-                MathF
-                    .Abs(lit - expected)
-                    .Should()
-                    .BeLessThan(
-                        0.01f,
-                        "{0} m in front of the sunlit face at view depth {1:F0} m the ground is as bright as without the wall ({2} vs {3})",
-                        distance,
-                        Gpu.ViewDepth(point, high),
-                        lit,
-                        expected
-                    );
-            }
+            AssertShadowContinuesAcrossSeams(renderer, kit);
+            AssertSunlitSideUnchanged(renderer, kit);
         }
         finally
         {
             Gpu.DisposeAndAssertClean(renderer);
         }
+    }
+
+    /// <summary>
+    /// The scene of the moving pole on the ground at <paramref name="ground"/>, lit by <paramref name="sun"/> and seen
+    /// through <paramref name="camera"/>: an invisible caster that moved from x = -3 to x = +3 during the tick.
+    /// </summary>
+    private static RenderSnapshot MovingPoleScene(Kit kit, Vector3 sun, Quaternion camera, float ground)
+    {
+        RenderSnapshot snapshot = Gpu.Snapshot(sun);
+        snapshot.Camera.Rotation = camera;
+        snapshot.Camera.PreviousRotation = camera;
+        snapshot.Instances.Add(
+            Gpu.Instance(
+                mesh: kit.Plane,
+                material: kit.Ground,
+                position: new(0, ground, -10f),
+                scale: new(20f, 1, 20f),
+                flags: Caster,
+                chainDepth: TestChains.CamerasFrame
+            )
+        );
+        // An invisible caster (CastsShadow without Visible): only its shadow shows where it is. It moved from
+        // x = -3 to x = +3 during the tick.
+        var pole = RenderInstance.Create(
+            mesh: kit.Box,
+            material: kit.White,
+            position: new(3f, ground + 1.5f, -8f),
+            rotation: Quaternion.Identity,
+            scale: new(1f, 3f, 1f),
+            boundingRadius: 0f,
+            hemisphere: HemisphereUp.Along(Vector3.UnitY),
+            chainDepth: TestChains.CamerasFrame,
+            flags: Caster
+        );
+        pole.PreviousPosition = new(-3f, ground + 1.5f, -8f);
+        snapshot.Instances.Add(pole);
+        return snapshot;
     }
 
     [Fact]
@@ -854,35 +1083,8 @@ public sealed class ShadowTests
             var kit = Kit.Create(renderer);
             var sun = new Vector3(0f, 1f, 0.3f);
             Quaternion camera = Gpu.PitchDown(0.5f);
-            RenderSnapshot snapshot = Gpu.Snapshot(sun);
-            snapshot.Camera.Rotation = camera;
-            snapshot.Camera.PreviousRotation = camera;
             const float ground = -4f;
-            snapshot.Instances.Add(
-                Gpu.Instance(
-                    mesh: kit.Plane,
-                    material: kit.Ground,
-                    position: new(0, ground, -10f),
-                    scale: new(20f, 1, 20f),
-                    flags: Caster,
-                    chainDepth: TestChains.CamerasFrame
-                )
-            );
-            // An invisible caster (CastsShadow without Visible): only its shadow shows where it is. It moved from
-            // x = -3 to x = +3 during the tick.
-            var pole = RenderInstance.Create(
-                mesh: kit.Box,
-                material: kit.White,
-                position: new(3f, ground + 1.5f, -8f),
-                rotation: Quaternion.Identity,
-                scale: new(1f, 3f, 1f),
-                boundingRadius: 0f,
-                hemisphere: HemisphereUp.Along(Vector3.UnitY),
-                chainDepth: TestChains.CamerasFrame,
-                flags: Caster
-            );
-            pole.PreviousPosition = new(-3f, ground + 1.5f, -8f);
-            snapshot.Instances.Add(pole);
+            RenderSnapshot snapshot = MovingPoleScene(kit: kit, sun: sun, camera: camera, ground: ground);
 
             Capture start = Gpu.RenderAndCapture(
                 renderer: renderer,
@@ -921,6 +1123,45 @@ public sealed class ShadowTests
         }
     }
 
+    /// <summary>
+    /// The boxes of the caster selection, each with what the selection does with it: casters near, behind and far, one
+    /// that is not a caster, one beyond 2 km, and casters with nothing to cast.
+    /// </summary>
+    private static RenderSnapshot CasterSelectionScene(Kit kit)
+    {
+        RenderSnapshot snapshot = Gpu.Snapshot(new(0.2f, 1f, 0.1f));
+
+        RenderInstance Box(Vector3 position, RenderFlags flags) =>
+            RenderInstance.Create(
+                mesh: kit.Box,
+                material: kit.White,
+                position: position,
+                rotation: Quaternion.Identity,
+                scale: Vector3.One,
+                boundingRadius: 0f,
+                hemisphere: HemisphereUp.Along(Vector3.UnitY),
+                chainDepth: TestChains.CamerasFrame,
+                flags: flags
+            );
+
+        snapshot.Instances.Add(Box(new(0, 0, -10), RenderFlags.Visible | Caster)); // selected
+        snapshot.Instances.Add(Box(new(2, 0, -10), Caster)); // invisible but casting: selected
+        snapshot.Instances.Add(Box(new(-2, 0, -10), RenderFlags.Visible)); // not a caster
+        snapshot.Instances.Add(Box(new(0, 0, 15), RenderFlags.Visible | Caster)); // behind the camera: selected
+        snapshot.Instances.Add(Box(new(0, -50, -1_000), RenderFlags.Visible | Caster)); // 1 km: only the last cascade
+        snapshot.Instances.Add(Box(new(0, 0, -2_100), RenderFlags.Visible | Caster)); // beyond 2 km: not selected
+        RenderInstance large = Box(new(0, 0, -2_100), RenderFlags.Visible | Caster); // its sphere reaches within 2 km
+        large.Scale = new(300f);
+        snapshot.Instances.Add(large);
+        RenderInstance meshless = Box(new(1, 0, -10), RenderFlags.Visible | Caster); // MeshId.None: nothing to cast
+        meshless.Mesh = MeshId.None;
+        snapshot.Instances.Add(meshless);
+        RenderInstance flat = Box(new(-1, 0, -10), Caster); // no volume: nothing to cast
+        flat.Scale = new(1f, 0f, 1f);
+        snapshot.Instances.Add(flat);
+        return snapshot;
+    }
+
     [Fact]
     public void CastersAreSelectedByDistanceFromTheCameraAndCulledPerCascade()
     {
@@ -928,38 +1169,7 @@ public sealed class ShadowTests
         try
         {
             var kit = Kit.Create(renderer);
-            RenderSnapshot snapshot = Gpu.Snapshot(new(0.2f, 1f, 0.1f));
-
-            RenderInstance Box(Vector3 position, RenderFlags flags) =>
-                RenderInstance.Create(
-                    mesh: kit.Box,
-                    material: kit.White,
-                    position: position,
-                    rotation: Quaternion.Identity,
-                    scale: Vector3.One,
-                    boundingRadius: 0f,
-                    hemisphere: HemisphereUp.Along(Vector3.UnitY),
-                    chainDepth: TestChains.CamerasFrame,
-                    flags: flags
-                );
-
-            snapshot.Instances.Add(Box(new(0, 0, -10), RenderFlags.Visible | Caster)); // selected
-            snapshot.Instances.Add(Box(new(2, 0, -10), Caster)); // invisible but casting: selected
-            snapshot.Instances.Add(Box(new(-2, 0, -10), RenderFlags.Visible)); // not a caster
-            snapshot.Instances.Add(Box(new(0, 0, 15), RenderFlags.Visible | Caster)); // behind the camera: selected
-            snapshot.Instances.Add(Box(new(0, -50, -1_000), RenderFlags.Visible | Caster)); // 1 km: only the last cascade
-            snapshot.Instances.Add(Box(new(0, 0, -2_100), RenderFlags.Visible | Caster)); // beyond 2 km: not selected
-            RenderInstance large = Box(new(0, 0, -2_100), RenderFlags.Visible | Caster); // its sphere reaches within 2 km
-            large.Scale = new(300f);
-            snapshot.Instances.Add(large);
-            RenderInstance meshless = Box(new(1, 0, -10), RenderFlags.Visible | Caster); // MeshId.None: nothing to cast
-            meshless.Mesh = MeshId.None;
-            snapshot.Instances.Add(meshless);
-            RenderInstance flat = Box(new(-1, 0, -10), Caster); // no volume: nothing to cast
-            flat.Scale = new(1f, 0f, 1f);
-            snapshot.Instances.Add(flat);
-
-            renderer.Render(snapshot, 1f);
+            renderer.Render(CasterSelectionScene(kit), 1f);
             RenderStats stats = renderer.LastFrameStats;
             stats.ShadowCasters.Should().Be(5);
             stats.ShadowCascades.Should().Be(4);
@@ -1249,6 +1459,54 @@ public sealed class ShadowTests
         }
     }
 
+    /// <summary>
+    /// Checks that the grid of every cascade of <paramref name="scene"/>, seen from <paramref name="eye"/> in the camera's
+    /// frame, passes through the origin of that frame: the origin falls on a texel corner.
+    /// </summary>
+    private static void AssertGridThroughFrameOrigin(PreparedScene scene, Double3 eye, int size, long tick, long frame)
+    {
+        Vector2[] origin = Fractions(scene: scene, eye: eye, pointsInFrame: [Double3.Zero], size: size)[0];
+        for (int i = 0; i < ShadowCascades.Count; i++)
+            FractionDistance(origin[i], Vector2.Zero)
+                .Should()
+                .BeLessThan(
+                    0.01f,
+                    "on tick {0} the grid of cascade {1} passes through the origin of frame {2}",
+                    tick,
+                    i,
+                    frame
+                );
+    }
+
+    /// <summary>
+    /// Checks that the fixed points keep the texel fractions that <paramref name="reference"/> holds for
+    /// <paramref name="frame"/>, or records them there on the first visit to the frame.
+    /// </summary>
+    private static void AssertSameGridInFrame(
+        Dictionary<long, Vector2[][]> reference,
+        Vector2[][] current,
+        long tick,
+        long frame
+    )
+    {
+        if (reference.TryGetValue(frame, out Vector2[][]? expected))
+            AssertSameFractions(current, expected, $"tick {tick} in frame {frame}");
+        else
+            reference[frame] = current;
+    }
+
+    /// <summary>
+    /// Checks that the grid moved on the step into the ship on <paramref name="tick"/>: to the ship's origin, which is not
+    /// a whole number of texels from the ground's, so the first point's fractions on the ground and in the ship differ.
+    /// </summary>
+    private static void AssertGridMovedFrom(Vector2[][] lastOnGround, Vector2[][] current, long tick)
+    {
+        bool moved = Enumerable
+            .Range(0, ShadowCascades.Count)
+            .Any(i => FractionDistance(current[0][i], lastOnGround[0][i]) > 0.05f);
+        moved.Should().BeTrue("the grid follows the new frame's origin on tick {0}", tick);
+    }
+
     [Fact]
     public void AFrameChangeMovesTheGridToTheNewFrameOriginAndBackCleanly()
     {
@@ -1263,7 +1521,6 @@ public sealed class ShadowTests
             var ship = new Double3(23.417, 1.093, -31.771);
             Double3 OnGround(long tick) => new(0.611 * tick, 0.2, -0.917 * tick);
             Double3 Eye(long tick, long frame) => frame == 1 ? OnGround(tick) : OnGround(tick) - ship;
-
             Double3 FrameOrigin(long frame) => frame == 1 ? Double3.Zero : ship;
             // Points fixed on the ground, in ground coordinates.
             Double3[] points = [new(3.3, -1.7, -12.9), new(-25.1, -2, -48.2), new(17.9, -2, -40.3)];
@@ -1287,24 +1544,7 @@ public sealed class ShadowTests
                     alpha: 1f,
                     casterInFrame: new Double3(0, -2, -10) - FrameOrigin(frame)
                 );
-
-                // The grid passes through the origin of the frame the camera is in: it falls on a texel corner.
-                Vector2[] origin = Fractions(
-                    scene: scene,
-                    eye: Eye(tick, frame),
-                    pointsInFrame: [Double3.Zero],
-                    size: size
-                )[0];
-                for (int i = 0; i < ShadowCascades.Count; i++)
-                    FractionDistance(origin[i], Vector2.Zero)
-                        .Should()
-                        .BeLessThan(
-                            0.01f,
-                            "on tick {0} the grid of cascade {1} passes through the origin of frame {2}",
-                            tick,
-                            i,
-                            frame
-                        );
+                AssertGridThroughFrameOrigin(scene: scene, eye: Eye(tick, frame), size: size, tick: tick, frame: frame);
 
                 Vector2[][] current = Fractions(
                     scene: scene,
@@ -1314,21 +1554,14 @@ public sealed class ShadowTests
                 );
                 if (frame == 2 && lastOnGround != null)
                 {
-                    // Stepping into the ship moved the grid to the ship's origin, which is not a whole number of texels away.
-                    bool moved = Enumerable
-                        .Range(0, ShadowCascades.Count)
-                        .Any(i => FractionDistance(current[0][i], lastOnGround[0][i]) > 0.05f);
-                    moved.Should().BeTrue("the grid follows the new frame's origin on tick {0}", tick);
+                    AssertGridMovedFrom(lastOnGround, current, tick);
                     lastOnGround = null;
                 }
 
                 if (frame == 1)
                     lastOnGround = current;
                 // Within a frame, and on coming back to it, fixed points keep their texels: nothing carried over.
-                if (reference.TryGetValue(frame, out Vector2[][]? expected))
-                    AssertSameFractions(current, expected, $"tick {tick} in frame {frame}");
-                else
-                    reference[frame] = current;
+                AssertSameGridInFrame(reference: reference, current: current, tick: tick, frame: frame);
             }
         }
         finally
