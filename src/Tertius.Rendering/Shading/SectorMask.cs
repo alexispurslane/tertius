@@ -25,6 +25,14 @@ internal readonly record struct SectorMask(uint Bits)
         return end > start ? new((uint.MaxValue >> (SliceSectors.Count - (end - start))) << start) : None;
     }
 
+    /// <summary>
+    /// The unbroken piece of this set that holds its lowest sector: from that sector up to the first sector that the set
+    /// leaves out. None for an empty set. The sum Bits + lowest bit carries through the piece and clears it, and a piece
+    /// that ends at sector 31 wraps the sum to 0, so the piece is what the sum leaves out. lowestPiece in sectors.glsl is
+    /// the GPU copy.
+    /// </summary>
+    public SectorMask LowestPiece => new(unchecked(Bits & ~(Bits + (Bits & (0u - Bits)))));
+
     /// <summary>The sectors in either set.</summary>
     public SectorMask Union(SectorMask other) => new(Bits | other.Bits);
 

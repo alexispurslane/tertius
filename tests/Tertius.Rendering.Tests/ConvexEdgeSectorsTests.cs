@@ -132,7 +132,8 @@ public sealed class ConvexEdgeSectorsTests(ITestOutputHelper output)
                 ownSurface: new OwnPlane(FrontNormal),
                 radius: setting.RadiusMeters,
                 thicknessShare: CellBounds.ThicknessShare,
-                steps: [.. steps]
+                steps: [.. steps],
+                mapLight: null
             );
             yield return (sectors, near);
         }

@@ -20,8 +20,8 @@ layout(set = 2, binding = 3) uniform texture2D gbufferEmissive;        // RGBA16
 layout(set = 2, binding = 4) uniform texture2D gbufferDistance;        // R32F: distance to the eye, 0 for sky
 layout(set = 2, binding = 5) uniform texture2DArray shadowCascades;   // D32: one layer per cascade of each set, reversed depth
 layout(set = 2, binding = 6) uniform samplerShadow shadowSampler;      // linear GREATER_OR_EQUAL comparison (PCF)
-layout(set = 2, binding = 7) uniform texture2D gbufferEstimate;        // RGBA16F: rgb the bounce G, pre-exposed, a the
-                                                                       // occlusion V
+layout(set = 2, binding = 7) uniform texture2D gbufferEstimate;        // RGBA16F: rgb the net bounce G − M,
+                                                                       // pre-exposed, a the occlusion V
 layout(set = 2, binding = 8) uniform texture2DArray shadowAtlas;      // D32: one tile per layer, reversed depth;
                                                                        // partially bound, empty without the atlas
 layout(set = 2, binding = 9) uniform texture2D gbufferDirect;          // RGBA16F: the direct light, pre-exposed, 0 for
@@ -29,5 +29,13 @@ layout(set = 2, binding = 9) uniform texture2D gbufferDirect;          // RGBA16
 layout(set = 2, binding = 10) uniform utexture2D gbufferShading;       // RGBA8 UINT: rg a hair pixel's strand code (strandCode,
                                                                        // octahedral.glsl), b 0, a the shading model's code;
                                                                        // 0 where nothing lit draws
+
+// The map that a lit pixel's map code names (docs/plans/environment-maps-per-frame.md, decision 20): code c of the 8-bit
+// alpha, from 1 to 255, names map (256 − c) / 2, rounded down. MapCode.MapOf is the C# twin. Code 0 marks an unlit pixel,
+// which no caller passes here.
+uint mapOfCode(float alpha)
+{
+    return (256u - uint(round(alpha * 255.0))) >> 1;
+}
 
 #endif

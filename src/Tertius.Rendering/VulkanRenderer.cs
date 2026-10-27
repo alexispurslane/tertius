@@ -1838,7 +1838,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 shaders: shaders,
                 layouts: layouts,
                 images: images,
-                setting: setting
+                setting: setting,
+                constants: ShadingConstants
             ),
             new OcclusionDenoisePass(
                 device: device,

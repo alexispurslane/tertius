@@ -8,8 +8,9 @@ namespace Tertius.Rendering.Tests;
 /// <summary>
 /// The tests that pin the bounce light's shaders to the C# copy (docs/plans/screen-space-illumination.md, "GPU tests of
 /// the acceptance criteria"), in the corner under the sun and a dim sky and ground of distinct colors: the sector pass
-/// gives the estimate that <see cref="SectorSearch"/> gives from the same images, and the ambient
-/// pass adds what <see cref="MaterialSample.ReflectedHemisphere"/> gives at the estimate that the estimate target holds.
+/// gives the estimate that <see cref="SectorSearch"/> gives from the same images, with the environment map off and on,
+/// and the ambient pass adds what <see cref="MaterialSample.ReflectedHemisphere"/> gives at the estimate that the
+/// estimate target holds.
 /// </summary>
 [Collection(GpuCollection.Name)]
 public sealed class BounceLightShaderTests(ITestOutputHelper output)
@@ -119,18 +120,7 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
         {
             // The term that the sector pass leaves, before the blur overwrites it.
             renderer.Graph.Skipped.UnionWith(["occlusion denoise", "occlusion upsample"]);
-            MaterialId matte = Matte(renderer);
-            RenderSnapshot scene = Corner(renderer, matte, LitCorner());
-            MeshId box = UnitBox(renderer);
-            AddSlab(snapshot: scene, box: box, material: matte, center: LowBoxCenter, size: LowBoxSize);
-            AddSlab(
-                snapshot: scene,
-                box: box,
-                material: TiltedMatte(renderer),
-                center: PlatformCenter,
-                size: PlatformSize
-            );
-            renderer.Render(scene, 1f);
+            renderer.Render(CornerWithBoxes(renderer), 1f);
             (float[] term, int halfWidth, int halfHeight) = renderer.ReadOcclusionTerm();
             var gpu = new SectorPassOutput(Term: term, HalfWidth: halfWidth);
             var images = new CornerImages(
@@ -142,25 +132,91 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
             double brightest = images.Direct.Where((_, i) => i % 4 != 3).Max();
 
             AmbientEstimate atTheCorner = images
-                .Near(TexelOf(FloorAtTheCorner), setting, everyBlockerFaces: false)
+                .Near(texel: TexelOf(FloorAtTheCorner), setting: setting, everyBlockerFaces: false)
                 .Estimate;
             atTheCorner.Bounce.X.Should().BePositive("the sunlit walls bounce their light onto the corner");
             (
-                images.Near(TexelOf(BesideTheLowBox), setting, everyBlockerFaces: true).Estimate.Bounce
-                - images.Near(TexelOf(BesideTheLowBox), setting, everyBlockerFaces: false).Estimate.Bounce
+                images.Near(texel: TexelOf(BesideTheLowBox), setting: setting, everyBlockerFaces: true).Estimate.Bounce
+                - images
+                    .Near(texel: TexelOf(BesideTheLowBox), setting: setting, everyBlockerFaces: false)
+                    .Estimate.Bounce
             )
                 .Length.Should()
                 .BePositive("the test needs a blocker that faces away: the box's front face, seen from behind");
             images
-                .Near(TexelOf(OnThePlatform), setting, everyBlockerFaces: false)
+                .Near(texel: TexelOf(OnThePlatform), setting: setting, everyBlockerFaces: false)
                 .OwnSurface.Sum(sectors => sectors.Count)
                 .Should()
                 .BePositive("the test needs a shading hemisphere that reaches below its own surface");
             foreach (Vector3 point in (Vector3[])[.. SectorPoints, BesideTheLowBox, OnThePlatform])
             {
                 (int X, int Y) texel = TexelOf(point);
-                NearTexel expected = images.Near(texel, setting, everyBlockerFaces: false);
+                NearTexel expected = images.Near(texel: texel, setting: setting, everyBlockerFaces: false);
                 ShouldMatch(gpu: gpu, texel: texel, expected: expected, brightest: brightest, point: point);
+            }
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>
+    /// The sector pass under the environment map, which the faces draw from the camera: the sunlit corner and the dim
+    /// sky, so the map's light differs from direction to direction. Its term A holds G − M, and M takes the map's light
+    /// along each blocked part of the near steps and of the receiver's own surface: on the platform, whose normal map
+    /// tilts its shading hemisphere below its top, that part is not empty. The C# copy reads the specular map that the
+    /// renderer read back. A GPU read is a trilinear blend of at most eight texels of the two levels around its level of
+    /// detail, so it lies between the least and the greatest texel within a texel of its place on those levels
+    /// (<see cref="SpecularMap.Range"/>); M by those reads bounds the GPU's M, before the rounding of the shader's
+    /// single floats and of term A's half floats. A sector next to a tie may flip on the GPU and change G or M by at most
+    /// the brightest light of the direct image or of the map.
+    /// </summary>
+    [Fact]
+    public void UnderTheMapTheSectorPassSubtractsTheMapsLightAlongTheBlockedDirectionsAsTheCSharpCopyDoes()
+    {
+        VisibilityBitmaskLight setting = VisibilityBitmaskLight.Default;
+        VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: setting, environmentMap: SceneEnvironmentMap.Default);
+        try
+        {
+            // The term that the sector pass leaves, before the blur overwrites it.
+            renderer.Graph.Skipped.UnionWith(["occlusion denoise", "occlusion upsample"]);
+            // The faces draw the map in the first frame, and the sector pass reads it after them.
+            renderer.Render(CornerWithBoxes(renderer), 1f);
+            (float[] term, int halfWidth, int halfHeight) = renderer.ReadOcclusionTerm();
+            var gpu = new SectorPassOutput(Term: term, HalfWidth: halfWidth);
+            var images = new CornerImages(
+                ViewDepth: renderer.ReadOcclusionViewDepth().Depths,
+                HalfSize: (Width: halfWidth, Height: halfHeight),
+                Direct: renderer.ReadDirect()
+            );
+            var map = SpecularMap.Read(renderer, SceneEnvironmentMap.Default.FaceSize);
+            double brightest = Math.Max(images.Direct.Where((_, i) => i % 4 != 3).Max(), map.Brightest);
+            (map.Brightest - map.Darkest)
+                .Should()
+                .BeGreaterThan(0.1 * map.Brightest, "the test needs a map whose light differs between directions");
+            images
+                .Near(texel: TexelOf(OnThePlatform), setting: setting, everyBlockerFaces: false)
+                .OwnSurface.Sum(sectors => sectors.Count)
+                .Should()
+                .BePositive("the test needs a shading hemisphere that reaches below its own surface");
+
+            foreach (Vector3 point in (Vector3[])[.. SectorPoints, BesideTheLowBox, OnThePlatform])
+            {
+                (int X, int Y) texel = TexelOf(point);
+                NearTexel leastMap = images.Near(
+                    texel: texel,
+                    setting: setting,
+                    everyBlockerFaces: false,
+                    mapLight: (direction, width) => map.Range(direction, width).Low
+                );
+                NearTexel mostMap = images.Near(
+                    texel: texel,
+                    setting: setting,
+                    everyBlockerFaces: false,
+                    mapLight: (direction, width) => map.Range(direction, width).High
+                );
+                ShouldMatch(gpu: gpu, texel: texel, bounds: (leastMap, mostMap), brightest: brightest, point: point);
             }
         }
         finally
@@ -276,6 +332,20 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
         }
     }
 
+    /// <summary>
+    /// The lit corner of matte walls, with the low box beside the open floor and the platform whose top is
+    /// normal-mapped.
+    /// </summary>
+    private static RenderSnapshot CornerWithBoxes(VulkanRenderer renderer)
+    {
+        MaterialId matte = Matte(renderer);
+        RenderSnapshot scene = Corner(renderer, matte, LitCorner());
+        MeshId box = UnitBox(renderer);
+        AddSlab(snapshot: scene, box: box, material: matte, center: LowBoxCenter, size: LowBoxSize);
+        AddSlab(snapshot: scene, box: box, material: TiltedMatte(renderer), center: PlatformCenter, size: PlatformSize);
+        return scene;
+    }
+
     /// <summary>A light gray matte non-metal whose normal map is <see cref="TiltedMapTexel"/>.</summary>
     private static MaterialId TiltedMatte(VulkanRenderer renderer) =>
         renderer.CreateMaterial(
@@ -343,8 +413,21 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
         NearTexel expected,
         double brightest,
         Vector3 point
+    ) => ShouldMatch(gpu: gpu, texel: texel, bounds: (expected, expected), brightest: brightest, point: point);
+
+    /// <summary>
+    /// Pins the sector pass at <paramref name="texel"/> to the C# copy as <see cref="ShouldMatch(SectorPassOutput, ValueTuple{int, int}, NearTexel, double, Vector3)"/>
+    /// does, with a net bounce between the two estimates of <paramref name="bounds"/>, which share their sectors.
+    /// </summary>
+    private void ShouldMatch(
+        SectorPassOutput gpu,
+        (int X, int Y) texel,
+        (NearTexel First, NearTexel Second) bounds,
+        double brightest,
+        Vector3 point
     )
     {
+        NearTexel expected = bounds.First;
         double totalWeight = AmbientEstimate.TotalWeight(expected.Slices);
         double flippedShare = 0;
         for (int slice = 0; slice < expected.Slices.Length; slice++)
@@ -354,24 +437,36 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
         int i = (texel.Y * gpu.HalfWidth + texel.X) * 4;
         var bounce = new Double3(gpu.Term[i], gpu.Term[i + 1], gpu.Term[i + 2]);
         AmbientEstimate estimate = expected.Estimate;
+        Double3 other = bounds.Second.Estimate.Bounce;
         output.WriteLine(
-            $"{point}: GPU ({bounce}, {gpu.Term[i + 3]:0.000000}), C# ({estimate.Bounce}, {estimate.Occlusion:0.000000})"
+            $"{point}: GPU ({bounce}, {gpu.Term[i + 3]:0.000000}), C# ({estimate.Bounce} to {other}, "
+                + $"{estimate.Occlusion:0.000000})"
         );
         ((double)gpu.Term[i + 3])
             .Should()
             .BeApproximately(estimate.Occlusion, flippedShare + HalfFloatError(estimate.Occlusion), "V at {0}", point);
         foreach (
-            (double actual, double wanted) in (ReadOnlySpan<(double Actual, double Wanted)>)
-                [(bounce.X, estimate.Bounce.X), (bounce.Y, estimate.Bounce.Y), (bounce.Z, estimate.Bounce.Z)]
+            (double actual, double first, double second) in (ReadOnlySpan<(double Actual, double First, double Second)>)
+                [
+                    (bounce.X, estimate.Bounce.X, other.X),
+                    (bounce.Y, estimate.Bounce.Y, other.Y),
+                    (bounce.Z, estimate.Bounce.Z, other.Z),
+                ]
         )
+        {
+            double low = Math.Min(first, second);
+            double high = Math.Max(first, second);
+            double tolerance = (flippedShare + FloatError) * brightest + HalfFloatError(Math.Max(-low, high));
             actual
                 .Should()
-                .BeApproximately(
-                    wanted,
-                    (flippedShare + FloatError) * brightest + HalfFloatError(wanted),
-                    "the bounce at {0}: each blocker gives its light to the sectors that it newly blocks if it faces",
+                .BeInRange(
+                    low - tolerance,
+                    high + tolerance,
+                    "the net bounce at {0}: each blocker gives its light to the sectors that it newly blocks if it "
+                        + "faces, less the map's light along them",
                     point
                 );
+        }
     }
 
     /// <summary>The rounding of a value of about <paramref name="value"/> into term A's half floats, and of the GPU's single floats.</summary>
@@ -448,6 +543,85 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
                 tables: BrdfTables.Shared
             )
             .ToVector3();
+    }
+
+    /// <summary>
+    /// Map 0's specular map as the renderer read it back: <paramref name="Levels"/>[level][face] holds a face's RGBA
+    /// halves, row by row from the top, <paramref name="FaceSize"/> texels on a side at level 0.
+    /// </summary>
+    private sealed record SpecularMap(Half[][][] Levels, int FaceSize)
+    {
+        /// <summary>How far the GPU's level of detail may lie from the C# copy's: far above its single floats' error.</summary>
+        private const double LodTolerance = 1e-3;
+
+        public static SpecularMap Read(VulkanRenderer renderer, int faceSize) =>
+            new(
+                Levels:
+                [
+                    .. Enumerable
+                        .Range(0, PrefilterLevels.Count(faceSize))
+                        .Select(level =>
+                            Enumerable
+                                .Range(0, CubeFaces.Count)
+                                .Select(face =>
+                                    renderer.ReadEnvironmentFace(
+                                        map: 0,
+                                        face: (CubeFace)face,
+                                        level: level,
+                                        image: EnvironmentImage.Specular
+                                    )
+                                )
+                                .ToArray()
+                        ),
+                ],
+                FaceSize: faceSize
+            );
+
+        /// <summary>The brightest channel of any texel of any level.</summary>
+        public double Brightest => Channels.Max();
+
+        /// <summary>The darkest channel of any texel of any level.</summary>
+        public double Darkest => Channels.Min();
+
+        private IEnumerable<double> Channels =>
+            Levels.SelectMany(faces =>
+                faces.SelectMany(face => face.Where((_, i) => i % 4 != 3).Select(h => (double)h))
+            );
+
+        /// <summary>
+        /// The least and the greatest light, per channel, of the texels that a trilinear read along the unit world
+        /// direction <paramref name="direction"/> may blend for a part <paramref name="width"/> rad wide: on each level
+        /// within one level of its level of detail, every texel within one texel of its place, across a face's edge
+        /// too, as seamless cube filtering reads. Steps of half a texel reach every such texel.
+        /// </summary>
+        public (Double3 Low, Double3 High) Range(Vector3 direction, double width)
+        {
+            double lod = GgxLobe.RoughnessForWidth(width) * (Levels.Length - 1);
+            var low = new Double3(double.MaxValue, double.MaxValue, double.MaxValue);
+            var high = new Double3(double.MinValue, double.MinValue, double.MinValue);
+            int lowest = Math.Max(0, (int)Math.Floor(lod - LodTolerance));
+            int highest = Math.Min(Levels.Length - 1, (int)Math.Ceiling(lod + LodTolerance));
+            (CubeFace face, float s, float t) = CubeFaces.Locate(direction);
+            for (int level = lowest; level <= highest; level++)
+            {
+                int size = FaceSize >> level;
+                for (int dx = -2; dx <= 2; dx++)
+                for (int dy = -2; dy <= 2; dy++)
+                {
+                    (CubeFace at, float u, float v) = CubeFaces.Locate(
+                        CubeFaces.Direction(face, s + 0.5f * dx / size, t + 0.5f * dy / size)
+                    );
+                    int x = Math.Clamp((int)(u * size), 0, size - 1);
+                    int y = Math.Clamp((int)(v * size), 0, size - 1);
+                    Half[] texels = Levels[level][(int)at];
+                    int i = (y * size + x) * 4;
+                    var light = new Double3((double)texels[i], (double)texels[i + 1], (double)texels[i + 2]);
+                    low = new(Math.Min(low.X, light.X), Math.Min(low.Y, light.Y), Math.Min(low.Z, light.Z));
+                    high = new(Math.Max(high.X, light.X), Math.Max(high.Y, light.Y), Math.Max(high.Z, light.Z));
+                }
+            }
+            return (Low: low, High: high);
+        }
     }
 
     private static double TanHalfX => Math.Tan(Gpu.Fov / 2) * Width / Height;
@@ -539,9 +713,19 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
         /// The near slices of <paramref name="texel"/> by the C# copy: the steps of each slice of GTAO, then
         /// <see cref="SectorSearch.Near"/> with each step's view position, geometric normal and direct light. With
         /// <paramref name="everyBlockerFaces"/>, each step's normal faces the center, as if no blocker faced away.
+        /// <paramref name="mapLight"/> gives the map's light along a unit world direction for a part of a width in rad,
+        /// or is null with the map off.
         /// </summary>
-        public NearTexel Near((int X, int Y) texel, VisibilityBitmaskLight setting, bool everyBlockerFaces)
+        public NearTexel Near(
+            (int X, int Y) texel,
+            VisibilityBitmaskLight setting,
+            bool everyBlockerFaces,
+            Func<Vector3, double, Double3>? mapLight = null
+        )
         {
+            Func<Double3, double, Double3>? viewMapLight = mapLight is null
+                ? null
+                : (direction, width) => mapLight(Vector3.Normalize(ToWorld(direction)), width);
             double z = DepthAt(texel);
             Double3 center = ViewPosition(texel, z * HorizonSearch.CenterBias);
             Double3 toEye = (-center).Normalized();
@@ -580,7 +764,8 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
                     ownSurface: new OwnPlane(geometricNormal),
                     radius: setting.RadiusMeters,
                     thicknessShare: CellBounds.ThicknessShare,
-                    steps: [.. steps]
+                    steps: [.. steps],
+                    mapLight: viewMapLight
                 );
                 ties[slice] = Ties(
                     sectors: sectors,
@@ -723,7 +908,8 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
                     ownSurface: card,
                     radius: setting.RadiusMeters,
                     thicknessShare: CellBounds.ThicknessShare,
-                    steps: [.. steps]
+                    steps: [.. steps],
+                    mapLight: null
                 );
                 ties[slice] = Ties(
                     sectors: sectors,

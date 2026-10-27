@@ -24,7 +24,7 @@ layout(location = 5) out uvec4 outShading;
 
 // The map code (docs/plans/environment-maps-per-frame.md, decision 20): map i owns the codes 255 − 2i and 256 − 2i of the
 // 8-bit alpha, and the value lies between them, so either rounding that the conversion to UNORM may take names map i.
-// Map 0 writes 1.0, which converts to 255 exactly. MapCode.Of is the C# twin, and mapOfCode in gbuffer_surface.glsl reads it.
+// Map 0 writes 1.0, which converts to 255 exactly. MapCode.Of is the C# twin, and mapOfCode in gbuffer_inputs.glsl reads it.
 float mapCode(uint map)
 {
     return min((255.5 - 2.0 * float(map)) / 255.0, 1.0);

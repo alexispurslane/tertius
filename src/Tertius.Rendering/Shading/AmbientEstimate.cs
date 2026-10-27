@@ -1,7 +1,7 @@
 namespace Tertius.Rendering;
 
 /// <summary>
-/// The estimate of a texel or a pixel: G, the bounce, pre-exposed, and V, the occlusion
+/// The estimate of a texel or a pixel: G − M, the net bounce, pre-exposed, and V, the occlusion
 /// (docs/plans/screen-space-illumination.md, "The estimate of a texel"). occlusion_sectors.comp computes the same.
 /// </summary>
 internal readonly record struct AmbientEstimate(Double3 Bounce, double Occlusion)
@@ -19,8 +19,8 @@ internal readonly record struct AmbientEstimate(Double3 Bounce, double Occlusion
     }
 
     /// <summary>
-    /// The estimate: each slice's open share and light by its weight, over the total weight. An open sector takes the
-    /// ambient light, so V is the open share.
+    /// The estimate: each slice's open share and its light less its map light by its weight, over the total weight. An
+    /// open sector takes the ambient light, so V is the open share.
     /// </summary>
     /// <remarks>The shares sum to 1 in every texel, so an open surface has V = 1 at any tilt.</remarks>
     public static AmbientEstimate OfSlices(ReadOnlySpan<NearSlice> slices)
@@ -34,7 +34,7 @@ internal readonly record struct AmbientEstimate(Double3 Bounce, double Occlusion
         {
             double weight = slice.Sectors.Weight;
             open += weight * slice.Blocked.Open.Count;
-            bounce += slice.Light * weight;
+            bounce += (slice.Light - slice.MapLight) * weight;
         }
         double scale = SliceSectors.Count * totalWeight;
         return new(Bounce: bounce / scale, Occlusion: open / scale);

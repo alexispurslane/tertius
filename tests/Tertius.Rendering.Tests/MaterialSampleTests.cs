@@ -487,7 +487,8 @@ public sealed class MaterialSampleTests
             bounce: Double3.Zero,
             diffuseColor: plastic.DiffuseColor,
             nDotV: 0.7,
-            lobe: plastic.Lobe
+            lobe: plastic.Lobe,
+            environmentMapOn: false
         );
 
         Double3 ambient = plastic.ReflectedHemisphere(

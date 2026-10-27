@@ -100,7 +100,8 @@ internal readonly record struct MaterialSample(Double3 BaseColor, double Metalli
             bounce: bounce,
             diffuseColor: DiffuseColor,
             nDotV: ViewCosine(normal, toView),
-            lobe: Lobe
+            lobe: Lobe,
+            environmentMapOn: false
         );
         return occluded.Diffuse + occluded.Specular;
     }

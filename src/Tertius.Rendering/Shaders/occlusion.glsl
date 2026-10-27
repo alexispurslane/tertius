@@ -13,7 +13,7 @@
 
 layout(set = 3, binding = 0, r32f) uniform image2D viewDepth;          // half: view depth in m, SkyDepth for sky
 layout(set = 3, binding = 1, r8) uniform image2D occlusionEdges;       // half: XeGTAO's packed edges
-layout(set = 3, binding = 2, rgba16f) uniform image2D occlusionTermA;   // half: rgb the bounce G, pre-exposed, a V
+layout(set = 3, binding = 2, rgba16f) uniform image2D occlusionTermA;   // half: rgb the net bounce G − M, pre-exposed, a V
 layout(set = 3, binding = 3, rgba16f) uniform image2D estimateTarget;   // full: the same
 layout(set = 3, binding = 4, rgba16f) uniform image2D denoiseSource;
 layout(set = 3, binding = 5, rgba16f) uniform image2D denoiseDestination;
@@ -73,6 +73,14 @@ vec3 toViewAxes(vec3 world)
     vec2 tangents = cameraTangents();
     return vec3(dot(world, frame.cameraRight.xyz / tangents.x), dot(world, frame.cameraUp.xyz / tangents.y),
                 dot(world, frame.cameraForward.xyz));
+}
+
+// A view-space direction in world space: the inverse of toViewAxes, whose axes are orthonormal.
+vec3 fromViewAxes(vec3 view)
+{
+    vec2 tangents = cameraTangents();
+    return view.x * (frame.cameraRight.xyz / tangents.x) + view.y * (frame.cameraUp.xyz / tangents.y)
+           + view.z * frame.cameraForward.xyz;
 }
 
 // The view-space shading normal of a full-resolution pixel.
