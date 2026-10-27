@@ -1606,7 +1606,9 @@ public sealed partial class JoltPhysicsBackend
                 continue;
             BodyInterface bodies = owner.World.Bodies;
             Vector3 before = owner.VelocityBefore;
-            Vector3 after = bodies.GetLinearVelocity(owner.Body);
+            // When Jolt puts the hull to sleep in the update, it sets its velocity to zero. That reset is no motion of the
+            // step, as for the angular velocity below, so the hull reads as one that rests in its home.
+            Vector3 after = bodies.IsActive(owner.Body) ? bodies.GetLinearVelocity(owner.Body) : before;
             Vector3 applied = owner.FrameAcceleration.Total;
             Vector3 acceleration = (after - before) / joltStep - applied;
             acceleration = new(

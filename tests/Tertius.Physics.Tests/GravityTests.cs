@@ -368,19 +368,23 @@ public sealed class GravityTests
             }
         );
 
-        // At 7.5 km/s a float velocity step is about 0.03 m/s² over one tick. That noise must not reach the cargo.
+        // At 7.5 km/s a float velocity step is about 0.03 m/s² over one tick. That noise must not reach the cargo. The ship
+        // rests at the origin of its falling frame, so after 0.5 s Jolt puts it to sleep, which sets its velocity to zero, and
+        // a sleeping hull reads the gravity at its place in the frame reversed: the field less the frame's acceleration, two
+        // doubles of 8.1 m/s² whose difference rounds to a few steps of 1.8e-15 m/s².
+        const float rounding = 1e-12f;
         for (int i = 0; i < 180; i++)
         {
             world.Tick();
-            world.Frames.ProperAcceleration(ship).Should().Be(Vector3.Zero);
+            world.Frames.ProperAcceleration(ship).Length().Should().BeLessThan(rounding, $"after tick {i + 1}");
         }
 
         List<FrameStepRecord> sent = [.. faults.Outputs.SelectMany(output => output.Frames)];
         sent.Should().NotBeEmpty("Jolt reports the state of the ship's frame");
         sent.Should()
             .OnlyContain(
-                state => state.ProperAcceleration == Vector3.Zero,
-                "Jolt reported no proper acceleration for the ship in any step"
+                state => state.ProperAcceleration!.Value.Length() < rounding,
+                "Jolt reported no proper acceleration for the ship in any step, beyond the rounding of the gravity"
             );
         (world.PoseInOwnFrame(crate).Position - new Double3(5, 0, 0)).Length.Should().BeLessThan(1e-9);
         // The ship really orbits: in 3 s it flew 22.6 km and curved about 36 m toward the planet, at constant radius.

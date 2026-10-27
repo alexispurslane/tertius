@@ -32,6 +32,22 @@ internal readonly record struct NumericBody
     /// </summary>
     public Double3 Velocity { get; init; }
 
+    /// <summary>
+    /// Physics has not created the body yet, so <see cref="Velocity"/> is its spawn velocity, an instant velocity, and no
+    /// step has turned it into a chord (ARCHITECTURE.md, "Instant velocities and chords").
+    /// </summary>
+    public bool Spawned { get; init; }
+
+    /// <summary>
+    /// How much <see cref="Velocity"/> exceeds the chord of the body's motion over the step that ended: half a step of its
+    /// acceleration for a spawn or a hull, whose velocity is an instant velocity, and else zero, because physics reports
+    /// Jolt's chord. The update fills it in, so the World leaves it unset.
+    /// </summary>
+    public Double3 InstantVelocityOverChord { get; init; }
+
+    /// <summary>The chord of the body's origin over the step that ended, relative to <see cref="Semantic"/>.</summary>
+    public Double3 Chord => Velocity - InstantVelocityOverChord;
+
     /// <summary>The angular velocity in rad/s relative to <see cref="Semantic"/>, in its axes.</summary>
     public Vector3 AngularVelocity { get; init; }
 
@@ -46,11 +62,11 @@ internal readonly record struct NumericBody
     public Double3 CenterOfMass => Position + CenterOfMassOffset;
 
     /// <summary>
-    /// The velocity of the body's center of mass relative to <see cref="Semantic"/>, which carries the body's momentum. The
-    /// origin of a spinning body whose center of mass lies off it circles the center of mass, so its velocity swings by
+    /// The chord of the body's center of mass relative to <see cref="Semantic"/>, which carries the body's momentum. The
+    /// origin of a spinning body whose center of mass lies off it circles the center of mass, so its chord swings by
     /// <see cref="AngularVelocity"/> × <see cref="CenterOfMassOffset"/> about this one.
     /// </summary>
-    public Double3 CenterOfMassVelocity => Velocity + Double3.Cross(AngularVelocity, CenterOfMassOffset);
+    public Double3 CenterOfMassChord => Chord + Double3.Cross(AngularVelocity, CenterOfMassOffset);
 
     /// <summary>The radius of the body's bounding sphere.</summary>
     public double Radius { get; init; }
@@ -193,9 +209,10 @@ internal readonly record struct GhostPlace(
 /// <summary>
 /// The motion of a group of bodies of one semantic frame that the merge test links.
 /// </summary>
-/// <param name="Velocity">The mass-weighted mean velocity of the centers of mass of the bodies that are not static (see
-/// <see cref="NumericBody.CenterOfMassVelocity"/>), relative to the semantic frame: of the kinematic bodies alone when the group has one, because a kinematic body counts as infinitely heavy. Zero
-/// when a body is static, because then the group cannot fall.</param>
+/// <param name="Chord">The mass-weighted mean chord over the step that ended of the centers of mass of the bodies that are
+/// not static (see <see cref="NumericBody.CenterOfMassChord"/>), relative to the semantic frame: of the kinematic bodies
+/// alone when the group has one, because a kinematic body counts as infinitely heavy. Zero when a body is static, because
+/// then the group cannot fall. A numeric frame's velocity is a chord, so a frame that takes the group's motion takes this.</param>
 /// <param name="Center">The center of mass of the bodies, in the semantic frame, from each body's own center of mass (see
 /// <see cref="NumericBody.CenterOfMass"/>): of the static bodies alone when the group
 /// has one, and else of the kinematic bodies alone when it has one, because both count as infinitely heavy.</param>
@@ -215,7 +232,7 @@ internal readonly record struct GhostPlace(
 /// <see cref="NumericBody.Thrusts"/>), so
 /// the group uses the speeds of a group that thrusts. A kinematic body never thrusts.</param>
 internal readonly record struct NumericGroup(
-    Double3 Velocity,
+    Double3 Chord,
     Double3 Center,
     bool Anchored,
     bool Fixed,
@@ -293,7 +310,7 @@ internal static class NumericFrameRules
             ? NumericMode.Following
             : Mode(
                 current: current,
-                velocity: group.Velocity,
+                velocity: group.Chord,
                 center: group.Center,
                 anchored: group.Anchored,
                 isFixed: group.Fixed,
@@ -684,7 +701,7 @@ internal static class NumericFrameRules
             return FollowingGroup(members[anchor], anchor, thrusts);
         (FrameHandle frame, double frameMass) = HeaviestHome(homeMasses, anchored);
         return new(
-            Velocity: anchored ? Double3.Zero : FreeVelocity(moving, kinematic),
+            Chord: anchored ? Double3.Zero : FreeChord(moving, kinematic),
             Center: GroupCenter(anchored: anchored, all: all, still: still, kinematic: kinematic),
             Anchored: anchored,
             Fixed: isFixed,
@@ -697,7 +714,7 @@ internal static class NumericFrameRules
 
     /// <summary>
     /// The mass, the moment and the momentum of some bodies of a group, each body at its center of mass (see
-    /// <see cref="NumericBody.CenterOfMass"/> and <see cref="NumericBody.CenterOfMassVelocity"/>).
+    /// <see cref="NumericBody.CenterOfMass"/> and <see cref="NumericBody.CenterOfMassChord"/>), the momentum by the chords.
     /// </summary>
     private struct MassSum
     {
@@ -709,26 +726,26 @@ internal static class NumericFrameRules
         {
             Mass += body.Mass;
             moment += body.CenterOfMass * body.Mass;
-            momentum += body.CenterOfMassVelocity * body.Mass;
+            momentum += body.CenterOfMassChord * body.Mass;
         }
 
         /// <summary>The center of mass of the bodies. Only for a sum with a mass above zero.</summary>
         public readonly Double3 Center => moment / Mass;
 
-        /// <summary>The mass-weighted mean velocity of the bodies. Only for a sum with a mass above zero.</summary>
-        public readonly Double3 Velocity => momentum / Mass;
+        /// <summary>The mass-weighted mean chord of the bodies. Only for a sum with a mass above zero.</summary>
+        public readonly Double3 Chord => momentum / Mass;
     }
 
     /// <summary>
-    /// The velocity of a group without a static body, from the sums of its bodies that are not static and of its kinematic
+    /// The chord of a group without a static body, from the sums of its bodies that are not static and of its kinematic
     /// bodies: that of the kinematic bodies alone when it has one, because they count as infinitely heavy, and zero when the
     /// group holds only bodies that follow.
     /// </summary>
-    private static Double3 FreeVelocity(in MassSum moving, in MassSum kinematic)
+    private static Double3 FreeChord(in MassSum moving, in MassSum kinematic)
     {
         if (moving.Mass == 0)
             return Double3.Zero;
-        return kinematic.Mass > 0 ? kinematic.Velocity : moving.Velocity;
+        return kinematic.Mass > 0 ? kinematic.Chord : moving.Chord;
     }
 
     /// <summary>
@@ -791,7 +808,7 @@ internal static class NumericFrameRules
     {
         FrameHandle following = follower.AnchorsHome ? follower.Home : FrameHandle.Null;
         return new(
-            Velocity: Double3.Zero,
+            Chord: Double3.Zero,
             Center: follower.Position,
             Anchored: false,
             Fixed: false,
@@ -805,22 +822,22 @@ internal static class NumericFrameRules
 
     /// <summary>
     /// The velocity that a kept frame of mode <paramref name="frameMode"/> and velocity <paramref name="frameVelocity"/>
-    /// takes for its group, which gets <paramref name="groupMode"/> and moves at <paramref name="groupVelocity"/>: none
-    /// when the group comes to rest, the group's velocity when the frame starts to fall or when the members' common
-    /// velocity relative to the frame passes the drain speed, and else its own.
+    /// takes for its group, which gets <paramref name="groupMode"/> and moves at the chord <paramref name="groupChord"/>
+    /// (see <see cref="NumericGroup.Chord"/>): none when the group comes to rest, the group's chord when the frame starts to
+    /// fall or when the members' common velocity relative to the frame passes the drain speed, and else its own.
     /// </summary>
     internal static Double3 DrainVelocity(
         NumericMode frameMode,
         NumericMode groupMode,
         Double3 frameVelocity,
-        Double3 groupVelocity,
+        Double3 groupChord,
         NumericFrameOptions options
     )
     {
         if (groupMode == NumericMode.Resting)
             return Double3.Zero;
-        if (frameMode == NumericMode.Resting || (groupVelocity - frameVelocity).Length > options.DrainSpeed)
-            return groupVelocity;
+        if (frameMode == NumericMode.Resting || (groupChord - frameVelocity).Length > options.DrainSpeed)
+            return groupChord;
         return frameVelocity;
     }
 
