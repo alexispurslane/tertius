@@ -27,9 +27,8 @@ public sealed class KeplerOrbitTests
     // ---- The sample of an orbit over a step --------------------------------------------------------------------
 
     /// <summary>
-    /// An eccentric, inclined orbit from 7,000 km to 13,000 km round earth, whose period is about 9,950 s, with a tilted
-    /// spin for the attitude <see cref="KeplerAttitude.Spin"/>. A frame that faces earth on it turns at a changing rate about
-    /// a tilted normal.
+    /// An eccentric, inclined orbit from 7,000 km to 13,000 km round earth, whose period is about 9,950 s, on which the
+    /// frame faces earth. A frame that faces earth on it turns at a changing rate about a tilted normal.
     /// </summary>
     private static readonly KeplerOrbit InclinedOval = new(
         SemiMajorAxis: 1e7,
@@ -39,11 +38,24 @@ public sealed class KeplerOrbitTests
         ArgumentOfPeriapsis: 1.1,
         MeanAnomalyAtEpoch: 0.2,
         Epoch: 100,
-        AxialTilt: DQuaternion.FromAxisAngle(Double3.UnitZ, -0.4),
-        SpinRate: 7.3e-5,
-        SpinPhaseAtEpoch: 0.6,
-        Attitude: KeplerAttitude.FacesParent
+        Attitude: new FacesParent()
     );
+
+    /// <summary>A tilted spin, for <see cref="InclinedOval"/> with the attitude <see cref="Spin"/>.</summary>
+    private static readonly Spin TiltedSpin = new(
+        AxialTilt: DQuaternion.FromAxisAngle(Double3.UnitZ, -0.4),
+        Rate: 7.3e-5,
+        PhaseAtEpoch: 0.6
+    );
+
+    /// <summary>The attitudes of the theories, by name: "spin" is <see cref="TiltedSpin"/>, "faces" faces the parent.</summary>
+    private static KeplerAttitude AttitudeNamed(string name) =>
+        name switch
+        {
+            "spin" => TiltedSpin,
+            "faces" => new FacesParent(),
+            _ => throw new ArgumentOutOfRangeException(nameof(name), name, "No such attitude."),
+        };
 
     /// <summary>Ends of steps, in seconds: at the epoch, after a fraction of a turn, and after more than three turns.</summary>
     private static readonly double[] StepEnds = [100, 1334.56, 33_000.25];
@@ -75,7 +87,7 @@ public sealed class KeplerOrbitTests
             { Mu, TransferTime, 0, "normal" },
         };
 
-    private static KeplerOrbit Oval(double eccentricity, KeplerAttitude attitude = KeplerAttitude.Spin) =>
+    private static KeplerOrbit Oval(double eccentricity) =>
         new(
             SemiMajorAxis: 1e7,
             Eccentricity: eccentricity,
@@ -84,10 +96,7 @@ public sealed class KeplerOrbitTests
             ArgumentOfPeriapsis: 0,
             MeanAnomalyAtEpoch: 0,
             Epoch: 0,
-            AxialTilt: DQuaternion.Identity,
-            SpinRate: 0,
-            SpinPhaseAtEpoch: 0,
-            Attitude: attitude
+            Attitude: new Spin(AxialTilt: DQuaternion.Identity, Rate: 0, PhaseAtEpoch: 0)
         );
 
     [Theory]
@@ -117,7 +126,7 @@ public sealed class KeplerOrbitTests
         double eccentricity
     )
     {
-        KeplerOrbit orbit = Oval(eccentricity, KeplerAttitude.FacesParent);
+        KeplerOrbit orbit = Oval(eccentricity) with { Attitude = new FacesParent() };
         DQuaternion rotation = orbit.RotationAt(0, Mu);
         double rate = orbit.AngularVelocityAt(0, Mu).Length;
 
@@ -148,9 +157,7 @@ public sealed class KeplerOrbitTests
             ArgumentOfPeriapsis: 0,
             MeanAnomalyAtEpoch: 0,
             Epoch: 40,
-            AxialTilt: DQuaternion.Identity,
-            SpinRate: 3,
-            SpinPhaseAtEpoch: Math.PI / 2
+            Attitude: new Spin(AxialTilt: DQuaternion.Identity, Rate: 3, PhaseAtEpoch: Math.PI / 2)
         );
 
         // At the epoch, a quarter turn about +Y takes +X to -Z; π/6 s later, 3 rad/s has turned it another half turn.
@@ -173,10 +180,7 @@ public sealed class KeplerOrbitTests
             ArgumentOfPeriapsis: 0,
             MeanAnomalyAtEpoch: 0,
             Epoch: 100,
-            AxialTilt: DQuaternion.Identity,
-            SpinRate: 0,
-            SpinPhaseAtEpoch: 0,
-            Attitude: KeplerAttitude.FacesParent
+            Attitude: new FacesParent()
         );
 
         Double3.Distance(orbit.StateAt(100, Mu).Position, new(7e6, 0, 0)).Should().BeLessThan(1e-3);
@@ -187,13 +191,13 @@ public sealed class KeplerOrbitTests
     }
 
     [Theory]
-    [InlineData(KeplerAttitude.Spin)]
-    [InlineData(KeplerAttitude.FacesParent)]
+    [InlineData("spin")]
+    [InlineData("faces")]
     public void A_sample_holds_the_place_rotation_velocity_and_angular_velocity_of_the_orbit_at_the_end_of_its_step(
-        KeplerAttitude attitude
+        string attitude
     )
     {
-        KeplerOrbit orbit = InclinedOval with { Attitude = attitude };
+        KeplerOrbit orbit = InclinedOval with { Attitude = AttitudeNamed(attitude) };
         foreach (double stepEnd in StepEnds)
         {
             MotionSample sample = orbit.Sample(Mu, stepEnd, Tick);
@@ -280,23 +284,23 @@ public sealed class KeplerOrbitTests
     [Fact]
     public void A_spinning_orbit_has_no_angular_acceleration()
     {
-        KeplerOrbit orbit = InclinedOval with { Attitude = KeplerAttitude.Spin };
+        KeplerOrbit orbit = InclinedOval with { Attitude = TiltedSpin };
 
         foreach (double time in StepEnds)
             orbit.AngularAccelerationAt(time, Mu).Should().Be(Double3.Zero);
     }
 
     [Theory]
-    [InlineData(KeplerAttitude.Spin)]
-    [InlineData(KeplerAttitude.FacesParent)]
-    public void The_angular_acceleration_of_a_sample_is_the_mean_over_its_step(KeplerAttitude attitude)
+    [InlineData("spin")]
+    [InlineData("faces")]
+    public void The_angular_acceleration_of_a_sample_is_the_mean_over_its_step(string attitude)
     {
         // Every step record means the same by its angular acceleration: the change of the angular velocity over the step,
         // divided by the step (docs/plans/spin-gravity.md, "V3"). The mean is the value at the middle of the step, to the
         // third derivative of the angular velocity times the step squared over 24, far under 1e-15 rad/s².
         KeplerOrbit orbit = InclinedOval with
         {
-            Attitude = attitude,
+            Attitude = AttitudeNamed(attitude),
         };
 
         foreach (double stepEnd in StepEnds)
@@ -306,6 +310,76 @@ public sealed class KeplerOrbitTests
                 .Be((orbit.AngularVelocityAt(stepEnd, Mu) - orbit.AngularVelocityAt(stepEnd - Tick, Mu)) / Tick);
             (mean - orbit.AngularAccelerationAt(stepEnd - Tick / 2, Mu)).Length.Should().BeLessThan(1e-13);
         }
+    }
+
+    // ---- The values of both attitudes, locked in ------------------------------------------------------------------
+
+    // The expected values are the ones that the orbit gave before its attitude became a union of a spin and a facing
+    // (ter-7oi8), when the tilt, the spin rate and the phase sat beside an enum. The union changes how the orbit stores
+    // its attitude, not what a frame does, so every value stays the same to the last bit.
+
+    /// <summary>The place, the chord, the velocity and the pull of <see cref="InclinedOval"/> at the end of a step at 1,334.56 s.</summary>
+    private static MotionSample LockedSample(
+        DQuaternion rotation,
+        Double3 angularVelocity,
+        Double3 angularAcceleration
+    ) =>
+        new(
+            Pose: new(new(-8535852.65934832, 1980776.1269635512, 2449081.5361397024), rotation),
+            ChordVelocity: new(-827.5153627836207, -2395.205789139201, 6429.4241386176545),
+            Velocity: new(-827.4777185113289, -2395.2145246949713, 6429.413337986372),
+            Acceleration: new(4.517340668563786, -1.0482884020310435, -1.2960473751519477),
+            AngularVelocity: angularVelocity,
+            AngularAcceleration: angularAcceleration
+        );
+
+    [Fact]
+    public void A_spinning_orbit_samples_the_values_that_it_gave_before_its_attitude_became_a_union()
+    {
+        KeplerOrbit orbit = InclinedOval with { Attitude = TiltedSpin };
+
+        MotionSample sample = orbit.Sample(Mu, 1334.56, Tick);
+
+        sample
+            .Should()
+            .Be(
+                LockedSample(
+                    rotation: new(
+                        X: 0.06720079441540878,
+                        Y: 0.33151192661368634,
+                        Z: -0.18695870193306174,
+                        W: 0.9222962319744803
+                    ),
+                    angularVelocity: new(2.8427538988531484E-05, 6.723745256221061E-05, 0),
+                    angularAcceleration: Double3.Zero
+                )
+            );
+        orbit.AngularAccelerationAt(1334.56, Mu).Should().Be(Double3.Zero);
+    }
+
+    [Fact]
+    public void A_facing_orbit_samples_the_values_that_it_gave_before_its_attitude_became_a_union()
+    {
+        MotionSample sample = InclinedOval.Sample(Mu, 1334.56, Tick);
+
+        sample
+            .Should()
+            .Be(
+                LockedSample(
+                    rotation: new(
+                        X: -0.5839511454851798,
+                        Y: 0.7773533533072322,
+                        Z: 0.22393965692378678,
+                        W: 0.06763027314305485
+                    ),
+                    angularVelocity: new(0.00022470158737250402, 0.0006384697360581902, 0.0002667751242739047),
+                    angularAcceleration: new(-9.807069572122067E-08, -2.786592295388364E-07, -1.1643363247181883E-07)
+                )
+            );
+        InclinedOval
+            .AngularAccelerationAt(1334.56, Mu)
+            .Should()
+            .Be(new Double3(-9.807016102816993E-08, -2.786577102503453E-07, -1.1643299765604292E-07));
     }
 
     // ---- An orbit around no G·M ---------------------------------------------------------------------------------
@@ -319,11 +393,11 @@ public sealed class KeplerOrbitTests
     }
 
     [Theory]
-    [InlineData(KeplerAttitude.Spin)]
-    [InlineData(KeplerAttitude.FacesParent)]
-    public void A_sample_around_no_GM_is_the_orbit_at_the_end_of_its_step(KeplerAttitude attitude)
+    [InlineData("spin")]
+    [InlineData("faces")]
+    public void A_sample_around_no_GM_is_the_orbit_at_the_end_of_its_step(string attitude)
     {
-        KeplerOrbit orbit = InclinedOval with { Attitude = attitude };
+        KeplerOrbit orbit = InclinedOval with { Attitude = AttitudeNamed(attitude) };
 
         MotionSample sample = orbit.Sample(0, 1334.56, Tick);
 
@@ -334,11 +408,11 @@ public sealed class KeplerOrbitTests
     }
 
     [Theory]
-    [InlineData(KeplerAttitude.Spin)]
-    [InlineData(KeplerAttitude.FacesParent)]
-    public void A_sample_around_no_GM_has_no_chord_and_no_acceleration(KeplerAttitude attitude)
+    [InlineData("spin")]
+    [InlineData("faces")]
+    public void A_sample_around_no_GM_has_no_chord_and_no_acceleration(string attitude)
     {
-        MotionSample sample = (InclinedOval with { Attitude = attitude }).Sample(0, 1334.56, Tick);
+        MotionSample sample = (InclinedOval with { Attitude = AttitudeNamed(attitude) }).Sample(0, 1334.56, Tick);
 
         sample.ChordVelocity.Should().Be(Double3.Zero);
         sample.Acceleration.Should().Be(Double3.Zero);
@@ -367,32 +441,32 @@ public sealed class KeplerOrbitTests
     }
 
     [Theory]
-    [InlineData(0, KeplerAttitude.Spin)]
-    [InlineData(0, KeplerAttitude.FacesParent)]
-    [InlineData(-1e7, KeplerAttitude.Spin)]
-    [InlineData(-1e7, KeplerAttitude.FacesParent)]
+    [InlineData(0, "spin")]
+    [InlineData(0, "faces")]
+    [InlineData(-1e7, "spin")]
+    [InlineData(-1e7, "faces")]
     public void An_orbit_with_a_semi_major_axis_of_0_or_below_sits_at_the_origin_of_its_parent_with_no_velocity(
         double semiMajorAxis,
-        KeplerAttitude attitude
+        string attitude
     )
     {
-        KeplerOrbit orbit = InclinedOval with { SemiMajorAxis = semiMajorAxis, Attitude = attitude };
+        KeplerOrbit orbit = InclinedOval with { SemiMajorAxis = semiMajorAxis, Attitude = AttitudeNamed(attitude) };
 
         foreach (double time in StepEnds)
             orbit.StateAt(time, Mu).Should().Be((Double3.Zero, Double3.Zero), $"at {time} s");
     }
 
     [Theory]
-    [InlineData(0, KeplerAttitude.Spin)]
-    [InlineData(0, KeplerAttitude.FacesParent)]
-    [InlineData(-1e7, KeplerAttitude.Spin)]
-    [InlineData(-1e7, KeplerAttitude.FacesParent)]
+    [InlineData(0, "spin")]
+    [InlineData(0, "faces")]
+    [InlineData(-1e7, "spin")]
+    [InlineData(-1e7, "faces")]
     public void A_sample_of_an_orbit_with_a_semi_major_axis_of_0_or_below_rests_at_the_origin_without_chord_or_acceleration(
         double semiMajorAxis,
-        KeplerAttitude attitude
+        string attitude
     )
     {
-        KeplerOrbit orbit = InclinedOval with { SemiMajorAxis = semiMajorAxis, Attitude = attitude };
+        KeplerOrbit orbit = InclinedOval with { SemiMajorAxis = semiMajorAxis, Attitude = AttitudeNamed(attitude) };
 
         // The pull and the chord of a frame at the parent's origin would divide zero by zero, so a mutant that lets such an
         // orbit through gives NaN here.
@@ -464,7 +538,7 @@ public sealed class KeplerOrbitTests
     [InlineData(4.0)]
     public void ABellyThatFacesTheParentPointsAtItWhateverTheGMThatMovesTheFrame(double share)
     {
-        KeplerOrbit orbit = KeplerOrbit.Circular(7e6, phase: 0.3) with { Attitude = KeplerAttitude.FacesParent };
+        KeplerOrbit orbit = KeplerOrbit.Circular(7e6, phase: 0.3) with { Attitude = new FacesParent() };
         double parentMu = share * Mu;
 
         Double3 position = orbit.StateAt(100, parentMu).Position;
@@ -476,7 +550,7 @@ public sealed class KeplerOrbitTests
     [Fact]
     public void ARotationThatFacesTheParentFollowsTheGMThatMovesTheFrame()
     {
-        KeplerOrbit orbit = KeplerOrbit.Circular(7e6) with { Attitude = KeplerAttitude.FacesParent };
+        KeplerOrbit orbit = KeplerOrbit.Circular(7e6) with { Attitude = new FacesParent() };
 
         double rate = orbit.AngularVelocityAt(50, Mu).Length;
 

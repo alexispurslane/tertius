@@ -238,7 +238,7 @@ public static partial class DemoScenes
         KeplerOrbit.Circular(OrbitRadius) with
         {
             Inclination = OrbitInclination,
-            Attitude = KeplerAttitude.FacesParent,
+            Attitude = new FacesParent(),
         };
 
     /// <summary>
@@ -261,9 +261,7 @@ public static partial class DemoScenes
             ArgumentOfPeriapsis: 0,
             MeanAnomalyAtEpoch: MeanAnomaly(Math.PI / 4, 0.0549),
             Epoch: 0,
-            AxialTilt: DQuaternion.Identity,
-            SpinRate: 0,
-            SpinPhaseAtEpoch: 0
+            Attitude: new Spin(AxialTilt: DQuaternion.Identity, Rate: 0, PhaseAtEpoch: 0)
         );
 
     /// <summary>The half extents of the ship's hull, in meters: 20 m wide, 8 m high and 60 m long.</summary>
@@ -638,9 +636,7 @@ public static partial class DemoScenes
             ArgumentOfPeriapsis: perihelion,
             MeanAnomalyAtEpoch: meanAnomaly,
             Epoch: 0,
-            AxialTilt: obliquity,
-            SpinRate: 0,
-            SpinPhaseAtEpoch: 0
+            Attitude: new Spin(AxialTilt: obliquity, Rate: 0, PhaseAtEpoch: 0)
         );
     }
 

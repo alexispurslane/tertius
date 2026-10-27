@@ -46,9 +46,7 @@ public sealed class KeplerFrameTests
             ArgumentOfPeriapsis: 0,
             MeanAnomalyAtEpoch: 0,
             Epoch: 0,
-            AxialTilt: DQuaternion.Identity,
-            SpinRate: 0,
-            SpinPhaseAtEpoch: 0
+            Attitude: new Spin(AxialTilt: DQuaternion.Identity, Rate: 0, PhaseAtEpoch: 0)
         );
 
     private static TestWorld NewWorld(double startTime = 0)

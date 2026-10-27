@@ -12,7 +12,7 @@ public sealed class KeplerAttitudeTests
     private const double Mu = 3.986004418e14;
     private const double LowOrbit = 6.771e6;
 
-    private static KeplerOrbit Facing(KeplerOrbit orbit) => orbit with { Attitude = KeplerAttitude.FacesParent };
+    private static KeplerOrbit Facing(KeplerOrbit orbit) => orbit with { Attitude = new FacesParent() };
 
     private static void ExpectNear(Double3 actual, Double3 expected, double tolerance = 1e-9) =>
         Double3.Distance(actual, expected).Should().BeLessThan(tolerance, $"{actual} is not {expected}");
@@ -62,9 +62,7 @@ public sealed class KeplerAttitudeTests
                 ArgumentOfPeriapsis: 0.5,
                 MeanAnomalyAtEpoch: 0,
                 Epoch: 0,
-                AxialTilt: DQuaternion.Identity,
-                SpinRate: 0,
-                SpinPhaseAtEpoch: 0
+                Attitude: new Spin(AxialTilt: DQuaternion.Identity, Rate: 0, PhaseAtEpoch: 0)
             )
         );
         double time = fractionOfPeriod * orbit.Period(Mu);
@@ -103,9 +101,7 @@ public sealed class KeplerAttitudeTests
                 ArgumentOfPeriapsis: 0,
                 MeanAnomalyAtEpoch: 0,
                 Epoch: 0,
-                AxialTilt: DQuaternion.Identity,
-                SpinRate: 0,
-                SpinPhaseAtEpoch: 0
+                Attitude: new Spin(AxialTilt: DQuaternion.Identity, Rate: 0, PhaseAtEpoch: 0)
             )
         );
 
@@ -130,9 +126,7 @@ public sealed class KeplerAttitudeTests
                 ArgumentOfPeriapsis: 0.5,
                 MeanAnomalyAtEpoch: 0,
                 Epoch: 0,
-                AxialTilt: DQuaternion.Identity,
-                SpinRate: 0,
-                SpinPhaseAtEpoch: 0
+                Attitude: new Spin(AxialTilt: DQuaternion.Identity, Rate: 0, PhaseAtEpoch: 0)
             )
         );
         const double time = 1000,
@@ -167,6 +161,8 @@ public sealed class KeplerAttitudeTests
     }
 
     [Fact]
-    public void AnOrbitWithAnAttitudeThatIsNotDefinedIsNotValid() =>
-        (KeplerOrbit.Circular(LowOrbit) with { Attitude = (KeplerAttitude)7 }).IsValid.Should().BeFalse();
+    public void AnOrbitWithoutAnAttitudeIsNotValid() =>
+        (KeplerOrbit.Circular(LowOrbit) with { Attitude = default })
+            .IsValid.Should()
+            .BeFalse("an orbit says how its frame turns, so the empty attitude is no attitude at all");
 }

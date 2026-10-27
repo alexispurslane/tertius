@@ -82,9 +82,7 @@ public sealed class FrameTests
             ArgumentOfPeriapsis: 0.5,
             MeanAnomalyAtEpoch: 0.3,
             Epoch: 0,
-            AxialTilt: DQuaternion.Identity,
-            SpinRate: 0,
-            SpinPhaseAtEpoch: 0
+            Attitude: new Spin(AxialTilt: DQuaternion.Identity, Rate: 0, PhaseAtEpoch: 0)
         );
         const double mu = 3.986004418e14;
         double energy = -mu / (2 * orbit.SemiMajorAxis);
@@ -111,9 +109,7 @@ public sealed class FrameTests
             ArgumentOfPeriapsis: 1.1,
             MeanAnomalyAtEpoch: 0,
             Epoch: 0,
-            AxialTilt: DQuaternion.Identity,
-            SpinRate: 0,
-            SpinPhaseAtEpoch: 0
+            Attitude: new Spin(AxialTilt: DQuaternion.Identity, Rate: 0, PhaseAtEpoch: 0)
         );
         const double mu = 3.986004418e14,
             t = 1234.5,

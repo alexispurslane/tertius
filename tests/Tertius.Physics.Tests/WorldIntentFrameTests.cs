@@ -643,7 +643,11 @@ public sealed class WorldIntentFrameTests
             KeplerOrbit orbit = KeplerOrbit.Circular(5_000, phase: 0.7) with
             {
                 Inclination = 0.4,
-                AxialTilt = DQuaternion.FromAxisAngle(new Double3(1, 2, 3).Normalized(), 0.9),
+                Attitude = new Spin(
+                    AxialTilt: DQuaternion.FromAxisAngle(new Double3(1, 2, 3).Normalized(), 0.9),
+                    Rate: 0,
+                    PhaseAtEpoch: 0
+                ),
             };
             FrameHandle station = world.GetOwnedFrame(
                 world.Spawn(

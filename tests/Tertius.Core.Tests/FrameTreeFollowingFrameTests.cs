@@ -28,7 +28,7 @@ public sealed class FrameTreeFollowingFrameTests
     /// <summary>A station in low orbit that faces earth, so that its rotation turns with its place.</summary>
     private static readonly KeplerOrbit Low = KeplerOrbit.Circular(6.8e6, phase: 0.4) with
     {
-        Attitude = KeplerAttitude.FacesParent,
+        Attitude = new FacesParent(),
     };
 
     /// <summary>
@@ -37,7 +37,7 @@ public sealed class FrameTreeFollowingFrameTests
     /// </summary>
     private static readonly KeplerOrbit Far = KeplerOrbit.Circular(1e7, phase: 0.4) with
     {
-        Attitude = KeplerAttitude.FacesParent,
+        Attitude = new FacesParent(),
     };
 
     private readonly FrameTree frames = new();

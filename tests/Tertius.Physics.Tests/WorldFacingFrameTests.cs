@@ -21,10 +21,7 @@ public sealed class WorldFacingFrameTests
     /// </summary>
     private const double HeavyPlanetMu = 2e10;
 
-    private static readonly KeplerOrbit Facing = KeplerOrbit.Circular(5000) with
-    {
-        Attitude = KeplerAttitude.FacesParent,
-    };
+    private static readonly KeplerOrbit Facing = KeplerOrbit.Circular(5000) with { Attitude = new FacesParent() };
 
     /// <summary>A planet with a G·M of <paramref name="mu"/> m³/s², and the station's owner on <see cref="Facing"/> round it.</summary>
     private static (World World, JoltPhysicsBackend Backend, FrameHandle Planet, Entity Owner) Station(
@@ -89,10 +86,7 @@ public sealed class WorldFacingFrameTests
                 ArgumentOfPeriapsis: 0,
                 MeanAnomalyAtEpoch: 0,
                 Epoch: 0,
-                AxialTilt: DQuaternion.Identity,
-                SpinRate: 0,
-                SpinPhaseAtEpoch: 0,
-                Attitude: KeplerAttitude.FacesParent
+                Attitude: new FacesParent()
             );
             Entity owner = world.Spawn(
                 new SpawnDesc
