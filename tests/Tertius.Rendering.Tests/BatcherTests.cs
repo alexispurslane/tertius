@@ -11,9 +11,9 @@ public sealed class BatcherTests
 {
     private static readonly MeshInfo[] Meshes =
     [
-        new(FirstIndex: 0, IndexCount: 36, VertexOffset: 0, Radius: 0.866f),
-        new(FirstIndex: 36, IndexCount: 600, VertexOffset: 24, Radius: 1f),
-        new(FirstIndex: 636, IndexCount: 6, VertexOffset: 300, Radius: 1.414f),
+        new(FirstIndex: 0, IndexCount: 36, VertexOffset: 0, Radius: 0.866f, Deform: null),
+        new(FirstIndex: 36, IndexCount: 600, VertexOffset: 24, Radius: 1f, Deform: null),
+        new(FirstIndex: 636, IndexCount: 6, VertexOffset: 300, Radius: 1.414f, Deform: null),
     ];
 
     // Puffs. Each puff of the snapshot draws as one GpuPuff, at its interpolated place and render age, or not at all. The
@@ -47,6 +47,7 @@ public sealed class BatcherTests
             meshes: Meshes,
             materials: MaterialSlots.Of(materials),
             environment: environment,
+            region: DeformRegion.None,
             scene: scene
         );
         return scene;
@@ -742,6 +743,52 @@ public sealed class BatcherTests
                 .Equal([axes[i] * 10], $"face {i} sees the box on its axis");
     }
 
+    /// <summary>
+    /// The main view and a face that both see an instance draw it with the same GPU instance, bit for bit: its place,
+    /// its rotation interpolated between the two ticks, its scale, its material and its up. So one interpolation of the
+    /// instance serves every view.
+    /// </summary>
+    [Fact]
+    public void AFaceDrawsAnInstanceThatTheMainViewSeesWithTheMainViewsGpuInstance()
+    {
+        RenderSnapshot snapshot = Empty();
+        snapshot.Camera.PreviousPosition = new(0, 0, 1);
+        RenderInstance box = Gpu.Instance(
+            mesh: new(1),
+            material: new(3),
+            position: new(1, 2, -10),
+            rotation: Quaternion.CreateFromYawPitchRoll(0.7f, 0.2f, -0.4f),
+            scale: new(1, 2, 0.5f)
+        );
+        box.PreviousPosition = new(-1, 2, -12);
+        box.PreviousRotation = Quaternion.CreateFromYawPitchRoll(-0.3f, 0.5f, 0.1f);
+        snapshot.Instances.Add(box);
+
+        PreparedScene scene = Prepare(snapshot: snapshot, alpha: 0.3f, environment: MapOf(FaceMask.NegativeZ));
+
+        CommandRange main = scene.Opaque[DepthRanges.Near].Solid;
+        CommandRange face = scene.EnvironmentFaces.Should().ContainSingle().Subject[DepthRanges.Near].Solid;
+        GpuInstance seen = scene.Instances[scene.Commands[main.First].FirstInstance];
+        GpuInstance reflected = scene.Instances[scene.Commands[face.First].FirstInstance];
+        reflected.Should().Be(seen, "the face and the main view draw one interpolation of the instance");
+        seen.ModelRow0.W.Should().NotBe(1, "the place is interpolated");
+    }
+
+    [Fact]
+    public void AFaceDrawsOnlyTheInstancesOfTheSnapshotThatTheBatcherPreparesNow()
+    {
+        SceneBatcher batcher = Batchers.Default();
+        RenderSnapshot before = Empty();
+        before.Instances.Add(Box(new(0, 0, -10)));
+        RenderSnapshot now = Empty();
+        now.Instances.Add(Box(new(0, 1, -12)));
+
+        Prepare(snapshot: before, batcher: batcher, environment: MapOf(FaceMask.NegativeZ));
+        PreparedScene scene = Prepare(snapshot: now, batcher: batcher, environment: MapOf(FaceMask.NegativeZ));
+
+        Placed(scene, scene.EnvironmentFaces[0]).Should().Equal(new Vector3(0, 1, -12));
+    }
+
     [Fact]
     public void TheFacesCommandsAndInstancesFollowTheMainViews()
     {
@@ -912,6 +959,7 @@ public sealed class BatcherTests
             meshes: Meshes,
             materials: MaterialSlots.Of(8),
             environment: MapOf(FaceMask.All),
+            region: DeformRegion.None,
             scene: scene
         );
         scene.EnvironmentFaces.Should().HaveCount(6);
@@ -924,10 +972,33 @@ public sealed class BatcherTests
             meshes: Meshes,
             materials: MaterialSlots.Of(8),
             environment: MapOf(FaceMask.NegativeY),
+            region: DeformRegion.None,
             scene: scene
         );
 
         scene.EnvironmentFaces.Select(face => face.Face).Should().Equal(CubeFace.NegativeY);
+    }
+
+    [Fact]
+    public void APlacedSlotHoldsNothingOfTheInstanceThatFilledItTheFrameBefore()
+    {
+        var scene = new PreparedScene();
+        scene.AddPlaced() = new()
+        {
+            Depth = 5f,
+            Mesh = 2,
+            Material = 3,
+            Map = 1,
+        };
+        scene.Reset();
+
+        PreparedInstance slot = scene.AddPlaced();
+
+        slot.Should()
+            .Be(
+                default(PreparedInstance),
+                "a caller that sets the fields one by one must not keep the last frame's others"
+            );
     }
 
     // Maps per frame (docs/plans/environment-maps-per-frame.md). The chain of three below is the camera's frame, id 2, its
@@ -1561,6 +1632,7 @@ public sealed class BatcherTests
             meshes: Meshes,
             materials: MaterialSlots.Of(8),
             environment: default,
+            region: DeformRegion.None,
             scene: scene
         );
         scene.PuffCount.Should().Be(1);
@@ -1573,6 +1645,7 @@ public sealed class BatcherTests
             meshes: Meshes,
             materials: MaterialSlots.Of(8),
             environment: default,
+            region: DeformRegion.None,
             scene: scene
         );
 
@@ -1639,17 +1712,21 @@ public sealed class BatcherTests
         ((int)Marshal.OffsetOf<GpuShadowTile>(nameof(GpuShadowTile.Near))).Should().Be(72);
         Unsafe.SizeOf<DrawPushConstants>().Should().Be(84);
         ((int)Marshal.OffsetOf<DrawPushConstants>(nameof(DrawPushConstants.Map))).Should().Be(80);
-        Unsafe.SizeOf<EnvironmentPrefilterPushConstants>().Should().Be(16);
+        Unsafe.SizeOf<EnvironmentPrefilterLevel>().Should().Be(16);
+        Unsafe.SizeOf<EnvironmentPrefilterPushConstants>().Should().Be(80);
+        ((int)Marshal.OffsetOf<EnvironmentPrefilterPushConstants>(nameof(EnvironmentPrefilterPushConstants.Samples)))
+            .Should()
+            .Be(64);
         ((int)Marshal.OffsetOf<EnvironmentPrefilterPushConstants>(nameof(EnvironmentPrefilterPushConstants.Map)))
             .Should()
-            .Be(12);
-        Unsafe.SizeOf<EnvironmentDownsamplePushConstants>().Should().Be(8);
+            .Be(76, "the irradiance's two shaders declare it at offset 76");
+        Unsafe.SizeOf<EnvironmentDownsamplePushConstants>().Should().Be(12);
         ((int)Marshal.OffsetOf<EnvironmentDownsamplePushConstants>(nameof(EnvironmentDownsamplePushConstants.Map)))
             .Should()
-            .Be(4);
-        Unsafe.SizeOf<OcclusionPushConstants>().Should().Be(64);
-        ((int)Marshal.OffsetOf<OcclusionPushConstants>(nameof(OcclusionPushConstants.RadiusMeters))).Should().Be(48);
-        ((int)Marshal.OffsetOf<OcclusionPushConstants>(nameof(OcclusionPushConstants.LastDenoise))).Should().Be(60);
+            .Be(8);
+        Unsafe.SizeOf<OcclusionPushConstants>().Should().Be(16);
+        ((int)Marshal.OffsetOf<OcclusionPushConstants>(nameof(OcclusionPushConstants.RadiusMeters))).Should().Be(0);
+        ((int)Marshal.OffsetOf<OcclusionPushConstants>(nameof(OcclusionPushConstants.LastDenoise))).Should().Be(12);
         Unsafe.SizeOf<DrawIndexedIndirectCommand>().Should().Be(20);
         Unsafe.SizeOf<Vertex>().Should().Be(48);
     }
@@ -1658,7 +1735,8 @@ public sealed class BatcherTests
     [InlineData("mesh.vert")]
     [InlineData("gbuffer.frag")]
     [InlineData("lighting.vert")]
-    [InlineData("lighting.frag")]
+    [InlineData("direct.frag")]
+    [InlineData("ambient.frag")]
     [InlineData("transparent.frag")]
     [InlineData("fullscreen.vert")]
     [InlineData("tonemap.frag")]

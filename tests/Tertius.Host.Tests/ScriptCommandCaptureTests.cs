@@ -10,23 +10,26 @@ namespace Tertius.Host.Tests;
 public sealed class ScriptCommandCaptureTests : IDisposable
 {
     /// <summary>
-    /// The timed passes of a headless frame with the renderer's defaults, in frame order: the local shadows after the
-    /// cascades, the environment map's faces and prefilter after them, ambient occlusion between the G-buffer and the lighting, the reflections'
-    /// half-resolution trace and its upsample after the radiance pyramid, SMAA after the tone map.
+    /// The timed passes of a headless frame with the renderer's defaults, in frame order: the deformation first, the local
+    /// shadows after the cascades, the environment map's faces and prefilter after them, the occlusion passes of the
+    /// screen-space light between the direct and the ambient pass, the reflections' half-resolution trace and its upsample
+    /// after the radiance pyramid, SMAA after the tone map.
     /// </summary>
     private static readonly string[] FramePasses =
     [
+        "deformation",
         "shadow maps",
         "local shadows",
         "environment faces",
         "environment prefilter",
         "G-buffer",
         "depth pyramid",
+        "direct light",
         "occlusion depth",
-        "occlusion horizons",
+        "occlusion sectors",
         "occlusion denoise",
         "occlusion upsample",
-        "lighting",
+        "ambient light",
         "radiance pyramid",
         "reflection trace",
         "reflections",
@@ -318,6 +321,47 @@ public sealed class ScriptCommandCaptureTests : IDisposable
     }
 
     [Fact]
+    public void AHeadlessFilmOnADriverWhoseStampsLatchLateSaysBetweenThePassTimesAndTheSpanThatOnlySumsOfPassesHold()
+    {
+        string script = ScriptFile(
+            """{ "scene": "lit-box", "window": { "width": 160, "height": 90 }, "steps": [ { "do": "film", "name": "box", "frames": 6, "every": 1 } ] }"""
+        );
+        var made = new List<VulkanRenderer>();
+
+        int code = ScriptCommand.Run(
+            args: ["--script", script, "--headless", "--out", Out],
+            scenes: [LitBoxScene],
+            output: output,
+            error: error,
+            createRenderer: options =>
+            {
+                made.Add(VulkanRenderer.CreateHeadless(options));
+                return made[^1];
+            }
+        );
+
+        code.Should().Be(ScriptCommand.Ok, error.ToString());
+        if (!made[0].TimesPasses)
+            Assert.Skip($"{made[0].DeviceName} writes no timestamps on its graphics queue.");
+        string[] lines = output.ToString().Split(Environment.NewLine);
+        int span = Array.FindIndex(lines, line => line.StartsWith("GPU frame span: ", StringComparison.Ordinal));
+        string[] expected = made[0].StampsLatchLate
+            ? [$"GPU {FramePasses[^1]}", ScriptCommand.LateStampsNote]
+            : [$"GPU {FramePasses[^1]}"];
+        lines[(span - expected.Length)..span]
+            .Select(line =>
+                line.StartsWith("GPU ", StringComparison.Ordinal)
+                    ? line[..line.IndexOf(": mean ", StringComparison.Ordinal)]
+                    : line
+            )
+            .Should()
+            .Equal(
+                expected,
+                "the note follows the last pass's time on a driver whose stamps latch late, and only there"
+            );
+    }
+
+    [Fact]
     public void TheSizeOptionReplacesTheSizeOfTheScriptsWindow()
     {
         string script = ScriptFile(
@@ -365,34 +409,34 @@ public sealed class ScriptCommandCaptureTests : IDisposable
         curves.Should().Equal(expected);
     }
 
-    public static TheoryData<string[], AmbientOcclusionSetting> AmbientOcclusionOptions =>
+    public static TheoryData<string[], ScreenSpaceLightSetting> ScreenSpaceLightOptions =>
         new()
         {
-            { [], GroundTruthOcclusion.Default },
-            { ["--ambient-occlusion", "off"], new NoAmbientOcclusion() },
-            { ["--ambient-occlusion", "0.25"], GroundTruthOcclusion.Default with { RadiusMeters = 0.25f } },
+            { [], VisibilityBitmaskLight.Default },
+            { ["--screen-space-light", "off"], new NoScreenSpaceLight() },
+            { ["--screen-space-light", "0.25"], VisibilityBitmaskLight.Default with { RadiusMeters = 0.25f } },
         };
 
     [Theory]
-    [MemberData(nameof(AmbientOcclusionOptions))]
-    public void TheAmbientOcclusionOptionTurnsOcclusionOffOrSetsItsRadius(
-        string[] ambientOcclusion,
-        AmbientOcclusionSetting expected
+    [MemberData(nameof(ScreenSpaceLightOptions))]
+    public void TheScreenSpaceLightOptionTurnsTheEstimateOffOrSetsItsRadius(
+        string[] screenSpaceLight,
+        ScreenSpaceLightSetting expected
     )
     {
         string script = ScriptFile(
             """{ "scene": "lit-box", "window": { "width": 160, "height": 90 }, "steps": [ { "do": "capture", "name": "front" } ] }"""
         );
-        var settings = new List<AmbientOcclusionSetting>();
+        var settings = new List<ScreenSpaceLightSetting>();
 
         int code = ScriptCommand.Run(
-            args: ["--script", script, "--headless", "--out", Out, .. ambientOcclusion],
+            args: ["--script", script, "--headless", "--out", Out, .. screenSpaceLight],
             scenes: [LitBoxScene],
             output: output,
             error: error,
             createRenderer: options =>
             {
-                settings.Add(options.AmbientOcclusion);
+                settings.Add(options.ScreenSpaceLight);
                 return VulkanRenderer.CreateHeadless(options);
             }
         );

@@ -48,8 +48,8 @@ internal sealed unsafe class EnvironmentMap : IDisposable
     private readonly VulkanDevice device;
     private readonly DeviceAllocator allocator;
     private readonly DescriptorLayouts layouts;
-    private readonly DescriptorSet[] specularLevelSets;
-    private readonly DescriptorSet[] radianceLevelSets;
+    private readonly DescriptorSet[] specularDispatchSets;
+    private readonly DescriptorSet[] downsampleSets;
     private readonly GpuBuffer[] readbacks;
 
     /// <summary>The served maps of each slot's last submitted frame, whose irradiance its readback buffer holds.</summary>
@@ -74,22 +74,40 @@ internal sealed unsafe class EnvironmentMap : IDisposable
         this.layouts = layouts;
         Setting = setting;
         Levels = PrefilterLevels.Count(setting.FaceSize);
-        specularLevelSets = new DescriptorSet[Levels];
-        radianceLevelSets = new DescriptorSet[PrefilterLevels.RadianceLevels(setting.FaceSize)];
+        specularDispatchSets = new DescriptorSet[PrefilterLevels.Dispatches(Levels)];
+        downsampleSets = new DescriptorSet[
+            PrefilterLevels.DownsampleDispatches(PrefilterLevels.RadianceLevels(setting.FaceSize))
+        ];
         readbacks = new GpuBuffer[framesInFlight];
         readbackMaps = new int[framesInFlight];
         try
         {
             FaceDepth = CreateFaceDepth(device: device, allocator: allocator, setting: setting);
             Irradiance = CreateBuffers(device: device, allocator: allocator, readbacks: readbacks);
+            IrradiancePartials = GpuBuffer.Create(
+                device: device,
+                allocator: allocator,
+                size: (ulong)(
+                    Rendering.Irradiance.Blocks(setting.FaceSize) * Rendering.Irradiance.PartialFloats * sizeof(float)
+                ),
+                usage: BufferUsageFlags.StorageBufferBit,
+                memoryUsage: MemoryUsage.GpuOnly,
+                name: "environment irradiance partial sums"
+            );
             images = new MapImages(device: device, allocator: allocator, setting: setting, levels: Levels, maps: 1);
             // The pool frees the sets when the descriptor layouts are disposed.
             PrefilterSet = layouts.AllocateEnvironmentPrefilterSet();
-            for (int level = 0; level < specularLevelSets.Length; level++)
-                specularLevelSets[level] = layouts.AllocateEnvironmentLevelSet();
-            for (int level = 0; level < radianceLevelSets.Length; level++)
-                radianceLevelSets[level] = layouts.AllocateEnvironmentLevelSet();
+            for (int dispatch = 0; dispatch < specularDispatchSets.Length; dispatch++)
+                specularDispatchSets[dispatch] = layouts.AllocateEnvironmentLevelsSet();
+            for (int dispatch = 0; dispatch < downsampleSets.Length; dispatch++)
+                downsampleSets[dispatch] = layouts.AllocateEnvironmentLevelsSet();
             layouts.WriteBuffer(set: PrefilterSet, binding: 2, type: DescriptorType.StorageBuffer, buffer: Irradiance);
+            layouts.WriteBuffer(
+                set: PrefilterSet,
+                binding: 3,
+                type: DescriptorType.StorageBuffer,
+                buffer: IrradiancePartials
+            );
             WriteImageSets();
         }
         catch
@@ -128,6 +146,13 @@ internal sealed unsafe class EnvironmentMap : IDisposable
     /// <summary>The irradiance: nine vec4 per map, coefficient i of map m in vec4 9m + i, at binding 14 of every frame set.</summary>
     public GpuBuffer Irradiance { get; }
 
+    /// <summary>
+    /// The partial sums of one map's irradiance projection: <see cref="Irradiance.PartialFloats"/> floats for
+    /// each block of <see cref="Irradiance.BlockRows"/> rows of a face, which the prefilter sums into the map's
+    /// coefficients of <see cref="Irradiance"/>. The maps take turns with it.
+    /// </summary>
+    public GpuBuffer IrradiancePartials { get; }
+
     /// <summary>Set 0 of <see cref="DescriptorLayouts.EnvironmentPrefilterLayout"/>, written again at each growth.</summary>
     public DescriptorSet PrefilterSet { get; }
 
@@ -137,11 +162,20 @@ internal sealed unsafe class EnvironmentMap : IDisposable
     /// </summary>
     public ReadOnlySpan<long> DrawnFor => drawnFor.AsSpan(0, drawnForLength);
 
-    /// <summary>The level set of <paramref name="level"/> of the specular maps, every layer.</summary>
-    public DescriptorSet SpecularLevelSet(int level) => specularLevelSets[level];
+    /// <summary>
+    /// The levels set of dispatch <paramref name="dispatch"/> of the specular maps, every layer, written again at each
+    /// growth: binding b holds level first + b of <see cref="PrefilterLevels.LevelsOfDispatch"/>, and a binding past the
+    /// dispatch's last level holds that last level again, a valid view that the dispatch never writes.
+    /// </summary>
+    public DescriptorSet SpecularDispatchSet(int dispatch) => specularDispatchSets[dispatch];
 
-    /// <summary>The level set of <paramref name="level"/> of the radiance maps, every layer.</summary>
-    public DescriptorSet RadianceLevelSet(int level) => radianceLevelSets[level];
+    /// <summary>
+    /// The levels set of dispatch <paramref name="dispatch"/> of the radiance maps' downsample, every layer, written again
+    /// at each growth: binding 0 holds the level that it reads, and binding b ≥ 1 level source + b of
+    /// <see cref="PrefilterLevels.LevelsOfDownsample"/>. A binding past the dispatch's last level holds that last level
+    /// again, a valid view that the dispatch never writes.
+    /// </summary>
+    public DescriptorSet DownsampleSet(int dispatch) => downsampleSets[dispatch];
 
     /// <summary>The 2D view of level 0 of <paramref name="face"/> of map <paramref name="map"/>, the face pass's color attachment.</summary>
     public ImageView FaceView(int map, CubeFace face) => images.FaceViews[CubeFaces.Count * map + (int)face];
@@ -303,17 +337,38 @@ internal sealed unsafe class EnvironmentMap : IDisposable
         );
     }
 
-    /// <summary>Points the sets at the current images: the radiance maps in the prefilter set, and each level view in its level set.</summary>
+    /// <summary>
+    /// Points the sets at the current images: the radiance maps in the prefilter set, and the level views of both cube
+    /// arrays in the levels sets of their dispatches.
+    /// </summary>
     private void WriteImageSets()
     {
         layouts.WriteImage(set: PrefilterSet, binding: 0, arrayElement: 0, image: Radiance);
-        for (int level = 0; level < specularLevelSets.Length; level++)
-            layouts.WriteStorageImage(set: specularLevelSets[level], binding: 0, view: images.LevelViews[level]);
-        for (int level = 0; level < radianceLevelSets.Length; level++)
+        for (int dispatch = 0; dispatch < specularDispatchSets.Length; dispatch++)
+        {
+            (int first, int count) = PrefilterLevels.LevelsOfDispatch(dispatch: dispatch, levels: Levels);
+            WriteLevelsSet(set: specularDispatchSets[dispatch], views: images.LevelViews.AsSpan(first, count));
+        }
+
+        int radianceLevels = images.RadianceLevelViews.Length;
+        for (int dispatch = 0; dispatch < downsampleSets.Length; dispatch++)
+        {
+            (int source, int count) = PrefilterLevels.LevelsOfDownsample(dispatch: dispatch, levels: radianceLevels);
+            WriteLevelsSet(set: downsampleSets[dispatch], views: images.RadianceLevelViews.AsSpan(source, count + 1));
+        }
+    }
+
+    /// <summary>
+    /// Writes binding b of the levels set <paramref name="set"/> with view b of <paramref name="views"/>, or with the last
+    /// view for a binding past them.
+    /// </summary>
+    private void WriteLevelsSet(DescriptorSet set, ReadOnlySpan<ImageView> views)
+    {
+        for (int binding = 0; binding < PrefilterLevels.LevelsPerDispatch; binding++)
             layouts.WriteStorageImage(
-                set: radianceLevelSets[level],
-                binding: 0,
-                view: images.RadianceLevelViews[level]
+                set: set,
+                binding: (uint)binding,
+                view: views[Math.Min(binding, views.Length - 1)]
             );
     }
 
@@ -323,6 +378,7 @@ internal sealed unsafe class EnvironmentMap : IDisposable
         foreach (GpuBuffer? readback in readbacks)
             readback?.Dispose();
         Irradiance?.Dispose();
+        IrradiancePartials?.Dispose();
         FaceDepth?.Dispose();
     }
 

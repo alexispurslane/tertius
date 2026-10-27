@@ -25,8 +25,9 @@ public interface IPlayback
 /// A headless run: ticks back to back, and captures drawn on the calling thread with a headless renderer at the size of
 /// the script's window, into the run's capture target. For a <see cref="PngFolder"/>, each capture is a PNG file of its
 /// name. For a <see cref="VideoFile"/>, the playback starts one ffmpeg process when it is made, and each capture is the
-/// next frame of the video. A run that reaches its end calls <see cref="Finish"/>. Every way out disposes the playback,
-/// which ends the video, so the video plays after a failure too.
+/// next frame of the video. For <see cref="Discard"/>, each capture is drawn, read back and dropped. A run that reaches
+/// its end calls <see cref="Finish"/>. Every way out disposes the playback, which ends the video, so the video plays after
+/// a failure too.
 /// </summary>
 public sealed class HeadlessPlayback : IPlayback, IDisposable
 {
@@ -87,6 +88,7 @@ public sealed class HeadlessPlayback : IPlayback, IDisposable
         {
             PngFolder folder => new PngCaptureSink(folder.PathOf(name)),
             VideoFile => video ?? throw new UnreachableException("The constructor starts the video of a video target."),
+            Discard => DroppedCapture.Sink,
             null => throw new InvalidOperationException("The headless playback has no capture target."),
         };
         world.PublishRenderSnapshot();
@@ -107,4 +109,12 @@ public sealed class HeadlessPlayback : IPlayback, IDisposable
 
     /// <summary>Ends the video, if <see cref="Finish"/> did not, without reporting a failure of ffmpeg.</summary>
     public void Dispose() => video?.Dispose();
+
+    /// <summary>The sink of the <see cref="Discard"/> target: it takes the pixels that the renderer read back, and keeps none.</summary>
+    private sealed class DroppedCapture : ICaptureSink
+    {
+        public static readonly DroppedCapture Sink = new();
+
+        public void Take(in CapturedImage image) { }
+    }
 }

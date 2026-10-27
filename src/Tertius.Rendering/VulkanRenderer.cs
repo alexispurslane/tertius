@@ -30,9 +30,15 @@ namespace Tertius.Rendering;
 /// the impostor billboards in that range.</item>
 /// <item>The depth pyramid (<see cref="DepthPyramidPass"/>), under <see cref="ConeTracedReflections"/>: the min-max
 /// inverse depth of the distance target, level by level, and its small mips in one dispatch (<see cref="DepthPyramidTail"/>).</item>
+/// <item>The direct pass (<see cref="DirectLightPass"/>): one fullscreen pass into the direct image, the light of each
+/// light of the one light list, shadowed by its cascade set and far shadows, its far shadows alone, or its atlas tiles,
+/// plus the emission, pre-exposed and capped.</item>
 /// <item>The occlusion passes (<see cref="OcclusionDepthPass"/> to <see cref="OcclusionUpsamplePass"/>), under
-/// <see cref="GroundTruthOcclusion"/>: the share of the hemisphere that nearby geometry hides, in the occlusion target.</item>
-/// <item>Lighting: one fullscreen pass into the HDR target, with the ambient light scaled by the occlusion target.</item>
+/// <see cref="VisibilityBitmaskLight"/>: the estimate of the light around each pixel, the bounce of the direct light of
+/// the surfaces that block its hemisphere within the radius, and the share that nothing blocks there, in the estimate
+/// target.</item>
+/// <item>The ambient pass (<see cref="AmbientLightPass"/>): one fullscreen pass into the HDR target, the direct image plus
+/// the ambient light with the estimate target applied, capped.</item>
 /// <item>The radiance pyramid (<see cref="RadiancePyramidPass"/>), under <see cref="ConeTracedReflections"/>: the lit
 /// image times the surface coverage, and its 13-tap downsamples.</item>
 /// <item>The reflections (<see cref="ReflectionPass"/>), under <see cref="ConeTracedReflections"/>: by default one ray per
@@ -80,6 +86,10 @@ public sealed unsafe class VulkanRenderer : IRenderer
     private readonly FrameResources[] frames;
     private readonly UploadQueue uploads;
     private readonly GeometryStore geometry;
+    private readonly DeformStore deforms;
+
+    /// <summary><see cref="RendererOptions.Deformation"/>: off, every frame passes the batcher an empty deform region.</summary>
+    private readonly bool deformation;
     private readonly TextureStore textures;
     private readonly MaterialStore materials;
     private readonly RenderTargets targets;
@@ -116,6 +126,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
         this.headless = headless;
         clock = headless ? FrameClock.Film : FrameClock.Window;
         exposureSetting = options.Exposure;
+        deformation = options.Deformation;
         Batcher = new(exposure: options.Exposure, cascadedLights: options.CascadedLights);
         log = device.Log;
         try
@@ -130,10 +141,20 @@ public sealed unsafe class VulkanRenderer : IRenderer
             );
             output = Own(createOutput(device, Allocator));
             geometry = Own(new GeometryStore(device, Allocator));
+            deforms = Own(
+                new DeformStore(
+                    device: device,
+                    allocator: Allocator,
+                    maxBytes: device.Properties.Limits.MaxStorageBufferRange
+                )
+            );
             textures = Own(new TextureStore(device, Allocator));
             materials = Own(new MaterialStore(device, Allocator));
             BrdfTableImages = Own(new BrdfTableImages(device, Allocator));
-            uploads = new((int)device.Properties.Limits.MaxImageDimension2D);
+            uploads = new(
+                maxTextureSize: (int)device.Properties.Limits.MaxImageDimension2D,
+                deformBytesLimit: device.Properties.Limits.MaxStorageBufferRange
+            );
             targets = CreateTargets(
                 glowLevels: glowLevels,
                 antiAliasing: options.AntiAliasing,
@@ -152,7 +173,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             frames = CreateFrames(options.FramesInFlight);
 
             (impostorAtlas, Impostors, localShadows) = AddPassesThroughGeometry(shaders, options);
-            occlusionImages = AddOcclusionPasses(shaders, options.AmbientOcclusion);
+            occlusionImages = AddOcclusionPasses(shaders, options.ScreenSpaceLight);
             AddPassesAfterGeometry(shaders, options);
             AddReflectionPasses(shaders, options.Reflections);
             Own(Graph);
@@ -183,6 +204,12 @@ public sealed unsafe class VulkanRenderer : IRenderer
 
     /// <summary>True when the device writes timestamps, so <see cref="RenderStats.GpuTimings"/> reports the passes.</summary>
     public bool TimesPasses => timer.Supported;
+
+    /// <summary>
+    /// True on a driver that latches each pass's stamp after the next pass's work has started, so a pass's time can hold part
+    /// of the next pass's work: MoltenVK (ARCHITECTURE.md, "GPU timings").
+    /// </summary>
+    public bool StampsLatchLate => device.Driver == DriverId.Moltenvk;
 
     internal ShadowMap ShadowMap { get; }
 
@@ -333,7 +360,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
     private static string? SettingsProblem(RendererOptions options) =>
         options.LocalShadows.Problem
         ?? options.Exposure.Problem
-        ?? options.AmbientOcclusion.Problem
+        ?? options.ScreenSpaceLight.Problem
         ?? options.Bloom.Problem
         ?? options.Reflections.Problem
         ?? (
@@ -586,7 +613,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
         servedChain.AsSpan(0, EnvironmentChain.Maps(snapshot.Chain.Count));
 
     /// <summary>
-    /// Records the command buffer of a frame: the uploads, the clear of a new occlusion target, the batch, the exposure's
+    /// Records the command buffer of a frame: the uploads, the clear of a new estimate target, the batch, the exposure's
     /// readback copy and the passes.
     /// </summary>
     private void RecordFrame(
@@ -601,9 +628,10 @@ public sealed unsafe class VulkanRenderer : IRenderer
     {
         CommandBuffer commandBuffer = BeginCommands(frame);
         Upload(frame, commandBuffer);
-        // Before the frame graph, whose lighting pass reads the target, and whose occlusion passes overwrite it.
-        targets.RecordOcclusionClear(vk: device.Vk, commandBuffer: commandBuffer, barriers: barriers);
-        frame.UpdateSharedDescriptors(materials, textures);
+        DeformRegion region = ReserveRegion(snapshot, commandBuffer);
+        // Before the frame graph, whose ambient pass reads the target, and whose occlusion passes overwrite it.
+        targets.RecordEstimateClear(vk: device.Vk, commandBuffer: commandBuffer, barriers: barriers);
+        frame.UpdateSharedDescriptors(materials: materials, textures: textures, geometry: geometry, deforms: deforms);
         Batcher.Prepare(
             snapshot: snapshot,
             alpha: alpha,
@@ -612,6 +640,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             meshes: geometry.Meshes,
             materials: materials.Infos,
             environment: environment,
+            region: region,
             scene: LastScene
         );
         SetContext(
@@ -629,6 +658,25 @@ public sealed unsafe class VulkanRenderer : IRenderer
         Graph.Record(context);
         output.FinishRecording(barriers, commandBuffer);
         device.Vk.EndCommandBuffer(commandBuffer).Check("vkEndCommandBuffer");
+    }
+
+    /// <summary>
+    /// Grows the deform region to the copies that <paramref name="snapshot"/> needs and gives it, or gives the empty region
+    /// with the deformation off. After the uploads, because the need reads this frame's meshes, and before the batch,
+    /// which fills the region (docs/plans/skinning-and-morphs.md, "Every new value, its writers and its readers").
+    /// </summary>
+    private DeformRegion ReserveRegion(RenderSnapshot snapshot, CommandBuffer commandBuffer)
+    {
+        if (!deformation)
+            return DeformRegion.None;
+        geometry.ReserveDeformed(
+            vertices: SceneBatcher.DeformNeed(snapshot, geometry.Meshes),
+            commandBuffer: commandBuffer,
+            barriers: barriers,
+            releases: releases,
+            frame: frameNumber
+        );
+        return geometry.Region;
     }
 
     private void WaitFor(Fence fence) =>
@@ -695,6 +743,15 @@ public sealed unsafe class VulkanRenderer : IRenderer
             geometry.Upload(
                 commandBuffer: commandBuffer,
                 pending: pending.Meshes,
+                deforms: pending.Deforms,
+                deformStore: deforms,
+                staging: frame.Staging,
+                barriers: barriers,
+                releases: releases,
+                frame: frameNumber
+            );
+            deforms.Upload(
+                commandBuffer: commandBuffer,
                 staging: frame.Staging,
                 barriers: barriers,
                 releases: releases,
@@ -757,6 +814,9 @@ public sealed unsafe class VulkanRenderer : IRenderer
             Lights = scene.LightCount,
             Outlines = scene.OutlineCount,
             Puffs = scene.PuffCount,
+            DeformedInstances = scene.DeformedInstances,
+            DeformedVertices = scene.DeformedVertices,
+            UndeformedPosedInstances = scene.UndeformedPosedInstances,
             GpuTimings = gpuTimings,
             Exposure = exposure,
             Rendered = true,
@@ -861,40 +921,10 @@ public sealed unsafe class VulkanRenderer : IRenderer
     }
 
     /// <summary>
-    /// The occlusion target of the last frame, V from 0 to 1 per pixel, row by row from the top. A test hook: it waits for
-    /// the device to be idle and submits its own copy.
+    /// The estimate target of the last frame, RGBA per pixel, row by row from the top: rgb the bounce, pre-exposed, a the
+    /// occlusion V from 0 to 1. A test hook: it waits for the device to be idle and submits its own copy.
     /// </summary>
-    internal float[] ReadOcclusion()
-    {
-        GpuImage image = targets.Occlusion;
-        Extent2D extent = targets.Extent;
-        int count = (int)(extent.Width * extent.Height);
-        using var buffer = GpuBuffer.Create(
-            device: device,
-            allocator: Allocator,
-            size: (ulong)count,
-            usage: BufferUsageFlags.TransferDstBit,
-            memoryUsage: MemoryUsage.Readback,
-            name: "occlusion readback"
-        );
-        SubmitAndWait(commandBuffer =>
-            CopyLayer(
-                commandBuffer: commandBuffer,
-                image: image,
-                aspect: ImageAspectFlags.ColorBit,
-                layer: 0,
-                mip: 0,
-                extent: extent,
-                buffer: buffer
-            )
-        );
-
-        float[] occlusion = new float[count];
-        var stored = new ReadOnlySpan<byte>(buffer.Mapped, count);
-        for (int i = 0; i < count; i++)
-            occlusion[i] = stored[i] / 255f;
-        return occlusion;
-    }
+    internal float[] ReadEstimate() => ReadLevel(image: targets.Estimate, layer: 0, mip: 0).Values;
 
     /// <summary>
     /// The distance target of the last frame, in m from the eye and 0 for sky, row by row from the top. A test hook: it
@@ -913,6 +943,44 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// waits for the device to be idle and submits its own copy.
     /// </summary>
     internal float[] ReadHdr() => ReadLevel(image: targets.Hdr, layer: 0, mip: 0).Values;
+
+    /// <summary>
+    /// The direct image of the last frame, RGBA per pixel, row by row from the top: the pre-exposed direct light, 0 for
+    /// sky. A test hook: it waits for the device to be idle and submits its own copy.
+    /// </summary>
+    internal float[] ReadDirect() => ReadLevel(image: targets.Direct, layer: 0, mip: 0).Values;
+
+    /// <summary>
+    /// Occlusion term A of the last frame at half resolution, RGBA per texel, row by row from the top: rgb the bounce,
+    /// pre-exposed, a the occlusion. A test hook: it waits for the device to be idle and submits its own copy.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The screen-space light is off.</exception>
+    internal (float[] Rgba, int Width, int Height) ReadOcclusionTerm() =>
+        ReadLevel(image: OcclusionImagesOrThrow().TermA, layer: 0, mip: 0);
+
+    /// <summary>
+    /// The view depth image of the last frame at half resolution, in m, row by row from the top. A test hook: it waits for
+    /// the device to be idle and submits its own copy.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The screen-space light is off.</exception>
+    internal (float[] Depths, int Width, int Height) ReadOcclusionViewDepth() =>
+        ReadLevel(image: OcclusionImagesOrThrow().ViewDepth, layer: 0, mip: 0);
+
+    /// <summary>
+    /// The depth pass's copy of the direct image of the last frame at half resolution, RGBA per texel, row by row from the
+    /// top. A test hook, like <see cref="ReadOcclusionViewDepth"/>.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The screen-space light is off.</exception>
+    internal (float[] Rgba, int Width, int Height) ReadOcclusionDirect() =>
+        ReadLevel(image: OcclusionImagesOrThrow().Direct, layer: 0, mip: 0);
+
+    /// <summary>
+    /// The depth pass's copy of the octahedral geometric normal of the last frame at half resolution, RG per texel, row by
+    /// row from the top. A test hook, like <see cref="ReadOcclusionViewDepth"/>.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The screen-space light is off.</exception>
+    internal (float[] Rg, int Width, int Height) ReadOcclusionGeometricNormal() =>
+        ReadLevel(image: OcclusionImagesOrThrow().GeometricNormal, layer: 0, mip: 0);
 
     /// <summary>
     /// Level 1 to L of the last frame's depth pyramid: the near and the far bound of each texel of its mip, padding
@@ -973,6 +1041,55 @@ public sealed unsafe class VulkanRenderer : IRenderer
         ArgumentOutOfRangeException.ThrowIfNegative(level);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(level, pyramids.RadianceTopLevel);
         return ReadLevel(image: pyramids.RadianceImage, layer: 0, mip: level);
+    }
+
+    /// <summary>
+    /// The deformed copies of the last frame, job after job, as the deform pass wrote them. A test hook: it waits for the
+    /// device to be idle and submits its own copy.
+    /// </summary>
+    internal Vertex[] ReadDeformedVertices()
+    {
+        ReadOnlySpan<DeformJob> jobs = LastScene.Deforms;
+        ReadOnlySpan<MeshInfo> meshes = geometry.Meshes;
+        var copies = new BufferCopy[jobs.Length];
+        ulong vertexSize = (ulong)sizeof(Vertex),
+            read = 0;
+        for (int i = 0; i < jobs.Length; i++)
+        {
+            ulong count = (ulong)(meshes[jobs[i].Mesh].Deform?.VertexCount ?? 0);
+            ulong first = (ulong)(geometry.Region.Base + jobs[i].Target);
+            copies[i] = new(srcOffset: first * vertexSize, dstOffset: read * vertexSize, size: count * vertexSize);
+            read += count;
+        }
+
+        if (read == 0)
+            return [];
+        using var buffer = GpuBuffer.Create(
+            device: device,
+            allocator: Allocator,
+            size: read * vertexSize,
+            usage: BufferUsageFlags.TransferDstBit,
+            memoryUsage: MemoryUsage.Readback,
+            name: "deformed vertices readback"
+        );
+        SubmitAndWait(commandBuffer =>
+        {
+            var local = new BarrierBatch();
+            local.Buffer(geometry.VertexBuffer, BufferUse.TransferSource);
+            local.Buffer(buffer, BufferUse.TransferDestination);
+            local.Flush(device.Vk, commandBuffer);
+            fixed (BufferCopy* regions = copies)
+                device.Vk.CmdCopyBuffer(
+                    commandBuffer: commandBuffer,
+                    srcBuffer: geometry.VertexBuffer.Handle,
+                    dstBuffer: buffer.Handle,
+                    regionCount: (uint)copies.Length,
+                    pRegions: regions
+                );
+            local.Buffer(buffer, BufferUse.HostRead);
+            local.Flush(device.Vk, commandBuffer);
+        });
+        return new ReadOnlySpan<Vertex>(buffer.Mapped, (int)read).ToArray();
     }
 
     /// <summary>
@@ -1103,6 +1220,10 @@ public sealed unsafe class VulkanRenderer : IRenderer
         return ReadLevel(image: targets.Glow[level], layer: 0, mip: 0).Values;
     }
 
+    /// <summary>The occlusion images, which the test hooks of the occlusion passes read: only under <see cref="VisibilityBitmaskLight"/>.</summary>
+    private OcclusionImages OcclusionImagesOrThrow() =>
+        occlusionImages ?? throw new InvalidOperationException("The screen-space light is off.");
+
     /// <summary>How <see cref="ReadLevel"/> finds each channel of an image in memory.</summary>
     private enum StoredChannel
     {
@@ -1129,6 +1250,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             Format.R32Sfloat => (1, StoredChannel.Float),
             Format.R32G32Sfloat => (2, StoredChannel.Float),
             Format.R16G16B16A16SNorm => (4, StoredChannel.Snorm16),
+            Format.R16G16SNorm => (2, StoredChannel.Snorm16),
             _ => throw new ArgumentException(
                 $"{image.Name} has the format {image.Format}, which no hook reads.",
                 nameof(image)
@@ -1411,6 +1533,11 @@ public sealed unsafe class VulkanRenderer : IRenderer
         RendererOptions options
     )
     {
+        if (options.Deformation)
+            Graph.Add(
+                FrameGraph.Stage.Deformation,
+                new DeformPass(device: device, shaders: shaders, layouts: layouts, deforms: deforms)
+            );
         Graph.Add(
             FrameGraph.Stage.ShadowMaps,
             new ShadowPass(device: device, shaders: shaders, layouts: layouts, map: ShadowMap)
@@ -1535,66 +1662,75 @@ public sealed unsafe class VulkanRenderer : IRenderer
         };
 
     /// <summary>
-    /// Under <see cref="GroundTruthOcclusion"/>, makes the occlusion images, which the renderer owns, and adds the four
-    /// occlusion passes to the graph. Returns the images, or null under <see cref="NoAmbientOcclusion"/>.
+    /// Under <see cref="VisibilityBitmaskLight"/>, makes the occlusion images, which the renderer owns, and adds the four
+    /// occlusion passes to the graph. Returns the images, or null under <see cref="NoScreenSpaceLight"/>.
     /// </summary>
-    private OcclusionImages? AddOcclusionPasses(ShaderLibrary shaders, AmbientOcclusionSetting setting) =>
+    private OcclusionImages? AddOcclusionPasses(ShaderLibrary shaders, ScreenSpaceLightSetting setting) =>
         setting switch
         {
-            GroundTruthOcclusion occlusion => AddOcclusionPasses(shaders: shaders, setting: occlusion),
-            NoAmbientOcclusion => null,
+            VisibilityBitmaskLight light => AddOcclusionPasses(shaders: shaders, setting: light),
+            NoScreenSpaceLight => null,
         };
 
     /// <summary>
     /// Makes the occlusion images, which the renderer owns, and adds the four occlusion passes of
     /// <paramref name="setting"/> to the graph. Returns the images.
     /// </summary>
-    private OcclusionImages AddOcclusionPasses(ShaderLibrary shaders, GroundTruthOcclusion setting)
+    private OcclusionImages AddOcclusionPasses(ShaderLibrary shaders, VisibilityBitmaskLight setting)
     {
         OcclusionImages images = Own(
             new OcclusionImages(device: device, allocator: Allocator, layouts: layouts, targets: targets)
         );
-        Graph.Add(
-            FrameGraph.Stage.AmbientOcclusion,
-            new OcclusionDepthPass(device: device, shaders: shaders, layouts: layouts, images: images, setting: setting)
-        );
-        Graph.Add(
-            FrameGraph.Stage.AmbientOcclusion,
-            new OcclusionHorizonsPass(
+        foreach (RenderPass pass in OcclusionPasses(shaders: shaders, setting: setting, images: images))
+            Graph.Add(FrameGraph.Stage.AmbientOcclusion, pass);
+        return images;
+    }
+
+    /// <summary>
+    /// The four occlusion passes of <paramref name="setting"/> over <paramref name="images"/>, in the order of their
+    /// reads: the sectors pass reads the depth pass's view depth and copies, and the denoise blurs the estimate that the
+    /// sectors pass writes.
+    /// </summary>
+    private RenderPass[] OcclusionPasses(
+        ShaderLibrary shaders,
+        VisibilityBitmaskLight setting,
+        OcclusionImages images
+    ) =>
+        [
+            new OcclusionDepthPass(
                 device: device,
                 shaders: shaders,
                 layouts: layouts,
                 images: images,
                 setting: setting
-            )
-        );
-        Graph.Add(
-            FrameGraph.Stage.AmbientOcclusion,
+            ),
+            new OcclusionSectorsPass(
+                device: device,
+                shaders: shaders,
+                layouts: layouts,
+                images: images,
+                setting: setting
+            ),
             new OcclusionDenoisePass(
                 device: device,
                 shaders: shaders,
                 layouts: layouts,
                 images: images,
                 setting: setting
-            )
-        );
-        Graph.Add(
-            FrameGraph.Stage.AmbientOcclusion,
+            ),
             new OcclusionUpsamplePass(
                 device: device,
                 shaders: shaders,
                 layouts: layouts,
                 images: images,
                 setting: setting
-            )
-        );
-        return images;
-    }
+            ),
+        ];
 
     /// <summary>
     /// Adds the passes of <see cref="ConeTracedReflections"/> over the targets' pyramids, which the targets make only
     /// under that setting: the depth pyramid after the G-buffer, then the radiance pyramid and the trace after the
-    /// lighting.
+    /// ambient pass.
     /// </summary>
     private void AddReflectionPasses(ShaderLibrary shaders, ReflectionSetting reflections)
     {
@@ -1640,15 +1776,19 @@ public sealed unsafe class VulkanRenderer : IRenderer
         };
 
     /// <summary>
-    /// Adds the passes from lighting to the readback to the graph, each in its own stage, the exposure pass only under
+    /// Adds the passes from the direct and the ambient pass to the readback to the graph, each in its own stage, the exposure pass only under
     /// <see cref="AutoExposure"/>, the bloom pass only with a <see cref="Bloom"/>, and the three SMAA passes when SMAA is
     /// on.
     /// </summary>
     private void AddPassesAfterGeometry(ShaderLibrary shaders, RendererOptions options)
     {
         Graph.Add(
-            FrameGraph.Stage.Lighting,
-            new LightingPass(device: device, shaders: shaders, layouts: layouts, constants: ShadingConstants)
+            FrameGraph.Stage.DirectLight,
+            new DirectLightPass(device: device, shaders: shaders, layouts: layouts, constants: ShadingConstants)
+        );
+        Graph.Add(
+            FrameGraph.Stage.AmbientLight,
+            new AmbientLightPass(device: device, shaders: shaders, layouts: layouts, constants: ShadingConstants)
         );
         Graph.Add(
             FrameGraph.Stage.Transparent,

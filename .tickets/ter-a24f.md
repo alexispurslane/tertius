@@ -38,3 +38,7 @@ The user's design choices, 2026-10-25, from two designs in the chat: (1) gather 
 **2026-10-25T20:07:18Z**
 
 2026-10-25: the design doc is on ter-a24f-ssgi (45b819d9, forks recorded in the next commit). The user dropped XeGTAO's tuned set ('Let's just not do the tuned set maybe'), and chose to build as designed, then cut the cost (4.0 to 8.4 ms by arithmetic). The orchestrator settled fork 3 (the direct and ambient passes in both cases of the switch) by the one-model rule. Fork 2 (far rays per texel) waits for Part 7's captures and cost. Parts: ter-r0hc to ter-7s3g, with ter-izsu as the cut between Parts 6 and 7.
+
+**2026-10-26T22:24:22Z**
+
+2026-10-26, the user: 'Let's just downscope bounce light to just the local stuff.' After seeing the cost (the far rays took 6.2 ms of the 9.1 ms, 2.6 ms at a third of the rays) and the white speckle in the lamp-lit cabin. The bounce light keeps the near part: the sector masks within the radius, which shadow the creases and bounce the light of the surfaces that block their sectors. The far rays through the depth pyramid go, with fork 2 (far rays per texel) and izsu's option B setting. Beyond the radius, an open sector takes the ambient light as before the far rays (and later the environment map, ter-fs7b). The far rays stay in git history (Part 5, 80c185d4) for a later epic.

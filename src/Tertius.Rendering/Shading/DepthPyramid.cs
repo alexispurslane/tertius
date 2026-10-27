@@ -9,6 +9,12 @@ namespace Tertius.Rendering;
 /// <param name="Far">The smallest, its farthest surface. <see cref="EmptyFar"/> without a surface.</param>
 internal readonly record struct CellBounds(float Near, float Far)
 {
+    /// <summary>
+    /// κ: a surface at view depth z fills the depths from z to z (1 + κ) behind it, along its view ray. The reflections'
+    /// trace and the bounce light's near steps read it, so both see one model of what is solid.
+    /// </summary>
+    public const float ThicknessShare = 0.1f;
+
     /// <summary>Far above any surface's inverse depth. Finite, not infinity: a shader compiler's fast math may assume
     /// that no value is infinite, on any Vulkan driver.</summary>
     public const float EmptyFar = 1e30f;

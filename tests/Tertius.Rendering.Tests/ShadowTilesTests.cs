@@ -19,6 +19,9 @@ public sealed class ShadowTilesTests
 
     private static readonly LightShadow NoSlot = default;
 
+    private static readonly MeshData CylinderData = Primitives.BendingCylinder(radius: 0.2f, length: 2f);
+    private static readonly MeshData BoxData = Primitives.MorphingBox(new(0.5f));
+
     /// <summary>A white spot light of <paramref name="intensity"/> W/sr that casts shadows, with the camera at the origin.</summary>
     private static PreparedLight Spot(
         uint entity,
@@ -58,9 +61,10 @@ public sealed class ShadowTilesTests
     }
 
     /// <summary>An unrotated caster of unit scale, with the camera at the origin.</summary>
-    private static ShadowCaster Caster(uint entity, Vector3 position, float radius = 1, int mesh = 0) =>
+    private static PreparedInstance Caster(uint entity, Vector3 position, float radius = 1, int mesh = 0) =>
         new()
         {
+            Flags = RenderFlags.Visible | RenderFlags.CastsShadow,
             Position = position,
             Rotation = Quaternion.Identity,
             Scale = Vector3.One,
@@ -74,8 +78,21 @@ public sealed class ShadowTilesTests
     private static (List<TileView> Views, List<TileDraw> Draws) Frame(
         ShadowTiles tiles,
         PreparedLight[] lights,
-        ShadowCaster[]? casters = null
+        PreparedInstance[]? casters = null
     ) => FrameInOrigin(tiles: tiles, lights: lights, casters: casters ?? [], originFrameId: 1);
+
+    /// <summary>
+    /// The draws of one submitted frame of the tiles with the test spot light, whose casters' meshes are
+    /// <paramref name="meshes"/>, with the invariants checked after it.
+    /// </summary>
+    private static List<TileDraw> PosedFrame(ShadowTiles tiles, PreparedInstance[] casters, FrameMeshes meshes) =>
+        FrameInOrigin(
+            tiles: tiles,
+            lights: [Spot(entity: 1)],
+            casters: casters,
+            originFrameId: 1,
+            meshes: meshes
+        ).Draws;
 
     /// <summary>
     /// One submitted frame of the tiles with the camera in the frame <paramref name="originFrameId"/>, with the invariants
@@ -84,13 +101,21 @@ public sealed class ShadowTilesTests
     private static (List<TileView> Views, List<TileDraw> Draws) FrameInOrigin(
         ShadowTiles tiles,
         PreparedLight[] lights,
-        ShadowCaster[] casters,
-        long originFrameId
+        PreparedInstance[] casters,
+        long originFrameId,
+        FrameMeshes? meshes = null
     )
     {
         List<TileView> views = [];
         List<TileDraw> draws = [];
-        tiles.Update(lights: lights, casters: casters, originFrameId: originFrameId, views: views, draws: draws);
+        tiles.Update(
+            lights: lights,
+            placed: casters,
+            deformed: (meshes ?? FrameMeshes.Static).Deformed,
+            originFrameId: originFrameId,
+            views: views,
+            draws: draws
+        );
         tiles.Drew();
         tiles.AssertInvariants();
         return (views, draws);
@@ -108,10 +133,13 @@ public sealed class ShadowTilesTests
     /// The draws of a frame with one spot light and one caster of <paramref name="scale"/>, 1 by default, then with the
     /// caster changed by <paramref name="change"/>.
     /// </summary>
-    private static List<TileDraw> DrawsAfterTheCasterChanges(Func<ShadowCaster, ShadowCaster> change, float scale = 1)
+    private static List<TileDraw> DrawsAfterTheCasterChanges(
+        Func<PreparedInstance, PreparedInstance> change,
+        float scale = 1
+    )
     {
         var tiles = new ShadowTiles(layers: 1, tileSize: TileSize);
-        ShadowCaster caster = Caster(entity: 7, position: new(10, 0, 0)) with { Scale = new(scale) };
+        PreparedInstance caster = Caster(entity: 7, position: new(10, 0, 0)) with { Scale = new(scale) };
         Frame(tiles, [Spot(entity: 1)], [caster]);
         return Frame(tiles, [Spot(entity: 1)], [change(caster)]).Draws;
     }
@@ -316,7 +344,7 @@ public sealed class ShadowTilesTests
     public void ATileWhoseLightAndCastersStayIsNotDrawnAgain()
     {
         var tiles = new ShadowTiles(layers: 1, tileSize: TileSize);
-        ShadowCaster[] casters = [Caster(entity: 7, position: new(10, 0, 0))];
+        PreparedInstance[] casters = [Caster(entity: 7, position: new(10, 0, 0))];
         List<TileDraw> first = Frame(tiles, [Spot(entity: 1)], casters).Draws;
 
         List<TileDraw> second = Frame(tiles, [Spot(entity: 1)], casters).Draws;
@@ -426,11 +454,123 @@ public sealed class ShadowTilesTests
             .Should()
             .ContainSingle();
 
+    // Posed casters (docs/plans/skinning-and-morphs.md, fork 1, B): the record keeps a posed caster's static mesh and pose
+    // rows. A posed caster draws frame mesh 2, the copy of static mesh 1, the cylinder or the box.
+
+    [Fact]
+    public void TileWithAStillPosedCasterStaysCached()
+    {
+        var tiles = new ShadowTiles(layers: 1, tileSize: TileSize);
+        PreparedInstance[] casters = [Caster(entity: 7, position: new(10, 0, 0), mesh: 2)];
+        RigPose rest = CylinderData.Rigging!.Rig.Rest;
+        PosedFrame(tiles, casters, FrameMeshes.Posed(CylinderData, rest));
+
+        List<TileDraw> draws = PosedFrame(tiles, casters, FrameMeshes.Posed(CylinderData, rest));
+
+        draws.Should().BeEmpty("a still rig gives the same pose rows in every frame");
+    }
+
+    [Fact]
+    public void TileRedrawsWhenAJointOfAPosedCasterTurns()
+    {
+        var tiles = new ShadowTiles(layers: 1, tileSize: TileSize);
+        PreparedInstance[] casters = [Caster(entity: 7, position: new(10, 0, 0), mesh: 2)];
+        RigPose rest = CylinderData.Rigging!.Rig.Rest;
+        PosedFrame(tiles, casters, FrameMeshes.Posed(CylinderData, rest));
+        RigPose bent = rest with
+        {
+            Joints = rest.Joints.SetItem(
+                1,
+                rest.Joints[1] with
+                {
+                    Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, 0.01f),
+                }
+            ),
+        };
+
+        List<TileDraw> draws = PosedFrame(tiles, casters, FrameMeshes.Posed(CylinderData, bent));
+
+        draws.Should().ContainSingle("the caster changed its shape without moving");
+    }
+
+    [Fact]
+    public void TileRedrawsWhenAMorphWeightOfAPosedCasterChanges()
+    {
+        var tiles = new ShadowTiles(layers: 1, tileSize: TileSize);
+        PreparedInstance[] casters = [Caster(entity: 7, position: new(10, 0, 0), mesh: 2)];
+        RigPose rest = BoxData.Rigging!.Rig.Rest;
+        PosedFrame(tiles, casters, FrameMeshes.Posed(BoxData, rest));
+
+        List<TileDraw> draws = PosedFrame(
+            tiles,
+            casters,
+            FrameMeshes.Posed(BoxData, rest with { Weights = [0, 0.01f] })
+        );
+
+        draws.Should().ContainSingle();
+    }
+
+    [Fact]
+    public void TileRedrawsWhenACasterTurnsFromStaticToPosed()
+    {
+        var tiles = new ShadowTiles(layers: 1, tileSize: TileSize);
+        var posed = FrameMeshes.Posed(CylinderData, CylinderData.Rigging!.Rig.Rest);
+        PosedFrame(tiles, [Caster(entity: 7, position: new(10, 0, 0), mesh: 1)], posed);
+
+        List<TileDraw> draws = PosedFrame(tiles, [Caster(entity: 7, position: new(10, 0, 0), mesh: 2)], posed);
+
+        draws.Should().ContainSingle("the copy at rest can still differ from the uploaded mesh");
+    }
+
+    [Fact]
+    public void TileWithAStillPosedCasterKeepsItsTileWhenItsCopyMovesInTheFrameMeshes()
+    {
+        var tiles = new ShadowTiles(layers: 1, tileSize: TileSize);
+        RigPose rest = CylinderData.Rigging!.Rig.Rest;
+        PosedFrame(tiles, [Caster(entity: 7, position: new(10, 0, 0), mesh: 2)], FrameMeshes.Posed(CylinderData, rest));
+
+        // Another posed instance, which casts into no tile, gained the job before the caster's: its copy is frame mesh 3.
+        List<TileDraw> draws = PosedFrame(
+            tiles,
+            [Caster(entity: 7, position: new(10, 0, 0), mesh: 3)],
+            FrameMeshes.PosedTwice(CylinderData, rest)
+        );
+
+        draws.Should().BeEmpty("the record names the copy's static mesh, which stays");
+    }
+
+    [Fact]
+    public void TileWithTwoStillPosedCastersOfDifferentPosesStaysCached()
+    {
+        var tiles = new ShadowTiles(layers: 1, tileSize: TileSize);
+        RigPose rest = CylinderData.Rigging!.Rig.Rest;
+        RigPose bent = rest with
+        {
+            Joints = rest.Joints.SetItem(
+                1,
+                rest.Joints[1] with
+                {
+                    Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, 0.5f),
+                }
+            ),
+        };
+        PreparedInstance[] casters =
+        [
+            Caster(entity: 7, position: new(10, 0, 0), mesh: 2),
+            Caster(entity: 8, position: new(12, 0, 0), mesh: 3),
+        ];
+        PosedFrame(tiles, casters, FrameMeshes.PosedTwice(CylinderData, rest, bent));
+
+        List<TileDraw> draws = PosedFrame(tiles, casters, FrameMeshes.PosedTwice(CylinderData, rest, bent));
+
+        draws.Should().BeEmpty("each caster's rows are compared with its own recorded rows");
+    }
+
     [Fact]
     public void ACasterAroundTheLightThatStaysKeepsTheTile()
     {
         var tiles = new ShadowTiles(layers: 1, tileSize: TileSize);
-        ShadowCaster[] casters = [Caster(entity: 7, position: new(0.5f, 0, 0), radius: 1)];
+        PreparedInstance[] casters = [Caster(entity: 7, position: new(0.5f, 0, 0), radius: 1)];
         Frame(tiles, [Spot(entity: 1)], casters);
 
         Frame(tiles, [Spot(entity: 1)], casters)
@@ -457,7 +597,7 @@ public sealed class ShadowTilesTests
         // The sphere holds the light, so it shows out to the tile's edge: the cone's rim, or the corner of a face.
         float edgeTanSquared = point ? 2 * tanHalf * tanHalf : tanHalf * tanHalf;
         float quarter = 0.25f * texelPerMeter * DepthRanges.NearPlane / (1 + edgeTanSquared);
-        ShadowCaster caster = Caster(entity: 7, position: new(0.5f, 0, 0), radius: 1);
+        PreparedInstance caster = Caster(entity: 7, position: new(0.5f, 0, 0), radius: 1);
         Frame(tiles, [light], [caster]);
 
         List<TileDraw> draws = Frame(
@@ -490,7 +630,7 @@ public sealed class ShadowTilesTests
             * MathF.Cos(angle);
         Vector3 position = distance * new Vector3(MathF.Cos(angle), MathF.Sin(angle), 0);
         var across = new Vector3(-MathF.Sin(angle), MathF.Cos(angle), 0);
-        ShadowCaster caster = Caster(entity: 7, position: position, radius: 1e-3f);
+        PreparedInstance caster = Caster(entity: 7, position: position, radius: 1e-3f);
         Frame(tiles, [light], [caster]);
 
         List<TileDraw> draws = Frame(
@@ -563,7 +703,7 @@ public sealed class ShadowTilesTests
         float texelPerMeter = ShadowTiles.TexelPerMeter(light, new ConeAim(), TileSize);
         float tanHalf = texelPerMeter * TileSize / 2;
         // The sphere spans asin(2 / 3) = 0.73 rad off the axis, past the rim of the widened cone at 0.507 rad.
-        ShadowCaster caster = Caster(entity: 7, position: new(3, 0, 0), radius: 2);
+        PreparedInstance caster = Caster(entity: 7, position: new(3, 0, 0), radius: 2);
         float quarter = 0.25f * texelPerMeter * 1 / (1 + tanHalf * tanHalf);
         Frame(tiles, [light], [caster]);
 
@@ -580,7 +720,7 @@ public sealed class ShadowTilesTests
     public void TwoLightsInOnePlaceKeepTheirOwnCachedTiles()
     {
         var tiles = new ShadowTiles(layers: 2, tileSize: TileSize);
-        ShadowCaster[] casters = [Caster(entity: 7, position: new(10, 0, 0))];
+        PreparedInstance[] casters = [Caster(entity: 7, position: new(10, 0, 0))];
         Frame(tiles, [Spot(entity: 1), Spot(entity: 2)], casters);
 
         List<TileDraw> draws = Frame(tiles, [Spot(entity: 1), Spot(entity: 2)], casters).Draws;
@@ -594,7 +734,14 @@ public sealed class ShadowTilesTests
         var tiles = new ShadowTiles(layers: 1, tileSize: TileSize);
         PreparedLight[] lights = [Spot(entity: 1)];
         List<TileView> views = [];
-        tiles.Update(lights: lights, casters: [], originFrameId: 1, views: views, draws: []);
+        tiles.Update(
+            lights: lights,
+            placed: [],
+            deformed: FrameMeshes.Static.Deformed,
+            originFrameId: 1,
+            views: views,
+            draws: []
+        );
         tiles.Drew();
 
         views.Clear();
@@ -659,14 +806,31 @@ public sealed class ShadowTilesTests
         Frame(tiles, [Spot(entity: 1) with { Radius = 0.2f }]).Draws.Should().ContainSingle();
     }
 
+    [Fact]
+    public void APlacedInstanceThatCastsNoShadowIsNoCasterOfATile()
+    {
+        var tiles = new ShadowTiles(layers: 1, tileSize: TileSize);
+        PreparedInstance drawnOnly = Caster(entity: 8, position: new(10, 0, 0)) with { Flags = RenderFlags.Visible };
+
+        List<TileDraw> draws = Frame(
+            tiles,
+            [Spot(entity: 1)],
+            [drawnOnly, Caster(entity: 7, position: new(10, 0, 0))]
+        ).Draws;
+
+        CastersOf(tiles, draws.Should().ContainSingle().Subject)
+            .Should()
+            .Equal([1], "a tile's casters index the placed instances, and only the second casts a shadow");
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
     public void ACasterThatEntersOrLeavesTheReachDrawsTheTileAgain(bool enters)
     {
         var tiles = new ShadowTiles(layers: 1, tileSize: TileSize);
-        ShadowCaster inside = Caster(entity: 7, position: new(Reach, 0, 0));
-        ShadowCaster outside = Caster(entity: 7, position: new(Reach + 2, 0, 0));
+        PreparedInstance inside = Caster(entity: 7, position: new(Reach, 0, 0));
+        PreparedInstance outside = Caster(entity: 7, position: new(Reach + 2, 0, 0));
         Frame(tiles, [Spot(entity: 1)], [enters ? outside : inside]);
 
         List<TileDraw> draws = Frame(tiles, [Spot(entity: 1)], [enters ? inside : outside]).Draws;
@@ -692,7 +856,14 @@ public sealed class ShadowTilesTests
         var tiles = new ShadowTiles(layers: 7, tileSize: TileSize);
         PreparedLight[] lights = [Point(entity: 1), Spot(entity: 2, position: new(0, 3, 0))];
         // The first frame chooses its layers and draws, then throws before its submission, so it records nothing.
-        tiles.Update(lights: lights, casters: [], originFrameId: 1, views: [], draws: []);
+        tiles.Update(
+            lights: lights,
+            placed: [],
+            deformed: FrameMeshes.Static.Deformed,
+            originFrameId: 1,
+            views: [],
+            draws: []
+        );
 
         List<TileDraw> draws = Frame(tiles, lights).Draws;
 
@@ -705,7 +876,7 @@ public sealed class ShadowTilesTests
     public void ALayerThatPassesToAnotherLightIsDrawnAgain()
     {
         var tiles = new ShadowTiles(layers: 1, tileSize: TileSize);
-        ShadowCaster[] casters = [Caster(entity: 7, position: new(10, 0, 0))];
+        PreparedInstance[] casters = [Caster(entity: 7, position: new(10, 0, 0))];
         Frame(tiles, [Spot(entity: 1)], casters);
 
         (List<TileView> views, List<TileDraw> draws) = Frame(tiles, [Spot(entity: 2)], casters);
@@ -728,7 +899,7 @@ public sealed class ShadowTilesTests
     public void ACasterBeyondTheReachIsNotDrawn(float beyondReach, int expectedCasters)
     {
         var tiles = new ShadowTiles(layers: 1, tileSize: TileSize);
-        ShadowCaster caster = Caster(entity: 7, position: new(Reach + 1 + beyondReach, 0, 0), radius: 1);
+        PreparedInstance caster = Caster(entity: 7, position: new(Reach + 1 + beyondReach, 0, 0), radius: 1);
 
         List<TileDraw> draws = Frame(tiles, [Spot(entity: 1)], [caster]).Draws;
 
@@ -739,7 +910,7 @@ public sealed class ShadowTilesTests
     public void ACasterOutsideAFaceIsNotDrawnInThatFace()
     {
         var tiles = new ShadowTiles(layers: 6, tileSize: TileSize);
-        ShadowCaster[] casters = [Caster(entity: 7, position: new(5, 0, 0), radius: 0.5f)];
+        PreparedInstance[] casters = [Caster(entity: 7, position: new(5, 0, 0), radius: 0.5f)];
 
         (List<TileView> views, List<TileDraw> draws) = Frame(tiles, [Point(entity: 1)], casters);
 
@@ -757,7 +928,7 @@ public sealed class ShadowTilesTests
         // 0.2° past the edge of the +X face toward +Y, inside the 4 texels of the margin, about 0.45°.
         float angle = MathF.PI / 4 + 0.2f * MathF.PI / 180;
         Vector3 position = 5 * new Vector3(MathF.Cos(angle), MathF.Sin(angle), 0);
-        ShadowCaster[] casters = [Caster(entity: 7, position: position, radius: 1e-3f)];
+        PreparedInstance[] casters = [Caster(entity: 7, position: position, radius: 1e-3f)];
 
         (List<TileView> views, List<TileDraw> draws) = Frame(tiles, [Point(entity: 1)], casters);
 
@@ -775,7 +946,7 @@ public sealed class ShadowTilesTests
     {
         var tiles = new ShadowTiles(layers: 1, tileSize: TileSize);
         Vector3 position = 10 * new Vector3(MathF.Cos(angle), MathF.Sin(angle), 0);
-        ShadowCaster[] casters = [Caster(entity: 7, position: position, radius: 0.1f)];
+        PreparedInstance[] casters = [Caster(entity: 7, position: position, radius: 0.1f)];
 
         List<TileDraw> draws = Frame(tiles, [Spot(entity: 1)], casters).Draws;
 
@@ -789,7 +960,7 @@ public sealed class ShadowTilesTests
         // 0.005 rad past the cone, inside the margin of the tile, about 0.0066 rad.
         float angle = Narrow + 0.005f;
         Vector3 position = 10 * new Vector3(MathF.Cos(angle), MathF.Sin(angle), 0);
-        ShadowCaster[] casters = [Caster(entity: 7, position: position, radius: 1e-3f)];
+        PreparedInstance[] casters = [Caster(entity: 7, position: position, radius: 1e-3f)];
 
         List<TileDraw> draws = Frame(tiles, [Spot(entity: 1)], casters).Draws;
 
@@ -800,7 +971,7 @@ public sealed class ShadowTilesTests
     public void ACasterBehindASpotLightIsNotDrawn()
     {
         var tiles = new ShadowTiles(layers: 1, tileSize: TileSize);
-        ShadowCaster[] casters = [Caster(entity: 7, position: new(-1.2f, 0, 0), radius: 1)];
+        PreparedInstance[] casters = [Caster(entity: 7, position: new(-1.2f, 0, 0), radius: 1)];
 
         Frame(tiles, [Spot(entity: 1)], casters)
             .Draws.Single()
@@ -814,7 +985,7 @@ public sealed class ShadowTilesTests
         var tiles = new ShadowTiles(layers: 1, tileSize: TileSize);
         // At 0.6 rad, the center lies 0.93 m from the side of the widened cone, of half-angle 0.507 rad.
         Vector3 position = 10 * new Vector3(MathF.Cos(0.6f), MathF.Sin(0.6f), 0);
-        ShadowCaster[] casters = [Caster(entity: 7, position: position, radius: 1)];
+        PreparedInstance[] casters = [Caster(entity: 7, position: position, radius: 1)];
 
         Frame(tiles, [Spot(entity: 1)], casters).Draws.Single().Count.Should().Be(1);
     }
@@ -825,7 +996,7 @@ public sealed class ShadowTilesTests
         var tiles = new ShadowTiles(layers: 1, tileSize: TileSize);
         // Half the depth across on each side axis is inside the square of tan 0.507 = 0.555, and 0.71 outside the cone.
         Vector3 position = 10 * Vector3.Normalize(new Vector3(1, 0.5f, 0.5f));
-        ShadowCaster[] casters = [Caster(entity: 7, position: position, radius: 0.01f)];
+        PreparedInstance[] casters = [Caster(entity: 7, position: position, radius: 0.01f)];
 
         Frame(tiles, [Spot(entity: 1)], casters).Draws.Single().Count.Should().Be(0);
     }
@@ -837,7 +1008,7 @@ public sealed class ShadowTilesTests
         // At 50° from +X toward +Y, the center lies 0.40 m outside the side plane of the widened +X face.
         float angle = 50 * MathF.PI / 180;
         Vector3 position = 5 * new Vector3(MathF.Cos(angle), MathF.Sin(angle), 0);
-        ShadowCaster[] casters = [Caster(entity: 7, position: position, radius: 0.45f)];
+        PreparedInstance[] casters = [Caster(entity: 7, position: position, radius: 0.45f)];
 
         (List<TileView> views, List<TileDraw> draws) = Frame(tiles, [Point(entity: 1)], casters);
 
@@ -852,7 +1023,7 @@ public sealed class ShadowTilesTests
     public void ACasterAroundASpotLightIsDrawn()
     {
         var tiles = new ShadowTiles(layers: 1, tileSize: TileSize);
-        ShadowCaster[] casters = [Caster(entity: 7, position: new(-0.5f, 0, 0), radius: 1)];
+        PreparedInstance[] casters = [Caster(entity: 7, position: new(-0.5f, 0, 0), radius: 1)];
 
         Frame(tiles, [Spot(entity: 1)], casters).Draws.Single().Count.Should().Be(1);
     }
@@ -861,7 +1032,7 @@ public sealed class ShadowTilesTests
     public void TheCastersOfADrawAreInMeshOrderAndThenInTheOrderOfTheList()
     {
         var tiles = new ShadowTiles(layers: 1, tileSize: TileSize);
-        ShadowCaster[] casters =
+        PreparedInstance[] casters =
         [
             Caster(entity: 7, position: new(10, 0, 0), mesh: 2),
             Caster(entity: 8, position: new(11, 0, 0), mesh: 0),
@@ -878,7 +1049,7 @@ public sealed class ShadowTilesTests
     public void EachDrawHasItsOwnRunOfCasters()
     {
         var tiles = new ShadowTiles(layers: 6, tileSize: TileSize);
-        ShadowCaster[] casters =
+        PreparedInstance[] casters =
         [
             Caster(entity: 7, position: new(0, 0, -5), radius: 0.5f),
             Caster(entity: 8, position: new(5, 0, 0), radius: 0.5f),
@@ -1025,5 +1196,73 @@ public sealed class ShadowTilesTests
         List<TileView>[] views = [.. frames.Select(lights => Frame(tiles, lights).Views)];
 
         views.Should().AllSatisfy(frame => frame.Select(view => view.Layer).Should().OnlyHaveUniqueItems());
+    }
+
+    /// <summary>The frame meshes of a test frame: static meshes, then one deformed copy per job.</summary>
+    private sealed record FrameMeshes(MeshInfo[] Meshes, int StaticMeshCount, DeformJob[] Jobs, Vector4[] Poses)
+    {
+        /// <summary>Four static meshes and no copy.</summary>
+        public static readonly FrameMeshes Static = new(
+            Meshes: [.. Enumerable.Repeat(StaticMesh(deform: null), 4)],
+            StaticMeshCount: 4,
+            Jobs: [],
+            Poses: []
+        );
+
+        public DeformedMeshes Deformed =>
+            new(meshes: Meshes, staticMeshCount: StaticMeshCount, jobs: Jobs, poses: Poses);
+
+        /// <summary>A rigid mesh 0, <paramref name="mesh"/> as static mesh 1, and its copy in <paramref name="pose"/> as frame mesh 2.</summary>
+        public static FrameMeshes Posed(MeshData mesh, RigPose pose)
+        {
+            MeshDeform deform = MeshDeform.Pack(mesh)!.Deform;
+            var rows = new Vector4[deform.PoseRows];
+            float bound = deform.PoseInto(
+                previousJoints: pose.Joints.AsSpan(),
+                joints: pose.Joints.AsSpan(),
+                previousWeights: pose.Weights.AsSpan(),
+                weights: pose.Weights.AsSpan(),
+                alpha: 1,
+                rows: rows
+            );
+            return new(
+                Meshes:
+                [
+                    StaticMesh(deform: null),
+                    StaticMesh(deform),
+                    StaticMesh(deform: null) with
+                    {
+                        Radius = bound,
+                    },
+                ],
+                StaticMeshCount: 2,
+                Jobs: [new(Mesh: 1, Target: 0, Pose: 0)],
+                Poses: rows
+            );
+        }
+
+        /// <summary>
+        /// A rigid mesh 0, <paramref name="mesh"/> as static mesh 1, and two copies of it: frame mesh 2 in
+        /// <paramref name="first"/>, and frame mesh 3 in <paramref name="second"/>, or in <paramref name="first"/> too.
+        /// </summary>
+        public static FrameMeshes PosedTwice(MeshData mesh, RigPose first, RigPose? second = null)
+        {
+            FrameMeshes one = Posed(mesh, first),
+                two = Posed(mesh, second ?? first);
+            MeshDeform deform = MeshDeform.Pack(mesh)!.Deform;
+            return new(
+                Meshes: [.. one.Meshes, two.Meshes[2]],
+                StaticMeshCount: 2,
+                Jobs:
+                [
+                    new(Mesh: 1, Target: 0, Pose: 0),
+                    new(Mesh: 1, Target: deform.VertexCount, Pose: deform.PoseRows),
+                ],
+                Poses: [.. one.Poses, .. two.Poses]
+            );
+        }
+
+        private static MeshInfo StaticMesh(MeshDeform? deform) =>
+            new(FirstIndex: 0, IndexCount: 36, VertexOffset: 0, Radius: 1, Deform: deform);
     }
 }

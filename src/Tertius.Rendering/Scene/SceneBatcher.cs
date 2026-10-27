@@ -5,15 +5,22 @@ using System.Runtime.InteropServices;
 namespace Tertius.Rendering;
 
 /// <summary>A mesh as the batcher sees it: its range in the global buffers and its bounding radius.</summary>
-internal readonly record struct MeshInfo(uint FirstIndex, uint IndexCount, int VertexOffset, float Radius);
+/// <param name="Deform">The CPU side of a deforming mesh, or null for a rigid mesh and for a deformed copy.</param>
+internal readonly record struct MeshInfo(
+    uint FirstIndex,
+    uint IndexCount,
+    int VertexOffset,
+    float Radius,
+    MeshDeform? Deform
+);
 
 /// <summary>
 /// Turns a <see cref="RenderSnapshot"/> into GPU-ready arrays on the render thread: interpolates the camera, the
-/// instances, the casters, the lights and the puffs, culls them, assigns depth ranges, sorts, and builds one indirect
-/// command per stretch of instances that share a depth range, an opaque run and a mesh. It chooses the far lights' shadow
-/// slots and their far shadows (docs/plans/local-light-shadows.md). The glass instances, the fringes and the puffs sort
-/// together back to front, and the batcher cuts that list into the runs of the transparent pass. Allocates nothing once
-/// its arrays have grown to the scene.
+/// instances, once for every view, the lights and the puffs, culls them, assigns depth ranges, sorts, and builds one
+/// indirect command per stretch of instances that share a depth range, an opaque run and a mesh. It chooses the far
+/// lights' shadow slots and their far shadows (docs/plans/local-light-shadows.md). The glass instances, the fringes and
+/// the puffs sort together back to front, and the batcher cuts that list into the runs of the transparent pass. Allocates
+/// nothing once its arrays have grown to the scene.
 /// </summary>
 /// <param name="exposure">The renderer's exposure setting, whose highest stops set the cutoff irradiance.</param>
 /// <param name="cascadedLights">How many far lights get a cascade set, 0 to <see cref="RendererOptions.MaxCascadedLights"/>.</param>
@@ -39,14 +46,15 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
     /// The bit of an opaque draw item's key that puts it into its range's cutout run, below the range's bits and above
     /// the mesh's, which a mesh index of an <see cref="int"/> never reaches.
     /// </summary>
-    private const ulong CutoutKeyBit = 1UL << 31;
+    internal const ulong CutoutKeyBit = 1UL << 31;
 
     private DrawItem[] opaque = new DrawItem[256];
+    private readonly OpaqueSorter opaqueSorter = new();
+
+    // The frame mesh of each entry of the snapshot's rig poses, or −1 for an instance with no mesh on the GPU.
+    private int[] entryMeshes = new int[16];
 
     private DrawItem[] transparent = new DrawItem[64];
-
-    // The opaque instances that the map's faces may draw, interpolated once for every face of the frame.
-    private PreparedInstance[] mapInstances = new PreparedInstance[256];
 
     // The commands of one face per depth range, indexed by DepthRanges.
     private readonly OpaqueRuns[] faceRanges = new OpaqueRuns[DepthRanges.Count];
@@ -77,6 +85,7 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
     /// The faces that this frame draws of each served map, root first, and their latest irradiance, or no map. The served
     /// maps are those of <paramref name="snapshot"/>'s chain (docs/plans/environment-maps-per-frame.md).
     /// </param>
+    /// <param name="region">The deform region that this frame's deformed copies fill.</param>
     /// <param name="scene">Receives the result.</param>
     public void Prepare(
         RenderSnapshot snapshot,
@@ -86,6 +95,7 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
         ReadOnlySpan<MeshInfo> meshes,
         ReadOnlySpan<MaterialInfo> materials,
         EnvironmentDraw environment,
+        DeformRegion region,
         PreparedScene scene
     )
     {
@@ -110,25 +120,39 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
         for (int range = 0; range < DepthRanges.Count; range++)
             scene.RangeViewProjection[range] = scene.Camera.ViewProjection(range);
 
-        CollectVisible(snapshot: snapshot, alpha: alpha, meshes: meshes, materials: materials, scene: scene);
+        // First, because every collector reads the frame meshes and their bounds.
+        PoseInstances(snapshot: snapshot, alpha: alpha, meshes: meshes, region: region, scene: scene);
+        PlaceInstances(snapshot: snapshot, alpha: alpha, materials: materials, scene: scene);
         CollectPuffs(snapshot, alpha, scene);
-        CollectCasters(snapshot: snapshot, alpha: alpha, meshes: meshes, materials: materials, scene: scene);
         // Before the processors: impostor captures are lit by the lights as their far shadows leave them.
         CollectLights(snapshot: snapshot, alpha: alpha, faces: facesOfMaps, scene: scene);
         CollectFarShadows(scene);
         foreach (IInstanceProcessor processor in Processors)
             processor.Process(scene);
-        Batch(scene, meshes);
+        Batch(scene, scene.Meshes);
         // After the main view, so that its instances and commands keep the places that they have without the map.
-        BatchFaces(
-            snapshot: snapshot,
-            alpha: alpha,
-            meshes: meshes,
-            materials: materials,
-            faces: facesOfMaps,
-            scene: scene
-        );
+        BatchFaces(meshes: scene.Meshes, faces: facesOfMaps, scene: scene);
         WriteConstants(snapshot, scene);
+    }
+
+    /// <summary>
+    /// The vertices that this frame's deformed copies can take: the sum of the vertex counts of the snapshot's posed
+    /// instances that some view may draw and whose mesh deforms. The renderer grows the deform region to it before
+    /// <see cref="Prepare"/>.
+    /// </summary>
+    public static int DeformNeed(RenderSnapshot snapshot, ReadOnlySpan<MeshInfo> meshes)
+    {
+        int need = 0;
+        ReadOnlySpan<RenderInstance> instances = CollectionsMarshal.AsSpan(snapshot.Instances);
+        foreach (ref readonly RenderRigPose pose in CollectionsMarshal.AsSpan(snapshot.RigPoses))
+        {
+            ref readonly RenderInstance instance = ref instances[pose.Instance];
+            int mesh = MeshIndex(instance.Mesh, meshes.Length);
+            if (mesh >= 0 && MayDraw(instance) && meshes[mesh].Deform is { } deform)
+                need += deform.VertexCount;
+        }
+
+        return need;
     }
 
     /// <summary>The faces of the one map that stands for none while the map is off: it draws no face.</summary>
@@ -204,6 +228,16 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
     internal static bool HasVolume(Vector3 scale) =>
         IsDrawableAxis(scale.X) && IsDrawableAxis(scale.Y) && IsDrawableAxis(scale.Z);
 
+    /// <summary>
+    /// Whether some view may draw the instance: it is visible or casts a shadow, and it has a volume. Every collector
+    /// skips an instance without both.
+    /// </summary>
+    private static bool MayDraw(in RenderInstance instance)
+    {
+        bool shown = (instance.Flags & (RenderFlags.Visible | RenderFlags.CastsShadow)) != 0;
+        return shown && HasVolume(instance.Scale);
+    }
+
     // A NaN fails both comparisons.
     private static bool IsDrawableAxis(float axis) => MathF.Abs(axis) is >= SmallestScale and <= LargestScale;
 
@@ -231,10 +265,104 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
         return float.IsFinite(lengthSquared) && lengthSquared > 1e-12f;
     }
 
-    private static void CollectVisible(
+    /// <summary>
+    /// Decides the frame mesh of each posed instance, in the snapshot's order (docs/plans/skinning-and-morphs.md, "Posing
+    /// in the batcher"): a deformed copy when <see cref="DeformedCopy"/> makes one, else its static mesh, counted as drawn
+    /// as uploaded. An instance whose mesh is not on the GPU, or that no view draws, is left to the collectors, which skip
+    /// it, so that no job arises that no draw reads.
+    /// </summary>
+    /// <param name="meshes">The static meshes, which become the static part of the frame meshes.</param>
+    private void PoseInstances(
         RenderSnapshot snapshot,
         float alpha,
         ReadOnlySpan<MeshInfo> meshes,
+        DeformRegion region,
+        PreparedScene scene
+    )
+    {
+        scene.SetStaticMeshes(meshes);
+        ReadOnlySpan<RenderRigPose> poses = CollectionsMarshal.AsSpan(snapshot.RigPoses);
+        ReadOnlySpan<RenderInstance> instances = CollectionsMarshal.AsSpan(snapshot.Instances);
+        EnsureCapacity(ref entryMeshes, poses.Length);
+        for (int entry = 0; entry < poses.Length; entry++)
+        {
+            ref readonly RenderInstance instance = ref instances[poses[entry].Instance];
+            int mesh = MeshIndex(instance.Mesh, meshes.Length);
+            entryMeshes[entry] = mesh;
+            if (mesh < 0 || !MayDraw(instance))
+                continue;
+            if (
+                DeformedCopy(
+                    snapshot: snapshot,
+                    pose: poses[entry],
+                    mesh: mesh,
+                    alpha: alpha,
+                    region: region,
+                    scene: scene
+                ) is
+                { } copy
+            )
+                entryMeshes[entry] = copy;
+            else
+                scene.CountUndeformed();
+        }
+    }
+
+    /// <summary>
+    /// The frame mesh of a deformed copy of static mesh <paramref name="mesh"/> in <paramref name="pose"/>, appended with its
+    /// job and its pose rows, or null when the instance draws as uploaded: the mesh does not deform, the rig pose does not
+    /// fit it, the copy, its pose rows or its job do not fit in the region, or the posed bound is not finite or passes
+    /// <see cref="ShaderInput.PositionLimit"/>.
+    /// </summary>
+    private static int? DeformedCopy(
+        RenderSnapshot snapshot,
+        in RenderRigPose pose,
+        int mesh,
+        float alpha,
+        DeformRegion region,
+        PreparedScene scene
+    )
+    {
+        if (scene.Meshes[mesh].Deform is not { } deform || !deform.Fits(pose.JointCount, pose.WeightCount))
+            return null;
+        // The copies lie end to end, so the vertices of the copies so far are the next copy's target.
+        bool fits = region.Holds(
+            vertices: scene.DeformedVertices + deform.VertexCount,
+            poseRows: scene.Poses.Length + deform.PoseRows,
+            jobs: scene.Deforms.Length + 1
+        );
+        if (!fits)
+            return null;
+        float bound = deform.PoseInto(
+            previousJoints: snapshot.PreviousJointsOf(pose),
+            joints: snapshot.JointsOf(pose),
+            previousWeights: snapshot.PreviousWeightsOf(pose),
+            weights: snapshot.WeightsOf(pose),
+            alpha: alpha,
+            rows: scene.NextPoseRows(deform.PoseRows)
+        );
+        // A NaN fails the comparison. The rows of a dropped job stay unkept.
+        if (!(bound <= ShaderInput.PositionLimit))
+            return null;
+        return scene.AddDeformed(source: mesh, deform: deform, region: region, bound: bound);
+    }
+
+    /// <summary>The frame meshes of the snapshot's posed instances, by entry of its rig poses, while they are walked.</summary>
+    private FrameMeshCursor FrameMeshes(RenderSnapshot snapshot, PreparedScene scene) =>
+        new(
+            poses: CollectionsMarshal.AsSpan(snapshot.RigPoses),
+            entryMeshes: entryMeshes,
+            staticMeshCount: scene.StaticMeshCount
+        );
+
+    /// <summary>
+    /// Places each instance that some view may draw once, with its frame mesh, into the scene's placed instances. The main
+    /// view copies the visible ones that it does not cull, with their depth, into its visible instances. The faces and the
+    /// shadow views select theirs (ARCHITECTURE.md, "One placement per instance").
+    /// </summary>
+    private void PlaceInstances(
+        RenderSnapshot snapshot,
+        float alpha,
         ReadOnlySpan<MaterialInfo> materials,
         PreparedScene scene
     )
@@ -242,39 +370,46 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
         ReadOnlySpan<RenderInstance> instances = CollectionsMarshal.AsSpan(snapshot.Instances);
         scene.SubmittedInstances = instances.Length;
         CameraView camera = scene.Camera;
-        foreach (ref readonly RenderInstance instance in instances)
+        ReadOnlySpan<MeshInfo> meshes = scene.Meshes;
+        FrameMeshCursor frameMeshes = FrameMeshes(snapshot, scene);
+        for (int index = 0; index < instances.Length; index++)
         {
+            ref readonly RenderInstance instance = ref instances[index];
+            // Every instance moves the cursor, those that no view draws too.
+            int mesh = frameMeshes.MeshOf(index, instance);
             if (
-                Place(instance: instance, alpha: alpha, meshes: meshes, eye: camera.Offset) is not { } placement
-                || camera.Culls(placement.Position, placement.Radius)
+                Place(instance: instance, mesh: mesh, alpha: alpha, meshes: meshes, eye: camera.Offset)
+                is not { } placement
             )
                 continue;
-
-            scene.AddVisible() = Prepared(
+            ref PreparedInstance placed = ref scene.AddPlaced();
+            placed = Prepared(
                 instance: instance,
                 placement: placement,
                 alpha: alpha,
                 materials: materials,
                 maps: scene.MapCount
-            ) with
-            {
-                Depth = Vector3.Dot(placement.Position, camera.Forward),
-                Distance = placement.Position.Length(),
-            };
+            );
+            bool visible = (instance.Flags & RenderFlags.Visible) != 0;
+            if (visible && !camera.Culls(placement.Position, placement.Radius))
+                scene.AddVisible() = placed with { Depth = Vector3.Dot(placement.Position, camera.Forward) };
         }
     }
 
     /// <summary>
-    /// Where an instance draws, relative to the interpolated <paramref name="eye"/>, its bounding radius and its mesh
-    /// index. Null when it draws in no view: not visible, no mesh on the GPU, no volume, or a place that reaches past
-    /// <see cref="ShaderInput.PositionLimit"/> or is not finite.
+    /// Where an instance draws, relative to the interpolated <paramref name="eye"/>, its bounding radius and its frame mesh
+    /// <paramref name="mesh"/>. Null when it draws in no view: neither visible nor a caster, no mesh on the GPU (−1), no
+    /// volume, or a place that reaches past <see cref="ShaderInput.PositionLimit"/> or is not finite.
     /// </summary>
-    private static Placement? Place(in RenderInstance instance, float alpha, ReadOnlySpan<MeshInfo> meshes, Vector3 eye)
+    private static Placement? Place(
+        in RenderInstance instance,
+        int mesh,
+        float alpha,
+        ReadOnlySpan<MeshInfo> meshes,
+        Vector3 eye
+    )
     {
-        if ((instance.Flags & RenderFlags.Visible) == 0)
-            return null;
-        int mesh = MeshIndex(instance.Mesh, meshes.Length);
-        if (mesh < 0 || !HasVolume(instance.Scale))
+        if (mesh < 0 || !MayDraw(instance))
             return null;
         Vector3 position = Vector3.Lerp(instance.PreviousPosition, instance.Position, alpha) - eye;
         float radius = BoundingRadius(instance, meshes[mesh]);
@@ -286,8 +421,8 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
     }
 
     /// <summary>
-    /// The prepared instance of <paramref name="instance"/> at <paramref name="placement"/>, with no depth and no distance,
-    /// the two fields that depend on the view, and its map of the <paramref name="maps"/> served maps.
+    /// The prepared instance of <paramref name="instance"/> at <paramref name="placement"/>, with no depth, which depends on
+    /// the view, and its map of the <paramref name="maps"/> served maps.
     /// </summary>
     private static PreparedInstance Prepared(
         in RenderInstance instance,
@@ -304,6 +439,7 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
             Rotation = Interpolate(instance.PreviousRotation, instance.Rotation, alpha),
             Scale = instance.Scale,
             Radius = placement.Radius,
+            Distance = placement.Position.Length(),
             Mesh = placement.Mesh,
             Material = material,
             Alpha = materials[(int)material].Alpha,
@@ -342,27 +478,14 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
     /// order, after the main view's instances and commands: the opaque instances of the snapshot that the map draws (the
     /// draw rule) and that the face does not cull in the map's axes, by their depth along its axis, as geometry and with no
     /// impostor (docs/plans/environment-map.md, "Culling and level of detail", and docs/plans/environment-maps-per-frame.md,
-    /// "What a map draws").
+    /// "What a map draws"). It reads them from the placed instances (<see cref="PlaceInstances"/>).
     /// </summary>
     /// <param name="faces">The faces of each served map, root first.</param>
-    private void BatchFaces(
-        RenderSnapshot snapshot,
-        float alpha,
-        ReadOnlySpan<MeshInfo> meshes,
-        ReadOnlySpan<MaterialInfo> materials,
-        ReadOnlySpan<FaceMask> faces,
-        PreparedScene scene
-    )
+    private void BatchFaces(ReadOnlySpan<MeshInfo> meshes, ReadOnlySpan<FaceMask> faces, PreparedScene scene)
     {
         if (!faces.ContainsAnyExcept(FaceMask.None))
             return;
-        Span<PreparedInstance> instances = CollectMapInstances(
-            snapshot: snapshot,
-            alpha: alpha,
-            meshes: meshes,
-            materials: materials,
-            scene: scene
-        );
+        ReadOnlySpan<PreparedInstance> instances = scene.PlacedSpan;
         for (int map = 0; map < faces.Length; map++)
         for (int layer = 0; layer < CubeFaces.Count; layer++)
         {
@@ -382,7 +505,7 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
     /// <summary>Prepares the view of one face of map <paramref name="map"/>, whose axes are <paramref name="basis"/>.</summary>
     private void BatchFace(
         ReadOnlySpan<MeshInfo> meshes,
-        Span<PreparedInstance> instances,
+        ReadOnlySpan<PreparedInstance> instances,
         int map,
         CubeFace face,
         FaceBasis basis,
@@ -392,9 +515,10 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
         int opaqueCount = 0;
         for (int i = 0; i < instances.Length; i++)
         {
-            ref PreparedInstance instance = ref instances[i];
+            ref readonly PreparedInstance instance = ref instances[i];
             if (
-                !EnvironmentChain.Draws(map: map, objectMap: instance.Map)
+                !DrawsInMaps(instance)
+                || !EnvironmentChain.Draws(map: map, objectMap: instance.Map)
                 || CubeFaces.Culls(basis, instance.Position, instance.Radius)
             )
                 continue;
@@ -408,7 +532,7 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
             );
         }
 
-        opaque.AsSpan(0, opaqueCount).Sort(default(DrawItemComparer));
+        opaqueSorter.Sort(opaque.AsSpan(0, opaqueCount), meshes.Length);
         EnsureCapacity(ref scene.Instances, scene.InstanceCount + opaqueCount);
         Array.Clear(faceRanges);
         Emit(
@@ -430,37 +554,12 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
         );
     }
 
-    /// <summary>The opaque instances of the snapshot that a face may draw, interpolated, before any face culls them.</summary>
-    private Span<PreparedInstance> CollectMapInstances(
-        RenderSnapshot snapshot,
-        float alpha,
-        ReadOnlySpan<MeshInfo> meshes,
-        ReadOnlySpan<MaterialInfo> materials,
-        PreparedScene scene
-    )
-    {
-        Vector3 eye = scene.Camera.Offset;
-        int count = 0;
-        foreach (ref readonly RenderInstance instance in CollectionsMarshal.AsSpan(snapshot.Instances))
-        {
-            if (
-                IsGlass(materials[(int)MaterialStore.Resolve(instance.Material, materials.Length)].Alpha)
-                || Place(instance: instance, alpha: alpha, meshes: meshes, eye: eye) is not { } placement
-            )
-                continue;
-            if (count == mapInstances.Length)
-                Array.Resize(ref mapInstances, mapInstances.Length * 2);
-            mapInstances[count++] = Prepared(
-                instance: instance,
-                placement: placement,
-                alpha: alpha,
-                materials: materials,
-                maps: scene.MapCount
-            );
-        }
-
-        return mapInstances.AsSpan(0, count);
-    }
+    /// <summary>
+    /// Whether the maps draw a placed instance: it is visible and not glass. A fringed instance draws its core, as in every
+    /// opaque pass (docs/plans/skin-and-hair.md, "The alpha modes in the passes").
+    /// </summary>
+    private static bool DrawsInMaps(in PreparedInstance instance) =>
+        (instance.Flags & RenderFlags.Visible) != 0 && !IsGlass(instance.Alpha);
 
     /// <summary>
     /// Keeps each puff that is alive at the render age, interpolated by alpha, as a <see cref="GpuPuff"/>. With its look L,
@@ -566,7 +665,7 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
             );
         }
 
-        opaque.AsSpan(0, opaqueCount).Sort(default(DrawItemComparer));
+        opaqueSorter.Sort(opaque.AsSpan(0, opaqueCount), meshes.Length);
         transparent.AsSpan(0, transparentCount).Sort(default(DrawItemComparer));
         EnsureCapacity(ref scene.Instances, opaqueCount + transparentCount);
         Emit(
@@ -634,7 +733,7 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
                 AppendInstanceCommand(
                     scene: scene,
                     meshes: meshes,
-                    instance: ref scene.Visible[item.Index],
+                    instance: in scene.Visible[item.Index],
                     currentMesh: ref currentMesh
                 );
         }
@@ -684,7 +783,7 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
     private static void AppendInstanceCommand(
         PreparedScene scene,
         ReadOnlySpan<MeshInfo> meshes,
-        ref PreparedInstance instance,
+        in PreparedInstance instance,
         ref int currentMesh
     )
     {
@@ -725,7 +824,7 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
     private static void Emit(
         PreparedScene scene,
         ReadOnlySpan<MeshInfo> meshes,
-        Span<PreparedInstance> instances,
+        ReadOnlySpan<PreparedInstance> instances,
         ReadOnlySpan<DrawItem> items,
         OpaqueRuns[] ranges
     )
@@ -736,7 +835,7 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
         bool currentCutout = false;
         foreach (DrawItem item in items)
         {
-            ref PreparedInstance instance = ref instances[item.Index];
+            ref readonly PreparedInstance instance = ref instances[item.Index];
             int range = (int)(item.Key >> 32);
             bool cutout = (item.Key & CutoutKeyBit) != 0;
             if (range != currentRange || cutout != currentCutout)
@@ -755,7 +854,7 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
                 runStart = scene.CommandCount;
             }
 
-            AppendInstanceCommand(scene: scene, meshes: meshes, instance: ref instance, currentMesh: ref currentMesh);
+            AppendInstanceCommand(scene: scene, meshes: meshes, instance: in instance, currentMesh: ref currentMesh);
         }
 
         if (currentRange >= 0)
@@ -773,51 +872,6 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
     {
         var run = new CommandRange(runStart, scene.CommandCount - runStart);
         ranges[range] = cutout ? ranges[range] with { Cutout = run } : ranges[range] with { Solid = run };
-    }
-
-    /// <summary>
-    /// Keeps each shadow caster of the snapshot, in its order, interpolated once by alpha, as a <see cref="ShadowCaster"/>:
-    /// every instance with <see cref="RenderFlags.CastsShadow"/>, visible or not, with a mesh on the GPU, a volume, and a
-    /// sphere within <see cref="ShaderInput.PositionLimit"/> of the eye, with its material and its alpha mode. Every shadow
-    /// technique reads them (docs/plans/local-light-shadows.md, decision 36).
-    /// </summary>
-    private static void CollectCasters(
-        RenderSnapshot snapshot,
-        float alpha,
-        ReadOnlySpan<MeshInfo> meshes,
-        ReadOnlySpan<MaterialInfo> materials,
-        PreparedScene scene
-    )
-    {
-        Vector3 eye = scene.Camera.Offset;
-        foreach (ref readonly RenderInstance instance in CollectionsMarshal.AsSpan(snapshot.Instances))
-        {
-            // CastsShadow alone decides: an instance that is not Visible still casts its shadow.
-            if ((instance.Flags & RenderFlags.CastsShadow) == 0)
-                continue;
-            int mesh = MeshIndex(instance.Mesh, meshes.Length);
-            if (mesh < 0 || !HasVolume(instance.Scale))
-                continue;
-            Vector3 position = Vector3.Lerp(instance.PreviousPosition, instance.Position, alpha) - eye;
-            float radius = BoundingRadius(instance, meshes[mesh]);
-            // As for a drawn instance, the mesh's extent bounds its scaled vertices. MathF.Max passes a NaN on.
-            if (!ShaderInput.InPositionRange(position, MathF.Max(radius, MeshExtent(instance.Scale, meshes[mesh]))))
-                continue;
-            uint material = MaterialStore.Resolve(instance.Material, materials.Length);
-            scene.AddCaster() = new()
-            {
-                Position = position,
-                Rotation = Interpolate(instance.PreviousRotation, instance.Rotation, alpha),
-                Scale = instance.Scale,
-                Radius = radius,
-                Distance = position.Length(),
-                Mesh = mesh,
-                Material = material,
-                Alpha = materials[(int)material].Alpha,
-                EntityIndex = instance.EntityIndex,
-                Part = instance.Part,
-            };
-        }
     }
 
     /// <summary>
@@ -1033,7 +1087,7 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
     /// </summary>
     private static void CollectFarShadows(PreparedScene scene)
     {
-        ReadOnlySpan<ShadowCaster> casters = scene.CasterSpan;
+        ReadOnlySpan<PreparedInstance> placed = scene.PlacedSpan;
         // A sphere of radius r at distance d covers 2 asin(r / d), which is a pixel when r / d = sin(half a pixel).
         float pixelShare = MathF.Sin(scene.Camera.PixelAngle * 0.5f);
         foreach (ref PreparedLight light in scene.LightSpan)
@@ -1046,9 +1100,9 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
             switch (light.Shadow)
             {
                 case CascadeSet set:
-                    AddMapped(scene: scene, casters: casters, lightShare: lightShare);
+                    AddMapped(scene: scene, placed: placed, lightShare: lightShare);
                     int mapped = scene.OccluderCount - start;
-                    AddBeyond(scene: scene, casters: casters, smallestShare: smallestShare, mappedToo: false);
+                    AddBeyond(scene: scene, placed: placed, smallestShare: smallestShare, mappedToo: false);
                     light.Shadow = new(
                         set with
                         {
@@ -1058,7 +1112,7 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
                     );
                     break;
                 case FarShadowsOnly:
-                    AddBeyond(scene: scene, casters: casters, smallestShare: smallestShare, mappedToo: true);
+                    AddBeyond(scene: scene, placed: placed, smallestShare: smallestShare, mappedToo: true);
                     light.Shadow = new(new FarShadowsOnly(new(start, scene.OccluderCount - start)));
                     break;
                 case AtlasTiles or null:
@@ -1070,11 +1124,11 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
     }
 
     /// <summary>The far shadows of the casters that a cascade set draws, which hide 4% of the light from beyond the maps.</summary>
-    private static void AddMapped(PreparedScene scene, ReadOnlySpan<ShadowCaster> casters, float lightShare)
+    private static void AddMapped(PreparedScene scene, ReadOnlySpan<PreparedInstance> placed, float lightShare)
     {
-        foreach (ref readonly ShadowCaster caster in casters)
+        foreach (ref readonly PreparedInstance caster in placed)
         {
-            if (!ShadowCascades.TakesCaster(caster.Distance, caster.Radius))
+            if (!caster.CastsShadow || !ShadowCascades.TakesCaster(caster.Distance, caster.Radius))
                 continue;
             // Its far receivers lie beyond the maps, at least 2 km from the camera, so at least this far from it.
             if (caster.Radius >= MathF.Max(ShadowCascades.Distance - caster.Distance, caster.Radius) * lightShare)
@@ -1088,13 +1142,15 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
     /// </summary>
     private static void AddBeyond(
         PreparedScene scene,
-        ReadOnlySpan<ShadowCaster> casters,
+        ReadOnlySpan<PreparedInstance> placed,
         float smallestShare,
         bool mappedToo
     )
     {
-        foreach (ref readonly ShadowCaster caster in casters)
+        foreach (ref readonly PreparedInstance caster in placed)
         {
+            if (!caster.CastsShadow)
+                continue;
             bool beyondMaps = mappedToo || !ShadowCascades.TakesCaster(caster.Distance, caster.Radius);
             if (beyondMaps && caster.Radius >= caster.Distance * smallestShare)
                 scene.AddOccluder(new(caster.Position, caster.Radius));
@@ -1164,7 +1220,74 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
             Array.Resize(ref array, Math.Max(count, array.Length * 2));
     }
 
-    private readonly record struct DrawItem(ulong Key, int Index);
+    internal readonly record struct DrawItem(ulong Key, int Index);
+
+    /// <summary>
+    /// Sorts a view's opaque draw items by key, and keeps their order at equal keys. A view appends its items in the
+    /// order of its instances, so this is the order of (key, index). A key is (range, run, mesh), one of
+    /// <see cref="DepthRanges.Count"/> × 2 × meshes, so the sorter counts the items of each key and moves each item once: a
+    /// counting sort, in time linear in the items and the meshes, where a comparison sort takes n log n comparisons.
+    /// Allocates nothing once its arrays have grown to the view.
+    /// </summary>
+    internal sealed class OpaqueSorter
+    {
+        private int[] starts = new int[64];
+        private DrawItem[] sorted = new DrawItem[256];
+
+        /// <summary>Sorts <paramref name="items"/> of meshes 0 to <paramref name="meshCount"/> − 1.</summary>
+        public void Sort(Span<DrawItem> items, int meshCount)
+        {
+            // The solid run and the cutout run of each range.
+            int keys = DepthRanges.Count * 2 * meshCount;
+            EnsureCapacity(ref starts, keys + 1);
+            EnsureCapacity(ref sorted, items.Length);
+            Span<int> start = starts.AsSpan(0, keys + 1);
+            start.Clear();
+            foreach (DrawItem item in items)
+                start[KeyIndex(item, meshCount) + 1]++;
+            for (int key = 1; key < start.Length; key++)
+                start[key] += start[key - 1];
+            foreach (DrawItem item in items)
+                sorted[start[KeyIndex(item, meshCount)]++] = item;
+            sorted.AsSpan(0, items.Length).CopyTo(items);
+        }
+
+        /// <summary>The place of an item's key in key order: its range, then its run, solid before cutout, then its mesh.</summary>
+        private static int KeyIndex(DrawItem item, int meshCount)
+        {
+            int run = (item.Key & CutoutKeyBit) != 0 ? 1 : 0;
+            int mesh = (int)((uint)item.Key & ~(uint)CutoutKeyBit);
+            return ((int)(item.Key >> 32) * 2 + run) * meshCount + mesh;
+        }
+    }
+
+    /// <summary>
+    /// Gives each instance of the snapshot its frame mesh, walked in instance order beside the rig poses, which are sorted by
+    /// instance: the frame mesh of its entry for a posed instance, else its static mesh, or −1 for no mesh on the GPU.
+    /// </summary>
+    private ref struct FrameMeshCursor
+    {
+        private readonly ReadOnlySpan<RenderRigPose> poses;
+        private readonly ReadOnlySpan<int> entryMeshes;
+        private readonly int staticMeshCount;
+        private int next;
+
+        public FrameMeshCursor(ReadOnlySpan<RenderRigPose> poses, ReadOnlySpan<int> entryMeshes, int staticMeshCount)
+        {
+            this.poses = poses;
+            this.entryMeshes = entryMeshes;
+            this.staticMeshCount = staticMeshCount;
+        }
+
+        /// <summary>The frame mesh of instance <paramref name="index"/>, after every instance before it.</summary>
+        public int MeshOf(int index, in RenderInstance instance)
+        {
+            if (next < poses.Length && poses[next].Instance == index)
+                return entryMeshes[next++];
+            // Against the static meshes only, so that an id never names a deformed copy.
+            return MeshIndex(instance.Mesh, staticMeshCount);
+        }
+    }
 
     /// <summary>What a run of the transparent pass draws. No case carries a field, so it is an enum.</summary>
     private enum TransparentKind

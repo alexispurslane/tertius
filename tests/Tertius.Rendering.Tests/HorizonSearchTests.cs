@@ -3,8 +3,9 @@ using System.Numerics;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The search of GTAO around one half-resolution texel: the view depth of a distance, the texel width, the fade below
-/// one texel and the spacing of the steps (docs/plans/ambient-occlusion.md, "The method").
+/// The search of GTAO around one half-resolution texel: the view depth of a distance, the texel width, the empty near
+/// range below the nearest step and the spacing of the steps (docs/plans/ambient-occlusion.md, "The method", and
+/// docs/plans/screen-space-illumination.md, "Where the near range is empty").
 /// </summary>
 public sealed class HorizonSearchTests
 {
@@ -15,30 +16,42 @@ public sealed class HorizonSearchTests
     private static Double3 RayOfColumn(int column) => new((2 * (column + 0.5) / FullWidth - 1) * TanHalfX, 0, 1);
 
     [Theory]
+    [InlineData(1.3)]
     [InlineData(1.0)]
-    [InlineData(0.5)]
     [InlineData(0.01)]
-    public void ARadiusOfOneTexelOrLessGivesFullVisibility(double radiusInTexels) =>
-        HorizonSearch.Faded(estimate: 0.3, fade: HorizonSearch.Fade(radiusInTexels)).Should().Be(1);
+    public void WhereTheRadiusSpansAtMostTheNearestStepTheNearRangeHoldsNoStep(double radiusInTexels) =>
+        HorizonSearch
+            .NearRangeHoldsSteps(radiusInTexels)
+            .Should()
+            .BeFalse(
+                "the texel takes the ambient light in full there (docs/plans/screen-space-illumination.md, decision 21)"
+            );
 
     [Theory]
+    [InlineData(1.31)]
     [InlineData(2.0)]
-    [InlineData(3.0)]
     [InlineData(40.0)]
-    public void ARadiusOfTwoTexelsOrMoreKeepsTheWholeEstimate(double radiusInTexels) =>
-        HorizonSearch
-            .Faded(estimate: 0.3, fade: HorizonSearch.Fade(radiusInTexels))
-            .Should()
-            .BeApproximately(0.3, 1e-15);
+    public void WhereTheRadiusSpansMoreThanTheNearestStepTheNearRangeHoldsSteps(double radiusInTexels) =>
+        HorizonSearch.NearRangeHoldsSteps(radiusInTexels).Should().BeTrue();
 
     [Fact]
-    public void BetweenOneAndTwoTexelsTheEstimateFadesLinearlyToFullVisibility()
+    public void WhereTheNearRangeHoldsNoStepEveryStepWouldLieAtTheRadiusOrBeyond()
     {
-        HorizonSearch
-            .Faded(estimate: 0.3, fade: HorizonSearch.Fade(1.25))
-            .Should()
-            .BeApproximately(0.825, 1e-15, "a quarter of the way from 1 to 2 texels keeps a quarter of the darkening");
-        HorizonSearch.Faded(estimate: 0.3, fade: HorizonSearch.Fade(1.5)).Should().BeApproximately(0.65, 1e-15);
+        const int stepsPerSide = 4;
+        foreach (double radiusInTexels in new[] { 0.01, 1.0, 1.3 })
+        foreach (float stepNoise in new[] { 0f, 0.3f, 0.999f })
+        foreach (int slice in new[] { 0, 1, 2 })
+            for (int step = 0; step < stepsPerSide; step++)
+                HorizonSearch
+                    .StepFraction(
+                        step: step,
+                        slice: slice,
+                        stepsPerSide: stepsPerSide,
+                        stepNoise: stepNoise,
+                        radiusInTexels: radiusInTexels
+                    )
+                    .Should()
+                    .BeGreaterThanOrEqualTo(1, "the skipped steps are the ones that the radius never reaches");
     }
 
     [Fact]
@@ -92,13 +105,29 @@ public sealed class HorizonSearchTests
     public void AStepSnapsToTheNearestTexelAlongItsSlice() =>
         HorizonSearch
             .StepOffset(
-                stepFraction: 1,
-                sliceAngle: Math.PI / 4,
-                radiusInTexels: 10,
-                halfSize: (Width: 960, Height: 540)
+                HorizonSearch.ExactStepOffset(
+                    stepFraction: 1,
+                    sliceAngle: Math.PI / 4,
+                    radiusInTexels: 10,
+                    halfSize: (Width: 960, Height: 540)
+                )
             )
             .Should()
             .Be((7, -7), "the slice at 45° runs right and up the screen, whose rows run down");
+
+    [Fact]
+    public void AStepsExactPlaceLiesOnItsSliceLineBeforeTheSnap()
+    {
+        (double x, double y) = HorizonSearch.ExactStepOffset(
+            stepFraction: 1,
+            sliceAngle: Math.PI / 4,
+            radiusInTexels: 10,
+            halfSize: (Width: 960, Height: 540)
+        );
+
+        x.Should().BeApproximately(10 * Math.Sqrt(0.5), 1e-12, "the slice at 45° runs right");
+        y.Should().BeApproximately(-10 * Math.Sqrt(0.5), 1e-12, "and up the screen, whose rows run down");
+    }
 
     [Fact]
     public void AStepFarBeyondTheImageLandsJustPastItsFarthestEdge()
@@ -108,11 +137,20 @@ public sealed class HorizonSearchTests
         (int Width, int Height) halfSize = (Width: 960, Height: 540);
 
         HorizonSearch
-            .StepOffset(stepFraction: 1, sliceAngle: 0, radiusInTexels: 1e10, halfSize: halfSize)
+            .StepOffset(
+                HorizonSearch.ExactStepOffset(stepFraction: 1, sliceAngle: 0, radiusInTexels: 1e10, halfSize: halfSize)
+            )
             .Should()
             .Be((961, 0), "one texel past the longer side lies outside the image from every texel in it");
         HorizonSearch
-            .StepOffset(stepFraction: 1, sliceAngle: Math.PI / 2, radiusInTexels: 1e10, halfSize: halfSize)
+            .StepOffset(
+                HorizonSearch.ExactStepOffset(
+                    stepFraction: 1,
+                    sliceAngle: Math.PI / 2,
+                    radiusInTexels: 1e10,
+                    halfSize: halfSize
+                )
+            )
             .Should()
             .Be((0, -961));
     }

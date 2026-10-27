@@ -53,10 +53,32 @@ internal static class ShaderInput
     public const float PositionLimit = 4611686018427387904f;
 
     /// <summary>
+    /// The largest size of a morph weight that the deform pass reads, 1,024. With deltas at most 2 long for a normal or a
+    /// tangent, every sum of the morphs stays finite (docs/plans/skinning-and-morphs.md, "Portable Vulkan").
+    /// </summary>
+    public const float LargestMorphWeight = 1024;
+
+    /// <summary>
     /// The most pre-exposed light per channel that one puff adds to a pixel, when the frame draws
     /// <paramref name="puffCount"/> puffs: an equal share of <see cref="PuffBudget"/>.
     /// </summary>
     public static float PuffRadianceCap(int puffCount) => PuffBudget / Math.Max(puffCount, 1);
+
+    /// <summary>
+    /// The C# copy of `exposed` in Shaders/exposure.glsl: <paramref name="radiance"/> times <paramref name="exposure"/>,
+    /// at most <see cref="MaxRadiance"/> per channel. The cap applies before the product, which stays in the float range.
+    /// </summary>
+    public static Vector3 Exposed(Vector3 radiance, float exposure) =>
+        Vector3.Min(radiance, new(MaxRadiance / exposure)) * exposure;
+
+    /// <summary>
+    /// The light that a surface pass writes: <paramref name="radiance"/> exposed, plus <paramref name="preExposedLight"/>,
+    /// at most <see cref="MaxRadiance"/> per channel. The C# copy of the cap of `lobesRadiance` in Shaders/lighting.glsl,
+    /// and of the direct and the ambient passes (docs/plans/screen-space-illumination.md, "The cap at MaxRadiance").
+    /// </summary>
+    /// <param name="preExposedLight">Finite light that the caller has already exposed and capped: emission, or the direct image.</param>
+    public static Vector3 SurfaceLight(Vector3 radiance, Vector3 preExposedLight, float exposure) =>
+        Vector3.Min(Exposed(radiance, exposure) + preExposedLight, new(MaxRadiance));
 
     /// <summary>Whether each channel of <paramref name="value"/> is finite.</summary>
     public static bool IsFinite(Vector3 value) =>
@@ -95,6 +117,14 @@ internal static class ShaderInput
     /// <summary><see cref="Fraction(float)"/> of each channel.</summary>
     public static Vector4 Fraction(Vector4 value) =>
         new(x: Fraction(value.X), y: Fraction(value.Y), z: Fraction(value.Z), w: Fraction(value.W));
+
+    /// <summary>A morph weight from the CPU as the deform pass reads it: its nearest value within ±<see cref="LargestMorphWeight"/>, and 0 for a NaN.</summary>
+    public static float MorphWeight(float weight)
+    {
+        if (float.IsNaN(weight))
+            return 0;
+        return Math.Clamp(weight, -LargestMorphWeight, LargestMorphWeight);
+    }
 
     // A NaN fails the comparison, and MathF.Min takes +∞ to the limit.
     private static float Radiance(float value) => value >= 0 ? MathF.Min(value, RadianceLimit) : 0;

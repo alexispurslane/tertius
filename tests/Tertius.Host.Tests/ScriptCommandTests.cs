@@ -207,6 +207,19 @@ public sealed class ScriptCommandTests : IDisposable
     [InlineData("ends in .mkv", "--script", "script.json", "--headless", "--out", "out", "--video", "v.mp4")]
     [InlineData("ends in .mkv", "--script", "script.json", "--headless", "--out", "out", "--video", "mkv")]
     [InlineData("--fps applies to a video", "--script", "script.json", "--headless", "--out", "out", "--fps", "30")]
+    [InlineData("--video applies to a headless run", "--script", "script.json", "--out", "out", "--video", "none")]
+    [InlineData(
+        "--video none writes no video",
+        "--script",
+        "script.json",
+        "--headless",
+        "--out",
+        "out",
+        "--video",
+        "none",
+        "--fps",
+        "30"
+    )]
     [InlineData(
         "--fps needs a value",
         "--script",
@@ -357,20 +370,41 @@ public sealed class ScriptCommandTests : IDisposable
         "filmic"
     )]
     [InlineData(
-        "--ambient-occlusion applies to a headless run",
+        "--screen-space-light applies to a headless run",
         "--script",
         "script.json",
         "--out",
         "out",
-        "--ambient-occlusion",
+        "--screen-space-light",
         "off"
     )]
     [InlineData(
-        "--ambient-occlusion applies to a headless run",
+        "--screen-space-light applies to a headless run",
         "--scene",
         "no-such-scene",
-        "--ambient-occlusion",
+        "--screen-space-light",
         "off"
+    )]
+    [InlineData(
+        "--screen-space-light-steps applies to a headless run",
+        "--script",
+        "script.json",
+        "--out",
+        "out",
+        "--screen-space-light-steps",
+        "6"
+    )]
+    [InlineData(
+        "--screen-space-light-steps sets the steps of the estimate, so leave out --screen-space-light off",
+        "--script",
+        "script.json",
+        "--headless",
+        "--out",
+        "out",
+        "--screen-space-light",
+        "off",
+        "--screen-space-light-steps",
+        "6"
     )]
     [InlineData(
         "--anti-aliasing needs a value",
@@ -478,12 +512,29 @@ public sealed class ScriptCommandTests : IDisposable
     [InlineData("-1")]
     [InlineData("NaN")]
     [InlineData("Infinity")]
-    public void AnAmbientOcclusionOptionThatIsNeitherOffNorAPositiveNumberIsAProblem(string value)
+    public void AScreenSpaceLightOptionThatIsNeitherOffNorAPositiveNumberIsAProblem(string value)
     {
-        int code = Run("--script", "script.json", "--headless", "--out", "out", "--ambient-occlusion", value);
+        int code = Run("--script", "script.json", "--headless", "--out", "out", "--screen-space-light", value);
 
         code.Should().Be(ScriptCommand.CommandLineError);
-        error.ToString().Should().Contain("--ambient-occlusion needs off or a radius").And.Contain($"'{value}'");
+        error.ToString().Should().Contain("--screen-space-light needs off or a radius").And.Contain($"'{value}'");
+    }
+
+    [Theory]
+    [InlineData("0")]
+    [InlineData("17")]
+    [InlineData("2.5")]
+    [InlineData("many")]
+    public void AScreenSpaceLightStepsOptionThatIsNotAWholeNumberFromOneToSixteenIsAProblem(string value)
+    {
+        int code = Run("--script", "script.json", "--headless", "--out", "out", "--screen-space-light-steps", value);
+
+        code.Should().Be(ScriptCommand.CommandLineError);
+        error
+            .ToString()
+            .Should()
+            .Contain("--screen-space-light-steps needs a whole number from 1 to 16")
+            .And.Contain($"'{value}'");
     }
 
     [Theory]
@@ -533,7 +584,16 @@ public sealed class ScriptCommandTests : IDisposable
             .Be(new ScriptCommand.Options(Script: null, Scene: "drop-box", Out: null, Headless: false, Speed: 0.5));
         played
             .Should()
-            .Be(new ScriptCommand.Options(Script: "s.json", Scene: null, Out: "o", Headless: false, Speed: 1));
+            .Be(
+                new ScriptCommand.Options(
+                    Script: "s.json",
+                    Scene: null,
+                    Out: "o",
+                    Headless: false,
+                    Speed: 1,
+                    Target: new PngFolder("o")
+                )
+            );
     }
 
     [Fact]
@@ -605,6 +665,35 @@ public sealed class ScriptCommandTests : IDisposable
         chosen!.AntiAliasing.Should().Be(antiAliasing);
     }
 
+    public static TheoryData<string[], ScreenSpaceLightSetting?> ScreenSpaceLightOptions =>
+        new()
+        {
+            { [], null },
+            { ["--screen-space-light", "off"], new NoScreenSpaceLight() },
+            { ["--screen-space-light", "2"], VisibilityBitmaskLight.Default with { RadiusMeters = 2 } },
+            { ["--screen-space-light-steps", "6"], VisibilityBitmaskLight.Default with { StepsPerSide = 6 } },
+            {
+                ["--screen-space-light", "0.5", "--screen-space-light-steps", "16"],
+                VisibilityBitmaskLight.Default with { RadiusMeters = 0.5f, StepsPerSide = 16 }
+            },
+        };
+
+    [Theory]
+    [MemberData(nameof(ScreenSpaceLightOptions))]
+    public void TheScreenSpaceLightOptionsTurnTheEstimateOffOrSetItsRadiusAndItsSteps(
+        string[] screenSpaceLight,
+        ScreenSpaceLightSetting? expected
+    )
+    {
+        ScriptCommand.Options? chosen = ScriptCommand.ReadOptions(
+            ["--script", "s.json", "--headless", "--out", "o", .. screenSpaceLight],
+            out string? problem
+        );
+
+        chosen.Should().NotBeNull(problem);
+        chosen!.ScreenSpaceLight.Should().Be(expected);
+    }
+
     public static TheoryData<string[], LocalShadowSetting?> LocalShadowOptions =>
         new()
         {
@@ -666,7 +755,7 @@ public sealed class ScriptCommandTests : IDisposable
                     Out: "o",
                     Headless: true,
                     Speed: 1,
-                    Video: new("o/v.mkv", 24)
+                    Target: new VideoFile("o/v.mkv", 24)
                 )
             );
         plain
@@ -678,7 +767,7 @@ public sealed class ScriptCommandTests : IDisposable
                     Out: "o",
                     Headless: true,
                     Speed: 1,
-                    Video: new("o/v.mkv", 30)
+                    Target: new VideoFile("o/v.mkv", 30)
                 )
             );
     }
@@ -696,12 +785,46 @@ public sealed class ScriptCommandTests : IDisposable
             .NotBeNull(problem);
 
     [Fact]
-    public void AVideoForAScriptWithNoCaptureOrFilmExitsWithTheCommandLineErrorCodeAndStartsNoFfmpeg()
+    public void VideoNoneDiscardsTheCapturesOfAHeadlessRun()
+    {
+        ScriptCommand.Options? discarded = ScriptCommand.ReadOptions(
+            ["--script", "s.json", "--headless", "--out", "o", "--video", "none"],
+            out string? problem
+        );
+
+        discarded
+            .Should()
+            .Be(
+                new ScriptCommand.Options(
+                    Script: "s.json",
+                    Scene: null,
+                    Out: "o",
+                    Headless: true,
+                    Speed: 1,
+                    Target: new Discard()
+                ),
+                problem
+            );
+    }
+
+    [Fact]
+    public void TheUsageLineNamesVideoNoneBesideTheVideoFile()
+    {
+        int code = Run("--script", "script.json", "--headless", "--out", "out", "--video");
+
+        code.Should().Be(ScriptCommand.CommandLineError);
+        error.ToString().Should().Contain("[--video none|<file.mkv> [--fps <rate>]]");
+    }
+
+    [Theory]
+    [InlineData("v.mkv")]
+    [InlineData("none")]
+    public void AVideoForAScriptWithNoCaptureOrFilmExitsWithTheCommandLineErrorCodeAndStartsNoFfmpeg(string name)
     {
         string script = ScriptFile(
             """{ "scene": "probes", "steps": [ { "do": "run", "ticks": 1 }, { "do": "dump", "name": "end" } ] }"""
         );
-        string video = Path.Combine(folder, "v.mkv");
+        string video = name == "none" ? name : Path.Combine(folder, name);
         int started = 0;
 
         int code = ScriptCommand.Run(

@@ -41,21 +41,39 @@ internal sealed unsafe class TransparentPass : RenderPass
             Constants = constants,
         };
         pipeline = glass.Create(device, shaders);
-        fringePipeline = (glass with { Name = "fringes", FragmentShader = "fringe.frag" }).Create(device, shaders);
-        puffPipeline = new GraphicsPipelineDesc
+        try
         {
-            Name = "puffs",
-            VertexShader = "puff.vert",
-            FragmentShader = "puff.frag",
-            Layout = layouts.SceneLayout,
-            ColorFormats = [RenderTargets.HdrFormat],
-            VertexInput = VertexInput.None,
-            // The square faces the eye, and its winding does not matter.
-            CullMode = CullModeFlags.None,
-            DepthClamp = true,
-            Blend = BlendMode.Additive,
-            Constants = constants,
-        }.Create(device, shaders);
+            fringePipeline = (glass with { Name = "fringes", FragmentShader = "fringe.frag" }).Create(device, shaders);
+        }
+        catch
+        {
+            device.Vk.DestroyPipeline(device.Device, pipeline, null);
+            throw;
+        }
+
+        try
+        {
+            puffPipeline = new GraphicsPipelineDesc
+            {
+                Name = "puffs",
+                VertexShader = "puff.vert",
+                FragmentShader = "puff.frag",
+                Layout = layouts.SceneLayout,
+                ColorFormats = [RenderTargets.HdrFormat],
+                VertexInput = VertexInput.None,
+                // The square faces the eye, and its winding does not matter.
+                CullMode = CullModeFlags.None,
+                DepthClamp = true,
+                Blend = BlendMode.Additive,
+                Constants = constants,
+            }.Create(device, shaders);
+        }
+        catch
+        {
+            device.Vk.DestroyPipeline(device.Device, pipeline, null);
+            device.Vk.DestroyPipeline(device.Device, fringePipeline, null);
+            throw;
+        }
     }
 
     public override string Name => "transparent";

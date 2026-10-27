@@ -99,6 +99,7 @@ public sealed class BrdfRenderTests
             normalSkyShare: (double)(Half)NormalSkyShare(normal),
             lobeSkyShare: Math.Round(lobeSky * 255) / 255,
             occlusion: 1,
+            bounce: Double3.Zero,
             tables: BrdfTables.Shared
         );
     }

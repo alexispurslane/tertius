@@ -25,7 +25,7 @@ public sealed class MaterialDescTests
     [InlineData(float.NaN)]
     public void ACutoffOutsideZeroToOneIsRefused(float cutoff)
     {
-        var queue = new UploadQueue(maxTextureSize: 64);
+        var queue = new UploadQueue(maxTextureSize: 64, deformBytesLimit: 1L << 27);
 
         foreach (AlphaMode alpha in new AlphaMode[] { new CutoutAlpha(cutoff), new FringedAlpha(cutoff) })
             FluentActions
@@ -37,7 +37,7 @@ public sealed class MaterialDescTests
     [Fact]
     public void ACutoffOfOneIsAccepted()
     {
-        var queue = new UploadQueue(maxTextureSize: 64);
+        var queue = new UploadQueue(maxTextureSize: 64, deformBytesLimit: 1L << 27);
 
         queue.AddMaterial(new(BaseColor: Vector4.One, Roughness: 0.5f, Alpha: new CutoutAlpha(Cutoff: 1)));
         queue.AddMaterial(new(BaseColor: Vector4.One, Roughness: 0.5f, Alpha: new FringedAlpha(Cutoff: 1)));

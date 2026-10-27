@@ -8,7 +8,7 @@ Hold the whole frame to a fixed budget of GPU time, once every feature of the ep
 
 ## Terms
 
-- GPU span of a frame: the time from the start of the frame's first GPU pass to the end of its last GPU pass, in milliseconds. It includes the barriers and the gaps between passes. The renderer's stamps each wait for all commands before them, so its pass times include those too. Each of its pass times is the difference of two neighbouring stamps, so they add up to the span (ARCHITECTURE.md, "GPU timings"). A Metal System Trace times each pass's encoders on their own, so its pass times leave the gaps out.
+- GPU span of a frame: the time from the start of the frame's first GPU pass to the end of its last GPU pass, in milliseconds. It includes the barriers and the gaps between passes. The renderer's stamps each wait for all commands before them, so its pass times include those too. Each of its pass times is the difference of two neighbouring stamps, so they add up to the span (ARCHITECTURE.md, "GPU timings"). On MoltenVK a stamp can be written after the next pass's work has started, so there a pass's stamp time can hold part of the next pass's work, and only the span and the sums of neighbouring passes hold. A Metal System Trace times each pass's encoders on their own, so its pass times leave the gaps out, and they are the pass times that a profile of one pass reads.
 - GPU time per frame: the mean GPU span over the frames of a run.
 - Share: the part of the budget that one pass can take. Part 3 sets the shares.
 - Quiet machine: no other build, test or GPU run during the measurement. The report gives the one-minute load at the start of each run.
@@ -25,7 +25,7 @@ Hold the whole frame to a fixed budget of GPU time, once every feature of the ep
 ### Settled by this design
 
 4. The budget applies to the GPU span, not to the sum of the passes' own GPU times (the trace's). The frame rate depends on the span. On a GPU that overlaps passes, the span is shorter than that sum, and on a GPU that drains between passes, it is longer. The renderer's pass times add up to the span by their definition (Terms), so their sum is the span on every GPU.
-5. Each feature's profile starts as soon as its feature merges and the tools of Part 1 merge. It brings the feature to the cost that its design expected. Part 3 then works on the whole frame. If a profile waits for the coda, later features build on a slow pass. For example, bounce light's far rays reuse the reflections' trace.
+5. Each feature's profile starts as soon as its feature merges and the tools of Part 1 merge. It brings the feature to the cost that its design expected. Part 3 then works on the whole frame. If a profile waits for the coda, later features build on a slow pass. For example, bounce light's far rays reused the reflections' trace, until decision 40 of screen-space-illumination.md removed them.
 6. The budget is measured on the Mac, but the user plays on a Linux PC (CLAUDE.md, Design preferences). An optimization must cut memory traffic, work or passes, which helps on every GPU. A change that helps only Apple's tile-based GPU needs a reason that holds on NVIDIA, AMD and Intel GPUs. The report gives that reason. Workgroup sizes stay multiples of 64, so that they fill both 32-wide and 64-wide waves.
 7. An optimization that keeps the image the same is checked by a pixel comparison of the captures before and after it, not by eye alone. The snapshot tests have no reference images yet. So the comparison uses the demo captures that each feature reviewed.
 

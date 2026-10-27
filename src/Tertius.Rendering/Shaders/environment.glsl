@@ -38,7 +38,7 @@ vec3 inMapAxes(uint map, vec3 v)
 // The coefficients are read at a map that is uniform over the subgroup (ARCHITECTURE.md, "Reading the map"): each turn of
 // the loop serves the invocations whose map is the first active invocation's, so a subgroup whose pixels share one map
 // takes one turn. Read at each invocation's own map, the nine coefficients took registers per invocation, and the
-// lighting pass ran at a lower occupancy.
+// lighting pass, now the ambient pass, ran at a lower occupancy.
 vec3 environmentDiffuse(uint map, vec3 normal)
 {
     float basis[9];

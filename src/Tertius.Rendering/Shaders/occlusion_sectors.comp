@@ -1,0 +1,91 @@
+#version 460
+// The occlusion sectors pass (docs/plans/screen-space-illumination.md, "A near step" and "The estimate of a texel"): the
+// edges image, and term A, the estimate: the share of the sectors that no near step blocks, which takes the ambient
+// light, and the bounce of the blockers' direct light, over the texel's total slice weight. Engine glue after the shape
+// of vaGTAO.hlsl. XeGTAO's copyright and permission notice are in gtao.glsl.
+#extension GL_GOOGLE_include_directive : require
+#include "sectors.glsl"
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+void main()
+{
+    ivec2 texel = ivec2(gl_GlobalInvocationID.xy);
+    if (!insideHalf(texel))
+        return;
+    float z = viewDepthAt(texel);
+    // The denoise reads the edges of every texel, sky too, so they come before the early return.
+    vec4 edges = gtaoEdges(z, viewDepthAt(texel + ivec2(-1, 0)), viewDepthAt(texel + ivec2(1, 0)),
+                           viewDepthAt(texel + ivec2(0, -1)), viewDepthAt(texel + ivec2(0, 1)));
+    imageStore(occlusionEdges, texel, vec4(gtaoPackEdges(edges)));
+    // Sky holds no estimate.
+    if (z >= SkyDepth)
+    {
+        imageStore(occlusionTermA, texel, vec4(0.0, 0.0, 0.0, 1.0));
+        return;
+    }
+    float radiusInTexels = occlusion.radiusMeters / texelWidth(z);
+    GtaoTexel setup = gtaoTexelSetup(texel, z, radiusInTexels);
+    int slices = int(occlusion.slices);
+    int stepsPerSide = int(occlusion.stepsPerSide);
+    // The screen place of the texel's representative pixel, where every slice line passes.
+    vec2 centerPlace = pixelScreenPosition(2 * texel);
+    float totalWeight = 0.0;
+    float open = 0.0;
+    vec3 bounce = vec3(0.0);
+    for (int slice = 0; slice < slices; slice++)
+    {
+        SliceGeometry g = gtaoSliceGeometry(setup, slice);
+        // The receiver's own surface first, so no step gives light to a direction below it.
+        uint blocked = ownSurfaceSectors(g, setup.geometricNormal);
+        vec3 light = vec3(0.0);
+        // Where R spans at most the nearest step, the near range holds no step (decision 21). SectorSearch.SliceSteps is
+        // the C# copy of this loop: change both together.
+        for (int stepIndex = 0; radiusInTexels > NearestStepTexels && stepIndex < stepsPerSide; stepIndex++)
+        {
+            vec2 exactOffset = gtaoExactStepOffset(setup, slice, stepIndex);
+            // The texel nearest the step's exact place, whose depth, plane and light the step reads.
+            ivec2 offset = ivec2(round(exactOffset));
+            // Plus side first, as XeGTAO's order: a step gives light only to the sectors that no nearer step blocked.
+            for (int sideIndex = 0; sideIndex < 2; sideIndex++)
+            {
+                float side = sideIndex == 0 ? 1.0 : -1.0;
+                ivec2 t = texel + (sideIndex == 0 ? offset : -offset);
+                if (!insideHalf(t))
+                    continue;
+                float sampleDepth = viewDepthAt(t);
+                // Sky blocks nothing. Its view position, SkyDepth times a long view ray, would square past the single
+                // float range, so the depth decides before the length (ARCHITECTURE.md, "Portable Vulkan").
+                if (sampleDepth >= SkyDepth)
+                    continue;
+                // The depth pass's copies of pixel 2t: half-resolution reads keep the steps' reads dense in the cache.
+                vec3 sampleNormal = texelGeometricNormalAt(t);
+                // A half-resolution texel spans two pixels, 2 / W of the screen.
+                vec2 exactPlace = centerPlace + side * exactOffset * 2.0 / vec2(fullSize());
+                vec2 around = depthsAround(t, sampleDepth, side * (exactOffset - vec2(offset)));
+                vec3 samplePosition;
+                bool onSlice = stepSurfacePoint(gtaoViewPosition(exactPlace, 1.0),
+                                                gtaoViewPosition(pixelScreenPosition(2 * t), sampleDepth),
+                                                sampleNormal, around, setup.center.z + occlusion.radiusMeters,
+                                                samplePosition);
+                // GTAO's hard edge: a step blocks only within the radius.
+                if (!onSlice || !(length(samplePosition - setup.center) < occlusion.radiusMeters))
+                    continue;
+                uint fresh = stepSectors(g, setup.center, samplePosition, side) & ~blocked;
+                if (fresh == 0u)
+                    continue;
+                blocked |= fresh;
+                light += float(bitCount(fresh)) * blockerLight(imageLoad(occlusionDirect, t).rgb, sampleNormal,
+                                                            setup.center - samplePosition);
+            }
+        }
+        totalWeight += g.weight;
+        // Beyond the radius, an open sector takes the ambient light (decision 40).
+        open += g.weight * float(bitCount(~blocked));
+        bounce += g.weight * light;
+    }
+    // Normalized by the total weight, so the open and the blocked shares sum to 1 (decision 17).
+    vec4 estimate = totalWeight > MinTotalWeight ? vec4(bounce, open) / (float(SectorCount) * totalWeight)
+                                                 : vec4(0.0, 0.0, 0.0, 1.0);
+    imageStore(occlusionTermA, texel, estimate);
+}

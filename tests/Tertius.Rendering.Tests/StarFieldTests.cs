@@ -310,7 +310,7 @@ public sealed class StarFieldTests
         // Settled fork 1, physical stars (docs/plans/local-light-shadows.md): the brightest stars of the sky send about
         // 10⁻⁸ W/m². A star of the sky is a Gaussian of peak b and width p, so it sends b π p².
         float brightest = Cells(new(140, -20, -20), new(150, 20, 20))
-            .Select(cell => StarField.OfCell(cell))
+            .Select(StarField.OfCell)
             .OfType<Star>()
             .Max(star => ExposureMeter.Luminance(star.Peak));
 

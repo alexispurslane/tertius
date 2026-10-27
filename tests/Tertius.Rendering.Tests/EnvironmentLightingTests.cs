@@ -5,7 +5,7 @@ namespace Tertius.Rendering.Tests;
 
 /// <summary>
 /// The readers of the scene environment map (docs/plans/environment-map.md, "Reading the map"): with the map on, the
-/// ambient light of the lighting pass, the glass, the impostor captures and the lit puffs comes from the map, and the
+/// ambient light of the ambient pass, the glass, the impostor captures and the lit puffs comes from the map, and the
 /// hemisphere lights nothing. The camera is at the render origin with identity rotation, so it looks down −Z with +Y up.
 /// A headless draw at an unchanged snapshot time is a long step, so each draw refreshes every face of the map.
 /// </summary>

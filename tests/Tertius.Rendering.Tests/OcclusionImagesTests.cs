@@ -3,8 +3,9 @@ using Silk.NET.Vulkan;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The GPU plumbing of the occlusion passes (docs/plans/ambient-occlusion.md, "Images" and "Push constants and sets"):
-/// the half-resolution images, their sets, a resize, and the layout that the four shaders share. Validation is on.
+/// The GPU plumbing of the occlusion passes (docs/plans/screen-space-illumination.md, "Images and buffers" and "Push
+/// constants and sets"): the half-resolution images, their sets, a resize, and the layout that the four shaders share.
+/// Validation is on.
 /// </summary>
 public sealed class OcclusionImagesTests
 {
@@ -17,7 +18,15 @@ public sealed class OcclusionImagesTests
         using var plumbing = new Plumbing(width, height);
         using OcclusionImages images = plumbing.CreateImages();
 
-        Extent2D[] extents = [images.ViewDepth.Extent, images.Edges.Extent, images.TermA.Extent, images.TermB.Extent];
+        Extent2D[] extents =
+        [
+            images.ViewDepth.Extent,
+            images.Direct.Extent,
+            images.GeometricNormal.Extent,
+            images.Edges.Extent,
+            images.TermA.Extent,
+            images.TermB.Extent,
+        ];
 
         images.HalfExtent.Should().Be(new Extent2D(halfWidth, halfHeight));
         extents.Should().AllBeEquivalentTo(images.HalfExtent, "each texel stands for a 2 × 2 block of pixels");
@@ -31,8 +40,12 @@ public sealed class OcclusionImagesTests
 
         images.ViewDepth.Format.Should().Be(Format.R32Sfloat, "occlusion.glsl declares viewDepth r32f");
         images.Edges.Format.Should().Be(Format.R8Unorm, "occlusion.glsl declares occlusionEdges r8");
-        images.TermA.Format.Should().Be(Format.R16Sfloat, "occlusion.glsl declares the terms r16f");
-        images.TermB.Format.Should().Be(Format.R16Sfloat, "occlusion.glsl declares the terms r16f");
+        images.TermA.Format.Should().Be(Format.R16G16B16A16Sfloat, "occlusion.glsl declares the terms rgba16f");
+        images.TermB.Format.Should().Be(Format.R16G16B16A16Sfloat, "occlusion.glsl declares the terms rgba16f");
+        images.Direct.Format.Should().Be(Format.R16G16B16A16Sfloat, "occlusion.glsl declares occlusionDirect rgba16f");
+        images
+            .GeometricNormal.Format.Should()
+            .Be(Format.R16G16SNorm, "occlusion.glsl declares occlusionGeometricNormal rg16_snorm");
     }
 
     [Fact]
@@ -76,9 +89,20 @@ public sealed class OcclusionImagesTests
         log.Snapshot().Should().BeEmpty("the sets must point at the new images, and the old ones must be released");
     }
 
+    [Fact]
+    public void ADeviceWithTheSpecsMinimumOfFourStorageImagesInAStageCannotBindTheOcclusionSet() =>
+        OcclusionImages
+            .StorageImageProblem(maxPerStageStorageImages: 4)
+            .Should()
+            .Contain("8 storage images", "the occlusion set binds every image of the four passes in one compute stage");
+
+    [Fact]
+    public void ADeviceWithEightStorageImagesInAStageCanBindTheOcclusionSet() =>
+        OcclusionImages.StorageImageProblem(maxPerStageStorageImages: 8).Should().BeNull();
+
     [Theory]
     [InlineData("occlusion_depth.comp")]
-    [InlineData("occlusion_horizons.comp")]
+    [InlineData("occlusion_sectors.comp")]
     [InlineData("occlusion_denoise.comp")]
     [InlineData("occlusion_upsample.comp")]
     public unsafe void EachOcclusionShaderMakesAPipelineWithTheOcclusionLayout(string shader)

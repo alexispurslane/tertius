@@ -13,16 +13,18 @@ namespace Tertius.Host;
 /// <summary>
 /// The command line of the host. The Demo's Main calls it with its table of scenes.
 /// <list type="bullet">
-/// <item><c>--script &lt;file&gt; --headless --out &lt;folder&gt; [--video &lt;file.mkv&gt; [--fps &lt;rate&gt;]]</c> runs a script with
-/// no window, as fast as it can. With <c>--video</c>, its captures become the frames of one video, which ffmpeg encodes,
-/// at <c>--fps</c> frames per second, 30 without the option. Its dumps still go into the output folder.</item>
+/// <item><c>--script &lt;file&gt; --headless --out &lt;folder&gt; [--video none|&lt;file.mkv&gt; [--fps &lt;rate&gt;]]</c> runs a script
+/// with no window, as fast as it can. With <c>--video</c>, its captures become the frames of one video, which ffmpeg
+/// encodes, at <c>--fps</c> frames per second, 30 without the option. With <c>--video none</c>, they are drawn and dropped,
+/// for a run that only times them. Its dumps still go into the output folder.</item>
 /// <item><c>--script &lt;file&gt; --out &lt;folder&gt; [--speed &lt;factor&gt;]</c> plays a script in a window.</item>
 /// <item><c>--size &lt;width&gt;x&lt;height&gt;</c>, such as <c>--size 1920x1080</c>, replaces the size of a script's window
 /// in either run.</item>
 /// <item><c>--tone-curve aces|hable</c> chooses the headless renderer's <see cref="ToneCurve"/>, ACES fitted without the
 /// option.</item>
-/// <item><c>--ambient-occlusion off|&lt;meters&gt;</c> turns the headless renderer's ambient occlusion off, or sets its
-/// radius in m. Without the option, the renderer keeps its default.</item>
+/// <item><c>--screen-space-light off|&lt;meters&gt;</c> turns the headless renderer's screen-space light off, or sets its
+/// radius in m. <c>--screen-space-light-steps N</c> gives it N steps on each side of a slice, 1 to 16. Without either
+/// option, the renderer keeps its default.</item>
 /// <item><c>--bloom on|off</c> keeps the headless renderer's default <see cref="Bloom"/>, or turns it off.</item>
 /// <item><c>--reflections on|off</c> keeps the headless renderer's default <see cref="ConeTracedReflections"/>, or turns
 /// them off.</item>
@@ -67,6 +69,11 @@ public static class ScriptCommand
     /// </summary>
     public const string GpuTimingsFile = "gpu-timings.json";
 
+    /// <summary>The line after the pass times of a run whose renderer's stamps latch late (ARCHITECTURE.md, "GPU timings").</summary>
+    public const string LateStampsNote =
+        "On MoltenVK a pass's GPU time can hold part of the next pass's work: only the span and the sums of neighbouring passes"
+        + " hold. Read each pass's own time from a trace (tools/README.md, \"GPU trace\").";
+
     /// <summary>
     /// The file in the output folder of a headless run with a renderer that holds the exposure of each shown frame, in the
     /// order shown.
@@ -74,7 +81,10 @@ public static class ScriptCommand
     public const string ExposureFile = "exposure.json";
 
     private const string Usage =
-        "Usage: --script <file> --headless --out <folder> [--video <file.mkv> [--fps <rate>]] [--size <width>x<height>] [--tone-curve aces|hable] [--ambient-occlusion off|<meters>] [--bloom on|off] [--reflections on|off] [--anti-aliasing off|smaa] [--local-shadows off|on] [--local-shadow-tiles <count>] [--cascaded-lights <count>] [--environment-map on|off]  |  --script <file> --out <folder> [--speed <factor>] [--size <width>x<height>]  |  --scene <name> [--speed <factor>] [--record <file>]";
+        "Usage: --script <file> --headless --out <folder> [--video none|<file.mkv> [--fps <rate>]] [--size <width>x<height>] [--tone-curve aces|hable] [--screen-space-light off|<meters>] [--screen-space-light-steps <count>] [--bloom on|off] [--reflections on|off] [--anti-aliasing off|smaa] [--local-shadows off|on] [--local-shadow-tiles <count>] [--cascaded-lights <count>] [--environment-map on|off]  |  --script <file> --out <folder> [--speed <factor>] [--size <width>x<height>]  |  --scene <name> [--speed <factor>] [--record <file>]";
+
+    // The value of --video that draws the captures and drops them (Discard), for a run that only times its frames.
+    private const string NoVideo = "none";
 
     private static readonly JsonSerializerOptions ReportJson = new()
     {
@@ -94,7 +104,8 @@ public static class ScriptCommand
         "--fps",
         "--size",
         "--tone-curve",
-        "--ambient-occlusion",
+        "--screen-space-light",
+        "--screen-space-light-steps",
         "--bloom",
         "--reflections",
         "--anti-aliasing",
@@ -142,37 +153,18 @@ public static class ScriptCommand
         if (options.Scene is { } sceneName)
             return RunFreePlay(options: options, sceneName: sceneName, scenes: scenes, output: output, error: error);
 
-        // ReadOptions gives a run that is not free play its script and its output folder.
-        if (options is not { Script: { } scriptPath, Out: { } outFolder })
-            throw new UnreachableException("A script run has its script and its output folder.");
-        Script script;
-        try
+        // ReadOptions gives a run that is not free play its script, its output folder and its capture target.
+        if (options is not { Script: { } scriptPath, Out: { } outFolder, Target: { } target })
+            throw new UnreachableException("A script run has its script, its output folder and its capture target.");
+        Result<Script, RunFailure> loaded = ScriptOf(scriptPath: scriptPath, target: target, options: options);
+        if (loaded.Problem is { Code: var code, Message: var message })
         {
-            script = Script.Load(scriptPath);
-            if (options.Size is { } size)
-                script = script with { Window = size };
-        }
-        catch (ScriptException ex)
-        {
-            error.WriteLine($"{options.Script}: {ex.Message}");
-            return ScriptError;
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            error.WriteLine($"Cannot read the script {options.Script}: {ex.Message}");
-            return FileError;
+            error.WriteLine(message);
+            return code;
         }
 
-        bool captures = script.Steps.Any(step => step is CaptureStep or FilmStep);
-        if (options.Video is not null && !captures)
-        {
-            error.WriteLine(
-                $"--video makes a video of the captures, and {options.Script} has no capture or film step."
-            );
-            error.WriteLine(Usage);
-            return CommandLineError;
-        }
-
+        Script script = loaded.Ok ?? throw new UnreachableException("A result without a problem holds its script.");
+        bool captures = HasCaptures(script);
         Scene? scene = scenes.FirstOrDefault(s => s.Name == script.Scene);
         if (scene is null)
         {
@@ -198,12 +190,46 @@ public static class ScriptCommand
             script: script,
             scene: scene,
             outFolder: outFolder,
+            target: target,
             createRenderer: captures ? createRenderer : null,
             startVideo: startVideo ?? FfmpegVideoSink.Start,
             output: output,
             error: error
         );
     }
+
+    /// <summary>
+    /// The script at <paramref name="scriptPath"/> with the window of <c>--size</c>, or why the run cannot use it: it cannot
+    /// be read, or <paramref name="target"/> takes captures that the script does not have.
+    /// </summary>
+    private static Result<Script, RunFailure> ScriptOf(string scriptPath, CaptureTarget target, Options options)
+    {
+        Script script;
+        try
+        {
+            script = Script.Load(scriptPath);
+        }
+        catch (ScriptException ex)
+        {
+            return new RunFailure(ScriptError, $"{options.Script}: {ex.Message}");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return new RunFailure(FileError, $"Cannot read the script {options.Script}: {ex.Message}");
+        }
+
+        if (target is VideoFile or Discard && !HasCaptures(script))
+            return new RunFailure(
+                CommandLineError,
+                $"--video takes the captures, into a video or into nothing, and {options.Script} has no capture or film step."
+                    + Environment.NewLine
+                    + Usage
+            );
+        return options.Size is { } size ? script with { Window = size } : script;
+    }
+
+    /// <summary>True if the script draws a frame: it has a capture or a film step.</summary>
+    private static bool HasCaptures(Script script) => script.Steps.Any(step => step is CaptureStep or FilmStep);
 
     /// <summary>
     /// Runs a script with no window, as fast as it can. Makes a renderer with <paramref name="createRenderer"/>, which is
@@ -214,6 +240,7 @@ public static class ScriptCommand
         Script script,
         Scene scene,
         string outFolder,
+        CaptureTarget target,
         Func<RendererOptions, VulkanRenderer>? createRenderer,
         Func<VideoFile, ScriptWindow, FfmpegVideoSink> startVideo,
         TextWriter output,
@@ -243,6 +270,7 @@ public static class ScriptCommand
             script: script,
             scene: scene,
             outFolder: outFolder,
+            target: target,
             world: world,
             renderer: renderer,
             startVideo: startVideo,
@@ -260,6 +288,7 @@ public static class ScriptCommand
         Script script,
         Scene scene,
         string outFolder,
+        CaptureTarget target,
         World world,
         VulkanRenderer? renderer,
         Func<VideoFile, ScriptWindow, FfmpegVideoSink> startVideo,
@@ -267,12 +296,11 @@ public static class ScriptCommand
         TextWriter error
     )
     {
-        CaptureTarget target = options.Video is { } video ? video : new PngFolder(outFolder);
         var readings = new FrameReadings();
         HeadlessPlayback? playback = null;
         if (renderer != null)
         {
-            Result<HeadlessPlayback, PlaybackFailure> started = StartPlayback(
+            Result<HeadlessPlayback, RunFailure> started = StartPlayback(
                 renderer: renderer,
                 size: script.Window,
                 target: target,
@@ -349,7 +377,7 @@ public static class ScriptCommand
     /// The playback that draws the captures into <paramref name="target"/> and adds each shown frame to
     /// <paramref name="readings"/>, or why it cannot start: the video's ffmpeg or folder.
     /// </summary>
-    private static Result<HeadlessPlayback, PlaybackFailure> StartPlayback(
+    private static Result<HeadlessPlayback, RunFailure> StartPlayback(
         VulkanRenderer renderer,
         ScriptWindow size,
         CaptureTarget target,
@@ -370,25 +398,22 @@ public static class ScriptCommand
         }
         // Only a video target starts a tool, ffmpeg. Process.Start throws a Win32Exception when ffmpeg is not on the
         // search path or cannot start.
-        catch (Win32Exception ex) when (options.Video is { } file)
+        catch (Win32Exception ex) when (target is VideoFile file)
         {
-            return new PlaybackFailure(
+            return new RunFailure(
                 ToolError,
                 $"Cannot start ffmpeg for the video {file.Path} of {options.Script}: {ex.Message}"
             );
         }
         // The folder of the video cannot be made: a file problem, as for a dump or an image.
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException && options.Video is { } file)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException && target is VideoFile file)
         {
-            return new PlaybackFailure(
-                FileError,
-                $"Cannot write the video {file.Path} of {options.Script}: {ex.Message}"
-            );
+            return new RunFailure(FileError, $"Cannot write the video {file.Path} of {options.Script}: {ex.Message}");
         }
     }
 
-    /// <summary>Why the playback of a headless run cannot start: the exit code and the message.</summary>
-    private sealed record PlaybackFailure(int Code, string Message);
+    /// <summary>Why a script run cannot start: the exit code and the message.</summary>
+    private sealed record RunFailure(int Code, string Message);
 
     /// <summary>The headless renderer, or null after writing why it cannot start to <paramref name="error"/>.</summary>
     private static VulkanRenderer? StartRenderer(
@@ -406,8 +431,8 @@ public static class ScriptCommand
         };
         if (options.ToneCurve is { } curve)
             rendererOptions.ToneCurve = curve;
-        if (options.AmbientOcclusion is { } ambientOcclusion)
-            rendererOptions.AmbientOcclusion = ambientOcclusion;
+        if (options.ScreenSpaceLight is { } screenSpaceLight)
+            rendererOptions.ScreenSpaceLight = screenSpaceLight;
         if (options.BloomOff)
             rendererOptions.Bloom = new NoBloom();
         if (options.ReflectionsOff)
@@ -491,8 +516,8 @@ public static class ScriptCommand
             case VideoFile video when result.Captures.Count > 0:
                 output.WriteLine(video.Path);
                 break;
-            case VideoFile or null:
-                // A video without captures holds no frames, and no target writes no files.
+            case VideoFile or Discard or null:
+                // A video without captures holds no frames, and the discard target and no target write no files.
                 break;
             default:
                 throw new UnreachableException(
@@ -503,8 +528,8 @@ public static class ScriptCommand
 
     /// <summary>
     /// Writes <see cref="GpuTimingsFile"/> into the output folder with the summary of the frames' GPU span and of each pass,
-    /// then its path, one line for each pass and one for the span to <paramref name="output"/>. Writes nothing when no
-    /// frame was timed.
+    /// then its path, one line for each pass, <see cref="LateStampsNote"/> on a renderer whose stamps latch late, and one
+    /// line for the span to <paramref name="output"/>. Writes nothing when no frame was timed.
     /// </summary>
     internal static void WriteGpuTimings(
         GpuTimingSummary timings,
@@ -539,6 +564,8 @@ public static class ScriptCommand
                     $"GPU {pass.Pass}: mean {pass.MeanMs:F3} ms, median {pass.MedianMs:F3} ms, p95 {pass.P95Ms:F3} ms over {pass.Frames} frames"
                 )
             );
+        if (renderer.StampsLatchLate)
+            output.WriteLine(LateStampsNote);
         output.WriteLine(
             FormattableString.Invariant(
                 $"GPU frame span: mean {frame.MeanMs:F3} ms, median {frame.MedianMs:F3} ms, p95 {frame.P95Ms:F3} ms over {frame.Frames} frames"
@@ -596,10 +623,10 @@ public static class ScriptCommand
     /// <param name="Headless">True to run a script with no window.</param>
     /// <param name="Speed">The wall-clock speed of the window, 1 for real time.</param>
     /// <param name="Record">The file that free play writes its session to as a script, or null to record nothing.</param>
-    /// <param name="Video">The video that a headless run writes its captures into, or null to write PNG files into the output folder.</param>
+    /// <param name="Target">Where a script run's captures go, the PNG files of <paramref name="Out"/> without --video, or null for free play.</param>
     /// <param name="Size">The size that replaces the size of the script's window, or null to keep it.</param>
     /// <param name="ToneCurve">The curve that replaces the headless renderer's default, or null to keep it.</param>
-    /// <param name="AmbientOcclusion">The setting that replaces the headless renderer's default, or null to keep it.</param>
+    /// <param name="ScreenSpaceLight">The setting that replaces the headless renderer's default, or null to keep it.</param>
     /// <param name="BloomOff">True to turn the headless renderer's bloom off, false to keep its default.</param>
     /// <param name="ReflectionsOff">True to turn the headless renderer's reflections off, false to keep its default.</param>
     /// <param name="AntiAliasing">The anti-aliasing that replaces the headless renderer's default, or null to keep it.</param>
@@ -613,10 +640,10 @@ public static class ScriptCommand
         bool Headless,
         double Speed,
         string? Record = null,
-        VideoFile? Video = null,
+        CaptureTarget? Target = null,
         ScriptWindow? Size = null,
         ToneCurve? ToneCurve = null,
-        AmbientOcclusionSetting? AmbientOcclusion = null,
+        ScreenSpaceLightSetting? ScreenSpaceLight = null,
         bool BloomOff = false,
         bool ReflectionsOff = false,
         AntiAliasing? AntiAliasing = null,
@@ -633,20 +660,21 @@ public static class ScriptCommand
         problem = PlayProblem(given) ?? ValueProblem(given);
         if (problem is not null)
             return null;
-        string? video = given.Value("--video");
+        string? outFolder = given.Value("--out");
         return new Options(
             Script: given.Value("--script"),
             Scene: given.Value("--scene"),
-            Out: given.Value("--out"),
+            Out: outFolder,
             Headless: given.Headless,
             Speed: SpeedOf(given.Value("--speed")) ?? 1,
             Record: given.Value("--record"),
-            Video: video is null
-                ? null
-                : new VideoFile(video, FpsOf(given.Value("--fps")) ?? VideoFile.DefaultFramesPerSecond),
+            Target: TargetOf(video: given.Value("--video"), fps: given.Value("--fps"), outFolder: outFolder),
             Size: SizeOf(given.Value("--size")),
             ToneCurve: ToneCurveOf(given.Value("--tone-curve")),
-            AmbientOcclusion: AmbientOcclusionOf(given.Value("--ambient-occlusion")),
+            ScreenSpaceLight: ScreenSpaceLightOf(
+                given.Value("--screen-space-light"),
+                given.Value("--screen-space-light-steps")
+            ),
             BloomOff: given.Value("--bloom") == "off",
             ReflectionsOff: given.Value("--reflections") == "off",
             AntiAliasing: AntiAliasingOf(given.Value("--anti-aliasing")),
@@ -717,7 +745,7 @@ public static class ScriptCommand
         ?? VideoProblem(given)
         ?? SizeProblem(given)
         ?? ToneCurveProblem(given)
-        ?? AmbientOcclusionProblem(given)
+        ?? ScreenSpaceLightProblem(given)
         ?? OnOffProblem(given, "--bloom")
         ?? OnOffProblem(given, "--reflections")
         ?? AntiAliasingProblem(given)
@@ -742,10 +770,12 @@ public static class ScriptCommand
             fps = given.Value("--fps");
         if (video != null && !given.Headless)
             return "--video applies to a headless run. The window writes PNG files, so add --headless or leave out --video.";
-        if (video != null && !VideoFile.HasVideoExtension(video))
-            return $"The --video file's name ends in {VideoFile.Extension}, and '{video}' does not.";
+        if (video is not (null or NoVideo) && !VideoFile.HasVideoExtension(video))
+            return $"--video needs {NoVideo} or a file whose name ends in {VideoFile.Extension}, not '{video}'.";
         if (fps != null && video is null)
             return "--fps applies to a video, so give --video too.";
+        if (fps != null && video is NoVideo)
+            return $"--fps sets the frame rate of a video file, and --video {NoVideo} writes no video.";
         if (fps != null && FpsOf(fps) is null)
             return $"--fps needs a whole number from {VideoFile.MinFramesPerSecond} to {VideoFile.MaxFramesPerSecond}, not '{fps}'.";
         return null;
@@ -773,14 +803,25 @@ public static class ScriptCommand
         return null;
     }
 
-    private static string? AmbientOcclusionProblem(GivenOptions given)
+    private static string? ScreenSpaceLightProblem(GivenOptions given)
     {
-        if (given.Value("--ambient-occlusion") is not { } occlusion)
+        string? light = given.Value("--screen-space-light"),
+            steps = given.Value("--screen-space-light-steps");
+        if (light is null && steps is null)
             return null;
         if (!given.Headless)
-            return "--ambient-occlusion applies to a headless run, so add --headless.";
-        if (AmbientOcclusionOf(occlusion) is null)
-            return $"--ambient-occlusion needs off or a radius in m, a positive number such as 0.5, not '{occlusion}'.";
+        {
+            string option = light is null ? "--screen-space-light-steps" : "--screen-space-light";
+            return $"{option} applies to a headless run, so add --headless.";
+        }
+
+        bool lightReads = light is null or "off" || RadiusOf(light) is not null;
+        if (!lightReads)
+            return $"--screen-space-light needs off or a radius in m, a positive number such as 0.5, not '{light}'.";
+        if (steps is not null && StepsOf(steps) is null)
+            return $"--screen-space-light-steps needs a whole number from 1 to {ScreenSpaceLightSetting.MaxStepsPerSide}, not '{steps}'.";
+        if (steps is not null && light == "off")
+            return "--screen-space-light-steps sets the steps of the estimate, so leave out --screen-space-light off.";
         return null;
     }
 
@@ -855,6 +896,22 @@ public static class ScriptCommand
     private static int? FpsOf(string? text) =>
         WholeNumberOf(text: text, least: VideoFile.MinFramesPerSecond, most: VideoFile.MaxFramesPerSecond);
 
+    /// <summary>
+    /// The capture target of a script run: <see cref="Discard"/> for <c>--video none</c>, the video that <c>--video</c>
+    /// names at its frame rate, or the PNG files of <paramref name="outFolder"/> without <c>--video</c>. Null for free
+    /// play, which has no output folder.
+    /// </summary>
+    private static CaptureTarget? TargetOf(string? video, string? fps, string? outFolder)
+    {
+        if (video is NoVideo)
+            return new Discard();
+        if (video is not null)
+            return new VideoFile(video, FpsOf(fps) ?? VideoFile.DefaultFramesPerSecond);
+        if (outFolder is null)
+            return null;
+        return new PngFolder(outFolder);
+    }
+
     /// <summary>The whole number that the text gives, or null for no text or one that is not a number from least to most.</summary>
     private static int? WholeNumberOf(string? text, int least, int most)
     {
@@ -877,22 +934,38 @@ public static class ScriptCommand
         };
 
     /// <summary>
-    /// The ambient occlusion that the text gives: none for <c>off</c>, the renderer's default with the radius for a
-    /// positive finite number of m, and null for no text or any other text. The renderer refuses a radius above its limit.
+    /// The screen-space light that the two texts give: none for <c>off</c>, else the renderer's default with the radius and
+    /// the steps that are given, and null when neither option is given. The renderer refuses a radius above its limit.
     /// </summary>
-    private static AmbientOcclusionSetting? AmbientOcclusionOf(string? text)
+    private static ScreenSpaceLightSetting? ScreenSpaceLightOf(string? light, string? steps)
     {
-        if (text == "off")
-            return new NoAmbientOcclusion();
+        if (light == "off")
+            return new NoScreenSpaceLight();
+        if (light is null && steps is null)
+            return null;
+        VisibilityBitmaskLight estimate = VisibilityBitmaskLight.Default;
+        if (RadiusOf(light) is { } radius)
+            estimate = estimate with { RadiusMeters = radius };
+        if (StepsOf(steps) is { } count)
+            estimate = estimate with { StepsPerSide = count };
+        return estimate;
+    }
+
+    /// <summary>The radius in m that the text gives, or null for no text or one that is not a positive finite number.</summary>
+    private static float? RadiusOf(string? text)
+    {
         bool read = float.TryParse(
             s: text,
             style: NumberStyles.Float,
             provider: CultureInfo.InvariantCulture,
             result: out float radius
         );
-        bool positive = read && float.IsFinite(radius) && radius > 0;
-        return positive ? GroundTruthOcclusion.Default with { RadiusMeters = radius } : null;
+        return read && float.IsFinite(radius) && radius > 0 ? radius : null;
     }
+
+    /// <summary>The steps on each side of a slice that the text gives, or null for no text or one outside 1 to 16.</summary>
+    private static int? StepsOf(string? text) =>
+        WholeNumberOf(text: text, least: 1, most: ScreenSpaceLightSetting.MaxStepsPerSide);
 
     /// <summary>
     /// The local shadows that the two texts give: none for <c>off</c>, the default atlas for <c>on</c> or for a count of

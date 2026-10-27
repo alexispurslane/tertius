@@ -1,3 +1,4 @@
+using System.Numerics;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using BenchmarkDotNet.Attributes;
@@ -20,6 +21,9 @@ namespace Tertius.Benchmarks;
 /// <item><c>frames1000</c>: 900 static frames without bodies near the root's origin, and 100 clusters of 200 static boxes
 /// 10,000 km out, so that each cluster rests in a numeric frame: 1,000 frames and 20,000 bodies, each one visible. On
 /// Jolt.</item>
+/// <item><c>posed</c>: 1,000 visible entities without bodies, each with a rig pose of 53 joints, the joint count of an MPFB
+/// human, and no morphs (docs/plans/skinning-and-morphs.md, "Part 2"). Every build follows the build before, so each rig pose
+/// takes its previous pose from its placed copy. No physics.</item>
 /// </list>
 /// The cleanup prints the frames, the outlines and the bytes of the outlines in one snapshot.
 /// <para>
@@ -57,7 +61,7 @@ public class RenderSnapshotBenchmarks
         new(Life: 5, StartRadius: 1, EndRadius: 4, TemperatureRatio: 0.5f, Shading: PuffShading.Lit(new(0.5f))),
     ];
 
-    [Params("flat", "orbit", "frames1000")]
+    [Params("flat", "orbit", "frames1000", "posed")]
     public string Scene = "flat";
 
     [Params(false, true)]
@@ -71,6 +75,7 @@ public class RenderSnapshotBenchmarks
             "flat" => Flat(),
             "orbit" => Orbit(),
             "frames1000" => ThousandFrames(),
+            "posed" => Posed(),
             _ => throw new ArgumentException($"No scene {Scene}."),
         };
         world.ShowFrameOutlines = Outlines;
@@ -85,7 +90,8 @@ public class RenderSnapshotBenchmarks
         RenderSnapshot snapshot = world.RenderSnapshots.AcquireLatest() ?? world.RenderSnapshots.ReadBuffer;
         Console.WriteLine(
             $"RenderSnapshot {Scene} outlines={Outlines}: {world.Frames.Count} frames, {world.Frames.NumericCount} numeric, "
-                + $"{snapshot.Instances.Count} instances, {snapshot.Outlines.Count} outlines, {snapshot.Outlines.Count * Unsafe.SizeOf<FrameOutline>()} bytes of outlines"
+                + $"{snapshot.Instances.Count} instances, {snapshot.Outlines.Count} outlines, {snapshot.Outlines.Count * Unsafe.SizeOf<FrameOutline>()} bytes of outlines, "
+                + $"{snapshot.RigPoses.Count} rig poses of {snapshot.JointPoses.Count} joint poses"
         );
         world.Dispose();
     }
@@ -173,6 +179,44 @@ public class RenderSnapshotBenchmarks
             {
                 Frame = ground,
                 Pose = new(new(50, 50, 100), DQuaternion.Identity),
+                Render = new RenderData(),
+            }
+        );
+        world.Tick();
+        return world;
+    }
+
+    private static World Posed()
+    {
+        const int entities = 1_000,
+            joints = 53;
+        var world = new World(new() { MaxDegreeOfParallelism = 1 });
+        FrameHandle room = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
+        for (int i = 0; i < entities; i++)
+            world.Spawn(
+                new()
+                {
+                    Frame = room,
+                    Pose = new(new(i % 40, i / 40, -10), DQuaternion.Identity),
+                    Render = Visible,
+                    RigPose = new(
+                        [
+                            .. Enumerable
+                                .Range(0, joints)
+                                .Select(joint => new Pose(
+                                    new(0, joint * 0.03f, 0),
+                                    Quaternion.CreateFromAxisAngle(Vector3.UnitZ, (i + joint) * 0.01f)
+                                )),
+                        ],
+                        []
+                    ),
+                }
+            );
+        world.Camera = world.Spawn(
+            new()
+            {
+                Frame = room,
+                Pose = new(new(20, 12, 30), DQuaternion.Identity),
                 Render = new RenderData(),
             }
         );

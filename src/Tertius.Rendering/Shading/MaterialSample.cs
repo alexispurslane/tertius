@@ -71,8 +71,9 @@ internal readonly record struct MaterialSample(Double3 BaseColor, double Metalli
 
     /// <summary>
     /// The C# copy of ambientLight: the light that the hemisphere ambient light sends toward <paramref name="toView"/>,
-    /// with the ambient <paramref name="occlusion"/> V applied to its two terms.
+    /// with the estimate applied to its two terms: the <paramref name="occlusion"/> V and the <paramref name="bounce"/> G.
     /// </summary>
+    /// <param name="bounce">G, in plain radiance: the light of the surfaces that block the hemisphere.</param>
     public Double3 ReflectedHemisphere(
         Double3 normal,
         Double3 toView,
@@ -81,6 +82,7 @@ internal readonly record struct MaterialSample(Double3 BaseColor, double Metalli
         double normalSkyShare,
         double lobeSkyShare,
         double occlusion,
+        Double3 bounce,
         BrdfTables tables
     )
     {
@@ -93,7 +95,13 @@ internal readonly record struct MaterialSample(Double3 BaseColor, double Metalli
             lobeSkyShare: lobeSkyShare,
             tables: tables
         );
-        AmbientTerms occluded = terms.Occluded(occlusion: occlusion, nDotV: ViewCosine(normal, toView), lobe: Lobe);
+        AmbientTerms occluded = terms.Occluded(
+            occlusion: occlusion,
+            bounce: bounce,
+            diffuseColor: DiffuseColor,
+            nDotV: ViewCosine(normal, toView),
+            lobe: Lobe
+        );
         return occluded.Diffuse + occluded.Specular;
     }
 

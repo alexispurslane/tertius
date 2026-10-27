@@ -22,10 +22,26 @@ public sealed class AmbientOcclusionRenderTests(ITestOutputHelper output)
         PlanetLimbInTheFarRange,
     }
 
+    /// <summary>The setting of the tests of the floor beside a wall: dense slices and steps, so little noise is left.</summary>
+    private static readonly VisibilityBitmaskLight Dense = VisibilityBitmaskLight.Default with
+    {
+        Slices = 16,
+        StepsPerSide = 16,
+    };
+
+    /// <summary>The low wall's size, in m: 0.8 m long, 0.4 m tall and 0.1 m thick.</summary>
+    private static readonly Vector3 LowWallSize = new(0.8f, 0.4f, 0.1f);
+
+    /// <summary>The tall wall's center: its front face stands at <see cref="BackWallZ"/>, 10 m below its top's middle.</summary>
+    private static readonly Vector3 TallWallCenter = new(0, FloorHeight + 10, BackWallZ - 0.5f);
+
+    /// <summary>The tall wall's size, in m: 40 m wide and tall, 1 m thick.</summary>
+    private static readonly Vector3 TallWallSize = new(40, 40, 1);
+
     [Fact]
     public void AnInnerCornerGetsLessAmbientLightThanTheOpenFloor()
     {
-        VulkanRenderer renderer = Gpu.Headless(ambientOcclusion: GroundTruthOcclusion.Default);
+        VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: VisibilityBitmaskLight.Default);
         try
         {
             RenderSnapshot corner = Corner(renderer, Matte(renderer), UnderWhiteAmbientLight(CornerView));
@@ -106,55 +122,55 @@ public sealed class AmbientOcclusionRenderTests(ITestOutputHelper output)
     [InlineData(0.15)]
     [InlineData(0.3)]
     [InlineData(0.6)]
-    public void AFloorBesideAWallLosesTheShareOfItsHemisphereThatTheWallHidesWithinTheRadius(double distance)
+    public void AFloorBesideALowWallLosesTheShareThatTheWallHides(double distance)
     {
-        var setting = new GroundTruthOcclusion(RadiusMeters: 1, Slices: 16, StepsPerSide: 16);
-        VulkanRenderer renderer = Gpu.Headless(ambientOcclusion: setting);
-        try
-        {
-            RenderSnapshot snapshot = UnderWhiteAmbientLight(CornerView);
-            MeshId box = UnitBox(renderer);
-            MaterialId matte = Matte(renderer);
-            AddSlab(
-                snapshot: snapshot,
-                box: box,
-                material: matte,
-                center: new(0, FloorHeight - 0.5f, BackWallZ + 5),
-                size: new(40, 1, 20)
-            );
-            AddSlab(
-                snapshot: snapshot,
-                box: box,
-                material: matte,
-                center: new(0, FloorHeight + 10, BackWallZ - 0.5f),
-                size: new(40, 40, 1)
-            );
-            renderer.Render(snapshot, 1f);
-            float[] occlusion = renderer.ReadOcclusion();
+        // A wall 0.4 m tall, 0.8 m long and 0.1 m thick, whose every point lies within the radius of the measured floor.
+        var wallCenter = new Vector3(0, FloorHeight + LowWallSize.Y / 2, BackWallZ - LowWallSize.Z / 2);
+        (double measured, double rowDistance) = FloorBesideAWall(
+            wallCenter: wallCenter,
+            wallSize: LowWallSize,
+            distance: distance
+        );
 
-            // The camera only pitches, so every pixel of a row sees the floor at the same distance from the wall.
-            int row = (int)PixelOf(new(0, FloorHeight, BackWallZ + (float)distance), CornerView).Y;
-            double rowDistance = FloorDistanceFromTheWall(row);
-            double measured = Enumerable.Range(Width / 2 - 20, 40).Average(x => occlusion[row * Width + x]);
-            double expected = VisibilityBesideAWall(distance: rowDistance, radius: setting.RadiusMeters);
-            output.WriteLine(
-                $"{rowDistance:0.000} m from the wall: measured {measured:0.000}, expected {expected:0.000}"
+        double expected = VisibilityBesideALowWall(
+            floorPoint: new(0, FloorHeight, BackWallZ + rowDistance),
+            wallCenter: wallCenter,
+            radius: Dense.RadiusMeters
+        );
+        output.WriteLine($"{rowDistance:0.000} m from the wall: measured {measured:0.000}, expected {expected:0.000}");
+        measured
+            .Should()
+            .BeApproximately(expected, 0.03, "the near sectors estimate the share that the wall and its slab hide");
+    }
+
+    [Theory]
+    [InlineData(0.15)]
+    [InlineData(0.3)]
+    [InlineData(0.6)]
+    public void AFloorBesideATallWallLosesOnlyTheShareThatTheWallHidesWithinTheRadius(double distance)
+    {
+        (double measured, double rowDistance) = FloorBesideAWall(
+            wallCenter: TallWallCenter,
+            wallSize: TallWallSize,
+            distance: distance
+        );
+
+        double expected = VisibilityBesideATallWall(distance: rowDistance, radius: Dense.RadiusMeters);
+        output.WriteLine($"{rowDistance:0.000} m from the wall: measured {measured:0.000}, expected {expected:0.000}");
+        measured
+            .Should()
+            .BeApproximately(
+                expected,
+                0.03,
+                "the near sectors find the wall within the radius, and beyond it an open sector takes the ambient light"
             );
-            measured
-                .Should()
-                .BeApproximately(expected, 0.03, "GTAO at the physical constants estimates the visibility integral");
-        }
-        finally
-        {
-            Gpu.DisposeAndAssertClean(renderer);
-        }
     }
 
     [Theory]
     [InlineData(DistantSurface.InnerCornerInTheNearRange)]
     [InlineData(DistantSurface.CliffInTheMiddleRange)]
     [InlineData(DistantSurface.PlanetLimbInTheFarRange)]
-    public void ASurfaceWhoseRadiusCoversLessThanOneTexelKeepsItsAmbientLightExactly(DistantSurface surface)
+    public void ASurfaceWhoseRadiusCoversLessThanOneTexelKeepsItsAmbientLight(DistantSurface surface)
     {
         (Capture on, Capture off) = OnAndOff(
             renderer =>
@@ -190,9 +206,15 @@ public sealed class AmbientOcclusionRenderTests(ITestOutputHelper output)
             $"occlusion-distant-{surface}"
         );
 
+        // The near range holds no step, so the sectors pass writes the open estimate, but the denoise's sums round in
+        // single floats, and a store into the half floats of term A and the estimate target may round toward zero, which
+        // the Vulkan spec allows: one step below 1, 2⁻¹¹.
         LargestDifference(on, off, EveryPixel())
             .Should()
-            .Be(0, "below one texel the fade writes full visibility, and the lighting pass multiplies by exactly 1");
+            .BeLessThanOrEqualTo(
+                1,
+                "with no near step, the texel takes the ambient light, to within a half float's step"
+            );
     }
 
     [Fact]
@@ -240,11 +262,19 @@ public sealed class AmbientOcclusionRenderTests(ITestOutputHelper output)
     [Fact]
     public void TheSunAndTheLampsLightACornerAsIfThereWereNoOcclusion()
     {
-        (Capture on, Capture off) = OnAndOff(
-            renderer =>
+        static float[] DirectImage(ScreenSpaceLightSetting setting)
+        {
+            VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: setting);
+            try
             {
                 RenderSnapshot snapshot = Gpu.Snapshot(new(0.4f, 0.8f, 0.45f), starIrradiance: 3);
-                snapshot.Ambient.Intensity = 0;
+                // A white ambient light too, which the occlusion dims, so that only the direct light stays the same.
+                snapshot.Ambient = new()
+                {
+                    SkyColor = Vector3.One,
+                    GroundColor = Vector3.One,
+                    Intensity = 1,
+                };
                 snapshot.Lights.Add(
                     Gpu.Lamp(
                         position: new(-1.5f, -1, -4.5f),
@@ -253,18 +283,32 @@ public sealed class AmbientOcclusionRenderTests(ITestOutputHelper output)
                         chainDepth: TestChains.CamerasFrame
                     )
                 );
-                return Corner(renderer, Matte(renderer), snapshot);
-            },
-            "occlusion-sun-and-lamp"
-        );
+                RenderSnapshot corner = Corner(renderer, Matte(renderer), snapshot);
+                // Twice: in the second frame, the estimate target holds the occlusion of the first.
+                renderer.Render(corner, 1f);
+                renderer.Render(corner, 1f);
+                return renderer.ReadDirect();
+            }
+            finally
+            {
+                Gpu.DisposeAndAssertClean(renderer);
+            }
+        }
 
-        LargestDifference(on, off, EveryPixel()).Should().Be(0, "the occlusion scales only the ambient light");
+        float[] on = DirectImage(VisibilityBitmaskLight.Default);
+        float[] off = DirectImage(new NoScreenSpaceLight());
+
+        Vector2 corner = PixelOf(FloorAtTheCorner, CornerView);
+        on[((int)corner.Y * Width + (int)corner.X) * 4]
+            .Should()
+            .BePositive("the lamp 0.5 m above the floor beside the corner lights it");
+        on.Should().Equal(off, "the occlusion scales only the ambient light, which the direct image does not hold");
     }
 
     [Fact]
     public void AStillSceneHasTheSameOcclusionInEveryFrame()
     {
-        VulkanRenderer renderer = Gpu.Headless(ambientOcclusion: GroundTruthOcclusion.Default);
+        VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: VisibilityBitmaskLight.Default);
         try
         {
             RenderSnapshot corner = Corner(renderer, Matte(renderer), UnderWhiteAmbientLight(CornerView));
@@ -288,7 +332,7 @@ public sealed class AmbientOcclusionRenderTests(ITestOutputHelper output)
     {
         const int newWidth = 800,
             newHeight = 450;
-        VulkanRenderer renderer = Gpu.Headless(ambientOcclusion: GroundTruthOcclusion.Default);
+        VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: VisibilityBitmaskLight.Default);
         try
         {
             RenderSnapshot corner = Corner(renderer, Matte(renderer), UnderWhiteAmbientLight(CornerView));
@@ -323,7 +367,7 @@ public sealed class AmbientOcclusionRenderTests(ITestOutputHelper output)
     public void TheGroundBesideAnImpostorDarkensAsBesideItsGeometry()
     {
         Quaternion view = Gpu.PitchDown(0.25f);
-        VulkanRenderer renderer = Gpu.Headless(impostors: true, ambientOcclusion: GroundTruthOcclusion.Default);
+        VulkanRenderer renderer = Gpu.Headless(impostors: true, screenSpaceLight: VisibilityBitmaskLight.Default);
         try
         {
             MeshId box = UnitBox(renderer);
@@ -341,12 +385,12 @@ public sealed class AmbientOcclusionRenderTests(ITestOutputHelper output)
             ];
             renderer.Render(Scene(RenderFlags.NoImpostor), 1f);
             renderer.LastFrameStats.Impostors.Should().Be(0, "NoImpostor keeps the box geometry");
-            float[] geometry = renderer.ReadOcclusion();
+            float[] geometry = ReadOcclusion(renderer);
             for (int i = 0; i < 5; i++)
                 renderer.Render(Scene(RenderFlags.None), 1f);
             renderer.LastFrameStats.Impostors.Should().Be(1, "the box is below the height at which it becomes one");
             renderer.LastFrameStats.ImpostorCaptures.Should().Be(0, "the impostor is captured by now");
-            float[] impostor = renderer.ReadOcclusion();
+            float[] impostor = ReadOcclusion(renderer);
 
             foreach (Vector2 pixel in beside)
             {
@@ -399,7 +443,7 @@ public sealed class AmbientOcclusionRenderTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// One capture of <paramref name="scene"/> under <see cref="GroundTruthOcclusion.Default"/> and one with occlusion off,
+    /// One capture of <paramref name="scene"/> under <see cref="VisibilityBitmaskLight.Default"/> and one with occlusion off,
     /// each by a renderer of its own.
     /// </summary>
     private static (Capture On, Capture Off) OnAndOff(
@@ -408,9 +452,9 @@ public sealed class AmbientOcclusionRenderTests(ITestOutputHelper output)
         EnvironmentMapSetting? environmentMap = null
     )
     {
-        Capture Render(AmbientOcclusionSetting setting, string suffix)
+        Capture Render(ScreenSpaceLightSetting setting, string suffix)
         {
-            VulkanRenderer renderer = Gpu.Headless(ambientOcclusion: setting, environmentMap: environmentMap);
+            VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: setting, environmentMap: environmentMap);
             try
             {
                 return Gpu.RenderAndCapture(renderer: renderer, snapshot: scene(renderer), name: name + suffix);
@@ -421,7 +465,7 @@ public sealed class AmbientOcclusionRenderTests(ITestOutputHelper output)
             }
         }
 
-        return (Render(GroundTruthOcclusion.Default, "-on"), Render(new NoAmbientOcclusion(), "-off"));
+        return (Render(VisibilityBitmaskLight.Default, "-on"), Render(new NoScreenSpaceLight(), "-off"));
     }
 
     /// <summary>
@@ -494,17 +538,60 @@ public sealed class AmbientOcclusionRenderTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// V at a floor point <paramref name="distance"/> m from an infinite wall, for rays of length
-    /// <paramref name="radius"/>: the cosine-weighted share of the hemisphere above the floor whose rays travel the radius
-    /// without reaching the wall, by the midpoint rule over the polar angle θ from the normal and the azimuth φ from the
-    /// direction toward the wall.
+    /// The mean V of the floor's pixels in the middle 40 columns of the row that sees the floor
+    /// <paramref name="distance"/> m in front of a wall of <paramref name="wallSize"/> around
+    /// <paramref name="wallCenter"/>, under <see cref="Dense"/>, and the floor's distance from the wall in that row.
     /// </summary>
-    private static double VisibilityBesideAWall(double distance, double radius)
+    private static (double Measured, double RowDistance) FloorBesideAWall(
+        Vector3 wallCenter,
+        Vector3 wallSize,
+        double distance
+    )
     {
-        const int polarSteps = 400,
-            azimuthSteps = 800;
+        VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: Dense);
+        try
+        {
+            RenderSnapshot snapshot = UnderWhiteAmbientLight(CornerView);
+            MeshId box = UnitBox(renderer);
+            MaterialId matte = Matte(renderer);
+            AddSlab(
+                snapshot: snapshot,
+                box: box,
+                material: matte,
+                center: new(0, FloorHeight - 0.5f, BackWallZ + 5),
+                size: new(40, 1, 20)
+            );
+            AddSlab(snapshot: snapshot, box: box, material: matte, center: wallCenter, size: wallSize);
+            renderer.Render(snapshot, 1f);
+            float[] occlusion = ReadOcclusion(renderer);
+
+            // The camera only pitches, so every pixel of a row sees the floor at the same distance from the wall.
+            int row = (int)PixelOf(new(0, FloorHeight, BackWallZ + (float)distance), CornerView).Y;
+            double measured = Enumerable.Range(Width / 2 - 20, 40).Average(x => occlusion[row * Width + x]);
+            return (measured, FloorDistanceFromTheWall(row));
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>
+    /// V at <paramref name="floorPoint"/> beside the low wall around <paramref name="wallCenter"/>, for rays of length
+    /// <paramref name="radius"/> under the slab model: the cosine-weighted share of the hemisphere above the floor whose
+    /// rays pass no point that lies within κ z behind the surface that the eye sees along that point's view ray. By the
+    /// midpoint rule over the polar angle θ from the normal, the azimuth φ and the length along the ray.
+    /// </summary>
+    private static double VisibilityBesideALowWall(Double3 floorPoint, Vector3 wallCenter, double radius)
+    {
+        const int polarSteps = 90,
+            azimuthSteps = 360,
+            lengthSteps = 100;
         const double polarStep = Math.PI / 2 / polarSteps,
             azimuthStep = 2 * Math.PI / azimuthSteps;
+        var forward = (Double3)Vector3.Transform(-Vector3.UnitZ, CornerView);
+        Double3 wallLow = wallCenter - LowWallSize / 2;
+        Double3 wallHigh = wallCenter + LowWallSize / 2;
         double visible = 0;
         for (int i = 0; i < polarSteps; i++)
         {
@@ -512,13 +599,111 @@ public sealed class AmbientOcclusionRenderTests(ITestOutputHelper output)
             double cosineWeight = Math.Cos(polar) * Math.Sin(polar);
             for (int j = 0; j < azimuthSteps; j++)
             {
-                double towardTheWall = Math.Sin(polar) * Math.Cos((j + 0.5) * azimuthStep);
-                bool reachesTheWall = towardTheWall * radius > distance;
-                if (!reachesTheWall)
+                double azimuth = (j + 0.5) * azimuthStep;
+                var direction = new Double3(
+                    Math.Sin(polar) * Math.Cos(azimuth),
+                    Math.Cos(polar),
+                    Math.Sin(polar) * Math.Sin(azimuth)
+                );
+                bool blocked = Enumerable
+                    .Range(0, lengthSteps)
+                    .Any(k =>
+                        InASlab(
+                            point: floorPoint + direction * ((k + 0.5) * radius / lengthSteps),
+                            forward: forward,
+                            wallLow: wallLow,
+                            wallHigh: wallHigh
+                        )
+                    );
+                if (!blocked)
                     visible += cosineWeight;
             }
         }
 
         return visible * polarStep * azimuthStep / Math.PI;
+    }
+
+    /// <summary>
+    /// Whether a point lies within κ z behind the surface that the eye sees along its view ray: the floor's top face or
+    /// the low wall, a box from <paramref name="wallLow"/> to <paramref name="wallHigh"/>.
+    /// </summary>
+    private static bool InASlab(Double3 point, Double3 forward, Double3 wallLow, Double3 wallHigh)
+    {
+        Double3 toPoint = point.Normalized();
+        double floorDistance = toPoint.Y < 0 ? FloorHeight / toPoint.Y : double.PositiveInfinity;
+        double seen = Math.Min(floorDistance, BoxEntry(toPoint, wallLow, wallHigh) ?? double.PositiveInfinity);
+        double pointDepth = Double3.Dot(point, forward);
+        double seenDepth = seen * Double3.Dot(toPoint, forward);
+        return seenDepth <= pointDepth && pointDepth <= seenDepth * (1 + CellBounds.ThicknessShare);
+    }
+
+    /// <summary>The distance along a unit ray from the eye at which it enters a box, or null when it misses.</summary>
+    private static double? BoxEntry(Double3 direction, Double3 low, Double3 high)
+    {
+        double near = 0,
+            far = double.PositiveInfinity;
+        foreach (
+            (double along, double from, double to) in new[]
+            {
+                (direction.X, low.X, high.X),
+                (direction.Y, low.Y, high.Y),
+                (direction.Z, low.Z, high.Z),
+            }
+        )
+        {
+            if (along == 0)
+            {
+                if (from > 0 || to < 0)
+                    return null;
+                continue;
+            }
+            double a = from / along,
+                b = to / along;
+            near = Math.Max(near, Math.Min(a, b));
+            far = Math.Min(far, Math.Max(a, b));
+        }
+
+        return near <= far ? near : null;
+    }
+
+    /// <summary>
+    /// V at a floor point <paramref name="distance"/> m in front of the tall wall: the cosine-weighted share of the
+    /// hemisphere above the floor whose rays meet the wall within <paramref name="radius"/>. A ray that meets it only
+    /// beyond the radius is open. By the midpoint rule over the polar angle θ from the normal and the azimuth φ.
+    /// </summary>
+    private static double VisibilityBesideATallWall(double distance, double radius)
+    {
+        const int polarSteps = 400,
+            azimuthSteps = 800;
+        const double polarStep = Math.PI / 2 / polarSteps,
+            azimuthStep = 2 * Math.PI / azimuthSteps;
+        var floorPoint = new Double3(0, FloorHeight, BackWallZ + distance);
+        double blocked = 0;
+        for (int i = 0; i < polarSteps; i++)
+        {
+            double polar = (i + 0.5) * polarStep;
+            double cosineWeight = Math.Cos(polar) * Math.Sin(polar);
+            for (int j = 0; j < azimuthSteps; j++)
+            {
+                double azimuth = (j + 0.5) * azimuthStep;
+                var direction = new Double3(
+                    Math.Sin(polar) * Math.Cos(azimuth),
+                    Math.Cos(polar),
+                    Math.Sin(polar) * Math.Sin(azimuth)
+                );
+                if (direction.Z >= 0)
+                    continue;
+                double along = -distance / direction.Z;
+                Double3 meeting = floorPoint + direction * along;
+                bool onTheWallWithinTheRadius =
+                    along < radius
+                    && Math.Abs(meeting.X) <= TallWallSize.X / 2
+                    && meeting.Y <= TallWallCenter.Y + TallWallSize.Y / 2;
+                if (onTheWallWithinTheRadius)
+                    blocked += cosineWeight;
+            }
+        }
+
+        return 1 - blocked * polarStep * azimuthStep / Math.PI;
     }
 }

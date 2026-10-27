@@ -1,15 +1,15 @@
 namespace Tertius.Rendering;
 
 /// <summary>
-/// The occlusion horizons pass, under <see cref="GroundTruthOcclusion"/> (docs/plans/ambient-occlusion.md, "The occlusion
-/// horizons pass"): the edges image, and occlusion term A from the slices and the steps of GTAO.
+/// The occlusion sectors pass, under <see cref="VisibilityBitmaskLight"/> (docs/plans/screen-space-illumination.md, "A
+/// near step"): the edges image and term A, the estimate of the bounce and the occlusion.
 /// </summary>
-internal sealed class OcclusionHorizonsPass(
+internal sealed class OcclusionSectorsPass(
     VulkanDevice device,
     ShaderLibrary shaders,
     DescriptorLayouts layouts,
     OcclusionImages images,
-    GroundTruthOcclusion setting
+    VisibilityBitmaskLight setting
 ) : RenderPass
 {
     private readonly OcclusionPipeline pipeline = new(
@@ -18,16 +18,20 @@ internal sealed class OcclusionHorizonsPass(
         layouts: layouts,
         images: images,
         setting: setting,
-        shader: "occlusion_horizons"
+        shader: "occlusion_sectors"
     );
 
-    public override string Name => "occlusion horizons";
+    public override string Name => "occlusion sectors";
 
     public override void Record(FrameContext context)
     {
         BarrierBatch barriers = context.Barriers;
+        RenderTargets targets = context.Targets;
         barriers.Image(images.ViewDepth, ImageUse.StorageCompute);
-        barriers.Image(context.Targets.Normal, ImageUse.SampledCompute);
+        // The texel setup's normals. The steps read the depth pass's copies.
+        barriers.Image(targets.Normal, ImageUse.SampledCompute);
+        barriers.Image(images.Direct, ImageUse.StorageCompute);
+        barriers.Image(images.GeometricNormal, ImageUse.StorageCompute);
         barriers.Image(images.Edges, ImageUse.StorageCompute, discard: true);
         barriers.Image(images.TermA, ImageUse.StorageCompute, discard: true);
         barriers.Flush(context.Vk, context.CommandBuffer);

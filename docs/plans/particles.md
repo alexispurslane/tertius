@@ -1285,7 +1285,7 @@ ARCHITECTURE.md: the table of pieces in "Threads and the tick".
 
 ### Task 9: the GPU cost
 
-The GPU time of the puff runs, when the GPU timer of `ter-yiii` lands. It does not block the plumes.
+Done (ticket `ter-gk9o`, 2026-10-26). The GPU timer of `ter-yiii` and the GPU trace measured the puffs at 1920 x 1080 in Release on the Apple M1 Max. Only the pass "transparent" draws puffs (the puffs' step is on the CPU). With puffs, 762 puffs per frame in `puff-yard` cost 0.32 ms of GPU time (0.42 ms per 1,000 puffs), and 769 puffs per frame (534 to 964) in the shuttle's ramp run of `blue-danube` cost 0.78 ms (1.0 ms per 1,000 puffs), less than 6 percent of a 12.4 ms frame. The frame spans with and without puffs differ by less than their spread between runs. The method, the runs and the loads are in ARCHITECTURE.md, "The GPU cost of puffs".
 
 ## Limits
 

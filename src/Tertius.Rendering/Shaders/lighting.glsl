@@ -1,5 +1,5 @@
-// The lighting model, shared by the deferred lighting pass, the transparent forward pass, the impostor capture, the
-// environment faces and the lit puffs.
+// The lighting model, shared by the deferred direct and ambient passes, the transparent forward pass, the impostor
+// capture, the environment faces and the lit puffs.
 //
 // The PBR BRDF (docs/plans/pbr-brdf.md, "The BRDF"): Lambert diffuse, plus GGX with the height-correlated Smith
 // visibility term and Schlick's Fresnel term, with Filament's multiple-scattering energy compensation from the DFG table:
@@ -7,11 +7,11 @@
 // Each light of the one light list adds f · E · (N·L), where E is its irradiance (docs/plans/local-light-shadows.md, "The
 // shaders"). The ambient light comes from one ambient source,
 // the scene environment map while it is on and the hemisphere while it is off, which gives a diffuse and a specular
-// term (docs/plans/environment-map.md, "The one source of the ambient light"). Ambient occlusion scales the two ambient
-// terms in occludedAmbient alone (docs/plans/ambient-occlusion.md, "The lighting pass"). Every reader of the ambient
-// light reads it through ambientTerms (docs/plans/screen-space-reflections.md, "The one place where SSR reads the
-// ambient light"). lobesRadiance pre-exposes the sum and caps it at MaxRadiance, the surfaces' share of the HDR image
-// (exposure.glsl).
+// term (docs/plans/environment-map.md, "The one source of the ambient light"). The estimate of the light around each
+// point, the occlusion V and the bounce G, applies to the two ambient terms in occludedAmbient alone
+// (docs/plans/screen-space-illumination.md, "The ambient pass"). Every reader of the ambient light reads it through
+// ambientTerms (docs/plans/screen-space-reflections.md, "The one place where SSR reads the ambient light").
+// lobesRadiance pre-exposes the sum and caps it at MaxRadiance, the surfaces' share of the HDR image (exposure.glsl).
 //
 // A light's shadow slot says how its shadows dim it (shadows.glsl): a far light by its far shadows (a sphere per caster,
 // tested analytically) and, with a cascade set, within 2 km by its cascaded shadow maps, the two multiplied; a near light
@@ -27,7 +27,7 @@
 
 // How a view samples every light's shadow maps (docs/plans/environment-map.md, "The shadow maps in a face").
 const uint ShadowMapsNone = 0u;       // far shadows only: the impostor capture
-const uint ShadowMapsMainView = 1u;   // the cascades by view depth with their blend bands, and the tiles: lighting, transparent, lit puffs
+const uint ShadowMapsMainView = 1u;   // the cascades by view depth with their blend bands, and the tiles: direct, transparent, lit puffs
 const uint ShadowMapsHolding = 2u;    // the finest cascade whose box holds the point, and the tiles: the environment faces
 
 // LightUnits.NearestDistance: the floor of the distance, in m, by which a light of radius 0 divides its irradiance.
@@ -51,6 +51,7 @@ struct ShadingInput
     float lobeSkyFraction;    // s_l, the lobe's sky share (lobeSkyFraction in hemisphere.glsl)
     float reflectionFootprint; // f, in rad, at least p: how far d moves to a neighboring pixel, set by the caller
     float occlusion;          // V, the unhidden share of the cosine-weighted hemisphere: 1 when nothing hides it
+    vec3 bounce;              // G, plain radiance: 0 where no estimate exists
     uint map;                 // the environment map that lights the surface, root first; only the map's ambient light reads it
 };
 
@@ -190,15 +191,14 @@ float specularOcclusion(float NdotV, float occlusion, float alpha)
     return clamp(pow(NdotV + occlusion, exp2(-16.0 * alpha - 1.0)) - 1.0 + occlusion, 0.0, 1.0);
 }
 
-// The one place where ambient occlusion applies (docs/plans/ambient-occlusion.md): the diffuse term by V, the
-// specular term by V_s. It reads nothing about the source of the terms, and keeps them apart, because SSR replaces
-// the occluded specular term where its ray hits.
+// The one place where the estimate applies (docs/plans/screen-space-illumination.md): the open share V of the source's
+// diffuse term, plus the bounce G under the diffuse color, and the specular term by V_s. It reads nothing about the
+// source of the terms, and keeps them apart, because SSR replaces the occluded specular term where its ray hits.
 AmbientTerms occludedAmbient(AmbientTerms terms, ShadingInput s, SurfaceLobes lobes)
 {
-    AmbientTerms occluded;
-    occluded.diffuse = terms.diffuse * s.occlusion;
-    occluded.specular = terms.specular * specularOcclusion(lobes.NdotV, s.occlusion, lobes.alpha);
-    return occluded;
+    terms.diffuse = terms.diffuse * s.occlusion + lobes.diffuseColor * s.bounce;
+    terms.specular *= specularOcclusion(lobes.NdotV, s.occlusion, lobes.alpha);
+    return terms;
 }
 
 // d: the specular dominant direction of the lobe of roughness r₀ about the shading normal, toward which it reflects the
@@ -249,7 +249,8 @@ vec3 ambientLight(ShadingInput s, SurfaceLobes lobes, vec3 V)
 // (docs/plans/environment-maps-per-frame.md, decision 13): a face of map i passes i, and every other view EveryMap. The
 // lights add in the order of the list, so the sum rounds the same way on every run. A normal map can tilt the shading
 // normal toward a light on a surface that itself faces away; that surface is in its own shadow, so every light needs both
-// normals to face it.
+// normals to face it. The result is plain radiance: no ambient light, no emission and no exposure. The direct pass writes
+// it into the direct image (Shaders/direct.frag).
 vec3 directLight(ShadingInput s, SurfaceLobes lobes, vec3 position, vec3 V, uint shadowMaps, uint lastMap)
 {
     vec3 color = vec3(0.0);
@@ -277,7 +278,8 @@ vec3 directLight(ShadingInput s, SurfaceLobes lobes, vec3 position, vec3 V, uint
 // surface writes, whatever the parts.
 // The reflected light is capped before it is multiplied, so the product stays a finite single float (exposure.glsl).
 // V points from the surface to the eye. Impostor captures pass ShadowMapsNone and an exposure of 1, because the atlas
-// stores radiance.
+// stores radiance. The main view's opaque surfaces split the same cap over the direct and the ambient pass
+// (docs/plans/screen-space-illumination.md, "The cap at MaxRadiance").
 vec3 lobesRadiance(
     ShadingInput s, SurfaceLobes lobes, vec3 preExposedEmission, vec3 position, vec3 V, uint shadowMaps, float exposure)
 {
@@ -333,8 +335,10 @@ vec3 scatteredLight(vec3 albedo, vec3 position, uint map)
 
 // The ShadingInput of a surface that a forward pass shades from its material's sample `s` at `position`: the glass and
 // the fringe of the transparent pass (docs/plans/skin-and-hair.md, "The fringe"). The reflection's footprint comes from
-// the screen derivatives, so the caller calls this before any discard. The sky shares serve the hemisphere alone. The
-// occlusion is 1, because a forward surface is not in the G-buffer that the occlusion passes read.
+// the screen derivatives, so the caller calls this before any discard. The sky shares serve the hemisphere alone. A
+// forward surface is not in the G-buffer that the occlusion passes read, so it takes no estimate: the occlusion is 1 and
+// the bounce 0, and the surface behind it takes the estimate at its pixel (docs/plans/screen-space-illumination.md, "The
+// passes that keep V = 1").
 ShadingInput forwardShading(SurfaceSample s, vec3 position, vec3 vertexNormal, vec4 hemisphere, uint map, vec3 V)
 {
     ShadingInput shading;
@@ -349,6 +353,7 @@ ShadingInput forwardShading(SurfaceSample s, vec3 position, vec3 vertexNormal, v
     shading.skyFraction = environmentMapOn ? 0.0 : skyFraction(hemisphere, position, s.normal);
     shading.lobeSkyFraction = environmentMapOn ? 0.0 : lobeSkyFraction(hemisphere, position, s.normal, V, s.roughness);
     shading.occlusion = 1.0;
+    shading.bounce = vec3(0.0);
     return shading;
 }
 #endif

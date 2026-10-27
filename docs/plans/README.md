@@ -12,6 +12,7 @@ ARCHITECTURE.md stays the binding design. When a feature is done, its decisions 
 | [Anti-aliasing](anti-aliasing.md) | `ter-gcm3` |
 | [Asset pipeline](asset-pipeline.md) | `ter-kge6` |
 | [Automatic exposure](auto-exposure.md) | `ter-zzyr` |
+| [Bounce light](screen-space-illumination.md) | `ter-a24f` |
 | [Code quality tooling](code-quality-tooling.md) | `ter-9gj5` |
 | [Complete ghosts between semantic frames](complete-ghosts.md) | `ter-imi5` |
 | [Content formats: blueprints and scenes](content-formats.md) | `ter-jwzd` |
@@ -27,6 +28,7 @@ ARCHITECTURE.md stays the binding design. When a feature is done, its decisions 
 | [Parts: attached entities that push their chain's root](parts.md) | `ter-ftk4` |
 | [PBR BRDF](pbr-brdf.md) | `ter-ptft` |
 | [Shadows of every light, and lights in SI units](local-light-shadows.md) | `ter-s9cv` |
+| [Skinning and morph targets](skinning-and-morphs.md) | `ter-4vzc` |
 | [Queries and sensors](queries-and-sensors.md) | `ter-1yed` |
 | [Rails components](rails-components.md) | `ter-ozm8` |
 | [Real physics in every test](real-physics-in-tests.md) | `ter-se84` |

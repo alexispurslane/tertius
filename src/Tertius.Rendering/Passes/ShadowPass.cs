@@ -9,9 +9,10 @@ namespace Tertius.Rendering;
 /// <remarks>
 /// <para><see cref="Prepare"/> runs on the CPU. For each far light whose slot is a <see cref="CascadeSet"/>, it fits the
 /// four cascades of that set to this frame's camera along the light's own direction (<see cref="ShadowCascades"/>). It
-/// takes its casters from the frame's casters, which the batcher interpolated once (<see cref="PreparedScene.Casters"/>):
-/// every caster whose bounding sphere comes within 2 km of the camera, in view or not. Each caster is culled against every
-/// cascade box of every set, extruded toward that set's light, and gets one GPU instance per cascade that it touches. The
+/// takes its casters from the frame's placed instances, which the batcher interpolated once
+/// (<see cref="PreparedScene.Placed"/>): every one that casts shadows and whose bounding sphere comes within 2 km of the
+/// camera, in view or not. Each caster is culled against every cascade box of every set, extruded toward that set's light,
+/// and gets one GPU instance per cascade that it touches. The
 /// casters are put in mesh order with a counting sort, then each cascade's instances are appended to the frame's instance
 /// buffer in that order, the solid casters' run first and the cutout casters' run after it, with one indirect command per
 /// stretch of one mesh. All of this is linear in the number of casters, sets and meshes, and allocates nothing in a
@@ -30,10 +31,10 @@ internal sealed unsafe class ShadowPass : RenderPass
     /// <summary>The caster's slope-scaled depth bias, in multiples of its largest depth change per texel.</summary>
     public const float SlopeBias = 1.5f;
 
-    /// <summary>How far the lighting pass moves its lookup along the geometric normal, in texels, times sin(angle to the light).</summary>
+    /// <summary>How far the direct pass moves its lookup along the geometric normal, in texels, times sin(angle to the light).</summary>
     public const float NormalOffsetTexels = 1f;
 
-    /// <summary>The lighting pass's constant depth bias toward the light, in texels of depth.</summary>
+    /// <summary>The direct pass's constant depth bias toward the light, in texels of depth.</summary>
     public const float ConstantBiasTexels = 0.5f;
 
     /// <summary>Receiver planes are treated as at most this steep: the cosine of their angle to the light.</summary>
@@ -121,7 +122,7 @@ internal sealed unsafe class ShadowPass : RenderPass
         );
         if (scene.CascadeSetCount == 0)
             return;
-        ReadOnlySpan<MeshInfo> meshes = context.Geometry.Meshes;
+        ReadOnlySpan<MeshInfo> meshes = context.Scene.Meshes;
         int casterCount = SelectCasters(scene);
         // Without a caster the maps would shadow nothing, so none is drawn and the shaders skip them: the frame
         // constants keep 0 cascades per set.
@@ -167,7 +168,7 @@ internal sealed unsafe class ShadowPass : RenderPass
     /// The cascades of every set that a caster touches, as a mask with the bit <see cref="ShadowMap.Layer"/> for each:
     /// its sphere overlaps the cascade box or the part of the set's light view in front of it, toward the light.
     /// </summary>
-    internal static int CascadeMask(PreparedScene scene, in ShadowCaster caster)
+    internal static int CascadeMask(PreparedScene scene, in PreparedInstance caster)
     {
         int mask = 0;
         for (int set = 0; set < scene.CascadeSetCount; set++)
@@ -194,9 +195,9 @@ internal sealed unsafe class ShadowPass : RenderPass
     {
         int casterCount = 0,
             instanceCount = 0;
-        foreach (ref readonly ShadowCaster caster in scene.CasterSpan)
+        foreach (ref readonly PreparedInstance caster in scene.PlacedSpan)
         {
-            if (!ShadowCascades.TakesCaster(caster.Distance, caster.Radius))
+            if (!caster.CastsShadow || !ShadowCascades.TakesCaster(caster.Distance, caster.Radius))
                 continue;
             int mask = CascadeMask(scene, caster);
             if (mask == 0)
@@ -238,7 +239,7 @@ internal sealed unsafe class ShadowPass : RenderPass
     /// The GPU instance of a caster in a shadow image: its transform and its material, whose cutoff the cutout pipeline
     /// reads. The shadow images read no map.
     /// </summary>
-    internal static GpuInstance CasterInstance(in ShadowCaster caster) =>
+    internal static GpuInstance CasterInstance(in PreparedInstance caster) =>
         GpuInstance.From(
             position: caster.Position,
             rotation: caster.Rotation,

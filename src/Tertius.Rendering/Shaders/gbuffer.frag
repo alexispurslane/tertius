@@ -44,7 +44,7 @@ void main()
     float normalSky = environmentMapOn ? 0.0 : skyFraction(inHemisphere, inPosition, s.normal);
     outSpecular = vec4(s.metallic, s.roughness, s.reflectance, lobeSky);
     outEmissive = vec4(preExposed(s.emissive), normalSky);
-    // Euclidean distance, not depth: the lighting pass rebuilds the position as ray × distance, which does not
+    // Euclidean distance, not depth: the direct and ambient passes rebuild the position as ray × distance, which does not
     // depend on which depth range drew the pixel.
     outDistance = length(inPosition - draw.eye.xyz);
 }

@@ -244,7 +244,19 @@ public sealed class RenderSnapshot
     /// </summary>
     public float PuffAgeStep;
 
-    /// <summary>Empties the lists of the snapshot, the chain among them, and sets <see cref="PuffAgeStep"/> to 0, so that a builder can fill it again.</summary>
+    /// <summary>
+    /// The rig poses of the posed instances, sorted by instance (docs/plans/skinning-and-morphs.md, "The rig pose in the
+    /// snapshot"). <see cref="AddRigPose"/> is the one writer of this list and of the two below.
+    /// </summary>
+    public readonly List<RenderRigPose> RigPoses = [];
+
+    /// <summary>The joint poses of every entry of <see cref="RigPoses"/>, in the entries' order.</summary>
+    public readonly List<Pose> JointPoses = [];
+
+    /// <summary>The morph weights of every entry of <see cref="RigPoses"/>, in the entries' order.</summary>
+    public readonly List<float> MorphWeights = [];
+
+    /// <summary>Empties the lists of the snapshot, the chain and the rig poses among them, and sets <see cref="PuffAgeStep"/> to 0, so that a builder can fill it again.</summary>
     public void Clear()
     {
         Chain.Clear();
@@ -253,8 +265,80 @@ public sealed class RenderSnapshot
         Outlines.Clear();
         Puffs.Clear();
         PuffLooks.Clear();
+        RigPoses.Clear();
+        JointPoses.Clear();
+        MorphWeights.Clear();
         PuffAgeStep = 0;
     }
+
+    /// <summary>Appends the rig pose of the posed instance <paramref name="instance"/>, after every entry of <see cref="RigPoses"/>.</summary>
+    /// <param name="instance">The index in <see cref="Instances"/> of the posed instance, above the last entry's.</param>
+    /// <param name="joints">The current joint poses.</param>
+    /// <param name="previousJoints">The joint poses at the previous build, as many as <paramref name="joints"/>.</param>
+    /// <param name="weights">The current morph weights.</param>
+    /// <param name="previousWeights">The morph weights at the previous build, as many as <paramref name="weights"/>.</param>
+    /// <exception cref="ArgumentException">
+    /// An instance that is not above the last entry's or not in <see cref="Instances"/>, or a span whose length differs
+    /// from its partner's.
+    /// </exception>
+    public void AddRigPose(
+        int instance,
+        ReadOnlySpan<Pose> joints,
+        ReadOnlySpan<Pose> previousJoints,
+        ReadOnlySpan<float> weights,
+        ReadOnlySpan<float> previousWeights
+    )
+    {
+        // Without an entry, the last instance is −1, so a negative instance is never after it.
+        int lastInstance = RigPoses.Count > 0 ? RigPoses[^1].Instance : -1;
+        bool afterTheLast = instance > lastInstance;
+        bool inInstances = instance < Instances.Count;
+        if (!afterTheLast || !inInstances)
+            throw new ArgumentException(
+                $"A rig pose needs an instance after {lastInstance} and below {Instances.Count}, not {instance}.",
+                nameof(instance)
+            );
+        if (previousJoints.Length != joints.Length)
+            throw new ArgumentException(
+                $"The previous joint poses number {previousJoints.Length}, not {joints.Length} as the current ones do.",
+                nameof(previousJoints)
+            );
+        if (previousWeights.Length != weights.Length)
+            throw new ArgumentException(
+                $"The previous weights number {previousWeights.Length}, not {weights.Length} as the current ones do.",
+                nameof(previousWeights)
+            );
+
+        RigPoses.Add(
+            new(
+                Instance: instance,
+                JointStart: JointPoses.Count,
+                JointCount: joints.Length,
+                WeightStart: MorphWeights.Count,
+                WeightCount: weights.Length
+            )
+        );
+        JointPoses.AddRange(joints);
+        JointPoses.AddRange(previousJoints);
+        MorphWeights.AddRange(weights);
+        MorphWeights.AddRange(previousWeights);
+    }
+
+    /// <summary>The current joint poses of an entry of <see cref="RigPoses"/>.</summary>
+    public ReadOnlySpan<Pose> JointsOf(in RenderRigPose pose) =>
+        CollectionsMarshal.AsSpan(JointPoses).Slice(pose.JointStart, pose.JointCount);
+
+    /// <summary>The joint poses at the previous build of an entry of <see cref="RigPoses"/>.</summary>
+    public ReadOnlySpan<Pose> PreviousJointsOf(in RenderRigPose pose) =>
+        CollectionsMarshal.AsSpan(JointPoses).Slice(pose.JointStart + pose.JointCount, pose.JointCount);
+
+    /// <summary>The current morph weights of an entry of <see cref="RigPoses"/>.</summary>
+    public ReadOnlySpan<float> WeightsOf(in RenderRigPose pose) =>
+        CollectionsMarshal.AsSpan(MorphWeights).Slice(pose.WeightStart, pose.WeightCount);
+
+    /// <summary>The morph weights at the previous build of an entry of <see cref="RigPoses"/>.</summary>
+    public ReadOnlySpan<float> PreviousWeightsOf(in RenderRigPose pose) =>
+        CollectionsMarshal.AsSpan(MorphWeights).Slice(pose.WeightStart + pose.WeightCount, pose.WeightCount);
 }
 
 // The renderer copies vertices into a GPU buffer, so the field order is the memory layout. The cleanup's member layout
@@ -271,7 +355,29 @@ public struct Vertex
     public Vector2 TexCoord;
 }
 
-public sealed record MeshData(Vertex[] Vertices, uint[] Indices);
+public sealed record MeshData(Vertex[] Vertices, uint[] Indices)
+{
+    /// <summary>The mesh's rig, skin and morph targets, or null for a rigid mesh (docs/plans/skinning-and-morphs.md).</summary>
+    public MeshRigging? Rigging { get; init; }
+}
+
+/// <summary>
+/// The rig pose of one posed instance of a <see cref="RenderSnapshot"/>: ranges into
+/// <see cref="RenderSnapshot.JointPoses"/> and <see cref="RenderSnapshot.MorphWeights"/>, each of the current values and
+/// then as many previous ones. Read its spans with <see cref="RenderSnapshot.JointsOf"/> and the three reads beside it.
+/// </summary>
+/// <param name="Instance">The index in <see cref="RenderSnapshot.Instances"/> of the posed instance.</param>
+/// <param name="JointStart">The entry's first joint pose in <see cref="RenderSnapshot.JointPoses"/>.</param>
+/// <param name="JointCount">The rig's joint count: the entry holds twice as many joint poses.</param>
+/// <param name="WeightStart">The entry's first weight in <see cref="RenderSnapshot.MorphWeights"/>.</param>
+/// <param name="WeightCount">The rig's morph count: the entry holds twice as many weights.</param>
+public readonly record struct RenderRigPose(
+    int Instance,
+    int JointStart,
+    int JointCount,
+    int WeightStart,
+    int WeightCount
+);
 
 /// <summary>RGBA8 pixels, row-major, top row first.</summary>
 public sealed record TextureData(int Width, int Height, byte[] Rgba, bool Srgb = true);

@@ -427,19 +427,13 @@ internal struct DrawPushConstants
     public uint Map;
 }
 
-/// <summary>The push constants of the occlusion passes (Shaders/occlusion.glsl). 64 bytes.</summary>
+/// <summary>
+/// The push constants of the occlusion passes (Shaders/occlusion.glsl): the setting alone. The camera comes from the
+/// frame constants, so the occlusion passes and the lighting passes read the one store. 16 bytes.
+/// </summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct OcclusionPushConstants
 {
-    /// <summary>xyz the unit right of the camera in world axes, w the tangent of half the horizontal field of view.</summary>
-    public Vector4 CameraRight;
-
-    /// <summary>xyz the unit up, w the tangent of half the vertical field of view.</summary>
-    public Vector4 CameraUp;
-
-    /// <summary>xyz the unit forward, w 0.</summary>
-    public Vector4 CameraForward;
-
     public float RadiusMeters;
     public uint Slices;
     public uint StepsPerSide;
@@ -447,16 +441,10 @@ internal struct OcclusionPushConstants
     /// <summary>1 in the last denoise dispatch, 0 otherwise.</summary>
     public uint LastDenoise;
 
-    /// <summary>
-    /// The push constants of one dispatch. The camera is the one that the frame constants hold, so the passes and the
-    /// lighting pass never disagree about it.
-    /// </summary>
-    public static OcclusionPushConstants For(in CameraView camera, GroundTruthOcclusion setting, bool lastDenoise) =>
+    /// <summary>The push constants of one dispatch.</summary>
+    public static OcclusionPushConstants For(VisibilityBitmaskLight setting, bool lastDenoise) =>
         new()
         {
-            CameraRight = new(camera.Right, camera.TanHalfX),
-            CameraUp = new(camera.Up, camera.TanHalfY),
-            CameraForward = new(camera.Forward, 0),
             RadiusMeters = setting.RadiusMeters,
             Slices = (uint)setting.Slices,
             StepsPerSide = (uint)setting.StepsPerSide,
@@ -553,35 +541,77 @@ internal struct SkyFacePushConstants
 }
 
 /// <summary>
-/// The push constants of environment_prefilter.comp, for the level of the specular map that set 2 holds, k, of map
-/// <see cref="Map"/>. 16 bytes. environment_irradiance.comp reads only <see cref="Map"/>.
+/// One level of a dispatch of environment_prefilter.comp, k, in the binding of set 1 that its place in the dispatch
+/// names. 16 bytes, a std430 struct of four scalars.
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
-internal struct EnvironmentPrefilterPushConstants
+internal struct EnvironmentPrefilterLevel
 {
-    /// <summary>W_k = W / 2^k: the texels along one side of each face of that level.</summary>
+    /// <summary>The first workgroup of the dispatch that prefilters the level.</summary>
+    public uint FirstGroup;
+
+    /// <summary>W_k = W / 2^k: the texels along one side of each face of the level.</summary>
     public uint LevelSize;
 
     /// <summary>r_k = k / (L − 1): the roughness that the level holds.</summary>
     public float Roughness;
 
+    /// <summary>The invocations that share one texel's samples, <see cref="PrefilterLevels.Lanes"/> of the level.</summary>
+    public uint Lanes;
+}
+
+/// <summary>The levels of one dispatch of environment_prefilter.comp, a std430 array of four.</summary>
+[InlineArray(PrefilterLevels.LevelsPerDispatch)]
+internal struct EnvironmentPrefilterLevels
+{
+    private EnvironmentPrefilterLevel element;
+}
+
+/// <summary>
+/// The push constants of environment_prefilter.comp, for the run of levels of the specular map that set 1 of
+/// <see cref="DescriptorLayouts.EnvironmentPrefilterLayout"/> holds (<see cref="PrefilterLevels.LevelsOfDispatch"/>), of
+/// map <see cref="Map"/>. 80 bytes. environment_irradiance.comp and environment_irradiance_sum.comp read only
+/// <see cref="Map"/>.
+/// </summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct EnvironmentPrefilterPushConstants
+{
+    /// <summary>The levels in binding order. Those past <see cref="LevelCount"/> are unused.</summary>
+    public EnvironmentPrefilterLevels Levels;
+
     /// <summary>The Hammersley samples per texel, <see cref="PrefilterLevels.SamplesPerTexel"/>.</summary>
     public uint Samples;
 
-    /// <summary>The map whose layers 6 · Map to 6 · Map + 5 and coefficients 9 · Map to 9 · Map + 8 the dispatch writes.</summary>
+    /// <summary>The levels of the dispatch, 1 to <see cref="PrefilterLevels.LevelsPerDispatch"/>.</summary>
+    public uint LevelCount;
+
+    /// <summary>
+    /// The workgroups of the dispatch's levels. Its grid (<see cref="ComputeLimits.Grid"/>) may hold a few more, which
+    /// return at once.
+    /// </summary>
+    public uint GroupCount;
+
+    /// <summary>
+    /// The map whose layers 6 · Map to 6 · Map + 5 the prefilter writes, and whose coefficients 9 · Map to 9 · Map + 8
+    /// the irradiance's sum writes.
+    /// </summary>
     public uint Map;
 }
 
 /// <summary>
-/// The push constants of environment_downsample.comp, for the level of the radiance map that set 2 holds, k ≥ 1, made
-/// from level k − 1 in set 1, of map <see cref="Map"/>. 8 bytes, which fit in the prefilter layout's range of
+/// The push constants of environment_downsample.comp, for the run of levels of the radiance map that bindings 1 to 3 of
+/// set 1 hold, k + 1 to k + 3, made from level k in binding 0 (<see cref="PrefilterLevels.LevelsOfDownsample"/>), of map
+/// <see cref="Map"/>. 12 bytes, which fit in the prefilter layout's range of
 /// <see cref="EnvironmentPrefilterPushConstants"/>.
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct EnvironmentDownsamplePushConstants
 {
-    /// <summary>W / 2^k: the texels along one side of each face of that level.</summary>
+    /// <summary>W / 2^(k + 1): the texels along one side of each face of the run's first level.</summary>
     public uint LevelSize;
+
+    /// <summary>The levels of the run, 1 to <see cref="PrefilterLevels.LevelsPerDownsample"/>.</summary>
+    public uint LevelCount;
 
     /// <summary>The map whose layers 6 · Map to 6 · Map + 5 the dispatch reads and writes.</summary>
     public uint Map;

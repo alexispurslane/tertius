@@ -16,12 +16,13 @@ Bring the renderer to its intended look in one epic: a PBR BRDF, an HDR pipeline
 | `ter-63wr` | Bloom | PBR | Two designs, in the ticket |
 | `ter-gcm3` | Anti-aliasing with SMAA 1x | PBR | In the ticket |
 | `ter-b3h5` | Screen-space ambient occlusion | PBR | [ambient-occlusion.md](ambient-occlusion.md) |
-| `ter-a24f` | Screen-space global illumination | PBR, SSAO | Two designs, in the ticket |
+| `ter-a24f` | Screen-space global illumination | PBR, SSAO, SSR | [screen-space-illumination.md](screen-space-illumination.md) |
 | `ter-jxv9` | Screen-space reflections | PBR, exposure | [screen-space-reflections.md](screen-space-reflections.md) |
 | `ter-s9cv` | Shadows of every light: lights in SI units instead of one sun (`ter-bpvl`), and point and spot light shadows | PBR, exposure, the tone curve, bloom | [local-light-shadows.md](local-light-shadows.md) |
 | `ter-mgze` | Glass keeps its reflection at full strength and lets through less light where it reflects more | PBR | In the ticket |
 | `ter-nl5u` | A scene environment map at the camera: the ambient light, diffuse and specular, and SSR's fallback | PBR, exposure | [environment-map.md](environment-map.md) |
 | `ter-uy7y` | Environment maps per frame on the camera's chain, so that a lit interior does not light the outdoors seen through its windows | The environment map | [environment-maps-per-frame.md](environment-maps-per-frame.md) |
+| `ter-4vzc` | Skinning and morph targets: meshes that deform by an entity's rig pose in every pass that draws a mesh, by one compute pass before the shadow maps (user, 2026-10-26) | The lights epic | [skinning-and-morphs.md](skinning-and-morphs.md) |
 | `ter-hro7` | Each semantic frame sets the sky and ground colors of the ambient light. Closed without work: the environment map replaces it. | | |
 | `ter-6vhj` | Each semantic frame sets an atmosphere color: the sky backdrop, and a tint where it applies | Every member above | Two designs, in the ticket |
 | `ter-pq5y` | The coda: profile every pass and hold the whole frame to 12 ms of GPU time at 1080p | Every member above | [rendering-performance.md](rendering-performance.md) |
@@ -30,7 +31,7 @@ Bring the renderer to its intended look in one epic: a PBR BRDF, an HDR pipeline
 
 - PBR comes first. The look and the tuning of every other feature depend on the BRDF. SSR weights its reflections by the Fresnel term and blurs them by the roughness. SSAO and SSGI scale the diffuse and ambient light. Exposure, the tone curve and bloom are tuned against the radiance that the BRDF sends.
 - The lights epic waits for exposure, the tone curve and bloom. Its move to SI units needs exposure and pre-exposed HDR values. The user also wants the HDR pipeline in place before the lights change.
-- SSGI waits for SSAO, as before.
+- SSGI waits for SSAO, as before. It also waits for SSR, because its far rays use SSR's depth pyramid and trace (user, 2026-10-25). On 2026-10-26 the user removed the far rays (screen-space-illumination.md, decision 40).
 - The performance coda (`ter-pq5y`) measures the frame that the whole epic makes, so its last part comes after every other member (user, 2026-10-25). Each feature's own profile starts as soon as that feature merges.
 - The atmosphere color comes last, after every other member. The user decided this on 2026-10-25. It waits for the environment map, which captures the sky and so carries the atmosphere's color into the ambient light.
 - The environment map replaces the per-frame sky and ground colors (user, 2026-10-25). It holds the whole scene seen from the camera, so the ambient light comes from what really surrounds the camera, indoors and outdoors.
@@ -47,12 +48,12 @@ Bring the renderer to its intended look in one epic: a PBR BRDF, an HDR pipeline
 
 ### Measuring the cost of a feature
 
-The renderer times each pass on the GPU (ARCHITECTURE.md, "GPU timings"), and a headless run of the demo writes the summary of those times. A headless run never turns on the validation layers, so it measures the renderer alone. Measure in a Release build, at 1920x1080, with a script whose frames show the feature. `scripts/demo-exit.json` films 3,879 frames in about 33 s. The renderer never reads the last 2 of them (`FramesInFlight`), so each pass reports 3,877 frames. A video keeps the run short, because the PNG encode of each frame takes far longer than its draw, and the GPU times do not depend on the target.
+The renderer times each pass on the GPU (ARCHITECTURE.md, "GPU timings"), and a headless run of the demo writes the summary of those times. A headless run never turns on the validation layers, so it measures the renderer alone. Measure in a Release build, at 1920x1080, with a script whose frames show the feature. `scripts/demo-exit.json` films 3,879 frames in about 33 s. The renderer never reads the last 2 of them (`FramesInFlight`), so each pass reports 3,877 frames. `--video none` keeps the run short, because the PNG encode of each frame takes far longer than its draw. It draws, waits for and reads back each frame as `--video <file.mkv>` does, then drops it, so the run writes only `gpu-timings.json`, `exposure.json` and its log, and its GPU times compare with those of the earlier runs that wrote a video.
 
 1. In the checkout of the branch, run the script at 1080p:
 
    ```sh
-   nix develop --command dotnet run --project src/Tertius.Demo -c Release -- --script scripts/demo-exit.json --headless --out captures/gpu-branch --size 1920x1080 --video captures/gpu-branch/run.mkv
+   nix develop --command dotnet run --project src/Tertius.Demo -c Release -- --script scripts/demo-exit.json --headless --out captures/gpu-branch --size 1920x1080 --video none
    ```
 
    The run writes `captures/gpu-branch/gpu-timings.json` and prints one line per pass, such as `GPU G-buffer: mean 0.859 ms, median 0.861 ms, p95 1.086 ms over 3877 frames`, then one line for the frame's GPU span, `GPU frame span: ...`. The span is the time from the start of the frame's first pass to the end of its last pass. The file holds it as the entry `frame`, beside `passes`.
@@ -61,11 +62,13 @@ The renderer times each pass on the GPU (ARCHITECTURE.md, "GPU timings"), and a 
 
    ```sh
    git worktree add ../tertius-base "$(git merge-base main HEAD)"
-   (cd ../tertius-base && nix develop --command dotnet run --project src/Tertius.Demo -c Release -- --script scripts/demo-exit.json --headless --out "$OLDPWD/captures/gpu-base" --size 1920x1080 --video "$OLDPWD/captures/gpu-base/run.mkv")
+   (cd ../tertius-base && nix develop --command dotnet run --project src/Tertius.Demo -c Release -- --script scripts/demo-exit.json --headless --out "$OLDPWD/captures/gpu-base" --size 1920x1080 --video none)
    git worktree remove ../tertius-base
    ```
 
-3. Compare the two files pass by pass: the difference of the means is the feature's cost per frame, and the 95th percentiles show its worst frames. The difference of the frame spans is the feature's cost to the whole frame, and the 95th percentile of the span shows the worst frames as a whole. A new pass appears only in the branch's file. Run each build twice, and trust a difference only when it is larger than the difference between the two runs of one build.
+   A base from before `--video none` (ticket `ter-j1mf`) refuses it. Give that base `--video "$OLDPWD/captures/gpu-base/run.mkv"`, and delete the video after the run: it holds 550 to 690 MB that nobody reads.
+
+3. Compare the two files pass by pass: the difference of the means is the feature's cost per frame, and the 95th percentiles show its worst frames. The difference of the frame spans is the feature's cost to the whole frame, and the 95th percentile of the span shows the worst frames as a whole. A new pass appears only in the branch's file. On MoltenVK, a pass's time can hold part of the next pass's work (ARCHITECTURE.md, "GPU timings"), so compare there the spans and the sums of neighbouring passes, and take a single pass's cost from a trace of each build (tools/README.md, "GPU trace"). Run each build twice, and trust a difference only when it is larger than the difference between the two runs of one build.
 
 Run one measurement at a time, with no other build or test on the machine, because the GPU and the CPU are shared. The base must hold the GPU timings, so a branch that starts before them has no base to compare with.
 

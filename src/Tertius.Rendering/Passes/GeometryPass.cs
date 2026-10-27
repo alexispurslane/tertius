@@ -137,7 +137,7 @@ internal sealed unsafe class GeometryPass : RenderPass
                 ImageLayout = ImageLayout.ColorAttachmentOptimal,
                 LoadOp = first ? AttachmentLoadOp.Clear : AttachmentLoadOp.Load,
                 StoreOp = AttachmentStoreOp.Store,
-                // Zero everywhere: distance 0 marks sky for the lighting pass.
+                // Zero everywhere: distance 0 marks sky for the direct and ambient passes.
                 ClearValue = new(new ClearColorValue(float32_0: 0f, float32_1: 0f, float32_2: 0f, float32_3: 0f)),
             };
         var depth = new RenderingAttachmentInfo

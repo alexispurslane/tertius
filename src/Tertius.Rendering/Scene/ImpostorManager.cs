@@ -225,15 +225,18 @@ internal sealed partial class ImpostorManager : IInstanceProcessor
     }
 
     /// <summary>
-    /// Whether <paramref name="instance"/> may become an impostor: no flag excludes it, a capture can draw its material, it
-    /// has a volume, and the eye is not nearly inside it.
+    /// Whether <paramref name="instance"/> may become an impostor: no flag excludes it, it is not a deformed copy, a capture
+    /// can draw its material, it has a volume, and the eye is not nearly inside it.
     /// </summary>
-    private static bool MayBecomeImpostor(in PreparedInstance instance)
+    private static bool MayBecomeImpostor(PreparedScene scene, in PreparedInstance instance)
     {
         bool excluded = (instance.Flags & Excluded) != 0;
+        // A deformed copy changes its shape in every frame, which a capture keyed by ImpostorKey cannot follow
+        // (docs/plans/skinning-and-morphs.md, decision 25).
+        bool deformed = scene.IsDeformed(instance.Mesh);
         bool hasVolume = instance.Radius > 0f;
         bool nearlyInside = instance.Distance < MinimumDistance * instance.Radius;
-        return !excluded && Capturable(instance.Alpha) && hasVolume && !nearlyInside;
+        return !excluded && !deformed && Capturable(instance.Alpha) && hasVolume && !nearlyInside;
     }
 
     /// <summary>
@@ -278,7 +281,7 @@ internal sealed partial class ImpostorManager : IInstanceProcessor
         {
             decisions[i] = -1;
             ref PreparedInstance instance = ref visible[i];
-            if (!MayBecomeImpostor(instance))
+            if (!MayBecomeImpostor(scene, instance))
                 continue;
             float height = ProjectedHeight(instance.Distance, instance.Radius, camera);
             var key = ImpostorKey.Of(instance);

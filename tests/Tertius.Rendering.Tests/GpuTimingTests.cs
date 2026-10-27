@@ -14,14 +14,14 @@ public sealed class GpuTimingTests
     /// <summary>A validating headless renderer that the test skips on a device without timestamps.</summary>
     private static VulkanRenderer TimedRenderer(
         int framesInFlight = 2,
-        AmbientOcclusionSetting ambientOcclusion = default
+        ScreenSpaceLightSetting screenSpaceLight = default
     )
     {
         VulkanRenderer renderer = Gpu.Headless(
             width: Width,
             height: Height,
             framesInFlight: framesInFlight,
-            ambientOcclusion: ambientOcclusion
+            screenSpaceLight: screenSpaceLight
         );
         if (!renderer.TimesPasses)
         {
@@ -109,9 +109,9 @@ public sealed class GpuTimingTests
     }
 
     [Fact]
-    public void WithGroundTruthOcclusionTheFourOcclusionPassesRunBetweenTheGBufferPassAndTheLightingPass()
+    public void WithVisibilityBitmaskLightTheFourOcclusionPassesRunBetweenTheDirectAndTheAmbientPass()
     {
-        VulkanRenderer renderer = TimedRenderer(ambientOcclusion: GroundTruthOcclusion.Default);
+        VulkanRenderer renderer = TimedRenderer(screenSpaceLight: VisibilityBitmaskLight.Default);
         try
         {
             RenderSnapshot snapshot = TestScene.Create(renderer).Snapshot();
@@ -121,18 +121,20 @@ public sealed class GpuTimingTests
             string[] passes = [.. renderer.LastFrameStats.GpuTimings!.Value.Passes.ToArray().Select(pass => pass.Pass)];
             passes
                 .SkipWhile(pass => pass != "G-buffer")
-                .Take(6)
+                .Take(7)
                 .Should()
                 .Equal(
                     [
                         "G-buffer",
+                        "direct light",
                         "occlusion depth",
-                        "occlusion horizons",
+                        "occlusion sectors",
                         "occlusion denoise",
                         "occlusion upsample",
-                        "lighting",
+                        "ambient light",
                     ],
-                    "the occlusion passes read the finished G-buffer, and the lighting pass reads their occlusion target"
+                    "the occlusion passes read the finished G-buffer and the direct image, no pass of theirs reads the "
+                        + "depth pyramid, and the ambient pass reads their estimate target"
                 );
         }
         finally
@@ -142,19 +144,25 @@ public sealed class GpuTimingTests
     }
 
     [Fact]
-    public void WithNoAmbientOcclusionTheFrameHasNoOcclusionPass()
+    public void WithNoScreenSpaceLightTheFrameHasTheDirectAndTheAmbientPassAndNoOcclusionPass()
     {
-        VulkanRenderer renderer = TimedRenderer(ambientOcclusion: new NoAmbientOcclusion());
+        VulkanRenderer renderer = TimedRenderer(screenSpaceLight: new NoScreenSpaceLight());
         try
         {
             RenderSnapshot snapshot = TestScene.Create(renderer).Snapshot();
             for (int i = 0; i < 3; i++)
                 renderer.Render(snapshot, 1f);
 
-            renderer
-                .LastFrameStats.GpuTimings!.Value.Passes.ToArray()
+            string[] passes = [.. renderer.LastFrameStats.GpuTimings!.Value.Passes.ToArray().Select(pass => pass.Pass)];
+            passes
+                .SkipWhile(pass => pass != "G-buffer")
+                .Take(3)
                 .Should()
-                .NotContain(pass => pass.Pass.StartsWith("occlusion"), "the lighting pass reads the cleared target");
+                .Equal(
+                    ["G-buffer", "direct light", "ambient light"],
+                    "the ambient pass reads the cleared estimate target"
+                );
+            passes.Should().NotContain(pass => pass.StartsWith("occlusion"));
         }
         finally
         {
@@ -180,7 +188,7 @@ public sealed class GpuTimingTests
                         .BeInRange(0, 1_000, "{0} is a time on a counter that only grows", pass.Pass)
                 );
             passes
-                .Where(pass => pass.Pass is "shadow maps" or "G-buffer" or "lighting")
+                .Where(pass => pass.Pass is "shadow maps" or "G-buffer" or "direct light" or "ambient light")
                 .Should()
                 .AllSatisfy(pass => pass.Milliseconds.Should().BePositive("{0} draws the reference scene", pass.Pass));
         }
@@ -209,6 +217,26 @@ public sealed class GpuTimingTests
                 .ContainSingle(pass => pass.Pass == "empty")
                 .Which.Milliseconds.Should()
                 .BeLessThan(0.05, "the pass gave the GPU no work, and a mean over frames counts it as it is");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void OnMacOsWhereVulkanRunsOnMoltenVkTheRendererSaysThatItsStampsLatchLate()
+    {
+        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
+        try
+        {
+            renderer
+                .StampsLatchLate.Should()
+                .Be(
+                    OperatingSystem.IsMacOS(),
+                    "MoltenVK samples each stamp in an encoder of its own that the next pass's work can delay, and the"
+                        + " desktop drivers of Linux latch a stamp when the work before it ends"
+                );
         }
         finally
         {
