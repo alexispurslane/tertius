@@ -68,6 +68,53 @@ public static partial class DemoScenes
             )
         );
 
+        SpawnDoorAndSensor(world: world, resources: resources, scene: scene, ground: ground);
+
+        // The capsule is 1.8 m tall, and its center rests 0.9 m above the floor. The eye is 1.65 m above the floor.
+        var capsule = new CapsuleShapeDesc(0.6f, 0.3f);
+        scene.Add(
+            "person",
+            world.Spawn(
+                new()
+                {
+                    Frame = ground,
+                    Pose = new(new(0, 0.95, DoorwayPersonStartZ), DQuaternion.Identity),
+                    Body = new(Shape: capsule, Motion: BodyMotion.Character, Mass: YardPersonMass),
+                    Render = Drawn(
+                        resources: resources,
+                        mesh: Primitives.Box(new(0.3f, 0.9f, 0.3f)),
+                        color: new(x: 0.2f, y: 0.45f, z: 0.8f, w: 1),
+                        boundingRadius: 1
+                    ),
+                    Components = [new PersonControl(new(0, 0.75f, 0))],
+                    Subscriptions = [Topics.Input],
+                }
+            )
+        );
+
+        Entity camera = world.Spawn(ViewIn(ground, LookingAt(new(8, 3, 3), new(0, 1, 2))));
+        scene.Add("camera", camera);
+
+        Star(world: world, scene: scene, frame: ground, center: Double3.Zero, direction: new(30, 50, 20));
+        world.Ambient = Daylight;
+
+        scene.AddView("camera");
+        scene.AddView("person");
+        world.Camera = camera;
+        return scene;
+    }
+
+    /// <summary>
+    /// The kinematic <c>door</c> of the doorway, which its topic opens, the <c>doorway-sensor</c> in front of it, which
+    /// sends on that topic, and the <c>mat</c> that marks the sensor.
+    /// </summary>
+    private static void SpawnDoorAndSensor(
+        World world,
+        IRenderResources resources,
+        SceneInstance scene,
+        FrameHandle ground
+    )
+    {
         var doorHalf = new Vector3(1, (float)DoorwayDoorShutY, 0.05f);
         scene.Add(
             "door",
@@ -120,45 +167,5 @@ public static partial class DemoScenes
                 }
             )
         );
-
-        // The capsule is 1.8 m tall, and its center rests 0.9 m above the floor. The eye is 1.65 m above the floor.
-        var capsule = new CapsuleShapeDesc(0.6f, 0.3f);
-        scene.Add(
-            "person",
-            world.Spawn(
-                new()
-                {
-                    Frame = ground,
-                    Pose = new(new(0, 0.95, DoorwayPersonStartZ), DQuaternion.Identity),
-                    Body = new(Shape: capsule, Motion: BodyMotion.Character, Mass: YardPersonMass),
-                    Render = Drawn(
-                        resources: resources,
-                        mesh: Primitives.Box(new(0.3f, 0.9f, 0.3f)),
-                        color: new(x: 0.2f, y: 0.45f, z: 0.8f, w: 1),
-                        boundingRadius: 1
-                    ),
-                    Components = [new PersonControl(new(0, 0.75f, 0))],
-                    Subscriptions = [Topics.Input],
-                }
-            )
-        );
-
-        Entity camera = world.Spawn(
-            new()
-            {
-                Frame = ground,
-                Pose = LookingAt(new(8, 3, 3), new(0, 1, 2)),
-                Render = new RenderData(),
-            }
-        );
-        scene.Add("camera", camera);
-
-        Star(world: world, scene: scene, frame: ground, center: Double3.Zero, direction: new(30, 50, 20));
-        world.Ambient = Daylight;
-
-        scene.AddView("camera");
-        scene.AddView("person");
-        world.Camera = camera;
-        return scene;
     }
 }

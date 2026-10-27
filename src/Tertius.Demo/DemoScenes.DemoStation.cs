@@ -441,6 +441,28 @@ public static partial class DemoScenes
         /// </remarks>
         public static Entity Spawn(World world, FrameHandle parent, SceneInstance scene, IRenderResources resources)
         {
+            Entity station = SpawnWheel(world: world, parent: parent, resources: resources);
+            scene.Add("station", station);
+            FrameHandle frame = world.GetOwnedFrame(station);
+
+            SpawnCeiling(world: world, frame: frame, scene: scene, resources: resources);
+            SpawnSideWalls(world: world, frame: frame, scene: scene, resources: resources);
+            SpawnSpokes(world: world, frame: frame, scene: scene, resources: resources);
+            SpawnHub(world: world, frame: frame, scene: scene, resources: resources);
+            StationExit.Spawn(world: world, station: frame, scene: scene, resources: resources);
+            WheelCoda.Spawn(world: world, station: frame, scene: scene, resources: resources);
+
+            SpawnBayLamps(world: world, frame: frame, resources: resources);
+            SpawnCameras(world: world, frame: frame, scene: scene);
+            return station;
+        }
+
+        /// <summary>
+        /// Spawns the wheel on <see cref="Orbit"/> in <paramref name="parent"/>: the owner of the station's frame, with
+        /// the floor as its body's interior and the hull outside, and returns it.
+        /// </summary>
+        private static Entity SpawnWheel(World world, FrameHandle parent, IRenderResources resources)
+        {
             KeplerOrbit orbit = Orbit;
             (Double3 place, Double3 velocity) = orbit.StateAt(world.Time, EarthMu);
             var floor = RevolvedSolid.Ring(
@@ -475,9 +497,17 @@ public static partial class DemoScenes
                     ),
                 }
             );
-            scene.Add("station", station);
-            FrameHandle frame = world.GetOwnedFrame(station);
+            return station;
+        }
 
+        /// <summary>Spawns the bands of the ceiling in <paramref name="frame"/>.</summary>
+        private static void SpawnCeiling(
+            World world,
+            FrameHandle frame,
+            SceneInstance scene,
+            IRenderResources resources
+        )
+        {
             foreach ((string id, RevolvedSolid band, DPose pose) in StationExit.CeilingBands())
             {
                 ShapeDesc bandShape = band.Shape();
@@ -499,7 +529,19 @@ public static partial class DemoScenes
                     )
                 );
             }
+        }
 
+        /// <summary>
+        /// Spawns the two side walls in <paramref name="frame"/>, on the slot's side and the far side, which share one
+        /// mesh.
+        /// </summary>
+        private static void SpawnSideWalls(
+            World world,
+            FrameHandle frame,
+            SceneInstance scene,
+            IRenderResources resources
+        )
+        {
             var wall = RevolvedSolid.Ring(
                 innerRadius: CeilingRadius + CeilingThickness,
                 outerRadius: FloorRadius,
@@ -532,7 +574,11 @@ public static partial class DemoScenes
                         }
                     )
                 );
+        }
 
+        /// <summary>Spawns the spokes in <paramref name="frame"/>, one static body over all of their boxes.</summary>
+        private static void SpawnSpokes(World world, FrameHandle frame, SceneInstance scene, IRenderResources resources)
+        {
             BoundingBox[] spokes = [.. Spokes()];
             BoxMesh spokeMesh = new();
             foreach (BoundingBox box in spokes)
@@ -555,7 +601,13 @@ public static partial class DemoScenes
                     }
                 )
             );
+        }
 
+        /// <summary>
+        /// Spawns the hub in <paramref name="frame"/>: its walls, with the slot and the hole in the deck.
+        /// </summary>
+        private static void SpawnHub(World world, FrameHandle frame, SceneInstance scene, IRenderResources resources)
+        {
             Vector3 hubOwn = HubOwnHalf;
             Opening slot = HubSlot,
                 hole = HubDeckHole;
@@ -586,10 +638,11 @@ public static partial class DemoScenes
                     }
                 )
             );
+        }
 
-            StationExit.Spawn(world: world, station: frame, scene: scene, resources: resources);
-            WheelCoda.Spawn(world: world, station: frame, scene: scene, resources: resources);
-
+        /// <summary>Spawns the bay lamps in <paramref name="frame"/>.</summary>
+        private static void SpawnBayLamps(World world, FrameHandle frame, IRenderResources resources)
+        {
             // The bay lamps: floodlights behind glowing panels 1.2 m square, flat on the bay's walls, each with its light
             // 0.3 m out from the wall, in the station's axes. Three stand near the slot, 8 m in from it, and one in the
             // middle of the far end wall.
@@ -625,7 +678,11 @@ public static partial class DemoScenes
                     }
                 );
             }
+        }
 
+        /// <summary>Spawns the rim, bay and hold cameras in <paramref name="frame"/>.</summary>
+        private static void SpawnCameras(World world, FrameHandle frame, SceneInstance scene)
+        {
             // The rim camera: at θ = 45 degrees, between two spokes, 98 m from the axis and 2 m off the slot's face of the
             // wheel. It looks at a point on the axis between the hub and the hold point. Its roof lies across the plane of
             // the axis and the camera, so the axis runs across the picture, outward to the right.
@@ -673,7 +730,6 @@ public static partial class DemoScenes
                     }
                 )
             );
-            return station;
         }
     }
 }
