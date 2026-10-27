@@ -1257,6 +1257,18 @@ The CPU cost of posing, from `SceneBatcherBenchmarks` (Release, BenchmarkDotNet'
 | Four maps, one face | 2.033 ms | 2.085 ms | 2.459 ms |
 | Four maps, 24 faces | 5.053 ms | 5.071 ms | 5.503 ms |
 
+After the merge with the environment map's prefilter profile, whose batcher interpolates each instance once for the main view and every face and sorts the opaque draws by counting, the same benchmark gave these medians (2026-10-26, one run, a 1-minute load of 14.3 at the start and 7.4 at the end):
+
+| Map setting | 0 posed | 1 posed | 100 posed |
+|---|---|---|---|
+| Off | 1.097 ms | 1.129 ms | 1.519 ms |
+| One face | 1.785 ms | 1.806 ms | 2.225 ms |
+| Six faces | 1.994 ms | 2.004 ms | 2.395 ms |
+| Four maps, one face | 1.772 ms | 1.784 ms | 2.179 ms |
+| Four maps, 24 faces | 4.219 ms | 4.232 ms | 4.659 ms |
+
+So the shared interpolation and the counting sort save about 0.23 to 0.30 ms with one face, 0.32 to 0.34 ms with six and 0.83 to 0.84 ms with 24 faces, posed or not, and 0.03 to 0.04 ms with the map off, within the load's noise. The cost of posing stays as it was.
+
 A posed instance of 53 joints costs the batch about 4 µs, posing and drawing together: 0.41 ms for 100, which the plan estimated at 0.3 ms. The calls allocate nothing. Each deformed instance is its own frame mesh, so it takes an indirect command of its own in each view that draws it: 100 posed instances add 100 commands to the main view.
 
 The memory, by arithmetic (docs/plans/skinning-and-morphs.md, "Memory and cost"):
