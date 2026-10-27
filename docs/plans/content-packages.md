@@ -329,7 +329,7 @@ The mod API in `Tertius.Core`:
 - Engine payloads: `Tick`, `Spawned`, `Destroy`, `FrameChanged`, `Collision` and `InputEvent`, with its case types `KeyChanged`, `MouseButtonChanged`, `MouseMoved` and `Scrolled`.
 - Render values: `MeshId`, `ModelId` (from the asset pipeline), `MaterialId`, `TextureId`, `TextureSlot` (from content formats) and `RenderFlags`.
 - Physics values: `BodyDesc`, the shape records, `CompoundChild`, `BodyMotion`, `BodyLayer`, `PhysicsIntent` and `IntentFlags`.
-- Frame values: `FrameBounds`, `GravityField`, its case types `UniformGravity` and `PointGravity`, and the rails values `KeplerOrbit`, `KeplerAttitude`, `FrameSpin` and `MotionSample`.
+- Frame values: `FrameBounds`, `GravityField`, its case types `UniformGravity` and `PointGravity`, and the rails values `KeplerOrbit`, `KeplerAttitude`, its case types `Spin` and `FacesParent`, `FrameSpin` and `MotionSample`.
 
 The mod API in `Tertius.Simulation`:
 

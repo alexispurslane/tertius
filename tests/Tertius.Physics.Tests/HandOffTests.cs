@@ -75,6 +75,41 @@ public sealed class HandOffTests
             )
         );
 
+    /// <summary>
+    /// The oval of the stations that face their planet, around a G·M of 5e9 m³/s²: periapsis at t = 0 and apoapsis at half
+    /// the 31.4 s period. A station on it turns at 0.389 rad/s at periapsis and at 0.113 rad/s at apoapsis.
+    /// </summary>
+    private static readonly KeplerOrbit FacingOval = new(
+        SemiMajorAxis: 5000,
+        Eccentricity: 0.3,
+        Inclination: 0,
+        LongitudeOfAscendingNode: 0,
+        ArgumentOfPeriapsis: 0,
+        MeanAnomalyAtEpoch: 0,
+        Epoch: 0,
+        Attitude: new FacesParent()
+    );
+
+    /// <summary>
+    /// A station in <paramref name="planet"/> on <see cref="FacingOval"/>, on its rails from its first step: a kinematic box
+    /// hull with a hollow inside and a bubble of 25 m.
+    /// </summary>
+    private static FrameHandle SpawnFacingStation(World world, FrameHandle planet) =>
+        world.GetOwnedFrame(
+            world.Spawn(
+                new SpawnDesc
+                {
+                    Frame = planet,
+                    Body = new(
+                        Shape: new BoxShapeDesc(new(4)),
+                        Motion: BodyMotion.Kinematic,
+                        InteriorShape: new SphereShapeDesc(1)
+                    ),
+                    AsFrame = new(FrameBounds.Sphere(25)),
+                }.OnKeplerOrbit(world, FacingOval, firstMove: true)
+            )
+        );
+
     /// <summary>The hand-offs that Jolt sent, in the order of the steps.</summary>
     private static List<HandOff> HandOffsSent(FaultInjectingBackend faults) =>
         [.. faults.Outputs.SelectMany(output => output.HandOffs)];
@@ -283,41 +318,12 @@ public sealed class HandOffTests
         using World world = NewWorldWithoutNumericFrames(out FaultInjectingBackend faults);
         const double mu = 5e9;
         FrameHandle planet = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f), GravityField.Point(mu)));
-        // Periapsis at t = 0 and apoapsis at half the 31.4 s period. The station turns at 0.389 rad/s at periapsis and
-        // at 0.113 rad/s at apoapsis.
-        var orbit = new KeplerOrbit(
-            SemiMajorAxis: 5000,
-            Eccentricity: 0.3,
-            Inclination: 0,
-            LongitudeOfAscendingNode: 0,
-            ArgumentOfPeriapsis: 0,
-            MeanAnomalyAtEpoch: 0,
-            Epoch: 0,
-            AxialTilt: DQuaternion.Identity,
-            SpinRate: 0,
-            SpinPhaseAtEpoch: 0,
-            Attitude: KeplerAttitude.FacesParent
-        );
-        var hull = new BodyDesc(
-            Shape: new BoxShapeDesc(new(4)),
-            Motion: BodyMotion.Kinematic,
-            InteriorShape: new SphereShapeDesc(1)
-        );
-        FrameHandle station = world.GetOwnedFrame(
-            world.Spawn(
-                new SpawnDesc
-                {
-                    Frame = planet,
-                    Body = hull,
-                    AsFrame = new(FrameBounds.Sphere(25)),
-                }.OnKeplerOrbit(world, orbit, firstMove: true)
-            )
-        );
+        FrameHandle station = SpawnFacingStation(world, planet);
         // The ball comes 5 s before apoapsis and drifts out along +Z at 3 m/s, so it leaves the bubble near apoapsis. The
         // station's turn flings a body away from its axis (docs/plans/spin-gravity.md, "The two-turn update"): before the
         // rotation terms the test spawned the ball with the station at periapsis, drifting at 1 m/s, and it left 15.7 s
         // later, but in a station turning at 0.389 rad/s that ball leaves after 5.3 s, far from apoapsis.
-        TickUntil(world, () => world.Time >= orbit.Period(mu) / 2 - 5, 1200);
+        TickUntil(world, () => world.Time >= FacingOval.Period(mu) / 2 - 5, 1200);
         Entity ball = world.Spawn(
             new()
             {
@@ -337,7 +343,7 @@ public sealed class HandOffTests
             startInParent: out Double3 startInPlanet
         );
         exit.Should().NotBeNull();
-        world.Time.Should().BeInRange(orbit.Period(mu) / 2 - 0.5, orbit.Period(mu) / 2 + 0.5);
+        world.Time.Should().BeInRange(FacingOval.Period(mu) / 2 - 0.5, FacingOval.Period(mu) / 2 + 0.5);
         world.GetFrame(ball).Should().Be(planet);
         world
             .VelocityInOwnFrame(ball)
@@ -354,7 +360,7 @@ public sealed class HandOffTests
         FrameMotionData atPeriapsis = new(
             world.Frames.LocalPose(station),
             world.Frames.LinearVelocity(station),
-            orbit.AngularVelocityAt(0, mu)
+            FacingOval.AngularVelocityAt(0, mu)
         );
         (ToParentVelocity(atPeriapsis, position, before.LinearVelocity) - chord).Length.Should().BeGreaterThan(5);
         world.Errors.Should().BeEmpty();
@@ -384,35 +390,9 @@ public sealed class HandOffTests
             using World world = numericFrames ? NewWorldWithFaults(faults: out _) : NewWorldWithoutNumericFrames(out _);
             const double mu = 5e9;
             FrameHandle planet = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f), GravityField.Point(mu)));
-            var orbit = new KeplerOrbit(
-                SemiMajorAxis: 5000,
-                Eccentricity: 0.3,
-                Inclination: 0,
-                LongitudeOfAscendingNode: 0,
-                ArgumentOfPeriapsis: 0,
-                MeanAnomalyAtEpoch: 0,
-                Epoch: 0,
-                AxialTilt: DQuaternion.Identity,
-                SpinRate: 0,
-                SpinPhaseAtEpoch: 0,
-                Attitude: KeplerAttitude.FacesParent
-            );
-            FrameHandle station = world.GetOwnedFrame(
-                world.Spawn(
-                    new SpawnDesc
-                    {
-                        Frame = planet,
-                        Body = new(
-                            Shape: new BoxShapeDesc(new(4)),
-                            Motion: BodyMotion.Kinematic,
-                            InteriorShape: new SphereShapeDesc(1)
-                        ),
-                        AsFrame = new(FrameBounds.Sphere(25)),
-                    }.OnKeplerOrbit(world, orbit, firstMove: true)
-                )
-            );
+            FrameHandle station = SpawnFacingStation(world, planet);
             BodyDesc ballBody = BallBody(0.2f);
-            TickUntil(world, () => world.Time >= orbit.Period(mu) / 2 - 5, 1200);
+            TickUntil(world, () => world.Time >= FacingOval.Period(mu) / 2 - 5, 1200);
             Entity ball = world.Spawn(
                 new()
                 {

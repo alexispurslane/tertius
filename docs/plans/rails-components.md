@@ -78,12 +78,12 @@ The user made the decisions marked (User).
 
 ## The rails library
 
-The namespace `Tertius.Frames.Rails` holds the data types `KeplerOrbit`, `KeplerAttitude`, `FrameSpin` and `MotionSample`. Every rails function lives in its struct: a function of an orbit or a spin is an instance method, and a function of two-body motion that takes no orbit elements is a static method of `KeplerOrbit`. The records keep their `IsValid` checks. Everything is public and pure. The user chose this on 2026-10-18.
+The namespace `Tertius.Frames.Rails` holds the data types `KeplerOrbit`, `KeplerAttitude`, `FrameSpin` and `MotionSample`. Since ter-7oi8, `KeplerAttitude` is a generated union of the cases `Spin(AxialTilt, Rate, PhaseAtEpoch)` and `FacesParent`, not an enum beside the orbit's fields `AxialTilt`, `SpinRate` and `SpinPhaseAtEpoch`. Every rails function lives in its struct: a function of an orbit or a spin is an instance method, and a function of two-body motion that takes no orbit elements is a static method of `KeplerOrbit`. The records keep their `IsValid` checks. Everything is public and pure. The user chose this on 2026-10-18.
 
 | Today | In the library |
 |---|---|
 | `KeplerOrbit.StateAt`, `RotationAt`, `AngularVelocityAt`, `MeanMotion`, `Period` | The same methods of `KeplerOrbit`, with the parameter `mu` |
-| The private `EccentricAnomalyAt`, `FacingParentAt`, `PerifocalToParent` and `Spin` | Private members of `KeplerOrbit` |
+| The private `EccentricAnomalyAt`, `FacingParentAt`, `PerifocalToParent` and `Spin` | Private members of `KeplerOrbit`. Since ter-7oi8, the private `Turn(spin)` makes the `FrameSpin` of the attitude's case `Spin`. |
 | `NumericFrameRules.OrbitChord` | the static `KeplerOrbit.Chord(Double3 position, Double3 velocity, double mu, double step)` |
 | `NumericFrameRules.OrbitAcceleration` | the static `KeplerOrbit.Acceleration(Double3 position, double mu)` |
 | The body of `FrameTree.KeplerMu` | the static `KeplerOrbit.MuFrom(in GravityField parentGravity)`: the G·M of a point field that `CanBeOrbited`, else 0 |

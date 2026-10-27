@@ -32,7 +32,7 @@ public sealed class FrameTreeBeginStepTests
 
     private static readonly KeplerOrbit FacingOrbit = KeplerOrbit.Circular(OrbitRadius) with
     {
-        Attitude = KeplerAttitude.FacesParent,
+        Attitude = new FacesParent(),
     };
 
     private static FrameTurns NoTurns => new(FrameTurn.None, FrameTurn.None);

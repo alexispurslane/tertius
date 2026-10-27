@@ -24,7 +24,7 @@ public sealed class WorldFrameFieldTests
         {
             "hyperbolic e = 1.2" => StationOrbit with { Eccentricity = 1.2 },
             "NaN semi-major axis" => StationOrbit with { SemiMajorAxis = double.NaN },
-            "infinite spin" => StationOrbit with { SpinRate = double.PositiveInfinity },
+            "infinite spin" => KeplerOrbit.Circular(5000, spinRate: double.PositiveInfinity),
             _ => default,
         };
 

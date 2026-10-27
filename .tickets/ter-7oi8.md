@@ -1,6 +1,6 @@
 ---
 id: ter-7oi8
-status: in_progress
+status: closed
 deps: [ter-c3rf]
 links: []
 created: 2026-10-22T12:58:26Z
@@ -41,3 +41,7 @@ The user approved the design sketch above as it stands on 2026-10-24. Build from
 **2026-10-27T09:50:16Z**
 
 2026-10-27: the orchestrator settled the fork by STYLE.md (make illegal states unrepresentable) and the rule of required fields set by the real producer: no ZeroCase. The empty attitude is invalid, and KeplerMotion's setter refuses an orbit whose attitude is empty with an ArgumentException, as it refuses other invalid orbits.
+
+**2026-10-27T10:49:54Z**
+
+2026-10-27: merged. KeplerAttitude is a [GeneratedUnion] of Spin(AxialTilt, Rate, PhaseAtEpoch) and FacesParent with no ZeroCase; KeplerOrbit.IsValid refuses the empty attitude, so KeplerMotion's setter throws ArgumentException for it. Valid orbits sample bit for bit as before (lock-in tests). Coverage of the changed lines 37/37.

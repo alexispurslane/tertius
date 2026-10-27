@@ -178,31 +178,9 @@ public sealed class RailsMotionIntentTests
     public void AMotionIntentRelativeToADyingFrameConvertsIntoItsEntitysNewFrame()
     {
         using var test = new TestWorld();
-        const double mu = 4e14;
-        test.GiveRootPointGravity(mu);
-        // The parent goes round the root on a Kepler orbit and spins about a tilted axis, so it is away from the root's origin,
-        // turned, moving and spinning, and the conversion moves, turns and adds the parent's motion.
-        KeplerOrbit orbit = KeplerOrbit.Circular(7e6, phase: 0.8, spinRate: 0.02) with
-        {
-            AxialTilt = DQuaternion.FromAxisAngle(Double3.UnitZ, 0.5),
-            SpinPhaseAtEpoch = 1.1,
-        };
-        FrameHandle parent = test.World.GetOwnedFrame(
-            test.World.Spawn(
-                new SpawnDesc { Frame = test.Root, AsFrame = new(FrameBounds.Sphere(1e5f)) }.OnKeplerOrbit(
-                    test.World,
-                    orbit
-                )
-            )
-        );
-        var sample = new MotionSample(
-            Pose: new(new(30, -40, 50), DQuaternion.FromAxisAngle(Double3.UnitX, 0.3)),
-            ChordVelocity: new(1, 2, 3),
-            Velocity: new(1.5, 2.5, 3.5),
-            Acceleration: new(-0.1, 0.2, 0.3),
-            AngularVelocity: new(0.01, 0.02, 0.03),
-            AngularAcceleration: new(0.001, -0.002, 0.003)
-        );
+        // The parent is away from the root's origin, turned, moving and spinning, which the conversion adds.
+        FrameHandle parent = SpawnFrameOnASpinningOrbit(test);
+        MotionSample sample = TurnedSample;
         FrameHandle child = SpawnFrame(
             test,
             parent,
@@ -549,6 +527,41 @@ public sealed class RailsMotionIntentTests
                 .Position.Should()
                 .Be(stop, "the turntable keeps the place where the flight left the frame");
         }
+    }
+
+    /// <summary>A full sample with a place, a turn and every velocity and acceleration other than zero.</summary>
+    private static readonly MotionSample TurnedSample = new(
+        Pose: new(new(30, -40, 50), DQuaternion.FromAxisAngle(Double3.UnitX, 0.3)),
+        ChordVelocity: new(1, 2, 3),
+        Velocity: new(1.5, 2.5, 3.5),
+        Acceleration: new(-0.1, 0.2, 0.3),
+        AngularVelocity: new(0.01, 0.02, 0.03),
+        AngularAcceleration: new(0.001, -0.002, 0.003)
+    );
+
+    /// <summary>
+    /// A frame in the root of <paramref name="test"/> that goes round it on a Kepler orbit 7,000 km out and spins about a
+    /// tilted axis at 0.02 rad/s. It gives the root a point gravity of 4e14 m³/s² to orbit.
+    /// </summary>
+    private static FrameHandle SpawnFrameOnASpinningOrbit(TestWorld test)
+    {
+        test.GiveRootPointGravity(4e14);
+        KeplerOrbit orbit = KeplerOrbit.Circular(7e6, phase: 0.8) with
+        {
+            Attitude = new Spin(
+                AxialTilt: DQuaternion.FromAxisAngle(Double3.UnitZ, 0.5),
+                Rate: 0.02,
+                PhaseAtEpoch: 1.1
+            ),
+        };
+        return test.World.GetOwnedFrame(
+            test.World.Spawn(
+                new SpawnDesc { Frame = test.Root, AsFrame = new(FrameBounds.Sphere(1e5f)) }.OnKeplerOrbit(
+                    test.World,
+                    orbit
+                )
+            )
+        );
     }
 
     /// <summary>A sample whose place is the tick number along X, so that a test can tell which tick wrote it.</summary>

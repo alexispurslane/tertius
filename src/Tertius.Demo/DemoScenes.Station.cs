@@ -216,10 +216,7 @@ public static partial class DemoScenes
         public static KeplerOrbit OrbitAt(double time) =>
             ShipOrbit with
             {
-                Attitude = KeplerAttitude.Spin,
-                AxialTilt = ShipOrbit.RotationAt(time, EarthMu) * Lean,
-                SpinRate = 0,
-                SpinPhaseAtEpoch = 0,
+                Attitude = new Spin(AxialTilt: ShipOrbit.RotationAt(time, EarthMu) * Lean, Rate: 0, PhaseAtEpoch: 0),
             };
 
         public static SceneInstance Build(World world, IRenderResources resources)

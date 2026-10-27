@@ -1,18 +1,5 @@
 namespace Tertius.Frames.Rails;
 
-/// <summary>How a Kepler frame turns as it orbits.</summary>
-public enum KeplerAttitude : byte
-{
-    /// <summary>The axial tilt, then a steady spin about the frame's own +Y, as a planet turns.</summary>
-    Spin,
-
-    /// <summary>
-    /// Faces the parent, as a station in low orbit does: the belly (-Y) points at the parent, and the nose (-Z) points
-    /// along the motion across the horizon. The tilt and the spin are not used.
-    /// </summary>
-    FacesParent,
-}
-
 /// <summary>
 /// Kepler elements of a frame around its parent, plus the frame's attitude. Angles are radians, distances meters,
 /// times seconds. The reference plane is the parent's XZ plane, with +Y as the orbit normal at zero inclination.
@@ -34,10 +21,7 @@ public record struct KeplerOrbit(
     double ArgumentOfPeriapsis,
     double MeanAnomalyAtEpoch,
     double Epoch,
-    DQuaternion AxialTilt,
-    double SpinRate,
-    double SpinPhaseAtEpoch,
-    KeplerAttitude Attitude = KeplerAttitude.Spin
+    KeplerAttitude Attitude
 )
 {
     /// <summary>
@@ -94,8 +78,9 @@ public record struct KeplerOrbit(
 
     /// <summary>
     /// True for an orbit whose own elements a <c>KeplerMotion</c> can follow: a closed orbit, with an eccentricity from 0 up
-    /// to but not including 1 and a positive semi-major axis, and every element, the tilt and the spin finite. The default
-    /// orbit is not valid: it would leave the frame at its parent's origin. The orbit holds no G·M, so this does not check
+    /// to but not including 1 and a positive semi-major axis, every element finite, and an attitude that
+    /// <see cref="KeplerAttitude.IsValid"/>. The default orbit is not valid: it would leave the frame at its parent's
+    /// origin, and it has no attitude. The orbit holds no G·M, so this does not check
     /// the parent: the component does, in every tick (see <see cref="MuFrom"/>).
     /// </summary>
     public readonly bool IsValid =>
@@ -108,19 +93,21 @@ public record struct KeplerOrbit(
         && double.IsFinite(ArgumentOfPeriapsis)
         && double.IsFinite(MeanAnomalyAtEpoch)
         && double.IsFinite(Epoch)
-        && double.IsFinite(SpinRate)
-        && double.IsFinite(SpinPhaseAtEpoch)
-        && double.IsFinite(AxialTilt.X)
-        && double.IsFinite(AxialTilt.Y)
-        && double.IsFinite(AxialTilt.Z)
-        && double.IsFinite(AxialTilt.W)
-        && Attitude is KeplerAttitude.Spin or KeplerAttitude.FacesParent;
+        && Attitude.IsValid;
 
-    /// <summary>The spin of the attitude <see cref="KeplerAttitude.Spin"/>: the axial tilt, then the spin about +Y.</summary>
-    private readonly FrameSpin Spin =>
-        new(Tilt: AxialTilt, Rate: SpinRate, PhaseAtEpoch: SpinPhaseAtEpoch, Epoch: Epoch);
+    /// <summary>The turn of the attitude <paramref name="spin"/>: the axial tilt, then the spin about +Y from the epoch.</summary>
+    private readonly FrameSpin Turn(in Spin spin) =>
+        new(Tilt: spin.AxialTilt, Rate: spin.Rate, PhaseAtEpoch: spin.PhaseAtEpoch, Epoch: Epoch);
 
-    /// <summary>A circular orbit in the reference plane.</summary>
+    /// <summary>The read of an orbit without an attitude, which no member can answer (see <see cref="IsValid"/>).</summary>
+    private static InvalidOperationException NoAttitude() =>
+        new("The orbit has no attitude, so it does not say how its frame turns (see KeplerOrbit.IsValid).");
+
+    /// <summary>
+    /// A circular orbit in the reference plane, of <paramref name="radius"/> m, at the mean anomaly <paramref name="phase"/>
+    /// rad at the epoch 0. Its attitude is a <see cref="Spin"/> with no tilt: the frame turns about the parent's +Y at
+    /// <paramref name="spinRate"/> rad/s, from the spin angle 0 at the epoch.
+    /// </summary>
     public static KeplerOrbit Circular(double radius, double phase = 0, double spinRate = 0) =>
         new(
             SemiMajorAxis: radius,
@@ -130,9 +117,7 @@ public record struct KeplerOrbit(
             ArgumentOfPeriapsis: 0,
             MeanAnomalyAtEpoch: phase,
             Epoch: 0,
-            AxialTilt: DQuaternion.Identity,
-            SpinRate: spinRate,
-            SpinPhaseAtEpoch: 0
+            Attitude: new Spin(AxialTilt: DQuaternion.Identity, Rate: spinRate, PhaseAtEpoch: 0)
         );
 
     /// <summary>
@@ -167,31 +152,35 @@ public record struct KeplerOrbit(
         Orbits(mu) ? StateAtAnomaly(EccentricAnomalyAt(time, mu, out _), mu) : (Double3.Zero, Double3.Zero);
 
     /// <summary>
-    /// The frame's orientation relative to the parent at <paramref name="time"/>: for <see cref="KeplerAttitude.Spin"/>, the
-    /// axial tilt, then the spin about local +Y; for <see cref="KeplerAttitude.FacesParent"/>, the belly toward the parent
-    /// and the nose along the motion across the horizon. The G·M <paramref name="mu"/> of the parent counts only for
-    /// <see cref="KeplerAttitude.FacesParent"/>, which turns with the frame's place on its orbit.
+    /// The frame's orientation relative to the parent at <paramref name="time"/>: for <see cref="Spin"/>, the axial tilt,
+    /// then the spin about local +Y; for <see cref="FacesParent"/>, the belly toward the parent and the nose along the
+    /// motion across the horizon. The G·M <paramref name="mu"/> of the parent counts only for <see cref="FacesParent"/>,
+    /// which turns with the frame's place on its orbit.
     /// </summary>
+    /// <exception cref="InvalidOperationException">The orbit has no attitude.</exception>
     public readonly DQuaternion RotationAt(double time, double mu) =>
         Attitude switch
         {
-            KeplerAttitude.Spin => Spin.RotationAt(time),
-            KeplerAttitude.FacesParent => FacingParentAtAnomaly(EccentricAnomalyAt(time, mu, out double turns), turns),
+            Spin spin => Turn(spin).RotationAt(time),
+            FacesParent => FacingParentAtAnomaly(EccentricAnomalyAt(time, mu, out double turns), turns),
+            null => throw NoAttitude(),
         };
 
     /// <summary>
     /// The frame's angular velocity in parent axes at <paramref name="time"/>, in radians per second. The G·M
-    /// <paramref name="mu"/> of the parent counts only for <see cref="KeplerAttitude.FacesParent"/>. A frame that faces a
-    /// parent without G·M rests at the parent's origin and does not turn.
+    /// <paramref name="mu"/> of the parent counts only for <see cref="FacesParent"/>. A frame that faces a parent without
+    /// G·M rests at the parent's origin and does not turn.
     /// </summary>
+    /// <exception cref="InvalidOperationException">The orbit has no attitude.</exception>
     public readonly Double3 AngularVelocityAt(double time, double mu) =>
         Attitude switch
         {
-            KeplerAttitude.Spin => Spin.AngularVelocity,
-            KeplerAttitude.FacesParent => FacingAngularVelocityAt(time, mu),
+            Spin spin => Turn(spin).AngularVelocity,
+            FacesParent => FacingAngularVelocityAt(time, mu),
+            null => throw NoAttitude(),
         };
 
-    /// <summary>The angular velocity of <see cref="AngularVelocityAt"/> for <see cref="KeplerAttitude.FacesParent"/>.</summary>
+    /// <summary>The angular velocity of <see cref="AngularVelocityAt"/> for <see cref="FacesParent"/>.</summary>
     private readonly Double3 FacingAngularVelocityAt(double time, double mu)
     {
         (Double3 position, Double3 velocity) = StateAt(time, mu);
@@ -200,18 +189,20 @@ public record struct KeplerOrbit(
 
     /// <summary>
     /// The frame's angular acceleration in parent axes at <paramref name="time"/>, in radians per second squared: zero for
-    /// <see cref="KeplerAttitude.Spin"/>, which turns steadily. A frame that faces its parent turns at ω = h / r², where
-    /// h = r × v is constant on a two-body orbit, so only r² changes: dω/dt = h · d(1/r²)/dt = -2 h (r · v) / r⁴. That is
-    /// zero at the apsides and on a circular orbit. A frame that faces a parent without G·M does not turn.
+    /// <see cref="Spin"/>, which turns steadily. A frame that faces its parent turns at ω = h / r², where h = r × v is
+    /// constant on a two-body orbit, so only r² changes: dω/dt = h · d(1/r²)/dt = -2 h (r · v) / r⁴. That is zero at the
+    /// apsides and on a circular orbit. A frame that faces a parent without G·M does not turn.
     /// </summary>
+    /// <exception cref="InvalidOperationException">The orbit has no attitude.</exception>
     public readonly Double3 AngularAccelerationAt(double time, double mu) =>
         Attitude switch
         {
-            KeplerAttitude.Spin => Double3.Zero,
-            KeplerAttitude.FacesParent => FacingAngularAccelerationAt(time, mu),
+            Spin => Double3.Zero,
+            FacesParent => FacingAngularAccelerationAt(time, mu),
+            null => throw NoAttitude(),
         };
 
-    /// <summary>The angular acceleration of <see cref="AngularAccelerationAt"/> for <see cref="KeplerAttitude.FacesParent"/>.</summary>
+    /// <summary>The angular acceleration of <see cref="AngularAccelerationAt"/> for <see cref="FacesParent"/>.</summary>
     private readonly Double3 FacingAngularAccelerationAt(double time, double mu)
     {
         (Double3 position, Double3 velocity) = StateAt(time, mu);
@@ -229,22 +220,21 @@ public record struct KeplerOrbit(
     /// The acceleration is the pull (<see cref="Acceleration"/>) where the step starts, the end place less the chord times
     /// the step. The angular acceleration is the mean over the step, the meaning of every step record's angular acceleration
     /// (docs/plans/spin-gravity.md, "V3"): the change of the angular velocity over the step, divided by the step, with
-    /// <see cref="AngularVelocityAt"/> solved at the start of the step too. It is zero for <see cref="KeplerAttitude.Spin"/>,
-    /// which turns steadily. Around a parent without G·M, the frame rests at the parent's origin with no chord and no
-    /// acceleration.
+    /// <see cref="AngularVelocityAt"/> solved at the start of the step too. It is zero for <see cref="Spin"/>, which turns
+    /// steadily. Around a parent without G·M, the frame rests at the parent's origin with no chord and no acceleration.
     /// </summary>
+    /// <exception cref="InvalidOperationException">The orbit has no attitude.</exception>
     public readonly MotionSample Sample(double mu, double stepEnd, double step)
     {
         double eccentric = EccentricAnomalyAt(stepEnd, mu, out double turns);
         bool orbits = Orbits(mu);
         (Double3 position, Double3 velocity) = orbits ? StateAtAnomaly(eccentric, mu) : (Double3.Zero, Double3.Zero);
-        bool faces = Attitude switch
+        (DQuaternion rotation, Double3 angularVelocity) = Attitude switch
         {
-            KeplerAttitude.Spin => false,
-            KeplerAttitude.FacesParent => true,
+            Spin spin => (Turn(spin).RotationAt(stepEnd), Turn(spin).AngularVelocity),
+            FacesParent => (FacingParentAtAnomaly(eccentric, turns), FacingAngularVelocity(position, velocity)),
+            null => throw NoAttitude(),
         };
-        DQuaternion rotation = faces ? FacingParentAtAnomaly(eccentric, turns) : Spin.RotationAt(stepEnd);
-        Double3 angularVelocity = faces ? FacingAngularVelocity(position, velocity) : Spin.AngularVelocity;
         // At the parent's origin, the chord and the pull would divide zero by zero.
         Double3 chord = orbits ? Chord(position: position, velocity: velocity, mu: mu, step: step) : Double3.Zero;
         Double3 acceleration = orbits ? Acceleration(position - chord * step, mu) : Double3.Zero;

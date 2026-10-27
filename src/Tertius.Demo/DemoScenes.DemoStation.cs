@@ -242,11 +242,12 @@ public static partial class DemoScenes
                 MeanAnomalyAtEpoch: Math.PI / 2
                     - Math.Sqrt(EarthMu / (OrbitRadius * OrbitRadius * OrbitRadius)) * OverPadAt,
                 Epoch: 0,
-                AxialTilt: DQuaternion.FromAxisAngle(Double3.UnitY, DemoSurface.GroundTurnAtDeparture)
-                    * DQuaternion.FromAxisAngle(Double3.UnitZ, -Math.PI / 2),
-                SpinRate: SpinStation.Rate,
-                SpinPhaseAtEpoch: 0,
-                Attitude: KeplerAttitude.Spin
+                Attitude: new Spin(
+                    AxialTilt: DQuaternion.FromAxisAngle(Double3.UnitY, DemoSurface.GroundTurnAtDeparture)
+                        * DQuaternion.FromAxisAngle(Double3.UnitZ, -Math.PI / 2),
+                    Rate: SpinStation.Rate,
+                    PhaseAtEpoch: 0
+                )
             );
 
         /// <summary>The hub's half extents in its own axes, whose +Z is the station's +Y.</summary>

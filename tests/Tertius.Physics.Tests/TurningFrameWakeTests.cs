@@ -105,10 +105,7 @@ public sealed class TurningFrameWakeTests
             ArgumentOfPeriapsis: 0,
             MeanAnomalyAtEpoch: 0,
             Epoch: 0,
-            AxialTilt: DQuaternion.Identity,
-            SpinRate: 0,
-            SpinPhaseAtEpoch: 0,
-            Attitude: KeplerAttitude.FacesParent
+            Attitude: new FacesParent()
         );
         Entity owner = world.Spawn(
             new SpawnDesc { Frame = planet, AsFrame = new(FrameBounds.Sphere(50)) }.OnKeplerOrbit(

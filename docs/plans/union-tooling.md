@@ -106,7 +106,7 @@ The size of a union must not grow where a comment says that its size matters: `H
 The survey found three. Each gets its own ticket after the analyzer, because each changes engine data, not only boilerplate:
 
 - The numeric frame arrays of `FrameTree`: `numeric` holds the mode of each frame, and `stepAcceleration`, `stepPlan` and `anchor` mean something only in some modes.
-- `KeplerOrbit`: `AxialTilt`, `SpinRate` and `SpinPhaseAtEpoch` mean something only for `KeplerAttitude.Spin`.
+- `KeplerOrbit`: `AxialTilt`, `SpinRate` and `SpinPhaseAtEpoch` mean something only for `KeplerAttitude.Spin`. Done in ter-7oi8: `KeplerAttitude` is a union of the cases `Spin` and `FacesParent`, without a zero case.
 - `QueryPlan`: its `Index` decides which fields mean something. It is a ref struct that holds a span, so it cannot be a union, and it stays as it is.
 
 ## Not in this epic
