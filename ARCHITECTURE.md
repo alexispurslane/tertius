@@ -1478,6 +1478,19 @@ Before the renderer drew puffs, the same scene took 1.28 to 1.38 ms, at a load o
 
 With no puff, the two cases are the same frame, and they differ by 0.08 ms, about the noise of the run. At 1,000 puffs the lighting adds 0.28 ms, about 0.3 µs per lit puff for its six vertices. At 4,096 the lit run's spread was 0.34 ms, so its difference of 0.15 ms is within the noise. No frame allocates.
 
+#### The GPU cost of puffs
+
+Puffs are drawn by the pass "transparent", with the transparent instances. No other pass draws or updates a puff: the puffs' step runs on the CPU (see "Puffs"). So the puffs' GPU cost is the busy time of "transparent" with puffs, less its busy time without them.
+
+Measured on 2026-10-26 on the development Mac (Apple M1 Max, MoltenVK 1.4.2), Release, 1920 x 1080, 120 frames each, with the trace of tools/gpu-trace.sh (`--no-counters`), which gives each pass's own time on this driver (see "GPU timings"). The load (one minute) at the start of each run was between 5.5 and 9.6, so the runs are a little noisy. Each row is the mean of two runs, and the second figure in the cells is the two runs. Puffs off came from a local, uncommitted change that set `WorldOptions.PuffCapacity` to 0 (the demo has no switch for it). The yard script is `scripts/puff-yard.json` run for 300 ticks and then filmed for 120 frames, because the checked-in script has only four captures. The blue-danube window is frames 1,313 to 1,432 of `scripts/blue-danube.json`, the shuttle's ramp run with its engine at full thrust.
+
+| Scene | Puffs drawn per frame (mean, min to max) | "transparent" with puffs | "transparent" without | The puffs' own time | Per 1,000 puffs | Load at the starts |
+|---|---|---|---|---|---|---|
+| puff-yard | 762 (761 to 764) | 0.321 ms (0.324, 0.318) | none (no transparent instance, the pass did no GPU work) | 0.32 ms | 0.42 ms | 8.8, 8.7 |
+| blue-danube, ramp | 769 (534 to 964) | 1.006 ms (1.049, 0.962) | 0.222 ms (0.227, 0.217) | 0.78 ms | 1.0 ms | 9.6, 7.4 (on); 6.5, 5.4 (off) |
+
+The frame's GPU span, by the trace, with puffs against without (two runs each): puff-yard 9.11 and 8.80 ms against 8.74 and 8.76 ms, blue-danube 12.52 and 12.53 ms against 12.47 and 12.22 ms. The span differs by less than its spread between two runs of the same setting (up to 0.3 ms in the yard, 0.3 ms in blue-danube), so the puffs' share of the frame is about 0.3 ms of 8.8 ms (3 to 4 percent) in the yard and about 0.8 ms of 12.4 ms (6 percent) in blue-danube by the pass times, and the spans are consistent with that without confirming it. The puffs' cost per puff is higher in blue-danube because its puffs are larger on the screen (the shuttle's plume is near the camera), so it is a fill cost: the sprites blend additively over the whole HDR target, and the cost follows the pixels they cover, not their count. At 4,096 puffs the cost is therefore not a multiple of these figures.
+
 ### The environment map
 
 Under `SceneEnvironmentMap`, the renderer keeps a cube map of what surrounds the camera for each semantic frame on the camera's chain. Every surface takes its ambient light from the map of its own frame: the diffuse light, the reflections of chrome, steel and glass along their lobe, and the stars in near mirrors. The design, its derivations and the reasons of its decisions are in `docs/plans/environment-map.md`, and the maps per frame in `docs/plans/environment-maps-per-frame.md`. These terms hold in this section:
