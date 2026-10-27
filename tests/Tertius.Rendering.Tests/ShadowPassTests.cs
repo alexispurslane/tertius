@@ -48,9 +48,10 @@ public sealed class ShadowPassTests
         return scene;
     }
 
-    private static ShadowCaster Caster(Vector3 position, float radius) =>
+    private static PreparedInstance Caster(Vector3 position, float radius) =>
         new()
         {
+            Flags = RenderFlags.Visible | RenderFlags.CastsShadow,
             Position = position,
             Rotation = Quaternion.Identity,
             Scale = new(radius),

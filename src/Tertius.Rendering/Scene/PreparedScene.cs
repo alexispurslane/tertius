@@ -88,7 +88,10 @@ internal struct CameraView
     }
 }
 
-/// <summary>An instance after interpolation and culling, before batching.</summary>
+/// <summary>
+/// An instance after interpolation, before batching: a placed instance of the frame, or one of the main view's visible
+/// instances, which also holds its depth.
+/// </summary>
 internal struct PreparedInstance
 {
     /// <summary>Camera-relative position.</summary>
@@ -120,6 +123,9 @@ internal struct PreparedInstance
 
     /// <summary>The instance's map, <see cref="EnvironmentChain.MapOf"/> of its chain depth, or 0 with the map off.</summary>
     public int Map;
+
+    /// <summary>Whether the shadow views draw the instance: its flags hold <see cref="RenderFlags.CastsShadow"/>.</summary>
+    public readonly bool CastsShadow => (Flags & RenderFlags.CastsShadow) != 0;
 }
 
 /// <summary>A run of indirect commands for one draw call.</summary>
@@ -159,6 +165,14 @@ internal sealed class PreparedScene
 
     public GpuFrameConstants Constants;
     public readonly Matrix4x4[] RangeViewProjection = new Matrix4x4[DepthRanges.Count];
+
+    /// <summary>
+    /// The placed instances of the frame: each instance of the snapshot that some view may draw, interpolated once, in the
+    /// snapshot's order, with no depth.
+    /// </summary>
+    public PreparedInstance[] Placed = new PreparedInstance[256];
+
+    public int PlacedCount;
 
     /// <summary>Visible instances. Instance processors may edit this list before batching.</summary>
     public PreparedInstance[] Visible = new PreparedInstance[256];
@@ -200,11 +214,6 @@ internal sealed class PreparedScene
     public PreparedLight[] Lights = new PreparedLight[16];
 
     public int LightCount;
-
-    /// <summary>The casters of the frame, interpolated once, in the order of the snapshot. Every shadow technique reads them.</summary>
-    public ShadowCaster[] Casters = new ShadowCaster[64];
-
-    public int CasterCount;
 
     /// <summary>
     /// The far shadows: xyz camera-relative center, w the radius of the caster's bounding sphere (see
@@ -325,12 +334,12 @@ internal sealed class PreparedScene
 
     public Span<PreparedInstance> VisibleSpan => Visible.AsSpan(0, VisibleCount);
 
+    public ReadOnlySpan<PreparedInstance> PlacedSpan => Placed.AsSpan(0, PlacedCount);
+
     /// <summary>Whether frame mesh <paramref name="mesh"/> is a deformed copy.</summary>
     public bool IsDeformed(int mesh) => mesh >= StaticMeshCount;
 
     public Span<PreparedLight> LightSpan => Lights.AsSpan(0, LightCount);
-
-    public ReadOnlySpan<ShadowCaster> CasterSpan => Casters.AsSpan(0, CasterCount);
 
     /// <summary>
     /// Makes <paramref name="staticMeshes"/> the static part of <see cref="Meshes"/>, after <see cref="Reset"/> and before
@@ -403,14 +412,12 @@ internal sealed class PreparedScene
         return ref slot;
     }
 
-    /// <summary>Appends a caster of the frame.</summary>
-    public ref ShadowCaster AddCaster()
+    /// <summary>Appends a placed instance of the frame.</summary>
+    public ref PreparedInstance AddPlaced()
     {
-        if (CasterCount == Casters.Length)
-            Array.Resize(ref Casters, Casters.Length * 2);
-        ref ShadowCaster slot = ref Casters[CasterCount++];
-        slot = default;
-        return ref slot;
+        if (PlacedCount == Placed.Length)
+            Array.Resize(ref Placed, Placed.Length * 2);
+        return ref Placed[PlacedCount++];
     }
 
     /// <summary>Appends a tile view of the frame.</summary>
@@ -461,7 +468,7 @@ internal sealed class PreparedScene
         InstanceCount = 0;
         CommandCount = 0;
         LightCount = 0;
-        CasterCount = 0;
+        PlacedCount = 0;
         OutlineCount = 0;
         OccluderCount = 0;
         SubmittedInstances = 0;

@@ -90,7 +90,7 @@ internal sealed class ShadowTiles
     public int Layers { get; }
     public int TileSize { get; }
 
-    /// <summary>The caster indices of the frame's draws, in mesh order within each draw.</summary>
+    /// <summary>The casters of the frame's draws, as indices into its placed instances, in mesh order within each draw.</summary>
     public IReadOnlyList<int> CasterIndices => casterIndices;
 
     /// <summary>
@@ -99,10 +99,11 @@ internal sealed class ShadowTiles
     /// record is stale, with its casters. It only reads the records and the layers' owners: <see cref="Drew"/> keeps the
     /// frame's.
     /// </summary>
+    /// <param name="placed">The frame's placed instances, whose casters are those that cast shadows, in the snapshot's order.</param>
     /// <param name="deformed">The frame meshes that the casters name, which tell a posed caster's static mesh and pose rows.</param>
     public void Update(
         Span<PreparedLight> lights,
-        ReadOnlySpan<ShadowCaster> casters,
+        ReadOnlySpan<PreparedInstance> placed,
         DeformedMeshes deformed,
         long originFrameId,
         List<TileView> views,
@@ -126,11 +127,11 @@ internal sealed class ShadowTiles
             if (tileCounts[light] == 0)
                 continue;
             lights[light].Shadow = new(new AtlasTiles(First: views.Count, Count: tileCounts[light]));
-            CollectReachable(light: lights[light], casters: casters);
+            CollectReachable(light: lights[light], placed: placed);
             AddViews(
                 light: light,
                 lights: lights,
-                casters: casters,
+                placed: placed,
                 deformed: deformed,
                 originFrameId: originFrameId,
                 views: views,
@@ -257,7 +258,7 @@ internal sealed class ShadowTiles
     /// The farthest that a change of a caster's pose moves a point of its bounding sphere: by its offset from the light,
     /// by its turn at its radius, or by its scale.
     /// </summary>
-    private static float Movement(in RecordedCaster was, in ShadowCaster now, Vector3 offset)
+    private static float Movement(in RecordedCaster was, in PreparedInstance now, Vector3 offset)
     {
         float shift = Vector3.Distance(was.Offset, offset);
         // The vector part of the relative rotation is sin(θ / 2), so the chord at the radius is 2 r sin(θ / 2).
@@ -358,19 +359,22 @@ internal sealed class ShadowTiles
     }
 
     /// <summary>The casters whose bounding spheres come within the light's reach, in list order, into <see cref="reachable"/>.</summary>
-    private void CollectReachable(in PreparedLight light, ReadOnlySpan<ShadowCaster> casters)
+    private void CollectReachable(in PreparedLight light, ReadOnlySpan<PreparedInstance> placed)
     {
         reachable.Clear();
-        for (int i = 0; i < casters.Length; i++)
-            if (Vector3.Distance(casters[i].Position, light.Position) - casters[i].Radius < light.Reach)
+        for (int i = 0; i < placed.Length; i++)
+        {
+            ref readonly PreparedInstance caster = ref placed[i];
+            if (caster.CastsShadow && Vector3.Distance(caster.Position, light.Position) - caster.Radius < light.Reach)
                 reachable.Add(i);
+        }
     }
 
     /// <summary>Adds a view for each layer of <paramref name="light"/>, in layer order, and a draw for each stale one.</summary>
     private void AddViews(
         int light,
         ReadOnlySpan<PreparedLight> lights,
-        ReadOnlySpan<ShadowCaster> casters,
+        ReadOnlySpan<PreparedInstance> placed,
         DeformedMeshes deformed,
         long originFrameId,
         List<TileView> views,
@@ -388,7 +392,7 @@ internal sealed class ShadowTiles
             views.Add(new(Layer: layer, Light: light, Aim: aim));
             frameTiles.Add((layer, LightEntity: lights[light].EntityIndex));
             var frustum = TileFrustum.Of(light: lights[light], aim: aim, tileSize: TileSize);
-            CollectSeen(frustum: frustum, light: lights[light], casters: casters);
+            CollectSeen(frustum: frustum, light: lights[light], placed: placed);
             ReadOnlySpan<int> seen = CollectionsMarshal.AsSpan(tileCasters);
             bool cached =
                 records[layer] is { } record
@@ -396,7 +400,7 @@ internal sealed class ShadowTiles
                     record: record,
                     frustum: frustum,
                     light: lights[light],
-                    casters: casters,
+                    placed: placed,
                     deformed: deformed,
                     seen: seen,
                     tileSize: TileSize,
@@ -408,22 +412,22 @@ internal sealed class ShadowTiles
                 layer: layer,
                 frustum: frustum,
                 light: lights[light],
-                casters: casters,
+                placed: placed,
                 deformed: deformed,
                 seen: seen,
                 originFrameId: originFrameId
             );
             draws.Add(new(View: views.Count - 1, First: casterIndices.Count, Count: seen.Length));
-            AppendInMeshOrder(casters: casters, seen: seen);
+            AppendInMeshOrder(placed: placed, seen: seen);
         }
     }
 
     /// <summary>The reachable casters that the tile's frustum holds, in list order, into <see cref="tileCasters"/>.</summary>
-    private void CollectSeen(in TileFrustum frustum, in PreparedLight light, ReadOnlySpan<ShadowCaster> casters)
+    private void CollectSeen(in TileFrustum frustum, in PreparedLight light, ReadOnlySpan<PreparedInstance> placed)
     {
         tileCasters.Clear();
         foreach (int index in reachable)
-            if (frustum.Holds(offset: casters[index].Position - light.Position, radius: casters[index].Radius))
+            if (frustum.Holds(offset: placed[index].Position - light.Position, radius: placed[index].Radius))
                 tileCasters.Add(index);
     }
 
@@ -437,7 +441,7 @@ internal sealed class ShadowTiles
         TileRecord record,
         in TileFrustum frustum,
         in PreparedLight light,
-        ReadOnlySpan<ShadowCaster> casters,
+        ReadOnlySpan<PreparedInstance> placed,
         DeformedMeshes deformed,
         ReadOnlySpan<int> seen,
         int tileSize,
@@ -459,7 +463,7 @@ internal sealed class ShadowTiles
         for (int i = 0; i < seen.Length; i++)
         {
             RecordedCaster was = record.Casters[i];
-            ref readonly ShadowCaster now = ref casters[seen[i]];
+            ref readonly PreparedInstance now = ref placed[seen[i]];
             // A deformed copy's frame mesh changes with the jobs before it, so the record names its static mesh.
             bool sameCaster =
                 was.EntityIndex == now.EntityIndex && was.Part == now.Part && was.Mesh == deformed.SourceOf(now.Mesh);
@@ -496,7 +500,7 @@ internal sealed class ShadowTiles
         int layer,
         in TileFrustum frustum,
         in PreparedLight light,
-        ReadOnlySpan<ShadowCaster> casters,
+        ReadOnlySpan<PreparedInstance> placed,
         DeformedMeshes deformed,
         ReadOnlySpan<int> seen,
         long originFrameId
@@ -510,7 +514,7 @@ internal sealed class ShadowTiles
         record.Poses.Clear();
         foreach (int index in seen)
         {
-            ref readonly ShadowCaster caster = ref casters[index];
+            ref readonly PreparedInstance caster = ref placed[index];
             ReadOnlySpan<Vector4> pose = deformed.PoseOf(caster.Mesh);
             record.Casters.Add(
                 new(
@@ -531,11 +535,11 @@ internal sealed class ShadowTiles
     }
 
     /// <summary>Appends the <paramref name="seen"/> casters to <see cref="casterIndices"/> by mesh, and in list order within a mesh.</summary>
-    private void AppendInMeshOrder(ReadOnlySpan<ShadowCaster> casters, ReadOnlySpan<int> seen)
+    private void AppendInMeshOrder(ReadOnlySpan<PreparedInstance> placed, ReadOnlySpan<int> seen)
     {
         meshOrder.Clear();
         foreach (int index in seen)
-            meshOrder.Add((casters[index].Mesh, Caster: index));
+            meshOrder.Add((placed[index].Mesh, Caster: index));
         // A tuple sorts by mesh, then by index, so the order is total and the same in every run.
         meshOrder.Sort();
         foreach ((int _, int caster) in meshOrder)

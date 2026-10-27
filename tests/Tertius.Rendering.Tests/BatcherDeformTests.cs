@@ -425,11 +425,22 @@ public sealed class BatcherDeformTests
 
         PreparedScene scene = Prepare(snapshot, Roomy);
 
-        scene.CasterSpan[0].Mesh.Should().Be(StaticMeshCount);
-        scene
-            .CasterSpan[0]
-            .Radius.Should()
-            .Be(scene.Meshes[StaticMeshCount].Radius, "the caster is culled by its posed bound");
+        PreparedInstance caster = scene.PlacedSpan.ToArray().Single(placed => placed.CastsShadow);
+        caster.Mesh.Should().Be(StaticMeshCount);
+        caster.Radius.Should().Be(scene.Meshes[StaticMeshCount].Radius, "the caster is culled by its posed bound");
+    }
+
+    [Fact]
+    public void AHiddenPosedCasterAndAVisiblePosedInstanceAfterItEachDrawTheirOwnCopy()
+    {
+        RenderSnapshot snapshot = Empty();
+        AddPosed(snapshot, Instance(Cylinder, new(-1, 0, -10)) with { Flags = RenderFlags.CastsShadow }, TipAt(5));
+        AddPosed(snapshot, Instance(Cylinder, new(1, 0, -10)), CylinderRest);
+
+        PreparedScene scene = Prepare(snapshot, Roomy);
+
+        scene.PlacedSpan.ToArray().Single(placed => placed.CastsShadow).Mesh.Should().Be(StaticMeshCount);
+        scene.VisibleSpan.ToArray().Should().ContainSingle().Which.Mesh.Should().Be(StaticMeshCount + 1);
     }
 
     [Fact]
