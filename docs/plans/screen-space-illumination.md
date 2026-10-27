@@ -851,7 +851,7 @@ The orchestrator picks the radius and the steps by the user's words, "most drama
 
 ### The pick (Part 7, `ter-7s3g`)
 
-The default stays `VisibilityBitmaskLight.Default`: a radius of 1 m, 3 slices and 3 steps on each side. No code changes. R 1 m with 3 steps is the strongest 3-step setting without visible grain. The captures' reading below gives no verdict on R 1.457 m with 6 steps, which is stronger: its four occlusion passes took 3.92 ms, 1.7 ms more than the default, in a run over the load limit ("Cost", "Part 7"). Its four occlusion passes take about 2.2 ms, and its ambient pass reads 0.15 ms less than with the setting off ("Cost", "Part 7").
+The default stays `VisibilityBitmaskLight.Default`: a radius of 1 m, 3 slices and 3 steps on each side. No code changes. R 1 m with 3 steps is the strongest setting without visible grain. At the default, the four occlusion passes take about 2.2 ms, and the ambient pass reads 0.15 ms less than with the setting off ("Cost", "Part 7"). R 1.457 m with 6 steps is stronger, but it also shows the grain on the cabin's dark wall, and its four occlusion passes took 3.92 ms, 1.7 ms more than the default, in a run over the load limit.
 
 What the captures showed, per setting and per scene:
 
