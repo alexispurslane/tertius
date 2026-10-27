@@ -745,6 +745,23 @@ public sealed class BatcherTests
     }
 
     [Fact]
+    public void TheGpuFormOfEachLightSaysWhetherTheMainViewKeepsIt()
+    {
+        // Faces only, then the main view only.
+        RenderSnapshot snapshot = Dark();
+        snapshot.Lights.Add(Lamp(new(50, 0, 0)));
+        snapshot.Lights.Add(Lamp(new(0, 0, -5)));
+
+        PreparedScene scene = Prepare(snapshot: snapshot, batcher: TenStopsDown(), environment: MapOf(FaceMask.All));
+
+        scene
+            .LightSpan.ToArray()
+            .Select(light => GpuLight.From(light).InMainView)
+            .Should()
+            .Equal([0u, 1u], "the main view's shaders skip the lights that only a face keeps");
+    }
+
+    [Fact]
     public void AFarLightOfTheMainViewTakesTheCascadeSetBeforeABrighterOneThatOnlyAFaceKeeps()
     {
         const float distance = 3e7f;
@@ -1650,10 +1667,11 @@ public sealed class BatcherTests
         Unsafe.SizeOf<GpuMaterial>().Should().Be(64, "std430 rounds a struct with a vec4 up to 16 bytes");
         ((int)Marshal.OffsetOf<GpuMaterial>(nameof(GpuMaterial.Metallic))).Should().Be(28);
         ((int)Marshal.OffsetOf<GpuMaterial>(nameof(GpuMaterial.MetallicRoughnessMap))).Should().Be(48);
-        Unsafe.SizeOf<GpuLight>().Should().Be(96);
+        Unsafe.SizeOf<GpuLight>().Should().Be(112, "std430 rounds 100 bytes of members up to the vec4's 16");
         ((int)Marshal.OffsetOf<GpuLight>(nameof(GpuLight.Shadow))).Should().Be(64);
         ((int)Marshal.OffsetOf<GpuLight>(nameof(GpuLight.Occluders))).Should().Be(80);
         ((int)Marshal.OffsetOf<GpuLight>(nameof(GpuLight.Map))).Should().Be(92, "std430 packs a uint after a uvec3");
+        ((int)Marshal.OffsetOf<GpuLight>(nameof(GpuLight.InMainView))).Should().Be(96);
         Unsafe.SizeOf<GpuOutline>().Should().Be(48);
         ((int)Marshal.OffsetOf<GpuOutline>(nameof(GpuOutline.Radii))).Should().Be(32);
         Unsafe.SizeOf<OutlinePushConstants>().Should().Be(4);

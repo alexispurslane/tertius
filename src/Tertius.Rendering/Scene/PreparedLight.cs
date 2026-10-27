@@ -69,7 +69,8 @@ internal struct PreparedLight
 
     /// <summary>
     /// Whether the light's reach touches the main view's frustum. False for a light that only a drawn face of a map keeps:
-    /// every shadow budget ranks such a light after the lights of the main view (docs/plans/environment-map.md, decision 20).
+    /// every shadow budget ranks such a light after the lights of the main view, and the main view's shaders and its
+    /// impostors' light signatures leave it out (docs/plans/environment-map.md, decision 20).
     /// </summary>
     public bool InMainView;
 
