@@ -167,6 +167,7 @@ public sealed partial class World
         foreach (string error in changes.Errors)
             Report($"tick {TickNumber}: {error}", isError: true);
         changes.Clear();
+        pendingCreates.Clear();
     }
 
     private void RunGameplay()

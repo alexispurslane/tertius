@@ -386,6 +386,60 @@ public sealed class StateDumpTests
         crate.AngularVelocity.Should().Be(new Vector3(0.25f, 0.5f, 0.75f));
     }
 
+    /// <summary>An orbital speed that a float cannot hold: the nearest float is 6016.291015625.</summary>
+    private static readonly Double3 OrbitalVelocity = new(6016.291064, -0.1, 7.3);
+
+    [Fact]
+    public void ADumpBeforeTheFirstTickHoldsTheSpawnVelocityOfABodyInDoubles()
+    {
+        using World world = NewJoltWorld();
+        FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
+        var scene = new SceneInstance();
+        scene.Add("space", space);
+        scene.Add(
+            "crate",
+            world.Spawn(
+                new()
+                {
+                    Frame = space,
+                    LinearVelocity = OrbitalVelocity,
+                    Body = new(Shape: new BoxShapeDesc(new(0.5f)), Mass: 10),
+                }
+            )
+        );
+
+        StateDump dump = Run(world, scene, DumpNow).Dump("now");
+
+        dump.Tick.Should().Be(0);
+        dump.Entity("crate").Velocity.Should().Be(OrbitalVelocity);
+    }
+
+    [Fact]
+    public void ADumpBeforeTheFirstTickHoldsTheSpawnVelocityOfAFrameOwnerInDoubles()
+    {
+        using World world = NewJoltWorld();
+        FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
+        var scene = new SceneInstance();
+        scene.Add("space", space);
+        scene.Add(
+            "ship",
+            world.Spawn(
+                new()
+                {
+                    Frame = space,
+                    LinearVelocity = OrbitalVelocity,
+                    Body = new(Shape: new BoxShapeDesc(new(5)), Mass: 1e4f),
+                    AsFrame = new(FrameBounds.Sphere(100)),
+                }
+            )
+        );
+
+        StateDump dump = Run(world, scene, DumpNow).Dump("now");
+
+        dump.Tick.Should().Be(0);
+        dump.Entity("ship").Velocity.Should().Be(OrbitalVelocity);
+    }
+
     [Fact]
     public void TheRootPoseWalksUpEveryFrameToTheRootOfTheTree()
     {

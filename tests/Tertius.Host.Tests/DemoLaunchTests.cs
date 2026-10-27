@@ -176,6 +176,12 @@ internal sealed class LaunchLog
 
 public sealed class DemoLaunchTests(DemoLaunchRun run) : IClassFixture<DemoLaunchRun>
 {
+    /// <summary>
+    /// The most by which the second difference of the shuttle's center misses its expected acceleration in a tick without a
+    /// hand-off, in m/s²: about twice the most that the 20 ticks around the hand-off missed by, 8.9e-4 m/s² (2026-10-27).
+    /// </summary>
+    private const double SecondDifferenceNoise = 2e-3;
+
     /// <summary>The normal of the incline's surface, up and toward the foot.</summary>
     private static readonly Double3 InclineNormal = new(0, Math.Cos(LaunchRamp.Angle), Math.Sin(LaunchRamp.Angle));
 
@@ -502,11 +508,17 @@ public sealed class DemoLaunchTests(DemoLaunchRun run) : IClassFixture<DemoLaunc
 
     /// <summary>
     /// In each tick from 10 before the hand-off to 10 after it, the shuttle's acceleration in earth, the second difference
-    /// of its center over the tick, lies within 0.01 m/s² of Earth's gravity at its place plus the thrust of the step that
-    /// the difference spans: the cabin's proper acceleration of that step, turned from the hull's axes into earth's. The
-    /// axes of earth-surface and of earth differ by about 143 degrees, so a thrust that a step applies in the wrong axes
-    /// misses by more than the thrust itself.
+    /// of its center over the tick, lies within <see cref="SecondDifferenceNoise"/> of Earth's gravity at its place plus the
+    /// thrust of the step that the difference spans: the cabin's proper acceleration of that step, turned from the hull's
+    /// axes into earth's. The hand-off's own tick has a wider bound (see remarks). The axes of earth-surface and of earth
+    /// differ by about 143 degrees, so a thrust that a step applies in the wrong axes misses by more than the thrust itself.
     /// </summary>
+    /// <remarks>
+    /// The hand-off carries the hull's velocity into earth as floats, which physics keeps (ter-s0c2), so the velocity jumps
+    /// there once by up to half a float's step in each component, and the difference of the hand-off's tick misses by that
+    /// jump over a tick: at 5.9 km/s, up to 0.0164 m/s². It missed by 0.0104 m/s² (2026-10-27). So that tick may miss by
+    /// the noise plus that bound. When ter-s0c2 lands, it takes the common bound again.
+    /// </remarks>
     [Fact]
     public void TheShuttlesAccelerationInEarthStaysSmoothThroughTheHandOff()
     {
@@ -518,13 +530,24 @@ public sealed class DemoLaunchTests(DemoLaunchRun run) : IClassFixture<DemoLaunc
             Double3 measured = (next.Position - 2 * tick.Position + Log[k - 1].Position) / (dt * dt);
             Double3 gravity = -tick.Position * (DemoScenes.EarthMu / Math.Pow(tick.Position.Length, 3));
             Double3 expected = gravity + next.Rotation.Rotate((Double3)next.CabinAcceleration);
+            double tolerance =
+                k == HandOff ? SecondDifferenceNoise + FloatRounding(tick.Velocity) / dt : SecondDifferenceNoise;
             (measured - expected)
                 .Length.Should()
                 .BeLessThan(
-                    0.01,
+                    tolerance,
                     $"at tick {tick.Tick}, {k - HandOff} from the hand-off: measured {measured}, expected {expected}"
                 );
         }
+    }
+
+    /// <summary>The most by which a narrowing of <paramref name="v"/> to floats moves it: half a float's step in each component.</summary>
+    private static double FloatRounding(Double3 v) => new Double3(HalfStep(v.X), HalfStep(v.Y), HalfStep(v.Z)).Length;
+
+    private static double HalfStep(double x)
+    {
+        float f = MathF.Abs((float)x);
+        return (MathF.BitIncrement(f) - f) / 2.0;
     }
 
     /// <summary>In each tick from 10 before the hand-off to 10 after it, the cabin's proper acceleration changes by less than 0.01 m/s².</summary>

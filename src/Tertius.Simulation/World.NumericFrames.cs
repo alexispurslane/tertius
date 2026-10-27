@@ -15,7 +15,8 @@ public sealed partial class World
     private readonly List<NumericBody> numericBodies = [];
     private Action<List<NumericMove>>? applyNumericMoves;
 
-    // The bodies of the current batch that physics has not created yet: the index of each one's creation in the batch.
+    // The bodies of the batch that physics has not created yet: the index of each one's creation in the batch. Only
+    // AddBodyCreate adds a creation, and ApplyPhysicsChanges, which hands the batch to physics, clears both.
     private readonly Dictionary<Entity, int> pendingCreates = [];
 
     // True after a change outside a tick, until the next tick runs the numeric update for it.
@@ -41,9 +42,6 @@ public sealed partial class World
     {
         // The update's shifts are the only ones in the batch, so that ApplyNumericMoves finds them there.
         Contract.Requires(physicsChanges.FramesShifted.Count == 0);
-        pendingCreates.Clear();
-        for (int i = 0; i < physicsChanges.BodiesCreated.Count; i++)
-            pendingCreates[physicsChanges.BodiesCreated[i].Entity] = i;
         numericBodies.Clear();
         foreach (Entity entity in Entities.BodyEntities)
             AddNumericBodies(entity);
@@ -58,7 +56,6 @@ public sealed partial class World
         );
         Profile.Lap(24);
         ApplyPhysicsChanges();
-        pendingCreates.Clear();
     }
 
     /// <summary>
@@ -107,7 +104,7 @@ public sealed partial class World
                 Home = row.PhysicsHome,
                 Position = row.Pose.Position,
                 HomePosition = row.HomePose.Position,
-                Velocity = SemanticVelocity(entity, row, own),
+                Velocity = VelocityIn(entity: entity, row: row, to: row.Frame),
                 // Most sync points create no body, and a lookup in an empty dictionary still hashes the entity.
                 Spawned = pendingCreates.Count > 0 && pendingCreates.ContainsKey(entity),
                 AngularVelocity = SemanticAngularVelocity(row, own),
@@ -145,18 +142,30 @@ public sealed partial class World
     }
 
     /// <summary>
-    /// The velocity of the body of <paramref name="entity"/> relative to its semantic frame, in doubles: the one that its
-    /// creation carries when physics has not created it yet, the one of the frame that it owns, or else the row's, which is
-    /// relative to its physics home. A row narrows its velocity to a float, which at orbital speed steps by 0.5 mm/s.
+    /// The linear velocity in <paramref name="to"/> of <paramref name="entity"/>, whose transform row is
+    /// <paramref name="row"/>, in doubles: the one that the creation of its body carries while physics has not created it,
+    /// as before the first tick, or else the one of <see cref="FrameReads.VelocityIn"/>. A row narrows its velocity to a
+    /// float.
     /// </summary>
-    private Double3 SemanticVelocity(Entity entity, in TransformRow row, FrameHandle own)
+    internal Double3 VelocityIn(Entity entity, in TransformRow row, FrameHandle to)
     {
-        if (!own.IsNull)
-            return Frames.HomeVelocity(row.PhysicsHome, row.Frame) + Frames.TreeLinearVelocity(own);
+        FrameHandle own = Entities.OwnedFrame(entity);
         // Most sync points create no body, and a lookup in an empty dictionary still hashes the entity: this runs for every body.
-        return pendingCreates.Count > 0 && pendingCreates.TryGetValue(entity, out int created)
-            ? physicsChanges.BodiesCreated[created].LinearVelocity
-            : Frames.HomeVelocity(row.PhysicsHome, row.Frame) + row.LinearVelocity;
+        if (own.IsNull && pendingCreates.Count > 0 && pendingCreates.TryGetValue(entity, out int created))
+            return FrameReads.SemanticVelocityIn(
+                frames: Frames,
+                row: row,
+                semantic: physicsChanges.BodiesCreated[created].LinearVelocity,
+                to: to
+            );
+        return FrameReads.VelocityIn(frames: Frames, row: row, own: own, to: to);
+    }
+
+    /// <summary>Adds <paramref name="create"/> to the batch for physics, and to the pending creations.</summary>
+    private void AddBodyCreate(in BodyCreate create)
+    {
+        pendingCreates[create.Entity] = physicsChanges.BodiesCreated.Count;
+        physicsChanges.BodiesCreated.Add(create);
     }
 
     /// <summary>
@@ -219,7 +228,7 @@ public sealed partial class World
         else
         {
             TransformRow row = Entities.BackRow(entity);
-            Double3 velocity = SemanticVelocity(entity, row, own);
+            Double3 velocity = VelocityIn(entity: entity, row: row, to: row.Frame);
             // Through the homes' lowest common ancestor, so that no large number enters between two nearby homes.
             row.HomePosition =
                 home == semantic

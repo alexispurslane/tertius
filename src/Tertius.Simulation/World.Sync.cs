@@ -240,7 +240,9 @@ public sealed partial class World
         // 7c. The emitters of the step make its puffs: after step 7, so that an attached jet's back row holds the end of the
         //     step, and before step 8, which replaces the front render rows, whose emitters are those of the step. The
         //     emitter bits are those of the last step 8, so an entity that step 6 made live makes none: it was not in the
-        //     step. Then the cap, and the rebuild of the ranges.
+        //     step. Then the cap, and the rebuild of the ranges. The emitters' velocities are read without the pending
+        //     creations, which the flush of step 6c emptied.
+        Contract.Assert(pendingCreates.Count == 0);
         Puffs.AddNewborns(TickNumber, DeltaTime);
         Profile.Lap(27);
     }
