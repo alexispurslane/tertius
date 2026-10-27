@@ -849,6 +849,18 @@ Part 7 captures, headless with the real renderer, each looked at by the builder 
 
 The orchestrator picks the radius and the steps by the user's words, "most dramatic, but not overly so". The pick has the strongest contact shadows and color bleeding that show no lines of light under walls, the sign of too few steps for the radius. Between two that look alike, the cheaper one wins, by the timings of "Cost". The user sees the picks with the captures.
 
+### The pick (Part 7, `ter-7s3g`)
+
+The default stays `VisibilityBitmaskLight.Default`: a radius of 1 m, 3 slices and 3 steps on each side. No code changes. R 1 m with 3 steps is the strongest setting without visible grain. Its four occlusion passes take about 2.2 ms, and its ambient pass reads 0.15 ms less than with the setting off ("Cost", "Part 7").
+
+What the captures showed, per setting and per scene:
+
+- No setting shows a line of light under a wall or under a hull base. So the rule against such lines picked nothing out, and the choice fell to the grain and the cost.
+- R 1.457 m with 3 steps changes the stills about as much as R 1 m with 6 steps, for about 1 ms less. But it shows a fine grain on dark walls beside sunlit floors, in `demo-surface`'s cabin (the capture at the seat), which R 1 m with 6 steps does not. So the two do not look alike, and the cheaper one does not win.
+- R 2 m shows clear grain in dark areas. In `pbr-spheres` it shows bright dots on the floor where the spheres' highlights bounce ("Known limits").
+- 6 steps add 1.0 to 1.5 ms to the sectors pass for a smoother look at the same strength. That is not worth its cost at R 1 m.
+- At every setting, `demo-exit`'s cabin wall beside the lamp panel shows soft bright blotches of 10 to 20 px (`ter-vtc7`, "Known limits"). The setting does not remove them.
+
 ## Compared with a design from scratch
 
 A renderer built from scratch around screen-space bounce light has five parts:
@@ -887,6 +899,8 @@ This design has the same parts, with these differences:
 - An impostor bounces its captured light, its ambient light included (decision 30).
 - A blocker off the screen blocks nothing: a step whose texel lies outside the image is left out, so its directions take the ambient light.
 - On a normal-mapped surface, the near hemisphere follows the shading normal, and the receiver's own surface blocks by its geometric normal (decision 39).
+- A lamp panel's emission bounces twice (`ter-vtc7`, found by Part 7). The emission is in the direct image, and the sector pass bounces the direct image, so the panel lights its neighbors through the bounce on top of its point light, which already sends the same power. In `demo-exit`, the cabin wall beside the lamp shows soft bright blotches of 10 to 20 px at every setting. An experiment that left the emission out of the bounce source removed them, and twice the slices did not. Whether emission bounces at all waits for the user. The ticket is filed on main and waits for this branch's merge.
+- A highlight toward the eye bounces as if every direction saw it (`ter-vtc7`, found by Part 7). The direct image holds the light that a surface sends toward the eye (decision 16), and the bounce sends it in all directions, so a bright specular highlight lights the surfaces around it as much as a diffuse surface of the same brightness would. At R 2 m this gives bright dots on the floor where the spheres' highlights of `pbr-spheres` bounce, which is one reason for the default radius of 1 m.
 
 ## Tests
 
@@ -998,7 +1012,7 @@ In `GpuTimingTests`: `WithVisibilityBitmaskLightTheFourOcclusionPassesRunBetween
 
 ## Cost
 
-To measure in Part 7, by [rendering-upgrade.md](rendering-upgrade.md), "Measuring the cost of a feature": Release, `scripts/demo-exit.json` at 1920 × 1080, the branch against its base, each build twice, one run at a time, with the load of the machine in the report. The runs: the default, `--screen-space-light off`, and the radii and steps of "The default radius and steps".
+Part 7 measured it by [rendering-upgrade.md](rendering-upgrade.md), "Measuring the cost of a feature" (see "Part 7" below): Release, `scripts/demo-exit.json` at 1920 × 1080, one run at a time, with the load of the machine in the report. The runs: `--screen-space-light off`, and the radii and steps of "The default radius and steps".
 
 The table gives the memory traffic per frame at 1080p and the default setting, by arithmetic. The expected time came from the rate that each kind of pass reached in GTAO's measurements (ARCHITECTURE.md, "Ambient occlusion", "Cost"). The last column holds the time that `ter-izsu` measured instead in a Metal System Trace, after the half-resolution copy below, mean of two runs, three for option B (ARCHITECTURE.md, "Ambient occlusion", "Cost", has each run, the method and the load). The "Today" column came from the GPU timers of the renderer before main's per-frame environment maps, another instrument: a trace of main gave its lighting pass 2.96 ms (ARCHITECTURE.md, "The environment map", "Cost"). The expected times were fit to those timers:
 
@@ -1054,6 +1068,33 @@ With `NoScreenSpaceLight`, the split costs the ambient pass and the direct image
 | Load at the start of the trace | 9.62 / 8.94 | 10.29 / 9.78 / 9.91 |
 
 The far rays took 5.7 to 5.8 ms, and without them the four occlusion passes take 2.1 to 2.7 ms, against 8.1 to 8.2 ms with them. Passes that the change does not touch also moved: in every near-only run the upsample took 0.08 to 0.12 ms more, the ambient pass 0.03 to 0.13 ms more and the denoise 0.02 to 0.26 ms more than in both runs with the far rays. A pass's busy time moves with its neighbours and with the load, as ARCHITECTURE.md says, so these shifts are not a cost of the change. Other work on the machine disturbed the second and the third run of the near-only build: their frame spans have a p95 of 31.1 and 25.8 ms, against 22.5 ms in the first, and the load reached 21 during the third. So the frame span is read from the first run, about 4.6 to 4.9 ms below the runs with the far rays, close to the far rays' own time. The four passes still take more than GTAO's 1.7 ms, and more than the 1 ms limit of the crease shadowing. The sectors pass is most of it.
+
+### Part 7
+
+`ter-7s3g` measured the merged branch, with the lights epic's lamps, on 2026-10-27 by the same method as above: `tools/gpu-trace.sh --no-counters`, `scripts/demo-exit.json` at 1920 × 1080 in Release, Apple M1 Max, MoltenVK. The times are the trace's busy time in ms, the mean over 121 traced frames from frame 399. One run at a time, each started at a one-minute load below 10. "Load" is the one-minute load when the run started, then when `xctrace` started. "Occlusion sum" is depth, sectors, denoise and upsample together. "Span" is the frame span of the trace: mean, median and 95th percentile. "Timer span" is the frame span by the renderer's own GPU timers, as a mean. A dash is a pass that the setting does not run. R is the radius, and the steps are `StepsPerSide`; the slices are 3 in every run.
+
+| Run | Load | Direct | Depth | Sectors | Denoise | Upsample | Ambient | Occlusion sum | Span mean / median / p95 | Timer span |
+|---|---|---|---|---|---|---|---|---|---|---|
+| off, run 1 | 9.14 / 8.19 | 8.32 | - | - | - | - | 1.02 | 0 | 20.22 / 20.19 / 22.57 | 20.13 |
+| off, run 2 | 7.33 / 7.06 | 8.11 | - | - | - | - | 1.01 | 0 | 19.99 / 19.48 / 22.52 | 19.88 |
+| R 0.5 m, 3 steps | 9.75 / 9.75 | 8.45 | 0.06 | 1.41 | 0.12 | 0.32 | 0.86 | 1.91 | 22.31 / 22.39 / 23.45 | 22.19 |
+| R 0.5 m, 6 steps | 6.58 / 6.29 | 7.82 | 0.06 | 2.51 | 0.12 | 0.32 | 0.87 | 3.02 | 22.52 / 22.21 / 25.89 | 22.39 |
+| R 1 m, 3 steps, run 1 (the default) | 9.64 / 9.18 | 7.64 | 0.06 | 1.65 | 0.13 | 0.33 | 0.86 | 2.17 | 21.37 / 20.63 / 24.91 | 21.26 |
+| R 1 m, 3 steps, run 2 (the default) | 7.49 / 7.49 | 8.08 | 0.07 | 1.70 | 0.13 | 0.33 | 0.86 | 2.22 | 22.06 / 21.76 / 24.76 | 21.96 |
+| R 1 m, 6 steps | 8.84 / 8.61 | 8.53 | 0.07 | 2.87 | 0.12 | 0.32 | 0.87 | 3.39 | 23.70 / 24.29 / 26.12 | 23.61 |
+| R 1.457 m, 3 steps | 9.35 / 8.92 | 8.27 | 0.07 | 1.81 | 0.13 | 0.33 | 0.86 | 2.33 | 22.39 / 22.23 / 25.14 | 22.31 |
+| R 1.457 m, 6 steps | 8.31 / 11.51 | 8.61 | 0.07 | 3.34 | 0.14 | 0.36 | 0.95 | 3.92 | 25.25 / 25.66 / 29.70 | 25.13 |
+| R 2 m, 3 steps | 8.95 / 8.88 | 8.76 | 0.07 | 2.00 | 0.13 | 0.35 | 0.91 | 2.55 | 23.78 / 23.48 / 28.82 | 23.68 |
+| R 2 m, 6 steps | 8.53 / 8.65 | 8.43 | 0.06 | 3.04 | 0.12 | 0.32 | 0.86 | 3.55 | 23.92 / 24.12 / 25.81 | 23.82 |
+
+What the table shows:
+
+- At the default, the four occlusion passes take 2.17 to 2.22 ms, 1.65 to 1.70 ms of it in the sectors pass. The frame span (mean) is 21.4 to 22.1 ms, against 20.0 to 20.2 ms with the setting off: 1.1 to 2.1 ms more.
+- The sectors pass grows with the radius, 1.41 ms at R 0.5 m to 2.00 ms at R 2 m with 3 steps, and 6 steps add 1.0 to 1.5 ms at the same radius.
+- The ambient pass takes 0.86 ms at the default and 1.01 to 1.02 ms with the setting off. So the split of the lighting pass costs nothing here.
+- The R 1.457 m run with 6 steps began at a load of 11.51, over the limit of 10. Its passes read 0.03 to 0.09 ms higher, and its span is not comparable with the others.
+- The direct pass takes 7.6 to 8.8 ms in every run, the setting off included. It is the lights epic's cost of the lamps in `demo-exit`, not a cost of the bounce light: main's ARCHITECTURE.md gives the lighting pass 7.2 ms there after the lights epic. So the frame span is far above the 14.2 ms of the near-only run above, and the cost of the bounce light is read from the occlusion sum and from the span against the setting off.
+- Two runs of one setting differ by 0.05 ms in the occlusion sum and by 0.7 ms in the frame span (the default's runs 1 and 2), so spans closer than that do not tell the settings apart.
 
 ## Doc changes
 
@@ -1299,6 +1340,7 @@ internal sealed class DepthPyramidImage : IDisposable
 - The cut of `ter-izsu` comes first (see "Settled forks", "The cost"), and after it `ter-ehxp`, which removes the far rays (decision 40). Then the cost, on a quiet machine, by "Cost", and the captures of "The default radius and steps". The orchestrator picks the defaults, and the user sees them.
 - Files: the docs of "Doc changes", `VisibilityBitmaskLight.Default` by the pick, and the forks' choices.
 - Done: ARCHITECTURE.md matches the code, with the measured cost. The ticket closes after the merge into main.
+- Status: done on the branch. The commits are `e8ee7f93` (the headless option `--screen-space-light-steps`) and `fba0eab8` (the two acceptance scenes, `bounce-red-wall` and `bounce-raised-box`, as demo scenes and scripts). The defaults stayed `VisibilityBitmaskLight.Default`, by "The default radius and steps", "The pick", and the cost is in "Cost", "Part 7". The two limits it found are in "Known limits", both in `ter-vtc7`.
 
 ## Settled forks
 
