@@ -5,7 +5,7 @@ This file lists the third-party code that a build of the game carries, with the 
 ## XeGTAO
 
 - Source: https://github.com/GameTechDev/XeGTAO, commit `a5b1686c7ea37788eeb3576b5be47f7c03db532c`.
-- Used in: the GLSL port of ground-truth ambient occlusion, `src/Tertius.Rendering/Shaders/gtao.glsl`, which the five occlusion shaders include. The reference files are in `src/Tertius.Rendering/ThirdParty/XeGTAO`.
+- Used in: the GLSL port of ground-truth ambient occlusion, `src/Tertius.Rendering/Shaders/gtao.glsl`, which the four occlusion shaders include. The reference files are in `src/Tertius.Rendering/ThirdParty/XeGTAO`.
 - License: MIT. The license asks that the notice goes with every substantial portion of the software, and the compiled shaders are such a portion.
 
 ```

@@ -2,8 +2,7 @@ namespace Tertius.Rendering;
 
 /// <summary>
 /// The occlusion sectors pass, under <see cref="VisibilityBitmaskLight"/> (docs/plans/screen-space-illumination.md, "A
-/// near step"): the edges image, each slice's mask of the sectors that its near steps block, and term A, the near
-/// estimate of the bounce and the occlusion.
+/// near step"): the edges image and term A, the estimate of the bounce and the occlusion.
 /// </summary>
 internal sealed class OcclusionSectorsPass(
     VulkanDevice device,
