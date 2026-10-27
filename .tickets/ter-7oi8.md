@@ -1,6 +1,6 @@
 ---
 id: ter-7oi8
-status: open
+status: in_progress
 deps: [ter-c3rf]
 links: []
 created: 2026-10-22T12:58:26Z
@@ -37,3 +37,7 @@ Fork to decide when the ticket starts: what the empty attitude means. Today the 
 **2026-10-24T19:39:05Z**
 
 The user approved the design sketch above as it stands on 2026-10-24. Build from it. The forks that it lists stay open: design each one twice when the ticket starts, and let the user choose.
+
+**2026-10-27T09:50:16Z**
+
+2026-10-27: the orchestrator settled the fork by STYLE.md (make illegal states unrepresentable) and the rule of required fields set by the real producer: no ZeroCase. The empty attitude is invalid, and KeplerMotion's setter refuses an orbit whose attitude is empty with an ArgumentException, as it refuses other invalid orbits.
