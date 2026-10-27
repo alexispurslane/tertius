@@ -1,6 +1,6 @@
 ---
 id: ter-fwsy
-status: in_progress
+status: closed
 deps: [ter-4zt6]
 links: []
 created: 2026-10-21T16:10:45Z
@@ -19,3 +19,7 @@ Task 8 of docs/plans/particles.md (section 'Task 8: puffs on the workers' and 'T
 **2026-10-27T04:30:00Z**
 
 Built: the step on the workers from 3,072 live puffs (medians), which pays at the default capacity of 4,096. Not built, settled by the rule to leave out what is not needed yet: above 4,096 puffs with deaths, the join's row move on the sync thread costs about 110 µs at 8,192 and 220 to 270 µs at 16,384, so the workers lose by about 5 percent at 8,192. The fix for a scene that needs more puffs: a second Parallel.For copies each slice's survivors into its own stretch of spare, at offsets summed in slice order, then swaps rows and spare (about 2 KB more garbage per tick). Births and the snapshot placement stay on the sync thread: they pay only past the default capacity.
+
+**2026-10-27T04:44:59Z**
+
+Merged (741dab87); full Checked on main after the merge: 8,800 total, 0 failed. Coverage of the changed lines 98.4 percent: the two missed lines are the bug-only drop of a range whose frame is not live, which no test reached on main either.
