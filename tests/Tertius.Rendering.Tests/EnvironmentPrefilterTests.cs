@@ -747,6 +747,42 @@ public sealed class EnvironmentPrefilterTests
         }
     }
 
+    /// <summary>
+    /// The prefilter records no barrier that the next one covers. For M drawn maps at 128 texels, whose mips take three
+    /// runs, the first frame's barriers are: one into the storage layout for the mips; one after each map's run but the
+    /// last drawn map's last run, whose writes the levels' barrier orders as it makes the mips read-only; that one; one
+    /// before each map's sum; one between two maps of the levels, none after the last, whose writes the specular map's
+    /// read-only barrier and the readback's barrier order; and the readback's two. So 5M + 2 in all. In the first frame
+    /// the buffers have no earlier use, so the pass's first barrier is empty and records nothing.
+    /// </summary>
+    [Theory]
+    [InlineData(1)]
+    [InlineData(3)]
+    public void ThePrefilterRecordsNoBarrierThatTheNextOneCovers(int maps)
+    {
+        const int faceSize = 128;
+        VulkanRenderer renderer = Renderer(faceSize);
+        try
+        {
+            var before = new FlushProbe();
+            var after = new FlushProbe();
+            // The face pass and the prefilter were added first, so the probes record right after each of them.
+            renderer.Graph.Add(FrameGraph.Stage.EnvironmentFaces, before);
+            renderer.Graph.Add(FrameGraph.Stage.EnvironmentPrefilter, after);
+
+            renderer.Render(maps == 1 ? Colorful(renderer) : ColorfulInThreeFrames(renderer), 1f);
+
+            int runs = PrefilterLevels.DownsampleDispatches(PrefilterLevels.RadianceLevels(faceSize));
+            int barriers = after.Flushes - before.Flushes;
+            runs.Should().Be(3, "the count below assumes three runs of mips");
+            barriers.Should().Be(5 * maps + 2, "the prefilter of {0} maps records each barrier once", maps);
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
     [Fact]
     public void TheOpenSkyShareIsPrefilteredWithTheSameLobeAsTheColor()
     {
@@ -838,5 +874,15 @@ public sealed class EnvironmentPrefilterTests
         {
             Gpu.DisposeAndAssertClean(renderer);
         }
+    }
+
+    /// <summary>A pass that records nothing and keeps the frame's count of barriers at its place in the graph.</summary>
+    private sealed class FlushProbe : RenderPass
+    {
+        public int Flushes { get; private set; }
+
+        public override string Name => "flush probe";
+
+        public override void Record(FrameContext context) => Flushes = context.Barriers.FlushCount;
     }
 }

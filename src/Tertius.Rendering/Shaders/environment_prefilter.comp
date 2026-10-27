@@ -18,7 +18,7 @@ const float PI = 3.14159265358979323846;
 // and all its invocations take the same branches. A workgroup prefilters 64 / lanes texels that follow each other in layer, row and column order, with lanes invocations
 // per texel (PrefilterLevels.Lanes). With n = v, a sample's direction around n, its weight n·l and the level of the
 // radiance map that it reads depend only on the sample and the level, not on the texel. So the workgroup first builds
-// the level's table of samples in shared memory, one sample per invocation. Lane m of a texel then sums the samples m, m + lanes, ... in its own axes,
+// the level's table of samples in shared memory, one sample per invocation. Lane j of a texel then sums the samples j, j + lanes, ... in its own axes,
 // and the texel adds its lanes' sums in lane order, so one map always gives the same bits on one GPU. The lanes make a
 // small level's chain of dependent texture reads shorter, and fill the GPU with as many invocations as level 1.
 
@@ -117,9 +117,9 @@ void main()
         return;
     // The level of this workgroup: the last of the dispatch whose first workgroup is at most this one.
     uint binding = 0u;
-    for (uint m = 1u; m < prefilter.levelCount; m++)
-        if (group >= prefilter.levels[m].firstGroup)
-            binding = m;
+    for (uint b = 1u; b < prefilter.levelCount; b++)
+        if (group >= prefilter.levels[b].firstGroup)
+            binding = b;
     Level level = prefilter.levels[binding];
 
     uint index = gl_LocalInvocationIndex;
@@ -177,10 +177,10 @@ void main()
     {
         vec4 total = vec4(0.0);
         float totalWeight = 0.0;
-        for (uint m = 0u; m < level.lanes; m++)
+        for (uint j = 0u; j < level.lanes; j++)
         {
-            total += laneSums[index + m];
-            totalWeight += laneWeights[index + m];
+            total += laneSums[index + j];
+            totalWeight += laneWeights[index + j];
         }
         // Sample 0, the point (0, 0), gives h = n and l = n, so lane 0's weight and the total are at least 1.
         store(binding, ivec3(xy, mapLayer), total / totalWeight);

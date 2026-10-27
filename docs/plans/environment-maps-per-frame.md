@@ -335,7 +335,7 @@ While M stays the same, every face is at most ⌈6M / F⌉ − 1 frames old: 23 
 
 ## The prefilter of each map
 
-`EnvironmentPrefilterPass` runs today's three steps for each map with a drawn face, in index order (decision 25): the radiance map's mips, the specular levels and the irradiance. `EnvironmentPrefilterPushConstants` and `EnvironmentDownsamplePushConstants` gain `Map`. The shaders read and write layers 6 · Map + face, and the irradiance shader writes coefficients 9 · Map to 9 · Map + 8. The copy into the slot's readback buffer comes once, after the last map, and takes the first M maps. A map without a drawn face keeps its levels and its coefficients (decision 12).
+`EnvironmentPrefilterPass` runs today's three steps for each map with a drawn face, in index order (decision 25): the radiance map's mips, the specular levels and the irradiance. `EnvironmentPrefilterPushConstants` and `EnvironmentDownsamplePushConstants` gain `Map`. The shaders read and write layers 6 · Map + face. The irradiance's blocks write the map's partial sums into the one buffer of partial sums, which the maps take in turn, and the sum shader writes coefficients 9 · Map to 9 · Map + 8. The copy into the slot's readback buffer comes once, after the last map, and takes the first M maps. A map without a drawn face keeps its levels and its coefficients (decision 12).
 
 The barriers move every map's layers of an image to storage use while its level views are bound, because a storage image's layout must hold for every layer of its view: a drawn map's levels go from the reads of the frame before to storage writes, discarding, and the other maps' levels keep their texels. So the pass runs in two steps, first every drawn map's mips, then every drawn map's specular levels and irradiance, each in index order, with a barrier between two maps (see "Images, buffers, growth and descriptors"). At the end of the pass the whole specular image is in `SampledFragment` and the whole radiance image in `SampledCompute`, as today.
 
@@ -419,10 +419,11 @@ The CPU side: `MapAmbient` holds one `IrradianceReading?` for each map, and `Imp
 | The face depth | D32, W × W, one for every map, because faces draw one after another | 64 KB |
 | The irradiance buffer | 42 × 9 `vec4` | 6,048 B |
 | A readback buffer per frame slot | 42 × 9 `vec4`, of which the copy fills M | 6,048 B each |
+| The irradiance's partial sums | 27 floats for each of one map's 6 W / 8 blocks, which the maps take in turn | 10,368 B |
 
-So the maps take about 2.1 MB each at W = 128: 8.4 MB for the cabin's four. The level views span every layer, so the number of level sets stays that of one map, and the descriptor pool does not change. A dispatch picks its map's layers by its push constant `Map`. A storage image's layout must hold for every layer of its view, so while a level view is bound, every map's layers of that image are in `General`: the prefilter first makes every drawn map's mips, then every drawn map's specular levels and irradiance, and the maps with no drawn face keep their texels through the transitions. The synchronization validation tracks a whole view and a whole buffer binding, so a barrier separates two maps' writes, though their layers and coefficients do not overlap.
+So the maps take about 2.1 MB each at W = 128: 8.4 MB for the cabin's four. The level views span every layer, so each dispatch of the mips and of the specular levels keeps one levels set, whose four level views span every map's layers, and the descriptor pool does not change. A dispatch picks its map's layers by its push constant `Map`. A storage image's layout must hold for every layer of its view, so while a level view is bound, every map's layers of that image are in `General`: the prefilter first makes every drawn map's mips, then every drawn map's specular levels and irradiance, and the maps with no drawn face keep their texels through the transitions. The synchronization validation tracks a whole view and a whole buffer binding, so a barrier separates two maps' writes, though their layers and coefficients do not overlap.
 
-The growth (decision 23): `Grow(maps)` waits for the device, makes the cube arrays and their views for `maps` maps, and only then disposes the old ones, so that a growth that throws, for example out of device memory, leaves the old images whole. It rewrites the prefilter set and the level sets with the new views, empties "drawn for" and adds one to `EnvironmentMap.ImagesVersion`. `FrameResources.UpdateSharedDescriptors` rewrites binding 12 of its frame set when its version differs, as it rewrites binding 2 for a new material buffer. After the wait, no frame set is in use, so the rewrite is legal at each slot's next frame. The readback buffers and the irradiance buffer do not change.
+The growth (decision 23): `Grow(maps)` waits for the device, makes the cube arrays and their views for `maps` maps, and only then disposes the old ones, so that a growth that throws, for example out of device memory, leaves the old images whole. It rewrites the prefilter set and every levels set with the new views, empties "drawn for" and adds one to `EnvironmentMap.ImagesVersion`. `FrameResources.UpdateSharedDescriptors` rewrites binding 12 of its frame set when its version differs, as it rewrites binding 2 for a new material buffer. After the wait, no frame set is in use, so the rewrite is legal at each slot's next frame. The readback buffers and the irradiance buffer do not change.
 
 The descriptors that change:
 
@@ -437,8 +438,8 @@ The push constants that change:
 | Block | Size | New field |
 |---|---|---|
 | `DrawPushConstants` (`draw.glsl`), every mesh pass | 84 B | `Map`: for an environment face, the map whose face it draws. 0 in every other pass, which reads it not. |
-| `EnvironmentPrefilterPushConstants` | 16 B | `Map` |
-| `EnvironmentDownsamplePushConstants` | 8 B | `Map` |
+| `EnvironmentPrefilterPushConstants` | 80 B | `Map`, at byte 76, which the prefilter and both irradiance shaders read |
+| `EnvironmentDownsamplePushConstants` | 12 B | `Map`, after `LevelSize` and `LevelCount` |
 | `SkyFacePushConstants` | 48 B | None: its forward, right and up are the turned basis |
 
 The scene layout's push range grows from 80 to 84 bytes.

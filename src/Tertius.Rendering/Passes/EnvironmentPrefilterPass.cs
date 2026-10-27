@@ -146,8 +146,17 @@ internal sealed unsafe class EnvironmentPrefilterPass : RenderPass
             );
         barriers.Flush(vk, commandBuffer);
         vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Compute, downsample);
-        for (int dispatch = 0; dispatch < PrefilterLevels.DownsampleDispatches((int)levels); dispatch++)
-            DownsampleRun(vk: vk, commandBuffer: commandBuffer, barriers: barriers, dispatch: dispatch, drawn: drawn);
+        int runs = PrefilterLevels.DownsampleDispatches((int)levels);
+        for (int dispatch = 0; dispatch < runs; dispatch++)
+            DownsampleRun(
+                vk: vk,
+                commandBuffer: commandBuffer,
+                barriers: barriers,
+                dispatch: dispatch,
+                drawn: drawn,
+                lastRun: dispatch == runs - 1
+            );
+        // The levels' first barrier makes these levels read-only, which orders the last run's writes.
         barriers.ImageLevels(
             image: radiance,
             baseMip: 0,
@@ -163,16 +172,19 @@ internal sealed unsafe class EnvironmentPrefilterPass : RenderPass
 
     /// <summary>
     /// Writes the run of radiance levels of downsample dispatch <paramref name="dispatch"/> of each drawn map from the
-    /// level above the run.
+    /// level above the run. After the <paramref name="lastRun"/> of the last drawn map, the barrier that makes the mips
+    /// read-only orders the writes, so none follows.
     /// </summary>
     private void DownsampleRun(
         Vk vk,
         CommandBuffer commandBuffer,
         BarrierBatch barriers,
         int dispatch,
-        ReadOnlySpan<bool> drawn
+        ReadOnlySpan<bool> drawn,
+        bool lastRun
     )
     {
+        int lastDrawn = drawn.LastIndexOf(true);
         int levels = (int)map.Radiance.MipLevels;
         (int source, int count) = PrefilterLevels.LevelsOfDownsample(dispatch: dispatch, levels: levels);
         BindSets(vk: vk, commandBuffer: commandBuffer, firstSet: 1, sets: [map.DownsampleSet(dispatch)]);
@@ -193,6 +205,8 @@ internal sealed unsafe class EnvironmentPrefilterPass : RenderPass
                     size: (uint)sizeof(EnvironmentDownsamplePushConstants)
                 );
                 Dispatch(vk: vk, commandBuffer: commandBuffer, size: push.LevelSize);
+                if (lastRun && index == lastDrawn)
+                    break;
                 // The next run reads the last level of this one, and the next map writes through the same views.
                 AfterWrites(barriers: barriers, image: map.Radiance, baseMip: (uint)(source + 1), mipCount: (uint)count);
                 barriers.Flush(vk, commandBuffer);
@@ -220,10 +234,14 @@ internal sealed unsafe class EnvironmentPrefilterPass : RenderPass
                 layers: new LayerRange(FirstLayer(index), CubeFaces.Count)
             );
         barriers.Flush(vk, commandBuffer);
+        int lastDrawn = drawn.LastIndexOf(true);
         for (int index = 0; index < drawn.Length; index++)
             if (drawn[index])
             {
                 RecordMap(vk: vk, commandBuffer: commandBuffer, barriers: barriers, index: index);
+                // After the last map, the specular map's read-only barrier and the readback's barrier order the writes.
+                if (index == lastDrawn)
+                    break;
                 // The next map writes through the same level views and the same buffer bindings.
                 AfterWrites(barriers: barriers, image: specular, baseMip: 0, mipCount: (uint)map.Levels);
                 barriers.Buffer(map.Irradiance, BufferUse.ComputeWrite);

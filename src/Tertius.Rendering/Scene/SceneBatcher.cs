@@ -228,9 +228,10 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
     }
 
     /// <summary>
-    /// Interpolates each instance that a view can draw once, for every view: the instances that the main view does not
-    /// cull go into the scene's visible instances, and when <paramref name="forMaps"/> holds, the opaque ones go into the
-    /// maps' instances too, before any face culls them or any map's draw rule leaves them out.
+    /// Interpolates each instance that a view can draw once, for the main view and every face of every map: the instances
+    /// that the main view does not cull go into the scene's visible instances, and when <paramref name="forMaps"/> holds,
+    /// the opaque ones go into the maps' instances too, before any face culls them or any map's draw rule leaves them out.
+    /// The shadow views interpolate their casters themselves (<see cref="CollectCasters"/>).
     /// </summary>
     private void CollectVisible(
         RenderSnapshot snapshot,

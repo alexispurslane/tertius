@@ -169,9 +169,9 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     public DescriptorSetLayout EnvironmentPrefilterSet { get; }
 
     /// <summary>
-    /// Set 1 of <see cref="EnvironmentPrefilterLayout"/>: four levels of a cube of the map, all six layers of each, as
-    /// storage images in bindings 0 to 3. A dispatch of the specular map writes them, and a dispatch of the downsample
-    /// reads binding 0 and writes the others.
+    /// Set 1 of <see cref="EnvironmentPrefilterLayout"/>: four level views of one of the map's images, each of every map's
+    /// layers (six per map), as storage images in bindings 0 to 3. A dispatch of the specular map writes them, and a
+    /// dispatch of the downsample reads binding 0 and writes the others.
     /// </summary>
     public DescriptorSetLayout EnvironmentLevelsSet { get; }
 
