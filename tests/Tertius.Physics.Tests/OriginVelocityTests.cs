@@ -59,6 +59,31 @@ public sealed class OriginVelocityTests
             );
     }
 
+    /// <summary>
+    /// Turns its kinematic hull about its origin as <see cref="TurnsInPlace"/> does until tick <paramref name="dynamicOn"/>,
+    /// and in that tick makes the hull dynamic, so that it spins on by itself.
+    /// </summary>
+    private sealed class TurnsThenFrees(long dynamicOn) : IComponent
+    {
+        public int Priority => 0;
+
+        public EventMask Wants => EventMask.Of<Tick>();
+
+        public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
+        {
+            if (self.Tick < dynamicOn)
+            {
+                self.MoveKinematic(
+                    new(Double3.Zero, DQuaternion.FromAxisAngle(Double3.UnitY, Spin * self.TimeAt(self.Tick + 2)))
+                );
+                return;
+            }
+
+            self.RemoveComponent(this);
+            self.Body.SetMotion(BodyMotion.Dynamic);
+        }
+    }
+
     /// <summary>A body of 10 kg whose center of mass sits 3 m along +X from its origin: a box of 1 m centered there.</summary>
     private static BodyDesc OffCenterBody(BodyMotion motion = BodyMotion.Dynamic) =>
         new(
@@ -225,6 +250,69 @@ public sealed class OriginVelocityTests
     }
 
     [Fact]
+    public void ASpinningHullWhoseOwnerSetsItsVelocityMovesTheOriginOfItsFrameAtThatVelocity()
+    {
+        using World world = NewWorld(backend: out _);
+        FrameHandle space = Space(world);
+        var velocity = new Double3(2, 0, 0);
+        Entity owner = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = DPose.Identity,
+                AngularVelocity = SpinAboutY,
+                Body = OffCenterBody(),
+                AsFrame = new(FrameBounds.Sphere(5)),
+                Components = [new SetsVelocity(velocity, angular: null, onTick: null)],
+            }
+        );
+        FrameHandle hull = world.GetOwnedFrame(owner);
+        Tick(world, 5);
+        Double3 before = world.Frames.LocalPose(hull).Position;
+
+        world.Tick();
+
+        Double3 moved = world.Frames.LocalPose(hull).Position - before;
+        Double3
+            .Distance(moved, velocity * world.DeltaTime)
+            .Should()
+            .BeLessThan(
+                Curve,
+                "the set velocity is the velocity of the frame's origin, the point that the hull's pose names"
+            );
+    }
+
+    [Fact]
+    public void ASpinningKinematicHullThatTurnsDynamicStartsWithTheOriginOfItsFrameAtRest()
+    {
+        // The kinematic hull turns about its origin, so its frame's origin rests while its center of mass circles at 1.5 m/s.
+        // Once it is dynamic, its center of mass coasts on the tangent and its origin circles it, so the origin leaves its
+        // place by ω² r t² / 2, at most 0.94 mm in the 3 steps up to tick 8. The bound of 2 mm covers that and lies far below
+        // the 25 mm of one step of a hull whose center of mass took the frame's velocity.
+        using World world = NewWorld(backend: out _);
+        FrameHandle space = Space(world);
+        Entity owner = world.Spawn(
+            new()
+            {
+                Frame = space,
+                Pose = DPose.Identity,
+                Body = OffCenterBody(BodyMotion.Kinematic),
+                AsFrame = new(FrameBounds.Sphere(5)),
+                Components = [new TurnsThenFrees(dynamicOn: 5)],
+            }
+        );
+        FrameHandle hull = world.GetOwnedFrame(owner);
+
+        Tick(world, 8);
+
+        world.Frames.AngularVelocity(hull).Y.Should().BeApproximately((float)Spin, 1e-4f, "the dynamic hull spins on");
+        world
+            .Frames.LocalPose(hull)
+            .Position.Length.Should()
+            .BeLessThan(2e-3, "the hull took the velocity of its frame's origin, at rest, when it turned dynamic");
+    }
+
+    [Fact]
     public void AKinematicBodyThatAMotionIntentTurnsAboutItsOriginReportsItsOriginAtRest()
     {
         using World world = NewWorld(backend: out _);
@@ -251,7 +339,7 @@ public sealed class OriginVelocityTests
     [Fact]
     public void ASpinningBodyWhoseCenterOfMassIsItsOriginReportsJoltsVelocityBitForBit()
     {
-        // Below 1 m/s, so that no numeric frame takes the body over and the World's velocity is the row's alone.
+        // Far below the 1,000 m/s at which a falling frame takes over a free group, so the World's velocity is the row's alone.
         using World world = NewWorld(backend: out JoltPhysicsBackend backend);
         FrameHandle space = Space(world);
         Entity cube = world.Spawn(
@@ -281,5 +369,54 @@ public sealed class OriginVelocityTests
                 (Double3)jolts,
                 "a body whose center of mass is its origin takes no conversion, so not even a rounding"
             );
+    }
+
+    /// <summary>The ten seconds of the fast spinning body (tests/STYLE.md, "Long tests").</summary>
+    public sealed class FastSpinningBodyForTenSeconds
+    {
+        /// <summary>
+        /// The falling frame of a free group moves at the group's mass-weighted mean velocity, the velocity of its center of
+        /// mass. The origin of this body circles its center of mass at 1.5 m/s, so a frame that took the velocity of the
+        /// origin would see the body leave it at more than the drain speed of 1 m/s about every 1.4 s, and drain each time.
+        /// Nothing pulls on the body, so the frame's velocity in space never changes without a drain. The body is plain, or
+        /// the hull of a frame, whose velocity the tree holds.
+        /// </summary>
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void ASpinningBodyWhoseCenterOfMassSitsOffItsOriginCoastsInItsFallingFrameWithoutADrain(bool hull)
+        {
+            using World world = NewWorld(backend: out _);
+            FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e8f)));
+            Entity body = world.Spawn(
+                new()
+                {
+                    Frame = space,
+                    Pose = DPose.Identity,
+                    LinearVelocity = new(1_200, 0, 0),
+                    AngularVelocity = SpinAboutY,
+                    Body = OffCenterBody(),
+                    AsFrame = hull ? new(FrameBounds.Sphere(5)) : null,
+                }
+            );
+            int ticks = TickUntil(world, () => world.Frames.IsNumeric(world.PhysicsHomeOf(body)), limit: 60);
+            ticks.Should().BeLessThan(60, "a free body at 1,200 m/s gets a falling frame");
+            FrameHandle home = world.PhysicsHomeOf(body);
+            Double3 frameVelocity = world.Frames.LinearVelocity(home);
+
+            int drains = 0;
+            for (int tick = 0; tick < 10 * world.Options.TickRate; tick++)
+            {
+                world.Tick();
+                world.PhysicsHomeOf(body).Should().Be(home, "the body stays in its falling frame");
+                Double3 now = world.Frames.LinearVelocity(home);
+                if (Double3.Distance(now, frameVelocity) > 1e-6)
+                    drains++;
+                frameVelocity = now;
+            }
+
+            drains.Should().Be(0, "the frame moves with the body's center of mass, which coasts on a straight line");
+            world.Errors.Should().BeEmpty();
+        }
     }
 }

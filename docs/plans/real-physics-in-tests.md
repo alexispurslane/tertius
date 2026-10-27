@@ -143,12 +143,14 @@ The places:
 |---|---|---|
 | `Report`, the `BodyState` of each body | Out | `OriginVelocity`. A plain kinematic body that a motion intent aimed reports the record's velocity, which is the origin's already. |
 | `ExecuteHandOff`, the `HandOff` | Out | `OriginVelocity` of the body in its new frame |
-| `HullRecordOf`, a dynamic hull's step record | Out | `OriginVelocity`, as before: the frame's origin is the hull's origin |
+| `HullRecordOf`, a dynamic hull's step record | Out | `OriginVelocity`, as before: the frame's origin is the hull's origin. That is Jolt's chord of the center of mass carried to the origin with the lever at the end of the step, not the origin's own chord, which differs by ω² r dt / 2 |
 | The creation of a body from a `BodyCreate` | In | Adds the spawn's angular velocity times the offset of the center of mass from the origin |
-| `CreateHullFromTree` | In | The same, from the frame tree's velocities, as before |
+| `HullVelocityFromTree`, for `CreateHullFromTree`, `PlaceHullFromTree` and `ApplyHullMotion` | In | The same, from the frame tree's velocities, as before: a hull that the backend creates, puts where the tree says after its frame moved, or gives a new motion |
 | `ApplyBodyIntent`, a `SetVelocity` | In | The same, with the angular velocity that the same intent sets, or else the body's angular velocity in Jolt |
 
 A `SetAngularVelocity` alone keeps Jolt's velocity of the center of mass, as an angular impulse does, so the body turns about its center of mass. Every other path inside the backend keeps Jolt's velocity of the center of mass, which never leaves the backend: the moves between systems, the shifts of numeric frames, the growth of a system, the ghosts, the chords and the contacts. A character never turns in Jolt and has its center of mass at its origin, so its velocity takes no conversion.
+
+The World reads every body velocity as its origin's, and three readers changed their meaning with the rule. The parts of a chain take their velocity from the root's origin (`Attachments.Derive`), and a move into another frame converts the velocity at the origin (`World.Rehome`): both are now right for a spinning root or body whose center of mass lies off its origin. The numeric update needs the momentum, so it sums each body at its center of mass, with the velocity of its center of mass (`NumericBody.CenterOfMass` and `NumericBody.CenterOfMassVelocity`). Without that, the origin of such a body swings by the angular velocity times the offset about the steady velocity of its center of mass, and its falling frame drained about every 1.4 s for the body of the tests at 1,200 m/s. Before the rule, a hull's frame velocity already belonged to its origin, so a spinning hull's frame drained in the same way.
 
 Before the fix, the World read Jolt's velocity of the center of mass as the velocity of the origin. For a spinning body, it was wrong by the angular velocity times the offset: 1.5 m/s on a body that spun at 0.5 rad/s, with its center of mass 3 m from its origin. The tests are in `tests/Tertius.Physics.Tests/OriginVelocityTests.cs`. A body whose center of mass is its origin, such as a box, reports Jolt's velocity bit for bit.
 

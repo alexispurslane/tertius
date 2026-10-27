@@ -263,8 +263,11 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// <para>
     /// Outputs: <see cref="PhysicsStepOutput.Bodies"/> holds every awake dynamic or kinematic body and every
     /// character in either form, also one in the rigid form that sleeps, plus one last report for a body that fell asleep.
-    /// Each linear velocity is that of the body's origin, from Jolt's: the chord of the last step, its displacement divided by
-    /// the step, which is the velocity half a step earlier. Both forms of a character store that chord.
+    /// Each linear velocity is that of the body's origin: Jolt's chord of the body's center of mass over the last step, its
+    /// displacement divided by the step, which is the velocity half a step earlier, carried to the origin with the angular
+    /// velocity and the lever at the end of the step. That is not the origin's own chord, from which it differs by
+    /// ω² r dt / 2 for a spin ω and a lever r. Both forms of a character store the chord, and a character's center of mass is
+    /// its origin.
     /// <see cref="PhysicsStepOutput.Characters"/> holds every character once, in either form, after the hand-offs, with
     /// whether physics stood it in this step. A character that a hand-off moved has not stood in its new frame yet, and a
     /// character in the rigid form never stands.
