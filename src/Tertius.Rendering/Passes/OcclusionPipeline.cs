@@ -58,18 +58,7 @@ internal sealed unsafe class OcclusionPipeline : IDisposable
     {
         Vk vk = context.Vk;
         CommandBuffer commandBuffer = context.CommandBuffer;
-        vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Compute, pipeline);
-        context.BindSceneSets(PipelineBindPoint.Compute, layouts.OcclusionLayout);
-        vk.CmdBindDescriptorSets(
-            commandBuffer: commandBuffer,
-            pipelineBindPoint: PipelineBindPoint.Compute,
-            layout: layouts.OcclusionLayout,
-            firstSet: 3,
-            descriptorSetCount: 1,
-            pDescriptorSets: &set,
-            dynamicOffsetCount: 0,
-            pDynamicOffsets: null
-        );
+        context.BindComputePass(pipeline: pipeline, layout: layouts.OcclusionLayout, passSet: set);
         var push = OcclusionPushConstants.For(setting: setting, lastDenoise: lastDenoise);
         vk.CmdPushConstants(
             commandBuffer: commandBuffer,

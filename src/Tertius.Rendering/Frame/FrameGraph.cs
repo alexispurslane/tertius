@@ -68,6 +68,27 @@ internal sealed class FrameContext
     }
 
     /// <summary>
+    /// Binds the compute <paramref name="pipeline"/>, this frame's sets 0 to 2 and the pass's own <paramref name="passSet"/>
+    /// as set 3, through <paramref name="layout"/>, whose first three sets must be those of
+    /// <see cref="DescriptorLayouts.SceneLayout"/>.
+    /// </summary>
+    public unsafe void BindComputePass(Pipeline pipeline, PipelineLayout layout, DescriptorSet passSet)
+    {
+        Vk.CmdBindPipeline(CommandBuffer, PipelineBindPoint.Compute, pipeline);
+        BindSceneSets(PipelineBindPoint.Compute, layout);
+        Vk.CmdBindDescriptorSets(
+            commandBuffer: CommandBuffer,
+            pipelineBindPoint: PipelineBindPoint.Compute,
+            layout: layout,
+            firstSet: 3,
+            descriptorSetCount: 1,
+            pDescriptorSets: &passSet,
+            dynamicOffsetCount: 0,
+            pDynamicOffsets: null
+        );
+    }
+
+    /// <summary>
     /// Begins rendering into <paramref name="target"/> alone, binds a full-screen <paramref name="pipeline"/> with its one
     /// descriptor set, and sets the full viewport. The target starts at zero when <paramref name="loadOp"/> is Clear;
     /// DontCare leaves it undefined, for a pass that writes every pixel.

@@ -1901,11 +1901,10 @@ public sealed unsafe class VulkanRenderer : IRenderer
         };
 
     /// <summary>
-    /// Adds the passes from the direct and the ambient pass to the readback to the graph, each in its own stage, the exposure pass only under
-    /// <see cref="AutoExposure"/>, the bloom pass only with a <see cref="Bloom"/>, and the three SMAA passes when SMAA is
-    /// on.
+    /// Adds the direct pass and the ambient pass, which write the scatter image too under
+    /// <see cref="SeparableSubsurface"/>.
     /// </summary>
-    private void AddPassesAfterGeometry(ShaderLibrary shaders, RendererOptions options)
+    private void AddLightingPasses(ShaderLibrary shaders)
     {
         Graph.Add(
             FrameGraph.Stage.DirectLight,
@@ -1927,6 +1926,16 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 scatter: scatterImages
             )
         );
+    }
+
+    /// <summary>
+    /// Adds the passes from the direct and the ambient pass to the readback to the graph, each in its own stage, the exposure pass only under
+    /// <see cref="AutoExposure"/>, the bloom pass only with a <see cref="Bloom"/>, and the three SMAA passes when SMAA is
+    /// on.
+    /// </summary>
+    private void AddPassesAfterGeometry(ShaderLibrary shaders, RendererOptions options)
+    {
+        AddLightingPasses(shaders);
         Graph.Add(
             FrameGraph.Stage.Transparent,
             new TransparentPass(device: device, shaders: shaders, layouts: layouts, constants: ShadingConstants)

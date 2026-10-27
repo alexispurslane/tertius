@@ -197,61 +197,14 @@ public sealed class SkinScatterRenderTests
         try
         {
             (float[] without, float[] with) = WithoutAndWith(renderer, Head(renderer));
-            float[] scatter = renderer.ReadScatter();
-            float[] distances = renderer.ReadDistance();
-
-            // The field as the passes read it: D and the mask of the scatter image, and z of the distance target.
-            var light = new Double3[Width * Height];
-            var skin = new bool[Width * Height];
-            var depths = new double[Width * Height];
-            for (int y = 0; y < Height; y++)
-            for (int x = 0; x < Width; x++)
-            {
-                int pixel = y * Width + x;
-                light[pixel] = Rgb(scatter, pixel);
-                skin[pixel] = scatter[pixel * 4 + 3] > 0;
-                depths[pixel] = distances[pixel] * -Ray(new(x, y), Width, Height).Z;
-            }
-
-            var field = new ScatterField(
-                Width: Width,
-                Height: Height,
-                Light: light,
-                Skin: skin,
-                ViewDepth: depths,
-                TanHalfY: Math.Tan(Gpu.Fov / 2)
-            );
-            // The kernel as the GPU holds it: singles.
-            ScatterKernel kernel = new(
-                [
-                    .. SkinProfile
-                        .Human.Kernel(SeparableSubsurface.Default.TapsPerSide)
-                        .Taps.Select(tap => new ScatterTap(
-                            Offset: (float)tap.Offset,
-                            Weight: new((float)tap.Weight.X, (float)tap.Weight.Y, (float)tap.Weight.Z)
-                        )),
-                ]
-            );
-            // The row image stores half floats.
-            var rows = new Double3[Width * Height];
-            for (int pixel = 0; pixel < rows.Length; pixel++)
-                if (skin[pixel])
-                {
-                    Double3 sum = SkinScatter.Pass(
-                        field: field,
-                        source: light,
-                        x: pixel % Width,
-                        y: pixel / Width,
-                        axis: ScatterAxis.Rows,
-                        kernel: kernel
-                    );
-                    rows[pixel] = new((double)(Half)sum.X, (double)(Half)sum.Y, (double)(Half)sum.Z);
-                }
+            ScatterField field = FieldOf(renderer);
+            ScatterKernel kernel = KernelAsTheGpuHoldsIt();
+            Double3[] rows = RowsOf(field, kernel);
 
             int skinPixels = 0;
             for (int pixel = 0; pixel < rows.Length; pixel++)
             {
-                if (!skin[pixel])
+                if (!field.Skin[pixel])
                     continue;
                 skinPixels++;
                 Double3 scattered = SkinScatter.Pass(
@@ -263,11 +216,11 @@ public sealed class SkinScatterRenderTests
                     kernel: kernel
                 );
                 Double3 before = Rgb(without, pixel);
-                Double3 expected = before + scattered - light[pixel];
-                double largest = Math.Max(before.X, light[pixel].X);
+                Double3 light = field.Light[pixel];
+                double largest = Math.Max(before.X, light.X);
                 ShouldBeNear(
                     actual: Rgb(with, pixel),
-                    expected: expected,
+                    expected: before + scattered - light,
                     tolerance: HalfRounding * largest + 1e-5,
                     because: $"pixel {pixel % Width}, {pixel / Width}"
                 );
@@ -279,6 +232,67 @@ public sealed class SkinScatterRenderTests
         {
             Gpu.DisposeAndAssertClean(renderer);
         }
+    }
+
+    /// <summary>The field as the passes read it: D and the mask of the scatter image, and z of the distance target.</summary>
+    private static ScatterField FieldOf(VulkanRenderer renderer)
+    {
+        float[] scatter = renderer.ReadScatter();
+        float[] distances = renderer.ReadDistance();
+        var light = new Double3[Width * Height];
+        var skin = new bool[Width * Height];
+        var depths = new double[Width * Height];
+        for (int y = 0; y < Height; y++)
+        for (int x = 0; x < Width; x++)
+        {
+            int pixel = y * Width + x;
+            light[pixel] = Rgb(scatter, pixel);
+            skin[pixel] = scatter[pixel * 4 + 3] > 0;
+            depths[pixel] = distances[pixel] * -Ray(new(x, y), Width, Height).Z;
+        }
+
+        return new ScatterField(
+            Width: Width,
+            Height: Height,
+            Light: light,
+            Skin: skin,
+            ViewDepth: depths,
+            TanHalfY: Math.Tan(Gpu.Fov / 2)
+        );
+    }
+
+    /// <summary>The default kernel as the GPU holds it: singles.</summary>
+    private static ScatterKernel KernelAsTheGpuHoldsIt() =>
+        new(
+            [
+                .. SkinProfile
+                    .Human.Kernel(SeparableSubsurface.Default.TapsPerSide)
+                    .Taps.Select(tap => new ScatterTap(
+                        Offset: (float)tap.Offset,
+                        Weight: new((float)tap.Weight.X, (float)tap.Weight.Y, (float)tap.Weight.Z)
+                    )),
+            ]
+        );
+
+    /// <summary>The row image of the C# copy at each skin pixel, rounded to half floats as the GPU stores it.</summary>
+    private static Double3[] RowsOf(ScatterField field, ScatterKernel kernel)
+    {
+        var rows = new Double3[Width * Height];
+        for (int pixel = 0; pixel < rows.Length; pixel++)
+            if (field.Skin[pixel])
+            {
+                Double3 sum = SkinScatter.Pass(
+                    field: field,
+                    source: field.Light,
+                    x: pixel % Width,
+                    y: pixel / Width,
+                    axis: ScatterAxis.Rows,
+                    kernel: kernel
+                );
+                rows[pixel] = new((double)(Half)sum.X, (double)(Half)sum.Y, (double)(Half)sum.Z);
+            }
+
+        return rows;
     }
 
     [Fact]

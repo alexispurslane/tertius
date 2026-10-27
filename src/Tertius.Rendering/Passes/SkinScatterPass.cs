@@ -56,19 +56,7 @@ internal sealed unsafe class SkinScatterPass : RenderPass
         DeclareUses(context);
         context.Barriers.Flush(vk, commandBuffer);
 
-        vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Compute, pipeline);
-        context.BindSceneSets(PipelineBindPoint.Compute, layouts.ScatterLayout);
-        DescriptorSet set = images.Set;
-        vk.CmdBindDescriptorSets(
-            commandBuffer: commandBuffer,
-            pipelineBindPoint: PipelineBindPoint.Compute,
-            layout: layouts.ScatterLayout,
-            firstSet: 3,
-            descriptorSetCount: 1,
-            pDescriptorSets: &set,
-            dynamicOffsetCount: 0,
-            pDynamicOffsets: null
-        );
+        context.BindComputePass(pipeline: pipeline, layout: layouts.ScatterLayout, passSet: images.Set);
         Extent2D extent = context.Targets.Extent;
         vk.CmdDispatch(
             commandBuffer: commandBuffer,
