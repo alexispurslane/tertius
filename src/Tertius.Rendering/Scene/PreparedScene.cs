@@ -152,8 +152,8 @@ internal readonly record struct PuffSprites(int First, int Count);
 internal readonly partial struct TransparentRun;
 
 /// <summary>
-/// Everything the CPU prepares for one frame: camera, visible instances, the sorted GPU instance array, indirect
-/// commands per depth range and per shadow cascade, lights, casters, occluders and the frame constants. Arrays are
+/// Everything the CPU prepares for one frame: camera, the placed instances, visible instances, the sorted GPU instance
+/// array, indirect commands per depth range and per shadow cascade, lights, occluders and the frame constants. Arrays are
 /// reused from frame to frame.
 /// </summary>
 internal sealed class PreparedScene
@@ -417,7 +417,9 @@ internal sealed class PreparedScene
     {
         if (PlacedCount == Placed.Length)
             Array.Resize(ref Placed, Placed.Length * 2);
-        return ref Placed[PlacedCount++];
+        ref PreparedInstance slot = ref Placed[PlacedCount++];
+        slot = default;
+        return ref slot;
     }
 
     /// <summary>Appends a tile view of the frame.</summary>
@@ -500,7 +502,7 @@ internal sealed class PreparedScene
 }
 
 /// <summary>
-/// Edits the visible instances after interpolation, culling, casters, lights and occluders, and before batching, on the render
+/// Edits the visible instances after placement, culling, lights and occluders, and before batching, on the render
 /// thread. <see cref="ImpostorManager"/> is one: it takes the objects it draws as impostors out of
 /// <see cref="PreparedScene.Visible"/> and queues atlas captures, which <see cref="ImpostorPass"/> renders in
 /// <see cref="FrameGraph.Stage.ImpostorCaptures"/> before the G-buffer pass. Register processors with

@@ -448,7 +448,7 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
     {
         if (!faces.ContainsAnyExcept(FaceMask.None))
             return;
-        Span<PreparedInstance> instances = scene.Placed.AsSpan(0, scene.PlacedCount);
+        ReadOnlySpan<PreparedInstance> instances = scene.PlacedSpan;
         for (int map = 0; map < faces.Length; map++)
         for (int layer = 0; layer < CubeFaces.Count; layer++)
         {
@@ -468,7 +468,7 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
     /// <summary>Prepares the view of one face of map <paramref name="map"/>, whose axes are <paramref name="basis"/>.</summary>
     private void BatchFace(
         ReadOnlySpan<MeshInfo> meshes,
-        Span<PreparedInstance> instances,
+        ReadOnlySpan<PreparedInstance> instances,
         int map,
         CubeFace face,
         FaceBasis basis,
@@ -478,7 +478,7 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
         int opaqueCount = 0;
         for (int i = 0; i < instances.Length; i++)
         {
-            ref PreparedInstance instance = ref instances[i];
+            ref readonly PreparedInstance instance = ref instances[i];
             if (
                 !DrawsInMaps(instance)
                 || !EnvironmentChain.Draws(map: map, objectMap: instance.Map)
@@ -685,7 +685,7 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
                 AppendInstanceCommand(
                     scene: scene,
                     meshes: meshes,
-                    instance: ref scene.Visible[item.Index],
+                    instance: in scene.Visible[item.Index],
                     currentMesh: ref currentMesh
                 );
         }
@@ -711,7 +711,7 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
     private static void AppendInstanceCommand(
         PreparedScene scene,
         ReadOnlySpan<MeshInfo> meshes,
-        ref PreparedInstance instance,
+        in PreparedInstance instance,
         ref int currentMesh
     )
     {
@@ -752,7 +752,7 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
     private static void Emit(
         PreparedScene scene,
         ReadOnlySpan<MeshInfo> meshes,
-        Span<PreparedInstance> instances,
+        ReadOnlySpan<PreparedInstance> instances,
         ReadOnlySpan<DrawItem> items,
         CommandRange[] ranges
     )
@@ -762,7 +762,7 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
             rangeStart = scene.CommandCount;
         foreach (DrawItem item in items)
         {
-            ref PreparedInstance instance = ref instances[item.Index];
+            ref readonly PreparedInstance instance = ref instances[item.Index];
             int range = (int)(item.Key >> 32);
             if (range != currentRange)
             {
@@ -773,7 +773,7 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
                 rangeStart = scene.CommandCount;
             }
 
-            AppendInstanceCommand(scene: scene, meshes: meshes, instance: ref instance, currentMesh: ref currentMesh);
+            AppendInstanceCommand(scene: scene, meshes: meshes, instance: in instance, currentMesh: ref currentMesh);
         }
 
         if (currentRange >= 0)

@@ -1177,7 +1177,7 @@ Every command and every view reads the frame's meshes, `PreparedScene.Meshes`: t
 
 #### One placement per instance
 
-The batcher places each instance that some view may draw exactly once per frame, by one interpolation by alpha, whichever view draws it (`SceneBatcher.PlaceInstances`, ticket ter-7yit). An instance may be drawn when it is `Visible` or `CastsShadow`, has a frame mesh on the GPU and a volume, and its sphere lies within `ShaderInput.PositionLimit` of the eye. Its placement is a `PreparedInstance`: the lerped place relative to the interpolated eye, the slerped rotation, the scale, the bounding radius of its frame mesh, its distance from the eye, its frame mesh, its resolved material, its map and its flags. The placements live in one store, `PreparedScene.Placed`, in the snapshot's order, and every view reads that store:
+The batcher places each instance that some view may draw exactly once per frame, by one interpolation by alpha, whichever view draws it (`SceneBatcher.PlaceInstances`, ticket ter-7yit). An instance may be drawn when it is `Visible` or `CastsShadow`, has a frame mesh on the GPU and a volume, and its sphere lies within `ShaderInput.PositionLimit` of the eye. Its placement is a `PreparedInstance`: the lerped place relative to the interpolated eye, the slerped rotation, the scale, its bounding radius (the render row's `RenderInstance.BoundingRadius` when it is set, else its frame mesh's radius times its largest scale factor), its distance from the eye, its frame mesh, its resolved material, its map and its flags. The placements live in one store, `PreparedScene.Placed`, in the snapshot's order, and every view reads that store:
 
 | View | Which placements it draws |
 |---|---|
@@ -1280,6 +1280,8 @@ After the merge with the environment map's prefilter profile, whose batcher inte
 | Four maps, 24 faces | 4.219 ms | 4.232 ms | 4.659 ms |
 
 So the shared interpolation and the counting sort save about 0.23 to 0.30 ms with one face, 0.32 to 0.34 ms with six and 0.83 to 0.84 ms with 24 faces, posed or not, and 0.03 to 0.04 ms with the map off, within the load's noise. The cost of posing stays as it was.
+
+Since then, one placement per instance (see "One placement per instance") lowered these medians again, to 954 µs, 964 µs and 1,357 µs with the map off, 1,493 µs, 1,503 µs and 1,890 µs with one face, and 4,053 µs, 4,073 µs and 4,508 µs with four maps and 24 faces, for 0, 1 and 100 posed. The table of every case is under the environment map's "Cost". The cost of posing stays about 400 µs for 100.
 
 A posed instance of 53 joints costs the batch about 4 µs, posing and drawing together: 0.41 ms for 100, which the plan estimated at 0.3 ms. The calls allocate nothing. Each deformed instance is its own frame mesh, so it takes an indirect command of its own in each view that draws it: 100 posed instances add 100 commands to the main view.
 
