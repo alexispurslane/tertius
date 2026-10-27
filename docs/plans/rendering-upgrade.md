@@ -30,7 +30,7 @@ Bring the renderer to its intended look in one epic: a PBR BRDF, an HDR pipeline
 
 - PBR comes first. The look and the tuning of every other feature depend on the BRDF. SSR weights its reflections by the Fresnel term and blurs them by the roughness. SSAO and SSGI scale the diffuse and ambient light. Exposure, the tone curve and bloom are tuned against the radiance that the BRDF sends.
 - The lights epic waits for exposure, the tone curve and bloom. Its move to SI units needs exposure and pre-exposed HDR values. The user also wants the HDR pipeline in place before the lights change.
-- SSGI waits for SSAO, as before. It also waits for SSR, because its far rays use SSR's depth pyramid and trace (user, 2026-10-25).
+- SSGI waits for SSAO, as before. It also waits for SSR, because its far rays use SSR's depth pyramid and trace (user, 2026-10-25). On 2026-10-26 the user removed the far rays (screen-space-illumination.md, decision 40).
 - The performance coda (`ter-pq5y`) measures the frame that the whole epic makes, so its last part comes after every other member (user, 2026-10-25). Each feature's own profile starts as soon as that feature merges.
 - The atmosphere color comes last, after every other member. The user decided this on 2026-10-25. It waits for the environment map, which captures the sky and so carries the atmosphere's color into the ambient light.
 - The environment map replaces the per-frame sky and ground colors (user, 2026-10-25). It holds the whole scene seen from the camera, so the ambient light comes from what really surrounds the camera, indoors and outdoors.

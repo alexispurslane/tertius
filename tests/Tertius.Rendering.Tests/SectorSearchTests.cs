@@ -218,7 +218,12 @@ public sealed class SectorSearchTests
             lobe: lobe
         );
 
-        estimate.Should().Be(AmbientEstimate.Open, "no far ray continues an open sector past the radius");
+        estimate
+            .Should()
+            .Be(
+                AmbientEstimate.Open,
+                "only a step within the radius blocks, so the wall beyond it leaves every sector open"
+            );
         occluded.Diffuse.Should().Be(source.Diffuse, "an open sector takes the ambient source's light, not the wall's");
     }
 
@@ -255,7 +260,7 @@ public sealed class SectorSearchTests
         AmbientEstimate
             .OfSlices([near])
             .Should()
-            .Be(AmbientEstimate.Open, "with no step and no far ray, the whole hemisphere takes the ambient light");
+            .Be(AmbientEstimate.Open, "with no step, the whole hemisphere takes the ambient light");
     }
 
     [Fact]

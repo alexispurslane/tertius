@@ -213,7 +213,7 @@ public sealed class AmbientOcclusionRenderTests(ITestOutputHelper output)
             .Should()
             .BeLessThanOrEqualTo(
                 1,
-                "with no near step and no far ray, the texel takes the ambient light, to within a half float's step"
+                "with no near step, the texel takes the ambient light, to within a half float's step"
             );
     }
 

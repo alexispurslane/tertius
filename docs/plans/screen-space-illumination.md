@@ -2,11 +2,13 @@
 
 Ticket: `ter-a24f`, a member of the rendering upgrade epic (`ter-sglu`, [rendering-upgrade.md](rendering-upgrade.md)). The design ticket is `ter-zi4i`. The user chose the design on 2026-10-25 in two steps, which the ticket's last two notes record. First: one estimate of the light around each point, gathered in the crease shadowing's slices with masks of sectors, from this frame's direct light, with a blur and nothing carried over between frames. Then, the same day: "near and far". The same estimate continues beyond the crease radius with rays through the reflections' depth pyramid, only in the directions that the near sectors leave open. This doc fills in the details. Its three open points are settled, see "Settled forks".
 
+On 2026-10-26 the user downscoped the bounce light to the near range (decision 40, `ter-ehxp`). The far rays went, and beyond the crease radius an open sector takes the ambient light. The doc describes the near-only design. "Later" holds the far rays and the commits that built them.
+
 The doc is written against main at `bcaf139e`, which holds the crease shadowing ([ambient-occlusion.md](ambient-occlusion.md), `ter-b3h5`), and against five designs on their branches:
 
 | Design | Branch | What this doc takes from it |
 |---|---|---|
-| Screen-space reflections, [screen-space-reflections.md](screen-space-reflections.md) (`ter-jxv9`) | `ter-jxv9-ssr` | The depth pyramid, the trace `traceRay` and its C# copy `ScreenRay`, the edge fade, the thickness share κ, the compute stage on the frame set and the G-buffer set, `surfaceAt` and `ambientTerms` |
+| Screen-space reflections, [screen-space-reflections.md](screen-space-reflections.md) (`ter-jxv9`) | `ter-jxv9-ssr` | The thickness share κ, the compute stage on the frame set and the G-buffer set, `surfaceAt` and `ambientTerms`. The far rays also took the depth pyramid, the trace `traceRay`, its C# copy `ScreenRay` and the edge fade, until decision 40 |
 | The environment map, [environment-map.md](environment-map.md) (`ter-nl5u`) | `ter-nl5u-environment-map` | The ambient source `environmentAmbient`, the reflected stars' footprint from fragment derivatives, `directLight` and `directRadiance` |
 | The lights, [local-light-shadows.md](local-light-shadows.md) (`ter-s9cv`) | `ter-s9cv-light-shadows` | One loop over the light list in `directLight`, G-buffer set binding 8 for the shadow atlas |
 | The shader audit, ARCHITECTURE.md, "Portable Vulkan" (`ter-lozc`) | `ter-lozc-portable-nan` | `MaxRadiance` = 32,256, the surfaces' share of the HDR image's range, and `exposed`, which caps before it multiplies |
@@ -16,9 +18,9 @@ The doc is written against main at `bcaf139e`, which holds the crease shadowing 
 
 Today a surface gets light only straight from the sun, from local lights and from the ambient source. The crease shadowing darkens the ambient light where nearby geometry hides it, but nothing takes the place of the light that it removes. A sunlit floor does not light the underside of a table, and a red wall does not tint the floor beside it red. After this ticket:
 
-- Each direction around a surface point is one of three: blocked nearby, blocked far away, or open to the sky. A blocked direction brings the light of the surface that blocks it. An open direction brings the ambient light. No direction counts twice, and none is lost.
-- Nearby, within the crease radius, the crease shadowing's slices find the blockers with masks of 32 sectors each (Therrien, Levesque and Gilet 2023). They give the sharp contact shadows and the bounce close up.
-- Beyond the crease radius, one ray per slice continues through the reflections' depth pyramid, in a direction that the near sectors leave open. It reaches as far as the screen shows. Off the screen, everything fades back to the ambient light.
+- Each direction around a surface point is one of two: blocked nearby, or open. A blocked direction brings the light of the surface that blocks it. An open direction brings the ambient light. No direction counts twice, and none is lost.
+- Within the crease radius, the crease shadowing's slices find the blockers with masks of 32 sectors each (Therrien, Levesque and Gilet 2023). They give the sharp contact shadows and the bounce close up.
+- Beyond the crease radius, an open sector takes the ambient light, as in the crease shadowing before this ticket (decision 40).
 - The light that bounces is this frame's direct light: the sun, the local lights and emission. One bounce, the same in every run.
 - The lighting pass splits into a direct pass and an ambient pass. The reflections read the image after the ambient pass, so they show the bounce.
 - A still scene gives the same image in every frame. Nothing carries over between frames.
@@ -29,16 +31,15 @@ Today a surface gets light only straight from the sun, from local lights and fro
 | Term | Meaning |
 |---|---|
 | Crease shadowing | The darkening of the ambient light where surfaces on the screen hide it: 1 − V. ARCHITECTURE.md calls it ambient occlusion. |
-| The bounce, G | The cosine-weighted mean radiance that reaches a surface point from the surfaces that block its hemisphere, near or far. The diffuse light that it adds is c_diff · G. The images hold it pre-exposed, `ShadingInput.bounce` holds it as plain radiance. |
-| The occlusion, V | The share of the cosine-weighted hemisphere above a surface point, around its shading normal, that no surface on the screen blocks, near or far. 1 means fully open. In [ambient-occlusion.md](ambient-occlusion.md) V counted only blockers within the radius. This doc keeps the name and widens the meaning. `ShadingInput.occlusion` holds it. |
+| The bounce, G | The cosine-weighted mean radiance that reaches a surface point from the surfaces that block its hemisphere within R. The diffuse light that it adds is c_diff · G. The images hold it pre-exposed, `ShadingInput.bounce` holds it as plain radiance. |
+| The occlusion, V | The share of the cosine-weighted hemisphere above a surface point, around its shading normal, that no surface on the screen blocks within R. 1 means fully open. As in [ambient-occlusion.md](ambient-occlusion.md), V counts only blockers within the radius (decision 40). `ShadingInput.occlusion` holds it. |
 | The estimate | The pair (G, V) of one half-resolution texel or one full-resolution pixel. |
 | The direct light | The light that a surface sends toward the eye from the sun, the point and spot lights and its emission, pre-exposed: no ambient light. |
 | The direct image | The full-resolution RGBA16F image of the direct light of each pixel, 0 for sky. The direct pass writes it. |
 | The direct pass | The fullscreen pass that writes the direct image. Today's lighting pass without the ambient light. |
 | The ambient pass | The fullscreen pass after the occlusion passes that writes the HDR image: the direct light plus the ambient light with the estimate applied. |
-| The radius, R | `VisibilityBitmaskLight.RadiusMeters`. The boundary between the near range and the far range. |
+| The radius, R | `VisibilityBitmaskLight.RadiusMeters`. Where the near range ends. Beyond it, an open sector takes the ambient light. |
 | The near range | The blockers whose surface point lies within R of the center: what the near steps find. |
-| The far range | The blockers that a far ray meets beyond R. |
 | Full resolution, half resolution, the representative pixel, view space, the view depth z, t_x, t_y, the texel width p(z), the radius in texels ρ, a slice, a step | As in [ambient-occlusion.md](ambient-occlusion.md), "Terms". Each half-resolution texel (i, j) stands for the 2 × 2 block of pixels from (2i, 2j), and its representative pixel is (2i, 2j). |
 | The center, c | The view position of a texel's representative pixel, moved toward the eye by XeGTAO's center bias. |
 | V̂ | The unit vector from the center toward the eye: `toEye` in `gtao.glsl`. |
@@ -53,16 +54,11 @@ Today a surface gets light only straight from the sun, from local lights and fro
 | A sector mask | 32 bits, one per sector of a slice: bit j is set when sector j is blocked nearby. |
 | The thickness share, κ | `ThicknessShare` = 0.1, SSR's constant: a surface at view depth z fills the depths from z to z (1 + κ) behind it, along its view ray. |
 | A slab | The depths that one visible surface point fills under κ: from the point to the point times (1 + κ), in view space with the eye at the origin. |
-| A blocker | A surface point that blocks some directions of the center: the surface of a near step or a far ray's hit. |
-| Faces the receiver | A blocker's geometric normal has a positive cosine with the direction back toward the point that it blocks: toward the center for a near step, back along the ray for a far ray's hit. |
-| A far ray | The ray of one slice beyond R, through the center of one open sector. It stands for every open sector of its slice. |
-| The open share of a slice, U | W · (open sectors) / 32 over the texel's total weight: the share of the texel's estimate that the slice's far ray decides. |
-| The edge fade, e | SSR's `edgeFade`: 0 on the screen's edges, 1 a tenth of the shorter side inside them. |
-| The depth pyramid, the trace, `ScreenRay` | SSR's min-max pyramid of inverse depth, its Hi-Z walk `traceRay` in `reflection.glsl`, and their C# copy (screen-space-reflections.md, "The method" and "The C# copy"). |
+| A blocker | A surface point that blocks some directions of the center: the surface of a near step. |
+| Faces the receiver | A blocker's geometric normal has a positive cosine with the direction from the blocker toward the center. |
 | The estimate target | The full-resolution RGBA16F image of the estimate: rgb the bounce, pre-exposed, and a the occlusion. It replaces the occlusion target. |
 | Terms A and B | The two half-resolution RGBA16F images of the estimate that the occlusion passes write in turn, rgb the bounce and a the occlusion. |
-| The sector masks buffer | The storage buffer of every texel's sector masks, one 32-bit word per slice: the near search writes it and the far rays read it. |
-| The occlusion passes | The compute passes "occlusion depth", "occlusion sectors", "occlusion far rays", "occlusion denoise" and "occlusion upsample", in that order. |
+| The occlusion passes | The compute passes "occlusion depth", "occlusion sectors", "occlusion denoise" and "occlusion upsample", in that order. |
 | The exposure scale, k | 2 to the power of the frame's exposure in stops. Pre-exposed light is radiance times k. |
 | `MaxRadiance`, c | 32,256 on the audit's branch, 65,504 before it: the most light that a surface writes into a pixel of the HDR image. |
 | The ambient source, T_d, T_s, D(n) | As in [environment-map.md](environment-map.md), "Terms": the function that gives `AmbientTerms`, its diffuse term c_diff · D(n) and its specular term. D(n) is the ambient diffuse radiance at the normal. |
@@ -73,41 +69,40 @@ Today a surface gets light only straight from the sun, from local lights and fro
 
 ### Made by the user
 
-1. One estimate of the light around each point, in two ranges. (User, 2026-10-25) Near: inside the crease radius R, the sector masks of the visibility bitmask (Therrien, Levesque and Gilet 2023) in the crease shadowing's slices. Far: beyond R, rays only in the directions that the near sectors leave open, through SSR's depth pyramid with SSR's trace. A far ray that hits gives the light of the hit point, from this frame's direct light. A far ray that leaves the screen or reaches the sky gives the ambient light. Each direction is exactly one of three, so nothing is counted twice or lost. The far rays reach as far as the screen shows, and off the screen everything fades back to the ambient light.
+1. One estimate of the light around each point, in two ranges. (User, 2026-10-25) Near: inside the crease radius R, the sector masks of the visibility bitmask (Therrien, Levesque and Gilet 2023) in the crease shadowing's slices. Far: beyond R, rays only in the directions that the near sectors leave open, through SSR's depth pyramid with SSR's trace. A far ray that hits gives the light of the hit point, from this frame's direct light. A far ray that leaves the screen or reaches the sky gives the ambient light. Each direction is exactly one of three, so nothing is counted twice or lost. The far rays reach as far as the screen shows, and off the screen everything fades back to the ambient light. Decision 40 replaces the far range: beyond R, an open sector takes the ambient light.
 2. This frame's direct light bounces, exactly one bounce, the same in every run. So the lighting pass splits into a direct pass (the sun, the local lights, emission) and an ambient pass, which runs after the occlusion passes and adds the ambient light, the crease shadowing and the bounce. (User)
 3. Blur only: the crease shadowing's fixed noise and edge-aware blur. Nothing carries over between frames. (User)
-4. The far range reuses SSR's depth pyramid, its trace and its C# copy `ScreenRay`, with no second tracer. So the build waits for `ter-jxv9`. (User)
+4. Replaced by decision 40, which has no far range and so no far tracer. The far range reused SSR's depth pyramid, its trace and its C# copy `ScreenRay`, with no second tracer. So the build waits for `ter-jxv9`. (User)
 5. The default radius is the orchestrator's pick from captures: "whatever feels most dramatic, but not overly so". (User) "The default radius and steps" says how the captures pick it.
 6. Before decision 1, the user chose XeGTAO's tuned set over the physical constants for darker creases (fork 1 of [ambient-occlusion.md](ambient-occlusion.md)). Sector masks replace the horizon angles that the set works on. "XeGTAO's tuned set in sector masks" sorts its constants, and the user then chose none of them (fork 1). (User)
 7. The ticket's and the epic's rules: a `RendererOptions` switch, the cost measured at 1080p, deterministic in tests, GPU pixel tests of the acceptance criteria, no reference images. (User)
 8. The decisions of [ambient-occlusion.md](ambient-occlusion.md) stay where this doc does not change them: half resolution (its decision 2), compute passes (3), XeGTAO as the reference (4), the estimate scales only the ambient light (5), the distance target and the G-buffer normals as the inputs (6), fixed spatial noise (7), no multi-bounce brightening (8), a union switch (9), one place in `lighting.glsl` where the estimate applies (14). (User and orchestrator)
+
+The user downscoped the design after the cost and the captures of `ter-izsu`:
+
+40. The bounce light keeps only the near range. (User, 2026-10-26: "Let's just downscope bounce light to just the local stuff.") It replaces decision 1's far range and decision 4. The far rays through the depth pyramid go, with fork 2 and the option B of `ter-izsu`. Within R, the sector masks work as decision 1 says. Beyond R, an open sector takes the ambient light, as the crease shadowing's open directions did before Part 5. Where the near range holds no step (decision 21), the estimate is fully open, (0, 1). So each direction is one of two, blocked nearby or open, and the shares still sum to 1. The user also said: "I'm perfectly fine to have it be the whole hemisphere along the normal for now". So the open share takes the ambient source's mean light over the hemisphere around the normal (decision 31), until `ter-fs7b` reads the environment map in each open direction. The user decided after two results of `ter-izsu`: the far rays took 6.2 ms of the 9.1 ms of the occlusion passes at 1080p, 2.6 ms at a third of the rays, and they left a white speckle in the lamp-lit cabin. "Later" keeps the far rays.
 
 ### Settled by this design
 
 Each by the user's decisions and the project's rules, with its reason.
 
 9. The sector masks replace GTAO's horizons. They are not a second case of the setting. The pure model first: a horizon is the mask at infinite thickness (see "At infinite thickness: GTAO's horizons"), so one method covers both. A second case is a second estimate with another meaning of V. It is also an estimate without a bounce, which loses the light of every blocked direction, against decision 1.
-10. The setting is one union, `ScreenSpaceLightSetting`: `NoScreenSpaceLight`, its zero case, or `VisibilityBitmaskLight(RadiusMeters, Slices, StepsPerSide, FarSteps)`. It replaces `AmbientOcclusionSetting`, because the old name no longer says what the feature does. It has no case with the crease shadowing and no bounce, by decision 9.
-11. A slice has 32 sectors, and each is an equal share of the slice's cosine-weighted arc around the projected normal. The paper's sectors are equal in angle and weight each sample's light by the receiver's cosine. Equal shares put that cosine into the sectors themselves. So the count of blocked bits is the blocked share. Also, a uniform pick among the open sectors is then a cosine-weighted pick, which the far ray needs. 32 is the paper's count and one 32-bit word, the width of Vulkan's core bit instructions.
+10. The setting is one union, `ScreenSpaceLightSetting`: `NoScreenSpaceLight`, its zero case, or `VisibilityBitmaskLight(RadiusMeters, Slices, StepsPerSide)`. It replaces `AmbientOcclusionSetting`, because the old name no longer says what the feature does. It has no case with the crease shadowing and no bounce, by decision 9.
+11. A slice has 32 sectors, and each is an equal share of the slice's cosine-weighted arc around the projected normal. The paper's sectors are equal in angle and weight each sample's light by the receiver's cosine. Equal shares put that cosine into the sectors themselves. So the count of blocked bits is the blocked share. 32 is the paper's count and one 32-bit word, the width of Vulkan's core bit instructions.
 12. A step blocks the sectors whose centers lie between the directions to its surface point and to the back of its slab: from floor(32 m + ½) to floor(32 m' + ½) − 1. The paper's listing marks every sector that the interval touches (floor at one end, ceiling at the other), which adds about one sector per step and side and darkens. Its text marks a sector that is half covered. The center rule counts neither more nor less on average. `floor(x + 0.5)` replaces `round`, whose ties GLSL leaves to the driver.
-13. The thickness is SSR's: a surface at view depth z fills z to z (1 + κ), κ = 0.1. One model of what is solid serves both ranges, so a direction that the near steps call blocked is one that the trace also calls blocked. The paper uses a constant length t. SSR's share grows with the distance (SSR's decision 7, the user's). `ThicknessShare` moves from `ScreenRay` and `reflection.glsl` to `CellBounds` and `depth_pyramid.glsl`, because it says what the depth image means, and both ranges read it.
+13. The thickness is SSR's: a surface at view depth z fills z to z (1 + κ), κ = 0.1. One model of what is solid serves the near steps and SSR's trace, so a surface is as thick for the bounce as for a reflection. The paper uses a constant length t. SSR's share grows with the distance (SSR's decision 7, the user's). `ThicknessShare` moves from `ScreenRay` and `reflection.glsl` to `CellBounds` and `depth_pyramid.glsl`, because it says what the depth image means, and both the near steps and the trace read it.
 14. A step blocks only when its surface point lies within R of the center, GTAO's hard edge. So the masks reduce to GTAO's horizons at infinite thickness.
 15. A blocker gives its direct light, read from the direct image at its own pixel, when it faces the receiver, and no light otherwise. A blocker that faces away shows the receiver its back, whose light no pixel holds. The light is not weighted by the blocker's cosine, as the paper weights it. A Lambert blocker sends the same radiance in every direction, and the sector's share already holds the blocker's solid angle and the receiver's cosine. The paper's factor dims a wall that the point sees at a grazing angle a second time.
 16. The light that a blocker sends toward the eye stands for the light that it sends toward the receiver. That is exact for its diffuse part. For a glossy blocker, the highlight that the eye sees bounces, and the one toward the receiver does not. The exact light needs every light evaluated again toward the receiver at every step, the cost of the direct pass once per step.
 17. The estimate of a texel is normalized by its total slice weight, ΣW, so the open, the near and the far shares sum to exactly 1 in every texel. GTAO divides by the number of slices, so an open surface comes to 1 only in the mean over slices, and its upsample clamps the excess. A texel whose total weight is below 10⁻⁶ holds no information and takes the open estimate, (0, 0, 0, 1). That needs one slice with a normal at right angles to its plane.
-18. Each slice has one far ray (fork 2), through the center of one open sector, which the fixed noise picks: the next value of the R1 sequence that shifts the slice's steps. Its outcome stands for every open sector of its slice.
-19. A far ray starts at R from the center along its direction, moved off the surface by SSR's origin offset, and SSR's trace finds the first slab beyond the start. So the far range begins where the near range ends. A direction that the near steps block runs no ray, so no direction counts twice. A blocker beyond R is the far ray's, so none is lost to the boundary. "The far ray of a slice" names the one case that falls between.
-20. The outcome of a far ray, one case per way that SSR's trace ends:
-    - A hit: the slice's open share is blocked by the edge fade e at the hit, with the hit's direct light if the hit faces back along the ray. The rest, 1 − e, stays open. A hit is a blocker, as a near step is.
-    - The image leaves the screen, reaches the near plane or its vanishing point, or runs out of steps: open.
-    - The ray points into its own geometric surface: blocked, with no light. Only a normal map tilts the shading hemisphere below the geometric surface, and that surface itself blocks the ray. The near search blocks the sectors below that surface first (decision 39), so a ray through an open sector's center meets it only by the rounding of the center angle.
-    - The start lies at or behind the near plane: open. The ray leaves the view through the near plane before it reaches R.
-    SSR's entry share q, which fades a reflection that enters a slab from behind, is not used: a ray that meets a slab is blocked, and the facing test says whether its light reaches the receiver.
-21. The far rays run at half resolution, in the texels and slices of the near masks, because they continue the near estimate's directions. They run at every distance, so GTAO's fade below one pixel goes: where R spans at most the nearest step, 1.3 texels, the near range holds no step, and the far rays give the whole estimate. A fade toward full visibility drops the far blockers, against decision 1. GTAO's decision 6 still holds for the near range, which "fades out where it covers less than a pixel" by holding no step.
-22. The near search and the far rays are two passes, "occlusion sectors" and "occlusion far rays". The GPU timers then report each, as GTAO's decision 28 wants, and the near loop does not carry the trace's registers. The sector masks buffer passes the masks from one to the other: 6.2 MB at 1080p and 3 slices.
-23. The occlusion passes take the layout of SSR's compute passes: sets 0 to 2 of `SceneLayout` and their own set 3. The far ray pass includes `gtao.glsl` for the slices and SSR's `reflection.glsl` for the trace, so both must see the same sets. The camera then has one store, the frame constants, and the push constants keep only the setting. GTAO's decision 29 put the camera in push constants because the frame set had no compute stage. SSR adds it.
+18. Replaced by decision 40. It gave each slice one far ray (fork 2), through the center of one open sector that the fixed noise picked, whose outcome stood for every open sector of its slice.
+19. Replaced by decision 40. It started a far ray at R from the center along its direction, so the far range began where the near range ended.
+20. Replaced by decision 40. It gave the outcome of a far ray for each way that SSR's trace ends: a hit blocked the slice's open share by the edge fade at the hit, a ray into its own geometric surface blocked it with no light, and every other end left it open.
+21. The estimate runs at half resolution, in the texels and slices of the crease shadowing. GTAO's fade below one pixel goes: where R spans at most the nearest step, 1.3 texels, the near range holds no step, and the texel takes the open estimate (0, 1) (decision 40). GTAO's decision 6 still holds, and the near range "fades out where it covers less than a pixel" by holding no step. A fade toward full visibility ends at the same estimate, so the step to it needs no fade of its own. Before decision 40, the far rays gave the whole estimate there.
+22. Replaced by decision 40. It split the near search and the far rays into two passes, "occlusion sectors" and "occlusion far rays", with a buffer of sector masks between them. The near search is the sectors pass alone, and no buffer of masks exists.
+23. The occlusion passes take the layout of SSR's compute passes: sets 0 to 2 of `SceneLayout` and their own set 3. The camera then has one store, the frame constants, and the push constants keep only the setting. GTAO's decision 29 put the camera in push constants because the frame set had no compute stage. SSR adds it.
 24. The direct pass writes its own image, the direct image, and the ambient pass, a fragment pass, reads it and writes the HDR image once: min(direct + ambient, c). Three reasons. The environment map's reflected stars take their footprint from fragment derivatives (its decision 33), which a compute pass lacks. A blend cannot cap the sum, because a fragment shader cannot read the color attachment that it blends into. And the HDR image needs no storage usage, so SSR's decision 30 stays. It costs 16.6 MB at 1080p. (Merge of main, 2026-10-26: the map as merged takes a G-buffer pixel's footprint from the G-buffer, `reflectionFootprintAt` in `surfaceAt`, not from derivatives, so the first reason no longer binds. The other two stand.)
-25. A near step reads the direct light and the geometric normal of its representative pixel 2t from the full-resolution direct image and normals target, and a far ray reads them at its hit pixel. No half-resolution copy. One store of the direct light, and each step reads the light of the very pixel whose depth it used. If the cost shows the sectors pass bound by these reads, a copy beside the view depth image, written by the depth pass, is the measured fix (see "Cost"). (`ter-izsu`, 2026-10-26: the profile showed the sectors pass near the worst case of these reads, so the fix is in. The depth pass copies the direct light and the geometric normal of pixel 2t into two half-resolution images, which it rewrites in every frame from the direct pass's image of that frame, so the copy is a derived read of the one store and never disagrees with it. A step reads the copies at its texel t. A far ray still reads its hit's pixel in the full-resolution images. The image is the same bytes.)
+25. A near step reads the direct light and the geometric normal of its representative pixel 2t from the full-resolution direct image and normals target. No half-resolution copy. One store of the direct light, and each step reads the light of the very pixel whose depth it used. If the cost shows the sectors pass bound by these reads, a copy beside the view depth image, written by the depth pass, is the measured fix (see "Cost"). (`ter-izsu`, 2026-10-26: the profile showed the sectors pass near the worst case of these reads, so the fix is in. The depth pass copies the direct light and the geometric normal of pixel 2t into two half-resolution images, which it rewrites in every frame from the direct pass's image of that frame, so the copy is a derived read of the one store and never disagrees with it. A step reads the copies at its texel t. The image is the same bytes.)
 26. The estimate target replaces the occlusion target: one RGBA16F image at full size, rgb the bounce and a the occlusion, because one estimate makes both. It is cleared to (0, 0, 0, 1) in the first frame after each creation, as the occlusion target was cleared to 1.
 27. The images hold the bounce pre-exposed, and `ShadingInput.bounce` holds it as plain radiance: the reader divides by k. Pre-exposed, the bounce is a weighted mean of direct pixels, at most c, so it fits a half float. Plain radiance passes 65,504 in a sunlit scene in SI units at a low exposure.
 28. The bounce enters the ambient light in `occludedAmbient`, the one place where the estimate applies. The diffuse term becomes T_d · V + c_diff · G. The specular term becomes T_s · V_s, with V_s from V by Lagarde's fit as before. The bounce is diffuse light only. Light that the screen reflects is SSR's.
@@ -115,39 +110,34 @@ Each by the user's decisions and the project's rules, with its reason.
 30. Exactly one bounce: the direct image holds no ambient light, so no ambient light bounces. One exception: an impostor billboard's pixel holds its captured light, which includes the capture's ambient light, and that light bounces. Impostors are smaller than 200 px, so the extra is small, and no capture holds a direct part apart.
 31. An open direction takes the ambient source's mean light, T_d · V, as GTAO's decision 14 has it. The paper's ambient light per open cone needs the source along each open direction, and the hemisphere source has no up at the estimate's texels. "Known limits" names what this costs with the environment map on.
 32. The direct and ambient passes run in both cases of the setting (fork 3). With `NoScreenSpaceLight`, the estimate target holds (0, 0, 0, 1), and the ambient pass applies it exactly.
-33. The depth pyramid gets its own owner, `DepthPyramidImage`, made when the reflections or the bounce need it. SSR's design keeps it in `ReflectionTargets`, which exists only with reflections on. One store, with one condition for its existence: any reader.
-34. Masks are 32-bit words, read and written with `bitCount`, `bitfieldInsert` and `findLSB`. Vulkan allows its core bit instructions only on 32-bit integers, which these are. No shift by 32, which GLSL leaves undefined.
-35. The defaults: R 1 m and `StepsPerSide` 3 until the captures pick them, `Slices` 3, and `FarSteps` 64, SSR's default for `MaxSteps`.
-36. `FarSteps` is checked from 1 to 1,024, as SSR checks `MaxSteps`. A value of 0 is a case without a far range, against decision 1.
+33. Replaced by decision 40. It gave the depth pyramid its own owner for its two readers, the reflections and the far rays. With no far rays, the pyramid stays SSR's, in `ReflectionTargets`, which exists only with the reflections on.
+34. Masks are 32-bit words, read and written with `bitCount` and `bitfieldInsert`. Vulkan allows its core bit instructions only on 32-bit integers, which these are. No shift by 32, which GLSL leaves undefined.
+35. The defaults: R 1 m and `StepsPerSide` 3 until the captures pick them, and `Slices` 3.
+36. Replaced by decision 40. It checked `FarSteps` from 1 to 1,024, the most cells that one far ray examined.
 37. The headless host's `--screen-space-light off|<meters>` replaces `--ambient-occlusion off|<meters>`.
 38. No new device feature. The formats and the limits are in "Portable Vulkan".
-39. The receiver's own geometric surface blocks the sectors whose centers lie below it, with no light, before the near steps (review of Part 4). It is decision 20's rule for a far ray into its own surface, and decision 13's one model of what is solid, in the near range too. Only a normal map or a smooth-shaded mesh tilts the shading hemisphere below the geometric plane. Without the rule, the receiver's own steps, which lie in that plane, block those sectors, and the facing test of decision 15 gives them the surface's own direct light or none by the sign of a dot product of about 0, which rounding decides from pixel to pixel. A plane that holds the slice, whose normal projects to less than 10⁻⁶ in it, blocks nothing.
+39. The receiver's own geometric surface blocks the sectors whose centers lie below it, with no light, before the near steps (review of Part 4). It is decision 13's one model of what is solid: the receiver's own surface is solid below its plane. Only a normal map or a smooth-shaded mesh tilts the shading hemisphere below the geometric plane. Without the rule, the receiver's own steps, which lie in that plane, block those sectors, and the facing test of decision 15 gives them the surface's own direct light or none by the sign of a dot product of about 0, which rounding decides from pixel to pixel. A plane that holds the slice, whose normal projects to less than 10⁻⁶ in it, blocks nothing.
 
 ## Sources
 
 - Therrien, Levesque and Gilet 2023, "Screen Space Indirect Lighting with Visibility Bitmask", The Visual Computer (arXiv 2301.11376). A bit field of N = 32 sectors per slice replaces GTAO's two horizon angles, centered on the projected normal. Each sample's back point lies a thickness t behind it, and the sample marks the sectors between the angles of its front and its back. A sample's light counts for the sectors that it newly blocks, b_j & ~b_i, and the occlusion is 1 − countbits(b_i) / N. The paper states that GTAO without falloff equals an infinite t. It uses t = 0.2 at a radius of 2. Its times at 1080p on an RTX 2080: occlusion alone in 0.51 to 1.13 ms, against GTAO's 0.49 to 1.12 ms. Indirect light with 16 samples at half resolution takes 0.97 ms, with 0.1 ms of denoise. Its temporal accumulation and its feedback of the indirect light into the next frame's light buffer are left out by decisions 2 and 3.
 - Jimenez, Wu, Pesce and Jarabo 2016, "Practical Real-Time Strategies for Accurate Indirect Occlusion": GTAO, the slices and the cosine-weighted inner integral (equation 7), which gives the sectors' measure here.
 - Intel's XeGTAO (MIT), `src/Tertius.Rendering/ThirdParty/XeGTAO`: the port that `gtao.glsl` holds.
-- Uludag 2014 and McGuire and Mara 2014, through SSR's trace, which the far rays call as it is.
+- Uludag 2014 and McGuire and Mara 2014, through SSR's trace, which the far rays called as it is ("Later").
 - Lagarde and de Rousiers 2014: the specular occlusion V_s.
 
 ## The method
 
-### One estimate in two ranges
+### One estimate within the radius
 
 ```mermaid
 flowchart TD
     D["A direction around the center: one sector of one slice"] --> N{"Does a near step within R cover the sector's center with its slab?"}
     N -- yes --> NB["Blocked nearby: the step's direct light if it faces the center, else no light"]
-    N -- no --> F["The slice's far ray: from R, through one open sector"]
-    F --> S{"Into its own geometric surface?"}
-    S -- yes --> SB["Blocked, no light"]
-    S -- no --> T{"SSR's trace from the start"}
-    T -- "a hit on the screen" --> FB["Blocked far away by e: the hit's direct light if it faces back along the ray. Open by 1 − e"]
-    T -- "the screen's edge, the near plane, the vanishing point, or out of steps" --> O["Open: the ambient light"]
+    N -- no --> O["Open: the ambient light, whatever lies beyond R (decision 40)"]
 ```
 
-Every slice has 32 sectors. A near step blocks some of them, in the order of the steps, nearest first, so the nearest blocker of a direction owns it. The far ray of the slice decides its open sectors together. So every sector of every slice ends as exactly one of three: blocked nearby with a light, blocked far away with a light, or open. The diffuse ambient light of the point is
+Every slice has 32 sectors. A near step blocks some of them, in the order of the steps, nearest first, so the nearest blocker of a direction owns it. So every sector of every slice ends as exactly one of two: blocked nearby with a light, or open. The diffuse ambient light of the point is
 
 ```
 L_diffuse = c_diff · (V · D(n) + G)
@@ -188,7 +178,6 @@ where
 
 Sector j holds the directions with m(θ) from j / 32 to (j + 1) / 32. Each sector is 1/32 of the slice's arc, whatever its width in angle. The slice weight is W = \|n_p\| · T, GTAO's slice of an open surface, so each sector carries W / 32.
 
-The angle at the center of sector j is the inverse of m at (j + ½) / 32. m has no closed inverse, so `sectorCenterAngle` halves the interval [γ − π/2, γ + π/2] 12 times, to within π / 4,096. The far ray uses it, once per slice.
 
 ### A near step
 
@@ -240,71 +229,36 @@ Why the surface point lies between the depths around its exact place (`ter-y1s7`
 
 The receiver's own surface comes first, so a step gives no light to a direction below it. The two sides of a step index run in XeGTAO's order, plus side first. A step adds light only to the sectors that no nearer step has blocked, so the nearest blocker of each direction owns it. The back point lies on the step's own view ray, so it stays on the step's side of V̂. As z grows along that ray, the direction from c turns away from the eye, so the run reaches from the surface's angle toward the edge of the hemisphere on that side.
 
-### The far ray of a slice
-
-After the near steps, for each slice with at least one open sector:
-
-```
-open   = ~blocked                                count = bitCount(open), from 1 to 32
-η      = fract(ξ_y + (k + n²) · 0.6180339887498949)       the next value of the slice's R1 sequence
-j      = the open sector of rank min(floor(η · count), count − 1), from bit 0
-θ_j    = sectorCenterAngle(j)
-ω      = cos θ_j · V̂ + sin θ_j · ô                         unit, view space
-U      = W · count / (32 · ΣW)                              the slice's open share
-
-if dot(ω, n_g) ≤ 0:        the ray points into its own surface: blocked, no light
-start  = c + R · ω
-if start.z ≤ 0.05 m:       open: the ray leaves the view through the near plane before R
-origin = start + n_g · (2 · start.z · θ_px)                SSR's origin offset, two pixel footprints
-trace  = traceRay(depth pyramid, screenRayOf(origin, ω), FarSteps)
-hit at pixel h, position x:  V −= U · e(x)    G += U · e(x) · (dot(n_g(h), −ω) > 0 ? direct(h) : 0)
-no hit:                      open
-```
-
-where
-
-- `ξ_y` = the texel's step noise, `gtaoNoise(texel).y`. Step j of slice k takes index k + j · n in the R1 sequence, with n = `StepsPerSide`, so k + n² is the first index past the slice's steps.
-- `k` = the slice's index.
-- `n_g` = the view-space geometric normal of the representative pixel.
-- `θ_px` = the angle of one pixel, `frame.params.z`.
-- `screenRayOf`, `traceRay`, `edgeFade` = SSR's functions in `reflection.glsl`, called as they are, in the camera-relative world axes: the start, the origin and ω turn from view space into world axes by the frame's unit camera axes.
-- `FarSteps` = the most cells that the trace examines.
-- `e(x)` = SSR's edge fade at the hit's screen position.
-- `n_g(h)`, `direct(h)` = the geometric normal and the direct image at the hit pixel.
-
-The ray's outcome stands for all of the slice's open sectors, so the slice's three shares still sum to its weight. The sectors are equal shares of the cosine-weighted arc, so a uniform pick among the open sectors picks a direction by its cosine weight. The rank comes from a fixed function of the texel, so a still camera traces the same rays in every frame.
-
-The two ranges meet as follows. The near steps own every direction that they block, whatever the distance along it to the back of the slab. The far ray runs only in the other directions and starts at R, and SSR's trace finds every slab that the ray's image meets from the pixel after the start's pixel. One case falls between them: a slab whose surface point lies beyond R while its back reaches inside R, met by the ray before its start. That needs a surface nearer the eye than the sphere of radius R around the center, seen at the edge of that sphere, with its slab of κ z reaching back into the sphere. The trace then misses it, and the direction stays open. Sparse steps leave a second, larger gap inside R: a blocker between two steps (see "Known limits").
-
 ### The estimate of a texel
 
 ```
 ΣW = Σ over slices of W_k
-V  = (Σ_k W_k · bitCount(~blocked_k) / 32  −  Σ_k ΣW · U_k · b_k) / ΣW
-G  = (Σ_k W_k · light_k / 32  +  Σ_k ΣW · U_k · b_k · L_k) / ΣW
-ΣW < 10⁻⁶: (G, V) = (0, 1)
+V  = Σ_k W_k · bitCount(~blocked_k) / (32 · ΣW)
+G  = Σ_k W_k · light_k / (32 · ΣW)
+ΣW ≤ 10⁻⁶: (G, V) = (0, 1)
 ```
 
 where
 
-- `b_k` = the share of slice k's open share that its far ray blocks: e at a hit, 1 into its own surface, 0 otherwise.
-- `L_k` = the far ray's light: the hit's direct light when it faces back along the ray, else 0.
+- `W_k` = the weight of slice k.
+- `blocked_k` = the slice's sector mask after its near steps.
+- `light_k` = the slice's sum of newly blocked sectors times their light.
 
-The sectors pass writes the near estimate, the same sums without the far terms, and the far ray pass moves each slice's open share by its ray. Both normalize by ΣW, so V lies in [0, 1] and the shares sum to 1 in every texel. The far pass's subtraction can leave V a rounding below 0, which the upsample's clamp removes.
+The sectors pass writes this estimate into term A. It normalizes by ΣW, so V lies in [0, 1], and the open and the blocked shares sum to 1 in every texel. An open sector takes the ambient light whatever lies beyond R along it (decision 40). The two blurs and the upsample average V with non-negative weights that sum to 1, and the upsample's clamp removes the rounding of their sums.
 
 ### At infinite thickness: GTAO's horizons
 
-As κ grows without bound, each step's back point moves away from the eye along its view ray, and the direction from c to it tends to that view ray's own direction, at θ = σ (π − α), where α is the angle at the eye between the center's view ray and the step's. That direction lies at or past the edge of the hemisphere on the step's side, γ + σ π/2, when α ≤ π/2 − σ γ. Within the domain α ≤ π/2 − |γ|, each step's run then reaches from its surface's angle to the edge. Outside it, a grazing normal near the eye, the runs stop short of the edge, and the masks block fewer sectors than GTAO's horizons: the slab lies along the step's view ray (decision 13), not along the direction from c. The union of the runs of one side's steps is the run from the angle of that side's step nearest to V̂, GTAO's horizon h, to the edge. So the open sectors are those between h₀ and h₁, and their count over 32 is (sliceArc(h₀, γ) + sliceArc(h₁, γ)) / T to within one sector, by the center rule. The slice's open weight W · count / 32 is then \|n_p\| · â, GTAO's slice, to within W / 32. With no far blocker and no bounce, V is GTAO's sum of slices over ΣW, where GTAO divides by the number of slices: the same in the mean for an open surface, where ΣW / S comes to 1. `SectorSearchTests.AtInfiniteThicknessTheOpenSectorsAreTheSectorsBetweenTheHorizons` pins this within the domain: its center lies 2 m from the eye, so its steps keep α below 0.47 rad.
+As κ grows without bound, each step's back point moves away from the eye along its view ray, and the direction from c to it tends to that view ray's own direction, at θ = σ (π − α), where α is the angle at the eye between the center's view ray and the step's. That direction lies at or past the edge of the hemisphere on the step's side, γ + σ π/2, when α ≤ π/2 − σ γ. Within the domain α ≤ π/2 − |γ|, each step's run then reaches from its surface's angle to the edge. Outside it, a grazing normal near the eye, the runs stop short of the edge, and the masks block fewer sectors than GTAO's horizons: the slab lies along the step's view ray (decision 13), not along the direction from c. The union of the runs of one side's steps is the run from the angle of that side's step nearest to V̂, GTAO's horizon h, to the edge. So the open sectors are those between h₀ and h₁, and their count over 32 is (sliceArc(h₀, γ) + sliceArc(h₁, γ)) / T to within one sector, by the center rule. The slice's open weight W · count / 32 is then \|n_p\| · â, GTAO's slice, to within W / 32. With no bounce, V is GTAO's sum of slices over ΣW, where GTAO divides by the number of slices: the same in the mean for an open surface, where ΣW / S comes to 1. `SectorSearchTests.AtInfiniteThicknessTheOpenSectorsAreTheSectorsBetweenTheHorizons` pins this within the domain: its center lies 2 m from the eye, so its steps keep α below 0.47 rad.
 
 ### Where the near range is empty
 
-With ρ at most `NearestStepTexels`, 1.3, the nearest step already lies at R or beyond, so the sectors pass takes no step: every mask is 0, and the near estimate is (0, 1). The far rays then start at R, a fraction of a texel from the center, and give the whole estimate. At 1080p with R = 1 m and a vertical field of view of 60°, ρ = 1.3 at 360 m. So surfaces in the middle and the far ranges, a cliff 50 km away or a planet's limb, take the estimate of their far rays alone. GTAO wrote 1 for them.
+With ρ at most `NearestStepTexels`, 1.3, the nearest step already lies at R or beyond, so the sectors pass takes no step: every mask is 0, and the estimate is the open estimate, (0, 1) (decision 40). At 1080p with R = 1 m and a vertical field of view of 60°, ρ = 1.3 at 360 m. So surfaces in the middle and the far ranges, a cliff 50 km away or a planet's limb, keep their ambient light in full, as GTAO wrote 1 for them.
 
 ### The noise
 
-The noise is GTAO's (ambient-occlusion.md, "The noise"): XeGTAO's Hilbert index of a 64 × 64 tile drives the R2 sequence, ξ_x turns the slices and ξ_y shifts the steps. The far ray takes the next value of each slice's step sequence. Everything is a fixed function of the texel's coordinates, so a still camera sees the same noise in every frame, and a moving camera sees the 128 px pattern stay fixed on the screen while the surfaces move under it.
+The noise is GTAO's (ambient-occlusion.md, "The noise"): XeGTAO's Hilbert index of a 64 × 64 tile drives the R2 sequence, ξ_x turns the slices and ξ_y shifts the steps. Everything is a fixed function of the texel's coordinates, so a still camera sees the same noise in every frame, and a moving camera sees the 128 px pattern stay fixed on the screen while the surfaces move under it.
 
-The near masks vary between neighbor texels as GTAO's horizons do. The far rays add a binary choice per slice: a slice's open share is blocked or open by one ray. Where far blockers cover half of a slice's open sectors, one texel's far share has a standard deviation of about 0.5 / √3 of the open share at 3 slices. The two blurs and the upsample average about 10 to 25 texels with their weights, which brings it to about 0.06 to 0.09. Fork 2 weighs more rays against their cost.
+The near masks vary between neighbor texels as GTAO's horizons do, and the two blurs and the upsample average about 10 to 25 texels with their weights.
 
 ### The shaders
 
@@ -320,8 +274,6 @@ The near masks vary between neighbor texels as GTAO's horizons do. The far rays 
 #include "depth_pyramid.glsl"
 
 const uint SectorCount = 32u;
-// The halvings of the search for the angle at a sector's center: π / 4,096 at the end (SliceSectors.AngleHalvings).
-const int AngleHalvings = 12;
 // The total slice weight below which a texel holds no estimate (SectorSearch.MinTotalWeight).
 const float MinTotalWeight = 1e-6;
 
@@ -429,36 +381,11 @@ bool stepSurfacePoint(vec3 exactRay, vec3 texelPosition, vec3 texelNormal, vec2 
     return true;
 }
 
-// The direct light that a blocker at a full-resolution pixel gives the directions that it blocks: all of it when its
+// The direct light that a blocker of direct light `direct` gives the directions that it blocks: all of it when its
 // view-space geometric normal faces towardReceiver, and none when the receiver sees its back.
-vec3 blockerLight(ivec2 pixel, vec3 geometricNormal, vec3 towardReceiver)
+vec3 blockerLight(vec3 direct, vec3 geometricNormal, vec3 towardReceiver)
 {
-    return dot(geometricNormal, towardReceiver) > 0.0 ? texelFetch(gbufferDirect, pixel, 0).rgb : vec3(0.0);
-}
-
-// θ at the center of a sector: the inverse of measureFraction at (sector + ½) / 32, by halving.
-float sectorCenterAngle(SliceGeometry g, uint sector)
-{
-    float target = (float(sector) + 0.5) / float(SectorCount);
-    float low = g.normalAngle - GtaoHalfPi;
-    float high = g.normalAngle + GtaoHalfPi;
-    for (int i = 0; i < AngleHalvings; i++)
-    {
-        float middle = 0.5 * (low + high);
-        if (measureFraction(g, middle) < target)
-            low = middle;
-        else
-            high = middle;
-    }
-    return 0.5 * (low + high);
-}
-
-// The open sector of a rank, counted from sector 0. open has more than rank bits set.
-uint openSectorOfRank(uint open, uint rank)
-{
-    for (uint i = 0u; i < rank; i++)
-        open &= open - 1u;
-    return uint(findLSB(open));
+    return dot(geometricNormal, towardReceiver) > 0.0 ? direct : vec3(0.0);
 }
 
 #endif
@@ -470,71 +397,63 @@ uint openSectorOfRank(uint open, uint rank)
 for (int slice = 0; slice < slices; slice++)
 {
     SliceGeometry g = gtaoSliceGeometry(setup, slice);
-    // The receiver's own surface first, so no step gives light to a direction below it (decision 39).
+    // The receiver's own surface first, so no step gives light to a direction below it.
     uint blocked = ownSurfaceSectors(g, setup.geometricNormal);
     vec3 light = vec3(0.0);
-    // Where R spans at most the nearest step, the near range holds no step (decision 21).
+    // Where R spans at most the nearest step, the near range holds no step (decision 21). SectorSearch.SliceSteps is
+    // the C# copy of this loop: change both together.
     for (int stepIndex = 0; radiusInTexels > NearestStepTexels && stepIndex < stepsPerSide; stepIndex++)
     {
         vec2 exactOffset = gtaoExactStepOffset(setup, slice, stepIndex);
+        // The texel nearest the step's exact place, whose depth, plane and light the step reads.
         ivec2 offset = ivec2(round(exactOffset));
+        // Plus side first, as XeGTAO's order: a step gives light only to the sectors that no nearer step blocked.
         for (int sideIndex = 0; sideIndex < 2; sideIndex++)
         {
             float side = sideIndex == 0 ? 1.0 : -1.0;
             ivec2 t = texel + (sideIndex == 0 ? offset : -offset);
-            if (!insideHalf(t) || viewDepthAt(t) >= SkyDepth)
+            if (!insideHalf(t))
                 continue;
-            vec3 sampleNormal = geometricNormalAt(2 * t);
+            float sampleDepth = viewDepthAt(t);
+            // Sky blocks nothing. Its view position, SkyDepth times a long view ray, would square past the single
+            // float range, so the depth decides before the length (ARCHITECTURE.md, "Portable Vulkan").
+            if (sampleDepth >= SkyDepth)
+                continue;
+            // The depth pass's copies of pixel 2t: half-resolution reads keep the steps' reads dense in the cache.
+            vec3 sampleNormal = texelGeometricNormalAt(t);
+            // A half-resolution texel spans two pixels, 2 / W of the screen.
             vec2 exactPlace = centerPlace + side * exactOffset * 2.0 / vec2(fullSize());
-            vec2 around = depthsAround(t, viewDepthAt(t), side * (exactOffset - vec2(offset)));
+            vec2 around = depthsAround(t, sampleDepth, side * (exactOffset - vec2(offset)));
             vec3 samplePosition;
-            bool onSlice = stepSurfacePoint(gtaoViewPosition(exactPlace, 1.0), gtaoTexelPosition(t), sampleNormal,
-                                            around, setup.center.z + occlusion.radiusMeters, samplePosition);
+            bool onSlice = stepSurfacePoint(gtaoViewPosition(exactPlace, 1.0),
+                                            gtaoViewPosition(pixelScreenPosition(2 * t), sampleDepth),
+                                            sampleNormal, around, setup.center.z + occlusion.radiusMeters,
+                                            samplePosition);
+            // GTAO's hard edge: a step blocks only within the radius.
             if (!onSlice || !(length(samplePosition - setup.center) < occlusion.radiusMeters))
                 continue;
             uint fresh = stepSectors(g, setup.center, samplePosition, side) & ~blocked;
             if (fresh == 0u)
                 continue;
             blocked |= fresh;
-            light += float(bitCount(fresh)) * blockerLight(2 * t, sampleNormal, setup.center - samplePosition);
+            light += float(bitCount(fresh)) * blockerLight(imageLoad(occlusionDirect, t).rgb, sampleNormal,
+                                                        setup.center - samplePosition);
         }
     }
-    sectorMasks[maskIndex(texel, slice)] = blocked;
     totalWeight += g.weight;
+    // Beyond the radius, an open sector takes the ambient light (decision 40).
     open += g.weight * float(bitCount(~blocked));
     bounce += g.weight * light;
 }
-vec4 estimate = totalWeight > MinTotalWeight ? vec4(bounce, open) / (float(SectorCount) * totalWeight) : vec4(0, 0, 0, 1);
+// Normalized by the total weight, so the open and the blocked shares sum to 1 (decision 17).
+vec4 estimate = totalWeight > MinTotalWeight ? vec4(bounce, open) / (float(SectorCount) * totalWeight)
+                                             : vec4(0.0, 0.0, 0.0, 1.0);
 imageStore(occlusionTermA, texel, estimate);
 ```
-
-`occlusion_far_rays.comp` (new) rebuilds the same setup and slice geometry, reads term A and the masks, and moves each slice's open share by its ray:
-
-```glsl
-vec4 estimate = imageLoad(occlusionTermA, texel);
-for (int slice = 0; slice < slices; slice++)
-{
-    SliceGeometry g = gtaoSliceGeometry(setup, slice);
-    uint open = ~sectorMasks[maskIndex(texel, slice)];
-    uint count = uint(bitCount(open));
-    if (count == 0u)
-        continue;
-    float share = g.weight * float(count) / (float(SectorCount) * totalWeight);
-    float noise = fract(setup.noise.y + float(slice + stepsPerSide * stepsPerSide) * 0.6180339887498948482);
-    uint sector = openSectorOfRank(open, min(uint(noise * float(count)), count - 1u));
-    float angle = sectorCenterAngle(g, sector);
-    FarOutcome outcome = farRay(setup, cos(angle) * g.toEye + sin(angle) * g.side);
-    estimate.a -= share * outcome.blocked;
-    estimate.rgb += share * outcome.light;
-}
-imageStore(occlusionTermA, texel, estimate);
-```
-
-where `farRay` applies the steps of "The far ray of a slice" and returns the blocked share b and the light b · L. It returns `FarOutcome(1, 0)` into its own surface, and `FarOutcome(0, 0)` for a start at the near plane and for every trace without a hit. A hit gives `FarOutcome(e, e · blockerLight(hitPixel, n_g(hitPixel), −ω))`. A sky texel returns before the loop, and so does a texel whose total weight is below `MinTotalWeight`.
 
 ### The denoise and the upsample
 
-Both stay XeGTAO's and GTAO's, with the estimate's four channels in place of one. The denoise blurs the vec4 with the edges' weights, so the bounce and the occlusion of a texel take the same neighbors. The upsample's weights stay those of the tangent plane and the bilinear footprint, and they apply to all four channels. It writes (rgb, clamp(a, 0, 1)) into the estimate target. The rgb needs no clamp: it is a sum of non-negative weights times direct light of at most c, over a total weight, and each blur and the upsample average it with non-negative weights that sum to 1.
+Both stay XeGTAO's and GTAO's, with the estimate's four channels in place of one. The denoise blurs the vec4 with the edges' weights, so the bounce and the occlusion of a texel take the same neighbors. The upsample's weights stay those of the tangent plane and the bilinear footprint, and they apply to all four channels. It writes (rgb, clamp(a, 0, 1)) into the estimate target, and the clamp keeps the rounding of the blurs' sums within [0, 1]. The rgb needs no clamp: it is a sum of non-negative weights times direct light of at most c, over a total weight, and each blur and the upsample average it with non-negative weights that sum to 1.
 
 ## The lighting split
 
@@ -543,12 +462,9 @@ flowchart TD
     GB["G-buffer pass"] --> DP["Direct pass: direct light, emission, the impostor's baked light"]
     DP --> DI[("The direct image, RGBA16F")]
     GB --> OD["occlusion depth"]
-    OD --> OS["occlusion sectors: near masks, near estimate"]
-    DI --> OS
-    OS --> OF["occlusion far rays: SSR's trace from R"]
-    PY[("SSR's depth pyramid")] --> OF
-    DI --> OF
-    OF --> DN["occlusion denoise, twice"]
+    DI --> OD
+    OD --> OS["occlusion sectors: the masks and the estimate"]
+    OS --> DN["occlusion denoise, twice"]
     DN --> UP["occlusion upsample"]
     UP --> ET[("The estimate target: G, V")]
     DI --> AP["Ambient pass: direct + ambient terms with V and G, capped at c"]
@@ -564,7 +480,7 @@ flowchart TD
 
 | Pixel | Writes |
 |---|---|
-| Sky, distance 0 | 0. No reader reads it: a sky texel blocks nothing, and the trace never hits sky. |
+| Sky, distance 0 | 0. No reader reads it: a sky texel blocks nothing. |
 | An impostor billboard, base color alpha 0 | The emissive target: the capture's pre-exposed light |
 | A lit surface | min(exposed(directLight(s, lobes, P, V, ShadowMapsMainView), k) + emission, c) |
 
@@ -665,17 +581,16 @@ public readonly record struct NoScreenSpaceLight;
 
 /// <summary>
 /// One estimate of the light around each surface point, from what the screen shows (docs/plans/screen-space-illumination.md):
-/// masks of sectors in GTAO's slices within the radius, and one ray per slice beyond it through the depth pyramid. A
-/// blocked direction brings the direct light of its blocker, an open one the ambient light. It runs at half resolution.
+/// masks of sectors in GTAO's slices within the radius. A blocked direction brings the direct light of its blocker, an
+/// open one the ambient light, also beyond the radius. It runs at half resolution.
 /// </summary>
-/// <param name="RadiusMeters">Where the near range ends and the far rays start, in m: above 0, at most 10⁶.</param>
+/// <param name="RadiusMeters">Where the near range ends, in m: above 0, at most 10⁶.</param>
 /// <param name="Slices">How many slices each half-resolution texel takes, 1 to 16.</param>
 /// <param name="StepsPerSide">How many depth samples each slice takes on each side within the radius, 1 to 16.</param>
-/// <param name="FarSteps">The most cells of the depth pyramid that one far ray examines, 1 to 1,024.</param>
-public readonly record struct VisibilityBitmaskLight(float RadiusMeters, int Slices, int StepsPerSide, int FarSteps)
+public readonly record struct VisibilityBitmaskLight(float RadiusMeters, int Slices, int StepsPerSide)
 {
-    /// <summary>The renderer's default: 1 m, 3 slices, 3 steps on each side, 64 far steps, until captures pick them.</summary>
-    public static VisibilityBitmaskLight Default => new(RadiusMeters: 1, Slices: 3, StepsPerSide: 3, FarSteps: 64);
+    /// <summary>The renderer's default: 1 m, 3 slices, 3 steps on each side, until captures pick them.</summary>
+    public static VisibilityBitmaskLight Default => new(RadiusMeters: 1, Slices: 3, StepsPerSide: 3);
 }
 
 /// <summary>
@@ -688,7 +603,6 @@ public readonly partial struct ScreenSpaceLightSetting
     public const float MaxRadiusMeters = 1e6f;
     public const int MaxSlices = 16;
     public const int MaxStepsPerSide = 16;
-    public const int MaxFarSteps = 1024;
 
     /// <summary>Why the renderer cannot use the setting, or null when it can.</summary>
     internal string? Problem => ...;
@@ -700,9 +614,8 @@ public readonly partial struct ScreenSpaceLightSetting
 | Field | Rule | Reason |
 |---|---|---|
 | `RadiusMeters` | Finite, above 0, at most 10⁶ m | As GTAO's: a radius of 0 is no near range, and the sky lies at 10¹⁸ m |
-| `Slices` | 1 to 16 | As GTAO's. The sector masks buffer takes 4 B per slice and texel, 33 MB at 16 slices at 1080p. |
+| `Slices` | 1 to 16 | As GTAO's |
 | `StepsPerSide` | 1 to 16 | As GTAO's |
-| `FarSteps` | 1 to 1,024 | SSR's bound for `MaxSteps`. 0 removes the far range, against decision 1. |
 
 | Setting | Form | Zero case | Default | Test fixtures |
 |---|---|---|---|---|
@@ -724,10 +637,8 @@ The host's `--screen-space-light off|<meters>` gives `NoScreenSpaceLight` or `Vi
 | The copy of the geometric normal (decision 25) | R16G16_SNORM, octahedral | Half | 2,073,600 B | Storage, transfer source | `OcclusionImages.GeometricNormal` | The same |
 | The edges image | R8_UNORM | Half | 518,400 B | Storage | `OcclusionImages` | The same |
 | Term A, term B | R16G16B16A16_SFLOAT | Half | 4,147,200 B each | Storage | `OcclusionImages` | The same |
-| The sector masks buffer | 32-bit words, `Slices` per texel | Half × `Slices` | 6,220,800 B at 3 slices | Storage buffer | `OcclusionImages.SectorMasks` | The same |
-| The depth pyramid | RG32_SFLOAT, mips for levels 1 to L | SSR's, padded to 1024 × 1024 at 1080p | 11.2 MB | SSR's | `DepthPyramidImage` | Under reflections or `VisibilityBitmaskLight` |
 
-The sector masks buffer is also a transfer source, for the test hook `ReadSectorMasks`, and it must fit one storage buffer descriptor (see "Portable Vulkan"). Under `VisibilityBitmaskLight` the bounce takes 56.5 MB with the two copies of decision 25, and 67.7 MB with the depth pyramid when the reflections are off. GTAO took 6.74 MB. Under `NoScreenSpaceLight` the direct image and the estimate target take 33.2 MB, where the occlusion target took 2.07 MB (fork 3). `RenderTargets` checks R16G16B16A16_SFLOAT for color attachment, sampling, storage and transfer, which the spec's table of required formats guarantees. `OcclusionImages` keeps its check of storage for R32_SFLOAT and R8_UNORM, and checks R16G16B16A16_SFLOAT and R16G16_SNORM for the copies.
+The masks live in registers only, one word per slice in the sectors pass, so no buffer holds them. Under `VisibilityBitmaskLight` the bounce takes 50.3 MB with the two copies of decision 25. Before decision 40, the sector masks buffer took 6.2 MB more, and the depth pyramid 11.2 MB more when the reflections were off. GTAO took 6.74 MB. Under `NoScreenSpaceLight` the direct image and the estimate target take 33.2 MB, where the occlusion target took 2.07 MB (fork 3). `RenderTargets` checks R16G16B16A16_SFLOAT for color attachment, sampling, storage and transfer, which the spec's table of required formats guarantees. `OcclusionImages` keeps its check of storage for R32_SFLOAT and R8_UNORM, and checks R16G16B16A16_SFLOAT and R16G16_SNORM for the copies.
 
 ## The frame
 
@@ -736,9 +647,9 @@ The sector masks buffer is also a transfer source, for the test hook `ReadSector
 `FrameGraph.Stage` becomes, with the branches merged:
 
 1. `ShadowMaps`, `EnvironmentFaces`, `EnvironmentPrefilter`, `ImpostorCaptures`, `GBuffer`, as their designs give them.
-2. `DepthPyramid` (SSR's stage): "depth pyramid", under reflections or `VisibilityBitmaskLight`. It reads the distance target that the G-buffer pass finished.
+2. `DepthPyramid` (SSR's stage): "depth pyramid", under reflections only. It reads the distance target that the G-buffer pass finished.
 3. `DirectLight` (today's `Lighting`): "direct light", always. It reads the G-buffer and the shadow maps.
-4. `AmbientOcclusion`: under `VisibilityBitmaskLight`, "occlusion depth", "occlusion sectors", "occlusion far rays", "occlusion denoise" (two dispatches) and "occlusion upsample". After the direct pass, because the sectors and the far rays read the direct image, and after the depth pyramid, which the far rays read.
+4. `AmbientOcclusion`: under `VisibilityBitmaskLight`, "occlusion depth", "occlusion sectors", "occlusion denoise" (two dispatches) and "occlusion upsample". After the direct pass, because the depth pass copies the direct image for the sectors pass.
 5. `AmbientLight` (new): "ambient light", always. After the occlusion passes, whose estimate target it reads.
 6. `Reflections` (SSR's): after the ambient pass, so that the radiance pyramid holds the bounce.
 7. `Transparent`, `Exposure`, `Bloom`, `ToneMap`, `AntiAliasing`, `Overlay`, `Readback`, as today.
@@ -747,7 +658,7 @@ In the first frame after `RenderTargets` creates the estimate target, `RecordEst
 
 ### Dispatches and barriers
 
-Every compute shader keeps the local size 8 × 8. The depth, sectors, far ray and denoise dispatches cover the half-resolution image, the upsample the full one. Every use goes through `BarrierBatch`. The uses are the existing ones: `ImageUse.StorageCompute` and `SampledCompute`, SSR's `SampledComputeGeneral`, and `BufferUse.ComputeRead` and `ComputeWrite` of the exposure ticket.
+Every compute shader keeps the local size 8 × 8. The depth, sectors and denoise dispatches cover the half-resolution image, the upsample the full one. Every use goes through `BarrierBatch`. The uses are the existing ones: `ImageUse.StorageCompute` and `SampledCompute`.
 
 | Pass | Image or buffer | Use | Discard | The barrier it makes, from the use before |
 |---|---|---|---|---|
@@ -761,12 +672,6 @@ Every compute shader keeps the local size 8 × 8. The depth, sectors, far ray an
 | | The normals target, the distance target | `SampledCompute` | | Read to read |
 | | The copies of the direct light and the geometric normal | `StorageCompute` | | The depth pass's writes |
 | | The edges image, term A | `StorageCompute` | Yes | The last frame's reads |
-| | The sector masks buffer | `ComputeWrite` | | The last frame's far ray read |
-| Occlusion far rays | The sector masks buffer | `ComputeRead` | | The sectors pass's write |
-| | Term A | `StorageCompute` | | The sectors pass's write. Each invocation reads and writes its own texel only |
-| | The view depth image | As in the sectors pass | | Read to read |
-| | The normals target, the direct image | `SampledCompute` | | Read to read after the depth pass's read |
-| | The depth pyramid | `SampledComputeGeneral` | | The depth pyramid pass's last write |
 | Occlusion denoise | Term A, term B, the edges image | As today | | As today |
 | Occlusion upsample | Term A, the view depth image | `StorageCompute` | | The last denoise write |
 | | The estimate target | `StorageCompute` | Yes | The last frame's ambient pass read, and SSR's trace read |
@@ -781,7 +686,7 @@ Under `NoScreenSpaceLight`, only the rows of the direct and ambient passes and o
 
 ### Push constants and sets
 
-All five occlusion pipelines share `DescriptorLayouts.OcclusionLayout`: sets 0 to 2 of `SceneLayout` (the frame set, the textures, the G-buffer set, with the compute stage that SSR adds) and set 3, the occlusion set:
+All four occlusion pipelines share `DescriptorLayouts.OcclusionLayout`: sets 0 to 2 of `SceneLayout` (the frame set, the textures, the G-buffer set, with the compute stage that SSR adds) and set 3, the occlusion set:
 
 | Binding | Type | Holds |
 |---|---|---|
@@ -789,14 +694,12 @@ All five occlusion pipelines share `DescriptorLayouts.OcclusionLayout`: sets 0 t
 | 1 | Storage image, r8 | The edges image |
 | 2 | Storage image, rgba16f | Term A |
 | 3 | Storage image, rgba16f | The estimate target |
-| 4 | Storage buffer | The sector masks buffer |
-| 5 | Sampled image, all mips, `General` | The depth pyramid |
-| 6 | Storage image, rgba16f | The denoise source |
-| 7 | Storage image, rgba16f | The denoise destination |
-| 8 | Storage image, rgba16f | The copy of the direct light (decision 25) |
-| 9 | Storage image, rg16_snorm | The copy of the geometric normal (decision 25) |
+| 4 | Storage image, rgba16f | The denoise source |
+| 5 | Storage image, rgba16f | The denoise destination |
+| 6 | Storage image, rgba16f | The copy of the direct light (decision 25) |
+| 7 | Storage image, rg16_snorm | The copy of the geometric normal (decision 25) |
 
-`OcclusionImages` writes two such sets, `SetAToB` with term A and term B in bindings 6 and 7, and `SetBToA` the other way. Every pass binds `SetAToB`, except the last denoise dispatch. Vulkan guarantees at least 4 bound sets, which these use. The distance and the normals come from set 2, bindings 4 and 1, which the sets 0 of today's layout repeated.
+`OcclusionImages` writes two such sets. `SetAToB` holds term A and term B in bindings 4 and 5, and `SetBToA` the other way. Every pass binds `SetAToB`, except the last denoise dispatch. Vulkan guarantees at least 4 bound sets, which these use. The distance and the normals come from set 2, bindings 4 and 1, which the sets 0 of today's layout repeated.
 
 The G-buffer set changes:
 
@@ -807,42 +710,40 @@ The G-buffer set changes:
 
 Binding 8 is the lights' shadow atlas (local-light-shadows.md, decision 46), so the direct image takes 9 whatever merges first.
 
-`OcclusionPushConstants` keeps only the setting, 24 bytes:
+`OcclusionPushConstants` keeps only the setting, 16 bytes:
 
 ```csharp
 /// <summary>The push constants of the occlusion passes (Shaders/occlusion.glsl): the setting alone. The camera comes from
-/// the frame constants. 24 bytes.</summary>
+/// the frame constants. 16 bytes.</summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct OcclusionPushConstants
 {
     public float RadiusMeters;
     public uint Slices;
     public uint StepsPerSide;
-    public uint FarSteps;
 
     /// <summary>1 in the last denoise dispatch, 0 otherwise.</summary>
     public uint LastDenoise;
-
-    /// <summary>1 when each texel traces one far ray (`FarRays.OnePerTexel`, fork 2's option B), 0 for one per slice.</summary>
-    public uint FarRayPerTexel;
 
     public static OcclusionPushConstants For(VisibilityBitmaskLight setting, bool lastDenoise);
 }
 ```
 
+Before decision 40 it held `FarSteps` and `FarRayPerTexel` too, 24 bytes.
+
 `gtao.glsl` takes the tangents and the unit camera axes from the frame constants: t_x = \|`frame.cameraRight.xyz`\|, t_y = \|`frame.cameraUp.xyz`\|, the unit right `frame.cameraRight.xyz` / t_x, and so on. The frame constants hold the camera that the lighting pass reads, so the passes read the one store.
 
 ### GPU timers
 
-"direct light" replaces "lighting", and "ambient light", "occlusion sectors" (in place of "occlusion horizons") and "occlusion far rays" join `RenderStats.GpuTimings`. With every member of the epic, the graph holds about 25 passes, within `GpuTimer.MaxPasses`, 31. The last ticket of the epic to merge counts them.
+"direct light" replaces "lighting", and "ambient light" and "occlusion sectors" (in place of "occlusion horizons") join `RenderStats.GpuTimings`. With every member of the epic, the graph holds about 25 passes, within `GpuTimer.MaxPasses`, 31. The last ticket of the epic to merge counts them.
 
 ### Resize
 
-`VulkanRenderer.ResizeTargets` resizes `RenderTargets`, which recreates the direct image and the estimate target, rewrites G-buffer bindings 7 and 9 and marks the estimate target for its clear. Then `DepthPyramidImage` resizes, then `OcclusionImages.Resize`, which recreates the half-resolution images and the sector masks buffer and rewrites both occlusion sets, binding 5 with the new pyramid.
+`VulkanRenderer.ResizeTargets` resizes `RenderTargets`, which recreates the direct image and the estimate target, rewrites G-buffer bindings 7 and 9 and marks the estimate target for its clear. Then `OcclusionImages.Resize` recreates the half-resolution images and rewrites both occlusion sets.
 
 ### When the switch is off
 
-Under `NoScreenSpaceLight`, the renderer makes no `OcclusionImages` and no occlusion pass, and no depth pyramid unless the reflections need it. The direct and ambient passes run. The estimate target holds (0, 0, 0, 1): the ambient pass multiplies the diffuse term by exactly 1, adds the diffuse color times exactly 0, and V_s is exactly 1. So the image is the image before this ticket up to the one rounding of the direct image (see "The cap at `MaxRadiance`"), which moves a pixel by at most one 8-bit step after the tone curve, and rarely that.
+Under `NoScreenSpaceLight`, the renderer makes no `OcclusionImages` and no occlusion pass. The depth pyramid belongs to the reflections under either case. The direct and ambient passes run. The estimate target holds (0, 0, 0, 1): the ambient pass multiplies the diffuse term by exactly 1, adds the diffuse color times exactly 0, and V_s is exactly 1. So the image is the image before this ticket up to the one rounding of the direct image (see "The cap at `MaxRadiance`"), which moves a pixel by at most one 8-bit step after the tone curve, and rarely that.
 
 ## Portable Vulkan
 
@@ -850,13 +751,11 @@ The design keeps to the Vulkan specification and to what NVIDIA, RADV, ANV and l
 
 | Requirement | Why every driver has it |
 |---|---|
-| `bitCount`, `bitfieldInsert`, `findLSB` on 32-bit `uint` | Core GLSL 4.60 and core SPIR-V (`OpBitCount`, `OpBitFieldInsert`, GLSL.std.450 `FindILsb`). Vulkan restricts the bit instructions to 32-bit operands unless an extension widens them, and the masks are 32 bits. |
+| `bitCount` and `bitfieldInsert` on 32-bit `uint` | Core GLSL 4.60 and core SPIR-V (`OpBitCount`, `OpBitFieldInsert`). Vulkan restricts the bit instructions to 32-bit operands unless an extension widens them, and the masks are 32 bits. |
 | R16G16B16A16_SFLOAT as a storage image, a color attachment and a sampled image | The spec's table of required formats. `rgba16f` is a base format qualifier, so it needs no `shaderStorageImageExtendedFormats`. |
 | R8_UNORM and R32_SFLOAT storage images | As GTAO today: `shaderStorageImageExtendedFormats` for `r8`, which the renderer requires already |
-| A storage buffer in a compute shader | Core |
-| The sector masks buffer within `maxStorageBufferRange` | The sets bind the buffer whole, and one descriptor reaches at most `maxStorageBufferRange` bytes, at least 2²⁷ by the spec. The buffer is `Slices` words per half texel: 6.2 MB at 1080p and 3 slices, but 147 MB at 3840 × 2400 and 16 slices. `OcclusionImages` checks it at each creation and resize against the device's limit, and throws `NotSupportedException` naming the limit past it. This Mac's MoltenVK reports 2³² − 1. A device at the spec's least takes the default 3 slices at 7,680 × 4,320 pixels, 99.5 MB (review of Part 4) |
 | 4 bound sets | The spec's least `maxBoundDescriptorSets` is 4 |
-| 6 storage images per compute stage | The same count as GTAO's layout today. NVIDIA, RADV, ANV and lavapipe allow far more, and MoltenVK runs today's layout. |
+| 8 storage images per compute stage, in set 3 | The spec's least `maxPerStageDescriptorStorageImages` is 4, so the count is a limit to check, as GTAO's 6 were. NVIDIA, RADV, ANV and lavapipe allow far more, and MoltenVK runs the layout. The two copies of decision 25 added 2, and the sector masks buffer and the depth pyramid went with decision 40 |
 | Derivatives in the ambient pass | Core in fragment shaders |
 | No new device feature | |
 
@@ -872,18 +771,13 @@ No value relies on `clamp`, `min` or `max` to turn a NaN into a number, which SP
 | `sectorBoundary`'s conversion to `uint` | A value outside 0 to 32 | Safe: m lies in [0, 1] after its clamp, so 32 m + ½ lies in [½, 32.5] |
 | `ownSurfaceSectors`'s `atan` | `atan(0, 0)`, which GLSL leaves undefined | Fixed: a geometric normal whose part in the slice plane is below 10⁻⁶ blocks nothing, before the `atan` |
 | `sectorRun` | A shift by 32 | Fixed: `bitfieldInsert` with start + count at most 32, and no call when the run is empty |
-| `openSectorOfRank` | `findLSB` of 0, which returns −1 | Safe: the rank is below the count of open bits |
-| The far ray's rank | A rank equal to the count | Fixed: `min(..., count − 1)` |
 | The normalization's division by ΣW | ΣW = 0 | Fixed: a texel below 10⁻⁶ takes the open estimate |
 | ô, the normalized slice direction | A slice direction along V̂ | Safe: V̂ has a view-space z of at least 0.05 / distance in size, so the slice direction, at right angles to forward, is never along it. `gtao.glsl` normalizes the same vector today |
-| The far ray's start | A start behind the eye, where `screenRayOf` divides by its view depth | Fixed: a start at or behind the near plane, 0.05 m, is open without a trace |
-| SSR's trace | SSR's sites | SSR's audit (screen-space-reflections.md) |
-| `texelFetch` of the direct image and the normals at 2t | A pixel outside the image | Safe: t lies inside the half image, ⌈W / 2⌉ texels, so 2t ≤ W − 1 for even and odd W |
-| `texelFetch` at a far ray's hit pixel | A pixel outside the screen | Safe: SSR's `cellBounds` gives the empty bounds outside, so a hit lies inside |
-| The sector masks buffer index | An index past its end | Safe: the texel lies inside the half image, and the buffer holds `Slices` words per texel |
+| The depth pass's `texelFetch` of the direct image and the normals at 2t | A pixel outside the image | Safe: t lies inside the half image, ⌈W / 2⌉ texels, so 2t ≤ W − 1 for even and odd W |
+| The sectors pass's `imageLoad` of the copies at t | A texel outside the half image | Safe: the step loop skips a t outside the half image before it reads |
 | The bounce over k | k = 0 or a quotient past the float range | Safe: k = exp2(stops) is at least 2⁻⁶⁴, and the bounce is at most c, so the quotient stays below 2⁷⁹ |
 | The ambient pass's sum | Two capped terms that pass the float range | Safe: at most 2c = 64,512 |
-| The upsample's clamp of V | A NaN | Safe: no NaN arises upstream, so the clamp only removes the far pass's rounding below 0 |
+| The upsample's clamp of V | A NaN | Safe: no NaN arises upstream, so the clamp only removes the rounding of the blurs' sums |
 
 ## The flow of each kind of pixel
 
@@ -893,55 +787,52 @@ flowchart TD
     S -- "yes: sky" --> SK["Direct image 0. No estimate. Ambient pass: the star field"]
     S -- no --> I{"Base color alpha 0?"}
     I -- "yes: an impostor billboard" --> IM["Direct image: its baked light. Its estimate goes unread. Ambient pass: copies the direct image"]
-    I -- "no: a lit surface" --> L["Direct image: direct light and emission. Estimate from its slices and far rays. Ambient pass: direct + ambient with V and G"]
+    I -- "no: a lit surface" --> L["Direct image: direct light and emission. Estimate from its slices within R. Ambient pass: direct + ambient with V and G"]
     G["A pane of glass or a puff"] --> TP["Not in the G-buffer: no estimate, blocks nothing, bounces nothing. The transparent pass shades it with V = 1, G = 0"]
 ```
 
-| Kind | As a center | As a near blocker | As a far ray's hit | What the ambient pass does |
-|---|---|---|---|---|
-| An opaque surface in the near range | Near steps within R and far rays beyond | Its slab blocks, and its direct light bounces where it faces the receiver | The same | Direct + ambient with V and G |
-| An opaque surface where R spans at most 1.3 texels: the middle and far ranges, the near range beyond about 360 m | Far rays alone | Beyond R of every near point, so never a near blocker of another's | Its slab, κ z deep, blocks a far ray | The same |
-| An emissive surface, a lamp | As an opaque surface. Its base color is black, so the bounce and the ambient light give it nothing | Its emission is in the direct image, so it lights the surfaces near it | The same | Its emission is in the direct image |
-| An impostor billboard | Estimated, unread | Its distance blocks as its object's shape does, and its baked light bounces, the capture's ambient light included | The same | Copies the direct image: the baked light |
-| Sky | None: the depth pass writes `SkyDepth`, and the sectors pass the open estimate | 10¹⁸ m away, never within R | Never: its cells are empty | The star field |
-| Glass | None | None: not in the distance target | None | The transparent pass, after the ambient pass and SSR, with V = 1 and G = 0. The surface behind it has its own estimate |
-| A puff | None | None | None | The transparent pass adds it. `scatteredLight` is unchanged |
+| Kind | As a center | As a near blocker | What the ambient pass does |
+|---|---|---|---|
+| An opaque surface in the near range | Near steps within R. Its open sectors take the ambient light | Its slab blocks, and its direct light bounces where it faces the receiver | Direct + ambient with V and G |
+| An opaque surface where R spans at most 1.3 texels: the middle and far ranges, the near range beyond about 360 m | No step: the open estimate (0, 1), as GTAO's 1 | Beyond R of every near point, so never a near blocker of another's | The same |
+| An emissive surface, a lamp | As an opaque surface. Its base color is black, so the bounce and the ambient light give it nothing | Its emission is in the direct image, so it lights the surfaces near it | Its emission is in the direct image |
+| An impostor billboard | Estimated, unread | Its distance blocks as its object's shape does, and its baked light bounces, the capture's ambient light included | Copies the direct image: the baked light |
+| Sky | None: the depth pass writes `SkyDepth`, and the sectors pass the open estimate | 10¹⁸ m away, never within R | The star field |
+| Glass | None | None: not in the distance target | The transparent pass, after the ambient pass and SSR, with V = 1 and G = 0. The surface behind it has its own estimate |
+| A puff | None | None | The transparent pass adds it. `scatteredLight` is unchanged |
 
 ## Every reader and writer
 
 | Value | Written by | When | Read by | When | Stored in | Analogue |
 |---|---|---|---|---|---|---|
-| `RendererOptions.ScreenSpaceLight` | The host (`ScriptCommand`, `WindowHost`), tests | Before the renderer is made | `CheckOptions`. `VulkanRenderer`, which makes `OcclusionImages`, the occlusion passes and the depth pyramid only under `VisibilityBitmaskLight`. Each occlusion pass, for its push constants | At creation, then in every frame | `RendererOptions`, then the passes' fields | `RendererOptions.AmbientOcclusion`, which it replaces |
-| The direct image | The direct pass | Stage `DirectLight`, every frame | The depth pass (at 2t, for its copy), the far ray pass (at the hit), the ambient pass (at the pixel), the test hook `ReadDirect` | The same frame | `RenderTargets.Direct`, G-buffer binding 9 | The HDR image: one pass writes it, later passes of the frame read it |
-| The view depth image, the edges image | As GTAO | As GTAO | As GTAO, and the far ray pass reads the view depth | The same frame | `OcclusionImages` | Unchanged |
-| The copies of the direct light and the geometric normal (decision 25) | The depth pass, from the direct image and the normals target at 2t | Stage `AmbientOcclusion`, every frame | The sectors pass (at t), the test hooks `ReadOcclusionDirect` and `ReadOcclusionGeometricNormal` | The same frame | `OcclusionImages.Direct`, `GeometricNormal`, occlusion set bindings 8 and 9 | The view depth image: the depth pass derives it from a full-resolution target of the same frame |
-| Term A | The sectors pass (the near estimate), the far ray pass (the estimate), the last denoise | Stage `AmbientOcclusion` | The far ray pass, the first denoise, the upsample | The same frame | `OcclusionImages.TermA` | GTAO's term A, which held the estimate before and after the blur |
+| `RendererOptions.ScreenSpaceLight` | The host (`ScriptCommand`, `WindowHost`), tests | Before the renderer is made | `CheckOptions`. `VulkanRenderer`, which makes `OcclusionImages` and the occlusion passes only under `VisibilityBitmaskLight`. Each occlusion pass, for its push constants | At creation, then in every frame | `RendererOptions`, then the passes' fields | `RendererOptions.AmbientOcclusion`, which it replaces |
+| The direct image | The direct pass | Stage `DirectLight`, every frame | The depth pass (at 2t, for its copy), the ambient pass (at the pixel), the test hook `ReadDirect` | The same frame | `RenderTargets.Direct`, G-buffer binding 9 | The HDR image: one pass writes it, later passes of the frame read it |
+| The view depth image, the edges image | As GTAO | As GTAO | As GTAO | The same frame | `OcclusionImages` | Unchanged |
+| The copies of the direct light and the geometric normal (decision 25) | The depth pass, from the direct image and the normals target at 2t | Stage `AmbientOcclusion`, every frame | The sectors pass (at t), the test hooks `ReadOcclusionDirect` and `ReadOcclusionGeometricNormal` | The same frame | `OcclusionImages.Direct`, `GeometricNormal`, occlusion set bindings 6 and 7 | The view depth image: the depth pass derives it from a full-resolution target of the same frame |
+| Term A | The sectors pass (the estimate), the last denoise | Stage `AmbientOcclusion` | The first denoise, the upsample, the test hook `ReadOcclusionTerm` | The same frame | `OcclusionImages.TermA` | GTAO's term A, which held the estimate before and after the blur |
 | Term B | The first denoise | The same | The last denoise | The same | `OcclusionImages.TermB` | GTAO's |
-| The sector masks buffer | The sectors pass | The same | The far ray pass | The same frame | `OcclusionImages.SectorMasks` | The edges image: one occlusion pass writes it for a later one |
 | The estimate target | `RecordEstimateClear` (first frame after a creation), the upsample (every frame under `VisibilityBitmaskLight`) | Before the graph, then stage `AmbientOcclusion` | The ambient pass, SSR's trace through `surfaceAt`, the test hook `ReadEstimate` | The same frame | `RenderTargets.Estimate`, G-buffer binding 7 | The occlusion target, which it replaces |
-| The depth pyramid | SSR's `DepthPyramidPass` | Stage `DepthPyramid` | SSR's trace, the far ray pass | The same frame | `DepthPyramidImage` | SSR's, with one owner for both readers |
-| `ShadingInput.occlusion` | `surfaceAt` from the estimate's a. `transparent.frag` and `impostor_capture.frag`: 1 | Per pixel | `occludedAmbient` | Per pixel | None: a value in the shader | Unchanged in form, now near and far |
+| `ShadingInput.occlusion` | `surfaceAt` from the estimate's a. `transparent.frag` and `impostor_capture.frag`: 1 | Per pixel | `occludedAmbient` | Per pixel | None: a value in the shader | Unchanged in form and in meaning: blockers within R |
 | `ShadingInput.bounce` | `surfaceAt` from the estimate's rgb over k. `transparent.frag` and `impostor_capture.frag`: 0 | Per pixel | `occludedAmbient` | Per pixel | None | `ShadingInput.occlusion` |
 | `AmbientTerms` after `occludedAmbient` | `occludedAmbient` | Per pixel | `ambientLight`, SSR's trace | Per pixel | None | Unchanged: its diffuse term gains the bounce |
-| `OcclusionPushConstants`, `FarRayPerTexel` among them | Each occlusion pass, from the setting (`FarRays`) | Each dispatch | The occlusion shaders; the far ray pass picks option A or B by `FarRayPerTexel` | The dispatch | Push constants | `ReflectionPushConstants`: the setting alone |
+| `OcclusionPushConstants` | Each occlusion pass, from the setting | Each dispatch | The occlusion shaders | The dispatch | Push constants | `ReflectionPushConstants`: the setting alone |
 | The occlusion sets | `OcclusionImages` | At creation and on every resize | The occlusion passes | Every frame | `OcclusionImages.SetAToB`, `SetBToA` | GTAO's occlusion and denoise sets |
-| The noise, the far ray's rank | None: fixed functions of the texel | | The sectors and far ray passes | | None | GTAO's noise |
-| A far ray and its outcome | None: computed in the far ray pass | | The far ray pass | | None | SSR's ray |
+| The noise | None: a fixed function of the texel | | The sectors pass | | None | GTAO's noise |
 | The HDR image | The ambient pass, then SSR's trace, the transparent pass | Stage `AmbientLight` and later | SSR's radiance pyramid and the passes after | The same frame | `RenderTargets.Hdr` | Today, with the ambient pass in the lighting pass's place |
 
-Each value describes the frame whose G-buffer and direct passes finished, as the collision rows describe the last finished step. Nothing carries over between frames. No pass uses atomics, every sum runs in a fixed order, and the far rays' directions are fixed functions of the texel, so one GPU gives the same bits on every run.
+Each value describes the frame whose G-buffer and direct passes finished, as the collision rows describe the last finished step. Nothing carries over between frames. No pass uses atomics, every sum runs in a fixed order, and the noise is a fixed function of the texel, so one GPU gives the same bits on every run.
 
 ## XeGTAO's tuned set in sector masks
 
-`ter-sdks` holds the seven constants that the user chose before decision 1. Each sorted by one test: does it keep the one estimate, where every direction is blocked nearby, blocked far away or open, and the shares sum to 1?
+`ter-sdks` holds the seven constants that the user chose before decision 1. Each sorted by one test: does it keep the one estimate, where every direction is blocked nearby or open, and the shares sum to 1? The verdicts came before decision 40, and they hold after it, because the test is the same with the far range gone.
 
 | Constant | XeGTAO | What it does to horizons | In sector masks | Verdict |
 |---|---|---|---|---|
-| `RadiusMultiplier` | 1.457 | Lengthens the radius | Moves the boundary between the near and the far range out. With the far rays, the radius no longer bounds what blocks, so it changes how much the sharp near masks decide and how much the noisier far rays do. A multiplier on the radius is the same as a radius 1.457 times as long. | Carries, as a longer default radius: the captures pick the radius |
+| `RadiusMultiplier` | 1.457 | Lengthens the radius | Moves the boundary of the near range out, so more blockers count. A multiplier on the radius is the same as a radius 1.457 times as long. | Carries, as a longer default radius: the captures pick the radius |
 | `SampleDistributionPower` | 2 | Bunches the steps near the pixel | Bunches the near steps near the center: sharper contact shadows, wider gaps between the outer steps. It changes where the samples land, not what a sample means. | Carries |
-| `FalloffRange` | 0.615 | A step's weight falls to 0 over the outer 61.5 % of the radius | A mask bit is set or not. A fading weight leaves the step's sectors partly blocked and partly open, and the far ray starts only at R, so a blocker between 0.385 R and R counts partly in neither range. The light that it blocks is lost. | Contradicts |
+| `FalloffRange` | 0.615 | A step's weight falls to 0 over the outer 61.5 % of the radius | A mask bit is set or not. A fading weight leaves the step's sectors partly blocked and partly open, so a blocker between 0.385 R and R gives only part of its light, and the rest of its share takes the ambient light that it hides. | Contradicts |
 | `FinalValuePower` | 2.2 | V^2.2 | Removes V − V^2.2 of the sky's share and gives it to no blocker. At V = 0.5, 28 % of the hemisphere's ambient light vanishes, and the furnace test fails. XeGTAO's README says it has no basis in physical light transfer. | Contradicts |
-| The small-radius term | Up to +0.05 where ρ < 10 | Adds open share to small radii | Adds open share without removing a blocked one, so the shares sum past 1. The near range's emptiness below 1.3 texels and the far rays replace its job. | Contradicts |
+| The small-radius term | Up to +0.05 where ρ < 10 | Adds open share to small radii | Adds open share without removing a blocked one, so the shares sum past 1. The empty near range below 1.3 texels does its job: the open estimate. | Contradicts |
 | The slope fudge | 0.05 | Lerps \|n_p\| 5 % toward 1 against an unexplained darkening on slopes | Scales a whole slice, its open and blocked sectors alike, so it moves no light between them, but the weights of a steep slice's directions then sum past their share of the hemisphere, up to 5 %. The darkening that it corrects was XeGTAO's horizons', and no measurement shows it in masks. | Contradicts, mildly |
 | The floor | V ≥ 0.03 | Forbids full occlusion | Adds open share to a fully blocked texel, so the shares sum past 1. It has no reason here: a fully blocked point gets the light of its blockers, so V = 0 is not black. | Contradicts |
 
@@ -949,15 +840,14 @@ Two carry and five contradict. The user chose none of the seven (fork 1).
 
 ## The default radius and steps
 
-With the far rays, darkness no longer grows with the radius as it did in GTAO: blockers beyond R still block. The radius decides how much of the estimate the near masks give, sharp and with little noise, and how much the far rays give, noisier but unbounded. The steps decide how often a blocker within R falls between two steps and lets light through.
+Darkness and the bounce grow with the radius, as in GTAO, because only blockers within R block (decision 40). A longer radius also spreads the steps, so the steps decide how often a blocker within R falls between two steps and lets light through.
 
 Part 7 captures, headless with the real renderer, each looked at by the builder with a one-line caption:
 
 - `demo-surface` (the cabin and the apron), `demo-exit`, `pbr-spheres`, and the two acceptance scenes of the GPU tests (the red wall and the raised box), as review captures.
 - Each at R of 0.5 m, 1 m, 1.457 m and 2 m, with `StepsPerSide` 3 and 6, and with the setting off.
-- With fork 2's options on the cabin and the red wall.
 
-The orchestrator picks the radius and the steps by the user's words, "most dramatic, but not overly so". The pick has the strongest contact shadows and color bleeding that show no lines of light under walls, the sign of too few steps for the radius. It also shows no fixed pattern of the far rays in flat areas. Between two that look alike, the cheaper one wins, by the timings of "Cost". The user sees the picks with the captures.
+The orchestrator picks the radius and the steps by the user's words, "most dramatic, but not overly so". The pick has the strongest contact shadows and color bleeding that show no lines of light under walls, the sign of too few steps for the radius. Between two that look alike, the cheaper one wins, by the timings of "Cost". The user sees the picks with the captures.
 
 ## Compared with a design from scratch
 
@@ -965,7 +855,7 @@ A renderer built from scratch around screen-space bounce light has five parts:
 
 - a buffer of direct light apart from the final image
 - one gather that returns visibility and indirect light together
-- rays beyond the near field
+- rays beyond the near field, which this design leaves out (decision 40)
 - a temporal filter
 - a composite that adds the indirect light to the direct light.
 
@@ -973,30 +863,30 @@ This design has the same parts, with these differences:
 
 | From scratch | This design | Why it stays |
 |---|---|---|
-| Rays for every direction, near and far (the design that the user did not choose) | Sector masks within R, rays only beyond it | (User) Rays alone make creases noisy: a crease needs many rays to resolve, while the masks resolve it from the steps that GTAO already takes, and the crease shadowing hands its job to the rays. |
+| Rays for every direction, near and far (the design that the user did not choose) | Sector masks within R, and the ambient light beyond it | (User) Rays alone make creases noisy: a crease needs many rays to resolve, while the masks resolve it from the steps that GTAO already takes. The far rays went for their cost and their speckle (decision 40, "Later"). |
 | Stochastic rays turned every frame, with temporal accumulation and reprojection | Fixed noise, two blurs, nothing kept | (User) Each frame stands alone: determinism and stability, at the cost of a fixed pattern that the blur does not remove in full. |
 | Multi-bounce by feeding the last frame's indirect light back into the light buffer, as the paper does | One bounce of this frame's direct light | (User) The same image in every run and no history to go wrong. Interiors that only bounced light reaches stay dark. |
 | The ambient light sampled along each open direction (the paper's several cones, or a bent normal) | The source's mean light times the open share | Decision 31. The hemisphere has no up at the estimate's texels, and the environment map's ambient source is a separate design. "Known limits" names the cost. |
-| A shared depth hierarchy for every screen-space effect | SSR's min-max pyramid for the far rays, GTAO's view depth image for the near steps | The near steps want one exact depth per texel, which GTAO's view depth image holds. The trace wants exact bounds per cell. |
-| A thickness from a pass of back faces | κ of the view depth, SSR's | (SSR's decision 7, the user's) One model of what is solid for both ranges, with no second geometry pass. |
+| A shared depth hierarchy for every screen-space effect | GTAO's view depth image for the near steps, SSR's min-max pyramid for the reflections alone | The near steps want one exact depth per texel, which GTAO's view depth image holds. |
+| A thickness from a pass of back faces | κ of the view depth, SSR's | (SSR's decision 7, the user's) One model of what is solid for the near steps and the reflections, with no second geometry pass. |
 | A full-resolution gather | Half resolution with GTAO's upsample | (GTAO's decision 2, the user's) |
-| A world-space cache of radiance for what the screen does not show (probes, voxels, distance fields) | The ambient source, with the edge fade | (User) Off the screen, the ambient light. The environment map is the far field. |
+| A world-space cache of radiance for what the screen does not show (probes, voxels, distance fields) | The ambient source | (User) Beyond R and off the screen, the ambient light. The environment map is the far field. |
 | The composite in one compute pass that writes the final image | A fragment pass that writes the HDR image once | Decision 24: one cap on the whole sum, and no storage usage on the HDR image (the reflected stars' derivatives no longer bind) |
 | Light toward each receiver from each blocker's BRDF | The light toward the eye | Decision 16: exact for the diffuse part, one read per blocker |
 
 ## Known limits
 
 - With the environment map on, the open share takes the map's mean light, and the map holds the near surfaces too. Take a wall that blocks a share b of a point's hemisphere, and that the map at the camera also sees over a share b. The open share 1 − b then takes b of its light from the wall, in place of the far field. So b (1 − b) of the wall's light counts twice, and as much of the far field's light is lost: a quarter at most, at b = ½. With the hemisphere as the source, no surface is in the source. The fix samples the source along the open directions, the paper's several cones, which needs the source per direction at the estimate's texels: a later ticket.
+- A blocker beyond R neither darkens nor bounces: its directions take the ambient light (decision 40). The upper part of a tall wall, a building across a street and a cliff behind a valley give no bounce, and their hidden sky still lights the point. The far rays of "Later" would close it.
 - Light passes between two steps within R: a wall that lies between the floor's last step and the wall's first, at a low elevation, blocks no sector there. More steps close the gap. The captures choose the steps.
-- A slab whose surface point lies beyond R while its back reaches inside R, met by a far ray before its start, is in neither range (see "The far ray of a slice").
 - κ z is one thickness for everything: a thin pole 20 m away is 2 m thick, and a thick wall 0.5 m away is 5 cm thick, so light leaks behind it there.
 - A blocker that faces away from the receiver gives no light, even when its back is lit.
 - Sky counts with its depth, 10¹⁸ m, among the depths around a step's exact place, so the plane of a surface beside the sky is kept up to half a texel toward it. A face that the eye sees nearly edge-on can so reach up to half a texel of screen past its silhouette against the sky, which is a long way in depth.
 - A glossy blocker bounces the light that it sends toward the eye (decision 16).
 - Glass and puffs neither block nor bounce.
 - An impostor bounces its captured light, its ambient light included (decision 30).
-- Off the screen, or within a tenth of the shorter side of its edge, the ambient light replaces the blockers.
-- On a normal-mapped surface, the near hemisphere follows the shading normal, and the far ray's test of its own surface uses the geometric normal.
+- A blocker off the screen blocks nothing: a step whose texel lies outside the image is left out, so its directions take the ambient light.
+- On a normal-mapped surface, the near hemisphere follows the shading normal, and the receiver's own surface blocks by its geometric normal (decision 39).
 
 ## Tests
 
@@ -1011,7 +901,6 @@ In `tests/Tertius.Rendering.Tests`. An integral that checks the code uses an ind
 - `TheSlicesArcIsTheVisibilityOfAnOpenSlice`: T = cos γ + γ sin γ, against the quadrature of the measure over [γ − π/2, γ + π/2].
 - `EachSectorHoldsAThirtySecondOfTheSlicesArc`: the quadrature between the angles where m = j / 32 and (j + 1) / 32, for a spread of γ.
 - `TheMeasureFractionRisesFromZeroAtOneEdgeOfTheHemisphereToOneAtTheOther`: monotone, 0 and 1 at the edges, and clamped outside them.
-- `TheCenterAngleOfASectorIsWhereItsMeasureFractionIsItsCenter`: within π / 4,096.
 - `AnIntervalBlocksTheSectorsWhoseCentersItCovers`, and `ACenterOnTheBoundaryGoesToTheLaterSector`.
 - `AnIntervalBeyondTheHemisphereBlocksNothingThere`.
 - `AFullRunBlocksAllThirtyTwoSectors`: the run from 0 to 32, with no shift by 32.
@@ -1019,7 +908,6 @@ In `tests/Tertius.Rendering.Tests`. An integral that checks the code uses an ind
 
 `SectorMaskTests`:
 
-- `TheOpenSectorOfRankRIsTheRthOpenBitFromSectorZero`.
 - `AnEmptyRunBlocksNothing`.
 
 `SectorSearchTests`:
@@ -1035,9 +923,8 @@ In `tests/Tertius.Rendering.Tests`. An integral that checks the code uses an ind
 - `ABlockerThatFacesAwayBlocksWithoutLight`.
 - `TheReceiversOwnSurfaceBlocksTheSectorsBelowItBeforeAnyStep`, and `AStepOnTheReceiversOwnPlaneGivesNoLightToTheSectorsBelowIt` (decision 39).
 - `ABlockersLightDoesNotDependOnTheAngleAtWhichThePointSeesIt`.
-- `WhereTheRadiusSpansAtMostTheNearestStepTheNearRangeHoldsNoStep`.
-- `TheFarRayGoesThroughTheCenterOfAnOpenSector`, and `TheFarRayOfASliceWithNoOpenSectorIsNotTraced`.
-- `TheFarRayTakesTheNextValueOfItsSlicesStepSequence`.
+- `AnOpenSectorBeyondTheRadiusTakesTheAmbientLight`: a wall whose steps lie beyond R blocks nothing, the estimate is open, and the occluded diffuse term is the source's (decision 40).
+- `ATexelWhoseNearRangeHoldsNoStepTakesTheAmbientLight`: where R spans at most the nearest step, the slice holds no step and the estimate is open (decisions 21 and 40).
 
 `FlatFloorSectorsTests`: `AFlatFloorBlocksOnlyTheSectorsBelowItselfAndBouncesNothingOnItself`, every texel of an endless floor under a level camera at 640 × 360 through the C# copy, whose step loop is `SectorSearch.SliceSteps` (`ter-rxjr`).
 
@@ -1047,26 +934,12 @@ In `tests/Tertius.Rendering.Tests`. An integral that checks the code uses an ind
 
 `AmbientEstimateTests`:
 
-- `TheOpenTheNearAndTheFarSharesOfATexelSumToOne`.
+- `TheOpenAndTheBlockedSharesOfATexelSumToOne`.
 - `AnOpenSurfaceHasFullVisibilityAndNoBounceAtAnyTilt`.
 - `ATexelWhoseSlicesHaveNoWeightIsOpen`.
-- `InAFurnaceTheSkyLightAndTheBounceSumToTheSkyLight`: every blocker's light equals the sky's, near and far, so V · L + G = L for any blockers.
-- `AFarRayDecidesItsSlicesOpenWeightOverTheTexelsTotalWeight`: U = W · count / (32 · ΣW), 0 for a slice with no open sector.
-- `AFarOutcomeMovesItsBlockedShareOfTheOpenShareFromOpenToItsLight`.
-- `TheOpenOutcomeLeavesTheEstimateAsItIs`.
-- `TheOutcomeIntoItsOwnSurfaceBlocksTheOpenShareWithoutLight`.
+- `InAFurnaceTheSkyLightAndTheBounceSumToTheSkyLight`: every blocker's light equals the sky's, so V · L + G = L for any blockers.
 
-These tests build each far outcome themselves. How a trace decides its outcome is `FarRay.Trace`'s, and `FarRayTests` pin it.
-
-`FarRayTests` (Part 5, on SSR's `ScreenRay` and `DepthPyramid`):
-
-- `AFarRayStartsAtTheRadiusAlongItsDirectionWithTheOriginOffset`.
-- `AFarRayFindsAWallBeyondTheRadiusThatTheNearStepsMissed`.
-- `AFarRayThatEntersASlabFromBehindIsBlockedWithoutLight`: the facing test, not the entry share.
-- `AFarRayThatHitsIsBlockedByTheEdgeFadeAtTheHit`, with the hit's direct light.
-- `AFarRayThatLeavesTheScreenIsOpen`.
-- `AFarRayIntoItsOwnSurfaceIsBlockedWithoutLight`.
-- `AFarRayWhoseStartLiesAtOrBehindTheNearPlaneIsOpen`.
+Before decision 40, `AmbientEstimateTests` also pinned the far outcomes, and `FarRayTests` and `TexelFarRayTests` pinned the far ray's trace. They went with the far rays ("Later").
 
 `OcclusionUpsampleTests`: the existing tests over the four channels, and `TheBounceTakesTheWeightsOfTheOcclusion`.
 
@@ -1091,37 +964,37 @@ These tests build each far outcome themselves. How a trace decides its outcome i
 - `ASunlitFloorBrightensTheUndersideOfABoxAboveIt` (User): a box 0.3 m above a white sunlit floor, a black ambient light. The underside's pixels are 0 with the setting off, and above 0 in every pixel with it on.
 - `ASceneWithNoDirectLightGetsNoBounce` (User): the corner of the crease tests under only the ambient light. The estimate target's rgb is 0 in every pixel, bit for bit.
 - `InAFurnaceACreaseGetsTheLightOfTheOpenFloor`: a white matte floor and two walls that meet, the walls emissive at the ambient light's radiance with a black base color, the floor reflecting. The floor pixel 0.1 m from both walls differs from the open floor pixel 3 m away by at most 3 of 255. This test pins the one estimate: a power on V fails it.
-- `AWallBeyondTheRadiusStillLightsTheFloorThroughTheFarRays`: a lit red wall 3 m from the floor's measured pixels, with R = 0.5 m. The red share rises with the setting on.
+- `AWallBeyondTheRadiusGivesTheFloorNoBounceAndLeavesItOpen`: a lit red wall 2.9 to 3.1 m from the floor's measured pixels, beyond R = 0.5 m. The estimate's rgb is 0 there, and V is at least 0.999 (decision 40).
 - `ALitWallOffTheScreenGivesTheFloorNoBounce`: the red wall just past the screen's edge: V is at least 0.98 at the floor, as on an open floor, and the estimate's rgb is 0.
-- `AFlatFloorAloneBlocksNothingAndBouncesNothingOnItself`: the sunlit floor of that test without the wall, with the far rays, the denoise and the upsample skipped: no floor texel's slice blocks a sector, and term A's rgb is 0 at every floor texel (`ter-rxjr`).
-- `AFaceBesideAGrazingConvexEdgeBlocksNothingAndGetsNoBounce`: the box of `ConvexEdgeSectorsTests` under the sun, the far rays, the denoise and the upsample skipped: no texel of its front face blocks a sector, and term A's rgb is 0 there. Before the depths around the exact place, 31 of 8,460 texels blocked (`ter-y1s7`).
-- `AWallSquareToTheViewBlocksAsMuchWhicheverWayTheCameraFaces`: a floor and a wall square to the view 3 m ahead, the far rays skipped, once along −Z and once with the camera and the scene turned together by 63° about the vertical. The blocked sectors of all the masks agree within 10⁻⁴: 191,274 and 191,273. Without the widening by b, 191,314 (`ter-y1s7`).
-- `TheSectorPassGathersWhatTheCSharpCopyGathers`: at four texels of the corner, a texel of the floor 5 cm beside a low box, behind the plane of the box's front face, which faces away from it, and a texel of a platform whose normal map tilts its shading hemisphere below its top, the GPU's sector masks, read with `ReadSectorMasks`, and its near estimate, read with `ReadOcclusionTerm`, after a frame whose far ray pass is skipped by a test hook, against `SectorSearch` fed the read-back view depth, the scene's normals and the direct image. The masks match bit for bit, except a sector next to a boundary 32 m + ½ within 10⁻³ of a tie. The estimate matches within the half floats of term A, 10⁻⁴ of the brightest direct light, and the share of the sectors that such a tie flips.
+- `AFlatFloorAloneBlocksNothingAndBouncesNothingOnItself`: the sunlit floor of that test without the wall, with the denoise and the upsample skipped: no floor texel blocks a sector, which term A's V of 1 shows, and term A's rgb is 0 at every floor texel (`ter-rxjr`).
+- `AFaceBesideAGrazingConvexEdgeBlocksNothingAndGetsNoBounce`: the box of `ConvexEdgeSectorsTests` under the sun, the denoise and the upsample skipped: no texel of its front face blocks a sector, by term A's V, and term A's rgb is 0 there. Before the depths around the exact place, 31 of 8,460 texels blocked (`ter-y1s7`).
+- `AWallSquareToTheViewBlocksAsMuchWhicheverWayTheCameraFaces`: a floor and a wall square to the view 3 m ahead, once along −Z and once with the camera and the scene turned together by 63° about the vertical. The blocked shares of term A, Σ(1 − V), agree within 10⁻⁴ (`ter-y1s7`). When the test read the masks, they were 191,274 and 191,273 blocked sectors, and 191,314 without the widening by b.
+- `TheSectorPassGathersWhatTheCSharpCopyGathers`: at four texels of the corner, a texel of the floor 5 cm beside a low box, behind the plane of the box's front face, which faces away from it, and a texel of a platform whose normal map tilts its shading hemisphere below its top, the GPU's estimate, read with `ReadOcclusionTerm` after a frame whose denoise and upsample a test hook skips, against `SectorSearch` fed the read-back view depth, the scene's normals and the direct image. The estimate matches within the half floats of term A, 10⁻⁴ of the brightest direct light, and the share of the sectors that such a tie flips.
 - `TheAmbientPassAddsTheBounceAsTheCSharpCopyDoes`: as `AmbientOcclusionShaderTests` today, with V and G read from the estimate target and `MaterialSample.ReflectedHemisphere(..., occlusion: V, bounce: G / k)`.
 - `AStillSceneHasTheSameBounceInEveryFrame`: the red wall rendered five times, the first and the fifth HDR images the same bits.
 - `AResizedRendererStillBouncesLightAtItsNewSize`: the red wall at 640 × 360, then at 800 × 450. Each floor point 0.1 to 0.3 m from the wall, at x of −3.5, 0 and 3.5 m, which at the new size reach past the old 640 pixels, keeps its red share within 0.01.
 - `ThePassesKeepAPixelWithinTheSurfacesShare`: a lamp's mirror highlight at the cap with a bright ambient light, below c on its own: the direct image and the HDR image are c at the highlight, and no HDR value lies above c.
 
-In `GpuTimingTests`: `WithVisibilityBitmaskLightTheFiveOcclusionPassesRunBetweenTheDirectAndTheAmbientPass`, and `WithNoScreenSpaceLightTheFrameHasTheDirectAndTheAmbientPassAndNoOcclusionPass`.
+In `GpuTimingTests`: `WithVisibilityBitmaskLightTheFourOcclusionPassesRunBetweenTheDirectAndTheAmbientPass`, and `WithNoScreenSpaceLightTheFrameHasTheDirectAndTheAmbientPassAndNoOcclusionPass`.
 
 ### Existing tests
 
 | Test | Rule | What changes |
 |---|---|---|
-| `AnInnerCornerGetsLessAmbientLightThanTheOpenFloor` | Keeps its meaning | The scene has only the ambient light, so no bounce. The walls block near and far. The builder reports the difference. |
-| `AnOpenFloorKeepsItsAmbientLight` | Keeps its meaning, with its scene's rule widened from "nothing within R" to "nothing on the screen that a ray from the floor's middle meets" | The builder checks that the scene holds no such object |
-| `NoDarkHaloAppearsBesideANearSilhouette` | Keeps its meaning | The box's slab, 0.2 m deep, lies 10 m in front of the wall. A far ray from the wall meets the box only in the box's true solid angle, under 1 % of the wall's hemisphere |
-| `AFloorBesideAWallLosesTheShareOfItsHemisphereThatTheWallHidesWithinTheRadius` | Splits in two by the ranges | `AFloorBesideALowWallLosesTheShareThatTheWallHides`: a wall 0.4 m tall and 0.8 m long, whose every point lies within R of the measured lines, against the C# quadrature for a ray length of R with the slab model. And `AFloorBesideATallWallLosesTheShareThatTheScreenShowsTheWallHiding`: today's 40 m wall, against the quadrature over rays of any length that block where they meet the wall within R, or beyond R at a point on the screen, by the edge fade there. Both at 16 slices and 16 steps, within 0.03. If the far rays' noise needs more, the report shows it before the tolerance moves |
-| `ASurfaceWhoseRadiusCoversLessThanOneTexelKeepsItsAmbientLight` (named `...Exactly` before Part 2, which found V one half-float step below 1) | Changes by the rule that the far rays reach as far as the screen shows | Becomes `AnInnerCornerFarAwayIsDarkerThanTheOpenGroundBesideIt`: the corner 200 m away in the near range and 50 km away in the middle range, with no near step there, and a finite estimate with V from 0 to 1. `APlanetsLimbInTheFarRangeGetsAFiniteEstimateFromItsFarRays` keeps the planet's limb 3,600 km away: every pixel's estimate finite with V from 0 to 1, and V of at least 0.9 at the planet's center. The C# copy pins the empty near range |
+| `AnInnerCornerGetsLessAmbientLightThanTheOpenFloor` | Keeps its meaning | The scene has only the ambient light, so no bounce. The walls block within R. |
+| `AnOpenFloorKeepsItsAmbientLight` | Keeps its meaning: nothing within R of the floor's middle | Under the far rays its rule was widened to "nothing on the screen that a ray from the floor's middle meets". Decision 40 brings it back |
+| `NoDarkHaloAppearsBesideANearSilhouette` | Keeps its meaning | The box's slab, 0.2 m deep, lies 10 m in front of the wall, beyond R of every wall point |
+| `AFloorBesideAWallLosesTheShareOfItsHemisphereThatTheWallHidesWithinTheRadius` | Splits in two | `AFloorBesideALowWallLosesTheShareThatTheWallHides`: a wall 0.4 m tall and 0.8 m long, whose every point lies within R of the measured lines, against the C# quadrature for a ray length of R with the slab model. And `AFloorBesideATallWallLosesOnlyTheShareThatTheWallHidesWithinTheRadius`: today's 40 m wall, against the quadrature over rays that block only where they meet the wall within R (decision 40). Both at 16 slices and 16 steps, within 0.03. Under the far rays, the tall wall's test also counted the rays that met the wall beyond R on the screen |
+| `ASurfaceWhoseRadiusCoversLessThanOneTexelKeepsItsAmbientLight` (named `...Exactly` before Part 2, which found V one half-float step below 1) | Keeps its meaning by decision 40 | The inner corner 200 m away, the cliff 50 km away and the planet's limb 3,600 km away keep their ambient light, within 1 of 255 in every pixel. Under the far rays, it became `AnInnerCornerFarAwayIsDarkerThanTheOpenGroundBesideIt` and `APlanetsLimbInTheFarRangeGetsAFiniteEstimateFromItsFarRays`, which went with them |
 | `TheSunAndTheLampsLightACornerAsIfThereWereNoOcclusion` | Keeps its meaning on the direct image | The direct image is the same bytes with the setting on and off (`ReadDirect`). The HDR image now differs, because the lit walls bounce |
 | `AStillSceneHasTheSameOcclusionInEveryFrame`, `AResizedRendererStillDarkensTheCornerAtItsNewSize` | Keep their meaning | Read the estimate's a |
 | `TheGroundBesideAnImpostorDarkensAsBesideItsGeometry` | Keeps its meaning | Compares the estimate's a, within 0.05 |
 | `TheLightingPassDimsTheAmbientLightOfEachPixelAsTheCSharpCopyDoes` | Moves to the ambient pass | `TheAmbientPassAddsTheBounceAsTheCSharpCopyDoes` |
 | `HorizonSliceTests`, `HorizonSearchTests` | `HorizonSlice` stays, as the slice geometry and the reference of the reduction. `HorizonSearch.Fade` and `Faded` go with the fade | The fade's three tests go, replaced by the empty near range's |
-| `GpuTimingTests`, `ScriptCommandCaptureTests` | The new pass list | "direct light", the five occlusion passes, "ambient light" |
+| `GpuTimingTests`, `ScriptCommandCaptureTests` | The new pass list | "direct light", the four occlusion passes, "ambient light" |
 | The six reference images | Pass within their FLIP tolerance of 0.1 | The fixtures are off, and the split rounds the direct light once more. The builder reports the largest FLIP value of each. Any failure gets the three-image review of CLAUDE.md |
-| `BatcherTests`, the struct sizes | `OcclusionPushConstants` is 24 bytes, with `FarRayPerTexel` (`ter-izsu`) | |
-| `OcclusionImagesTests` | The terms are RGBA16F, the sector masks buffer exists, two sets | |
+| `BatcherTests`, the struct sizes | `OcclusionPushConstants` is 16 bytes. It was 24 bytes with `FarSteps` and `FarRayPerTexel` | |
+| `OcclusionImagesTests` | The terms are RGBA16F, two sets, no sector masks buffer | |
 
 ## Cost
 
@@ -1138,7 +1011,7 @@ The table gives the memory traffic per frame at 1080p and the default setting, b
 | Direct light | Lighting: 1.64 ms by the timers, 2.96 ms in a trace of main | 58.1 MB of the G-buffer (28 B per pixel), the shadow maps | 16.6 MB | 1.5 to 1.7 ms: today's lighting pass less the ambient terms, so below 2.96 ms in the trace | 2.09 ms |
 | Occlusion depth | 0.13 ms | 2.1 MB of distances, and for the copies of decision 25 the direct image (8 B) and the normals (8 B) at each texel's pixel 2t: 10.4 MB | 2.1 MB of view depth, and 6.2 MB of the copies (8 B of direct light and 4 B of geometric normal per texel): 8.3 MB | 0.13 ms, unchanged | 0.07 ms |
 | Occlusion sectors | Horizons: 0.70 ms | 51.8 MB as today (5 depths, 18 steps, 1 normal per texel), 37.3 MB of the 4 B geometric normal of each of 18 steps from the dense copy, which finds its surface point on the slice (`ter-rxjr`), 74.6 MB of the two 4 B depths around each of 18 steps' exact place (`ter-y1s7`), and up to 74.6 MB more where every step blocks: 8 B of light for each of 18 steps from the dense copy of the direct light | 0.5 MB of edges, 4.1 MB of term A, 6.2 MB of masks | 0.9 to 2.8 ms | 1.93 ms |
-| Occlusion far rays | None | 1.56 million rays. At about 20 cells of 8 B per ray, 249 MB, mostly from the coarse levels that stay in the cache. 6.2 MB of masks, 4.1 MB of term A, 4.1 MB of normals, up to 25 MB at the hits | 4.1 MB | 1.1 to 3.4 ms: SSR expects 1 to 3 ms for 2.07 million coherent rays, and diffuse rays scatter more | 5.86 ms, 2.38 ms with option B |
+| Occlusion far rays, gone by decision 40 | None | 1.56 million rays. At about 20 cells of 8 B per ray, 249 MB, mostly from the coarse levels that stay in the cache. 6.2 MB of masks, 4.1 MB of term A, 4.1 MB of normals, up to 25 MB at the hits | 4.1 MB | 1.1 to 3.4 ms: SSR expects 1 to 3 ms for 2.07 million coherent rays, and diffuse rays scatter more | 5.86 ms, 2.38 ms with option B |
 | Occlusion denoise | 0.16 ms | 2 × 39.9 MB: 9 terms of 8 B and 5 edges per texel and dispatch | 2 × 4.1 MB | 0.5 to 0.6 ms | 0.14 ms |
 | Occlusion upsample | 0.78 ms | 124.4 MB: 60 B per pixel, where 4 terms of 2 B were 8 | 16.6 MB, where 1 B per pixel was 2.07 MB | 1.4 to 1.5 ms | 0.33 ms |
 | Ambient light | None | 91.3 MB: the G-buffer, the direct image and the estimate target | 16.6 MB | 0.3 to 0.7 ms | 0.67 ms |
@@ -1162,14 +1035,34 @@ With the copy and option B, the occlusion passes take 4.7 to 4.8 ms. The far ray
 
 With `NoScreenSpaceLight`, the split costs the ambient pass and the direct image's round trip: about 0.3 to 0.7 ms and 31.1 MB more than today (fork 3).
 
+### After decision 40
+
+`ter-ehxp` measured the near-only passes on 2026-10-26 by the same method: `tools/gpu-trace.sh --no-counters`, `scripts/demo-exit.json` at 1920 × 1080 in Release, 120 frames from frame 399, one run at a time, each after the one-minute load fell below 10. The times are the trace's busy times in ms, one value per run:
+
+| Pass | With the far rays, `869f7654` | Near only, `ter-ehxp` |
+|---|---|---|
+| Direct light | 1.94 / 2.02 | 2.02 / 1.97 / 1.76 |
+| Occlusion depth | 0.07 / 0.07 | 0.07 / 0.08 / 0.07 |
+| Occlusion sectors | 1.87 / 1.86 | 1.89 / 1.77 / 1.43 |
+| Occlusion far rays | 5.81 / 5.70 | None |
+| Occlusion denoise | 0.13 / 0.13 | 0.15 / 0.39 / 0.24 |
+| Occlusion upsample | 0.32 / 0.33 | 0.41 / 0.44 / 0.41 |
+| Ambient light | 0.65 / 0.67 | 0.76 / 0.78 / 0.70 |
+| The occlusion passes | 8.20 / 8.08 | 2.52 / 2.69 / 2.15 |
+| Frame span | 19.13 / 18.78 | 14.20 / 19.05 / 17.11 |
+| Frame span, timer | 19.08 / 18.66 | 14.16 / 18.92 / 17.00 |
+| Load at the start of the trace | 9.62 / 8.94 | 10.29 / 9.78 / 9.91 |
+
+The far rays took 5.7 to 5.8 ms, and without them the four occlusion passes take 2.1 to 2.7 ms, against 8.1 to 8.2 ms with them. The other passes stay within the spread of the runs. Other work on the machine disturbed the second and the third run of the near-only build: their frame spans have a p95 of 31.1 and 25.8 ms, against 22.5 ms in the first, and the load reached 21 during the third. So the frame span is read from the first run, about 4.6 to 4.9 ms below the runs with the far rays, close to the far rays' own time. The four passes still take more than GTAO's 1.7 ms, and more than the 1 ms limit of the crease shadowing. The sectors pass is most of it.
+
 ## Doc changes
 
 | Doc | Change |
 |---|---|
 | ARCHITECTURE.md, "The order of a rendered frame" | The direct pass after the depth pyramid, the occlusion passes after it, the ambient pass after them and before the reflections, with the reasons. Step 1 clears the estimate target. |
-| ARCHITECTURE.md, "Ambient occlusion" | Becomes "Screen-space light", the crease shadowing and the bounce as one estimate: the model, the sectors, the thickness, the near steps, the far rays, the normalization, the empty near range, the noise, the denoise and upsample in four channels, the images, the layout, the barriers, the switch off, the flow of each kind, the determinism and the measured cost |
+| ARCHITECTURE.md, "Ambient occlusion" | Becomes "Screen-space light", the crease shadowing and the bounce as one estimate: the model, the sectors, the thickness, the near steps, the ambient light beyond R (decision 40), the normalization, the empty near range, the noise, the denoise and upsample in four channels, the images, the layout, the barriers, the switch off, the flow of each kind, the determinism and the measured cost |
 | ARCHITECTURE.md, "Shading" | The lighting pass is two passes. `occludedAmbient` adds the bounce. The G-buffer set's binding 7 holds the estimate target and binding 9 the direct image |
-| ARCHITECTURE.md, "Screen-space reflections" (from `ter-jxv9`) | The depth pyramid's owner, `DepthPyramidImage`, and its two readers. `ThicknessShare` in `CellBounds` and `depth_pyramid.glsl`. The radiance pyramid after the ambient pass. |
+| ARCHITECTURE.md, "Screen-space reflections" (from `ter-jxv9`) | `ThicknessShare` in `CellBounds` and `depth_pyramid.glsl`, read by the trace and the near steps. The radiance pyramid after the ambient pass. The depth pyramid stays in `ReflectionTargets` (decision 40) |
 | ARCHITECTURE.md, "Exposure", "Pre-exposure" | The writers' table: the direct pass and the ambient pass in place of the lighting pass, and the estimate target's pre-exposed bounce |
 | ARCHITECTURE.md, "Portable Vulkan" | The rows of this doc's sites, the two caps and the bit instructions |
 | ARCHITECTURE.md, "Impostors" | A capture takes V = 1 and G = 0. A billboard's baked light bounces |
@@ -1182,8 +1075,9 @@ With `NoScreenSpaceLight`, the split costs the ambient pass and the direct image
 
 | Ticket | What it meets here | What it does |
 |---|---|---|
-| SSR (`ter-jxv9`) | The depth pyramid, the trace, `ScreenRay`, the edge fade, κ, `surfaceAt`, `ambientTerms`, the compute stage on sets 0 and 2, `BindSceneSets` at the compute bind point | Merges first. This ticket moves the depth pyramid to `DepthPyramidImage` and κ to `CellBounds`, and `surfaceAt` reads the estimate target |
+| SSR (`ter-jxv9`) | κ, `surfaceAt`, `ambientTerms`, the compute stage on sets 0 and 2, `BindSceneSets` at the compute bind point | Merges first. This ticket moves κ to `CellBounds`, and `surfaceAt` reads the estimate target. Part 5 moved the depth pyramid to `DepthPyramidImage` for the far rays, and `ter-ehxp` moved it back (decision 40) |
 | The environment map (`ter-nl5u`) | `ambientTerms`, `environmentAmbient`, the reflected stars' footprint, `directLight` | Its lighting pass becomes the ambient pass, which takes the footprint from the G-buffer through `surfaceAt`. Its known limit of the map's near surfaces meets decision 31 |
+| The map in each open direction (`ter-fs7b`) | The open share's light | Reads the environment map along the open directions in place of its mean light (decision 40) |
 | The lights (`ter-s9cv`) | `directLight`'s one loop, G-buffer binding 8 | Its loop runs in the direct pass. The direct image takes binding 9 |
 | The shader audit (`ter-lozc`) | `MaxRadiance`, `exposed` | The two passes keep the surfaces' share by "The cap at `MaxRadiance`". Its tables gain this doc's rows |
 | XeGTAO's tuned set (`ter-sdks`) | The seven constants | The user chose none of it (fork 1). `ter-sdks` closes unbuilt |
@@ -1200,7 +1094,7 @@ With `NoScreenSpaceLight`, the split costs the ambient pass and the direct image
 | 2. The lighting split | After SSR merges into main | `ter-jxv9` (Part 2's seam). It adapts to the environment map, the lights and the audit, whichever have merged |
 | 3. The occlusion passes take the scene layout | After Part 2 | Part 2, and SSR's Part 4 (the compute stage on sets 0 and 2) |
 | 4. The sectors | After Parts 1 and 3 | Parts 1 and 3 |
-| 5. The far rays | After Part 4 | Part 4 and SSR's Part 5 (`traceRay`) |
+| 5. The far rays: built, then removed by `ter-ehxp` (decision 40) | After Part 4 | Part 4 and SSR's Part 5 (`traceRay`) |
 | 6. The acceptance tests and the wiring | After Part 5 | Part 5 |
 | 7. The cost, the captures, the defaults and the docs | After Part 6 | Part 6 |
 
@@ -1302,6 +1196,7 @@ public static Vector3 SurfaceLight(Vector3 radiance, Vector3 preExposedLight, fl
 public AmbientTerms Occluded(double occlusion, Double3 bounce, Double3 diffuseColor, double nDotV, GgxLobe lobe);
 ```
 
+- Decision 40 removed the members that only the far rays used: `SliceSectors.AngleHalvings` and `CenterAngle`, `SectorMask.SectorOfRank`, `FarOutcome`, `SectorSearch.FarRayNoise` and `FarRaySector`, and `AmbientEstimate.OpenShare` and `WithFarRay`.
 - Takes: `HorizonSlice`, `GgxLobe`.
 - Done: the CPU tests pass in Checked and Release, with the hand mutations in the report.
 
@@ -1359,10 +1254,13 @@ layout(set = 2, binding = 9) uniform texture2D gbufferDirect;    // RGBA16F: the
 public GpuBuffer SectorMasks { get; }
 ```
 
+- The sector masks buffer that it gave went with decision 40, because only the far rays read it.
 - Takes: Part 1's C# copy, Part 3's layout.
 - Done: every test passes in Checked and Release, with the hand mutations in the report.
 
 ### Part 5: the far rays
+
+Built at `80c185d4` and removed by `ter-ehxp` after the user's decision 40. "Later" says where the code is. The plan as it was:
 
 - Files: new `Frame/DepthPyramidImage.cs` (from SSR's `ReflectionTargets.DepthImage`), `Shaders/occlusion_far_rays.comp`, `Passes/OcclusionFarRaysPass.cs`, `Shading/FarRay.cs` and `FarRayTests.cs`. Changed: SSR's `ReflectionTargets.cs` (the trace set reads `DepthPyramidImage`), `DepthPyramidPass.cs` (writes it), `Shading/DepthPyramid.cs` and `ScreenRay.cs` (`ThicknessShare` moves to `CellBounds`), `depth_pyramid.glsl` and `reflection.glsl` (the same in GLSL), `occlusion.glsl` (binding 5), `DescriptorLayouts.cs` (binding 5), `GpuTypes.cs` (`FarSteps`, 20 bytes), `VulkanRenderer.cs` (the depth pyramid under either reader, the far ray pass). Tests: `AWallBeyondTheRadiusStillLightsTheFloorThroughTheFarRays`, `ALitWallOffTheScreenGivesTheFloorNoBounce`, the tall wall's test, the far corner's test.
 - Tests first: the far tests, red: the far ray pass exists and moves nothing.
@@ -1398,7 +1296,7 @@ internal sealed class DepthPyramidImage : IDisposable
 
 ### Part 7: the cost, the captures, the defaults and the docs
 
-- The cut of `ter-izsu` comes first (see "Settled forks", "The cost"). Then the cost, on a quiet machine, by "Cost", and the captures of "The default radius and steps", with fork 2's options. The orchestrator picks the defaults, and the user sees them and decides fork 2.
+- The cut of `ter-izsu` comes first (see "Settled forks", "The cost"), and after it `ter-ehxp`, which removes the far rays (decision 40). Then the cost, on a quiet machine, by "Cost", and the captures of "The default radius and steps". The orchestrator picks the defaults, and the user sees them.
 - Files: the docs of "Doc changes", `VisibilityBitmaskLight.Default` by the pick, and the forks' choices.
 - Done: ARCHITECTURE.md matches the code, with the measured cost. The ticket closes after the merge into main.
 
@@ -1412,7 +1310,7 @@ None of the seven, by the user: "Let's just not do the tuned set". The sector ma
 
 ### 2. The number of far rays
 
-Decided from the captures and the measured cost of Part 7, as the fork's text says. The build makes option A, one ray per slice. Part 7 measures A and B and shows both on the cabin and the red wall, and the user weighs the look against the time.
+Moot after decision 40: no far rays remain. Before it, the build made option A, one ray per slice, and `ter-izsu` measured option B, one ray per texel, as the setting `FarRays.OnePerTexel`. The user then removed the far rays.
 
 ### 3. The split with the switch off
 
@@ -1421,3 +1319,28 @@ Option A, the direct and ambient passes in both cases, settled by the orchestrat
 ### The cost
 
 The arithmetic of "Cost" gives 4.0 to 8.4 ms for the occlusion passes at 1080p, far over the 1 ms limit. The user chose to build as designed, then cut: after Part 6, ticket `ter-izsu` measures the passes on a quiet machine and tries the three levers of "Cost", each with captures, before Part 7 picks the defaults.
+
+## Later
+
+### The far rays
+
+Part 5 built the far rays at `80c185d4` ("ter-a24f: the far rays (part 5)"). `869f7654` ("ter-izsu: fix the review findings") is the last commit that holds them, with the half-resolution copy of decision 25 and the profile's fixes. `ter-ehxp` removed them by decision 40. A later epic that brings them back starts from `869f7654`.
+
+What they were:
+
+- After the near steps, one ray per slice (fork 2's option A, the default) or one per texel (option B, `FarRays.OnePerTexel`), through the center of one open sector that the fixed noise picked.
+- Each ray started at R from the center along its direction and ran SSR's trace `traceRay` through the depth pyramid, at most `FarSteps` cells, 64 by default.
+- A hit blocked the slice's open share by SSR's edge fade at the hit, with the hit's direct light where the hit faced back along the ray. A ray into its own geometric surface blocked the share with no light. Every other end of the trace left it open.
+- The pass "occlusion far rays" ran between the sectors pass and the denoise. The sector masks buffer carried the masks from the sectors pass to it, 6.2 MB at 1080p. The depth pyramid had its own owner, `DepthPyramidImage`, under either of its readers.
+- The C# copy was `FarRay.Trace`, `SectorSearch.TexelFarRay` and `AmbientEstimate.WithFarRay`, with `FarRayTests` and `TexelFarRayTests`.
+
+Why they went:
+
+- The cost. In `ter-izsu`'s trace at 1080p on the M1 Max, the far ray pass took 5.86 ms with option A and 2.38 ms with option B, the largest share of the occlusion passes. Its trace loop was bound by arithmetic, not by memory.
+- The noise. One ray decides a slice's whole open share, so the far share of a texel is a binary choice per slice, and the blurs leave a speckle. The white speckle in the lamp-lit cabin was the sign that the user saw.
+
+A return needs a cheaper trace and a far share with less variance per texel, with no temporal accumulation (the user's rule).
+
+### The environment map in each open direction
+
+`ter-fs7b`: the open share takes the map's light along its open directions in place of the map's mean light. "Known limits" names what the mean costs.
