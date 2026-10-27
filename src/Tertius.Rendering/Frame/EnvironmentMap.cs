@@ -147,8 +147,8 @@ internal sealed unsafe class EnvironmentMap : IDisposable
     public GpuBuffer Irradiance { get; }
 
     /// <summary>
-    /// The partial sums of one map's irradiance projection: <see cref="Rendering.Irradiance.PartialFloats"/> floats for
-    /// each block of <see cref="Rendering.Irradiance.BlockRows"/> rows of a face, which the prefilter sums into the map's
+    /// The partial sums of one map's irradiance projection: <see cref="Irradiance.PartialFloats"/> floats for
+    /// each block of <see cref="Irradiance.BlockRows"/> rows of a face, which the prefilter sums into the map's
     /// coefficients of <see cref="Irradiance"/>. The maps take turns with it.
     /// </summary>
     public GpuBuffer IrradiancePartials { get; }
@@ -365,7 +365,11 @@ internal sealed unsafe class EnvironmentMap : IDisposable
     private void WriteLevelsSet(DescriptorSet set, ReadOnlySpan<ImageView> views)
     {
         for (int binding = 0; binding < PrefilterLevels.LevelsPerDispatch; binding++)
-            layouts.WriteStorageImage(set: set, binding: (uint)binding, view: views[Math.Min(binding, views.Length - 1)]);
+            layouts.WriteStorageImage(
+                set: set,
+                binding: (uint)binding,
+                view: views[Math.Min(binding, views.Length - 1)]
+            );
     }
 
     public void Dispose()

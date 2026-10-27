@@ -647,7 +647,10 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             new(DescriptorType.SampledImage, 19 + 3 * frames + glowSourceSets + 2 + 2 + PyramidLevelSets + 1 + 2 + 1),
             // Four for the occlusion set, two for each of the two denoise sets, one per pyramid level set, the depth tail
             // set's mips, three for the reflection set and four per environment levels set.
-            new(DescriptorType.StorageImage, 8 + PyramidLevelSets + DepthPyramidTail.Mips + 3 + 4 * EnvironmentLevelsSets),
+            new(
+                DescriptorType.StorageImage,
+                8 + PyramidLevelSets + DepthPyramidTail.Mips + 3 + 4 * EnvironmentLevelsSets
+            ),
             // The SMAA set.
             new(DescriptorType.CombinedImageSampler, SmaaBindings),
         ];
