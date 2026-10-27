@@ -41,7 +41,7 @@ internal sealed unsafe class EnvironmentFacePass : RenderPass
             VertexShader = "fullscreen.vert",
             FragmentShader = "environment_sky.frag",
             Layout = layouts.SceneLayout,
-            ColorFormats = [EnvironmentMap.RadianceFormat],
+            ColorAttachments = [new(EnvironmentMap.RadianceFormat)],
             DepthFormat = EnvironmentMap.FaceDepthFormat,
             CullMode = CullModeFlags.None,
         }.Create(device, shaders);
@@ -51,7 +51,7 @@ internal sealed unsafe class EnvironmentFacePass : RenderPass
             VertexShader = "mesh.vert",
             FragmentShader = "environment_face.frag",
             Layout = layouts.SceneLayout,
-            ColorFormats = [EnvironmentMap.RadianceFormat],
+            ColorAttachments = [new(EnvironmentMap.RadianceFormat)],
             DepthFormat = EnvironmentMap.FaceDepthFormat,
             VertexInput = VertexInput.Mesh,
             DepthTest = true,

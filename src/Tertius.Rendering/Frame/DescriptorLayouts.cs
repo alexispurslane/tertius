@@ -49,6 +49,9 @@ namespace Tertius.Rendering;
 /// <item><term>reflection</term><description>set 3 of <see cref="ReflectionLayout"/>: both pyramids, their trilinear
 /// sampler (immutable), the HDR image as a storage image and, at half resolution, the trace image and the hit depth image
 /// as storage images at bindings 4 and 5, for the trace and the upsample. One, rewritten on resize.</description></item>
+/// <item><term>scatter</term><description>set 3 of <see cref="ScatterLayout"/>: the scatter image, the row image and the
+/// HDR image as storage images, and the kernel as a uniform buffer, for the skin scatter's passes. One, allocated under
+/// <see cref="SeparableSubsurface"/> and rewritten on resize.</description></item>
 /// <item><term>deform</term><description>the set of <see cref="DeformLayout"/>: the deform region's window of the vertex
 /// buffer, the deform vertices, the morph deltas, the frame's pose rows and its job table, five storage buffers for the
 /// compute stage (docs/plans/skinning-and-morphs.md, "The pass"). One per frame in flight.</description></item>
@@ -56,7 +59,7 @@ namespace Tertius.Rendering;
 /// Every pass that draws meshes or reads the G-buffer uses <see cref="SceneLayout"/>, so sets 0 and 1 stay bound
 /// across pipeline changes. <see cref="ImpostorLayout"/> adds set 3 and is compatible with it for sets 0 to 2. The
 /// compute layouts of the reflections, <see cref="PyramidLayout"/> and <see cref="ReflectionLayout"/>, and of the
-/// occlusion, <see cref="OcclusionLayout"/>, take sets 0 to 2 too, whose bindings that their shaders read include the
+/// occlusion, <see cref="OcclusionLayout"/>, and of the skin scatter, <see cref="ScatterLayout"/>, take sets 0 to 2 too, whose bindings that their shaders read include the
 /// compute stage (docs/plans/screen-space-reflections.md, "Descriptor sets").
 /// </summary>
 internal sealed unsafe class DescriptorLayouts : IDisposable
@@ -122,6 +125,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         SmaaSet = CreateSmaaSetLayout();
         (PyramidLevelSet, DepthTailSet, ReflectionSet) = CreateReflectionSetLayouts(AtlasSampler);
         DeformSet = CreateDeformSetLayout();
+        ScatterSet = CreateScatterSetLayout();
 
         const ShaderStageFlags graphics = ShaderStageFlags.VertexBit | ShaderStageFlags.FragmentBit;
         var drawPush = new PushConstantRange(graphics, 0, (uint)Unsafe.SizeOf<DrawPushConstants>());
@@ -155,7 +159,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             PyramidLayout,
             DepthTailLayout,
             ReflectionLayout,
-            DeformLayout
+            DeformLayout,
+            ScatterLayout
         ) = CreateComputeLayouts();
 
         (pool, texturePool) = CreatePools(framesInFlight: (uint)framesInFlight, glowSourceSets: (uint)glowLevels + 1);
@@ -303,6 +308,15 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// <summary>Sets 0 to 2 of <see cref="SceneLayout"/>, the reflection set and <see cref="ReflectionPushConstants"/>, for the trace and the upsample.</summary>
     public PipelineLayout ReflectionLayout { get; }
 
+    /// <summary>
+    /// Set 3 of <see cref="ScatterLayout"/>: the scatter image, the row image and the HDR image as storage images (bindings 0
+    /// to 2), and the kernel as a uniform buffer (binding 3) (Shaders/skin_scatter.glsl).
+    /// </summary>
+    public DescriptorSetLayout ScatterSet { get; }
+
+    /// <summary>Sets 0 to 2 of <see cref="SceneLayout"/> and the scatter set, with no push constants, for the scatter passes.</summary>
+    public PipelineLayout ScatterLayout { get; }
+
     /// <summary>The deform pass's one set: the region's window, the deform vertices, the morph deltas, the pose rows and the job table.</summary>
     public DescriptorSetLayout DeformSet { get; }
 
@@ -360,6 +374,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     public DescriptorSet AllocateReflectionSet() => Allocate(pool, ReflectionSet, null);
 
     public DescriptorSet AllocateDeformSet() => Allocate(pool, DeformSet, null);
+
+    public DescriptorSet AllocateScatterSet() => Allocate(pool, ScatterSet, null);
 
     public DescriptorSet AllocateTextureSet()
     {
@@ -616,7 +632,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
 
     /// <summary>
     /// The pipeline layouts of the compute passes: the exposure, the environment map's prefilter, the occlusion, the
-    /// pyramids, the trace and the deformation.
+    /// pyramids, the trace, the deformation and the skin scatter.
     /// </summary>
     private (
         PipelineLayout Exposure,
@@ -625,7 +641,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         PipelineLayout Pyramid,
         PipelineLayout DepthTail,
         PipelineLayout Reflection,
-        PipelineLayout Deform
+        PipelineLayout Deform,
+        PipelineLayout Scatter
     ) CreateComputeLayouts()
     {
         PipelineLayout exposure = CreatePipelineLayout(
@@ -670,7 +687,12 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             push: new(ShaderStageFlags.ComputeBit, 0, (uint)Unsafe.SizeOf<DeformPushConstants>()),
             name: "deform layout"
         );
-        return (exposure, environmentPrefilter, occlusion, pyramid, depthTail, reflection, deform);
+        PipelineLayout scatter = CreatePipelineLayout(
+            sets: [FrameSet, TextureSet, GBufferSet, ScatterSet],
+            push: null,
+            name: "scatter layout"
+        );
+        return (exposure, environmentPrefilter, occlusion, pyramid, depthTail, reflection, deform, scatter);
     }
 
     /// <summary>The shared pool, which holds <paramref name="glowSourceSets"/> glow source sets, and the pool of the texture sets.</summary>
@@ -679,7 +701,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         uint frames = framesInFlight;
         Span<DescriptorPoolSize> sizes =
         [
-            new(DescriptorType.UniformBuffer, frames),
+            // One per frame set, and the scatter set's kernel.
+            new(DescriptorType.UniformBuffer, frames + 1),
             // Those of each frame set and each deform set, the two of the exposure set and the two of the prefilter set.
             new(DescriptorType.StorageBuffer, (FrameSetStorageBuffers + DeformSetStorageBuffers) * frames + 4),
             // Three per frame set (the material sampler and the immutable linear clamp and environment samplers), the
@@ -690,7 +713,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             // reflection set and one for the prefilter set.
             new(DescriptorType.SampledImage, 20 + 3 * frames + glowSourceSets + 2 + PyramidLevelSets + 1 + 2 + 1),
             // Those of each of the two occlusion sets, one per pyramid level set, the depth tail set's mips, three for the
-            // reflection set and four per environment levels set.
+            // reflection set, four per environment levels set and three for the scatter set.
             new(
                 DescriptorType.StorageImage,
                 2 * OcclusionImages.StorageImages
@@ -698,16 +721,17 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
                     + DepthPyramidTail.Mips
                     + 3
                     + 4 * EnvironmentLevelsSets
+                    + 3
             ),
             // The SMAA set.
             new(DescriptorType.CombinedImageSampler, SmaaBindings),
         ];
-        // The frame sets, the deform sets, the G-buffer, post, atlas, meter, exposure, SMAA, reflection and prefilter sets,
-        // the two occlusion sets, the glow source sets, the pyramid level sets, the depth tail set and the environment
-        // levels sets. The reflection sets exist even with reflections off: they cost nothing per frame.
+        // The frame sets, the deform sets, the G-buffer, post, atlas, meter, exposure, SMAA, reflection, prefilter and
+        // scatter sets, the two occlusion sets, the glow source sets, the pyramid level sets, the depth tail set and the
+        // environment levels sets. The reflection sets exist even with reflections off: they cost nothing per frame.
         DescriptorPool shared = CreatePool(
             sizes: sizes,
-            maxSets: 2 * frames + 11 + glowSourceSets + PyramidLevelSets + EnvironmentLevelsSets,
+            maxSets: 2 * frames + 12 + glowSourceSets + PyramidLevelSets + EnvironmentLevelsSets,
             flags: 0,
             name: "descriptor pool"
         );
@@ -850,6 +874,24 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
                 stageFlags: ShaderStageFlags.ComputeBit
             );
         return CreateLayout(bindings: bindings, name: "deform set");
+    }
+
+    /// <summary>The layout of the scatter set: three storage images and the kernel's uniform buffer, for the compute stage.</summary>
+    private DescriptorSetLayout CreateScatterSetLayout()
+    {
+        Span<DescriptorSetLayoutBinding> scatter =
+        [
+            StorageImage(binding: 0),
+            StorageImage(binding: 1),
+            StorageImage(binding: 2),
+            new(
+                binding: 3,
+                descriptorType: DescriptorType.UniformBuffer,
+                descriptorCount: 1,
+                stageFlags: ShaderStageFlags.ComputeBit
+            ),
+        ];
+        return CreateLayout(bindings: scatter, name: "scatter set");
     }
 
     /// <summary>A binding of one storage image for the compute stage.</summary>
@@ -1188,6 +1230,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         vk.DestroyPipelineLayout(device.Device, DepthTailLayout, null);
         vk.DestroyPipelineLayout(device.Device, ReflectionLayout, null);
         vk.DestroyPipelineLayout(device.Device, DeformLayout, null);
+        vk.DestroyPipelineLayout(device.Device, ScatterLayout, null);
         vk.DestroyDescriptorSetLayout(device.Device, FrameSet, null);
         vk.DestroyDescriptorSetLayout(device.Device, TextureSet, null);
         vk.DestroyDescriptorSetLayout(device.Device, GBufferSet, null);
@@ -1204,6 +1247,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         vk.DestroyDescriptorSetLayout(device.Device, DepthTailSet, null);
         vk.DestroyDescriptorSetLayout(device.Device, ReflectionSet, null);
         vk.DestroyDescriptorSetLayout(device.Device, DeformSet, null);
+        vk.DestroyDescriptorSetLayout(device.Device, ScatterSet, null);
         vk.DestroySampler(device.Device, ShadowSampler, null);
         vk.DestroySampler(device.Device, AtlasSampler, null);
         vk.DestroySampler(device.Device, LinearClampSampler, null);

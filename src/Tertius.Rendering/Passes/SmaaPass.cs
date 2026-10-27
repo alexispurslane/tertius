@@ -60,7 +60,7 @@ internal sealed unsafe class SmaaPass : RenderPass
             VertexShader = shader + ".vert",
             FragmentShader = shader + ".frag",
             Layout = layouts.SmaaLayout,
-            ColorFormats = [format],
+            ColorAttachments = [new(format)],
             CullMode = CullModeFlags.None,
         }.Create(device, shaders);
     }

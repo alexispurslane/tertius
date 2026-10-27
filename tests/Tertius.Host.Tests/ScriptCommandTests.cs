@@ -360,6 +360,35 @@ public sealed class ScriptCommandTests : IDisposable
         "dim"
     )]
     [InlineData(
+        "--subsurface needs a value",
+        "--script",
+        "script.json",
+        "--headless",
+        "--out",
+        "out",
+        "--subsurface"
+    )]
+    [InlineData(
+        "--subsurface applies to a headless run",
+        "--script",
+        "script.json",
+        "--out",
+        "out",
+        "--subsurface",
+        "off"
+    )]
+    [InlineData("--subsurface applies to a headless run", "--scene", "no-such-scene", "--subsurface", "off")]
+    [InlineData(
+        "--subsurface needs on or off, not 'waxy'",
+        "--script",
+        "script.json",
+        "--headless",
+        "--out",
+        "out",
+        "--subsurface",
+        "waxy"
+    )]
+    [InlineData(
         "--tone-curve needs aces or hable",
         "--script",
         "script.json",

@@ -14,6 +14,7 @@ public sealed class DeviceFeatureTests
         DrawIndirectFirstInstance = true,
         DepthClamp = true,
         DualSrcBlend = true,
+        IndependentBlend = true,
         SamplerAnisotropy = true,
         ShaderStorageImageExtendedFormats = true,
         ImageCubeArray = true,
@@ -58,6 +59,19 @@ public sealed class DeviceFeatureTests
         };
 
         VulkanDevice.MissingFeature(Core, withoutIt, Vulkan13).Should().Be("descriptorIndexing");
+    }
+
+    [Fact]
+    public void TheDeviceRequiresIndependentBlend()
+    {
+        // The ambient pass adds its share of the skin's diffuse light to the scatter image and writes the HDR image with
+        // no blend: two blend states in one pipeline (docs/plans/skin-and-hair.md, decision 14).
+        PhysicalDeviceFeatures withoutIt = Core with
+        {
+            IndependentBlend = false,
+        };
+
+        VulkanDevice.MissingFeature(withoutIt, Vulkan12, Vulkan13).Should().Be("independentBlend");
     }
 
     [Fact]

@@ -35,10 +35,9 @@ internal sealed unsafe class TransparentPass : RenderPass
             VertexShader = "mesh.vert",
             FragmentShader = "transparent.frag",
             Layout = layouts.SceneLayout,
-            ColorFormats = [RenderTargets.HdrFormat],
+            ColorAttachments = [new(RenderTargets.HdrFormat, BlendMode.Transmittance)],
             VertexInput = VertexInput.Mesh,
             DepthClamp = true,
-            Blend = BlendMode.Transmittance,
             Constants = constants,
         };
         pipeline = SidedPipeline.Create(device: device, shaders: shaders, desc: glass);
@@ -68,12 +67,11 @@ internal sealed unsafe class TransparentPass : RenderPass
                 VertexShader = "puff.vert",
                 FragmentShader = "puff.frag",
                 Layout = layouts.SceneLayout,
-                ColorFormats = [RenderTargets.HdrFormat],
+                ColorAttachments = [new(RenderTargets.HdrFormat, BlendMode.Additive)],
                 VertexInput = VertexInput.None,
                 // The square faces the eye, and its winding does not matter.
                 CullMode = CullModeFlags.None,
                 DepthClamp = true,
-                Blend = BlendMode.Additive,
                 Constants = constants,
             }.Create(device, shaders);
         }

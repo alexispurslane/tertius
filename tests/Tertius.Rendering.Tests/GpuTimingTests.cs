@@ -14,14 +14,16 @@ public sealed class GpuTimingTests
     /// <summary>A validating headless renderer that the test skips on a device without timestamps.</summary>
     private static VulkanRenderer TimedRenderer(
         int framesInFlight = 2,
-        ScreenSpaceLightSetting screenSpaceLight = default
+        ScreenSpaceLightSetting screenSpaceLight = default,
+        SubsurfaceSetting subsurface = default
     )
     {
         VulkanRenderer renderer = Gpu.Headless(
             width: Width,
             height: Height,
             framesInFlight: framesInFlight,
-            screenSpaceLight: screenSpaceLight
+            screenSpaceLight: screenSpaceLight,
+            subsurface: subsurface
         );
         if (!renderer.TimesPasses)
         {
@@ -168,6 +170,84 @@ public sealed class GpuTimingTests
         {
             Gpu.DisposeAndAssertClean(renderer);
         }
+    }
+
+    [Fact]
+    public void UnderSeparableSubsurfaceTheTwoScatterPassesRunRightAfterTheAmbientPass()
+    {
+        VulkanRenderer renderer = TimedRenderer(subsurface: SeparableSubsurface.Default);
+        try
+        {
+            RenderSnapshot snapshot = TestScene.Create(renderer).Snapshot();
+            for (int i = 0; i < 3; i++)
+                renderer.Render(snapshot, 1f);
+
+            string[] passes = [.. renderer.LastFrameStats.GpuTimings!.Value.Passes.ToArray().Select(pass => pass.Pass)];
+            passes
+                .SkipWhile(pass => pass != "ambient light")
+                .Take(3)
+                .Should()
+                .Equal(
+                    ["ambient light", "scatter rows", "scatter columns"],
+                    "the scatter blurs the diffuse light that the ambient pass completes"
+                );
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void UnderNoSubsurfaceTheFrameHasNoScatterPass()
+    {
+        VulkanRenderer renderer = TimedRenderer(subsurface: new NoSubsurface());
+        try
+        {
+            RenderSnapshot snapshot = TestScene.Create(renderer).Snapshot();
+            for (int i = 0; i < 3; i++)
+                renderer.Render(snapshot, 1f);
+
+            renderer
+                .LastFrameStats.GpuTimings!.Value.Passes.ToArray()
+                .Should()
+                .NotContain(pass => pass.Pass.StartsWith("scatter"), "the renderer makes no scatter pass without the setting");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void WithEverySettingOnTheFrameGraphHoldsNoMorePassesThanTheGpuTimerCanTime()
+    {
+        // Every pass that a setting adds, each with the most passes it can add: the half-resolution trace's upsample, the
+        // three SMAA passes and the four occlusion passes among them.
+        using VulkanRenderer renderer = VulkanRenderer.CreateHeadless(
+            new()
+            {
+                Validation = true,
+                Width = Width,
+                Height = Height,
+                Impostors = true,
+                ImpostorTiles = 4,
+                LocalShadows = LocalShadowAtlas.Default,
+                Exposure = AutoExposure.Default,
+                ScreenSpaceLight = VisibilityBitmaskLight.Default,
+                Bloom = Bloom.Default,
+                Reflections = ConeTracedReflections.Default with { Resolution = TraceResolution.Half },
+                AntiAliasing = AntiAliasing.Smaa,
+                EnvironmentMap = SceneEnvironmentMap.Default,
+                Deformation = true,
+                Subsurface = SeparableSubsurface.Default,
+            }
+        );
+
+        renderer
+            .Graph.Passes.Count()
+            .Should()
+            .BeLessThanOrEqualTo(GpuTimer.MaxPasses, "each pass needs a query of the frame's timestamp pool");
     }
 
     [Fact]

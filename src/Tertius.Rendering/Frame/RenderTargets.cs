@@ -30,8 +30,9 @@ namespace Tertius.Rendering;
 /// estimate target are R16G16B16A16_SFLOAT (docs/plans/screen-space-illumination.md, "Images and buffers"): the direct
 /// light of each pixel, and the bounce G in rgb with the occlusion V in a, (0, 0, 0, 1) under NoScreenSpaceLight.
 /// Each bloom level is an HDR image half the size of the one before, rounded up, from half the output's size. Every color
-/// target can be copied out, for the read hooks of <see cref="VulkanRenderer"/>. Under reflections the HDR target is
-/// also a storage image, which the trace writes; without them it is not, so a frame is the frame from before them.
+/// target can be copied out, for the read hooks of <see cref="VulkanRenderer"/>. Under reflections or the skin scatter
+/// the HDR target is also a storage image, which the trace and the scatter's columns pass write; without both it is not,
+/// so a frame is the frame from before them.
 /// </remarks>
 internal sealed class RenderTargets : IDisposable
 {
@@ -80,9 +81,15 @@ internal sealed class RenderTargets : IDisposable
         ShadingFormat,
     ];
 
+    /// <summary>The G-buffer color attachments of the passes that draw it, in the order of <see cref="GBufferFormats"/>, unblended.</summary>
+    public static readonly ColorAttachment[] GBufferAttachments = [.. GBufferFormats.Select(format => new ColorAttachment(format))];
+
     private readonly VulkanDevice device;
     private readonly DeviceAllocator allocator;
     private readonly DescriptorLayouts layouts;
+
+    // True under reflections or the skin scatter, whose compute passes write the HDR target as a storage image.
+    private readonly bool hdrStorage;
 
     // True from the creation of the estimate target until the first frame after it records the clear to (0, 0, 0, 1).
     private bool estimateNeedsClear;
@@ -90,6 +97,7 @@ internal sealed class RenderTargets : IDisposable
     /// <param name="glowLevels">The bloom levels, 0 without bloom.</param>
     /// <param name="smaaTables">The SMAA tables when SMAA is on, or null when it is off.</param>
     /// <param name="reflections">The resolution of the reflections' trace, to make their images, or null under <see cref="NoReflections"/>.</param>
+    /// <param name="subsurface">True under <see cref="SeparableSubsurface"/>, whose columns pass writes the HDR target.</param>
     public RenderTargets(
         VulkanDevice device,
         DeviceAllocator allocator,
@@ -97,7 +105,8 @@ internal sealed class RenderTargets : IDisposable
         Extent2D extent,
         int glowLevels,
         SmaaTables? smaaTables,
-        TraceResolution? reflections
+        TraceResolution? reflections,
+        bool subsurface
     )
     {
         if (reflections is not null)
@@ -105,6 +114,7 @@ internal sealed class RenderTargets : IDisposable
         this.device = device;
         this.allocator = allocator;
         this.layouts = layouts;
+        hdrStorage = reflections is not null || subsurface;
         CheckFormats(device: device, reflections: reflections is not null);
         GBufferSet = layouts.AllocateGBufferSet();
         PostSet = layouts.AllocatePostSet();
@@ -113,7 +123,7 @@ internal sealed class RenderTargets : IDisposable
         GlowSources = glowLevels == 0 ? [] : new DescriptorSet[glowLevels + 1];
         for (int i = 0; i < GlowSources.Length; i++)
             GlowSources[i] = layouts.AllocateGlowSourceSet();
-        Create(extent: extent, hdrStorage: reflections is not null);
+        Create(extent);
         if (reflections is { } resolution)
             Reflections = new(
                 device: device,
@@ -186,7 +196,7 @@ internal sealed class RenderTargets : IDisposable
         if (Reflections is not null)
             CheckReflectedScreen(extent);
         DestroyImages();
-        Create(extent: extent, hdrStorage: Reflections is not null);
+        Create(extent);
         // The trace keeps its resolution across a resize.
         Reflections?.Create(extent: extent, hdr: Hdr, resolution: Reflections.Resolution);
         Smaa?.Resize(extent);
@@ -199,7 +209,6 @@ internal sealed class RenderTargets : IDisposable
     }
 
     /// <summary>Makes every target at <paramref name="extent"/> and writes the sets that read them.</summary>
-    /// <param name="hdrStorage">True to make the HDR target a storage image too, for the reflections' trace.</param>
     [MemberNotNull(
         nameof(BaseColor),
         nameof(Normal),
@@ -212,7 +221,7 @@ internal sealed class RenderTargets : IDisposable
         nameof(Direct),
         nameof(Estimate)
     )]
-    private void Create(Extent2D extent, bool hdrStorage)
+    private void Create(Extent2D extent)
     {
         Extent = extent;
         BaseColor = ColorTarget(extent: extent, format: BaseColorFormat, name: "g-buffer base color");

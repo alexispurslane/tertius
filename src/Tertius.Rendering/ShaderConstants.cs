@@ -17,11 +17,21 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
     /// <summary>The constant_id of cutoutAlpha in material.glsl.</summary>
     public const uint CutoutAlphaId = 1;
 
+    /// <summary>The constant_id of scatterTapsPerSide in subsurface.glsl.</summary>
+    public const uint ScatterTapsPerSideId = 2;
+
     /// <summary>
     /// True in the cutout pipeline of an opaque pass, whose material sample discards a texel below its material's cutoff
     /// (docs/plans/skin-and-hair.md, "The cutout test"); false in the solid pipelines, which keep their early depth writes.
     /// </summary>
     public bool CutoutAlpha { get; init; }
+
+    /// <summary>
+    /// The skin scatter of the renderer (docs/plans/skin-and-hair.md, "The two passes"): the scatter passes take the taps
+    /// per side of <see cref="SeparableSubsurface"/>. The lighting passes choose their shaders by the scatter instead, so
+    /// that no shader writes an output that has no attachment.
+    /// </summary>
+    public SubsurfaceSetting Subsurface { get; init; }
 
     /// <summary>
     /// The specialization info of <paramref name="constants"/>, filled into <paramref name="storage"/>, or null for a
@@ -31,11 +41,19 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
     {
         if (constants is not { } values)
             return null;
-        // VkBool32s, the type of a bool specialization constant, at the offsets of their entries.
+        // VkBool32s, the type of a bool specialization constant, and an int, at the offsets of their entries. Without the
+        // scatter no shader reads the taps per side, and 1 is the shader's own default.
+        int tapsPerSide = values.Subsurface switch
+        {
+            NoSubsurface => 1,
+            SeparableSubsurface separable => separable.TapsPerSide,
+        };
         storage->Data[0] = values.EnvironmentMap ? 1u : 0u;
         storage->Data[1] = values.CutoutAlpha ? 1u : 0u;
+        storage->Data[2] = (uint)tapsPerSide;
         storage->Entries[0] = new(EnvironmentMapId, 0, sizeof(uint));
         storage->Entries[1] = new(CutoutAlphaId, sizeof(uint), sizeof(uint));
+        storage->Entries[2] = new(ScatterTapsPerSideId, 2 * sizeof(uint), sizeof(uint));
         storage->Info = new()
         {
             MapEntryCount = SpecializationStorage.Count,
@@ -53,15 +71,18 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
 /// </summary>
 internal struct SpecializationStorage
 {
-    /// <summary>The number of constants: one per field of <see cref="ShaderConstants"/>.</summary>
-    public const int Count = 2;
+    /// <summary>
+    /// The number of constants: one per field of <see cref="ShaderConstants"/>, the subsurface setting's being its taps per
+    /// side.
+    /// </summary>
+    public const int Count = 3;
 
     public SpecializationValues Data;
     public SpecializationEntries Entries;
     public SpecializationInfo Info;
 }
 
-/// <summary>The values of <see cref="SpecializationStorage"/>, one VkBool32 per constant, in the order of their entries.</summary>
+/// <summary>The values of <see cref="SpecializationStorage"/>, one 32-bit word per constant, in the order of their entries.</summary>
 [InlineArray(SpecializationStorage.Count)]
 internal struct SpecializationValues
 {
