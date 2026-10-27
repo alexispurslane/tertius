@@ -30,10 +30,12 @@ namespace Tertius.Rendering;
 /// resize.</description></item>
 /// <item><term>exposure</term><description>the histogram and the exposure buffer for the meter and the adapt step. One,
 /// written once.</description></item>
-/// <item><term>environment prefilter</term><description>the environment map's radiance map with its sampler and the
-/// irradiance buffer, for the prefilter's compute stage. One, written once, with the map on.</description></item>
-/// <item><term>environment level</term><description>one level of the radiance map or the specular map as a storage image.
-/// One per level of each cube, written once, with the map on.</description></item>
+/// <item><term>environment prefilter</term><description>the environment map's radiance map with its sampler, the
+/// irradiance buffer and the buffer of its partial sums, for the prefilter's compute stage. One with the map on, its
+/// radiance map rewritten when the map's images grow.</description></item>
+/// <item><term>environment levels</term><description>four level views of the radiance map or the specular map as storage
+/// images. One per dispatch of the map's mips and of its specular levels with the map on, which the pool holds for the
+/// largest map, rewritten when the map's images grow.</description></item>
 /// <item><term>occlusion</term><description>the G-buffer distance and normals, and the half-resolution images and the
 /// occlusion target as storage images, for the occlusion passes. One, rewritten on resize.</description></item>
 /// <item><term>denoise</term><description>the source and the destination term of one denoise dispatch. Two, rewritten on

@@ -356,7 +356,7 @@ where
 
 Each instance drawn as uploaded adds 1 to `UndeformedPosedInstances`. Each deformed instance adds 1 to `DeformedInstances` and its vertices to `DeformedVertices`.
 
-Every later step reads frame meshes. `CollectVisible`, `CollectCasters` and `BatchFaces` each walk `RigPoses` with a cursor beside the instances, so an instance with an entry takes its frame mesh. `Batch`, the casters' radius and every command read `scene.Meshes`. So a deformed instance is culled by its posed bound, in every view, and every command points at its copy. An instance that `Place` leaves out after its job was made, because its position passes the position limit, leaves a job that no draw reads, in a case that only a bug produces.
+Every later step reads frame meshes. `CollectVisible` and `CollectCasters` each walk `RigPoses` with a cursor beside the instances, so an instance with an entry takes its frame mesh. `CollectVisible`'s walk also gives each map instance its frame mesh, which `BatchFaces` reads. `Batch`, the casters' radius and every command read `scene.Meshes`. So a deformed instance is culled by its posed bound, in every view, and every command points at its copy. An instance that `Place` leaves out after its job was made, because its position passes the position limit, leaves a job that no draw reads, in a case that only a bug produces.
 
 `PreparedScene` gains:
 
