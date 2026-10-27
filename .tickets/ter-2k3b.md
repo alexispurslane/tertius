@@ -1,6 +1,6 @@
 ---
 id: ter-2k3b
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-10-24T17:07:50Z
@@ -34,3 +34,7 @@ The UnreachableException in Run ("A script run has its script and its output fol
 **2026-10-24T19:39:05Z**
 
 The user approved the design sketch above as it stands on 2026-10-24. Build from it. The forks that it lists stay open: design each one twice when the ticket starts, and let the user choose.
+
+**2026-10-27T10:02:57Z**
+
+2026-10-27: merged. RunOptions is a [GeneratedUnion] of FreePlayRun and ScriptRun; a ScriptRun's display is InWindow or Headless; the eight headless renderer overrides travel as one RendererOverrides. Coverage of the changed lines 226/235 (96.2%); the uncovered lines are the window runs and the null arms that STYLE.md requires. A command line with two or more problems can now report a different one of them first (strays before values); each line with one problem keeps its old message (47 lock-ins). The orchestrator renamed the case FreePlay to FreePlayRun, because Tertius.Host.Windowing.FreePlay has the same name.
