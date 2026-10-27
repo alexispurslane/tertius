@@ -433,6 +433,25 @@ public sealed class RigPoseTests
     }
 
     [Fact]
+    public void InvariantCheckHoldsWhileADeadEntitysBlockSitsInThePoolAndThenASpawnOfItsShapeTakesIt()
+    {
+        EntityTable table = TableSupport.NewTable();
+        RigPose pose = SpawnPose();
+        Entity gone = table.SpawnLive();
+        table.SetSpawnRigPose(gone, pose);
+        EntityTable.RigPoseBlock pooledBlock = table.RigPoseOf(gone)!;
+        table.Release(gone);
+
+        Action check = table.AssertInvariants;
+        check.Should().NotThrow("a block in the stack of its shape belongs to no live slot");
+
+        Entity respawned = table.SpawnLive();
+        table.SetSpawnRigPose(respawned, pose);
+        table.RigPoseOf(respawned).Should().BeSameAs(pooledBlock, "the pool holds a block of the shape of the respawn");
+        check.Should().NotThrow("a block that left the pool belongs to the live slot only");
+    }
+
+    [Fact]
     public void SnapshotBuildWithPosedEntitiesAllocatesNothingInTheSteadyState()
     {
         using var test = new TestWorld(debugChecks: false);

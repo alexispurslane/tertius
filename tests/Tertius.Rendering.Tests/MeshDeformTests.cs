@@ -585,6 +585,44 @@ public sealed class MeshDeformTests
         float.IsFinite(bound).Should().BeFalse("0 times a NaN is a NaN");
     }
 
+    [Theory]
+    [InlineData(2)]
+    [InlineData(3)]
+    public void PosedBoundReachesAVertexThatTheThirdOrTheFourthJointMoves(int joint)
+    {
+        // Four root joints at the origin, a box on Joint 0 except its first vertex, which has a quarter on each joint.
+        var rig = new Rig(
+            [.. Enumerable.Range(0, 4).Select(each => new RigJoint($"J{each}", null, Pose.Identity))],
+            []
+        );
+        MeshData box = Primitives.Box(Vector3.One);
+        VertexSkin[] vertices =
+        [
+            .. box.Vertices.Select(
+                (_, index) =>
+                    index == 0
+                        ? new VertexSkin(Joint0: 0, Joint1: 1, Joint2: 2, Joint3: 3, Weights: new(0.25f))
+                        : new VertexSkin(
+                            Joint0: 0,
+                            Joint1: 0,
+                            Joint2: 0,
+                            Joint3: 0,
+                            Weights: new(x: 1, y: 0, z: 0, w: 0)
+                        )
+            ),
+        ];
+        var skin = new MeshSkin(vertices, [.. Enumerable.Repeat(Pose.Identity, 4)]);
+        MeshData mesh = box with { Rigging = new(rig, skin, []) };
+        PackedDeform packed = Packed(mesh);
+        RigPose moved = WithJoint(rig.Rest, joint, new(new(50, 0, 0), Quaternion.Identity));
+
+        (_, float still) = Rows(deform: packed.Deform, previous: rig.Rest, current: rig.Rest, alpha: 1);
+        (_, float bound) = Rows(deform: packed.Deform, previous: moved, current: moved, alpha: 1);
+
+        still.Should().BeLessThan(2, "the box is 1 m wide, and nothing moves");
+        bound.Should().BeGreaterThan(49, "the joint's sphere holds the vertex, so the bound follows the joint out to 50 m");
+    }
+
     [Fact]
     public void PoseReadsEachWeightAsTheShadersReadIt()
     {

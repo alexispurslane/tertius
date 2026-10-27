@@ -112,6 +112,18 @@ public sealed class UploadQueueRiggingTests
         ShouldRefuse(WithSkin(mesh, skin with { InverseBinds = skin.InverseBinds.SetItem(1, bind) }));
     }
 
+    [Fact]
+    public void AddMeshRefusesMorphTargetsThatAreNotSet()
+    {
+        MeshData mesh = Cylinder();
+
+        FluentActions
+            .Invoking(() => Queue().AddMesh(mesh with { Rigging = mesh.Rigging! with { Morphs = default } }))
+            .Should()
+            .ThrowExactly<ArgumentException>()
+            .WithMessage("The rigging's morph targets are not set.*");
+    }
+
     [Theory]
     [InlineData(1)]
     [InlineData(-1)]
