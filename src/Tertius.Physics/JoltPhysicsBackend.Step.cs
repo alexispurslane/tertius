@@ -669,6 +669,11 @@ public sealed partial class JoltPhysicsBackend
             FrameTurns turns = frames.Turns(frame);
             // Before the force, so that the bodies that this step wakes get it.
             UpdateGravityWake(world, turns);
+            // The acceleration of the system's home, which the minimum rebound of the step's contacts reads (see
+            // FrameWorld.ForceAcceleration).
+            world.HomeAcceleration = frames.IsNumeric(frame)
+                ? frames.HomeAcceleration(frame, frames.SemanticOf(frame)).ToVector3()
+                : Vector3.Zero;
             ApplyGravityToAwakeBodies(world, turns);
         }
 
@@ -718,9 +723,6 @@ public sealed partial class JoltPhysicsBackend
 
         world.HasGravityState = true;
         world.LastGravity = field;
-        world.HomeAcceleration = frames.IsNumeric(frame)
-            ? frames.HomeAcceleration(frame, frames.SemanticOf(frame)).ToVector3()
-            : Vector3.Zero;
     }
 
     /// <summary>
