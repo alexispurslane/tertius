@@ -10,10 +10,9 @@
 // One object alone, rendered with mesh.vert into its impostor atlas tile (ImpostorPass.cs). draw.viewProj is a
 // perspective projection from the main view's eye, fitted to the bounding sphere's tangent cone, with clip w equal
 // to the view depth over the center's distance; draw.eye is that eye, so view-dependent shading matches what the
-// camera sees. Lighting is the one-pass
-// surfaceRadiance with the ambient light of the frame's ambient source and every light with its far shadows, but not the
-// shadow maps or the tiles: they cover the main view, not the capture. ImpostorManager recaptures when any of that light
-// changes at the object.
+// camera sees. Lighting is the one-pass surfaceRadiance with the ambient light of the frame's ambient source and every
+// light that the main view keeps, with its far shadows, but not the shadow maps or the tiles: they cover the main view,
+// not the capture. ImpostorManager recaptures when any of that light changes at the object.
 
 layout(location = 0) in vec3 inPosition;
 layout(location = 1) in vec3 inNormal;

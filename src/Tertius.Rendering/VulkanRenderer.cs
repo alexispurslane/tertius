@@ -31,8 +31,8 @@ namespace Tertius.Rendering;
 /// <item>The depth pyramid (<see cref="DepthPyramidPass"/>), under <see cref="ConeTracedReflections"/>: the min-max
 /// inverse depth of the distance target, level by level, and its small mips in one dispatch (<see cref="DepthPyramidTail"/>).</item>
 /// <item>The direct pass (<see cref="DirectLightPass"/>): one fullscreen pass into the direct image, the light of each
-/// light of the one light list, shadowed by its cascade set and far shadows, its far shadows alone, or its atlas tiles,
-/// plus the emission, pre-exposed and capped.</item>
+/// light of the list that the main view keeps, shadowed by its cascade set and far shadows, its far shadows alone, or
+/// its atlas tiles, plus the emission, pre-exposed and capped.</item>
 /// <item>The occlusion passes (<see cref="OcclusionDepthPass"/> to <see cref="OcclusionUpsamplePass"/>), under
 /// <see cref="VisibilityBitmaskLight"/>: the estimate of the light around each pixel, the bounce of the direct light of
 /// the surfaces that block its hemisphere within the radius, and the share that nothing blocks there, in the estimate
