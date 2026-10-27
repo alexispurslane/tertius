@@ -15,9 +15,15 @@ internal enum VertexInput
 
     /// <summary>Only <see cref="Vertex.Position"/> at location 0, with the <see cref="Vertex"/> stride. Depth-only passes.</summary>
     PositionOnly,
+
+    /// <summary>
+    /// <see cref="Vertex.Position"/> at location 0 and <see cref="Vertex.TexCoord"/> at location 3, with the
+    /// <see cref="Vertex"/> stride: the depth-only passes of cutout casters, which test the base color's alpha.
+    /// </summary>
+    PositionAndTexCoord,
 }
 
-/// <summary>How a pipeline blends its output into every color attachment. No case carries a field, so it is an enum.</summary>
+/// <summary>How a pipeline blends its output into one color attachment. No case carries a field, so it is an enum.</summary>
 internal enum BlendMode
 {
     /// <summary>The output replaces the target.</summary>
@@ -37,10 +43,16 @@ internal enum BlendMode
 }
 
 /// <summary>
+/// One color attachment of a graphics pipeline: its format, and how the pipeline's output blends into it. Two attachments
+/// of one pipeline can blend differently, which the device feature independentBlend allows.
+/// </summary>
+internal readonly record struct ColorAttachment(Format Format, BlendMode Blend = BlendMode.None);
+
+/// <summary>
 /// Everything that differs between the engine's graphics pipelines. All of them use dynamic rendering, a dynamic
 /// viewport and scissor, and read vertices as <see cref="VertexInput"/> says.
 /// </summary>
-internal sealed class GraphicsPipelineDesc
+internal sealed record GraphicsPipelineDesc
 {
     public required string Name { get; init; }
     public required string VertexShader { get; init; }
@@ -49,7 +61,9 @@ internal sealed class GraphicsPipelineDesc
     public required string? FragmentShader { get; init; }
 
     public required PipelineLayout Layout { get; init; }
-    public required Format[] ColorFormats { get; init; }
+
+    /// <summary>The color attachments in the order of the fragment shader's outputs: empty for a depth-only pipeline.</summary>
+    public required ColorAttachment[] ColorAttachments { get; init; }
     public Format DepthFormat { get; init; } = Format.Undefined;
     public VertexInput VertexInput { get; init; }
     public bool DepthTest { get; init; }
@@ -81,8 +95,28 @@ internal sealed class GraphicsPipelineDesc
     /// </summary>
     public float DepthBiasSlope { get; init; }
 
-    /// <summary>How the output blends into every color attachment.</summary>
-    public BlendMode Blend { get; init; }
+    /// <summary>
+    /// Throws if the pipeline blends into an integer format, which Vulkan cannot blend. The refusal also keeps true
+    /// reports of it out of what <see cref="ValidationLog.IsFalseIntegerBlendReport"/> drops.
+    /// </summary>
+    private void RefuseBlendIntoAnInteger()
+    {
+        foreach (ColorAttachment attachment in ColorAttachments)
+        {
+            bool blendsAnInteger = attachment.Blend != BlendMode.None && IsInteger(attachment.Format);
+            if (blendsAnInteger)
+                throw new ArgumentException(
+                    $"The pipeline {Name} blends into an attachment of {attachment.Format}, an integer format."
+                );
+        }
+    }
+
+    /// <summary>Whether <paramref name="format"/> holds unsigned or signed integers, which no blend can mix.</summary>
+    private static bool IsInteger(Format format)
+    {
+        string name = format.ToString();
+        return name.Contains("Uint", StringComparison.Ordinal) || name.Contains("Sint", StringComparison.Ordinal);
+    }
 
     /// <summary>The blend state of one color attachment for <paramref name="mode"/>.</summary>
     internal static PipelineColorBlendAttachmentState BlendState(BlendMode mode)
@@ -131,18 +165,19 @@ internal sealed class GraphicsPipelineDesc
     }
 
     /// <summary>Creates the pipeline. The caller destroys it.</summary>
+    /// <exception cref="ArgumentException">The pipeline blends into a color attachment of an integer format.</exception>
     public unsafe Pipeline Create(VulkanDevice device, ShaderLibrary shaders)
     {
+        RefuseBlendIntoAnInteger();
         byte* entry = stackalloc byte[] { (byte)'m', (byte)'a', (byte)'i', (byte)'n', 0 };
         SpecializationStorage storage;
         SpecializationInfo* constants = ShaderConstants.Specialization(Constants, &storage);
         PipelineShaderStageCreateInfo* stages = stackalloc PipelineShaderStageCreateInfo[2];
-        uint stageCount = WriteStages(stages: stages, shaders: shaders, entry: entry, constants: constants);
+        uint stageCount = WriteStages(shaders: shaders, entry: entry, constants: constants, stages: stages);
 
         var binding = new VertexInputBindingDescription(0, (uint)Unsafe.SizeOf<Vertex>(), VertexInputRate.Vertex);
         VertexInputAttributeDescription* attributes = stackalloc VertexInputAttributeDescription[4];
-        WriteMeshAttributes(attributes);
-        PipelineVertexInputStateCreateInfo vertexInput = VertexInputState(&binding, attributes);
+        PipelineVertexInputStateCreateInfo vertexInput = VertexInputState(binding: &binding, attributes: attributes);
         var inputAssembly = new PipelineInputAssemblyStateCreateInfo
         {
             SType = StructureType.PipelineInputAssemblyStateCreateInfo,
@@ -162,7 +197,7 @@ internal sealed class GraphicsPipelineDesc
         };
         PipelineDepthStencilStateCreateInfo depthStencil = DepthStencilState();
         PipelineColorBlendAttachmentState* blends =
-            stackalloc PipelineColorBlendAttachmentState[Math.Max(ColorFormats.Length, 1)];
+            stackalloc PipelineColorBlendAttachmentState[Math.Max(ColorAttachments.Length, 1)];
         PipelineColorBlendStateCreateInfo colorBlend = ColorBlendState(blends);
         DynamicState* dynamicStates = stackalloc DynamicState[] { DynamicState.Viewport, DynamicState.Scissor };
         var dynamic = new PipelineDynamicStateCreateInfo
@@ -187,18 +222,51 @@ internal sealed class GraphicsPipelineDesc
             PDynamicState = &dynamic,
             Layout = Layout,
         };
-        return CreateForAttachments(device, in info);
+        return CreateForRendering(device: device, info: info);
     }
 
     /// <summary>
-    /// Writes the vertex stage, and the fragment stage when there is one, into <paramref name="stages"/>, and gives how
-    /// many it wrote.
+    /// Creates the pipeline that <paramref name="info"/> describes, for dynamic rendering into
+    /// <see cref="ColorAttachments"/> and <see cref="DepthFormat"/>, and names it.
+    /// </summary>
+    private unsafe Pipeline CreateForRendering(VulkanDevice device, GraphicsPipelineCreateInfo info)
+    {
+        Format* colorFormats = stackalloc Format[Math.Max(ColorAttachments.Length, 1)];
+        for (int i = 0; i < ColorAttachments.Length; i++)
+            colorFormats[i] = ColorAttachments[i].Format;
+
+        var rendering = new PipelineRenderingCreateInfo
+        {
+            SType = StructureType.PipelineRenderingCreateInfo,
+            ColorAttachmentCount = (uint)ColorAttachments.Length,
+            PColorAttachmentFormats = colorFormats,
+            DepthAttachmentFormat = DepthFormat,
+            StencilAttachmentFormat = Format.Undefined,
+        };
+        info.PNext = &rendering;
+        device
+            .Vk.CreateGraphicsPipelines(
+                device: device.Device,
+                pipelineCache: default,
+                createInfoCount: 1,
+                pCreateInfos: &info,
+                pAllocator: null,
+                pPipelines: out Pipeline pipeline
+            )
+            .Check($"vkCreateGraphicsPipelines({Name})");
+        device.SetName(ObjectType.Pipeline, pipeline.Handle, Name);
+        return pipeline;
+    }
+
+    /// <summary>
+    /// Writes the vertex stage and, if there is one, the fragment stage into <paramref name="stages"/>, and returns
+    /// how many it wrote.
     /// </summary>
     private unsafe uint WriteStages(
-        PipelineShaderStageCreateInfo* stages,
         ShaderLibrary shaders,
         byte* entry,
-        SpecializationInfo* constants
+        SpecializationInfo* constants,
+        PipelineShaderStageCreateInfo* stages
     )
     {
         stages[0] = shaders.Stage(
@@ -207,26 +275,33 @@ internal sealed class GraphicsPipelineDesc
             entry: entry,
             constants: constants
         );
-        uint stageCount = 1;
-        if (FragmentShader != null)
-            stages[stageCount++] = shaders.Stage(
-                stage: ShaderStageFlags.FragmentBit,
-                file: FragmentShader,
-                entry: entry,
-                constants: constants
-            );
-        return stageCount;
+        if (FragmentShader == null)
+            return 1;
+        stages[1] = shaders.Stage(
+            stage: ShaderStageFlags.FragmentBit,
+            file: FragmentShader,
+            entry: entry,
+            constants: constants
+        );
+        return 2;
     }
 
-    /// <summary>The vertex input of <see cref="VertexInput"/>, from the one binding and the four mesh attributes.</summary>
+    /// <summary>
+    /// The vertex input state of <see cref="VertexInput"/>. It writes the attribute descriptions into
+    /// <paramref name="attributes"/> (room for four) and points at them and at <paramref name="binding"/>.
+    /// </summary>
     private unsafe PipelineVertexInputStateCreateInfo VertexInputState(
         VertexInputBindingDescription* binding,
         VertexInputAttributeDescription* attributes
     )
     {
+        WriteMeshAttributes(attributes);
+        // The texture coordinate follows the position, so the first two descriptions are the two that the cutout casters read.
+        if (VertexInput == VertexInput.PositionAndTexCoord)
+            attributes[1] = attributes[3];
         // Declaring only what the vertex shader reads keeps validation from reporting unconsumed attributes.
         bool hasVertices = VertexInput != VertexInput.None;
-        return new()
+        return new PipelineVertexInputStateCreateInfo
         {
             SType = StructureType.PipelineVertexInputStateCreateInfo,
             VertexBindingDescriptionCount = hasVertices ? 1u : 0u,
@@ -235,14 +310,16 @@ internal sealed class GraphicsPipelineDesc
             {
                 VertexInput.Mesh => 4u,
                 VertexInput.PositionOnly => 1u,
+                VertexInput.PositionAndTexCoord => 2u,
                 VertexInput.None => 0u,
             },
             PVertexAttributeDescriptions = hasVertices ? attributes : null,
         };
     }
 
-    // The projections flip y for Vulkan's y-down clip space, which keeps counterclockwise front faces.
+    /// <summary>The rasterization state: filled triangles, with this pipeline's culling, depth clamp and depth bias.</summary>
     private PipelineRasterizationStateCreateInfo RasterizationState() =>
+        // The projections flip y for Vulkan's y-down clip space, which keeps counterclockwise front faces.
         new()
         {
             SType = StructureType.PipelineRasterizationStateCreateInfo,
@@ -255,6 +332,7 @@ internal sealed class GraphicsPipelineDesc
             LineWidth = 1f,
         };
 
+    /// <summary>The depth state: no stencil, and a test that always passes when the pipeline does not test depth.</summary>
     private PipelineDepthStencilStateCreateInfo DepthStencilState() =>
         new()
         {
@@ -264,52 +342,20 @@ internal sealed class GraphicsPipelineDesc
             DepthCompareOp = DepthTest ? DepthCompare : CompareOp.Always,
         };
 
-    /// <summary>The blend state of the color attachments, whose blends it writes into <paramref name="blends"/>, one each.</summary>
+    /// <summary>
+    /// The color blend state: the blend of each color attachment, written into <paramref name="blends"/> (room for at
+    /// least one).
+    /// </summary>
     private unsafe PipelineColorBlendStateCreateInfo ColorBlendState(PipelineColorBlendAttachmentState* blends)
     {
-        int colorCount = ColorFormats.Length;
-        for (int i = 0; i < colorCount; i++)
-            blends[i] = BlendState(Blend);
-        return new()
+        for (int i = 0; i < ColorAttachments.Length; i++)
+            blends[i] = BlendState(ColorAttachments[i].Blend);
+        return new PipelineColorBlendStateCreateInfo
         {
             SType = StructureType.PipelineColorBlendStateCreateInfo,
-            AttachmentCount = (uint)colorCount,
+            AttachmentCount = (uint)ColorAttachments.Length,
             PAttachments = blends,
         };
-    }
-
-    /// <summary>
-    /// Creates the pipeline of <paramref name="info"/> for dynamic rendering into <see cref="ColorFormats"/> and
-    /// <see cref="DepthFormat"/>, and names it. It chains the rendering info onto a copy of <paramref name="info"/>, so the
-    /// caller's struct never points into this method's stack.
-    /// </summary>
-    private unsafe Pipeline CreateForAttachments(VulkanDevice device, in GraphicsPipelineCreateInfo info)
-    {
-        fixed (Format* colorFormats = ColorFormats)
-        {
-            var rendering = new PipelineRenderingCreateInfo
-            {
-                SType = StructureType.PipelineRenderingCreateInfo,
-                ColorAttachmentCount = (uint)ColorFormats.Length,
-                PColorAttachmentFormats = colorFormats,
-                DepthAttachmentFormat = DepthFormat,
-                StencilAttachmentFormat = Format.Undefined,
-            };
-            GraphicsPipelineCreateInfo withRendering = info;
-            withRendering.PNext = &rendering;
-            device
-                .Vk.CreateGraphicsPipelines(
-                    device: device.Device,
-                    pipelineCache: default,
-                    createInfoCount: 1,
-                    pCreateInfos: &withRendering,
-                    pAllocator: null,
-                    pPipelines: out Pipeline pipeline
-                )
-                .Check($"vkCreateGraphicsPipelines({Name})");
-            device.SetName(ObjectType.Pipeline, pipeline.Handle, Name);
-            return pipeline;
-        }
     }
 
     /// <summary>The four attributes of a <see cref="Vertex"/> at locations 0 to 3 of binding 0, into <paramref name="attributes"/>.</summary>

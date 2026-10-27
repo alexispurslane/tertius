@@ -24,7 +24,7 @@ public sealed class OutlinePassTests
                 width: 1600,
                 height: 900,
                 meshes: NoMeshes,
-                materialCount: 1,
+                materials: MaterialSlots.Of(1),
                 environment: default,
                 region: DeformRegion.None,
                 scene: scene
@@ -230,7 +230,7 @@ public sealed class OutlinePassTests
             width: 1600,
             height: 900,
             meshes: NoMeshes,
-            materialCount: 1,
+            materials: MaterialSlots.Of(1),
             environment: default,
             region: DeformRegion.None,
             scene: scene
@@ -244,7 +244,7 @@ public sealed class OutlinePassTests
             width: 1600,
             height: 900,
             meshes: NoMeshes,
-            materialCount: 1,
+            materials: MaterialSlots.Of(1),
             environment: default,
             region: DeformRegion.None,
             scene: scene

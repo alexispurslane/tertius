@@ -68,11 +68,17 @@ public sealed class PreExposureTests
                 Gpu.Star(snapshot: snapshot, irradiance: 0.3f * light);
                 // The glass reflects the sun and glows, so both of its terms must take the exposure.
                 MaterialId glass = renderer.CreateMaterial(
-                    new(BaseColor: Gray with { W = 0.5f }, Roughness: 1, Emissive: new(0.03f * light))
+                    new(
+                        BaseColor: Gray with
+                        {
+                            W = 0.5f,
+                        },
+                        Roughness: 1,
+                        Emissive: new(0.03f * light),
+                        Alpha: new GlassAlpha()
+                    )
                 );
-                snapshot.Instances.Add(
-                    Facing(mesh: square, material: glass, position: Ahead, flags: RenderFlags.Transparent)
-                );
+                snapshot.Instances.Add(Facing(mesh: square, material: glass, position: Ahead));
                 AddBlackBackdrop(renderer, snapshot);
                 break;
             case Writer.GlowPuff:

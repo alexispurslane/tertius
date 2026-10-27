@@ -185,6 +185,130 @@ public sealed class WorldNumericFrameTests
         world.Frames.HomeVelocity(world.PhysicsHomeOf(crate), earth).X.Should().BeApproximately(velocity.X, 1e-5);
     }
 
+    /// <summary>
+    /// A body spawned alone at orbital speed, a crate or the hull of a ship: the numeric update makes its falling frame
+    /// before the first step (ARCHITECTURE.md, "Numeric frames").
+    /// </summary>
+    private static Entity SpawnAtOrbitalSpeed(World world, FrameHandle earth, bool asShip) =>
+        world.Spawn(
+            new()
+            {
+                Frame = earth,
+                Pose = At(0, OrbitRadius),
+                LinearVelocity = new(OrbitSpeed, 0, 0),
+                Body = asShip ? Hull : Crate,
+                AsFrame = asShip ? new(FrameBounds.Sphere(20)) : null,
+            }
+        );
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ANumericFrameMadeForAFastSpawnMovesAtTheChordOfTheSpawnsFirstStep(bool asShip)
+    {
+        using World world = NewWorld(backend: out _);
+        FrameHandle earth = Earth(world);
+        Entity body = SpawnAtOrbitalSpeed(world, earth, asShip);
+        var start = new Double3(0, OrbitRadius, 0);
+
+        Tick(world, 1);
+
+        world.Errors.Should().BeEmpty();
+        InFallingFrame(world, body).Should().BeTrue();
+        // The spawn velocity is an instant velocity, so the first step moves the body at it plus half a step of gravity: 72 mm/s.
+        Double3 firstChord =
+            new Double3(OrbitSpeed, 0, 0) + GravityField.Point(EarthMu).AtPrecise(start) * (world.DeltaTime / 2);
+        Double3 frameVelocity = world.Frames.HomeVelocity(world.PhysicsHomeOf(body), earth);
+        (frameVelocity - firstChord)
+            .Length.Should()
+            .BeLessThan(1e-6, $"the frame moves at {frameVelocity}, and the body's first chord is {firstChord}");
+    }
+
+    [Fact]
+    public void ACrateSpawnedFastInAGravityFieldStaysAtRestInItsNewFallingFrameInItsFirstSteps()
+    {
+        using World world = NewWorld(backend: out _);
+        FrameHandle earth = Earth(world);
+        Entity crate = SpawnAtOrbitalSpeed(world, earth, asShip: false);
+
+        for (int tick = 1; tick <= 3; tick++)
+        {
+            Tick(world, 1);
+
+            world.Errors.Should().BeEmpty();
+            // Both velocities are chords: the crate's is Jolt's, and the frame's is the numeric frames' convention.
+            FrameHandle home = world.PhysicsHomeOf(crate);
+            Double3 inFrame = world.VelocityIn(crate, earth) - world.Frames.HomeVelocity(home, earth);
+            // Half a step of gravity is 72 mm/s, and the tidal gravity across the crate's place in the frame is nothing.
+            inFrame.Length.Should().BeLessThan(1e-5, $"after tick {tick} the crate moves at {inFrame} in its frame");
+        }
+    }
+
+    [Fact]
+    public void ACrateSpawnedAloneAtOrbitalSpeedFollowsTheOrbitOfItsSpawnInItsFallingFrame()
+    {
+        using World world = NewWorld(backend: out _);
+        FrameHandle earth = Earth(world);
+        Entity crate = SpawnAtOrbitalSpeed(world, earth, asShip: false);
+
+        // The orbit of the spawn's state, stepped in doubles with the scheme that Jolt uses, from the chord behind the spawn's
+        // instant velocity.
+        double dt = world.DeltaTime;
+        Double3 position = new(0, OrbitRadius, 0);
+        Double3 velocity = new Double3(OrbitSpeed, 0, 0) - GravityField.Point(EarthMu).AtPrecise(position) * (dt / 2);
+        const int ticks = 10 * 60;
+        for (int i = 0; i < ticks; i++)
+        {
+            velocity += GravityField.Point(EarthMu).AtPrecise(position) * dt;
+            position += velocity * dt;
+        }
+
+        Tick(world, ticks);
+
+        world.Errors.Should().BeEmpty();
+        InFallingFrame(world, crate).Should().BeTrue();
+        Double3 reached = world.PoseIn(crate, earth).Position;
+        (reached - position).Length.Should().BeLessThan(1e-4, $"the crate reached {reached}, and the orbit {position}");
+    }
+
+    [Fact]
+    public void AShipWhoseOwnerSetsItsVelocityInItsFallingFrameMovesWithItsFrameAfterTheDrain()
+    {
+        // The ship's velocity jumps by 10 m/s along X and by the 145 mm/s that gravity gave it in its first step along Y, so
+        // its frame drains to its new velocity at the sync point after the step that applies the set velocity.
+        using World world = NewWorld(backend: out _);
+        FrameHandle earth = Earth(world);
+        var pilot = new Pilot();
+        Entity ship = world.Spawn(
+            new()
+            {
+                Frame = earth,
+                Pose = At(0, OrbitRadius),
+                LinearVelocity = new(OrbitSpeed, 0, 0),
+                Body = Hull,
+                AsFrame = new(FrameBounds.Sphere(20)),
+                Components = [pilot],
+            }
+        );
+        Tick(world, 1);
+        pilot.Once = body => body.SetVelocity(new(OrbitSpeed + 10, 0, 0));
+
+        for (int tick = 1; tick <= 4; tick++)
+        {
+            Tick(world, 1);
+
+            world.Errors.Should().BeEmpty();
+            InFallingFrame(world, ship).Should().BeTrue();
+            // The hull's velocity is an instant velocity, which runs half a step of gravity, 72 mm/s, ahead of the chord of
+            // its frame. A jump of the set velocity is no acceleration over the step, so it stays out of the frame's chord.
+            Double3 inFrame =
+                world.VelocityIn(ship, earth) - world.Frames.HomeVelocity(world.PhysicsHomeOf(ship), earth);
+            inFrame
+                .Length.Should()
+                .BeLessThan(0.5, $"{tick} ticks after the set velocity, the ship moves at {inFrame}");
+        }
+    }
+
     [Fact]
     public void AGroupThatStartsToFallAtOrbitalSpeedKeepsTheVelocityOfEachBodyToAMicrometerPerSecond()
     {

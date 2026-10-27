@@ -500,13 +500,16 @@ public sealed class ShadowTilesTests
     [InlineData("entity")]
     [InlineData("part")]
     [InlineData("mesh")]
-    public void ACasterOfAnotherEntityPartOrMeshDrawsItsTileAgain(string change) =>
+    [InlineData("material")]
+    public void ACasterOfAnotherEntityPartMeshOrMaterialDrawsItsTileAgain(string change) =>
         DrawsAfterTheCasterChanges(caster =>
                 change switch
                 {
                     "entity" => caster with { EntityIndex = 8 },
                     "part" => caster with { Part = 1 },
-                    _ => caster with { Mesh = 3 },
+                    "mesh" => caster with { Mesh = 3 },
+                    // A cutout material shadows only its core (docs/plans/skin-and-hair.md, "The cutout test").
+                    _ => caster with { Material = 5, Alpha = new CutoutAlpha(Cutoff: 0.5f) },
                 }
             )
             .Should()

@@ -106,13 +106,14 @@ public sealed class ShuttleTests : IDisposable
 
     /// <summary>
     /// In the scene <c>demo-surface</c>, each of the 40 panes of <see cref="Shuttle.Glass"/> is an entity with the pane's
-    /// scene id, in the shuttle's frame at the pane's center, unturned. It is transparent, it casts no shadow, as the orbit
+    /// scene id, in the shuttle's frame at the pane's center, unturned. Its material is glass, it casts no shadow, as the orbit
     /// scene's panes are, and it has no body, because the interior shape is solid at the glass.
     /// </summary>
     [Fact]
     public void EachPaneIsGlassThatCastsNoShadow()
     {
-        SceneInstance scene = DemoScenes.All.Single(s => s.Name == "demo-surface").Build(world, RenderResources.None);
+        var resources = new RecordingResources();
+        SceneInstance scene = DemoScenes.All.Single(s => s.Name == "demo-surface").Build(world, resources);
         FrameHandle cabin = world.GetOwnedFrame(scene["shuttle"]);
 
         Shuttle.Glass.Should().HaveCount(40);
@@ -125,7 +126,8 @@ public sealed class ShuttleTests : IDisposable
             Math.Abs(pose.Rotation.W)
                 .Should()
                 .BeGreaterThan(1 - 1e-9, $"{pane.Id} is unturned, so its mesh lies in its hole");
-            world.GetRender(entity).Flags.Should().Be(RenderFlags.Visible | RenderFlags.Transparent, pane.Id);
+            world.GetRender(entity).Flags.Should().Be(RenderFlags.Visible, pane.Id);
+            resources.Materials[world.GetRender(entity).Material].Alpha.Should().Be(new AlphaMode(new GlassAlpha()));
             world.GetBody(entity).Should().BeNull(pane.Id);
         }
     }

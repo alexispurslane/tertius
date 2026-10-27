@@ -24,6 +24,12 @@ internal struct ImpostorCapture
     public int Mesh;
     public uint Material;
 
+    /// <summary>How the material's alpha draws: the object's <see cref="PreparedInstance.Alpha"/>, which chooses the capture pipeline.</summary>
+    public AlphaMode Alpha;
+
+    /// <summary>Whether the capture draws the object's back faces: its <see cref="PreparedInstance.TwoSided"/>, which chooses the capture pipeline.</summary>
+    public bool TwoSided;
+
     /// <summary>The object's interpolated, camera-relative transform this frame.</summary>
     public Vector3 Position;
 
@@ -94,8 +100,8 @@ internal readonly record struct ImpostorStatus(bool Impostor, int Tile, long Cap
 /// <para>Hysteresis, per key (entity index, part, mesh and resolved material; see <see cref="ImpostorKey"/>): an
 /// object becomes an impostor when h drops below <see cref="EnterHeight"/> and returns to geometry when h rises
 /// above <see cref="ExitHeight"/>.
-/// <see cref="RenderFlags.NoImpostor"/>, <see cref="RenderFlags.Celestial"/> and <see cref="RenderFlags.Transparent"/>
-/// objects never become impostors. If two visible instances share a key in one frame (the snapshot repeats a part),
+/// <see cref="RenderFlags.NoImpostor"/> and <see cref="RenderFlags.Celestial"/> objects, and those of a glass or fringed
+/// material, never become impostors. If two visible instances share a key in one frame (the snapshot repeats a part),
 /// only the first can be an impostor; the others draw as geometry.</para>
 /// <para>Captures: an impostor needs a capture in an atlas tile; until it has one it keeps drawing as geometry. A
 /// capture is a perspective view from the eye, fitted to the bounding sphere's tangent cone (see
@@ -151,7 +157,7 @@ internal sealed partial class ImpostorManager : IInstanceProcessor
     /// <summary>Frames a key without a tile is remembered after it was last seen.</summary>
     public const int StateLifetime = 120;
 
-    private const RenderFlags Excluded = RenderFlags.NoImpostor | RenderFlags.Celestial | RenderFlags.Transparent;
+    private const RenderFlags Excluded = RenderFlags.NoImpostor | RenderFlags.Celestial;
 
     private readonly Dictionary<ImpostorKey, int> lookup = [];
     private readonly int[] tileOwner;
@@ -222,6 +228,32 @@ internal sealed partial class ImpostorManager : IInstanceProcessor
     }
 
     /// <summary>
+    /// Whether <paramref name="instance"/> may become an impostor: no flag excludes it, it is not a deformed copy, a capture
+    /// can draw its material, it has a volume, and the eye is not nearly inside it.
+    /// </summary>
+    private static bool MayBecomeImpostor(PreparedScene scene, in PreparedInstance instance)
+    {
+        bool excluded = (instance.Flags & Excluded) != 0;
+        // A deformed copy changes its shape in every frame, which a capture keyed by ImpostorKey cannot follow
+        // (docs/plans/skinning-and-morphs.md, decision 25).
+        bool deformed = scene.IsDeformed(instance.Mesh);
+        bool hasVolume = instance.Radius > 0f;
+        bool nearlyInside = instance.Distance < MinimumDistance * instance.Radius;
+        return !excluded && !deformed && Capturable(instance.Alpha) && hasVolume && !nearlyInside;
+    }
+
+    /// <summary>
+    /// Whether a capture can draw an object whose material draws as <paramref name="alpha"/>. A capture has no transparent
+    /// pass, so glass and a fringe cannot be captured (docs/plans/skin-and-hair.md, decision 24).
+    /// </summary>
+    private static bool Capturable(AlphaMode alpha) =>
+        alpha switch
+        {
+            OpaqueAlpha or CutoutAlpha => true,
+            FringedAlpha or GlassAlpha => false,
+        };
+
+    /// <summary>
     /// The projected height in pixels of a bounding sphere of <paramref name="radius"/> at <paramref name="distance"/>
     /// from the eye: the diameter of its image at the center of the screen. Infinite when the eye is inside it.
     /// </summary>
@@ -257,7 +289,8 @@ internal sealed partial class ImpostorManager : IInstanceProcessor
 
     /// <summary>
     /// Decides whether the visible instance at <paramref name="index"/> draws as an impostor this frame, and queues its
-    /// capture when it needs one. Gives its state's slot when it is an impostor, and -1 when it draws as geometry.
+    /// first capture or its recapture when it needs one. Gives its state's slot when it is an impostor, and -1 when it
+    /// draws as geometry.
     /// </summary>
     private int Decide(
         PreparedScene scene,
@@ -284,36 +317,32 @@ internal sealed partial class ImpostorManager : IInstanceProcessor
         if (!state.Impostor)
             return -1;
 
-        if (state.Tile >= 0)
-        {
-            float error = CaptureError(state, instance, light) * height;
-            bool current = error <= RecaptureError;
-            // A stale capture is drawn only by an impostor that was drawn last frame, until its recapture. An
-            // object that just became an impostor again, or came back into view, waits as geometry instead.
-            state.Drawable = current || state.DrawnFrame == Frame - 1;
-            if (!current)
-                recaptures.Push(state.Drawable ? error : MathF.PI * height, index);
-        }
-        else
-        {
-            state.Drawable = false;
-            firstCaptures.Push(MathF.PI * height, index);
-        }
-
+        QueueCapture(state: ref state, index: index, instance: instance, light: light);
         return slot;
     }
 
     /// <summary>
-    /// Whether a visible instance may become an impostor: not excluded by its flags, not a deformed copy, with a radius,
-    /// and far enough from the eye.
+    /// Queues the first capture or the recapture of the impostor of visible instance <paramref name="index"/> when it
+    /// needs one, and decides whether its capture draws this frame.
     /// </summary>
-    private static bool MayBecomeImpostor(PreparedScene scene, in PreparedInstance instance) =>
-        (instance.Flags & Excluded) == 0
-        // A deformed copy changes its shape in every frame, which a capture keyed by ImpostorKey cannot follow
-        // (docs/plans/skinning-and-morphs.md, decision 25).
-        && !scene.IsDeformed(instance.Mesh)
-        && instance.Radius > 0f
-        && !(instance.Distance < MinimumDistance * instance.Radius);
+    private void QueueCapture(ref State state, int index, in PreparedInstance instance, in SceneLight light)
+    {
+        float height = state.Height;
+        if (state.Tile < 0)
+        {
+            state.Drawable = false;
+            firstCaptures.Push(MathF.PI * height, index);
+            return;
+        }
+
+        float error = CaptureError(state, instance, light) * height;
+        bool current = error <= RecaptureError;
+        // A stale capture is drawn only by an impostor that was drawn last frame, until its recapture. An object that
+        // just became an impostor again, or came back into view, waits as geometry instead.
+        state.Drawable = current || state.DrawnFrame == Frame - 1;
+        if (!current)
+            recaptures.Push(state.Drawable ? error : MathF.PI * height, index);
+    }
 
     /// <summary>Takes the highest-priority candidates, up to the budget, and records their captures.</summary>
     private void SelectCaptures(ReadOnlySpan<PreparedInstance> visible, in SceneLight light, in CameraView camera)
@@ -421,6 +450,8 @@ internal sealed partial class ImpostorManager : IInstanceProcessor
             Tile = state.Tile,
             Mesh = instance.Mesh,
             Material = instance.Material,
+            Alpha = instance.Alpha,
+            TwoSided = instance.TwoSided,
             Position = instance.Position,
             Rotation = instance.Rotation,
             Scale = instance.Scale,

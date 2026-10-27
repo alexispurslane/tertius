@@ -5,7 +5,6 @@
 #include "gbuffer_inputs.glsl"
 #include "material.glsl"
 #include "lighting.glsl"
-#include "reflection_footprint.glsl"
 
 layout(location = 0) in vec3 inPosition;
 layout(location = 1) in vec3 inNormal;
@@ -21,13 +20,9 @@ layout(location = 0, index = 1) out vec4 outTransmittance;
 void main()
 {
     vec3 V = towardEye(inPosition);
-    // Sample and take the footprint before the discard below, so implicit derivatives stay defined for the whole quad.
+    // Before the discard below, so implicit derivatives stay defined for the whole quad.
     SurfaceSample s = sampleMaterial(inMaterialAndMap.x, inTexCoord, inNormal, inTangent, V);
-    ShadingInput shading;
-    shading.normal = s.normal;
-    shading.roughness = s.roughness;
-    shading.map = inMaterialAndMap.y;
-    shading.reflectionFootprint = reflectionFootprint(ambientSpecularDirection(shading, V));
+    ShadingInput shading = forwardShading(s, inPosition, inHemisphere, inMaterialAndMap.y, V);
 
     // The hardware depth buffer only holds the nearest depth range, so occlusion by opaque surfaces uses the
     // G-buffer distance, which covers all ranges.
@@ -36,18 +31,6 @@ void main()
     if (opaqueDistance > 0.0 && distanceToEye > opaqueDistance)
         discard;
 
-    shading.baseColor = s.baseColor.rgb;
-    shading.geometricNormal = normalizedOr(inNormal, V);
-    shading.metallic = s.metallic;
-    shading.reflectance = s.reflectance;
-    // Only the hemisphere reads the sky shares.
-    shading.skyFraction = environmentMapOn ? 0.0 : skyFraction(inHemisphere, inPosition, s.normal);
-    shading.lobeSkyFraction =
-        environmentMapOn ? 0.0 : lobeSkyFraction(inHemisphere, inPosition, s.normal, V, s.roughness);
-    // Transparent objects are not in the G-buffer, so the occlusion passes give them no estimate: the surface behind a
-    // pane takes the estimate at its pixel (docs/plans/screen-space-illumination.md, "The passes that keep V = 1").
-    shading.occlusion = 1.0;
-    shading.bounce = vec3(0.0);
     // The reflection happens at the surface, whatever the glass lets through, so the specular part and the emission add
     // in full. Only the opacity's share of the light enters the material and scatters, so only the diffuse part scales.
     float opacity = clamp(s.baseColor.a, 0.0, 1.0);

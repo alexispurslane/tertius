@@ -74,12 +74,15 @@ internal readonly record struct SliceSectors
             Math.Sqrt(alongShadingPart * alongShadingPart + acrossShadingPart * acrossShadingPart)
             < HorizonSlice.MinProjectedNormalLength;
         if (holdsTheSlice)
-            return new(First: 0, End: 0, Low: normalAngle, High: normalAngle);
+            return NoRun;
         double planeAngle = normalAngle + Math.Atan2(acrossShadingPart, alongShadingPart);
         return planeAngle > normalAngle
             ? RunBetween(normalAngle - Math.PI / 2, planeAngle - Math.PI / 2)
             : RunBetween(planeAngle + Math.PI / 2, normalAngle + Math.PI / 2);
     }
+
+    /// <summary>The empty run, which holds no sector, at the shading normal's angle γ.</summary>
+    public SectorRun NoRun => new(First: 0, End: 0, Low: Slice.NormalAngle, High: Slice.NormalAngle);
 
     /// <summary>cos θ V̂ + sin θ ô, in view space.</summary>
     public Double3 DirectionAt(double angle) => Slice.ToEye * Math.Cos(angle) + Slice.TowardPlusSide * Math.Sin(angle);

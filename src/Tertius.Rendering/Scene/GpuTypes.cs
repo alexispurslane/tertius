@@ -105,7 +105,7 @@ internal struct GpuInstance
     }
 }
 
-/// <summary>One material in the material storage buffer (std430). 52 bytes of fields, padded to 64, the struct's alignment of 16.</summary>
+/// <summary>One material in the material storage buffer (std430). 60 bytes of fields, padded to 64, the struct's alignment of 16.</summary>
 [StructLayout(LayoutKind.Sequential, Size = 64)]
 internal struct GpuMaterial
 {
@@ -114,6 +114,8 @@ internal struct GpuMaterial
 
     public Vector4 BaseColor;
     public Vector3 Emissive;
+
+    /// <summary>The metallic of a <see cref="StandardShading"/> model, 0 for every other model.</summary>
     public float Metallic;
 
     /// <summary>r₀, before the floor: the floor is the BRDF's.</summary>
@@ -131,6 +133,12 @@ internal struct GpuMaterial
 
     /// <summary>Bindless index, already resolved to the default texture.</summary>
     public uint MetallicRoughnessMap;
+
+    /// <summary><see cref="ShadingCode.Word"/> of the material's shading model.</summary>
+    public uint Shading;
+
+    /// <summary>The cutoff of a cutout or fringed material, 0 for an opaque or glass one, which nothing tests.</summary>
+    public float AlphaCutoff;
 }
 
 /// <summary>
@@ -428,8 +436,9 @@ internal struct DrawPushConstants
 }
 
 /// <summary>
-/// The push constants of the occlusion passes (Shaders/occlusion.glsl): the setting alone. The camera comes from the
-/// frame constants, so the occlusion passes and the lighting passes read the one store. 16 bytes.
+/// The push constants of the occlusion passes (Shaders/occlusion.glsl): the setting and the device's sub-pixel
+/// precision. The camera comes from the frame constants, so the occlusion passes and the lighting passes read the one
+/// store. 20 bytes.
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct OcclusionPushConstants
@@ -441,14 +450,22 @@ internal struct OcclusionPushConstants
     /// <summary>1 in the last denoise dispatch, 0 otherwise.</summary>
     public uint LastDenoise;
 
-    /// <summary>The push constants of one dispatch.</summary>
-    public static OcclusionPushConstants For(VisibilityBitmaskLight setting, bool lastDenoise) =>
+    /// <summary>The device's limit of that name, which widens a hair card's plane by the rasterizer's snapping (<see cref="OwnCard.SnapPerMeter"/>).</summary>
+    public uint SubPixelPrecisionBits;
+
+    /// <summary>The push constants of one dispatch on a device whose rasterizer has <paramref name="subPixelPrecisionBits"/>.</summary>
+    public static OcclusionPushConstants For(
+        VisibilityBitmaskLight setting,
+        bool lastDenoise,
+        uint subPixelPrecisionBits
+    ) =>
         new()
         {
             RadiusMeters = setting.RadiusMeters,
             Slices = (uint)setting.Slices,
             StepsPerSide = (uint)setting.StepsPerSide,
             LastDenoise = lastDenoise ? 1u : 0u,
+            SubPixelPrecisionBits = subPixelPrecisionBits,
         };
 }
 

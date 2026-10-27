@@ -433,7 +433,8 @@ public static partial class DemoScenes
                 new(
                     BaseColor: new(x: 0.45f, y: 0.65f, z: 1, w: 0.2f),
                     Roughness: GlassRoughness,
-                    Reflectance: AntiReflective
+                    Reflectance: AntiReflective,
+                    Alpha: new GlassAlpha()
                 )
             );
             foreach (HullPane pane in Glass)
@@ -448,7 +449,7 @@ public static partial class DemoScenes
                             Mesh = resources.CreateMesh(pane.Mesh),
                             Material = glass,
                             BoundingRadius = pane.Mesh.Vertices.Max(vertex => vertex.Position.Length()),
-                            Flags = RenderFlags.Visible | RenderFlags.Transparent,
+                            Flags = RenderFlags.Visible,
                         },
                     }
                 );

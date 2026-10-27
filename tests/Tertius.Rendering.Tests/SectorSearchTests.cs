@@ -15,6 +15,9 @@ public sealed class SectorSearchTests
     // A share of the view depth so large that every slab reaches the edge of the hemisphere: GTAO's model.
     private const double InfiniteThickness = 1e6;
 
+    /// <summary>The width in m of a full-resolution pixel of the half image of <see cref="StepsOnAWall"/> at a view depth of 1 m.</summary>
+    private const double WallPixelWidth = 1.0 / 320;
+
     private static readonly Double3 Center = new(0, 0, 2);
     private static readonly Double3 TowardTheEye = new(0, 0, -1);
     private static readonly Double3 Red = new(3, 0, 0);
@@ -59,7 +62,7 @@ public sealed class SectorSearchTests
         SectorSearch.Near(
             sectors: sectors,
             center: Center,
-            geometricNormal: sectors.DirectionAt(sectors.Slice.NormalAngle),
+            ownSurface: new OwnPlane(sectors.DirectionAt(sectors.Slice.NormalAngle)),
             radius: Radius,
             thicknessShare: thicknessShare,
             steps: steps,
@@ -97,12 +100,126 @@ public sealed class SectorSearchTests
                 Position: WallRayThrough(place) * 5,
                 GeometricNormal: TowardTheEye,
                 DirectLight: Red
+            ),
+            ownSurface: new OwnPlane(TowardTheEye)
+        );
+
+    /// <summary>
+    /// The steps of <see cref="StepsOnAWall"/> from texel (160, 90) of a hair receiver whose own card is the plane at
+    /// right angles to the eye's line of sight through its surface point <paramref name="cardDepth"/> m ahead.
+    /// </summary>
+    private static List<NearStep> StepsOfAHairReceiverOnAWall(double cardDepth) =>
+        SectorSearch.SliceSteps(
+            texel: (X: 160, Y: 90),
+            slice: 0,
+            sliceAngle: 0,
+            stepsPerSide: 3,
+            stepNoise: 0,
+            radiusInTexels: 20,
+            halfSize: (Width: 320, Height: 180),
+            rayThrough: WallRayThrough,
+            texelAt: place => new StepTexel(
+                Position: WallRayThrough(place) * 5,
+                GeometricNormal: TowardTheEye,
+                DirectLight: Red
+            ),
+            ownSurface: new OwnCard(
+                Point: WallRayThrough((X: 160, Y: 90)) * cardDepth,
+                Normal: TowardTheEye,
+                VertexSnap: OwnCard.SnapPerMeter(pixelWidth: WallPixelWidth, subPixelPrecisionBits: 8)
             )
         );
 
     /// <summary>A view ray, whose z is 1, through a place in the half image of <see cref="StepsOnAWall"/>, 90° wide.</summary>
     private static Double3 WallRayThrough((double X, double Y) place) =>
         new((place.X - 160) / 160, (90 - place.Y) / 160, 1);
+
+    [Fact]
+    public void AHairReceiverTakesNoStepThatReadsItsOwnCard()
+    {
+        StepsOnAWall((X: 160, Y: 90))
+            .Should()
+            .HaveCount(6, "the wall holds every step of the receiver that is not hair");
+
+        StepsOfAHairReceiverOnAWall(cardDepth: 5).Should().BeEmpty("the wall is the receiver's own card");
+    }
+
+    [Fact]
+    public void AHairReceiverTakesTheStepsOfACardOneMillimeterBehindItsOwn() =>
+        // At 5 m, the reads can put a point of the card's plane at most 0.25 mm off it.
+        StepsOfAHairReceiverOnAWall(cardDepth: 4.999)
+            .Should()
+            .BeEquivalentTo(StepsOnAWall((X: 160, Y: 90)), "the wall is another card, 1 mm behind the receiver's own");
+
+    [Fact]
+    public void AHairReceiversCardHoldsAPointThatTheDepthsPrecisionPutsOffItsPlane()
+    {
+        // Points of the plane z = 10, the second 0.19 mm deeper: within 1 − CenterBias of their 20 m of distance.
+        var card = new OwnCard(Point: new(0, 0, 10), Normal: TowardTheEye, VertexSnap: 0);
+
+        card.Holds(new(0.01, 0, 10.00019))
+            .Should()
+            .BeTrue("the depths' precision can put a point of the card this far off");
+    }
+
+    [Fact]
+    public void AHairReceiversCardHoldsAPointThatItsNormalsPrecisionPutsOffItsPlane()
+    {
+        // The plane z = 1 with its normal turned by 2·10⁻⁴ rad, less than NormalPrecision, and a point of that plane 1 m
+        // away, which the turned normal puts 0.2 mm off it.
+        const double turn = 2e-4;
+        var card = new OwnCard(Point: new(0, 0, 1), Normal: new(Math.Sin(turn), 0, -Math.Cos(turn)), VertexSnap: 0);
+
+        card.Holds(new(1, 0, 1))
+            .Should()
+            .BeTrue("the stored normal's precision can put a point of the card this far off");
+    }
+
+    [Fact]
+    public void AHairReceiversCardHoldsAPointThatTheRasterizersSnappingPutsOffItsPlane()
+    {
+        // A 160 × 90 image 60° high, whose pixels are 1.28 cm wide at a view depth of 1 m, from a rasterizer with 8 bits
+        // of sub-pixel precision, which moves a vertex 3 m away up to 0.1 mm across its view ray. Points of the plane
+        // z = 3 5 cm apart, the second 0.15 mm deeper: more than the depths' 0.06 mm and the normal's 0.01 mm.
+        double pixelWidth = 2 * Math.Tan(Math.PI / 6) * 160 / 90 / 160;
+        var card = new OwnCard(
+            Point: new(0, 0, 3),
+            Normal: TowardTheEye,
+            VertexSnap: OwnCard.SnapPerMeter(pixelWidth: pixelWidth, subPixelPrecisionBits: 8)
+        );
+
+        card.Holds(new(0.05, 0, 3.00015))
+            .Should()
+            .BeTrue("the rasterizer's snapping can put a point of the card this far off");
+    }
+
+    [Fact]
+    public void AHairReceiversOwnSurfaceBlocksNoSector()
+    {
+        // The fiber normal faces the eye, and the card is turned 40° from it, so its plane cuts the shading hemisphere.
+        const double turn = 0.7;
+        var card = new OwnCard(
+            Point: Center,
+            Normal: new(Math.Sin(turn), 0, -Math.Cos(turn)),
+            VertexSnap: OwnCard.SnapPerMeter(pixelWidth: WallPixelWidth, subPixelPrecisionBits: 8)
+        );
+        Facing
+            .BelowPlane(card.Normal)
+            .Count.Should()
+            .BePositive("the test needs a card whose plane cuts the hemisphere");
+
+        NearSlice near = SectorSearch.Near(
+            sectors: Facing,
+            center: Center,
+            ownSurface: card,
+            radius: Radius,
+            thicknessShare: ThicknessShare,
+            steps: [],
+            mapLight: null
+        );
+
+        near.Blocked.Should().Be(SectorMask.None, "a hair receiver's own surface is its fibers, not its card");
+    }
 
     [Fact]
     public void AStepGivesItsLightOnlyToTheSectorsThatNoNearerStepBlocked()
@@ -194,7 +311,7 @@ public sealed class SectorSearchTests
             SectorSearch.Near(
                 sectors: Facing,
                 center: Center,
-                geometricNormal: TowardTheEye,
+                ownSurface: new OwnPlane(TowardTheEye),
                 radius: radius,
                 thicknessShare: ThicknessShare,
                 steps: [step],
@@ -263,13 +380,14 @@ public sealed class SectorSearchTests
                 Position: WallRayThrough(place) * 5,
                 GeometricNormal: TowardTheEye,
                 DirectLight: Red
-            )
+            ),
+            ownSurface: new OwnPlane(TowardTheEye)
         );
         var center = new Double3(0, 0, 5);
         NearSlice near = SectorSearch.Near(
             sectors: Facing,
             center: center,
-            geometricNormal: TowardTheEye,
+            ownSurface: new OwnPlane(TowardTheEye),
             radius: 1,
             thicknessShare: ThicknessShare,
             steps: [.. steps],
@@ -309,7 +427,7 @@ public sealed class SectorSearchTests
         NearSlice near = SectorSearch.Near(
             sectors: sectors,
             center: Center,
-            geometricNormal: TowardTheEye,
+            ownSurface: new OwnPlane(TowardTheEye),
             radius: Radius,
             thicknessShare: ThicknessShare,
             steps: [],
@@ -339,7 +457,7 @@ public sealed class SectorSearchTests
         NearSlice near = SectorSearch.Near(
             sectors: sectors,
             center: Center,
-            geometricNormal: TowardTheEye,
+            ownSurface: new OwnPlane(TowardTheEye),
             radius: Radius,
             thicknessShare: ThicknessShare,
             steps: [ownPlane],
@@ -460,7 +578,8 @@ public sealed class SectorSearchTests
                 radiusInTexels: 20,
                 halfSize: (Width: 320, Height: 180),
                 rayThrough: WallRayThrough,
-                texelAt: WallAt
+                texelAt: WallAt,
+                ownSurface: new OwnPlane(TowardTheEye)
             );
 
         read.Should().NotBeEmpty();
@@ -495,7 +614,8 @@ public sealed class SectorSearchTests
                     radiusInTexels: 20,
                     halfSize: (Width: 320, Height: 180),
                     rayThrough: WallRayThrough,
-                    texelAt: FloorAt
+                    texelAt: FloorAt,
+                    ownSurface: new OwnPlane(Double3.UnitY)
                 )
             );
 
@@ -532,7 +652,8 @@ public sealed class SectorSearchTests
                 radiusInTexels: 20,
                 halfSize: (Width: 320, Height: 180),
                 rayThrough: WallRayThrough,
-                texelAt: PlaneAt
+                texelAt: PlaneAt,
+                ownSurface: new OwnPlane(normal)
             );
 
             steps.Should().HaveCount(6, "the plane reaches every exact place of slice {0}", slice);
@@ -632,7 +753,7 @@ public sealed class SectorSearchTests
         NearSlice near = SectorSearch.Near(
             sectors: Tilted(0.5),
             center: Center,
-            geometricNormal: TowardTheEye,
+            ownSurface: new OwnPlane(TowardTheEye),
             radius: Radius,
             thicknessShare: ThicknessShare,
             steps: [FacingStep(position: new(-0.2, 0, 1.8), light: Red) with { Side = SliceSide.Minus }],
@@ -756,7 +877,7 @@ public sealed class SectorSearchTests
         SectorSearch.Near(
             sectors: sectors,
             center: Center,
-            geometricNormal: TowardTheEye,
+            ownSurface: new OwnPlane(TowardTheEye),
             radius: Radius,
             thicknessShare: ThicknessShare,
             steps: [],
@@ -770,6 +891,34 @@ public sealed class SectorSearchTests
         reads.Should().ContainSingle();
         AngleInSlice(sectors, reads[0].Direction).Should().BeApproximately(Math.PI / 2 + 0.25, 1e-12);
         reads[0].Width.Should().BeApproximately(0.5, 1e-12);
+    }
+
+    [Fact]
+    public void AHairReceiversOwnSurfaceReadsNoMapLightWhileAnOrdinaryReceiversReadsItAlongItsRunBelowThePlane()
+    {
+        // The shading normal leans 0.5 rad from the geometric normal, which faces the eye, so the plane and the card at
+        // right angles to it cut the shading hemisphere.
+        SliceSectors sectors = Tilted(0.5);
+        Double3 mapRadiance = new(0.4, 0.7, 1.3);
+        NearSlice NearOf(OwnSurface ownSurface) =>
+            SectorSearch.Near(
+                sectors: sectors,
+                center: Center,
+                ownSurface: ownSurface,
+                radius: Radius,
+                thicknessShare: ThicknessShare,
+                steps: [],
+                mapLight: (_, _) => mapRadiance
+            );
+
+        NearSlice plane = NearOf(new OwnPlane(TowardTheEye));
+        NearSlice hair = NearOf(new OwnCard(Point: Center, Normal: TowardTheEye, VertexSnap: 0));
+
+        plane.Blocked.Should().Be(sectors.BelowPlane(TowardTheEye), "an ordinary receiver's plane blocks below it");
+        plane.Blocked.Count.Should().BePositive("the test needs a plane that cuts the hemisphere");
+        plane.MapLight.Should().Be(mapRadiance * plane.Blocked.Count, "the plane's run reads the map along it");
+        hair.Blocked.Should().Be(SectorMask.None, "a hair receiver's own surface is its fibers, which block nothing");
+        hair.MapLight.Should().Be(Double3.Zero, "its fibers read no map light along its own surface");
     }
 
     [Fact]

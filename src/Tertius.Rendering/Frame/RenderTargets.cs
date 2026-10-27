@@ -22,13 +22,17 @@ namespace Tertius.Rendering;
 /// <item><term>specular</term><description>R8G8B8A8_UNORM: metallic, roughness r₀, reflectance, the lobe's sky share.</description></item>
 /// <item><term>emissive</term><description>R16G16B16A16_SFLOAT: emitted radiance.</description></item>
 /// <item><term>distance</term><description>R32_SFLOAT: Euclidean distance to the eye; 0 means sky.</description></item>
+/// <item><term>shading</term>
+/// <description>R8G8B8A8_UINT: a hair pixel's strand code in rg, 0 in b, the shading model's code in a, all 0 where nothing
+/// lit draws (docs/plans/skin-and-hair.md, "The shading target").</description></item>
 /// </list>
 /// The depth buffer is D32_SFLOAT with reversed Z (1 near, 0 far, cleared to 0, compare GREATER). The direct image and the
 /// estimate target are R16G16B16A16_SFLOAT (docs/plans/screen-space-illumination.md, "Images and buffers"): the direct
 /// light of each pixel, and the bounce G in rgb with the occlusion V in a, (0, 0, 0, 1) under NoScreenSpaceLight.
 /// Each bloom level is an HDR image half the size of the one before, rounded up, from half the output's size. Every color
-/// target can be copied out, for the read hooks of <see cref="VulkanRenderer"/>. Under reflections the HDR target is
-/// also a storage image, which the trace writes; without them it is not, so a frame is the frame from before them.
+/// target can be copied out, for the read hooks of <see cref="VulkanRenderer"/>. Under reflections or the skin scatter
+/// the HDR target is also a storage image, which the trace and the scatter's columns pass write; without both it is not,
+/// so a frame is the frame from before them.
 /// </remarks>
 internal sealed class RenderTargets : IDisposable
 {
@@ -37,6 +41,7 @@ internal sealed class RenderTargets : IDisposable
     public const Format SpecularFormat = Format.R8G8B8A8Unorm;
     public const Format EmissiveFormat = Format.R16G16B16A16Sfloat;
     public const Format DistanceFormat = Format.R32Sfloat;
+    public const Format ShadingFormat = Format.R8G8B8A8Uint;
     public const Format DepthFormat = Format.D32Sfloat;
     public const Format HdrFormat = Format.R16G16B16A16Sfloat;
     public const Format DirectFormat = Format.R16G16B16A16Sfloat;
@@ -50,6 +55,12 @@ internal sealed class RenderTargets : IDisposable
     /// (docs/plans/screen-space-illumination.md, "Push constants and sets").
     /// </summary>
     public const uint DirectBinding = 9;
+
+    /// <summary>
+    /// The binding of the shading target in the G-buffer set. The other G-buffer targets take the bindings of their
+    /// attachments, 0 to 4, and 5 to 9 are taken (Shaders/gbuffer_inputs.glsl).
+    /// </summary>
+    public const uint ShadingBinding = 10;
 
     // The upsample pass writes the target as a storage image, the clear as a transfer, and the ambient pass samples it.
     // VulkanRenderer.ReadEstimate copies it out.
@@ -67,11 +78,21 @@ internal sealed class RenderTargets : IDisposable
         SpecularFormat,
         EmissiveFormat,
         DistanceFormat,
+        ShadingFormat,
+    ];
+
+    /// <summary>The G-buffer color attachments of the passes that draw it, in the order of <see cref="GBufferFormats"/>, unblended.</summary>
+    public static readonly ColorAttachment[] GBufferAttachments =
+    [
+        .. GBufferFormats.Select(format => new ColorAttachment(format)),
     ];
 
     private readonly VulkanDevice device;
     private readonly DeviceAllocator allocator;
     private readonly DescriptorLayouts layouts;
+
+    // True under reflections or the skin scatter, whose compute passes write the HDR target as a storage image.
+    private readonly bool hdrStorage;
 
     // True from the creation of the estimate target until the first frame after it records the clear to (0, 0, 0, 1).
     private bool estimateNeedsClear;
@@ -79,6 +100,7 @@ internal sealed class RenderTargets : IDisposable
     /// <param name="glowLevels">The bloom levels, 0 without bloom.</param>
     /// <param name="smaaTables">The SMAA tables when SMAA is on, or null when it is off.</param>
     /// <param name="reflections">The resolution of the reflections' trace, to make their images, or null under <see cref="NoReflections"/>.</param>
+    /// <param name="subsurface">True under <see cref="SeparableSubsurface"/>, whose columns pass writes the HDR target.</param>
     public RenderTargets(
         VulkanDevice device,
         DeviceAllocator allocator,
@@ -86,7 +108,8 @@ internal sealed class RenderTargets : IDisposable
         Extent2D extent,
         int glowLevels,
         SmaaTables? smaaTables,
-        TraceResolution? reflections
+        TraceResolution? reflections,
+        bool subsurface
     )
     {
         if (reflections is not null)
@@ -94,6 +117,7 @@ internal sealed class RenderTargets : IDisposable
         this.device = device;
         this.allocator = allocator;
         this.layouts = layouts;
+        hdrStorage = reflections is not null || subsurface;
         CheckFormats(device: device, reflections: reflections is not null);
         GBufferSet = layouts.AllocateGBufferSet();
         PostSet = layouts.AllocatePostSet();
@@ -102,7 +126,7 @@ internal sealed class RenderTargets : IDisposable
         GlowSources = glowLevels == 0 ? [] : new DescriptorSet[glowLevels + 1];
         for (int i = 0; i < GlowSources.Length; i++)
             GlowSources[i] = layouts.AllocateGlowSourceSet();
-        Create(extent: extent, hdrStorage: reflections is not null);
+        Create(extent);
         if (reflections is { } resolution)
             Reflections = new(
                 device: device,
@@ -122,6 +146,10 @@ internal sealed class RenderTargets : IDisposable
     public GpuImage Specular { get; private set; }
     public GpuImage Emissive { get; private set; }
     public GpuImage Distance { get; private set; }
+
+    /// <summary>The shading model of each pixel and a hair pixel's strand, the sixth G-buffer target.</summary>
+    public GpuImage Shading { get; private set; }
+
     public GpuImage Depth { get; private set; }
     public GpuImage Hdr { get; private set; }
 
@@ -171,7 +199,7 @@ internal sealed class RenderTargets : IDisposable
         if (Reflections is not null)
             CheckReflectedScreen(extent);
         DestroyImages();
-        Create(extent: extent, hdrStorage: Reflections is not null);
+        Create(extent);
         // The trace keeps its resolution across a resize.
         Reflections?.Create(extent: extent, hdr: Hdr, resolution: Reflections.Resolution);
         Smaa?.Resize(extent);
@@ -184,19 +212,19 @@ internal sealed class RenderTargets : IDisposable
     }
 
     /// <summary>Makes every target at <paramref name="extent"/> and writes the sets that read them.</summary>
-    /// <param name="hdrStorage">True to make the HDR target a storage image too, for the reflections' trace.</param>
     [MemberNotNull(
         nameof(BaseColor),
         nameof(Normal),
         nameof(Specular),
         nameof(Emissive),
         nameof(Distance),
+        nameof(Shading),
         nameof(Depth),
         nameof(Hdr),
         nameof(Direct),
         nameof(Estimate)
     )]
-    private void Create(Extent2D extent, bool hdrStorage)
+    private void Create(Extent2D extent)
     {
         Extent = extent;
         BaseColor = ColorTarget(extent: extent, format: BaseColorFormat, name: "g-buffer base color");
@@ -204,6 +232,7 @@ internal sealed class RenderTargets : IDisposable
         Specular = ColorTarget(extent: extent, format: SpecularFormat, name: "g-buffer specular");
         Emissive = ColorTarget(extent: extent, format: EmissiveFormat, name: "g-buffer emissive");
         Distance = ColorTarget(extent: extent, format: DistanceFormat, name: "g-buffer distance", readable: true);
+        Shading = ColorTarget(extent: extent, format: ShadingFormat, name: "g-buffer shading", readable: true);
         Depth = GpuImage.Create(
             device: device,
             allocator: allocator,
@@ -234,9 +263,16 @@ internal sealed class RenderTargets : IDisposable
             name: "estimate"
         );
         estimateNeedsClear = true;
-        GBuffer = [BaseColor, Normal, Specular, Emissive, Distance];
+        GBuffer = [BaseColor, Normal, Specular, Emissive, Distance, Shading];
+        // The first five targets' bindings are their attachments' indices; the shading target came after the bindings
+        // 5 to 9 were taken.
         for (int i = 0; i < GBuffer.Length; i++)
-            layouts.WriteImage(set: GBufferSet, binding: (uint)i, arrayElement: 0, image: GBuffer[i]);
+            layouts.WriteImage(
+                set: GBufferSet,
+                binding: GBuffer[i] == Shading ? ShadingBinding : (uint)i,
+                arrayElement: 0,
+                image: GBuffer[i]
+            );
         layouts.WriteImage(set: GBufferSet, binding: EstimateBinding, arrayElement: 0, image: Estimate);
         layouts.WriteImage(set: GBufferSet, binding: DirectBinding, arrayElement: 0, image: Direct);
         layouts.WriteImage(set: PostSet, binding: 0, arrayElement: 0, image: Hdr);

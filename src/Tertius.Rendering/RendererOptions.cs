@@ -78,6 +78,12 @@ public sealed class RendererOptions
     public ReflectionSetting Reflections { get; set; } = ConeTracedReflections.Default;
 
     /// <summary>
+    /// Whether skin scatters its diffuse light under the surface, or <see cref="NoSubsurface"/>. On by default. The scatter
+    /// image and the row image take 16 bytes per pixel, about 33 MB at 1920 × 1080 (docs/plans/skin-and-hair.md, "Cost").
+    /// </summary>
+    public SubsurfaceSetting Subsurface { get; set; } = SeparableSubsurface.Default;
+
+    /// <summary>
     /// How the renderer smooths jagged edges after the tone map. SMAA takes 10 bytes of device memory per output pixel
     /// (about 21 MB at 1920 × 1080) and three full-screen passes.
     /// </summary>

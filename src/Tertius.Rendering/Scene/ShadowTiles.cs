@@ -437,9 +437,9 @@ internal sealed class ShadowTiles
 
     /// <summary>
     /// True when the record no longer matches the tile (docs/plans/local-light-shadows.md, decision 34, "The cache"):
-    /// another light or aim, another camera frame, another projection, a turn of the aim, other casters, or a caster that
-    /// moved by a quarter of a texel where it shows, or by more than float rounding of its pose, or a caster of another
-    /// static mesh or other pose rows (docs/plans/skinning-and-morphs.md, fork 1).
+    /// another light or aim, another camera frame, another projection, a turn of the aim, other casters or materials, or a
+    /// caster that moved by a quarter of a texel where it shows, or by more than float rounding of its pose, or a caster of
+    /// another static mesh or other pose rows (docs/plans/skinning-and-morphs.md, fork 1).
     /// </summary>
     private static bool IsStale(
         TileRecord record,
@@ -468,9 +468,13 @@ internal sealed class ShadowTiles
         {
             RecordedCaster was = record.Casters[i];
             ref readonly PreparedInstance now = ref placed[seen[i]];
-            // A deformed copy's frame mesh changes with the jobs before it, so the record names its static mesh.
+            // A deformed copy's frame mesh changes with the jobs before it, so the record names its static mesh. The
+            // material decides which texels cast: a cutout casts only its core.
             bool sameCaster =
-                was.EntityIndex == now.EntityIndex && was.Part == now.Part && was.Mesh == deformed.SourceOf(now.Mesh);
+                was.EntityIndex == now.EntityIndex
+                && was.Part == now.Part
+                && was.Mesh == deformed.SourceOf(now.Mesh)
+                && was.Material == now.Material;
             if (!sameCaster || !SamePose(record: record, was: was, now: deformed.PoseOf(now.Mesh)))
                 return true;
             Vector3 offset = now.Position - light.Position;
@@ -525,6 +529,7 @@ internal sealed class ShadowTiles
                     EntityIndex: caster.EntityIndex,
                     Part: caster.Part,
                     Mesh: deformed.SourceOf(caster.Mesh),
+                    Material: caster.Material,
                     Offset: caster.Position - light.Position,
                     Rotation: caster.Rotation,
                     Scale: caster.Scale,
@@ -566,13 +571,14 @@ internal sealed class ShadowTiles
     }
 
     /// <summary>
-    /// A caster as a tile record holds it: its static mesh, its position relative to the light, and its pose rows,
-    /// TileRecord.Poses from PoseStart, PoseCount of them, none for a static mesh.
+    /// A caster as a tile record holds it: its static mesh, its material, which decides which texels cast, its position
+    /// relative to the light, and its pose rows, TileRecord.Poses from PoseStart, PoseCount of them, none for a static mesh.
     /// </summary>
     private readonly record struct RecordedCaster(
         uint EntityIndex,
         ushort Part,
         int Mesh,
+        uint Material,
         Vector3 Offset,
         Quaternion Rotation,
         Vector3 Scale,

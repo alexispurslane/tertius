@@ -5,7 +5,9 @@
 // visibility term and Schlick's Fresnel term, with Filament's multiple-scattering energy compensation from the DFG table:
 //   f = c_diff / π + D · Vis · F · c,   c_diff = b (1 − m),   F0 = (1 − m) · 0.16 ρ² + m · b
 // Each light of the one light list adds f · E · (N·L), where E is its irradiance (docs/plans/local-light-shadows.md, "The
-// shaders"). The ambient light comes from one ambient source,
+// shaders"). A hair pixel takes each light's response of a fiber instead (hair.glsl), from either side of its card, and
+// its ambient light at its fiber normal, its shading normal (docs/plans/skin-and-hair.md, "The hair model"). A skin pixel
+// shades as the standard model, with metallic 0. The ambient light comes from one ambient source,
 // the scene environment map while it is on and the hemisphere while it is off, which gives a diffuse and a specular
 // term (docs/plans/environment-map.md, "The one source of the ambient light"). The estimate of the light around each
 // point, the occlusion V and the net bounce G − M, applies to the two ambient terms in occludedAmbient alone
@@ -53,6 +55,8 @@ struct ShadingInput
     float occlusion;          // V, the unhidden share of the cosine-weighted hemisphere: 1 when nothing hides it
     vec3 bounce;              // G − M, the net bounce, plain radiance: 0 where no estimate exists
     uint map;                 // the environment map that lights the surface, root first; only the map's ambient light reads it
+    uint model;               // the shading model's code: ShadingStandard, ShadingSkin or ShadingHair
+    vec3 strand;              // T, a hair's unit strand from root to tip; 0 for the other models
 };
 
 // The view of directLight that is the main view: every caller but an environment face, which passes its face's map.
@@ -83,20 +87,58 @@ SurfaceLobes lobesOf(ShadingInput s, vec3 V)
     return lobes;
 }
 
-// f · max(N·L, 0): the radiance toward V per unit irradiance from direction L.
-vec3 brdf(ShadingInput s, SurfaceLobes lobes, vec3 V, vec3 L)
+// The light of one light toward V per unit irradiance, its diffuse part and its specular part
+// (docs/plans/skin-and-hair.md, "The light of each model"). The diffuse part has the diffuse color in it, as
+// AmbientTerms.diffuse has. DirectTerms in C# is the copy.
+struct DirectTerms
+{
+    vec3 diffuse;
+    vec3 specular;
+};
+
+// The unit half vector of L and V, or `fallback` where L = −V and the two have no half vector.
+vec3 halfVectorOf(vec3 L, vec3 V, vec3 fallback)
+{
+    vec3 halfVector = L + V;
+    float halfLengthSq = dot(halfVector, halfVector);
+    return halfLengthSq > 1e-12 ? halfVector * inversesqrt(halfLengthSq) : fallback;
+}
+
+#include "hair.glsl"
+
+// f · max(N·L, 0) in its two parts: c_diff / π · (N·L), and D · Vis · F · c · (N·L).
+DirectTerms surfaceResponse(ShadingInput s, SurfaceLobes lobes, vec3 V, vec3 L)
 {
     vec3 N = s.normal;
     float NdotL = dot(N, L);
+    DirectTerms terms;
     if (NdotL <= 0.0)
-        return vec3(0.0);
-    vec3 halfVector = L + V;
-    float halfLengthSq = dot(halfVector, halfVector);
-    vec3 H = halfLengthSq > 1e-12 ? halfVector * inversesqrt(halfLengthSq) : N;
+    {
+        terms.diffuse = vec3(0.0);
+        terms.specular = vec3(0.0);
+        return terms;
+    }
+    vec3 H = halfVectorOf(L, V, N);
     float distribution = ggxDistribution(dot(N, H), lobes.alpha);
     float visibility = smithVisibility(NdotL, lobes.NdotV, lobes.alpha);
     vec3 lobe = schlickFresnel(lobes.f0, dot(V, H)) * (distribution * visibility) * lobes.energyCompensation;
-    return (lobes.diffuseColor / PI + lobe) * NdotL;
+    terms.diffuse = lobes.diffuseColor / PI * NdotL;
+    terms.specular = lobe * NdotL;
+    return terms;
+}
+
+// The radiance toward V per unit irradiance from direction L, by the shading model.
+DirectTerms respond(ShadingInput s, SurfaceLobes lobes, vec3 V, vec3 L)
+{
+    return s.model == ShadingHair ? hairResponse(s, lobes, V, L) : surfaceResponse(s, lobes, V, L);
+}
+
+// Whether a light from L reaches the point at all, before its shadows: a fiber takes light from every side, a surface
+// only from the side that both its normals face. A normal map can tilt the shading normal toward a light on a surface
+// that itself faces away; that surface is in its own shadow.
+bool takesLight(ShadingInput s, vec3 L)
+{
+    return s.model == ShadingHair || (dot(s.normal, L) > 0.0 && dot(s.geometricNormal, L) > 0.0);
 }
 
 // The irradiance in W/m² per channel that `light` sends to `position` before its shadows: color × intensity over
@@ -127,9 +169,9 @@ vec3 lightIrradiance(GpuLight light, vec3 position, out vec3 L, out float d)
 }
 
 // The share of `light` that its shadow slot lets through at `position`, by the rule of shadowMaps. L is the unit
-// direction toward the light and d its distance. geometricNormal is the surface that the shadow maps see, and
-// geometricNdotL its cosine with L, which must be positive. The impostor capture, ShadowMapsNone, takes the far shadows
-// alone with weight 1, and no tiles.
+// direction toward the light and d its distance. geometricNormal is the surface that the shadow maps see, turned toward
+// the light, and geometricNdotL its cosine with L, which must be positive, or 0 for a hair card edge-on to the light.
+// The impostor capture, ShadowMapsNone, takes the far shadows alone with weight 1, and no tiles.
 float lightVisibility(GpuLight light, vec3 position, vec3 L, float d, vec3 geometricNormal, float geometricNdotL,
     uint shadowMaps)
 {
@@ -257,14 +299,17 @@ bool viewKeeps(uint view, GpuLight light)
     return view == MainView ? light.inMainView != 0u : light.map <= view;
 }
 
-// Every light of the list that the view keeps reflected toward V, each dimmed by its shadows as shadowMaps says: a face
-// of map i passes i, and every other caller MainView. The lights add in the order of the list, so the sum rounds the
-// same way on every run. A normal map can tilt the shading normal toward a light on a surface that itself faces away;
-// that surface is in its own shadow, so every light needs both normals to face it. The result is plain radiance: no
-// ambient light, no emission and no exposure. The direct pass writes it into the direct image (Shaders/direct.frag).
-vec3 directLight(ShadingInput s, SurfaceLobes lobes, vec3 position, vec3 V, uint shadowMaps, uint view)
+// Every light of the list that the view keeps reflected toward V in its two parts, each dimmed by its shadows as
+// shadowMaps says: a face of map i passes i, and every other caller MainView. The lights add in the order of the list,
+// so the sum rounds the same way on every run. A light adds only where takesLight says. A hair card's shadow lookups
+// take its geometric normal turned toward the light, the side that the light sees (docs/plans/skin-and-hair.md,
+// decision 27). The result is plain radiance: no ambient light, no emission and no exposure. The direct pass writes it
+// into the direct image (Shaders/direct_pass.glsl).
+DirectTerms directLight(ShadingInput s, SurfaceLobes lobes, vec3 position, vec3 V, uint shadowMaps, uint view)
 {
-    vec3 color = vec3(0.0);
+    DirectTerms sum;
+    sum.diffuse = vec3(0.0);
+    sum.specular = vec3(0.0);
     for (uint i = 0u; i < frame.counts.x; i++)
     {
         GpuLight light = lights[i];
@@ -273,14 +318,27 @@ vec3 directLight(ShadingInput s, SurfaceLobes lobes, vec3 position, vec3 V, uint
         vec3 L;
         float d;
         vec3 irradiance = lightIrradiance(light, position, L, d);
-        float geometricNdotL = dot(s.geometricNormal, L);
-        if (irradiance == vec3(0.0) || dot(s.normal, L) <= 0.0 || geometricNdotL <= 0.0)
+        if (irradiance == vec3(0.0) || !takesLight(s, L))
             continue;
-        float visibility = lightVisibility(light, position, L, d, s.geometricNormal, geometricNdotL, shadowMaps);
+        float geometricNdotL = dot(s.geometricNormal, L);
+        vec3 shadowNormal = geometricNdotL < 0.0 ? -s.geometricNormal : s.geometricNormal;
+        float visibility =
+            lightVisibility(light, position, L, d, shadowNormal, abs(geometricNdotL), shadowMaps);
         if (visibility > 0.0)
-            color += brdf(s, lobes, V, L) * irradiance * visibility;
+        {
+            DirectTerms terms = respond(s, lobes, V, L);
+            vec3 weight = irradiance * visibility;
+            sum.diffuse += terms.diffuse * weight;
+            sum.specular += terms.specular * weight;
+        }
     }
-    return color;
+    return sum;
+}
+
+// Both parts of directLight, added.
+vec3 directSum(DirectTerms terms)
+{
+    return terms.diffuse + terms.specular;
 }
 
 // All light that leaves a surface point of the given lobes toward the eye, pre-exposed and capped at MaxRadiance, the
@@ -294,7 +352,7 @@ vec3 directLight(ShadingInput s, SurfaceLobes lobes, vec3 position, vec3 V, uint
 vec3 lobesRadiance(
     ShadingInput s, SurfaceLobes lobes, vec3 preExposedEmission, vec3 position, vec3 V, uint shadowMaps, float exposure)
 {
-    vec3 reflected = ambientLight(s, lobes, V) + directLight(s, lobes, position, V, shadowMaps, MainView);
+    vec3 reflected = ambientLight(s, lobes, V) + directSum(directLight(s, lobes, position, V, shadowMaps, MainView));
     return min(exposed(reflected, exposure) + preExposedEmission, vec3(MaxRadiance));
 }
 
@@ -309,7 +367,7 @@ vec3 surfaceRadiance(ShadingInput s, vec3 preExposedEmission, vec3 position, vec
 vec3 directRadiance(ShadingInput s, vec3 emission, vec3 position, vec3 V, uint shadowMaps, uint view)
 {
     SurfaceLobes lobes = lobesOf(s, V);
-    return min(directLight(s, lobes, position, V, shadowMaps, view) + emission, vec3(MaxRadiance));
+    return min(directSum(directLight(s, lobes, position, V, shadowMaps, view)) + emission, vec3(MaxRadiance));
 }
 
 // The light that a lit puff at `position` sends toward the eye (docs/plans/particles.md, "Lit puffs"). A puff has no
@@ -342,5 +400,37 @@ vec3 scatteredLight(vec3 albedo, vec3 position, uint map)
     }
     return albedo * (meanAmbient + irradiance * (1.0 / (4.0 * PI)));
 }
+
+// Only fragment shaders include material.glsl, and only they have the screen derivatives that the footprint takes. The
+// lit puffs' vertex shader and the compute passes include this file without it.
+#ifdef TERTIUS_MATERIAL_GLSL
+#include "reflection_footprint.glsl"
+
+// The ShadingInput of a surface that a forward pass shades from its material's sample `s` at `position`: the glass and
+// the fringe of the transparent pass, the environment faces and the impostor captures (docs/plans/skin-and-hair.md, "The
+// fringe"). The reflection's footprint comes from the screen derivatives, so the caller calls this before any discard.
+// The sky shares serve the hemisphere alone, and are 0 while the environment map is on. A forward surface is not in the
+// G-buffer that the occlusion passes read, so it takes no estimate: the occlusion is 1 and the bounce 0, and the surface
+// behind it takes the estimate at its pixel (docs/plans/screen-space-illumination.md, "The passes that keep V = 1").
+ShadingInput forwardShading(SurfaceSample s, vec3 position, vec4 hemisphere, uint map, vec3 V)
+{
+    ShadingInput shading;
+    shading.baseColor = s.baseColor.rgb;
+    shading.normal = s.normal;
+    shading.geometricNormal = s.geometricNormal;
+    shading.metallic = s.metallic;
+    shading.roughness = s.roughness;
+    shading.reflectance = s.reflectance;
+    shading.map = map;
+    shading.reflectionFootprint = reflectionFootprint(ambientSpecularDirection(shading, V));
+    shading.skyFraction = environmentMapOn ? 0.0 : skyFraction(hemisphere, position, s.normal);
+    shading.lobeSkyFraction = environmentMapOn ? 0.0 : lobeSkyFraction(hemisphere, position, s.normal, V, s.roughness);
+    shading.occlusion = 1.0;
+    shading.bounce = vec3(0.0);
+    shading.model = s.model;
+    shading.strand = s.strand;
+    return shading;
+}
+#endif
 
 #endif

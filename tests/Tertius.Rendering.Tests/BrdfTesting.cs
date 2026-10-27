@@ -66,10 +66,19 @@ internal static class BrdfTesting
         return MathF.Max(difference.X, MathF.Max(difference.Y, difference.Z));
     }
 
-    /// <summary>A black material of reflectance 0 that emits <paramref name="radiance"/>, so it shows that and no light.</summary>
-    public static MaterialId Glow(VulkanRenderer renderer, Vector3 radiance) =>
+    /// <summary>
+    /// A black material of reflectance 0 that emits <paramref name="radiance"/>, so it shows that and no light. It draws
+    /// as <paramref name="alpha"/> says, opaque by default.
+    /// </summary>
+    public static MaterialId Glow(VulkanRenderer renderer, Vector3 radiance, AlphaMode alpha = default) =>
         renderer.CreateMaterial(
-            new(BaseColor: new(x: 0, y: 0, z: 0, w: 1), Roughness: 0.5f, Reflectance: 0, Emissive: radiance)
+            new(
+                BaseColor: new(x: 0, y: 0, z: 0, w: 1),
+                Roughness: 0.5f,
+                Reflectance: 0,
+                Emissive: radiance,
+                Alpha: alpha
+            )
         );
 
     /// <summary>

@@ -1,6 +1,6 @@
 ---
 id: ter-qsfz
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-10-27T08:09:42Z
@@ -32,3 +32,7 @@ The user picks an option. Two hair cards with one strand and different normals s
 **2026-10-27T11:48:41Z**
 
 2026-10-27: the user chose option A: for a hair receiver, a step that lies on the receiver's own card plane blocks nothing. The receiver needs its card normal beside its fiber normal. Start from the fiber-plane patch (refs/wip/n7lw-fiber-plane) only where the tests need it.
+
+**2026-10-27T14:00:02Z**
+
+2026-10-27: merged (89555b40); full Checked on the merged main: 9,283 total, 0 failed. Coverage of the changed lines 32/34 (94.1%): the misses are the empty-union guard arms of OwnSurface. Option A covers flat cards; curved or smooth-shaded cards are ter-3yy5 (five options for the user).

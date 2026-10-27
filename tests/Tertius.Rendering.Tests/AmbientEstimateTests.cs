@@ -160,7 +160,7 @@ public sealed class AmbientEstimateTests
                     sectors: sectors[k],
                     center: center,
                     // With no normal map, the receiver's own surface blocks no direction of its hemisphere.
-                    geometricNormal: TiltedNormal,
+                    ownSurface: new OwnPlane(TiltedNormal),
                     radius: 1,
                     thicknessShare: 0.1,
                     steps: steps,
@@ -215,7 +215,7 @@ public sealed class AmbientEstimateTests
                     SectorSearch.Near(
                         sectors: slice,
                         center: center,
-                        geometricNormal: TiltedNormal,
+                        ownSurface: new OwnPlane(TiltedNormal),
                         radius: 1,
                         thicknessShare: 0.1,
                         steps:

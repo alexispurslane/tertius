@@ -31,13 +31,23 @@ internal readonly record struct MaterialSample(Double3 BaseColor, double Metalli
     /// </summary>
     public Double3 Reflected(Double3 normal, Double3 toView, Double3 toLight, BrdfTables tables)
     {
+        DirectTerms terms = ReflectedTerms(normal: normal, toView: toView, toLight: toLight, tables: tables);
+        return terms.Diffuse + terms.Specular;
+    }
+
+    /// <summary>
+    /// <see cref="Reflected"/> in its two parts, the C# copy of surfaceResponse: c_diff / π · (n·l), and the compensated
+    /// lobe times n·l.
+    /// </summary>
+    public DirectTerms ReflectedTerms(Double3 normal, Double3 toView, Double3 toLight, BrdfTables tables)
+    {
         double nDotL = Double3.Dot(normal, toLight);
         if (nDotL <= 0)
-            return Double3.Zero;
+            return default;
         double lobeAlbedo = tables.SampleDfg(nDotV: ViewCosine(normal, toView), roughness: Lobe.Roughness).LobeAlbedo;
-        Double3 compensation = EnergyCompensation(lobeAlbedo);
-        Double3 lobe = SingleScatteringLobe(normal: normal, toView: toView, toLight: toLight) * compensation;
-        return (DiffuseColor / Math.PI + lobe) * nDotL;
+        Double3 lobe =
+            SingleScatteringLobe(normal: normal, toView: toView, toLight: toLight) * EnergyCompensation(lobeAlbedo);
+        return new(Diffuse: DiffuseColor / Math.PI * nDotL, Specular: lobe * nDotL);
     }
 
     /// <summary>

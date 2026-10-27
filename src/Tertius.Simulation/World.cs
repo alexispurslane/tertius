@@ -242,11 +242,12 @@ public sealed partial class World : IDisposable
 
     /// <summary>
     /// The linear velocity of the entity's origin, the point that its pose names, relative to <paramref name="frame"/>, in its
-    /// axes, from the front snapshot. Throws
-    /// <see cref="StaleEntityException"/> for a stale entity and <see cref="ArgumentException"/> for a stale frame.
+    /// axes, in doubles: a frame owner's from the frame tree, a body's that physics has not created yet from its creation,
+    /// else from the front snapshot. Throws <see cref="StaleEntityException"/> for a stale entity and
+    /// <see cref="ArgumentException"/> for a stale frame.
     /// </summary>
     public Double3 VelocityIn(Entity entity, FrameHandle frame) =>
-        FrameReads.VelocityIn(frames: Frames, entity: entity, row: Entities.FrontRow(entity), to: LiveFrame(frame));
+        VelocityIn(entity: entity, row: Entities.FrontRow(entity), to: LiveFrame(frame));
 
     /// <summary>
     /// The entity's angular velocity relative to <paramref name="frame"/>, in its axes, from the front snapshot. Throws
@@ -384,6 +385,7 @@ public sealed partial class World : IDisposable
     /// <item>The front row of every live attached entity names the frame of its chain root's front row. Step 7 keeps it,
     /// and the flow of step 5 relies on it.</item>
     /// <item>With a physics backend, the kept center of mass of every body is the one that the backend gives its shape.</item>
+    /// <item>The pending creations name each entity of the batch's body creations, at the index of its last creation there.</item>
     /// </list>
     /// </summary>
     internal void AssertInvariants()
@@ -418,6 +420,7 @@ public sealed partial class World : IDisposable
                 );
         foreach (Entity entity in Entities.LiveEntities)
             AssertEntityInvariants(entity);
+        AssertPendingCreates();
 
         for (int i = 0; i < Frames.Count; i++)
         {
@@ -432,6 +435,17 @@ public sealed partial class World : IDisposable
 
         // The numeric frames are planned for the next step, which applies the front intents.
         Frames.AssertInvariants(tickRate, Entities.FrontIntents.Span);
+    }
+
+    /// <summary>Checks that the pending creations index the body creations of the batch for physics (see
+    /// <see cref="AssertInvariants"/>).</summary>
+    private void AssertPendingCreates()
+    {
+        List<BodyCreate> creates = physicsChanges.BodiesCreated;
+        foreach ((Entity entity, int index) in pendingCreates)
+            Contract.Invariant(index < creates.Count && creates[index].Entity == entity);
+        for (int i = 0; i < creates.Count; i++)
+            Contract.Invariant(pendingCreates.TryGetValue(creates[i].Entity, out int index) && index >= i);
     }
 
     /// <summary>

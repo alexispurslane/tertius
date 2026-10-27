@@ -1617,12 +1617,13 @@ public sealed class ShadowTests
 
     private static IEnumerable<GpuInstance> InstancesOf(PreparedScene scene, int cascade)
     {
-        CommandRange range = scene.ShadowCommands[cascade];
-        for (int c = range.First; c < range.First + range.Count; c++)
-        {
-            DrawIndexedIndirectCommand command = scene.Commands[c];
-            for (uint k = 0; k < command.InstanceCount; k++)
-                yield return scene.Instances[command.FirstInstance + k];
-        }
+        OpaqueRuns runs = scene.ShadowCommands[cascade];
+        foreach (CommandRange range in (CommandRange[])[runs.Solid, runs.Cutout])
+            for (int c = range.First; c < range.First + range.Count; c++)
+            {
+                DrawIndexedIndirectCommand command = scene.Commands[c];
+                for (uint k = 0; k < command.InstanceCount; k++)
+                    yield return scene.Instances[command.FirstInstance + k];
+            }
     }
 }

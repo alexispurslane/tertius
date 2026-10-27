@@ -92,7 +92,8 @@ public readonly ref struct Self
 
     /// <summary>
     /// The linear velocity of this entity's origin, the point that its pose names, relative to <paramref name="frame"/>, in
-    /// its axes, from the front snapshot.
+    /// its axes, in doubles: a frame owner's from the frame tree, else from the front snapshot (see
+    /// <see cref="World.VelocityIn(Entity, FrameHandle)"/>).
     /// </summary>
     public Double3 VelocityIn(FrameHandle frame) => world.VelocityIn(Entity, frame);
 

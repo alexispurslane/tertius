@@ -62,11 +62,11 @@ public sealed class PortableFloatTests
     }
 
     /// <summary>A white matte material.</summary>
-    private static MaterialId Matte(VulkanRenderer renderer, float opacity = 1) =>
-        renderer.CreateMaterial(new(BaseColor: new(x: 0.8f, y: 0.8f, z: 0.8f, w: opacity), Roughness: 0.6f));
+    private static MaterialId Matte(VulkanRenderer renderer) =>
+        renderer.CreateMaterial(new(BaseColor: new(x: 0.8f, y: 0.8f, z: 0.8f, w: 1), Roughness: 0.6f));
 
     /// <summary>A sunlit scene of one plane 3 m ahead that faces the eye, with the sun behind the eye.</summary>
-    private static RenderSnapshot PlaneAhead(MeshId plane, MaterialId material, RenderFlags flags = RenderFlags.None)
+    private static RenderSnapshot PlaneAhead(MeshId plane, MaterialId material)
     {
         RenderSnapshot snapshot = Gpu.Snapshot(new(0.2f, 0.4f, 1));
         snapshot.Instances.Add(
@@ -76,7 +76,6 @@ public sealed class PortableFloatTests
                 position: new(0, 0, -3),
                 scale: Vector3.One,
                 rotation: Facing,
-                flags: flags,
                 radius: 1.5f,
                 chainDepth: TestChains.CamerasFrame
             )
@@ -89,12 +88,7 @@ public sealed class PortableFloatTests
     /// and a box out of view that casts a shadow, so that the shadow maps exist. The plane faces +X, so a normal read
     /// as any of the axes that a broken normal decodes to, such as +Z, faces away from the sun.
     /// </summary>
-    private static RenderSnapshot PlaneToTheSide(
-        VulkanRenderer renderer,
-        MeshId plane,
-        MaterialId material,
-        RenderFlags flags = RenderFlags.None
-    )
+    private static RenderSnapshot PlaneToTheSide(VulkanRenderer renderer, MeshId plane, MaterialId material)
     {
         RenderSnapshot snapshot = Gpu.Snapshot(new(1, 0.4f, -0.8f));
         var alongMinusX = Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 2);
@@ -106,7 +100,6 @@ public sealed class PortableFloatTests
                 position: new(-3, 0, 0),
                 scale: Vector3.One,
                 rotation: Quaternion.CreateFromAxisAngle(Vector3.UnitZ, -MathF.PI / 2),
-                flags: flags,
                 radius: 1.5f,
                 chainDepth: TestChains.CamerasFrame
             )
@@ -189,14 +182,15 @@ public sealed class PortableFloatTests
         VulkanRenderer renderer = Headless();
         try
         {
-            MaterialId glass = Matte(renderer, opacity: 0.5f);
+            MaterialId glass = renderer.CreateMaterial(
+                new(BaseColor: new(x: 0.8f, y: 0.8f, z: 0.8f, w: 0.5f), Roughness: 0.6f, Alpha: new GlassAlpha())
+            );
             Vector3 zero = HdrCenter(
                 renderer,
                 PlaneToTheSide(
                     renderer: renderer,
                     plane: renderer.CreateMesh(PlaneWithNormals(Vector3.Zero)),
-                    material: glass,
-                    flags: RenderFlags.Transparent
+                    material: glass
                 )
             );
             Vector3 facing = HdrCenter(
@@ -204,8 +198,7 @@ public sealed class PortableFloatTests
                 PlaneToTheSide(
                     renderer: renderer,
                     plane: renderer.CreateMesh(PlaneWithNormals(Vector3.UnitY)),
-                    material: glass,
-                    flags: RenderFlags.Transparent
+                    material: glass
                 )
             );
 
@@ -279,7 +272,9 @@ public sealed class PortableFloatTests
         VulkanRenderer renderer = Headless();
         try
         {
-            MaterialId mirror = renderer.CreateMaterial(new(BaseColor: Vector4.One, Roughness: 0, Metallic: 1));
+            MaterialId mirror = renderer.CreateMaterial(
+                new(BaseColor: Vector4.One, Roughness: 0, Model: new StandardShading(Metallic: 1))
+            );
             RenderSnapshot snapshot = PlaneAhead(renderer.CreateMesh(PlaneWithNormals(Vector3.UnitY)), mirror);
             Gpu.Star(snapshot: snapshot, irradiance: 0);
             // The largest float power whose intensity, P / (4π), is at most 10^34 W/sr.
@@ -321,7 +316,8 @@ public sealed class PortableFloatTests
                 new(
                     BaseColor: new(x: 0.8f, y: 0.8f, z: 0.8f, w: 0.5f),
                     Roughness: 0.5f,
-                    Emissive: new(ShaderInput.RadianceLimit)
+                    Emissive: new(ShaderInput.RadianceLimit),
+                    Alpha: new GlassAlpha()
                 )
             );
             RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, starIrradiance: 0);
@@ -332,7 +328,6 @@ public sealed class PortableFloatTests
                     position: new(0, 0, -3),
                     scale: Vector3.One,
                     rotation: Facing,
-                    flags: RenderFlags.Transparent,
                     radius: 1.5f,
                     chainDepth: TestChains.CamerasFrame
                 )
@@ -369,14 +364,11 @@ public sealed class PortableFloatTests
                 new(
                     BaseColor: new(x: 0.8f, y: 0.8f, z: 0.8f, w: 0.5f),
                     Roughness: 0.5f,
-                    Emissive: new(ShaderInput.RadianceLimit)
+                    Emissive: new(ShaderInput.RadianceLimit),
+                    Alpha: new GlassAlpha()
                 )
             );
-            RenderSnapshot snapshot = PlaneAhead(
-                renderer.CreateMesh(PlaneWithNormals(Vector3.UnitY)),
-                pane,
-                RenderFlags.Transparent
-            );
+            RenderSnapshot snapshot = PlaneAhead(renderer.CreateMesh(PlaneWithNormals(Vector3.UnitY)), pane);
             snapshot.Instances.Add(Wall(renderer, new(ShaderInput.RadianceLimit)));
 
             Vector3 center = HdrCenter(renderer, snapshot);

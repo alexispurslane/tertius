@@ -31,6 +31,15 @@ public sealed class ImpostorManagerTests
 
     private static readonly MaterialId BallMaterial = new(0);
     private static readonly MaterialId OtherMaterial = new(1);
+    private static readonly MaterialId GlassMaterial = MaterialSlots.Glass;
+    private static readonly MaterialId FringedMaterial = MaterialSlots.Fringed;
+    private static readonly MaterialId CutoutMaterial = MaterialSlots.Cutout;
+
+    /// <summary>
+    /// The material slots: every one opaque but those of <see cref="GlassMaterial"/>, <see cref="FringedMaterial"/> and
+    /// <see cref="CutoutMaterial"/>.
+    /// </summary>
+    private static readonly MaterialInfo[] Materials = MaterialSlots.Of(8);
 
     private static readonly Vector3 SunDirection = Vector3.Normalize(new(0.3f, 0.8f, 0.5f));
 
@@ -57,7 +66,7 @@ public sealed class ImpostorManagerTests
                 width: Width,
                 height: Height,
                 meshes: Meshes,
-                materialCount: 8,
+                materials: Materials,
                 environment: environment,
                 region: region,
                 scene: Scene
@@ -185,20 +194,18 @@ public sealed class ImpostorManagerTests
     }
 
     [Fact]
-    public void NoImpostorCelestialTransparentAndNearlyEnclosingObjectsStayGeometry()
+    public void NoImpostorCelestialAndNearlyEnclosingObjectsStayGeometry()
     {
         var harness = new Harness();
         RenderSnapshot snapshot = Snapshot();
         snapshot.Instances.Add(Ball(entity: 1, position: new(-30, 0, -200), flags: RenderFlags.NoImpostor));
         snapshot.Instances.Add(Ball(entity: 2, position: new(-10, 0, -200), flags: RenderFlags.Celestial));
-        snapshot.Instances.Add(Ball(entity: 3, position: new(10, 0, -200), flags: RenderFlags.Transparent));
         snapshot.Instances.Add(Ball(entity: 4, position: new(30, 0, -200)));
         PreparedScene scene = harness.Run(snapshot);
-        scene.VisibleCount.Should().Be(3);
+        scene.VisibleCount.Should().Be(2, "the impostor leaves the geometry");
         harness.Manager.Draws.Length.Should().Be(1);
         harness.Manager.Status(Key(1)).Should().BeNull("NoImpostor objects are never considered");
         harness.Manager.Status(Key(2)).Should().BeNull("Celestial objects are never impostors");
-        harness.Manager.Status(Key(3)).Should().BeNull("Transparent objects are never impostors");
         harness.Status(4).Impostor.Should().BeTrue();
     }
 
@@ -248,6 +255,58 @@ public sealed class ImpostorManagerTests
 
         scene.UndeformedPosedInstances.Should().Be(1);
         harness.Manager.Draws.Length.Should().Be(1, "drawn as uploaded, it is a static instance");
+    }
+
+    [Fact]
+    public void AGlassMaterialNeverBecomesAnImpostor()
+    {
+        var harness = new Harness();
+        RenderSnapshot snapshot = Snapshot();
+        snapshot.Instances.Add(Ball(entity: 3, position: new(10, 0, -200), material: GlassMaterial));
+        snapshot.Instances.Add(Ball(entity: 4, position: new(30, 0, -200)));
+
+        harness.Run(snapshot);
+
+        harness.Manager.Status(Key(3, material: GlassMaterial)).Should().BeNull("a capture has no transparent pass");
+        harness.Status(4).Impostor.Should().BeTrue("an opaque ball as small on the screen does become one");
+    }
+
+    [Fact]
+    public void ACutoutMaterialMayBecomeAnImpostor()
+    {
+        var harness = new Harness();
+        RenderSnapshot snapshot = Snapshot();
+        snapshot.Instances.Add(Ball(entity: 3, position: new(10, 0, -200), material: CutoutMaterial));
+
+        harness.Run(snapshot);
+
+        harness
+            .Manager.Status(Key(3, material: CutoutMaterial))!
+            .Value.Impostor.Should()
+            .BeTrue("its capture discards the texels below the cutoff, as the G-buffer pass does");
+        harness
+            .Manager.Captures[0]
+            .Alpha.Should()
+            .Be(new AlphaMode(new CutoutAlpha(Cutoff: 0.5f)), "the capture pass chooses its cutout pipeline by it");
+    }
+
+    [Fact]
+    public void AFringedMaterialNeverBecomesAnImpostor()
+    {
+        var harness = new Harness();
+        RenderSnapshot snapshot = Snapshot();
+        snapshot.Instances.Add(Ball(entity: 3, position: new(10, 0, -200), material: FringedMaterial));
+        snapshot.Instances.Add(Ball(entity: 4, position: new(30, 0, -200)));
+
+        harness.Run(snapshot);
+
+        harness
+            .Manager.Status(Key(3, material: FringedMaterial))
+            .Should()
+            .BeNull(
+                "a capture has no transparent pass to draw the fringe in (docs/plans/skin-and-hair.md, decision 24)"
+            );
+        harness.Status(4).Impostor.Should().BeTrue("an opaque ball as small on the screen does become one");
     }
 
     [Fact]

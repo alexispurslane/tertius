@@ -7,6 +7,8 @@ Ticket: `ter-7lg5`, the design of the epic `ter-n7lw`, a member of the rendering
 | The lights, [local-light-shadows.md](local-light-shadows.md) (`ter-s9cv`) | `ter-s9cv-light-shadows` | One loop over the light list, and the shadow atlas, whose tiles draw casters as the cascades do (`LocalShadowPass`) |
 | The bounce light, `docs/plans/screen-space-illumination.md` (`ter-a24f`) | `ter-a24f-ssgi` | The split of the lighting pass into the direct pass (`direct.frag`, the direct image) and the ambient pass (`ambient.frag`), the stages `DirectLight`, `AmbientOcclusion` and `AmbientLight`, and G-buffer binding 9 |
 
+State on 2026-10-27: Parts 1 to 6 are built on the branch `ter-n7lw-skin-hair`. Both merges that the doc assumed came in: the lights before Part 3, the bounce light before Part 4. With Part 4 (`ter-k1ne`), hair cards draw from both sides (`ter-xlp8`, "Both sides of a hair card"). ARCHITECTURE.md describes the built code, and "Cost" below holds the measured cost of Part 6 in place of the estimates. Left for later tickets: the hair pixel's plane in the screen-space passes (`ter-qsfz`), the importer's mapping (`ter-kge6`) and the MPFB extras (`ter-omuj`).
+
 The skinning and morph targets (`ter-4vzc`, `docs/plans/skinning-and-morphs.md`) are designed beside this doc. "Other tickets" says where the two meet.
 
 ## Goal
@@ -72,6 +74,10 @@ Not in scope, by the user's list: an eye material, two specular lobes for skin, 
 4. No technique blends a pixel across frames: no temporal accumulation, no TAA, no temporal denoise or upscaling. (User, 2026-10-25, [rendering-performance.md](rendering-performance.md), decision 8) This rules out the dithered and hashed transparency of hair that most engines use.
 5. The renderer runs on regular Vulkan on Linux, not only on MoltenVK. (User, 2026-10-25)
 
+Made at the fix of Part 4's darkened cards (`ter-qsfz`), and so numbered after the decisions below:
+
+33. Under the screen-space light, a hair receiver's own card blocks nothing: its own surface blocks no sector, and a step that reads a point of its card's plane is left out. Other cards and other surfaces still block it and give it their bounce. (User, 2026-10-27, option A of `ter-qsfz`) The card's plane is the plane at right angles to the pixel's geometric normal, the card's, which the normals target holds beside the fiber normal, so the rule needs no new target. Reason: half of a turned card's own points lie above the plane of a hair pixel's fiber normal, so they blocked its hemisphere, and a card turned 40° about its strand shaded 7% darker than one that faces the eye: the card planes showed. A card whose strip bends, or whose vertex normals lean off its triangles, is not one plane (`ter-3yy5`).
+
 ### Settled by this design
 
 Each by the user's decisions and the project's rules, with its reason.
@@ -80,7 +86,7 @@ Each by the user's decisions and the project's rules, with its reason.
 7. A material's alpha mode is a second closed set: the generated union `AlphaMode` of `OpaqueAlpha`, `CutoutAlpha(Cutoff)`, `FringedAlpha(Cutoff)` and `GlassAlpha`, with opaque as its zero value. It is orthogonal to the shading model: a hair card is a hair model with a fringed alpha, a leaf a standard model with a cutout, a face a skin model, opaque. Reason: the pure model has two independent questions, how a surface sends light and how much of a texel it covers, and every pair of answers has a meaning.
 8. Glass moves into the alpha mode as `GlassAlpha`, and `RenderFlags.Transparent` goes (fork 2, settled as A on 2026-10-26). Reason: one store of how a material's alpha draws. With the flag kept, a transparent instance with a fringed material has two answers.
 9. The G-buffer gets a sixth target, the shading target, `R8G8B8A8_UINT` (see "The shading target", which gives the cost of the other place). Reason: every channel of the five targets has a job, and the free codes of the map code would tie the number of models to the number of maps.
-10. A hair pixel stores its fiber normal as its shading normal, and its strand in the shading target. Reason: every reader of the shading normal, the ambient light, the occlusion passes, the bounce light and the reflections, then works for hair unchanged and sees the fiber, not the card's plane.
+10. A hair pixel stores its fiber normal as its shading normal, and its strand in the shading target. Reason: every reader of the shading normal, the ambient light, the occlusion passes, the bounce light and the reflections, then works for hair unchanged and sees the fiber, not the card's plane. The occlusion sectors pass is the one reader that also needs to know a hair pixel: its own card blocks nothing there (decision 33).
 11. Skin scatters by the separable screen-space method of Jimenez et al. 2015 ("Separable Subsurface Scattering", Computer Graphics Forum 34(6)), with the skin profile of d'Eon, Luebke and Enderton 2007 ("Efficient Rendering of Human Skin", EGSR; GPU Gems 3, chapter 14). Reason: it is the spatial method that needs no temporal step: two passes of a fixed kernel, the same image in every frame. Burley's normalized diffusion in screen space (Golubev 2018) samples a disk with few taps and noise, and relies on temporal accumulation (decision 4). Texture-space diffusion (d'Eon 2007) needs an irradiance texture per object and passes over every skinned mesh's unwrap. A pre-integrated table is out by decision 1.
 12. The scatter blurs the diffuse light with the diffuse color in it, "pre-scatter texturing" in d'Eon's terms. Reason: the lighting passes already compute the diffuse terms with the color, so the scatter needs no division by the color and the composite no read of it. Its cost: detail of the skin image softens a little, most in red, where the profile is widest. Post-scatter texturing is under "Later".
 13. The scatter adds a difference to the HDR image: HDR += S − D at each skin pixel. Reason: the lighting passes keep writing the whole light of skin, so the bounce light's direct image keeps the direct light that a skin blocker bounces, and a renderer with the scatter off draws skin with no second path. It has the form of the reflections' delta, which adds W · C − a · k · T_s.
@@ -98,10 +104,11 @@ Each by the user's decisions and the project's rules, with its reason.
 25. In each view of an opaque pass, the cutout draws run after the solid draws, with a pipeline whose fragment shader can discard. Reason: the solid pipeline keeps its early depth writes, and the solid surfaces drawn first hide many hair fragments before their shader runs.
 26. Hair shades as fibers: a diffuse part along the strand (Kajiya and Kay 1989), normalized so that an even light returns the fiber's color, and two highlights shifted along the strand (Scheuermann 2004), each a Gaussian of unit area in the longitudinal angle with Marschner's azimuthal term (Marschner, Jensen, Cammarano, Worley and Hanrahan 2003). Its ambient light is the ambient source's at the fiber normal. Reason: the light then depends on the strand, the eye and the light, never on the card's plane, and the ambient light, its occlusion and the reflections need no hair path.
 27. A hair pixel takes the light of every light, from either side of its card, and its shadow lookups use the geometric normal turned toward the light. Reason: a fiber is lit from every side. The shadow maps, in which the cards cast, say what hides it.
-28. The strand comes from the shading frame of the vertex: the vertex tangent, made perpendicular to the shading normal, along +u, and the bitangent along +v, as `normalMapped` builds them. The strand direction picks one of the four. A normal map tilts the strand with the frame. Reason: glTF meshes carry tangents, and the importer makes them where a file has none (asset-pipeline.md, "Meshes"), so the vertex format does not change.
+28. The strand comes from the shading frame of the vertex: the vertex tangent, made perpendicular to the shading normal, along +u, and the opposite of the bitangent along +v, in the frame that `normalMapped` builds. v shrinks along that bitangent, in glTF and on the engine's own meshes, such as `Primitives.Plane`. The strand direction picks one of the four. A normal map tilts the strand with the frame. Reason: glTF meshes carry tangents, and the importer makes them where a file has none (asset-pipeline.md, "Meshes"), so the vertex format does not change.
 29. The setting is `RendererOptions.Subsurface`, the generated union `SubsurfaceSetting` of `NoSubsurface`, its zero case, and `SeparableSubsurface(TapsPerSide)`. The default is `SeparableSubsurface.Default`: 8 taps per side, 17 per pass, as Jimenez's high setting. The test helpers set `NoSubsurface`, as they set `NoReflections`. Reason: the rule of every member, a switch and its measured cost.
 30. No renderer switch for the fringe or for the hair model. Reason: a material chooses them, and a switch beside the material would be a second store that can disagree with it. A `CutoutAlpha` in place of a `FringedAlpha` turns a fringe off.
 31. The importer names a material's shading model and its fringe through glTF `extras` (see "The importer's mapping from glTF"). Reason: no ratified KHR extension describes a diffusion profile or a hair fiber.
+32. A hair card draws from both sides in every pass that shades, and its normals turn toward the eye (`ter-xlp8`, settled at the Part 4 review on 2026-10-27; see "Both sides of a hair card"). Reason: a hair card is a sheet of strands with no back, and MPFB's cards are authored to be seen from either side, such as those at the back of a head. Decision 2 asks that the cards do not show, and a card seen from behind drew nothing.
 
 ## The model
 
@@ -137,8 +144,8 @@ flowchart TB
 | glTF `MASK` draws as glass (asset-pipeline.md, AS3003) | `CutoutAlpha(Cutoff)` |
 | `GpuMaterial` holds 52 bytes of fields | 60 bytes: a shading word and the cutoff, in the same stride of 64 |
 | The batcher knows the material slots' count only | It reads each slot's `MaterialInfo`, its alpha mode |
-| One opaque command range per depth range, per cascade, per atlas tile and per face range | `OpaqueRuns(Solid, Cutout)` in each |
-| `TransparentRun` is `MeshCommands` or `PuffSprites` | `GlassCommands` (the renamed `MeshCommands`), `FringeCommands` or `PuffSprites` |
+| One opaque command range per depth range, per cascade, per atlas tile and per face range | `OpaqueRuns(Solid, Cutout)` in each, and in the main view and the faces a `SidedRuns(OneSided, TwoSided)` of two (decision 32) |
+| `TransparentRun` is `MeshCommands` or `PuffSprites` | `GlassCommands` (the renamed `MeshCommands`), `FringeCommands` or `PuffSprites`. The glass and fringe runs carry their sides, `TwoSided` (decision 32) |
 | Five G-buffer targets | Six: the shading target |
 | `brdf()` returns the reflected light of one light as one sum | `respond()` returns `DirectTerms` (diffuse, specular) by the shading model |
 | `ShadingInput` and `SurfaceSample` have no model | Both gain `model` and `strand` |
@@ -310,26 +317,29 @@ The target is a `UINT` format, so it holds integers and its codes need no rule f
 
 The batcher reads each instance's alpha mode once, from its material slot's `MaterialInfo`, into `PreparedInstance.Alpha`, and every decision of the frame reads that field:
 
-- The opaque sort key becomes (range, cutout, mesh), with solid before cutout, so each view's commands form a solid run and then a cutout run.
-- `PreparedScene.Opaque` per depth range, `ShadowCommands` per cascade, each atlas tile's commands and each `EnvironmentFaceDraw`'s `Far`, `Middle` and `Near` become an `OpaqueRuns`:
+- The opaque sort key becomes (range, cutout, two-sided, mesh), with solid before cutout and one-sided before two-sided, so each view's commands form the runs one-sided solid, two-sided solid, one-sided cutout and two-sided cutout. Decision 32 added the two-sided bit ("Both sides of a hair card").
+- `ShadowCommands` per cascade and each atlas tile's commands become an `OpaqueRuns`. `PreparedScene.Opaque` per depth range and each `EnvironmentFaceDraw`'s `Far`, `Middle` and `Near` become a `SidedRuns` of two `OpaqueRuns`, one per side (decision 32):
 
   ```csharp
   /// <summary>The opaque commands of one view: the solid draws, then the cutout draws.</summary>
   internal readonly record struct OpaqueRuns(CommandRange Solid, CommandRange Cutout);
+
+  /// <summary>The opaque commands of one view of a pass that shades: the runs of the one-sided materials and of the two-sided ones.</summary>
+  internal readonly record struct SidedRuns(OpaqueRuns OneSided, OpaqueRuns TwoSided);
   ```
 
 - A fringed instance goes into the opaque list and into the transparent list. The transparent list sorts it with the glass and the puffs by its center, back to front, as today.
 - `TransparentRun` gains a case:
 
   ```csharp
-  internal readonly record struct GlassCommands(CommandRange Commands);   // the renamed MeshCommands
-  internal readonly record struct FringeCommands(CommandRange Commands);
+  internal readonly record struct GlassCommands(CommandRange Commands, bool TwoSided);   // the renamed MeshCommands
+  internal readonly record struct FringeCommands(CommandRange Commands, bool TwoSided);
 
   [GeneratedUnion(typeof(GlassCommands), typeof(FringeCommands), typeof(PuffSprites))]
   internal readonly partial struct TransparentRun;
   ```
 
-  The transparent pass draws a `FringeCommands` run with the fringe pipeline. It has the scene layout, so the sets and the push constants stay bound between runs, as for the puffs.
+  `TwoSided` is the sides of the run's materials (decision 32): a run breaks where the sides change, and the pass draws a two-sided run with the variant of its pipeline that culls no face. The transparent pass draws a `FringeCommands` run with the fringe pipeline. It has the scene layout, so the sets and the push constants stay bound between runs, as for the puffs.
 - `ImpostorManager` keeps out `NoImpostor` and `Celestial` instances by their flags, as today, and a glass or fringed instance by `PreparedInstance.Alpha`.
 
 ### The cutout test
@@ -368,7 +378,7 @@ void main()
 {
     vec3 V = towardEye(inPosition);
     SurfaceSample s = sampleMaterial(inMaterialAndMap.x, inTexCoord, inNormal, inTangent, V);
-    ShadingInput shading = forwardShading(s, inPosition, inNormal, inHemisphere, inMaterialAndMap.y, V);
+    ShadingInput shading = forwardShading(s, inPosition, inHemisphere, inMaterialAndMap.y, V);
     float coverage = s.baseColor.a;
     // The core drew in the G-buffer pass, and a clear texel covers nothing.
     if (coverage >= materials[inMaterialAndMap.x].alphaCutoff || coverage <= 0.0)
@@ -377,7 +387,7 @@ void main()
     if (opaqueDistance > 0.0 && length(inPosition - draw.eye.xyz) > opaqueDistance)
         discard;
     float exposure = exposureScale();
-    vec3 radiance = surfaceRadiance(shading, exposed(s.emissive, exposure), inPosition, V, SunShadowsMainView, exposure);
+    vec3 radiance = surfaceRadiance(shading, exposed(s.emissive, exposure), inPosition, V, ShadowMapsMainView, exposure);
     outColor = vec4(radiance * coverage, 0.0);
     outTransmittance = vec4(vec3(1.0 - coverage), 0.0);
 }
@@ -486,9 +496,9 @@ vec3 strandOf(uint direction, vec3 n, vec4 vertexTangent)
     vec3 t = vertexTangent.xyz - n * dot(n, vertexTangent.xyz);
     float tangentLengthSq = dot(t, t);
     t = tangentLengthSq > 1e-12 ? t * inversesqrt(tangentLengthSq) : anyPerpendicular(n);
-    vec3 b = cross(n, t) * (vertexTangent.w < 0.0 ? -1.0 : 1.0);
-    vec3 alongU = direction < 2u ? t : b;
-    return (direction & 1u) == 0u ? alongU : -alongU;
+    vec3 alongV = cross(t, n) * (vertexTangent.w < 0.0 ? -1.0 : 1.0);
+    vec3 axis = direction < 2u ? t : alongV;
+    return (direction & 1u) == 0u ? axis : -axis;
 }
 
 // n_f: across the strand toward the eye. A strand along the line of sight takes the card's normal, which is across it.
@@ -501,18 +511,28 @@ vec3 fiberNormal(vec3 strand, vec3 V, vec3 cardNormal)
 where
 
 - `direction` = the strand direction's code: 0 +u, 1 −u, 2 +v, 3 −v.
-- `n` = the shading normal, after the normal map. `t` and `b` are the frame that `normalMapped` builds, so a normal map tilts the strand.
+- `n` = the shading normal, after the normal map. `t` is the tangent of the frame that `normalMapped` builds, so a normal map tilts the strand.
+- `alongV` = the direction in which the texture's v grows: the opposite of that frame's bitangent, cross(n, t) times the tangent's sign.
 - `cardNormal` = the shading normal. `strandOf` made T perpendicular to it, so it is across the strand.
 
-`sampleMaterial` sets, for a hair material, `s.strand = strandOf(...)` and then `s.normal = fiberNormal(s.strand, V, s.normal)`. Every pass that calls it, deferred or forward, so gets the fiber normal as the shading normal, and the G-buffer pass computes the sky shares at it while the map is off.
+`sampleMaterial` sets, for a hair material, `s.strand = strandOf(...)` and then `s.normal = fiberNormal(s.strand, V, turnedToward(s.normal, V))`, with the card's normal turned toward the eye ("Both sides of a hair card"). Every pass that calls it, deferred or forward, so gets the fiber normal as the shading normal, and the G-buffer pass computes the sky shares at it while the map is off.
+
+### Both sides of a hair card
+
+A hair card is a sheet of strands with no back (decision 32). So a hair material is two-sided, and every other model is one-sided, because a solid's back faces are hidden: `MaterialStore.DrawsBothSides(model)` sets `MaterialInfo.TwoSided` once, when the material uploads, and the batcher copies it into `PreparedInstance.TwoSided`, as it copies the alpha mode.
+
+- The opaque views that shade, the main view and the faces of the maps, split each `OpaqueRuns` by the sides into a `SidedRuns(OneSided, TwoSided)`. The sort key holds the run as two bits, cutout above two-sided, so the runs come in the order one-sided solid, two-sided solid, one-sided cutout, two-sided cutout, and both solid runs keep decision 25's early depth writes.
+- Each pass that shades holds its pipelines as `SidedPipeline`s, one variant with the pass's cull mode and one with `CullModeFlags.None`: the G-buffer pass and the faces for their solid and cutout runs, the impostor captures for the solid and the cutout capture, chosen by the capture's `TwoSided`, and the transparent pass for its glass and fringe runs, which `GlassCommands` and `FringeCommands` mark by their `TwoSided`. A glass hair material is two-sided too, by the same rule.
+- The shadow views already cull no face, so their runs stay one `OpaqueRuns`, and a card casts its shadow from either side.
+- `sampleMaterial` takes the strand first, from the frame that the mesh gives, so the strand runs the same way seen from either side. Then it turns the card's normals toward the eye: the geometric normal, which the G-buffer stores and `forwardShading` takes, and the card's shading normal, which `fiberNormal` falls back to. So a card seen from behind stores and shades as the same card seen from the front.
 
 ### Hair in each pass
 
 | Pass | What it does with a hair pixel |
 |---|---|
-| G-buffer | Writes n_f as the shading normal, the card's vertex normal as the geometric normal, the strand's code and 2 into the shading target, and metallic 0 |
+| G-buffer | Draws both sides of the card. Writes n_f as the shading normal, the card's vertex normal turned toward the eye as the geometric normal, the strand's code and 2 into the shading target, and metallic 0 |
 | Direct light | `hairResponse` for each light, which it takes from either side of its card. Its shadow lookups use the geometric normal turned toward the light. |
-| Occlusion and bounce | As any surface, around n_f |
+| Occlusion and bounce | Around n_f. Its own card blocks nothing (decision 33): its own surface blocks no sector, and a step that reads a point of its card's plane is left out. Other cards and surfaces block and bounce as for any surface |
 | Ambient light | `ambientTerms` at n_f, with the occlusion and the bounce |
 | Reflections | As any surface, along the dominant direction about n_f |
 | Transparent (fringe) | The same functions, forward, with an occlusion of 1 and a bounce of 0 |
@@ -588,7 +608,7 @@ The direct pass and the ambient pass write the scatter image beside their own ou
 
 ```glsl
 // direct.frag
-DirectTerms direct = directLight(s, lobes, position, V, SunShadowsMainView, EveryMap);
+DirectTerms direct = directLight(s, lobes, position, V, ShadowMapsMainView, MainView);
 outDirect = vec4(min(exposed(direct.diffuse + direct.specular, k) + emission, vec3(MaxRadiance)), 1.0);
 outScatter = s.model == ShadingSkin ? vec4(exposed(direct.diffuse, k), 1.0) : vec4(0.0);
 
@@ -602,7 +622,8 @@ where
 
 - `k` = the exposure scale. `exposed(x, k)` = min(x, MaxRadiance / k) · k, at most MaxRadiance.
 - `outDirect`, `outColor` = the direct image and the HDR image, as the bounce light's design writes them.
-- `outScatter` = location 1 of each pass. The direct pass clears the scatter image and writes it. The ambient pass adds to it with the factors One and One. The HDR image takes no blend, so the two attachments of the ambient pass have different blend states.
+- `outScatter` = location 1 of each pass. The direct pass clears the scatter image and writes it. The ambient pass adds to it with the factors One and One. The HDR image takes no blend, so the two attachments of the ambient pass have different blend states, which `GraphicsPipelineDesc.ColorAttachments` gives per attachment.
+- The location exists only in the shader variants `direct_scatter.frag` and `ambient_scatter.frag`, which define `SCATTER_OUTPUT` before they include the passes' bodies, `direct_pass.glsl` and `ambient_pass.glsl`. Under `NoSubsurface` the pipelines use `direct.frag` and `ambient.frag`, which have one output for their one attachment. A specialization constant around the write is not enough: Vulkan's validation reports a fragment output that no attachment takes, even when a constant turns its write off.
 
 So the scatter image holds D = exposed(diffuse of the lights) + exposed(diffuse of the ambient light) at each skin pixel, at most 2 · MaxRadiance = 64,512, with 1 in alpha, and 0 everywhere else: at the sky, at an impostor billboard and at every pixel that is not skin.
 
@@ -643,7 +664,7 @@ where
 
 - `viewDepthAt(p)` = z at pixel p, from the distance target and the view ray.
 - `frame.viewport.y` = H. `length(frame.cameraUp.xyz)` = tan(φ_y / 2). So `pixelsPerMeter` = s(z).
-- `kernel[i]` = tap i of the kernel buffer: rgb its weights, a its offset x_i in meters. Tap n, `scatterTapsPerSide`, is the center, with offset 0.
+- `kernel[i]` = tap i of the kernel buffer, a uniform buffer of 2 · 16 + 1 = 33 `vec4`, zeros after the last tap: rgb its weights, a its offset x_i in meters. Tap n, `scatterTapsPerSide`, is the center, with offset 0. A uniform buffer takes no storage-buffer slot of the compute stage, and 528 bytes fit any device's uniform-buffer range.
 - `MaxSide` = 16,384, the largest image side.
 - `imageLoad(scatterImage, at).a` = 1 at a skin pixel, 0 elsewhere: the mask.
 - `rise` = the tap's depth step over the depth step of the slope limit across its offset. Up to 1 the tap keeps its own light, and from 1 to 2 it gives way to the center's.
@@ -696,7 +717,13 @@ The stages are those of `FrameGraph.Stage` with the lights and the bounce merged
 | `GpuMaterial.Shading`, `GpuMaterial.AlphaCutoff` | `MaterialStore.ToGpu` | The uploads | `sampleMaterial` in every mesh pass, `shadow_cutout.frag`, `fringe.frag` | `ShadowMaps` to `Transparent` | The material buffer | `GpuMaterial.NormalMap` |
 | `MaterialInfo` of a slot | `MaterialStore.Upload` | The uploads | `SceneBatcher.Prepare` | Batching | `MaterialStore.Infos` | `MeshInfo` |
 | `PreparedInstance.Alpha` | `SceneBatcher`, from the slot's `MaterialInfo` | Batching | The opaque sort, the runs, the transparent list, `ImpostorManager` | Batching | The prepared scene | `PreparedInstance.Flags` |
-| `OpaqueRuns` of each view | `SceneBatcher` | Batching | `GeometryPass`, `ShadowPass`, `LocalShadowPass`, `EnvironmentFacePass` | `ShadowMaps`, `EnvironmentFaces`, `GBuffer` | `PreparedScene` | Today's `CommandRange` per view |
+| `OpaqueRuns` of each view | `SceneBatcher`, `ShadowPass`, `LocalShadowPass` | Batching | `GeometryPass`, `ShadowPass`, `LocalShadowPass`, `EnvironmentFacePass` | `ShadowMaps`, `EnvironmentFaces`, `GBuffer` | `PreparedScene` | Today's `CommandRange` per view |
+| `MaterialInfo.TwoSided`, `PreparedInstance.TwoSided` (decision 32) | `MaterialStore.Upload`, then `SceneBatcher` | The uploads, batching | The opaque sort, the runs, the transparent runs, `ImpostorManager` | Batching | `MaterialStore.Infos`, the prepared scene | `PreparedInstance.Alpha` |
+| `ImpostorCapture.TwoSided` (decision 32) | `ImpostorManager`, from `PreparedInstance.TwoSided` | Batching | `ImpostorPass.PrepareCaptures` | `FrameGraph.Prepare`, before the stages | `ImpostorManager.Captures` | `ImpostorCapture.Alpha` |
+| `PreparedCapture.TwoSided` (decision 32) | `ImpostorPass.PrepareCaptures` | `FrameGraph.Prepare` | `ImpostorPass`, which binds the capture pipeline's variant by it | `ImpostorCaptures` | `ImpostorPass`'s prepared captures | `PreparedCapture.Cutout` |
+| `GlassCommands.TwoSided`, `FringeCommands.TwoSided` (decision 32) | `SceneBatcher`, from `PreparedInstance.TwoSided` | Batching | `TransparentPass`, which binds the glass or fringe pipeline's variant by it | `Transparent` | `PreparedScene.Transparent` | The run's kind |
+| The `SidedPipeline` variants (decision 32) | The constructors of `GeometryPass`, `EnvironmentFacePass`, `ImpostorPass` and `TransparentPass` | The renderer's creation | `GeometryPass.DrawRuns` for the main view and the faces, `ImpostorPass`, `TransparentPass` | `EnvironmentFaces`, `ImpostorCaptures`, `GBuffer`, `Transparent` | Each pass | The cutout pipelines |
+| `SidedRuns` of the main view and of each face (decision 32) | `SceneBatcher` | Batching | `GeometryPass`, `EnvironmentFacePass` | `EnvironmentFaces`, `GBuffer` | `PreparedScene` | `OpaqueRuns` |
 | `FringeCommands` runs | `SceneBatcher` | Batching | `TransparentPass` | `Transparent` | `PreparedScene.Transparent` | `MeshCommands` |
 | The kernel | `SkinProfile.Kernel`, once at creation, then uploaded | The first frame's uploads | The scatter passes | `SkinScatter` | The kernel buffer of `ScatterImages` | The BRDF tables |
 | `SurfaceSample.model`, `.strand`, the fiber normal | `sampleMaterial` | Per fragment | `gbuffer.frag`, the forward passes | Per fragment | None: values in the shader | `SurfaceSample.normal` |
@@ -706,12 +733,12 @@ The stages are those of `FrameGraph.Stage` with the lights and the bounce merged
 | The scatter image | The direct pass (clears, writes D's direct part and the mask), the ambient pass (adds D's ambient part) | `DirectLight`, `AmbientLight` | The rows pass (taps), the columns pass (mask, D at the center), the test hook `ReadScatter` | `SkinScatter` | `ScatterImages.Scatter` | The bounce's direct image |
 | The row image | The rows pass | `SkinScatter` | The columns pass | `SkinScatter` | `ScatterImages.Rows` | Occlusion term B |
 | The HDR image at skin pixels | The columns pass adds S − D | `SkinScatter` | The radiance pyramid and every later pass | `Reflections` and later | `RenderTargets.Hdr` | The reflections' delta |
-| `RendererOptions.Subsurface` | The host (`--subsurface on|off`), tests | Before the renderer is made | `CheckOptions`, the pipelines of the direct and ambient passes, `ScatterImages`, the scatter passes | At creation | `RendererOptions` | `RendererOptions.Reflections` |
+| `RendererOptions.Subsurface` | The host (`--subsurface on|off`), tests | Before the renderer is made | `CheckOptions`, the choice of the direct and ambient passes' shader variants, `ScatterImages`, whose `Setting` alone gives the scatter passes their taps per side through `ShaderConstants.Subsurface`, the scatter passes | At creation | `RendererOptions` | `RendererOptions.Reflections` |
 
 Each ordering rule has its reason:
 
 - The uploads write a material's GPU row and its `MaterialInfo` before batching, so the batcher never sees a slot that the buffer lacks.
-- The solid run comes before the cutout run in each view, so the solid pipeline's early depth writes hide the hair fragments behind solid surfaces (decision 25).
+- The solid run comes before the cutout run in each view, so the solid pipeline's early depth writes hide the hair fragments behind solid surfaces (decision 25). Both solid runs, one-sided and two-sided, come before both cutout runs for the same reason.
 - The direct pass writes the scatter image before the ambient pass adds to it, because the ambient pass reads the direct image and runs after the occlusion passes.
 - The scatter runs after the ambient pass and before the reflections (decision 18).
 - The fringe draws in the transparent pass, after the reflections, as the glass does, so the reflections neither show it nor lose it.
@@ -761,7 +788,7 @@ Every kind takes one path. Only the alpha mode's runs and the model's response d
 
 | Requirement | Why the renderer needs it | Why the Linux drivers offer it |
 |---|---|---|
-| `independentBlend`, new | The ambient pass blends its scatter output additively and writes the HDR image with no blend (decision 14) | A Vulkan 1.0 feature that NVIDIA, RADV and ANV offer on every GPU that they support, as Direct3D 10 and later require blend states per render target. lavapipe sets it, as llvmpipe blends each render target on its own. MoltenVK offers it on every Mac GPU. `VulkanDevice` checks it before it creates the device. The reviewer of Part 5 checks these claims against the drivers' feature tables. |
+| `independentBlend`, new | The ambient pass blends its scatter output additively and writes the HDR image with no blend (decision 14) | A Vulkan 1.0 feature that NVIDIA, RADV and ANV offer on every GPU that they support, as Direct3D 10.1 and later require a full blend state per render target, and every GPU these drivers support is Direct3D 11-class. lavapipe sets it, as llvmpipe blends each render target on its own. MoltenVK offers it on every Mac GPU. `VulkanDevice` checks it before it creates the device. The reviewer of Part 5 checks these claims against the drivers' feature tables. |
 | `R8G8B8A8_UINT` as a color attachment and a sampled image | The shading target | The spec requires both for this format of every device |
 | `R16G16B16A16_SFLOAT` as a blended color attachment and a storage image | The scatter image and the row image | The spec requires both for this format of every device. A storage image of this format needs no `shaderStorageImageExtendedFormats` |
 
@@ -853,7 +880,7 @@ The existing GPU tests of glass, puffs and the transparent pass pass unchanged i
 
 `StrandCodeTests` (new): `EveryUnitStrandSurvivesTheEightBitCodeWithinOneDegree`, over a dense set of directions. The test records the largest error. `ShadingCodeTests` (new): `EachModelHasItsOwnCode`, `TheStandardCodeIsZeroAsInAClearedTarget`.
 
-`DirectTermsTests` (new): `TheTwoPartsOfTheStandardResponseSumToTheBrdf`, against `MaterialSample.Reflected`.
+`DirectTermsTests` (new): `TheDiffusePartIsTheLambertTermAlone` and `TheSpecularPartIsTheCompensatedLobeTimesTheCosineOfTheLight`, each against its own expression of the BRDF, not against `MaterialSample.Reflected`, which is their sum.
 
 ### Part 3: cutout and fringe drawing
 
@@ -874,10 +901,11 @@ The existing GPU tests of glass, puffs and the transparent pass pass unchanged i
 - `ACutoutCasterShadowsOnlyWhereItsTexelsReachTheCutoff`, in a cascade and in an atlas tile.
 - `AnEnvironmentFaceSeesOnlyTheCore`
 - `AnImpostorCaptureKeepsTheHolesOfACutout`
-- `ASolidMaterialDrawsAsBeforeBitForBit`
+- `AnOpaqueMaterialIgnoresItsAlpha`: no shading reads an opaque material's alpha. It does not guard the routing into the solid run, which `AnOpaqueMaterialWithTheGlassBitOfOldIsOpaque` pins, because an opaque material's cutoff is 0.
 
 `FringeRenderTests` (new, GPU):
 
+- `ACoreTexelOfAFringedCardDrawsNothingInTheTransparentPass`: a lit, matte card of alpha 0.6, and of alpha 0.5 at the cutoff, drawn as fringed equals the same card drawn as cutout, bit for bit. The G-buffer's 8-bit base color and 16-bit normals make forward light differ from deferred light, so a second draw of the core shows.
 - `AClearTexelOfAFringedCardLeavesThePixelBehindItAsItWas`: the acceptance of "the cards do not show". A strong light at the mirror angle of the card, where a glass pane shows its highlight. Behind the clear half, the pixels equal the scene without the card, bit for bit. The same card as glass shows the highlight there, which shows that the test can fail.
 - `AFringeTexelCoversThePixelByItsAlpha`: 0.4 · the card's light + 0.6 · the background, within the half float's rounding.
 - `AFringeBehindAnOpaqueSurfaceDrawsNothing`
@@ -895,19 +923,32 @@ The existing GPU tests of glass, puffs and the transparent pass pass unchanged i
 `HairRenderTests` (new, GPU), with a card facing the eye whose strands run along +v:
 
 - `AHairPixelSendsTheLightThatHairFiberGives`: a point light and the sun at several angles, against the C# copy, within the half float's rounding.
-- `TwoCardsWithOneStrandAndDifferentNormalsShadeAlike`: the acceptance of "the planes do not show". The same cards as standard shade apart.
+- `TwoCardsWithOneStrandAndDifferentNormalsShadeAlike`: the acceptance of "the planes do not show", with the screen-space light off, within the half float's rounding, and under the default screen-space light, within 1% (decision 33). The same cards as standard shade apart.
+- `UnderTheScreenSpaceLightAHairCardDarkensAHairCardBehindIt`: one card still shadows another (decision 33).
+- `UnderTheScreenSpaceLightTheShadingTargetIsVisibleToTheComputeReadsOfTheOcclusionSectorsPass`: the sectors pass declares its read of the shading target, so its barrier makes the G-buffer pass's writes visible to the compute stage.
 - `TheHighlightMovesAlongTheStrandAsTheLightMoves`
 - `AHairPixelTakesLightFromBehindItsCard`
-- `TheHairsAmbientLightIsTheSourcesAtTheFiberNormal`, with the map on and off.
+- `TheHairsAmbientLightIsTheSourcesAtTheFiberNormal`, with the map on and off, and with the screen-space light off and on, within 1%.
 - `TheFringeShadesAsTheCoreBesideIt`: with an occlusion of 1, a fringe texel's light over its coverage equals a core pixel's of the same strand.
 - `AnEnvironmentFaceAndACaptureShadeHairAsFibers`
 - `StandardPixelsKeepTheirLight`: within the existing tests' tolerances. The six reference images pass.
+
+`SectorSearchTests` (existing, C#), for decision 33:
+
+- `AHairReceiverTakesNoStepThatReadsItsOwnCard`
+- `AHairReceiverTakesTheStepsOfACardOneMillimeterBehindItsOwn`
+- `AHairReceiversCardHoldsAPointThatTheDepthsPrecisionPutsOffItsPlane`
+- `AHairReceiversCardHoldsAPointThatItsNormalsPrecisionPutsOffItsPlane`
+- `AHairReceiversCardHoldsAPointThatTheRasterizersSnappingPutsOffItsPlane`
+- `AHairReceiversOwnSurfaceBlocksNoSector`
+
+`BounceLightShaderTests` (existing, GPU): `TheSectorPassGathersWhatTheCSharpCopyGathersForAHairReceiver`, a hair card turned 40° on the corner's floor, pins the sectors pass at three hair receivers to the C# copy with its `OwnCard`. `OcclusionPushConstantsTests` (existing): `TheSubPixelPrecisionComesFromTheDevice`.
 
 ### Part 5: the skin scatter
 
 `SubsurfaceSettingTests` (new): `TheZeroValueIsNoSubsurface`, `TheDefaultTakesEightTapsPerSide`, `TapsOutsideOneToSixteenAreRefused`.
 
-`SkinScatterRenderTests` (new, GPU). The scenes: a skin sphere of radius 0.1 m, the size of a head, lit from the side by a spot light, with a small sphere in front as a nose. A skin plane beside an emissive plane that is not skin. A skin plane 0.5 m in front of another.
+`SkinScatterRenderTests` (new, GPU). The scenes: a skin sphere of radius 0.1 m, the size of a head, lit from the side by the sun, with a small sphere in front as a nose. A spot light at a finite distance moved the terminator by about 9 pixels from the one of a parallel light, so the test reads the columns beside the terminator of the sun. A skin plane beside an emissive plane that is not skin. A skin plane 0.5 m in front of another.
 
 - `TheScatterImageHoldsTheDiffuseLightOfSkinPixelsAndNothingElse`: against the C# copy of the BRDF and the ambient light.
 - `ThePassesMatchTheirCopyInCSharp`: HDR with the scatter minus HDR without it, against `SkinScatter` run on the read scatter image and distances.
@@ -942,26 +983,60 @@ At 1920 × 1080, 2,073,600 pixels:
 |---|---|---|
 | The shading target, always | 4 B × 2,073,600 | 8.3 MB |
 | The scatter image and the row image, under `SeparableSubsurface` | 2 × 8 B × 2,073,600 | 33.2 MB |
-| The kernel buffer | 17 × 16 B | 272 B |
+| The kernel buffer | 33 × 16 B, room for 16 taps per side | 528 B |
 | `GpuMaterial` | Unchanged: the new fields take its padding | 0 |
 | `PreparedInstance.Alpha`, on the CPU | 8 B × 20,000 instances | 160 KB |
 
 At 3840 × 2160 the images take four times as much: 33.2 MB and 132.7 MB.
 
-### GPU time, estimated
+The memory is the arithmetic of the formats as built: the shading target is R8G8B8A8_UINT, the scatter image and the row image R16G16B16A16_SFLOAT, and the kernel buffer 33 `vec4`. `GpuMaterial` keeps its stride of 64 bytes, with 60 bytes of fields.
 
-The estimates rest on the measured passes of ARCHITECTURE.md at 1080p on the development Mac: the G-buffer pass about 0.9 ms with 28 bytes of targets per fragment, the lighting pass about 1.8 ms, the occlusion upsample about 0.8 ms for a full-screen read and write of a few bytes per pixel. Part 6 measures each.
+### GPU time, measured
 
-| Work | Estimate | Reason |
-|---|---|---|
-| The shading target's write in the G-buffer pass | 0.05 to 0.1 ms | 4 more bytes per fragment over 28, about 14 % of a pass that is mostly bandwidth |
-| Its reads in the direct and ambient passes | 0.01 to 0.02 ms each | 4 bytes per pixel |
-| The scatter image's writes, under `SeparableSubsurface`, with no skin on screen | 0.1 to 0.15 ms | The direct pass writes 8 bytes per pixel, the ambient pass blends 8 bytes per pixel |
-| The scatter passes, with no skin on screen | 0.05 to 0.1 ms | Each reads the mask, 8 bytes per pixel, and the rows pass writes the row image |
-| The scatter passes, with a face over 20 % of the screen | 0.3 to 0.6 ms | 415,000 skin pixels, 17 taps of 12 bytes in each pass, mostly from the cache, as neighbors share their taps |
-| A head of card hair over 15 % of the screen | 0.5 to 1 ms | About six layers of cards: the cutout draws shade every layer's fragments, and the fringe shades the soft texels in front of the core with the full light loop, about a third of them |
-| The same hair at the game's distance, over 2 % of the screen | About 0.1 ms | The same work over a seventh of the pixels |
-| The hair model in place of the BRDF | Within the spread between runs | About the same arithmetic per light |
+Part 6 replaced the estimates of the design with traces (2026-10-27): `tools/gpu-trace.sh --no-counters` at 1920 × 1080 in Release, on the development Mac (Apple M1 Max, MoltenVK 1.4.2), 120 frames per run, one run at a time, each started after the 1-minute load fell below 10. The machine was shared with other agents, and the load rose to 26 during one run. So a difference counts only when it is larger than the difference between the runs of one configuration. The times are each pass's own GPU time from the trace, the mean in ms with the 95th percentile in parentheses. The frame span is the trace's; the GPU timer's span agrees with it within 0.2 ms in every run. Three of the 27 traces hung in xctrace's processing after the demo had finished (the first base run, which ran again, the first branch run with the scatter off and the second run of the cutout fan), so only their GPU timer's spans count. The review of Part 6 added five runs (the third with the scatter off on demo-exit, the second of each fan with the scatter off, and the third of the cutout fan with it on), so that each configuration has two traces.
+
+The shading target's cost with no skin and no hair: the deck window of `scripts/demo-exit.json` (`--start 399`), the branch at 27e49735 against its base, the merge-base with main, dbd3011e. The load at the start was 6.9 to 9.9.
+
+| Pass | Base, 3 runs | Branch, 3 runs | Branch, `--subsurface off`, 2 runs |
+|---|---|---|---|
+| G-buffer | 0.282, 0.310, 0.287 (0.33) | 0.358, 0.312, 0.324 (0.31 to 0.49) | 0.334, 0.339 (0.39 to 0.40) |
+| direct light | 5.60, 5.37, 5.75 (6.1 to 6.9) | 7.12, 6.13, 6.28 (6.2 to 10.0) | 6.59, 6.69 (8.8 to 8.9) |
+| ambient light | 0.420, 0.516, 0.434 (0.48 to 0.52) | 0.626, 0.582, 0.595 (0.59 to 0.74) | 0.433, 0.442 (0.56) |
+| scatter rows | None | 0.071, 0.067, 0.066 (0.07 to 0.08) | None |
+| scatter columns | None | 0.039, 0.035, 0.037 (0.04 to 0.05) | None |
+| transparent | 1.64, 1.62, 1.71 (2.0 to 2.1) | 2.47, 2.10, 2.16 (2.2 to 3.4) | 2.28, 2.32 (3.0 to 3.1) |
+| frame span | 16.87, 17.34, 17.35 (18.1 to 23.3) | 20.54, 18.07, 18.49 (18.2 to 27.4) | 18.82, 19.00 (24.0 to 24.9) |
+
+The GPU timer's spans: base 17.28, 16.73, 17.23, 17.21; branch 20.38, 17.91, 18.32; branch with the scatter off 17.76, 18.67, 18.84. The first branch run was disturbed: every pass of it is slower. The two traces with the scatter off agree within 0.1 ms in each pass shown, and both have a high 95th percentile; most of their other passes, such as the reflections and the occlusion sectors, are also 0.05 to 0.2 ms slower than in the branch's runs with the scatter on.
+
+- The epic costs demo-exit about 1 ms of frame span with the scatter on, 17.2 against 18.3 ms without the disturbed run, about 6 %. The design estimated about 0.3 ms.
+- The direct pass grows by 0.4 to 0.9 ms with the scatter on (6.13 and 6.28 against 5.37 to 5.75 ms) and by 0.8 to 1.3 ms with it off (6.59 and 6.69 ms), against an estimate of 0.02 ms for the shading target's read. So the growth does not come from the scatter. That the pass takes 0.3 to 0.6 ms more with the scatter off, where it writes one attachment fewer, is not explained: part of it may be the state of the machine, as the off runs' other passes are slower too. No run isolates the cause of the growth. The candidates, which ticket `ter-uqmn` of the performance coda measures: `respond` and `takesLight` in the light loop in place of `brdf`, which choose by the pixel's model and keep the two parts apart, per light per pixel; the shading target's fetch; and the larger shader's occupancy.
+- The transparent pass grows by 0.4 to 0.7 ms, with no fringe in the window (2.10 to 2.32 against 1.62 to 1.71 ms). The candidates, also for `ter-uqmn`: the glass's shading through `forwardShading` and `respond`, and its runs by sides. The design did not estimate it.
+- The ambient pass grows by 0.14 to 0.16 ms under `SeparableSubsurface` against the runs with the scatter off, and not without it (0.433 and 0.442 against 0.420 to 0.516 ms): the blend of its second attachment, the scatter image, at every pixel (estimate 0.1 to 0.15 ms for both lighting passes). The direct pass's write of the scatter image does not show beyond the spread.
+- The G-buffer pass grows by 0.03 to 0.05 ms, within the spread: the shading target's write (estimate 0.05 to 0.1 ms).
+- The scatter passes with no skin on screen: 0.10 to 0.11 ms (estimate 0.05 to 0.1 ms).
+
+The scatter passes, the fringe and the cutout draws: `scripts/skin-and-hair.json` (see Part 6 in "Order of the work"), a film of 120 frames of each view: the head (`--start 1`), the fringed fan (123), the cutout fan (244) and the glass fan (365), with the scatter on and off. The head's skin covers about 17 % of the frame. In the captures at 1280 × 720, about 9 % of the pixels show the fringed fan and about 7 % the cutout fan's cores, so the fringe adds about 2 %. The count takes a pixel whose red exceeds its blue by more than 3 to 6 of 255, which the brown hair does and the gray floor, the black sky and the shadows do not. The load at the start was 5.7 to 9.7.
+
+| Pass | Head, on | Head, off | Fringed fan, on | Fringed fan, off | Cutout fan, on | Cutout fan, off | Glass fan, on | Glass fan, off |
+|---|---|---|---|---|---|---|---|---|
+| G-buffer | 0.357, 0.335 (0.37) | 0.354, 0.334 (0.37) | 0.433, 0.336 (0.44) | 0.428, 0.428 (0.44) | 0.420, 0.420 (0.44) | 0.420, 0.420 (0.44) | 0.294, 0.328 (0.35) | 0.344, 0.344 (0.35) |
+| direct light | 1.69, 1.60 (1.89) | 1.71, 1.61 (1.91 to 1.93) | 1.79, 1.38 (1.88 to 2.01) | 1.78, 1.79 (1.97 to 1.99) | 1.76, 1.76 (1.98 to 2.01) | 1.80, 1.81 (2.00 to 2.09) | 1.29, 1.48 (1.76 to 1.78) | 1.58, 1.57 (1.78 to 1.80) |
+| ambient light | 0.539, 0.520 (0.57) | 0.416, 0.397 (0.45) | 0.553, 0.475 (0.58 to 0.59) | 0.427, 0.430 (0.46) | 0.554, 0.551 (0.58) | 0.427, 0.430 (0.46) | 0.444, 0.481 (0.52) | 0.381, 0.379 (0.41) |
+| scatter rows | 0.296, 0.278 (0.31) | None | 0.080, 0.076 (0.08) | None | 0.082, 0.079 (0.08 to 0.09) | None | 0.085, 0.078 (0.09 to 0.10) | None |
+| scatter columns | 0.295, 0.276 (0.31) | None | 0.048, 0.042 (0.05) | None | 0.049, 0.047 (0.05) | None | 0.047, 0.046 (0.05) | None |
+| reflection trace and reflections | 1.55, 1.46 (1.64) | 1.54, 1.47 (1.64) | 1.93, 1.51 (2.05) | 1.92, 1.92 (2.06) | 1.92, 1.93 (2.06) | 1.92, 1.91 (2.06) | 1.12, 1.25 (1.39) | 1.31, 1.30 (1.38) |
+| transparent | None | None | 1.06, 0.81 (1.13 to 1.19) | 1.06, 1.06 (1.20 to 1.22) | None | None | 1.45, 1.64 (1.91 to 1.97) | 1.75, 1.73 (1.99 to 2.02) |
+| frame span | 10.33, 9.76 (10.8) | 9.52, 9.16 (10.0 to 10.1) | 11.93, 9.99 (12.5 to 12.6) | 11.47, 11.43 (12.1 to 12.2) | 10.73, 10.69 (11.2 to 11.3) | 10.43, 10.36 (10.9 to 11.0) | 10.23, 10.90 (12.0 to 12.3) | 10.98, 10.96 (11.65 to 11.67) |
+
+With the scatter on, the fringed fan's second run and the glass fan's first run have lower means in every pass with the same 95th percentiles, as some of their frames ran faster, so the two runs of each of these fans differ by up to 1.9 ms of frame span. The runs with the scatter off agree within 0.07 ms of frame span for each fan, so the comparisons of one fan with another below take them. The cutout fan's second trace with the scatter on hung, and its GPU timer's span was 10.75 ms. "None" is a pass with no GPU work in the run.
+
+- The scatter passes with a face over 17 % of the frame: 0.55 to 0.59 ms for the two (estimate 0.3 to 0.6 ms for 20 %), and the ambient pass's blend 0.12 ms more in both runs. The frame span grows by 0.6 to 0.8 ms. The direct pass does not change.
+- The scatter passes with no skin on screen: 0.12 to 0.13 ms. The ambient pass's blend takes 0.05 to 0.13 ms more, by the runs of each fan with the scatter on against the mean of its runs with it off; the two runs with lower means give 0.05 and 0.06 ms.
+- The fringe of a fan of twelve cards, which shows on about 9 % of the frame: the transparent pass, 0.8 to 1.1 ms. The same cards as glass take 1.45 to 1.75 ms in that pass, so the fringe costs less than the glass that the cards drew as before this epic.
+- The cutout draws: the G-buffer pass takes 0.08 ms more than with the cards as glass, which draw no core, by the runs with the scatter off. The runs with it on, whose means vary, give 0.01 to 0.14 ms. A fringed card's core costs the same as a cutout's. The shadow maps take the same time for all three fans (0.18 to 0.21 ms), as glass with `CastsShadow` casts its whole rectangle.
+- The cores enter the screen-space passes as opaque surfaces: the reflections' two passes take about 0.6 ms more with cores than with the glass fan (0.61 to 0.62 ms by the runs with the scatter off), and the occlusion sectors 0.11 to 0.12 ms more by the runs with the scatter off. The runs with it on, whose means vary, give −0.12 to 0.29 ms for the sectors.
+- The fan as fringed hair against the same fan as glass, by the two runs of each with the scatter off: 0.47 to 0.51 ms more frame span (11.43 and 11.47 against 10.96 and 10.98 ms); as cutout hair, 0.53 to 0.62 ms less (10.36 and 10.43 ms). Per pass, by the means of the same runs, the cores add to the G-buffer, direct, ambient, occlusion and reflection passes about 1.1 ms, and the transparent pass takes 0.68 ms less for the fringed fan and 1.74 ms less for the cutout fan, which has none. The sums of the passes' own times do not add up to the spans' differences: +0.16 and −1.14 ms against +0.48 and −0.58 ms. The span also holds the gaps between the passes, and the exposure pass takes 0.29 and 0.60 ms less with either fan than with the glass fan. So the frame's cost here is the span's difference. The design estimated 0.5 to 1 ms for a head of hair over 15 % of the screen.
 
 ## Known limits
 
@@ -983,6 +1058,8 @@ The estimates rest on the measured passes of ARCHITECTURE.md at 1080p on the dev
 - The fringe casts no shadow, and the fringe takes no crease shadowing: its occlusion is 1.
 - The highlights lose the light that Marschner's 1 / cos² θ_d returns at views along the strand. A card is rarely seen along its strands.
 - A fringed instance never becomes an impostor, so a far human's hair draws as geometry.
+- Under the screen-space light, the rule that a hair pixel's own card blocks nothing holds for a flat card. On a card strip that bends, or a smooth-shaded card whose vertex normals lean off its triangles, the card's own points block its pixels again (`ter-3yy5`).
+- A normal map that tilts the strand off its card can put a hair pixel's reflection below the card, where the reflections' surface fade cuts it (`ter-nwhv`).
 
 ## Compared with a design from scratch
 
@@ -1022,7 +1099,7 @@ The importer of [asset-pipeline.md](asset-pipeline.md) does not exist in src yet
 | `alphaMode` `MASK` or `BLEND` with `extras.tertius_alpha` = `"fringe"` | `FringedAlpha(c)`, with c the `alphaCutoff` when the file has one, else 0.5 |
 | No `extras.tertius_shading`, or `"standard"` | `StandardShading(metallicFactor)` |
 | `extras.tertius_shading` = `"skin"` | `SkinShading` |
-| `extras.tertius_shading` = `"hair"`, with `extras.tertius_strand` = `"+u"`, `"-u"`, `"+v"` or `"-v"` | `HairShading(...)`. A hair material without `tertius_strand` is an error, with a new code beside AS3004 |
+| `extras.tertius_shading` = `"hair"`, with `extras.tertius_strand` = `"+u"`, `"-u"`, `"+v"` or `"-v"` | `HairShading(...)`. A hair material without `tertius_strand` is the error AS3006, a new code beside AS3004 |
 
 Blender writes a material's custom properties into its glTF `extras`, because the build tool exports with `export_extras=True`. glTF's `BLEND` composites by Porter and Duff's "over", which `FringedAlpha(1)` draws exactly. The importer keeps `GlassAlpha` as the default of `BLEND`, so a glass made in Blender stays the user's glass rule. No ratified KHR extension fits: `KHR_materials_volume` and `KHR_materials_diffuse_transmission` describe a thick or a thin translucent medium, not a diffusion profile or a fiber.
 
@@ -1145,7 +1222,7 @@ Parts 3, 4 and 5 run one after another because they share the shaders of the opa
   // TransparentRun: GlassCommands, FringeCommands, PuffSprites
   ```
 
-  and in GLSL the constant `cutoutAlpha` and `ShadingInput forwardShading(SurfaceSample s, vec3 position, vec3 vertexNormal, vec4 hemisphere, uint map, vec3 V)`.
+  and in GLSL the constant `cutoutAlpha` and `ShadingInput forwardShading(SurfaceSample s, vec3 position, vec3 vertexNormal, vec4 hemisphere, uint map, vec3 V)`. Decision 32 removed `vertexNormal`: `forwardShading` takes `s.geometricNormal`, which `sampleMaterial` turns toward the eye for hair.
 - Takes: Part 1's `AlphaMode`, `MaterialInfo`, `GpuMaterial.AlphaCutoff`.
 - Done: a fringed card shows no rectangle, and a cutout casts the shadow of its core. The reviewer checks the Linux claims of the new site rows.
 
@@ -1159,7 +1236,7 @@ Parts 3, 4 and 5 run one after another because they share the shaders of the opa
 
 ### Part 5: the skin scatter
 
-- Files: `src/Tertius.Rendering/SubsurfaceSetting.cs` (new, public), `RendererOptions.cs`, `Frame/ScatterImages.cs` (new: the two images, the kernel buffer, set 3), `Passes/SkinScatterPass.cs` (new, one class with the step `Rows` or `Columns`, as `ReflectionPass`), `Frame/FrameGraph.cs` (the stage), `Frame/DescriptorLayouts.cs` (`ScatterLayout`), `Frame/RenderTargets.cs` (the HDR image's storage usage), `Passes/DirectLightPass.cs`, `Passes/AmbientLightPass.cs` (the second attachment and its blend), `Vulkan/VulkanDevice.cs` (`independentBlend`), `ShaderConstants.cs` (`SubsurfaceOn`, `ScatterTapsPerSide`), `VulkanRenderer.cs` (`CheckOptions`, the wiring, the test hook `ReadScatter`); the shaders `skin_scatter.glsl`, `skin_scatter_rows.comp`, `skin_scatter_columns.comp` (new), `direct.frag`, `ambient.frag`; `src/Tertius.Host/ScriptCommand.cs` (`--subsurface on|off`); the test helpers `Gpu.Headless` and `GpuTesting.Headless` (`NoSubsurface`).
+- Files: `src/Tertius.Rendering/SubsurfaceSetting.cs` (new, public), `RendererOptions.cs`, `Frame/ScatterImages.cs` (new: the two images, the kernel buffer, set 3), `Passes/SkinScatterPass.cs` (new, one class with the step `Rows` or `Columns`, as `ReflectionPass`), `Frame/FrameGraph.cs` (the stage), `Frame/DescriptorLayouts.cs` (`ScatterLayout`), `Frame/RenderTargets.cs` (the HDR image's storage usage), `Passes/DirectLightPass.cs`, `Passes/AmbientLightPass.cs` (the second attachment and its blend), `Vulkan/GraphicsPipelineDesc.cs` (`ColorAttachment`: a format and a blend per attachment), `Vulkan/ResourceState.cs` (`BufferUse.ComputeUniformRead`), `Vulkan/VulkanDevice.cs` (`independentBlend`), `ShaderConstants.cs` (`ScatterTapsPerSide`, which only the scatter passes set, from `ScatterImages.Setting`), `VulkanRenderer.cs` (`CheckOptions`, the wiring, the test hook `ReadScatter`); the shaders `skin_scatter.glsl`, `skin_scatter_rows.comp`, `skin_scatter_columns.comp`, `direct_pass.glsl`, `ambient_pass.glsl`, `direct_scatter.frag`, `ambient_scatter.frag`, `subsurface.glsl` (new), `direct.frag`, `ambient.frag`; `src/Tertius.Host/ScriptCommand.cs` (`--subsurface on|off`); the test helpers `Gpu.Headless` and `GpuTesting.Headless` (`NoSubsurface`).
 - Tests first: Part 5's tests of "Tests".
 - Gives:
 
@@ -1181,7 +1258,8 @@ Parts 3, 4 and 5 run one after another because they share the shaders of the opa
 ### Part 6: the cost, the captures and the docs
 
 - Files: `src/Tertius.Demo/DemoScenes.SkinAndHair.cs` (new), `scripts/skin-and-hair.json` (new), and the docs of "Doc changes".
-- The scene, made in code: the head of "Tests", a skin sphere with a nose, lit from the side by a spot light, for the terminator; a skin disk 3 mm thick, the size of an ear, between the camera and a point light, for thin skin before a light; a block of twelve hair cards in a fan, with an image of strands made in code along +v, soft across each strand and fading toward the tips, with dark and light brown bases; and a glass pane of the same image beside them, for comparison.
+- The scene, made in code: the head of "Tests", a skin sphere with a nose, lit from the side by the sun, for the terminator (built with the sun, not a spot light: Part 5's tests found that a spot light at a finite distance moved the terminator by about 9 pixels from that of parallel rays); a skin disk 3 mm thick, the size of an ear, between the camera and a point light, for thin skin before a light; a block of twelve hair cards in a fan, with an image of strands made in code along +v, soft across each strand and fading toward the tips, with dark and light brown bases; and a glass pane of the same image beside them, for comparison.
+- As built (`DemoScenes.SkinAndHair.cs`, the scene `skin-and-hair`, `scripts/skin-and-hair.json`): the floor of the surface scenes under the sun from +X, 14° above the horizon. It sets the hemisphere colors of the hair card scenes, which light it only under `--environment-map off`; under the default environment map the map is the ambient light, the sky shows black, and the head's dark side takes the floor's light alone. The head is a skin sphere of 0.1 m with a nose of 0.015 m, seen from 0.45 m (`head-camera`), where it covers about a fifth of the frame. The ear is a skin disk of 3 cm radius and 3 mm thickness, with a glowing lamp of 60 W and 8 mm radius 5 cm behind it at its upper rim, seen from 0.25 m toward the lamp and the sun (`ear-camera`). The hair is three fans of twelve cards, 7.5 × 30 cm each: the roots 1.2 cm apart, each card turned in its plane by 6° more than the one before, about its strand by ±20° in turn, and set back 5 mm. The cards alternate dark and light brown bases over one strand image of 64 × 256 texels, 18 strands each soft across as cos² and fading over the last 35 % before its tip. One fan is fringed hair, one cutout hair, and one glass of the standard model, the cards' look before this epic, each with a view from 0.85 m with the sun behind it (`hair-fringed-camera`, `hair-cutout-camera`, `hair-glass-camera`), so the three views frame their fans alike. A flat glass pane of the light brown strand image, twice a card's size, stands beside the fringed fan, and `hair-camera` shows the fans and the pane together. The script captures each view once and films 120 frames of the head and of each fan for the cost.
 - The cost first, on a quiet machine, by [rendering-upgrade.md](rendering-upgrade.md), "Measuring the cost of a feature": `scripts/demo-exit.json` at 1920 × 1080, the branch against its base, each build twice, for the shading target's cost with no skin and no hair; and `scripts/skin-and-hair.json` with the scatter on and off, for the scatter passes, the fringe and the cutout draws. The report gives each pass, its p95, the frame span and the memory by arithmetic, with the load of the machine.
 - Captures, headless with the real renderer, each looked at with a one-line caption: the head with the scatter off and on; the ear before the light; the hair block as fringed hair, as cutout hair and as glass, the cards' look before this epic. The report sends two to four of them, the hair block first.
 - Done: ARCHITECTURE.md matches the code, with the numbers of the cost. The other docs follow "Doc changes". The epic closes after the merge into main.

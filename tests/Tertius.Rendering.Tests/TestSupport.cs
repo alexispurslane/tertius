@@ -48,7 +48,8 @@ internal static class Gpu
     /// the zero case of the setting is off (docs/plans/screen-space-reflections.md, "Existing tests"). The environment map
     /// is off unless asked for, so the hemisphere lights the tests. Local shadows are off unless asked for, as the
     /// impostors are (docs/plans/local-light-shadows.md, "Decisions"). One far light has a cascade set unless asked for,
-    /// the renderer's default. The deformation is on unless asked for, the renderer's default.
+    /// the renderer's default. The deformation is on unless asked for, the renderer's default. The skin scatter is off
+    /// unless asked for, because the zero case of the setting is off (docs/plans/skin-and-hair.md, decision 29).
     /// </summary>
     public static VulkanRenderer Headless(
         int width = 640,
@@ -63,7 +64,8 @@ internal static class Gpu
         EnvironmentMapSetting? environmentMap = null,
         int cascadedLights = 1,
         LocalShadowSetting localShadows = default,
-        bool deformation = true
+        bool deformation = true,
+        SubsurfaceSetting subsurface = default
     ) =>
         VulkanRenderer.CreateHeadless(
             new()
@@ -83,6 +85,7 @@ internal static class Gpu
                 EnvironmentMap = environmentMap ?? new NoEnvironmentMap(),
                 CascadedLights = cascadedLights,
                 Deformation = deformation,
+                Subsurface = subsurface,
             }
         );
 
@@ -556,5 +559,67 @@ internal static class Batchers
             cascadedLights: cascadedLights,
             shadowMapSize: ShadowMap.DefaultSize,
             depthRangeScale: 16f
+        );
+}
+
+/// <summary>The material slots that the CPU tests hand the batcher, as a renderer's material store holds them.</summary>
+internal static class MaterialSlots
+{
+    /// <summary>The cutout material of the CPU tests, with a cutoff of 0.5: slot 5 of <see cref="Of"/>.</summary>
+    public static readonly MaterialId Cutout = new(4);
+
+    /// <summary>The fringed material of the CPU tests, with a cutoff of 0.5: slot 6 of <see cref="Of"/>.</summary>
+    public static readonly MaterialId Fringed = new(5);
+
+    /// <summary>The glass material of the CPU tests: slot 7 of <see cref="Of"/>.</summary>
+    public static readonly MaterialId Glass = new(6);
+
+    /// <summary>The opaque hair material of the CPU tests, two-sided: slot 8 of <see cref="Of"/>.</summary>
+    public static readonly MaterialId Hair = new(7);
+
+    /// <summary>The fringed hair material of the CPU tests, two-sided, with a cutoff of 0.5: slot 9 of <see cref="Of"/>.</summary>
+    public static readonly MaterialId FringedHair = new(8);
+
+    /// <summary>The glass hair material of the CPU tests, two-sided: slot 10 of <see cref="Of"/>.</summary>
+    public static readonly MaterialId GlassHair = new(9);
+
+    /// <summary>
+    /// The infos of <paramref name="count"/> slots, the default material's first: every slot opaque and one-sided but those
+    /// of <see cref="Cutout"/>, <see cref="Fringed"/>, <see cref="Glass"/>, <see cref="Hair"/>, <see cref="FringedHair"/>
+    /// and <see cref="GlassHair"/>, when there are such slots.
+    /// </summary>
+    public static MaterialInfo[] Of(int count = 8)
+    {
+        var slots = new MaterialInfo[count];
+        Set(slots, Cutout, new(Alpha: new CutoutAlpha(Cutoff: 0.5f), TwoSided: false));
+        Set(slots, Fringed, new(Alpha: new FringedAlpha(Cutoff: 0.5f), TwoSided: false));
+        Set(slots, Glass, new(Alpha: new GlassAlpha(), TwoSided: false));
+        Set(slots, Hair, new(Alpha: new OpaqueAlpha(), TwoSided: true));
+        Set(slots, FringedHair, new(Alpha: new FringedAlpha(Cutoff: 0.5f), TwoSided: true));
+        Set(slots, GlassHair, new(Alpha: new GlassAlpha(), TwoSided: true));
+        return slots;
+    }
+
+    private static void Set(MaterialInfo[] slots, MaterialId material, MaterialInfo info)
+    {
+        uint slot = MaterialStore.Slot(material);
+        if (slot < slots.Length)
+            slots[slot] = info;
+    }
+}
+
+/// <summary>Materials of the C# twins of the shaders.</summary>
+internal static class TestMaterials
+{
+    /// <summary>
+    /// The C# sample of <paramref name="desc"/> without maps: its base color and factors, with the metallic of a standard
+    /// model and 0 for any other, as the material buffer holds it.
+    /// </summary>
+    public static MaterialSample SampleOf(MaterialDesc desc) =>
+        new(
+            BaseColor: new(desc.BaseColor.X, desc.BaseColor.Y, desc.BaseColor.Z),
+            Metallic: desc.Model is StandardShading(var metallic) ? metallic : 0,
+            Roughness: desc.Roughness,
+            Reflectance: desc.Reflectance
         );
 }

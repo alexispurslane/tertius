@@ -31,7 +31,9 @@ public class SceneBatcherBenchmarks
 {
     private const int Width = 1920;
     private const int Height = 1080;
-    private const int MaterialCount = 8;
+
+    /// <summary>The default material's slot and seven more, all opaque.</summary>
+    private static readonly MaterialInfo[] Materials = new MaterialInfo[8];
 
     /// <summary>The joints of the posed tube's rig: as many as MPFB's game-engine rig has.</summary>
     private const int ChainJoints = 53;
@@ -122,7 +124,7 @@ public class SceneBatcherBenchmarks
             width: Width,
             height: Height,
             meshes: Meshes,
-            materialCount: MaterialCount,
+            materials: Materials,
             environment: environment,
             region: Region,
             scene: scene

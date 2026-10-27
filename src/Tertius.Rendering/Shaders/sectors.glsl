@@ -106,6 +106,12 @@ SectorRun stepRun(SliceGeometry g, vec3 center, vec3 samplePosition, float side)
     return runBetween(g, min(front, back), max(front, back));
 }
 
+// The empty run, which holds no sector, at the shading normal's angle γ (SliceSectors.NoRun).
+SectorRun noRun(SliceGeometry g)
+{
+    return SectorRun(0u, 0u, g.normalAngle, g.normalAngle);
+}
+
 // The run of the sectors whose centers lie below the receiver's own geometric plane, which its surface blocks with no
 // light (docs/plans/screen-space-illumination.md, decision 39). The plane's angle in the slice, γ_g, is taken within π
 // of γ, so its edges in the slice are γ_g ± π/2, and only one of them lies inside the hemisphere: the lower one where
@@ -117,10 +123,39 @@ SectorRun ownSurfaceRun(SliceGeometry g, vec3 geometricNormal)
     vec3 acrossShading = sliceDirection(g, g.normalAngle + GtaoHalfPi);
     vec2 inSlice = vec2(dot(geometricNormal, shading), dot(geometricNormal, acrossShading));
     if (length(inSlice) < MinProjectedNormalLength)
-        return SectorRun(0u, 0u, g.normalAngle, g.normalAngle);
+        return noRun(g);
     float planeAngle = g.normalAngle + atan(inSlice.y, inSlice.x);
     return planeAngle > g.normalAngle ? runBetween(g, g.normalAngle - GtaoHalfPi, planeAngle - GtaoHalfPi)
                                       : runBetween(g, planeAngle + GtaoHalfPi, g.normalAngle + GtaoHalfPi);
+}
+
+// The angle in radians by which a normal that the normals target stores can miss the normal that it encodes: a step of
+// one SNORM16 component turns an octahedral normal by at most 3√2 / 32767, and a driver may round 1.5 steps from the
+// value (ARCHITECTURE.md, "Portable Vulkan"), so 6.4 / 32767; 8 / 32767 leaves room (OwnCard.NormalPrecision).
+const float NormalPrecision = 8.0 / 32767.0;
+
+// How far the rasterizer's snapping can move a vertex across its view ray, per m of its distance: a vertex snaps to
+// 1 / 2^bits of a pixel, so it moves up to 2^−(bits + 1) pixels on each axis, √2 times that across, and a pixel is
+// texelWidth(1) / 2 m wide at a view depth of 1 m (OwnCard.SnapPerMeter).
+float vertexSnap()
+{
+    return 0.5 * texelWidth(1.0) * sqrt(2.0) / exp2(float(occlusion.subPixelPrecisionBits + 1u));
+}
+
+// Whether a step's texel point, the real point that it read, lies on a hair receiver's own card: the plane through the
+// receiver's surface point at right angles to its geometric normal, the card's (OwnCard.Holds). The tolerance is what
+// the reads can put a point of that plane off it:
+// - each point's depth, by 1 − CenterBias of its distance along its view ray;
+// - the snapping of each point's triangle, whose snapped plane holds the depth that the point reads: its vertices lie up
+//   to vertexSnap() of their distance off the card's plane, and a hair card's triangles are small, so they lie about as
+//   far from the eye as the point;
+// - the stored normal, by NormalPrecision times the distance between the two points.
+bool onOwnCard(vec3 receiverPoint, vec3 cardNormal, vec3 texelPoint)
+{
+    float offPlane = abs(dot(cardNormal, texelPoint - receiverPoint));
+    float tolerance = (1.0 - CenterBias + vertexSnap()) * (length(receiverPoint) + length(texelPoint))
+                      + NormalPrecision * distance(texelPoint, receiverPoint);
+    return offPlane <= tolerance;
 }
 
 // The least and the greatest view depth of the texels around a step's exact place: its texel t, at tDepth, and t's two
