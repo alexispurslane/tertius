@@ -46,10 +46,12 @@ internal sealed class PuffTable
 {
     /// <summary>
     /// The default of <see cref="StepParallelThreshold"/>, in live puffs. Measured on ter-fwsy with PuffTableBenchmarks.Workers
-    /// (Apple M1 Max, 1-minute load 6 to 10): the hand-off to the workers costs about 20 us and they step 2.5 times as fast,
-    /// so they tie at 1,024 to 1,440 puffs and win by a tenth at 2,048.
+    /// (Apple M1 Max, 1-minute load 7.6 to 9.7), in a steady table whose 64 oldest puffs die in each step, so the join moves
+    /// every slice after the first. Medians of the step, sync thread against workers: 48.6 against 48.8 us at 2,048 puffs
+    /// in a frame that does not turn and 68.1 against 58.7 us in a turning frame with a medium, 59.6 against 55.0 us and
+    /// 102.8 against 72.5 us at 3,072. So 3,072 is the fewest puffs at which the medians favour the workers in both frames.
     /// </summary>
-    internal const int DefaultStepParallelThreshold = 2048;
+    internal const int DefaultStepParallelThreshold = 3072;
 
     /// <summary>
     /// How many slices a step on the workers cuts the rows into. More slices than workers lets a fast worker take the work of
