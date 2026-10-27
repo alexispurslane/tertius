@@ -1,6 +1,6 @@
 ---
 id: ter-ozwq
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-10-27T04:21:29Z
@@ -13,3 +13,9 @@ tags: [rendering, lights, shadows]
 
 Found by the review of ter-mgap (2026-10-27); not reproduced. frame.counts.z is one switch for the whole frame (shadows.glsl, beyondShadowMaps and cascadeShadow): ShadowPass.Prepare leaves it at 0 when no caster touches any set, and sets it to 4 when one caster touches any set. A far light's mapped occluders (SceneBatcher.AddMapped, by ShadowCascades.TakesCaster) need not be drawn in its own set (ShadowPass.CascadeMask). So when set 0 of light A draws no caster, A's mapped occluders count fully as far shadows while no other set draws one, and are weighted by beyondShadowMaps, near 0 inside the maps, against an empty set 0 as soon as another set draws a caster. That other set can belong to a light that only a face of the environment map keeps, so a main-view pixel can depend on the faces, against docs/plans/environment-map.md decision 20. A pixel changes only where a mapped occluder that misses every box of set 0 and its extension toward the light still dims it, through the light's penumbra: about where the frustum meets the coarsest box, near the end of the maps' fade, so the change is at most (1 - beyondShadowMaps) times a penumbra share. The reviewer's fix: count casters per set, and treat a set that draws no caster as having no maps. The deeper mismatch, a mapped occluder that a set with other casters does not draw, exists without the map too. Decide whether either needs a fix; a test needs a scene that shows the pixel change first.
 
+
+## Notes
+
+**2026-10-27T06:41:13Z**
+
+Settled model: an occluder counts as mapped for a far light only where that light's own set draws it (ShadowCascades.SetMask, one rule for the shadow pass's culling and the batcher's far shadows). Reproduced on the GPU before the fix: a star of angular radius 0.1 rad, the dimmed pixel moved 0.6387 to 0.6654 when another set gained a caster; the fixed code keeps it. The cascade fit moved into the batcher. Known limit, the user's choice: a caster that its set does not draw keeps the 4 percent rule from 2 km, so under a large star it can lose its far shadow on receivers nearer than 2 km. Merged (9416ca04); coverage of the changed lines 100 percent.
