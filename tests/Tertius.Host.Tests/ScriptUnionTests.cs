@@ -96,8 +96,8 @@ public sealed class ScriptUnionTests
         );
 
     [Fact]
-    public void ACaptureTargetIsABuiltInUnionOfAFolderAndAVideo() =>
-        ShouldBeABuiltInUnionOf(typeof(CaptureTarget), nameof(PngFolder), nameof(VideoFile));
+    public void ACaptureTargetIsABuiltInUnionOfAFolderAVideoAndTheDiscard() =>
+        ShouldBeABuiltInUnionOf(typeof(CaptureTarget), nameof(PngFolder), nameof(VideoFile), nameof(Discard));
 
     [Fact]
     public void TheRunnersReadyStepIsABuiltInUnionOfItsSevenReadyRecords()
