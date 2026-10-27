@@ -535,6 +535,9 @@ public sealed partial class JoltPhysicsBackend
             character.LinearVelocity = LocalVelocity(record, Double3.Zero).ToVector3();
             record.InstantVelocityStep = stepIndex;
             record.PendingVelocityChange = Vector3.Zero;
+            // The character looks up its contacts at its new place, as after a hand-off, so that its update in this step
+            // takes the ground there: it no longer stands on the ground of its old place.
+            character.RefreshContacts(layer: PrimaryLayer(record), physicsSystem: world.System);
             world.WakeAround(character.InnerBodyID);
         }
 
@@ -1138,7 +1141,7 @@ public sealed partial class JoltPhysicsBackend
     /// character in the rigid form is a dynamic body, which Jolt moves in the update of its system (see
     /// <see cref="NextCharacterMotion"/>), so a walking character nearly always has the gravity to stand. The character
     /// stands when the effective gravity is at least <see cref="FrameTree.ZeroGravityThreshold"/>, Jolt found walkable
-    /// ground under it in its last update, and it does not move away from that ground along the ground's normal (see
+    /// ground under it in its last update or at its teleport in this step, and it does not move away from that ground along the ground's normal (see
     /// <see cref="GroundFaceNormal"/>). Then it takes the ground's velocity plus the part of its desired velocity across its
     /// up, turned into the ground plane at the same speed (see <see cref="InGroundPlane"/>), and can jump, and Jolt's ExtendedUpdate moves it, which sticks
     /// it to the floor and climbs stairs. A character that does not stand, in the air or on steep ground, keeps its

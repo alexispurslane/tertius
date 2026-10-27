@@ -767,4 +767,99 @@ public sealed class CharacterStandingTests
             world.Errors.Should().BeEmpty();
         }
     }
+
+    [Fact]
+    public void AStandingCharacterTeleportedIntoTheAirDoesNotStandInTheStepOfTheTeleportAndFallsFromRestThere()
+    {
+        (World world, FrameHandle ground) = WorldWithFloor();
+        using (world)
+        {
+            var pilot = new Pilot();
+            Entity person = SpawnPerson(
+                world: world,
+                frame: ground,
+                pose: At(0, StandingHeight + 0.02, 0),
+                pilot: pilot
+            );
+            Tick(world, 30);
+            world.Snapshot.IsStanding(person).Should().BeTrue("the character stands on the floor before the teleport");
+            var top = new Double3(0, 10, 0);
+            Send(world, pilot, body => body.Teleport(new(top, DQuaternion.Identity)));
+
+            // The step of this tick teleports the character.
+            world.Tick();
+
+            world.Snapshot.IsStanding(person).Should().BeFalse("nothing is under the character at its new place");
+            // A teleport leaves the character at rest, so in one step of 1/60 s it falls g t² / 2, as a character that
+            // spawned there at rest falls (InstantVelocityTests).
+            double dt = world.DeltaTime;
+            world
+                .PoseInOwnFrame(person)
+                .Position.Y.Should()
+                .BeApproximately(top.Y - 9.81f * dt * dt / 2, 1e-4, "the character falls in the step of the teleport");
+            world.Errors.Should().BeEmpty();
+        }
+    }
+
+    [Fact]
+    public void ACharacterInTheAirTeleportedOntoGroundStandsInTheStepOfTheTeleport()
+    {
+        (World world, FrameHandle ground) = WorldWithFloor();
+        using (world)
+        {
+            var pilot = new Pilot();
+            Entity person = SpawnPerson(world: world, frame: ground, pose: At(0, 200, 0), pilot: pilot);
+            Tick(world, 30);
+            world.Snapshot.IsStanding(person).Should().BeFalse("the character falls before the teleport");
+            Send(world, pilot, body => body.Teleport(At(0, StandingHeight, 0)));
+
+            // The step of this tick teleports the character.
+            world.Tick();
+
+            world.Snapshot.IsStanding(person).Should().BeTrue("the floor is under the character at its new place");
+            world
+                .PoseInOwnFrame(person)
+                .Position.Y.Should()
+                .BeApproximately(StandingHeight, 1e-3, "the character stands on the floor at its new place");
+            world.Errors.Should().BeEmpty();
+        }
+    }
+
+    [Fact]
+    public void AStandingCharacterTeleportedOntoOtherGroundStandsThereInTheStepOfTheTeleport()
+    {
+        (World world, FrameHandle ground) = WorldWithFloor();
+        using (world)
+        {
+            // A platform whose top is 5 m above the floor, 30 m away from the character.
+            world.Spawn(
+                new()
+                {
+                    Frame = ground,
+                    Pose = At(30, 4.5, 0),
+                    Body = StaticBox(new(2, 0.5f, 2)),
+                }
+            );
+            var pilot = new Pilot();
+            Entity person = SpawnPerson(
+                world: world,
+                frame: ground,
+                pose: At(0, StandingHeight + 0.02, 0),
+                pilot: pilot
+            );
+            Tick(world, 30);
+            world.Snapshot.IsStanding(person).Should().BeTrue("the character stands on the floor before the teleport");
+            Send(world, pilot, body => body.Teleport(At(30, 5 + StandingHeight, 0)));
+
+            // The step of this tick teleports the character.
+            world.Tick();
+
+            world.Snapshot.IsStanding(person).Should().BeTrue("the platform is under the character at its new place");
+            world
+                .PoseInOwnFrame(person)
+                .Position.Y.Should()
+                .BeApproximately(5 + StandingHeight, 1e-3, "the character stands on the platform at its new place");
+            world.Errors.Should().BeEmpty();
+        }
+    }
 }

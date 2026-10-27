@@ -283,8 +283,8 @@ public sealed class InstantVelocityTests
         using World world = NewWorld(backend: out _);
         FrameHandle ground = Ground(world, 9.81f);
         var pilot = new Pilot();
-        // It falls from high up, and a teleport puts it higher still. (A character teleported off the ground keeps the
-        // ground of its old place for one update, so it would hang there for a step.)
+        // It falls from high up, and a teleport puts it higher still. CharacterStandingTests teleports a standing character
+        // into the air.
         Entity person = world.Spawn(
             new()
             {
