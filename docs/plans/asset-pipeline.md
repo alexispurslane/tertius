@@ -610,7 +610,6 @@ The section `texture` applies to standalone texture assets, and `model.textures`
 | `expectedSize` | `[0.01, 5000]` | The plausible range of the largest extent, in m. Outside it, warning AS2013. |
 | `pieces` | `{}` | Node name to piece configuration. A listed node becomes a piece. |
 | `doubleSided` | `"duplicate"` | `"duplicate"` adds back faces. `"ignore"` keeps one side. |
-| `alphaMask` | `"blend"` | The drawing of glTF alpha mode MASK: `"blend"` or `"opaque"` |
 | `lods.count` | 3 | The largest number of LODs after LOD 0, 0 to 4 |
 | `lods.ratio` | 0.5 | The fraction of triangles that each LOD keeps of the level before it |
 | `lods.maxError` | 0.02 | The largest error of a LOD, relative to the size of the mesh |
@@ -796,13 +795,19 @@ Packing into `MaterialDesc`:
 - Two materials that bake to equal bytes share one texture. The comparison uses the SHA-256 of the texels.
 - The third exception is a texture set with separate roughness and metal images. A material with `tertius_roughnessTexture` or `tertius_metallicTexture` in its `extras` (see "Texture sets") gets a baked `MetallicRoughnessMap`: G holds roughness factor × the R channel of the roughness image, and B holds metallic factor × the R channel of the metal image. A missing image counts as 1. Both factors become 1, as for Toksvig.
 
-Alpha modes:
+Alpha modes and shading models ([skin-and-hair.md](skin-and-hair.md), "The importer's mapping from glTF"). The material holds both, `MaterialDesc.Alpha` and `MaterialDesc.Model`, so a model part has no flag of its own. The alpha of a cutout, fringed or glass material is base color map alpha times base color alpha.
 
 | glTF | Engine |
 |---|---|
-| `OPAQUE` | Alpha is 1. The base color texture loses its alpha channel. |
-| `BLEND` | The model part gets `Transparent`. The transparent pass uses base color map alpha times base color alpha (`transparent.frag`). |
-| `MASK` | The renderer has no alpha cutout. With `alphaMask` `"blend"`, the part is `Transparent` and keeps its alpha (warning AS3003). With `"opaque"`, alpha is 1. |
+| `alphaMode` `OPAQUE` | `OpaqueAlpha`. The base color texture loses its alpha channel. |
+| `alphaMode` `MASK`, `alphaCutoff` c (default 0.5) | `CutoutAlpha(c)` |
+| `alphaMode` `BLEND` | `GlassAlpha`, the glass rule of the transparent pass |
+| `alphaMode` `MASK` or `BLEND` with `extras.tertius_alpha` = `"fringe"` | `FringedAlpha(c)`, with c the `alphaCutoff` when the file has one, else 0.5 |
+| No `extras.tertius_shading`, or `"standard"` | `StandardShading(metallicFactor)` |
+| `extras.tertius_shading` = `"skin"` | `SkinShading` |
+| `extras.tertius_shading` = `"hair"`, with `extras.tertius_strand` = `"+u"`, `"-u"`, `"+v"` or `"-v"` | `HairShading(...)`. A hair material without `tertius_strand` is error AS3006. |
+
+Blender writes a material's custom properties into its glTF `extras`, because the build tool exports with `export_extras=True`. glTF's `BLEND` composites by Porter and Duff's "over", which `FringedAlpha(1)` draws exactly, but `BLEND` stays glass, so a glass made in Blender keeps the glass rule.
 
 Other material features:
 
@@ -1032,8 +1037,8 @@ bin/assets/ships/corvette.blend/
     ] }
   ],
   "parts": [
-    { "mesh": 0, "material": 0, "offset": { "position": [0, 0, 0] }, "transparent": false },
-    { "mesh": 1, "material": 1, "offset": { "position": [0, 0, 0] }, "transparent": true }
+    { "mesh": 0, "material": 0, "offset": { "position": [0, 0, 0] } },
+    { "mesh": 1, "material": 1, "offset": { "position": [0, 0, 0] } }
   ],
   "materials": [
     { "name": "HullPaint", "baseColor": [1, 1, 1, 1], "metallic": 0, "roughness": 0.2, "reflectance": 1, "emissive": [0, 0, 0],
@@ -1213,7 +1218,7 @@ namespace Tertius;
 public readonly record struct ModelId { ... }   // like MeshId: the value is stored plus 1
 
 /// <summary>One mesh with one material, placed by an offset from the model origin.</summary>
-public readonly record struct ModelPart(MeshId Mesh, MaterialId Material, Pose Offset, bool Transparent);
+public readonly record struct ModelPart(MeshId Mesh, MaterialId Material, Pose Offset);
 
 /// <summary>A point light of a model, placed by an offset from the model origin. Units as PointLightData.</summary>
 public readonly record struct PointModelLight(Pose Offset, Vector3 Color, float Power, float Radius, bool CastsShadow);
@@ -1413,15 +1418,15 @@ $ tertius asset import tertius.demo --json
 {
   "diagnostics": [
     {
-      "code": "AS3003",
+      "code": "AS3005",
       "severity": "warning",
       "package": "tertius.demo",
       "file": "content/tertius.demo/assets/props/fence.glb",
       "pointer": "/materials/2",
       "line": null,
       "column": null,
-      "message": "Material 'Wire' uses alpha mode MASK. The renderer has no alpha cutout, so the part is drawn transparent.",
-      "hint": "Set \"model\": {\"alphaMask\": \"opaque\"} in props/fence.glb.import.json to draw it opaque."
+      "message": "Material 'Wire' uses the extension KHR_materials_sheen, which the engine does not support. It is ignored.",
+      "hint": "Remove the sheen from the material in the source file, or accept the material without it."
     }
   ],
   "assets": [
@@ -1464,7 +1469,7 @@ $ tertius asset inspect tertius.demo:ships/corvette.blend --json
       "size": [24.2, 9.8, 61.3],
       "parts": [
         { "material": "HullPaint", "triangles": 41210, "lods": [{ "triangles": 20604, "error": 0.0041 }, { "triangles": 10302, "error": 0.0112 }] },
-        { "material": "Glass", "triangles": 410, "transparent": true, "lods": [] }
+        { "material": "Glass", "triangles": 410, "lods": [] }
       ],
       "lights": [{ "kind": "point", "node": "Lamp", "power": 233.7, "candela": 12704 }],
       "collision": {
@@ -1697,7 +1702,7 @@ An agent that the user tells to "pull in X" follows these steps.
 |---|---|---|
 | AS1xxx | Files and configuration | Correct the file name or the key that the hint names. Then import again. |
 | AS2xxx | Model content | If the hint names a configuration key, such as `scale`, `front` or `collision.moving`, set it in the sidecar. For AS2015, a heavy asset, fetch a lower resolution, or ask the user before you raise the budget. For an error that no key fixes, stop and report, because the source file needs a change in Blender. |
-| AS3xxx | Materials | Set the key that the hint names, such as `alphaMask`. Report the warnings that remain. |
+| AS3xxx | Materials | For AS3006, set `tertius_strand` on the material in the model script. Report the warnings that remain. |
 | AS4xxx | Images | For AS4005, set `role` in the sidecar. For AS4001 and AS4002, stop and report. |
 | AS5xxx | Collision | Set a `collision` key. For AS5003, stop and report the reason from Jolt. |
 | AS6xxx | Tools | AS6001 and AS6004 come with exit code 5: see step 10. AS6006 comes with exit code 7: see step 11. For AS6002 and AS6005, stop and report the log lines. |
@@ -1743,9 +1748,9 @@ An agent that the user tells to "pull in X" follows these steps.
 | AS2023 | Warning | Two meshes of a piece give one morph different default weights. The first in glTF order wins. |
 | AS2024 | Error | A piece's rig has more than 65,535 joints. |
 | AS3002 | Info | An occlusion texture is dropped. |
-| AS3003 | Warning | Alpha mode MASK is drawn as BLEND. |
 | AS3004 | Error | The textures of one material use different texture transforms. |
 | AS3005 | Warning | An unsupported material extension is ignored. |
+| AS3006 | Error | A hair material (`tertius_shading` `"hair"`) has no `tertius_strand`. |
 | AS4001 | Error | The image cannot be decoded, or its format is not supported. |
 | AS4002 | Error | The image is larger than 16384 pixels on a side. |
 | AS4003 | Info | The image is resized to a power of two. |

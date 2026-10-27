@@ -7,6 +7,8 @@ Ticket: `ter-7lg5`, the design of the epic `ter-n7lw`, a member of the rendering
 | The lights, [local-light-shadows.md](local-light-shadows.md) (`ter-s9cv`) | `ter-s9cv-light-shadows` | One loop over the light list, and the shadow atlas, whose tiles draw casters as the cascades do (`LocalShadowPass`) |
 | The bounce light, `docs/plans/screen-space-illumination.md` (`ter-a24f`) | `ter-a24f-ssgi` | The split of the lighting pass into the direct pass (`direct.frag`, the direct image) and the ambient pass (`ambient.frag`), the stages `DirectLight`, `AmbientOcclusion` and `AmbientLight`, and G-buffer binding 9 |
 
+State on 2026-10-27: Parts 1 to 6 are built on the branch `ter-n7lw-skin-hair`. Both merges that the doc assumed came in: the lights before Part 3, the bounce light before Part 4. With Part 4 (`ter-k1ne`), hair cards draw from both sides (`ter-xlp8`, "Both sides of a hair card"). ARCHITECTURE.md describes the built code, and "Cost" below holds the measured cost of Part 6 in place of the estimates. Left for later tickets: the hair pixel's plane in the screen-space passes (`ter-qsfz`), the importer's mapping (`ter-kge6`) and the MPFB extras (`ter-omuj`).
+
 The skinning and morph targets (`ter-4vzc`, `docs/plans/skinning-and-morphs.md`) are designed beside this doc. "Other tickets" says where the two meet.
 
 ## Goal
@@ -970,20 +972,54 @@ At 1920 × 1080, 2,073,600 pixels:
 
 At 3840 × 2160 the images take four times as much: 33.2 MB and 132.7 MB.
 
-### GPU time, estimated
+The memory is the arithmetic of the formats as built: the shading target is R8G8B8A8_UINT, the scatter image and the row image R16G16B16A16_SFLOAT, and the kernel buffer 33 `vec4`. `GpuMaterial` keeps its stride of 64 bytes, with 60 bytes of fields.
 
-The estimates rest on the measured passes of ARCHITECTURE.md at 1080p on the development Mac: the G-buffer pass about 0.9 ms with 28 bytes of targets per fragment, the lighting pass about 1.8 ms, the occlusion upsample about 0.8 ms for a full-screen read and write of a few bytes per pixel. Part 6 measures each.
+### GPU time, measured
 
-| Work | Estimate | Reason |
-|---|---|---|
-| The shading target's write in the G-buffer pass | 0.05 to 0.1 ms | 4 more bytes per fragment over 28, about 14 % of a pass that is mostly bandwidth |
-| Its reads in the direct and ambient passes | 0.01 to 0.02 ms each | 4 bytes per pixel |
-| The scatter image's writes, under `SeparableSubsurface`, with no skin on screen | 0.1 to 0.15 ms | The direct pass writes 8 bytes per pixel, the ambient pass blends 8 bytes per pixel |
-| The scatter passes, with no skin on screen | 0.05 to 0.1 ms | Each reads the mask, 8 bytes per pixel, and the rows pass writes the row image |
-| The scatter passes, with a face over 20 % of the screen | 0.3 to 0.6 ms | 415,000 skin pixels, 17 taps of 12 bytes in each pass, mostly from the cache, as neighbors share their taps |
-| A head of card hair over 15 % of the screen | 0.5 to 1 ms | About six layers of cards: the cutout draws shade every layer's fragments, and the fringe shades the soft texels in front of the core with the full light loop, about a third of them |
-| The same hair at the game's distance, over 2 % of the screen | About 0.1 ms | The same work over a seventh of the pixels |
-| The hair model in place of the BRDF | Within the spread between runs | About the same arithmetic per light |
+Part 6 replaced the estimates of the design with traces (2026-10-27): `tools/gpu-trace.sh --no-counters` at 1920 × 1080 in Release, on the development Mac (Apple M1 Max, MoltenVK 1.4.2), 120 frames per run, one run at a time, each started after the 1-minute load fell below 10. The machine was shared with other agents, and the load rose to 26 during one run, so a difference below about 0.3 ms on demo-exit and 0.1 ms on the scene of Part 6 is within the spread between runs. The times are each pass's own GPU time from the trace, the mean in ms with the 95th percentile in parentheses. The frame span is the trace's; the GPU timer's span agrees with it within 0.2 ms in every run. Three of the 22 traces hung in xctrace's processing after the demo had finished (the first base run, which ran again, the first branch run with the scatter off and the second run of the cutout fan), so only their GPU timer's spans count.
+
+The shading target's cost with no skin and no hair: the deck window of `scripts/demo-exit.json` (`--start 399`), the branch at 27e49735 against its base, the merge-base with main, dbd3011e. The load at the start was 6.9 to 9.9.
+
+| Pass | Base, 3 runs | Branch, 3 runs | Branch, `--subsurface off`, 1 run |
+|---|---|---|---|
+| G-buffer | 0.282, 0.310, 0.287 (0.33) | 0.358, 0.312, 0.324 (0.31 to 0.49) | 0.334 (0.40) |
+| direct light | 5.60, 5.37, 5.75 (6.1 to 6.9) | 7.12, 6.13, 6.28 (6.2 to 10.0) | 6.59 (8.8) |
+| ambient light | 0.420, 0.516, 0.434 (0.48 to 0.52) | 0.626, 0.582, 0.595 (0.59 to 0.74) | 0.433 (0.56) |
+| scatter rows | None | 0.071, 0.067, 0.066 (0.07 to 0.08) | None |
+| scatter columns | None | 0.039, 0.035, 0.037 (0.04 to 0.05) | None |
+| transparent | 1.64, 1.62, 1.71 (2.0 to 2.1) | 2.47, 2.10, 2.16 (2.2 to 3.4) | 2.28 (3.1) |
+| frame span | 16.87, 17.34, 17.35 (18.1 to 23.3) | 20.54, 18.07, 18.49 (18.2 to 27.4) | 18.82 (24.9) |
+
+The GPU timer's spans: base 17.28, 16.73, 17.23, 17.21; branch 20.38, 17.91, 18.32; branch with the scatter off 17.76, 18.67. The first branch run was disturbed: every pass of it is slower.
+
+- The epic costs demo-exit about 1 ms of frame span, 17.2 against 18.2 ms without the disturbed run, about 6 %. The design estimated about 0.3 ms.
+- The direct pass grows by 0.4 to 1.0 ms, also with the scatter off, against an estimate of 0.02 ms for the shading target's read. The deck's direct pass is the light loop over the station's lamps, so the cost is the loop's: `respond` and `takesLight` in place of `brdf`, which choose by the pixel's model and keep the two parts apart, per light per pixel. Ticket `ter-uqmn` of the performance coda brings the direct and transparent passes' growth down.
+- The transparent pass grows by 0.4 to 0.6 ms, with no fringe in the window: the glass's shading through `forwardShading` and `respond`, and its runs by sides. The design did not estimate it.
+- The ambient pass grows by 0.15 ms under `SeparableSubsurface` and not without it: the blend of its second attachment, the scatter image, at every pixel (estimate 0.1 to 0.15 ms for both lighting passes). The direct pass's write of the scatter image does not show beyond the spread.
+- The G-buffer pass grows by 0.03 to 0.05 ms, within the spread: the shading target's write (estimate 0.05 to 0.1 ms).
+- The scatter passes with no skin on screen: 0.10 to 0.11 ms (estimate 0.05 to 0.1 ms).
+
+The scatter passes, the fringe and the cutout draws: `scripts/skin-and-hair.json` (see Part 6 in "Order of the work"), a film of 120 frames of each view: the head (`--start 1`), the fringed fan (123), the cutout fan (244) and the glass fan (365), with the scatter on and off. The head's skin covers about 17 % of the frame. Each fan's cores cover about 6 % of the frame and its fringe about 1 % more, about 9 % inside its outline. The load at the start was 5.7 to 9.0.
+
+| Pass | Head, on | Head, off | Fringed fan, on | Fringed fan, off | Cutout fan, on | Cutout fan, off | Glass fan, on | Glass fan, off |
+|---|---|---|---|---|---|---|---|---|
+| G-buffer | 0.357, 0.335 (0.37) | 0.354, 0.334 (0.37) | 0.433, 0.336 (0.44) | 0.428 (0.44) | 0.420 (0.44) | 0.420 (0.44) | 0.294, 0.328 (0.35) | 0.344 (0.35) |
+| direct light | 1.69, 1.60 (1.89) | 1.71, 1.61 (1.91 to 1.93) | 1.79, 1.38 (1.88 to 2.01) | 1.78 (1.99) | 1.76 (1.98) | 1.80 (2.00) | 1.29, 1.48 (1.76 to 1.78) | 1.58 (1.80) |
+| ambient light | 0.539, 0.520 (0.57) | 0.416, 0.397 (0.45) | 0.553, 0.475 (0.58 to 0.59) | 0.427 (0.46) | 0.554 (0.58) | 0.427 (0.46) | 0.444, 0.481 (0.52) | 0.381 (0.41) |
+| scatter rows | 0.296, 0.278 (0.31) | None | 0.080, 0.076 (0.08) | None | 0.082 (0.09) | None | 0.085, 0.078 (0.09 to 0.10) | None |
+| scatter columns | 0.295, 0.276 (0.31) | None | 0.048, 0.042 (0.05) | None | 0.049 (0.05) | None | 0.047, 0.046 (0.05) | None |
+| reflection trace and reflections | 1.55, 1.46 (1.64) | 1.54, 1.47 (1.64) | 1.93, 1.51 (2.05) | 1.92 (2.06) | 1.92 (2.06) | 1.92 (2.06) | 1.12, 1.25 (1.39) | 1.31 (1.38) |
+| transparent | None | None | 1.06, 0.81 (1.13 to 1.19) | 1.06 (1.22) | None | None | 1.45, 1.64 (1.91 to 1.97) | 1.75 (2.02) |
+| frame span | 10.33, 9.76 (10.8) | 9.52, 9.16 (10.0 to 10.1) | 11.93, 9.99 (12.5 to 12.6) | 11.47 (12.2) | 10.73 (11.3) | 10.43 (11.0) | 10.23, 10.90 (12.0 to 12.3) | 10.98 (11.7) |
+
+The second runs of the fans have lower means in every pass with the same 95th percentiles, as some of their frames ran faster; the cutout fan's second trace hung, and its GPU timer's span was 10.75 ms. "None" is a pass with no GPU work in the run.
+
+- The scatter passes with a face over 17 % of the frame: 0.55 to 0.59 ms for the two (estimate 0.3 to 0.6 ms for 20 %), and the ambient pass's blend 0.12 ms more. The frame span grows by 0.6 to 0.8 ms. The direct pass does not change.
+- The scatter passes with no skin on screen: 0.12 to 0.13 ms, with the ambient pass's blend 0.13 ms more.
+- The fringe of a fan of twelve cards over about 9 % of the frame: the transparent pass, 0.8 to 1.1 ms. The same cards as glass take 1.45 to 1.75 ms in that pass, so the fringe costs less than the glass that the cards drew as before this epic.
+- The cutout draws: the G-buffer pass takes 0.08 to 0.13 ms more than with the cards as glass, which draw no core. A fringed card's core costs the same as a cutout's. The shadow maps take the same time for all three fans (0.18 to 0.21 ms), as glass with `CastsShadow` casts its whole rectangle.
+- The cores enter the screen-space passes as opaque surfaces: the reflections' two passes take about 0.6 ms more with cores than with the glass fan, and the occlusion sectors about 0.1 ms more.
+- The fan as fringed hair against the same fan as glass: about 0.5 ms more frame span (11.47 against 10.98 ms with the scatter off); as cutout hair, about 0.55 ms less. The design estimated 0.5 to 1 ms for a head of hair over 15 % of the screen.
 
 ## Known limits
 
@@ -1044,7 +1080,7 @@ The importer of [asset-pipeline.md](asset-pipeline.md) does not exist in src yet
 | `alphaMode` `MASK` or `BLEND` with `extras.tertius_alpha` = `"fringe"` | `FringedAlpha(c)`, with c the `alphaCutoff` when the file has one, else 0.5 |
 | No `extras.tertius_shading`, or `"standard"` | `StandardShading(metallicFactor)` |
 | `extras.tertius_shading` = `"skin"` | `SkinShading` |
-| `extras.tertius_shading` = `"hair"`, with `extras.tertius_strand` = `"+u"`, `"-u"`, `"+v"` or `"-v"` | `HairShading(...)`. A hair material without `tertius_strand` is an error, with a new code beside AS3004 |
+| `extras.tertius_shading` = `"hair"`, with `extras.tertius_strand` = `"+u"`, `"-u"`, `"+v"` or `"-v"` | `HairShading(...)`. A hair material without `tertius_strand` is the error AS3006, a new code beside AS3004 |
 
 Blender writes a material's custom properties into its glTF `extras`, because the build tool exports with `export_extras=True`. glTF's `BLEND` composites by Porter and Duff's "over", which `FringedAlpha(1)` draws exactly. The importer keeps `GlassAlpha` as the default of `BLEND`, so a glass made in Blender stays the user's glass rule. No ratified KHR extension fits: `KHR_materials_volume` and `KHR_materials_diffuse_transmission` describe a thick or a thin translucent medium, not a diffusion profile or a fiber.
 
@@ -1203,7 +1239,8 @@ Parts 3, 4 and 5 run one after another because they share the shaders of the opa
 ### Part 6: the cost, the captures and the docs
 
 - Files: `src/Tertius.Demo/DemoScenes.SkinAndHair.cs` (new), `scripts/skin-and-hair.json` (new), and the docs of "Doc changes".
-- The scene, made in code: the head of "Tests", a skin sphere with a nose, lit from the side by a spot light, for the terminator; a skin disk 3 mm thick, the size of an ear, between the camera and a point light, for thin skin before a light; a block of twelve hair cards in a fan, with an image of strands made in code along +v, soft across each strand and fading toward the tips, with dark and light brown bases; and a glass pane of the same image beside them, for comparison.
+- The scene, made in code: the head of "Tests", a skin sphere with a nose, lit from the side by the sun, for the terminator (built with the sun, not a spot light: Part 5's tests found that a spot light at a finite distance moved the terminator by about 9 pixels from that of parallel rays); a skin disk 3 mm thick, the size of an ear, between the camera and a point light, for thin skin before a light; a block of twelve hair cards in a fan, with an image of strands made in code along +v, soft across each strand and fading toward the tips, with dark and light brown bases; and a glass pane of the same image beside them, for comparison.
+- As built (`DemoScenes.SkinAndHair.cs`, the scene `skin-and-hair`, `scripts/skin-and-hair.json`): the floor of the surface scenes under the sun from +X, 14° above the horizon, with the sky of the hair card scenes. The head is a skin sphere of 0.1 m with a nose of 0.015 m, seen from 0.45 m (`head-camera`), where it covers about a fifth of the frame. The ear is a skin disk of 3 cm radius and 3 mm thickness, with a glowing lamp of 60 W and 8 mm radius 5 cm behind it at its upper rim, seen from 0.25 m toward the lamp and the sun (`ear-camera`). The hair is three fans of twelve cards, 7.5 × 30 cm each: the roots 1.2 cm apart, each card turned in its plane by 6° more than the one before, about its strand by ±20° in turn, and set back 5 mm. The cards alternate dark and light brown bases over one strand image of 64 × 256 texels, 18 strands each soft across as cos² and fading over the last 35 % before its tip. One fan is fringed hair, one cutout hair, and one glass of the standard model, the cards' look before this epic, each with a view from 0.85 m with the sun behind it (`hair-fringed-camera`, `hair-cutout-camera`, `hair-glass-camera`), so the three views frame their fans alike. A flat glass pane of the light brown strand image, twice a card's size, stands beside the fringed fan, and `hair-camera` shows the fans and the pane together. The script captures each view once and films 120 frames of the head and of each fan for the cost.
 - The cost first, on a quiet machine, by [rendering-upgrade.md](rendering-upgrade.md), "Measuring the cost of a feature": `scripts/demo-exit.json` at 1920 × 1080, the branch against its base, each build twice, for the shading target's cost with no skin and no hair; and `scripts/skin-and-hair.json` with the scatter on and off, for the scatter passes, the fringe and the cutout draws. The report gives each pass, its p95, the frame span and the memory by arithmetic, with the load of the machine.
 - Captures, headless with the real renderer, each looked at with a one-line caption: the head with the scatter off and on; the ear before the light; the hair block as fringed hair, as cutout hair and as glass, the cards' look before this epic. The report sends two to four of them, the hair block first.
 - Done: ARCHITECTURE.md matches the code, with the numbers of the cost. The other docs follow "Doc changes". The epic closes after the merge into main.

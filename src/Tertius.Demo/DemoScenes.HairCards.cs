@@ -43,13 +43,7 @@ public static partial class DemoScenes
             scene: scene,
             floorHalfExtents: new(10, 0.5f, 10)
         );
-        // The pbr-spheres scene's sky and ground, so that no side of a card is black.
-        world.Ambient = new()
-        {
-            SkyColor = new(x: 160, y: 220, z: 330),
-            GroundColor = new(x: 80, y: 70, z: 55),
-            Intensity = 1,
-        };
+        ReviewSky(world);
         world.VerticalFov = 40 * MathF.PI / 180;
 
         MeshId card = resources.CreateMesh(Primitives.Plane(HairCardHalfSize));
@@ -90,6 +84,18 @@ public static partial class DemoScenes
         world.Camera = frontCamera;
         return scene;
     }
+
+    /// <summary>
+    /// The sky and ground colors of the pbr-spheres scene, which the hair and skin review scenes share, so that no side of
+    /// a card or of a head is black.
+    /// </summary>
+    private static void ReviewSky(World world) =>
+        world.Ambient = new()
+        {
+            SkyColor = new(x: 160, y: 220, z: 330),
+            GroundColor = new(x: 80, y: 70, z: 55),
+            Intensity = 1,
+        };
 
     /// <summary>
     /// The cards <c>{name}-0</c> to <c>{name}-4</c> of one fan in <paramref name="surface"/>, centered on

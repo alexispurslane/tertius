@@ -228,6 +228,7 @@ public static partial class DemoScenes
         .. BounceLightScenes,
         .. RigScenes,
         .. HairCardScenes,
+        new("skin-and-hair", SkinAndHair),
     ];
 
     /// <summary>
