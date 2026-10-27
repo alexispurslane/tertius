@@ -58,7 +58,7 @@ public sealed class Blueprints
         lock (gate)
         {
             string name = blueprint.Name;
-            Entry? parent = CheckedParent(blueprint);
+            Entry? parent = CheckBlueprintAndFindParent(blueprint);
             List<(Type Type, Dictionary<string, object?> Fields)> specs = MergedSpecs(blueprint, parent);
             var recipes = new Recipe[specs.Count];
             var resolvedSpecs = new ComponentSpec[specs.Count];
@@ -248,7 +248,7 @@ public sealed class Blueprints
     /// for a blueprint without one.
     /// </summary>
     /// <exception cref="ArgumentException">The name is empty or taken, the list is missing, or the parent is not registered.</exception>
-    private Entry? CheckedParent(Blueprint blueprint)
+    private Entry? CheckBlueprintAndFindParent(Blueprint blueprint)
     {
         string name = blueprint.Name;
         if (string.IsNullOrWhiteSpace(name))

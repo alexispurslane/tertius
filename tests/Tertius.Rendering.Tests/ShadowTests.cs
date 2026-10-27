@@ -10,6 +10,16 @@ public sealed class ShadowTests
 {
     private const RenderFlags Caster = RenderFlags.CastsShadow;
 
+    /// <summary>The view and the wall of the scene along the cascade seams, which <see cref="SeamsScene"/> builds.</summary>
+    private const int SeamsWidth = 960,
+        SeamsHeight = 540;
+    private const float SeamsFov = 50f * MathF.PI / 180f,
+        SeamsWallHeight = 16f;
+
+    /// <summary>The sun of the scene along the cascade seams: 30 degrees up from +X.</summary>
+    private static readonly float SeamsSunElevation = 30f * MathF.PI / 180f;
+    private static readonly Vector3 SeamsSun = new(MathF.Cos(SeamsSunElevation), MathF.Sin(SeamsSunElevation), 0f);
+
     /// <summary>The meshes and materials most shadow scenes need.</summary>
     private sealed class Kit
     {
@@ -867,13 +877,6 @@ public sealed class ShadowTests
     // A wall 16 m tall and 4 m thick runs straight away from 20 m to 440 m. The sun, 30 degrees up from +X, throws a
     // 28 m shadow to its left, through the cascade seams at about 51 m, 109 m and 277 m. Every sample is compared with the
     // same pixel rendered without the wall.
-
-    private const int SeamsWidth = 960,
-        SeamsHeight = 540;
-    private const float SeamsFov = 50f * MathF.PI / 180f,
-        SeamsWallHeight = 16f;
-    private static readonly float SeamsSunElevation = 30f * MathF.PI / 180f;
-    private static readonly Vector3 SeamsSun = new(MathF.Cos(SeamsSunElevation), MathF.Sin(SeamsSunElevation), 0f);
 
     /// <summary>
     /// The scene of the seams: the ground <paramref name="cameraHeight"/> below a camera looking down by

@@ -215,7 +215,7 @@ internal sealed class PhysicsQueryRunner(
                 end: end
             );
 
-            QueueChildVisits(
+            QueryNumericChildrenAndQueueOthers(
                 backend: backend,
                 request: request,
                 visit: visit,
@@ -238,7 +238,7 @@ internal sealed class PhysicsQueryRunner(
     /// The line runs from <paramref name="from"/> along <paramref name="line"/>, in the query's frame, and the query reaches
     /// <paramref name="reach"/> meters around it.
     /// </summary>
-    private void QueueChildVisits(
+    private void QueryNumericChildrenAndQueueOthers(
         IPhysicsBackend backend,
         in PhysicsRequest request,
         in Visit visit,

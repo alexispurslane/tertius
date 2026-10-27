@@ -785,6 +785,8 @@ public static partial class DemoScenes
                 "apron-camera",
                 world.Spawn(ViewIn(surface, LookingAt(new(13, EarthRadius + 3, 10), new(5, EarthRadius + 1.2, 0.5))))
             );
+            // The one camera off the ground spawns here, between the apron and pad cameras, as it always did, so the
+            // entity slots of the scene stay the same.
             scene.Add("cabin-camera", world.Spawn(ViewIn(cabin, CabinCamera)));
 
             scene.Add(

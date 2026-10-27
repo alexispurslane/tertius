@@ -757,20 +757,23 @@ internal sealed unsafe class VulkanDevice : IDisposable
         if (disposed)
             return;
         disposed = true;
-        Vk.DestroyDevice(Device, null);
-        if (Surface.Handle != 0)
-            SurfaceApi?.DestroySurface(Instance, Surface, null);
-        if (messenger.Handle != 0)
-            debugUtils?.DestroyDebugUtilsMessenger(Instance, messenger, null);
-        Vk.DestroyInstance(Instance, null);
-        // The messenger chained into vkCreateInstance stays active until vkDestroyInstance returns.
-        logHandle.Free();
-        Vk.Dispose();
+        // The handles' own teardown is the one copy of the order, for a failed Create and a disposed device alike.
+        new DeviceHandles
+        {
+            Vk = Vk,
+            LogHandle = logHandle,
+            Instance = Instance,
+            DebugUtils = debugUtils,
+            Messenger = messenger,
+            SurfaceApi = SurfaceApi,
+            Surface = Surface,
+            Device = Device,
+        }.Destroy();
     }
 
     /// <summary>
     /// The handles that <see cref="Create"/> has made so far, null until made. A failure destroys them, and the new device
-    /// takes them over.
+    /// takes them over and gives them back to <see cref="Destroy"/> when it is disposed.
     /// </summary>
     private struct DeviceHandles
     {
@@ -795,6 +798,7 @@ internal sealed unsafe class VulkanDevice : IDisposable
                 DebugUtils?.DestroyDebugUtilsMessenger(Instance, Messenger, null);
             if (Instance.Handle != 0)
                 Vk.DestroyInstance(Instance, null);
+            // The messenger chained into vkCreateInstance stays active until vkDestroyInstance returns.
             LogHandle.Free();
             Vk.Dispose();
         }

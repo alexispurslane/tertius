@@ -58,9 +58,14 @@ public static partial class DemoScenes
     {
         var scene = new SceneInstance();
         FrameHandle ground = GroundWithFloor(world: world, resources: resources, scene: scene);
-        SpawnMeshesCylinder(world: world, resources: resources, scene: scene, ground: ground);
-        SpawnMeshesTorus(world: world, resources: resources, scene: scene, ground: ground);
-        SpawnMeshesRing(world: world, resources: resources, scene: scene, ground: ground);
+        // The three balls share one shape and one mesh, so the backend and the renderer build each once.
+        (SphereShapeDesc Shape, MeshData Mesh) ball = (
+            new SphereShapeDesc(MeshesBallRadius),
+            Primitives.Sphere(MeshesBallRadius)
+        );
+        SpawnMeshesCylinder(world: world, resources: resources, scene: scene, ground: ground, ball: ball);
+        SpawnMeshesTorus(world: world, resources: resources, scene: scene, ground: ground, ball: ball);
+        SpawnMeshesRing(world: world, resources: resources, scene: scene, ground: ground, ball: ball);
 
         Entity camera = world.Spawn(ViewIn(ground, LookingAt(new(0.5, 6, 15), new(0.5, 1.2, 0))));
         scene.Add("camera", camera);
@@ -96,7 +101,8 @@ public static partial class DemoScenes
         World world,
         IRenderResources resources,
         SceneInstance scene,
-        FrameHandle ground
+        FrameHandle ground,
+        (SphereShapeDesc Shape, MeshData Mesh) ball
     )
     {
         SpawnRevolved(
@@ -114,6 +120,7 @@ public static partial class DemoScenes
             resources: resources,
             scene: scene,
             ground: ground,
+            ball: ball,
             id: "cylinder-ball",
             position: new(MeshesCylinderX + 0.3, 2 * MeshesCylinderHalfHeight + MeshesBallRadius + 0.5, 0)
         );
@@ -127,7 +134,8 @@ public static partial class DemoScenes
         World world,
         IRenderResources resources,
         SceneInstance scene,
-        FrameHandle ground
+        FrameHandle ground,
+        (SphereShapeDesc Shape, MeshData Mesh) ball
     )
     {
         // The tube's flat bottom and top are r cos(π / sides) below and above its center circle.
@@ -155,6 +163,7 @@ public static partial class DemoScenes
             resources: resources,
             scene: scene,
             ground: ground,
+            ball: ball,
             id: "torus-ball",
             position: new(
                 MeshesTorusX + middle * Math.Cos(half),
@@ -172,7 +181,8 @@ public static partial class DemoScenes
         World world,
         IRenderResources resources,
         SceneInstance scene,
-        FrameHandle ground
+        FrameHandle ground,
+        (SphereShapeDesc Shape, MeshData Mesh) ball
     )
     {
         // On edge, the ring's angle θ is at (ρ cos θ, ρ sin θ) across its axis, and half a segment's turn about its axis puts
@@ -202,6 +212,7 @@ public static partial class DemoScenes
             resources: resources,
             scene: scene,
             ground: ground,
+            ball: ball,
             id: "ring-ball",
             position: new(MeshesRingX, ringY - MeshesRingInner * facet + MeshesBallRadius + 0.5, 0)
         );
@@ -242,13 +253,15 @@ public static partial class DemoScenes
     }
 
     /// <summary>
-    /// A red ball <paramref name="id"/> of 1 kg at <paramref name="position"/> in <paramref name="ground"/>.
+    /// A red ball <paramref name="id"/> of 1 kg at <paramref name="position"/> in <paramref name="ground"/>, with the
+    /// shape and the mesh of <paramref name="ball"/>.
     /// </summary>
     private static void SpawnMeshesBall(
         World world,
         IRenderResources resources,
         SceneInstance scene,
         FrameHandle ground,
+        (SphereShapeDesc Shape, MeshData Mesh) ball,
         string id,
         Double3 position
     ) =>
@@ -259,10 +272,10 @@ public static partial class DemoScenes
                 {
                     Frame = ground,
                     Pose = new(position, DQuaternion.Identity),
-                    Body = new(Shape: new SphereShapeDesc(MeshesBallRadius), Mass: 1),
+                    Body = new(Shape: ball.Shape, Mass: 1),
                     Render = Drawn(
                         resources: resources,
-                        mesh: Primitives.Sphere(MeshesBallRadius),
+                        mesh: ball.Mesh,
                         color: new(x: 0.85f, y: 0.15f, z: 0.15f, w: 1),
                         boundingRadius: MeshesBallRadius
                     ),

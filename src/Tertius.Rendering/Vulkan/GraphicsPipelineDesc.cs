@@ -187,7 +187,7 @@ internal sealed class GraphicsPipelineDesc
             PDynamicState = &dynamic,
             Layout = Layout,
         };
-        return CreateForAttachments(device, &info);
+        return CreateForAttachments(device, in info);
     }
 
     /// <summary>
@@ -280,9 +280,10 @@ internal sealed class GraphicsPipelineDesc
 
     /// <summary>
     /// Creates the pipeline of <paramref name="info"/> for dynamic rendering into <see cref="ColorFormats"/> and
-    /// <see cref="DepthFormat"/>, and names it.
+    /// <see cref="DepthFormat"/>, and names it. It chains the rendering info onto a copy of <paramref name="info"/>, so the
+    /// caller's struct never points into this method's stack.
     /// </summary>
-    private unsafe Pipeline CreateForAttachments(VulkanDevice device, GraphicsPipelineCreateInfo* info)
+    private unsafe Pipeline CreateForAttachments(VulkanDevice device, in GraphicsPipelineCreateInfo info)
     {
         fixed (Format* colorFormats = ColorFormats)
         {
@@ -294,13 +295,14 @@ internal sealed class GraphicsPipelineDesc
                 DepthAttachmentFormat = DepthFormat,
                 StencilAttachmentFormat = Format.Undefined,
             };
-            info->PNext = &rendering;
+            GraphicsPipelineCreateInfo withRendering = info;
+            withRendering.PNext = &rendering;
             device
                 .Vk.CreateGraphicsPipelines(
                     device: device.Device,
                     pipelineCache: default,
                     createInfoCount: 1,
-                    pCreateInfos: info,
+                    pCreateInfos: &withRendering,
                     pAllocator: null,
                     pPipelines: out Pipeline pipeline
                 )
