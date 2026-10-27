@@ -19,10 +19,13 @@ public sealed class AmbientSkipsTests
     private static readonly float ExposureStops = -MathF.Log2(StarField.UnitRadiance) + 6;
 
     /// <summary>
-    /// The scene's roughnesses: a mirror floor, which shows single stars at the footprint; a sphere in the fade, where the
-    /// footprint changes the stars; and spheres past it, where the lobe alone ends the fade.
+    /// The spheres' roughnesses, beside a mirror floor, which shows single stars at the footprint. The pixel angle p is
+    /// 2 tan 15° / 180 = 0.00298 rad. At 0.07 the lobe's width at p is 1.56c, so the footprint changes the stars. At
+    /// 0.08, which the G-buffer stores as 20 / 255, it is 1.90c, from the 8-bit roughnesses the closest below the
+    /// threshold of 2c (1 + 2⁻¹⁰): the lobe alone stays in the fade, but the sphere's footprint ends it, so a threshold
+    /// below 1.90c changes these pixels. At 0.2 and 0.6 the lobe alone ends the fade.
     /// </summary>
-    private static readonly float[] SphereRoughnesses = [0.07f, 0.2f, 0.6f];
+    private static readonly float[] SphereRoughnesses = [0.07f, 0.08f, 0.2f, 0.6f];
 
     private static VulkanRenderer Renderer() =>
         VulkanRenderer.CreateHeadless(
@@ -39,7 +42,7 @@ public sealed class AmbientSkipsTests
         );
 
     /// <summary>
-    /// A mirror floor 1 m below the camera, which looks down at it, and three metal spheres on it, each of a roughness of
+    /// A mirror floor 1 m below the camera, which looks down at it, and four metal spheres on it, each of a roughness of
     /// <see cref="SphereRoughnesses"/>. The floor and the spheres reflect each other, where the lobe sees no open sky, and
     /// the starry sky elsewhere. A faint sun lights them.
     /// </summary>
@@ -66,7 +69,7 @@ public sealed class AmbientSkipsTests
                     material: renderer.CreateMaterial(
                         new(BaseColor: Vector4.One, Roughness: SphereRoughnesses[index], Metallic: 1)
                     ),
-                    position: new(x: 2.2f * (index - 1), y: -0.2f, z: -9),
+                    position: new(x: 2f * (index - 1.5f), y: -0.2f, z: -9),
                     scale: new(0.8f)
                 )
             );
