@@ -472,6 +472,9 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// <summary>The physics system of <paramref name="frame"/>, or null when the frame has none. Tests check that the backend frees it.</summary>
     internal PhysicsSystem? SystemOf(FrameHandle frame) => ExistingWorld(frame)?.System;
 
+    /// <summary>The system of <paramref name="frame"/> with its contact tables, or null when the frame has none. Benchmarks time its contact work.</summary>
+    internal FrameWorld? FrameWorldOf(FrameHandle frame) => ExistingWorld(frame);
+
     /// <summary>The most bodies that the system of <paramref name="frame"/> holds now, or 0 when the frame has no system.</summary>
     internal uint CapacityOf(FrameHandle frame) => ExistingWorld(frame)?.System.MaxBodies ?? 0;
 
@@ -744,8 +747,10 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// <item>The contact ledger counts, for each pair of entities, the body pairs that hold their contact as started in
     /// every system, and its loose and waiting contacts (see <see cref="AssertContactInvariants"/>). This one holds at
     /// every sync point.</item>
+    /// <item>The pair tables of each system agree, and its index of pairs by body holds exactly their pairs (see
+    /// <see cref="FrameWorld.AssertInvariants"/>).</item>
     /// </list>
-    /// The record and ghost checks visit every entity slot, so the whole check is O(entity slots + systems + started pairs).
+    /// The record and ghost checks visit every entity slot, so the whole check is O(entity slots + systems + pairs).
     /// </summary>
     internal void AssertInvariants()
     {
@@ -754,6 +759,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
         {
             Contract.Invariant(frames.IsAlive(world.Frame) && ExistingWorld(world.Frame) == world);
             AssertCharacterCounts(world);
+            world.AssertInvariants();
         }
 
         int hulls = 0;
@@ -762,50 +768,9 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
         {
             if (record is null)
                 continue;
-            Contract.Invariant(Find(record.Entity) == record);
-            AssertFormInvariants(record);
-            if (record.IsHull)
-            {
-                hulls++;
-                Contract.Invariant(
-                    record.InteriorBody.IsValid && record.InteriorWorld == ExistingWorld(record.OwnedFrame)
-                );
-            }
-            else
-            {
-                Contract.Invariant(record.HasPrimary && record.World == ExistingWorld(record.Frame));
-            }
-
-            if (record.World is { } home)
-            {
-                Contract.Invariant(record.Character is not null || record.Body.IsValid);
-                Contract.Invariant(home.Members[record.MemberIndex] == record);
-                BodyID primary = record.Character?.InnerBodyID ?? record.Body;
-                Contract.Invariant(home.Bodies.GetObjectLayer(primary) == PrimaryLayer(record));
-            }
-
-            if (record.InteriorWorld is { } interior)
-            {
-                Contract.Invariant(interior.Bodies.GetObjectLayer(record.InteriorBody) == InteriorLayer(record));
-                Contract.Invariant(interior.Bodies.GetMotionType(record.InteriorBody) == InteriorMotion(record));
-            }
-
-            if (record.Ghosts is not { } ghosts)
-                continue;
-            foreach (GhostBody ghost in ghosts)
-            {
-                Contract.Invariant(GhostAllowed(record, ghost.Frame) && ghost.World == ExistingWorld(ghost.Frame));
-                Contract.Invariant(ghost.World.HasGhost(ghost.Body));
-                Contract.Invariant(ghost.World.Bodies.GetObjectLayer(ghost.Body) == GhostLayer(record, ghost.Role));
-                Contract.Invariant(ghost.World.GhostContactMotion(ghost.Body) == GhostContactMotion(record));
-                Contract.Invariant(
-                    record.IsMovable
-                        ? ghost.World.Bodies.GetMotionType(ghost.Body) == MotionType.Kinematic
-                        : ghost.World.CanMove(ghost.Body)
-                );
-            }
-
-            recordGhosts += ghosts.Count;
+            AssertRecordInvariants(record);
+            hulls += record.IsHull ? 1 : 0;
+            recordGhosts += record.Ghosts?.Count ?? 0;
         }
 
         Contract.Invariant(hulls == frameOwners.Count);
@@ -817,18 +782,65 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             systemGhosts += world.GhostCount;
         Contract.Invariant(systemGhosts == recordGhosts);
         foreach (BodyRecord owner in frameOwners)
+            AssertFrameOwnerInvariants(owner);
+    }
+
+    /// <summary>The invariants of one record and its bodies, for <see cref="AssertInvariants"/>.</summary>
+    private void AssertRecordInvariants(BodyRecord record)
+    {
+        Contract.Invariant(Find(record.Entity) == record);
+        AssertFormInvariants(record);
+        if (record.IsHull)
+            Contract.Invariant(record.InteriorBody.IsValid && record.InteriorWorld == ExistingWorld(record.OwnedFrame));
+        else
+            Contract.Invariant(record.HasPrimary && record.World == ExistingWorld(record.Frame));
+
+        if (record.World is { } home)
         {
-            Contract.Invariant(frames.IsAlive(owner.OwnedFrame));
-            FrameHandle parent = frames.TreeParent(owner.OwnedFrame);
-            if (parent.IsNull)
-                Contract.Invariant(!owner.HasPrimary);
-            else
-                Contract.Invariant(owner.Frame == parent && owner.HasPrimary && owner.World == ExistingWorld(parent));
-            // A hull has the Jolt motion type of its record's motion. The record takes the motion of each step at the start of
-            // that step (see FollowHullMotions).
-            if (owner.HasPrimary)
-                Contract.Invariant(owner.World.Bodies.GetMotionType(owner.Body) == ToMotionType(owner.Motion));
+            Contract.Invariant(record.Character is not null || record.Body.IsValid);
+            Contract.Invariant(home.Members[record.MemberIndex] == record);
+            BodyID primary = record.Character?.InnerBodyID ?? record.Body;
+            Contract.Invariant(home.Bodies.GetObjectLayer(primary) == PrimaryLayer(record));
         }
+
+        if (record.InteriorWorld is { } interior)
+        {
+            Contract.Invariant(interior.Bodies.GetObjectLayer(record.InteriorBody) == InteriorLayer(record));
+            Contract.Invariant(interior.Bodies.GetMotionType(record.InteriorBody) == InteriorMotion(record));
+        }
+
+        if (record.Ghosts is { } ghosts)
+            foreach (GhostBody ghost in ghosts)
+                AssertGhostInvariants(record, ghost);
+    }
+
+    /// <summary>The invariants of one ghost of <paramref name="record"/>, for <see cref="AssertInvariants"/>.</summary>
+    private void AssertGhostInvariants(BodyRecord record, GhostBody ghost)
+    {
+        Contract.Invariant(GhostAllowed(record, ghost.Frame) && ghost.World == ExistingWorld(ghost.Frame));
+        Contract.Invariant(ghost.World.HasGhost(ghost.Body));
+        Contract.Invariant(ghost.World.Bodies.GetObjectLayer(ghost.Body) == GhostLayer(record, ghost.Role));
+        Contract.Invariant(ghost.World.GhostContactMotion(ghost.Body) == GhostContactMotion(record));
+        Contract.Invariant(
+            record.IsMovable
+                ? ghost.World.Bodies.GetMotionType(ghost.Body) == MotionType.Kinematic
+                : ghost.World.CanMove(ghost.Body)
+        );
+    }
+
+    /// <summary>The invariants of one frame owner and its hull, for <see cref="AssertInvariants"/>.</summary>
+    private void AssertFrameOwnerInvariants(BodyRecord owner)
+    {
+        Contract.Invariant(frames.IsAlive(owner.OwnedFrame));
+        FrameHandle parent = frames.TreeParent(owner.OwnedFrame);
+        if (parent.IsNull)
+            Contract.Invariant(!owner.HasPrimary);
+        else
+            Contract.Invariant(owner.Frame == parent && owner.HasPrimary && owner.World == ExistingWorld(parent));
+        // A hull has the Jolt motion type of its record's motion. The record takes the motion of each step at the start of
+        // that step (see FollowHullMotions).
+        if (owner.HasPrimary)
+            Contract.Invariant(owner.World.Bodies.GetMotionType(owner.Body) == ToMotionType(owner.Motion));
     }
 
     // ---- Worlds ----

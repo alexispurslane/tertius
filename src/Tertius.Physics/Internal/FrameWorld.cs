@@ -50,12 +50,17 @@ internal readonly record struct SystemLimits(int MaxBodies, int MaxBodyPairs, in
 }
 
 /// <summary>
-/// The Jolt physics system of one reference frame. Positions in the system are frame coordinates, so a body's pose
-/// in Jolt is its pose in the frame. Gravity is zero: the backend applies the frame's effective gravity as forces.
+/// The Jolt physics system of one reference frame, in frame coordinates, with zero gravity: the backend applies the
+/// frame's effective gravity as forces.
 /// </summary>
 /// <remarks>
-/// A system that is full can be replaced by a larger one (<see cref="ReplaceSystem"/>). The <see cref="FrameWorld"/>
-/// stays the same object, with the same members, so every reference to it stays valid.
+/// A full system can be replaced by a larger one (<see cref="ReplaceSystem"/>), and this object stays, so every reference
+/// to it stays valid. Invariants of the pair tables:
+/// <list type="bullet">
+/// <item>Every pending pair is in <c>touching</c>.</item>
+/// <item>No pair is in <c>touching</c> and held at once, and every pair of <c>touching</c> counts at least one contact.</item>
+/// <item>The pair index holds exactly the pairs of <c>touching</c> and held (see <see cref="BodyPairIndex"/>).</item>
+/// </list>
 /// </remarks>
 internal sealed class FrameWorld : IDisposable
 {
@@ -122,12 +127,12 @@ internal sealed class FrameWorld : IDisposable
 
     // Body pairs in contact as Jolt's contact cache holds them, with the number of touching sub-shape pairs. A pair that
     // Jolt adds starts at once if it really touches, unless it is held. Otherwise it waits in pending.
-    private readonly Dictionary<ulong, int> touching = [];
+    private readonly Dictionary<ulong, int> touching = [with(PairKeyHash.Instance)];
 
     // The pairs of touching that have not started: Jolt found them within its speculative contact distance, but they have
     // not touched yet. A pair leaves at its first real touch, which starts it, or when Jolt drops it, which reports nothing.
     // Only the physics thread changes it, between updates, so Jolt's worker threads read it during an update without the gate.
-    private readonly HashSet<ulong> pending = [];
+    private readonly HashSet<ulong> pending = [with(PairKeyHash.Instance)];
 
     // Jolt's reports of this frame's contacts arrive through it, from every system of the frame.
     private readonly ContactListener listener;
@@ -137,7 +142,12 @@ internal sealed class FrameWorld : IDisposable
     // or a hull became static, on something static or asleep) while the system keeps stepping. A growth drops every pair,
     // because the new system starts with an empty cache. Jolt reports a held pair as added when it finds it again: the
     // contact continues. A held pair ends as HeldPairEnded says. A pair is never in touching and held at once.
-    private readonly HashSet<ulong> held = [];
+    private readonly HashSet<ulong> held = [with(PairKeyHash.Instance)];
+
+    // The pairs of touching and of held by body, so that a body that leaves visits only its own pairs (see ForgetContacts).
+    // A pair that moves between touching and held stays. Hold and Unhold keep it for the pairs that enter or leave held from
+    // outside touching.
+    private readonly BodyPairIndex pairIndex = new();
 
     // True from an update until the contacts that it reported are drained.
     private bool updatedSinceDrain;
@@ -158,7 +168,8 @@ internal sealed class FrameWorld : IDisposable
     // the contact of the inner body, so a hit starts the pair as a held pair (see DrainContacts).
     private readonly List<RawContact> characterHits = [];
 
-    private readonly List<ulong> purgeScratch = [];
+    // The pairs of one body, which ForgetContacts, HasStartedPair and StartedPairsOf read from the index.
+    private readonly List<ulong> bodyPairScratch = [];
 
     // The pairs that a growth holds, before they take the new IDs, and the held pairs that a drain ends.
     private readonly List<ulong> heldScratch = [];
@@ -443,10 +454,11 @@ internal sealed class FrameWorld : IDisposable
                 if (!pending.Contains(key))
                     heldScratch.Add(key);
             held.Clear();
-            foreach (ulong key in heldScratch)
-                held.Add(PairKey(Renamed(First(key), renamed), Renamed(Second(key), renamed)));
             touching.Clear();
             pending.Clear();
+            pairIndex.Clear();
+            foreach (ulong key in heldScratch)
+                Hold(PairKey(Renamed(First(key), renamed), Renamed(Second(key), renamed)));
         }
     }
 
@@ -503,8 +515,6 @@ internal sealed class FrameWorld : IDisposable
 
     /// <summary>The body of a pair key with the higher ID.</summary>
     private static BodyID Second(ulong key) => new((uint)key);
-
-    private static bool Involves(ulong key, BodyID body) => (uint)(key >> 32) == body.ID || (uint)key == body.ID;
 
     /// <summary>Forgets the characters' contacts of the last update. Call it before the characters of the system update.</summary>
     public void ClearCharacterContacts()
@@ -600,65 +610,89 @@ internal sealed class FrameWorld : IDisposable
             persistedTouches.Sort(ByPairAndPoint);
             // Additions first: a pair that gains one sub-shape contact and loses another in the same step continues.
             foreach (RawContact contact in added)
-            {
-                ulong key = contact.PairKey;
-                touching.TryGetValue(key, out int count);
-                touching[key] = count + 1;
-                if (count == 0 && held.Remove(key))
-                    continue;
-                if (count == 0 && !contact.Touches)
-                    pending.Add(key);
-                else if (contact.Touches && (count == 0 || pending.Remove(key)))
-                    started.Add(contact);
-            }
-
+                DrainAdded(contact, started);
             foreach (RawContact contact in persistedTouches)
                 if (pending.Remove(contact.PairKey))
                     started.Add(contact);
             foreach (ulong key in removed)
-            {
-                if (!touching.TryGetValue(key, out int count))
-                    continue;
-                if (count > 1)
-                {
-                    touching[key] = count - 1;
-                    continue;
-                }
-
-                // A pair that never touched leaves without a report. A pair that started ended, or Jolt dropped it because
-                // it simulates neither body. The check below tells which.
-                touching.Remove(key);
-                if (!pending.Remove(key))
-                    held.Add(key);
-            }
-
+                DrainRemoved(key);
             added.Clear();
             persistedTouches.Clear();
             removed.Clear();
-            // A hit is a real touch. A pending pair starts at once. A pair that Jolt does not hold starts held, because Jolt
-            // may never find it, and the character's contact list ends it.
-            foreach (RawContact hit in characterHits)
-            {
-                ulong key = hit.PairKey;
-                if (pending.Remove(key) || (!touching.ContainsKey(key) && held.Add(key)))
-                    started.Add(hit);
-            }
-
+            StartCharacterHits(started);
             // Stryker disable once all : the test only saves work; without an update Jolt simulates no body, so no pair ends.
             if (updatedSinceDrain && held.Count > 0)
-            {
-                heldScratch.Clear();
-                foreach (ulong key in held)
-                    if (HeldPairEnded(key))
-                        heldScratch.Add(key);
-                foreach (ulong key in heldScratch)
-                {
-                    held.Remove(key);
-                    ended.Add(EndOf(key));
-                }
-            }
-
+                EndHeldPairs(ended);
             updatedSinceDrain = false;
+        }
+    }
+
+    /// <summary>
+    /// Counts a sub-shape contact that Jolt added to its pair, as <see cref="DrainContacts"/> says, and appends the contact
+    /// to <paramref name="started"/> when it starts the pair.
+    /// </summary>
+    private void DrainAdded(RawContact contact, List<RawContact> started)
+    {
+        ulong key = contact.PairKey;
+        touching.TryGetValue(key, out int count);
+        touching[key] = count + 1;
+        // A held pair that Jolt finds again moves to touching, so the index keeps it.
+        if (count == 0 && held.Remove(key))
+            return;
+        if (count == 0)
+            pairIndex.Add(key);
+        if (count == 0 && !contact.Touches)
+            pending.Add(key);
+        else if (contact.Touches && (count == 0 || pending.Remove(key)))
+            started.Add(contact);
+    }
+
+    /// <summary>Counts a sub-shape contact that Jolt removed from the pair <paramref name="key"/>, as <see cref="DrainContacts"/> says.</summary>
+    private void DrainRemoved(ulong key)
+    {
+        if (!touching.TryGetValue(key, out int count))
+            return;
+        if (count > 1)
+        {
+            touching[key] = count - 1;
+            return;
+        }
+
+        // A pair that never touched leaves without a report. A pair that started ended, or Jolt dropped it because it
+        // simulates neither body. The check below tells which.
+        touching.Remove(key);
+        if (!pending.Remove(key))
+            held.Add(key);
+        else
+            Unindex(key);
+    }
+
+    /// <summary>
+    /// Starts the pair of each body that a character hit in its last update, unless it started already, and appends the
+    /// hit to <paramref name="started"/>. A hit is a real touch. A pending pair starts at once. A pair that Jolt does not
+    /// hold starts held, because Jolt may never find it, and the character's contact list ends it.
+    /// </summary>
+    private void StartCharacterHits(List<RawContact> started)
+    {
+        foreach (RawContact hit in characterHits)
+        {
+            ulong key = hit.PairKey;
+            if (pending.Remove(key) || (!touching.ContainsKey(key) && Hold(key)))
+                started.Add(hit);
+        }
+    }
+
+    /// <summary>Ends each held pair that <see cref="HeldPairEnded"/> says ended, and appends it to <paramref name="ended"/>.</summary>
+    private void EndHeldPairs(List<RawEnd> ended)
+    {
+        heldScratch.Clear();
+        foreach (ulong key in held)
+            if (HeldPairEnded(key))
+                heldScratch.Add(key);
+        foreach (ulong key in heldScratch)
+        {
+            Unhold(key);
+            ended.Add(EndOf(key));
         }
     }
 
@@ -677,23 +711,22 @@ internal sealed class FrameWorld : IDisposable
         ulong key = PairKey(a, b);
         lock (contactGate)
         {
-            return touching.ContainsKey(key) ? pending.Remove(key) : held.Add(key);
+            return touching.ContainsKey(key) ? pending.Remove(key) : Hold(key);
         }
     }
 
     /// <summary>
     /// True when a body pair of <paramref name="body"/> in this system has started and not ended: a pair of
-    /// <c>touching</c> that is not pending, or a held pair. Costs time in proportion to the number of pairs in the system.
+    /// <c>touching</c> that is not pending, or a held pair. Costs time in proportion to the number of pairs of the body.
     /// </summary>
     public bool HasStartedPair(BodyID body)
     {
         lock (contactGate)
         {
-            foreach (ulong key in touching.Keys)
-                if (Involves(key, body) && !pending.Contains(key))
-                    return true;
-            foreach (ulong key in held)
-                if (Involves(key, body))
+            bodyPairScratch.Clear();
+            pairIndex.CopyPairsOf(body, bodyPairScratch);
+            foreach (ulong key in bodyPairScratch)
+                if (!pending.Contains(key))
                     return true;
         }
 
@@ -703,17 +736,16 @@ internal sealed class FrameWorld : IDisposable
     /// <summary>
     /// Appends to <paramref name="others"/> the other body of each body pair of <paramref name="body"/> in this system that
     /// has started and not ended, as <see cref="StartedPairs"/> lists them for the whole system. Costs time in proportion to
-    /// the number of pairs in the system.
+    /// the number of pairs of the body.
     /// </summary>
     public void StartedPairsOf(BodyID body, List<BodyID> others)
     {
         lock (contactGate)
         {
-            foreach (ulong key in touching.Keys)
-                if (Involves(key, body) && !pending.Contains(key))
-                    others.Add(Other(key, body));
-            foreach (ulong key in held)
-                if (Involves(key, body))
+            bodyPairScratch.Clear();
+            pairIndex.CopyPairsOf(body, bodyPairScratch);
+            foreach (ulong key in bodyPairScratch)
+                if (!pending.Contains(key))
                     others.Add(Other(key, body));
         }
     }
@@ -738,7 +770,7 @@ internal sealed class FrameWorld : IDisposable
         {
             if (touching.ContainsKey(key))
                 pending.Add(key);
-            held.Remove(key);
+            Unhold(key);
         }
     }
 
@@ -761,7 +793,7 @@ internal sealed class FrameWorld : IDisposable
     /// <summary>
     /// Forgets every contact of a body that leaves the system, touching, pending or held, and appends to
     /// <paramref name="ended"/> each one that started: every one but the pending ones. Call it while the body is still
-    /// in the system.
+    /// in the system. Costs time in proportion to the number of pairs of the body.
     /// </summary>
     public void ForgetContacts(BodyID body, List<RawEnd> ended)
     {
@@ -769,21 +801,81 @@ internal sealed class FrameWorld : IDisposable
             return;
         lock (contactGate)
         {
-            purgeScratch.Clear();
-            foreach (ulong key in touching.Keys)
-                if (Involves(key, body))
-                    purgeScratch.Add(key);
-            foreach (ulong key in held)
-                if (Involves(key, body))
-                    purgeScratch.Add(key);
-            foreach (ulong key in purgeScratch)
+            bodyPairScratch.Clear();
+            pairIndex.CopyPairsOf(body, bodyPairScratch);
+            foreach (ulong key in bodyPairScratch)
             {
                 if (!pending.Remove(key))
                     ended.Add(EndOf(key));
                 touching.Remove(key);
                 held.Remove(key);
+                Unindex(key);
             }
+
+            Contract.Ensures(!pairIndex.HasPairs(body));
         }
+    }
+
+    /// <summary>
+    /// Holds the pair <paramref name="key"/>, which is not in <c>touching</c>, and indexes it. Returns false when it was held
+    /// already.
+    /// </summary>
+    private bool Hold(ulong key)
+    {
+        Contract.Requires(!touching.ContainsKey(key));
+        if (!held.Add(key))
+            return false;
+        pairIndex.Add(key);
+        return true;
+    }
+
+    /// <summary>Stops holding the pair <paramref name="key"/>, if it is held, and takes it out of the index.</summary>
+    private void Unhold(ulong key)
+    {
+        if (held.Remove(key))
+            Unindex(key);
+    }
+
+    /// <summary>
+    /// Takes the pair <paramref name="key"/>, which leaves both pair tables, out of the index. Reports a bug when the index
+    /// does not hold it.
+    /// </summary>
+    private void Unindex(ulong key)
+    {
+        if (!pairIndex.Remove(key))
+            reportBug(
+                $"Physics: the pair of the bodies {First(key).ID} and {Second(key).ID} left the pair tables of the system of {Frame}, "
+                    + "but the pair index did not hold it. Only a bug makes the index disagree with the tables."
+            );
+    }
+
+    /// <summary>Checks the invariants of the pair tables (see the remarks of this type). Costs O(pairs).</summary>
+    public void AssertInvariants()
+    {
+        lock (contactGate)
+        {
+            pairIndex.AssertInvariants();
+            foreach (ulong key in pending)
+                Contract.Invariant(touching.ContainsKey(key));
+            foreach ((ulong key, int count) in touching)
+                Contract.Invariant(count > 0 && !held.Contains(key) && pairIndex.Contains(key));
+            foreach (ulong key in held)
+                Contract.Invariant(pairIndex.Contains(key));
+            Contract.Invariant(pairIndex.Count == touching.Count + held.Count);
+        }
+    }
+
+    /// <summary>
+    /// The hash of the pair tables: the high 32 bits of the product of the key and the odd 64-bit number nearest 2^64 over
+    /// the golden ratio (Fibonacci hashing). The default hash XORs the two body IDs, which pairs of neighbors with consecutive IDs share.
+    /// </summary>
+    internal sealed class PairKeyHash : IEqualityComparer<ulong>
+    {
+        public static readonly PairKeyHash Instance = new();
+
+        public bool Equals(ulong x, ulong y) => x == y;
+
+        public int GetHashCode(ulong key) => (int)((key * 0x9E37_79B9_7F4A_7C15UL) >> 32);
     }
 
     public void Dispose()
