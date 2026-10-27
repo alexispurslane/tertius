@@ -108,13 +108,7 @@ public class NumericFrameUpdateBenchmarks
     public void Update()
     {
         changes.Clear();
-        frames.UpdateNumericFrames(
-            bodies: bodies,
-            dt: 1.0 / 60,
-            step: 1.0 / 60,
-            changes: changes,
-            applyMoves: applyMoves
-        );
+        frames.UpdateNumericFrames(bodies: bodies, ticks: 1, tickRate: 60, changes: changes, applyMoves: applyMoves);
     }
 }
 
@@ -233,12 +227,6 @@ public class NumericFramePlaceBenchmarks
     public void Update()
     {
         changes.Clear();
-        frames.UpdateNumericFrames(
-            bodies: bodies,
-            dt: 1.0 / 60,
-            step: 1.0 / 60,
-            changes: changes,
-            applyMoves: applyMoves
-        );
+        frames.UpdateNumericFrames(bodies: bodies, ticks: 1, tickRate: 60, changes: changes, applyMoves: applyMoves);
     }
 }

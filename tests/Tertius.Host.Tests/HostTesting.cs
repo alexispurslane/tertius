@@ -244,10 +244,14 @@ public static class HostTesting
     public static World NewWorld() => new(new() { MaxDegreeOfParallelism = 1, DebugChecks = true });
 
     /// <summary>A world on the real Jolt backend, which it owns, with one gameplay thread and the invariant checks of every tick.</summary>
-    public static World NewJoltWorld() =>
+    public static World NewJoltWorld() => NewJoltWorld(tickRate: 60);
+
+    /// <summary>Like <see cref="NewJoltWorld()"/>, at <paramref name="tickRate"/> ticks per second.</summary>
+    public static World NewJoltWorld(int tickRate) =>
         new(
             new()
             {
+                TickRate = tickRate,
                 MaxDegreeOfParallelism = 1,
                 DebugChecks = true,
                 DisposePhysics = true,

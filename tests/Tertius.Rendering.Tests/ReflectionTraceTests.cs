@@ -50,7 +50,7 @@ public sealed class ReflectionTraceTests
     public void AnUpsampleOverAFullResolutionTraceIsRefusedWhenThePassIsMade()
     {
         using var plumbing = new Plumbing(TraceResolution.Full);
-        using var shaders = new ShaderLibrary(plumbing.Device);
+        using var shaders = new ShaderLibrary(plumbing.Device, ShaderLibrary.EngineShaders);
 
         FluentActions
             .Invoking(() =>

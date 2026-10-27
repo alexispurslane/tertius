@@ -58,68 +58,14 @@ public sealed class Blueprints
         lock (gate)
         {
             string name = blueprint.Name;
-            if (string.IsNullOrWhiteSpace(name))
-                throw new ArgumentException("A blueprint needs a name.", nameof(blueprint));
-            if (entries.ContainsKey(name))
-                throw new ArgumentException($"Blueprint '{name}' is already registered.", nameof(blueprint));
-            if (blueprint.Components is null)
-                throw new ArgumentException($"Blueprint '{name}' has no component list.", nameof(blueprint));
-
-            Entry? parent = null;
-            if (blueprint.Parent is { } parentName && !entries.TryGetValue(parentName, out parent))
-                throw new ArgumentException(
-                    $"Blueprint '{name}' names the parent '{parentName}', which is not registered. Register parents first.",
-                    nameof(blueprint)
-                );
-
-            var specs = new List<(Type Type, Dictionary<string, object?> Fields)>();
-            if (parent != null)
-                foreach ((Type type, Dictionary<string, object?> fields) in parent.Specs)
-                    specs.Add((type, new(fields, StringComparer.Ordinal)));
-
-            var own = new HashSet<Type>();
-            foreach (ComponentSpec spec in blueprint.Components)
-            {
-                if (spec is null)
-                    throw new ArgumentException($"Blueprint '{name}' has a null component spec.", nameof(blueprint));
-                ValidateType(name, spec.Type);
-                if (!own.Add(spec.Type))
-                    throw new ArgumentException($"Blueprint '{name}' lists {spec.Type.Name} twice.", nameof(blueprint));
-
-                int index = specs.FindIndex(s => s.Type == spec.Type);
-                if (index < 0)
-                {
-                    specs.Add((spec.Type, [with(StringComparer.Ordinal)]));
-                    index = specs.Count - 1;
-                }
-
-                if (spec.Fields != null)
-                    foreach ((string field, object? value) in spec.Fields)
-                        specs[index].Fields[field] = Coerce(
-                            blueprint: name,
-                            type: spec.Type,
-                            field: field,
-                            value: value
-                        );
-            }
-
+            Entry? parent = CheckBlueprintAndFindParent(blueprint);
+            List<(Type Type, Dictionary<string, object?> Fields)> specs = MergedSpecs(blueprint, parent);
             var recipes = new Recipe[specs.Count];
             var resolvedSpecs = new ComponentSpec[specs.Count];
             for (int i = 0; i < specs.Count; i++)
             {
                 (Type type, Dictionary<string, object?> fields) = specs[i];
-                string[] names = [.. fields.Keys];
-                Array.Sort(names, StringComparer.Ordinal);
-                object?[] values = new object?[names.Length];
-                for (int j = 0; j < names.Length; j++)
-                    values[j] = fields[names[j]];
-                var key = new FactoryKey(type, string.Join('\n', names));
-                Func<object?[], IComponent> factory = Factories.GetOrAdd(
-                    key,
-                    static (_, arg) => Compile(arg.Type, arg.Names),
-                    (Type: type, Names: names)
-                );
-                recipes[i] = new(factory, values);
+                recipes[i] = RecipeOf(type, fields);
                 resolvedSpecs[i] = new(
                     type,
                     new ReadOnlyDictionary<string, object?>(
@@ -295,6 +241,88 @@ public sealed class Blueprints
 
         Expression body = Expression.Convert(Expression.MemberInit(Expression.New(type), bindings), typeof(IComponent));
         return Expression.Lambda<Func<object?[], IComponent>>(body, values).Compile();
+    }
+
+    /// <summary>
+    /// Checks the name and the component list of <paramref name="blueprint"/>, and gives the entry of its parent, or null
+    /// for a blueprint without one.
+    /// </summary>
+    /// <exception cref="ArgumentException">The name is empty or taken, the list is missing, or the parent is not registered.</exception>
+    private Entry? CheckBlueprintAndFindParent(Blueprint blueprint)
+    {
+        string name = blueprint.Name;
+        if (string.IsNullOrWhiteSpace(name))
+            throw new ArgumentException("A blueprint needs a name.", nameof(blueprint));
+        if (entries.ContainsKey(name))
+            throw new ArgumentException($"Blueprint '{name}' is already registered.", nameof(blueprint));
+        if (blueprint.Components is null)
+            throw new ArgumentException($"Blueprint '{name}' has no component list.", nameof(blueprint));
+
+        Entry? parent = null;
+        if (blueprint.Parent is { } parentName && !entries.TryGetValue(parentName, out parent))
+            throw new ArgumentException(
+                $"Blueprint '{name}' names the parent '{parentName}', which is not registered. Register parents first.",
+                nameof(blueprint)
+            );
+        return parent;
+    }
+
+    /// <summary>
+    /// The component types of <paramref name="blueprint"/> and their field values, merged over copies of those of
+    /// <paramref name="parent"/>: the parent's types first, in order, each with the child's values winning, then the
+    /// child's other types.
+    /// </summary>
+    /// <exception cref="ArgumentException">A spec is null, lists a type twice, or has a field that does not fit.</exception>
+    private static List<(Type Type, Dictionary<string, object?> Fields)> MergedSpecs(Blueprint blueprint, Entry? parent)
+    {
+        string name = blueprint.Name;
+        var specs = new List<(Type Type, Dictionary<string, object?> Fields)>();
+        if (parent != null)
+            foreach ((Type type, Dictionary<string, object?> fields) in parent.Specs)
+                specs.Add((type, new(fields, StringComparer.Ordinal)));
+
+        var own = new HashSet<Type>();
+        foreach (ComponentSpec spec in blueprint.Components)
+        {
+            if (spec is null)
+                throw new ArgumentException($"Blueprint '{name}' has a null component spec.", nameof(blueprint));
+            ValidateType(name, spec.Type);
+            if (!own.Add(spec.Type))
+                throw new ArgumentException($"Blueprint '{name}' lists {spec.Type.Name} twice.", nameof(blueprint));
+
+            int index = specs.FindIndex(s => s.Type == spec.Type);
+            if (index < 0)
+            {
+                specs.Add((spec.Type, [with(StringComparer.Ordinal)]));
+                index = specs.Count - 1;
+            }
+
+            if (spec.Fields != null)
+                foreach ((string field, object? value) in spec.Fields)
+                    specs[index].Fields[field] = Coerce(blueprint: name, type: spec.Type, field: field, value: value);
+        }
+
+        return specs;
+    }
+
+    /// <summary>
+    /// The recipe of one component type with <paramref name="fields"/>: the shared factory for the type and its field
+    /// names, compiled at its first use, and the values in the order of the names.
+    /// </summary>
+    private static Recipe RecipeOf(Type type, Dictionary<string, object?> fields)
+    {
+        string[] names = [.. fields.Keys];
+        Array.Sort(names, StringComparer.Ordinal);
+        object?[] values = new object?[names.Length];
+        for (int j = 0; j < names.Length; j++)
+            values[j] = fields[names[j]];
+        var key = new FactoryKey(type, string.Join('\n', names));
+        Func<object?[], IComponent> factory = Factories.GetOrAdd(
+            key,
+            static (_, arg) => Compile(arg.Type, arg.Names),
+            (Type: type, Names: names)
+        );
+        return new(factory, values);
     }
 
     private readonly record struct FactoryKey(Type Type, string Fields);

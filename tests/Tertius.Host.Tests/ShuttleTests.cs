@@ -413,7 +413,7 @@ public sealed class ShuttleTests : IDisposable
         Tick(world, ticks + 5);
 
         Vector3 turning = world.AngularVelocityIn(hull, space);
-        float expected = torque * ticks * world.DeltaTime / moment;
+        float expected = torque * ticks * (float)world.DeltaTime / moment;
         float along = Vector3.Dot(turning, axis);
         along
             .Should()

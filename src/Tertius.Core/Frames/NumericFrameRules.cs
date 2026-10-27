@@ -519,80 +519,92 @@ internal static class NumericFrameRules
     }
 
     /// <summary>
-    /// The split clock of one numeric frame over a sync point of <paramref name="dt"/> seconds. <paramref name="together"/>
-    /// is true when the merge test links all of its members, and <paramref name="apart"/> is how long they have been apart
-    /// before, in seconds. Hold is true when the members must stay in one group although they are apart. Apart is the new
-    /// time, which starts again at zero when they are together or when the cooldown has passed and they split.
+    /// The time of <paramref name="ticks"/> ticks at <paramref name="tickRate"/> ticks per second, in seconds, as the world
+    /// clock divides it. Each clock counts whole ticks: a sum of tick lengths rounds, and 30 sixtieths of a second add up
+    /// to less than 0.5 s (ARCHITECTURE.md, "Threads and the tick").
     /// </summary>
-    internal static (bool Hold, double Apart) SplitClock(
+    internal static double Seconds(long ticks, int tickRate) => ticks / (double)tickRate;
+
+    /// <summary>
+    /// The split clock of one numeric frame over a sync point of <paramref name="ticks"/> ticks at <paramref name="tickRate"/>
+    /// ticks per second. <paramref name="together"/> is true when the merge test links all of its members, and
+    /// <paramref name="apart"/> is how many ticks they have been apart before. Hold is true when the members must stay in one
+    /// group although they are apart. Apart is the new count, which starts again at zero when they are together or when the
+    /// cooldown has passed and they split.
+    /// </summary>
+    internal static (bool Hold, long Apart) SplitClock(
         bool together,
-        double apart,
-        double dt,
+        long apart,
+        int ticks,
+        int tickRate,
         NumericFrameOptions options
     )
     {
         if (together)
             return (false, 0);
-        double time = apart + dt;
-        return time >= options.SplitCooldown ? (false, 0) : (true, time);
+        long count = apart + ticks;
+        return Seconds(count, tickRate) >= options.SplitCooldown ? (false, 0) : (true, count);
     }
 
     /// <summary>
-    /// The thrust clock of one body over a tick of <paramref name="dt"/> seconds, whose force and impulse intents ask for
-    /// <paramref name="acceleration"/> m/s² (see <see cref="NumericBody.ThrustAcceleration"/>). <paramref name="thrustTime"/>
-    /// is the time of the thrust ticks so far and <paramref name="quietTime"/> the time since the last one, both in seconds.
-    /// A tick whose acceleration reaches <see cref="NumericFrameOptions.MinThrustAcceleration"/> is a thrust tick: it adds
-    /// <paramref name="dt"/> to the thrust time and clears the quiet time. Any other tick adds <paramref name="dt"/> to the
-    /// quiet time, and when that reaches <see cref="NumericFrameOptions.ThrustWindow"/>, the clock starts again at zero.
-    /// Thrusts is true while the thrust time is at least <see cref="NumericFrameOptions.ThrustOnset"/>. So a single impulse
-    /// never counts, pulses less than the window apart add up, and a body that thrusts keeps counting for the window after
-    /// its last thrust tick.
+    /// The thrust clock of one body over a sync point of <paramref name="ticks"/> ticks at <paramref name="tickRate"/> ticks
+    /// per second, whose force and impulse intents ask for <paramref name="acceleration"/> m/s² (see
+    /// <see cref="NumericBody.ThrustAcceleration"/>). <paramref name="thrustTicks"/> counts the thrust ticks so far and
+    /// <paramref name="quietTicks"/> the ticks since the last one. A tick whose acceleration reaches
+    /// <see cref="NumericFrameOptions.MinThrustAcceleration"/> is a thrust tick: it adds to the thrust count and clears the
+    /// quiet count. Any other tick adds to the quiet count, and when that lasts <see cref="NumericFrameOptions.ThrustWindow"/>,
+    /// the clock starts again at zero. Thrusts is true while the thrust ticks last at least
+    /// <see cref="NumericFrameOptions.ThrustOnset"/>. So a single impulse never counts, pulses less than the window apart add
+    /// up, and a body that thrusts keeps counting for the window after its last thrust tick.
     /// </summary>
-    internal static (bool Thrusts, double ThrustTime, double QuietTime) ThrustClock(
+    internal static (bool Thrusts, long ThrustTicks, long QuietTicks) ThrustClock(
         double acceleration,
-        double thrustTime,
-        double quietTime,
-        double dt,
+        long thrustTicks,
+        long quietTicks,
+        int ticks,
+        int tickRate,
         NumericFrameOptions options
     )
     {
         if (acceleration >= options.MinThrustAcceleration)
         {
-            thrustTime += dt;
-            quietTime = 0;
+            thrustTicks += ticks;
+            quietTicks = 0;
         }
         else
         {
-            quietTime += dt;
-            if (quietTime >= options.ThrustWindow)
+            quietTicks += ticks;
+            if (Seconds(quietTicks, tickRate) >= options.ThrustWindow)
                 return (false, 0, 0);
         }
 
-        return (thrustTime >= options.ThrustOnset, thrustTime, quietTime);
+        return (Seconds(thrustTicks, tickRate) >= options.ThrustOnset, thrustTicks, quietTicks);
     }
 
     /// <summary>
     /// The leave clock of a body that the last update kept in its semantic frame's own system although it needs a frame by
-    /// itself, over a sync point of <paramref name="dt"/> seconds. <paramref name="mode"/> is the mode that the body's group
-    /// gets, and <paramref name="frame"/> the numeric frame that holds most of the group's mass, or null. The body is about
-    /// to leave when its group would rest in a new frame: then Apart is <paramref name="apart"/>, the time it has been about
-    /// to leave before, plus <paramref name="dt"/>, and Hold is true while that is below the split cooldown. Apart keeps
-    /// counting past the cooldown, so that a member that another member holds does not start again. Else the clock is zero
-    /// and holds nothing: a group that stays needs no hold, a group that joins a numeric frame merges at once, as numeric
-    /// frames do, and a group that falls leaves at once, because the speed thresholds give falling its own hysteresis.
+    /// itself, over a sync point of <paramref name="ticks"/> ticks at <paramref name="tickRate"/> ticks per second.
+    /// <paramref name="mode"/> is the mode that the body's group gets, and <paramref name="frame"/> the numeric frame that
+    /// holds most of the group's mass, or null. The body is about to leave when its group would rest in a new frame: then
+    /// Apart is <paramref name="apart"/>, the ticks it has been about to leave before, plus <paramref name="ticks"/>, and Hold
+    /// is true while that lasts less than the split cooldown. Apart keeps counting past the cooldown, so that a member that
+    /// another member holds does not start again. Else the clock is zero and holds nothing: a group that stays needs no hold,
+    /// a group that joins a numeric frame merges at once, as numeric frames do, and a group that falls leaves at once,
+    /// because the speed thresholds give falling its own hysteresis.
     /// </summary>
-    internal static (bool Hold, double Apart) LeaveClock(
+    internal static (bool Hold, long Apart) LeaveClock(
         NumericMode mode,
         FrameHandle frame,
-        double apart,
-        double dt,
+        long apart,
+        int ticks,
+        int tickRate,
         NumericFrameOptions options
     )
     {
         if (mode != NumericMode.Resting || !frame.IsNull)
             return (false, 0);
-        double time = apart + dt;
-        return (time < options.SplitCooldown, time);
+        long count = apart + ticks;
+        return (Seconds(count, tickRate) < options.SplitCooldown, count);
     }
 
     /// <summary>

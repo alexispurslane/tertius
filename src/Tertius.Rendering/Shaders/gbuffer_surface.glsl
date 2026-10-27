@@ -4,8 +4,8 @@
 // (docs/plans/screen-space-illumination.md, "The ambient pass"). So does the reflection's footprint, which the ambient
 // pass and the pass that adds the reflections' delta (the full-resolution trace, or the upsample at half resolution)
 // take from the G-buffer, so that the delta takes away the very ambient specular term that the ambient pass added
-// (docs/plans/environment-map.md, "Where it runs"). The pixel must lie inside the G-buffer: texelFetch outside an image
-// is undefined.
+// (docs/plans/environment-map.md, "Where it runs"). The ambient pass skips it where its light does not read it. The
+// pixel must lie inside the G-buffer: texelFetch outside an image is undefined.
 #ifndef TERTIUS_GBUFFER_SURFACE_GLSL
 #define TERTIUS_GBUFFER_SURFACE_GLSL
 
@@ -79,15 +79,40 @@ ShadingInput materialAt(ivec2 pixel)
     return s;
 }
 
-ShadingInput surfaceAt(ivec2 pixel)
+// The surface with the estimate, with the footprint still at its floor p.
+ShadingInput estimatedAt(ivec2 pixel)
 {
     ShadingInput s = materialAt(pixel);
-    s.reflectionFootprint = reflectionFootprintAt(pixel);
     vec4 estimate = texelFetch(gbufferEstimate, pixel, 0);
     s.occlusion = estimate.a;
     // The images hold the bounce pre-exposed. k = exp2(stops) is a normal float above 0, and the quotient stays below
     // c · 2⁶⁴, a finite single float.
     s.bounce = estimate.rgb / exposureScale();
+    return s;
+}
+
+ShadingInput surfaceAt(ivec2 pixel)
+{
+    ShadingInput s = estimatedAt(pixel);
+    s.reflectionFootprint = reflectionFootprintAt(pixel);
+    return s;
+}
+
+// Whether the ambient light reads the surface's footprint: only the map's reflected stars read it, and only where the
+// lobe alone does not end their fade (lobeEndsStarFade).
+bool ambientReadsFootprint(ShadingInput s)
+{
+    float roughness = flooredRoughness(s.roughness);
+    return !skipsTermsThatAddNothing || environmentMapOn && !lobeEndsStarFade(roughness * roughness);
+}
+
+// The surface for the ambient light alone: surfaceAt's, but with the footprint left at p where the ambient light does
+// not read it, which gives the same light and saves the G-buffer reads of reflectionFootprintAt.
+ShadingInput ambientSurfaceAt(ivec2 pixel)
+{
+    ShadingInput s = estimatedAt(pixel);
+    if (ambientReadsFootprint(s))
+        s.reflectionFootprint = reflectionFootprintAt(pixel);
     return s;
 }
 

@@ -464,7 +464,7 @@ public sealed class FrameProperAccelerationTests
         // The impulse set the velocity before the step, so the step record's acceleration leaves it out. The accelerometer
         // feels it: Δv / dt for that one step.
         sent.Motion.Acceleration.Length.Should().BeLessThan(1e-3);
-        world.Frames.ProperAcceleration(ship).Z.Should().BeApproximately(2 / world.DeltaTime, 0.05f);
+        world.Frames.ProperAcceleration(ship).Z.Should().BeApproximately(2 / (float)world.DeltaTime, 0.05f);
         world.Errors.Should().BeEmpty();
     }
 

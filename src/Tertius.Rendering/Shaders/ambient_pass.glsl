@@ -44,7 +44,7 @@ void main()
         return;
     }
 
-    ShadingInput s = surfaceAt(pixel);
+    ShadingInput s = ambientSurfaceAt(pixel);
     vec3 V = -direction;
     AmbientTerms ambient = ambientTerms(s, lobesOf(s, V), V);
     float k = exposureScale();

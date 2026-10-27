@@ -111,7 +111,7 @@ public sealed class OcclusionImagesTests
         using (var plumbing = new Plumbing(640, 360))
         {
             log = plumbing.Device.Log;
-            using var shaders = new ShaderLibrary(plumbing.Device);
+            using var shaders = new ShaderLibrary(plumbing.Device, ShaderLibrary.EngineShaders);
             Pipeline pipeline = new ComputePipelineDesc
             {
                 Name = shader,

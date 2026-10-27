@@ -399,7 +399,6 @@ internal sealed unsafe class ImpostorPass : RenderPass, IRangeDrawer
     /// </summary>
     private void GenerateMips(Vk vk, CommandBuffer commandBuffer, BarrierBatch barriers, uint layer)
     {
-        const uint levels = ImpostorAtlas.MipLevels;
         foreach (GpuImage image in Images())
             barriers.ImageLevels(
                 image: image,
@@ -417,59 +416,85 @@ internal sealed unsafe class ImpostorPass : RenderPass, IRangeDrawer
         barriers.Flush(vk, commandBuffer);
 
         int size = ImpostorAtlas.TileSize;
-        for (uint level = 1; level < levels; level++)
+        for (uint level = 1; level < ImpostorAtlas.MipLevels; level++)
         {
             if (level > 1)
-            {
-                foreach (GpuImage image in Images())
-                    barriers.ImageLevels(
-                        image: image,
-                        baseMip: level - 1,
-                        mipCount: 1,
-                        oldLayout: ImageLayout.TransferDstOptimal,
-                        newLayout: ImageLayout.TransferSrcOptimal,
-                        srcStages: PipelineStageFlags2.AllTransferBit,
-                        srcAccess: AccessFlags2.TransferWriteBit,
-                        dstStages: PipelineStageFlags2.AllTransferBit,
-                        dstAccess: AccessFlags2.TransferReadBit,
-                        baseLayer: layer,
-                        layerCount: 1
-                    );
-                barriers.Flush(vk, commandBuffer);
-            }
-
-            int next = Math.Max(1, size / 2);
-            var blit = new ImageBlit
-            {
-                SrcSubresource = new(
-                    aspectMask: ImageAspectFlags.ColorBit,
-                    mipLevel: level - 1,
-                    baseArrayLayer: layer,
-                    layerCount: 1
-                ),
-                DstSubresource = new(
-                    aspectMask: ImageAspectFlags.ColorBit,
-                    mipLevel: level,
-                    baseArrayLayer: layer,
-                    layerCount: 1
-                ),
-            };
-            blit.SrcOffsets[1] = new(size, size, 1);
-            blit.DstOffsets[1] = new(next, next, 1);
-            foreach (GpuImage image in Images())
-                vk.CmdBlitImage(
+                MakeLevelABlitSource(
+                    vk: vk,
                     commandBuffer: commandBuffer,
-                    srcImage: image.Handle,
-                    srcImageLayout: ImageLayout.TransferSrcOptimal,
-                    dstImage: image.Handle,
-                    dstImageLayout: ImageLayout.TransferDstOptimal,
-                    regionCount: 1,
-                    pRegions: &blit,
-                    filter: Filter.Linear
+                    barriers: barriers,
+                    layer: layer,
+                    level: level - 1
                 );
-            size = next;
+            size = BlitLevel(vk: vk, commandBuffer: commandBuffer, layer: layer, level: level, size: size);
         }
 
+        ReturnTileToShaders(barriers, layer);
+        barriers.Flush(vk, commandBuffer);
+    }
+
+    /// <summary>Turns <paramref name="level"/> of one tile in both arrays, which a blit just wrote, into a blit source.</summary>
+    private void MakeLevelABlitSource(Vk vk, CommandBuffer commandBuffer, BarrierBatch barriers, uint layer, uint level)
+    {
+        foreach (GpuImage image in Images())
+            barriers.ImageLevels(
+                image: image,
+                baseMip: level,
+                mipCount: 1,
+                oldLayout: ImageLayout.TransferDstOptimal,
+                newLayout: ImageLayout.TransferSrcOptimal,
+                srcStages: PipelineStageFlags2.AllTransferBit,
+                srcAccess: AccessFlags2.TransferWriteBit,
+                dstStages: PipelineStageFlags2.AllTransferBit,
+                dstAccess: AccessFlags2.TransferReadBit,
+                baseLayer: layer,
+                layerCount: 1
+            );
+        barriers.Flush(vk, commandBuffer);
+    }
+
+    /// <summary>
+    /// Blits <paramref name="level"/> of one tile in both arrays from the level above it, whose side is
+    /// <paramref name="size"/> texels, and gives the side of the new level.
+    /// </summary>
+    private int BlitLevel(Vk vk, CommandBuffer commandBuffer, uint layer, uint level, int size)
+    {
+        int next = Math.Max(1, size / 2);
+        var blit = new ImageBlit
+        {
+            SrcSubresource = new(
+                aspectMask: ImageAspectFlags.ColorBit,
+                mipLevel: level - 1,
+                baseArrayLayer: layer,
+                layerCount: 1
+            ),
+            DstSubresource = new(
+                aspectMask: ImageAspectFlags.ColorBit,
+                mipLevel: level,
+                baseArrayLayer: layer,
+                layerCount: 1
+            ),
+        };
+        blit.SrcOffsets[1] = new(size, size, 1);
+        blit.DstOffsets[1] = new(next, next, 1);
+        foreach (GpuImage image in Images())
+            vk.CmdBlitImage(
+                commandBuffer: commandBuffer,
+                srcImage: image.Handle,
+                srcImageLayout: ImageLayout.TransferSrcOptimal,
+                dstImage: image.Handle,
+                dstImageLayout: ImageLayout.TransferDstOptimal,
+                regionCount: 1,
+                pRegions: &blit,
+                filter: Filter.Linear
+            );
+        return next;
+    }
+
+    /// <summary>Adds the barriers that return every level of one tile in both arrays to the fragment shaders.</summary>
+    private void ReturnTileToShaders(BarrierBatch barriers, uint layer)
+    {
+        const uint levels = ImpostorAtlas.MipLevels;
         // Every level but the last is a transfer source now; the last is still a transfer destination.
         foreach (GpuImage image in Images())
         {
@@ -500,8 +525,6 @@ internal sealed unsafe class ImpostorPass : RenderPass, IRangeDrawer
                 layerCount: 1
             );
         }
-
-        barriers.Flush(vk, commandBuffer);
     }
 
     private AtlasImages Images() => new(atlas);

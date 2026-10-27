@@ -677,14 +677,15 @@ public sealed class PhysicsChanges
 /// <summary>Read-only inputs to one physics step. Everything here is fixed for the duration of the step.</summary>
 public readonly struct PhysicsStepContext(
     long tick,
-    float deltaTime,
+    double deltaTime,
     double time,
     FrameTree frames,
     ReadOnlyMemory<PhysicsIntent> intents,
     ReadOnlyMemory<Entity> intentEntities)
 {
     public long Tick { get; } = tick;
-    public float DeltaTime { get; } = deltaTime;
+    /// <summary>The length of the step, in seconds.</summary>
+    public double DeltaTime { get; } = deltaTime;
 
     /// <summary>Simulation time at the start of the step, in seconds.</summary>
     public double Time { get; } = time;

@@ -281,37 +281,49 @@ internal sealed partial class ImpostorManager : IInstanceProcessor
             decisions = new int[Math.Max(visible.Length, decisions.Length * 2)];
 
         for (int i = 0; i < visible.Length; i++)
-        {
-            decisions[i] = -1;
-            ref PreparedInstance instance = ref visible[i];
-            if (!MayBecomeImpostor(scene, instance))
-                continue;
-            float height = ProjectedHeight(instance.Distance, instance.Radius, camera);
-            var key = ImpostorKey.Of(instance);
-            ref int slot = ref CollectionsMarshal.GetValueRefOrAddDefault(lookup, key, out bool exists);
-            if (!exists)
-                slot = AllocateState(key);
-            ref State state = ref states[slot];
-            if (state.LastSeen == Frame)
-                continue;
-            state.LastSeen = Frame;
-            state.Height = height;
-            if (state.Impostor ? height > ExitHeight : height < EnterHeight)
-                state.Impostor = !state.Impostor;
-            if (!state.Impostor)
-                continue;
-
-            decisions[i] = slot;
-            QueueCapture(state: ref state, index: i, instance: instance, light: light);
-        }
+            decisions[i] = Decide(scene: scene, instance: ref visible[i], index: i, light: light, camera: camera);
 
         SelectCaptures(visible, light, camera);
         EmitDraws(scene, visible);
     }
 
     /// <summary>
-    /// Decides whether the impostor of visible instance <paramref name="index"/> draws this frame, and queues its first
-    /// capture or its recapture when it needs one.
+    /// Decides whether the visible instance at <paramref name="index"/> draws as an impostor this frame, and queues its
+    /// first capture or its recapture when it needs one. Gives its state's slot when it is an impostor, and -1 when it
+    /// draws as geometry.
+    /// </summary>
+    private int Decide(
+        PreparedScene scene,
+        ref PreparedInstance instance,
+        int index,
+        in SceneLight light,
+        in CameraView camera
+    )
+    {
+        if (!MayBecomeImpostor(scene, instance))
+            return -1;
+        float height = ProjectedHeight(instance.Distance, instance.Radius, camera);
+        var key = ImpostorKey.Of(instance);
+        ref int slot = ref CollectionsMarshal.GetValueRefOrAddDefault(lookup, key, out bool exists);
+        if (!exists)
+            slot = AllocateState(key);
+        ref State state = ref states[slot];
+        if (state.LastSeen == Frame)
+            return -1;
+        state.LastSeen = Frame;
+        state.Height = height;
+        if (state.Impostor ? height > ExitHeight : height < EnterHeight)
+            state.Impostor = !state.Impostor;
+        if (!state.Impostor)
+            return -1;
+
+        QueueCapture(state: ref state, index: index, instance: instance, light: light);
+        return slot;
+    }
+
+    /// <summary>
+    /// Queues the first capture or the recapture of the impostor of visible instance <paramref name="index"/> when it
+    /// needs one, and decides whether its capture draws this frame.
     /// </summary>
     private void QueueCapture(ref State state, int index, in PreparedInstance instance, in SceneLight light)
     {

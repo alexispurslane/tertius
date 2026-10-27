@@ -32,27 +32,7 @@ public static partial class DemoScenes
     private static SceneInstance DemoShuttle(World world, IRenderResources resources)
     {
         var scene = new SceneInstance();
-        FrameHandle ground = world.CreateRootFrame(
-            new(FrameBounds.Sphere(1e6f), GravityField.Uniform(new(0, -9.81f, 0)))
-        );
-        scene.Add("ground", ground);
-        scene.Add(
-            "floor",
-            world.Spawn(
-                new()
-                {
-                    Frame = ground,
-                    Pose = new(new(0, -0.5, 0), DQuaternion.Identity),
-                    Body = new(Shape: new BoxShapeDesc(new(50, 0.5f, 50)), Motion: BodyMotion.Static),
-                    Render = Drawn(
-                        resources: resources,
-                        mesh: Primitives.Box(new(50, 0.5f, 50)),
-                        color: new(x: 0.35f, y: 0.35f, z: 0.35f, w: 1),
-                        boundingRadius: 71
-                    ),
-                }
-            )
-        );
+        FrameHandle ground = GroundWithFloor(world: world, resources: resources, scene: scene);
         scene.Add(
             "pad",
             world.Spawn(
@@ -70,7 +50,51 @@ public static partial class DemoScenes
                 }
             )
         );
+        SpawnStandingShuttle(world: world, resources: resources, scene: scene, ground: ground);
+        SpawnLyingShuttle(world: world, resources: resources, scene: scene, ground: ground);
 
+        Entity camera = world.Spawn(ViewIn(ground, LookingAt(new(-28, 7, 32), new(7, 5, 0))));
+        scene.Add("side-camera", camera);
+        scene.Add(
+            "tail-camera",
+            world.Spawn(
+                ViewIn(
+                    ground,
+                    LookingAt(new(LyingShuttleX + 2, 1, Shuttle.Hull.Z + 9), new(LyingShuttleX, 1.9, Shuttle.Hull.Z))
+                )
+            )
+        );
+        scene.Add(
+            "nose-camera",
+            world.Spawn(
+                ViewIn(
+                    ground,
+                    LookingAt(new(LyingShuttleX + 3, 6, -Shuttle.Hull.Z - 9), new(LyingShuttleX, 1.5, -Shuttle.Hull.Z))
+                )
+            )
+        );
+        world.Camera = camera;
+
+        // The star's light comes from this direction: up, to the port side and aft of the shuttles.
+        Star(world: world, scene: scene, frame: ground, center: Double3.Zero, direction: new(-30, 50, 40));
+        world.Ambient = Daylight;
+
+        scene.AddView("side-camera");
+        scene.AddView("tail-camera");
+        scene.AddView("nose-camera");
+        return scene;
+    }
+
+    /// <summary>
+    /// The shuttle <c>standing</c> on its tail on the pad, a dynamic body, with its nozzle and its panes.
+    /// </summary>
+    private static void SpawnStandingShuttle(
+        World world,
+        IRenderResources resources,
+        SceneInstance scene,
+        FrameHandle ground
+    )
+    {
         Entity standing = world.Spawn(
             new()
             {
@@ -99,6 +123,16 @@ public static partial class DemoScenes
             resources: resources,
             prefix: "standing"
         );
+    }
+
+    /// <summary>The shuttle <c>lying</c> parked on the floor beside the pad, with its nozzle and its panes.</summary>
+    private static void SpawnLyingShuttle(
+        World world,
+        IRenderResources resources,
+        SceneInstance scene,
+        FrameHandle ground
+    )
+    {
         Entity lying = Shuttle.Park(
             world: world,
             frame: ground,
@@ -120,53 +154,5 @@ public static partial class DemoScenes
             resources: resources,
             prefix: "lying"
         );
-
-        Entity camera = world.Spawn(
-            new()
-            {
-                Frame = ground,
-                Pose = LookingAt(new(-28, 7, 32), new(7, 5, 0)),
-                Render = new RenderData(),
-            }
-        );
-        scene.Add("side-camera", camera);
-        scene.Add(
-            "tail-camera",
-            world.Spawn(
-                new()
-                {
-                    Frame = ground,
-                    Pose = LookingAt(
-                        new(LyingShuttleX + 2, 1, Shuttle.Hull.Z + 9),
-                        new(LyingShuttleX, 1.9, Shuttle.Hull.Z)
-                    ),
-                    Render = new RenderData(),
-                }
-            )
-        );
-        scene.Add(
-            "nose-camera",
-            world.Spawn(
-                new()
-                {
-                    Frame = ground,
-                    Pose = LookingAt(
-                        new(LyingShuttleX + 3, 6, -Shuttle.Hull.Z - 9),
-                        new(LyingShuttleX, 1.5, -Shuttle.Hull.Z)
-                    ),
-                    Render = new RenderData(),
-                }
-            )
-        );
-        world.Camera = camera;
-
-        // The star's light comes from this direction: up, to the port side and aft of the shuttles.
-        Star(world: world, scene: scene, frame: ground, center: Double3.Zero, direction: new(-30, 50, 40));
-        world.Ambient = Daylight;
-
-        scene.AddView("side-camera");
-        scene.AddView("tail-camera");
-        scene.AddView("nose-camera");
-        return scene;
     }
 }

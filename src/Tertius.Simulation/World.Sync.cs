@@ -92,6 +92,18 @@ public sealed partial class World
         double endTime = TimeAt(TickNumber + 1);
         Profile.Start();
 
+        TakeStepResults(physicsError);
+        ApplyStructuralChanges();
+        SettleForNextStep();
+        Publish(endTime);
+    }
+
+    /// <summary>
+    /// Steps 1 to 2b of the sync point: the end of gameplay, then the results of the physics step, which every frame, body
+    /// and puff takes, and its contacts. A failed step gives no results.
+    /// </summary>
+    private void TakeStepResults(Exception? physicsError)
+    {
         // 1. The gameplay chunks and the physics step are done: Tick waited for both.
         int fallbackSpawns = Entities.EndGameplay();
         ReportChunkMessages(fallbackSpawns);
@@ -139,7 +151,14 @@ public sealed partial class World
         //     the end of the step. It reads only the frame tree, so it runs also after a failed step and without physics.
         Puffs.Step(TickNumber, DeltaTime);
         Profile.Lap(26);
+    }
 
+    /// <summary>
+    /// Steps 3 to 6c of the sync point: the checks of the rows, the intents of the next step, the destroys, the spawns, and
+    /// the moves of bodies into numeric frames and out of them.
+    /// </summary>
+    private void ApplyStructuralChanges()
+    {
         // 3. Physics owns the transform of every entity with a body. The entity table refuses such writes, and checks
         //    that none got through among its invariants.
         if (Options.DebugChecks)
@@ -189,10 +208,17 @@ public sealed partial class World
         //     changes of this sync reach physics with the update's first batch, so that a spawn that joins a numeric frame
         //     is created in it, with its velocity converted in doubles.
         if (Physics != null)
-            UpdateNumericFrames(DeltaTime);
+            UpdateNumericFrames(ticks: 1);
         FlushPhysicsChanges();
         Profile.Lap(11);
+    }
 
+    /// <summary>
+    /// Steps 7 to 7c of the sync point: the frame owners and the attached entities follow their frames, the intents convert
+    /// into the frames of the next step, and the emitters make their puffs.
+    /// </summary>
+    private void SettleForNextStep()
+    {
         // 7. The owner of every frame mirrors its frame again, after the numeric update, which can move a frame among numeric
         //    frames, unless nothing has changed the frame tree since the pass of step 2 (see MirrorFrameOwners). Then every
         //    attached entity follows.
@@ -217,7 +243,14 @@ public sealed partial class World
         //     step. Then the cap, and the rebuild of the ranges.
         Puffs.AddNewborns(TickNumber, DeltaTime);
         Profile.Lap(27);
+    }
 
+    /// <summary>
+    /// Steps 8 to 12 of the sync point: the swap of the snapshot, the answers of the physics queries, the messages, and the
+    /// render snapshot of the tick that ends at <paramref name="endTime"/>.
+    /// </summary>
+    private void Publish(double endTime)
+    {
         // 8. The back tables become the front tables.
         SwapSnapshot();
 

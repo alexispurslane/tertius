@@ -142,11 +142,10 @@ internal sealed unsafe class TextureStore : IDisposable
             | FormatFeatureFlags.SampledImageFilterLinearBit;
         bool mips = (features & blitFeatures) == blitFeatures;
         uint levels = mips ? (uint)BitOperations.Log2((uint)Math.Max(data.Width, data.Height)) + 1 : 1;
-        var extent = new Extent2D((uint)data.Width, (uint)data.Height);
         var image = GpuImage.Create(
             device: device,
             allocator: allocator,
-            extent: extent,
+            extent: new((uint)data.Width, (uint)data.Height),
             format: format,
             usage: ImageUsageFlags.SampledBit | ImageUsageFlags.TransferDstBit | ImageUsageFlags.TransferSrcBit,
             mipLevels: levels,
@@ -156,7 +155,23 @@ internal sealed unsafe class TextureStore : IDisposable
 
         StagingSlice stage = staging.Allocate((ulong)data.Rgba.Length);
         data.Rgba.CopyTo(stage.Bytes);
+        CopyToLevelZero(commandBuffer: commandBuffer, image: image, levels: levels, stage: stage, barriers: barriers);
+        BlitMipChain(commandBuffer: commandBuffer, image: image, levels: levels, barriers: barriers);
+        ReturnToShaders(commandBuffer: commandBuffer, image: image, levels: levels, barriers: barriers);
+    }
 
+    /// <summary>
+    /// Copies <paramref name="stage"/> into level 0 of <paramref name="image"/>, after a barrier that makes all its
+    /// <paramref name="levels"/> transfer destinations.
+    /// </summary>
+    private void CopyToLevelZero(
+        CommandBuffer commandBuffer,
+        GpuImage image,
+        uint levels,
+        StagingSlice stage,
+        BarrierBatch barriers
+    )
+    {
         Vk vk = device.Vk;
         barriers.ImageLevels(
             image: image,
@@ -179,7 +194,7 @@ internal sealed unsafe class TextureStore : IDisposable
                 baseArrayLayer: 0,
                 layerCount: 1
             ),
-            ImageExtent = new(extent.Width, extent.Height, 1),
+            ImageExtent = new(image.Extent.Width, image.Extent.Height, 1),
         };
         vk.CmdCopyBufferToImage(
             commandBuffer: commandBuffer,
@@ -189,10 +204,15 @@ internal sealed unsafe class TextureStore : IDisposable
             regionCount: 1,
             pRegions: &region
         );
+    }
 
+    /// <summary>Blits each level of <paramref name="image"/> below level 0 from the one above it.</summary>
+    private void BlitMipChain(CommandBuffer commandBuffer, GpuImage image, uint levels, BarrierBatch barriers)
+    {
+        Vk vk = device.Vk;
         // Each level is blitted from the one above it, which first becomes a transfer source.
-        int width = data.Width,
-            height = data.Height;
+        int width = (int)image.Extent.Width,
+            height = (int)image.Extent.Height;
         for (uint level = 1; level < levels; level++)
         {
             barriers.ImageLevels(
@@ -239,7 +259,11 @@ internal sealed unsafe class TextureStore : IDisposable
             width = nextWidth;
             height = nextHeight;
         }
+    }
 
+    /// <summary>Returns every level of <paramref name="image"/> to the fragment shaders, and records that state.</summary>
+    private void ReturnToShaders(CommandBuffer commandBuffer, GpuImage image, uint levels, BarrierBatch barriers)
+    {
         // Every level but the last is a transfer source now; the last is still a transfer destination.
         if (levels > 1)
             barriers.ImageLevels(
@@ -264,7 +288,7 @@ internal sealed unsafe class TextureStore : IDisposable
             dstStages: PipelineStageFlags2.FragmentShaderBit,
             dstAccess: AccessFlags2.ShaderSampledReadBit
         );
-        barriers.Flush(vk, commandBuffer);
+        barriers.Flush(device.Vk, commandBuffer);
         image.State = ResourceUses.Describe(ImageUse.SampledFragment);
     }
 

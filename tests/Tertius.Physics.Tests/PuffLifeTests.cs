@@ -13,7 +13,7 @@ namespace Tertius.Physics.Tests;
 public sealed class PuffLifeTests
 {
     /// <summary>The hash of the puffs of <see cref="BusyScene"/> after 300 ticks.</summary>
-    private const ulong PinnedHash = 7840000220236764960;
+    private const ulong PinnedHash = 13950460896152137838;
 
     private static int Count(World world) => world.Puffs.Count;
 
@@ -449,19 +449,22 @@ public sealed class PuffLifeTests
         PuffTesting.RangeFrames(world).Should().Equal(space);
         Puff[] rows = PuffTesting.Rows(world, space);
         rows.Should().HaveCount(6, "the 5 old puffs moved into the heir, and the newborn of the step was born there");
-        rows[^1].Age.Should().BeLessThan(world.DeltaTime);
+        rows[^1].Age.Should().BeLessThan((float)world.DeltaTime);
         Double3.Distance(rows[^1].Place, new(100, 0, 4)).Should().BeLessThan(1e-9);
         world.Errors.Should().BeEmpty();
     }
 
     // ---- A puff's medium changes ----------------------------------------------------------------------------------
 
-    /// <summary>The chord that the step of a puff with <paramref name="chord"/> and <paramref name="age"/> keeps in a medium of drag 2, with no field.</summary>
+    /// <summary>
+    /// The chord that the step of a puff with <paramref name="chord"/> and <paramref name="age"/> keeps in a medium of drag 2,
+    /// with no field, over the tick of 1 / 60 s in doubles.
+    /// </summary>
     private static Double3 DraggedChord(Double3 chord, float age, in PuffLook look)
     {
         double own = 1 - age / (double)look.Life;
         double lift = 1 + own * (look.TemperatureRatio - 1);
-        return chord / (1 + 2 * lift * (1f / 60));
+        return chord / (1 + 2 * lift * (1.0 / 60));
     }
 
     [Fact]

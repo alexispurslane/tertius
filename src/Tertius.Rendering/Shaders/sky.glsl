@@ -80,6 +80,20 @@ float starWidth(float footprint, float alpha)
     return sqrt(footprint * footprint + 4.0 * alpha * alpha);
 }
 
+// StarField.FadeEndMargin: how far above 2c, as a factor, the width at the footprint p must lie before lobeEndsStarFade
+// holds.
+const float StarFadeEndMargin = 1.0 + 1.0 / 1024.0;
+
+// Whether a lobe of width α alone ends the fade (StarField.LobeEndsFade), so that reflectedStars gives its mean M for
+// every footprint f ≥ p. Proof: f enters only through w = √(f² + 4α²), which grows with f, so w(f) ≥ w(p) ≥
+// 2c (1 + 2⁻¹⁰). Vulkan lets sqrt and a division err by a few ulps, under 2⁻²⁰ of the value each, far less than the
+// margin, so the computed t = (w − c) / c is at least 1 for every finite f ≥ p, smoothstep's clamp gives exactly 1, and
+// reflectedStars returns M, which reads d alone.
+bool lobeEndsStarFade(float alpha)
+{
+    return starWidth(frame.params.z, alpha) >= 2.0 * StarCellWidth * StarFadeEndMargin;
+}
+
 // M(ω): the mean star radiance near `direction`. A sphere of radius 150 cells crosses 150² |ω|₁ cells per sr around ω,
 // and each star sends E[b] π p².
 vec3 starMeanRadiance(vec3 direction)

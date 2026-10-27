@@ -259,6 +259,24 @@ public static partial class DemoScenes
         /// </summary>
         public static void Spawn(World world, FrameHandle station, SceneInstance scene, IRenderResources resources)
         {
+            SpawnChute(world: world, station: station, scene: scene, resources: resources);
+            SpawnLamps(world: world, station: station, resources: resources);
+            scene.Add("deck-camera", world.Spawn(ViewIn(station, DeckCamera)));
+            scene.Add("spoke-camera", world.Spawn(ViewIn(station, SpokeCamera)));
+            scene.Add("wheel-camera", world.Spawn(ViewIn(station, WheelCamera)));
+        }
+
+        /// <summary>
+        /// Spawns the chute in <paramref name="station"/>: one static body over all of its boxes, drawn as the upper part
+        /// and, in another color, the brake run.
+        /// </summary>
+        private static void SpawnChute(
+            World world,
+            FrameHandle station,
+            SceneInstance scene,
+            IRenderResources resources
+        )
+        {
             float brake = (float)Chute.BrakeFrom;
             BoxMesh upper = new(),
                 lower = new();
@@ -313,7 +331,11 @@ public static partial class DemoScenes
                     }
                 )
             );
+        }
 
+        /// <summary>Spawns the lamps of the spoke and of the wheel's ceiling in <paramref name="station"/>.</summary>
+        private static void SpawnLamps(World world, FrameHandle station, IRenderResources resources)
+        {
             // Cabin lamps behind glowing panels 1.2 m square.
             MaterialId lampMaterial = LampPanelMaterial(resources: resources, power: CabinLampPower, area: 1.2f * 1.2f);
             MeshId wallPanel = resources.CreateMesh(Primitives.Box(new(0.6f, 0.6f, 0.05f)));
@@ -348,40 +370,6 @@ public static partial class DemoScenes
                     )
                 );
             }
-
-            scene.Add(
-                "deck-camera",
-                world.Spawn(
-                    new()
-                    {
-                        Frame = station,
-                        Pose = DeckCamera,
-                        Render = new RenderData(),
-                    }
-                )
-            );
-            scene.Add(
-                "spoke-camera",
-                world.Spawn(
-                    new()
-                    {
-                        Frame = station,
-                        Pose = SpokeCamera,
-                        Render = new RenderData(),
-                    }
-                )
-            );
-            scene.Add(
-                "wheel-camera",
-                world.Spawn(
-                    new()
-                    {
-                        Frame = station,
-                        Pose = WheelCamera,
-                        Render = new RenderData(),
-                    }
-                )
-            );
         }
 
         private static SpawnDesc Lamp(

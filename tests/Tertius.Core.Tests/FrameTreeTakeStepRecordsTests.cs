@@ -259,7 +259,7 @@ public sealed class FrameTreeTakeStepRecordsTests
             Character = true,
             OwnedFrame = hull,
         };
-        frames.UpdateNumericFrames(bodies: [body], dt: 0.1, step: 0.1, changes: new(), applyMoves: _ => { });
+        frames.UpdateNumericFrames(bodies: [body], ticks: 1, tickRate: 10, changes: new(), applyMoves: _ => { });
         FrameHandle pod = frames.TreeParent(hull);
         frames.Numeric(pod).Should().Be(NumericMode.Falling);
         (DPose Pose, Double3 Velocity) before = (frames.TreeLocalPose(pod), frames.TreeLinearVelocity(pod));
@@ -296,7 +296,7 @@ public sealed class FrameTreeTakeStepRecordsTests
             Character = true,
             OwnedFrame = hull,
         };
-        frames.UpdateNumericFrames(bodies: [body], dt: 0.1, step: 0.1, changes: new(), applyMoves: _ => { });
+        frames.UpdateNumericFrames(bodies: [body], ticks: 1, tickRate: 10, changes: new(), applyMoves: _ => { });
         frames.Numeric(frames.TreeParent(hull)).Should().Be(NumericMode.Falling);
         frames.Update();
         frames.BeginStep([], Step, lastStepFailed: false);

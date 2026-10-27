@@ -708,7 +708,7 @@ public sealed class PersonControlTests : IDisposable
             // The person falls freely, so it is weightless, and its thrusters push it: W along the view, Space and C along
             // its up.
             Vector3
-                .Distance((velocity - last) / world.DeltaTime, acceleration)
+                .Distance((velocity - last) / (float)world.DeltaTime, acceleration)
                 .Should()
                 .BeLessThan(0.05f, $"at sample {sample}");
             last = velocity;

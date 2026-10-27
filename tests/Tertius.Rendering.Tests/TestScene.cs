@@ -53,71 +53,8 @@ internal sealed class TestScene
             Sphere = renderer.CreateMesh(Primitives.Sphere(1f, 64, 32)),
             Plane = renderer.CreateMesh(Primitives.Plane(1f, 10f)),
         };
-        TextureId groundChecker = renderer.CreateTexture(
-            TestTextures.Checker(size: 256, tiles: 8, a: (200, 200, 200), b: (90, 90, 95))
-        );
-        TextureId boxChecker = renderer.CreateTexture(
-            TestTextures.Checker(size: 256, tiles: 4, a: (230, 180, 60), b: (60, 90, 170))
-        );
-        TextureId tiles = renderer.CreateTexture(TestTextures.BeveledTiles(size: 256, tiles: 8));
-        TextureId boxTiles = renderer.CreateTexture(TestTextures.BeveledTiles(size: 256, tiles: 4));
-        scene.Ground = renderer.CreateMaterial(
-            new(
-                BaseColor: Vector4.One,
-                Reflectance: 0.5f,
-                Roughness: 0.42f,
-                BaseColorMap: groundChecker,
-                NormalMap: tiles,
-                MetallicRoughnessMap: TextureId.None
-            )
-        );
-        scene.Textured = renderer.CreateMaterial(
-            new(
-                BaseColor: Vector4.One,
-                Reflectance: 0.6f,
-                Roughness: 0.32f,
-                BaseColorMap: boxChecker,
-                NormalMap: boxTiles,
-                MetallicRoughnessMap: TextureId.None
-            )
-        );
-        scene.Red = renderer.CreateMaterial(
-            MaterialDesc.Color(new(x: 0.75f, y: 0.06f, z: 0.05f, w: 1), roughness: 0.2f) with
-            {
-                Reflectance = 1f,
-            }
-        );
-        scene.Blue = renderer.CreateMaterial(
-            MaterialDesc.Color(new(x: 0.1f, y: 0.25f, z: 0.8f, w: 1), roughness: 0.65f)
-        );
-        scene.White = renderer.CreateMaterial(
-            MaterialDesc.Color(new(x: 0.8f, y: 0.8f, z: 0.8f, w: 1), roughness: 0.38f)
-        );
-        scene.Orange = renderer.CreateMaterial(
-            MaterialDesc.Color(new(x: 0.9f, y: 0.4f, z: 0.08f, w: 1), roughness: 0.26f)
-        );
-        scene.Glass = renderer.CreateMaterial(
-            MaterialDesc.Color(new(x: 0.2f, y: 0.9f, z: 0.3f, w: 0.45f), roughness: 0.18f) with
-            {
-                Reflectance = 1f,
-                Alpha = new GlassAlpha(),
-            }
-        );
-        scene.Station = renderer.CreateMaterial(
-            MaterialDesc.Color(new(x: 0.7f, y: 0.7f, z: 0.75f, w: 1), roughness: 0.55f)
-        );
-        scene.PlanetMaterial = renderer.CreateMaterial(
-            MaterialDesc.Color(new(x: 0.25f, y: 0.4f, z: 0.6f, w: 1), roughness: 0.75f) with
-            {
-                Reflectance = 0.2f,
-            }
-        );
-        scene.StarMaterial = renderer.CreateMaterial(
-            MaterialDesc.Color(new(x: 1, y: 1, z: 1, w: 1), roughness: 0.38f) with
-            {
-                Emissive = new(60f, 55f, 45f),
-            }
-        );
+        scene.CreateTexturedMaterials(renderer);
+        scene.CreateColorMaterials(renderer);
         return scene;
     }
 
@@ -127,6 +64,83 @@ internal sealed class TestScene
         List<RenderInstance> instances = snapshot.Instances;
         RenderFlags caster = shadows ? RenderFlags.CastsShadow : RenderFlags.None;
 
+        AddGroundAndBoxes(instances, caster);
+        AddSpheres(instances, caster);
+        AddMiddleAndFarRanges(instances);
+        AddLights(snapshot);
+        return snapshot;
+    }
+
+    /// <summary>Creates the checker and tile textures, and the ground and box materials that map them.</summary>
+    private void CreateTexturedMaterials(VulkanRenderer renderer)
+    {
+        TextureId groundChecker = renderer.CreateTexture(
+            TestTextures.Checker(size: 256, tiles: 8, a: (200, 200, 200), b: (90, 90, 95))
+        );
+        TextureId boxChecker = renderer.CreateTexture(
+            TestTextures.Checker(size: 256, tiles: 4, a: (230, 180, 60), b: (60, 90, 170))
+        );
+        TextureId tiles = renderer.CreateTexture(TestTextures.BeveledTiles(size: 256, tiles: 8));
+        TextureId boxTiles = renderer.CreateTexture(TestTextures.BeveledTiles(size: 256, tiles: 4));
+        Ground = renderer.CreateMaterial(
+            new(
+                BaseColor: Vector4.One,
+                Reflectance: 0.5f,
+                Roughness: 0.42f,
+                BaseColorMap: groundChecker,
+                NormalMap: tiles,
+                MetallicRoughnessMap: TextureId.None
+            )
+        );
+        Textured = renderer.CreateMaterial(
+            new(
+                BaseColor: Vector4.One,
+                Reflectance: 0.6f,
+                Roughness: 0.32f,
+                BaseColorMap: boxChecker,
+                NormalMap: boxTiles,
+                MetallicRoughnessMap: TextureId.None
+            )
+        );
+    }
+
+    /// <summary>Creates the materials of one color each, the glass and the emissive star among them.</summary>
+    private void CreateColorMaterials(VulkanRenderer renderer)
+    {
+        Red = renderer.CreateMaterial(
+            MaterialDesc.Color(new(x: 0.75f, y: 0.06f, z: 0.05f, w: 1), roughness: 0.2f) with
+            {
+                Reflectance = 1f,
+            }
+        );
+        Blue = renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.1f, y: 0.25f, z: 0.8f, w: 1), roughness: 0.65f));
+        White = renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.8f, y: 0.8f, z: 0.8f, w: 1), roughness: 0.38f));
+        Orange = renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.9f, y: 0.4f, z: 0.08f, w: 1), roughness: 0.26f));
+        Glass = renderer.CreateMaterial(
+            MaterialDesc.Color(new(x: 0.2f, y: 0.9f, z: 0.3f, w: 0.45f), roughness: 0.18f) with
+            {
+                Reflectance = 1f,
+                Alpha = new GlassAlpha(),
+            }
+        );
+        Station = renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.7f, y: 0.7f, z: 0.75f, w: 1), roughness: 0.55f));
+        PlanetMaterial = renderer.CreateMaterial(
+            MaterialDesc.Color(new(x: 0.25f, y: 0.4f, z: 0.6f, w: 1), roughness: 0.75f) with
+            {
+                Reflectance = 0.2f,
+            }
+        );
+        StarMaterial = renderer.CreateMaterial(
+            MaterialDesc.Color(new(x: 1, y: 1, z: 1, w: 1), roughness: 0.38f) with
+            {
+                Emissive = new(60f, 55f, 45f),
+            }
+        );
+    }
+
+    /// <summary>The near range's ground and three boxes, which cast with <paramref name="caster"/>.</summary>
+    private void AddGroundAndBoxes(List<RenderInstance> instances, RenderFlags caster)
+    {
         // Near range.
         instances.Add(
             Gpu.Instance(
@@ -171,6 +185,11 @@ internal sealed class TestScene
                 chainDepth: TestChains.CamerasFrame
             )
         );
+    }
+
+    /// <summary>The near range's red and blue spheres, which cast with <paramref name="caster"/>, and the glass sphere.</summary>
+    private void AddSpheres(List<RenderInstance> instances, RenderFlags caster)
+    {
         instances.Add(
             Gpu.Instance(
                 mesh: Sphere,
@@ -200,7 +219,11 @@ internal sealed class TestScene
                 chainDepth: TestChains.CamerasFrame
             )
         );
+    }
 
+    /// <summary>The station of the middle range, and the planet and the star of the far range.</summary>
+    private void AddMiddleAndFarRanges(List<RenderInstance> instances)
+    {
         // Middle range: a 1 km station turned so one face catches the sun.
         instances.Add(
             Gpu.Instance(
@@ -235,7 +258,11 @@ internal sealed class TestScene
                 chainDepth: TestChains.CamerasFrame
             )
         );
+    }
 
+    /// <summary>The warm point light and the cool spot light of the near range.</summary>
+    private static void AddLights(RenderSnapshot snapshot)
+    {
         snapshot.Lights.Add(
             Gpu.Lamp(
                 position: new(-0.4f, 0.4f, -4.4f),
@@ -256,6 +283,5 @@ internal sealed class TestScene
                 chainDepth: TestChains.CamerasFrame
             )
         );
-        return snapshot;
     }
 }

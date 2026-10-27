@@ -1,6 +1,6 @@
 ---
 id: ter-xshi
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-10-11T18:20:16Z
@@ -27,3 +27,15 @@ After N ticks at 60 ticks a second, World.Time is StartTime + N / 60.0 in double
 **2026-10-11T18:48:00Z**
 
 The acceptance read of the orbit scene (ter-fe04) measured the effect. At 60 ticks a second, the float tick is 8.7e-10 s (5.2e-8 relative) longer than 1/60 s. The clock gains 0.29 ms per orbit of 92 minutes, 4.5 ms per simulated day (about 35 m along the orbit) and 1.6 s per simulated year. Of the 22.7 m by which the ship passes each quarter mark in scripts/orbit.json, 0.55 m comes from the float tick. The other 22.2 m comes from the script, which rounds the quarter period of 83,172.83 ticks up to 83,173. A tick rate of 64 is exact as a float, but 50 and 60 are not.
+
+**2026-10-27T07:02:36Z**
+
+2026-10-27: the orchestrator settled the design by the one-store rule. The one store is the tick rate. World.Time and TimeAt are StartTime + tick / (double)TickRate. DeltaTime becomes a double that is derived from the tick rate, not a second store beside a float. Jolt's float step casts at the physics seam.
+
+**2026-10-27T07:21:24Z**
+
+2026-10-27: the first builder stopped on a fork: the numeric-frame clocks summed dt, and 30 sums of 1/60 give 0.49999999999999994 < ThrustOnset 0.5, so the onset moved to tick 31. The orchestrator settled it: the numeric-frame clocks count whole ticks and compare as count / tick rate, the same rule as the world clock, so the onset stays at tick 30. The seam rule for Jolt: what feeds or predicts Jolt's step uses Jolt's float step; frame motion, inertial lines, Kepler places and time use the double tick.
+
+**2026-10-27T09:33:35Z**
+
+2026-10-27: merged at 133c09d3. Coverage of the changed lines: 419/420 (99.8%), branches 150/178. Time is StartTime + tick / TickRate; the numeric-frame clocks count whole ticks (onset at tick 30); at the Jolt seam, what feeds or predicts Jolt's step uses Jolt's float step. Generated scripts moved by a few ticks (demo-exit deck 734 to 740; blue-danube deck 736 to 732). The review's open question, one meaning for a body's Jolt velocity, is ter-zk4g and waits for the user. The merge kept main's split of World.AssertInvariants and added the clock's changes.

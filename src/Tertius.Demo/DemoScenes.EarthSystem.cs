@@ -48,7 +48,78 @@ public static partial class DemoScenes
 
             DemoStation.Spawn(world: world, parent: earth, scene: scene, resources: resources);
 
-            // The pad lies on the ground at the pole, the vertex of Earth's sphere on +Y.
+            SpawnPadAndMast(world: world, resources: resources, scene: scene, surface: surface);
+
+            // Where the Sun stands from Earth at the world's time, in earth's axes.
+            KeplerOrbit earthOrbit = EarthOrbit(date);
+            Double3 earthPlace = earthOrbit.StateAt(world.Time, SunMu).Position;
+            Double3 toSun = earthOrbit.RotationAt(world.Time, SunMu).Conjugate().Rotate(-earthPlace).Normalized();
+
+            void View(string id, FrameHandle frame, DPose pose)
+            {
+                scene.Add(id, world.Spawn(ViewIn(frame, pose)));
+                scene.AddView(id);
+            }
+
+            Double3 sunNear = earthPlace.Normalized() * (0.05 * AstronomicalUnit);
+            View("sun-near", sun, LookingAt(sunNear, Double3.Zero));
+            Double3 sunWatch = toSun * (3 * EarthRadius);
+            View("sun-from-earth", earth, LookingAt(sunWatch, sunWatch + toSun));
+
+            // The Moon and Earth: 50,000 km from the Moon, on its sunward side and beyond it, looking between the two.
+            Double3 moon = MoonOrbit.StateAt(world.Time, EarthMu).Position,
+                outward = moon.Normalized();
+            Double3 sunward = (toSun - outward * Double3.Dot(toSun, outward)).Normalized();
+            Double3 moonWatch = moon + outward * 30e6 + sunward * 40e6;
+            View(
+                "earth-moon",
+                earth,
+                LookingAt(moonWatch, moonWatch + (moon - moonWatch).Normalized() + (-moonWatch).Normalized())
+            );
+
+            View("station-view", earth, StationView(world.Time));
+
+            // The pad from the ground, looking past it toward the Sun, which stands 23.44 degrees up: the eye stands 22 m
+            // from the pole on the side away from the Sun. At the world's time, earth-surface has turned from earth's axes by
+            // the date's ground, so the Sun's direction turns back by that spin into earth-surface's axes.
+            Double3 toSunInSurface = date.Ground.RotationAt(world.Time).Conjugate().Rotate(toSun);
+            Double3 sunAcross = new Double3(toSunInSurface.X, 0, toSunInSurface.Z).Normalized();
+            Double3 padEye = -sunAcross * 22 + new Double3(0, EarthRadius + 6, 0);
+            View("pad-view", surface, LookingAt(padEye, new(0, EarthRadius + 8, 0)));
+
+            Double3 farEye = (toSun + Double3.UnitX * 0.6).Normalized() * 5e7;
+            View("earth-far", earth, LookingAt(farEye, Double3.Zero));
+            world.Camera = scene["earth-far"];
+            return scene;
+        }
+
+        /// <summary>
+        /// The view of the station over Earth's limb at <paramref name="time"/>, in earth's axes: 300 m out along its axis,
+        /// looking 11 degrees below it, with the roof away from Earth.
+        /// </summary>
+        private static DPose StationView(double time)
+        {
+            KeplerOrbit stationOrbit = DemoStation.Orbit;
+            Double3 station = stationOrbit.StateAt(time, EarthMu).Position,
+                up = station.Normalized();
+            Double3 axis = stationOrbit.RotationAt(time, EarthMu).Rotate(Double3.UnitY);
+            double down = 11 * Math.PI / 180;
+            return new(
+                station + axis * 300,
+                AttitudeAutopilot.Facing(-axis * Math.Cos(down) - up * Math.Sin(down), up)
+            );
+        }
+
+        /// <summary>
+        /// The <c>pad</c> on the ground at the pole, the vertex of Earth's sphere on +Y, and the red <c>mast</c> on it.
+        /// </summary>
+        private static void SpawnPadAndMast(
+            World world,
+            IRenderResources resources,
+            SceneInstance scene,
+            FrameHandle surface
+        )
+        {
             scene.Add(
                 "pad",
                 world.Spawn(
@@ -89,68 +160,6 @@ public static partial class DemoScenes
                     }
                 )
             );
-
-            // Where the Sun stands from Earth at the world's time, in earth's axes.
-            KeplerOrbit earthOrbit = EarthOrbit(date);
-            Double3 earthPlace = earthOrbit.StateAt(world.Time, SunMu).Position;
-            Double3 toSun = earthOrbit.RotationAt(world.Time, SunMu).Conjugate().Rotate(-earthPlace).Normalized();
-
-            void View(string id, FrameHandle frame, DPose pose)
-            {
-                scene.Add(
-                    id,
-                    world.Spawn(
-                        new()
-                        {
-                            Frame = frame,
-                            Pose = pose,
-                            Render = new RenderData(),
-                        }
-                    )
-                );
-                scene.AddView(id);
-            }
-
-            Double3 sunNear = earthPlace.Normalized() * (0.05 * AstronomicalUnit);
-            View("sun-near", sun, LookingAt(sunNear, Double3.Zero));
-            Double3 sunWatch = toSun * (3 * EarthRadius);
-            View("sun-from-earth", earth, LookingAt(sunWatch, sunWatch + toSun));
-
-            // The Moon and Earth: 50,000 km from the Moon, on its sunward side and beyond it, looking between the two.
-            Double3 moon = MoonOrbit.StateAt(world.Time, EarthMu).Position,
-                outward = moon.Normalized();
-            Double3 sunward = (toSun - outward * Double3.Dot(toSun, outward)).Normalized();
-            Double3 moonWatch = moon + outward * 30e6 + sunward * 40e6;
-            View(
-                "earth-moon",
-                earth,
-                LookingAt(moonWatch, moonWatch + (moon - moonWatch).Normalized() + (-moonWatch).Normalized())
-            );
-
-            // The station over Earth's limb: 300 m out along its axis, looking 11 degrees below it, with the roof away from Earth.
-            KeplerOrbit stationOrbit = DemoStation.Orbit;
-            Double3 station = stationOrbit.StateAt(world.Time, EarthMu).Position,
-                up = station.Normalized();
-            Double3 axis = stationOrbit.RotationAt(world.Time, EarthMu).Rotate(Double3.UnitY);
-            double down = 11 * Math.PI / 180;
-            View(
-                "station-view",
-                earth,
-                new(station + axis * 300, AttitudeAutopilot.Facing(-axis * Math.Cos(down) - up * Math.Sin(down), up))
-            );
-
-            // The pad from the ground, looking past it toward the Sun, which stands 23.44 degrees up: the eye stands 22 m
-            // from the pole on the side away from the Sun. At the world's time, earth-surface has turned from earth's axes by
-            // the date's ground, so the Sun's direction turns back by that spin into earth-surface's axes.
-            Double3 toSunInSurface = date.Ground.RotationAt(world.Time).Conjugate().Rotate(toSun);
-            Double3 sunAcross = new Double3(toSunInSurface.X, 0, toSunInSurface.Z).Normalized();
-            Double3 padEye = -sunAcross * 22 + new Double3(0, EarthRadius + 6, 0);
-            View("pad-view", surface, LookingAt(padEye, new(0, EarthRadius + 8, 0)));
-
-            Double3 farEye = (toSun + Double3.UnitX * 0.6).Normalized() * 5e7;
-            View("earth-far", earth, LookingAt(farEye, Double3.Zero));
-            world.Camera = scene["earth-far"];
-            return scene;
         }
     }
 }

@@ -29,7 +29,7 @@ public sealed partial class World
         Entities.IsAlive(entity) ? Entities.BackRow(entity).PhysicsHome : FrameHandle.Null;
 
     /// <summary>
-    /// Runs the rules of numeric frames once, over a sync point of <paramref name="dt"/> seconds, after the physics output,
+    /// Runs the rules of numeric frames once, over a sync point of <paramref name="ticks"/> ticks, after the physics output,
     /// the destroys, the spawns and the frames that physics does not drive have reached the end of the tick, on one thread. The structural changes that wait in the batch for physics reach it with
     /// the update's first batch, so that a body that physics has not created yet is created in its numeric frame, with its
     /// state converted in doubles. The update's changes reach physics in two batches. The last one goes also when it is
@@ -37,7 +37,7 @@ public sealed partial class World
     /// <see cref="FrameTree.AnchorGhosts"/>) at this sync point, so that it keeps a ghost only where the tree allows one.
     /// That costs physics one empty batch per sync point, and the World needs no rule of its own for when physics needs one.
     /// </summary>
-    private void UpdateNumericFrames(double dt)
+    private void UpdateNumericFrames(int ticks)
     {
         // The update's shifts are the only ones in the batch, so that ApplyNumericMoves finds them there.
         Contract.Requires(physicsChanges.FramesShifted.Count == 0);
@@ -51,8 +51,8 @@ public sealed partial class World
         Profile.Lap(23);
         Frames.UpdateNumericFrames(
             bodies: CollectionsMarshal.AsSpan(numericBodies),
-            dt: dt,
-            step: DeltaTime,
+            ticks: ticks,
+            tickRate: tickRate,
             changes: physicsChanges,
             applyMoves: applyNumericMoves ??= ApplyNumericMoves
         );
@@ -139,7 +139,7 @@ public sealed partial class World
         if (motion is not (BodyMotion.Dynamic or BodyMotion.Character))
             return 0;
         ref readonly PhysicsIntent intent = ref Entities.NextStepIntent(entity);
-        return (intent.Force.Length() + intent.Impulse.Length() / (double)DeltaTime) / mass;
+        return (intent.Force.Length() + intent.Impulse.Length() / DeltaTime) / mass;
     }
 
     /// <summary>

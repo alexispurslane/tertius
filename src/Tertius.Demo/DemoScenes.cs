@@ -402,6 +402,65 @@ public static partial class DemoScenes
         var scene = new SceneInstance();
         FrameHandle earth = SunAndEarth(world: world, resources: resources, scene: scene, date: EarthDate.MarchEquinox);
 
+        Entity ship = SpawnShip(world, resources, earth);
+        scene.Add("ship", ship);
+        FrameHandle shipFrame = world.GetOwnedFrame(ship);
+
+        // Five lamps under the roof, 12 m apart, light the cabin, because the hull keeps the sunlight out, except through the
+        // windows when the sun stands on their side. Each casts shadows within the renderer's budget.
+        SpawnCabinLamps(world: world, resources: resources, frame: shipFrame, spacing: 12);
+
+        SpawnPanesAndAirlock(world: world, resources: resources, scene: scene, shipFrame: shipFrame);
+
+        // The person stands on the cabin floor, 10 m aft of the ship's center, and faces the nose. The capsule is 1.8 m
+        // tall, and its center rests 0.9 m above the floor. The eye is 1.65 m above the floor.
+        var capsule = new CapsuleShapeDesc(0.6f, 0.3f);
+        scene.Add(
+            "person",
+            world.Spawn(
+                new()
+                {
+                    Frame = shipFrame,
+                    Pose = new(new(0, -Cabin.Y + 0.95, AirlockZ), DQuaternion.Identity),
+                    Body = new(Shape: capsule, Motion: BodyMotion.Character, Mass: 70),
+                    Render = Drawn(
+                        resources: resources,
+                        mesh: Primitives.Box(new(0.3f, 0.9f, 0.3f)),
+                        color: new(x: 0.2f, y: 0.45f, z: 0.8f, w: 1),
+                        boundingRadius: 1
+                    ),
+                    Components = [new PersonControl(new(0, 0.75f, 0)), new Carry(capsule)],
+                    Subscriptions = [Topics.Input],
+                }
+            )
+        );
+
+        SpawnCabinCrates(world: world, resources: resources, scene: scene, shipFrame: shipFrame);
+
+        Entity chase = world.Spawn(
+            ViewIn(shipFrame, new(new(0, 12, 70), DQuaternion.FromAxisAngle(new(1, 0, 0), -Math.Atan2(12, 70))))
+        );
+        scene.Add("chase", chase);
+
+        var farPose = new DPose(
+            new(0, 3 * EarthRadius * Math.Sin(Math.PI / 6), 3 * EarthRadius * Math.Cos(Math.PI / 6)),
+            DQuaternion.FromAxisAngle(new(1, 0, 0), -Math.PI / 6)
+        );
+        Entity far = world.Spawn(ViewIn(earth, farPose));
+        scene.Add("far", far);
+        scene.AddView("chase");
+        scene.AddView("far");
+        scene.AddView("person");
+        world.Camera = chase;
+        return scene;
+    }
+
+    /// <summary>
+    /// The ship on <see cref="ShipOrbit"/> at the world's time in <paramref name="earth"/>: a solid box there, hollow in
+    /// its own frame, whose cabin alone has gravity.
+    /// </summary>
+    private static Entity SpawnShip(World world, IRenderResources resources, FrameHandle earth)
+    {
         // The circle that the ship starts on gives its state at the world's time. From there, gravity alone moves it. The
         // circle takes the G·M of earth's own field, which is the G·M that pulls the ship.
         // Stryker disable once String : the scene gives earth point gravity above, so nothing reaches this guard of its own construction.
@@ -410,7 +469,7 @@ public static partial class DemoScenes
             : throw new InvalidOperationException("Earth has no point gravity.");
         KeplerOrbit start = ShipOrbit;
         (Double3 position, Double3 velocity) = start.StateAt(world.Time, earthMu);
-        Entity ship = world.Spawn(
+        return world.Spawn(
             new()
             {
                 Frame = earth,
@@ -445,13 +504,19 @@ public static partial class DemoScenes
                 ),
             }
         );
-        scene.Add("ship", ship);
-        FrameHandle shipFrame = world.GetOwnedFrame(ship);
+    }
 
-        // Five lamps under the roof, 12 m apart, light the cabin, because the hull keeps the sunlight out, except through the
-        // windows when the sun stands on their side. Each casts shadows within the renderer's budget.
-        SpawnCabinLamps(world: world, resources: resources, frame: shipFrame, spacing: 12);
-
+    /// <summary>
+    /// The panes of the ship's windows, and the airlock: its <c>airlock-inner</c> and <c>airlock-outer</c> doors, and the
+    /// <c>airlock</c> that cycles them.
+    /// </summary>
+    private static void SpawnPanesAndAirlock(
+        World world,
+        IRenderResources resources,
+        SceneInstance scene,
+        FrameHandle shipFrame
+    )
+    {
         // A pane of glass in each window: mostly clear, with a slight blue tint. It casts no shadow, so sunlight comes in
         // through a window when the sun stands on its side. It has no body, because the walls of the interior shape are
         // solid at the windows.
@@ -489,30 +554,19 @@ public static partial class DemoScenes
                 }
             )
         );
+    }
 
-        // The person stands on the cabin floor, 10 m aft of the ship's center, and faces the nose. The capsule is 1.8 m
-        // tall, and its center rests 0.9 m above the floor. The eye is 1.65 m above the floor.
-        var capsule = new CapsuleShapeDesc(0.6f, 0.3f);
-        scene.Add(
-            "person",
-            world.Spawn(
-                new()
-                {
-                    Frame = shipFrame,
-                    Pose = new(new(0, -Cabin.Y + 0.95, AirlockZ), DQuaternion.Identity),
-                    Body = new(Shape: capsule, Motion: BodyMotion.Character, Mass: 70),
-                    Render = Drawn(
-                        resources: resources,
-                        mesh: Primitives.Box(new(0.3f, 0.9f, 0.3f)),
-                        color: new(x: 0.2f, y: 0.45f, z: 0.8f, w: 1),
-                        boundingRadius: 1
-                    ),
-                    Components = [new PersonControl(new(0, 0.75f, 0)), new Carry(capsule)],
-                    Subscriptions = [Topics.Input],
-                }
-            )
-        );
-
+    /// <summary>
+    /// The green crates of the ship, <c>crate-1</c> to <c>crate-3</c> in the cabin and <c>chamber-crate</c> in the
+    /// airlock.
+    /// </summary>
+    private static void SpawnCabinCrates(
+        World world,
+        IRenderResources resources,
+        SceneInstance scene,
+        FrameHandle shipFrame
+    )
+    {
         // Green crates, 0.4 m on a side and of 5 kg, which the person can carry and throw. Three lie loose on the cabin
         // floor, aft of the person and to starboard, away from its ways in the other scripts and out of its reach where it
         // presses E. One lies in the airlock's chamber, in the corner by the hatch on the aft side, beside the person's way
@@ -537,34 +591,6 @@ public static partial class DemoScenes
             "chamber-crate",
             world.Spawn(crate.Spawn(shipFrame, OnTheFloor(Chamber.Min.X + 0.6, Chamber.Max.Z - 0.5, 0), Vector3.Zero))
         );
-
-        Entity chase = world.Spawn(
-            new()
-            {
-                Frame = shipFrame,
-                Pose = new(new(0, 12, 70), DQuaternion.FromAxisAngle(new(1, 0, 0), -Math.Atan2(12, 70))),
-                Render = new RenderData(),
-            }
-        );
-        scene.Add("chase", chase);
-
-        Entity far = world.Spawn(
-            new()
-            {
-                Frame = earth,
-                Pose = new(
-                    new(0, 3 * EarthRadius * Math.Sin(Math.PI / 6), 3 * EarthRadius * Math.Cos(Math.PI / 6)),
-                    DQuaternion.FromAxisAngle(new(1, 0, 0), -Math.PI / 6)
-                ),
-                Render = new RenderData(),
-            }
-        );
-        scene.Add("far", far);
-        scene.AddView("chase");
-        scene.AddView("far");
-        scene.AddView("person");
-        world.Camera = chase;
-        return scene;
     }
 
     /// <summary>
@@ -964,27 +990,7 @@ public static partial class DemoScenes
     private static SceneInstance DropBox(World world, IRenderResources resources)
     {
         var scene = new SceneInstance();
-        FrameHandle ground = world.CreateRootFrame(
-            new(FrameBounds.Sphere(1e6f), GravityField.Uniform(new(0, -9.81f, 0)))
-        );
-        scene.Add("ground", ground);
-        scene.Add(
-            "floor",
-            world.Spawn(
-                new()
-                {
-                    Frame = ground,
-                    Pose = new(new(0, -0.5, 0), DQuaternion.Identity),
-                    Body = new(Shape: new BoxShapeDesc(new(50, 0.5f, 50)), Motion: BodyMotion.Static),
-                    Render = Drawn(
-                        resources: resources,
-                        mesh: Primitives.Box(new(50, 0.5f, 50)),
-                        color: new(x: 0.35f, y: 0.35f, z: 0.35f, w: 1),
-                        boundingRadius: 71
-                    ),
-                }
-            )
-        );
+        FrameHandle ground = GroundWithFloor(world: world, resources: resources, scene: scene);
         scene.Add(
             "box",
             world.Spawn(
@@ -1016,6 +1022,36 @@ public static partial class DemoScenes
         Star(world: world, scene: scene, frame: ground, center: Double3.Zero, direction: new(30, 50, 40));
         world.Ambient = Daylight;
         return scene;
+    }
+
+    /// <summary>
+    /// The root frame <c>ground</c> of 1 g along -Y, and in it the gray static <c>floor</c>, 100 m on a side, whose top is
+    /// at y = 0.
+    /// </summary>
+    private static FrameHandle GroundWithFloor(World world, IRenderResources resources, SceneInstance scene)
+    {
+        FrameHandle ground = world.CreateRootFrame(
+            new(FrameBounds.Sphere(1e6f), GravityField.Uniform(new(0, -9.81f, 0)))
+        );
+        scene.Add("ground", ground);
+        scene.Add(
+            "floor",
+            world.Spawn(
+                new()
+                {
+                    Frame = ground,
+                    Pose = new(new(0, -0.5, 0), DQuaternion.Identity),
+                    Body = new(Shape: new BoxShapeDesc(new(50, 0.5f, 50)), Motion: BodyMotion.Static),
+                    Render = Drawn(
+                        resources: resources,
+                        mesh: Primitives.Box(new(50, 0.5f, 50)),
+                        color: new(x: 0.35f, y: 0.35f, z: 0.35f, w: 1),
+                        boundingRadius: 71
+                    ),
+                }
+            )
+        );
+        return ground;
     }
 
     private static RenderData Drawn(IRenderResources resources, MeshData mesh, Vector4 color, float boundingRadius) =>

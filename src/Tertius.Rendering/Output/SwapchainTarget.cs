@@ -159,6 +159,22 @@ internal sealed unsafe class SwapchainTarget : IOutputTarget
             return;
         }
 
+        SwapchainKHR created = CreateSwapchain(capabilities: capabilities, extent: extent, old: old);
+        if (old.Handle != 0)
+            api.DestroySwapchain(device.Device, old, null);
+        swapchain = created;
+        Extent = extent;
+        Generation++;
+        WrapImages(extent);
+        AddRenderFinishedSemaphores();
+    }
+
+    /// <summary>
+    /// Creates a swapchain of <paramref name="extent"/> that replaces <paramref name="old"/>, and sets
+    /// <see cref="CanCapture"/> for its images.
+    /// </summary>
+    private SwapchainKHR CreateSwapchain(in SurfaceCapabilitiesKHR capabilities, Extent2D extent, SwapchainKHR old)
+    {
         uint imageCount = capabilities.MinImageCount + 1;
         if (capabilities.MaxImageCount > 0)
             imageCount = Math.Min(imageCount, capabilities.MaxImageCount);
@@ -198,12 +214,12 @@ internal sealed unsafe class SwapchainTarget : IOutputTarget
                 pSwapchain: out SwapchainKHR created
             )
             .Check("vkCreateSwapchainKHR");
-        if (old.Handle != 0)
-            api.DestroySwapchain(device.Device, old, null);
-        swapchain = created;
-        Extent = extent;
-        Generation++;
+        return created;
+    }
 
+    /// <summary>Wraps each image of the current swapchain, of <paramref name="extent"/>, in a <see cref="GpuImage"/>.</summary>
+    private void WrapImages(Extent2D extent)
+    {
         uint count = 0;
         api.GetSwapchainImages(
                 device: device.Device,
@@ -233,8 +249,13 @@ internal sealed unsafe class SwapchainTarget : IOutputTarget
                 extent: extent,
                 name: $"swapchain image {i}"
             );
+    }
+
+    /// <summary>Creates a render-finished semaphore for each swapchain image that has none yet.</summary>
+    private void AddRenderFinishedSemaphores()
+    {
         var semaphoreInfo = new SemaphoreCreateInfo { SType = StructureType.SemaphoreCreateInfo };
-        while (renderFinished.Count < count)
+        while (renderFinished.Count < images.Length)
         {
             device
                 .Vk.CreateSemaphore(

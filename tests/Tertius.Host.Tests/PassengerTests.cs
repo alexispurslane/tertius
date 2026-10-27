@@ -32,7 +32,7 @@ public sealed class PassengerTests : IDisposable
     /// <summary>The person's turn: half a turn about the cabin's up, so that it faces aft, +Z, toward the pen.</summary>
     private static readonly DQuaternion FacingAft = DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI);
 
-    private readonly World world = NewJoltWorld();
+    private World world = NewJoltWorld();
     private FrameHandle cabin;
     private Entity person;
     private Entity pen;
@@ -233,6 +233,26 @@ public sealed class PassengerTests : IDisposable
         PassengerOf().State.Value.Should().BeOfType<Seated>();
         farthest.Should().BeLessThan(0.05, "the belt holds the passenger");
         Tick(world, 6);
+        PassengerOf().State.Value.Should().BeOfType<Fetching>();
+    }
+
+    /// <summary>
+    /// At 49 ticks a second, the passenger opens its belt at its 98th weightless tick, two seconds as the world clock
+    /// divides them. A passenger that summed tick lengths would wait a tick longer: 98 · (1.0 / 49) rounds to the double
+    /// below 2.
+    /// </summary>
+    [Fact]
+    public void AtFortyNineTicksASecondThePassengerOpensItsBeltAtItsNinetyEighthWeightlessTick()
+    {
+        world.Dispose();
+        world = NewJoltWorld(tickRate: 49);
+        BoardInSpace();
+
+        TickUntil<Seated>(limit: 60);
+        WorldTesting.TickUntil(world, () => PassengerOf().State.Value is Seated { WeightlessTicks: 97 }, limit: 200);
+        PassengerOf().State.Value.Should().BeOfType<Seated>().Which.WeightlessTicks.Should().Be(97);
+        world.Tick();
+
         PassengerOf().State.Value.Should().BeOfType<Fetching>();
     }
 

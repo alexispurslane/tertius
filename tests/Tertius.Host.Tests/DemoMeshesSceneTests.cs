@@ -66,4 +66,34 @@ public sealed class DemoMeshesSceneTests : IDisposable
             "the ball rests on the ring's floor"
         );
     }
+
+    [Fact]
+    public void TheThreeBallsShareOneMesh()
+    {
+        using World built = NewJoltWorld();
+        var resources = new RecordedResources();
+        DemoScenes.All.Single(s => s.Name == "demo-meshes").Build(built, resources);
+
+        resources
+            .Meshes.GroupBy(mesh => mesh, ReferenceEqualityComparer.Instance)
+            .Max(same => same.Count())
+            .Should()
+            .Be(3, "the three balls hand the renderer one mesh, and every other mesh of the scene is its own");
+    }
+
+    /// <summary>Resources that keep each mesh that the scene hands them, and give nothing an id.</summary>
+    private sealed class RecordedResources : IRenderResources
+    {
+        public List<MeshData> Meshes { get; } = [];
+
+        public MeshId CreateMesh(MeshData mesh)
+        {
+            Meshes.Add(mesh);
+            return default;
+        }
+
+        public TextureId CreateTexture(TextureData texture) => default;
+
+        public MaterialId CreateMaterial(MaterialDesc material) => default;
+    }
 }

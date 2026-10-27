@@ -190,10 +190,10 @@ public sealed class FrameMediumTests
             .Should()
             .BeTrue("the hull at 2 km/s lives in a following frame of its own");
         test.World.Frames.Medium(following).Should().Be(MediumField.None);
-        test.World.Frames.AssertInvariants();
+        test.World.Frames.AssertInvariants(tickRate: 60);
 
         test.World.Frames.SetMedium(following, CabinAir);
 
-        test.World.Frames.Invoking(tree => tree.AssertInvariants()).Should().Throw<ContractException>();
+        test.World.Frames.Invoking(tree => tree.AssertInvariants(tickRate: 60)).Should().Throw<ContractException>();
     }
 }

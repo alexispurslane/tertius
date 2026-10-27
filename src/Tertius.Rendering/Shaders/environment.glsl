@@ -15,6 +15,15 @@
 // ShaderConstants.EnvironmentMap: true while the renderer's setting is SceneEnvironmentMap, fixed for its life.
 layout(constant_id = 0) const bool environmentMapOn = false;
 
+// Whether the ambient light skips the work of its terms that add nothing to the image (docs/plans/environment-map.md,
+// "Cost"). A test build defines TERTIUS_EVERY_AMBIENT_TERM for its reference image, which computes every term
+// (AmbientSkipsTests); the engine's build never does.
+#ifdef TERTIUS_EVERY_AMBIENT_TERM
+const bool skipsTermsThatAddNothing = false;
+#else
+const bool skipsTermsThatAddNothing = true;
+#endif
+
 // RGBA16F, a cube array whose cube i is map i: level k holds roughness k / (L − 1), alpha the open-sky share. Partially
 // bound: empty with the map off.
 layout(set = 0, binding = 12) uniform textureCubeArray environmentSpecularMap;
@@ -68,6 +77,10 @@ vec3 environmentSpecular(uint map, vec3 d, float roughness, float footprint)
         samplerCubeArray(environmentSpecularMap, environmentSampler),
         vec4(inMapAxes(map, d), float(map)),
         roughness * (levels - 1.0));
+    // Where the lobe sees no open sky, its share is 0, and 0 times the reflected stars, which are finite, is a zero,
+    // whose sum with lobe.rgb equals lobe.rgb, so the stars' cells are not hashed.
+    if (skipsTermsThatAddNothing && lobe.a == 0.0)
+        return lobe.rgb;
     return lobe.rgb + lobe.a * reflectedStars(d, starWidth(footprint, roughness * roughness));
 }
 

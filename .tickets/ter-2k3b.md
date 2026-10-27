@@ -1,6 +1,6 @@
 ---
 id: ter-2k3b
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-10-24T17:07:50Z

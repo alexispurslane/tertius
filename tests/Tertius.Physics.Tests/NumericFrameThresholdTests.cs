@@ -159,7 +159,7 @@ public sealed class NumericFrameThresholdTests
         FrameHandle space = Space(world);
         var pilot = new Pilot();
         Entity crate = CrateAt60MetersPerSecond(world, space, pilot);
-        float impulse = CrateMass * Thruster.GentleAcceleration * world.DeltaTime;
+        float impulse = CrateMass * Thruster.GentleAcceleration * (float)world.DeltaTime;
         pilot.EveryTick = body => body.AddImpulse(new(impulse, 0, 0));
 
         List<NumericMode> modes = HomeModes(world, crate, OnsetTicks + 30);

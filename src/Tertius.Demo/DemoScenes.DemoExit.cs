@@ -80,6 +80,51 @@ public static partial class DemoScenes
             var scene = new SceneInstance();
             FrameHandle earth = world.CreateRootFrame(new(FrameBounds.Sphere(1e8f), GravityField.Point(EarthMu)));
             scene.Add("earth", earth.Entity);
+            SpawnGlobe(world: world, resources: resources, scene: scene, earth: earth);
+
+            Entity station = DemoStation.Spawn(world: world, parent: earth, scene: scene, resources: resources);
+            FrameHandle frame = world.GetOwnedFrame(station);
+            FrameHandle cabin = SpawnShuttle(world: world, resources: resources, scene: scene, frame: frame);
+
+            Entity person = SpawnPerson(world: world, resources: resources, scene: scene, cabin: cabin, frame: frame);
+            SpawnFollowCamera(world: world, scene: scene, person: person);
+            scene.Add("slide-camera", StationExit.SpawnSlideCamera(world, person, frame));
+            Entity cabinCamera = world.Spawn(ViewIn(cabin, DemoSurface.CabinCamera));
+            scene.Add("cabin-camera", cabinCamera);
+
+            Star(world: world, scene: scene, frame: earth, center: new(0, EarthRadius, 0), direction: new(60, 80, 40));
+            world.Ambient = Daylight;
+
+            foreach (
+                string view in new[]
+                {
+                    "cabin-camera",
+                    "follow-camera",
+                    "deck-camera",
+                    "spoke-camera",
+                    "slide-camera",
+                    "wheel-camera",
+                    "stack-camera",
+                    "spinward-camera",
+                    "antispinward-camera",
+                    "rim-camera",
+                }
+            )
+                scene.AddView(view);
+            world.Camera = cabinCamera;
+            return scene;
+        }
+
+        /// <summary>
+        /// Spawns the globe of Earth in <paramref name="earth"/>, Earth's frame, drawn with the grid of <see
+        /// cref="EarthGrid"/>.
+        /// </summary>
+        private static void SpawnGlobe(
+            World world,
+            IRenderResources resources,
+            SceneInstance scene,
+            FrameHandle earth
+        ) =>
             scene.Add(
                 "earth-globe",
                 world.Spawn(
@@ -105,8 +150,17 @@ public static partial class DemoScenes
                 )
             );
 
-            Entity station = DemoStation.Spawn(world: world, parent: earth, scene: scene, resources: resources);
-            FrameHandle frame = world.GetOwnedFrame(station);
+        /// <summary>
+        /// Parks the shuttle in <paramref name="frame"/>, the station's frame, with its seat, panes, lamps and nozzle in the
+        /// cabin, and returns the cabin's frame.
+        /// </summary>
+        private static FrameHandle SpawnShuttle(
+            World world,
+            IRenderResources resources,
+            SceneInstance scene,
+            FrameHandle frame
+        )
+        {
             Entity shuttle = Shuttle.Park(
                 world: world,
                 frame: frame,
@@ -135,8 +189,21 @@ public static partial class DemoScenes
             Shuttle.Panes(world: world, cabin: cabin, scene: scene, resources: resources);
             Shuttle.SpawnLamps(world: world, cabin: cabin, scene: scene, resources: resources);
             Shuttle.SpawnNozzle(world: world, cabin: cabin, scene: scene, resources: resources);
+            return cabin;
+        }
 
-            Vector3 personHalf = DemoSurface.PersonHalf;
+        /// <summary>
+        /// Spawns the person at the seat of <paramref name="cabin"/>, strapped in and holding the copy of the pen, with the
+        /// components that take it out of the shuttle into <paramref name="frame"/>, the station's frame, and returns it.
+        /// </summary>
+        private static Entity SpawnPerson(
+            World world,
+            IRenderResources resources,
+            SceneInstance scene,
+            FrameHandle cabin,
+            FrameHandle frame
+        )
+        {
             var personRender = new RenderData { ViewOffset = new(DemoSurface.Eye, Quaternion.Identity) };
             Entity person = world.Spawn(
                 new()
@@ -169,6 +236,13 @@ public static partial class DemoScenes
             world.AddComponent(person, StationExit.Disembark(cabin, frame));
             world.AddComponent(person, WheelCoda.Play(scene, frame));
             world.AddComponent(person, new WalkHeading());
+            return person;
+        }
+
+        /// <summary>
+        /// Spawns the camera that follows <paramref name="person"/>, which starts behind it, toward the nose.
+        /// </summary>
+        private static void SpawnFollowCamera(World world, SceneInstance scene, Entity person) =>
             // The person walks aft first, so the camera starts behind it, toward the nose.
             scene.Add(
                 "follow-camera",
@@ -188,45 +262,12 @@ public static partial class DemoScenes
                                 behind: DemoSurface.FollowBehind,
                                 above: DemoSurface.FollowAbove,
                                 ahead: DemoSurface.FollowAhead,
-                                subjectHalf: personHalf,
+                                subjectHalf: DemoSurface.PersonHalf,
                                 verticalFov: world.VerticalFov
                             ),
                         ],
                     }
                 )
             );
-            scene.Add("slide-camera", StationExit.SpawnSlideCamera(world, person, frame));
-            Entity cabinCamera = world.Spawn(
-                new()
-                {
-                    Frame = cabin,
-                    Pose = DemoSurface.CabinCamera,
-                    Render = new RenderData(),
-                }
-            );
-            scene.Add("cabin-camera", cabinCamera);
-
-            Star(world: world, scene: scene, frame: earth, center: new(0, EarthRadius, 0), direction: new(60, 80, 40));
-            world.Ambient = Daylight;
-
-            foreach (
-                string view in new[]
-                {
-                    "cabin-camera",
-                    "follow-camera",
-                    "deck-camera",
-                    "spoke-camera",
-                    "slide-camera",
-                    "wheel-camera",
-                    "stack-camera",
-                    "spinward-camera",
-                    "antispinward-camera",
-                    "rim-camera",
-                }
-            )
-                scene.AddView(view);
-            world.Camera = cabinCamera;
-            return scene;
-        }
     }
 }

@@ -34,7 +34,7 @@ public sealed class PenClipTests : IDisposable
     /// </summary>
     private static readonly DQuaternion FaceDown = DQuaternion.FromAxisAngle(Double3.UnitX, -Math.PI / 2);
 
-    private readonly World world = NewJoltWorld();
+    private World world = NewJoltWorld();
     private FrameHandle cabin;
     private Entity pen;
     private Entity person;
@@ -156,6 +156,24 @@ public sealed class PenClipTests : IDisposable
         ClipOf().State.Value.Should().BeOfType<Clipped>();
         farthest.Should().BeLessThan(0.005, "the clip holds the pen");
         Tick(world, 4);
+        ClipOf().State.Value.Should().BeOfType<Released>();
+    }
+
+    /// <summary>
+    /// At 49 ticks a second, a second of weightless ticks is 49 ticks, as the world clock divides them. A clip that summed
+    /// tick lengths would wait a tick longer: 49 · (1.0 / 49) rounds to the double below 1.
+    /// </summary>
+    [Fact]
+    public void AtFortyNineTicksASecondTheClipLetsThePenGoAtItsFortyNinthWeightlessTick()
+    {
+        world.Dispose();
+        world = NewJoltWorld(tickRate: 49);
+        Board();
+
+        TickUntil(world, () => ClipOf().State.Value is Clipped { WeightlessTicks: 48 }, limit: 120);
+        ClipOf().State.Value.Should().BeOfType<Clipped>().Which.WeightlessTicks.Should().Be(48);
+        world.Tick();
+
         ClipOf().State.Value.Should().BeOfType<Released>();
     }
 

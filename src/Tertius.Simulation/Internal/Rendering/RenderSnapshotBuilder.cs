@@ -200,17 +200,7 @@ internal sealed partial class RenderSnapshotBuilder
     public void Build(RenderSnapshot snapshot, in RenderView view, in PuffView puffs)
     {
         long stamp = ++buildStamp;
-        snapshot.Clear();
-        snapshot.Tick = view.Tick;
-        snapshot.Time = view.Time;
-        snapshot.Ambient = view.Ambient;
-        snapshot.Camera = new()
-        {
-            Rotation = Quaternion.Identity,
-            PreviousRotation = Quaternion.Identity,
-            VerticalFov = view.VerticalFov,
-        };
-        snapshot.OriginInFrame = Double3.Zero;
+        ClearToView(snapshot, view);
         renderHasCamera = renderFollowsTick = false;
 
         if (CameraPoseOf(view.Camera) is not (var cameraFrame, var cameraHome, var eyeInFrame, var cameraPose))
@@ -229,17 +219,12 @@ internal sealed partial class RenderSnapshotBuilder
         renderHasCamera = true;
         renderFollowsTick = interpolate && view.Tick == lastCameraTick + 1;
 
-        // The previous pose from the previous home, which stays exact near the camera. When a numeric update collected
-        // that home, the camera's semantic frame, which is the same, places it, rounded only far from that frame's origin.
-        DPose previousCamera;
-        if (!interpolate)
-            previousCamera = cameraPose;
-        else if (lastCameraHome == cameraHome)
-            previousCamera = lastCameraPose;
-        else if (FrameSeen(lastCameraHome))
-            previousCamera = DPose.ComposeUnitParent(relPrevious[denseOfFrame[lastCameraHome.Index]], lastCameraPose);
-        else
-            previousCamera = DPose.ComposeUnitParent(relPrevious[denseOfFrame[cameraFrame.Index]], lastCameraInFrame);
+        DPose previousCamera = PreviousCameraPose(
+            interpolate: interpolate,
+            cameraFrame: cameraFrame,
+            cameraHome: cameraHome,
+            cameraPose: cameraPose
+        );
         snapshot.Camera = new()
         {
             Position = Vector3.Zero,
@@ -264,6 +249,47 @@ internal sealed partial class RenderSnapshotBuilder
         lastCameraInFrame = eyeInFrame;
         lastCameraStamp = stamp;
         lastCameraTick = view.Tick;
+    }
+
+    /// <summary>
+    /// Empties <paramref name="snapshot"/> and gives it the tick, the time, the ambient light and the field of view of
+    /// <paramref name="view"/>, with a camera at the origin that has not turned.
+    /// </summary>
+    private static void ClearToView(RenderSnapshot snapshot, in RenderView view)
+    {
+        snapshot.Clear();
+        snapshot.Tick = view.Tick;
+        snapshot.Time = view.Time;
+        snapshot.Ambient = view.Ambient;
+        snapshot.Camera = new()
+        {
+            Rotation = Quaternion.Identity,
+            PreviousRotation = Quaternion.Identity,
+            VerticalFov = view.VerticalFov,
+        };
+        snapshot.OriginInFrame = Double3.Zero;
+    }
+
+    /// <summary>
+    /// The camera's pose at the previous build, relative to <paramref name="cameraHome"/> as it stood then, or
+    /// <paramref name="cameraPose"/> when the build does not interpolate. Reads the frame poses of this build.
+    /// </summary>
+    private DPose PreviousCameraPose(
+        bool interpolate,
+        FrameHandle cameraFrame,
+        FrameHandle cameraHome,
+        in DPose cameraPose
+    )
+    {
+        // The previous pose from the previous home, which stays exact near the camera. When a numeric update collected
+        // that home, the camera's semantic frame, which is the same, places it, rounded only far from that frame's origin.
+        if (!interpolate)
+            return cameraPose;
+        if (lastCameraHome == cameraHome)
+            return lastCameraPose;
+        if (FrameSeen(lastCameraHome))
+            return DPose.ComposeUnitParent(relPrevious[denseOfFrame[lastCameraHome.Index]], lastCameraPose);
+        return DPose.ComposeUnitParent(relPrevious[denseOfFrame[cameraFrame.Index]], lastCameraInFrame);
     }
 
     /// <summary>
@@ -767,8 +793,17 @@ internal sealed partial class RenderSnapshotBuilder
             };
         }
 
-        // Each body grows its physics home, when that is numeric, to the far side of its bounding sphere: its position in the
-        // home plus the radius that the entity table kept at its spawn.
+        GrowNumericFramesByBodies(outline);
+        GrowNumericFramesByChildren(outline);
+        AddOutlines(snapshot, outline);
+    }
+
+    /// <summary>
+    /// Grows the contents sphere of each numeric physics home in <paramref name="outline"/> to the far side of the bounding
+    /// sphere of each body in it: its position in the home plus the radius that the entity table kept at its spawn.
+    /// </summary>
+    private void GrowNumericFramesByBodies(Span<OutlineFrame> outline)
+    {
         foreach (Entity entity in entities.BodyEntities)
         {
             ref readonly TransformRow row = ref entities.FrontRow(entity);
@@ -779,12 +814,19 @@ internal sealed partial class RenderSnapshotBuilder
             if (frame.Mode != NumericMode.None)
                 frame.Sphere = Math.Max(frame.Sphere, row.HomePosition.Length + entities.BodyBoundingRadius(entity));
         }
+    }
 
-        // Each frame grows its numeric parent to the far side of its outline sphere. A semantic frame's sphere stays its
-        // bubble, so what reaches out of a bubble grows nothing. A parent comes before its children in the dense order, so
-        // the walk from the last frame to the first finishes each frame's sphere before its parent reads it.
+    /// <summary>
+    /// Grows the contents sphere of each numeric frame in <paramref name="outline"/> to the far side of the outline sphere of
+    /// each of its children.
+    /// </summary>
+    private void GrowNumericFramesByChildren(Span<OutlineFrame> outline)
+    {
+        // A semantic frame's sphere stays its bubble, so what reaches out of a bubble grows nothing. A parent comes before
+        // its children in the dense order, so the walk from the last frame to the first finishes each frame's sphere before
+        // its parent reads it.
         ReadOnlySpan<DPose> locals = frames.LocalPosesDense;
-        for (int i = n - 1; i >= 0; i--)
+        for (int i = outline.Length - 1; i >= 0; i--)
         {
             ref readonly OutlineFrame frame = ref outline[i];
             if (frame.Parent < 0)
@@ -793,9 +835,13 @@ internal sealed partial class RenderSnapshotBuilder
             if (parent.Mode != NumericMode.None)
                 parent.Sphere = Math.Max(parent.Sphere, locals[i].Position.Length + frame.Sphere);
         }
+    }
 
+    /// <summary>Adds the outline of each frame in <paramref name="outline"/> that has a parent to <paramref name="snapshot"/>.</summary>
+    private void AddOutlines(RenderSnapshot snapshot, ReadOnlySpan<OutlineFrame> outline)
+    {
         Double3 origin = renderOrigin;
-        for (int i = 0; i < n; i++)
+        for (int i = 0; i < outline.Length; i++)
         {
             ref readonly OutlineFrame frame = ref outline[i];
             if (frame.Parent < 0)

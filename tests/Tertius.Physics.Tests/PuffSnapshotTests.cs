@@ -12,7 +12,7 @@ namespace Tertius.Physics.Tests;
 public sealed class PuffSnapshotTests
 {
     /// <summary>The hash of the snapshot puffs of <see cref="PuffTesting.BusySceneWithCamera"/> after 300 ticks.</summary>
-    private const ulong PinnedHash = 17855250322041096263;
+    private const ulong PinnedHash = 2111527910242662902;
 
     /// <summary>
     /// A space without a field, a hull in it that owns a frame, turned and drifting, with a jet in the hull's frame and a
@@ -76,7 +76,9 @@ public sealed class PuffSnapshotTests
             .BeEquivalentTo([space, ship], "both jets made puffs");
         snapshot.Puffs.Should().HaveCount(view.Rows.Length);
         snapshot.PuffLooks.Should().Equal(view.Looks.ToArray());
-        snapshot.PuffAgeStep.Should().Be(world.DeltaTime, "each tick's build follows the build of the tick before");
+        snapshot
+            .PuffAgeStep.Should()
+            .Be((float)world.DeltaTime, "each tick's build follows the build of the tick before");
         Double3 eye = world.PoseIn(camera, space).Position;
         foreach (PuffRange range in view.Ranges)
         {

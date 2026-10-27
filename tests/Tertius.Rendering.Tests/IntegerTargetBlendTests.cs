@@ -12,7 +12,7 @@ public sealed class IntegerTargetBlendTests
     public void APipelineThatBlendsIntoAnIntegerTargetIsRefusedBeforeItIsBuilt()
     {
         using VulkanDevice device = VulkanDevice.Create(validation: true, surfaceExtensions: [], createSurface: null);
-        using var shaders = new ShaderLibrary(device);
+        using var shaders = new ShaderLibrary(device, ShaderLibrary.EngineShaders);
         foreach (
             (BlendMode blend, Format integerFormat) in new[]
             {

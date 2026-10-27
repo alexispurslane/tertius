@@ -437,6 +437,69 @@ public static partial class DemoScenes
             FrameHandle earth = SunAndEarth(world: world, resources: resources, scene: scene, date: Date);
             world.Ambient = Daylight;
             FrameHandle surface = world.GetOwnedFrame(scene["earth-surface"]);
+            SpawnFloorAndRamp(world: world, resources: resources, scene: scene, surface: surface);
+            SpawnTerminal(world: world, resources: resources, scene: scene, surface: surface);
+            SpawnPadAndTower(world: world, resources: resources, scene: scene, surface: surface);
+
+            // The station spawns before the shuttle, whose rendezvous autopilot takes the station's entity.
+            Entity station = DemoStation.Spawn(world: world, parent: earth, scene: scene, resources: resources);
+            FrameHandle cabin = SpawnShuttle(
+                world: world,
+                resources: resources,
+                scene: scene,
+                earth: earth,
+                surface: surface,
+                station: station
+            );
+            Entity person = SpawnPerson(
+                world: world,
+                resources: resources,
+                scene: scene,
+                surface: surface,
+                cabin: cabin,
+                station: station
+            );
+            SpawnFollowCamera(world: world, scene: scene, person: person);
+            scene.Add("slide-camera", StationExit.SpawnSlideCamera(world, person, world.GetOwnedFrame(station)));
+
+            Entity overview = SpawnGroundCameras(world: world, scene: scene, surface: surface, cabin: cabin);
+            SpawnCabinCameras(world: world, scene: scene, cabin: cabin);
+            scene.Add("sky-camera", world.Spawn(ViewIn(surface, SkyCamera(world))));
+
+            scene.AddView("overview");
+            scene.AddView("sky-camera");
+            scene.AddView("terminal-camera");
+            scene.AddView("apron-camera");
+            scene.AddView("cabin-camera");
+            scene.AddView("pad-camera");
+            scene.AddView("ramp-camera");
+            scene.AddView("ramp-top-camera");
+            scene.AddView("chase-camera");
+            scene.AddView("climb-camera");
+            scene.AddView("pen-camera");
+            scene.AddView("hand-camera");
+            scene.AddView("follow-camera");
+            scene.AddView("window-camera");
+            scene.AddView("bow-camera");
+            scene.AddView("port-window-camera");
+            scene.AddView("cockpit-camera");
+            scene.AddView("rim-camera");
+            scene.AddView("bay-camera");
+            scene.AddView("hold-camera");
+            world.Camera = overview;
+            return scene;
+        }
+
+        /// <summary>
+        /// Spawns the floor of the spaceport on <paramref name="surface"/>, and the launch ramp.
+        /// </summary>
+        private static void SpawnFloorAndRamp(
+            World world,
+            IRenderResources resources,
+            SceneInstance scene,
+            FrameHandle surface
+        )
+        {
             Floor(
                 world: world,
                 resources: resources,
@@ -457,7 +520,18 @@ public static partial class DemoScenes
                     )
                 )
             );
+        }
 
+        /// <summary>
+        /// Spawns the terminal on <paramref name="surface"/>, with its two ceiling lamps.
+        /// </summary>
+        private static void SpawnTerminal(
+            World world,
+            IRenderResources resources,
+            SceneInstance scene,
+            FrameHandle surface
+        )
+        {
             MeshId lampMesh = resources.CreateMesh(Primitives.Box(new(0.6f, 0.05f, 0.6f)));
             MaterialId lampMaterial = LampPanelMaterial(resources: resources, power: CabinLampPower, area: 1.2f * 1.2f);
 
@@ -495,7 +569,18 @@ public static partial class DemoScenes
             double lampHeight = EarthRadius + 2 * half.Y - TerminalWall - 0.05;
             world.Spawn(Lamp(surface, new(TerminalCenter.X + 1, lampHeight, -3)));
             world.Spawn(Lamp(surface, new(TerminalCenter.X + 1, lampHeight, 3)));
+        }
 
+        /// <summary>
+        /// Spawns the launch pad and the tower beside it on <paramref name="surface"/>.
+        /// </summary>
+        private static void SpawnPadAndTower(
+            World world,
+            IRenderResources resources,
+            SceneInstance scene,
+            FrameHandle surface
+        )
+        {
             // The pad is as thick as the bed's rise, so the parked hull stands on its drawn top.
             var padHalf = new Vector3(10, (float)LaunchRamp.BedRise / 2, 14);
             scene.Add(
@@ -532,9 +617,21 @@ public static partial class DemoScenes
                     }
                 )
             );
+        }
 
-            // The station spawns before the shuttle, whose rendezvous autopilot takes the station's entity.
-            Entity station = DemoStation.Spawn(world: world, parent: earth, scene: scene, resources: resources);
+        /// <summary>
+        /// Parks the shuttle on the pad of <paramref name="surface"/>, with the flight controls that climb in <paramref name="earth"/>
+        /// and meet <paramref name="station"/>, fits its actuators, seat, panes, lamps and nozzle, and returns its cabin's frame.
+        /// </summary>
+        private static FrameHandle SpawnShuttle(
+            World world,
+            IRenderResources resources,
+            SceneInstance scene,
+            FrameHandle earth,
+            FrameHandle surface,
+            Entity station
+        )
+        {
             Entity shuttle = Shuttle.Park(
                 world: world,
                 frame: surface,
@@ -569,7 +666,22 @@ public static partial class DemoScenes
             Shuttle.Panes(world: world, cabin: cabin, scene: scene, resources: resources);
             Shuttle.SpawnLamps(world: world, cabin: cabin, scene: scene, resources: resources);
             Shuttle.SpawnNozzle(world: world, cabin: cabin, scene: scene, resources: resources);
+            return cabin;
+        }
 
+        /// <summary>
+        /// Spawns the pen clipped in <paramref name="cabin"/>, and the person on <paramref name="surface"/>, who walks to the seat, rides
+        /// to <paramref name="station"/> and gets out there; returns the person.
+        /// </summary>
+        private static Entity SpawnPerson(
+            World world,
+            IRenderResources resources,
+            SceneInstance scene,
+            FrameHandle surface,
+            FrameHandle cabin,
+            Entity station
+        )
+        {
             // The capsule is 1.8 m tall, and its center rests 0.9 m above the slab. Its eye is a view, which the pen in its
             // hand follows.
             var penSpec = new CrateSpec(
@@ -610,6 +722,13 @@ public static partial class DemoScenes
             );
             scene.Add("person", person);
             SpawnDrawnBody(world: world, scene: scene, person: person, resources: resources);
+            return person;
+        }
+
+        /// <summary>
+        /// Spawns the camera that follows <paramref name="person"/>.
+        /// </summary>
+        private static void SpawnFollowCamera(World world, SceneInstance scene, Entity person) =>
             // The person starts its walk along -X, toward the entrance, so the camera starts behind it along +X.
             scene.Add(
                 "follow-camera",
@@ -635,156 +754,86 @@ public static partial class DemoScenes
                     }
                 )
             );
-            scene.Add("slide-camera", StationExit.SpawnSlideCamera(world, person, world.GetOwnedFrame(station)));
 
+        /// <summary>
+        /// Spawns the still cameras of the ground, and the cabin camera, and returns the overview, the camera at the start.
+        /// </summary>
+        private static Entity SpawnGroundCameras(
+            World world,
+            SceneInstance scene,
+            FrameHandle surface,
+            FrameHandle cabin
+        )
+        {
             Entity overview = world.Spawn(
-                new()
-                {
-                    Frame = surface,
-                    Pose = LookingAt(new(48, EarthRadius + 16, 28), new(12, EarthRadius + 1, -1)),
-                    Render = new RenderData(),
-                }
+                ViewIn(surface, LookingAt(new(48, EarthRadius + 16, 28), new(12, EarthRadius + 1, -1)))
             );
             scene.Add("overview", overview);
             scene.Add(
                 "terminal-camera",
                 world.Spawn(
-                    new()
-                    {
-                        Frame = surface,
-                        Pose = LookingAt(
+                    ViewIn(
+                        surface,
+                        LookingAt(
                             new(TerminalCenter.X - 4.2, EarthRadius + 3.6, 7.2),
                             new(TerminalCenter.X + 1, EarthRadius + 1, -1.5)
-                        ),
-                        Render = new RenderData(),
-                    }
+                        )
+                    )
                 )
             );
             scene.Add(
                 "apron-camera",
-                world.Spawn(
-                    new()
-                    {
-                        Frame = surface,
-                        Pose = LookingAt(new(13, EarthRadius + 3, 10), new(5, EarthRadius + 1.2, 0.5)),
-                        Render = new RenderData(),
-                    }
-                )
+                world.Spawn(ViewIn(surface, LookingAt(new(13, EarthRadius + 3, 10), new(5, EarthRadius + 1.2, 0.5))))
             );
-            scene.Add(
-                "cabin-camera",
-                world.Spawn(
-                    new()
-                    {
-                        Frame = cabin,
-                        Pose = CabinCamera,
-                        Render = new RenderData(),
-                    }
-                )
-            );
+            // The one camera off the ground spawns here, between the apron and pad cameras, as it always did, so the
+            // entity slots of the scene stay the same.
+            scene.Add("cabin-camera", world.Spawn(ViewIn(cabin, CabinCamera)));
 
             scene.Add(
                 "pad-camera",
-                world.Spawn(
-                    new()
-                    {
-                        Frame = surface,
-                        Pose = LookingAt(new(32, EarthRadius + 6, 30), new(0, EarthRadius + 12, -30)),
-                        Render = new RenderData(),
-                    }
-                )
+                world.Spawn(ViewIn(surface, LookingAt(new(32, EarthRadius + 6, 30), new(0, EarthRadius + 12, -30))))
             );
             scene.Add(
                 "ramp-camera",
-                world.Spawn(
-                    new()
-                    {
-                        Frame = surface,
-                        Pose = LookingAt(new(140, EarthRadius + 25, -95), new(0, EarthRadius + 55, -110)),
-                        Render = new RenderData(),
-                    }
-                )
+                world.Spawn(ViewIn(surface, LookingAt(new(140, EarthRadius + 25, -95), new(0, EarthRadius + 55, -110))))
             );
             scene.Add(
                 "ramp-top-camera",
                 world.Spawn(
-                    new()
-                    {
-                        Frame = surface,
-                        Pose = LookingAt(new(90, EarthRadius + 105, -200), new(0, EarthRadius + 145, -262)),
-                        Render = new RenderData(),
-                    }
+                    ViewIn(surface, LookingAt(new(90, EarthRadius + 105, -200), new(0, EarthRadius + 145, -262)))
                 )
             );
-            scene.Add(
-                "chase-camera",
-                world.Spawn(
-                    new()
-                    {
-                        Frame = cabin,
-                        Pose = LookingAt(new(19.5, 8.5, 34), Double3.Zero),
-                        Render = new RenderData(),
-                    }
-                )
-            );
-            scene.Add(
-                "climb-camera",
-                world.Spawn(
-                    new()
-                    {
-                        Frame = cabin,
-                        Pose = LookingAt(new(0, 41, 29), Double3.Zero),
-                        Render = new RenderData(),
-                    }
-                )
-            );
+            return overview;
+        }
+
+        /// <summary>
+        /// Spawns the cameras of the flight in <paramref name="cabin"/>, the shuttle's frame.
+        /// </summary>
+        private static void SpawnCabinCameras(World world, SceneInstance scene, FrameHandle cabin)
+        {
+            scene.Add("chase-camera", world.Spawn(ViewIn(cabin, LookingAt(new(19.5, 8.5, 34), Double3.Zero))));
+            scene.Add("climb-camera", world.Spawn(ViewIn(cabin, LookingAt(new(0, 41, 29), Double3.Zero))));
             scene.Add(
                 "pen-camera",
-                world.Spawn(
-                    new()
-                    {
-                        Frame = cabin,
-                        Pose = LookingAt(new(-1.5, 1.2, -0.45), new(-1.5, -0.3, -1.6)),
-                        Render = new RenderData(),
-                    }
-                )
+                world.Spawn(ViewIn(cabin, LookingAt(new(-1.5, 1.2, -0.45), new(-1.5, -0.3, -1.6))))
             );
             scene.Add(
                 "hand-camera",
-                world.Spawn(
-                    new()
-                    {
-                        Frame = cabin,
-                        Pose = LookingAt(new(0.5, -0.9, -0.7), new(-0.7, 0.05, -0.95)),
-                        Render = new RenderData(),
-                    }
-                )
+                world.Spawn(ViewIn(cabin, LookingAt(new(0.5, -0.9, -0.7), new(-0.7, 0.05, -0.95))))
             );
             // The views of the rendezvous (docs/plans/blue-danube-demo.md, "The shuttle's windows and the cameras"), still in
             // the shuttle's frame.
             double eye = -Shuttle.Cabin.Y + 1.65;
             scene.Add(
                 "window-camera",
-                world.Spawn(
-                    new()
-                    {
-                        Frame = cabin,
-                        Pose = new(new(0, eye, -Shuttle.Cabin.Z + 1.2), DQuaternion.Identity),
-                        Render = new RenderData(),
-                    }
-                )
+                world.Spawn(ViewIn(cabin, new(new(0, eye, -Shuttle.Cabin.Z + 1.2), DQuaternion.Identity)))
             );
             var bow = new Double3(0, 5, -Shuttle.Hull.Z - 30);
             double portOfAstern = 30 * Math.PI / 180;
             scene.Add(
                 "bow-camera",
                 world.Spawn(
-                    new()
-                    {
-                        Frame = cabin,
-                        Pose = LookingAt(bow, bow + new Double3(-Math.Sin(portOfAstern), 0, Math.Cos(portOfAstern))),
-                        Render = new RenderData(),
-                    }
+                    ViewIn(cabin, LookingAt(bow, bow + new Double3(-Math.Sin(portOfAstern), 0, Math.Cos(portOfAstern))))
                 )
             );
             var portWindow = new Double3(-Shuttle.Cabin.X + 0.6, eye, 4.2);
@@ -792,63 +841,16 @@ public static partial class DemoScenes
             scene.Add(
                 "port-window-camera",
                 world.Spawn(
-                    new()
-                    {
-                        Frame = cabin,
-                        Pose = LookingAt(
-                            portWindow,
-                            portWindow + new Double3(-Math.Cos(aftOfAbeam), 0, Math.Sin(aftOfAbeam))
-                        ),
-                        Render = new RenderData(),
-                    }
+                    ViewIn(
+                        cabin,
+                        LookingAt(portWindow, portWindow + new Double3(-Math.Cos(aftOfAbeam), 0, Math.Sin(aftOfAbeam)))
+                    )
                 )
             );
             scene.Add(
                 "cockpit-camera",
-                world.Spawn(
-                    new()
-                    {
-                        Frame = cabin,
-                        Pose = LookingAt(new(1.9, 0.9, -1.4), new(0.7, -1.3, -5.2)),
-                        Render = new RenderData(),
-                    }
-                )
+                world.Spawn(ViewIn(cabin, LookingAt(new(1.9, 0.9, -1.4), new(0.7, -1.3, -5.2))))
             );
-
-            scene.Add(
-                "sky-camera",
-                world.Spawn(
-                    new()
-                    {
-                        Frame = surface,
-                        Pose = SkyCamera(world),
-                        Render = new RenderData(),
-                    }
-                )
-            );
-
-            scene.AddView("overview");
-            scene.AddView("sky-camera");
-            scene.AddView("terminal-camera");
-            scene.AddView("apron-camera");
-            scene.AddView("cabin-camera");
-            scene.AddView("pad-camera");
-            scene.AddView("ramp-camera");
-            scene.AddView("ramp-top-camera");
-            scene.AddView("chase-camera");
-            scene.AddView("climb-camera");
-            scene.AddView("pen-camera");
-            scene.AddView("hand-camera");
-            scene.AddView("follow-camera");
-            scene.AddView("window-camera");
-            scene.AddView("bow-camera");
-            scene.AddView("port-window-camera");
-            scene.AddView("cockpit-camera");
-            scene.AddView("rim-camera");
-            scene.AddView("bay-camera");
-            scene.AddView("hold-camera");
-            world.Camera = overview;
-            return scene;
         }
     }
 }

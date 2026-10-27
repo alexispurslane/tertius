@@ -72,16 +72,16 @@ public sealed partial class FrameTree
     // The leave clock of each body that the last update kept in its semantic frame's own system although it needs a frame by
     // itself (see NumericFrameRules.LeaveClock), and the clocks that the current update builds. An update keeps only the
     // clocks of its own bodies, so the clock of a body that is gone from its input goes with it.
-    private Dictionary<Entity, double> leaveClocks = [];
+    private Dictionary<Entity, long> leaveClocks = [];
 
-    private Dictionary<Entity, double> nextLeaveClocks = [];
+    private Dictionary<Entity, long> nextLeaveClocks = [];
 
     // The thrust clock of each body of the last update that is not static and has thrust time (see
     // NumericFrameRules.ThrustClock), and the clocks that the current update builds. A body without an entry has a clock
     // at zero. An update keeps only the clocks of its own bodies, so the clock of a body that is gone from its input goes
     // with it.
-    private Dictionary<Entity, (double ThrustTime, double QuietTime)> thrustClocks = [];
-    private Dictionary<Entity, (double ThrustTime, double QuietTime)> nextThrustClocks = [];
+    private Dictionary<Entity, (long ThrustTicks, long QuietTicks)> thrustClocks = [];
+    private Dictionary<Entity, (long ThrustTicks, long QuietTicks)> nextThrustClocks = [];
 
     // Scratch for ShiftNumeric: the child frames of the frame that it moves.
     private readonly List<FrameHandle> shiftChildren = [];
@@ -317,8 +317,8 @@ public sealed partial class FrameTree
 
     /// <summary>
     /// Runs the membership and nesting rules of numeric frames (docs/plans/numeric-frames.md, "Membership" and "Nesting for
-    /// vast distances") once, over a sync point of <paramref name="dt"/> seconds, before a physics step of
-    /// <paramref name="step"/> seconds, whose length a new following frame needs for its velocity (see
+    /// vast distances") once, over a sync point of <paramref name="ticks"/> ticks at <paramref name="tickRate"/> ticks per
+    /// second, before a physics step of one tick, whose length a new following frame needs for its velocity (see
     /// <see cref="CreateFollowingFrame"/>). <paramref name="bodies"/> holds every
     /// entity with a body that is not attached, in entity slot order, and a frame owner twice: its interior in its frame,
     /// then its hull in the frame's parent. First the thrust clock of every body that is not static runs over the sync
@@ -365,15 +365,16 @@ public sealed partial class FrameTree
     /// </remarks>
     internal void UpdateNumericFrames(
         ReadOnlySpan<NumericBody> bodies,
-        double dt,
-        double step,
+        int ticks,
+        int tickRate,
         PhysicsChanges changes,
         Action<List<NumericMove>> applyMoves
     )
     {
-        Contract.Requires(dt >= 0 && step > 0);
+        Contract.Requires(ticks >= 0 && tickRate > 0);
+        double step = 1.0 / tickRate;
         DropLostAnchors(bodies);
-        SortBySemanticFrame(bodies, dt);
+        SortBySemanticFrame(bodies, ticks, tickRate);
         moves.Clear();
         anchorGhosts.Clear();
         nextLeaveClocks.Clear();
@@ -400,7 +401,14 @@ public sealed partial class FrameTree
         {
             SemanticRange range = semanticRanges[r];
             if (NeedsWork(CollectionsMarshal.AsSpan(sortedBodies)[range.Start..range.End]))
-                UpdateSemanticFrame(start: range.Start, end: range.End, dt: dt, step: step, changes: changes);
+                UpdateSemanticFrame(
+                    start: range.Start,
+                    end: range.End,
+                    ticks: ticks,
+                    tickRate: tickRate,
+                    step: step,
+                    changes: changes
+                );
         }
 
         (leaveClocks, nextLeaveClocks) = (nextLeaveClocks, leaveClocks);
@@ -435,10 +443,10 @@ public sealed partial class FrameTree
 
     /// <summary>
     /// Fills <see cref="sortedBodies"/> with <paramref name="bodies"/>, sorted by semantic frame, each with the mode of its
-    /// home and whether it thrusts, after its thrust clock has run over <paramref name="dt"/> seconds (see
+    /// home and whether it thrusts, after its thrust clock has run over <paramref name="ticks"/> ticks (see
     /// <see cref="Thrusts"/>), and with no ghost place that fixes it yet (see <see cref="NumericBody.MayTouchFixedGhost"/>).
     /// </summary>
-    private void SortBySemanticFrame(ReadOnlySpan<NumericBody> bodies, double dt)
+    private void SortBySemanticFrame(ReadOnlySpan<NumericBody> bodies, int ticks, int tickRate)
     {
         if (sortKeys.Length < bodies.Length)
         {
@@ -465,7 +473,7 @@ public sealed partial class FrameTree
             ref readonly NumericBody body = ref bodies[(int)(uint)sortKeys[i]];
             NumericMode homeMode = body.Home == body.Semantic ? NumericMode.None : numeric[body.Home.Index];
             bool anchorsHome = homeMode == NumericMode.Following && anchor[body.Home.Index] == body.Entity;
-            bool thrusts = Thrusts(body, dt);
+            bool thrusts = Thrusts(body, ticks, tickRate);
             sortedBodies.Add(
                 homeMode == body.HomeMode
                 && anchorsHome == body.AnchorsHome
@@ -486,27 +494,28 @@ public sealed partial class FrameTree
     }
 
     /// <summary>
-    /// Runs the thrust clock of <paramref name="body"/> over <paramref name="dt"/> seconds (see
+    /// Runs the thrust clock of <paramref name="body"/> over <paramref name="ticks"/> ticks (see
     /// <see cref="NumericFrameRules.ThrustClock"/>) into the clocks of the current update, and returns true when the body
-    /// thrusts: a character always does, and any other body when its clock says so. A clock without thrust time is a clock
+    /// thrusts: a character always does, and any other body when its clock says so. A clock without thrust ticks is a clock
     /// at zero, so it gets no entry. A static body has no clock: no force moves it. That is also the interior of a frame
     /// owner, so the owner's one clock is the one of its hull, and a hull that parks, with the static motion, drops its
     /// clock.
     /// </summary>
-    private bool Thrusts(in NumericBody body, double dt)
+    private bool Thrusts(in NumericBody body, int ticks, int tickRate)
     {
         if (body.Static)
             return false;
-        thrustClocks.TryGetValue(body.Entity, out (double ThrustTime, double QuietTime) clock);
-        (bool thrusts, double thrustTime, double quietTime) = NumericFrameRules.ThrustClock(
+        thrustClocks.TryGetValue(body.Entity, out (long ThrustTicks, long QuietTicks) clock);
+        (bool thrusts, long thrustTicks, long quietTicks) = NumericFrameRules.ThrustClock(
             acceleration: body.ThrustAcceleration,
-            thrustTime: clock.ThrustTime,
-            quietTime: clock.QuietTime,
-            dt: dt,
+            thrustTicks: clock.ThrustTicks,
+            quietTicks: clock.QuietTicks,
+            ticks: ticks,
+            tickRate: tickRate,
             options: NumericOptions
         );
-        if (thrustTime > 0)
-            nextThrustClocks[body.Entity] = (thrustTime, quietTime);
+        if (thrustTicks > 0)
+            nextThrustClocks[body.Entity] = (thrustTicks, quietTicks);
         return body.Character || thrusts;
     }
 
@@ -534,7 +543,7 @@ public sealed partial class FrameTree
         return false;
     }
 
-    private void UpdateSemanticFrame(int start, int end, double dt, double step, PhysicsChanges changes)
+    private void UpdateSemanticFrame(int start, int end, int ticks, int tickRate, double step, PhysicsChanges changes)
     {
         Span<NumericBody> bodies = CollectionsMarshal.AsSpan(sortedBodies);
         for (int i = start; i < end; i++)
@@ -553,9 +562,9 @@ public sealed partial class FrameTree
         // Every body links to the place of each ghost that it meets and can touch, which no body of the group can move, so it
         // counts as infinitely heavy.
         LinkGhostPlaces(start, end);
-        HoldFramesTogether(start, end, dt);
+        HoldFramesTogether(start: start, end: end, ticks: ticks, tickRate: tickRate);
         GroupBodies(start, end);
-        HoldInSemanticSystem(dt);
+        HoldInSemanticSystem(ticks, tickRate);
         ChooseKeepers();
         // Every shift lands before any move: a body that leaves a shifted frame leaves it from its shifted state. A following
         // frame never drains or moves its origin: its anchor gives it its place and velocity.
@@ -588,7 +597,7 @@ public sealed partial class FrameTree
     /// Keeps the members of each numeric frame that are not anchors in one group until they have been apart for the split
     /// cooldown. Then they may split, and the frame's clock starts again.
     /// </summary>
-    private void HoldFramesTogether(int start, int end, double dt)
+    private void HoldFramesTogether(int start, int end, int ticks, int tickRate)
     {
         Span<NumericBody> bodies = CollectionsMarshal.AsSpan(sortedBodies);
         numericHomes.Clear();
@@ -614,10 +623,11 @@ public sealed partial class FrameTree
             }
 
             int id = Node(frame).Id;
-            (bool hold, apartTime[id]) = NumericFrameRules.SplitClock(
+            (bool hold, apartTicks[id]) = NumericFrameRules.SplitClock(
                 together: together,
-                apart: apartTime[id],
-                dt: dt,
+                apart: apartTicks[id],
+                ticks: ticks,
+                tickRate: tickRate,
                 options: NumericOptions
             );
             if (!hold)
@@ -1067,7 +1077,7 @@ public sealed partial class FrameTree
     /// Then it gives a clock to each body that is not an anchor, that needs a frame by itself and whose group stays in the
     /// system. A body that the system did not keep before, such as a new one, gets its frame at once.
     /// </summary>
-    private void HoldInSemanticSystem(double dt)
+    private void HoldInSemanticSystem(int ticks, int tickRate)
     {
         Span<NumericBody> bodies = CollectionsMarshal.AsSpan(sortedBodies);
         foreach (ref BodyGroup group in CollectionsMarshal.AsSpan(groups))
@@ -1078,14 +1088,15 @@ public sealed partial class FrameTree
             foreach (ref readonly NumericBody body in members)
                 if (
                     !NumericFrameRules.IsAnchor(body, NumericOptions)
-                    && leaveClocks.TryGetValue(body.Entity, out double apart)
+                    && leaveClocks.TryGetValue(body.Entity, out long apart)
                 )
                     hold |= NumericFrameRules
                         .LeaveClock(
                             mode: wanted,
                             frame: group.Motion.Frame,
                             apart: apart,
-                            dt: dt,
+                            ticks: ticks,
+                            tickRate: tickRate,
                             options: NumericOptions
                         )
                         .Hold;
@@ -1100,9 +1111,16 @@ public sealed partial class FrameTree
                     || NumericFrameRules.BodyMode(body, NumericOptions) == NumericMode.None
                 )
                     continue;
-                leaveClocks.TryGetValue(body.Entity, out double apart);
+                leaveClocks.TryGetValue(body.Entity, out long apart);
                 nextLeaveClocks[body.Entity] = NumericFrameRules
-                    .LeaveClock(mode: wanted, frame: group.Motion.Frame, apart: apart, dt: dt, options: NumericOptions)
+                    .LeaveClock(
+                        mode: wanted,
+                        frame: group.Motion.Frame,
+                        apart: apart,
+                        ticks: ticks,
+                        tickRate: tickRate,
+                        options: NumericOptions
+                    )
                     .Apart;
             }
         }

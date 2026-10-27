@@ -137,7 +137,7 @@ internal sealed class FrameContext
     /// Begins rendering into <paramref name="targets"/>, one or two color attachments of one size, their whole extent, each
     /// stored at the end.
     /// </summary>
-    private unsafe void BeginRenderingInto(ReadOnlySpan<(GpuImage Image, AttachmentLoadOp LoadOp)> targets)
+    public unsafe void BeginRenderingInto(ReadOnlySpan<(GpuImage Image, AttachmentLoadOp LoadOp)> targets)
     {
         const int mostTargets = 2;
         RenderingAttachmentInfo* colors = stackalloc RenderingAttachmentInfo[mostTargets];
