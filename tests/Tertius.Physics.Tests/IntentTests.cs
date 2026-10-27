@@ -258,6 +258,29 @@ public sealed class IntentTests
         }
     }
 
+    /// <summary>
+    /// A dynamic box that a steer target carried gets an impulse in the next step, which has no steer target. Physics stops
+    /// the box in that step before it applies the step's intents (ticket ter-unpc), so the box keeps the impulse's velocity.
+    /// Before ter-unpc the stop came after the intents and took the impulse away.
+    /// </summary>
+    [Fact]
+    public void AnImpulseInTheStepAfterTheLastSteerTargetGivesTheBoxItsVelocity()
+    {
+        (World world, FrameHandle space) = ZeroGravity();
+        using (world)
+        {
+            var pilot = new Pilot();
+            Entity box = Spawn(world: world, frame: space, body: Box(0.5f, mass: 2), pose: At(0, 0, 0), pilot: pilot);
+            Send(world, pilot, body => body.SteerTo(At(0.2)));
+            Send(world, pilot, body => body.AddImpulse(new(0, 0, 3)));
+            Tick(world, 3);
+
+            world.VelocityInOwnFrame(box).X.Should().BeApproximately(0, 1e-5f, "the steer target's motion stopped");
+            world.VelocityInOwnFrame(box).Z.Should().BeApproximately(1.5f, 1e-4f, "3 N·s on 2 kg gives 1.5 m/s");
+            world.Errors.Should().BeEmpty();
+        }
+    }
+
     [Fact]
     public void FrameHullTakesForcesFromItsOwnerIntent()
     {

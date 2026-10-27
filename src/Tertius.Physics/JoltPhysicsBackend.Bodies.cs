@@ -1011,7 +1011,7 @@ public sealed partial class JoltPhysicsBackend
             (Vector3 linear, Vector3 angular) = HullVelocityFromTree(owner, pose);
             bodies.SetLinearAndAngularVelocity(hull, linear, angular);
             // The step set the hull's velocity, so a hull that a target moved in the step before, as a kinematic hull on
-            // rails, does not stop at that target (see ApplyIntents): a hull whose engines come on coasts on.
+            // rails, does not stop at that target (see StopBodies): a hull whose engines come on coasts on.
             owner.VelocitySetStep = stepIndex;
             if (owner.Motion == BodyMotion.Dynamic)
                 spawnedRigid.Add(owner);

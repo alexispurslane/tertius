@@ -86,6 +86,9 @@ public sealed partial class JoltPhysicsBackend
         (kinematicMoversLast, kinematicMovers) = (kinematicMovers, kinematicMoversLast);
         kinematicMovers.Clear();
         kinematicTargets.Clear();
+        // The stop comes before the intents, so that a teleport, a motion intent or an impulse of this step acts on the
+        // stopped body, and the stop never takes away a velocity that this step gives.
+        StopBodies();
 
         ReadOnlySpan<PhysicsIntent> intents = context.Intents.Span;
         foreach (Entity entity in context.IntentEntities.Span)
@@ -131,18 +134,55 @@ public sealed partial class JoltPhysicsBackend
         }
 
         AimStillAnchors(intents);
+    }
 
-        // A body that a motion intent moved last step stops at its end, unless it got a new motion intent or velocity.
+    /// <summary>
+    /// The stop rule (ARCHITECTURE.md, "Rails components and motion intents"). A body that a motion intent moved last step,
+    /// and every kinematic body in a numeric home, takes the chord that stops it in its semantic frame (see
+    /// <see cref="RestChord"/>).
+    /// </summary>
+    private void StopBodies()
+    {
         foreach (BodyRecord record in kinematicMoversLast)
-        {
-            if (record.KinematicTargetStep == stepIndex || record.VelocitySetStep == stepIndex)
-                continue;
-            if (Find(record.Entity) != record || !record.HasPrimary || record.Character is not null)
-                continue;
-            record.World.Bodies.SetLinearAndAngularVelocity(record.Body, Vector3.Zero, Vector3.Zero);
-        }
-
+            if (Find(record.Entity) == record && record is { HasPrimary: true, Character: null })
+                Stop(record);
         kinematicMoversLast.Clear();
+        if (frames.NumericCount == 0)
+            return;
+        foreach (FrameWorld world in worldList)
+        {
+            if (frames.Numeric(world.Frame) == NumericMode.None)
+                continue;
+            foreach (BodyRecord member in world.Members)
+                if (member is { Motion: BodyMotion.Kinematic, HasPrimary: true, Character: null })
+                    Stop(member);
+        }
+    }
+
+    private void Stop(BodyRecord record)
+    {
+        Contract.Requires(record.HasPrimary);
+        // A change of motion set the velocity of the hull in this step already (see ApplyHullMotion): a hull whose engines
+        // come on coasts on.
+        if (record.VelocitySetStep == stepIndex)
+            return;
+        record.World.Bodies.SetLinearAndAngularVelocity(record.Body, RestChord(record), Vector3.Zero);
+    }
+
+    /// <summary>
+    /// Jolt's velocity in its home for the rigid body of <paramref name="record"/> that stops: it moves the body in its
+    /// semantic frame as zero moves it in that frame's own system (ARCHITECTURE.md, "Rails components and motion intents").
+    /// </summary>
+    private Vector3 RestChord(BodyRecord record)
+    {
+        FrameHandle semantic = frames.SemanticOf(record.Frame);
+        // A dynamic body's linear gravity takes away the home's acceleration over the step (see FrameTree.LinearGravity). A
+        // kinematic body feels no gravity, so its velocity takes it away.
+        Double3 home =
+            record.Motion == BodyMotion.Kinematic
+                ? frames.HomeVelocityAfter(record.Frame, semantic, stepDt)
+                : frames.HomeVelocity(record.Frame, semantic);
+        return (-home).ToVector3();
     }
 
     /// <summary>
@@ -266,10 +306,10 @@ public sealed partial class JoltPhysicsBackend
         record.TeleportPose = new(position, pose.Rotation.Normalized());
         record.Shadow = default;
         // At rest in the semantic frame, which is not at rest in a falling numeric home, and which a turning frame's chord
-        // rule turns into the chords of the inertial motion of a point at rest in its axes. A kinematic hull holds still in
-        // its home, the frame's tree parent, unless a motion intent of the same intent aims it (see ApplyMotionIntent).
-        if (record is { IsHull: true, Motion: BodyMotion.Kinematic })
-            bodies.SetLinearAndAngularVelocity(id, Vector3.Zero, Vector3.Zero);
+        // rule turns into the chords of the inertial motion of a point at rest in its axes. A kinematic body takes the
+        // stop's chord, unless a motion intent of the same intent aims it (see ApplyMotionIntent).
+        if (record.Motion == BodyMotion.Kinematic)
+            bodies.SetLinearAndAngularVelocity(id, RestChord(record), Vector3.Zero);
         else
             bodies.SetLinearAndAngularVelocity(
                 id,
@@ -307,8 +347,8 @@ public sealed partial class JoltPhysicsBackend
     }
 
     /// <summary>
-    /// Moves the rigid body of <paramref name="record"/> by the motion intent of <paramref name="intent"/>, after its
-    /// teleport, so that the stop rule of ApplyIntents never zeroes it first. Physics aims a kinematic body at the end of
+    /// Moves the rigid body of <paramref name="record"/> by the motion intent of <paramref name="intent"/>, after the stop
+    /// (see <see cref="StopBodies"/>) and its teleport, so that the body moves on from where they leave it. Physics aims a kinematic body at the end of
     /// its end pose or full sample and puts it exactly there after the update (see SnapKinematicBodies), and steers a
     /// dynamic body to its steer target.
     /// </summary>
@@ -397,8 +437,8 @@ public sealed partial class JoltPhysicsBackend
     /// and holds still in its semantic frame. So physics aims the anchor as for any plan: at the frame's origin, or in the
     /// step of a teleport at the teleport's place, where the frame will be at the end of the step (see
     /// <see cref="KinematicTarget"/>), and puts it exactly there after the update (see <see cref="SnapKinematicBodies"/>). The aim gives the anchor no velocity in the frame, also when a move between
-    /// systems gave it the difference of the two homes' velocities (see <see cref="ApplyMoves"/>), and the stop rule holds it
-    /// still after the step. A plain anchor reports the plan, and a hull releases the record that physics predicts for its
+    /// systems gave it the difference of the two homes' velocities (see <see cref="ApplyMoves"/>), and the stop holds it
+    /// still after the step (see <see cref="StopBodies"/>). A plain anchor reports the plan, and a hull releases the record that physics predicts for its
     /// frame, at rest in its home (see <see cref="PredictRecord"/>), so that the sync point places the frame on its plan for
     /// both kinds (see <see cref="FrameTree.PlaceFollowingFrame"/>).
     /// </summary>

@@ -19,3 +19,7 @@ Found by the fix stage of ter-xdt8 (2026-10-19), not confirmed by a test. In a n
 **2026-10-27T08:33:13Z**
 
 2026-10-27: confirmed by a red test (8.33 mm off at 0.5 m/s; the drain hides it above 1 m/s). The first builder stopped on a fork: hold still in the home (ARCHITECTURE line 373) or in the semantic frame. The orchestrator settled it by numeric-frames.md line 7 (gameplay never sees these frames) and the user's decision of 2026-10-19 (line 615): every kinematic body without a motion intent holds still in its semantic frame. The stop rule gives the chord of rest in the semantic frame and runs before the step's intents. Today's rule also lets a stopped kinematic ball ride its falling frame at its last speed for good.
+
+**2026-10-27T09:41:52Z**
+
+Review fix (2026-10-27): the related limit above is gone. A kinematic hull that teleports without a motion intent in a numeric tree parent is the anchor of its own following frame, which AimStillAnchors aims at the teleport's place, so the read and the step agree. World.PoseNowAtRunningStepEnd no longer moves a hull's pose with its tree parent.

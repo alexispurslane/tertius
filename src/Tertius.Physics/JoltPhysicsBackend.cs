@@ -1006,7 +1006,10 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
         }
 
         // A static hull, or a kinematic hull without a motion intent, that teleported in the step stands at the teleport's
-        // pose in its home, the frame's tree parent, at rest.
+        // pose in its home, the frame's tree parent, at rest. A kinematic hull holds still in its semantic frame, and its
+        // frame hangs in its semantic parent or at the origin of its own following frame, which holds still there with it in
+        // a step without a motion intent (see AimStillAnchors and FrameTree.AssertInvariants), so at rest in the tree parent
+        // is at rest in the semantic parent.
         return hull is { HasPrimary: true } && hull.TeleportStep == stepIndex
             ? new(
                 Pose: hull.TeleportPose,

@@ -632,8 +632,8 @@ public sealed partial class World
     /// The pose in <paramref name="frame"/> at which <paramref name="entity"/> starts the next step (see
     /// <see cref="Self.PoseAtNextStepStartIn"/>): the end of its motion intent in the step that applies the front intents, an
     /// end pose or a full sample, which physics or the sync point puts the entity on exactly; else that step's teleport;
-    /// else its pose now, in the front snapshot, which for a frame owner is its frame's pose in its parent, carried to the
-    /// end of that step as <see cref="PoseNowAtRunningStepEnd"/> says. A steer target gives no exact end, so the read skips
+    /// else its pose now, in the front snapshot, which for a frame owner is its frame's pose in its parent (see
+    /// <see cref="PoseNowAtRunningStepEnd"/>). A steer target gives no exact end, so the read skips
     /// it. Each of them is in the frame that the entity is in, or for the owner of a root frame in the root's own space, the
     /// null frame. Throws <see cref="StaleEntityException"/> for a stale entity, and <see cref="ArgumentException"/> for a
     /// stale frame. During a tick, only the worker of the entity may ask it: it reads the entity's own front intent, which
@@ -648,39 +648,27 @@ public sealed partial class World
             EndPose end => (end.Pose, intent.Frame),
             MotionSample sample => (sample.Pose, intent.Frame),
             _ when (intent.Flags & IntentFlags.Teleport) != 0 => (intent.TeleportPose, intent.Frame),
-            SteerTarget or null => PoseNowAtRunningStepEnd(entity, front),
+            SteerTarget or null => PoseNowAtRunningStepEnd(entity),
         };
         return from == frame ? pose : DPose.Compose(Frames.Relative(from, LiveFrame(frame)), pose);
     }
 
     /// <summary>
     /// Where <paramref name="entity"/>, whose step beside the tick applies no end pose, full sample or teleport, stands at
-    /// the end of that step, from its pose now, with the frame that the pose is in. A body that is kinematic in that step
-    /// holds still in its home, hull or not: a hull in its frame's tree parent, a plain body in its physics home. So it ends
-    /// the step where its home carries it, which a numeric home moves over the step (see
-    /// <see cref="FrameTree.HomeMoveOver"/>). Its inputs, the numeric frames' places, velocities and step accelerations,
-    /// stay fixed during the tick, because physics converts its kinematic targets with them while the step runs. Any other
-    /// entity keeps its pose now: an entity without a body, a static body, an attached entity and a frame without a hull
-    /// live in their semantic frame, and physics moves a dynamic body or a character, which the read does not predict.
+    /// the end of that step: its pose now, with the frame that the pose is in. A body that is kinematic in that step holds
+    /// still in its semantic frame, hull or plain, whatever numeric frame holds it. A kinematic hull's frame hangs in its
+    /// semantic parent or at the origin of its own following frame, whose plan holds it still in its semantic parent in such
+    /// a step (see <see cref="FrameTree.AssertInvariants(int, ReadOnlySpan{PhysicsIntent})"/>). Any other entity keeps its
+    /// pose now too: an entity without a body, a static body, an attached entity and a frame without a hull live in their
+    /// semantic frame, and physics moves a dynamic body or a character, which the read does not predict.
     /// </summary>
-    private (DPose Pose, FrameHandle From) PoseNowAtRunningStepEnd(Entity entity, ReadOnlySpan<PhysicsIntent> front)
+    private (DPose Pose, FrameHandle From) PoseNowAtRunningStepEnd(Entity entity)
     {
         FrameHandle own = Entities.OwnedFrame(entity);
-        if (own.IsNull)
-        {
-            ref readonly TransformRow row = ref Entities.FrontRow(entity);
-            if (Entities.Body(entity) is not { Motion: BodyMotion.Kinematic })
-                return (row.Pose, row.Frame);
-            Double3 move = Frames.HomeMoveOver(row.PhysicsHome, row.Frame, DeltaTime);
-            return (new(row.Pose.Position + move, row.Pose.Rotation), row.Frame);
-        }
-
-        DPose local = Frames.LocalPose(own);
-        FrameHandle parent = Frames.Parent(own);
-        if (Frames.HullMotionInStep(own, front) != BodyMotion.Kinematic)
-            return (local, parent);
-        Double3 carried = Frames.HomeMoveOver(Frames.TreeParent(own), parent, DeltaTime);
-        return (new(local.Position + carried, local.Rotation), parent);
+        if (!own.IsNull)
+            return (Frames.LocalPose(own), Frames.Parent(own));
+        ref readonly TransformRow row = ref Entities.FrontRow(entity);
+        return (row.Pose, row.Frame);
     }
 
     /// <summary>
