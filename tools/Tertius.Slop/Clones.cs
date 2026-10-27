@@ -83,7 +83,7 @@ public sealed class Clones(IReadOnlyList<Clone> all)
 
     /// <summary>The lines of the file at <paramref name="path"/> in a clone, from 1. Empty for a file without clones.</summary>
     public IReadOnlySet<int> LinesIn(string path) =>
-        linesByFile.TryGetValue(path, out HashSet<int>? lines) ? lines : new HashSet<int>();
+        linesByFile.TryGetValue(path, out HashSet<int>? lines) ? lines : [];
 
     // One fragment of a jscpd report: a file relative to src and its first and last lines.
     private static CloneCopy CopyIn(JsonElement fragment) =>

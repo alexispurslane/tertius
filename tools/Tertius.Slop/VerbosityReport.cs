@@ -41,7 +41,7 @@ public sealed record VerbosityReport
     /// </summary>
     public required IReadOnlyList<Finding> Findings { get; init; }
 
-    /// <summary>Every clone that jscpd found in src, in the order of <see cref="Slop.Clones.All"/>.</summary>
+    /// <summary>Every clone that jscpd found in src, in the order of <see cref="Clones.All"/>.</summary>
     public required IReadOnlyList<Clone> Clones { get; init; }
 
     /// <summary>
