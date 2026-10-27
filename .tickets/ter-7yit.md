@@ -1,7 +1,7 @@
 ---
 id: ter-7yit
 status: open
-deps: []
+deps: [ter-of1p, ter-4vzc]
 links: []
 created: 2026-10-27T01:21:05Z
 type: task
