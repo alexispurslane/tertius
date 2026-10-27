@@ -2246,7 +2246,7 @@ Every pass that writes the HDR image or the emissive target writes pre-exposed l
 | G-buffer | The emissive target: the material's emission | `preExposed(s.emissive)` |
 | G-buffer, the billboards | The emissive target: the capture's radiance | `preExposed` in `impostor.frag` |
 | Impostor captures | The atlas | Nothing: a scale of 1, so the atlas stores radiance |
-| Direct light | The direct image: the light of the lights of the list that the main view keeps (`viewKeeps(MainView, light)`, see "The environment map"), and the emission | `exposed(directLight(...), exposureScale())` plus the pre-exposed emission for a lit pixel, capped at 32,256, 0 for sky, and nothing more for an impostor pixel, which the billboard pre-exposed |
+| Direct light | The direct image: the light of the lights of the list that the main view keeps (`viewKeeps(MainView, light)`, see "The environment map"), and the emission | `exposed(directSum(directLight(..., MainView)), exposureScale())` plus the pre-exposed emission for a lit pixel, capped at 32,256, 0 for sky, and nothing more for an impostor pixel, which the billboard pre-exposed |
 | Ambient light | The HDR image: the direct image, the ambient light, and the sky | `exposed(ambientLight(...), exposureScale())` added to the pre-exposed direct image for a lit pixel, capped at 32,256, `preExposed(skyRadiance(direction) + starRadiance(direction))` for sky, and the direct image alone for an impostor pixel |
 | Transparent, a mesh | The HDR image, with the glass blend: output 0, never the transmittance T | `lobesRadiance(..., exposed(s.emissive, k), ..., k)`, then the cap at 32,256 · (1 − T) |
 | Transparent, a puff | The HDR image, added | `exposed(light, k, params.x)`: the puff's light at most its share, in `puff.vert` |

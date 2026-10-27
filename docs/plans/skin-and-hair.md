@@ -377,7 +377,7 @@ void main()
     if (opaqueDistance > 0.0 && length(inPosition - draw.eye.xyz) > opaqueDistance)
         discard;
     float exposure = exposureScale();
-    vec3 radiance = surfaceRadiance(shading, exposed(s.emissive, exposure), inPosition, V, SunShadowsMainView, exposure);
+    vec3 radiance = surfaceRadiance(shading, exposed(s.emissive, exposure), inPosition, V, ShadowMapsMainView, exposure);
     outColor = vec4(radiance * coverage, 0.0);
     outTransmittance = vec4(vec3(1.0 - coverage), 0.0);
 }
@@ -589,7 +589,7 @@ The direct pass and the ambient pass write the scatter image beside their own ou
 
 ```glsl
 // direct.frag
-DirectTerms direct = directLight(s, lobes, position, V, SunShadowsMainView, MainView);
+DirectTerms direct = directLight(s, lobes, position, V, ShadowMapsMainView, MainView);
 outDirect = vec4(min(exposed(direct.diffuse + direct.specular, k) + emission, vec3(MaxRadiance)), 1.0);
 outScatter = s.model == ShadingSkin ? vec4(exposed(direct.diffuse, k), 1.0) : vec4(0.0);
 
