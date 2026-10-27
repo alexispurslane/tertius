@@ -119,7 +119,7 @@ internal static class ShadowCascades
     /// True when the shadow maps draw a caster with bounding radius <paramref name="radius"/> whose center is
     /// <paramref name="distance"/> meters from the camera: its bounding sphere comes within <see cref="Distance"/>, however
     /// big it is, such as a ground plane or a planet under the camera. Every caster is also a far shadow, if it is big enough
-    /// to notice; for a caster that the maps draw, that sphere counts only where the maps end.
+    /// to notice; for a caster that its light's set draws, that sphere counts only where the maps end.
     /// </summary>
     public static bool TakesCaster(float distance, float radius) => distance - radius <= Distance;
 

@@ -26,7 +26,7 @@ public sealed class BatcherLightTests
     private static RenderSnapshot Dark() => Gpu.Snapshot(Vector3.UnitY, starIrradiance: 0);
 
     private static SceneBatcher Batcher(int cascadedLights = 1) =>
-        new(exposure: TenStopsDown, cascadedLights: cascadedLights);
+        Batchers.With(exposure: TenStopsDown, cascadedLights: cascadedLights);
 
     private static PreparedScene Prepare(
         RenderSnapshot snapshot,

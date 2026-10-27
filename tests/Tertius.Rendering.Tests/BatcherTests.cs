@@ -524,7 +524,7 @@ public sealed class BatcherTests
     /// A batcher whose exposure is fixed at −10 stops, where the cutoff irradiance is π · 2^−13 · 2^10 = π / 8 W/m², so
     /// that a lamp's reach is a few meters.
     /// </summary>
-    private static SceneBatcher TenStopsDown() => new(exposure: new FixedExposure(-10), cascadedLights: 1);
+    private static SceneBatcher TenStopsDown() => Batchers.With(exposure: new FixedExposure(-10), cascadedLights: 1);
 
     /// <summary>A white lamp at <paramref name="position"/> whose reach is 10 m at −10 stops, or no light at all when <paramref name="shines"/> is false.</summary>
     private static PointRenderLight Lamp(Vector3 position, bool shines = true) =>

@@ -26,25 +26,30 @@ public sealed class ShadowPassTests
             chainDepth: TestChains.Root
         );
 
-    /// <summary>The scene of two stars, batched with two cascade sets, then fitted as the shadow pass fits it.</summary>
+    /// <summary>
+    /// The scene of two stars, batched with two cascade sets, which the batcher fits, then with the sets written into the
+    /// frame constants as the shadow pass writes them.
+    /// </summary>
     private static PreparedScene TwoStars()
     {
         RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, starIrradiance: 0);
         snapshot.Lights.Add(Star(Vector3.UnitY, irradiance: 3));
         snapshot.Lights.Add(Star(Vector3.UnitX, irradiance: 1));
         var scene = new PreparedScene();
-        new SceneBatcher(exposure: new FixedExposure(0), cascadedLights: 2).Prepare(
-            snapshot: snapshot,
-            alpha: 1f,
-            width: 1600,
-            height: 900,
-            meshes: Meshes,
-            materialCount: 1,
-            environment: new WithoutMap(),
-            region: DeformRegion.None,
-            scene: scene
-        );
-        ShadowPass.FitSets(scene: scene, anchor: Double3.Zero, mapSize: 2048, depthRangeScale: 16f);
+        Batchers
+            .With(exposure: new FixedExposure(0), cascadedLights: 2)
+            .Prepare(
+                snapshot: snapshot,
+                alpha: 1f,
+                width: 1600,
+                height: 900,
+                meshes: Meshes,
+                materialCount: 1,
+                environment: new WithoutMap(),
+                region: DeformRegion.None,
+                scene: scene
+            );
+        ShadowPass.WriteSets(scene);
         return scene;
     }
 

@@ -17,14 +17,21 @@ internal readonly record struct MeshInfo(
 /// <summary>
 /// Turns a <see cref="RenderSnapshot"/> into GPU-ready arrays on the render thread: interpolates the camera, the
 /// instances, once for every view, the lights and the puffs, culls them, assigns depth ranges, sorts, and builds one
-/// indirect command per run of instances that share a depth range and a mesh. It chooses the far lights' shadow slots and their
-/// far shadows (docs/plans/local-light-shadows.md). The transparent instances and the puffs sort together back to front,
-/// and the batcher cuts that list into the runs of the transparent pass. Allocates nothing once its arrays have grown to
-/// the scene.
+/// indirect command per run of instances that share a depth range and a mesh. It chooses the far lights' shadow slots,
+/// fits their cascade sets, and gives them their far shadows (docs/plans/local-light-shadows.md). The transparent instances
+/// and the puffs sort together back to front, and the batcher cuts that list into the runs of the transparent pass.
+/// Allocates nothing once its arrays have grown to the scene.
 /// </summary>
 /// <param name="exposure">The renderer's exposure setting, whose highest stops set the cutoff irradiance.</param>
 /// <param name="cascadedLights">How many far lights get a cascade set, 0 to <see cref="RendererOptions.MaxCascadedLights"/>.</param>
-internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
+/// <param name="shadowMapSize">The side of each cascade's shadow map in texels, <see cref="ShadowMap.Size"/>.</param>
+/// <param name="depthRangeScale">How many times deeper than wide each cascade box is, <see cref="ShadowMap.DepthRangeScale"/>.</param>
+internal sealed class SceneBatcher(
+    ExposureSetting exposure,
+    int cascadedLights,
+    int shadowMapSize,
+    float depthRangeScale
+)
 {
     private const float DefaultVerticalFov = MathF.PI / 3f;
 
@@ -120,6 +127,8 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
         CollectPuffs(snapshot, alpha, scene);
         // Before the processors: impostor captures are lit by the lights as their far shadows leave them.
         CollectLights(snapshot: snapshot, alpha: alpha, faces: facesOfMaps, scene: scene);
+        // After the lights, which take the cascade sets, and before the far shadows, which follow what each set draws.
+        FitCascadeSets(snapshot, scene);
         CollectFarShadows(scene);
         foreach (IInstanceProcessor processor in Processors)
             processor.Process(scene);
@@ -978,12 +987,41 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
     }
 
     /// <summary>
+    /// Fits the four cascades of each far light whose slot is a <see cref="CascadeSet"/> to the camera, along the light's
+    /// own direction, with the texel grid through the origin of the camera's frame (<see cref="ShadowCascades.Anchor"/>).
+    /// Leaves <see cref="PreparedScene.CascadeSetCount"/> at one more than the highest set, or 0 without one.
+    /// </summary>
+    private void FitCascadeSets(RenderSnapshot snapshot, PreparedScene scene)
+    {
+        // Worked out from this snapshot alone, so nothing carries over from tick to tick.
+        Double3 anchor = ShadowCascades.Anchor(snapshot.OriginInFrame, scene.Camera.Offset);
+        foreach (ref readonly PreparedLight light in scene.LightSpan)
+        {
+            if (light.Shadow is not CascadeSet { Set: var set })
+                continue;
+            // A far light is at least FarDistance from the eye, so its direction is not zero.
+            var basis = LightBasis.FromDirection(light.Position);
+            ShadowCascades.Fit(
+                camera: scene.Camera,
+                light: basis,
+                mapSize: shadowMapSize,
+                depthRangeScale: depthRangeScale,
+                anchor: anchor,
+                cascades: ref scene.CascadeSets[set]
+            );
+            scene.CascadeBases[set] = basis;
+            scene.CascadeSetCount = Math.Max(scene.CascadeSetCount, set + 1);
+        }
+    }
+
+    /// <summary>
     /// The far shadows of each far light with a slot, its own run of <see cref="PreparedScene.Occluders"/>: every caster
     /// is also a sphere of its bounding radius, which shadows the light for points outside it and never for points inside
     /// it (see <see cref="Eclipse.Visibility"/>). Only a sphere that can be noticed, by the light's own angular radius at
     /// the camera: a caster beyond the maps must cover a pixel or a fifth of that radius seen from the camera; a caster
-    /// that a <see cref="CascadeSet"/> also draws comes first, and must hide 4% of the light from where its far receivers
-    /// start, more than 2 km from the camera. For a <see cref="FarShadowsOnly"/> light every caster is beyond the maps.
+    /// that the maps take must hide 4% of the light from where its far receivers start, more than 2 km from the camera.
+    /// The casters that the light's <see cref="CascadeSet"/> draws (<see cref="ShadowPass.SetMask"/>) come first. For a
+    /// <see cref="FarShadowsOnly"/> light every caster is beyond the maps.
     /// </summary>
     private static void CollectFarShadows(PreparedScene scene)
     {
@@ -1000,8 +1038,9 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
             switch (light.Shadow)
             {
                 case CascadeSet set:
-                    AddMapped(scene: scene, placed: placed, lightShare: lightShare);
+                    AddInReach(scene: scene, placed: placed, lightShare: lightShare, set: set.Set, drawn: true);
                     int mapped = scene.OccluderCount - start;
+                    AddInReach(scene: scene, placed: placed, lightShare: lightShare, set: set.Set, drawn: false);
                     AddBeyond(scene: scene, placed: placed, smallestShare: smallestShare, mappedToo: false);
                     light.Shadow = new(
                         set with
@@ -1023,12 +1062,24 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
         }
     }
 
-    /// <summary>The far shadows of the casters that a cascade set draws, which hide 4% of the light from beyond the maps.</summary>
-    private static void AddMapped(PreparedScene scene, ReadOnlySpan<PreparedInstance> placed, float lightShare)
+    /// <summary>
+    /// The far shadows of the casters that the maps take (<see cref="ShadowCascades.TakesCaster"/>) and that hide 4% of
+    /// the light from beyond the maps: those that cascade set <paramref name="set"/> draws, or those that it does not.
+    /// </summary>
+    private static void AddInReach(
+        PreparedScene scene,
+        ReadOnlySpan<PreparedInstance> placed,
+        float lightShare,
+        int set,
+        bool drawn
+    )
     {
         foreach (ref readonly PreparedInstance caster in placed)
         {
             if (!caster.CastsShadow || !ShadowCascades.TakesCaster(caster.Distance, caster.Radius))
+                continue;
+            bool drawnBySet = ShadowPass.SetMask(scene, set, caster) != 0;
+            if (drawnBySet != drawn)
                 continue;
             // Its far receivers lie beyond the maps, at least 2 km from the camera, so at least this far from it.
             if (caster.Radius >= MathF.Max(ShadowCascades.Distance - caster.Distance, caster.Radius) * lightShare)
