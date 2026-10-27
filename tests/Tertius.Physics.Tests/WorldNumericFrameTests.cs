@@ -245,46 +245,6 @@ public sealed class WorldNumericFrameTests
     }
 
     [Fact]
-    public void AShipThatFallsPastTheCreateSpeedStaysAtRestInItsNewFallingFrame()
-    {
-        // The ship falls straight toward Earth at 995 m/s, so gravity takes it past the 1,000 m/s of a falling frame after
-        // about 0.6 s. Its frame's row keeps its instant velocity, 72 mm/s past the chord of its last step.
-        using World world = NewWorld(backend: out _);
-        FrameHandle earth = Earth(world);
-        Entity hull = world.Spawn(
-            new()
-            {
-                Frame = earth,
-                Pose = At(0, OrbitRadius),
-                LinearVelocity = new(0, -995, 0),
-                Body = Hull,
-                AsFrame = new(FrameBounds.Sphere(20)),
-            }
-        );
-        Tick(world, 1);
-        InFallingFrame(world, hull).Should().BeFalse("the ship is too slow for a falling frame at its spawn");
-        TickUntil(world, () => InFallingFrame(world, hull), 60);
-
-        // A new frame has no step acceleration, so its instant velocity is known only after its first step.
-        for (int tick = 1; tick <= 3; tick++)
-        {
-            Tick(world, 1);
-
-            world.Errors.Should().BeEmpty();
-            InFallingFrame(world, hull).Should().BeTrue();
-            // The hull's velocity is an instant velocity, so it rests in its frame when it moves at the frame's.
-            FrameHandle home = world.PhysicsHomeOf(hull);
-            Double3 frameInstant =
-                world.Frames.HomeVelocity(home, earth)
-                + world.Frames.HomeInstantVelocityOverChord(home, earth, world.DeltaTime);
-            Double3 inFrame = world.VelocityIn(hull, earth) - frameInstant;
-            inFrame
-                .Length.Should()
-                .BeLessThan(1e-4, $"{tick} ticks after its frame came, the ship moves at {inFrame} in it");
-        }
-    }
-
-    [Fact]
     public void ACrateSpawnedAloneAtOrbitalSpeedFollowsTheOrbitOfItsSpawnInItsFallingFrame()
     {
         using World world = NewWorld(backend: out _);
@@ -309,6 +269,44 @@ public sealed class WorldNumericFrameTests
         InFallingFrame(world, crate).Should().BeTrue();
         Double3 reached = world.PoseIn(crate, earth).Position;
         (reached - position).Length.Should().BeLessThan(1e-4, $"the crate reached {reached}, and the orbit {position}");
+    }
+
+    [Fact]
+    public void AShipWhoseOwnerSetsItsVelocityInItsFallingFrameMovesWithItsFrameAfterTheDrain()
+    {
+        // The ship's velocity jumps by 10 m/s along X and by the 145 mm/s that gravity gave it in its first step along Y, so
+        // its frame drains to its new velocity at the sync point after the step that applies the set velocity.
+        using World world = NewWorld(backend: out _);
+        FrameHandle earth = Earth(world);
+        var pilot = new Pilot();
+        Entity ship = world.Spawn(
+            new()
+            {
+                Frame = earth,
+                Pose = At(0, OrbitRadius),
+                LinearVelocity = new(OrbitSpeed, 0, 0),
+                Body = Hull,
+                AsFrame = new(FrameBounds.Sphere(20)),
+                Components = [pilot],
+            }
+        );
+        Tick(world, 1);
+        pilot.Once = body => body.SetVelocity(new(OrbitSpeed + 10, 0, 0));
+
+        for (int tick = 1; tick <= 4; tick++)
+        {
+            Tick(world, 1);
+
+            world.Errors.Should().BeEmpty();
+            InFallingFrame(world, ship).Should().BeTrue();
+            // The hull's velocity is an instant velocity, which runs half a step of gravity, 72 mm/s, ahead of the chord of
+            // its frame. A jump of the set velocity is no acceleration over the step, so it stays out of the frame's chord.
+            Double3 inFrame =
+                world.VelocityIn(ship, earth) - world.Frames.HomeVelocity(world.PhysicsHomeOf(ship), earth);
+            inFrame
+                .Length.Should()
+                .BeLessThan(0.5, $"{tick} ticks after the set velocity, the ship moves at {inFrame}");
+        }
     }
 
     [Fact]

@@ -19,3 +19,7 @@ From ter-ediu: the World creates a numeric frame for a fast spawn with the spawn
 **2026-10-19T15:30:42Z**
 
 2026-10-19: ter-xdt8 has the same inconsistency for a new following frame (CreateOrbitFrame started it with its anchor's instant velocity), and its next stage makes a new following frame start with the chord that the numeric frames expect, derived from what exists at its creation. When ter-xdt8 merges, reuse that derivation for a numeric frame made for a spawn, or close this ticket if the stage already covered it.
+
+**2026-10-27T12:26:27Z**
+
+2026-10-27: the review found that the first commit also derived a stepped dynamic hull's chord from the tree's proper acceleration, which holds the jolt of a SetVelocity, a teleport or an impulse, so a ship that set its velocity 10 m/s higher drained its frame 5 m/s wrong. The fix limits the derivation to the bodies that physics creates at the sync point, as the ticket scoped it, and ter-5pd7 takes the stepped hull. ter-4v1r takes the plain anchor of CreateFollowingFrame. With the limit, the demo scripts equal main's again: the shift of the station segments came from the hull chord, and the sleep rule moves no tick.

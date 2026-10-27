@@ -221,7 +221,8 @@ public sealed partial class FrameTree
             local = TreeLocalPose(frame);
             position = InSemantic(treeParent, semantic, local.Position);
             velocity = HomeVelocity(treeParent, semantic) + linearVelocity[frame.Index];
-            properAccelerationOut = ProperAccelerationInSemantic(frame);
+            // A numeric frame never turns, so the frame's rotation in its tree parent is its rotation in the semantic parent.
+            properAccelerationOut = local.Rotation.Rotate((Double3)properAcceleration[frame.Index]);
         }
 
         Double3 chord =
@@ -280,27 +281,26 @@ public sealed partial class FrameTree
         return acceleration * (step / 2);
     }
 
-    /// <summary>The proper acceleration of <paramref name="frame"/>, a frame with a hull, in its semantic parent's axes.</summary>
-    private Double3 ProperAccelerationInSemantic(FrameHandle frame) =>
-        // A numeric frame never turns, so the frame's rotation in its tree parent is its rotation in the semantic parent.
-        TreeLocalPose(frame).Rotation.Rotate((Double3)properAcceleration[frame.Index]);
-
     /// <summary>
     /// How much the velocity of <paramref name="body"/> exceeds its chord over the step that ended, of
-    /// <paramref name="step"/> seconds (see <see cref="NumericBody.InstantVelocityOverChord"/>). A hull and a spawn take the
-    /// derivation of a new following frame (see <see cref="CreateFollowingFrame"/>), and a spawn has no proper acceleration
-    /// yet. Any other body reports Jolt's chord, and Jolt never accelerates a static or kinematic body.
+    /// <paramref name="step"/> seconds (see <see cref="NumericBody.InstantVelocityOverChord"/>). A body that physics creates
+    /// at this sync point has an instant velocity, which physics turns into a chord where the next step starts, so it takes
+    /// the derivation of a new following frame (see <see cref="CreateFollowingFrame"/>) with no proper acceleration, because
+    /// it has none yet. Every other body reports zero. A body that physics stepped reports Jolt's chord, and a hull its
+    /// frame's instant velocity, which runs half a step of its acceleration ahead (ter-5pd7). A static body fixes its group,
+    /// which then takes no chord. A kinematic hull fixes its group or anchors a following frame, which derives its own chord
+    /// (see <see cref="CreateFollowingFrame"/>), so no group chord of it is read, and a plain kinematic body takes no spawn
+    /// velocity.
     /// </summary>
     private Double3 InstantVelocityOverChord(in NumericBody body, double step)
     {
-        bool hull = !body.OwnedFrame.IsNull;
-        if (body.Static || body.Kinematic || !(hull || body.Spawned))
+        if (!body.Spawned || body.Static || body.Kinematic)
             return Double3.Zero;
         return InstantVelocityOverChord(
             semantic: body.Semantic,
             position: body.Position,
             velocity: body.Velocity,
-            properAcceleration: hull ? ProperAccelerationInSemantic(body.OwnedFrame) : Double3.Zero,
+            properAcceleration: Double3.Zero,
             step: step
         );
     }

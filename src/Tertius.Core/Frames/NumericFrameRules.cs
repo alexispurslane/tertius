@@ -33,15 +33,17 @@ internal readonly record struct NumericBody
     public Double3 Velocity { get; init; }
 
     /// <summary>
-    /// Physics has not created the body yet, so <see cref="Velocity"/> is its spawn velocity, an instant velocity, and no
-    /// step has turned it into a chord (ARCHITECTURE.md, "Instant velocities and chords").
+    /// Physics creates the body at this sync point, so <see cref="Velocity"/> is an instant velocity that no step has turned
+    /// into a chord yet (ARCHITECTURE.md, "Instant velocities and chords"): a spawn's, or that of a body that the World moves
+    /// out of a dying frame (<c>World.Rehome</c>), which physics creates anew in its new frame.
     /// </summary>
     public bool Spawned { get; init; }
 
     /// <summary>
     /// How much <see cref="Velocity"/> exceeds the chord of the body's motion over the step that ended: half a step of its
-    /// acceleration for a spawn or a hull, whose velocity is an instant velocity, and else zero, because physics reports
-    /// Jolt's chord. The update fills it in, so the World leaves it unset.
+    /// acceleration for a dynamic body or a character that <see cref="Spawned"/> marks, and else zero, because physics
+    /// reports Jolt's chord. A dynamic hull that physics stepped reports its frame's instant velocity, which runs half a step
+    /// of its acceleration ahead of its chord (ter-5pd7). The update fills it in, so the World leaves it unset.
     /// </summary>
     public Double3 InstantVelocityOverChord { get; init; }
 

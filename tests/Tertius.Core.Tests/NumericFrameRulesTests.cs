@@ -943,11 +943,11 @@ public sealed class NumericFrameRulesTests
             .Be(X(11));
 
     [Fact]
-    public void The_velocity_is_the_mass_weighted_mean_of_the_bodies() =>
+    public void The_chord_is_the_mass_weighted_mean_of_the_chords_of_the_bodies() =>
         Summary(Body(x: 0, vx: 100, mass: 3), Body(x: 1, vx: 200, mass: 1)).Chord.Should().Be(X(125));
 
     [Fact]
-    public void A_spinning_body_whose_center_of_mass_lies_off_its_origin_adds_the_velocity_of_its_center_of_mass() =>
+    public void A_spinning_body_whose_center_of_mass_lies_off_its_origin_adds_the_chord_of_its_center_of_mass() =>
         // Its origin moves at 100 m/s along X, and its center of mass, 3 m along X from it, turns at 0.5 rad/s about Y.
         Summary(Body(x: 0, vx: 100, mass: 3) with { AngularVelocity = new(0, 0.5f, 0), CenterOfMassOffset = X(3) })
             .Chord.Should()
@@ -964,7 +964,7 @@ public sealed class NumericFrameRulesTests
             .Be(X(10));
 
     [Fact]
-    public void A_group_with_a_kinematic_body_takes_the_center_and_the_velocity_of_its_center_of_mass()
+    public void A_group_with_a_kinematic_body_takes_the_center_and_the_chord_of_its_center_of_mass()
     {
         NumericGroup group = Summary(
             Body(x: 0, mass: 3),
@@ -980,7 +980,7 @@ public sealed class NumericFrameRulesTests
     }
 
     [Fact]
-    public void A_static_body_anchors_the_group_and_zeroes_its_velocity()
+    public void A_static_body_anchors_the_group_and_zeroes_its_chord()
     {
         NumericGroup group = Summary(Body(x: 0, vx: 100), Body(x: 1) with { Static = true });
         group.Anchored.Should().BeTrue();
@@ -988,7 +988,7 @@ public sealed class NumericFrameRulesTests
     }
 
     [Fact]
-    public void A_kinematic_body_is_infinitely_heavy_so_its_group_takes_its_velocity_and_its_center()
+    public void A_kinematic_body_is_infinitely_heavy_so_its_group_takes_its_chord_and_its_center()
     {
         // A crate of 25 kg at 60 m/s and a still door of 1 kg: the door decides, so the group does not fall.
         NumericGroup still = Summary(Body(x: -120, vx: 60, mass: 25), Body(x: 0, mass: 1) with { Kinematic = true });
@@ -1322,7 +1322,7 @@ public sealed class NumericFrameRulesTests
             .Be(OrbitSpeed);
 
     [Fact]
-    public void A_falling_frame_takes_its_members_velocity_above_the_drain_speed() =>
+    public void A_falling_frame_takes_its_members_chord_above_the_drain_speed() =>
         DrainVelocity(
                 frameMode: NumericMode.Falling,
                 groupMode: NumericMode.Falling,
@@ -1334,7 +1334,7 @@ public sealed class NumericFrameRulesTests
             .Be(OrbitSpeed + X(1.01));
 
     [Fact]
-    public void A_resting_frame_that_starts_to_fall_takes_its_members_velocity() =>
+    public void A_resting_frame_that_starts_to_fall_takes_its_members_chord() =>
         DrainVelocity(
                 frameMode: NumericMode.Resting,
                 groupMode: NumericMode.Falling,

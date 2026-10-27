@@ -651,9 +651,7 @@ public sealed class RailsFollowTests
             _ => Bodyless(world: world, space: space, orbit: Slow),
         };
         FrameHandle frame = world.GetOwnedFrame(entity);
-        // The chord of the dynamic hull passes 1,000 m/s in its fourth step, so it gets a falling frame at that sync point,
-        // and its frame stands on a record in that frame's system from the fifth step on.
-        Tick(world, 5);
+        Tick(world, 4);
         var climber = new Climber();
         var park = new ParkAndHopOnce(world.GetComponent<KeplerMotion>(entity));
         if (owner == "no body, and a transform write")
