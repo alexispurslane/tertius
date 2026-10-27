@@ -272,6 +272,42 @@ internal sealed class PreparedScene
     /// <summary>R_i of the first <see cref="MapCount"/> maps, root first: the axes of map i's frame in world axes, interpolated.</summary>
     public readonly Quaternion[] MapAxes = new Quaternion[EnvironmentChain.MaxMaps];
 
+    // The frame meshes, the jobs and their pose rows (docs/plans/skinning-and-morphs.md, "Posing in the batcher").
+    private MeshInfo[] meshes = new MeshInfo[64];
+    private int meshCount;
+    private DeformJob[] deforms = new DeformJob[8];
+    private int deformCount;
+    private Vector4[] poses = new Vector4[64];
+    private int poseCount;
+
+    /// <summary>
+    /// The frame meshes: the static meshes, then one deformed copy per job, in job order. Every instance, caster and
+    /// command of the frame names its mesh in this list.
+    /// </summary>
+    public ReadOnlySpan<MeshInfo> Meshes => meshes.AsSpan(0, meshCount);
+
+    /// <summary>How many of <see cref="Meshes"/> are static meshes, the meshes on the GPU as they were uploaded.</summary>
+    public int StaticMeshCount { get; private set; }
+
+    /// <summary>The frame's jobs, one per deformed copy, in the order of the snapshot's rig poses.</summary>
+    public ReadOnlySpan<DeformJob> Deforms => deforms.AsSpan(0, deformCount);
+
+    /// <summary>The pose rows of every job, job after job.</summary>
+    public ReadOnlySpan<Vector4> Poses => poses.AsSpan(0, poseCount);
+
+    /// <summary>The frame meshes as the passes that cache by mesh read them.</summary>
+    public DeformedMeshes Deformed =>
+        new(meshes: Meshes, staticMeshCount: StaticMeshCount, jobs: Deforms, poses: Poses);
+
+    /// <summary>The posed instances that draw a deformed copy.</summary>
+    public int DeformedInstances { get; private set; }
+
+    /// <summary>The vertices of every deformed copy of the frame.</summary>
+    public int DeformedVertices { get; private set; }
+
+    /// <summary>The posed instances drawn as uploaded: a pose that does not fit, a full region, or a bound out of range.</summary>
+    public int UndeformedPosedInstances { get; private set; }
+
     /// <summary>The transparent indirect commands over all ranges: the commands of every <see cref="MeshCommands"/> run.</summary>
     public int TransparentCommandCount
     {
@@ -289,9 +325,55 @@ internal sealed class PreparedScene
 
     public Span<PreparedInstance> VisibleSpan => Visible.AsSpan(0, VisibleCount);
 
+    /// <summary>Whether frame mesh <paramref name="mesh"/> is a deformed copy.</summary>
+    public bool IsDeformed(int mesh) => mesh >= StaticMeshCount;
+
     public Span<PreparedLight> LightSpan => Lights.AsSpan(0, LightCount);
 
     public ReadOnlySpan<ShadowCaster> CasterSpan => Casters.AsSpan(0, CasterCount);
+
+    /// <summary>
+    /// Makes <paramref name="staticMeshes"/> the static part of <see cref="Meshes"/>, after <see cref="Reset"/> and before
+    /// any job. Copies only the meshes uploaded since the call before, because a static mesh never changes once uploaded.
+    /// So the static part is a cache of one table that only appends, GeometryStore.Meshes, and a scene serves one renderer.
+    /// </summary>
+    public void SetStaticMeshes(ReadOnlySpan<MeshInfo> staticMeshes)
+    {
+        Contract.Requires(staticMeshes.Length >= StaticMeshCount);
+        EnsureRoom(ref meshes, staticMeshes.Length);
+        staticMeshes[StaticMeshCount..].CopyTo(meshes.AsSpan(StaticMeshCount));
+        StaticMeshCount = staticMeshes.Length;
+        meshCount = StaticMeshCount;
+    }
+
+    /// <summary>The room for the next job's <paramref name="rows"/> pose rows, which <see cref="AddDeformed"/> then keeps.</summary>
+    public Span<Vector4> NextPoseRows(int rows)
+    {
+        EnsureRoom(ref poses, poseCount + rows);
+        return poses.AsSpan(poseCount, rows);
+    }
+
+    /// <summary>
+    /// Appends a job of static mesh <paramref name="source"/>, which deforms by <paramref name="deform"/>, with the pose rows
+    /// of <see cref="NextPoseRows"/>, and its frame mesh: the static mesh's indices over the copy's vertices in
+    /// <paramref name="region"/>, of radius <paramref name="bound"/>. Returns the index of the frame mesh.
+    /// </summary>
+    public int AddDeformed(int source, MeshDeform deform, DeformRegion region, float bound)
+    {
+        // The copies lie end to end from the region's base, so the vertices of the copies before this one are its target.
+        int target = DeformedVertices;
+        EnsureRoom(ref deforms, deformCount + 1);
+        deforms[deformCount++] = new(Mesh: source, Target: target, Pose: poseCount);
+        poseCount += deform.PoseRows;
+        EnsureRoom(ref meshes, meshCount + 1);
+        meshes[meshCount] = meshes[source] with { VertexOffset = region.Base + target, Radius = bound, Deform = null };
+        DeformedInstances++;
+        DeformedVertices += deform.VertexCount;
+        return meshCount++;
+    }
+
+    /// <summary>Counts a posed instance that draws as uploaded.</summary>
+    public void CountUndeformed() => UndeformedPosedInstances++;
 
     /// <summary>Appends a visible instance, for example a billboard that replaces an object.</summary>
     public ref PreparedInstance AddVisible()
@@ -395,6 +477,18 @@ internal sealed class PreparedScene
         DrawnTiles.Clear();
         Array.Clear(Impostors);
         EnvironmentFaces.Clear();
+        meshCount = StaticMeshCount;
+        deformCount = 0;
+        poseCount = 0;
+        DeformedInstances = 0;
+        DeformedVertices = 0;
+        UndeformedPosedInstances = 0;
+    }
+
+    private static void EnsureRoom<T>(ref T[] array, int count)
+    {
+        if (array.Length < count)
+            Array.Resize(ref array, Math.Max(count, array.Length * 2));
     }
 }
 

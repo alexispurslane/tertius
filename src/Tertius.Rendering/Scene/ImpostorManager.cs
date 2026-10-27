@@ -252,11 +252,7 @@ internal sealed partial class ImpostorManager : IInstanceProcessor
         {
             decisions[i] = -1;
             ref PreparedInstance instance = ref visible[i];
-            if (
-                (instance.Flags & Excluded) != 0
-                || !(instance.Radius > 0f)
-                || instance.Distance < MinimumDistance * instance.Radius
-            )
+            if (!MayBecomeImpostor(scene, instance))
                 continue;
             float height = ProjectedHeight(instance.Distance, instance.Radius, camera);
             var key = ImpostorKey.Of(instance);
@@ -294,6 +290,18 @@ internal sealed partial class ImpostorManager : IInstanceProcessor
         SelectCaptures(visible, light, camera);
         EmitDraws(scene, visible);
     }
+
+    /// <summary>
+    /// Whether a visible instance may become an impostor: not excluded by its flags, not a deformed copy, with a radius,
+    /// and far enough from the eye.
+    /// </summary>
+    private static bool MayBecomeImpostor(PreparedScene scene, in PreparedInstance instance) =>
+        (instance.Flags & Excluded) == 0
+        // A deformed copy changes its shape in every frame, which a capture keyed by ImpostorKey cannot follow
+        // (docs/plans/skinning-and-morphs.md, decision 25).
+        && !scene.IsDeformed(instance.Mesh)
+        && instance.Radius > 0f
+        && !(instance.Distance < MinimumDistance * instance.Radius);
 
     /// <summary>Takes the highest-priority candidates, up to the budget, and records their captures.</summary>
     private void SelectCaptures(ReadOnlySpan<PreparedInstance> visible, in SceneLight light, in CameraView camera)

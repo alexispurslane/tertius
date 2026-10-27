@@ -50,6 +50,12 @@ public readonly ref struct Self
     public ref RenderData Render => ref world.Entities.WritableRender(Entity);
 
     /// <summary>
+    /// This entity's own rig pose (back copy), for writing. Changes reach the renderer after the sync point, with the render
+    /// row. Throws <see cref="InvalidOperationException"/> if the entity spawned without a rig pose.
+    /// </summary>
+    public RigPoseWriter RigPose => world.Entities.WritableRigPose(Entity);
+
+    /// <summary>
     /// The offset from the attachment parent, for writing. The new offset takes effect at the sync point.
     /// Throws <see cref="InvalidOperationException"/> if the entity is not attached.
     /// </summary>

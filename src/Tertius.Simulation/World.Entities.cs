@@ -41,8 +41,8 @@ public sealed partial class World
     /// <see cref="DPose.IsValid"/>), a velocity that is not finite, a body that physics cannot create (see
     /// <see cref="BodyDesc.Problem"/> and <see cref="IPhysicsBackend.ShapeProblem"/>, which checks a frame's hull as a body
     /// with the motion of its description), a gravity field or a medium that is not valid, or an attachment
-    /// parent that is not live or that owns a root frame, or a first motion intent that the entity would refuse (see
-    /// <see cref="SpawnDesc.FirstMove"/>). The World checks nothing else about rails motion: a rails component checks its own
+    /// parent that is not live or that owns a root frame, a first motion intent that the entity would refuse (see
+    /// <see cref="SpawnDesc.FirstMove"/>), or a rig pose that it refuses (see <see cref="SpawnDesc.RigPose"/>). The World checks nothing else about rails motion: a rails component checks its own
     /// rules (see <see cref="KeplerMotion"/> and <see cref="SpinMotion"/>). An attached entity is live in
     /// the frame of its parent, whatever frame the description names (see <see cref="SpawnDesc.AttachTo"/>).
     /// </summary>
@@ -273,6 +273,8 @@ public sealed partial class World
                 $"The new entity cannot take the first motion intent {desc.FirstMove}: it {firstMove}.",
                 nameof(desc)
             );
+        if (RigPoseProblem(desc) is { } rigPose)
+            throw new ArgumentException($"The new entity cannot take its rig pose: {rigPose}.", nameof(desc));
 
         IReadOnlyList<IComponent> source = desc.Components ?? [];
         var components = new IComponent[source.Count];
@@ -371,7 +373,45 @@ public sealed partial class World
             ?? MotionIntentNumberProblem(move);
     }
 
+    /// <summary>
+    /// The reason that a spawn refuses the rig pose of <paramref name="desc"/>, or null (see <see cref="SpawnDesc.RigPose"/>):
+    /// a rig pose without a render row, a default array, more joint poses than a rig has, a number that is not finite, or a
+    /// rotation that is not a rotation. A tick can still write any value into it, and the renderer's guards catch that.
+    /// </summary>
+    private static string? RigPoseProblem(SpawnDesc desc)
+    {
+        if (desc.RigPose is not { } pose)
+            return null;
+        if (desc.Render is null)
+            return "it has no render row to pose";
+        if (pose.Joints.IsDefault || pose.Weights.IsDefault)
+            return "its joint poses or its weights are not set";
+        if (pose.Joints.Length > Rig.MaxJoints)
+            return $"it has {pose.Joints.Length} joint poses, and a rig has at most {Rig.MaxJoints} joints";
+        for (int joint = 0; joint < pose.Joints.Length; joint++)
+        {
+            Pose each = pose.Joints[joint];
+            Quaternion rotation = each.Rotation;
+            bool finite = IsFinite(each.Position) && IsFinite(rotation);
+            if (!finite)
+                return $"the pose {each} of the joint {joint} is not finite";
+            // The rule of Rig for a rest rotation: a rotation that the renderer can normalize.
+            float lengthSquared = rotation.LengthSquared();
+            bool isRotation = float.IsFinite(lengthSquared) && lengthSquared > 1e-12f;
+            if (!isRotation)
+                return $"the rotation {rotation} of the joint {joint} is not a rotation";
+        }
+
+        for (int morph = 0; morph < pose.Weights.Length; morph++)
+            if (!float.IsFinite(pose.Weights[morph]))
+                return $"the weight {pose.Weights[morph]} of the morph {morph} is not finite";
+        return null;
+    }
+
     private static bool IsFinite(Vector3 v) => float.IsFinite(v.X) && float.IsFinite(v.Y) && float.IsFinite(v.Z);
+
+    private static bool IsFinite(Quaternion q) =>
+        float.IsFinite(q.X) && float.IsFinite(q.Y) && float.IsFinite(q.Z) && float.IsFinite(q.W);
 
     private static bool IsFinite(Double3 v) => double.IsFinite(v.X) && double.IsFinite(v.Y) && double.IsFinite(v.Z);
 
@@ -450,6 +490,8 @@ public sealed partial class World
             bodyCenterOfMass: centerOfMass,
             ownedFrame: own
         );
+        if (desc.RigPose is { } rigPose)
+            Entities.SetSpawnRigPose(entity, rigPose);
         // The first motion intent, relative to the spawn's frame, goes into the new entity's front intent, which the next step
         // applies as an intent that the entity wrote in the spawn's tick (docs/plans/rails-components.md, "The first motion
         // intent of a spawn"). Step 6 runs after the swap of step 4, and a spawn outside a tick goes live at the call, so either

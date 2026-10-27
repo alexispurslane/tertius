@@ -229,7 +229,6 @@ The `Rig` constructor throws `ArgumentException` for a parent that does not come
 - Every inverse bind is finite, and its rotation is a rotation.
 - Every target names a morph of the rig, and no two targets of the mesh name the same morph.
 - Every delta array is empty or has one entry per vertex. Every delta is finite. A normal or tangent delta is at most 2 long, the longest difference of two unit vectors.
-- A deforming mesh has at most 64 × 65,535 = 4,194,240 vertices, the most that one dispatch of the deform pass covers (see "Portable Vulkan").
 
 `AddMesh` then calls `MeshDeform.Pack` and keeps its result beside the mesh. A deforming mesh whose deform data passes the device's limit throws `InvalidOperationException`, as `AddTexture` does when the texture store is full (see "Buffers and the region").
 
@@ -322,9 +321,11 @@ Reasons for the order:
 `SceneBatcher.Prepare` gains a parameter, the deform region, and a first step, `PoseInstances`, before `CollectVisible`:
 
 ```csharp
-internal readonly record struct DeformRegion(int Base, int Capacity)
+internal readonly record struct DeformRegion(int Base, int Capacity, int PoseRowCapacity, int JobCapacity)
 {
-    public static DeformRegion None => new(Base: 0, Capacity: 0);
+    public static DeformRegion None => new(Base: 0, Capacity: 0, PoseRowCapacity: 0, JobCapacity: 0);
+    public static DeformRegion Within(int vertexBase, int capacity, uint maxStorageBufferRange);
+    public bool Holds(int vertices, int poseRows, int jobs);
 }
 
 internal readonly record struct DeformJob(int Mesh, int Target, int Pose);
@@ -336,6 +337,10 @@ where
 
 - `DeformRegion.Base` = the first vertex of the region in the global vertex buffer, a multiple of 16.
 - `DeformRegion.Capacity` = the number of vertices that the region holds.
+- `DeformRegion.PoseRowCapacity` = the number of pose rows that the frame's pose buffer holds: `maxStorageBufferRange` / 16.
+- `DeformRegion.JobCapacity` = the number of jobs that the frame's job table holds: `maxStorageBufferRange` / 28.
+- `DeformRegion.Within` = the region that `GeometryStore.Region` gives, with both of these from the device's `maxStorageBufferRange`.
+- `DeformRegion.Holds` = whether the region holds a frame of that many copied vertices, pose rows and jobs.
 - `DeformJob.Mesh` = the static mesh of the job.
 - `DeformJob.Target` = the first vertex of the copy, counted from the region's base.
 - `DeformJob.Pose` = the first of the job's pose rows in `PreparedScene.Poses`.
@@ -343,15 +348,15 @@ where
 
 `PoseInstances` walks `snapshot.RigPoses` in order. For each entry, it decides the instance's frame mesh:
 
-1. If the instance's mesh is not on the GPU, the entry is skipped, and the instance is skipped later as today.
+1. If the instance's mesh is not on the GPU, or no view draws the instance, the entry is skipped, and the instance is skipped later as today. No view draws an instance that is neither visible nor casts a shadow, or that has no volume (`SceneBatcher.HasVolume`). It takes no job and is not counted.
 2. If the mesh has no `Deform`, or `Deform.Fits(JointCount, WeightCount)` is false, the instance draws as uploaded.
-3. If the next target plus the mesh's `VertexCount` passes the region's `Capacity`, the copy does not fit, and the instance draws as uploaded.
+3. If the next target plus the mesh's `VertexCount` passes the region's `Capacity`, or the frame's pose rows plus the mesh's `PoseRows` pass its `PoseRowCapacity`, or one more job passes its `JobCapacity`, the copy does not fit, and the instance draws as uploaded.
 4. Otherwise `MeshDeform.PoseInto` writes the job's pose rows and returns the posed bound. If the bound is not finite or passes `PositionLimit`, the rows are dropped, and the instance draws as uploaded.
 5. Otherwise the batcher appends the job and a frame mesh `(FirstIndex, IndexCount, Base + Target, bound, null)`, the static mesh's index range over the copy's vertices. The instance's frame mesh is `StaticMeshCount + k`, where k counts the jobs before it.
 
 Each instance drawn as uploaded adds 1 to `UndeformedPosedInstances`. Each deformed instance adds 1 to `DeformedInstances` and its vertices to `DeformedVertices`.
 
-Every later step reads frame meshes. `CollectVisible`, `CollectCasters` and `BatchFaces` each walk `RigPoses` with a cursor beside the instances, so an instance with an entry takes its frame mesh. `Batch`, the casters' radius and every command read `scene.Meshes`. So a deformed instance is culled by its posed bound, in every view, and every command points at its copy. An instance that `Place` leaves out after its job was made, because its position passes the position limit, leaves a job that no draw reads, in a case that only a bug produces.
+Every later step reads frame meshes. `CollectVisible` and `CollectCasters` each walk `RigPoses` with a cursor beside the instances, so an instance with an entry takes its frame mesh. `CollectVisible`'s walk also gives each map instance its frame mesh, which `BatchFaces` reads. `Batch`, the casters' radius and every command read `scene.Meshes`. So a deformed instance is culled by its posed bound, in every view, and every command points at its copy. An instance that `Place` leaves out after its job was made, because its position passes the position limit, leaves a job that no draw reads, in a case that only a bug produces.
 
 `PreparedScene` gains:
 
@@ -380,7 +385,7 @@ where
 - `SourceOf(mesh)` = the static mesh of a frame mesh: itself for a static mesh, and its job's `Mesh` for a deformed copy.
 - `PoseOf(mesh)` = the pose rows of a deformed copy, and an empty span for a static mesh.
 
-`SceneBatcher.DeformNeed(snapshot, meshes)` returns the sum of the vertex counts of the entries whose mesh deforms. The renderer calls it after the uploads and before `Prepare`, and `GeometryStore.ReserveDeformed` grows the region to it.
+`SceneBatcher.DeformNeed(snapshot, meshes)` returns the sum of the vertex counts of the entries that some view may draw and whose mesh deforms, the entries that rule 1 keeps. The renderer calls it after the uploads and before `Prepare`, and `GeometryStore.ReserveDeformed` grows the region to it.
 
 ## The deformation on the GPU
 
@@ -389,7 +394,7 @@ where
 - The deform vertices and the morph deltas live in `DeformStore`, two device-local storage buffers that grow by doubling, as the geometry does. Each holds at most the device's `maxStorageBufferRange`.
 - The global vertex buffer gains `StorageBufferBit`. Its layout is the static capacity, then the deform region. The region's base is a multiple of 16 vertices, 768 bytes, which is a multiple of 48 and of 256, the largest `minStorageBufferOffsetAlignment` that the spec allows.
 - `GeometryStore.ReserveDeformed(vertices, ...)` grows the region to the next power of two of the need, times 16 vertices, at most `maxStorageBufferRange / 48`. A growth makes a new vertex buffer, copies the static vertices, and retires the old buffer until the frames that use it finish, as a static growth does today. The region needs no copy, because every frame writes it anew. A static growth moves the region with it.
-- Each frame slot holds a host-visible pose buffer, which grows to the frame's pose rows, and a deform descriptor set. `FrameResources.Write` copies `PreparedScene.Poses` into the slot's pose buffer, after `Prepare`, as it copies the instances.
+- Each frame slot holds two host-visible storage buffers, which grow to the frame: the pose buffer, of the frame's pose rows, and the job table, of one `GpuDeformJob` per job. A storage buffer of a frame slot grows by doubling, but never past `maxStorageBufferRange` while its data fits it (`HostArray.GrownCapacity`), and the batcher keeps the pose rows and the jobs within it (rule 3 of "Posing in the batcher"), so each binding stays within the device's range. It also holds a deform descriptor set. `FrameResources.Write` copies `PreparedScene.Poses` into the slot's pose buffer and writes the job table from `PreparedScene.Deforms`, after `Prepare`, as it copies the instances.
 
 ### The layouts
 
@@ -408,14 +413,22 @@ struct MorphDelta {
     vec3 tangent;   float pad1;
 };
 
-layout(push_constant) uniform DeformPush {
+struct Job {
     uint source;
     uint deltas;
     uint target;
     uint count;
     uint palette;
     uint weights;
-} job;
+    uint firstGroup;
+};
+
+layout(set = 0, binding = 4) readonly buffer JobBlock { Job jobs[]; };
+
+layout(push_constant) uniform DeformPush {
+    uint jobCount;
+    uint groups;
+} frame;
 ```
 
 where
@@ -424,23 +437,49 @@ where
 - `morphStart`, `morphCount` = the vertex's first delta, counted from the mesh's first delta, and the number of its deltas. Its deltas come in morph order.
 - `joints` = the four joint indices, two 16-bit halves per word, joint 0 in the low half of `x`. The packing needs no 16-bit storage feature.
 - `MorphDelta`, 48 bytes, `GpuMorphDelta` in C# = one morph's deltas for one vertex, and its morph's index.
-- `job.source` = the mesh's first deform vertex in `DeformStore`.
-- `job.deltas` = the mesh's first morph delta in `DeformStore`.
-- `job.target` = the copy's first vertex, counted from the region's base.
-- `job.count` = the mesh's vertex count.
-- `job.palette` = the job's first pose row.
-- `job.weights` = the job's first weight row: `palette` plus three rows per palette joint.
+- `Job`, 28 bytes, `GpuDeformJob` in C# = one record of the job table: the work of one job of the frame.
+- `source` = the mesh's first deform vertex in `DeformStore`.
+- `deltas` = the mesh's first morph delta in `DeformStore`.
+- `target` = the copy's first vertex, counted from the region's base.
+- `count` = the mesh's vertex count.
+- `palette` = the job's first pose row.
+- `weights` = the job's first weight row: `palette` plus three rows per palette joint.
+- `firstGroup` = the job's first workgroup of the frame's dispatch: the sum of ⌈count / 64⌉ over the jobs before it.
+- `jobs` = the job table, one record per job, in job order. `GpuDeformJob.FromJobs` writes it from `PreparedScene.Deforms` and the static meshes.
+- `frame.jobCount` = the records of the job table, at least 1.
+- `frame.groups` = the frame's workgroups: the sum of ⌈count / 64⌉ over every job.
 
-`DeformPushConstants` is the 24-byte C# struct of the push block.
+`DeformPushConstants` is the 8-byte C# struct of the push block.
 
 ### The pass
 
-`deform.comp` runs 64 invocations per group, one per vertex, and one dispatch per job, ⌈count / 64⌉ groups. Its set holds four storage buffers: binding 0 is the window, the region's range of the vertex buffer as a `float` array, because std430 pads a `vec3` to 16 bytes and a vertex is 48 bytes. Bindings 1, 2 and 3 are the deform vertices, the morph deltas and the pose buffer.
+`deform.comp` runs 64 invocations per workgroup, one per vertex, and one dispatch per frame over every job. A job has ⌈count / 64⌉ workgroups, and its workgroups follow those of the job before it. Its set holds five storage buffers: binding 0 is the window, the region's range of the vertex buffer as a `float` array, because std430 pads a `vec3` to 16 bytes and a vertex is 48 bytes. Bindings 1, 2, 3 and 4 are the deform vertices, the morph deltas, the pose buffer and the job table.
+
+The grid of the dispatch is `DeformPass.Grid(groups)`: as few rows as hold the workgroups with at most 65,535 per row, and rows as short as hold them. So it stays within the spec's least `maxComputeWorkGroupCount` of 65,535 per dimension, and it ends fewer than one row's count of workgroups past the last, which return at once.
+
+Each workgroup finds its job by a binary search of the job table: its job is the last whose `firstGroup` is at most the workgroup's index. The index is the same for every invocation of the workgroup, so the search is uniform and costs about log2 of the job count reads, 7 for 100 jobs. `DeformPass.JobOf` is its C# copy.
 
 ```glsl
+uint jobOf(uint g)
+{
+    uint low = 0, high = frame.jobCount - 1;
+    while (low < high) {
+        uint middle = (low + high + 1) / 2;
+        if (jobs[middle].firstGroup <= g)
+            low = middle;
+        else
+            high = middle - 1;
+    }
+    return low;
+}
+
 void main()
 {
-    uint i = gl_GlobalInvocationID.x;
+    uint g = gl_WorkGroupID.y * gl_NumWorkGroups.x + gl_WorkGroupID.x;
+    if (g >= frame.groups)
+        return;
+    Job job = jobs[jobOf(g)];
+    uint i = (g - job.firstGroup) * 64 + gl_LocalInvocationID.x;
     if (i >= job.count)
         return;
     DeformVertex v = sources[job.source + i];
@@ -466,6 +505,8 @@ void main()
 
 where
 
+- `g` = the workgroup's index in the frame's dispatch, row after row of the grid.
+- `jobOf(g)` = the index of the workgroup's job in the job table.
 - `i` = the vertex of the mesh.
 - `p`, `n`, `t` = the position, normal and tangent after the morphs.
 - `w` = the morph's weight in this frame, from the job's weight rows.
@@ -478,13 +519,19 @@ where
 
 A slot with weight 0 adds exactly 0, so the shader needs no branch for unused slots. Joint 0 always exists, so the read stays in the palette.
 
+Why one dispatch for every job, and not one per job:
+
+- The prefilter profile (`ter-of1p`) measured a fixed cost of 17 to 30 µs per dispatch and about 15 µs per barrier under MoltenVK. One dispatch per job costs 2 to 3 ms for 100 humans before any work.
+- The copies never overlap, but dispatches per job all write through the one window of the region, so the synchronization validation sees two writes to one range and needs a barrier between them. Each such barrier also drains the GPU. One dispatch writes each vertex once, through one binding, so no barrier is needed and the validation has no hazard to report.
+- One pass that deforms every posed instance is the model of decision 15. The dispatches per job were only its first shape.
+
 ### Barriers and the frame graph
 
 - `FrameGraph.Stage.Deformation` is a new first stage, before `ShadowMaps`. The deform pass is its one pass, named "deformation" in the GPU timings. On the shadow branch the graph holds at most 24 passes, with every switch on, so one more stays under `GpuTimer.MaxPasses`, 31.
 - With no job, the pass records nothing.
-- Otherwise it moves the vertex buffer from `BufferUse.VertexInput` to `ComputeWrite`, which orders its writes after every earlier vertex read, the frame before's included (decision 18). It records the dispatches in job order, then moves the buffer back to `VertexInput`, before the first draw of the frame.
-- The uploads move `DeformStore`'s buffers from `TransferDestination` to `ComputeRead` in the upload step's barrier batch.
-- The host writes of the pose buffer become visible to the device at the submission.
+- Otherwise it moves the vertex buffer from `BufferUse.VertexInput` to `ComputeWrite`, which orders its writes after every earlier vertex read, the frame before's included (decision 18). It records its one dispatch, with no barrier inside it, then moves the buffer back to `VertexInput`, before the first draw of the frame.
+- The deform pass moves `DeformStore`'s two buffers to `ComputeRead` in its first barrier batch, because each pass declares its own uses. An upload or a growth earlier in the frame leaves them at `TransferDestination`, and the batch's tracked state chains from there.
+- The host writes of the pose buffer and the job table become visible to the device at the submission.
 
 ## The math, and its C# copy
 
@@ -669,15 +716,15 @@ The deformation follows the Vulkan specification, so it runs on NVIDIA, RADV, AN
 | Requirement | Why every driver has it |
 |---|---|
 | `StorageBufferBit` on the vertex buffer, beside `VertexBufferBit` | Core. Any buffer can have both uses. |
-| Four storage buffers in the deform set, in the compute stage | The spec's least `maxPerStageDescriptorStorageBuffers` is 4. The deform pipeline's layout holds the deform set alone, so its compute stage sees four. |
+| Five storage buffers in the deform set, in the compute stage | Above the spec's least `maxPerStageDescriptorStorageBuffers`, 4. But the renderer already refuses a device whose stages see fewer storage buffers than the frame set's nine (`DescriptorLayouts.StorageBufferProblem`), and the deform pipeline's layout holds the deform set alone, so its compute stage sees five. NVIDIA, RADV, ANV and lavapipe offer far more. |
 | A window offset that is a multiple of 768 bytes | The spec's `minStorageBufferOffsetAlignment` is at most 256. |
-| A window, a deform store and a pose buffer within `maxStorageBufferRange` | The spec's least is 2^27 bytes. The renderer reads the device's value from `VulkanDevice.Properties` and stays within it. |
-| ⌈count / 64⌉ groups per dispatch | The spec's least `maxComputeWorkGroupCount[0]` is 65,535, so a mesh has at most 4,194,240 vertices (the guard of `AddMesh`). |
+| A window, a deform store, a pose buffer and a job table within `maxStorageBufferRange` | The spec's least is 2^27 bytes. The renderer reads the device's value from `VulkanDevice.Properties` and stays within it. |
+| One dispatch of every job's workgroups, on a grid of at most 65,535 per row and per column | The spec's least `maxComputeWorkGroupCount` is 65,535 in each dimension, so the grid holds up to 65,535² workgroups. |
 | 64 invocations per group | The spec's least `maxComputeWorkGroupInvocations` and `maxComputeWorkGroupSize[0]` are 128. |
-| Push constants of 24 bytes | The spec's least `maxPushConstantsSize` is 128. |
+| Push constants of 8 bytes | The spec's least `maxPushConstantsSize` is 128. |
 | Joint indices packed in 32-bit words | No `storageBuffer16BitAccess`. |
 | Stores from a compute shader | Core. `vertexPipelineStoresAndAtomics` is not needed, because no vertex shader writes. |
-| No atomics, and no float blend | Each invocation writes only its own vertex. |
+| No atomics, no float blend, and no barrier inside the pass | Each invocation writes only its own vertex, and one dispatch writes each vertex once. |
 
 The new shader sites for the site table of ARCHITECTURE.md, "Portable Vulkan":
 
@@ -688,6 +735,7 @@ The new shader sites for the site table of ARCHITECTURE.md, "Portable Vulkan":
 | `normalizedOr(sn, vec3(0))`, `normalizedOr(st, vec3(0))` | A zero normal after the morphs, or a long one | Safe: zero below the smallest normal float. A normal or tangent delta is at most 2 long and a weight at most 1,024, so the sum stays finite. |
 | `poses[job.palette + 3 × joint]` | A joint past the palette | Safe: `AddMesh` refuses a joint past the rig, and a rig pose that does not fit draws as uploaded, so the palette has every joint. |
 | `poses[job.weights + morph / 4]` | A morph past the weights | Safe: `AddMesh` refuses a morph past the rig, and `Fits` makes the weights the rig's. |
+| `jobs[jobOf(g)]` | A read past the job table | Safe: a frame with a job has `jobCount` at least 1, and the search stays within 0 to `jobCount` − 1. A workgroup past `frame.groups` returns before it searches. |
 | `region[12 × (job.target + i) + c]` | A write past the region | Safe: i < count, and the batcher makes a job only when target + count fits the region. |
 | `sources[job.source + i]`, `deltas[job.deltas + start + e]` | A read past the stores | Safe: `Pack` writes each vertex's start and count inside its mesh's deltas, and `DeformStore.Add` places the mesh. |
 
@@ -714,6 +762,7 @@ The steps are those of ARCHITECTURE.md, "The order of a rendered frame", with th
 | Frame meshes | `PoseInstances` | Step 3 | Every collector, `Batch`, `BatchFaces`, the shadow passes, `ImpostorPass`, `ShadowTiles` | Steps 3 to 15 | `PreparedScene.Meshes` | `GeometryStore.Meshes` |
 | Jobs and pose rows | `PoseInstances` | Step 3 | `DeformPass`, `ShadowTiles` | Steps 3, 4 | `PreparedScene` | The indirect commands |
 | The slot's pose buffer | `FrameResources.Write` | After `Prepare` | `deform.comp` | Step 4 | The slot's host buffer | The slot's instance buffer |
+| The slot's job table and its workgroups | `FrameResources.Write`, through `GpuDeformJob.FromJobs` | After `Prepare` | `DeformPass`, `deform.comp` | Step 4 | The slot's host buffer, and `FrameResources.DeformGroups` | The slot's light buffer |
 | The deformed copies | `deform.comp` | Step 4 | Every pass that draws a mesh | Steps 5 to 15 | The deform region | The static vertices |
 | The three counts | `PoseInstances` | Step 3 | `RenderStats` | After the frame | `PreparedScene`, then `RenderStats` | `VisibleInstances` |
 | A tile record's pose rows (fork 1, B) | `ShadowTiles.Record` | Step 3 | `IsStale` | Step 3 of a later frame | `TileRecord` | `RecordedCaster` |
@@ -727,7 +776,7 @@ Each ordering rule has its reason:
 - A palette composes joints parents first, because a joint's model pose needs its parent's. The rig keeps parents first.
 - `FrameResources.Write` copies the pose rows after `Prepare`, as it copies the instances.
 - The deform stage comes before the shadow maps, because every pass that draws a mesh reads the copies.
-- The jobs dispatch in job order. Each invocation writes only its own vertex, so the order changes no bits.
+- One dispatch deforms every job, and a job's workgroups follow those of the job before it. Each invocation writes only its own vertex, so the order of the workgroups changes no bits.
 - The morph deltas sum in morph order and the skin slots in slot order, in the shader and in its C# copy.
 
 ## Stored state, one store, determinism and no temporal rendering
@@ -750,12 +799,13 @@ Memory, by arithmetic, for a human of V = 20,000 vertices, J = 53 joints and W m
 | Morph deltas | 48 B per nonzero entry, once per mesh | 4.8 MB for 50 face targets of 2,000 vertices each, 0 for the MPFB rig without shape keys |
 | The deform region | 48 B × V per deformed instance, shared by the frames in flight, grown to a power of two | 0.96 MB per instance |
 | The pose buffer | 16 B × (3J + ⌈W / 4⌉) per deformed instance, per frame slot | 2.5 KB, and 2.7 KB with W = 50 |
+| The job table | 28 B per deformed instance, per frame slot | 28 B |
 | The simulation's block | 3 × (28 B × J + 4 B × W) per posed entity | 4.5 KB, and 5.1 KB with W = 50 |
 | The snapshot | 2 × (28 B × J + 4 B × W) + 20 B per posed entity, per snapshot buffer, three buffers | 3 KB per buffer |
 | `MeshDeform` on the CPU | 16 B per influence sphere, 28 B per inverse bind, 4 B per target | 2.3 KB per mesh |
 | A tile record's pose rows (fork 1, B) | 16 B × the pose rows per posed caster | 2.5 KB per caster per tile |
 
-The cost on the GPU is an estimate. Part 5 measures it. A vertex of the deform pass reads 80 bytes of source and writes 48 bytes, and its palette rows stay in the cache. For a human of 20,000 vertices that is 2.56 MB of memory traffic, about 0.01 ms at the M1 Max's bandwidth, plus the dispatch and the two barriers. So the deform pass is expected at 0.02 to 0.05 ms per human, and about 1 ms for 100 humans. The draws of a copy cost what the draws of a static mesh cost. A frame without a posed instance records nothing, so `demo-exit` and the other scenes keep their cost.
+The cost on the GPU is an estimate. Part 5 measures it. A vertex of the deform pass reads 80 bytes of source and writes 48 bytes, and its palette rows stay in the cache. For a human of 20,000 vertices that is 2.56 MB of memory traffic, about 0.01 ms at the M1 Max's bandwidth, plus one dispatch and two barriers per frame. So the deform pass is expected at 0.02 to 0.05 ms per human, and about 1 ms for 100 humans. The draws of a copy cost what the draws of a static mesh cost. A frame without a posed instance records nothing, so `demo-exit` and the other scenes keep their cost.
 
 The cost on the CPU: `PoseInstances` costs one slerp, two compositions, one point transform and three row writes per joint, about 60 ns. That is about 3 µs per human, and 0.3 ms for 100 humans. The build of the snapshot copies about 3 KB per posed entity. The cursors of the collectors cost one comparison per instance.
 
@@ -862,10 +912,10 @@ The tests follow tests/STYLE.md: one behavior per test, named as a statement. Ea
 - `AddMeshRefusesTwoTargetsOfOneMorph`
 - `AddMeshRefusesADeltaArrayOfAnotherLength`
 - `AddMeshRefusesANormalDeltaLongerThanTwo`
-- `AddMeshRefusesADeformingMeshPastTheLargestDispatch`
+- `AddMeshRefusesADeformingMeshPastTheLargestDispatch`, removed in Part 4b with `MeshDeform.MaxVertices`: the 2D grid has no limit per mesh
 - `AddMeshThrowsWhenTheDeformDataPassesTheDeviceLimit`
 
-`GpuDeformTypesTests`: `GpuDeformVertexIs80Bytes`, `GpuMorphDeltaIs48Bytes`, `DeformPushConstantsAre24Bytes`, each with the offsets of its fields.
+`GpuDeformTypesTests`: `GpuDeformVertexIs80Bytes`, `GpuMorphDeltaIs48Bytes`, and, from Part 4b's one dispatch, `GpuDeformJobIs28Bytes` and `DeformPushConstantsAre8Bytes`, each with the offsets of its fields.
 
 ### Part 4: posing and the deform pass
 
@@ -881,6 +931,10 @@ The tests follow tests/STYLE.md: one behavior per test, named as a statement. Ea
 - `PosedInstancesPastTheRegionDrawTheirStaticMeshAndAreCounted`
 - `EmptyRegionDrawsEveryPosedInstanceAsUploaded`
 - `PoseWhoseBoundPassesThePositionLimitDrawsAsUploaded`
+- `PoseThatIsNotFiniteDrawsAsUploaded` (review fix)
+- `PosedInstanceThatNoViewDrawsTakesNoJobAndIsNotCounted`, `DeformNeedLeavesOutPosedInstancesThatNoViewDraws` and `ShadowOnlyPosedInstanceDeforms` (review fix)
+- `PosedInstancesPastThePoseBufferDrawTheirStaticMeshAndAreCounted` and `PosedInstancesPastTheJobTableDrawTheirStaticMeshAndAreCounted` (review fix)
+- `StaticMeshesShorterThanTheTableBeforeAreABug` (review fix, with contracts)
 - `PosedInstanceIsCulledByItsPosedBound`: a tip bent outside the rest radius keeps the instance in view.
 - `RenderRowBoundingRadiusOverridesThePosedBound`
 - `ShadowCastersOfAPosedInstanceDrawItsCopy`
@@ -896,6 +950,7 @@ The tests follow tests/STYLE.md: one behavior per test, named as a statement. Ea
 - `TileRedrawsWhenAJointOfAPosedCasterTurns`
 - `TileRedrawsWhenAMorphWeightOfAPosedCasterChanges`
 - `TileRedrawsWhenACasterTurnsFromStaticToPosed`
+- `TileWithAStillPosedCasterKeepsItsTileWhenItsCopyMovesInTheFrameMeshes` and `TileWithTwoStillPosedCastersOfDifferentPosesStaysCached` (review fix)
 
 `DeformationGpuTests` (Rendering.Tests, Part 4b), through `ReadDeformedVertices`:
 
@@ -908,6 +963,24 @@ The tests follow tests/STYLE.md: one behavior per test, named as a statement. Ea
 - `RegionGrowsForMorePosedInstances`
 - `StaticMeshesStillDrawAfterTheRegionGrows`
 - `DeformationOffDrawsTheStaticMesh`
+- `FrameWithoutAPosedInstanceRecordsNothingInTheDeformPass`: the test hook `DeformPass.Barriers` and `Dispatches` are both 0 (review fix).
+- `OneDispatchDeformsEveryJobOfTheFrame`: four copies of three meshes, of 7, 1, 7 and 7 workgroups, in one dispatch, each equal to the C# copy.
+
+`DeformJobsTests` (Rendering.Tests, Part 4b's one dispatch), without a GPU:
+
+- `RecordNamesTheMeshsSourcesAndTheJobsCopyAndRows`
+- `EachJobsWorkgroupsFollowThoseOfTheJobBefore`
+- `EveryWorkgroupFindsTheJobWhoseVerticesItHolds`
+- `FirstAndLastWorkgroupOfAJobFindIt`
+- `JobOfOneVertexHasOneWorkgroupBetweenItsNeighbours`
+- `SingleJobOwnsEveryWorkgroup`
+- `GridOfAtMostTheLeastMaxWorkgroupCountIsOneRow`
+- `GridPastTheLeastMaxWorkgroupCountTakesAsFewRowsAsHoldIt`
+- `GridStaysWithinEveryDeviceAndEndsLessThanOneRowPastTheLastWorkgroup`
+
+`DeformRegionTests` gains, from the review fixes: `PoseBufferOfTheRegionStaysWithinTheStorageRange`, `JobTableOfTheRegionStaysWithinTheStorageRange`, `StorageArrayGrowsByDoubling`, `StorageArrayStopsGrowingAtTheMostThatTheStorageRangeHolds` and `StorageArrayHoldsDataPastTheStorageRange`.
+
+`DescriptorLayoutsTests.TheDeformLayoutBindsNoMoreStorageBuffersThanTheFrameSetNeedsOfEveryDevice` replaces the test of four.
 
 ### Part 5: the scene and the end
 
@@ -915,6 +988,9 @@ The tests follow tests/STYLE.md: one behavior per test, named as a statement. Ea
 
 - `RigsSceneDeformsEveryPosedInstance`: `DeformedInstances` counts the scene's posed instances, and `UndeformedPosedInstances` is 0.
 - `RigsSceneGivesTheSameRigPosesOnEveryRun`
+- `EveryPosedInstanceOfARigsSceneChangesItsRigPoseFromTickToTick` and `TheCheckedInScriptOfEachRigsScenePassesTheChecksOfARun`
+
+`RigSwayTests` (Host.Tests) pins the demo component `RigSway`: the turn of a joint and its sign, a morph's weight, the phase, the rest of the joints and morphs that no sway names, and the write of its own entity's rig pose for the end of each tick.
 
 ## Known limits
 
@@ -1022,9 +1098,9 @@ Part 4 waits for `ter-s9cv`, because that branch rewrites `SceneBatcher`, adds `
   public static MeshData TwistingBendingCylinder(float radius, float length, int segments = 24, int rings = 16);
   ```
 
-  - `BendingCylinder`: an open tube along +Y from 0 to `length`, `rings` + 1 rings of `segments` + 1 vertices, radial normals, tangents along the ring with sign 1. Its rig has `Base` at the origin and `Tip` at `length` / 2, children after parents. A vertex at height y has the weight t = clamp((y − (length / 2 − b)) / 2b, 0, 1) on `Tip` and 1 − t on `Base`, with b = `length` / 8. The inverse binds are the inverses of the rest model poses.
+  - `BendingCylinder`: a closed tube along +Y from 0 to `length`. Its wall has `rings` + 1 rings of `segments` + 1 vertices, radial normals, tangents along the ring with sign 1. A flat cap closes each end with `segments` + 2 vertices of its own, a center and a rim, so the edge stays hard: normal −Y at 0 and +Y at `length`, tangent +X with sign 1, and the disc spanning [0, 1] in u and v. So the tube has (`rings` + 1)(`segments` + 1) + 2(`segments` + 2) vertices. A tube without caps showed only the near half of its rim from above, because the far half of the wall shows its back face. Its rig has `Base` at the origin and `Tip` at `length` / 2, children after parents. A vertex at height y has the weight t = clamp((y − (length / 2 − b)) / 2b, 0, 1) on `Tip` and 1 − t on `Base`, with b = `length` / 8. The inverse binds are the inverses of the rest model poses.
   - `MorphingBox`: `Box(halfExtents)` with a rig of no joints and the morphs `Stretch` and `Lean`, rest 0, and no skin. `Stretch` moves every top vertex by 2 h.y along +Y. `Lean` moves every top vertex by h.x along +X, with the normal deltas that tilt the ±X faces. Their tangents lie along Z, so `Lean` has no tangent deltas.
-  - `TwistingBendingCylinder`: `BendingCylinder` with the morph `Twist`, which turns the ring at height y by (π / 2)(y / `length`) about +Y. Its deltas are the turned position, normal and tangent minus the old ones, so they cover all three kinds.
+  - `TwistingBendingCylinder`: `BendingCylinder` with the morph `Twist`, which turns each vertex at height y by (π / 2)(y / `length`) about +Y, so the top cap turns with the top ring and its normal stays +Y. Its deltas are the turned position, normal and tangent minus the old ones, so they cover all three kinds.
 - Done: the solution builds, and every test passes in Checked and Release. Nothing reads the new types yet.
 
 ### Part 2: the rig pose in the simulation and the snapshot
@@ -1109,14 +1185,15 @@ Part 4b, the deform pass on the GPU:
   ```
 
   where `ReadDeformedVertices` = waits for the device, then copies the last frame's deformed vertices, job after job, as the test hooks of the shadow cascade do.
-- The reviewer checks the claims of "Portable Vulkan" against the Linux drivers, the two barriers, and that a frame with no job records nothing.
+- Then the one dispatch (settled by the orchestrator on 2026-10-26): `GpuDeformJob` and `GpuDeformJob.FromJobs` (`Scene/GpuDeformTypes.cs`), the job table and `DeformGroups` per slot (`FrameResources`), the fifth binding (`DescriptorLayouts`), `DeformPass.JobOf`, `DeformPass.Grid` and the test hook `DeformPass.Dispatches`, and the 8-byte `DeformPushConstants`. Tests first: `DeformJobsTests` and `OneDispatchDeformsEveryJobOfTheFrame`.
+- The reviewer checks the claims of "Portable Vulkan" against the Linux drivers, the two barriers of the pass and none inside it, and that a frame with no job records nothing.
 - Done for both: the user's model, end to end. A posed instance deforms in every pass that draws it, its shadow and its reflection follow, and the counts say so.
 
 ### Part 5: the scene, the cost, the captures and the docs
 
 - Tests first: `RigsSceneTests`.
 - Files: `src/Tertius.Demo/DemoScenes.Rigs.cs` (new), `src/Tertius.Demo/RigSway.cs` (new), `src/Tertius.Demo/DemoScenes.cs` (the scene's name), `scripts/rigs.json` and `scripts/rigs-crowd.json` (new), `tests/Tertius.Host.Tests/RigsSceneTests.cs` (new), `benchmarks/Tertius.Benchmarks/SceneBatcherBenchmarks.cs`, and the docs of "Doc changes".
-- The scene `rigs`: a ground plane, the sun, and one point lamp with shadows. A swaying `BendingCylinder`, a breathing `MorphingBox` and a `TwistingBendingCylinder` that bends and twists, each driven by `RigSway`. The crowd variant has 100 cylinders of 20,000 vertices each (`segments` 99, `rings` 199).
+- The scene `rigs`: a ground plane, the sun, and one point lamp with shadows. A swaying `BendingCylinder`, a breathing `MorphingBox` and a `TwistingBendingCylinder` that bends and twists, each driven by `RigSway`. The crowd variant has 100 cylinders of 20,202 vertices each (`segments` 99, `rings` 199): 20,000 on the wall and 101 on each cap.
 - The cost first, on a quiet machine, by [rendering-upgrade.md](rendering-upgrade.md), "Measuring the cost of a feature": `scripts/demo-exit.json` at 1920 × 1080, the branch against its base, which shows no change, and `scripts/rigs-crowd.json`, which gives the deform pass's GPU time, also with `FramesInFlight` 1. `SceneBatcherBenchmarks` gains cases of 1 and 100 posed instances with a rig of 53 joints in a chain, made in the benchmark. The report gives the numbers, the memory by arithmetic and the machine's load.
 - Captures, headless with the real renderer, `dotnet run --project src/Tertius.Demo -- --script scripts/rigs.json --headless --out <folder>`, each looked at with a one-line caption: the cylinder bent each way with its shadow, the box stretched and leaning, and the twisting cylinder. The report sends two to four of them.
 - Done: ARCHITECTURE.md matches the code, with the measured cost. The other docs follow "Doc changes". The epic closes after the merge into main.

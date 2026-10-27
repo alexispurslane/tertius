@@ -10,12 +10,13 @@ namespace Tertius.Host.Tests;
 public sealed class ScriptCommandCaptureTests : IDisposable
 {
     /// <summary>
-    /// The timed passes of a headless frame with the renderer's defaults, in frame order: the local shadows after the
-    /// cascades, the environment map's faces and prefilter after them, ambient occlusion between the G-buffer and the lighting, the reflections'
+    /// The timed passes of a headless frame with the renderer's defaults, in frame order: the deformation first, the local
+    /// shadows after the cascades, the environment map's faces and prefilter after them, ambient occlusion between the G-buffer and the lighting, the reflections'
     /// half-resolution trace and its upsample after the radiance pyramid, SMAA after the tone map.
     /// </summary>
     private static readonly string[] FramePasses =
     [
+        "deformation",
         "shadow maps",
         "local shadows",
         "environment faces",

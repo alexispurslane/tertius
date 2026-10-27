@@ -11,9 +11,9 @@ public sealed class BatcherTests
 {
     private static readonly MeshInfo[] Meshes =
     [
-        new(FirstIndex: 0, IndexCount: 36, VertexOffset: 0, Radius: 0.866f),
-        new(FirstIndex: 36, IndexCount: 600, VertexOffset: 24, Radius: 1f),
-        new(FirstIndex: 636, IndexCount: 6, VertexOffset: 300, Radius: 1.414f),
+        new(FirstIndex: 0, IndexCount: 36, VertexOffset: 0, Radius: 0.866f, Deform: null),
+        new(FirstIndex: 36, IndexCount: 600, VertexOffset: 24, Radius: 1f, Deform: null),
+        new(FirstIndex: 636, IndexCount: 6, VertexOffset: 300, Radius: 1.414f, Deform: null),
     ];
 
     // Puffs. Each puff of the snapshot draws as one GpuPuff, at its interpolated place and render age, or not at all. The
@@ -47,6 +47,7 @@ public sealed class BatcherTests
             meshes: Meshes,
             materialCount: materials,
             environment: environment,
+            region: DeformRegion.None,
             scene: scene
         );
         return scene;
@@ -841,6 +842,7 @@ public sealed class BatcherTests
             meshes: Meshes,
             materialCount: 8,
             environment: MapOf(FaceMask.All),
+            region: DeformRegion.None,
             scene: scene
         );
         scene.EnvironmentFaces.Should().HaveCount(6);
@@ -853,6 +855,7 @@ public sealed class BatcherTests
             meshes: Meshes,
             materialCount: 8,
             environment: MapOf(FaceMask.NegativeY),
+            region: DeformRegion.None,
             scene: scene
         );
 
@@ -1514,6 +1517,7 @@ public sealed class BatcherTests
             meshes: Meshes,
             materialCount: 8,
             environment: default,
+            region: DeformRegion.None,
             scene: scene
         );
         scene.PuffCount.Should().Be(1);
@@ -1526,6 +1530,7 @@ public sealed class BatcherTests
             meshes: Meshes,
             materialCount: 8,
             environment: default,
+            region: DeformRegion.None,
             scene: scene
         );
 

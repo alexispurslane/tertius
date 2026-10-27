@@ -12,7 +12,10 @@ namespace Tertius.Rendering.Tests;
 /// </summary>
 public sealed class BatcherLightTests
 {
-    private static readonly MeshInfo[] Meshes = [new(FirstIndex: 0, IndexCount: 600, VertexOffset: 0, Radius: 1f)];
+    private static readonly MeshInfo[] Meshes =
+    [
+        new(FirstIndex: 0, IndexCount: 600, VertexOffset: 0, Radius: 1f, Deform: null),
+    ];
 
     private static readonly ExposureSetting TenStopsDown = new FixedExposure(-10);
 
@@ -41,6 +44,7 @@ public sealed class BatcherLightTests
             meshes: Meshes,
             materialCount: 8,
             environment: environment ?? new WithoutMap(),
+            region: DeformRegion.None,
             scene: scene
         );
         return scene;

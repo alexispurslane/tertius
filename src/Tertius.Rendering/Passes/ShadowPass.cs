@@ -82,7 +82,7 @@ internal sealed unsafe class ShadowPass : RenderPass
         );
         if (scene.CascadeSetCount == 0)
             return;
-        ReadOnlySpan<MeshInfo> meshes = context.Geometry.Meshes;
+        ReadOnlySpan<MeshInfo> meshes = context.Scene.Meshes;
         int casterCount = SelectCasters(scene);
         // Without a caster the maps would shadow nothing, so none is drawn and the shaders skip them: the frame
         // constants keep 0 cascades per set.

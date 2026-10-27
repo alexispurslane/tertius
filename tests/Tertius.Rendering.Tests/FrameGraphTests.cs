@@ -21,6 +21,22 @@ public sealed class FrameGraphTests
     }
 
     [Fact]
+    public void TheDeformationRecordsBeforeEveryPassThatDrawsAMesh()
+    {
+        using var graph = new FrameGraph();
+        graph.Add(FrameGraph.Stage.GBuffer, new NamedPass("G-buffer"));
+        graph.Add(FrameGraph.Stage.EnvironmentFaces, new NamedPass("environment faces"));
+        graph.Add(FrameGraph.Stage.ShadowMaps, new NamedPass("shadow maps"));
+        graph.Add(FrameGraph.Stage.Deformation, new NamedPass("deformation"));
+
+        graph
+            .Passes.Select(pass => pass.Name)
+            .First()
+            .Should()
+            .Be("deformation", "the shadows, the faces and the G-buffer draw the copies that it writes");
+    }
+
+    [Fact]
     public void TheEnvironmentMapsStagesRecordAfterTheShadowMapsAndBeforeTheImpostorCaptures()
     {
         using var graph = new FrameGraph();

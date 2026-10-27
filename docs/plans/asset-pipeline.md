@@ -32,7 +32,7 @@ Today the renderer takes in-memory `MeshData`, `MaterialDesc` and `TextureData` 
 14. Textures are block-compressed (BC4, BC5 and BC7), and the importer makes every mip level. All target GPUs support BC: Apple Silicon through MoltenVK (measured on this machine) and desktop GPUs on Linux.
 15. LODs belong to a mesh. A LOD is a coarser index list over the same vertices. The renderer picks a LOD by its projected error in pixels.
 16. Collision is stored as points and triangles. Jolt builds the shapes at content load, outside a tick. joltc exports no shape serialization (research), and the documentation of Jolt says that its cooked format changes between versions.
-17. Skinning and animation are later work. See "Out of scope and later".
+17. Skinning and morph targets are built by [skinning-and-morphs.md](skinning-and-morphs.md) (epic `ter-4vzc`): `MeshData.Rigging` carries a rig, a skin and morph targets, and the renderer deforms them by an entity's rig pose. The importer maps glTF skins and targets onto it (see "Meshes"). Animation clips are later work. See "Out of scope and later". (Changed on 2026-10-26.)
 18. The cache key is a SHA-256 hash of the source bytes, the effective configuration, the importer version and the tools. The tools are the Nix store path of each native tool and the .NET runtime version. A rebuild with the same version number can change the output. Provenance is not part of the key, because it does not change the output. For a fetched file, the SHA-256 that its fetch record pins stands for its bytes, so the key needs no download (decision 26).
 19. Every third-party asset records its source, authors, license and attribution text. The CLI rejects licenses that forbid adaptations or commercial use.
 20. Every download needs the approval of the user. `tertius asset fetch` only prints a plan of the files, sizes and license. It downloads only with `--approved`, which an agent passes after the user said yes in chat. The approval is recorded with the SHA-256 of each file, and it covers every later download of exactly those bytes, on any machine (decision 26). A new or changed file needs a new approval.
@@ -472,7 +472,7 @@ How MPFB runs in the build:
 
 | Rule | Reason |
 |---|---|
-| It applies the pose and removes the rig. A human without a rig is frozen the same way. | The importer ignores skins (AS2005), and the renderer has no skinning (decision 17). The frozen meshes carry the pose into the game. |
+| It applies the pose and removes the rig. A human without a rig is frozen the same way. | The importer does not exist yet, so the frozen meshes carry the pose into the game. Once it maps skins (decision 17, "Meshes"), the humans keep their `game_engine` rig, 53 joints, and export the armature at rest instead of freezing it ([skinning-and-morphs.md](skinning-and-morphs.md), "The importer's glTF mapping"). |
 | It applies the shape keys and the helper mask, and removes the modifiers. | The macro sliders are shape keys, and the joint cubes and tights of the base mesh are helper geometry, not a part of the body. |
 | It keeps the vertex groups of the bones and removes the others. | Garment scripts choose faces by bone weight. The glTF exporter writes no vertex group without a skin. |
 | It rewires each MakeSkin material into one image texture that feeds the base color of one Principled BSDF. | glTF holds that material as it is, and the bake is not needed. |
@@ -717,7 +717,23 @@ Ignored attributes:
 
 - `COLOR_0` (warning AS2007). The renderer has no vertex colors.
 - A second UV set (warning AS2017). The renderer has one UV set.
-- `JOINTS_n`, `WEIGHTS_n` and morph targets (info AS2005 and AS2006).
+- Animations (info AS2005).
+
+Skins and morph targets ([skinning-and-morphs.md](skinning-and-morphs.md), "The importer's glTF mapping"):
+
+| glTF | Engine | Notes |
+|---|---|---|
+| The joints of every skin of a piece's meshes | `Rig.Joints`, one rig per piece | The union of the joints, sorted parents first, siblings in glTF node order. Names follow the name rules, and a repeated name takes AS2008's suffix. |
+| A joint node's transform | `RigJoint.Rest` | Relative to its parent joint, or to the piece's origin for a root joint. The bake's turn and uniform scale apply. A scale or shear left after the bake is error AS2020. |
+| `skin.inverseBindMatrices` | `MeshSkin.InverseBinds` | Identity when absent, as glTF says, then the bake: IB_j becomes IBM_j composed with the inverse of the bake. A rig joint outside the mesh's skin takes the inverse of its model rest pose, and no vertex names it. |
+| `JOINTS_n`, `WEIGHTS_n` | `VertexSkin` | Joint indices remapped from the skin's list to the rig. The four largest of every set are kept (info AS2021) and scaled to sum to 1. A sum of 0 is error AS2022. |
+| `targets[].POSITION`, `NORMAL`, `TANGENT` | `MorphTarget.Positions`, `Normals`, `Tangents` | Positions turn and scale with the bake. Normals and tangents only turn. |
+| `mesh.extras.targetNames` | `RigMorph.Name` | A target without a name is named `target{i}`, by its index in the mesh. |
+| `mesh.weights`, or `node.weights`, which wins | `RigMorph.Rest` | Two meshes of a piece that give one morph different weights are warning AS2023. The first in glTF order wins. |
+| A mesh node whose parent is a joint, without a skin | A `MeshSkin` with every vertex on that joint, weight 1 | So a helmet modeled on the head bone follows the head. |
+| More than 65,535 joints in a piece | None | Error AS2024. |
+
+The skinned mesh node's own transform is ignored, as glTF says, and its vertices are baked from the bind space into the piece's axes. Every step above that copies or reorders vertices carries the skin and the deltas: the back copies of double-sided materials, the weld, which compares them as attributes, the vertex fetch order and the LODs. The cooked mesh format gains the rigging. The parts of a model share the piece's one `Rig`, so an entity's one rig pose fits each of them.
 
 Tangents:
 
@@ -1185,6 +1201,8 @@ where
 ### Engine changes
 
 Each change goes in test-first, and the existing tests and snapshots stay green.
+
+The rigging of a mesh is already in the engine: `MeshData.Rigging`, a `MeshRigging(Rig, Skin, Morphs)` of `Tertius.Core/Seams/Rig.cs` ([skinning-and-morphs.md](skinning-and-morphs.md), "The mesh data"). The importer fills it, and the cooked mesh format carries it.
 
 Core, render seam:
 
@@ -1704,8 +1722,8 @@ An agent that the user tells to "pull in X" follows these steps.
 | AS2002 | Error | The glTF requires an unsupported extension. Draco and meshopt compression are not errors: they go through the Blender round trip (see "Source formats"). |
 | AS2003 | Warning | An optional extension is ignored. |
 | AS2004 | Warning | A primitive with points or lines is skipped. |
-| AS2005 | Info | Skins and animations are ignored. |
-| AS2006 | Info | Morph targets are ignored. |
+| AS2005 | Info | Animations are ignored. (Changed on 2026-10-26: skins are no longer ignored.) |
+| AS2006 | None | Retired on 2026-10-26: morph targets are no longer ignored. The code is not used again. |
 | AS2007 | Warning | Vertex colors are ignored. |
 | AS2008 | Warning | Two nodes have the same name. A later one gets a `~n` suffix. |
 | AS2009 | Error | The reference names a node that is not a piece. The hint names the piece that holds it. |
@@ -1719,6 +1737,11 @@ An agent that the user tells to "pull in X" follows these steps.
 | AS2017 | Warning | A second UV set is ignored. |
 | AS2018 | Error | A mesh or model reference names a piece without geometry. |
 | AS2019 | Warning | A directional light is ignored. |
+| AS2020 | Error | A joint or an inverse bind has a scale or a shear after the bake. Joints are rigid. |
+| AS2021 | Info | A vertex has more than four joint influences. The four largest are kept. |
+| AS2022 | Error | A vertex's skin weights sum to 0. |
+| AS2023 | Warning | Two meshes of a piece give one morph different default weights. The first in glTF order wins. |
+| AS2024 | Error | A piece's rig has more than 65,535 joints. |
 | AS3002 | Info | An occlusion texture is dropped. |
 | AS3003 | Warning | Alpha mode MASK is drawn as BLEND. |
 | AS3004 | Error | The textures of one material use different texture transforms. |
@@ -2054,7 +2077,7 @@ The user accepted every recommendation of this section on 2026-10-10.
 
 ## Out of scope and later
 
-- Skinning, skeletal animation and morph targets. The vertex has no joints or weights, the renderer has no skinning pass, and the simulation has no animation system. The vertical slice needs none: crew members are first-person, and doors and hatches are pieces that components move. A later plan adds a skinned vertex format, a joint palette, a clip format and an animation component.
+- Skeletal animation: clips, blending and state machines. Skinning and morph targets exist ([skinning-and-morphs.md](skinning-and-morphs.md)), and a component writes an entity's rig pose by hand. A later animation epic adds a clip format and becomes one more writer of the rig pose. glTF animations stay ignored until then (AS2005).
 - Animated textures and node animation from glTF.
 - Vertex colors, a second UV set and ambient occlusion maps. Each needs a renderer change.
 - Alpha cutout in the renderer. It needs a discard in the G-buffer, shadow and impostor pipelines. MASK materials draw as BLEND until then.

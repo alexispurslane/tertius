@@ -26,6 +26,7 @@ public sealed class OutlinePassTests
                 meshes: NoMeshes,
                 materialCount: 1,
                 environment: default,
+                region: DeformRegion.None,
                 scene: scene
             );
         OutlinePass.Collect(snapshot, scene);
@@ -231,6 +232,7 @@ public sealed class OutlinePassTests
             meshes: NoMeshes,
             materialCount: 1,
             environment: default,
+            region: DeformRegion.None,
             scene: scene
         );
         OutlinePass.Collect(shown, scene);
@@ -244,6 +246,7 @@ public sealed class OutlinePassTests
             meshes: NoMeshes,
             materialCount: 1,
             environment: default,
+            region: DeformRegion.None,
             scene: scene
         );
         OutlinePass.Collect(hidden, scene);
