@@ -7,12 +7,12 @@ namespace Tertius.Rendering;
 /// Renders the cascade sets of the far lights (stage <see cref="FrameGraph.Stage.ShadowMaps"/>).
 /// </summary>
 /// <remarks>
-/// <para><see cref="Prepare"/> runs on the CPU. For each far light whose slot is a <see cref="CascadeSet"/>, it fits the
-/// four cascades of that set to this frame's camera along the light's own direction (<see cref="ShadowCascades"/>). It
-/// takes its casters from the frame's placed instances, which the batcher interpolated once
-/// (<see cref="PreparedScene.Placed"/>): every one that casts shadows and whose bounding sphere comes within 2 km of the
-/// camera, in view or not. Each caster is culled against every cascade box of every set, extruded toward that set's light,
-/// and gets one GPU instance per cascade that it touches. The
+/// <para><see cref="Prepare"/> runs on the CPU, on the cascade sets that the batcher fitted to this frame's camera, each
+/// along its own light's direction (<see cref="ShadowCascades"/>). It writes them into the frame constants, and takes its
+/// casters from the frame's placed instances, which the batcher interpolated once (<see cref="PreparedScene.Placed"/>):
+/// every one that casts shadows and whose bounding sphere comes within 2 km of the camera, in view or not. Each caster is
+/// culled against every cascade box of every set, extruded toward that set's light (<see cref="CascadeMask"/>), and gets
+/// one GPU instance per cascade that it touches. The
 /// casters are put in mesh order with a counting sort, then each cascade's instances are appended to the frame's instance
 /// buffer in that order, the solid casters' run first and the cutout casters' run after it, with one indirect command per
 /// stretch of one mesh. All of this is linear in the number of casters, sets and meshes, and allocates nothing in a
@@ -112,16 +112,9 @@ internal sealed unsafe class ShadowPass : RenderPass
     public override void Prepare(FrameContext context)
     {
         PreparedScene scene = context.Scene;
-        // The grid passes through the origin of the camera's frame. It is worked out from this snapshot alone, so
-        // nothing carries over from tick to tick.
-        FitSets(
-            scene: scene,
-            anchor: ShadowCascades.Anchor(context.Snapshot.OriginInFrame, scene.Camera.Offset),
-            mapSize: map.Size,
-            depthRangeScale: map.DepthRangeScale
-        );
         if (scene.CascadeSetCount == 0)
             return;
+        WriteSets(scene);
         ReadOnlySpan<MeshInfo> meshes = context.Scene.Meshes;
         int casterCount = SelectCasters(scene);
         // Without a caster the maps would shadow nothing, so none is drawn and the shaders skip them: the frame
@@ -137,56 +130,24 @@ internal sealed unsafe class ShadowPass : RenderPass
         WriteConstants(scene);
     }
 
-    /// <summary>
-    /// Fits the four cascades of each far light whose slot is a <see cref="CascadeSet"/> to the camera, along the light's
-    /// own direction, with the texel grid through <paramref name="anchor"/>, and writes them into the frame constants.
-    /// Leaves <see cref="PreparedScene.CascadeSetCount"/> at one more than the highest set, or 0 without one.
-    /// </summary>
-    internal static void FitSets(PreparedScene scene, Double3 anchor, int mapSize, float depthRangeScale)
+    /// <summary>Writes the matrices and the light-space axes of every cascade set that the batcher fitted into the frame constants.</summary>
+    internal static void WriteSets(PreparedScene scene)
     {
-        foreach (ref readonly PreparedLight light in scene.LightSpan)
-        {
-            if (light.Shadow is not CascadeSet { Set: var set })
-                continue;
-            // A far light is at least FarDistance from the eye, so its direction is not zero.
-            var basis = LightBasis.FromDirection(light.Position);
-            ShadowCascades.Fit(
-                camera: scene.Camera,
-                light: basis,
-                mapSize: mapSize,
-                depthRangeScale: depthRangeScale,
-                anchor: anchor,
-                cascades: ref scene.CascadeSets[set]
-            );
-            scene.CascadeBases[set] = basis;
-            WriteSet(scene: scene, set: set, light: basis);
-            scene.CascadeSetCount = Math.Max(scene.CascadeSetCount, set + 1);
-        }
+        for (int set = 0; set < scene.CascadeSetCount; set++)
+            WriteSet(scene: scene, set: set, light: scene.CascadeBases[set]);
     }
 
     /// <summary>
-    /// The cascades of every set that a caster touches, as a mask with the bit <see cref="ShadowMap.Layer"/> for each:
-    /// its sphere overlaps the cascade box or the part of the set's light view in front of it, toward the light.
+    /// The cascades of every set that draw an instance, as a mask with the bit <see cref="ShadowMap.Layer"/> for each
+    /// (<see cref="ShadowCascades.SetMask"/>).
     /// </summary>
     internal static int CascadeMask(PreparedScene scene, in PreparedInstance caster)
     {
         int mask = 0;
         for (int set = 0; set < scene.CascadeSetCount; set++)
-        {
-            Vector3 lightPosition = scene.CascadeBases[set].ToLight(caster.Position);
-            for (int i = 0; i < ShadowCascades.Count; i++)
-            {
-                ref readonly ShadowCascade cascade = ref scene.CascadeSets[set][i];
-                float reach = cascade.HalfExtent + caster.Radius;
-                if (
-                    MathF.Abs(lightPosition.X - cascade.Center.X) <= reach
-                    && MathF.Abs(lightPosition.Y - cascade.Center.Y) <= reach
-                    && lightPosition.Z + caster.Radius >= cascade.Center.Z - cascade.DepthHalfRange
-                )
-                    mask |= 1 << ShadowMap.Layer(set, i);
-            }
-        }
-
+            mask |=
+                ShadowCascades.SetMask(light: scene.CascadeBases[set], cascades: scene.CascadeSets[set], caster: caster)
+                << ShadowMap.Layer(set, 0);
         return mask;
     }
 
@@ -197,8 +158,6 @@ internal sealed unsafe class ShadowPass : RenderPass
             instanceCount = 0;
         foreach (ref readonly PreparedInstance caster in scene.PlacedSpan)
         {
-            if (!caster.CastsShadow || !ShadowCascades.TakesCaster(caster.Distance, caster.Radius))
-                continue;
             int mask = CascadeMask(scene, caster);
             if (mask == 0)
                 continue;

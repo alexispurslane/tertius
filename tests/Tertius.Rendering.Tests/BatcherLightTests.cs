@@ -26,7 +26,7 @@ public sealed class BatcherLightTests
     private static RenderSnapshot Dark() => Gpu.Snapshot(Vector3.UnitY, starIrradiance: 0);
 
     private static SceneBatcher Batcher(int cascadedLights = 1) =>
-        new(exposure: TenStopsDown, cascadedLights: cascadedLights);
+        Batchers.With(exposure: TenStopsDown, cascadedLights: cascadedLights);
 
     private static PreparedScene Prepare(
         RenderSnapshot snapshot,
@@ -105,7 +105,14 @@ public sealed class BatcherLightTests
 
     /// <summary>A unit instance of mesh 0 with <paramref name="flags"/> alone, named <paramref name="entity"/>.</summary>
     private static RenderInstance Flagged(uint entity, Vector3 position, RenderFlags flags) =>
-        Gpu.Instance(mesh: new(0), material: new(0), position: position, scale: Vector3.One, entity: entity) with
+        Gpu.Instance(
+            mesh: new(0),
+            material: new(0),
+            position: position,
+            scale: Vector3.One,
+            entity: entity,
+            chainDepth: TestChains.CamerasFrame
+        ) with
         {
             Flags = flags,
         };
@@ -466,7 +473,13 @@ public sealed class BatcherLightTests
         snapshot.Instances.Add(moving);
         snapshot.Instances.Add(Caster(new(0, 0, -500), 50));
         snapshot.Instances.Add(
-            Gpu.Instance(mesh: new(0), material: new(0), position: new(0, 0, -20), scale: Vector3.One)
+            Gpu.Instance(
+                mesh: new(0),
+                material: new(0),
+                position: new(0, 0, -20),
+                scale: Vector3.One,
+                chainDepth: TestChains.CamerasFrame
+            )
         );
         snapshot.Lights.Add(Star(Vector3.UnitY));
         snapshot.Lights.Add(Star(Vector3.UnitX, irradiance: 1));

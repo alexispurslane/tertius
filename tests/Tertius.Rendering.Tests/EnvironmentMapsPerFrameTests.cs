@@ -58,44 +58,45 @@ internal sealed class RoomScenes(VulkanRenderer renderer)
         Vector3[] sides = [Vector3.UnitX, -Vector3.UnitX, Vector3.UnitY, Vector3.UnitZ];
         foreach (Vector3 side in sides)
             snapshot.Instances.Add(
-                In(room, EnvironmentScenes.Square(plane: Plane, material: walls, center: side * 3, halfSize: 3.3f))
+                EnvironmentScenes.Square(
+                    plane: Plane,
+                    material: walls,
+                    center: side * 3,
+                    halfSize: 3.3f,
+                    chainDepth: room
+                )
             );
         snapshot.Instances.Add(
-            In(room, EnvironmentScenes.Square(plane: Plane, material: Matte, center: new(0, -3, 0), halfSize: 3.3f))
-        );
-        snapshot.Instances.Add(
-            In(
-                outside,
-                EnvironmentScenes.Facing(
-                    plane: Plane,
-                    material: Matte,
-                    center: new(0, -3.5f, -20),
-                    normal: Vector3.UnitY,
-                    halfSize: 40
-                )
+            EnvironmentScenes.Square(
+                plane: Plane,
+                material: Matte,
+                center: new(0, -3, 0),
+                halfSize: 3.3f,
+                chainDepth: room
             )
         );
         snapshot.Instances.Add(
-            In(
-                outside,
-                EnvironmentScenes.Facing(
-                    plane: Plane,
-                    material: Sky,
-                    center: new(0, 40, -20),
-                    normal: -Vector3.UnitY,
-                    halfSize: 40
-                )
+            EnvironmentScenes.Facing(
+                plane: Plane,
+                material: Matte,
+                center: new(0, -3.5f, -20),
+                normal: Vector3.UnitY,
+                halfSize: 40,
+                chainDepth: outside
+            )
+        );
+        snapshot.Instances.Add(
+            EnvironmentScenes.Facing(
+                plane: Plane,
+                material: Sky,
+                center: new(0, 40, -20),
+                normal: -Vector3.UnitY,
+                halfSize: 40,
+                chainDepth: outside
             )
         );
         return snapshot;
     }
-
-    /// <summary><paramref name="instance"/> with its chain frame <paramref name="chainDepth"/> above the camera's.</summary>
-    public static RenderInstance In(ushort chainDepth, RenderInstance instance) =>
-        instance with
-        {
-            ChainDepth = chainDepth,
-        };
 
     /// <summary>The pixel of a camera-relative point for the room's camera.</summary>
     public static Vector2 Pixel(Vector3 point, int width, int height) =>
@@ -270,14 +271,12 @@ public sealed class EnvironmentMapsPerFrameTests
             RenderSnapshot snapshot = room.Scene(lampsOn: true);
             var marker = new Vector3(1, 0.5f, 0);
             snapshot.Instances.Add(
-                RoomScenes.In(
-                    RoomScenes.Outside,
-                    EnvironmentScenes.Square(
-                        plane: room.Plane,
-                        material: EnvironmentScenes.Emissive(renderer, marker),
-                        center: new(0, 0, -30),
-                        halfSize: 5
-                    )
+                EnvironmentScenes.Square(
+                    plane: room.Plane,
+                    material: EnvironmentScenes.Emissive(renderer, marker),
+                    center: new(0, 0, -30),
+                    halfSize: 5,
+                    chainDepth: RoomScenes.Outside
                 )
             );
 
@@ -312,14 +311,12 @@ public sealed class EnvironmentMapsPerFrameTests
             TestChains.Of(snapshot, (1, Quaternion.Identity), (0, quarter));
             var marker = new Vector3(0.2f, 1, 0.4f);
             snapshot.Instances.Add(
-                RoomScenes.In(
-                    RoomScenes.Outside,
-                    EnvironmentScenes.Square(
-                        plane: renderer.CreateMesh(Primitives.Plane(1f)),
-                        material: EnvironmentScenes.Emissive(renderer, marker),
-                        center: new(0, 0, -10),
-                        halfSize: 2
-                    )
+                EnvironmentScenes.Square(
+                    plane: renderer.CreateMesh(Primitives.Plane(1f)),
+                    material: EnvironmentScenes.Emissive(renderer, marker),
+                    center: new(0, 0, -10),
+                    halfSize: 2,
+                    chainDepth: RoomScenes.Outside
                 )
             );
 
@@ -359,9 +356,12 @@ public sealed class EnvironmentMapsPerFrameTests
             );
             MaterialId glow = EnvironmentScenes.Emissive(renderer, new Vector3(0, 0.5f, 0));
             snapshot.Instances.Add(
-                RoomScenes.In(
-                    RoomScenes.Outside,
-                    EnvironmentScenes.Square(plane: plane, material: glow, center: new(0, 0, 20), halfSize: 20)
+                EnvironmentScenes.Square(
+                    plane: plane,
+                    material: glow,
+                    center: new(0, 0, 20),
+                    halfSize: 20,
+                    chainDepth: RoomScenes.Outside
                 )
             );
             MaterialId mirror = renderer.CreateMaterial(
@@ -394,10 +394,13 @@ public sealed class EnvironmentMapsPerFrameTests
         snapshot.Chain.Clear();
         foreach (long id in chain)
             snapshot.Chain.Add(new(FrameId: id, Rotation: Quaternion.Identity, PreviousRotation: Quaternion.Identity));
-        int start = snapshot.Instances.Count;
-        EnvironmentScenes.AddEnclosure(snapshot: snapshot, plane: plane, material: dome, distance: 20);
-        for (int i = start; i < snapshot.Instances.Count; i++)
-            snapshot.Instances[i] = RoomScenes.In((ushort)(chain.Length - 1), snapshot.Instances[i]);
+        EnvironmentScenes.AddEnclosure(
+            snapshot: snapshot,
+            plane: plane,
+            material: dome,
+            distance: 20,
+            chainDepth: (ushort)(chain.Length - 1)
+        );
         return snapshot;
     }
 
@@ -562,21 +565,30 @@ public sealed class EnvironmentMapsPerFrameTests
         Vector3[] sides = [Vector3.UnitX, -Vector3.UnitX, Vector3.UnitY, -Vector3.UnitY];
         foreach (Vector3 side in sides)
             snapshot.Instances.Add(
-                RoomScenes.In(
-                    RoomScenes.InRoom,
-                    EnvironmentScenes.Square(plane: plane, material: black, center: side * 3, halfSize: 3.3f)
+                EnvironmentScenes.Square(
+                    plane: plane,
+                    material: black,
+                    center: side * 3,
+                    halfSize: 3.3f,
+                    chainDepth: RoomScenes.InRoom
                 )
             );
         snapshot.Instances.Add(
-            RoomScenes.In(
-                RoomScenes.InRoom,
-                EnvironmentScenes.Square(plane: plane, material: red, center: new(0, 0, 3), halfSize: 3.3f)
+            EnvironmentScenes.Square(
+                plane: plane,
+                material: red,
+                center: new(0, 0, 3),
+                halfSize: 3.3f,
+                chainDepth: RoomScenes.InRoom
             )
         );
         snapshot.Instances.Add(
-            RoomScenes.In(
-                RoomScenes.Outside,
-                EnvironmentScenes.Square(plane: plane, material: blue, center: new(0, 0, 30), halfSize: 20)
+            EnvironmentScenes.Square(
+                plane: plane,
+                material: blue,
+                center: new(0, 0, 30),
+                halfSize: 20,
+                chainDepth: RoomScenes.Outside
             )
         );
         return snapshot;
@@ -590,16 +602,14 @@ public sealed class EnvironmentMapsPerFrameTests
         ushort chainDepth,
         RenderFlags flags = RenderFlags.None
     ) =>
-        RoomScenes.In(
-            chainDepth,
-            EnvironmentScenes.Facing(
-                plane: plane,
-                material: material,
-                center: center,
-                normal: Vector3.UnitZ,
-                halfSize: 0.4f,
-                flags: flags
-            )
+        EnvironmentScenes.Facing(
+            plane: plane,
+            material: material,
+            center: center,
+            normal: Vector3.UnitZ,
+            halfSize: 0.4f,
+            flags: flags,
+            chainDepth: chainDepth
         );
 
     /// <summary>
@@ -692,37 +702,36 @@ public sealed class EnvironmentMapsPerFrameTests
             RenderSnapshot snapshot = MirrorRoom(renderer, plane);
             MaterialId green = EnvironmentScenes.Emissive(renderer, new(0, GreenRadiance, 0));
             snapshot.Instances.Add(
-                RoomScenes.In(
-                    RoomScenes.InRoom,
-                    EnvironmentScenes.Square(plane: plane, material: green, center: new(0, 0, -3.2f), halfSize: 2)
+                EnvironmentScenes.Square(
+                    plane: plane,
+                    material: green,
+                    center: new(0, 0, -3.2f),
+                    halfSize: 2,
+                    chainDepth: RoomScenes.InRoom
                 )
             );
             MaterialId mirror = renderer.CreateMaterial(
                 new(BaseColor: Vector4.One, Roughness: 0, Model: new StandardShading(Metallic: 1))
             );
             snapshot.Instances.Add(
-                RoomScenes.In(
-                    RoomScenes.InRoom,
-                    EnvironmentScenes.Facing(
-                        plane: plane,
-                        material: mirror,
-                        center: FloorMirror,
-                        normal: Vector3.UnitY,
-                        halfSize: 0.3f
-                    )
+                EnvironmentScenes.Facing(
+                    plane: plane,
+                    material: mirror,
+                    center: FloorMirror,
+                    normal: Vector3.UnitY,
+                    halfSize: 0.3f,
+                    chainDepth: RoomScenes.InRoom
                 )
             );
             // The mirror's rays meet the plane z = −3 from y = −0.93 to −0.64 and x within ±0.36.
             snapshot.Instances.Add(
-                RoomScenes.In(
-                    RoomScenes.InRoom,
-                    EnvironmentScenes.Facing(
-                        plane: plane,
-                        material: EnvironmentScenes.Emissive(renderer, Vector3.Zero),
-                        center: new(0, -0.7f, -3),
-                        normal: Vector3.UnitZ,
-                        halfSize: 0.4f
-                    )
+                EnvironmentScenes.Facing(
+                    plane: plane,
+                    material: EnvironmentScenes.Emissive(renderer, Vector3.Zero),
+                    center: new(0, -0.7f, -3),
+                    normal: Vector3.UnitZ,
+                    halfSize: 0.4f,
+                    chainDepth: RoomScenes.InRoom
                 )
             );
 
@@ -837,16 +846,14 @@ public sealed class EnvironmentMapsPerFrameTests
         ];
         for (int i = 0; i < balls.Length; i++)
             snapshot.Instances.Add(
-                RoomScenes.In(
-                    balls[i].Depth,
-                    Gpu.Instance(
-                        mesh: sphere,
-                        material: room.Matte,
-                        position: balls[i].Center,
-                        scale: new(balls[i].Radius),
-                        flags: flags,
-                        entity: (uint)(i + 1)
-                    )
+                Gpu.Instance(
+                    mesh: sphere,
+                    material: room.Matte,
+                    position: balls[i].Center,
+                    scale: new(balls[i].Radius),
+                    flags: flags,
+                    entity: (uint)(i + 1),
+                    chainDepth: balls[i].Depth
                 )
             );
         return snapshot;
@@ -920,14 +927,12 @@ public sealed class EnvironmentMapsPerFrameTests
                 MaterialId glow = EnvironmentScenes.Emissive(renderer, colors[map] * 0.5f);
                 float distance = 60 - 8 * map;
                 snapshot.Instances.Add(
-                    RoomScenes.In(
-                        depth,
-                        EnvironmentScenes.Square(
-                            plane: plane,
-                            material: glow,
-                            center: new(0, 0, distance),
-                            halfSize: distance
-                        )
+                    EnvironmentScenes.Square(
+                        plane: plane,
+                        material: glow,
+                        center: new(0, 0, distance),
+                        halfSize: distance,
+                        chainDepth: depth
                     )
                 );
                 snapshot.Instances.Add(
@@ -969,7 +974,8 @@ public sealed class EnvironmentMapsPerFrameTests
                         plane: plane,
                         material: EnvironmentScenes.Emissive(renderer, EnvironmentScenes.ColorOf(layer)),
                         center: CubeFaces.Basis((CubeFace)layer).Forward * 10,
-                        halfSize: 11
+                        halfSize: 11,
+                        chainDepth: TestChains.CamerasFrame
                     )
                 );
             MaterialId mirror = renderer.CreateMaterial(
@@ -980,11 +986,18 @@ public sealed class EnvironmentMapsPerFrameTests
                     mesh: sphere,
                     material: EnvironmentScenes.Matte(renderer),
                     position: new(-1.5f, 0, -5),
-                    scale: Vector3.One
+                    scale: Vector3.One,
+                    chainDepth: TestChains.CamerasFrame
                 )
             );
             snapshot.Instances.Add(
-                Gpu.Instance(mesh: sphere, material: mirror, position: new(1.5f, 0, -5), scale: Vector3.One)
+                Gpu.Instance(
+                    mesh: sphere,
+                    material: mirror,
+                    position: new(1.5f, 0, -5),
+                    scale: Vector3.One,
+                    chainDepth: TestChains.CamerasFrame
+                )
             );
             byte[] rgba = Shown(renderer, snapshot, name).Rgba;
             // The fourth byte of each pixel holds no defined value.

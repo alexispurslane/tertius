@@ -76,7 +76,8 @@ public sealed class PortableFloatTests
                 position: new(0, 0, -3),
                 scale: Vector3.One,
                 rotation: Facing,
-                radius: 1.5f
+                radius: 1.5f,
+                chainDepth: TestChains.CamerasFrame
             )
         );
         return snapshot;
@@ -99,7 +100,8 @@ public sealed class PortableFloatTests
                 position: new(-3, 0, 0),
                 scale: Vector3.One,
                 rotation: Quaternion.CreateFromAxisAngle(Vector3.UnitZ, -MathF.PI / 2),
-                radius: 1.5f
+                radius: 1.5f,
+                chainDepth: TestChains.CamerasFrame
             )
         );
         snapshot.Instances.Add(
@@ -109,7 +111,8 @@ public sealed class PortableFloatTests
                 position: new(0, 0, 20),
                 scale: Vector3.One,
                 flags: RenderFlags.CastsShadow,
-                radius: 0.9f
+                radius: 0.9f,
+                chainDepth: TestChains.CamerasFrame
             )
         );
         return snapshot;
@@ -123,7 +126,8 @@ public sealed class PortableFloatTests
             position: new(0, 0, -10),
             scale: Vector3.One,
             rotation: Facing,
-            radius: 71
+            radius: 71,
+            chainDepth: TestChains.CamerasFrame
         );
 
     /// <summary>The HDR image's pixel at the center after one frame of <paramref name="snapshot"/>.</summary>
@@ -324,7 +328,8 @@ public sealed class PortableFloatTests
                     position: new(0, 0, -3),
                     scale: Vector3.One,
                     rotation: Facing,
-                    radius: 1.5f
+                    radius: 1.5f,
+                    chainDepth: TestChains.CamerasFrame
                 )
             );
             snapshot.Instances.Add(Wall(renderer, new(ShaderInput.RadianceLimit)));

@@ -221,132 +221,170 @@ public sealed partial class JoltPhysicsBackend
     private void ApplyBodyIntent(BodyRecord record, in PhysicsIntent intent, IntentFlags flags, bool move)
     {
         Contract.Requires(record.HasPrimary);
-        BodyInterface bodies = record.World.Bodies;
-        BodyID id = record.Body;
-
-        // Teleport first, so that a motion intent in the same intent moves the body on from the new pose. Jolt does not
-        // simulate the jump, so the bodies around the old place wake. Jolt wakes those that the body touches at the new place.
-        // Each velocity here is an instant velocity, and Jolt gets its chord. The pose in the home is the step record of a
-        // hull's frame when the hull has no motion intent (see PredictRecord). A teleport, a velocity that the game sets, a
-        // motion intent and an impulse each end the body's velocity shadow: no update expected them.
+        // Teleport first, so that a motion intent in the same intent moves the body on from the new pose. Each velocity
+        // here is an instant velocity, and Jolt gets its chord. A teleport, a velocity that the game sets, a motion intent
+        // and an impulse each end the body's velocity shadow: no update expected them.
         if ((flags & IntentFlags.Teleport) != 0)
-        {
-            Double3 position = InHome(record, intent.TeleportPose.Position);
-            record.World.WakeAround(id);
-            bodies.SetRPositionAndRotation(
-                bodyID: id,
-                position: position.ToJolt(),
-                rotation: intent.TeleportPose.Rotation.ToJolt(),
-                activationMode: Activation.Activate
-            );
-            record.TeleportStep = stepIndex;
-            record.TeleportPose = new(position, intent.TeleportPose.Rotation.Normalized());
-            record.Shadow = default;
-            // At rest in the semantic frame, which is not at rest in a falling numeric home, and which a turning frame's chord
-            // rule turns into the chords of the inertial motion of a point at rest in its axes. A kinematic hull holds still in
-            // its home, the frame's tree parent, unless the motion intent below aims it.
-            if (record is { IsHull: true, Motion: BodyMotion.Kinematic })
-                bodies.SetLinearAndAngularVelocity(id, Vector3.Zero, Vector3.Zero);
-            else
-                bodies.SetLinearAndAngularVelocity(
-                    id,
-                    LinearChordAtStart(record, CenterOfMass(bodies, id), LocalVelocity(record, Double3.Zero)),
-                    AngularChord(record, Vector3.Zero, StepStart(record.Frame))
-                );
-        }
-
+            ApplyTeleport(record, intent.TeleportPose);
         if ((flags & IntentFlags.SetVelocity) != 0)
-        {
-            Double3 velocity = LocalVelocity(record, intent.Velocity);
-            // A sleeping body that gets no velocity sleeps on, so the step gives it no acceleration either.
-            bool sleeps = velocity == Double3.Zero && !bodies.IsActive(id);
-            bodies.SetLinearVelocity(
-                id,
-                sleeps ? Vector3.Zero : LinearChordAtStart(record, CenterOfMass(bodies, id), velocity)
-            );
-            record.VelocitySetStep = stepIndex;
-            record.Shadow = default;
-        }
-
+            ApplySetVelocity(record, intent, flags);
         if ((flags & IntentFlags.SetAngularVelocity) != 0)
         {
-            bodies.SetAngularVelocity(id, AngularChord(record, intent.AngularVelocity, StepStart(record.Frame)));
+            record.World.Bodies.SetAngularVelocity(
+                record.Body,
+                AngularChord(record, intent.AngularVelocity, StepStart(record.Frame))
+            );
             record.VelocitySetStep = stepIndex;
         }
 
         if (move)
-        {
-            // One branch for every body that a motion intent moves, after the teleport, so that the stop rule of ApplyIntents
-            // never zeroes it first. Physics aims a kinematic body at the end of its end pose or full sample and puts it
-            // exactly there after the update (see SnapKinematicBodies), and steers a dynamic body to its steer target. A
-            // conversion between frames can leave the rotation off unit length by rounding.
-            DPose aim = intent.Move.AimPose;
-            DQuaternion rotation = aim.Rotation.Normalized();
-            if (record.Motion == BodyMotion.Kinematic)
-            {
-                DPose target = KinematicTarget(record, aim.Position, rotation);
-                bodies.MoveKinematic(
-                    bodyId: id,
-                    targetPosition: target.Position.ToJolt(),
-                    targetRotation: target.Rotation.ToJolt(),
-                    deltaTime: stepDt
-                );
-                kinematicTargets.Add((record, target));
-                // The step record of a plain body starts where Jolt holds the body now, after the teleport, in the body's
-                // semantic frame, in which the intent is (see World.ConvertMovedIntents). The frame tree derives a hull's
-                // record (see PredictRecord).
-                if (!record.IsHull)
-                {
-                    FrameHandle semantic = frames.SemanticOf(record.Frame);
-                    Contract.Assert(intent.Frame == semantic);
-                    DPose start = ReadPrimary(record).Pose;
-                    var standing = new DPose(
-                        start.Position + frames.HomeOffset(record.Frame, semantic),
-                        start.Rotation
-                    );
-                    record.AimedRecord = intent.StepRecordOrStill(standing, stepDt);
-                    record.AimedHome = record.Frame;
-                }
-            }
-            else
-            {
-                // The body reaches the aim pose at the end of the step, where a falling numeric home will be by then.
-                Double3 target = aim.Position - HomeOffsetAfterStep(record.Frame);
-                // A dynamic body gets the velocities that carry it to the target in one step. Contacts and gravity
-                // still act on it.
-                BodySnapshot s = ReadPrimary(record);
-                Double3 localCenter = s.Pose.InverseTransformPoint(s.CenterOfMass);
-                Double3 targetCenter = target + rotation.Rotate(localCenter);
-                var linear = ((targetCenter - s.CenterOfMass) / stepDt).ToVector3();
-                var angular = s.Pose.Rotation.AngularVelocityTo(rotation, stepDt).ToVector3();
-                bodies.SetLinearAndAngularVelocity(id, linear, angular);
-            }
-
-            record.KinematicTargetStep = stepIndex;
-            record.Shadow = default;
-            kinematicMovers.Add(record);
-        }
-
+            ApplyMotionIntent(record, intent);
         if (record.Motion == BodyMotion.Dynamic)
-        {
-            if (intent.Impulse != Vector3.Zero || intent.AngularImpulse != Vector3.Zero)
-            {
-                // The update of a turning frame needs the change that the impulses made (see ApplyTurningUpdate).
-                bodies.GetLinearAndAngularVelocity(id, out Vector3 linearBefore, out Vector3 angularBefore);
-                if (intent.Impulse != Vector3.Zero)
-                    bodies.AddImpulse(id, intent.Impulse);
-                if (intent.AngularImpulse != Vector3.Zero)
-                    bodies.AddAngularImpulse(id, intent.AngularImpulse);
-                bodies.GetLinearAndAngularVelocity(id, out Vector3 linearAfter, out Vector3 angularAfter);
-                record.ImpulseStep = stepIndex;
-                record.ImpulseVelocityChange = (Double3)linearAfter - linearBefore;
-                record.ImpulseAngularVelocityChange = (Double3)angularAfter - angularBefore;
-                record.Shadow = default;
-            }
+            ApplyPushes(record, intent);
+    }
 
-            if (intent.Force != Vector3.Zero || intent.Torque != Vector3.Zero)
-                bodies.AddForceAndTorque(id, intent.Force, intent.Torque);
+    /// <summary>
+    /// Teleports the rigid body of <paramref name="record"/> to <paramref name="pose"/>, in its frame, at rest there. Jolt
+    /// does not simulate the jump, so the bodies around the old place wake. Jolt wakes those that the body touches at the
+    /// new place. The pose in the home is the step record of a hull's frame when the hull has no motion intent (see
+    /// PredictRecord).
+    /// </summary>
+    private void ApplyTeleport(BodyRecord record, in DPose pose)
+    {
+        Contract.Requires(record.HasPrimary);
+        BodyInterface bodies = record.World.Bodies;
+        BodyID id = record.Body;
+        Double3 position = InHome(record, pose.Position);
+        record.World.WakeAround(id);
+        bodies.SetRPositionAndRotation(
+            bodyID: id,
+            position: position.ToJolt(),
+            rotation: pose.Rotation.ToJolt(),
+            activationMode: Activation.Activate
+        );
+        record.TeleportStep = stepIndex;
+        record.TeleportPose = new(position, pose.Rotation.Normalized());
+        record.Shadow = default;
+        // At rest in the semantic frame, which is not at rest in a falling numeric home, and which a turning frame's chord
+        // rule turns into the chords of the inertial motion of a point at rest in its axes. A kinematic hull holds still in
+        // its home, the frame's tree parent, unless a motion intent of the same intent aims it (see ApplyMotionIntent).
+        if (record is { IsHull: true, Motion: BodyMotion.Kinematic })
+            bodies.SetLinearAndAngularVelocity(id, Vector3.Zero, Vector3.Zero);
+        else
+            bodies.SetLinearAndAngularVelocity(
+                id,
+                LinearChordAtStart(record, CenterOfMass(bodies, id), LocalVelocity(record, Double3.Zero)),
+                AngularChord(record, Vector3.Zero, StepStart(record.Frame))
+            );
+    }
+
+    /// <summary>
+    /// Gives the rigid body of <paramref name="record"/> the chord of the velocity that <paramref name="intent"/> sets for
+    /// its origin, with the flags <paramref name="flags"/> of the intent. Jolt keeps the velocity of the center of mass, so
+    /// the spin of the step converts it: the one that the same intent sets, or else the body's spin in Jolt.
+    /// </summary>
+    private void ApplySetVelocity(BodyRecord record, in PhysicsIntent intent, IntentFlags flags)
+    {
+        Contract.Requires(record.HasPrimary);
+        BodyInterface bodies = record.World.Bodies;
+        BodyID id = record.Body;
+        Double3 spin =
+            (flags & IntentFlags.SetAngularVelocity) != 0 ? intent.AngularVelocity : bodies.GetAngularVelocity(id);
+        Double3 centerVelocity = PointVelocity(
+            velocity: intent.Velocity,
+            angular: spin,
+            offset: CenterOfMass(bodies, id) - PrimaryPosition(record)
+        );
+        Double3 velocity = LocalVelocity(record, centerVelocity);
+        // A sleeping body that gets no velocity sleeps on, so the step gives it no acceleration either.
+        bool sleeps = velocity == Double3.Zero && !bodies.IsActive(id);
+        bodies.SetLinearVelocity(
+            id,
+            sleeps ? Vector3.Zero : LinearChordAtStart(record, CenterOfMass(bodies, id), velocity)
+        );
+        record.VelocitySetStep = stepIndex;
+        record.Shadow = default;
+    }
+
+    /// <summary>
+    /// Moves the rigid body of <paramref name="record"/> by the motion intent of <paramref name="intent"/>, after its
+    /// teleport, so that the stop rule of ApplyIntents never zeroes it first. Physics aims a kinematic body at the end of
+    /// its end pose or full sample and puts it exactly there after the update (see SnapKinematicBodies), and steers a
+    /// dynamic body to its steer target.
+    /// </summary>
+    private void ApplyMotionIntent(BodyRecord record, in PhysicsIntent intent)
+    {
+        Contract.Requires(record.HasPrimary);
+        BodyInterface bodies = record.World.Bodies;
+        BodyID id = record.Body;
+        // A conversion between frames can leave the rotation off unit length by rounding.
+        DPose aim = intent.Move.AimPose;
+        DQuaternion rotation = aim.Rotation.Normalized();
+        if (record.Motion == BodyMotion.Kinematic)
+        {
+            DPose target = KinematicTarget(record, aim.Position, rotation);
+            bodies.MoveKinematic(
+                bodyId: id,
+                targetPosition: target.Position.ToJolt(),
+                targetRotation: target.Rotation.ToJolt(),
+                deltaTime: stepDt
+            );
+            kinematicTargets.Add((record, target));
+            // The step record of a plain body starts where Jolt holds the body now, after the teleport, in the body's
+            // semantic frame, in which the intent is (see World.ConvertMovedIntents). The frame tree derives a hull's
+            // record (see PredictRecord).
+            if (!record.IsHull)
+            {
+                FrameHandle semantic = frames.SemanticOf(record.Frame);
+                Contract.Assert(intent.Frame == semantic);
+                DPose start = ReadPrimary(record).Pose;
+                var standing = new DPose(start.Position + frames.HomeOffset(record.Frame, semantic), start.Rotation);
+                record.AimedRecord = intent.StepRecordOrStill(standing, stepDt);
+                record.AimedHome = record.Frame;
+            }
         }
+        else
+        {
+            // The body reaches the aim pose at the end of the step, where a falling numeric home will be by then.
+            Double3 target = aim.Position - HomeOffsetAfterStep(record.Frame);
+            // A dynamic body gets the velocities that carry it to the target in one step. Contacts and gravity
+            // still act on it.
+            BodySnapshot s = ReadPrimary(record);
+            Double3 localCenter = s.Pose.InverseTransformPoint(s.CenterOfMass);
+            Double3 targetCenter = target + rotation.Rotate(localCenter);
+            var linear = ((targetCenter - s.CenterOfMass) / stepDt).ToVector3();
+            var angular = s.Pose.Rotation.AngularVelocityTo(rotation, stepDt).ToVector3();
+            bodies.SetLinearAndAngularVelocity(id, linear, angular);
+        }
+
+        record.KinematicTargetStep = stepIndex;
+        record.Shadow = default;
+        kinematicMovers.Add(record);
+    }
+
+    /// <summary>The impulses, the force and the torque of <paramref name="intent"/> on the dynamic body of <paramref name="record"/>.</summary>
+    private void ApplyPushes(BodyRecord record, in PhysicsIntent intent)
+    {
+        Contract.Requires(record.HasPrimary);
+        BodyInterface bodies = record.World.Bodies;
+        BodyID id = record.Body;
+        if (intent.Impulse != Vector3.Zero || intent.AngularImpulse != Vector3.Zero)
+        {
+            // The update of a turning frame needs the change that the impulses made (see ApplyTurningUpdate).
+            bodies.GetLinearAndAngularVelocity(id, out Vector3 linearBefore, out Vector3 angularBefore);
+            if (intent.Impulse != Vector3.Zero)
+                bodies.AddImpulse(id, intent.Impulse);
+            if (intent.AngularImpulse != Vector3.Zero)
+                bodies.AddAngularImpulse(id, intent.AngularImpulse);
+            bodies.GetLinearAndAngularVelocity(id, out Vector3 linearAfter, out Vector3 angularAfter);
+            record.ImpulseStep = stepIndex;
+            record.ImpulseVelocityChange = (Double3)linearAfter - linearBefore;
+            record.ImpulseAngularVelocityChange = (Double3)angularAfter - angularBefore;
+            record.Shadow = default;
+        }
+
+        if (intent.Force != Vector3.Zero || intent.Torque != Vector3.Zero)
+            bodies.AddForceAndTorque(id, intent.Force, intent.Torque);
     }
 
     /// <summary>

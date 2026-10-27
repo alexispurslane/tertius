@@ -589,7 +589,7 @@ The direct pass and the ambient pass write the scatter image beside their own ou
 
 ```glsl
 // direct.frag
-DirectTerms direct = directLight(s, lobes, position, V, SunShadowsMainView, EveryMap);
+DirectTerms direct = directLight(s, lobes, position, V, SunShadowsMainView, MainView);
 outDirect = vec4(min(exposed(direct.diffuse + direct.specular, k) + emission, vec3(MaxRadiance)), 1.0);
 outScatter = s.model == ShadingSkin ? vec4(exposed(direct.diffuse, k), 1.0) : vec4(0.0);
 

@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Numerics;
+using Tertius.Testing;
 
 namespace Tertius.Rendering.Tests;
 
@@ -35,7 +36,8 @@ public sealed class StressTests(ITestOutputHelper output)
                 scale: new(1.4f),
                 rotation: Quaternion.CreateFromYawPitchRoll(i * 0.37f, i * 0.11f, 0),
                 flags: flags,
-                entity: (uint)i
+                entity: (uint)i,
+                chainDepth: TestChains.CamerasFrame
             );
             snapshot.Instances.Add(instance);
         }
@@ -230,7 +232,8 @@ public sealed class StressTests(ITestOutputHelper output)
                     material: ground,
                     position: new(0, -5f, -200f),
                     scale: new(450f, 1f, 450f),
-                    flags: RenderFlags.CastsShadow
+                    flags: RenderFlags.CastsShadow,
+                    chainDepth: TestChains.CamerasFrame
                 )
             );
             Capture image = Gpu.RenderAndCapture(

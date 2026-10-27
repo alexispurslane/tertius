@@ -5,7 +5,8 @@ namespace Tertius.Rendering.Tests;
 /// <summary>
 /// <see cref="ShadowTiles"/>: which near lights get tiles of the atlas, which layer each tile takes, which casters each
 /// tile draws, when a tile is drawn again, and each tile's projection (docs/plans/local-light-shadows.md, "The budget",
-/// "Tile views", "Casters", "The cache"). Every frame is submitted, then checks the invariants, unless a test says otherwise.
+/// "Tile views", "Casters", "The cache"), the main view's lights before the lights that only a face of a map keeps
+/// (docs/plans/environment-map.md, decision 20). Every frame is submitted, then checks the invariants, unless a test says otherwise.
 /// </summary>
 public sealed class ShadowTilesTests
 {
@@ -22,7 +23,10 @@ public sealed class ShadowTilesTests
     private static readonly MeshData CylinderData = Primitives.BendingCylinder(radius: 0.2f, length: 2f);
     private static readonly MeshData BoxData = Primitives.MorphingBox(new(0.5f));
 
-    /// <summary>A white spot light of <paramref name="intensity"/> W/sr that casts shadows, with the camera at the origin.</summary>
+    /// <summary>
+    /// A white spot light of <paramref name="intensity"/> W/sr that casts shadows, in the main view, with the camera at the
+    /// origin.
+    /// </summary>
     private static PreparedLight Spot(
         uint entity,
         float intensity = 1,
@@ -40,11 +44,15 @@ public sealed class ShadowTilesTests
             Reach = Reach,
             Distance = place.Length(),
             CastsShadow = true,
+            InMainView = true,
             Spread = new(Cone.Of(Vector3.Normalize(axis ?? Vector3.UnitX), innerAngle: 0, outerAngle: outerAngle)),
         };
     }
 
-    /// <summary>A white point light of <paramref name="intensity"/> W/sr that casts shadows, with the camera at the origin.</summary>
+    /// <summary>
+    /// A white point light of <paramref name="intensity"/> W/sr that casts shadows, in the main view, with the camera at
+    /// the origin.
+    /// </summary>
     private static PreparedLight Point(uint entity, float intensity = 1, Vector3? position = null)
     {
         Vector3 place = position ?? Vector3.Zero;
@@ -56,6 +64,7 @@ public sealed class ShadowTilesTests
             Reach = Reach,
             Distance = place.Length(),
             CastsShadow = true,
+            InMainView = true,
             Spread = new EveryDirection(),
         };
     }
@@ -195,6 +204,58 @@ public sealed class ShadowTilesTests
             .Equal(
                 [NoSlot, Tiles(first: 0, count: 1)],
                 "at the eye the nearer light gives 1/4 W/m², the farther one 4/100 W/m²"
+            );
+    }
+
+    [Fact]
+    public void ANearLightOfTheMainViewOutranksABrighterOneThatOnlyAFaceKeeps()
+    {
+        var tiles = new ShadowTiles(layers: 1, tileSize: TileSize);
+        PreparedLight[] lights =
+        [
+            Spot(entity: 1, intensity: 5) with
+            {
+                InMainView = false,
+            },
+            Spot(entity: 2, intensity: 1),
+        ];
+
+        Frame(tiles, lights);
+
+        lights
+            .Select(light => light.Shadow)
+            .Should()
+            .Equal(
+                [NoSlot, Tiles(first: 0, count: 1)],
+                "a light that only a face keeps must not change the main view's pixels"
+            );
+    }
+
+    [Fact]
+    public void ANearLightThatOnlyAFaceKeepsTakesTheTilesThatTheMainViewLeavesFree()
+    {
+        var tiles = new ShadowTiles(layers: 7, tileSize: TileSize);
+        PreparedLight[] lights =
+        [
+            Point(entity: 1, intensity: 5) with
+            {
+                InMainView = false,
+            },
+            Spot(entity: 2, intensity: 1),
+            Spot(entity: 3, intensity: 3) with
+            {
+                InMainView = false,
+            },
+        ];
+
+        Frame(tiles, lights);
+
+        lights
+            .Select(light => light.Shadow)
+            .Should()
+            .Equal(
+                [Tiles(first: 0, count: 6), Tiles(first: 6, count: 1), NoSlot],
+                "after the main view's spot light, the brighter light that only a face keeps takes the six layers left"
             );
     }
 

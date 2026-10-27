@@ -1,6 +1,6 @@
 ---
 id: ter-k1ne
-status: open
+status: in_progress
 deps: [ter-u6nc, ter-zw26, ter-a24f]
 links: []
 created: 2026-10-26T19:32:56Z

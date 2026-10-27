@@ -1,7 +1,7 @@
 ---
 id: ter-vtc7
 status: open
-deps: [ter-a24f]
+deps: [ter-a24f, ter-k1ne]
 links: []
 created: 2026-10-27T03:59:20Z
 type: bug
@@ -19,3 +19,9 @@ The sectors pass reads the direct image as the light that bounces. That image ho
 
 Stills and sheets: the session scratchpad, lampx-*.
 
+
+## Notes
+
+**2026-10-27T05:53:11Z**
+
+The specular part waits for skin and hair Part 4 (ter-k1ne), whose DirectTerms splits directLight's sum into its diffuse and specular parts in one loop; the emission part waits for the user.

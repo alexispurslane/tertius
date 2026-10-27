@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Testing;
 
 namespace Tertius.Rendering.Tests;
 
@@ -52,7 +53,8 @@ public sealed class ShadingTargetTests
                         position: centers[i],
                         scale: Vector3.One,
                         rotation: FacingTheCamera,
-                        radius: 0.6f
+                        radius: 0.6f,
+                        chainDepth: TestChains.CamerasFrame
                     )
                 );
 
@@ -104,7 +106,8 @@ public sealed class ShadingTargetTests
                     position: new(0, 0, -3),
                     scale: Vector3.One,
                     rotation: rotation,
-                    radius: 1.5f
+                    radius: 1.5f,
+                    chainDepth: TestChains.CamerasFrame
                 )
             );
 
@@ -141,7 +144,8 @@ public sealed class ShadingTargetTests
                     position: center,
                     scale: Vector3.One,
                     rotation: FacingTheCamera,
-                    radius: 1.5f
+                    radius: 1.5f,
+                    chainDepth: TestChains.CamerasFrame
                 )
             );
 

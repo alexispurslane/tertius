@@ -13,8 +13,33 @@ public sealed partial class JoltPhysicsBackend
     // Scratch for FollowHullMotions: the owners whose hull took a new motion at the start of this step.
     private readonly List<BodyRecord> changedHulls = [];
 
-    /// <summary>A primary body's state as Jolt has it, in its frame. Velocities are at the center of mass.</summary>
-    private readonly record struct BodySnapshot(DPose Pose, Double3 CenterOfMass, Vector3 Linear, Vector3 Angular);
+    /// <summary>
+    /// A primary body's state as Jolt has it, in its frame. <see cref="Linear"/> is the velocity of the center of mass, as
+    /// Jolt keeps it, and <see cref="OriginVelocity"/> the one that the seam carries.
+    /// </summary>
+    private readonly record struct BodySnapshot(DPose Pose, Double3 CenterOfMass, Vector3 Linear, Vector3 Angular)
+    {
+        /// <summary>
+        /// The linear velocity of the body's origin, the point that <see cref="Pose"/> names, which every report carries
+        /// (docs/plans/real-physics-in-tests.md, "The velocity point").
+        /// </summary>
+        public Double3 OriginVelocity => PointVelocity(Linear, Angular, Pose.Position - CenterOfMass);
+    }
+
+    /// <summary>
+    /// The velocity of the point at <paramref name="offset"/> from a point of a rigid body whose velocity is
+    /// <paramref name="velocity"/>, when the body turns at <paramref name="angular"/>. It converts between the velocity of
+    /// a body's origin, which the seam carries, and that of its center of mass, which Jolt keeps.
+    /// </summary>
+    private static Double3 PointVelocity(Double3 velocity, Double3 angular, Double3 offset) =>
+        velocity + Double3.Cross(angular, offset);
+
+    /// <summary>
+    /// The place of the center of mass of the primary body of <paramref name="record"/> relative to its origin, in its frame's
+    /// axes, when the body is at <paramref name="pose"/>.
+    /// </summary>
+    private Double3 CenterOffset(BodyRecord record, in DPose pose) =>
+        pose.TransformDirection(shapes.Get(record.Desc.Shape).CenterOfMass);
 
     private static BodySnapshot ReadPrimary(BodyRecord record)
     {
@@ -146,15 +171,46 @@ public sealed partial class JoltPhysicsBackend
             return;
         }
 
-        // Build every native shape before any state changes, so that a shape that Jolt cannot build throws cleanly.
+        BuildShapes(record);
+        RemoveOldRecord(entity);
+        Store(record);
+
+        try
+        {
+            if (ownsFrame)
+                CreateFrameOwnerBodies(record);
+            else
+                CreateSpawnedPrimary(record, create);
+        }
+        catch
+        {
+            DestroyRecord(entity);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Builds every native shape of <paramref name="record"/> before any state changes, so that a shape that Jolt cannot
+    /// build throws cleanly, and keeps what the record needs to know of them.
+    /// </summary>
+    private void BuildShapes(BodyRecord record)
+    {
+        BodyDesc desc = record.Desc;
         record.HasMesh = desc.Shape.ContainsMesh();
         shapes.Get(desc.Shape);
         // A character's rigid form has a shape of its own.
         shapes.Get(record.Material.Shape);
-        if (ownsFrame)
+        if (!record.OwnedFrame.IsNull)
             shapes.Get(desc.InteriorShape ?? desc.Shape);
         record.Radius = BoundingRadius(desc.Shape);
+    }
 
+    /// <summary>
+    /// Removes the record that <paramref name="entity"/> still has, or that an earlier entity in its slot still has. Both
+    /// are bugs of the caller, which the backend logs and survives.
+    /// </summary>
+    private void RemoveOldRecord(Entity entity)
+    {
         if (Find(entity) is not null)
         {
             log($"Physics: {entity} already had a body. The old body is replaced.");
@@ -167,50 +223,53 @@ public sealed partial class JoltPhysicsBackend
             );
             DestroyRecord(stale.Entity);
         }
+    }
 
-        Store(record);
-
-        try
+    /// <summary>
+    /// Creates the bodies of the owner of a frame: the hull from the frame tree, which is the authority on a frame's pose,
+    /// and the interior. A root frame has no parent, so it has no hull.
+    /// </summary>
+    private void CreateFrameOwnerBodies(BodyRecord record)
+    {
+        frameOwners.Add(record);
+        FrameHandle parent = ParentOf(record.OwnedFrame);
+        if (!parent.IsNull)
         {
-            if (ownsFrame)
-            {
-                frameOwners.Add(record);
-                // The tree is the authority on a frame's pose. A root frame has no parent, so it has no hull.
-                FrameHandle parent = ParentOf(owned);
-                if (!parent.IsNull)
-                {
-                    // A new frame has the velocities that the game spawned it with: instant velocities, as for any
-                    // other body, so that a ship and the crates spawned with it move alike.
-                    CreateHullFromTree(record, parent);
-                    spawnedRigid.Add(record);
-                }
+            // A new frame has the velocities that the game spawned it with: instant velocities, as for any other body, so
+            // that a ship and the crates spawned with it move alike.
+            CreateHullFromTree(record, parent);
+            spawnedRigid.Add(record);
+        }
 
-                CreateInterior(record);
-            }
-            else
-            {
-                record.Up = Vector3.Transform(Vector3.UnitY, create.Pose.Rotation.ToJolt());
-                var pose = new DPose(InHome(create.Frame, create.Pose.Position), create.Pose.Rotation);
-                // The spawn velocities are instant velocities. The next step makes their chords.
-                CreatePrimary(
-                    record: record,
-                    frame: create.Frame,
-                    pose: pose,
-                    linearVelocity: LocalVelocity(create.Frame, create.LinearVelocity).ToVector3(),
-                    angularVelocity: create.AngularVelocity,
-                    upFromGravity: true
-                );
-                if (record.Character is not null)
-                    record.InstantVelocityStep = stepIndex + 1;
-                else
-                    spawnedRigid.Add(record);
-            }
-        }
-        catch
-        {
-            DestroyRecord(entity);
-            throw;
-        }
+        CreateInterior(record);
+    }
+
+    /// <summary>
+    /// Creates the primary body of an entity that owns no frame at the pose and with the velocities of its
+    /// <paramref name="create"/>. The spawn velocities are instant velocities, and the next step makes their chords.
+    /// </summary>
+    private void CreateSpawnedPrimary(BodyRecord record, in BodyCreate create)
+    {
+        record.Up = Vector3.Transform(Vector3.UnitY, create.Pose.Rotation.ToJolt());
+        var pose = new DPose(InHome(create.Frame, create.Pose.Position), create.Pose.Rotation);
+        // Jolt wants the velocity of the center of mass, and the spawn gives that of the origin.
+        Double3 centerVelocity = PointVelocity(
+            velocity: create.LinearVelocity,
+            angular: create.AngularVelocity,
+            offset: CenterOffset(record, pose)
+        );
+        CreatePrimary(
+            record: record,
+            frame: create.Frame,
+            pose: pose,
+            linearVelocity: LocalVelocity(create.Frame, centerVelocity).ToVector3(),
+            angularVelocity: create.AngularVelocity,
+            upFromGravity: true
+        );
+        if (record.Character is not null)
+            record.InstantVelocityStep = stepIndex + 1;
+        else
+            spawnedRigid.Add(record);
     }
 
     private void Store(BodyRecord record)
@@ -298,8 +357,7 @@ public sealed partial class JoltPhysicsBackend
         // into a chord (see ConvertSpawnVelocities).
         FrameHandle frame = record.OwnedFrame;
         Vector3 angular = frames.AngularVelocity(frame);
-        Double3 centerOffset = pose.TransformDirection(shapes.Get(record.Desc.Shape).CenterOfMass);
-        Double3 linear = frames.TreeLinearVelocity(frame) + Double3.Cross(angular, centerOffset);
+        Double3 linear = PointVelocity(frames.TreeLinearVelocity(frame), angular, CenterOffset(record, pose));
         return (linear.ToVector3(), angular);
     }
 

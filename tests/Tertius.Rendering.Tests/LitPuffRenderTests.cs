@@ -238,6 +238,76 @@ public sealed class LitPuffRenderTests
         ShouldMatchGlowPuffs(snapshot, [Albedo * irradiance / (4 * MathF.PI)], "lit-puff-every-light");
     }
 
+    /// <summary>
+    /// The image of a lit puff of radius 1 m in the sun, whose center lies 0.5 m outside the view's right side plane, 10 m
+    /// from the eye, so that its inner half shows at the right edge, under an environment map that draws all six faces in
+    /// the frame. With <paramref name="withTheLamp"/>, a lamp stands 1 cm farther out than the puff's center, with a reach
+    /// of 0.5 m: its reach sphere lies 1 cm outside the plane, so only a face of the map keeps it, and the puff's center
+    /// lies within it.
+    /// </summary>
+    private static (Capture Image, int Lights) PuffAtTheRightEdge(bool withTheLamp)
+    {
+        // The right side plane passes through the eye: its outward normal, and its direction in the plane y = 0.
+        float tanHalfX = MathF.Tan(Gpu.Fov / 2) * Width / Height;
+        var outward = Vector3.Normalize(new(1, 0, tanHalfX));
+        var along = Vector3.Normalize(new(tanHalfX, 0, -1));
+        Vector3 puff = 10 * along + 0.5f * outward;
+        const float reach = 0.5f;
+        VulkanRenderer renderer = Gpu.Headless(
+            width: Width,
+            height: Height,
+            environmentMap: SceneEnvironmentMap.Default with
+            {
+                FaceSize = EnvironmentMapSetting.MinFaceSize,
+                FacesPerFrame = CubeFaces.Count,
+            }
+        );
+        try
+        {
+            RenderSnapshot snapshot = Gpu.Snapshot(new(0.3f, 0.8f, 0.5f), starIrradiance: 1f);
+            snapshot.Ambient.Intensity = 0f;
+            snapshot.PuffLooks.Add(
+                new(Life: 2f, StartRadius: 1f, EndRadius: 1f, TemperatureRatio: 0.5f, Shading: PuffShading.Lit(Albedo))
+            );
+            snapshot.Puffs.Add(Puff(puff, look: 0));
+            if (withTheLamp)
+                snapshot.Lights.Add(
+                    Gpu.Lamp(
+                        position: puff + 0.01f * outward,
+                        color: Vector3.One,
+                        intensity: (float)(reach * reach * LightUnits.CutoffIrradiance(new FixedExposure(0))),
+                        chainDepth: TestChains.CamerasFrame
+                    )
+                );
+            Capture image = Gpu.RenderAndCapture(
+                renderer: renderer,
+                snapshot: snapshot,
+                name: withTheLamp ? "lit-puff-face-only-lamp" : "lit-puff-no-lamp"
+            );
+            return (image, renderer.LastFrameStats.Lights);
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void ALitPuffWhoseCenterIsOffTheScreenTakesNoLightFromALampThatOnlyAFaceOfTheMapKeeps()
+    {
+        (Capture withIt, int lights) = PuffAtTheRightEdge(withTheLamp: true);
+        (Capture withoutIt, _) = PuffAtTheRightEdge(withTheLamp: false);
+
+        lights.Should().Be(2, "a face keeps the lamp, so the frame's one list holds the sun and the lamp");
+        withIt
+            .MeanLuma(new(Width - 2, Height / 2f), radius: 1)
+            .Should()
+            .BeGreaterThan(0.05f, "the sunlit inner half of the puff shows at the right edge");
+        withIt
+            .Rgba.Should()
+            .Equal(withoutIt.Rgba, "the main view's puff takes only the lights whose reach touches the main view");
+    }
+
     [Fact]
     public void ALitPuffInsideASpotLightsConeIsLitByItAndOneOutsideTheConeIsNot()
     {
@@ -289,7 +359,8 @@ public sealed class LitPuffRenderTests
                     material: gray,
                     position: shaded + new Vector3(0.3f, 3f, 0.15f),
                     scale: new(1.6f, 0.2f, 1.6f),
-                    flags: RenderFlags.CastsShadow
+                    flags: RenderFlags.CastsShadow,
+                    chainDepth: TestChains.CamerasFrame
                 )
             );
             AddLitPuff(snapshot, shaded);
@@ -329,7 +400,8 @@ public sealed class LitPuffRenderTests
                     material: gray,
                     position: puff + 3_000f * Gpu.StarDirection(snapshot),
                     scale: new(500f),
-                    flags: RenderFlags.CastsShadow
+                    flags: RenderFlags.CastsShadow,
+                    chainDepth: TestChains.CamerasFrame
                 )
             );
             AddLitPuff(snapshot, puff);
@@ -396,7 +468,8 @@ public sealed class LitPuffRenderTests
                 material: gray,
                 position: new(0, -1.5f, -20),
                 scale: new(30, 1, 30),
-                flags: RenderFlags.CastsShadow
+                flags: RenderFlags.CastsShadow,
+                chainDepth: TestChains.CamerasFrame
             )
         );
         // The sun rises 3 m for each 1 m that it moves along x and along z, so the roof's shadow 2 m below it is 0.67 m to the
@@ -407,7 +480,8 @@ public sealed class LitPuffRenderTests
                 material: gray,
                 position: new(-1.1f, 2.35f, -8.93f),
                 scale: new(5f, 0.3f, 2.6f),
-                flags: RenderFlags.CastsShadow
+                flags: RenderFlags.CastsShadow,
+                chainDepth: TestChains.CamerasFrame
             )
         );
         snapshot.Lights.Add(

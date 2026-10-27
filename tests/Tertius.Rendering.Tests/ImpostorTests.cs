@@ -101,7 +101,8 @@ public sealed class ImpostorTests(ITestOutputHelper output)
                         material: assets.Red,
                         position: new(0, 0, -distance),
                         scale: Vector3.One,
-                        entity: 7
+                        entity: 7,
+                        chainDepth: TestChains.CamerasFrame
                     )
                 );
                 Capture image = Gpu.RenderAndCapture(
@@ -154,7 +155,8 @@ public sealed class ImpostorTests(ITestOutputHelper output)
                             scale: Vector3.One,
                             flags: flags,
                             entity: 4,
-                            part: 0
+                            part: 0,
+                            chainDepth: TestChains.CamerasFrame
                         )
                     );
                     snapshot.Instances.Add(
@@ -165,7 +167,8 @@ public sealed class ImpostorTests(ITestOutputHelper output)
                             scale: Vector3.One,
                             flags: flags,
                             entity: 4,
-                            part: 1
+                            part: 1,
+                            chainDepth: TestChains.CamerasFrame
                         )
                     );
                 }
@@ -233,7 +236,8 @@ public sealed class ImpostorTests(ITestOutputHelper output)
                         position: direction * distance,
                         scale: new(1.5f),
                         rotation: BoxTurn,
-                        entity: 3
+                        entity: 3,
+                        chainDepth: TestChains.CamerasFrame
                     )
                 );
                 return snapshot;
@@ -321,7 +325,8 @@ public sealed class ImpostorTests(ITestOutputHelper output)
                         position: position,
                         scale: new(1.5f),
                         rotation: BoxTurn,
-                        entity: 9
+                        entity: 9,
+                        chainDepth: TestChains.CamerasFrame
                     )
                 );
                 return snapshot;
@@ -391,7 +396,8 @@ public sealed class ImpostorTests(ITestOutputHelper output)
                         position: Vector3.Transform(new(0, 0, -distance), direction),
                         scale: Vector3.One,
                         rotation: BoxTurn,
-                        entity: 1000 + i
+                        entity: 1000 + i,
+                        chainDepth: TestChains.CamerasFrame
                     )
                 );
             }
@@ -485,7 +491,8 @@ public sealed class ImpostorTests(ITestOutputHelper output)
                             material: materials[index],
                             position: position,
                             scale: Vector3.One,
-                            entity: (uint)index
+                            entity: (uint)index,
+                            chainDepth: TestChains.CamerasFrame
                         )
                     );
                 }
@@ -639,7 +646,8 @@ public sealed class ImpostorTests(ITestOutputHelper output)
                         material: assets.Ground,
                         position: new(0, -1.2f, -20f),
                         scale: new(40f, 1f, 40f),
-                        flags: RenderFlags.CastsShadow
+                        flags: RenderFlags.CastsShadow,
+                        chainDepth: TestChains.CamerasFrame
                     )
                 );
                 if (objects)
@@ -651,7 +659,8 @@ public sealed class ImpostorTests(ITestOutputHelper output)
                             position: new(-0.9f, -1.2f, -distance),
                             scale: Vector3.One,
                             flags: flags | RenderFlags.CastsShadow,
-                            entity: 1
+                            entity: 1,
+                            chainDepth: TestChains.CamerasFrame
                         )
                     );
                     snapshot.Instances.Add(
@@ -662,7 +671,8 @@ public sealed class ImpostorTests(ITestOutputHelper output)
                             scale: new(1.1f),
                             rotation: Quaternion.CreateFromYawPitchRoll(0.5f, 0.6f, 0.3f),
                             flags: flags | RenderFlags.CastsShadow,
-                            entity: 2
+                            entity: 2,
+                            chainDepth: TestChains.CamerasFrame
                         )
                     );
                 }
@@ -712,7 +722,8 @@ public sealed class ImpostorTests(ITestOutputHelper output)
                             position: new(-250f, 0, -2_000f),
                             scale: new(400f),
                             flags: flags,
-                            entity: 1
+                            entity: 1,
+                            chainDepth: TestChains.CamerasFrame
                         )
                     );
                     snapshot.Instances.Add(
@@ -723,7 +734,8 @@ public sealed class ImpostorTests(ITestOutputHelper output)
                             scale: new(1_000f),
                             rotation: BoxTurn,
                             flags: flags,
-                            entity: 2
+                            entity: 2,
+                            chainDepth: TestChains.CamerasFrame
                         )
                     );
                 }
@@ -889,7 +901,8 @@ public sealed class ImpostorTests(ITestOutputHelper output)
                             position: position,
                             scale: Vector3.One,
                             rotation: Quaternion.CreateFromYawPitchRoll(angle, angle * 0.5f, 0),
-                            entity: i
+                            entity: i,
+                            chainDepth: TestChains.CamerasFrame
                         )
                     );
                 }
@@ -972,7 +985,8 @@ public sealed class ImpostorTests(ITestOutputHelper output)
                     material: assets.Red,
                     position: new(0, 0, -40f),
                     scale: Vector3.One,
-                    entity: 1
+                    entity: 1,
+                    chainDepth: TestChains.CamerasFrame
                 )
             );
             renderer.Render(snapshot, 1f);
@@ -1008,7 +1022,8 @@ public sealed class ImpostorTests(ITestOutputHelper output)
                     material: assets.Red,
                     position: new(0, 0, -40f),
                     scale: Vector3.One,
-                    entity: 1
+                    entity: 1,
+                    chainDepth: TestChains.CamerasFrame
                 )
             );
             Capture image = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "impostor-one-tile");
@@ -1023,6 +1038,96 @@ public sealed class ImpostorTests(ITestOutputHelper output)
         {
             Gpu.DisposeAndAssertClean(renderer);
         }
+    }
+
+    /// <summary>
+    /// The atlas tile of a gray ball of radius 1 m in the sun, 12 m from the eye, whose center lies on the view's right
+    /// side plane, so that its inner half shows, under an environment map that draws all six faces in the frame, after one
+    /// frame. With <paramref name="withTheLamp"/>, a lamp stands 2 cm off the ball's surface, 30° from the plane's outward
+    /// normal toward the eye, with a reach of 0.5 m: its reach sphere lies 0.38 m outside the plane, so only a face of the
+    /// map keeps it, and it lights a part of the ball's off-screen half that the eye sees.
+    /// </summary>
+    private static (float[] Tile, int Lights) BallAtTheRightEdge(bool withTheLamp)
+    {
+        const int width = 640,
+            height = 360;
+        // The right side plane passes through the eye: its outward normal, and its direction in the plane y = 0.
+        float tanHalfX = MathF.Tan(Gpu.Fov / 2) * width / height;
+        var outward = Vector3.Normalize(new(1, 0, tanHalfX));
+        var along = Vector3.Normalize(new(tanHalfX, 0, -1));
+        Vector3 center = 12 * along;
+        Vector3 toward = MathF.Cos(MathF.PI / 6) * outward - MathF.Sin(MathF.PI / 6) * along;
+        const float reach = 0.5f;
+        VulkanRenderer renderer = Gpu.Headless(
+            width: width,
+            height: height,
+            impostors: true,
+            environmentMap: SceneEnvironmentMap.Default with
+            {
+                FaceSize = EnvironmentMapSetting.MinFaceSize,
+                FacesPerFrame = CubeFaces.Count,
+            }
+        );
+        try
+        {
+            MeshId sphere = renderer.CreateMesh(Primitives.Sphere(1f, 48, 24));
+            MaterialId gray = renderer.CreateMaterial(
+                MaterialDesc.Color(new(x: 0.5f, y: 0.5f, z: 0.5f, w: 1), roughness: 0.9f) with
+                {
+                    Reflectance = 0f,
+                }
+            );
+            RenderSnapshot snapshot = Gpu.Snapshot(new(0, 0.3f, 1), starIrradiance: 1f);
+            snapshot.Ambient.Intensity = 0f;
+            snapshot.Instances.Add(
+                Gpu.Instance(
+                    mesh: sphere,
+                    material: gray,
+                    position: center,
+                    scale: Vector3.One,
+                    entity: 1,
+                    chainDepth: TestChains.CamerasFrame
+                )
+            );
+            if (withTheLamp)
+                snapshot.Lights.Add(
+                    Gpu.Lamp(
+                        position: center + 1.02f * toward,
+                        color: Vector3.One,
+                        intensity: (float)(reach * reach * LightUnits.CutoffIrradiance(new FixedExposure(0))),
+                        chainDepth: TestChains.CamerasFrame
+                    )
+                );
+            renderer.Render(snapshot, 1f);
+            renderer.LastFrameStats.Impostors.Should().Be(1, "a ball 12 m away is about 50 px high");
+            ImpostorStatus status = renderer
+                .Impostors!.Status(
+                    new(EntityIndex: 1, Part: 0, Mesh: sphere.Value, Material: MaterialStore.Slot(gray))
+                )!
+                .Value;
+            return (renderer.ReadImpostorTile(status.Tile).Rgba, renderer.LastFrameStats.Lights);
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void AnImpostorCaptureTakesNoDirectLightFromALampThatOnlyAFaceOfTheMapKeeps()
+    {
+        (float[] withIt, int lights) = BallAtTheRightEdge(withTheLamp: true);
+        (float[] withoutIt, _) = BallAtTheRightEdge(withTheLamp: false);
+
+        lights.Should().Be(2, "a face keeps the lamp, so the frame's one list holds the sun and the lamp");
+        withoutIt.Max().Should().BePositive("the tile holds the sunlit ball");
+        // The lamp lights the ball in the map's faces too, which the capture takes as a little more ambient light:
+        // about 1e-5 of radiance. Its direct light would give up to 0.04.
+        withIt
+            .Zip(withoutIt, (a, b) => MathF.Abs(a - b))
+            .Max()
+            .Should()
+            .BeLessThan(1e-3f, "the capture takes only the lights whose reach touches the main view");
     }
 
     /// <summary>

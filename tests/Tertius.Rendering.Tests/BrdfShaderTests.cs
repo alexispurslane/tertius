@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Testing;
 using static Tertius.Rendering.Tests.BrdfTesting;
 
 namespace Tertius.Rendering.Tests;
@@ -168,7 +169,14 @@ public sealed class BrdfShaderTests
                 Intensity = 1,
             };
             snapshot.Instances.Add(
-                Gpu.Instance(mesh: ground, material: material, position: new(0, -1, 0), scale: Vector3.One, radius: 71)
+                Gpu.Instance(
+                    mesh: ground,
+                    material: material,
+                    position: new(0, -1, 0),
+                    scale: Vector3.One,
+                    radius: 71,
+                    chainDepth: TestChains.CamerasFrame
+                )
             );
             Vector3 shown = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "brdf-grazing-schlick")
                 .Color(pixel);
@@ -281,6 +289,7 @@ public sealed class BrdfShaderTests
             position: center,
             scale: Vector3.One,
             rotation: rotation,
-            radius: 0.36f
+            radius: 0.36f,
+            chainDepth: TestChains.CamerasFrame
         );
 }

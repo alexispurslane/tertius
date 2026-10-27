@@ -79,7 +79,8 @@ public sealed class HairRenderTests
             position: center ?? CardCenter,
             scale: scale ?? Vector3.One,
             rotation: rotation,
-            radius: 1.5f * MathF.Max(MathF.Max((scale ?? Vector3.One).X, (scale ?? Vector3.One).Z), 1)
+            radius: 1.5f * MathF.Max(MathF.Max((scale ?? Vector3.One).X, (scale ?? Vector3.One).Z), 1),
+            chainDepth: TestChains.CamerasFrame
         );
 
     private static Quaternion FacingTheCamera => CardWith(normal: Vector3.UnitZ, strand: Vector3.UnitY);
@@ -266,7 +267,11 @@ public sealed class HairRenderTests
         try
         {
             MeshId plane = renderer.CreateMesh(Primitives.Plane(1));
-            Rendered(renderer, SunOnly(Vector3.UnitZ), Card(plane: plane, material: Hair(renderer), rotation: rotation));
+            Rendered(
+                renderer,
+                SunOnly(Vector3.UnitZ),
+                Card(plane: plane, material: Hair(renderer), rotation: rotation)
+            );
 
             Double3
                 .Dot(StoredAt(renderer, Ahead).Strand, Vector3.Transform(vGrows, rotation))
@@ -497,7 +502,8 @@ public sealed class HairRenderTests
                                 plane: plane,
                                 material: Glow(renderer, EnvironmentScenes.ColorOf(face)),
                                 center: CubeFaces.Basis((CubeFace)face).Forward * 20,
-                                halfSize: 22
+                                halfSize: 22,
+                                chainDepth: TestChains.CamerasFrame
                             )
                         );
                 // Small, so that the card hides little of the faces of the map around the eye.
@@ -641,7 +647,8 @@ public sealed class HairRenderTests
                     material: MatteOf(renderer, model),
                     center: new(5, 0, 0),
                     normal: -Vector3.UnitX,
-                    halfSize: 3
+                    halfSize: 3,
+                    chainDepth: TestChains.CamerasFrame
                 )
             );
             renderer.Render(snapshot, 1f);

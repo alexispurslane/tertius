@@ -96,7 +96,8 @@ public sealed class CutoutRenderTests
             position: new(0, 0, -6),
             scale: new(3),
             rotation: FacingTheCamera,
-            radius: 4.3f
+            radius: 4.3f,
+            chainDepth: TestChains.CamerasFrame
         );
 
     /// <summary>The bounding radius of the cards, in m: a little more than the half diagonal, √2.</summary>
@@ -116,7 +117,8 @@ public sealed class CutoutRenderTests
             scale: Vector3.One,
             rotation: FacingTheCamera,
             flags: flags,
-            radius: CardRadius
+            radius: CardRadius,
+            chainDepth: TestChains.CamerasFrame
         );
 
     /// <summary>The RGB of the pixel that holds <paramref name="pixel"/> in an HDR image of RGBA per pixel.</summary>
@@ -225,7 +227,8 @@ public sealed class CutoutRenderTests
                 ),
                 position: new(0, -1, -5),
                 scale: new(10, 1, 10),
-                radius: 15
+                radius: 15,
+                chainDepth: TestChains.CamerasFrame
             )
         );
         if (!withCard)
@@ -237,7 +240,8 @@ public sealed class CutoutRenderTests
                 position: CardAbove,
                 scale: Vector3.One,
                 flags: RenderFlags.CastsShadow,
-                entity: 1
+                entity: 1,
+                chainDepth: TestChains.CamerasFrame
             )
         );
         snapshot.Instances.Add(
@@ -247,7 +251,8 @@ public sealed class CutoutRenderTests
                 position: BoxAbove,
                 scale: Vector3.One,
                 flags: RenderFlags.CastsShadow,
-                entity: 2
+                entity: 2,
+                chainDepth: TestChains.CamerasFrame
             )
         );
     }
@@ -423,7 +428,8 @@ public sealed class CutoutRenderTests
                         plane: plane,
                         material: EnvironmentScenes.Emissive(renderer, new(0, 0, 1)),
                         center: new(10, 0, 0),
-                        halfSize: 5
+                        halfSize: 5,
+                        chainDepth: TestChains.CamerasFrame
                     )
                 );
                 MaterialId card = renderer.CreateMaterial(
@@ -440,7 +446,8 @@ public sealed class CutoutRenderTests
                         material: card,
                         center: new(5, 0, 0),
                         normal: -Vector3.UnitX,
-                        halfSize: 3
+                        halfSize: 3,
+                        chainDepth: TestChains.CamerasFrame
                     )
                 );
                 renderer.Render(snapshot, 1f);

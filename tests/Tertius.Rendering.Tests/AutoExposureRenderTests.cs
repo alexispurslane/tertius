@@ -41,7 +41,8 @@ public sealed class AutoExposureRenderTests
                 material: white,
                 position: Ahead,
                 scale: Vector3.One,
-                rotation: FacingTheCamera
+                rotation: FacingTheCamera,
+                chainDepth: TestChains.CamerasFrame
             )
         );
     }

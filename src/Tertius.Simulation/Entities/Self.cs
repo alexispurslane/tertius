@@ -84,7 +84,10 @@ public readonly ref struct Self
     /// </summary>
     public DPose PoseIn(FrameHandle frame) => world.PoseIn(Entity, frame);
 
-    /// <summary>This entity's linear velocity relative to <paramref name="frame"/>, in its axes, from the front snapshot.</summary>
+    /// <summary>
+    /// The linear velocity of this entity's origin, the point that its pose names, relative to <paramref name="frame"/>, in
+    /// its axes, from the front snapshot.
+    /// </summary>
     public Double3 VelocityIn(FrameHandle frame) => world.VelocityIn(Entity, frame);
 
     /// <summary>This entity's angular velocity relative to <paramref name="frame"/>, in its axes, from the front snapshot.</summary>
@@ -267,9 +270,12 @@ public readonly ref struct BodyHandle
     public void AddAngularImpulse(Vector3 impulse) => PushIntent.AngularImpulse += impulse;
 
     /// <summary>
-    /// Sets the linear velocity before the next step, relative to the entity's frame, in its axes. Physics converts it
-    /// when it applies it. Throws <see cref="InvalidOperationException"/> for a body that is kinematic in the next step, hull
-    /// or plain, which moves only by its motion intents and teleports (see <see cref="Self.MoveKinematic"/>).
+    /// Sets the linear velocity of the entity's origin, the point that its pose names, before the next step, relative to the
+    /// entity's frame, in its axes. Physics converts it when it applies it. When the body spins and its center of mass lies
+    /// off its origin, the center of mass moves at this velocity plus the angular velocity × that offset. So a zero velocity
+    /// stops the origin, and the center of mass then drifts at the angular velocity × the offset. Throws
+    /// <see cref="InvalidOperationException"/> for a body that is kinematic in the next step, hull or plain, which moves
+    /// only by its motion intents and teleports (see <see cref="Self.MoveKinematic"/>).
     /// </summary>
     public void SetVelocity(Double3 velocity)
     {

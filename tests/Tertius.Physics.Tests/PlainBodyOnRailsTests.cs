@@ -276,8 +276,7 @@ public sealed class PlainBodyOnRailsTests
 
     /// <summary>
     /// A plain kinematic cube of 1 m that <paramref name="rails"/> moves, spawned where the rails put it at time 0. With
-    /// <paramref name="lopsided"/>, the cube sits 1 m along its X axis from the body's origin, so its centre of mass does too
-    /// (see <see cref="CentreOfMass"/>).
+    /// <paramref name="lopsided"/>, the cube sits 1 m along its X axis from the body's origin, so its centre of mass does too.
     /// </summary>
     private static Entity CubeOn(World world, FrameHandle space, Speeding rails, bool lopsided = false) =>
         world.Spawn(
@@ -297,24 +296,14 @@ public sealed class PlainBodyOnRailsTests
             }
         );
 
-    /// <summary>The centre of mass of a cube of <see cref="CubeOn"/> in its body's axes.</summary>
-    private static Double3 CentreOfMass(bool lopsided) => lopsided ? new(1, 0, 0) : Double3.Zero;
-
     /// <summary>
-    /// The instant velocity of the centre of mass of a cube of <see cref="CubeOn"/> on <paramref name="rails"/> at
-    /// <paramref name="time"/>: the velocity of its origin, plus the turn of the arm from the origin to the centre of mass.
-    /// </summary>
-    private static Double3 CentreVelocity(Speeding rails, double time, bool lopsided) =>
-        rails.VelocityAt(time)
-        + Double3.Cross(rails.AngularVelocityAt(time), rails.RotationAt(time).Rotate(CentreOfMass(lopsided)));
-
-    /// <summary>
-    /// The velocity that gameplay reads for a plain body is that of its centre of mass, as Jolt gives it for every body. So
-    /// a plain body on rails whose centre of mass lies 1 m from its origin reads the instant velocity of its rails at the
-    /// origin plus the turn of that arm, which is 0.5 m/s and more here.
+    /// The velocity that gameplay reads for a plain body is that of its origin, the point that its pose names, as for every
+    /// body (docs/plans/real-physics-in-tests.md, "The velocity point"). So a plain body on rails whose centre of mass lies
+    /// 1 m from its origin reads the instant velocity of its rails, not that plus the turn of the arm to its centre of mass,
+    /// which is 0.5 m/s and more here.
     /// </summary>
     [Fact]
-    public void APlainBodyOnRailsReadsTheInstantVelocityOfItsCentreOfMass()
+    public void APlainBodyOnRailsWhoseCentreOfMassLiesOffItsOriginReadsTheInstantVelocityOfItsOrigin()
     {
         using World world = NewWorld(backend: out _);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
@@ -325,11 +314,11 @@ public sealed class PlainBodyOnRailsTests
         for (int i = 0; i < 30; i++)
         {
             world.Tick();
-            (world.VelocityIn(cube, space) - CentreVelocity(rails, world.Time, lopsided: true))
+            (world.VelocityIn(cube, space) - rails.VelocityAt(world.Time))
                 .Length.Should()
                 .BeLessThan(
                     1e-4,
-                    "the body reads the instant velocity of its centre of mass at sync point {0}",
+                    "the body reads the instant velocity of its origin at sync point {0}",
                     world.TickNumber
                 );
         }
@@ -370,7 +359,7 @@ public sealed class PlainBodyOnRailsTests
     /// A plain kinematic cube on rails that speeds up at 3 m/s² and spins up at 2 rad/s² passes through the bubble of a
     /// turned room at rest. At the sync point of each hand-off it reads the instant velocities of its rails in the frame
     /// that it left, as at every other sync point: the hand-off carries the instant velocities of the step's sample at the
-    /// cube's centre of mass, not Jolt's chords, which lie 0.025 m/s and 0.017 rad/s behind. The body state of the step
+    /// cube's origin, not Jolt's chords, which lie 0.025 m/s and 0.017 rad/s behind. The body state of the step
     /// agrees with the hand-off: it is the cube's state in its new frame.
     /// </summary>
     [Theory]
@@ -380,19 +369,7 @@ public sealed class PlainBodyOnRailsTests
     {
         using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
-        DQuaternion turned =
-            DQuaternion.FromAxisAngle(Double3.UnitZ, Math.PI / 2)
-            * DQuaternion.FromAxisAngle(Double3.UnitX, Math.PI / 2);
-        FrameHandle room = world.GetOwnedFrame(
-            world.Spawn(
-                new()
-                {
-                    Frame = space,
-                    Pose = new(new(20, 0, 0), turned),
-                    AsFrame = new(FrameBounds.Sphere(5)),
-                }
-            )
-        );
+        FrameHandle room = TurnedRoom(world, space);
         var rails = new Speeding(space: space, start: new(5, 0, 0), acceleration: 3, spinUp: 2);
         Entity cube = CubeOn(world: world, space: space, rails: rails, lopsided: lopsided);
         Tick(world, 2);
@@ -408,23 +385,14 @@ public sealed class PlainBodyOnRailsTests
             handOffs.Add(
                 (
                     frame,
-                    (world.VelocityIn(cube, space) - CentreVelocity(rails, world.Time, lopsided)).Length,
+                    (world.VelocityIn(cube, space) - rails.VelocityAt(world.Time)).Length,
                     (world.AngularVelocityIn(cube, space) - rails.AngularVelocityAt(world.Time)).Length
                 )
             );
-            HandOff handOff = faults.Outputs[^1].HandOffs.Single(h => h.Entity == cube);
-            BodyState state = faults.Outputs[^1].Bodies.Single(b => b.Entity == cube);
-            state.Frame.Should().Be(handOff.To);
-            (state.Pose.Position - handOff.Pose.Position)
-                .Length.Should()
-                .BeLessThan(1e-9, "the body state is the cube's place in its new frame");
-            Math.Abs(Dot(state.Pose.Rotation, handOff.Pose.Rotation))
-                .Should()
-                .BeGreaterThan(1 - 1e-6, "and its rotation there");
-            (state.LinearVelocity - handOff.LinearVelocity)
-                .Length()
-                .Should()
-                .BeLessThan(1e-5f, "and its velocity there");
+            ShouldBeTheStateInTheNewFrame(
+                faults.Outputs[^1].Bodies.Single(b => b.Entity == cube),
+                faults.Outputs[^1].HandOffs.Single(h => h.Entity == cube)
+            );
         }
 
         handOffs
@@ -451,6 +419,37 @@ public sealed class PlainBodyOnRailsTests
                     );
             });
         world.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>The frame of a room at rest in <paramref name="space"/> at (20, 0, 0), turned about two axes, with a bubble of 5 m.</summary>
+    private static FrameHandle TurnedRoom(World world, FrameHandle space)
+    {
+        DQuaternion turned =
+            DQuaternion.FromAxisAngle(Double3.UnitZ, Math.PI / 2)
+            * DQuaternion.FromAxisAngle(Double3.UnitX, Math.PI / 2);
+        return world.GetOwnedFrame(
+            world.Spawn(
+                new()
+                {
+                    Frame = space,
+                    Pose = new(new(20, 0, 0), turned),
+                    AsFrame = new(FrameBounds.Sphere(5)),
+                }
+            )
+        );
+    }
+
+    /// <summary>The body state of the step of a hand-off is the body's state in its new frame, as the hand-off has it.</summary>
+    private static void ShouldBeTheStateInTheNewFrame(BodyState state, HandOff handOff)
+    {
+        state.Frame.Should().Be(handOff.To);
+        (state.Pose.Position - handOff.Pose.Position)
+            .Length.Should()
+            .BeLessThan(1e-9, "the body state is the cube's place in its new frame");
+        Math.Abs(Dot(state.Pose.Rotation, handOff.Pose.Rotation))
+            .Should()
+            .BeGreaterThan(1 - 1e-6, "and its rotation there");
+        (state.LinearVelocity - handOff.LinearVelocity).Length().Should().BeLessThan(1e-5f, "and its velocity there");
     }
 
     private static double Dot(DQuaternion a, DQuaternion b) => a.X * b.X + a.Y * b.Y + a.Z * b.Z + a.W * b.W;

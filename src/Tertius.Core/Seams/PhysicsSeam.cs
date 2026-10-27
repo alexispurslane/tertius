@@ -482,7 +482,10 @@ public struct PhysicsIntent
     public Vector3 Impulse;
     public Vector3 AngularImpulse;
 
-    /// <summary>The new linear velocity relative to the entity's frame, in doubles. Physics converts it to the body's home when it applies it.</summary>
+    /// <summary>
+    /// The new linear velocity of the body's origin relative to the entity's frame, in doubles. Physics converts it to the
+    /// body's home when it applies it.
+    /// </summary>
     public Double3 Velocity;
 
     public Vector3 AngularVelocity;
@@ -592,7 +595,7 @@ public struct PhysicsIntent
 /// and mask that it has now, and for the hull of a frame, the motion that the hull has in the next step, the one that
 /// the body is created for, which counts a change that its owner wrote in the tick (see <c>World.NextStepHullMotion</c>).
 /// So a body created again after a move holds the groups of its last SetCollision intent and the motion of its last change
-/// of motion, not those of its spawn.
+/// of motion, not those of its spawn. <see cref="LinearVelocity"/> is the velocity of the body's origin.
 /// </summary>
 public readonly record struct BodyCreate(
     Entity Entity,
@@ -705,6 +708,7 @@ public readonly struct PhysicsStepContext(
 
 /// <summary>
 /// The state of one body after a step, relative to <see cref="Frame"/>: the frame whose physics system holds the body.
+/// <see cref="LinearVelocity"/> is the velocity of the body's origin (see <see cref="IPhysicsBackend"/>).
 /// </summary>
 public readonly record struct BodyState(
     Entity Entity,
@@ -724,7 +728,7 @@ public readonly record struct CharacterState(Entity Entity, bool Standing);
 /// <summary>
 /// Physics moved an entity's body to another frame during the step. <see cref="From"/> is the frame that the entity was in
 /// when the step began (for the owner of a frame, the frame's parent), and <see cref="To"/> is a different frame. Pose and
-/// velocities are in the new frame.
+/// velocities are in the new frame, and <see cref="LinearVelocity"/> is the velocity of the body's origin there.
 /// </summary>
 public readonly record struct HandOff(
     Entity Entity,
@@ -830,7 +834,9 @@ public sealed class PhysicsStepOutput
 
 /// <summary>
 /// The physics engine as the simulation sees it. <see cref="ApplyChanges"/> runs at the sync point.
-/// <see cref="Step"/> runs on the physics thread while gameplay runs.
+/// <see cref="Step"/> runs on the physics thread while gameplay runs. Every linear velocity of a body on this seam is the
+/// velocity of the body's origin, the point that its pose names, not of its center of mass
+/// (docs/plans/real-physics-in-tests.md, "The velocity point").
 /// </summary>
 public interface IPhysicsBackend : IDisposable
 {

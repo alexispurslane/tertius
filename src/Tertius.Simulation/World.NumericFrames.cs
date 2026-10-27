@@ -1,3 +1,4 @@
+using System.Numerics;
 using System.Runtime.InteropServices;
 
 namespace Tertius.Simulation;
@@ -45,62 +46,7 @@ public sealed partial class World
             pendingCreates[physicsChanges.BodiesCreated[i].Entity] = i;
         numericBodies.Clear();
         foreach (Entity entity in Entities.BodyEntities)
-        {
-            if (!Attachments.ParentOf(entity).IsNull)
-                continue;
-            BodyDesc? desc = Entities.Body(entity);
-            Contract.Assert(desc is not null);
-            FrameHandle own = Entities.OwnedFrame(entity);
-            // The interior of a frame owner is a body at rest at the frame's origin, in the frame's own system, which no
-            // numeric update moves. Physics keeps it static while the hull is static and kinematic while the hull can move,
-            // and the update counts it as a static anchor in either motion, which fixes each group that it links in that
-            // system (docs/plans/numeric-frames.md, "Anchors"). A root frame has an interior and no hull.
-            if (!own.IsNull)
-                numericBodies.Add(
-                    new()
-                    {
-                        Entity = entity,
-                        Semantic = own,
-                        Home = own,
-                        Radius = Entities.BodyInteriorBoundingRadius(entity),
-                        Mass = desc.Mass > 0 ? desc.Mass : 1,
-                        Static = true,
-                        Fixed = true,
-                    }
-                );
-            ref readonly TransformRow row = ref Entities.BackRow(entity);
-            if (row.Frame.IsNull)
-                continue;
-            // The body of a frame owner is its frame's hull here, because its frame has a parent. The update plans the next
-            // step, so it reads the hull's motion in that step, which counts a change written in the tick that ends.
-            BodyMotion? hullMotion = own.IsNull ? null : NextStepHullMotion(own);
-            Contract.Assert(own.IsNull || hullMotion.HasValue);
-            BodyMotion motion = hullMotion ?? desc.Motion;
-            double mass = desc.Mass > 0 ? desc.Mass : 1;
-            numericBodies.Add(
-                new()
-                {
-                    Entity = entity,
-                    Semantic = row.Frame,
-                    Home = row.PhysicsHome,
-                    Position = row.Pose.Position,
-                    HomePosition = row.HomePose.Position,
-                    Velocity = SemanticVelocity(entity, row, own),
-                    Radius = Entities.BodyBoundingRadius(entity),
-                    Mass = mass,
-                    Character = motion == BodyMotion.Character,
-                    ThrustAcceleration = ThrustAcceleration(entity, motion, mass),
-                    Static = motion == BodyMotion.Static,
-                    // A kinematic body, hull or plain, moves only by its motion intents and teleports, so it lives in a following
-                    // frame of its own when they move it fast or far (docs/plans/numeric-frames.md, "Following frames").
-                    Kinematic = motion == BodyMotion.Kinematic,
-                    // A hull that is not dynamic moves only as its frame's step records say.
-                    Fixed = !own.IsNull && motion != BodyMotion.Dynamic,
-                    Sensor = desc.IsSensor,
-                    OwnedFrame = own,
-                }
-            );
-        }
+            AddNumericBodies(entity);
 
         Profile.Lap(23);
         Frames.UpdateNumericFrames(
@@ -113,6 +59,71 @@ public sealed partial class World
         Profile.Lap(24);
         ApplyPhysicsChanges();
         pendingCreates.Clear();
+    }
+
+    /// <summary>
+    /// Adds to the numeric bodies of this update what <paramref name="entity"/>, which has a body, brings: nothing for an
+    /// attached part, which moves with its chain's root, the interior of the frame that it owns, and its body, unless that is
+    /// the body of a root frame's owner, which lies in no frame.
+    /// </summary>
+    private void AddNumericBodies(Entity entity)
+    {
+        if (!Attachments.ParentOf(entity).IsNull)
+            return;
+        BodyDesc? desc = Entities.Body(entity);
+        Contract.Assert(desc is not null);
+        FrameHandle own = Entities.OwnedFrame(entity);
+        // The interior of a frame owner is a body at rest at the frame's origin, in the frame's own system, which no
+        // numeric update moves. Physics keeps it static while the hull is static and kinematic while the hull can move,
+        // and the update counts it as a static anchor in either motion, which fixes each group that it links in that
+        // system (docs/plans/numeric-frames.md, "Anchors"). A root frame has an interior and no hull.
+        if (!own.IsNull)
+            numericBodies.Add(
+                new()
+                {
+                    Entity = entity,
+                    Semantic = own,
+                    Home = own,
+                    Radius = Entities.BodyInteriorBoundingRadius(entity),
+                    Mass = desc.Mass > 0 ? desc.Mass : 1,
+                    Static = true,
+                    Fixed = true,
+                }
+            );
+        ref readonly TransformRow row = ref Entities.BackRow(entity);
+        if (row.Frame.IsNull)
+            return;
+        // The body of a frame owner is its frame's hull here, because its frame has a parent. The update plans the next
+        // step, so it reads the hull's motion in that step, which counts a change written in the tick that ends.
+        BodyMotion? hullMotion = own.IsNull ? null : NextStepHullMotion(own);
+        Contract.Assert(own.IsNull || hullMotion.HasValue);
+        BodyMotion motion = hullMotion ?? desc.Motion;
+        double mass = desc.Mass > 0 ? desc.Mass : 1;
+        numericBodies.Add(
+            new()
+            {
+                Entity = entity,
+                Semantic = row.Frame,
+                Home = row.PhysicsHome,
+                Position = row.Pose.Position,
+                HomePosition = row.HomePose.Position,
+                Velocity = SemanticVelocity(entity, row, own),
+                AngularVelocity = SemanticAngularVelocity(row, own),
+                CenterOfMassOffset = row.Pose.TransformDirection(Entities.BodyCenterOfMass(entity)),
+                Radius = Entities.BodyBoundingRadius(entity),
+                Mass = mass,
+                Character = motion == BodyMotion.Character,
+                ThrustAcceleration = ThrustAcceleration(entity, motion, mass),
+                Static = motion == BodyMotion.Static,
+                // A kinematic body, hull or plain, moves only by its motion intents and teleports, so it lives in a following
+                // frame of its own when they move it fast or far (docs/plans/numeric-frames.md, "Following frames").
+                Kinematic = motion == BodyMotion.Kinematic,
+                // A hull that is not dynamic moves only as its frame's step records say.
+                Fixed = !own.IsNull && motion != BodyMotion.Dynamic,
+                Sensor = desc.IsSensor,
+                OwnedFrame = own,
+            }
+        );
     }
 
     /// <summary>
@@ -145,6 +156,14 @@ public sealed partial class World
             ? physicsChanges.BodiesCreated[created].LinearVelocity
             : Frames.HomeVelocity(row.PhysicsHome, row.Frame) + row.LinearVelocity;
     }
+
+    /// <summary>
+    /// The angular velocity of the body of <paramref name="row"/>'s entity relative to its semantic frame, in its axes: the one
+    /// of the frame that it owns, which the tree holds, or else the row's, which a body that physics has not created yet also
+    /// carries into its creation. Numeric frames never turn, so the one relative to the physics home is the same.
+    /// </summary>
+    private Vector3 SemanticAngularVelocity(in TransformRow row, FrameHandle own) =>
+        own.IsNull ? row.AngularVelocity : Frames.AngularVelocity(own);
 
     /// <summary>
     /// Applies the frame shifts and the moves of a numeric update to the rows, then hands them to physics, while the frames

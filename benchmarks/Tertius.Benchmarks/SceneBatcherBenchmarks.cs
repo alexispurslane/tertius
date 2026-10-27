@@ -67,7 +67,12 @@ public class SceneBatcherBenchmarks
         JobCapacity: 1 << 10
     );
 
-    private readonly SceneBatcher batcher = new(exposure: AutoExposure.Default, cascadedLights: 1);
+    private readonly SceneBatcher batcher = new(
+        exposure: AutoExposure.Default,
+        cascadedLights: 1,
+        shadowMapSize: ShadowMap.DefaultSize,
+        depthRangeScale: 16f
+    );
     private readonly PreparedScene scene = new();
     private RenderSnapshot snapshot = new();
     private EnvironmentDraw environment;

@@ -51,3 +51,7 @@ The build of 2026-10-21: tasks 1 to 7 of docs/plans/particles.md run in one work
 **2026-10-21T19:29:22Z**
 
 Merged into main on 2026-10-21. Tasks 1 to 7 by parallel builders on one branch, one reviewer (5 low findings) and one fixer (all 5 fixed, with a failing test first or a doc correction). The orchestrator merged main (parts, the demo's jets, the walk and the coda) into the branch by hand: the sync profile's laps of parts moved from 26 and 27 to 28 and 29, because both epics had taken those numbers, and six test calls gained the center of mass that parts added to EntityTable.Activate. Coverage of the changed lines: 899 of 999 lines and 425 of 488 branches. The uncovered lines are the demo scene puff-yard (66 lines, which only its script runs), the members HasValue, Value, Equals, GetHashCode, the operators and ToString of the union TransparentRun, the failure branches of the invariant checks of PuffLooks and PuffTable, and a few guards. Every suite passes under coverage except the allocation tests of ter-odo6; the puffs' own allocation test passes under coverage. Measured: a glow puff costs almost nothing when small (1,000 small puffs 1.46 ms a frame against 1.28 ms with none), but 1,000 screen-filling puffs cost 20 ms a frame; lit puffs cost about 0.28 us more per puff; the puff-yard script costs 33 us per tick from the table to the screen. Tasks 8 and 9 are ter-fwsy and ter-gk9o.
+
+**2026-10-27T04:44:59Z**
+
+Closed with ter-fwsy: particles in the renderer, their GPU cost (ter-gk9o) and the step on the workers.

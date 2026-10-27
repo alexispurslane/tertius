@@ -63,7 +63,8 @@ struct GpuLight
     uvec4 shadow;             // x the slot; y the set or the first tile view; z the tile views
     uvec3 occluders;          // x the first occluder, y the occluders, z how many of the first ones the cascade set also draws
     uint map;                 // the map of the light's carrier: a face of map i keeps it when map <= i
-};                            // std430: 96 bytes
+    uint inMainView;          // 1 when the light's reach touches the main view's frustum, else 0
+};                            // std430: 100 bytes of members, a stride of 112
 
 struct GpuCascadeSet
 {

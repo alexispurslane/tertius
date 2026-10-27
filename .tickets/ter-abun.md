@@ -1,6 +1,6 @@
 ---
 id: ter-abun
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-10-26T21:23:47Z
@@ -23,3 +23,7 @@ The test passes in 20 runs of the Rendering tests in a row while another process
 **2026-10-27T02:41:53Z**
 
 2026-10-26 (ter-okrp): the flake is probably the late stamp on MoltenVK: the empty pass's time can hold part of the next pass's work (ARCHITECTURE.md, 'GPU timings'). A bound that holds under load may need to read the pass beside it, or the test may hold only on drivers whose stamps do not latch late (VulkanRenderer.StampsLatchLate).
+
+**2026-10-27T05:11:59Z**
+
+Merged (b2bcb027). Two tests now, one per promise of 'GPU timings', each on the fewest of 64 frames: on every driver the empty pass adds under 0.05 ms between the G-buffer's stamp and the lighting's; where stamps latch on time (not MoltenVK) its own time stays under 0.05 ms. 20 runs in a row passed at a load of 13 to 24 with a demo rendering; a dispatch of about 0.1 ms or more fails the first test. When the bounce light merges, the first test's 'lighting' stamp becomes the direct pass's.

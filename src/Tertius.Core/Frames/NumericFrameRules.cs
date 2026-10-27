@@ -1,3 +1,5 @@
+using System.Numerics;
+
 namespace Tertius;
 
 /// <summary>
@@ -24,8 +26,31 @@ internal readonly record struct NumericBody
     /// <summary>The position in <see cref="Home"/>, which stays exact near the home's origin.</summary>
     public Double3 HomePosition { get; init; }
 
-    /// <summary>The velocity relative to <see cref="Semantic"/>.</summary>
+    /// <summary>
+    /// The velocity relative to <see cref="Semantic"/> of the body's origin, the point at <see cref="Position"/>, as every
+    /// body velocity on the physics seam is (docs/plans/real-physics-in-tests.md, "The velocity point").
+    /// </summary>
     public Double3 Velocity { get; init; }
+
+    /// <summary>The angular velocity in rad/s relative to <see cref="Semantic"/>, in its axes.</summary>
+    public Vector3 AngularVelocity { get; init; }
+
+    /// <summary>
+    /// The place of the body's center of mass relative to its origin, in the axes of <see cref="Semantic"/>. It is zero for a
+    /// body whose center of mass is its origin, and for the interior of a frame owner, which counts at the origin of its
+    /// frame.
+    /// </summary>
+    public Double3 CenterOfMassOffset { get; init; }
+
+    /// <summary>The place of the body's center of mass in <see cref="Semantic"/>.</summary>
+    public Double3 CenterOfMass => Position + CenterOfMassOffset;
+
+    /// <summary>
+    /// The velocity of the body's center of mass relative to <see cref="Semantic"/>, which carries the body's momentum. The
+    /// origin of a spinning body whose center of mass lies off it circles the center of mass, so its velocity swings by
+    /// <see cref="AngularVelocity"/> × <see cref="CenterOfMassOffset"/> about this one.
+    /// </summary>
+    public Double3 CenterOfMassVelocity => Velocity + Double3.Cross(AngularVelocity, CenterOfMassOffset);
 
     /// <summary>The radius of the body's bounding sphere.</summary>
     public double Radius { get; init; }
@@ -168,10 +193,11 @@ internal readonly record struct GhostPlace(
 /// <summary>
 /// The motion of a group of bodies of one semantic frame that the merge test links.
 /// </summary>
-/// <param name="Velocity">The mass-weighted mean velocity of the bodies that are not static, relative to the semantic
-/// frame: of the kinematic bodies alone when the group has one, because a kinematic body counts as infinitely heavy. Zero
+/// <param name="Velocity">The mass-weighted mean velocity of the centers of mass of the bodies that are not static (see
+/// <see cref="NumericBody.CenterOfMassVelocity"/>), relative to the semantic frame: of the kinematic bodies alone when the group has one, because a kinematic body counts as infinitely heavy. Zero
 /// when a body is static, because then the group cannot fall.</param>
-/// <param name="Center">The center of mass of the bodies, in the semantic frame: of the static bodies alone when the group
+/// <param name="Center">The center of mass of the bodies, in the semantic frame, from each body's own center of mass (see
+/// <see cref="NumericBody.CenterOfMass"/>): of the static bodies alone when the group
 /// has one, and else of the kinematic bodies alone when it has one, because both count as infinitely heavy.</param>
 /// <param name="Anchored">True when a body of the group is static.</param>
 /// <param name="Fixed">True when a body of the group stays in the semantic frame's own system, so the whole group does: a
@@ -605,15 +631,12 @@ internal static class NumericFrameRules
         NumericFrameOptions options
     )
     {
-        Double3 momentum = Double3.Zero,
-            moment = Double3.Zero,
-            staticMoment = Double3.Zero,
-            kinematicMomentum = Double3.Zero,
-            kinematicMoment = Double3.Zero;
-        double movingMass = 0,
-            mass = 0,
-            staticMass = 0,
-            kinematicMass = 0;
+        // The sums are of the centers of mass, so that a spinning body whose center of mass lies off its origin adds its true
+        // momentum, and not that of its origin, which circles the center of mass.
+        MassSum all = default,
+            still = default,
+            moving = default,
+            kinematic = default;
         bool anchored = false,
             isFixed = false,
             thrusts = false;
@@ -635,56 +658,108 @@ internal static class NumericFrameRules
             isFixed |= body.Fixed || body.MayTouchFixedGhost;
             // A body that follows is the anchor above, so only a static or fixed body is an anchor here.
             thrusts |= body.Thrusts && !body.Static && !body.Fixed;
-            mass += body.Mass;
-            moment += body.Position * body.Mass;
+            all.Add(body);
             if (body.Static)
-            {
-                staticMass += body.Mass;
-                staticMoment += body.Position * body.Mass;
-            }
+                still.Add(body);
             else
-            {
-                movingMass += body.Mass;
-                momentum += body.Velocity * body.Mass;
-            }
-
+                moving.Add(body);
             if (body.Kinematic)
-            {
-                kinematicMass += body.Mass;
-                kinematicMomentum += body.Velocity * body.Mass;
-                kinematicMoment += body.Position * body.Mass;
-            }
-
-            if (body.Home == body.Semantic || body.HomeMode == NumericMode.Following)
-                continue;
-            // ∞ + m and ∞ + ∞ are exact, so the sum stays +∞ once a static body is in it.
-            double weight = body.Static ? double.PositiveInfinity : body.Mass;
-            int h = 0;
-            while (h < homeMasses.Count && homeMasses[h].Frame != body.Home)
-                h++;
-            if (h == homeMasses.Count)
-                homeMasses.Add((body.Home, weight));
-            else
-                homeMasses[h] = (body.Home, homeMasses[h].Mass + weight);
+                kinematic.Add(body);
+            AddHomeMass(homeMasses, body);
         }
 
         if (anchor >= 0 && !anchored && !isFixed)
+            return FollowingGroup(members[anchor], anchor, thrusts);
+        (FrameHandle frame, double frameMass) = HeaviestHome(homeMasses, anchored);
+        return new(
+            Velocity: anchored ? Double3.Zero : FreeVelocity(moving, kinematic),
+            Center: GroupCenter(anchored: anchored, all: all, still: still, kinematic: kinematic),
+            Anchored: anchored,
+            Fixed: isFixed,
+            Frame: frame,
+            FrameMass: frameMass,
+            Anchor: anchor,
+            Thrusts: thrusts
+        );
+    }
+
+    /// <summary>
+    /// The mass, the moment and the momentum of some bodies of a group, each body at its center of mass (see
+    /// <see cref="NumericBody.CenterOfMass"/> and <see cref="NumericBody.CenterOfMassVelocity"/>).
+    /// </summary>
+    private struct MassSum
+    {
+        public double Mass;
+        private Double3 moment;
+        private Double3 momentum;
+
+        public void Add(in NumericBody body)
         {
-            ref readonly NumericBody follower = ref members[anchor];
-            FrameHandle following = follower.AnchorsHome ? follower.Home : FrameHandle.Null;
-            return new(
-                Velocity: Double3.Zero,
-                Center: follower.Position,
-                Anchored: false,
-                Fixed: false,
-                Frame: following,
-                FrameMass: following.IsNull ? 0 : double.PositiveInfinity,
-                Anchor: anchor,
-                Follows: true,
-                Thrusts: thrusts
-            );
+            Mass += body.Mass;
+            moment += body.CenterOfMass * body.Mass;
+            momentum += body.CenterOfMassVelocity * body.Mass;
         }
 
+        /// <summary>The center of mass of the bodies. Only for a sum with a mass above zero.</summary>
+        public readonly Double3 Center => moment / Mass;
+
+        /// <summary>The mass-weighted mean velocity of the bodies. Only for a sum with a mass above zero.</summary>
+        public readonly Double3 Velocity => momentum / Mass;
+    }
+
+    /// <summary>
+    /// The velocity of a group without a static body, from the sums of its bodies that are not static and of its kinematic
+    /// bodies: that of the kinematic bodies alone when it has one, because they count as infinitely heavy, and zero when the
+    /// group holds only bodies that follow.
+    /// </summary>
+    private static Double3 FreeVelocity(in MassSum moving, in MassSum kinematic)
+    {
+        if (moving.Mass == 0)
+            return Double3.Zero;
+        return kinematic.Mass > 0 ? kinematic.Velocity : moving.Velocity;
+    }
+
+    /// <summary>
+    /// The center of a group from the sums of all its bodies but those that follow, of its static bodies and of its kinematic
+    /// bodies: that of the static bodies alone when it is <paramref name="anchored"/>, and else that of the kinematic bodies
+    /// alone when it has one, because both count as infinitely heavy.
+    /// </summary>
+    private static Double3 GroupCenter(bool anchored, in MassSum all, in MassSum still, in MassSum kinematic)
+    {
+        if (anchored)
+            return still.Center;
+        return kinematic.Mass > 0 ? kinematic.Center : all.Center;
+    }
+
+    /// <summary>
+    /// Adds the mass of <paramref name="body"/> to its numeric home in <paramref name="homeMasses"/>, for
+    /// <see cref="Summarize"/>: none for a body in its semantic frame's own system or in a following frame, and +∞ for a
+    /// static body.
+    /// </summary>
+    private static void AddHomeMass(List<(FrameHandle Frame, double Mass)> homeMasses, in NumericBody body)
+    {
+        if (body.Home == body.Semantic || body.HomeMode == NumericMode.Following)
+            return;
+        // ∞ + m and ∞ + ∞ are exact, so the sum stays +∞ once a static body is in it.
+        double weight = body.Static ? double.PositiveInfinity : body.Mass;
+        int h = 0;
+        while (h < homeMasses.Count && homeMasses[h].Frame != body.Home)
+            h++;
+        if (h == homeMasses.Count)
+            homeMasses.Add((body.Home, weight));
+        else
+            homeMasses[h] = (body.Home, homeMasses[h].Mass + weight);
+    }
+
+    /// <summary>
+    /// The numeric home that holds the most of a group's mass in <paramref name="homeMasses"/>, the first one on a tie, and
+    /// that mass, or none. An <paramref name="anchored"/> group takes only a home that holds one of its static bodies.
+    /// </summary>
+    private static (FrameHandle Frame, double Mass) HeaviestHome(
+        List<(FrameHandle Frame, double Mass)> homeMasses,
+        bool anchored
+    )
+    {
         FrameHandle frame = FrameHandle.Null;
         double frameMass = 0;
         foreach ((FrameHandle home, double homeMass) in homeMasses)
@@ -692,23 +767,26 @@ internal static class NumericFrameRules
                 (frame, frameMass) = (home, homeMass);
         // A frame without a static body is not the home of an anchored group, however much of its mass is there.
         if (anchored && !double.IsPositiveInfinity(frameMass))
-            (frame, frameMass) = (FrameHandle.Null, 0);
-        Double3 velocity = Double3.Zero;
-        if (!anchored && movingMass != 0)
-            velocity = kinematicMass > 0 ? kinematicMomentum / kinematicMass : momentum / movingMass;
-        Double3 center;
-        if (anchored)
-            center = staticMoment / staticMass;
-        else
-            center = kinematicMass > 0 ? kinematicMoment / kinematicMass : moment / mass;
+            return (FrameHandle.Null, 0);
+        return (frame, frameMass);
+    }
+
+    /// <summary>
+    /// The motion of a group that takes the following frame of <paramref name="follower"/>, the member at
+    /// <paramref name="anchor"/> (see <see cref="Summarize"/>).
+    /// </summary>
+    private static NumericGroup FollowingGroup(in NumericBody follower, int anchor, bool thrusts)
+    {
+        FrameHandle following = follower.AnchorsHome ? follower.Home : FrameHandle.Null;
         return new(
-            Velocity: velocity,
-            Center: center,
-            Anchored: anchored,
-            Fixed: isFixed,
-            Frame: frame,
-            FrameMass: frameMass,
+            Velocity: Double3.Zero,
+            Center: follower.Position,
+            Anchored: false,
+            Fixed: false,
+            Frame: following,
+            FrameMass: following.IsNull ? 0 : double.PositiveInfinity,
             Anchor: anchor,
+            Follows: true,
             Thrusts: thrusts
         );
     }

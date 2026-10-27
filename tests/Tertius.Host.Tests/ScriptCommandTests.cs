@@ -674,7 +674,11 @@ public sealed class ScriptCommandTests : IDisposable
             { ["--screen-space-light-steps", "6"], VisibilityBitmaskLight.Default with { StepsPerSide = 6 } },
             {
                 ["--screen-space-light", "0.5", "--screen-space-light-steps", "16"],
-                VisibilityBitmaskLight.Default with { RadiusMeters = 0.5f, StepsPerSide = 16 }
+                VisibilityBitmaskLight.Default with
+                {
+                    RadiusMeters = 0.5f,
+                    StepsPerSide = 16,
+                }
             },
         };
 

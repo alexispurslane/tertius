@@ -142,10 +142,11 @@ internal struct GpuMaterial
 }
 
 /// <summary>
-/// One light in the light storage buffer (std430, binding 3 of the frame set). 96 bytes. <see cref="From"/> is the one
-/// place that encodes a <see cref="PreparedLight"/>, its spread, its shadow slot and its map for the shaders.
+/// One light in the light storage buffer (std430, binding 3 of the frame set). 112 bytes, the last 12 unused.
+/// <see cref="From"/> is the one place that encodes a <see cref="PreparedLight"/>, its spread, its shadow slot, its map
+/// and whether the main view keeps it for the shaders.
 /// </summary>
-[StructLayout(LayoutKind.Sequential)]
+[StructLayout(LayoutKind.Sequential, Size = 112)]
 internal struct GpuLight
 {
     /// <summary>The kind of a point light in <see cref="IntensityKind"/>.w.</summary>
@@ -191,6 +192,12 @@ internal struct GpuLight
     public uint Map;
 
     /// <summary>
+    /// 1 when the main view keeps the light (<see cref="PreparedLight.InMainView"/>), else 0. The main view's shaders add
+    /// only the lights with 1 (docs/plans/environment-map.md, decision 20).
+    /// </summary>
+    public uint InMainView;
+
+    /// <summary>
     /// The GPU form of <paramref name="light"/>, read into the shaders' ranges: the intensity by
     /// <see cref="ShaderInput.Intensity(Vector3)"/>, and the radius at most <see cref="ShaderInput.PositionLimit"/>, so that its
     /// square stays finite.
@@ -228,6 +235,7 @@ internal struct GpuLight
             Shadow = shadow,
             Occluders = occluders,
             Map = (uint)light.Map,
+            InMainView = light.InMainView ? 1u : 0u,
         };
     }
 

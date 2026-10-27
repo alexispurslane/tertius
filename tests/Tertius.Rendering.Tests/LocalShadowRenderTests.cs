@@ -603,7 +603,13 @@ public sealed class LocalShadowRenderTests
         if (withBox)
             snapshot.Instances.Add(kit.Caster(center: BoxPlace, size: Vector3.One));
         snapshot.Instances.Add(
-            Gpu.Instance(mesh: kit.Plane, material: glass, position: pane, scale: new(0.12f, 1, 0.12f))
+            Gpu.Instance(
+                mesh: kit.Plane,
+                material: glass,
+                position: pane,
+                scale: new(0.12f, 1, 0.12f),
+                chainDepth: TestChains.CamerasFrame
+            )
         );
         snapshot.PuffLooks.Add(
             new(
@@ -670,6 +676,94 @@ public sealed class LocalShadowRenderTests
         {
             Gpu.DisposeAndAssertClean(renderer);
         }
+    }
+
+    /// <summary>The lens of <see cref="FarBoxUnderASpot"/>: 15°.</summary>
+    private const float FarBoxLens = MathF.PI / 12;
+
+    /// <summary>The floor point under the box of <see cref="FarBoxUnderASpot"/>: 20 m away, 30° below the horizon.</summary>
+    private static readonly Vector3 FarBoxFloor = new(0, -10, -17.32f);
+
+    /// <summary>The camera of <see cref="FarBoxUnderASpot"/>, which looks at <see cref="FarBoxFloor"/>.</summary>
+    private static Quaternion FarBoxCamera => LookAt(FarBoxFloor, Vector3.UnitY);
+
+    /// <summary>
+    /// The image of a box of 0.15 m 0.2 m over a floor at <see cref="FarBoxFloor"/>, under a spot light 0.5 m over the
+    /// floor, through <see cref="FarBoxLens"/>, with a local shadow budget of one tile and all six faces of the map drawn
+    /// in the frame. With <paramref name="withTheLightBehind"/>, a second spot light stands 20 m behind the camera with a
+    /// reach of 0.95 of that, so only face +Z keeps it and no surface lies within its reach. Both are under the cutoff
+    /// irradiance at the eye, the light behind brighter: 0.9 of it against 0.6.
+    /// </summary>
+    private static Capture FarBoxUnderASpot(bool withTheLightBehind)
+    {
+        double cutoff = LightUnits.CutoffIrradiance(new FixedExposure(0));
+        Vector3 spotPlace = FarBoxFloor + new Vector3(0, 0.5f, 0);
+        Vector3 behindPlace = -20 * Vector3.Normalize(FarBoxFloor);
+        VulkanRenderer renderer = Renderer(
+            setting: LocalShadowAtlas.Default with
+            {
+                Tiles = 1,
+            },
+            environmentMap: SceneEnvironmentMap.Default with
+            {
+                FaceSize = EnvironmentMapSetting.MinFaceSize,
+                FacesPerFrame = CubeFaces.Count,
+            }
+        );
+        try
+        {
+            var kit = Kit.Create(renderer);
+            RenderSnapshot snapshot = Dark(FarBoxCamera);
+            snapshot.Camera.VerticalFov = FarBoxLens;
+            snapshot.Instances.Add(kit.Floor(center: FarBoxFloor, halfSize: 4));
+            snapshot.Instances.Add(kit.Caster(center: FarBoxFloor + new Vector3(0, 0.2f, 0), size: new(0.15f)));
+            snapshot.Lights.Add(
+                ShadowingSpot(
+                    position: spotPlace,
+                    direction: -Vector3.UnitY,
+                    intensity: (float)(0.6 * cutoff * spotPlace.LengthSquared())
+                )
+            );
+            if (withTheLightBehind)
+                snapshot.Lights.Add(
+                    ShadowingSpot(
+                        position: behindPlace,
+                        direction: Vector3.Normalize(behindPlace),
+                        intensity: (float)(0.9 * cutoff * behindPlace.LengthSquared()),
+                        entity: SecondLampEntity
+                    )
+                );
+            return Gpu.RenderAndCapture(
+                renderer: renderer,
+                snapshot: snapshot,
+                name: withTheLightBehind ? "face-only-light" : "no-face-only-light"
+            );
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>The mean luma of the 3 × 3 pixels around the pixel of <see cref="FarBoxUnderASpot"/> that sees <paramref name="point"/>.</summary>
+    private static float FarBoxLumaAt(Capture image, Vector3 point) =>
+        image.MeanLuma(
+            Gpu.Project(point: point, cameraRotation: FarBoxCamera, width: Width, height: Height, fov: FarBoxLens),
+            radius: 1
+        );
+
+    [Fact]
+    public void ALightThatOnlyAFaceKeepsLeavesTheMainViewsImageBitForBit()
+    {
+        Capture withIt = FarBoxUnderASpot(withTheLightBehind: true);
+        Capture withoutIt = FarBoxUnderASpot(withTheLightBehind: false);
+
+        float lit = FarBoxLumaAt(withIt, FarBoxFloor + new Vector3(0.22f, 0, 0));
+        lit.Should().BeGreaterThan(0.05f, "the main view's spot light lights the floor beside the box");
+        FarBoxLumaAt(withIt, FarBoxFloor + new Vector3(0.03f, 0, 0))
+            .Should()
+            .BeLessThan(ShadowedShare * lit, "the main view's spot light has the one tile");
+        Rgb(withIt).Should().Equal(Rgb(withoutIt), "the light that only a face keeps adds nothing to the main view");
     }
 
     [Fact]
@@ -813,7 +907,8 @@ public sealed class LocalShadowRenderTests
                 center: center,
                 normal: normal,
                 halfSize: halfSize,
-                flags: flags
+                flags: flags,
+                chainDepth: TestChains.CamerasFrame
             );
 
         /// <summary>A white box of <paramref name="size"/> that casts shadows.</summary>
@@ -830,7 +925,8 @@ public sealed class LocalShadowRenderTests
                 scale: size,
                 rotation: rotation,
                 flags: RenderFlags.CastsShadow,
-                entity: entity
+                entity: entity,
+                chainDepth: TestChains.CamerasFrame
             );
 
         /// <summary>

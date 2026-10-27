@@ -825,6 +825,39 @@ public sealed class NumericFrameRulesTests
         Summary(Body(x: 0, vx: 100, mass: 3), Body(x: 1, vx: 200, mass: 1)).Velocity.Should().Be(X(125));
 
     [Fact]
+    public void A_spinning_body_whose_center_of_mass_lies_off_its_origin_adds_the_velocity_of_its_center_of_mass() =>
+        // Its origin moves at 100 m/s along X, and its center of mass, 3 m along X from it, turns at 0.5 rad/s about Y.
+        Summary(Body(x: 0, vx: 100, mass: 3) with { AngularVelocity = new(0, 0.5f, 0), CenterOfMassOffset = X(3) })
+            .Velocity.Should()
+            .Be(new Double3(100, 0, -1.5), "the center of mass carries the momentum, not the origin, which circles it");
+
+    [Fact]
+    public void The_center_of_a_group_counts_each_body_at_its_center_of_mass() =>
+        Summary(Body(x: 0, mass: 3) with { CenterOfMassOffset = X(4) }, Body(x: 8, mass: 1)).Center.Should().Be(X(5));
+
+    [Fact]
+    public void An_anchored_group_is_centered_on_the_centers_of_mass_of_its_static_bodies() =>
+        Summary(Body(x: 0, mass: 3), Body(x: 8, mass: 1) with { Static = true, CenterOfMassOffset = X(2) })
+            .Center.Should()
+            .Be(X(10));
+
+    [Fact]
+    public void A_group_with_a_kinematic_body_takes_the_center_and_the_velocity_of_its_center_of_mass()
+    {
+        NumericGroup group = Summary(
+            Body(x: 0, mass: 3),
+            Body(x: 8, mass: 1) with
+            {
+                Kinematic = true,
+                AngularVelocity = new(0, 0.5f, 0),
+                CenterOfMassOffset = X(2),
+            }
+        );
+        group.Center.Should().Be(X(10));
+        group.Velocity.Should().Be(new Double3(0, 0, -1), "its origin rests, and its center of mass circles it");
+    }
+
+    [Fact]
     public void A_static_body_anchors_the_group_and_zeroes_its_velocity()
     {
         NumericGroup group = Summary(Body(x: 0, vx: 100), Body(x: 1) with { Static = true });

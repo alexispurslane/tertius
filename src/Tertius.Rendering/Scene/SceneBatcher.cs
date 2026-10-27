@@ -18,13 +18,20 @@ internal readonly record struct MeshInfo(
 /// Turns a <see cref="RenderSnapshot"/> into GPU-ready arrays on the render thread: interpolates the camera, the
 /// instances, once for every view, the lights and the puffs, culls them, assigns depth ranges, sorts, and builds one
 /// indirect command per stretch of instances that share a depth range, an opaque run and a mesh. It chooses the far
-/// lights' shadow slots and their far shadows (docs/plans/local-light-shadows.md). The glass instances, the fringes and
-/// the puffs sort together back to front, and the batcher cuts that list into the runs of the transparent pass. Allocates
-/// nothing once its arrays have grown to the scene.
+/// lights' shadow slots, fits their cascade sets, and gives them their far shadows (docs/plans/local-light-shadows.md).
+/// The glass instances, the fringes and the puffs sort together back to front, and the batcher cuts that list into the
+/// runs of the transparent pass. Allocates nothing once its arrays have grown to the scene.
 /// </summary>
 /// <param name="exposure">The renderer's exposure setting, whose highest stops set the cutoff irradiance.</param>
 /// <param name="cascadedLights">How many far lights get a cascade set, 0 to <see cref="RendererOptions.MaxCascadedLights"/>.</param>
-internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
+/// <param name="shadowMapSize">The side of each cascade's shadow map in texels, <see cref="ShadowMap.Size"/>.</param>
+/// <param name="depthRangeScale">How many times deeper than wide each cascade box is, <see cref="ShadowMap.DepthRangeScale"/>.</param>
+internal sealed class SceneBatcher(
+    ExposureSetting exposure,
+    int cascadedLights,
+    int shadowMapSize,
+    float depthRangeScale
+)
 {
     private const float DefaultVerticalFov = MathF.PI / 3f;
 
@@ -126,6 +133,8 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
         CollectPuffs(snapshot, alpha, scene);
         // Before the processors: impostor captures are lit by the lights as their far shadows leave them.
         CollectLights(snapshot: snapshot, alpha: alpha, faces: facesOfMaps, scene: scene);
+        // After the lights, which take the cascade sets, and before the far shadows, which follow what each set draws.
+        FitCascadeSets(snapshot, scene);
         CollectFarShadows(scene);
         foreach (IInstanceProcessor processor in Processors)
             processor.Process(scene);
@@ -879,7 +888,8 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
     /// Keeps each light of the snapshot, in its order, that <see cref="Shines(in RenderLight)"/> and whose reach can touch the
     /// main view or a face that keeps it: a face of a map at or above the light's map
     /// (docs/plans/environment-maps-per-frame.md, decision 13). One light list serves every view of the frame
-    /// (docs/plans/environment-map.md, decision 20). Then chooses the far lights' slots (<see cref="FarShadows.Choose"/>).
+    /// (docs/plans/environment-map.md, decision 20), each marked with whether the main view keeps it. Then chooses the far
+    /// lights' slots (<see cref="FarShadows.Choose"/>).
     /// </summary>
     /// <param name="faces">The faces of each served map, root first.</param>
     private void CollectLights(RenderSnapshot snapshot, float alpha, ReadOnlySpan<FaceMask> faces, PreparedScene scene)
@@ -888,13 +898,8 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
         {
             if (!Shines(light))
                 continue;
-            PreparedLight prepared = Prepared(
-                light: light,
-                alpha: alpha,
-                eye: scene.Camera.Offset,
-                maps: scene.MapCount
-            );
-            if (Reaches(camera: scene.Camera, faces: faces, axes: scene.MapAxes, light: prepared))
+            PreparedLight prepared = Prepared(light: light, alpha: alpha, camera: scene.Camera, maps: scene.MapCount);
+            if (Reaches(faces: faces, axes: scene.MapAxes, light: prepared))
                 scene.AddLight() = prepared;
         }
 
@@ -902,11 +907,11 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
     }
 
     /// <summary>
-    /// A light that <see cref="Shines(in RenderLight)"/>, interpolated by alpha, relative to the interpolated <paramref name="eye"/>, with
-    /// its radiant intensity, its reach and its distance computed in doubles, its map among <paramref name="maps"/> served
-    /// maps, and no shadow slot yet.
+    /// A light that <see cref="Shines(in RenderLight)"/>, interpolated by alpha, relative to the interpolated eye of
+    /// <paramref name="camera"/>, with its radiant intensity, its reach and its distance computed in doubles, whether the
+    /// main view keeps it, its map among <paramref name="maps"/> served maps, and no shadow slot yet.
     /// </summary>
-    private PreparedLight Prepared(in RenderLight light, float alpha, Vector3 eye, int maps)
+    private PreparedLight Prepared(in RenderLight light, float alpha, in CameraView camera, int maps)
     {
         (
             uint entity,
@@ -941,18 +946,20 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
             ),
             null => throw new UnreachableException("A light that shines holds a case."),
         };
-        Vector3 relative = position - eye;
+        Vector3 relative = position - camera.Offset;
+        float reach = (float)LightUnits.Reach(PeakChannel(color) * intensity, CutoffIrradiance);
         return new()
         {
             EntityIndex = entity,
             Position = relative,
             RadiantIntensity = LightUnits.RadiantIntensity(color, intensity),
             Radius = radius,
-            Reach = (float)LightUnits.Reach(PeakChannel(color) * intensity, CutoffIrradiance),
+            Reach = reach,
             Distance = Math.Sqrt(
                 (double)relative.X * relative.X + (double)relative.Y * relative.Y + (double)relative.Z * relative.Z
             ),
             CastsShadow = castsShadow,
+            InMainView = !camera.Culls(relative, reach),
             Spread = spread,
             Map = EnvironmentChain.MapOf(chainDepth, maps),
         };
@@ -1037,18 +1044,14 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
 
     /// <summary>
     /// Whether a prepared light can light a surface that a view draws: it lies within
-    /// <see cref="ShaderInput.PositionLimit"/> of the eye, and its reach sphere is not outside the main view's frustum or
-    /// that of a drawn face of a map that keeps the light: a map at or above the light's map, in the map's axes.
+    /// <see cref="ShaderInput.PositionLimit"/> of the eye, and the main view keeps it (<see cref="PreparedLight.InMainView"/>)
+    /// or its reach sphere is not outside the frustum of a drawn face of a map that keeps the light: a map at or above
+    /// the light's map, in the map's axes.
     /// </summary>
-    private static bool Reaches(
-        in CameraView camera,
-        ReadOnlySpan<FaceMask> faces,
-        Quaternion[] axes,
-        in PreparedLight light
-    ) =>
+    private static bool Reaches(ReadOnlySpan<FaceMask> faces, Quaternion[] axes, in PreparedLight light) =>
         ShaderInput.InPositionRange(light.Position, 0f)
         && (
-            !camera.Culls(light.Position, light.Reach)
+            light.InMainView
             || AnyFaceKeeps(faces: faces, lightMap: light.Map, axes: axes, center: light.Position, radius: light.Reach)
         );
 
@@ -1079,12 +1082,42 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
     }
 
     /// <summary>
+    /// Fits the four cascades of each far light whose slot is a <see cref="CascadeSet"/> to the camera, along the light's
+    /// own direction, with the texel grid through the origin of the camera's frame (<see cref="ShadowCascades.Anchor"/>).
+    /// Leaves <see cref="PreparedScene.CascadeSetCount"/> at one more than the highest set, or 0 without one.
+    /// </summary>
+    private void FitCascadeSets(RenderSnapshot snapshot, PreparedScene scene)
+    {
+        // Worked out from this snapshot alone, so nothing carries over from tick to tick.
+        Double3 anchor = ShadowCascades.Anchor(snapshot.OriginInFrame, scene.Camera.Offset);
+        foreach (ref readonly PreparedLight light in scene.LightSpan)
+        {
+            if (light.Shadow is not CascadeSet { Set: var set })
+                continue;
+            // A far light is at least FarDistance from the eye, so its direction is not zero.
+            var basis = LightBasis.FromDirection(light.Position);
+            ShadowCascades.Fit(
+                camera: scene.Camera,
+                light: basis,
+                mapSize: shadowMapSize,
+                depthRangeScale: depthRangeScale,
+                anchor: anchor,
+                cascades: ref scene.CascadeSets[set]
+            );
+            scene.CascadeBases[set] = basis;
+            scene.CascadeSetCount = Math.Max(scene.CascadeSetCount, set + 1);
+        }
+    }
+
+    /// <summary>
     /// The far shadows of each far light with a slot, its own run of <see cref="PreparedScene.Occluders"/>: every caster
     /// is also a sphere of its bounding radius, which shadows the light for points outside it and never for points inside
     /// it (see <see cref="Eclipse.Visibility"/>). Only a sphere that can be noticed, by the light's own angular radius at
     /// the camera: a caster beyond the maps must cover a pixel or a fifth of that radius seen from the camera; a caster
-    /// that a <see cref="CascadeSet"/> also draws comes first, and must hide 4% of the light from where its far receivers
-    /// start, more than 2 km from the camera. For a <see cref="FarShadowsOnly"/> light every caster is beyond the maps.
+    /// that the maps take must hide 4% of the light from 2 km from the camera, where the far receivers of a drawn caster
+    /// start (<see cref="AddInReach"/>).
+    /// The casters that the light's <see cref="CascadeSet"/> draws (<see cref="ShadowCascades.SetMask"/>) come first. For a
+    /// <see cref="FarShadowsOnly"/> light every caster is beyond the maps.
     /// </summary>
     private static void CollectFarShadows(PreparedScene scene)
     {
@@ -1101,8 +1134,9 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
             switch (light.Shadow)
             {
                 case CascadeSet set:
-                    AddMapped(scene: scene, placed: placed, lightShare: lightShare);
+                    AddInReach(scene: scene, placed: placed, lightShare: lightShare, set: set.Set, drawn: true);
                     int mapped = scene.OccluderCount - start;
+                    AddInReach(scene: scene, placed: placed, lightShare: lightShare, set: set.Set, drawn: false);
                     AddBeyond(scene: scene, placed: placed, smallestShare: smallestShare, mappedToo: false);
                     light.Shadow = new(
                         set with
@@ -1124,15 +1158,33 @@ internal sealed class SceneBatcher(ExposureSetting exposure, int cascadedLights)
         }
     }
 
-    /// <summary>The far shadows of the casters that a cascade set draws, which hide 4% of the light from beyond the maps.</summary>
-    private static void AddMapped(PreparedScene scene, ReadOnlySpan<PreparedInstance> placed, float lightShare)
+    /// <summary>
+    /// The far shadows of the casters in reach of the maps (<see cref="ShadowCascades.InReach"/>) that hide 4% of the
+    /// light from beyond the maps: those that cascade set <paramref name="set"/> draws, or those that it does not. A caster
+    /// that the set does not draw counts as a sphere at receivers nearer than 2 km too, where this size test drops a
+    /// shadow that can show; that is a known limit.
+    /// </summary>
+    private static void AddInReach(
+        PreparedScene scene,
+        ReadOnlySpan<PreparedInstance> placed,
+        float lightShare,
+        int set,
+        bool drawn
+    )
     {
+        ref readonly LightBasis light = ref scene.CascadeBases[set];
+        ref readonly ShadowCascadeArray cascades = ref scene.CascadeSets[set];
         foreach (ref readonly PreparedInstance caster in placed)
         {
-            if (!caster.CastsShadow || !ShadowCascades.TakesCaster(caster.Distance, caster.Radius))
+            // The size test comes before the box test, which most casters in reach fail. The far receivers lie beyond
+            // the maps, at least 2 km from the camera, so at least this far from the caster.
+            if (
+                !ShadowCascades.InReach(caster)
+                || caster.Radius < MathF.Max(ShadowCascades.Distance - caster.Distance, caster.Radius) * lightShare
+            )
                 continue;
-            // Its far receivers lie beyond the maps, at least 2 km from the camera, so at least this far from it.
-            if (caster.Radius >= MathF.Max(ShadowCascades.Distance - caster.Distance, caster.Radius) * lightShare)
+            bool drawnBySet = ShadowCascades.SetMask(light: light, cascades: cascades, caster: caster) != 0;
+            if (drawnBySet == drawn)
                 scene.AddOccluder(new(caster.Position, caster.Radius));
         }
     }

@@ -36,11 +36,11 @@ public sealed class FarShadowTests
             part: 0
         );
 
-    private static PreparedScene Prepare(RenderSnapshot snapshot, float alpha = 1f)
+    private static PreparedScene Prepare(RenderSnapshot snapshot, float alpha = 1f, int cascadedLights = 1)
     {
         var scene = new PreparedScene();
         Batchers
-            .Default()
+            .WithCascadedLights(cascadedLights)
             .Prepare(
                 snapshot: snapshot,
                 alpha: alpha,
@@ -63,6 +63,32 @@ public sealed class FarShadowTests
         scene.Lights[0].Shadow is CascadeSet { Mapped: var mapped }
             ? mapped
             : throw new InvalidOperationException("The star has no cascade set.");
+
+    /// <summary>The cascade set and the far shadows of the far light <paramref name="light"/> of the prepared lights.</summary>
+    private static CascadeSet SetOf(PreparedScene scene, int light) =>
+        scene.Lights[light].Shadow is CascadeSet set
+            ? set
+            : throw new InvalidOperationException($"Light {light} has no cascade set.");
+
+    /// <summary>The far shadows of the far light <paramref name="light"/> of the prepared lights, in their order.</summary>
+    private static Vector4[] FarShadowsOf(PreparedScene scene, int light)
+    {
+        OccluderRange range = SetOf(scene, light).Occluders;
+        return scene.Occluders.AsSpan(range.Start, range.Count).ToArray();
+    }
+
+    /// <summary>
+    /// A second star, dimmer than the test star, so it takes set 1 under it: behind the camera and a little below the
+    /// horizon, so its set's boxes reach back from the view toward it.
+    /// </summary>
+    private static PointRenderLight StarBehindTheCamera() =>
+        Gpu.StarLight(
+            direction: new(0, -0.1f, 1),
+            irradiance: 1,
+            angularRadius: Gpu.StarAngularRadius,
+            color: Gpu.StarColor,
+            chainDepth: TestChains.Root
+        );
 
     /// <summary>The star's light as the shaders read it, with its run of occluders.</summary>
     private static GpuLight StarOf(PreparedScene scene) => GpuLight.From(scene.Lights[0]);
@@ -189,6 +215,42 @@ public sealed class FarShadowTests
         Mapped(scene).Should().Be(2);
     }
 
+    // ---- Casters that a light's set does not draw -------------------------------------------------------------
+    // A 10 m caster 600 m behind the camera comes within 2 km, but lies beside every box of the set of a star overhead,
+    // whose boxes stand on the view; it is big enough to hide 4% of the star from 2 km.
+
+    [Fact]
+    public void AFarLightWhoseSetDrawsNoCasterHasNoMappedOccludersWhileAnotherSetDrawsOne()
+    {
+        RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY);
+        snapshot.Lights.Add(StarBehindTheCamera());
+        snapshot.Instances.Add(Caster(new(0, 0, 600), 10));
+
+        PreparedScene scene = Prepare(snapshot, cascadedLights: 2);
+
+        FarShadowsOf(scene, 0).Should().Equal(new Vector4(x: 0, y: 0, z: 600, w: 10));
+        SetOf(scene, 0)
+            .Mapped.Should()
+            .Be(0, "the star overhead's set draws no caster, so the sphere is its only shadow");
+        SetOf(scene, 1).Mapped.Should().Be(1, "the set of the star behind the camera draws the caster");
+    }
+
+    [Fact]
+    public void AnOccluderThatItsLightsSetDoesNotDrawFollowsTheMappedOnesWhileTheSetDrawsOthers()
+    {
+        RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY);
+        snapshot.Instances.Add(Caster(new(0, 0, 600), 10));
+        // In the boxes of the star's set, 20 m ahead.
+        snapshot.Instances.Add(Caster(new(0, -5, -20), 5));
+
+        PreparedScene scene = Prepare(snapshot);
+
+        FarShadows(scene)
+            .Should()
+            .Equal(new Vector4(x: 0, y: -5, z: -20, w: 5), new Vector4(x: 0, y: 0, z: 600, w: 10));
+        Mapped(scene).Should().Be(1, "the set draws the caster ahead, but not the one behind the camera");
+    }
+
     // ---- Every caster ---------------------------------------------------------------------------------------------
 
     [Fact]
@@ -202,7 +264,8 @@ public sealed class FarShadowTests
                 material: new(0),
                 position: new(1.5e11f, 0, 0),
                 scale: new(7e8f),
-                flags: RenderFlags.Celestial
+                flags: RenderFlags.Celestial,
+                chainDepth: TestChains.CamerasFrame
             )
         );
 

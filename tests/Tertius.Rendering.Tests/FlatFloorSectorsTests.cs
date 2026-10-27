@@ -54,7 +54,7 @@ public sealed class FlatFloorSectorsTests(ITestOutputHelper output)
     /// <summary>The view depth of the floor at the representative pixel of <paramref name="texel"/>, or null for sky.</summary>
     private static double? DepthAt((int X, int Y) texel)
     {
-        Double3 ray = RayAt((X: texel.X, Y: texel.Y));
+        Double3 ray = RayAt((texel.X, texel.Y));
         return ray.Y < 0 ? EyeHeight / -ray.Y : null;
     }
 
@@ -76,7 +76,7 @@ public sealed class FlatFloorSectorsTests(ITestOutputHelper output)
         VisibilityBitmaskLight setting
     )
     {
-        Double3 center = RayAt((X: texel.X, Y: texel.Y)) * (z * HorizonSearch.CenterBias);
+        Double3 center = RayAt((texel.X, texel.Y)) * (z * HorizonSearch.CenterBias);
         Double3 toEye = (-center).Normalized();
         (float sliceNoise, float stepNoise) = OcclusionNoise.At((uint)texel.X, (uint)texel.Y);
         double radiusInTexels = setting.RadiusMeters / HorizonSearch.TexelWidth(z, TanHalfX, Width);
@@ -110,6 +110,6 @@ public sealed class FlatFloorSectorsTests(ITestOutputHelper output)
     /// <summary>What a step reads at the floor texel <paramref name="texel"/>, or null for sky.</summary>
     private static StepTexel? FloorAt((int X, int Y) texel) =>
         DepthAt(texel) is { } z
-            ? new(Position: RayAt((X: texel.X, Y: texel.Y)) * z, GeometricNormal: Up, DirectLight: FloorLight)
+            ? new(Position: RayAt((texel.X, texel.Y)) * z, GeometricNormal: Up, DirectLight: FloorLight)
             : null;
 }

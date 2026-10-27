@@ -439,7 +439,14 @@ public sealed class PyramidRenderTests
     }
 
     private static RenderInstance Block(MeshId box, MaterialId material, Vector3 center, Vector3 size) =>
-        Gpu.Instance(mesh: box, material: material, position: center, scale: size, radius: size.Length() / 2);
+        Gpu.Instance(
+            mesh: box,
+            material: material,
+            position: center,
+            scale: size,
+            radius: size.Length() / 2,
+            chainDepth: TestChains.CamerasFrame
+        );
 
     /// <summary>
     /// Jimenez's 13-tap downsample of an RGBA level around the texel corner (<paramref name="cornerX"/>,

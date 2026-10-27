@@ -1,7 +1,7 @@
 #version 460
-// The direct pass (docs/plans/screen-space-illumination.md, "The direct pass"): the light of each light of the one light
-// list, plus the emission, pre-exposed and capped, into the direct image. No ambient light: the ambient pass adds
-// it after the occlusion passes, and the occlusion passes read this image.
+// The direct pass (docs/plans/screen-space-illumination.md, "The direct pass"): the light of each light of the list
+// that the main view keeps, plus the emission, pre-exposed and capped, into the direct image. No ambient light: the
+// ambient pass adds it after the occlusion passes, and the occlusion passes read this image.
 #extension GL_GOOGLE_include_directive : require
 #include "frame.glsl"
 #include "gbuffer_surface.glsl"
@@ -38,6 +38,6 @@ void main()
     vec3 position = direction * distanceToEye;
     vec3 V = -direction;
     ShadingInput s = materialAt(pixel);
-    vec3 direct = directSum(directLight(s, lobesOf(s, V), position, V, ShadowMapsMainView, EveryMap));
+    vec3 direct = directSum(directLight(s, lobesOf(s, V), position, V, ShadowMapsMainView, MainView));
     outColor = vec4(min(exposed(direct, exposureScale()) + emissive, vec3(MaxRadiance)), 1.0);
 }

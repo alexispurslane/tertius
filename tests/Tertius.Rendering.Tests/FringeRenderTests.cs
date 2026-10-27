@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Testing;
 using static Tertius.Rendering.Tests.BrdfTesting;
 
 namespace Tertius.Rendering.Tests;
@@ -44,7 +45,8 @@ public sealed class FringeRenderTests
             position: center,
             scale: new(scale),
             rotation: FacingTheCamera,
-            radius: 1.5f * scale
+            radius: 1.5f * scale,
+            chainDepth: TestChains.CamerasFrame
         );
 
     /// <summary>A black material of reflectance 0 and alpha <paramref name="alpha"/> that emits <paramref name="radiance"/>.</summary>

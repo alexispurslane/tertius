@@ -690,7 +690,11 @@ internal sealed partial class ImpostorManager : IInstanceProcessor
         }
     }
 
-    /// <summary>The frame's lights, ambient light and occluders, as the lighting shader sees them.</summary>
+    /// <summary>
+    /// The frame's lights, ambient light and occluders, as the capture shader sees them: only the lights that the main view
+    /// keeps (<see cref="PreparedLight.InMainView"/>), so a light that only a face of the map keeps changes no signature
+    /// (docs/plans/environment-map.md, decision 20).
+    /// </summary>
     private readonly ref struct SceneLight(PreparedScene scene)
     {
         private readonly ReadOnlySpan<Vector4> occluders = scene.Occluders.AsSpan(0, scene.OccluderCount);
@@ -713,7 +717,7 @@ internal sealed partial class ImpostorManager : IInstanceProcessor
                 direction = Vector3.Zero;
             foreach (ref readonly PreparedLight light in lights)
             {
-                if (IrradianceAt(light, instance) is not ({ } irradiance, var unit))
+                if (!light.InMainView || IrradianceAt(light, instance) is not ({ } irradiance, var unit))
                     continue;
                 total += irradiance;
                 direction += Vector3.Transform(unit, inverse) * LengthInDoubles(irradiance);

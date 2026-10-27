@@ -118,7 +118,8 @@ public sealed class ImpostorManagerTests
             rotation: rotation,
             flags: flags,
             entity: entity,
-            part: part
+            part: part,
+            chainDepth: TestChains.CamerasFrame
         );
         ball.Hemisphere = hemisphere ?? ball.Hemisphere;
         return ball;
@@ -218,7 +219,8 @@ public sealed class ImpostorManagerTests
                 material: BallMaterial,
                 position: new(0, 0, -DistanceFor(150, radius: Meshes[MorphingBox].Radius)),
                 scale: Vector3.One,
-                entity: 1
+                entity: 1,
+                chainDepth: TestChains.CamerasFrame
             )
         );
         RigPose rest = MorphingBoxData.Rigging!.Rig.Rest;
@@ -784,7 +786,16 @@ public sealed class ImpostorManagerTests
         {
             RenderSnapshot snapshot = Snapshot();
             TestChains.Of(snapshot, (1, Quaternion.Identity), (0, Quaternion.Identity));
-            snapshot.Instances.Add(Ball(entity: 1, position: position) with { ChainDepth = (ushort)chainDepth });
+            snapshot.Instances.Add(
+                Gpu.Instance(
+                    mesh: new(Sphere),
+                    material: BallMaterial,
+                    position: position,
+                    scale: Vector3.One,
+                    entity: 1,
+                    chainDepth: (ushort)chainDepth
+                )
+            );
             IrradianceReading?[] readings =
                 chainDepth == 1 ? [Reading(ownMap), Reading(otherMap)] : [Reading(otherMap), Reading(ownMap)];
             harness.Run(snapshot, new WithMap(Faces: new[] { FaceMask.None, FaceMask.None }, Irradiance: readings));
@@ -997,6 +1008,52 @@ public sealed class ImpostorManagerTests
         CapturedEntities(5f).Should().Equal([1, 2], "the first sight of each impostor is captured");
         CapturedEntities(5f).Should().BeEmpty("nothing changed");
         CapturedEntities(8f).Should().Equal([1], "only the near ball is within the lamp's reach");
+    }
+
+    [Fact]
+    public void AnImpostorAtTheEdgeOfTheScreenKeepsItsCaptureWhenALampThatOnlyAFaceOfTheMapKeepsLeavesTheList()
+    {
+        var harness = new Harness();
+        // The right side plane passes through the eye: its outward normal, and its direction in the plane y = 0. The
+        // ball's center lies on it, so its inner half shows.
+        float tanHalfX = MathF.Tan(Gpu.Fov / 2) * Width / Height;
+        var outward = Vector3.Normalize(new(1, 0, tanHalfX));
+        var along = Vector3.Normalize(new(tanHalfX, 0, -1));
+        Vector3 center = DistanceFor(100f) * along;
+        // A lamp 2 cm off the ball's surface, 30° from the outward normal toward the eye, with a reach of 0.5 m: its reach
+        // sphere lies 0.38 m outside the plane, so only a face of the map keeps it, and it reaches the ball's off-screen half.
+        Vector3 toward = MathF.Cos(MathF.PI / 6) * outward - MathF.Sin(MathF.PI / 6) * along;
+        const float reach = 0.5f;
+        double cutoff = LightUnits.CutoffIrradiance(new RendererOptions().Exposure);
+
+        int CapturesUnder(FaceMask faces)
+        {
+            // The lamp is the only light, so all the light of the ball comes from it.
+            RenderSnapshot snapshot = Snapshot(intensity: 0);
+            snapshot.Instances.Add(Ball(entity: 1, position: center));
+            snapshot.Lights.Add(
+                Gpu.Lamp(
+                    position: center + 1.02f * toward,
+                    color: Vector3.One,
+                    intensity: (float)(reach * reach * cutoff),
+                    chainDepth: TestChains.CamerasFrame
+                )
+            );
+            harness.Run(
+                snapshot,
+                new WithMap(Faces: new[] { faces }, Irradiance: new IrradianceReading?[] { Reading(0f) })
+            );
+            return harness.Manager.Captures.Length;
+        }
+
+        CapturesUnder(FaceMask.All).Should().Be(1, "the first sight of an impostor is captured");
+        harness
+            .Scene.LightSpan.ToArray()
+            .Select(light => light.InMainView)
+            .Should()
+            .Equal([false], "the faces keep the lamp, and the main view does not");
+        CapturesUnder(FaceMask.None).Should().Be(0, "the ball takes only the lights that the main view keeps");
+        harness.Scene.LightCount.Should().Be(0, "no drawn face keeps the lamp");
     }
 
     [Fact]

@@ -111,7 +111,13 @@ public sealed class DeviceTests
                 );
                 RenderSnapshot snapshot = Gpu.Snapshot(new(0.3f, 1, 0.5f));
                 snapshot.Instances.Add(
-                    Gpu.Instance(mesh: box, material: material, position: new(0, 0, -4), scale: Vector3.One)
+                    Gpu.Instance(
+                        mesh: box,
+                        material: material,
+                        position: new(0, 0, -4),
+                        scale: Vector3.One,
+                        chainDepth: TestChains.CamerasFrame
+                    )
                 );
                 for (int i = 0; i < 8; i++)
                     renderer.Render(snapshot, 1f);
@@ -165,7 +171,8 @@ public sealed class DeviceTests
                     material: white,
                     position: new(0, 0, -5),
                     scale: Vector3.One,
-                    flags: RenderFlags.CastsShadow
+                    flags: RenderFlags.CastsShadow,
+                    chainDepth: TestChains.CamerasFrame
                 )
             );
             renderer.Render(snapshot, 1f);

@@ -263,8 +263,11 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// <para>
     /// Outputs: <see cref="PhysicsStepOutput.Bodies"/> holds every awake dynamic or kinematic body and every
     /// character in either form, also one in the rigid form that sleeps, plus one last report for a body that fell asleep.
-    /// Velocities are at the center of mass, and each is Jolt's: the chord of the last step, its displacement divided by
-    /// the step, which is the velocity half a step earlier. Both forms of a character store that chord.
+    /// Each linear velocity is that of the body's origin: Jolt's chord of the body's center of mass over the last step, its
+    /// displacement divided by the step, which is the velocity half a step earlier, carried to the origin with the angular
+    /// velocity and the lever at the end of the step. That is not the origin's own chord, from which it differs by
+    /// ω² r dt / 2 for a spin ω and a lever r. Both forms of a character store the chord, and a character's center of mass is
+    /// its origin.
     /// <see cref="PhysicsStepOutput.Characters"/> holds every character once, in either form, after the hand-offs, with
     /// whether physics stood it in this step. A character that a hand-off moved has not stood in its new frame yet, and a
     /// character in the rigid form never stands.
@@ -1060,8 +1063,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
         if (OwnerRecord(frame) is { Motion: BodyMotion.Dynamic, HasPrimary: true, Character: null } hull)
         {
             BodySnapshot s = ReadPrimary(hull);
-            // Jolt's velocity is at the center of mass. The frame origin is the body origin.
-            Double3 chord = s.Linear + Double3.Cross(s.Angular, s.Pose.Position - s.CenterOfMass);
+            // The frame origin is the body origin.
+            Double3 chord = s.OriginVelocity;
             Double3 acceleration = hull.StepAcceleration;
             // An awake hull took its home's linear gravity, so its chord plus half a step of its acceleration is relative
             // to the home's instant velocity in Jolt's stepping, and the record is relative to the one of every hand-off (see

@@ -1,6 +1,6 @@
 ---
 id: ter-a24f
-status: in_progress
+status: closed
 deps: [ter-b3h5, ter-ptft, ter-jxv9, ter-7s3g]
 links: [ter-jxv9]
 created: 2026-10-11T20:51:00Z
@@ -42,3 +42,7 @@ The user's design choices, 2026-10-25, from two designs in the chat: (1) gather 
 **2026-10-26T22:24:22Z**
 
 2026-10-26, the user: 'Let's just downscope bounce light to just the local stuff.' After seeing the cost (the far rays took 6.2 ms of the 9.1 ms, 2.6 ms at a third of the rays) and the white speckle in the lamp-lit cabin. The bounce light keeps the near part: the sector masks within the radius, which shadow the creases and bounce the light of the surfaces that block their sectors. The far rays through the depth pyramid go, with fork 2 (far rays per texel) and izsu's option B setting. Beyond the radius, an open sector takes the ambient light as before the far rays (and later the environment map, ter-fs7b). The far rays stay in git history (Part 5, 80c185d4) for a later epic.
+
+**2026-10-27T05:49:58Z**
+
+Merged into main (28591b24), the tree equal to the branch's at 3816f213, whose full Checked (8,919) and Release (8,906) runs passed with 0 failed. Coverage of the changed lines 84.4 percent: the misses are the two demo scenes (no tests, like the other review scenes), two device-limit refusals that this Mac cannot reach (OcclusionImages.CheckDevice's storage images, RenderTargets' estimate format features), and SectorMask.ToString. Known limits in ter-vtc7.

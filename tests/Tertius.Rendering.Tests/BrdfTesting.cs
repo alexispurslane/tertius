@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Testing;
 
 namespace Tertius.Rendering.Tests;
 
@@ -103,7 +104,8 @@ internal static class BrdfTesting
                     position: centers[i],
                     scale: Vector3.One,
                     rotation: Quaternion.CreateFromAxisAngle(Vector3.UnitX, MathF.PI / 2),
-                    radius: 0.3f
+                    radius: 0.3f,
+                    chainDepth: TestChains.CamerasFrame
                 )
             );
         }
