@@ -1,6 +1,6 @@
 ---
 id: ter-2cmo
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-10-17T00:20:12Z
@@ -23,3 +23,7 @@ From ter-ediu: the World creates a numeric frame for a fast spawn with the spawn
 **2026-10-27T12:26:27Z**
 
 2026-10-27: the review found that the first commit also derived a stepped dynamic hull's chord from the tree's proper acceleration, which holds the jolt of a SetVelocity, a teleport or an impulse, so a ship that set its velocity 10 m/s higher drained its frame 5 m/s wrong. The fix limits the derivation to the bodies that physics creates at the sync point, as the ticket scoped it, and ter-5pd7 takes the stepped hull. ter-4v1r takes the plain anchor of CreateFollowingFrame. With the limit, the demo scripts equal main's again: the shift of the station segments came from the hull chord, and the sleep rule moves no tick.
+
+**2026-10-27T13:02:07Z**
+
+2026-10-27: merged (ab895821); full Checked on the merged main: 9,067 total, 0 failed. Coverage of the changed lines 67/67 (100%), branches 28/28. The fix covers spawns and rehomed bodies; a stepped dynamic hull's chord is ter-5pd7 (a fork for the user: it moves RailsFollowTests by a tick and the demo timings).
