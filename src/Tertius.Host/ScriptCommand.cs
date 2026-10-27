@@ -22,7 +22,8 @@ namespace Tertius.Host;
 /// <item><c>--tone-curve aces|hable</c> chooses the headless renderer's <see cref="ToneCurve"/>, ACES fitted without the
 /// option.</item>
 /// <item><c>--screen-space-light off|&lt;meters&gt;</c> turns the headless renderer's screen-space light off, or sets its
-/// radius in m. Without the option, the renderer keeps its default.</item>
+/// radius in m. <c>--screen-space-light-steps N</c> gives it N steps on each side of a slice, 1 to 16. Without either
+/// option, the renderer keeps its default.</item>
 /// <item><c>--bloom on|off</c> keeps the headless renderer's default <see cref="Bloom"/>, or turns it off.</item>
 /// <item><c>--reflections on|off</c> keeps the headless renderer's default <see cref="ConeTracedReflections"/>, or turns
 /// them off.</item>
@@ -74,7 +75,7 @@ public static class ScriptCommand
     public const string ExposureFile = "exposure.json";
 
     private const string Usage =
-        "Usage: --script <file> --headless --out <folder> [--video <file.mkv> [--fps <rate>]] [--size <width>x<height>] [--tone-curve aces|hable] [--screen-space-light off|<meters>] [--bloom on|off] [--reflections on|off] [--anti-aliasing off|smaa] [--local-shadows off|on] [--local-shadow-tiles <count>] [--cascaded-lights <count>] [--environment-map on|off]  |  --script <file> --out <folder> [--speed <factor>] [--size <width>x<height>]  |  --scene <name> [--speed <factor>] [--record <file>]";
+        "Usage: --script <file> --headless --out <folder> [--video <file.mkv> [--fps <rate>]] [--size <width>x<height>] [--tone-curve aces|hable] [--screen-space-light off|<meters>] [--screen-space-light-steps <count>] [--bloom on|off] [--reflections on|off] [--anti-aliasing off|smaa] [--local-shadows off|on] [--local-shadow-tiles <count>] [--cascaded-lights <count>] [--environment-map on|off]  |  --script <file> --out <folder> [--speed <factor>] [--size <width>x<height>]  |  --scene <name> [--speed <factor>] [--record <file>]";
 
     private static readonly JsonSerializerOptions ReportJson = new()
     {
@@ -95,6 +96,7 @@ public static class ScriptCommand
         "--size",
         "--tone-curve",
         "--screen-space-light",
+        "--screen-space-light-steps",
         "--bloom",
         "--reflections",
         "--anti-aliasing",
@@ -646,7 +648,10 @@ public static class ScriptCommand
                 : new VideoFile(video, FpsOf(given.Value("--fps")) ?? VideoFile.DefaultFramesPerSecond),
             Size: SizeOf(given.Value("--size")),
             ToneCurve: ToneCurveOf(given.Value("--tone-curve")),
-            ScreenSpaceLight: ScreenSpaceLightOf(given.Value("--screen-space-light")),
+            ScreenSpaceLight: ScreenSpaceLightOf(
+                given.Value("--screen-space-light"),
+                given.Value("--screen-space-light-steps")
+            ),
             BloomOff: given.Value("--bloom") == "off",
             ReflectionsOff: given.Value("--reflections") == "off",
             AntiAliasing: AntiAliasingOf(given.Value("--anti-aliasing")),
@@ -775,12 +780,23 @@ public static class ScriptCommand
 
     private static string? ScreenSpaceLightProblem(GivenOptions given)
     {
-        if (given.Value("--screen-space-light") is not { } light)
+        string? light = given.Value("--screen-space-light"),
+            steps = given.Value("--screen-space-light-steps");
+        if (light is null && steps is null)
             return null;
         if (!given.Headless)
-            return "--screen-space-light applies to a headless run, so add --headless.";
-        if (ScreenSpaceLightOf(light) is null)
+        {
+            string option = light is null ? "--screen-space-light-steps" : "--screen-space-light";
+            return $"{option} applies to a headless run, so add --headless.";
+        }
+
+        bool lightReads = light is null or "off" || RadiusOf(light) is not null;
+        if (!lightReads)
             return $"--screen-space-light needs off or a radius in m, a positive number such as 0.5, not '{light}'.";
+        if (steps is not null && StepsOf(steps) is null)
+            return $"--screen-space-light-steps needs a whole number from 1 to {ScreenSpaceLightSetting.MaxStepsPerSide}, not '{steps}'.";
+        if (steps is not null && light == "off")
+            return "--screen-space-light-steps sets the steps of the estimate, so leave out --screen-space-light off.";
         return null;
     }
 
@@ -877,22 +893,38 @@ public static class ScriptCommand
         };
 
     /// <summary>
-    /// The screen-space light that the text gives: none for <c>off</c>, the renderer's default with the radius for a
-    /// positive finite number of m, and null for no text or any other text. The renderer refuses a radius above its limit.
+    /// The screen-space light that the two texts give: none for <c>off</c>, else the renderer's default with the radius and
+    /// the steps that are given, and null when neither option is given. The renderer refuses a radius above its limit.
     /// </summary>
-    private static ScreenSpaceLightSetting? ScreenSpaceLightOf(string? text)
+    private static ScreenSpaceLightSetting? ScreenSpaceLightOf(string? light, string? steps)
     {
-        if (text == "off")
+        if (light == "off")
             return new NoScreenSpaceLight();
+        if (light is null && steps is null)
+            return null;
+        VisibilityBitmaskLight estimate = VisibilityBitmaskLight.Default;
+        if (RadiusOf(light) is { } radius)
+            estimate = estimate with { RadiusMeters = radius };
+        if (StepsOf(steps) is { } count)
+            estimate = estimate with { StepsPerSide = count };
+        return estimate;
+    }
+
+    /// <summary>The radius in m that the text gives, or null for no text or one that is not a positive finite number.</summary>
+    private static float? RadiusOf(string? text)
+    {
         bool read = float.TryParse(
             s: text,
             style: NumberStyles.Float,
             provider: CultureInfo.InvariantCulture,
             result: out float radius
         );
-        bool positive = read && float.IsFinite(radius) && radius > 0;
-        return positive ? VisibilityBitmaskLight.Default with { RadiusMeters = radius } : null;
+        return read && float.IsFinite(radius) && radius > 0 ? radius : null;
     }
+
+    /// <summary>The steps on each side of a slice that the text gives, or null for no text or one outside 1 to 16.</summary>
+    private static int? StepsOf(string? text) =>
+        WholeNumberOf(text: text, least: 1, most: ScreenSpaceLightSetting.MaxStepsPerSide);
 
     /// <summary>
     /// The local shadows that the two texts give: none for <c>off</c>, the default atlas for <c>on</c> or for a count of

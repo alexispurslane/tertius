@@ -373,6 +373,27 @@ public sealed class ScriptCommandTests : IDisposable
         "off"
     )]
     [InlineData(
+        "--screen-space-light-steps applies to a headless run",
+        "--script",
+        "script.json",
+        "--out",
+        "out",
+        "--screen-space-light-steps",
+        "6"
+    )]
+    [InlineData(
+        "--screen-space-light-steps sets the steps of the estimate, so leave out --screen-space-light off",
+        "--script",
+        "script.json",
+        "--headless",
+        "--out",
+        "out",
+        "--screen-space-light",
+        "off",
+        "--screen-space-light-steps",
+        "6"
+    )]
+    [InlineData(
         "--anti-aliasing needs a value",
         "--script",
         "script.json",
@@ -484,6 +505,23 @@ public sealed class ScriptCommandTests : IDisposable
 
         code.Should().Be(ScriptCommand.CommandLineError);
         error.ToString().Should().Contain("--screen-space-light needs off or a radius").And.Contain($"'{value}'");
+    }
+
+    [Theory]
+    [InlineData("0")]
+    [InlineData("17")]
+    [InlineData("2.5")]
+    [InlineData("many")]
+    public void AScreenSpaceLightStepsOptionThatIsNotAWholeNumberFromOneToSixteenIsAProblem(string value)
+    {
+        int code = Run("--script", "script.json", "--headless", "--out", "out", "--screen-space-light-steps", value);
+
+        code.Should().Be(ScriptCommand.CommandLineError);
+        error
+            .ToString()
+            .Should()
+            .Contain("--screen-space-light-steps needs a whole number from 1 to 16")
+            .And.Contain($"'{value}'");
     }
 
     [Theory]
@@ -603,6 +641,35 @@ public sealed class ScriptCommandTests : IDisposable
 
         chosen.Should().NotBeNull(problem);
         chosen!.AntiAliasing.Should().Be(antiAliasing);
+    }
+
+    public static TheoryData<string[], ScreenSpaceLightSetting?> ScreenSpaceLightOptions =>
+        new()
+        {
+            { [], null },
+            { ["--screen-space-light", "off"], new NoScreenSpaceLight() },
+            { ["--screen-space-light", "2"], VisibilityBitmaskLight.Default with { RadiusMeters = 2 } },
+            { ["--screen-space-light-steps", "6"], VisibilityBitmaskLight.Default with { StepsPerSide = 6 } },
+            {
+                ["--screen-space-light", "0.5", "--screen-space-light-steps", "16"],
+                VisibilityBitmaskLight.Default with { RadiusMeters = 0.5f, StepsPerSide = 16 }
+            },
+        };
+
+    [Theory]
+    [MemberData(nameof(ScreenSpaceLightOptions))]
+    public void TheScreenSpaceLightOptionsTurnTheEstimateOffOrSetItsRadiusAndItsSteps(
+        string[] screenSpaceLight,
+        ScreenSpaceLightSetting? expected
+    )
+    {
+        ScriptCommand.Options? chosen = ScriptCommand.ReadOptions(
+            ["--script", "s.json", "--headless", "--out", "o", .. screenSpaceLight],
+            out string? problem
+        );
+
+        chosen.Should().NotBeNull(problem);
+        chosen!.ScreenSpaceLight.Should().Be(expected);
     }
 
     public static TheoryData<string[], LocalShadowSetting?> LocalShadowOptions =>

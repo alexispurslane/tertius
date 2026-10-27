@@ -13,6 +13,7 @@
 #   --out <dir>       the folder of the trace (default captures/gpu-trace/<script>-<start>)
 #   --no-counters     records no GPU counters: a smaller trace with times and no limiters
 #   --keep-exports    keeps the XML tables that the report exports from the trace, in <out>/export
+# Arguments after the script go to the demo's headless run, such as --screen-space-light off.
 # Writes <out>/run.trace (open it in Instruments), <out>/run (the run's captures, gpu-timings.json and log),
 # <out>/passes.md (the table, also printed) and <out>/passes.json (every counter of every pass).
 set -euo pipefail
@@ -48,7 +49,9 @@ while [[ $# -gt 0 ]]; do
     *) break ;;
   esac
 done
-script=${1:?usage: tools/gpu-trace.sh [options] <script.json>}
+script=${1:?usage: tools/gpu-trace.sh [options] <script.json> [demo options]}
+shift
+demo_options=("$@")
 script=$(realpath "$script")
 root=$(git rev-parse --show-toplevel)
 cd "$root"
@@ -82,7 +85,7 @@ load=$(uptime | sed 's/.*load averages*: *//')
 echo "Load averages at the start (1, 5 and 15 minutes): $load"
 "$xcrun" xctrace record --template "Metal System Trace" "${instruments[@]}" --no-prompt --output "$out/run.trace" \
   "${env_args[@]}" --target-stdout "$out/run.log" \
-  --launch -- "$demo" --script "$traced" --headless --out "$out/run" --size "$size" > "$out/record.log" 2>&1 \
+  --launch -- "$demo" --script "$traced" --headless --out "$out/run" --size "$size" "${demo_options[@]}" > "$out/record.log" 2>&1 \
   || record_code=$?
 if [[ "$record_code" -ne 0 ]]; then
   # xctrace saves the trace and exits with a code other than 0 when the demo fails, and the demo's errors go to run.log.
