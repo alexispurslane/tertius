@@ -1,6 +1,6 @@
 ---
 id: ter-6na6
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-10-30T21:51:41Z
