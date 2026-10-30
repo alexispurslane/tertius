@@ -33,7 +33,7 @@ public sealed class ClassMetricOptionsTests
             .Emit(outputPath: assembly, cancellationToken: TestContext.Current.CancellationToken)
             .Success.Should()
             .BeTrue();
-        ClassMetrics metrics = ClassMetrics.Of(
+        var metrics = ClassMetrics.Of(
             Source.UsedByATest(
                 SourceFile.Parse("src/A.cs", "class A : External { public int F() => 0; public int G() => 0; }")
             ),

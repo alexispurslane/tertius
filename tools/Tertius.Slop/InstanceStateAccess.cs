@@ -11,8 +11,8 @@ internal sealed class InstanceStateAccess(
     INamedTypeSymbol receiverType
 ) : OperationWalker
 {
-    private readonly HashSet<IMethodSymbol> visited = new(SymbolEqualityComparer.Default);
-    private readonly HashSet<string> fields = new(StringComparer.Ordinal);
+    private readonly HashSet<IMethodSymbol> visited = [with(SymbolEqualityComparer.Default)];
+    private readonly HashSet<string> fields = [with(StringComparer.Ordinal)];
     private readonly HashSet<UnresolvedStateAccess> unresolved = [];
     internal string[] Fields => [.. fields.Order(StringComparer.Ordinal)];
     internal UnresolvedStateAccess[] Unresolved =>

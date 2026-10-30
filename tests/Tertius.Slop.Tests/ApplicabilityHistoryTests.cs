@@ -11,7 +11,7 @@ public sealed class ApplicabilityHistoryTests
     [Fact]
     public void LegacyDetailsDeserializeWithoutInventingApplicabilityOrChangingOldDepth()
     {
-        var legacy = JsonNode
+        JsonObject legacy = JsonNode
             .Parse(
                 JsonSerializer.Serialize(
                     StateCohesionTests.Measure("class Payload { public int X; }"),
@@ -113,7 +113,7 @@ public sealed class ApplicabilityHistoryTests
     public void MatchingVersionBackfillFillsOnlyMissingApplicabilityMetadata()
     {
         SlopReport report = Report("class A { int x; public int F() => x; public int G() => x; }");
-        SlopNote complete = SlopNote.Of(
+        var complete = SlopNote.Of(
             report: report,
             branch: "topic",
             source: NoteSource.Seed,
