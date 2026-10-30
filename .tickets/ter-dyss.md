@@ -1,6 +1,6 @@
 ---
 id: ter-dyss
-status: in_progress
+status: closed
 deps: [ter-tf17]
 links: []
 created: 2026-10-27T17:20:51Z
@@ -79,3 +79,5 @@ The preservation audit found two experimental `type-coherence-v1` notes with a r
 The migration enriched 498 legacy notes. For the two incompatible experimental notes, it kept each original line intact and appended a separately measured version-2 summary. The added line keeps all original erosion/verbosity values, absolute counts, branch, source and measurement time. Readers select its complete summary. No incompatible counts were combined. The initial version-1 implementation note already had complete counts and remains unchanged.
 
 All 500 original note targets passed a comparison against `/tmp/tertius-ter-dyss-notes-before.json`. Every original JSON value and text line was preserved. At verification, 502 targets held 504 readable lines, and every target had a complete summary. The reference fingerprint matched the default hook configuration throughout. Local backup refs retain the notes before migration and the isolated batch results. Artifacts: `/tmp/ter-dyss-notes-verified.json`, `/tmp/ter-dyss-experimental-migration.log`, and `/tmp/ter-dyss-preservation-{red,mutation}.log`.
+
+The repeated production backfill updated zero notes out of 502 examined and left `refs/notes/slop` unchanged. The CSV selected the complete version-2 line for both experimental commits. Final Slop Checked and Release runs each passed 507 tests. The normal commit hook also passed all 507 tests. Implementation through `cb205e01` was merged into main before this ticket was closed.
