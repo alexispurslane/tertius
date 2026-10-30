@@ -104,6 +104,10 @@ public sealed record PushSummary
 
     private static void AppendCounts(StringBuilder text, SlopNote? before, SlopNote now)
     {
+        if (now.ClassMetrics is { } metrics)
+            text.AppendLine(metrics.DescribeAgainst(before?.ClassMetrics));
+        else
+            text.AppendLine("Class metrics unavailable (legacy note)");
         AppendAbsolute(
             text: text,
             name: "high CC mass",

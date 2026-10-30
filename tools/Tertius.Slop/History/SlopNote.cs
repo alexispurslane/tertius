@@ -26,6 +26,11 @@ public sealed record SlopNote
     /// <summary>The number of flagged or cloned lines, or null in older notes.</summary>
     public int? VerboseLines { get; init; }
 
+    public ClassMetricSummary? ClassMetrics { get; init; }
+
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Extra { get; init; }
+
     /// <summary>The lines of code of the tree's <c>src</c>.</summary>
     public required int Sloc { get; init; }
 
@@ -57,8 +62,7 @@ public sealed record SlopNote
     public static SlopNote? Parse(string text)
     {
         SlopNote?[] notes = [.. text.Split('\n').Select(ParseLine)];
-        return notes.FirstOrDefault(note => note?.HasAbsoluteCounts == true)
-            ?? notes.FirstOrDefault(note => note is not null);
+        return notes.OfType<SlopNote>().OrderByDescending(note => note.Completeness).FirstOrDefault();
     }
 
     /// <summary>Whether every absolute count is present.</summary>
@@ -66,9 +70,19 @@ public sealed record SlopNote
     public bool HasAbsoluteCounts =>
         HighCcMass is not null && HighCcFunctionCount is not null && VerboseLines is not null;
 
+    [JsonIgnore]
+    public bool HasAllCounts => HasAbsoluteCounts && ClassMetrics?.Depth is not null;
+
+    private int Completeness =>
+        (HighCcMass is not null ? 1 : 0)
+        + (HighCcFunctionCount is not null ? 1 : 0)
+        + (VerboseLines is not null ? 1 : 0)
+        + (ClassMetrics is not null ? 4 : 0)
+        + (ClassMetrics?.Depth is not null ? 1 : 0);
+
     /// <summary>Whether any note line still lacks an absolute count.</summary>
     public static bool NeedsBackfill(string text) =>
-        text.Split('\n').Select(ParseLine).Any(note => note is { HasAbsoluteCounts: false });
+        text.Split('\n').Select(ParseLine).Any(note => note is { HasAllCounts: false });
 
     /// <summary>Fills missing absolute counts in every note line and keeps any other line.</summary>
     public static string BackfillText(string text, SlopReport report) =>
@@ -76,7 +90,7 @@ public sealed record SlopNote
             '\n',
             text.Split('\n')
                 .Select(line =>
-                    ParseLine(line) is { HasAbsoluteCounts: false } note ? note.WithCounts(report).ToLine() : line
+                    ParseLine(line) is { HasAllCounts: false } note ? note.WithCounts(report).ToLine() : line
                 )
         );
 
@@ -102,10 +116,20 @@ public sealed record SlopNote
     private SlopNote WithCounts(SlopReport report) =>
         this with
         {
-            HighCcMass = report.Erosion.HighCcMass,
-            HighCcFunctionCount = report.Erosion.HighCcFunctionCount,
-            VerboseLines = report.Verbosity.VerboseLines,
+            HighCcMass = HighCcMass ?? report.Erosion.HighCcMass,
+            HighCcFunctionCount = HighCcFunctionCount ?? report.Erosion.HighCcFunctionCount,
+            VerboseLines = VerboseLines ?? report.Verbosity.VerboseLines,
+            ClassMetrics = EnrichClassMetrics(report.ClassMetrics?.Summary),
         };
+
+    private ClassMetricSummary? EnrichClassMetrics(ClassMetricSummary? measured)
+    {
+        if (ClassMetrics is null)
+            return measured;
+        if (ClassMetrics.Depth is null && measured?.Provenance == ClassMetrics.Provenance)
+            return ClassMetrics with { Depth = measured.Depth };
+        return ClassMetrics;
+    }
 
     private static SlopNote? ParseLine(string line)
     {

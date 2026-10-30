@@ -214,12 +214,48 @@ def report_verbosity(changed, verbosity, baseline):
     return bool(findings or clones)
 
 
+def report_classes(metrics, baseline):
+    """Prints pooled TCC and depth with raw counts, without class-specific findings."""
+    if not metrics:
+        print("Type metrics unavailable (legacy report)")
+        return
+    now = metrics["summary"]
+    before = (baseline or {}).get("note", {}).get("classMetrics")
+    comparable = before and before.get("provenance") == now.get("provenance")
+    print(f"Type metrics {now['provenance']['version']}")
+    if now.get("bindingErrorCount", 0):
+        print(f"  Binding errors: {now['bindingErrorCount']}; counts use available symbols (see details).")
+    if before and not comparable:
+        print("  No type metric deltas: configuration differs.")
+    for key, label, units, numerator, denominator in (
+        ("tcc", "TCC", "shared/possible method pairs", "shared pairs", "possible pairs"),
+        ("depth", "Depth", "WMC/API entries", "WMC", "API entries"),
+    ):
+        count = now.get(key)
+        if count is None:
+            print(f"{label} unavailable (legacy report)")
+            continue
+        ratio = count.get("ratio")
+        shown = f"{ratio:.4f}" if ratio is not None else "n/a"
+        line = f"{label} {shown} ({count['numerator']}/{count['denominator']} {units})"
+        previous = before.get(key) if comparable else None
+        if previous:
+            if ratio is not None and previous.get("ratio") is not None:
+                change = round(ratio - previous["ratio"], 4) + 0.0
+                line += f" ({change:+.4f} against {baseline['commit']})"
+            line += (f" ({numerator} {count['numerator'] - previous['numerator']:+d}, "
+                     f"{denominator} {count['denominator'] - previous['denominator']:+d})")
+        print(line)
+
+
 def report_slop(changed, details):
     """Prints the erosion and the verbosity of the staged tree from the measure's details file. True if it named any."""
     details = json.loads(Path(details).read_text())
     report, baseline = details["report"], details["baseline"]
     named = report_erosion(changed, report["erosion"], baseline)
-    return report_verbosity(changed, report["verbosity"], baseline) or named
+    named = report_verbosity(changed, report["verbosity"], baseline) or named
+    report_classes(report.get("classMetrics"), baseline)
+    return named
 
 
 def main():

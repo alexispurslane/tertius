@@ -7,7 +7,12 @@ namespace Tertius.Slop.History;
 /// 18). <c>measure</c> and <c>note</c> write the metrics of commits for the git hooks, and <c>history</c> and
 /// <c>summary</c> read them. <c>backfill</c> adds missing absolute counts to old notes.
 /// </summary>
-public sealed class HistoryCommands(Repository repository, TextWriter output, string jscpd)
+public sealed class HistoryCommands(
+    Repository repository,
+    TextWriter output,
+    string jscpd,
+    ClassMetricOptions? options = null
+)
 {
     // How far back on the first-parent line a summary looks for the note before a commit. A push that finds none in
     // that many commits shows the metrics of the tip only.
@@ -21,7 +26,7 @@ public sealed class HistoryCommands(Repository repository, TextWriter output, st
     /// </summary>
     public void Measure(string tree, string branch, NoteSource source, string? details, string? parent)
     {
-        SlopReport report = repository.Measure(tree, jscpd);
+        SlopReport report = repository.Measure(tree, jscpd, options);
         if (details is not null)
         {
             NotedCommit? baseline =
@@ -53,7 +58,7 @@ public sealed class HistoryCommands(Repository repository, TextWriter output, st
             if (commit.Sha != commits[0].Sha && !repository.ChangesSource(commit))
                 continue;
             var note = SlopNote.Of(
-                report: repository.Measure(commit.Sha, jscpd),
+                report: repository.Measure(commit.Sha, jscpd, options),
                 branch: branch,
                 source: source,
                 measured: DateTimeOffset.UtcNow
@@ -78,8 +83,11 @@ public sealed class HistoryCommands(Repository repository, TextWriter output, st
                 throw new InvalidOperationException($"slop note of {sha} holds no readable note.");
             if (!SlopNote.NeedsBackfill(text))
                 continue;
-            SlopReport report = repository.Measure(sha, jscpd);
-            repository.ReplaceNote(sha, SlopNote.BackfillText(text, report));
+            SlopReport report = repository.Measure(sha, jscpd, options);
+            string enriched = SlopNote.BackfillText(text, report);
+            if (enriched == text)
+                continue;
+            repository.ReplaceNote(sha, enriched);
             updated++;
             if (updated % 25 == 0)
                 output.WriteLine($"backfill: {updated} of {targets.Count} notes updated.");

@@ -208,3 +208,25 @@ The commit hook changes no file and runs only what the commit touches, so that a
 - The rewrite of the doc comments. It is its own epic, after this one: a short style guide, then one pass per module, with the docs site and the `cref` checks as guides.
 - IDE code style rules in the build. The user decided on 2026-10-21 that the pre-push cleanup modernizes the code and that the build never fails on style. The exceptions are IDE0010, because it is a check of correctness (decision 14), and the rules of decision 19 for what STYLE.md says "always" or "never" about. CA1822 (members that could be static) stays off too.
 - A gate on complexity and length. The user chose a report on the changed code.
+
+
+22. Type coherence and depth (ter-dyss, accepted user scope, 2026-10-30). This supersedes the earlier four-score proposal. Dependency scoring, interface burden thresholds, standalone exposure scores, method-group analysis and their calibration/defaults are removed. Class means any measured nominal source type, not only a C# class.
+
+    TCC is the single cohesion metric: pooled direct shared instance-field pairs divided by possible visible ordinary instance-method pairs within types with instance state. Constructors are excluded. Depth is pooled WMC divided by pooled API entries over the same measured types, including types with zero API entries. WMC sums the existing `Function.Complexity` over all owned handwritten functions, of every visibility; nested types own their functions separately. Surface counts declared public/internal/protected variants of methods, constructors, operators, properties, indexers, events and fields once each, with properties counted once rather than per accessor. Inherited and synthesized members are excluded. Empty denominators are not applicable, with raw counts retained. No weighted composite is used.
+
+    Depth and erosion remain separate. Depth is behavior weight per API entry; more branching raises WMC and therefore can raise depth without improving design. Erosion independently checks excessive function complexity. Neither metric produces an automatic quality verdict. Named types, members, functions, locations and direct shared-field pairs support later refactoring lists. `tools/README.md`, "Type coherence and source evidence", defines eligibility, counting, source-analysis limitations and unavailable-data behavior.
+
+    Aggregate reports and named details share one counter. Historical source binds against explicit metadata without building old engine projects or reading current engine outputs. Notes retain counting/reference provenance; incompatible inputs suppress deltas. Backfill preserves existing data and unknown metadata, enriches all readable merged lines, and is idempotent. No production backfill or merge occurs in the implementation task.
+
+    Qualitative review of 22 selected types found no validated API/dependency/parameter cutoff: EventList and DPose, SmaaPass and ToneMapPass, GeometryStore and KeplerOrbit, and ScriptCommand and DescriptorLayouts supply counterexamples. That review prompted the accepted TCC/depth direction; no reviewed cutoff becomes a quality gate. Parent-authored future engine tickets ter-c8lk, ter-gnwg and ter-c4eb remain outside this implementation.
+
+    ```mermaid
+    flowchart LR
+        Snapshot[Snapshot source] --> Analysis[Source symbol analysis]
+        Metadata[Explicit metadata] --> Analysis
+        Analysis --> Detail[Named type and method evidence]
+        Detail --> TCC[Pooled direct TCC]
+        Detail --> Depth[Pooled WMC per API entry]
+        TCC --> Notes[Versioned notes and existing reports]
+        Depth --> Notes
+    ```

@@ -276,6 +276,36 @@ public sealed class HistoryCommandTests : IDisposable
     }
 
     [Fact]
+    public void BackfillDoesNotMixDepthWithCohesionFromDifferentMetadata()
+    {
+        git.Write("src/A.cs", Short);
+        string commit = git.Commit("first");
+        var repository = new Repository(git.Root);
+        SlopNote note = SlopNote.Of(
+            report: repository.Measure(commit, "jscpd"),
+            branch: "topic",
+            source: NoteSource.Seed,
+            measured: SlopNoteTests.Noon
+        );
+        note = note with
+        {
+            ClassMetrics = note.ClassMetrics! with
+            {
+                Depth = null,
+                Provenance = new("older-counting", "other-metadata"),
+            },
+        };
+        string original = note.ToLine();
+        git.Git("notes", "--ref=slop", "add", "-m", original, commit);
+
+        int exit = Run("backfill");
+
+        exit.Should().Be(0);
+        git.NoteOf(commit).Should().Be(original);
+        output.ToString().Should().Contain("0 note");
+    }
+
+    [Fact]
     public void BackfillReportsAnUnreadableNoteWithoutReplacingIt()
     {
         git.Write("src/A.cs", Short);
@@ -342,7 +372,9 @@ public sealed class HistoryCommandTests : IDisposable
         string[] lines = output.ToString().TrimEnd().Split('\n');
         lines[0]
             .Should()
-            .Be("commit,date,branch,tickets,erosion,highCcMass,highCcFunctionCount,verbosity,verboseLines,sloc");
+            .StartWith(
+                "commit,date,branch,tickets,erosion,highCcMass,highCcFunctionCount,verbosity,verboseLines,sloc,"
+            );
         lines[1..]
             .Select(line => line.Split(','))
             .Select(cells => (cells[3], cells[9]))

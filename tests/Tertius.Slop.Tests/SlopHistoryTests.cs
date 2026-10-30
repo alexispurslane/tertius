@@ -37,11 +37,29 @@ public sealed class SlopHistoryTests
         );
         Commit other = Commit("A commit without a note", note: null) with { Sha = "b" };
 
-        new SlopHistory([noted, other])
-            .Csv.Should()
+        string[] rows = new SlopHistory([noted, other]).Csv.TrimEnd().Split('\n');
+        rows.Should().HaveCount(2);
+        rows[0]
+            .Split(',')
+            .Take(10)
+            .Should()
+            .Equal(
+                "commit",
+                "date",
+                "branch",
+                "tickets",
+                "erosion",
+                "highCcMass",
+                "highCcFunctionCount",
+                "verbosity",
+                "verboseLines",
+                "sloc"
+            );
+        rows[1]
+            .Should()
             .Be(
-                "commit,date,branch,tickets,erosion,highCcMass,highCcFunctionCount,verbosity,verboseLines,sloc\n"
-                    + "a1,2026-10-24T12:00:00+00:00,main,ter-2x99 ter-ab12,0.365,12041.5,92,0.036,1531,34450\n"
+                "a1,2026-10-24T12:00:00+00:00,main,ter-2x99 ter-ab12,0.365,12041.5,92,0.036,1531,34450"
+                    + new string(',', 10)
             );
     }
 
@@ -50,7 +68,7 @@ public sealed class SlopHistoryTests
     {
         SlopNote old = SlopNoteTests.Note(erosion: 0.5, verbosity: 0.25);
 
-        new SlopHistory([Commit("old", old)]).Csv.Should().EndWith(",0.5,,,0.25,,34450\n");
+        new SlopHistory([Commit("old", old)]).Csv.Should().EndWith(",0.5,,,0.25,,34450" + new string(',', 10) + "\n");
     }
 
     [Theory]
@@ -60,7 +78,9 @@ public sealed class SlopHistoryTests
     {
         SlopNote note = SlopNoteTests.Note(erosion: 0.5, verbosity: 0.25) with { Branch = branch };
 
-        new SlopHistory([Commit("x", note)]).Csv.Should().EndWith($",{cell},,0.5,,,0.25,,34450\n");
+        new SlopHistory([Commit("x", note)])
+            .Csv.Should()
+            .EndWith($",{cell},,0.5,,,0.25,,34450" + new string(',', 10) + "\n");
     }
 
     internal static Commit Commit(string message, SlopNote? note) =>

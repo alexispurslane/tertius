@@ -53,7 +53,7 @@ public sealed class Repository(string folder)
     /// the working tree does not matter. The copy holds the tests, the benchmarks and the scripts too, because they use
     /// the code (<see cref="Codebase.NamesOutside"/>).
     /// </summary>
-    public SlopReport Measure(string tree, string jscpd)
+    public SlopReport Measure(string tree, string jscpd, ClassMetricOptions? options = null)
     {
         // An archive of a path that the tree does not hold fails, and an old commit can lack the benchmarks.
         string[] folders = [.. Git(["ls-tree", "--name-only", tree]).Split('\n').Where(Codebase.Folders.Contains)];
@@ -69,7 +69,7 @@ public sealed class Repository(string folder)
                     throw new InvalidOperationException($"git archive of {tree} failed: {errors.Result}");
             }
 
-            return SlopReport.Of(Codebase.Under(root), Clones.Find(root, jscpd));
+            return SlopReport.Of(Codebase.Under(root), Clones.Find(root, jscpd), options);
         }
         finally
         {

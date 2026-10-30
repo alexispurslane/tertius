@@ -1,6 +1,6 @@
 ---
 id: ter-dyss
-status: open
+status: in_progress
 deps: [ter-tf17]
 links: []
 created: 2026-10-27T17:20:51Z
@@ -9,43 +9,50 @@ priority: 2
 assignee: Alexis Purslane
 parent: ter-9gj5
 ---
-# Class metrics: cohesion, interface size, data classes, constructors and missing interfaces
+# Type cohesion and depth
 
-The user's request (2026-10-27): measure the complexity of types, not only of functions: how many members a type shows, how its fields relate to its methods, public fields, properties that only get and set, constructors that do too much, and behavior that several types repeat and that one shared type or, preferably, an interface could hold.
+Design: `docs/plans/code-quality-tooling.md`, decision 22; exact counting rules in `tools/README.md`, "Type coherence and source evidence". The accepted user design supersedes the earlier four-score proposal and subsequent method-group proposal.
 
-Sources: Chidamber and Kemerer 1994 (IEEE TSE 20(6)), Hitz and Montazeri 1995 (LCOM4), Bieman and Kang 1995 (TCC), Lanza and Marinescu 2006, "Object-Oriented Metrics in Practice" (NOPA, NOAM, WOC, and the God class and data class detection rules).
+## Accepted scope
 
-The proposed home of each metric. The split: the style analyzer (analyzers/Tertius.Style) holds a finding on one type that needs exact symbols and says what to change. Tertius.Slop holds numbers that need the whole repository or Slop's own CC (the erosion's), and keeps their history in refs/notes/slop. Configuration covers a rule that the .NET SDK already has.
+- TCC is the sole cohesion metric: pooled shared direct instance-field method pairs divided by pooled possible visible ordinary instance-method pairs. Constructors are excluded.
+- Depth is pooled WMC divided by pooled API entries over the same measured type population. WMC sums existing Function.Complexity, including private/static functions, with nested types separate. API entries are declared public/internal/protected variants of methods, constructors, operators, properties, indexers, events and fields, once per member/overload, not per accessor. Inherited/synthesized members are excluded. Zero denominators retain raw counts and mean not applicable.
+- Depth and erosion remain separate. More branching increases WMC and can increase depth without improving design; erosion independently reports excessive function complexity. No score is a validated quality failure or automatic refactoring verdict.
+- Preserve named type/member/function evidence and locations, direct shared fields/pairs, raw WMC/API counts and deltas. Aggregate and detail share one implementation. No later class-specific hook finding lists.
+- Integrate measurement, staged report, notes, CSV, push summary and resumable/idempotent backfill. Keep old metrics/metadata and unknown top-level JSON. Enrich every valid merged note line and prefer the most complete line. Preserve incompatible summaries rather than mixing metadata profiles.
+- Remove dependency scoring, threshold-based interface burden, standalone exposure scores and method-group machinery. No arbitrary limits, dependency scores, calibration defaults or engine changes.
 
-| Metric | What it counts | Home |
-|---|---|---|
-| Interface size (NOPM) | The visible methods, properties and events of a type, plus the parameters of each | Style analyzer |
-| LCOM4 | The separate groups of a type's methods, where two methods link when they use one field or one calls the other. Above 1, the finding names the groups to split. | Style analyzer |
-| TCC | The share of pairs of visible methods that use a field in common, 0 to 1 | Style analyzer |
-| Public fields (NOPA) | Visible instance fields of a class | Configuration: CA1051 with its exclude_structs option, if the struct-of-arrays tables are structs. Otherwise the style analyzer, with the plain data structs and the tables left out. |
-| Plain accessors (NOAM) and WOC | Properties that only get and set, and the share of visible members that do real work. Low WOC is the data class pattern. | Style analyzer, only on a type that has methods: a record or struct of plain properties is a payload, which is data by design. |
-| A public setter on a type with methods | A boundary whose stock any caller can change | Style analyzer |
-| Constructor complexity | The CC of a constructor | Already measured: the erosion, since ter-tf17 turned CA1502 off |
-| Constructor parameter count | The parameters of a constructor | Style analyzer |
-| A guard that can move into a setter | A constructor check that reads only one parameter. A check that reads two or more stays. | Style analyzer |
-| WMC | The sum of the CC of a type's functions | Tertius.Slop, so that one CC definition serves both the erosion and WMC |
-| Depth (Ousterhout) | Implementation SLOC divided by interface size | Style analyzer, beside the interface size that it divides by |
-| CBO | The number of distinct types that a type uses | Configuration: CA1506, its limit in analyzers/CodeMetricsConfig.txt. ter-tf17 removed that file and its AdditionalFiles entry in Directory.Build.props with CA1502, so this ticket adds both again. |
-| Inheritance depth (DIT) | The number of base types above a type | Configuration: CA1501 |
-| Textual clones | Repeated blocks of 70 tokens | Already measured: jscpd, and the verbosity |
-| Missing interface | Types in any project that share 3 or more public method signatures (name, parameter types, return type) and no interface | Tertius.Slop, because it needs every project at once |
+## Implementation handoff
 
-## Design
+Implementation is complete on `ter-dyss-class-metrics`, ready for parent review. No design choices remain open for the accepted TCC/depth scope. Type population, member visibility, field/property counting, body ownership and historical limitations are documented.
 
-Not settled. The table above is the orchestrator's proposal. By the user's design rule, this ticket starts with two designs in the chat, which the user hybridizes. The points that the designs differ on include at least: the split between the analyzer and Slop (an exact semantic home for every type metric, or Slop's syntax-only reading for all of them, with name matching for the fields), the limits of each finding, and whether the commit report gets a section for types.
+The source compilation binds handwritten snapshot source against platform metadata and optional explicit third-party metadata. It never builds historical projects or discovers current engine outputs. Partial declarations merge, nested types own their functions, extension blocks belong to their containing types, and enum/delegate evidence is retained without inventing generated functions. Counting version `type-metrics-v1` and metadata content fingerprints control comparisons. Binding errors remain visible in summaries/details.
 
-By the software-design skill: interface size is counted in one place only, and CC has one definition. ter-tf17 settled that: it turned CA1502 off, so only Slop counts CC, and this ticket depends on it.
+## Verification
 
-The findings go to the commit report the way MA0051's do (tools/commit_report.py, report_length): suggestions in obj/Checked/<framework>/analyzers.sarif, filtered to the types that a commit touches. They never stop a commit. ter-tf17 removed the CA1502 list of the report, so MA0051's list is the model.
+- Full Slop Checked: 495 passed, zero failed/skipped.
+- Full Slop Release: 495 passed, zero failed/skipped.
+- Python commit report: 6 passed.
+- Red-green tests first demonstrated missing depth/API JSON, unwanted method-group report output, missing partial-depth enrichment and a no-change backfill incorrectly reported as updated. Earlier tests demonstrated absent coherence evidence, wrong inherited-state eligibility, missing enum/delegate evidence and `nameof(field)` incorrectly counted as runtime state access. Every failure was corrected and the complete suites rerun.
+- Final C# hand mutations: 15/15 killed. Cases: zero denominator as zero; maximum instead of pooled TCC denominator; dropping zero-API types from WMC; maximum instead of pooled API total; function count instead of existing CC; dropping fields; dropping internal members; including private API; dropping properties; counting `nameof`; including constructors in TCC; omitting depth enrichment; ignoring depth completeness; rewriting an unchanged backfill; comparing incompatible metadata.
+- Final Python hand mutations: 4/4 killed. Cases: comparing incompatible metadata, showing zero for not-applicable ratios, erasing raw count changes, and showing missing depth as not applicable. All mutated files were restored and touched before the final full runs.
+- Earlier retained coherence/history behavior also has successful hand mutations in `obj/revised-mutations`; the three obsolete method-group mutations and the abandoned four-score run are not acceptance evidence for this scope.
+- Logs: `/tmp/ter-dyss-final-{checked,release,python,mutations}.log`, `/tmp/ter-dyss-depth-*.log`, `/tmp/ter-dyss-backfill-incompatible-red.log`; final mutation mappings in ignored `tools/Tertius.Slop/obj/final-mutations/`.
 
-## Acceptance Criteria
+Final production measurement over unchanged engine source from 0eb95afa, using the parent's explicit external metadata manifest: 974 types, 1,887/10,179 shared/possible pairs (TCC 0.1853816681), 10,122 WMC / 4,771 API entries (depth 2.1215678055), 3,994 function measures. The full `all` report took 10.071 seconds. Its 764 binding errors reflect intentionally absent generators and combined-source limitations, not a successful historical build. Erosion, verbosity and their existing raw counts exactly match the earlier report over this source. Artifact: ignored `tools/Tertius.Slop/obj/calibration/final-production.json`. No obsolete threshold calibration is used.
 
-- Each metric of the table has a home, as the designs settle, with tests of its counting on small example types.
-- A commit that touches a type over a limit sees the finding in the commit report.
-- tools/README.md and docs/plans/code-quality-tooling.md give each metric, its definition, its source and its limit.
+Parent owns wider-suite testing, changed-code coverage, review and any later production backfill/merge/push. No production historical backfill, merge, push, ticket closure or engine change was performed. Normal commit hooks remain enabled. Parent-authored ter-c8lk, ter-gnwg and ter-c4eb are included unchanged as independent future engine tasks. Preexisting untracked `.DS_Store` files and `nohup.out` are preserved.
 
+## Commands
+
+Read-only measurement (prints a note; does not attach it):
+
+```sh
+nix develop --command dotnet run --project tools/Tertius.Slop -- measure HEAD --branch ter-dyss-class-metrics --source seed --details /tmp/slop-details.json --parent HEAD --reference-list /absolute/path/references.json
+```
+
+Parent-only future backfill, after review; use the same reviewed metadata profile for the historical series:
+
+```sh
+nix develop --command dotnet run --project tools/Tertius.Slop -- backfill --reference-list /absolute/path/references.json
+```

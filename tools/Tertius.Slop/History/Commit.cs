@@ -48,7 +48,8 @@ public sealed record SlopHistory(IReadOnlyList<Commit> Commits)
         get
         {
             var csv = new StringBuilder(
-                "commit,date,branch,tickets,erosion,highCcMass,highCcFunctionCount,verbosity,verboseLines,sloc\n"
+                "commit,date,branch,tickets,erosion,highCcMass,highCcFunctionCount,verbosity,verboseLines,sloc,"
+                    + "tcc,sharedMethodPairs,possibleMethodPairs,depth,wmc,apiEntries,typeCount,classMetricVersion,references,bindingErrorCount\n"
             );
             foreach (Commit commit in Commits)
             {
@@ -61,12 +62,27 @@ public sealed record SlopHistory(IReadOnlyList<Commit> Commits)
                 );
                 csv.Append(
                     CultureInfo.InvariantCulture,
-                    $"{note.Erosion},{note.HighCcMass},{note.HighCcFunctionCount},{note.Verbosity},{note.VerboseLines},{note.Sloc}\n"
+                    $"{note.Erosion},{note.HighCcMass},{note.HighCcFunctionCount},{note.Verbosity},{note.VerboseLines},{note.Sloc}"
                 );
+                AppendClassMetrics(csv, note.ClassMetrics);
+                csv.AppendLine();
             }
 
             return csv.ToString();
         }
+    }
+
+    private static void AppendClassMetrics(StringBuilder csv, ClassMetricSummary? metrics)
+    {
+        if (metrics is null)
+        {
+            csv.Append(',', 10);
+            return;
+        }
+        csv.Append(
+            CultureInfo.InvariantCulture,
+            $",{ClassMetricSummary.Show(metrics.Tcc)},{metrics.Tcc.Numerator},{metrics.Tcc.Denominator},{(metrics.Depth is { } depth ? ClassMetricSummary.Show(depth) : "")},{metrics.Depth?.Numerator},{metrics.Depth?.Denominator},{metrics.TypeCount},{Cell(metrics.Provenance.Version)},{Cell(metrics.Provenance.References)},{metrics.BindingErrorCount}"
+        );
     }
 
     // A text cell of CSV: quoted, with its quotes doubled, when it holds a comma, a quote or a line break.
