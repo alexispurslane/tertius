@@ -1,1 +1,1 @@
-{"erosion":0.3412085311795188,"verbosity":0.04635807457001039,"sloc":43315,"branch":"ter-gcm3-smaa","source":"pre-commit","measured":"2026-10-25T14:44:45.6025+00:00"}
+{"erosion":0.3412085311795188,"verbosity":0.04635807457001039,"highCcMass":12416.812634766033,"highCcFunctionCount":91,"verboseLines":2008,"sloc":43315,"branch":"ter-gcm3-smaa","source":"pre-commit","measured":"2026-10-25T14:44:45.6025+00:00"}
