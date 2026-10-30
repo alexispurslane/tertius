@@ -1,1 +1,1 @@
-{"erosion":0.30803480662659855,"verbosity":0.03826867247294801,"sloc":49257,"branch":"ter-izsu-ssgi-profile","source":"pre-commit","measured":"2026-10-26T20:43:56.268197+00:00"}
+{"erosion":0.30803480662659855,"verbosity":0.03826867247294801,"highCcMass":12208.445825547235,"highCcFunctionCount":90,"verboseLines":1885,"sloc":49257,"branch":"ter-izsu-ssgi-profile","source":"pre-commit","measured":"2026-10-26T20:43:56.268197+00:00"}
