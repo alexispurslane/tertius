@@ -1,1 +1,1 @@
-{"erosion":0.32929036857183286,"verbosity":0.042881532560253656,"sloc":45101,"branch":"ter-nydu-profiling-tools","source":"pre-commit","measured":"2026-10-25T23:28:04.949438+00:00"}
+{"erosion":0.32929036857183286,"verbosity":0.042881532560253656,"highCcMass":12305.944589798868,"highCcFunctionCount":90,"verboseLines":1934,"sloc":45101,"branch":"ter-nydu-profiling-tools","source":"pre-commit","measured":"2026-10-25T23:28:04.949438+00:00"}
