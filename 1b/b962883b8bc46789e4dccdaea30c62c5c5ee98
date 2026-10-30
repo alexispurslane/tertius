@@ -1,1 +1,1 @@
-{"erosion":0.35068707817638217,"verbosity":0.05020710130006943,"sloc":41767,"branch":"scratch-hook-check","source":"pre-commit","measured":"2026-10-25T00:49:36.212168+00:00"}
+{"erosion":0.35068707817638217,"verbosity":0.05020710130006943,"highCcMass":12537.278311645809,"highCcFunctionCount":90,"verboseLines":2097,"sloc":41767,"branch":"scratch-hook-check","source":"pre-commit","measured":"2026-10-25T00:49:36.212168+00:00"}
