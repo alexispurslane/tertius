@@ -22,7 +22,7 @@ Checked Core: total 512, failed 1, succeeded 511, skipped 0, exit code 2
 The options:
 
 - `-c Checked,Release` gives the build configurations, separated by commas. The default is Checked and Release. Checked has the contracts of Debug and the optimized code of Release (`Directory.Build.targets`). The tests run about five times faster in Checked than in Debug, and Debug stays unoptimized for the debugger.
-- `-m Core,Physics` gives the test modules, separated by commas. The default is all nine: Core, Simulation, Physics, Rendering, Host, Unions (the tests of the union generator), Style (the tests of the style analyzer), Slop (the tests of the slop metrics) and Blender (the tests of the build tool of scripted models, see "Scripted models in Blender"). Blender is no .NET project: it runs once, after the .NET tests, in the assets shell, and it ignores `-c` and the arguments after `--`. Its line reads `Blender: total 33, failed 0`, and its log is `<folder>/blender.log`.
+- `-m Core,Physics` gives the test modules, separated by commas. The default is all eight: Core, Simulation, Physics, Rendering, Host, Unions (the tests of the union generator), Style (the tests of the style analyzer) and Slop (the tests of the slop metrics).
 - `-j <runs>` gives the most test processes that run at once. The default, 0, runs every configuration and module at once.
 - `-o <folder>` gives the folder for the logs. The default is a new temporary folder, and the first line of the output names it. The script writes `<folder>/<configuration>/build.log` and one `<folder>/<configuration>/<module>.log` with the full test output of each module.
 - Everything after `--` goes to each `dotnet test` command unchanged, for example a filter:
@@ -347,14 +347,6 @@ parts = mpfb.freeze(body)
 - `mpfb.human` takes MPFB's own human description, as MPFB saves it in a human preset `.json` file: `phenotype` (the macro sliders), `targets` (the detail targets), `rig`, `skin_mhmat`, `eyes`, `eyebrows`, `eyelashes`, `teeth`, `tongue`, `hair` and `alternative_materials` (another eye color). An asset is named by its folder and file in the asset pack, such as `afro01/afro01.mhclo`. An asset or a detail target that MPFB does not hold by that name stops the build with an error that names it, and so does a key that MPFB's presets lack. The skin and eye material types are `MAKESKIN`, the only kind that `mpfb.freeze` rewires for glTF, and any other type stops the build.
 - `mpfb.freeze` applies the pose, the shape keys and the helper mask, removes the rig and returns plain meshes by part name: `Body`, `Eyes`, `Eyebrows`, `Eyelashes`, `Teeth`, `Tongue` and `Hair`. Each keeps the vertex groups of the bones, for the garment scripts.
 - MPFB writes its logs into Blender's user resource folder. `mpfb.services()` stops with an error unless `BLENDER_USER_RESOURCES` names a folder, and the build tool and the bridge set it. If you start Blender by hand for a test, set it to a scratch folder.
-
-### The tests
-
-```bash
-nix develop .#assets --command python3 -m unittest discover -s tools/blender/tests -p "test_*.py"
-```
-
-`tools/test-all.sh` runs them too, as the module Blender. The tests build `crate.model` twice, once with views. They check the piece mark, the node names and the baked maps. They also check that the `.glb` holds no camera and no light, and that the two `.glb` files are the same bytes. Other tests check each exit code, a signal, the attachment check, the view check, a material that two bake objects share, the stage and its settings, the library check of the bridge and the free space that a build needs. `test_mpfb.py` checks that MPFB's sliders make the bodies that an independent copy of its formula predicts, the frozen human and the same meshes from two Blenders, the errors of `mpfb.human` and `mpfb.pose` on a wrong description or pose, detail targets, eye colors, a human without a rig, and the refusal without a user resource folder. All the tests start Blender 30 times and take about 100 seconds, `test_mpfb.py` alone about 20 (measured on 2026-10-26, while other agents built).
 
 ## Git hooks
 

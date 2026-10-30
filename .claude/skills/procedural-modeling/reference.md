@@ -161,7 +161,7 @@ nix develop .#assets --command bash -c 'BLENDER_USER_RESOURCES=<scratch>/user "$
 | `cupsize` | Smallest | Average | Largest | The breasts. MPFB does not weigh them by gender, so keep 0.5 for a man. |
 | `firmness` | Least | Average | Most | The breasts, as `cupsize` |
 
-`race` holds the shares of `african`, `asian` and `caucasian`. They weigh the race targets and should sum to 1. MPFB's default is 0.33 each. The test `tools/blender/tests/test_mpfb.py` checks MPFB's slider formula against an independent copy, `mpfb_reference.py`, which shows how each slider weighs its targets.
+`race` holds the shares of `african`, `asian` and `caucasian`. They weigh the race targets and should sum to 1. MPFB's default is 0.33 each.
 
 ### The detail targets
 
