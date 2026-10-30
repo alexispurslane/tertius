@@ -1,1 +1,1 @@
-{"erosion":0.3455501906849144,"verbosity":0.04739876165397481,"sloc":42153,"branch":"ter-yiii-gpu-timers","source":"pre-commit","measured":"2026-10-25T01:49:53.880727+00:00"}
+{"erosion":0.3455501906849144,"verbosity":0.04739876165397481,"highCcMass":12416.812634766033,"highCcFunctionCount":91,"verboseLines":1998,"sloc":42153,"branch":"ter-yiii-gpu-timers","source":"pre-commit","measured":"2026-10-25T01:49:53.880727+00:00"}
