@@ -65,30 +65,45 @@ public sealed record PushSummary
     public string Describe()
     {
         var text = new StringBuilder();
-        if (LastPush is not { } last)
-        {
-            text.AppendLine(
-                CultureInfo.InvariantCulture,
-                $"slop now: erosion {Now.Erosion:F4}, verbosity {Now.Verbosity:F4}, sloc {Now.Sloc} (no note before the push to compare with)."
-            );
-            AppendCounts(text, null, Now);
+        text.AppendLine(
+            LastPush is null
+                ? "Project metrics (no note before the push to compare with):"
+                : "Project metrics since the last push:"
+        );
+        AppendMetric(
+            text: text,
+            name: "Erosion",
+            now: Now.Erosion,
+            before: LastPush?.Erosion,
+            counts:
+            [
+                Absolute(name: "high CC mass", now: Now.HighCcMass, before: LastPush?.HighCcMass, format: "0.0"),
+                Absolute(
+                    name: "high CC functions",
+                    now: Now.HighCcFunctionCount,
+                    before: LastPush?.HighCcFunctionCount,
+                    format: "0"
+                ),
+            ]
+        );
+        AppendMetric(
+            text: text,
+            name: "Verbosity",
+            now: Now.Verbosity,
+            before: LastPush?.Verbosity,
+            counts:
+            [
+                Absolute(name: "verbose lines", now: Now.VerboseLines, before: LastPush?.VerboseLines, format: "0"),
+            ]
+        );
+        if (Now.ClassMetrics is { } metrics)
+            foreach (string line in metrics.DescribeAgainst(LastPush?.ClassMetrics).Split('\n'))
+                text.AppendLine($"  {line}");
+        else
+            text.AppendLine("  Class metrics unavailable (legacy note)");
+        text.AppendLine($"  {Absolute(name: "SLOC", now: Now.Sloc, before: LastPush?.Sloc, format: "0")}");
+        if (LastPush is null)
             return text.ToString();
-        }
-
-        text.AppendLine("slop since the last push:");
-        text.AppendLine(
-            CultureInfo.InvariantCulture,
-            $"  erosion    {last.Erosion:F4} -> {Now.Erosion:F4}  {Now.Erosion - last.Erosion:+0.0000;-0.0000;+0.0000}"
-        );
-        text.AppendLine(
-            CultureInfo.InvariantCulture,
-            $"  verbosity  {last.Verbosity:F4} -> {Now.Verbosity:F4}  {Now.Verbosity - last.Verbosity:+0.0000;-0.0000;+0.0000}"
-        );
-        text.AppendLine(
-            CultureInfo.InvariantCulture,
-            $"  sloc       {last.Sloc} -> {Now.Sloc}  {Now.Sloc - last.Sloc:+0;-0;+0}"
-        );
-        AppendCounts(text, last, Now);
         AppendRaises(text: text, metric: "high CC mass", raises: HighCcMassRaises, changeFormat: "+0.0;-0.0;+0.0");
         AppendRaises(text: text, metric: "verbose lines", raises: VerboseLineRaises, changeFormat: "+0;-0;+0");
         return text.ToString();
@@ -102,59 +117,32 @@ public sealed record PushSummary
                 .Take(RaiseCount),
         ];
 
-    private static void AppendCounts(StringBuilder text, SlopNote? before, SlopNote now)
-    {
-        if (now.ClassMetrics is { } metrics)
-            text.AppendLine(metrics.DescribeAgainst(before?.ClassMetrics));
-        else
-            text.AppendLine("Class metrics unavailable (legacy note)");
-        AppendAbsolute(
-            text: text,
-            name: "high CC mass",
-            before: before?.HighCcMass,
-            now: now.HighCcMass,
-            valueFormat: "0.0",
-            changeFormat: "+0.0;-0.0;+0.0"
-        );
-        AppendAbsolute(
-            text: text,
-            name: "high CC functions",
-            before: before?.HighCcFunctionCount,
-            now: now.HighCcFunctionCount,
-            valueFormat: "0",
-            changeFormat: "+0;-0;+0"
-        );
-        AppendAbsolute(
-            text: text,
-            name: "verbose lines",
-            before: before?.VerboseLines,
-            now: now.VerboseLines,
-            valueFormat: "0",
-            changeFormat: "+0;-0;+0"
-        );
-    }
-
-    private static void AppendAbsolute(
+    private static void AppendMetric(
         StringBuilder text,
         string name,
+        double now,
         double? before,
-        double? now,
-        string valueFormat,
-        string changeFormat
+        params string?[] counts
     )
     {
-        if (now is not { } value)
-            return;
-        string shown = value.ToString(valueFormat, CultureInfo.InvariantCulture);
-        if (before is not { } previous)
-        {
-            text.AppendLine($"  {name} {shown}");
-            return;
-        }
+        text.Append(CultureInfo.InvariantCulture, $"  {name} {now:F4}");
+        if (before is { } previous)
+            text.Append(CultureInfo.InvariantCulture, $" ({now - previous:+0.0000;-0.0000;+0.0000})");
+        string absolute = string.Join("; ", counts.OfType<string>());
+        if (absolute.Length > 0)
+            text.Append($" ({absolute})");
+        text.AppendLine();
+    }
 
-        string old = previous.ToString(valueFormat, CultureInfo.InvariantCulture);
-        string change = (value - previous).ToString(changeFormat, CultureInfo.InvariantCulture);
-        text.AppendLine($"  {name} {old} -> {shown}  {change}");
+    private static string? Absolute(string name, double? now, double? before, string format)
+    {
+        if (now is not { } value)
+            return null;
+        string shown = value.ToString(format, CultureInfo.InvariantCulture);
+        if (before is not { } previous)
+            return $"{name} {shown}";
+        string change = (value - previous).ToString($"+{format};-{format};+{format}", CultureInfo.InvariantCulture);
+        return $"{name} {shown} [{change}]";
     }
 
     private static void AppendRaises(

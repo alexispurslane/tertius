@@ -3,11 +3,11 @@ using AwesomeAssertions;
 
 namespace Tertius.Slop.Tests;
 
-/// <summary>The staged commit report shows absolute slop counts and changes against a known baseline.</summary>
+/// <summary>The staged commit report leads with touched findings and ends with project ratios.</summary>
 public sealed class CommitReportTests
 {
     [Fact]
-    public async Task TheCommitReportShowsAbsoluteChangesWithoutInventingValuesForOldNotes()
+    public async Task TheCommitReportShowsTouchedFindingsBeforeTheProjectAddendum()
     {
         string root = Directory.GetCurrentDirectory();
         while (!File.Exists(Path.Combine(root, "tools", "commit_report.py")))

@@ -6,20 +6,17 @@ commit: it is a report.
 - Length: every compile writes its diagnostics to obj/<configuration>/<framework>/analyzers.sarif
   (Directory.Build.targets), and the pre-commit hook builds Checked. The script reads MA0051 (method length) from the
   projects of the staged files and prints each one whose method holds a changed line, in src and in tests.
-- Erosion, verbosity and their absolute counts: with --slop <file>, the script reads the report that `Tertius.Slop measure --details <file>`
-  wrote for the staged tree (tools/README.md, "Slop metrics"). It prints each metric of src, with its change against the
-  baseline of the details: the note of the nearest noted commit up to HEAD on the first-parent line, by the rule of the
-  push summary. That is the parent of a new commit, or an older commit when the parent has no note. In a
-  `git commit --amend`, HEAD is the commit that the amend replaces. Under the erosion, it names each function with a CC
-  above the limit that holds a changed line. Under the verbosity, it names each finding of a rule and each clone that
-  holds a changed line. Each metric prints even when the commit changes no C# file. Without --slop, as when the
-  measure failed or a test failed, both sections are left out.
+- With --slop <file>, the report lists touched functions above the complexity limit, verbosity-rule findings and
+  clones from `Tertius.Slop measure --details <file>`. Findings do not depend on a change in a project ratio.
+- After the findings and refactoring prompt, a compact addendum shows project erosion, verbosity, TCC and depth,
+  with comparable ratio changes. It names the baseline once: the nearest noted commit up to HEAD on the first-parent
+  line. In `git commit --amend`, HEAD is the commit that the amend replaces. Without --slop, the addendum is omitted.
 
 The slop metrics measure only src, because test code repeats its setup on purpose, so that each test reads on its own,
 and a test's branches are its checks. So tests/ gets the length list only.
 
-When the report names anything, it ends with a prompt to refactor what the commit touches. The code improves a little
-at each change that passes through it, not all at once and not never.
+When the report names anything, it prints a prompt to refactor what the commit touches, before the addendum.
+The code improves a little at each change that passes through it, not all at once and not never.
 
 A changed line is a line that the staged diff adds or edits. A deletion counts as a change of the line after it, so
 that a deletion inside a function changes the function, and a deletion of the lines that follow a function leaves the
@@ -161,13 +158,16 @@ def report_length(changed):
     return True
 
 
-def metric_line(name, metric, value, baseline, digits=4):
-    """The value of a metric of the staged tree, with its change against the baseline's note when there is one."""
-    if baseline is None or metric not in baseline["note"]:
-        return f"{name} {value:.{digits}f}"
-    # Rounded first, so that a change below the last shown digit prints as +0.0000, not as -0.0000.
-    change = round(value - baseline["note"][metric], digits) + 0.0
-    return f"{name} {value:.{digits}f} ({change:+.{digits}f} against {baseline['commit']}, the nearest noted commit up to HEAD)"
+def metric_line(name, value, before=None):
+    """A project ratio and its comparable change, with no invented value for missing data."""
+    if value is None:
+        return f"{name} n/a"
+    line = f"{name} {value:.4f}"
+    if before is not None:
+        # Rounded first, so a change below the last shown digit does not print as -0.0000.
+        change = round(value - before, 4) + 0.0
+        line += f" ({change:+.4f})"
+    return line
 
 
 def place(item):
@@ -180,82 +180,66 @@ def changes(changed, item):
     return touches(changed.get(item["file"], ()), item["line"], item["endLine"])
 
 
-def report_erosion(changed, erosion, baseline):
-    """Prints the erosion and the functions above the CC limit that hold a changed line. True if it named any."""
-    print(metric_line("Erosion", "erosion", erosion["erosion"], baseline))
-    print(metric_line("High CC mass", "highCcMass", erosion["highCcMass"], baseline, digits=1))
-    print(metric_line("High CC functions", "highCcFunctionCount", erosion["highCcFunctionCount"], baseline, digits=0))
+def report_erosion(changed, erosion):
+    """Prints touched functions above the CC limit. True if it named any."""
     limit = erosion["complexityLimit"]
     functions = [f for f in erosion["highCcFunctions"] if changes(changed, f)]
     if not functions:
         return False
-    print(f"  {len(functions)} changed function(s) have a CC above {limit}, the greatest mass first:")
+    print(f"Complexity: {len(functions)} touched function(s) have CC above {limit}, greatest mass first:")
     for f in functions:
         print(f"    {f['file']}:{f['line']} {f['name']}: CC {f['cc']}, SLOC {f['sloc']}, mass {f['mass']:.1f}")
     print(f"  A split that brings such a function to CC {limit} or less lowers the erosion.")
     return True
 
 
-def report_verbosity(changed, verbosity, baseline):
-    """Prints the verbosity, and the findings and clones that hold a changed line. True if it named any."""
-    print(metric_line("Verbosity", "verbosity", verbosity["verbosity"], baseline))
-    print(metric_line("Verbose lines", "verboseLines", verbosity["verboseLines"], baseline, digits=0))
+def report_verbosity(changed, verbosity):
+    """Prints touched rule findings and clone pairs. True if it named any."""
     messages = {rule["id"]: rule["message"] for rule in verbosity["rules"]}
     findings = [f for f in verbosity["findings"] if changes(changed, f)]
     clones = [c for c in verbosity["clones"] if changes(changed, c["first"]) or changes(changed, c["second"])]
     if findings:
-        print(f"  {len(findings)} finding(s) of the verbosity rules cover changed lines:")
+        print(f"Verbosity: {len(findings)} rule finding(s) cover changed lines:")
         for f in findings:
             print(f"    {place(f)} {f['rule']}: {messages[f['rule']]}")
     if clones:
-        print(f"  {len(clones)} clone(s) hold changed lines:")
+        print(f"Duplication: {len(clones)} clone pair(s) hold changed lines:")
         for c in clones:
             print(f"    {place(c['first'])} and {place(c['second'])}")
     return bool(findings or clones)
 
 
 def report_classes(metrics, baseline):
-    """Prints pooled TCC and depth with raw counts, without class-specific findings."""
+    """Prints pooled TCC and depth ratios, then limitations on their interpretation."""
     if not metrics:
-        print("Type metrics unavailable (legacy report)")
+        print("  Type metrics unavailable (legacy report)")
         return
     now = metrics["summary"]
     before = (baseline or {}).get("note", {}).get("classMetrics")
     comparable = before and before.get("provenance") == now.get("provenance")
-    print(f"Type metrics {now['provenance']['version']}")
+    for key, label in (("tcc", "TCC"), ("depth", "Depth")):
+        count = now.get(key)
+        if count is None:
+            print(f"  {label} unavailable (legacy report)")
+            continue
+        previous = before.get(key) if comparable else None
+        print("  " + metric_line(label, count.get("ratio"), previous.get("ratio") if previous else None))
     if now.get("bindingErrorCount", 0):
         print(f"  Binding errors: {now['bindingErrorCount']}; counts use available symbols (see details).")
     if before and not comparable:
         print("  No type metric deltas: configuration differs.")
-    for key, label, units, numerator, denominator in (
-        ("tcc", "TCC", "shared/possible method pairs", "shared pairs", "possible pairs"),
-        ("depth", "Depth", "WMC/API entries", "WMC", "API entries"),
-    ):
-        count = now.get(key)
-        if count is None:
-            print(f"{label} unavailable (legacy report)")
-            continue
-        ratio = count.get("ratio")
-        shown = f"{ratio:.4f}" if ratio is not None else "n/a"
-        line = f"{label} {shown} ({count['numerator']}/{count['denominator']} {units})"
-        previous = before.get(key) if comparable else None
-        if previous:
-            if ratio is not None and previous.get("ratio") is not None:
-                change = round(ratio - previous["ratio"], 4) + 0.0
-                line += f" ({change:+.4f} against {baseline['commit']})"
-            line += (f" ({numerator} {count['numerator'] - previous['numerator']:+d}, "
-                     f"{denominator} {count['denominator'] - previous['denominator']:+d})")
-        print(line)
 
 
-def report_slop(changed, details):
-    """Prints the erosion and the verbosity of the staged tree from the measure's details file. True if it named any."""
-    details = json.loads(Path(details).read_text())
+def report_summary(details):
+    """Prints the project ratios as an addendum, naming their common baseline once."""
     report, baseline = details["report"], details["baseline"]
-    named = report_erosion(changed, report["erosion"], baseline)
-    named = report_verbosity(changed, report["verbosity"], baseline) or named
+    comparison = (f"changes against {baseline['commit']}, the nearest noted commit up to HEAD"
+                  if baseline else "no baseline note")
+    print(f"\nProject metrics ({comparison}):")
+    before = baseline["note"] if baseline else {}
+    for key, label in (("erosion", "Erosion"), ("verbosity", "Verbosity")):
+        print("  " + metric_line(label, report[key][key], before.get(key)))
     report_classes(report.get("classMetrics"), baseline)
-    return named
 
 
 def main():
@@ -264,8 +248,14 @@ def main():
     arguments = parser.parse_args()
     changed = changed_lines()
     reports = [report_length]
+    details = None
     if arguments.slop:
-        reports.append(lambda lines: report_slop(lines, arguments.slop))
+        try:
+            details = json.loads(Path(arguments.slop).read_text())
+            reports.extend((lambda lines: report_erosion(lines, details["report"]["erosion"]),
+                            lambda lines: report_verbosity(lines, details["report"]["verbosity"])))
+        except Exception as error:  # a failed measure does not suppress the length report
+            print(f"the commit report failed: {error}", file=sys.stderr)
     reported = False
     for report in reports:
         try:
@@ -274,6 +264,11 @@ def main():
             print(f"the commit report failed: {error}", file=sys.stderr)
     if reported:
         print(REFACTOR_PROMPT)
+    if details is not None:
+        try:
+            report_summary(details)
+        except Exception as error:  # a summary failure does not suppress the findings or prompt
+            print(f"the commit report failed: {error}", file=sys.stderr)
 
 
 if __name__ == "__main__":

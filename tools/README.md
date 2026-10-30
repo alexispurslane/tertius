@@ -359,13 +359,17 @@ The pre-commit hook runs on every commit that stages C# files or projects. A com
 1. It builds the projects that the commit changes and the test projects that test them, incrementally. The build runs every analyzer, and an error stops the commit.
 2. It runs the tests of the changed code in Checked, one process per test project, in parallel. A failed test stops the commit, after the length part of the commit report (step 4). The hook skips a test project that has a test record for the staged code ("The test record" below).
 3. It measures the slop metrics of the staged tree with `tools/Tertius.Slop measure --details`, in parallel with the tests. After the tests pass, it leaves the note in the file `slop-pending` of the worktree's git folder. The metrics never stop the commit.
-4. After the measure ends, it prints the commit report (`tools/commit_report.py`) for the changed lines only. The report never stops the commit. It has four parts:
-   - Length: the methods over the length limit (MA0051), in `src` and in `tests`.
-   - Erosion: the erosion, high CC mass and count of functions above CC 10, with each change against the baseline when it has that value. Under them, each function that holds a changed line and has a CC above 10, with its file, line, name, CC, SLOC and mass, the greatest mass first. A split that brings such a function to CC 10 or less lowers the erosion.
-   - Verbosity: the verbosity and the number of verbose lines, with each change against the baseline when it has that value. Under them, each finding of a rule that covers a changed line, with the rule's message, and each clone with a changed line in either copy, with both places.
-   - Type metrics: pooled TCC and depth, with shared/possible pairs and WMC/API-entry counts and changes. Binding errors are reported and incompatible counting/reference provenance suppresses changes. This section adds no type-specific findings.
+4. After the measure ends, it prints the commit report (`tools/commit_report.py`). The report never stops the commit. Findings come first and name only code touched by the commit:
+   - Length: methods over the length limit (MA0051), in `src` and `tests`.
+   - Complexity: functions that hold a changed line and have cyclomatic complexity (CC) above 10, with file, line, name, CC, source lines of code (SLOC) and high CC mass. The greatest mass comes first.
+   - Verbosity: each rule finding that covers a changed line, with its message.
+   - Duplication: each clone pair with a changed line in either copy, with both locations.
 
-   The baseline is the nearest commit up to HEAD on the first-parent line that has a note, the rule of the push summary, and the report names it. That is the parent of a new commit, or an older commit when the parent has no note, as after a commit that changed only tickets or docs. In `git commit --amend`, HEAD is the commit that the amend replaces. Without a noted commit, or without an absolute count in an older note, the affected value shows without a change. Every value of the staged tree prints, also when the commit changes no C# file. A section names no code when the commit touches none. If the measure fails, the hook prints why, and the report leaves out the erosion and the verbosity. If the report names any code, it ends with a prompt to refactor that code in the same commit. A failed test prints the length part only, and then stops the commit.
+   Any finding triggers the refactoring prompt, even when project ratios are flat or falling. The prompt comes before a compact project addendum: erosion, verbosity, tight class cohesion (TCC) and depth, each with a comparable ratio change. Project absolute counts belong in the push summary. TCC and depth have no agreed finding thresholds, so they add no type-specific warnings.
+
+   The addendum names its baseline once: the nearest commit up to HEAD on the first-parent line that has a note. That is the parent of a new commit, or an older commit when the parent has no note. In `git commit --amend`, HEAD is the commit being replaced. A missing baseline gives no change. Missing legacy type data is unavailable; a measured empty denominator is `n/a`. Different counting/reference provenance suppresses type-metric changes. Binding and provenance warnings follow the ratios.
+
+   When no finding touches changed code, the report shows only the addendum and no refactoring prompt. If the measurement fails, the length report still runs. A summary failure cannot suppress a prompt for findings already printed. A failed test prints the length part only, and then stops the commit.
 
 The tests of the changed code are:
 
@@ -412,18 +416,18 @@ The post-commit hook attaches the pending slop note to the new commit, under `re
 The pre-push hook does two things:
 
 1. It runs `tools/cleanup.sh` on the C# files that the pushed commits change. If the cleanup changes a file, the hook builds the solution and commits the result as "Clean up code before push". Then it stops the push, because git chose the commits to push before the hook ran. Push again to send the cleanup commit too. If the cleanup fails, or the cleaned code does not build, the push stops and the changes stay uncommitted.
-2. It updates the slop history, and it never stops the push. For each pushed branch, it notes the pushed tip. It also notes each commit since the last push that changes C# code under `src` and has no note. Then it prints the ratios and absolute counts at the last push against now. It ranks commits by their increase in high CC mass or verbose lines, even if a ratio fell. Last, it merges the remote's notes into `refs/notes/slop` and pushes them to the same remote.
+2. It updates the slop history, and it never stops the push. For each pushed branch, it notes the pushed tip. It also notes each commit since the last push that changes C# code under `src` and has no note. Then it leads with each current project ratio and its change since the last push, with constituent absolute counts and their changes in parentheses on the same line. It ranks commits by their increase in high CC mass or verbose lines, even if a ratio fell. Last, it merges the remote's notes into `refs/notes/slop` and pushes them to the same remote.
 
-A sample of the summary:
+An illustrative summary (counts are examples):
 
 ```text
-pre-push: slop since the last push:
-pre-push:   erosion    0.3591 -> 0.3648  +0.0057
-pre-push:   verbosity  0.0354 -> 0.0363  +0.0009
-pre-push:   sloc       34484 -> 34450  -34
-pre-push:   high CC mass 12041.5 -> 12060.2  +18.7
-pre-push:   high CC functions 92 -> 93  +1
-pre-push:   verbose lines 1250 -> 1261  +11
+pre-push: Project metrics since the last push:
+pre-push:   Erosion 0.3648 (+0.0057) (high CC mass 12060.2 [+18.7]; high CC functions 93 [+1])
+pre-push:   Verbosity 0.0363 (+0.0009) (verbose lines 1261 [+11])
+pre-push:   TCC 0.4000 (+0.1500) (2/5 shared/possible method pairs; shared pairs +1, possible pairs +1)
+pre-push:   Depth 2.0000 (+0.0000) (8/4 WMC/API entries; WMC +2, API entries +1)
+pre-push:   Type metrics type-metrics-v2
+pre-push:   SLOC 34450 [-34]
 pre-push: the commits that raised the high CC mass the most:
 pre-push:   +18.7  c774e05  ter-m0db  Merge the generated unions of Demo (ter-m0db)
 pre-push: the commits that raised the verbose lines the most:

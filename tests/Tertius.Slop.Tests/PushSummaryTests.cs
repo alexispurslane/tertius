@@ -21,9 +21,9 @@ public sealed class PushSummaryTests
         summary
             .Describe()
             .Should()
-            .Contain("erosion    0.3650 -> 0.3710  +0.0060")
-            .And.Contain("verbosity  0.0360 -> 0.0350  -0.0010")
-            .And.Contain("sloc       34450 -> 34500  +50");
+            .Contain("Erosion 0.3710 (+0.0060)")
+            .And.Contain("Verbosity 0.0350 (-0.0010)")
+            .And.Contain("SLOC 34500 [+50]");
     }
 
     [Fact]
@@ -203,9 +203,8 @@ public sealed class PushSummaryTests
         string text = PushSummary.Of(lastPush: before, now: after, pushed: []).Describe();
 
         text.Should()
-            .Contain("high CC mass 100.0 -> 120.0  +20.0")
-            .And.Contain("high CC functions 10 -> 12  +2")
-            .And.Contain("verbose lines 30 -> 40  +10");
+            .Contain("Erosion 0.2500 (-0.0500) (high CC mass 120.0 [+20.0]; high CC functions 12 [+2])")
+            .And.Contain("Verbosity 0.0300 (-0.0100) (verbose lines 40 [+10])");
     }
 
     [Fact]
@@ -256,6 +255,42 @@ public sealed class PushSummaryTests
             .And.Contain("verbose lines 40")
             .And.NotContain("high CC mass 0.0 ->")
             .And.NotContain("the commits that raised the high CC mass");
+    }
+
+    [Fact]
+    public void AllFourRatiosLeadWithTheirChangesBeforeTheCountsAndWarnings()
+    {
+        SlopNote now = SlopNoteTests.Note(0.25, 0.03) with
+        {
+            ClassMetrics = new(
+                Provenance: new("v1", "refs"),
+                Tcc: new(2, 5),
+                TypeCount: 2,
+                BindingErrorCount: 7,
+                Depth: new(8, 4)
+            ),
+        };
+        SlopNote before = now with { ClassMetrics = now.ClassMetrics with { Tcc = new(1, 4), Depth = new(6, 3) } };
+
+        string text = PushSummary.Of(lastPush: before, now: now, pushed: []).Describe();
+
+        text.Should()
+            .StartWith("Project metrics since the last push:")
+            .And.Contain("TCC 0.4000 (+0.1500) (2/5 shared/possible method pairs; shared pairs +1, possible pairs +1)")
+            .And.Contain("Depth 2.0000 (+0.0000) (8/4 WMC/API entries; WMC +2, API entries +1)");
+        text.IndexOf("Erosion", StringComparison.Ordinal)
+            .Should()
+            .BeLessThan(text.IndexOf("Verbosity", StringComparison.Ordinal));
+        text.IndexOf("Verbosity", StringComparison.Ordinal)
+            .Should()
+            .BeLessThan(text.IndexOf("TCC", StringComparison.Ordinal));
+        text.IndexOf("TCC", StringComparison.Ordinal)
+            .Should()
+            .BeLessThan(text.IndexOf("Depth", StringComparison.Ordinal));
+        text.IndexOf("Depth", StringComparison.Ordinal)
+            .Should()
+            .BeLessThan(text.IndexOf("Binding errors", StringComparison.Ordinal));
+        text.Split("Binding errors").Length.Should().Be(2);
     }
 
     private static SlopNote AbsoluteNote(

@@ -204,7 +204,7 @@ public sealed class ClassHistoryTests
 
         now.DescribeAgainst(before)
             .Should()
-            .Contain("Depth 1.0000 (2/2 WMC/API entries) (+0.0000) (WMC +1, API entries +1)");
+            .Contain("Depth 1.0000 (+0.0000) (2/2 WMC/API entries; WMC +1, API entries +1)");
         now.DescribeAgainst(before with { Depth = null }).Should().NotContain("WMC +");
         (now with { Depth = null }).DescribeAgainst(before).Should().Contain("Depth unavailable (legacy note)");
     }

@@ -421,7 +421,7 @@ public sealed class HistoryCommandTests : IDisposable
         output
             .ToString()
             .Should()
-            .Contain("erosion    0.0000 -> 1.0000  +1.0000")
+            .Contain("Erosion 1.0000 (+1.0000)")
             .And.Contain($"+46.5  {complex[..7]}  ter-ab12  ter-ab12: a complex function");
     }
 
@@ -460,7 +460,7 @@ public sealed class HistoryCommandTests : IDisposable
 
         Run("summary", pushed, "HEAD");
 
-        output.ToString().Should().Contain("erosion    0.0000 -> 1.0000  +1.0000");
+        output.ToString().Should().Contain("Erosion 1.0000 (+1.0000)");
     }
 
     [Fact]

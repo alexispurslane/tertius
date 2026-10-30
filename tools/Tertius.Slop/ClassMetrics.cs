@@ -59,11 +59,7 @@ public sealed record ClassMetricSummary(
     public string DescribeAgainst(ClassMetricSummary? before)
     {
         bool comparable = before?.Provenance == Provenance;
-        var lines = new List<string> { $"Type metrics {Provenance.Version}" };
-        if (BindingErrorCount > 0)
-            lines.Add($"Binding errors: {BindingErrorCount}; counts use available symbols (see details).");
-        if (before is not null && !comparable)
-            lines.Add("No type metric deltas: configuration differs.");
+        var lines = new List<string>();
         lines.Add(
             DescribeCount(
                 name: "TCC",
@@ -87,6 +83,11 @@ public sealed record ClassMetricSummary(
             );
         else
             lines.Add("Depth unavailable (legacy note)");
+        lines.Add($"Type metrics {Provenance.Version}");
+        if (BindingErrorCount > 0)
+            lines.Add($"Binding errors: {BindingErrorCount}; counts use available symbols (see details).");
+        if (before is not null && !comparable)
+            lines.Add("No type metric deltas: configuration differs.");
         return string.Join('\n', lines);
     }
 
@@ -99,13 +100,14 @@ public sealed record ClassMetricSummary(
         string denominator
     )
     {
-        string line = $"{name} {Show(count)} ({count.Numerator}/{count.Denominator} {units})";
-        if (before is null)
-            return line;
-        if (count.Ratio is { } ratio && before.Ratio is { } oldRatio)
+        string line = $"{name} {Show(count)}";
+        if (count.Ratio is { } ratio && before?.Ratio is { } oldRatio)
             line += string.Create(CultureInfo.InvariantCulture, $" ({ratio - oldRatio:+0.0000;-0.0000;+0.0000})");
-        return line
-            + $" ({numerator} {count.Numerator - before.Numerator:+0;-0;+0}, {denominator} {count.Denominator - before.Denominator:+0;-0;+0})";
+        line += $" ({count.Numerator}/{count.Denominator} {units}";
+        if (before is not null)
+            line +=
+                $"; {numerator} {count.Numerator - before.Numerator:+0;-0;+0}, {denominator} {count.Denominator - before.Denominator:+0;-0;+0}";
+        return line + ")";
     }
 
     public static string Show(ClassRatio count) =>
