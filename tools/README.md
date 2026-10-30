@@ -367,7 +367,7 @@ The pre-commit hook runs on every commit that stages C# files or projects. A com
 
    Any finding triggers the refactoring prompt, even when project ratios are flat or falling. The prompt comes before a compact project addendum: erosion, verbosity, tight class cohesion (TCC) and depth, each with a comparable ratio change. Project absolute counts belong in the push summary. TCC and depth have no agreed finding thresholds, so they add no type-specific warnings.
 
-   The addendum names its baseline once: the nearest commit up to HEAD on the first-parent line that has a note. That is the parent of a new commit, or an older commit when the parent has no note. In `git commit --amend`, HEAD is the commit being replaced. A missing baseline gives no change. Missing legacy type data is unavailable; a measured empty denominator is `n/a`. Different counting/reference provenance suppresses type-metric changes. Binding and provenance warnings follow the ratios.
+   The addendum names its baseline once: the nearest commit up to HEAD on the first-parent line that has a note. That is the parent of a new commit, or an older commit when the parent has no note. In `git commit --amend`, HEAD is the commit being replaced. A missing baseline gives no change. Missing legacy type data is unavailable; a measured empty denominator is `n/a`. Different counting/reference provenance suppresses type-metric changes. Applicability populations, incomplete evidence, binding warnings and provenance warnings follow the ratios.
 
    When no finding touches changed code, the report shows only the addendum and no refactoring prompt. If the measurement fails, the length report still runs. A summary failure cannot suppress a prompt for findings already printed. A failed test prints the length part only, and then stops the commit.
 
@@ -426,7 +426,11 @@ pre-push:   Erosion 0.3648 (+0.0057) (high CC mass 12060.2 [+18.7]; high CC func
 pre-push:   Verbosity 0.0363 (+0.0009) (verbose lines 1261 [+11])
 pre-push:   TCC 0.4000 (+0.1500) (2/5 shared/possible method pairs; shared pairs +1, possible pairs +1)
 pre-push:   Depth 2.0000 (+0.0000) (8/4 WMC/API entries; WMC +2, API entries +1)
-pre-push:   Type metrics type-metrics-v2
+pre-push:   Cohesion types: 3 included, 2 not applicable, 1 incomplete.
+pre-push:   Cohesion excludes incomplete evidence; known counts remain in type details.
+pre-push:   Depth types: 3 included, 3 not applicable; declaration-only API entries excluded.
+pre-push:   Unresolved state access locations: 1 (see details).
+pre-push:   Type metrics type-metrics-v3
 pre-push:   SLOC 34450 [-34]
 pre-push: the commits that raised the high CC mass the most:
 pre-push:   +18.7  c774e05  ter-m0db  Merge the generated unions of Demo (ter-m0db)

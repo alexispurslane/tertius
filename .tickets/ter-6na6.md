@@ -88,3 +88,21 @@ Parent review added 12 edge cases. Four initial assertions failed for the intend
 The resulting full Checked coverage run passed 579 tests. Before formatting, InstanceStateAccess line coverage was 95.40229885057471% and branch coverage 91.875%; ClassAnalysis was 100% lines and 98.83720930232558% branches. The remaining gaps are compiler recovery syntax and defensive checks for missing accessor associations/conditional parents. Standard Roslyn operation trees preserve those associations; malformed binding and missing accessor behavior have public regression tests. The associated-symbol and conditional-parent fallback comments explain their retention. Reproduction logs and XML reports are under /tmp/ter-6na6-coverage*. A final formatted-source report follows below.
 
 Four additional valid hand mutations were caught by assertion failures: analyze interface contract bodies as executable state access; ignore unresolved self indexing; ignore unresolved conditional method binding; and discard a resolved explicit interface implementation. No valid mutant survived or timed out. One initial indexer mutation was rejected by IDE0059 for an unused pattern variable, so it was corrected and rerun; that build rejection is not counted as a kill. All source bytes were restored after each run. Logs: /tmp/ter-6na6-parent-mutation-*.log.
+
+
+## Parent verification and reference refresh
+
+Final formatted-source coverage passed all 579 Slop tests. ClassAnalysis has 100% line coverage and 98.83720930232558% branch coverage. InstanceStateAccess has 94.44444444444444% line coverage and 91.875% branch coverage. ClassMetricSummary has 100% line coverage and 95.65217391304348% branch coverage. The formatted report is `/tmp/ter-6na6-coverage-formatted.cobertura.xml`. Remaining uncovered InstanceStateAccess lines concern Roslyn syntax recovery or defensive missing-association/conditional-parent paths described above. Total valid hand mutations: 21, all caught by assertions.
+
+Full integration ran through `nix develop --command bash tools/test-all.sh -j 3 -o /tmp/ter-6na6-integration` and exited zero. All eight modules passed in both configurations:
+
+| Configuration | Passed | Failed | Skipped |
+|---|---:|---:|---:|
+| Checked | 9440 | 0 | 14 |
+| Release | 9427 | 0 | 14 |
+
+The skips are existing platform/explicit filters: Physics 8, Rendering 1 and Host 5 per configuration. Slop passed all 579 cases in each configuration. The Python report suite passed all 19 cases during implementation.
+
+Remeasured all six pinned external source populations and unchanged Tertius engine source with the Release counter at `b39a94c226906ddc7919f4ef12801e23236d52b9`. All 1,204 external included source hashes match their v2 manifests. Counting version is v3; the metadata fingerprint is unchanged. Independent arithmetic verified pooled counts, applicability populations, all type ratios and quantiles. Local document links, dataset links, source revisions, compiler-error totals and source-line totals also passed checks.
+
+The durable results are `docs/research/type-metric-reference-v3/README.md` and seven JSON datasets. `CLAUDE.md` now explains v3, including zero versus not applicable versus incomplete, updated local examples and retained pair populations. Tertius measures TCC `7494/8441`, depth `10122/3894`, and cohesion population 176 included / 752 not applicable / 46 incomplete. Its pair coverage is 82.75%; Newtonsoft.Json retains only 3.70%, so its ratio is explicitly not a project-wide quality estimate. The higher ratios arise from changed counting rules, not engine refactoring. V2 datasets and existing notes remain intact.
