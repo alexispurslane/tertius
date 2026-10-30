@@ -59,8 +59,8 @@ public sealed record ClassMetricSummary(
     public string DescribeAgainst(ClassMetricSummary? before)
     {
         bool comparable = before?.Provenance == Provenance;
-        var lines = new List<string>();
-        lines.Add(
+        var lines = new List<string>
+        {
             DescribeCount(
                 name: "TCC",
                 count: Tcc,
@@ -68,8 +68,8 @@ public sealed record ClassMetricSummary(
                 units: "shared/possible method pairs",
                 numerator: "shared pairs",
                 denominator: "possible pairs"
-            )
-        );
+            ),
+        };
         if (Depth is { } depth)
             lines.Add(
                 DescribeCount(
