@@ -27,7 +27,7 @@ internal sealed class ClassAnalysis
             references: references.References,
             options: new CSharpCompilationOptions(outputKind: OutputKind.DynamicallyLinkedLibrary, allowUnsafe: true)
         );
-        Provenance = new("type-metrics-v1", references.Fingerprint);
+        Provenance = new("type-metrics-v2", references.Fingerprint);
         foreach (SyntaxTree tree in sourceTrees)
         {
             SemanticModel model = compilation.GetSemanticModel(tree);
@@ -222,12 +222,23 @@ internal sealed class ClassAnalysis
                 ),
             ];
             foreach (IdentifierNameSyntax name in body.OfType<IdentifierNameSyntax>())
+            {
+                ExpressionSyntax expression =
+                    name.Parent is MemberAccessExpressionSyntax access && access.Name == name ? access : name;
                 if (
-                    model.GetSymbolInfo(name).Symbol is IFieldSymbol { IsStatic: false } field
-                    && IsSelfAccess(name)
+                    model.GetOperation(expression)
+                        is IFieldReferenceOperation
+                        {
+                            Field.IsStatic: false,
+                            Instance: IInstanceReferenceOperation
+                            {
+                                ReferenceKind: InstanceReferenceKind.ContainingTypeInstance
+                            }
+                        } field
                     && !IsNameOnly(name, model)
                 )
-                    fields.Add(field.ToDisplayString());
+                    fields.Add(field.Field.ToDisplayString());
+            }
         }
         return new(Member: Entry(method), Fields: [.. fields.Order(StringComparer.Ordinal)], Visible: Visible(method));
     }
@@ -239,15 +250,6 @@ internal sealed class ClassAnalysis
                 invocation.Expression is IdentifierNameSyntax { Identifier.ValueText: "nameof" }
                 && model.GetOperation(invocation) is INameOfOperation
             );
-
-    // Another object's same declared field does not establish shared state in this instance.
-    private static bool IsSelfAccess(ExpressionSyntax node) =>
-        node.Parent is not MemberBindingExpressionSyntax
-        && (
-            node.Parent is not MemberAccessExpressionSyntax access
-            || access.Name != node
-            || access.Expression is ThisExpressionSyntax or BaseExpressionSyntax
-        );
 
     private static IEnumerable<SharedStatePair> SharedPairs(StateMethod[] methods)
     {

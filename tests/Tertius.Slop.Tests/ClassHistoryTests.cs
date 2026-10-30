@@ -8,6 +8,36 @@ namespace Tertius.Slop.Tests;
 public sealed class ClassHistoryTests
 {
     [Fact]
+    public void BackfillReportsAnUnreadableNoteWithoutReplacingIt()
+    {
+        using var git = new GitFolder();
+        string commit = git.Commit("empty source");
+        git.Git("notes", "--ref=slop", "add", "-m", "keep this unknown text", commit);
+        using var output = new StringWriter();
+        using var error = new StringWriter();
+
+        int exit = Program.Run(args: ["-C", git.Root, "backfill"], output: output, error: error, jscpd: "jscpd");
+
+        exit.Should().Be(1);
+        error.ToString().Should().Contain("holds no readable note");
+        git.NoteOf(commit).Should().Be("keep this unknown text");
+    }
+
+    [Fact]
+    public void AnUnknownNoteSourceCannotBecomeMeasurementMetadata()
+    {
+        SlopNote.SourceNamed("unknown hook").Should().BeNull();
+    }
+
+    [Fact]
+    public void PartialBindingIsVisibleInTheTextSummary()
+    {
+        var summary = Report().ClassMetrics!.Summary with { BindingErrorCount = 3 };
+
+        summary.DescribeAgainst(null).Should().Contain("Binding errors: 3; counts use available symbols");
+    }
+
+    [Fact]
     public void NewNotesKeepCountsAndConfigurationWithoutTypeDetails()
     {
         var report = Report();

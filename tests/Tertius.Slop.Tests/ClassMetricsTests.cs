@@ -71,6 +71,19 @@ public sealed class ClassMetricsTests
         AssertRatio(metrics: metrics, name: "tcc", numerator: 0, denominator: 1, ratio: 0);
     }
 
+    [Theory]
+    [InlineData("class A { int x; public A F() => new A { x = 1 }; public int G() => x; }")]
+    [InlineData("record A { int x; public A F() => this with { x = 1 }; public int G() => x; }")]
+    [InlineData(
+        "class B { public int x; } class A { int state; public B F() => new B { x = 1 }; public B G() => new B { x = 2 }; }"
+    )]
+    public void InitializersChangeAnotherInstanceWithoutConnectingThisInstancesMethods(string source)
+    {
+        JsonElement metrics = Measure(source);
+
+        AssertRatio(metrics: metrics, name: "tcc", numerator: 0, denominator: 1, ratio: 0);
+    }
+
     [Fact]
     public void InheritedInstanceStateCanConnectDeclaredMethods()
     {
