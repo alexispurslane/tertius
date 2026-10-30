@@ -17,6 +17,15 @@ public sealed record SlopNote
     /// <summary>The verbosity of the tree's <c>src</c> (decision 17).</summary>
     public required double Verbosity { get; init; }
 
+    /// <summary>The mass of functions with CC above 10, or null in notes from before this measure.</summary>
+    public double? HighCcMass { get; init; }
+
+    /// <summary>The number of functions with CC above 10, or null in older notes.</summary>
+    public int? HighCcFunctionCount { get; init; }
+
+    /// <summary>The number of flagged or cloned lines, or null in older notes.</summary>
+    public int? VerboseLines { get; init; }
+
     /// <summary>The lines of code of the tree's <c>src</c>.</summary>
     public required int Sloc { get; init; }
 
@@ -31,7 +40,7 @@ public sealed record SlopNote
 
     /// <summary>The note of a tree whose <paramref name="report"/> was measured at <paramref name="measured"/>.</summary>
     public static SlopNote Of(SlopReport report, string branch, NoteSource source, DateTimeOffset measured) =>
-        new()
+        new SlopNote()
         {
             Erosion = report.Erosion.Erosion,
             Verbosity = report.Verbosity.Verbosity,
@@ -39,14 +48,37 @@ public sealed record SlopNote
             Branch = branch,
             Source = source,
             Measured = measured,
-        };
+        }.WithCounts(report);
 
     /// <summary>
-    /// The note in the text of a git note: its first line that holds a note, or null. Two clones that both noted a
-    /// commit merge their notes into two lines (decision 18), and the first line wins.
+    /// The note in the text of a git note: the first line with absolute counts, or the first readable line, or null.
+    /// Two clones can merge their notes into several lines (decisions 18 and 21).
     /// </summary>
-    public static SlopNote? Parse(string text) =>
-        text.Split('\n').Select(ParseLine).FirstOrDefault(note => note is not null);
+    public static SlopNote? Parse(string text)
+    {
+        SlopNote?[] notes = [.. text.Split('\n').Select(ParseLine)];
+        return notes.FirstOrDefault(note => note?.HasAbsoluteCounts == true)
+            ?? notes.FirstOrDefault(note => note is not null);
+    }
+
+    /// <summary>Whether every absolute count is present.</summary>
+    [JsonIgnore]
+    public bool HasAbsoluteCounts =>
+        HighCcMass is not null && HighCcFunctionCount is not null && VerboseLines is not null;
+
+    /// <summary>Whether any note line still lacks an absolute count.</summary>
+    public static bool NeedsBackfill(string text) =>
+        text.Split('\n').Select(ParseLine).Any(note => note is { HasAbsoluteCounts: false });
+
+    /// <summary>Fills missing absolute counts in every note line and keeps any other line.</summary>
+    public static string BackfillText(string text, SlopReport report) =>
+        string.Join(
+            '\n',
+            text.Split('\n')
+                .Select(line =>
+                    ParseLine(line) is { HasAbsoluteCounts: false } note ? note.WithCounts(report).ToLine() : line
+                )
+        );
 
     /// <summary>The source that <paramref name="name"/> names as a note does, such as <c>pre-commit</c>, or null.</summary>
     public static NoteSource? SourceNamed(string name)
@@ -66,6 +98,14 @@ public sealed record SlopNote
 
     /// <summary>The note as one line of JSON, the text of the git note.</summary>
     public string ToLine() => JsonSerializer.Serialize(this, NoteJson.Default.SlopNote);
+
+    private SlopNote WithCounts(SlopReport report) =>
+        this with
+        {
+            HighCcMass = report.Erosion.HighCcMass,
+            HighCcFunctionCount = report.Erosion.HighCcFunctionCount,
+            VerboseLines = report.Verbosity.VerboseLines,
+        };
 
     private static SlopNote? ParseLine(string line)
     {
@@ -98,7 +138,11 @@ public enum NoteSource
 }
 
 /// <summary>The JSON form of a note: one line, camel-case names, the source by name.</summary>
-[JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase, UseStringEnumConverter = true)]
+[JsonSourceGenerationOptions(
+    PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
+    UseStringEnumConverter = true,
+    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+)]
 [JsonSerializable(typeof(SlopNote))]
 [JsonSerializable(typeof(NoteSource))]
 [JsonSerializable(typeof(string))]

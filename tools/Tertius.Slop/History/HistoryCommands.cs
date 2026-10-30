@@ -5,7 +5,7 @@ namespace Tertius.Slop.History;
 /// <summary>
 /// The commands of the slop history (tools/README.md, "Slop metrics"; docs/plans/code-quality-tooling.md, decision
 /// 18). <c>measure</c> and <c>note</c> write the metrics of commits for the git hooks, and <c>history</c> and
-/// <c>summary</c> read them.
+/// <c>summary</c> read them. <c>backfill</c> adds missing absolute counts to old notes.
 /// </summary>
 public sealed class HistoryCommands(Repository repository, TextWriter output, string jscpd)
 {
@@ -65,6 +65,28 @@ public sealed class HistoryCommands(Repository repository, TextWriter output, st
 
     /// <summary>Prints the noted commits that <c>git log</c> lists for <paramref name="arguments"/>, as CSV.</summary>
     public void History(IEnumerable<string> arguments) => output.Write(new SlopHistory(repository.Log(arguments)).Csv);
+
+    /// <summary>Fills missing absolute counts in old notes without changing their metadata or other lines.</summary>
+    public void Backfill()
+    {
+        IReadOnlyList<string> targets = repository.NoteTargets();
+        int updated = 0;
+        foreach (string sha in targets)
+        {
+            string text = repository.NoteText(sha);
+            if (SlopNote.Parse(text) is null)
+                throw new InvalidOperationException($"slop note of {sha} holds no readable note.");
+            if (!SlopNote.NeedsBackfill(text))
+                continue;
+            SlopReport report = repository.Measure(sha, jscpd);
+            repository.ReplaceNote(sha, SlopNote.BackfillText(text, report));
+            updated++;
+            if (updated % 25 == 0)
+                output.WriteLine($"backfill: {updated} of {targets.Count} notes updated.");
+        }
+
+        output.WriteLine($"backfill: {updated} note(s) updated, {targets.Count} examined.");
+    }
 
     /// <summary>
     /// Prints the summary of a push from <paramref name="from"/>, the last pushed commit, to <paramref name="tip"/>.

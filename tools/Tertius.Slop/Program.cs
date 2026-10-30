@@ -9,7 +9,7 @@ namespace Tertius.Slop;
 /// The command line (tools/README.md, "Slop metrics"). <c>Tertius.Slop &lt;metric&gt; [root] [--text]</c> measures
 /// <c>src</c>: the metric is <c>erosion</c>, <c>verbosity</c>, or <c>all</c> for both from one parse. It prints JSON
 /// for the tools that read it, and text with <c>--text</c>. The commands <c>measure</c>, <c>note</c>,
-/// <c>history</c> and <c>summary</c> write and read the history of the metrics in git notes
+/// <c>history</c>, <c>summary</c> and <c>backfill</c> write and read the history of the metrics in git notes
 /// (<see cref="HistoryCommands"/>). <c>-C &lt;folder&gt;</c> first runs the command in that folder, the repository,
 /// which is the current folder by default.
 /// </summary>
@@ -24,6 +24,7 @@ public static class Program
                Tertius.Slop [-C folder] note <from> <tip> --branch <name> --source pre-commit|pre-push|seed
                Tertius.Slop [-C folder] history [git log options and revisions]
                Tertius.Slop [-C folder] summary <from> <tip>
+               Tertius.Slop [-C folder] backfill
         """;
 
     private static readonly string[] Metrics = ["erosion", "verbosity", "all"];
@@ -61,6 +62,9 @@ public static class Program
                     return 0;
                 case ["history", .. var arguments]:
                     history.History(arguments);
+                    return 0;
+                case ["backfill"]:
+                    history.Backfill();
                     return 0;
                 case ["summary", var from, var tip]:
                     history.Summary(from, tip);

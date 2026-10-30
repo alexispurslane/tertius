@@ -1,3 +1,4 @@
+using System.Text.Json;
 using AwesomeAssertions;
 using Tertius.Slop.History;
 
@@ -21,12 +22,24 @@ public sealed class SlopNoteTests
 
     [Fact]
     public void ANoteIsOneJsonLineWithTheMeasuresAndWhereTheyCameFrom() =>
-        Note(erosion: 0.365, verbosity: 0.036)
+        MeasuredNote()
             .ToLine()
             .Should()
             .Be(
-                """{"erosion":0.365,"verbosity":0.036,"sloc":34450,"branch":"main","source":"pre-commit","measured":"2026-10-24T12:00:00+00:00"}"""
+                """{"erosion":0.365,"verbosity":0.036,"highCcMass":12041.5,"highCcFunctionCount":92,"verboseLines":1531,"sloc":34450,"branch":"main","source":"pre-commit","measured":"2026-10-24T12:00:00+00:00"}"""
             );
+
+    [Fact]
+    public void AnOldNoteKeepsItsRatiosWithoutInventingAbsoluteCounts()
+    {
+        const string old =
+            """{"erosion":0.365,"verbosity":0.036,"sloc":34450,"branch":"main","source":"pre-commit","measured":"2026-10-24T12:00:00+00:00"}""";
+
+        var note = SlopNote.Parse(old);
+
+        note.Should().NotBeNull();
+        note!.ToLine().Should().Be(old);
+    }
 
     [Fact]
     public void ANoteReadsBackFromItsLine() =>
@@ -44,6 +57,15 @@ public sealed class SlopNoteTests
             .Should()
             .Be(Note(erosion: 0.1, verbosity: 0.2));
 
+    [Fact]
+    public void ABackfilledLineWinsWhenGitMergesItWithAnOldLine()
+    {
+        string old = Note(erosion: 0.1, verbosity: 0.2).ToLine();
+        string enriched = MeasuredNote().ToLine();
+
+        SlopNote.Parse($"{old}\n{enriched}")!.ToLine().Should().Be(enriched);
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("a note from another tool")]
@@ -53,25 +75,23 @@ public sealed class SlopNoteTests
     [Fact]
     public void ANoteTakesItsMeasuresFromTheReportOfTheTree()
     {
+        string branches = string.Concat(Enumerable.Range(0, 11).Select(i => $"if (x == {i}) return {i}; "));
         Codebase codebase = Source.UsedByATest(
-            SourceFile.Parse("src/A.cs", "class A { int F(int a, int b) { if (a > b) m = a; else m = b; return m; } }")
+            SourceFile.Parse("src/A.cs", $"class A {{ int F(int x) {{ {branches} return 0; }} }}")
         );
         var report = SlopReport.Of(codebase, Clones.FromReport(VerbosityReportTests.Report()));
+        report.Erosion.HighCcMass.Should().BeGreaterThan(0);
 
         var note = SlopNote.Of(report: report, branch: "main", source: NoteSource.PrePush, measured: Noon);
 
-        (note.Erosion, note.Verbosity, note.Sloc, note.Branch, note.Source, note.Measured)
+        using var line = JsonDocument.Parse(note.ToLine());
+        (
+            line.RootElement.GetProperty("highCcMass").GetDouble(),
+            line.RootElement.GetProperty("highCcFunctionCount").GetInt32(),
+            line.RootElement.GetProperty("verboseLines").GetInt32()
+        )
             .Should()
-            .Be(
-                (
-                    report.Erosion.Erosion,
-                    report.Verbosity.Verbosity,
-                    report.Erosion.Sloc,
-                    "main",
-                    NoteSource.PrePush,
-                    Noon
-                )
-            );
+            .Be((report.Erosion.HighCcMass, report.Erosion.HighCcFunctionCount, report.Verbosity.VerboseLines));
     }
 
     [Theory]
@@ -91,4 +111,9 @@ public sealed class SlopNoteTests
             Source = NoteSource.PreCommit,
             Measured = Noon,
         };
+
+    private static SlopNote MeasuredNote() =>
+        SlopNote.Parse(
+            """{"erosion":0.365,"verbosity":0.036,"highCcMass":12041.5,"highCcFunctionCount":92,"verboseLines":1531,"sloc":34450,"branch":"main","source":"pre-commit","measured":"2026-10-24T12:00:00+00:00"}"""
+        )!;
 }

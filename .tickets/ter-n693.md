@@ -1,6 +1,6 @@
 ---
 id: ter-n693
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-10-27T19:00:04Z
@@ -28,7 +28,13 @@ The change: the slop note, the history CSV, the push summary and the commit repo
 
 ## Design
 
-Open point for the user at the start: whether to backfill the old notes (about 414 noted commits, a measure of each, some minutes of CPU) or let the absolute numbers start at the first commit after the change. Without a backfill, a baseline note without the new fields gives the value without a change, as a missing note does today.
+The user chose to backfill the old notes on 2026-10-30. The repository held 496 notes. The backfill filled all 496, and a second pass changed none. A note from another clone that still lacks the new fields gives a value without a change against that baseline.
 
 The push summary's list of the commits that raised a metric the most ranks by the absolute numbers then, because the ratio rewards dilution.
 
+
+## Notes
+
+**2026-10-30T14:41:53Z**
+
+Implemented absolute high CC mass, high CC function count, and verbose lines in notes, CSV, push summaries, and commit reports. User chose to backfill old notes. Backfill filled 496 of 496 notes; a second pass changed 0. Checked and Release .NET suites passed; Blender is still running.

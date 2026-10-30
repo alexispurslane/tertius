@@ -163,15 +163,16 @@ Every `file` is the path in the repository, such as `src/Tertius.Core/World.cs`,
 The git hooks keep the metrics of each commit in a git note under `refs/notes/slop` ("Git hooks" below). A note is one line of JSON:
 
 ```json
-{"erosion":0.3647,"verbosity":0.0363,"sloc":34450,"branch":"main","source":"pre-commit","measured":"2026-10-24T19:37:37+00:00"}
+{"erosion":0.20000179206800917,"verbosity":0.03323593209400714,"highCcMass":8261.413478927696,"highCcFunctionCount":73,"verboseLines":1854,"sloc":55783,"branch":"main","source":"pre-push","measured":"2026-10-27T18:47:21.215107+00:00"}
 ```
 
-The source is `pre-commit`, `pre-push` or `seed`. Four commands of the tool write and read the notes. `-C <folder>` before a command runs it in that repository.
+`highCcMass` is the sum of complexity times the square root of code lines for functions with cyclomatic complexity above 10. `highCcFunctionCount` counts those functions. `verboseLines` counts distinct lines flagged by a verbosity rule or clone. An unfilled older note lacks these three fields; readers leave its absolute count cells blank and show a new count without a change against it. The source is `pre-commit`, `pre-push` or `seed`. Five commands of the tool write and read the notes. `-C <folder>` before a command runs it in that repository.
 
 - `measure <tree> --branch <name> --source <source> [--details <file> [--parent <commit>]]` prints the note of a tree or a commit. It measures a copy of the tree's `src`, so the working tree does not matter. The copy also holds the tree's `tests`, `benchmarks` and `scripts`, for the names that they use. With `--details`, it also writes a JSON object to the file: `report`, the JSON of `all` for the tree, and `baseline`, the commit that the report compares the tree with, as `commit` (the short hash) and `note`. The baseline is the nearest noted commit on the first-parent line of `--parent`, by the rule of `summary`, and null without `--parent` or when no commit up to it has a note. The pre-commit hook gives that file to the commit report, with `--parent HEAD` ("Before a commit" below). The note on the output stays one line.
 - `note <from> <tip> --branch <name> --source <source>` attaches notes to the first-parent commits after `<from>` up to `<tip>`. It notes `<tip>`, and each commit that changes C# code under `src` and has no note.
-- `history [git log options and revisions]` prints the noted commits as CSV, newest first. The columns are commit, date, branch, tickets, erosion, verbosity and sloc. The tickets are the ticket ids in the commit message.
+- `history [git log options and revisions]` prints the noted commits as CSV, newest first. The columns are commit, date, branch, tickets, erosion, highCcMass, highCcFunctionCount, verbosity, verboseLines and sloc. The tickets are the ticket ids in the commit message.
 - `summary <from> <tip>` prints the summary of the pre-push hook.
+- `backfill` fills the three absolute counts in every older slop note, including notes of commits off the current branch. It keeps each note's branch, source, measurement time and other text. It skips notes that already have all three counts and can resume after an interruption.
 
 The trend line of main:
 
@@ -180,10 +181,10 @@ nix develop --command dotnet run --project tools/Tertius.Slop -c Release -- hist
 ```
 
 ```text
-commit,date,branch,tickets,erosion,verbosity,sloc
-1ce2750b2cfa84817d80a8e8ce7b28a11ffd7b42,2026-10-24T15:36:15-04:00,main,ter-hahu,0.364753502100709,0.036284470246734396,34450
-e771003357a4d17eabe48aeaecbae68824fa2eec,2026-10-24T13:13:25-04:00,main,,0.364753502100709,0.036284470246734396,34450
-f1fc418549cd5d5c36b927d078ae268840d8f55f,2026-10-24T13:03:25-04:00,main,ter-2ku2,0.36481280742898836,0.035098138195207414,33677
+commit,date,branch,tickets,erosion,highCcMass,highCcFunctionCount,verbosity,verboseLines,sloc
+425971fcd8f38f4ac915f01ed399f0a3adbbd1d8,2026-10-27T14:46:56-04:00,main,,0.20000179206800917,8261.413478927696,73,0.03323593209400714,1854,55783
+17b60932415e135b684414c70bc30d5eae840b04,2026-10-27T14:45:14-04:00,main,ter-tf17,0.20000179206800917,8261.413478927696,73,0.03323593209400714,1854,55783
+aced093a70125d9216036e490e38b3b996153b8f,2026-10-27T11:31:26-04:00,main,ter-vtc7 ter-ylzk,0.20000179206800922,8261.413478927696,73,0.03323593209400714,1854,55783
 ```
 
 To read the notes of another clone, fetch them first: `git fetch origin refs/notes/slop:refs/notes/slop`.
@@ -368,10 +369,10 @@ The pre-commit hook runs on every commit that stages C# files or projects. A com
 3. It measures the slop metrics of the staged tree with `tools/Tertius.Slop measure --details`, in parallel with the tests. After the tests pass, it leaves the note in the file `slop-pending` of the worktree's git folder. The metrics never stop the commit.
 4. After the measure ends, it prints the commit report (`tools/commit_report.py`) for the changed lines only. The report never stops the commit. It has three parts:
    - Length: the methods over the length limit (MA0051), in `src` and in `tests`.
-   - Erosion: the erosion of the staged tree, and its change against the baseline. Under it, each function that holds a changed line and has a CC above 10, with its file, line, name, CC, SLOC and mass, the greatest mass first. A split that brings such a function to CC 10 or less lowers the erosion.
-   - Verbosity: the verbosity of the staged tree, and its change against the baseline. Under it, each finding of a rule that covers a changed line, with the rule's message, and each clone with a changed line in either copy, with both places.
+   - Erosion: the erosion, high CC mass and count of functions above CC 10, with each change against the baseline when it has that value. Under them, each function that holds a changed line and has a CC above 10, with its file, line, name, CC, SLOC and mass, the greatest mass first. A split that brings such a function to CC 10 or less lowers the erosion.
+   - Verbosity: the verbosity and the number of verbose lines, with each change against the baseline when it has that value. Under them, each finding of a rule that covers a changed line, with the rule's message, and each clone with a changed line in either copy, with both places.
 
-   The baseline is the nearest commit up to HEAD on the first-parent line that has a note, the rule of the push summary, and the report names it. That is the parent of a new commit, or an older commit when the parent has no note, as after a commit that changed only tickets or docs. In `git commit --amend`, HEAD is the commit that the amend replaces. Without a noted commit, the erosion and the verbosity show their values without a change. Both always show their values, also when the commit changes no C# file. A section names no code when the commit touches none. If the measure fails, the hook prints why, and the report leaves out the erosion and the verbosity. If the report names any code, it ends with a prompt to refactor that code in the same commit. A failed test prints the length part only, and then stops the commit.
+   The baseline is the nearest commit up to HEAD on the first-parent line that has a note, the rule of the push summary, and the report names it. That is the parent of a new commit, or an older commit when the parent has no note, as after a commit that changed only tickets or docs. In `git commit --amend`, HEAD is the commit that the amend replaces. Without a noted commit, or without an absolute count in an older note, the affected value shows without a change. Every value of the staged tree prints, also when the commit changes no C# file. A section names no code when the commit touches none. If the measure fails, the hook prints why, and the report leaves out the erosion and the verbosity. If the report names any code, it ends with a prompt to refactor that code in the same commit. A failed test prints the length part only, and then stops the commit.
 
 The tests of the changed code are:
 
@@ -418,7 +419,7 @@ The post-commit hook attaches the pending slop note to the new commit, under `re
 The pre-push hook does two things:
 
 1. It runs `tools/cleanup.sh` on the C# files that the pushed commits change. If the cleanup changes a file, the hook builds the solution and commits the result as "Clean up code before push". Then it stops the push, because git chose the commits to push before the hook ran. Push again to send the cleanup commit too. If the cleanup fails, or the cleaned code does not build, the push stops and the changes stay uncommitted.
-2. It updates the slop history, and it never stops the push. For each pushed branch, it notes the pushed tip. It also notes each commit since the last push that changes C# code under `src` and has no note. Then it prints the metrics at the last push against now, and the commits that raised a metric the most. Last, it merges the remote's notes into `refs/notes/slop` and pushes them to the same remote.
+2. It updates the slop history, and it never stops the push. For each pushed branch, it notes the pushed tip. It also notes each commit since the last push that changes C# code under `src` and has no note. Then it prints the ratios and absolute counts at the last push against now. It ranks commits by their increase in high CC mass or verbose lines, even if a ratio fell. Last, it merges the remote's notes into `refs/notes/slop` and pushes them to the same remote.
 
 A sample of the summary:
 
@@ -427,12 +428,13 @@ pre-push: slop since the last push:
 pre-push:   erosion    0.3591 -> 0.3648  +0.0057
 pre-push:   verbosity  0.0354 -> 0.0363  +0.0009
 pre-push:   sloc       34484 -> 34450  -34
-pre-push: the commits that raised the erosion the most:
-pre-push:   +0.0051  c774e05  ter-m0db  Merge the generated unions of Demo (ter-m0db)
-pre-push:   +0.0004  f1fc418  ter-2ku2  Merge the style analyzer (ter-2ku2)
-pre-push: the commits that raised the verbosity the most:
-pre-push:   +0.0012  e771003  (no ticket)  Clean up code before push
-pre-push:   +0.0009  c774e05  ter-m0db  Merge the generated unions of Demo (ter-m0db)
+pre-push:   high CC mass 12041.5 -> 12060.2  +18.7
+pre-push:   high CC functions 92 -> 93  +1
+pre-push:   verbose lines 1250 -> 1261  +11
+pre-push: the commits that raised the high CC mass the most:
+pre-push:   +18.7  c774e05  ter-m0db  Merge the generated unions of Demo (ter-m0db)
+pre-push: the commits that raised the verbose lines the most:
+pre-push:   +11  e771003  (no ticket)  Clean up code before push
 ```
 
 If a file that the cleanup must clean holds uncommitted changes, the hook stops before the cleanup. Commit or stash those changes, then push again. The cleanup can add a commit only to the branch that is checked out. For another pushed branch, it prints a note and skips that branch.

@@ -14,10 +14,9 @@ public sealed record PushSummary
     public const int RaiseCount = 3;
 
     /// <summary>
-    /// The least change that counts as a raise: half the last digit that the summary shows, so that every raise it
-    /// names shows as at least +0.0001.
+    /// Half the last shown digit of high CC mass.
     /// </summary>
-    public const double LeastRaise = 0.00005;
+    public const double LeastMassRaise = 0.05;
 
     /// <summary>The note at the last push, or null when no commit before the push has one.</summary>
     public required SlopNote? LastPush { get; init; }
@@ -25,11 +24,11 @@ public sealed record PushSummary
     /// <summary>The note of the pushed tip.</summary>
     public required SlopNote Now { get; init; }
 
-    /// <summary>The pushed commits that raised the erosion, the largest raise first.</summary>
-    public required IReadOnlyList<CommitRaise> ErosionRaises { get; init; }
+    /// <summary>The pushed commits that raised high CC mass, the largest raise first.</summary>
+    public required IReadOnlyList<CommitRaise> HighCcMassRaises { get; init; }
 
-    /// <summary>The pushed commits that raised the verbosity, the largest raise first.</summary>
-    public required IReadOnlyList<CommitRaise> VerbosityRaises { get; init; }
+    /// <summary>The pushed commits that raised verbose lines, the largest raise first.</summary>
+    public required IReadOnlyList<CommitRaise> VerboseLineRaises { get; init; }
 
     /// <summary>
     /// The summary of a push. <paramref name="pushed"/> holds the pushed commits on the first-parent line, oldest first.
@@ -38,18 +37,17 @@ public sealed record PushSummary
     /// </summary>
     public static PushSummary Of(SlopNote? lastPush, SlopNote now, IReadOnlyList<Commit> pushed)
     {
-        var erosion = new List<CommitRaise>();
-        var verbosity = new List<CommitRaise>();
+        var mass = new List<CommitRaise>();
+        var lines = new List<CommitRaise>();
         SlopNote? before = lastPush;
         foreach (Commit commit in pushed)
         {
             if (commit.Note is not { } note)
                 continue;
-            if (before is not null)
-            {
-                erosion.Add(new(commit, note.Erosion - before.Erosion));
-                verbosity.Add(new(commit, note.Verbosity - before.Verbosity));
-            }
+            if (before?.HighCcMass is { } previousMass && note.HighCcMass is { } currentMass)
+                mass.Add(new(commit, currentMass - previousMass));
+            if (before?.VerboseLines is { } previousLines && note.VerboseLines is { } currentLines)
+                lines.Add(new(commit, currentLines - previousLines));
 
             before = note;
         }
@@ -58,8 +56,8 @@ public sealed record PushSummary
         {
             LastPush = lastPush,
             Now = now,
-            ErosionRaises = Largest(erosion),
-            VerbosityRaises = Largest(verbosity),
+            HighCcMassRaises = Largest(mass, LeastMassRaise),
+            VerboseLineRaises = Largest(lines, 1),
         };
     }
 
@@ -73,6 +71,7 @@ public sealed record PushSummary
                 CultureInfo.InvariantCulture,
                 $"slop now: erosion {Now.Erosion:F4}, verbosity {Now.Verbosity:F4}, sloc {Now.Sloc} (no note before the push to compare with)."
             );
+            AppendCounts(text, null, Now);
             return text.ToString();
         }
 
@@ -89,20 +88,77 @@ public sealed record PushSummary
             CultureInfo.InvariantCulture,
             $"  sloc       {last.Sloc} -> {Now.Sloc}  {Now.Sloc - last.Sloc:+0;-0;+0}"
         );
-        AppendRaises(text, "erosion", ErosionRaises);
-        AppendRaises(text, "verbosity", VerbosityRaises);
+        AppendCounts(text, last, Now);
+        AppendRaises(text: text, metric: "high CC mass", raises: HighCcMassRaises, changeFormat: "+0.0;-0.0;+0.0");
+        AppendRaises(text: text, metric: "verbose lines", raises: VerboseLineRaises, changeFormat: "+0;-0;+0");
         return text.ToString();
     }
 
-    private static CommitRaise[] Largest(IEnumerable<CommitRaise> raises) =>
+    private static CommitRaise[] Largest(IEnumerable<CommitRaise> raises, double leastRaise) =>
         [
             .. raises
-                .Where(raise => raise.Change >= LeastRaise)
+                .Where(raise => raise.Change >= leastRaise)
                 .OrderByDescending(raise => raise.Change)
                 .Take(RaiseCount),
         ];
 
-    private static void AppendRaises(StringBuilder text, string metric, IReadOnlyList<CommitRaise> raises)
+    private static void AppendCounts(StringBuilder text, SlopNote? before, SlopNote now)
+    {
+        AppendAbsolute(
+            text: text,
+            name: "high CC mass",
+            before: before?.HighCcMass,
+            now: now.HighCcMass,
+            valueFormat: "0.0",
+            changeFormat: "+0.0;-0.0;+0.0"
+        );
+        AppendAbsolute(
+            text: text,
+            name: "high CC functions",
+            before: before?.HighCcFunctionCount,
+            now: now.HighCcFunctionCount,
+            valueFormat: "0",
+            changeFormat: "+0;-0;+0"
+        );
+        AppendAbsolute(
+            text: text,
+            name: "verbose lines",
+            before: before?.VerboseLines,
+            now: now.VerboseLines,
+            valueFormat: "0",
+            changeFormat: "+0;-0;+0"
+        );
+    }
+
+    private static void AppendAbsolute(
+        StringBuilder text,
+        string name,
+        double? before,
+        double? now,
+        string valueFormat,
+        string changeFormat
+    )
+    {
+        if (now is not { } value)
+            return;
+        string shown = value.ToString(valueFormat, CultureInfo.InvariantCulture);
+        if (before is not { } previous)
+        {
+            text.AppendLine($"  {name} {shown}");
+            return;
+        }
+
+        string old = previous.ToString(valueFormat, CultureInfo.InvariantCulture);
+        string change = (value - previous).ToString(changeFormat, CultureInfo.InvariantCulture);
+        text.AppendLine($"  {name} {old} -> {shown}  {change}");
+    }
+
+    private static void AppendRaises(
+        StringBuilder text,
+        string metric,
+        IReadOnlyList<CommitRaise> raises,
+        string changeFormat
+    )
     {
         if (raises.Count == 0)
             return;
@@ -113,7 +169,7 @@ public sealed record PushSummary
             string tickets = commit.Tickets.Count > 0 ? string.Join(' ', commit.Tickets) : "(no ticket)";
             text.AppendLine(
                 CultureInfo.InvariantCulture,
-                $"  {raise.Change:+0.0000;-0.0000}  {commit.ShortSha}  {tickets}  {commit.Subject}"
+                $"  {raise.Change.ToString(changeFormat, CultureInfo.InvariantCulture)}  {commit.ShortSha}  {tickets}  {commit.Subject}"
             );
         }
     }

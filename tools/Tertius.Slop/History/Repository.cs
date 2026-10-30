@@ -95,6 +95,21 @@ public sealed class Repository(string folder)
     public void AddNote(string sha, SlopNote note) =>
         Git(["notes", $"--ref={NotesRef}", "add", "-m", note.ToLine(), sha]);
 
+    /// <summary>The object hashes with a slop note, including commits off the current branch.</summary>
+    public IReadOnlyList<string> NoteTargets() =>
+        [
+            .. Git(["notes", $"--ref={NotesRef}", "list"])
+                .Split('\n', StringSplitOptions.RemoveEmptyEntries)
+                .Select(line => line.Split(' ')[^1]),
+        ];
+
+    /// <summary>The complete text of one slop note.</summary>
+    public string NoteText(string sha) => Git(["notes", $"--ref={NotesRef}", "show", sha]).TrimEnd('\n');
+
+    /// <summary>Replaces one slop note with its backfilled text.</summary>
+    public void ReplaceNote(string sha, string text) =>
+        Git(["notes", $"--ref={NotesRef}", "add", "-f", "-m", text, sha]);
+
     private string Git(IReadOnlyList<string> arguments)
     {
         using Process git = Start(arguments);
