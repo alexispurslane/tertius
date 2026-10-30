@@ -1,1 +1,1 @@
-{"erosion":0.3644945879853437,"verbosity":0.036085308331163,"sloc":34557,"branch":"ter-hxdc-faster-physics-tests","source":"pre-commit","measured":"2026-10-24T20:22:15.603009+00:00"}
+{"erosion":0.3644945879853437,"verbosity":0.036085308331163,"highCcMass":12142.839297208873,"highCcFunctionCount":90,"verboseLines":1673,"sloc":34557,"branch":"ter-hxdc-faster-physics-tests","source":"pre-commit","measured":"2026-10-24T20:22:15.603009+00:00"}
