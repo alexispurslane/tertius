@@ -1,1 +1,1 @@
-{"erosion":0.2391194937278607,"verbosity":0.03117223313686968,"sloc":53445,"branch":"ter-6pzm-long-methods","source":"pre-commit","measured":"2026-10-27T07:26:08.496969+00:00"}
+{"erosion":0.2391194937278607,"verbosity":0.03117223313686968,"highCcMass":9817.103421699423,"highCcFunctionCount":82,"verboseLines":1666,"sloc":53445,"branch":"ter-6pzm-long-methods","source":"pre-commit","measured":"2026-10-27T07:26:08.496969+00:00"}
