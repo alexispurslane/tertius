@@ -115,6 +115,7 @@ internal sealed class InstanceStateAccess(
             return;
         if (resolved.AssociatedSymbol is not IPropertySymbol property)
         {
+            // Roslyn normally retains this association, but recovery symbols may not carry it.
             Unknown(operation.Syntax, "accessor-unavailable");
             return;
         }
@@ -203,6 +204,7 @@ internal sealed class InstanceStateAccess(
         for (IOperation? parent = operation.Parent; parent is not null; parent = parent.Parent)
             if (parent is IConditionalAccessOperation access)
                 return IsThis(access.Operation);
+        // A recovery operation without its conditional-access parent cannot establish receiver identity.
         return false;
     }
 
@@ -219,6 +221,17 @@ internal sealed class InstanceStateAccess(
             InvocationExpressionSyntax { Expression: SimpleNameSyntax } => true,
             InvocationExpressionSyntax invocation => PotentialThis(invocation.Expression),
             MemberAccessExpressionSyntax member => member.Expression is ThisExpressionSyntax or BaseExpressionSyntax,
+            ElementAccessExpressionSyntax element => element.Expression is ThisExpressionSyntax or BaseExpressionSyntax,
+            ConditionalAccessExpressionSyntax conditional => conditional.Expression
+                is ThisExpressionSyntax
+                    or BaseExpressionSyntax,
+            MemberBindingExpressionSyntax or ElementBindingExpressionSyntax => syntax
+                .Ancestors()
+                .OfType<ConditionalAccessExpressionSyntax>()
+                .FirstOrDefault()
+                ?.Expression
+                is ThisExpressionSyntax
+                    or BaseExpressionSyntax,
             SimpleNameSyntax name => name.Parent is not MemberAccessExpressionSyntax and not InvocationExpressionSyntax,
             _ => false,
         };

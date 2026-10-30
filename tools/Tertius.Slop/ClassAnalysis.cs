@@ -241,7 +241,9 @@ internal sealed class ClassAnalysis
     private StateMethod State(IMethodSymbol method, INamedTypeSymbol type)
     {
         var access = new InstanceStateAccess(compilation, sourceTrees, type);
-        access.Follow(method, method.DeclaringSyntaxReferences[0].GetSyntax());
+        // Interfaces cannot own instance fields. Missing contract bodies do not make their storage unknown.
+        if (type.TypeKind != TypeKind.Interface)
+            access.Follow(method, method.DeclaringSyntaxReferences[0].GetSyntax());
         return new(
             Member: Entry(method),
             Fields: access.Fields,
