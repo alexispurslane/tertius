@@ -38,7 +38,7 @@ unresolved; their eligibility can itself depend on unavailable storage.
 | [Newtonsoft.Json](newtonsoft.json) | 259/333 | 0.7778 | 34 / 183 / 27 | 3.70% |
 | [NUnit](nunit.json) | 1,801/1,951 | 0.9231 | 85 / 360 / 36 | 54.18% |
 | [Autofac](autofac.json) | 573/869 | 0.6594 | 45 / 175 / 12 | 77.73% |
-| [Tertius](tertius.json) | 7,494/8,441 | 0.8878 | 176 / 752 / 46 | 82.75% |
+| [Tertius](tertius.json) | 7,525/8,487 | 0.8867 | 186 / 752 / 36 | 83.21% |
 
 Newtonsoft.Json's value represents only 3.70% of the included-plus-incomplete
 possible pairs. It is a measurement of a small subset, not a project-wide
@@ -115,13 +115,13 @@ and cannot be treated as a quality change from the v2 distributions.
 | NUnit | depth | 398 | 1.0000 | 1.0000 | 1.3750 | 2.5000 | 4.0000 |
 | Autofac | tcc | 45 | 0.0000 | 0.3333 | 1.0000 | 1.0000 | 1.0000 |
 | Autofac | depth | 175 | 0.5000 | 1.0000 | 1.7500 | 2.6667 | 3.9000 |
-| Tertius | tcc | 176 | 0.0000 | 0.7833 | 1.0000 | 1.0000 | 1.0000 |
+| Tertius | tcc | 186 | 0.0857 | 0.6910 | 1.0000 | 1.0000 | 1.0000 |
 | Tertius | depth | 481 | 0.5000 | 0.9231 | 1.4444 | 2.5000 | 4.7143 |
 
 ## Reproduction and limitations
 
-The counter implementation is `b39a94c226906ddc7919f4ef12801e23236d52b9`.
-The original Release binary SHA256 is `87a7ba869e8b6d3f1e129e56fc6505358e936bd693ac878532673b056bc7e9ef`.
+The counter implementation is `010e74714a89c7d8477e46d5a4cee5c2fa755afa`.
+The original Release binary SHA256 is `ff61423eb08e62951ec11b56fd2a2276510e86d768a121daffae968958c00359`.
 The metadata reference fingerprint remains
 `6756909B5E79A0B8E806995EF6661640C81D1DB2BA5FCD39E4AA254CE606436B`.
 The tool source had no working changes during measurement.

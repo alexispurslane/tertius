@@ -3,8 +3,8 @@
   "sourceCommit": "39696a967e8826f7f1ebc8c1ff4523c9dd75abe0",
   "sourceDataset": "../type-metric-reference-2026-10-30/autofac.json",
   "measurement": {
-    "binarySha256": "87a7ba869e8b6d3f1e129e56fc6505358e936bd693ac878532673b056bc7e9ef",
-    "implementationCommit": "b39a94c226906ddc7919f4ef12801e23236d52b9",
+    "binarySha256": "ff61423eb08e62951ec11b56fd2a2276510e86d768a121daffae968958c00359",
+    "implementationCommit": "010e74714a89c7d8477e46d5a4cee5c2fa755afa",
     "workingDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
   },
   "source": {
@@ -71,7 +71,7 @@
     "source-body-unavailable": 10,
     "runtime-dispatch": 20
   },
-  "rawReportSha256": "7726d19e8ff9469b2f11d9b8bdad84978a4681c88280492f012926b9210badc9",
+  "rawReportSha256": "729b01189efdea15a45037a0431f78052a451b17fe321e3c8282a12fd1872edf",
   "types": [
     {"name":"Autofac.Builder.BuildCallbackManager","identity":"source:global::Autofac.Builder.BuildCallbackManager","kind":"Class","isRecord":false,"isStatic":true,"locations":[{"file":"src/src/Autofac/Builder/BuildCallbackManager.cs","line":12,"endLine":42}],"wmc":3,"apiEntries":1,"tcc":{"numerator":0,"denominator":0,"applicability":{"status":"not-applicable","reason":"fewer-than-two-methods"},"ratio":null},"depth":{"numerator":3,"denominator":1,"applicability":{"status":"complete","reason":null},"ratio":3},"unresolvedAccesses":[]},
     {"name":"Autofac.Builder.BuildCallbackService","identity":"source:global::Autofac.Builder.BuildCallbackService","kind":"Class","isRecord":false,"isStatic":false,"locations":[{"file":"src/src/Autofac/Builder/BuildCallbackService.cs","line":13,"endLine":62}],"wmc":6,"apiEntries":2,"tcc":{"numerator":1,"denominator":1,"applicability":{"status":"complete","reason":null},"ratio":1},"depth":{"numerator":6,"denominator":2,"applicability":{"status":"complete","reason":null},"ratio":3},"unresolvedAccesses":[]},

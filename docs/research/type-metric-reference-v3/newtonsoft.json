@@ -3,8 +3,8 @@
   "sourceCommit": "7c3d7f8da7e35dde8fa74188b0decff70f8f10e3",
   "sourceDataset": "../type-metric-reference-2026-10-30/newtonsoft.json",
   "measurement": {
-    "binarySha256": "87a7ba869e8b6d3f1e129e56fc6505358e936bd693ac878532673b056bc7e9ef",
-    "implementationCommit": "b39a94c226906ddc7919f4ef12801e23236d52b9",
+    "binarySha256": "ff61423eb08e62951ec11b56fd2a2276510e86d768a121daffae968958c00359",
+    "implementationCommit": "010e74714a89c7d8477e46d5a4cee5c2fa755afa",
     "workingDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
   },
   "source": {
@@ -67,14 +67,14 @@
   "diagnosticsById": {
     "CS0104": 1,
     "CS0234": 40,
-    "CS0103": 1,
-    "CS0246": 1
+    "CS0246": 1,
+    "CS0103": 1
   },
   "unresolvedReasonOccurrences": {
     "runtime-dispatch": 321,
     "source-body-unavailable": 52
   },
-  "rawReportSha256": "2caea1c8a66783fb5585c080bef941af77e9cb9e441de36d352a3c389337dab5",
+  "rawReportSha256": "d5524550a221e3ab7393a8bfa73b016f9eb7dc5d99ad31e1cda600dc7ba78123",
   "types": [
     {"name":"Newtonsoft.Json.Bson.BsonArray","identity":"source:global::Newtonsoft.Json.Bson.BsonArray","kind":"Class","isRecord":false,"isStatic":false,"locations":[{"file":"src/Src/Newtonsoft.Json/Bson/BsonToken.cs","line":63,"endLine":84}],"wmc":4,"apiEntries":3,"tcc":{"numerator":1,"denominator":1,"applicability":{"status":"complete","reason":null},"ratio":1},"depth":{"numerator":4,"denominator":3,"applicability":{"status":"complete","reason":null},"ratio":1.3333333333333333},"unresolvedAccesses":[]},
     {"name":"Newtonsoft.Json.Bson.BsonBinary","identity":"source:global::Newtonsoft.Json.Bson.BsonBinary","kind":"Class","isRecord":false,"isStatic":false,"locations":[{"file":"src/Src/Newtonsoft.Json/Bson/BsonToken.cs","line":138,"endLine":147}],"wmc":1,"apiEntries":2,"tcc":{"numerator":0,"denominator":0,"applicability":{"status":"not-applicable","reason":"fewer-than-two-methods"},"ratio":null},"depth":{"numerator":1,"denominator":2,"applicability":{"status":"complete","reason":null},"ratio":0.5},"unresolvedAccesses":[]},

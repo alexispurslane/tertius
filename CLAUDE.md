@@ -82,7 +82,7 @@ A type without handwritten functions has no implementation depth. Its raw API co
 
 ### Local reference examples
 
-Remeasuring the engine source from `bf5bf784` with `type-metrics-v3` gives TCC `7494/8441 = 0.8878` and depth `10122/3894 = 2.5994`. Cohesion includes 176 types, excludes 752 as not applicable and 46 as incomplete, and retains 82.75% of the included-plus-incomplete possible pairs. Depth has 481 applicable and 493 not-applicable types. Source analysis reports 3,344 binding errors and 478 distinct unresolved state-access locations. These are separate quantities; inspect the relevant evidence before judging a type.
+Remeasuring the engine source from `bf5bf784` with `type-metrics-v3` gives TCC `7525/8487 = 0.8867` and depth `10122/3894 = 2.5994`. Cohesion includes 186 types, excludes 752 as not applicable and 36 as incomplete, and retains 83.21% of the included-plus-incomplete possible pairs. Depth has 481 applicable and 493 not-applicable types. Source analysis reports 3,344 binding errors and 203 distinct unresolved state-access locations. These are separate quantities; inspect the relevant evidence before judging a type.
 
 Erosion `0.2000` and verbosity `0.0332` remain the historical values for that unchanged engine snapshot. Its v2 TCC was `1887/10179 = 0.1854` and depth was `10122/4771 = 2.1216`. The difference is measurement, not a code-quality improvement. The examples below use v3 and the hook's default metadata references.
 

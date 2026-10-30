@@ -3,8 +3,8 @@
   "sourceCommit": "6ab170c160f0689e2e2bf7e6eb603447f734d454",
   "sourceDataset": "../type-metric-reference-2026-10-30/dapper.json",
   "measurement": {
-    "binarySha256": "87a7ba869e8b6d3f1e129e56fc6505358e936bd693ac878532673b056bc7e9ef",
-    "implementationCommit": "b39a94c226906ddc7919f4ef12801e23236d52b9",
+    "binarySha256": "ff61423eb08e62951ec11b56fd2a2276510e86d768a121daffae968958c00359",
+    "implementationCommit": "010e74714a89c7d8477e46d5a4cee5c2fa755afa",
     "workingDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
   },
   "source": {
