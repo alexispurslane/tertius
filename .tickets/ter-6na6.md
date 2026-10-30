@@ -118,3 +118,8 @@ Coverage after the review fixes passed 597 cases: InstanceStateAccess has 95.384
 
 
 The final reference refresh uses counter commit `010e74714a89c7d8477e46d5a4cee5c2fa755afa`, superseding the earlier parent measurement above. The six external pooled ratios are unchanged. Tertius now has TCC `7525/8487 = 0.8866501708495346`, population 186 included / 752 not applicable / 36 incomplete, 83.20588235294117% pair coverage and 203 unresolved source locations. Its depth remains `10122/3894`. Ten types no longer carry false incomplete evidence from initializer targets. All source manifests, pooled sums, applicability counts, type ratios, quantiles, reference fingerprints and local links were checked again. Durable v3 data and `CLAUDE.md` contain these final values.
+
+
+## Final integration after review fixes
+
+`nix develop --command bash tools/test-all.sh -j 3 -o /tmp/ter-6na6-integration-final` exited zero on the final implementation. Checked: 9,458 passed, 0 failed, 14 skipped. Release: 9,445 passed, 0 failed, 14 skipped. Each includes all 597 Slop tests. Skips remain Physics 8, Rendering 1 and Host 5 under existing filters. Normal commit hooks passed on the implementation commit. All three independent review findings are reproduced and fixed; no review blocker remains. No engine source changed, and no real-history backfill was performed.
