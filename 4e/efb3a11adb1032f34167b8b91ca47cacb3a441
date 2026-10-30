@@ -1,1 +1,1 @@
-{"erosion":0.31598803592947916,"verbosity":0.03917358128674478,"sloc":47966,"branch":"ter-of1p-prefilter-profile","source":"pre-commit","measured":"2026-10-26T22:47:51.21438+00:00"}
+{"erosion":0.31598803592947916,"verbosity":0.03917358128674478,"highCcMass":12291.04383005242,"highCcFunctionCount":90,"verboseLines":1879,"sloc":47966,"branch":"ter-of1p-prefilter-profile","source":"pre-commit","measured":"2026-10-26T22:47:51.21438+00:00"}
