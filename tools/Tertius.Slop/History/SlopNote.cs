@@ -90,8 +90,13 @@ public sealed record SlopNote
             '\n',
             text.Split('\n')
                 .Select(line =>
-                    ParseLine(line) is { HasAllCounts: false } note ? note.WithCounts(report).ToLine() : line
-                )
+                {
+                    if (ParseLine(line) is not { HasAllCounts: false } note)
+                        return line;
+                    SlopNote enriched = note.WithCounts(report);
+                    // Preserve the original text, including retired nested fields, when no count can be added.
+                    return enriched == note ? line : enriched.ToLine();
+                })
         );
 
     /// <summary>The source that <paramref name="name"/> names as a note does, such as <c>pre-commit</c>, or null.</summary>

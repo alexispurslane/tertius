@@ -295,7 +295,8 @@ public sealed class HistoryCommandTests : IDisposable
                 Provenance = new("older-counting", "other-metadata"),
             },
         };
-        string original = note.ToLine();
+        string original = note.ToLine()
+            .Replace("\"typeCount\":", "\"methodGroupCount\":580,\"typeCount\":", StringComparison.Ordinal);
         git.Git("notes", "--ref=slop", "add", "-m", original, commit);
 
         int exit = Run("backfill");
