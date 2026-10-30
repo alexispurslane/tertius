@@ -1,1 +1,1 @@
-{"erosion":0.34964188574503635,"verbosity":0.04995475975046431,"sloc":41998,"branch":"ter-ptft-cpu-brdf","source":"pre-commit","measured":"2026-10-25T03:00:44.581796+00:00"}
+{"erosion":0.34964188574503635,"verbosity":0.04995475975046431,"highCcMass":12537.278311645809,"highCcFunctionCount":90,"verboseLines":2098,"sloc":41998,"branch":"ter-ptft-cpu-brdf","source":"pre-commit","measured":"2026-10-25T03:00:44.581796+00:00"}
