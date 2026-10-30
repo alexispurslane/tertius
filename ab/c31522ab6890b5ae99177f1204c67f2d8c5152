@@ -1,1 +1,1 @@
-{"erosion":0.33253573797001784,"verbosity":0.04301888471205819,"sloc":44957,"branch":"ter-lozc-portable-nan","source":"pre-commit","measured":"2026-10-25T20:19:56.357056+00:00"}
+{"erosion":0.33253573797001784,"verbosity":0.04301888471205819,"highCcMass":12414.609211456516,"highCcFunctionCount":91,"verboseLines":1934,"sloc":44957,"branch":"ter-lozc-portable-nan","source":"pre-commit","measured":"2026-10-25T20:19:56.357056+00:00"}
