@@ -47,7 +47,7 @@ public sealed class ClassMetricsTests
     [Fact]
     public void ExtensionBlocksBelongToTheirContainingType()
     {
-        var codebase = Source.UsedByATest(
+        Codebase codebase = Source.UsedByATest(
             SourceFile.Parse(
                 "src/A.cs",
                 """
@@ -56,7 +56,7 @@ public sealed class ClassMetricsTests
                 """
             )
         );
-        ClassMetrics metrics = ClassMetrics.Of(codebase);
+        var metrics = ClassMetrics.Of(codebase);
 
         metrics.Types.Select(type => type.Name).Should().BeEquivalentTo("Target", "Extensions");
         ClassMeasure extensions = metrics.Types.Single(type => type.Name == "Extensions");
@@ -116,12 +116,12 @@ public sealed class ClassMetricsTests
     [Fact]
     public void GeneratedFilesDoNotContributeClassCounts()
     {
-        var codebase = Source.UsedByATest(
+        Codebase codebase = Source.UsedByATest(
             SourceFile.Parse("src/A.cs", "class A {}"),
             SourceFile.Parse("src/Generated.g.cs", "class Generated { public void Work() {} }")
         );
 
-        ClassMetrics metrics = ClassMetrics.Of(codebase);
+        var metrics = ClassMetrics.Of(codebase);
 
         metrics.Types.Should().ContainSingle().Which.Name.Should().Be("A");
         metrics.Summary.Tcc.Should().Be(new ClassRatio(0, 0));
@@ -130,7 +130,7 @@ public sealed class ClassMetricsTests
     [Fact]
     public void NamedDetailKeepsTheMethodBodyLocationAndSharedFields()
     {
-        var codebase = Source.UsedByATest(
+        Codebase codebase = Source.UsedByATest(
             SourceFile.Parse(
                 "src/A.cs",
                 """
@@ -234,7 +234,7 @@ public sealed class ClassMetricsTests
     {
         JsonElement metrics = Measure("enum Color { Red, Blue } delegate int Read(int value);");
 
-        JsonElement[] types = metrics.GetProperty("types").EnumerateArray().ToArray();
+        JsonElement[] types = [.. metrics.GetProperty("types").EnumerateArray()];
         types.Select(type => type.GetProperty("name").GetString()).Should().BeEquivalentTo("Color", "Read");
         types
             .Single(type => type.GetProperty("name").GetString() == "Color")
@@ -248,7 +248,7 @@ public sealed class ClassMetricsTests
     [Fact]
     public void MemberSignaturesResolveAliasesWithoutConfusingSameNamedTypes()
     {
-        var codebase = Source.UsedByATest(
+        Codebase codebase = Source.UsedByATest(
             SourceFile.Parse(
                 "src/A.cs",
                 """
@@ -316,10 +316,12 @@ public sealed class ClassMetricsTests
         JsonElement type = metrics.GetProperty("types").EnumerateArray().Single();
         type.TryGetProperty("apiEntries", out JsonElement entries).Should().BeTrue();
         entries.GetInt32().Should().Be(12);
-        JsonElement[] surface = type.GetProperty("members")
-            .EnumerateArray()
-            .Where(member => member.GetProperty("isApiEntry").GetBoolean())
-            .ToArray();
+        JsonElement[] surface =
+        [
+            .. type.GetProperty("members")
+                .EnumerateArray()
+                .Where(member => member.GetProperty("isApiEntry").GetBoolean()),
+        ];
         surface.Length.Should().Be(12);
         surface.Should().Contain(member => member.GetProperty("name").GetString() == "A.Value");
         surface.Should().Contain(member => member.GetProperty("name").GetString() == "A.X");
@@ -363,7 +365,7 @@ public sealed class ClassMetricsTests
 
     private static JsonElement Measure(string text)
     {
-        var codebase = Source.UsedByATest(SourceFile.Parse("src/Example.cs", text));
+        Codebase codebase = Source.UsedByATest(SourceFile.Parse("src/Example.cs", text));
         var report = SlopReport.Of(codebase, Clones.FromReport(VerbosityReportTests.Report()));
         using var json = JsonDocument.Parse(
             JsonSerializer.Serialize(report, new JsonSerializerOptions(JsonSerializerDefaults.Web))

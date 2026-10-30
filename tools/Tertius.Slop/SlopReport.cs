@@ -9,7 +9,7 @@ public sealed record SlopReport(ErosionReport Erosion, VerbosityReport Verbosity
     public static SlopReport Of(Codebase codebase, Clones clones, ClassMetricOptions? options = null) =>
         new(ErosionReport.Of(codebase), VerbosityReport.Of(codebase, clones))
         {
-            ClassMetrics = Tertius.Slop.ClassMetrics.Of(codebase, options),
+            ClassMetrics = ClassMetrics.Of(codebase, options),
         };
 
     /// <summary>The reports as text for a person.</summary>

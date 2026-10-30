@@ -64,7 +64,7 @@ public static class Program
     private static int Execute(string[] args, TextWriter output, TextWriter error, string jscpd)
     {
         (string folder, string[] command) = args is ["-C", var given, .. var rest] ? (given, rest) : (".", args);
-        var configuration = ClassMetricOptions.FromArguments(command);
+        (string[] Arguments, ClassMetricOptions Options) configuration = ClassMetricOptions.FromArguments(command);
         command = configuration.Arguments;
         var history = new HistoryCommands(
             repository: new(folder),

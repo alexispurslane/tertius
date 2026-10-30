@@ -8,15 +8,13 @@ namespace Tertius.Slop.Tests;
 public sealed class ClassHistoryTests
 {
     [Fact]
-    public void AnUnknownNoteSourceCannotBecomeMeasurementMetadata()
-    {
+    public void AnUnknownNoteSourceCannotBecomeMeasurementMetadata() =>
         SlopNote.SourceNamed("unknown hook").Should().BeNull();
-    }
 
     [Fact]
     public void PartialBindingIsVisibleInTheTextSummary()
     {
-        var summary = Report().ClassMetrics!.Summary with { BindingErrorCount = 3 };
+        ClassMetricSummary summary = Report().ClassMetrics!.Summary with { BindingErrorCount = 3 };
 
         summary.DescribeAgainst(null).Should().Contain("Binding errors: 3; counts use available symbols");
     }
@@ -24,7 +22,7 @@ public sealed class ClassHistoryTests
     [Fact]
     public void NewNotesKeepCountsAndConfigurationWithoutTypeDetails()
     {
-        var report = Report();
+        SlopReport report = Report();
         var note = SlopNote.Of(report: report, branch: "topic", source: NoteSource.Seed, measured: SlopNoteTests.Noon);
         using var json = JsonDocument.Parse(note.ToLine());
 
@@ -144,7 +142,7 @@ public sealed class ClassHistoryTests
     public void PushSummaryRefusesDeltasAcrossDifferentReferences()
     {
         var now = SlopNote.Of(report: Report(), branch: "topic", source: NoteSource.Seed, measured: SlopNoteTests.Noon);
-        var before = now with
+        SlopNote before = now with
         {
             ClassMetrics = now.ClassMetrics! with
             {
@@ -180,7 +178,7 @@ public sealed class ClassHistoryTests
     [Fact]
     public void BackfillAddsMissingDepthWithoutReplacingExistingCohesion()
     {
-        var report = Report();
+        SlopReport report = Report();
         var note = SlopNote.Of(report: report, branch: "topic", source: NoteSource.Seed, measured: SlopNoteTests.Noon);
         string partial = (
             note with
@@ -201,8 +199,8 @@ public sealed class ClassHistoryTests
     [Fact]
     public void DepthShowsRawChangesButLegacyDepthHasNoComparison()
     {
-        var now = Report().ClassMetrics!.Summary;
-        var before = now with { Depth = new(1, 1) };
+        ClassMetricSummary now = Report().ClassMetrics!.Summary;
+        ClassMetricSummary before = now with { Depth = new(1, 1) };
 
         now.DescribeAgainst(before)
             .Should()

@@ -9,15 +9,18 @@ namespace Tertius.Slop;
 internal sealed class ClassAnalysis
 {
     private readonly CSharpCompilation compilation;
-    private readonly Dictionary<INamedTypeSymbol, List<SyntaxNode>> declarations = new(SymbolEqualityComparer.Default);
+    private readonly Dictionary<INamedTypeSymbol, List<SyntaxNode>> declarations =
+    [
+        with(SymbolEqualityComparer.Default),
+    ];
     private readonly HashSet<SyntaxTree> sourceTrees;
     internal ClassMetricProvenance Provenance { get; }
 
     internal ClassAnalysis(Codebase codebase, ClassMetricOptions options)
     {
-        sourceTrees = codebase.Files.Where(file => !file.IsGenerated).Select(file => file.Tree).ToHashSet();
-        var references = options.References();
-        var globals = CSharpSyntaxTree.ParseText(
+        sourceTrees = [.. codebase.Files.Where(file => !file.IsGenerated).Select(file => file.Tree)];
+        (MetadataReference[] References, string Fingerprint) references = options.References();
+        SyntaxTree globals = CSharpSyntaxTree.ParseText(
             text: "global using System; global using System.Collections.Generic; global using System.IO; global using System.Linq; global using System.Net.Http; global using System.Threading; global using System.Threading.Tasks;",
             options: new CSharpParseOptions(languageVersion: LanguageVersion.Preview)
         );
@@ -42,7 +45,7 @@ internal sealed class ClassAnalysis
                     || model.GetDeclaredSymbol(declaration) is not INamedTypeSymbol type
                 )
                     continue;
-                if (!declarations.TryGetValue(type, out var parts))
+                if (!declarations.TryGetValue(type, out List<SyntaxNode>? parts))
                     declarations[type] = parts = [];
                 parts.Add(declaration);
             }
@@ -73,7 +76,7 @@ internal sealed class ClassAnalysis
     private ClassMeasure MeasureType(INamedTypeSymbol type, List<SyntaxNode> parts)
     {
         ISymbol[] members = Members(type, parts);
-        var cohesion = Cohesion(type, members);
+        (StateMethod[] Methods, SharedStatePair[] Pairs, ClassRatio Tcc) cohesion = Cohesion(type, members);
         return new()
         {
             Name = type.ToDisplayString(),

@@ -281,7 +281,7 @@ public sealed class HistoryCommandTests : IDisposable
         git.Write("src/A.cs", Short);
         string commit = git.Commit("first");
         var repository = new Repository(git.Root);
-        SlopNote note = SlopNote.Of(
+        var note = SlopNote.Of(
             report: repository.Measure(commit, "jscpd"),
             branch: "topic",
             source: NoteSource.Seed,

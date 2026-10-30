@@ -23,10 +23,10 @@ public sealed record ClassMetricOptions
 
     internal (MetadataReference[] References, string Fingerprint) References()
     {
-        var platform = Platform.Value;
+        (MetadataReference[] References, string Fingerprint) platform = Platform.Value;
         if (ReferencePaths.Count == 0)
             return platform;
-        var additional = ReadReferences(ReferencePaths);
+        (MetadataReference[] References, string Fingerprint) additional = ReadReferences(ReferencePaths);
         return ([.. platform.References, .. additional.References], $"{platform.Fingerprint}:{additional.Fingerprint}");
     }
 
