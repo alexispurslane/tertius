@@ -1,1 +1,1 @@
-{"erosion":0.29428868145553433,"verbosity":0.03566529492455418,"sloc":52488,"branch":"ter-abun-empty-pass-timing","source":"pre-commit","measured":"2026-10-27T05:06:37.874907+00:00"}
+{"erosion":0.29428868145553433,"verbosity":0.03566529492455418,"highCcMass":12287.28398418695,"highCcFunctionCount":93,"verboseLines":1872,"sloc":52488,"branch":"ter-abun-empty-pass-timing","source":"pre-commit","measured":"2026-10-27T05:06:37.874907+00:00"}
