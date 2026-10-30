@@ -1,1 +1,1 @@
-{"erosion":0.30262561683446104,"verbosity":0.03527253358584364,"sloc":50691,"branch":"ter-a24f-ssgi","source":"pre-commit","measured":"2026-10-27T02:55:13.034901+00:00"}
+{"erosion":0.30262561683446104,"verbosity":0.03527253358584364,"highCcMass":12271.660523402506,"highCcFunctionCount":92,"verboseLines":1788,"sloc":50691,"branch":"ter-a24f-ssgi","source":"pre-commit","measured":"2026-10-27T02:55:13.034901+00:00"}
