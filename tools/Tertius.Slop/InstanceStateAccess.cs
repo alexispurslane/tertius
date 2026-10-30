@@ -191,6 +191,9 @@ internal sealed class InstanceStateAccess(
         operation switch
         {
             IInstanceReferenceOperation { ReferenceKind: InstanceReferenceKind.ContainingTypeInstance } => true,
+            IInstanceReferenceOperation { ReferenceKind: InstanceReferenceKind.PatternInput } pattern => PatternThis(
+                pattern
+            ),
             IConversionOperation conversion
                 when conversion.Conversion.IsIdentity || conversion.Conversion.IsReference => IsThis(
                 conversion.Operand
@@ -198,6 +201,29 @@ internal sealed class InstanceStateAccess(
             IConditionalAccessInstanceOperation conditional => ConditionalThis(conditional),
             _ => false,
         };
+
+    private static bool PatternThis(IOperation operation)
+    {
+        IOperation? pattern = operation.Parent;
+        while (pattern is not null and not IPatternOperation)
+            pattern = pattern.Parent;
+        for (IOperation? parent = pattern?.Parent; parent is not null; parent = parent.Parent)
+            switch (parent)
+            {
+                case IIsPatternOperation matched:
+                    return IsThis(matched.Value);
+                case ISwitchExpressionOperation expression:
+                    return IsThis(expression.Value);
+                case ISwitchOperation statement:
+                    return IsThis(statement.Value);
+                case IPropertySubpatternOperation:
+                    return false;
+                default:
+                    break;
+            }
+        // Recovery patterns without a matched input cannot establish receiver identity.
+        return false;
+    }
 
     private static bool ConditionalThis(IOperation operation)
     {
@@ -215,26 +241,33 @@ internal sealed class InstanceStateAccess(
         base.VisitInvalid(operation);
     }
 
-    private static bool PotentialThis(SyntaxNode syntax) =>
+    private bool PotentialThis(SyntaxNode syntax) =>
         syntax switch
         {
             InvocationExpressionSyntax { Expression: SimpleNameSyntax } => true,
             InvocationExpressionSyntax invocation => PotentialThis(invocation.Expression),
-            MemberAccessExpressionSyntax member => member.Expression is ThisExpressionSyntax or BaseExpressionSyntax,
-            ElementAccessExpressionSyntax element => element.Expression is ThisExpressionSyntax or BaseExpressionSyntax,
-            ConditionalAccessExpressionSyntax conditional => conditional.Expression
-                is ThisExpressionSyntax
-                    or BaseExpressionSyntax,
-            MemberBindingExpressionSyntax or ElementBindingExpressionSyntax => syntax
-                .Ancestors()
-                .OfType<ConditionalAccessExpressionSyntax>()
-                .FirstOrDefault()
-                ?.Expression
-                is ThisExpressionSyntax
-                    or BaseExpressionSyntax,
-            SimpleNameSyntax name => name.Parent is not MemberAccessExpressionSyntax and not InvocationExpressionSyntax,
+            MemberAccessExpressionSyntax member => ReceiverThis(member.Expression),
+            ElementAccessExpressionSyntax element => ReceiverThis(element.Expression),
+            ConditionalAccessExpressionSyntax conditional => ReceiverThis(conditional.Expression),
+            MemberBindingExpressionSyntax or ElementBindingExpressionSyntax => ReceiverThis(
+                syntax.Ancestors().OfType<ConditionalAccessExpressionSyntax>().FirstOrDefault()?.Expression
+            ),
+            SimpleNameSyntax name => name.Parent is not MemberAccessExpressionSyntax and not InvocationExpressionSyntax
+                && !(
+                    name.Parent is AssignmentExpressionSyntax assignment
+                    && assignment.Left == name
+                    && assignment.Parent is InitializerExpressionSyntax
+                ),
             _ => false,
         };
+
+    private bool ReceiverThis(ExpressionSyntax? expression)
+    {
+        while (expression is ParenthesizedExpressionSyntax parentheses)
+            expression = parentheses.Expression;
+        return expression is not null
+            && IsThis(compilation.GetSemanticModel(expression.SyntaxTree).GetOperation(expression));
+    }
 
     public override void VisitDynamicMemberReference(IDynamicMemberReferenceOperation operation)
     {
