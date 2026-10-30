@@ -1,6 +1,6 @@
 ---
 id: ter-3ckd
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-10-30T14:52:45Z
