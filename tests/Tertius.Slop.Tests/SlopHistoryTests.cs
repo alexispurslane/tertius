@@ -59,7 +59,7 @@ public sealed class SlopHistoryTests
             .Should()
             .Be(
                 "a1,2026-10-24T12:00:00+00:00,main,ter-2x99 ter-ab12,0.365,12041.5,92,0.036,1531,34450"
-                    + new string(',', 10)
+                    + new string(',', 16)
             );
     }
 
@@ -68,7 +68,7 @@ public sealed class SlopHistoryTests
     {
         SlopNote old = SlopNoteTests.Note(erosion: 0.5, verbosity: 0.25);
 
-        new SlopHistory([Commit("old", old)]).Csv.Should().EndWith(",0.5,,,0.25,,34450" + new string(',', 10) + "\n");
+        new SlopHistory([Commit("old", old)]).Csv.Should().EndWith(",0.5,,,0.25,,34450" + new string(',', 16) + "\n");
     }
 
     [Theory]
@@ -80,7 +80,7 @@ public sealed class SlopHistoryTests
 
         new SlopHistory([Commit("x", note)])
             .Csv.Should()
-            .EndWith($",{cell},,0.5,,,0.25,,34450" + new string(',', 10) + "\n");
+            .EndWith($",{cell},,0.5,,,0.25,,34450" + new string(',', 16) + "\n");
     }
 
     internal static Commit Commit(string message, SlopNote? note) =>

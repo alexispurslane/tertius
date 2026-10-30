@@ -155,6 +155,54 @@ class ClassReportCases(unittest.TestCase):
         self.assertNotIn("(+", text)
         self.assertNotIn("(-", text)
 
+    def test_applicability_counts_are_visible_without_absolute_metric_addenda(self):
+        data = details()
+        data["report"]["classMetrics"]["summary"].update(
+            cohesionPopulation={"included": 2, "notApplicable": 3, "incomplete": 1},
+            depthPopulation={"included": 3, "notApplicable": 3, "incomplete": 0},
+            unresolvedStateAccessCount=2)
+        text, errors = render(data)
+        self.assertEqual(errors, "")
+        self.assertIn("Cohesion types: 2 included, 3 not applicable, 1 incomplete", text)
+        self.assertIn("incomplete evidence", text)
+        self.assertIn("Depth types: 3 included, 3 not applicable", text)
+        self.assertIn("Unresolved state access locations: 2", text)
+        self.assertNotIn("2/5", text)
+
+    def test_all_incomplete_is_not_reported_as_zero_or_ordinary_no_data(self):
+        data = details()
+        data["report"]["classMetrics"]["summary"].update(
+            tcc=metric(0, 0), cohesionPopulation={"included": 0, "notApplicable": 0, "incomplete": 2})
+        text, errors = render(data)
+        self.assertEqual(errors, "")
+        self.assertIn("TCC incomplete", text)
+        self.assertNotIn("TCC n/a", text)
+        self.assertNotIn("TCC 0.0000", text)
+
+    def test_legacy_populations_are_unavailable_not_zero(self):
+        text, errors = render(details())
+        self.assertEqual(errors, "")
+        self.assertIn("Cohesion applicability unavailable (legacy report)", text)
+        self.assertIn("Depth applicability unavailable (legacy report)", text)
+        self.assertNotIn("0 included", text)
+
+    def test_explicit_null_populations_are_legacy_unavailable(self):
+        data = details()
+        data["report"]["classMetrics"]["summary"].update(
+            cohesionPopulation=None, depthPopulation=None, unresolvedStateAccessCount=None)
+        text, errors = render(data)
+        self.assertEqual(errors, "")
+        self.assertIn("Cohesion applicability unavailable (legacy report)", text)
+
+    def test_different_counting_version_suppresses_deltas(self):
+        data = details()
+        data["report"]["classMetrics"]["summary"]["provenance"]["version"] = "type-metrics-v3"
+        data["baseline"]["note"]["classMetrics"]["provenance"]["version"] = "type-metrics-v2"
+        text, errors = render(data)
+        self.assertEqual(errors, "")
+        self.assertIn("configuration differs", text)
+        self.assertIn("TCC 0.4000\n", text)
+
     def test_missing_type_metrics_are_unavailable(self):
         data = details()
         del data["report"]["classMetrics"]

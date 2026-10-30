@@ -1,7 +1,6 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using Microsoft.CodeAnalysis.Operations;
 
 namespace Tertius.Slop;
 
@@ -28,9 +27,13 @@ internal sealed class ClassAnalysis
             assemblyName: "SlopSnapshot",
             syntaxTrees: sourceTrees.Append(globals),
             references: references.References,
-            options: new CSharpCompilationOptions(outputKind: OutputKind.DynamicallyLinkedLibrary, allowUnsafe: true)
+            options: new CSharpCompilationOptions(
+                outputKind: OutputKind.DynamicallyLinkedLibrary,
+                allowUnsafe: true,
+                metadataImportOptions: MetadataImportOptions.All
+            )
         );
-        Provenance = new("type-metrics-v2", references.Fingerprint);
+        Provenance = new("type-metrics-v3", references.Fingerprint);
         foreach (SyntaxTree tree in sourceTrees)
         {
             SemanticModel model = compilation.GetSemanticModel(tree);
@@ -76,7 +79,10 @@ internal sealed class ClassAnalysis
     private ClassMeasure MeasureType(INamedTypeSymbol type, List<SyntaxNode> parts)
     {
         ISymbol[] members = Members(type, parts);
-        (StateMethod[] Methods, SharedStatePair[] Pairs, ClassRatio Tcc) cohesion = Cohesion(type, members);
+        (StateMethod[] Methods, SharedStatePair[] Pairs, ClassRatio Tcc, UnresolvedStateAccess[] Unresolved) cohesion =
+            Cohesion(type, members);
+        ClassMember[] entries = [.. members.Where(IsEntry).Select(Entry)];
+        FunctionMeasure[] functions = [.. Functions(parts)];
         return new()
         {
             Name = type.ToDisplayString(),
@@ -85,11 +91,16 @@ internal sealed class ClassAnalysis
             IsRecord = type.IsRecord,
             IsStatic = type.IsStatic,
             Locations = [.. parts.Select(Place)],
-            Members = [.. members.Where(IsEntry).Select(Entry)],
-            Functions = [.. Functions(parts)],
+            Members = entries,
+            Functions = functions,
+            DepthApplicability = ClassMeasure.ImplementationApplicability(
+                functions.Length,
+                entries.Count(member => member.IsApiEntry)
+            ),
             Methods = cohesion.Methods,
             SharedPairs = cohesion.Pairs,
             Tcc = cohesion.Tcc,
+            UnresolvedAccesses = cohesion.Unresolved,
         };
     }
 
@@ -120,31 +131,52 @@ internal sealed class ClassAnalysis
                 .Where(IsHandwritten),
         ];
 
-    private (StateMethod[] Methods, SharedStatePair[] Pairs, ClassRatio Tcc) Cohesion(
-        INamedTypeSymbol type,
-        ISymbol[] members
-    )
+    private (
+        StateMethod[] Methods,
+        SharedStatePair[] Pairs,
+        ClassRatio Tcc,
+        UnresolvedStateAccess[] Unresolved
+    ) Cohesion(INamedTypeSymbol type, ISymbol[] members)
     {
         StateMethod[] methods =
         [
             .. members
                 .OfType<IMethodSymbol>()
                 .Where(method => !method.IsStatic && method.MethodKind == MethodKind.Ordinary)
-                .Select(State),
+                .Select(method => State(method, type)),
         ];
         StateMethod[] visible = [.. methods.Where(method => method.Visible)];
         SharedStatePair[] pairs = [.. SharedPairs(visible)];
-        bool state = HasInstanceState(type);
-        long possible = state ? (long)visible.Length * (visible.Length - 1) / 2 : 0;
-        return (methods, pairs, new(pairs.Length, possible));
+        var unresolved = visible.SelectMany(method => method.UnresolvedAccesses ?? []).ToHashSet();
+        bool state = false;
+        for (INamedTypeSymbol? current = type; current is not null; current = current.BaseType)
+        {
+            state |= current.GetMembers().OfType<IFieldSymbol>().Any(field => !field.IsStatic);
+            if (current.TypeKind == TypeKind.Error)
+                unresolved.Add(UnresolvedAt(declarations[type][0], "base-storage-unavailable"));
+        }
+        UnresolvedStateAccess[] evidence =
+        [
+            .. unresolved
+                .OrderBy(issue => issue.Location.File, StringComparer.Ordinal)
+                .ThenBy(issue => issue.Location.Line)
+                .ThenBy(issue => issue.Column)
+                .ThenBy(issue => issue.Reason, StringComparer.Ordinal),
+        ];
+        MetricApplicability applicability = CohesionApplicability(visible.Length, evidence.Length, state);
+        long possible = (long)visible.Length * (visible.Length - 1) / 2;
+        return (methods, pairs, new(pairs.Length, possible, applicability), evidence);
     }
 
-    private static bool HasInstanceState(INamedTypeSymbol type)
+    private static MetricApplicability CohesionApplicability(int visibleMethods, int unresolved, bool state)
     {
-        for (INamedTypeSymbol? current = type; current is not null; current = current.BaseType)
-            if (current.GetMembers().OfType<IFieldSymbol>().Any(field => !field.IsStatic))
-                return true;
-        return false;
+        if (visibleMethods < 2)
+            return new("not-applicable", "fewer-than-two-methods");
+        if (unresolved > 0)
+            return new("incomplete", "unresolved-state-access");
+        if (!state)
+            return new("not-applicable", "no-instance-storage");
+        return new("complete");
     }
 
     private bool IsHandwritten(ISymbol member) =>
@@ -206,53 +238,17 @@ internal sealed class ClassAnalysis
         );
     }
 
-    private StateMethod State(IMethodSymbol method)
+    private StateMethod State(IMethodSymbol method, INamedTypeSymbol type)
     {
-        var fields = new HashSet<string>(StringComparer.Ordinal);
-        foreach (SyntaxReference reference in (method.PartialImplementationPart ?? method).DeclaringSyntaxReferences)
-        {
-            SyntaxNode declaration = reference.GetSyntax();
-            if (declaration is not MethodDeclarationSyntax methodDeclaration)
-                continue;
-            SyntaxNode? node = (SyntaxNode?)methodDeclaration.Body ?? methodDeclaration.ExpressionBody;
-            if (node is null)
-                continue;
-            SemanticModel model = compilation.GetSemanticModel(node.SyntaxTree);
-            SyntaxNode[] body =
-            [
-                .. node.DescendantNodes(n =>
-                    n is not LocalFunctionStatementSyntax and not AnonymousFunctionExpressionSyntax
-                ),
-            ];
-            foreach (IdentifierNameSyntax name in body.OfType<IdentifierNameSyntax>())
-            {
-                ExpressionSyntax expression =
-                    name.Parent is MemberAccessExpressionSyntax access && access.Name == name ? access : name;
-                if (
-                    model.GetOperation(expression)
-                        is IFieldReferenceOperation
-                        {
-                            Field.IsStatic: false,
-                            Instance: IInstanceReferenceOperation
-                            {
-                                ReferenceKind: InstanceReferenceKind.ContainingTypeInstance
-                            }
-                        } field
-                    && !IsNameOnly(name, model)
-                )
-                    fields.Add(field.Field.ToDisplayString());
-            }
-        }
-        return new(Member: Entry(method), Fields: [.. fields.Order(StringComparer.Ordinal)], Visible: Visible(method));
+        var access = new InstanceStateAccess(compilation, sourceTrees, type);
+        access.Follow(method, method.DeclaringSyntaxReferences[0].GetSyntax());
+        return new(
+            Member: Entry(method),
+            Fields: access.Fields,
+            Visible: Visible(method),
+            UnresolvedAccesses: access.Unresolved
+        );
     }
-
-    private static bool IsNameOnly(IdentifierNameSyntax name, SemanticModel model) =>
-        name.Ancestors()
-            .OfType<InvocationExpressionSyntax>()
-            .Any(invocation =>
-                invocation.Expression is IdentifierNameSyntax { Identifier.ValueText: "nameof" }
-                && model.GetOperation(invocation) is INameOfOperation
-            );
 
     private static IEnumerable<SharedStatePair> SharedPairs(StateMethod[] methods)
     {
@@ -269,6 +265,17 @@ internal sealed class ClassAnalysis
     {
         FileLinePositionSpan span = node.GetLocation().GetLineSpan();
         return new(span.Path, span.StartLinePosition.Line + 1, span.EndLinePosition.Line + 1);
+    }
+
+    internal static UnresolvedStateAccess UnresolvedAt(SyntaxNode node, string reason)
+    {
+        FileLinePositionSpan span = node.GetLocation().GetLineSpan();
+        return new(
+            Location: Place(node),
+            Reason: reason,
+            Column: span.StartLinePosition.Character + 1,
+            EndColumn: span.EndLinePosition.Character + 1
+        );
     }
 
     private static string Identity(INamedTypeSymbol type) =>

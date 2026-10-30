@@ -1,11 +1,19 @@
 using System.Globalization;
+using System.Text.Json.Serialization;
 
 namespace Tertius.Slop;
 
-/// <summary>A pooled count. An empty denominator has no applicable ratio.</summary>
-public sealed record ClassRatio(long Numerator, long Denominator)
+/// <summary>Raw counts retain their ratio only when applicability permits it and the denominator is nonzero.</summary>
+public sealed record ClassRatio(
+    long Numerator,
+    long Denominator,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] MetricApplicability? Applicability = null
+)
 {
-    public double? Ratio => Denominator > 0 ? (double)Numerator / Denominator : null;
+    public double? Ratio =>
+        Denominator > 0 && (Applicability is null || Applicability.Status == "complete")
+            ? (double)Numerator / Denominator
+            : null;
 }
 
 public sealed record SourcePlace(string File, int Line, int EndLine);
@@ -20,13 +28,25 @@ public sealed record ClassMember(
     bool IsApiEntry
 );
 
-public sealed record StateMethod(ClassMember Member, IReadOnlyList<string> Fields, bool Visible);
+public sealed record StateMethod(
+    ClassMember Member,
+    IReadOnlyList<string> Fields,
+    bool Visible,
+    IReadOnlyList<UnresolvedStateAccess>? UnresolvedAccesses = null
+);
+
+public sealed record UnresolvedStateAccess(SourcePlace Location, string Reason, int Column, int EndColumn);
+
+/// <summary>Source-structural applicability, separate from the retained raw counts.</summary>
+public sealed record MetricApplicability(string Status, string? Reason = null);
+
+public sealed record MetricPopulation(int Included, int NotApplicable, int Incomplete);
 
 public sealed record SharedStatePair(string First, string Second, IReadOnlyList<string> Fields);
 
 public sealed record BindingIssue(string Id, string Message, SourcePlace? Location);
 
-/// <summary>Declared surface, existing function weight and direct shared-state evidence for one source type.</summary>
+/// <summary>Declared surface, existing function weight and normalized instance-storage evidence for one source type.</summary>
 public sealed record ClassMeasure
 {
     public required string Name { get; init; }
@@ -41,8 +61,20 @@ public sealed record ClassMeasure
     public required IReadOnlyList<StateMethod> Methods { get; init; }
     public required IReadOnlyList<SharedStatePair> SharedPairs { get; init; }
     public int ApiEntries => Members.Count(member => member.IsApiEntry);
-    public ClassRatio Depth => new(Wmc, ApiEntries);
+    public ClassRatio Depth => new(Wmc, ApiEntries, DepthApplicability);
+    public MetricApplicability? DepthApplicability { get; init; }
     public required ClassRatio Tcc { get; init; }
+    public MetricApplicability? TccApplicability => Tcc.Applicability;
+    public IReadOnlyList<UnresolvedStateAccess>? UnresolvedAccesses { get; init; }
+
+    internal static MetricApplicability ImplementationApplicability(int functionCount, int apiEntries)
+    {
+        if (functionCount == 0)
+            return new("not-applicable", "no-handwritten-functions");
+        if (apiEntries == 0)
+            return new("not-applicable", "no-api-entries");
+        return new("complete");
+    }
 }
 
 /// <summary>Counting version and actual metadata inputs, for comparisons across snapshots.</summary>
@@ -53,9 +85,14 @@ public sealed record ClassMetricSummary(
     ClassRatio Tcc,
     int TypeCount,
     int BindingErrorCount,
-    ClassRatio? Depth = null
+    ClassRatio? Depth = null,
+    MetricPopulation? CohesionPopulation = null,
+    MetricPopulation? DepthPopulation = null,
+    int? UnresolvedStateAccessCount = null
 )
 {
+    internal string TccText => CohesionPopulation is { Included: 0, Incomplete: > 0 } ? "incomplete" : Show(Tcc);
+
     public string DescribeAgainst(ClassMetricSummary? before)
     {
         bool comparable = before?.Provenance == Provenance;
@@ -67,7 +104,8 @@ public sealed record ClassMetricSummary(
                 before: comparable ? before?.Tcc : null,
                 units: "shared/possible method pairs",
                 numerator: "shared pairs",
-                denominator: "possible pairs"
+                denominator: "possible pairs",
+                display: TccText
             ),
         };
         if (Depth is { } depth)
@@ -83,6 +121,24 @@ public sealed record ClassMetricSummary(
             );
         else
             lines.Add("Depth unavailable (legacy note)");
+        if (CohesionPopulation is { } population)
+        {
+            lines.Add(
+                $"Cohesion types: {population.Included} included, {population.NotApplicable} not applicable, {population.Incomplete} incomplete."
+            );
+            if (population.Incomplete > 0)
+                lines.Add("Cohesion excludes incomplete evidence; known counts remain in type details.");
+        }
+        else
+            lines.Add("Cohesion applicability unavailable (legacy note).");
+        if (DepthPopulation is { } depthPopulation)
+            lines.Add(
+                $"Depth types: {depthPopulation.Included} included, {depthPopulation.NotApplicable} not applicable; declaration-only API entries excluded."
+            );
+        else
+            lines.Add("Depth applicability unavailable (legacy note).");
+        if (UnresolvedStateAccessCount is > 0)
+            lines.Add($"Unresolved state access locations: {UnresolvedStateAccessCount} (see details).");
         lines.Add($"Type metrics {Provenance.Version}");
         if (BindingErrorCount > 0)
             lines.Add($"Binding errors: {BindingErrorCount}; counts use available symbols (see details).");
@@ -97,10 +153,11 @@ public sealed record ClassMetricSummary(
         ClassRatio? before,
         string units,
         string numerator,
-        string denominator
+        string denominator,
+        string? display = null
     )
     {
-        string line = $"{name} {Show(count)}";
+        string line = $"{name} {display ?? Show(count)}";
         if (count.Ratio is { } ratio && before?.Ratio is { } oldRatio)
             line += string.Create(CultureInfo.InvariantCulture, $" ({ratio - oldRatio:+0.0000;-0.0000;+0.0000})");
         line += $" ({count.Numerator}/{count.Denominator} {units}";
@@ -126,13 +183,26 @@ public sealed record ClassMetrics(
         var analysis = new ClassAnalysis(codebase, options ?? new());
         ClassMeasure[] types = analysis.Measure();
         BindingIssue[] diagnostics = analysis.BindingDiagnostics();
+        ClassMeasure[] included = [.. types.Where(type => type.TccApplicability?.Status == "complete")];
+        int incomplete = types.Count(type => type.TccApplicability?.Status == "incomplete");
+        ClassMeasure[] implementation = [.. types.Where(type => type.Functions.Count > 0)];
         return new(
             new(
                 Provenance: analysis.Provenance,
-                Tcc: new(types.Sum(type => type.Tcc.Numerator), types.Sum(type => type.Tcc.Denominator)),
+                Tcc: new(included.Sum(type => type.Tcc.Numerator), included.Sum(type => type.Tcc.Denominator)),
                 TypeCount: types.Length,
                 BindingErrorCount: diagnostics.Length,
-                Depth: new(types.Sum(type => (long)type.Wmc), types.Sum(type => (long)type.ApiEntries))
+                Depth: new(
+                    implementation.Sum(type => (long)type.Wmc),
+                    implementation.Sum(type => (long)type.ApiEntries)
+                ),
+                CohesionPopulation: new(included.Length, types.Length - included.Length - incomplete, incomplete),
+                DepthPopulation: new(
+                    implementation.Count(type => type.ApiEntries > 0),
+                    types.Count(type => type.DepthApplicability?.Status == "not-applicable"),
+                    0
+                ),
+                UnresolvedStateAccessCount: types.SelectMany(type => type.UnresolvedAccesses ?? []).Distinct().Count()
             ),
             types,
             diagnostics

@@ -183,13 +183,13 @@ public sealed class ClassMetricsTests
     }
 
     [Fact]
-    public void IndirectStateAndConstructorsDoNotCreateDirectPairs()
+    public void HelpersShareStateWithoutConstructorsAddingEligiblePairs()
     {
         JsonElement metrics = Measure(
             "class A { int x; int y; public A() { x = y; } public int F() => Helper(); public int G() => y; private int Helper() => y; }"
         );
 
-        AssertRatio(metrics: metrics, name: "tcc", numerator: 0, denominator: 1, ratio: 0);
+        AssertRatio(metrics: metrics, name: "tcc", numerator: 1, denominator: 1, ratio: 1);
     }
 
     [Fact]

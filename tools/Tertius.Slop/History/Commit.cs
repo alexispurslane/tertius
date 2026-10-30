@@ -49,7 +49,8 @@ public sealed record SlopHistory(IReadOnlyList<Commit> Commits)
         {
             var csv = new StringBuilder(
                 "commit,date,branch,tickets,erosion,highCcMass,highCcFunctionCount,verbosity,verboseLines,sloc,"
-                    + "tcc,sharedMethodPairs,possibleMethodPairs,depth,wmc,apiEntries,typeCount,classMetricVersion,references,bindingErrorCount\n"
+                    + "tcc,sharedMethodPairs,possibleMethodPairs,depth,wmc,apiEntries,typeCount,classMetricVersion,references,bindingErrorCount,"
+                    + "cohesionIncludedTypeCount,cohesionNotApplicableTypeCount,cohesionIncompleteTypeCount,depthIncludedTypeCount,depthNotApplicableTypeCount,unresolvedStateAccessCount\n"
             );
             foreach (Commit commit in Commits)
             {
@@ -76,12 +77,13 @@ public sealed record SlopHistory(IReadOnlyList<Commit> Commits)
     {
         if (metrics is null)
         {
-            csv.Append(',', 10);
+            csv.Append(',', 16);
             return;
         }
         csv.Append(
             CultureInfo.InvariantCulture,
-            $",{ClassMetricSummary.Show(metrics.Tcc)},{metrics.Tcc.Numerator},{metrics.Tcc.Denominator},{(metrics.Depth is { } depth ? ClassMetricSummary.Show(depth) : "")},{metrics.Depth?.Numerator},{metrics.Depth?.Denominator},{metrics.TypeCount},{Cell(metrics.Provenance.Version)},{Cell(metrics.Provenance.References)},{metrics.BindingErrorCount}"
+            $",{metrics.TccText},{metrics.Tcc.Numerator},{metrics.Tcc.Denominator},{(metrics.Depth is { } depth ? ClassMetricSummary.Show(depth) : "")},{metrics.Depth?.Numerator},{metrics.Depth?.Denominator},{metrics.TypeCount},{Cell(metrics.Provenance.Version)},{Cell(metrics.Provenance.References)},{metrics.BindingErrorCount},"
+                + $"{metrics.CohesionPopulation?.Included},{metrics.CohesionPopulation?.NotApplicable},{metrics.CohesionPopulation?.Incomplete},{metrics.DepthPopulation?.Included},{metrics.DepthPopulation?.NotApplicable},{metrics.UnresolvedStateAccessCount}"
         );
     }
 

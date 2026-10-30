@@ -12,6 +12,38 @@ public sealed class SlopReferenceEnvironment;
 [Collection("Slop reference environment")]
 public sealed class ClassMetricOptionsTests
 {
+    [Fact]
+    public void PrivateMetadataStoragePreventsAnIncorrectNoStorageConclusion()
+    {
+        using var git = new GitFolder();
+        string assembly = Path.Combine(git.Root, "External.dll");
+        var compilation = CSharpCompilation.Create(
+            assemblyName: "External",
+            syntaxTrees:
+            [
+                CSharpSyntaxTree.ParseText(
+                    text: "public class External { private int state; }",
+                    cancellationToken: TestContext.Current.CancellationToken
+                ),
+            ],
+            references: [MetadataReference.CreateFromFile(typeof(object).Assembly.Location)],
+            options: new CSharpCompilationOptions(outputKind: OutputKind.DynamicallyLinkedLibrary)
+        );
+        compilation
+            .Emit(outputPath: assembly, cancellationToken: TestContext.Current.CancellationToken)
+            .Success.Should()
+            .BeTrue();
+        ClassMetrics metrics = ClassMetrics.Of(
+            Source.UsedByATest(
+                SourceFile.Parse("src/A.cs", "class A : External { public int F() => 0; public int G() => 0; }")
+            ),
+            new ClassMetricOptions { ReferencePaths = [assembly] }
+        );
+
+        metrics.Summary.Tcc.Should().Be(new ClassRatio(0, 1));
+        metrics.Types.Single().TccApplicability!.Status.Should().Be("complete");
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

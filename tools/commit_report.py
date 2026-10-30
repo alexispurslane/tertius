@@ -217,13 +217,31 @@ def report_classes(metrics, baseline):
     now = metrics["summary"]
     before = (baseline or {}).get("note", {}).get("classMetrics")
     comparable = before and before.get("provenance") == now.get("provenance")
+    cohesion = now.get("cohesionPopulation")
     for key, label in (("tcc", "TCC"), ("depth", "Depth")):
         count = now.get(key)
         if count is None:
             print(f"  {label} unavailable (legacy report)")
             continue
+        if key == "tcc" and cohesion and cohesion["included"] == 0 and cohesion["incomplete"]:
+            print("  TCC incomplete")
+            continue
         previous = before.get(key) if comparable else None
         print("  " + metric_line(label, count.get("ratio"), previous.get("ratio") if previous else None))
+    population = now.get("cohesionPopulation")
+    if population is None:
+        print("  Cohesion applicability unavailable (legacy report).")
+    else:
+        print(f"  Cohesion types: {population['included']} included, {population['notApplicable']} not applicable, {population['incomplete']} incomplete.")
+        if population["incomplete"]:
+            print("  Cohesion excludes incomplete evidence; known counts remain in type details.")
+    population = now.get("depthPopulation")
+    if population is None:
+        print("  Depth applicability unavailable (legacy report).")
+    else:
+        print(f"  Depth types: {population['included']} included, {population['notApplicable']} not applicable; declaration-only surface excluded.")
+    if now.get("unresolvedStateAccessCount", 0):
+        print(f"  Unresolved state access locations: {now['unresolvedStateAccessCount']} (see details).")
     if now.get("bindingErrorCount", 0):
         print(f"  Binding errors: {now['bindingErrorCount']}; counts use available symbols (see details).")
     if before and not comparable:

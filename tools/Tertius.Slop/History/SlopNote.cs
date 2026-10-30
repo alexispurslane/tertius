@@ -71,14 +71,24 @@ public sealed record SlopNote
         HighCcMass is not null && HighCcFunctionCount is not null && VerboseLines is not null;
 
     [JsonIgnore]
-    public bool HasAllCounts => HasAbsoluteCounts && ClassMetrics?.Depth is not null;
+    public bool HasAllCounts =>
+        HasAbsoluteCounts
+        && ClassMetrics is { Depth: not null } metrics
+        && (
+            metrics.Provenance.Version != "type-metrics-v3"
+            || metrics
+                is { CohesionPopulation: not null, DepthPopulation: not null, UnresolvedStateAccessCount: not null }
+        );
 
     private int Completeness =>
         (HighCcMass is not null ? 1 : 0)
         + (HighCcFunctionCount is not null ? 1 : 0)
         + (VerboseLines is not null ? 1 : 0)
         + (ClassMetrics is not null ? 4 : 0)
-        + (ClassMetrics?.Depth is not null ? 1 : 0);
+        + (ClassMetrics?.Depth is not null ? 1 : 0)
+        + (ClassMetrics?.CohesionPopulation is not null ? 1 : 0)
+        + (ClassMetrics?.DepthPopulation is not null ? 1 : 0)
+        + (ClassMetrics?.UnresolvedStateAccessCount is not null ? 1 : 0);
 
     /// <summary>Whether any note line still lacks an absolute count.</summary>
     public static bool NeedsBackfill(string text) =>
@@ -131,8 +141,15 @@ public sealed record SlopNote
     {
         if (ClassMetrics is null)
             return measured;
-        if (ClassMetrics.Depth is null && measured?.Provenance == ClassMetrics.Provenance)
-            return ClassMetrics with { Depth = measured.Depth };
+        if (measured?.Provenance == ClassMetrics.Provenance)
+            return ClassMetrics with
+            {
+                Depth = ClassMetrics.Depth ?? measured.Depth,
+                CohesionPopulation = ClassMetrics.CohesionPopulation ?? measured.CohesionPopulation,
+                DepthPopulation = ClassMetrics.DepthPopulation ?? measured.DepthPopulation,
+                UnresolvedStateAccessCount =
+                    ClassMetrics.UnresolvedStateAccessCount ?? measured.UnresolvedStateAccessCount,
+            };
         return ClassMetrics;
     }
 
