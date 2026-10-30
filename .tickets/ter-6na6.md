@@ -123,3 +123,6 @@ The final reference refresh uses counter commit `010e74714a89c7d8477e46d5a4cee5c
 ## Final integration after review fixes
 
 `nix develop --command bash tools/test-all.sh -j 3 -o /tmp/ter-6na6-integration-final` exited zero on the final implementation. Checked: 9,458 passed, 0 failed, 14 skipped. Release: 9,445 passed, 0 failed, 14 skipped. Each includes all 597 Slop tests. Skips remain Physics 8, Rendering 1 and Host 5 under existing filters. Normal commit hooks passed on the implementation commit. All three independent review findings are reproduced and fixed; no review blocker remains. No engine source changed, and no real-history backfill was performed.
+
+
+The normal pre-push cleanup added `42a0549f`: comparer-preserving collection construction syntax and local type spelling in three files. The hook's full Checked solution build passed. Both complete Slop suites were rerun on the cleanup result: 597 Checked and 597 Release passed, with zero failures or skips. Logs: `/tmp/ter-6na6-cleanup-{checked,release}.log`. The reference measurement remains pinned to its documented counter revision; these cleanup edits do not alter counting behavior.
