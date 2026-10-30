@@ -487,6 +487,8 @@ Four more rules of the style analyzer have code fixes that `dotnet format` appli
 
 ## Type coherence and source evidence (ter-dyss)
 
+For interpretation, numerical anchors and reviewed examples, see [Interpreting code quality metrics](../CLAUDE.md#interpreting-code-quality-metrics).
+
 The project reports two type metrics: direct TCC (tight class cohesion) and depth (behavior weight per API entry). There is no dependency score, threshold-based interface burden, standalone exposure score, method-group score, or cutoff. Depth and erosion stay separate: erosion checks excessive function complexity. Neither a higher depth nor a higher WMC proves better design.
 
 Direct TCC is `sum(sharedMethodPairs) / sum(possibleMethodPairs)`. A pair shares state when both declared visible ordinary instance methods directly reference the same instance field of this object. Pairs never cross type boundaries. A type with instance state and `m` such methods contributes `m*(m-1)/2` possible pairs. Constructors, accessors, operators, static methods and private methods are excluded from these pairs. Empty denominators are `n/a`, not zero. TCC ranges from zero to one, with higher values meaning more direct field sharing. Methods are not complexity-weighted, and indirect calls do not add shared pairs.

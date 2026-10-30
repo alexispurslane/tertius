@@ -38,6 +38,63 @@ ARCHITECTURE.md is the binding design, and the code and `tools/README.md` say ho
 
 - The pre-commit hook builds and tests the changed modules, and that takes minutes. A full Checked run that passed on the staged code just before the commit skips it. Its report of complex, long or duplicated code asks you to refactor the touched code in the same commit.
 
+## Interpreting code quality metrics
+
+Use these numbers to choose code to inspect and to explain a change. A refactoring improves design when it reduces caller knowledge or the places that must change together. A better number alone does not establish that improvement. Here, "class" means any measured type.
+
+CC is cyclomatic complexity, the tool's count of branches plus one. SLOC is source lines of code. Function mass is `CC * sqrt(SLOC)`. WMC is the sum of CC across a type's handwritten functions, including private functions. An API entry is one declared member accessible outside its type, including internal and protected members. TCC pairs declared non-private ordinary instance methods within types that have instance state. Both methods must directly access the same field on this instance to count as sharing. [The counting rules](tools/README.md#type-coherence-and-source-evidence-ter-dyss) define eligibility and exclusions.
+
+| Metric | Meaning and numerical anchors | How to judge it |
+|---|---|---|
+| Erosion | Mass in functions with CC above 10, divided by all function mass. `0.20` means 20% of measured mass is in those functions. | Lower is desirable when the same work becomes easier to understand. Inspect touched complex functions and their absolute mass. Adding simple code can lower the ratio without improving them. |
+| Verbosity | Distinct rule-flagged or cloned lines divided by project SLOC. `0.03` means three flagged lines per 100 source lines. | Lower is desirable when unnecessary code disappears. Inspect the findings and absolute flagged-line count. Removing useful clarity to satisfy a heuristic is not an improvement. |
+| Direct TCC, tight class cohesion | Shared instance-field method pairs divided by possible eligible pairs, pooled across types. `0` means no direct sharing, `0.5` means half the pairs share, and `1` means all share. | More sharing supports a common stateful responsibility. Low values merit inspection for unrelated responsibilities. Property access and helper calls can hide real cohesion from this measure. Sharing one context field can give unrelated operations high TCC. |
+| Depth | Pooled WMC divided by pooled API entries. `2` means two counted complexity units per API entry. It is neither lines per method nor a percentage. | For the same responsibility, more useful behavior behind a small usable interface is desirable. Values near or below `1` can suggest little hidden behavior in a service. They can be appropriate for data types. Higher values need evidence of information hiding. Extra branching also raises depth, so inspect erosion separately. |
+
+The [Earendil article](https://earendil.com/posts/measuring-code-sloppiness/) reports erosion of `0.31 ± 0.17` for established repositories and `0.68 ± 0.20` for agent code. It reports verbosity of `0.15 ± 0.06` and `0.33 ± 0.10`, respectively. These describe its samples. Our C# syntax rules, switch counting and source population limit cross-project comparisons, especially for verbosity. They are context, not pass/fail thresholds.
+
+### Historical C# references
+
+The [historical reference study](docs/research/type-metric-reference-2026-10-30/README.md) records selected established C# libraries released before 2021, measured with the same counter and metadata references. It retains exact revisions, source manifests, absolute counts and per-type distributions. Release dates provide a comparison period before widespread AI coding; they do not prove authorship or quality.
+
+<!-- historical-reference-table -->
+
+| Project | Pooled direct TCC | Pooled depth |
+|---|---:|---:|
+| Dapper 2.0.78 | 0.5094 | 3.0158 |
+| Serilog v2.10.0 | 0.0166 | 1.7638 |
+| Noda Time 3.0.3 | 0.1121 | 1.4737 |
+| Newtonsoft.Json 12.0.3 | 0.2022 | 2.6547 |
+| NUnit v3.12 | 0.2866 | 1.6776 |
+| Autofac v6.0.0 | 0.1729 | 1.6309 |
+
+<!-- /historical-reference-table -->
+
+In this six-project sample, pooled direct TCC spans `0.0166–0.5094` (median `0.1875`), and depth spans `1.4737–3.0158` complexity units per API entry (median `1.7207`). Each project has equal weight in these medians. These put the local reference below in numerical context; they do not define an acceptable band.
+
+Read these as observed reference values, not a quality ranking or a validated acceptable range. Direct TCC can be zero for a coherent value type using properties (`NodaTime.LocalDate`) and one for a forwarding wrapper (`Dapper.DbWrappedReader`). Dapper's two reader types supply 93.22% of its possible pairs; Serilog's `Logger` supplies 90.29%. Depth can be high because explicit interface implementations add WMC but no API entries (`Dapper.BasicWrappedReader`: `36/1`). Check the type's role and the counting rules before judging either extreme. Missing symbols and inactive conditional code also limit comparisons, especially for NUnit, Newtonsoft.Json and Tertius; the study records those limits.
+
+### Local reference examples
+
+At `bf5bf784` (2026-10-30), project erosion was `0.2000`, verbosity `0.0332`, TCC `1887/10179 = 0.1854`, and depth `10122/4771 = 2.1216`. These are historical reference values, not targets. The following examples use that snapshot and `type-metrics-v2` with the hook's default metadata references. Source analysis reported 3,344 binding errors, so the counts describe available symbols. Inspect relevant binding errors before judging a type.
+
+| Type | TCC: shared/possible pairs | Depth: WMC/API entries | What the code demonstrates |
+|---|---|---|---|
+| [RendererOptions](src/Tertius.Rendering/RendererOptions.cs) | `0/0`, not applicable | `0/20 = 0` | A configuration payload has useful fields and properties without handwritten function bodies. Zero depth is expected here. |
+| [DPose](src/Tertius.Core/Math/Pose.cs) | `0/21 = 0` | `17/13 = 1.3077` | Transform operations form one mathematical concept. They access properties, which do not count as direct field sharing. Zero TCC does not establish incoherence. |
+| [ToneMapPass](src/Tertius.Rendering/Passes/ToneMapPass.cs) | `1/1 = 1` | `11/4 = 2.7500` | The pass hides shader and output selection. Its maximum TCC rests on just one eligible pair. |
+| [TopicSets](src/Tertius.Simulation/Internal/Messaging/TopicSets.cs) | `33/55 = 0.6000` | `83/13 = 6.3846` | Membership and subscriptions serve one recipient policy. Their storage updates stay inside the owner. This is evidence of useful depth. |
+| [EventList](src/Tertius.Simulation/Events/EventList.cs) | `28/36 = 0.7778` | `17/14 = 1.2143` | High TCC coexists with exposed storage bookkeeping. Whole-event writes can bypass mask maintenance. [ter-c8lk](.tickets/ter-c8lk.md) records the defect and proposed ownership fix. |
+
+### Calibrating a judgment
+
+1. Compare the same counting version and metadata references. Treat an empty denominator as not applicable and missing legacy data as unavailable.
+2. Compare types with similar roles: stateful owners, value types, configuration payloads, or interfaces. Inspect source and callers before looking at their scores. Record a concrete reason to keep or refactor each sampled type, or mark it uncertain.
+3. Then examine scores, raw counts and counterexamples. Sample low, middle and high values within each role. Quantiles describe frequency, not quality. Before proposing a cutoff, review examples on both sides and test it on additional types.
+4. For a project change, inspect both pooled sums and the types that changed. TCC weights types by their possible pairs, which grow quadratically with eligible method count. Depth pools complexity and API counts, including WMC from types with zero API entries. Neither is a vote over types. A changed mix of types can move either ratio without improving existing code.
+
+Keep TCC and depth separate. Splitting a type can remove non-sharing pairs and raise TCC without changing its behavior. Adding branches can raise depth while worsening erosion. Accept such a change only when the code and its callers demonstrate a design improvement. The earlier 22-type review supplied counterexamples and refactoring tickets. It did not validate TCC/depth cutoffs. The hooks therefore keep both as project statistics, with no automatic type-level finding thresholds.
+
 ## Testing
 
 - `WorldOptions.DebugChecks` runs the world's invariant checks at the end of every sync point.
