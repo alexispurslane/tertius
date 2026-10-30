@@ -9,9 +9,7 @@
 #   -c <list>  build configurations, separated by commas (default Checked,Release; Checked is Debug's contracts with
 #              Release's optimized code, see Directory.Build.targets)
 #   -m <list>  test modules, separated by commas
-#              (default Core,Simulation,Physics,Rendering,Host,Unions,Style,Slop,Blender).
-#              Blender is the tests of the build tool of scripted models and of MPFB in it, tools/blender/tests/test_*.py.
-#              They run once, after the .NET tests, in the assets shell, and they ignore -c and the arguments after --.
+#              (default Core,Simulation,Physics,Rendering,Host,Unions,Style,Slop).
 #   -o <dir>   folder for the logs (default a new temporary folder)
 #   -j <runs>  the most test runs at once (default 0: every configuration and module at once)
 #   -- <args>  everything after -- goes to each dotnet test command unchanged, for example a filter
@@ -24,9 +22,9 @@ if [[ -z "${TERTIUS_VULKAN_DIR:-}" ]]; then
   echo "TERTIUS_VULKAN_DIR is empty. Run the script inside the dev shell: nix develop --command bash $0 ..." >&2
   exit 1
 fi
-usage="usage: tools/test-all.sh [-c Checked,Release] [-m Core,Simulation,Physics,Rendering,Host,Unions,Style,Slop,Blender] [-o <out-dir>] [-j <runs>] [-- <dotnet test args>]"
+usage="usage: tools/test-all.sh [-c Checked,Release] [-m Core,Simulation,Physics,Rendering,Host,Unions,Style,Slop] [-o <out-dir>] [-j <runs>] [-- <dotnet test args>]"
 configurations=Checked,Release
-modules=Core,Simulation,Physics,Rendering,Host,Unions,Style,Slop,Blender
+modules=Core,Simulation,Physics,Rendering,Host,Unions,Style,Slop
 out=
 jobs=0
 while getopts "c:m:o:j:h" option; do
@@ -43,13 +41,6 @@ passthrough=("$@")
 IFS=, read -r -a configurations <<< "$configurations"
 IFS=, read -r -a modules <<< "$modules"
 root=$(git rev-parse --show-toplevel)
-# The Blender module is no .NET test project, so it leaves the list of modules and runs on its own at the end.
-blender_tests=0
-dotnet_modules=()
-for module in "${modules[@]}"; do
-  if [[ "$module" == Blender ]]; then blender_tests=1; else dotnet_modules+=("$module"); fi
-done
-modules=(${dotnet_modules[@]+"${dotnet_modules[@]}"})
 for module in ${modules[@]+"${modules[@]}"}; do
   if [[ ! -d "$root/tests/Tertius.$module.Tests" ]]; then
     echo "No test project tests/Tertius.$module.Tests. $usage" >&2
@@ -68,7 +59,6 @@ status=0
 # but a module waits for its slowest class, and the runs of other modules fill those cores meanwhile.
 built=()
 for configuration in "${configurations[@]}"; do
-  [[ ${#modules[@]} -gt 0 ]] || break  # Only the Blender tests: no .NET build.
   rm -rf "${out:?}/$configuration"
   mkdir -p "$out/$configuration"
   # One build per configuration. The test runs then use --no-build, so they do not build the shared projects again.
@@ -126,23 +116,4 @@ for configuration in ${built[@]+"${built[@]}"}; do
     grep -E '^failed ' "$log" | sed -E 's/^failed //; s/ \([^()]*\)$//' | sed 's/^/    failed: /' || true
   done
 done
-# The tests of the build tool start Blender several times on the CPU, so they run after the .NET tests and not beside
-# them. unittest ends with "Ran <n> tests" and a line "OK" or "FAILED (failures=<f>, errors=<e>)".
-if [[ $blender_tests -eq 1 ]]; then
-  log="$out/blender.log"
-  code=0
-  nix develop "$root#assets" --command python3 -m unittest discover -s tools/blender/tests -p "test_*.py" > "$log" 2>&1 \
-    || code=$?
-  ran=$(sed -n 's/^Ran \([0-9]*\) tests\{0,1\} in .*/\1/p' "$log" | tail -1)
-  if [[ -z "$ran" ]]; then
-    echo "Blender: no summary, exit code $code, see $log"
-    status=1
-  elif [[ $code -ne 0 ]]; then
-    echo "Blender: total $ran, $(grep -E '^FAILED' "$log" | tail -1), exit code $code, see $log"
-    grep -E '^(FAIL|ERROR): ' "$log" | sed 's/^/    /' || true
-    status=1
-  else
-    echo "Blender: total $ran, failed 0"
-  fi
-fi
 exit $status

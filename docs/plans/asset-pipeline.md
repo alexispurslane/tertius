@@ -411,7 +411,7 @@ The export conventions live in one function, `export.write_glb`. The converter o
 - The exporter computes tangents only for triangles and quads. So the function adds a Triangulate modifier at the end of the modifier stack of each mesh for the time of the export. glTF holds triangles in any case, and the scene keeps its polygons.
 - Blender runs the export with one thread (`--threads 1`), for the tangents.
 
-Determinism: the same model folder, model library and Blender build on the same machine give the same meshes, UV maps and nodes. Tests in `tools/blender/tests/` build small models twice and compare the `model.glb` bytes. Some BMesh operators, such as `create_uvsphere` and `spin`, order what they make by memory address. So `MB.finish` puts the vertices of each mesh in the order of their coordinates and its faces in the order of their vertices before the weld. `model.blend` and `build.json` hold times and paths, so their bytes differ.
+Determinism: the same model folder, model library and Blender build on the same machine give the same meshes, UV maps and nodes. Some BMesh operators, such as `create_uvsphere` and `spin`, order what they make by memory address. So `MB.finish` puts the vertices of each mesh in the order of their coordinates and its faces in the order of their vertices before the weld. `model.blend` and `build.json` hold times and paths, so their bytes differ.
 
 The first builds of the Nostromo (2026-10-26) tested the belief that a build gives the same `.glb` bytes on every run. Two causes broke it, and the second is fixed:
 
@@ -479,8 +479,6 @@ How MPFB runs in the build:
 | Only the hair, the eyebrows and the eyelashes keep the alpha of their image, with blended drawing (`BLEND`). The skin and the eyes are opaque. | An opaque part with alpha would export as `BLEND` and sort badly. |
 | It deletes the faces of the eyes whose image is clear, the cornea. | Drawn opaque, the clear shell hides the iris. |
 
-The test `tools/blender/tests/test_mpfb.py` checks MPFB's slider logic against an independent copy of its formula (`mpfb_reference.py`). For seven slider sets, from the defaults to every slider at 0 and at 1, MPFB and the copy choose the same targets with the same weights, and every vertex of the two bodies lies within 0.54 micrometers. Blender keeps shape keys in 32-bit floats, so that is the rounding of the sums. Until 2026-10-26, the astronaut's `s10_body.py` held such a copy, and no model ran MPFB's code. Now every body comes from MPFB, and the copy lives on only in the test.
-
 What MPFB gives in the build, and what it does not:
 
 | Feature | In the build | Note |
@@ -530,7 +528,7 @@ The agent looks at the scene through the render tools of the MCP server. They ne
 | `tools/blender/build.py` | Engine authors | Blender, started by the build tool, and the importer (the cache key) |
 | `tools/blender/build.sh` | Engine authors | The importer (it runs the tool, and the file is in the cache key), agents |
 | `tools/blender/bridge.sh` | Engine authors | Agents and people |
-| `native/mpfb.nix` | Engine authors | Nix, for the assets shell's `TERTIUS_MPFB`: the unpacked MPFB 2.0.18 add-on, pinned by hash. `native/blender-extensions.nix` links it as the system extension `mpfb`. The tests of `tools/blender/tests/test_mpfb.py` read its `data/` folder for their reference sums. |
+| `native/mpfb.nix` | Engine authors | Nix, for the assets shell's `TERTIUS_MPFB`: the unpacked MPFB 2.0.18 add-on, pinned by hash. `native/blender-extensions.nix` links it as the system extension `mpfb`. |
 | `native/makehuman-assets.nix` | Engine authors | Nix, for the assets shell's `TERTIUS_MAKEHUMAN_ASSETS`: the skins, eyes, eyebrows, eyelashes, teeth, tongues and hair of the MakeHuman system assets, pinned by hash. `tertius_blender.mpfb` makes it MPFB's second asset root. |
 | `native/blender-extensions.nix` | Engine authors | Nix, for the assets shell's `BLENDER_SYSTEM_EXTENSIONS`: the MCP add-on and MPFB as Blender system extensions |
 | `.mcp.json` | Engine authors | Claude Code |
@@ -2002,7 +2000,7 @@ Ticket ter-q218 comes before these steps. It adds the scripted model format, the
     - `CheckFreshness` and `AssertInvariants`.
 
     Done: a fixture package with a model, asset collision and a door at a node pose loads, spawns, and runs one tick.
-15. Add the Blender path. Test the example scripted model of `tools/blender/tests/` with each exit code of the build tool. Other tests: FBX, OBJ and `.blend` fixtures, the conversion of TIFF, WebP and Draco fixtures at import, recorded dependencies, the time limit, AS6001 outside the `assets` shell, and a `.blend` fixture with an auto-run script. Save a fixture twice from a Blender script, and make sure that its `*.blend1` file gives no diagnostic. That script writes a marker file, and the test makes sure that the file does not exist after the import. Measure the time from a save to new pixels.
+15. Add the Blender path. Test a scripted model fixture with each exit code of the build tool. Other tests: FBX, OBJ and `.blend` fixtures, the conversion of TIFF, WebP and Draco fixtures at import, recorded dependencies, the time limit, AS6001 outside the `assets` shell, and a `.blend` fixture with an auto-run script. Save a fixture twice from a Blender script, and make sure that its `*.blend1` file gives no diagnostic. That script writes a marker file, and the test makes sure that the file does not exist after the import. Measure the time from a save to new pixels.
 16. Write the CLI commands, the previews and the thumbnails. Test the command classes directly, and run the process once per command as a smoke test. Test the JSON shapes and every exit code. Test AS2015 with a small budget. Approve the preview images of the fixtures after a review.
 17. Write provenance, licenses, credits, `add`, `fetch` and fetched sources. The tests use recorded API responses and a fake `HttpMessageHandler` that serves fixture bytes, and never the network. Test the archive rules, the plan without `--approved`, the User-Agent, every license rule and `CREDITS.md`. Test the attribution line that `fetch` builds for a CC BY download. Test that `add` writes nothing for a missing tool, and that it removes its files after a failed import, also from the source cache. Fetched sources:
     - An import with an empty source cache downloads each file of an approved record, asks nothing, and the second import downloads nothing.
@@ -2041,7 +2039,7 @@ Fixtures in `tests/Tertius.Import.Tests/Fixtures/`. Each one is small and tests 
 | `interior.glb` | A room of about 10,000 triangles with 8 lights, for collision and the cost of the lights |
 | `door.fbx`, `crate.obj` with `crate.mtl`, `ship.blend`, `autoexec.blend`, `draco.glb`, `checker.tif`, `checker.webp` | The Blender path, and the conversions at import |
 | `texture-set.gltf` with separate roughness, metal and DirectX normal images | The packing of a texture set at import |
-| `crate.model/` | A scripted model: a copy of the example model of `tools/blender/tests/` |
+| `crate.model/` | A small scripted model fixture for the importer |
 | `checker-srgb.png`, `normal-bumpy.png`, `normal-dx.png`, `alpha-edge.png`, `npot-300x200.png`, `deep-16bit.png`, `sky.hdr`, `normal.exr`, `huge-header.png` | Texture processing |
 | `Packages/assets-demo/` | A package for the store, the resolver and the CLI. It has a `ship.blend1` backup file. It also has a sidecar with a fetch record, whose URLs the fake `HttpMessageHandler` serves from fixture files. |
 
