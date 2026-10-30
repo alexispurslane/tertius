@@ -6,7 +6,7 @@ commit: it is a report.
 - Length: every compile writes its diagnostics to obj/<configuration>/<framework>/analyzers.sarif
   (Directory.Build.targets), and the pre-commit hook builds Checked. The script reads MA0051 (method length) from the
   projects of the staged files and prints each one whose method holds a changed line, in src and in tests.
-- Erosion and verbosity: with --slop <file>, the script reads the report that `Tertius.Slop measure --details <file>`
+- Erosion, verbosity and their absolute counts: with --slop <file>, the script reads the report that `Tertius.Slop measure --details <file>`
   wrote for the staged tree (tools/README.md, "Slop metrics"). It prints each metric of src, with its change against the
   baseline of the details: the note of the nearest noted commit up to HEAD on the first-parent line, by the rule of the
   push summary. That is the parent of a new commit, or an older commit when the parent has no note. In a
@@ -161,13 +161,13 @@ def report_length(changed):
     return True
 
 
-def metric_line(name, metric, value, baseline):
+def metric_line(name, metric, value, baseline, digits=4):
     """The value of a metric of the staged tree, with its change against the baseline's note when there is one."""
-    if baseline is None:
-        return f"{name} {value:.4f}"
+    if baseline is None or metric not in baseline["note"]:
+        return f"{name} {value:.{digits}f}"
     # Rounded first, so that a change below the last shown digit prints as +0.0000, not as -0.0000.
-    change = round(value - baseline["note"][metric], 4) + 0.0
-    return f"{name} {value:.4f} ({change:+.4f} against {baseline['commit']}, the nearest noted commit up to HEAD)"
+    change = round(value - baseline["note"][metric], digits) + 0.0
+    return f"{name} {value:.{digits}f} ({change:+.{digits}f} against {baseline['commit']}, the nearest noted commit up to HEAD)"
 
 
 def place(item):
@@ -183,6 +183,8 @@ def changes(changed, item):
 def report_erosion(changed, erosion, baseline):
     """Prints the erosion and the functions above the CC limit that hold a changed line. True if it named any."""
     print(metric_line("Erosion", "erosion", erosion["erosion"], baseline))
+    print(metric_line("High CC mass", "highCcMass", erosion["highCcMass"], baseline, digits=1))
+    print(metric_line("High CC functions", "highCcFunctionCount", erosion["highCcFunctionCount"], baseline, digits=0))
     limit = erosion["complexityLimit"]
     functions = [f for f in erosion["highCcFunctions"] if changes(changed, f)]
     if not functions:
@@ -197,6 +199,7 @@ def report_erosion(changed, erosion, baseline):
 def report_verbosity(changed, verbosity, baseline):
     """Prints the verbosity, and the findings and clones that hold a changed line. True if it named any."""
     print(metric_line("Verbosity", "verbosity", verbosity["verbosity"], baseline))
+    print(metric_line("Verbose lines", "verboseLines", verbosity["verboseLines"], baseline, digits=0))
     messages = {rule["id"]: rule["message"] for rule in verbosity["rules"]}
     findings = [f for f in verbosity["findings"] if changes(changed, f)]
     clones = [c for c in verbosity["clones"] if changes(changed, c["first"]) or changes(changed, c["second"])]

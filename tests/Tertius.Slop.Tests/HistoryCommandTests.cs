@@ -251,6 +251,45 @@ public sealed class HistoryCommandTests : IDisposable
     }
 
     [Fact]
+    public void BackfillAddsCountsToOldNotesAndKeepsTheirMetadataAndOtherLines()
+    {
+        git.Write("src/C.cs", Complex);
+        string commit = git.Commit("complex");
+        SlopNote old = SlopNoteTests.Note(erosion: 0.5, verbosity: 0.25);
+        git.Git("notes", "--ref=slop", "add", "-m", $"other tool\n{old.ToLine()}\nkeep me", commit);
+
+        int exit = Run("backfill");
+
+        exit.Should().Be(0);
+        string noteText = git.NoteOf(commit)!;
+        noteText.Should().StartWith("other tool\n").And.EndWith("\nkeep me");
+        SlopNote note = SlopNote.Parse(noteText)!;
+        (note.Branch, note.Source, note.Measured).Should().Be((old.Branch, old.Source, old.Measured));
+        using var line = JsonDocument.Parse(note.ToLine());
+        line.RootElement.GetProperty("highCcFunctionCount").GetInt32().Should().Be(1);
+        line.RootElement.GetProperty("highCcMass").GetDouble().Should().BeGreaterThan(0);
+
+        output.GetStringBuilder().Clear();
+        Run("backfill").Should().Be(0);
+        git.NoteOf(commit).Should().Be(noteText);
+        output.ToString().Should().Contain("0 note");
+    }
+
+    [Fact]
+    public void BackfillReportsAnUnreadableNoteWithoutReplacingIt()
+    {
+        git.Write("src/A.cs", Short);
+        string commit = git.Commit("first");
+        git.Git("notes", "--ref=slop", "add", "-m", "other tool", commit);
+
+        int exit = Run("backfill");
+
+        exit.Should().Be(1);
+        error.ToString().Should().Contain($"slop note of {commit} holds no readable note");
+        git.NoteOf(commit).Should().Be("other tool");
+    }
+
+    [Fact]
     public void TheNoteCommandNotesAMergeThatBringsSourceChangesToTheFirstParentLine()
     {
         git.Write("src/A.cs", Short);
@@ -301,10 +340,12 @@ public sealed class HistoryCommandTests : IDisposable
 
         exit.Should().Be(0);
         string[] lines = output.ToString().TrimEnd().Split('\n');
-        lines[0].Should().Be("commit,date,branch,tickets,erosion,verbosity,sloc");
+        lines[0]
+            .Should()
+            .Be("commit,date,branch,tickets,erosion,highCcMass,highCcFunctionCount,verbosity,verboseLines,sloc");
         lines[1..]
             .Select(line => line.Split(','))
-            .Select(cells => (cells[3], cells[6]))
+            .Select(cells => (cells[3], cells[9]))
             .Should()
             .Equal(("ter-bbbb", "8"), ("ter-aaaa", "4"));
     }
@@ -348,11 +389,11 @@ public sealed class HistoryCommandTests : IDisposable
             .ToString()
             .Should()
             .Contain("erosion    0.0000 -> 1.0000  +1.0000")
-            .And.Contain($"+1.0000  {complex[..7]}  ter-ab12  ter-ab12: a complex function");
+            .And.Contain($"+46.5  {complex[..7]}  ter-ab12  ter-ab12: a complex function");
     }
 
     [Fact]
-    public void TheSummaryCommandNamesOnlyTheCommitsThatRaisedAMetricAgainstTheNoteBeforeThem()
+    public void TheSummaryCommandRanksHighCcMassAgainstTheNoteBeforeEachCommit()
     {
         git.Write("src/A.cs", Short);
         string pushed = git.Commit("first");
@@ -366,7 +407,11 @@ public sealed class HistoryCommandTests : IDisposable
 
         Run("summary", pushed, "HEAD");
 
-        output.ToString().Should().Contain($"+1.0000  {complex[..7]}").And.NotContain(simple[..7]);
+        string massRaises = output
+            .ToString()
+            .Split("the commits that raised the high CC mass the most:")[1]
+            .Split("the commits that raised the verbose lines the most:")[0];
+        massRaises.Should().Contain($"+46.5  {complex[..7]}").And.NotContain(simple[..7]);
     }
 
     [Fact]

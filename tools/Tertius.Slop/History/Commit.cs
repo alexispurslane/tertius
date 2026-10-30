@@ -41,13 +41,15 @@ public sealed record SlopHistory(IReadOnlyList<Commit> Commits)
 {
     /// <summary>
     /// The noted commits as CSV, one row each, with the columns commit, date, branch, tickets (separated by spaces),
-    /// erosion, verbosity and sloc. A commit without a note has no row.
+    /// erosion, high CC mass and function count, verbosity, verbose lines and sloc. A commit without a note has no row.
     /// </summary>
     public string Csv
     {
         get
         {
-            var csv = new StringBuilder("commit,date,branch,tickets,erosion,verbosity,sloc\n");
+            var csv = new StringBuilder(
+                "commit,date,branch,tickets,erosion,highCcMass,highCcFunctionCount,verbosity,verboseLines,sloc\n"
+            );
             foreach (Commit commit in Commits)
             {
                 if (commit.Note is not { } note)
@@ -57,7 +59,10 @@ public sealed record SlopHistory(IReadOnlyList<Commit> Commits)
                     CultureInfo.InvariantCulture,
                     $"{commit.Sha},{date},{Cell(note.Branch)},{Cell(string.Join(' ', commit.Tickets))},"
                 );
-                csv.Append(CultureInfo.InvariantCulture, $"{note.Erosion},{note.Verbosity},{note.Sloc}\n");
+                csv.Append(
+                    CultureInfo.InvariantCulture,
+                    $"{note.Erosion},{note.HighCcMass},{note.HighCcFunctionCount},{note.Verbosity},{note.VerboseLines},{note.Sloc}\n"
+                );
             }
 
             return csv.ToString();
