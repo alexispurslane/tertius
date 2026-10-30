@@ -1,1 +1,1 @@
-{"erosion":0.3506596640582985,"verbosity":0.05013747758517633,"sloc":41825,"branch":"ter-muln-discard-arm-rule","source":"pre-commit","measured":"2026-10-25T00:19:48.714256+00:00"}
+{"erosion":0.3506596640582985,"verbosity":0.05013747758517633,"highCcMass":12544.398547986384,"highCcFunctionCount":90,"verboseLines":2097,"sloc":41825,"branch":"ter-muln-discard-arm-rule","source":"pre-commit","measured":"2026-10-25T00:19:48.714256+00:00"}
