@@ -1,6 +1,6 @@
 ---
 id: ter-5ird
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-10-31T21:17:06Z
@@ -23,3 +23,7 @@ Workflow run 10a316ab-f4fb-4f63-bef4-afa1df798711 (version 869b0b07), branch ter
 **2026-10-31T21:35:25Z**
 
 Run 10a316ab stopped by the orchestrator after about 5 minutes, cleanup complete: ter-vr5r's fix stage started, which made five builders against the user's limit of four. The worktree ~/.t3/worktrees/tertius/ter-5ird-hair-scene-script-checks keeps the builder's untracked, unfinished tests/Tertius.Host.Tests/HairSkinAndReflectionScenesTests.cs (250 lines, never built or run). A continuation attaches that worktree and inspects the file before it goes on.
+
+**2026-10-31T23:17:34Z**
+
+Continuation: workflow run e43bc610-7368-4637-8053-4dda49b6e574 (version 869b0b07) attaches the worktree at d4bd48de with the first run's unfinished test file; brief /tmp/briefs/5ird-cont.txt.
