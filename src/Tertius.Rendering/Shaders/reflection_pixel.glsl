@@ -30,7 +30,7 @@ struct ReflectingPixel
 };
 
 // Whether the pixel starts a ray: not sky, not an impostor, whose light the atlas holds, and with a roughness fade and a
-// surface fade above 0, or for hair a surface fade of 1.
+// surface fade above 0, or for hair a surface fade of 1: a cosine of SurfaceFadeCosine or more with the card.
 bool reflectingPixel(ivec2 pixel, out ReflectingPixel p)
 {
     p.distanceToEye = texelFetch(gbufferDistance, pixel, 0).r;
@@ -48,13 +48,14 @@ bool reflectingPixel(ivec2 pixel, out ReflectingPixel p)
     p.V = -p.toSurface;
     p.alpha = roughness * roughness;
     p.direction = specularDominantDirection(p.s.normal, reflect(-p.V, p.s.normal), p.alpha);
-    float surfaceFade = clamp(dot(p.direction, p.s.geometricNormal) / SurfaceFadeCosine, 0.0, 1.0);
-    // A hair ray inside the fade's range hits its own card a few pixels from its start, so a share of its result would
-    // end the map's reflection at a ragged edge: it traces nothing (docs/plans/skin-and-hair.md, decision 35).
-    if (surfaceFade <= 0.0 || (p.s.model == ShadingHair && surfaceFade < 1.0))
+    float surfaceCosine = dot(p.direction, p.s.geometricNormal);
+    // A hair ray inside the surface fade's range hits its own card a few pixels from its start, so a share of its result
+    // would end the screen's reflection at a ragged, speckled edge: it traces nothing (docs/plans/skin-and-hair.md,
+    // decision 35). The cut compares the cosine itself, which every driver rounds alike, not the fade's quotient.
+    if (surfaceCosine <= 0.0 || (p.s.model == ShadingHair && surfaceCosine < SurfaceFadeCosine))
         return false;
     p.viewDepth = p.distanceToEye / length(ray);
-    p.pixelFade = roughnessFade * surfaceFade;
+    p.pixelFade = roughnessFade * min(surfaceCosine / SurfaceFadeCosine, 1.0);
     return true;
 }
 

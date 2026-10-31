@@ -158,7 +158,7 @@ r = flooredRoughness(s.roughness);  α = r²
 f_rough = clamp(2 − 2 r / MaxRoughness, 0, 1);  stop when it is 0          Unreal Engine 4
 u = normalize(r(p));  P = u · D;  V = −u             the surface point and the direction toward the eye
 d = specularDominantDirection(n, reflect(−V, n), α)  Lagarde and de Rousiers 2014, as brdf.glsl computes it
-f_surface = clamp(d · n_g / 0.05, 0, 1);  stop when it is 0
+f_surface = clamp(d · n_g / 0.05, 0, 1);  stop when it is 0, or for hair when it is below 1
 z = D / |r(p)|
 O = P + n_g · min(2 θ_px, 1/2) z                      the origin, two pixel footprints off the surface, at most z / 2
 ```
@@ -166,7 +166,8 @@ O = P + n_g · min(2 θ_px, 1/2) z                      the origin, two pixel fo
 where n is the shading normal and n_g the geometric normal of the G-buffer.
 
 - d leans from the mirror direction toward n as the roughness rises (decision 17).
-- f_surface fades a ray that leaves below the geometric surface. Only a normal map can turn the shading normal so far from the geometric one, or tilt a hair strand off its card (docs/plans/skin-and-hair.md, decision 35). Of the demo scenes, only `hair-rugs` has such a normal map, so the factor is 1 elsewhere.
+- f_surface fades a ray that leaves below the geometric surface. Only a normal map can turn the shading normal so far from the geometric one, or tilt a hair strand off its card. Of the demo scenes, only `hair-rugs` has such a normal map, so the factor is 1 elsewhere.
+- For hair, f_surface blends nothing. A hair pixel whose d has a cosine below 0.05 with its card's n_g starts no ray, and it keeps the ambient specular term (docs/plans/skin-and-hair.md, decision 35). Inside the fade's range, a ray grazes its card and hits the card a few pixels from its start, so a share of those hits ends the screen's reflection at a ragged, speckled edge.
 - The offset of 2 z θ_px: a ray that rises from a flat surface at a grazing angle stays within half a pixel's depth step of the surface over the next pixel. A point at height b above the surface lies in front of the surface along every view ray when b > z θ_px cos φ / 2, where φ is the angle between the view ray and the surface. 2 z θ_px is four times that bound at any φ, and covers the error of the 16-bit normals.
 
 ### 3. The ray's image on the screen
@@ -334,7 +335,7 @@ The trace reads the radiance pyramid once, at the hit position and the cone leve
 | Factor | Formula | Reaches 0 where | Source |
 |---|---|---|---|
 | Roughness fade | clamp(2 − 2 r / MaxRoughness, 0, 1) | r ≥ MaxRoughness. Full weight up to half of it. | Unreal Engine 4 |
-| Surface fade | clamp(d · n_g / 0.05, 0, 1) | The ray points into its own geometric surface. | This design |
+| Surface fade | clamp(d · n_g / 0.05, 0, 1) | The ray points into its own geometric surface. A hair pixel starts no ray below 1 (skin-and-hair.md, decision 35). | This design |
 | Edge fade | e(x) e(y), with e(x) = smoothstep(0, 1, min(x, width − x) / B) and B = 0.1 min(width, height) | The hit lies on the screen's edge. | Uludag 2014 |
 | Entry fade | 1 − q | The ray enters the slab from behind, or at its back. | This design, after the slab of McGuire and Mara 2014 |
 
@@ -343,6 +344,7 @@ The trace reads the radiance pyramid once, at the hit position and the cone leve
 - A ray toward the eye needs no fade of its own (decision 23). It hits the back of an object with q = 1, and so no weight. It leaves through the near plane with a miss.
 - One transition stays hard: two neighbor rays where one hits an object and the other passes beside it and misses. That edge is the reflected silhouette of the object, which a mirror shows.
 - A ray that runs out of steps misses, and its neighbor can hit. `MaxSteps` must be large enough that the review scenes show no such edge (Part 6).
+- A transition can stay ragged inside the surface fade's range. There a ray grazes its own surface and can hit that surface a few pixels from its start. On hair this ended the screen's reflection at a ragged, speckled edge, so a hair pixel below a fade of 1 starts no ray (docs/plans/skin-and-hair.md, decision 35). A pixel of any other model keeps the fade. No demo asset has a standard normal map that leans that far, so the edge is not measured there. Ticket `ter-acr3` captures such a surface and decides whether the rule for hair, or a skip of the ray's own surface, covers every model.
 
 ### 8. The reflection replaces the ambient specular term
 
@@ -682,7 +684,7 @@ The step numbers are those of "The order of a frame" below.
 
 ## The flow of each kind of pixel
 
-Every pixel of the HDR image takes one path through the trace. The rule for starting a ray decides by the distance, the base color's alpha, the roughness and the direction alone. Transparent surfaces and puffs are not on this path, because they are not in the G-buffer.
+Every pixel of the HDR image takes one path through the trace. The rule for starting a ray decides by the distance, the base color's alpha, the roughness, the direction and, for hair, the shading model alone. Transparent surfaces and puffs are not on this path, because they are not in the G-buffer.
 
 ```mermaid
 flowchart TD
@@ -692,7 +694,7 @@ flowchart TD
     I -- "yes: an impostor" --> U
     I -- no --> R{"Roughness fade 0? r ≥ MaxRoughness"}
     R -- yes --> U
-    R -- no --> F{"Surface fade 0? d points into the surface"}
+    R -- no --> F{"Surface fade 0, or below 1 for hair? d points into the surface or grazes a hair card"}
     F -- yes --> U
     F -- no --> T["Trace the ray's image through the depth pyramid"]
     T --> E{"Result"}
@@ -709,6 +711,7 @@ The kinds of pixel:
 | A smooth metal floor in the near range | Yes | Traces along d, which is the mirror direction. A hit adds f · (W · C − a · k · T_s), with W near the metal's color, so the floor shows the object tinted by the metal. The cone level is near 0 close to the contact and rises with the ray's length. | Its own lit radiance, with its ambient specular term, not its reflection |
 | A rough dielectric, up to `MaxRoughness` | Yes, with the roughness fade | A wide cone: at r = 0.38, λ is 6 to 8 for rays of a few meters, so it shows a blurred image of what is around it. W is about 0.04 head on and up to about 0.3 at grazing views, so the change is faint except at grazing views. | Its lit radiance |
 | A surface at or above `MaxRoughness` | No | Keeps the ambient specular term | Its lit radiance |
+| A hair pixel whose d has a cosine below 0.05 with its card's normal | No: a normal map tilts the strand off the card, so d points below the card or grazes it (docs/plans/skin-and-hair.md, decision 35) | Keeps the ambient specular term, the environment map's while the map is on. It meets the screen's reflection of its neighbors at a straight edge. | Its lit radiance |
 | An impostor billboard | No: base color alpha 0. Its light, ambient specular term included, is baked into the atlas. | Unchanged | Its baked radiance, a surface of the distance target |
 | Sky | No: D = 0 | Unchanged: the star field | Never hit, because its cells are empty. Inside a footprint it has coverage 0, so that share keeps the ambient specular term. |
 | A far planet | Yes, by the same rule | The same math at w near 10⁻⁷. Its rays mostly leave into space and miss. | Hit by a ray from a near surface in the pixel of the ray's vanishing point (see "Precision and determinism"). Its slab is 10⁶ m deep at 10⁷ m. |

@@ -5,13 +5,13 @@ using static Tertius.Rendering.Tests.ReflectionTesting;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The screen-space reflections of hair on the GPU (docs/plans/skin-and-hair.md, "The reflections of hair"): a hair
-/// pixel whose dominant direction has a cosine below <see cref="ScreenRay.SurfaceFadeCosine"/> with its card's normal, as
-/// a normal map that tilts the strand off the card can make it, traces no ray and keeps the reflection that the ambient
-/// pass gave it. A pixel of the standard model keeps the surface fade. The card is a hair floor, the reflection tests'
-/// floor of 60 m by 60 m 1.5 m below the eye, whose strands run along +v, toward the eye. A wall that glows 3 stands on
-/// it 9.5 m ahead. The floor's roughness of 26 / 255 makes its dominant direction lie within 1° of the eye's direction
-/// mirrored along the strand.
+/// The screen-space reflections of hair on the GPU (docs/plans/skin-and-hair.md, decision 35): a hair pixel whose
+/// dominant direction has a cosine below <see cref="ScreenRay.SurfaceFadeCosine"/> with its card's normal, as a normal
+/// map that tilts the strand off the card can make it, traces no ray and keeps the reflection that the ambient pass gave
+/// it. A pixel of the standard model keeps the surface fade. The card is a hair floor, the reflection tests' floor of
+/// 60 m by 60 m 1.5 m below the eye, whose strands run along +v, toward the eye. A wall that glows 3 stands on it 9.5 m
+/// ahead. The floor's roughness of 26 / 255 makes its dominant direction lie within 1° of the eye's direction mirrored
+/// along the strand.
 /// </summary>
 [Collection(GpuCollection.Name)]
 public sealed class HairReflectionRenderTests
@@ -131,18 +131,20 @@ public sealed class HairReflectionRenderTests
         // The same floor of the standard model: its normal map leans the shading normal 10° away from the eye, so a band
         // of the near floor's rays lies within a cosine of SurfaceFadeCosine above the floor. Their delta is
         // f · (W · C − a · k · T_s), and C and k · T_s each lie between 0 and the wall's glow, so the delta of a pixel of
-        // fade f is at most f · W times the glow, and it is above 0 where the ray hits.
+        // fade f is at most f · W times the glow, and it is above 0 where the ray hits. The environment map is off, so
+        // T_s is the gray, far from the wall's light: a delta without its fade breaks the bound at most of the band.
+        // Under the map, which holds the wall, C and k · T_s nearly agree, and the bound holds with or without the fade.
         Rendered with = Render(
             reflections: ReflectionsAt(resolution),
             model: default,
             tiltDegrees: 10,
-            environmentMap: true
+            environmentMap: false
         );
         Rendered without = Render(
             reflections: new NoReflections(),
             model: default,
             tiltDegrees: 10,
-            environmentMap: true
+            environmentMap: false
         );
 
         (int X, int Y)[] grazing =
