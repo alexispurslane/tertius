@@ -63,6 +63,7 @@ public sealed class ImpostorManagerTests
             Batcher.Prepare(
                 snapshot: snapshot,
                 alpha: 1f,
+                highestStops: Batchers.HighestStops,
                 width: Width,
                 height: Height,
                 meshes: Meshes,
@@ -1024,7 +1025,7 @@ public sealed class ImpostorManagerTests
         // sphere lies 0.38 m outside the plane, so only a face of the map keeps it, and it reaches the ball's off-screen half.
         Vector3 toward = MathF.Cos(MathF.PI / 6) * outward - MathF.Sin(MathF.PI / 6) * along;
         const float reach = 0.5f;
-        double cutoff = LightUnits.CutoffIrradiance(new RendererOptions().Exposure);
+        double cutoff = LightUnits.CutoffIrradiance(Batchers.HighestStops);
 
         int CapturesUnder(FaceMask faces)
         {

@@ -21,6 +21,7 @@ public sealed class OutlinePassTests
             .Prepare(
                 snapshot: snapshot,
                 alpha: alpha,
+                highestStops: Batchers.HighestStops,
                 width: 1600,
                 height: 900,
                 meshes: NoMeshes,
@@ -227,6 +228,7 @@ public sealed class OutlinePassTests
         batcher.Prepare(
             snapshot: shown,
             alpha: 1,
+            highestStops: Batchers.HighestStops,
             width: 1600,
             height: 900,
             meshes: NoMeshes,
@@ -241,6 +243,7 @@ public sealed class OutlinePassTests
         batcher.Prepare(
             snapshot: hidden,
             alpha: 1,
+            highestStops: Batchers.HighestStops,
             width: 1600,
             height: 900,
             meshes: NoMeshes,

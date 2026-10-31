@@ -6,7 +6,7 @@ namespace Tertius.Rendering.Tests;
 /// The C# copy of the exposure's meter and approach (docs/plans/auto-exposure.md, "The math"): the bin of a luminance,
 /// the trimmed mean and the bright edge of a histogram, the target that maps the mean to middle gray or the bright edge
 /// to 1, whichever is lower, inside the clamp, and the frame-rate independent approach toward it with one time constant
-/// per direction.
+/// per direction, and the highest exposure that a frame can use, which sets the lights' reach.
 /// </summary>
 public sealed class ExposureMeterTests
 {
@@ -362,4 +362,65 @@ public sealed class ExposureMeterTests
     [InlineData(100f)]
     public void ATimeConstantOfZeroReachesTheTargetInAnyStepAboveZero(float seconds) =>
         ExposureMeter.ApproachFactor(seconds, timeConstant: 0).Should().Be(1);
+
+    [Fact]
+    public void AFixedExposureIsTheHighestExposureOfEveryFrame() =>
+        ExposureMeter
+            .HighestStops(new FixedExposure(-2.5f), knownStops: 7, steps: [float.PositiveInfinity])
+            .Should()
+            .Be(-2.5f, "nothing moves a fixed exposure");
+
+    [Fact]
+    public void WithNoStepSinceTheKnownFrameTheHighestExposureIsTheKnownOne() =>
+        ExposureMeter.HighestStops(AutoExposure.Default, knownStops: 1.5f, steps: []).Should().Be(1.5f);
+
+    [Fact]
+    public void EachStepRaisesTheHighestExposureAsFarAsTheAdaptStepCanRiseTowardTheHighestStops()
+    {
+        AutoExposure auto = AutoExposure.Default with { MaxStops = 10, IntoDarkSeconds = 3 };
+
+        ExposureMeter
+            .HighestStops(auto, knownStops: 0, steps: [3])
+            .Should()
+            .BeApproximately(10 * (1 - 1 / MathF.E), 1e-5f, "one time constant into the dark covers all but 1/e of the way");
+    }
+
+    [Fact]
+    public void TheStepsSinceTheKnownFrameRaiseTheHighestExposureOneAfterAnother()
+    {
+        AutoExposure auto = AutoExposure.Default with { MaxStops = 10, IntoDarkSeconds = 3 };
+
+        ExposureMeter
+            .HighestStops(auto, knownStops: 0, steps: [1.5f, 1.5f])
+            .Should()
+            .BeApproximately(ExposureMeter.HighestStops(auto, knownStops: 0, steps: [3]), 1e-5f);
+    }
+
+    [Fact]
+    public void AnEndlessStepMakesTheHighestStopsTheHighestExposure() =>
+        ExposureMeter
+            .HighestStops(AutoExposure.Default, knownStops: -11, steps: [0.016f, float.PositiveInfinity, 0])
+            .Should()
+            .Be(AutoExposure.Default.MaxStops, "a metering draw can settle anywhere inside the clamp");
+
+    [Theory]
+    [InlineData(-14f)]
+    [InlineData(-3f)]
+    [InlineData(4.5f)]
+    [InlineData(10f)]
+    public void NoTargetInsideTheClampRaisesTheExposureAboveTheHighestExposure(float target)
+    {
+        AutoExposure auto = AutoExposure.Default;
+        float stops = -6;
+        float[] steps = [0.016f, 0.25f, 0.033f];
+        foreach (float step in steps)
+            stops = ExposureMeter.Approach(
+                stops: stops,
+                target: target,
+                intoDarkFactor: ExposureMeter.ApproachFactor(step, auto.IntoDarkSeconds),
+                intoLightFactor: ExposureMeter.ApproachFactor(step, auto.IntoLightSeconds)
+            );
+
+        stops.Should().BeLessThanOrEqualTo(ExposureMeter.HighestStops(auto, knownStops: -6, steps: steps));
+    }
 }

@@ -7,8 +7,9 @@ namespace Tertius.Rendering.Tests;
 /// The light list on the CPU (docs/plans/local-light-shadows.md, Part 4): which lights of the snapshot the batcher keeps,
 /// interpolated by alpha, how a kept light reaches the shaders, and the far shadows of each far light, cut from the frame's
 /// casters, which the batcher interpolates once. No GPU needed. The camera sits at the render origin and looks down −Z at
-/// 1600 × 900 with a 60 degree field of view, so one pixel is about 1.28e-3 rad. The batcher's exposure is fixed at −10
-/// stops, where the cutoff irradiance is π · 2^−13 · 2^10 = π / 8 W/m², so that a lamp's reach is a few meters.
+/// 1600 × 900 with a 60 degree field of view, so one pixel is about 1.28e-3 rad. Unless a test names another, the frame's
+/// highest exposure is −10 stops, where the cutoff irradiance is π · 2^−13 · 2^10 = π / 8 W/m², so that a lamp's reach is
+/// a few meters.
 /// </summary>
 public sealed class BatcherLightTests
 {
@@ -17,7 +18,7 @@ public sealed class BatcherLightTests
         new(FirstIndex: 0, IndexCount: 600, VertexOffset: 0, Radius: 1f, Deform: null),
     ];
 
-    private static readonly ExposureSetting TenStopsDown = new FixedExposure(-10);
+    private const float TenStopsDown = -10;
 
     /// <summary>The cutoff irradiance at −10 stops, in W/m².</summary>
     private static readonly double Cutoff = LightUnits.CutoffIrradiance(TenStopsDown);
@@ -25,20 +26,21 @@ public sealed class BatcherLightTests
     /// <summary>A snapshot with no light: the test star of <see cref="Gpu.Snapshot"/> has no power, so it does not shine.</summary>
     private static RenderSnapshot Dark() => Gpu.Snapshot(Vector3.UnitY, starIrradiance: 0);
 
-    private static SceneBatcher Batcher(int cascadedLights = 1) =>
-        Batchers.With(exposure: TenStopsDown, cascadedLights: cascadedLights);
+    private static SceneBatcher Batcher(int cascadedLights = 1) => Batchers.WithCascadedLights(cascadedLights);
 
     private static PreparedScene Prepare(
         RenderSnapshot snapshot,
         float alpha = 1f,
         SceneBatcher? batcher = null,
-        EnvironmentDraw? environment = null
+        EnvironmentDraw? environment = null,
+        float highestStops = TenStopsDown
     )
     {
         var scene = new PreparedScene();
         (batcher ?? Batcher()).Prepare(
             snapshot: snapshot,
             alpha: alpha,
+            highestStops: highestStops,
             width: 1600,
             height: 900,
             meshes: Meshes,
@@ -239,6 +241,30 @@ public sealed class BatcherLightTests
         PreparedScene scene = Prepare(snapshot: snapshot);
 
         scene.LightSpan.ToArray().Select(light => light.Position).Should().Equal(new Vector3(0, 0, -50));
+    }
+
+    [Fact]
+    public void ALightsReachEndsWhereItsIrradianceFallsBelowTheCutoffOfTheFramesHighestExposure()
+    {
+        RenderSnapshot snapshot = Dark();
+        snapshot.Lights.Add(Lamp(new(0, 0, -5)));
+
+        float reachAtTenStopsDown = Prepare(snapshot: snapshot).Lights[0].Reach;
+        float reachAtEightStopsDown = Prepare(snapshot: snapshot, highestStops: -8).Lights[0].Reach;
+
+        reachAtTenStopsDown.Should().BeApproximately(10, 1e-4f);
+        reachAtEightStopsDown.Should().BeApproximately(20, 1e-4f, "two stops more exposure quarter the cutoff");
+    }
+
+    [Fact]
+    public void ALightThatOnlyAHigherExposureLetsReachTheViewIsLeftOut()
+    {
+        RenderSnapshot snapshot = Dark();
+        // 15 m behind the eye: its reach is 10 m at −10 stops and 20 m at −8 stops.
+        snapshot.Lights.Add(Lamp(new(0, 0, 15)));
+
+        Prepare(snapshot: snapshot).LightCount.Should().Be(0);
+        Prepare(snapshot: snapshot, highestStops: -8).LightCount.Should().Be(1);
     }
 
     [Fact]

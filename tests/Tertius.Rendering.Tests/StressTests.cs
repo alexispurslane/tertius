@@ -253,6 +253,7 @@ public sealed class StressTests(ITestOutputHelper output)
             batcher.Prepare(
                 snapshot: snapshot,
                 alpha: 1f,
+                highestStops: Batchers.HighestStops,
                 width: width,
                 height: height,
                 meshes: meshes,
@@ -266,6 +267,7 @@ public sealed class StressTests(ITestOutputHelper output)
             batcher.Prepare(
                 snapshot: snapshot,
                 alpha: 1f,
+                highestStops: Batchers.HighestStops,
                 width: width,
                 height: height,
                 meshes: meshes,

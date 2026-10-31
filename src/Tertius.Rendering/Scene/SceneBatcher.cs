@@ -22,12 +22,10 @@ internal readonly record struct MeshInfo(
 /// The glass instances, the fringes and the puffs sort together back to front, and the batcher cuts that list into the
 /// runs of the transparent pass. Allocates nothing once its arrays have grown to the scene.
 /// </summary>
-/// <param name="exposure">The renderer's exposure setting, whose highest stops set the cutoff irradiance.</param>
 /// <param name="cascadedLights">How many far lights get a cascade set, 0 to <see cref="RendererOptions.MaxCascadedLights"/>.</param>
 /// <param name="shadowMapSize">The side of each cascade's shadow map in texels, <see cref="ShadowMap.Size"/>.</param>
 /// <param name="depthRangeScale">How many times deeper than wide each cascade box is, <see cref="ShadowMap.DepthRangeScale"/>.</param>
 internal sealed class SceneBatcher(
-    ExposureSetting exposure,
     int cascadedLights,
     int shadowMapSize,
     float depthRangeScale
@@ -91,14 +89,11 @@ internal sealed class SceneBatcher(
     /// <summary>Hooks that edit the visible instances before batching. See <see cref="IInstanceProcessor"/>.</summary>
     public List<IInstanceProcessor> Processors { get; } = [];
 
-    /// <summary>
-    /// E_cut, in W/m²: the irradiance below which a light alone changes no pixel at the renderer's highest exposure. The
-    /// reach of every light ends there (docs/plans/local-light-shadows.md, "The cutoff and the reach").
-    /// </summary>
-    public double CutoffIrradiance { get; } = LightUnits.CutoffIrradiance(exposure);
-
     /// <param name="snapshot">The tick to draw.</param>
     /// <param name="alpha">Interpolation factor from the previous transforms (0) to the current ones (1).</param>
+    /// <param name="highestStops">
+    /// The highest exposure, in stops, that the frame uses or its adapt step writes. Each light's reach ends at its cutoff.
+    /// </param>
     /// <param name="width">Output width in pixels.</param>
     /// <param name="height">Output height in pixels.</param>
     /// <param name="meshes">Meshes that are on the GPU. Instances of <see cref="MeshId.None"/> and of other meshes are skipped.</param>
@@ -115,6 +110,7 @@ internal sealed class SceneBatcher(
     public void Prepare(
         RenderSnapshot snapshot,
         float alpha,
+        float highestStops,
         int width,
         int height,
         ReadOnlySpan<MeshInfo> meshes,
@@ -150,7 +146,13 @@ internal sealed class SceneBatcher(
         PlaceInstances(snapshot: snapshot, alpha: alpha, materials: materials, scene: scene);
         CollectPuffs(snapshot, alpha, scene);
         // Before the processors: impostor captures are lit by the lights as their far shadows leave them.
-        CollectLights(snapshot: snapshot, alpha: alpha, faces: facesOfMaps, scene: scene);
+        CollectLights(
+            snapshot: snapshot,
+            alpha: alpha,
+            cutoffIrradiance: LightUnits.CutoffIrradiance(highestStops),
+            faces: facesOfMaps,
+            scene: scene
+        );
         // After the lights, which take the cascade sets, and before the far shadows, which follow what each set draws.
         FitCascadeSets(snapshot, scene);
         CollectFarShadows(scene);
@@ -948,14 +950,27 @@ internal sealed class SceneBatcher(
     /// (docs/plans/environment-map.md, decision 20), each marked with whether the main view keeps it. Then chooses the far
     /// lights' slots (<see cref="FarShadows.Choose"/>).
     /// </summary>
+    /// <param name="cutoffIrradiance">E_cut of the frame, in W/m², where each light's reach ends.</param>
     /// <param name="faces">The faces of each served map, root first.</param>
-    private void CollectLights(RenderSnapshot snapshot, float alpha, ReadOnlySpan<FaceMask> faces, PreparedScene scene)
+    private void CollectLights(
+        RenderSnapshot snapshot,
+        float alpha,
+        double cutoffIrradiance,
+        ReadOnlySpan<FaceMask> faces,
+        PreparedScene scene
+    )
     {
         foreach (ref readonly RenderLight light in CollectionsMarshal.AsSpan(snapshot.Lights))
         {
             if (!Shines(light))
                 continue;
-            PreparedLight prepared = Prepared(light: light, alpha: alpha, camera: scene.Camera, maps: scene.MapCount);
+            PreparedLight prepared = Prepared(
+                light: light,
+                alpha: alpha,
+                cutoffIrradiance: cutoffIrradiance,
+                camera: scene.Camera,
+                maps: scene.MapCount
+            );
             if (Reaches(faces: faces, axes: scene.MapAxes, light: prepared))
                 scene.AddLight() = prepared;
         }
@@ -965,10 +980,17 @@ internal sealed class SceneBatcher(
 
     /// <summary>
     /// A light that <see cref="Shines(in RenderLight)"/>, interpolated by alpha, relative to the interpolated eye of
-    /// <paramref name="camera"/>, with its radiant intensity, its reach and its distance computed in doubles, whether the
-    /// main view keeps it, its map among <paramref name="maps"/> served maps, and no shadow slot yet.
+    /// <paramref name="camera"/>, with its radiant intensity, its reach to <paramref name="cutoffIrradiance"/> and its
+    /// distance computed in doubles, whether the main view keeps it, its map among <paramref name="maps"/> served maps, and
+    /// no shadow slot yet.
     /// </summary>
-    private PreparedLight Prepared(in RenderLight light, float alpha, in CameraView camera, int maps)
+    private static PreparedLight Prepared(
+        in RenderLight light,
+        float alpha,
+        double cutoffIrradiance,
+        in CameraView camera,
+        int maps
+    )
     {
         (
             uint entity,
@@ -1004,7 +1026,7 @@ internal sealed class SceneBatcher(
             null => throw new UnreachableException("A light that shines holds a case."),
         };
         Vector3 relative = position - camera.Offset;
-        float reach = (float)LightUnits.Reach(PeakChannel(color) * intensity, CutoffIrradiance);
+        float reach = (float)LightUnits.Reach(PeakChannel(color) * intensity, cutoffIrradiance);
         return new()
         {
             EntityIndex = entity,

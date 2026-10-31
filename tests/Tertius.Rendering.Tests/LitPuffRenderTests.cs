@@ -74,7 +74,7 @@ public sealed class LitPuffRenderTests
     {
         double reach = LightUnits.Reach(
             Math.Max(intensity.X, Math.Max(intensity.Y, intensity.Z)),
-            LightUnits.CutoffIrradiance(new FixedExposure(0))
+            LightUnits.CutoffIrradiance(0)
         );
         float ratio = (float)(distance * distance / (reach * reach));
         float window = Math.Clamp(1f - ratio * ratio, 0f, 1f);
@@ -275,7 +275,7 @@ public sealed class LitPuffRenderTests
                     Gpu.Lamp(
                         position: puff + 0.01f * outward,
                         color: Vector3.One,
-                        intensity: (float)(reach * reach * LightUnits.CutoffIrradiance(new FixedExposure(0))),
+                        intensity: (float)(reach * reach * LightUnits.CutoffIrradiance(0)),
                         chainDepth: TestChains.CamerasFrame
                     )
                 );

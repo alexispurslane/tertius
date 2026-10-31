@@ -1425,7 +1425,7 @@ The snapshot gives each light as a `RenderLight`, a second custom union. Its cas
 `SceneBatcher` derives each light's quantities in doubles, through `LightUnits`:
 
 - The intensity I in W/sr: P / (4π) for a point light, and P / (2π (1 − cos θ_o)) for a spot light, so that its power fills its outer cone θ_o.
-- The cutoff irradiance E_cut = π · 2⁻¹³ / 2^S_max W/m², with S_max the highest exposure of the setting: a white matte surface lit by E_cut shows below half an 8-bit step at every exposure. It is one constant per renderer, `SceneBatcher.CutoffIrradiance`. Under `FixedExposure(0)`, which the tests use, it is 3.8 × 10⁻⁴ W/m².
+- The cutoff irradiance E_cut = π · 2⁻¹³ / 2^S_hi W/m², with S_hi the highest exposure that the frame uses or that its adapt step writes: a white matte surface lit by E_cut shows below half an 8-bit step in this frame and the next. `SceneBatcher.Prepare` takes S_hi for each frame, and "The reach from the exposure" under "Exposure" says where it comes from. Under `FixedExposure(0)`, which the tests use, E_cut is 3.8 × 10⁻⁴ W/m².
 - The reach min(√(c_max · I / E_cut), 5 × 10¹⁸ m), with c_max the largest channel of the color: where the light falls to E_cut. Under `FixedExposure(0)` a light of 1 W/sr reaches 51 m.
 - Far or near: a light at least 2 × 10⁷ m from the eye is far.
 
@@ -2257,7 +2257,7 @@ The design is `docs/plans/auto-exposure.md`, which holds the reasons and the der
 
 #### The setting
 
-`RendererOptions.Exposure` is an `ExposureSetting`, a generated union with two cases. (User) It is fixed for the renderer's life. Its highest exposure, the fixed stops or `AutoExposure.MaxStops`, sets the lights' cutoff irradiance E_cut, and so every light's reach (see "Shading"): a reach does not change as the exposure adapts. `CheckOptions` refuses a setting with a value outside the ranges below.
+`RendererOptions.Exposure` is an `ExposureSetting`, a generated union with two cases. (User) It is fixed for the renderer's life. The exposure of the last finished frame sets each frame's cutoff irradiance E_cut, and so every light's reach (see "Shading" and "The reach from the exposure"): a reach grows and shrinks as the exposure adapts. `CheckOptions` refuses a setting with a value outside the ranges below.
 
 | Case | Meaning |
 |---|---|
@@ -2269,7 +2269,7 @@ Every stops value (`Stops`, `MinStops`, `MaxStops` and `CompensationStops`) is f
 | Field | Default | Reason |
 |---|---|---|
 | `MinStops` | −14 | A sunlit white hull at 1 AU, about 433 W/(m²·sr), wants about −11 stops, so −14 keeps 3 stops of margin (`docs/plans/local-light-shadows.md`, decision 42). A view that the Sun's disc fills, such as earth-system's `sun-near`, stops at −14. |
-| `MaxStops` | +10 | A cabin lit by a household lamp of 2.5 W at 3 m wants about +5 to +6.4 stops, so +10 keeps more than 3 stops of margin. In total darkness, such as the orbit scene's chase view in Earth's shadow, the exposure stops at +10, where the physical stars show. The cutoff irradiance follows: E_cut = π · 2⁻¹³ / 2¹⁰ ≈ 3.7 × 10⁻⁷ W/m². |
+| `MaxStops` | +10 | A cabin lit by a household lamp of 2.5 W at 3 m wants about +5 to +6.4 stops, so +10 keeps more than 3 stops of margin. In total darkness, such as the orbit scene's chase view in Earth's shadow, the exposure stops at +10, where the physical stars show. There the cutoff irradiance is lowest, E_cut = π · 2⁻¹³ / 2¹⁰ ≈ 3.7 × 10⁻⁷ W/m², and a lamp of 2.5 W reaches 730 m. |
 | `CompensationStops` | 0 | The target is middle gray, as the user asked. |
 | `DarkShare`, `BrightShare` | 0.1 each | The deepest shadows show no detail at any exposure, and a lamp panel or a glint covers less than a tenth of the surface pixels in the demo's views. |
 | `IntoDarkSeconds` | 3 | The time constant while the exposure rises because the view got darker. (User) |
@@ -2283,10 +2283,11 @@ Every stops value (`Stops`, `MinStops`, `MaxStops` and `CompensationStops`) is f
 | When | Who | What |
 |---|---|---|
 | The first drawn frame, in the uploads | `RecordSeed` | `vkCmdFillBuffer` writes the first exposure: `FixedExposure.Stops`, or 0 stops clamped into the `AutoExposure` range. A first call whose output skips the frame seeds in the next call that draws. |
-| The start of every drawn frame, before the first pass | `RecordReadback` | Copies the exposure buffer into the readback buffer of the frame's slot. |
+| The start of every drawn frame, before the first pass | `RecordReadback` | Copies the exposure buffer into the readback buffer of the frame's slot, and keeps the step of the frame's adapt step for that slot. |
 | The G-buffer, direct, ambient and transparent passes | `gbuffer.frag`, `impostor.frag`, `direct.frag`, `ambient.frag`, `transparent.frag` and `puff.vert` | Read `exposureStops`. The ambient pass divides the estimate target's pre-exposed net bounce by the scale. The sectors pass exposes M with `exposed`, which caps it at c. |
 | The exposure pass, under `AutoExposure` | The adapt step | Reads `exposureStops`, the S that the frame used, and writes the S of the next frame. |
 | After each wait on a slot's fence, in `Render`: the wait before the slot records again, and a capture's wait for its own frame | `Collect` | Reads the slot's readback buffer into `ExposureResources.Latest`, which `RenderStats.Exposure` reports. It keeps only a newer frame. |
+| Before each frame's batch | `HighestStops` | Bounds the exposure of the frame and of the next one from `Latest` and the kept steps, for the lights' reach (see "The reach from the exposure"). |
 
 The exposure buffer is on the GPU timeline only. `RenderStats.Exposure` is an `ExposureReading(Frame, Stops)`: the exposure that the passes of the last finished frame used, as the GPU timings are. A capture waits until its frame has finished, so a captured frame reports its own exposure. Any other frame reports one a few frames late. The reading keeps only a newer frame, so the wait on an older slot after a capture does not take it back. It is for tests and debugging. The decision stays on the GPU. A frame that the output skips keeps the reading that its wait found.
 
@@ -2419,6 +2420,49 @@ where
 The first draw, the metering draw, takes no capture. Its step is the whole step, or endless for a frame at the tick of the frame before. Its adapt step moves S toward the target of its own view. The second draw, the shown draw, has a step of 0, so it uses that S and keeps it. Each draw takes its own frame slot and frame number, and `RenderStats` describes the shown draw. The metering draw runs the batcher, the impostor manager and every pass, so its impostor captures count, and the shown draw finds them made. A window never draws twice.
 
 0.09 s is 5.4 ticks at 60 Hz. It is longer than the longest step of the demo's real-time films (4 ticks), and shorter than the shortest step of its time-lapse films (6 ticks) and than the shortest run before a capture (30 ticks). It lies between two whole ticks, so no step of whole ticks lies on it. A time-lapse film draws twice at each frame, so each frame adapts toward its own view. A view more than about 13 stops darker than the exposure before it puts many pixels in the first bin in the metering draw, so the shown draw can still be short of the target, and later frames finish the approach.
+
+#### The reach from the exposure
+
+A light's reach ends where its irradiance falls below the cutoff E_cut of the frame (see "Shading"). The cutoff comes from the exposure, so that a light that cannot show in the frame does not cost the shading passes. (User, 2026-10-27) It once came from the setting's highest stops, +10 under `AutoExposure.Default`. Then a lamp of 10 W reached 1.46 km and touched every pixel of the station. At 0 stops it reaches 45 m.
+
+The exposure lives on the GPU, and the CPU learns it a few frames late, from `ExposureResources.Latest`. So the batcher takes an upper bound of the exposure, S_hi: the exposure of the last finished frame, raised as far as the adapt steps since can raise it. `ExposureResources.HighestStops` collects the steps, and `ExposureMeter.HighestStops` raises the exposure by them:
+
+```csharp
+float highest = knownStops;
+foreach (float seconds in steps)
+    highest = Approach(
+        stops: highest,
+        target: auto.MaxStops,
+        intoDarkFactor: ApproachFactor(seconds, auto.IntoDarkSeconds),
+        intoLightFactor: ApproachFactor(seconds, auto.IntoLightSeconds)
+    );
+return highest;
+```
+
+where
+
+- `knownStops` = the exposure in stops of the last finished frame, `Latest`, or the seed before the first reading.
+- `steps` = the steps in s of the adapt steps from that frame to the frame that the batcher prepares, that frame's own step included.
+- `Approach` = the adapt step's approach, the same function that the GPU's copy follows: S + (T − S) times the factor of the direction.
+- `auto.MaxStops` = the highest target that the adapt step can choose, because the clamp bounds every target.
+- `ApproachFactor` = 1 − e^(−step / τ), 0 for a step of 0 and 1 for an endless step.
+- `highest` = S_hi, the highest exposure that the frame uses or that its adapt step writes.
+
+The approach rises with S, so a rise from a higher exposure toward the highest target ends higher, and S_hi is never below the GPU's exposure. Under `FixedExposure`, S_hi is the fixed stops. The bound holds the frame's own adapt step for the meter: its histogram must see the lights that the next exposure can show. A metering draw after a camera cut has an endless step, so its S_hi is `MaxStops`, and it meters as it did before the reach followed the exposure. In a film at 60 Hz with two frames in flight, the bound lies about 0.1 stops above the exposure at 0 stops.
+
+A light fades to 0 at the edge of its reach through the window (1 − d⁴ / reach⁴)² of `lightIrradiance`, as before. The reach moves continuously with the exposure, so no light pops when the exposure changes. The window takes at most 1.09 · E_cut of a light's irradiance, at 0.9 of its reach, so a white matte surface loses at most about half an 8-bit step of each light. No margin above S_hi is needed for this. A mirror's highlight is brighter than a matte surface by its peak, so a far lamp's highlight on polished metal dims over the last fifth of the reach at every exposure, not only at +10 (docs/plans/local-light-shadows.md, "Known limits").
+
+The cost, measured on 2026-10-31 on the M1 Max at 1920 × 1080 in Release, two runs of each build, alternating base and branch:
+
+| Run | Load | Lights that the main view keeps | Lighting pass, mean | Frame span, mean |
+|---|---|---|---|---|
+| `demo-exit`, all 3,888 frames, GPU timer | 3 to 15 | 22 → 19.6 | 5.87 and 5.88 → 5.66 and 5.67 ms | 17.06 and 17.07 → 16.88 and 17.01 ms |
+| `demo-exit`'s deck, frames 399 to 518, trace | 25 to 43 | 22 → 14.8 | 7.73 and 6.10 → 5.57 and 5.35 ms | 22.32 and 18.58 → 17.76 and 17.26 ms |
+| `lamp-hall-16`, 301 frames, GPU timer, six runs each | 6 to 13 | 16 → 16 | 2.65 → 2.61 ms | 10.42 → 10.21 ms |
+
+The trace's lighting pass is the pass's own GPU time (tools/README.md, "GPU trace"). The first base trace ran under a rising load, and its 95th percentile was 10.3 ms against 6.1 ms in the second. lamp-hall-16 settles at about +5 stops, where every lamp still reaches the whole hall, so it keeps every lamp and costs the same within the spread between runs.
+
+In demo-exit, the cabin and the deck shots have an exposure near 0 stops, and their main view keeps about 14.7 of the 22 lamps. The other shots have +2 to +4 stops, and keep nearly every lamp. The captures of the tails of demo-exit's nine shots differ from the base's by at most one 8-bit level in 99.99 % of their pixels.
 
 #### Compute pipelines and sets
 
@@ -2557,7 +2601,7 @@ The cost, measured by the recipe of docs/plans/rendering-upgrade.md, "Measuring 
 | `lamp-hall-64-spot` | 64 | 64 | 0.08 | 2.56 | 5.0 | 5.28 |
 
 - A cached tile costs nothing to draw: `RenderStats.ShadowTilesDrawn` is 0 in every frame of a still hall after the first, and every tile in use in every frame of a moving hall, and a still hall's pass costs what an empty pass costs. A drawn tile costs about 0.04 ms, with 10 to 82 casters, about what one cascade of 2,048² costs (a cascade set of four takes 0.18 ms). The plan expected a tenth of a cascade. A tile cost about the same with the 10 casters of `lamp-hall-4` as with the 82 of `lamp-hall-64`.
-- The lighting pass, now the direct pass, grows with the lights in the list, because every lamp's reach, about 730 m for 2.5 W, covers the whole hall: every pixel loops over every lamp. Each shadowed point lamp adds its 16 PCF taps where it shines. 16 shadowed point lamps cost the lighting pass 4.3 ms, 2.3 ms more than the same lamps without shadows, above the plan's bound of 2 ms, so a clustered light list is ticket `ter-p1u7` (docs/plans/local-light-shadows.md, decision 45). With the default 64 tiles, the 16 point lamps of `lamp-hall-16` shadow only the 10 brightest at the eye. Spot lamps cost far less, because each lights and samples its tile only inside its cone: 16 shadowed spot lamps cost the lighting pass 0.3 ms more than without shadows.
+- The lighting pass, now the direct pass, grows with the lights in the list, because every lamp's reach covers the whole hall: every pixel loops over every lamp. A lamp of 2.5 W reached 730 m then, at +10 stops, and reaches about 130 m at the hall's exposure of about +5 stops (see "The reach from the exposure"). Each shadowed point lamp adds its 16 PCF taps where it shines. 16 shadowed point lamps cost the lighting pass 4.3 ms, 2.3 ms more than the same lamps without shadows, above the plan's bound of 2 ms, so a clustered light list is ticket `ter-p1u7` (docs/plans/local-light-shadows.md, decision 45). With the default 64 tiles, the 16 point lamps of `lamp-hall-16` shadow only the 10 brightest at the eye. Spot lamps cost far less, because each lights and samples its tile only inside its cone: 16 shadowed spot lamps cost the lighting pass 0.3 ms more than without shadows.
 
 | Stars | Lighting, `--cascaded-lights` 0 | 1 | 2 | 4 | Shadow maps per drawn set |
 |---|---|---|---|---|---|
@@ -2842,7 +2886,7 @@ The formats, and their uses:
 | `LocalShadows` | `LocalShadowAtlas.Default` | Whether near lights cast shadows from a shared atlas: `LocalShadowAtlas(Tiles, TileSize)` or `NoLocalShadows` (docs/plans/local-light-shadows.md). The renderer checks it when it is made, and refuses `Tiles` above the device's `maxImageArrayLayers`. The default atlas, 64 tiles of 512² in D32, holds 64 MB (see "Local shadows"). Its pass costs about 0.4 ms per frame on `demo-exit` at 1080p, a drawn tile about 0.04 ms, and each shadowed lamp adds its taps to the direct pass (see "The scenes and the cost of the shadows"). |
 | `Impostors` | On | Draws small objects as impostors. |
 | `ImpostorTiles` | 64 | The number of 512 px tiles in the impostor atlas. Each tile takes about 3.3 MB, so the default takes about 213 MB. |
-| `Exposure` | `AutoExposure.Default` | How the renderer chooses the exposure: `AutoExposure(...)` follows the surfaces in view over time, and `FixedExposure(Stops)` never moves (see "Exposure"). It is fixed for the renderer's life, so the lights plan's one constant `E_cut` stays one constant. The test helpers `Gpu.Headless` and `GpuTesting.Headless` set `FixedExposure(0)`, as they turn impostors off, so that a pixel does not depend on the frames before it. `GpuTesting.LikeAScriptedRun` keeps the defaults of a scripted run for the exposure, the environment map and the shadows, for the Host tests that read what a scripted run shows of a demo scene in SI units. A deterministic switch that overrode the setting would be a second store of it. |
+| `Exposure` | `AutoExposure.Default` | How the renderer chooses the exposure: `AutoExposure(...)` follows the surfaces in view over time, and `FixedExposure(Stops)` never moves (see "Exposure"). It is fixed for the renderer's life. The test helpers `Gpu.Headless` and `GpuTesting.Headless` set `FixedExposure(0)`, as they turn impostors off, so that a pixel does not depend on the frames before it. `GpuTesting.LikeAScriptedRun` keeps the defaults of a scripted run for the exposure, the environment map and the shadows, for the Host tests that read what a scripted run shows of a demo scene in SI units. A deterministic switch that overrode the setting would be a second store of it. |
 | `ToneCurve` | `AcesFitted` | The curve of the tone map pass: ACES fitted or Hable's (see "Tone mapping"). |
 | `ScreenSpaceLight` | `VisibilityBitmaskLight.Default` | The crease shadowing and the bounce light, one estimate from the screen: `VisibilityBitmaskLight(RadiusMeters, Slices, StepsPerSide)`, by default 1 m, 3 and 3, or `NoScreenSpaceLight` (see "Ambient occlusion"). The test helpers `Gpu.Headless` and `GpuTesting.Headless` set `NoScreenSpaceLight`. It takes 17.1 MB at 1080p beside the estimate target. Its four passes take about 2.1 to 2.7 ms per frame at 1080p on the M1 Max (see "Ambient occlusion", "Cost"). |
 | `Bloom` | On | The glow around light brighter than white after the exposure: `Bloom(Threshold, Knee, Strength, Levels)`, by default a threshold of 1, a knee of 0.5, a strength of 0.25 and 6 levels, or `NoBloom` (see "Bloom"). It costs about 0.7 ms per frame at 1080p and 5.5 MB. |

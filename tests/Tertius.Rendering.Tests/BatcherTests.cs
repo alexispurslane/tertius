@@ -35,13 +35,15 @@ public sealed class BatcherTests
         float alpha = 1f,
         int materials = 8,
         SceneBatcher? batcher = null,
-        EnvironmentDraw environment = default
+        EnvironmentDraw environment = default,
+        float highestStops = Batchers.HighestStops
     )
     {
         var scene = new PreparedScene();
         (batcher ?? Batchers.Default()).Prepare(
             snapshot: snapshot,
             alpha: alpha,
+            highestStops: highestStops,
             width: 1600,
             height: 900,
             meshes: Meshes,
@@ -895,17 +897,17 @@ public sealed class BatcherTests
     private static RenderSnapshot Dark() => Gpu.Snapshot(Vector3.UnitY, starIrradiance: 0);
 
     /// <summary>
-    /// A batcher whose exposure is fixed at −10 stops, where the cutoff irradiance is π · 2^−13 · 2^10 = π / 8 W/m², so
-    /// that a lamp's reach is a few meters.
+    /// The highest exposure of a frame of −10 stops, where the cutoff irradiance is π · 2^−13 · 2^10 = π / 8 W/m², so that
+    /// a lamp's reach is a few meters.
     /// </summary>
-    private static SceneBatcher TenStopsDown() => Batchers.With(exposure: new FixedExposure(-10), cascadedLights: 1);
+    private const float TenStopsDown = -10;
 
     /// <summary>A white lamp at <paramref name="position"/> whose reach is 10 m at −10 stops, or no light at all when <paramref name="shines"/> is false.</summary>
     private static PointRenderLight Lamp(Vector3 position, bool shines = true) =>
         Gpu.Lamp(
             position: position,
             color: Vector3.One,
-            intensity: shines ? (float)(100 * LightUnits.CutoffIrradiance(new FixedExposure(-10))) : 0,
+            intensity: shines ? (float)(100 * LightUnits.CutoffIrradiance(TenStopsDown)) : 0,
             chainDepth: TestChains.CamerasFrame
         );
 
@@ -1122,7 +1124,7 @@ public sealed class BatcherTests
 
         PreparedScene scene = Prepare(
             snapshot: snapshot,
-            batcher: TenStopsDown(),
+            highestStops: TenStopsDown,
             environment: MapOf(FaceMask.PositiveX)
         );
 
@@ -1141,7 +1143,7 @@ public sealed class BatcherTests
         snapshot.Lights.Add(Lamp(new(0, 0, -50)));
         snapshot.Lights.Add(Lamp(new(0, 50, 0)));
 
-        PreparedScene scene = Prepare(snapshot: snapshot, batcher: TenStopsDown(), environment: MapOf(FaceMask.All));
+        PreparedScene scene = Prepare(snapshot: snapshot, highestStops: TenStopsDown, environment: MapOf(FaceMask.All));
 
         scene.LightSpan.ToArray().Select(light => light.InMainView).Should().Equal(false, true, true, false);
     }
@@ -1154,7 +1156,7 @@ public sealed class BatcherTests
         snapshot.Lights.Add(Lamp(new(50, 0, 0)));
         snapshot.Lights.Add(Lamp(new(0, 0, -5)));
 
-        PreparedScene scene = Prepare(snapshot: snapshot, batcher: TenStopsDown(), environment: MapOf(FaceMask.All));
+        PreparedScene scene = Prepare(snapshot: snapshot, highestStops: TenStopsDown, environment: MapOf(FaceMask.All));
 
         scene
             .LightSpan.ToArray()
@@ -1167,7 +1169,7 @@ public sealed class BatcherTests
     public void AFarLightOfTheMainViewTakesTheCascadeSetBeforeABrighterOneThatOnlyAFaceKeeps()
     {
         const float distance = 3e7f;
-        double cutoff = LightUnits.CutoffIrradiance(new FixedExposure(-10));
+        double cutoff = LightUnits.CutoffIrradiance(TenStopsDown);
         PointRenderLight FarLamp(float z, double eyeShareOfTheCutoff) =>
             Gpu.Lamp(
                 position: new(0, 0, z),
@@ -1183,7 +1185,7 @@ public sealed class BatcherTests
         snapshot.Lights.Add(FarLamp(z: distance, eyeShareOfTheCutoff: 0.81));
         snapshot.Lights.Add(FarLamp(z: -distance, eyeShareOfTheCutoff: 0.25));
 
-        PreparedScene scene = Prepare(snapshot: snapshot, batcher: TenStopsDown(), environment: MapOf(FaceMask.All));
+        PreparedScene scene = Prepare(snapshot: snapshot, highestStops: TenStopsDown, environment: MapOf(FaceMask.All));
 
         scene
             .LightSpan.ToArray()
@@ -1200,7 +1202,7 @@ public sealed class BatcherTests
 
         PreparedScene scene = Prepare(
             snapshot: snapshot,
-            batcher: TenStopsDown(),
+            highestStops: TenStopsDown,
             environment: MapOf(FaceMask.All & ~FaceMask.PositiveX)
         );
 
@@ -1217,7 +1219,7 @@ public sealed class BatcherTests
         for (int i = 0; i < places.Length; i++)
             snapshot.Lights.Add(Lamp(places[i], shines[i]));
 
-        PreparedScene scene = Prepare(snapshot: snapshot, batcher: TenStopsDown(), environment: MapOf(FaceMask.All));
+        PreparedScene scene = Prepare(snapshot: snapshot, highestStops: TenStopsDown, environment: MapOf(FaceMask.All));
 
         scene.LightSpan.ToArray().Select(light => light.Position).Should().Equal(places[0], places[1], places[2]);
     }
@@ -1230,7 +1232,7 @@ public sealed class BatcherTests
         snapshot.Lights.Add(Lamp(new(0, 0, -5)));
         snapshot.Instances.Add(Box(new(10, 0, 0), chainDepth: TestChains.CamerasFrame));
 
-        PreparedScene scene = Prepare(snapshot: snapshot, batcher: TenStopsDown(), environment: new WithoutMap());
+        PreparedScene scene = Prepare(snapshot: snapshot, highestStops: TenStopsDown, environment: new WithoutMap());
 
         scene.LightCount.Should().Be(1);
         scene.Lights[0].Position.Should().Be(new Vector3(0, 0, -5));
@@ -1300,6 +1302,7 @@ public sealed class BatcherTests
         batcher.Prepare(
             snapshot: snapshot,
             alpha: 1f,
+            highestStops: Batchers.HighestStops,
             width: 1600,
             height: 900,
             meshes: Meshes,
@@ -1313,6 +1316,7 @@ public sealed class BatcherTests
         batcher.Prepare(
             snapshot: snapshot,
             alpha: 1f,
+            highestStops: Batchers.HighestStops,
             width: 1600,
             height: 900,
             meshes: Meshes,
@@ -1396,7 +1400,7 @@ public sealed class BatcherTests
 
         PreparedScene scene = Prepare(
             snapshot: snapshot,
-            batcher: TenStopsDown(),
+            highestStops: TenStopsDown,
             environment: MapOf(FaceMask.None, FaceMask.None, FaceMask.None)
         );
 
@@ -1435,7 +1439,7 @@ public sealed class BatcherTests
         snapshot.Lights.Add(LampAt(new(0, 0, -5), chainDepth: 0));
         snapshot.Puffs.Add(Puff(new(4, 0, -10)) with { ChainDepth = 0 });
 
-        PreparedScene scene = Prepare(snapshot: snapshot, batcher: TenStopsDown(), environment: new WithoutMap());
+        PreparedScene scene = Prepare(snapshot: snapshot, highestStops: TenStopsDown, environment: new WithoutMap());
 
         scene.MapCount.Should().Be(1);
         scene.Instances[0].Map.Should().Be(0u);
@@ -1507,12 +1511,12 @@ public sealed class BatcherTests
 
         PreparedScene outer = Prepare(
             snapshot: snapshot,
-            batcher: TenStopsDown(),
+            highestStops: TenStopsDown,
             environment: MapOf(FaceMask.PositiveX, FaceMask.None)
         );
         PreparedScene inner = Prepare(
             snapshot: snapshot,
-            batcher: TenStopsDown(),
+            highestStops: TenStopsDown,
             environment: MapOf(FaceMask.None, FaceMask.PositiveX)
         );
 
@@ -1529,7 +1533,7 @@ public sealed class BatcherTests
 
         PreparedScene scene = Prepare(
             snapshot: snapshot,
-            batcher: TenStopsDown(),
+            highestStops: TenStopsDown,
             environment: MapOf(FaceMask.None, FaceMask.None, FaceMask.None)
         );
 
@@ -1991,6 +1995,7 @@ public sealed class BatcherTests
         batcher.Prepare(
             snapshot: snapshot,
             alpha: 1f,
+            highestStops: Batchers.HighestStops,
             width: 1600,
             height: 900,
             meshes: Meshes,
@@ -2004,6 +2009,7 @@ public sealed class BatcherTests
         batcher.Prepare(
             snapshot: Empty(),
             alpha: 1f,
+            highestStops: Batchers.HighestStops,
             width: 1600,
             height: 900,
             meshes: Meshes,

@@ -5,13 +5,14 @@ namespace Tertius.Rendering;
 /// <summary>
 /// The exposure buffer, the one store of the exposure in stops that the passes use, the histogram of the exposure's
 /// meter, and one readback buffer per frame slot, through which the CPU reports the exposure of a finished frame
-/// (docs/plans/auto-exposure.md, "The exposure on the GPU").
+/// (docs/plans/auto-exposure.md, "The exposure on the GPU") and bounds the exposure of the frames after it.
 /// </summary>
 /// <remarks>
 /// <list type="bullet">
 /// <item>The exposure buffer holds the seed, or what the last adapt step wrote. The CPU never maps it.</item>
 /// <item>The histogram holds the counts of the last metered frame.</item>
 /// <item>A slot's readback buffer holds the exposure that the slot's last drawn frame used, once its fence signals.</item>
+/// <item>A slot's step is the step of the adapt step of the slot's last recorded frame.</item>
 /// </list>
 /// </remarks>
 internal sealed unsafe class ExposureResources : IDisposable
@@ -23,16 +24,24 @@ internal sealed unsafe class ExposureResources : IDisposable
     private const ulong HistogramBytes = ExposureMeter.Bins * sizeof(uint);
 
     private readonly VulkanDevice device;
+    private readonly ExposureSetting setting;
     private readonly GpuBuffer[] readbacks;
+
+    // The last frame that each slot recorded, and the step in s by which that frame's adapt step moves the exposure.
+    private readonly (long Frame, float Step)[] steps;
 
     public ExposureResources(
         VulkanDevice device,
         DeviceAllocator allocator,
         DescriptorLayouts layouts,
+        ExposureSetting setting,
         int framesInFlight
     )
     {
         this.device = device;
+        this.setting = setting;
+        steps = new (long Frame, float Step)[framesInFlight];
+        Array.Fill(steps, (Frame: -1, Step: 0));
         const BufferUsageFlags storage =
             BufferUsageFlags.StorageBufferBit | BufferUsageFlags.TransferSrcBit | BufferUsageFlags.TransferDstBit;
         Buffer = GpuBuffer.Create(
@@ -101,9 +110,35 @@ internal sealed unsafe class ExposureResources : IDisposable
         );
     }
 
-    /// <summary>Copies the exposure that this frame's passes use into the readback buffer of <paramref name="slot"/>.</summary>
-    public void RecordReadback(CommandBuffer commandBuffer, BarrierBatch barriers, int slot)
+    /// <summary>
+    /// The highest exposure, in stops, that <paramref name="frame"/> uses or its adapt step writes after a step of
+    /// <paramref name="step"/> s: <see cref="Latest"/>, or the seed before any reading, raised as far as the adapt steps
+    /// of the frames since and of this frame can raise it (<see cref="ExposureMeter.HighestStops"/>).
+    /// </summary>
+    public float HighestStops(long frame, float step)
     {
+        ExposureReading known = Latest ?? new(Frame: 0, Stops: setting.InitialStops);
+        // Every frame in flight holds a slot, so at most a slot's worth of frames lies between the reading and this one.
+        Span<float> since = stackalloc float[steps.Length + 1];
+        int count = 0;
+        for (long earlier = known.Frame; earlier < frame; earlier++)
+        {
+            (long Frame, float Step) recorded = steps[earlier % steps.Length];
+            Contract.Assert(recorded.Frame == earlier, "a frame after the reading still holds its slot");
+            since[count++] = recorded.Step;
+        }
+
+        since[count++] = step;
+        return ExposureMeter.HighestStops(setting: setting, knownStops: known.Stops, steps: since[..count]);
+    }
+
+    /// <summary>
+    /// Copies the exposure that this frame's passes use into the readback buffer of <paramref name="slot"/>, and keeps the
+    /// <paramref name="step"/> in s of the frame's adapt step for <see cref="HighestStops"/>.
+    /// </summary>
+    public void RecordReadback(CommandBuffer commandBuffer, BarrierBatch barriers, int slot, long frame, float step)
+    {
+        steps[slot] = (frame, step);
         GpuBuffer readback = readbacks[slot];
         barriers.Buffer(Buffer, BufferUse.TransferSource);
         barriers.Buffer(readback, BufferUse.TransferDestination);

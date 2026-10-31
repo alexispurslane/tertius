@@ -126,4 +126,30 @@ internal static class ExposureMeter
         float factor = target > stops ? intoDarkFactor : intoLightFactor;
         return stops + (target - stops) * factor;
     }
+
+    /// <summary>
+    /// The highest exposure, in stops, that adapt steps of <paramref name="steps"/> s, one after another, can write from
+    /// <paramref name="knownStops"/>: a fixed exposure's stops, or each step's approach toward MaxStops with the time
+    /// constant into the dark. No target inside the clamp moves the exposure higher.
+    /// </summary>
+    public static float HighestStops(ExposureSetting setting, float knownStops, ReadOnlySpan<float> steps) =>
+        setting switch
+        {
+            FixedExposure(var stops) => stops,
+            AutoExposure auto => HighestAutoStops(auto: auto, knownStops: knownStops, steps: steps),
+        };
+
+    /// <summary>The highest exposure that <paramref name="auto"/>'s adapt steps can write: <see cref="HighestStops(ExposureSetting, float, ReadOnlySpan{float})"/>.</summary>
+    private static float HighestAutoStops(AutoExposure auto, float knownStops, ReadOnlySpan<float> steps)
+    {
+        float highest = knownStops;
+        foreach (float seconds in steps)
+            highest = Approach(
+                stops: highest,
+                target: auto.MaxStops,
+                intoDarkFactor: ApproachFactor(seconds, auto.IntoDarkSeconds),
+                intoLightFactor: ApproachFactor(seconds, auto.IntoLightSeconds)
+            );
+        return highest;
+    }
 }

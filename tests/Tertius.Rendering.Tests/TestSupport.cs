@@ -554,24 +554,21 @@ internal static class TestTextures
 /// <summary>Scene batchers for the CPU tests.</summary>
 internal static class Batchers
 {
-    /// <summary>A batcher with the exposure and the cascaded light budget of a renderer made with default options.</summary>
+    /// <summary>
+    /// The highest exposure, in stops, that the CPU tests prepare a frame for, unless a test names its own: the default
+    /// setting's highest stops, where every light reaches farthest.
+    /// </summary>
+    public const float HighestStops = 10;
+
+    /// <summary>A batcher with the cascaded light budget of a renderer made with default options.</summary>
     public static SceneBatcher Default() => WithCascadedLights(new RendererOptions().CascadedLights);
 
-    /// <summary>A batcher of <see cref="Default"/>, but with <paramref name="cascadedLights"/> cascade sets.</summary>
-    public static SceneBatcher WithCascadedLights(int cascadedLights) =>
-        With(exposure: new RendererOptions().Exposure, cascadedLights: cascadedLights);
-
     /// <summary>
-    /// A batcher with <paramref name="exposure"/> and <paramref name="cascadedLights"/> cascade sets, whose boxes are
-    /// those of the default shadow map on a device that filters D32 depth.
+    /// A batcher with <paramref name="cascadedLights"/> cascade sets, whose boxes are those of the default shadow map on a
+    /// device that filters D32 depth.
     /// </summary>
-    public static SceneBatcher With(ExposureSetting exposure, int cascadedLights) =>
-        new(
-            exposure: exposure,
-            cascadedLights: cascadedLights,
-            shadowMapSize: ShadowMap.DefaultSize,
-            depthRangeScale: 16f
-        );
+    public static SceneBatcher WithCascadedLights(int cascadedLights) =>
+        new(cascadedLights: cascadedLights, shadowMapSize: ShadowMap.DefaultSize, depthRangeScale: 16f);
 }
 
 /// <summary>The material slots that the CPU tests hand the batcher, as a renderer's material store holds them.</summary>

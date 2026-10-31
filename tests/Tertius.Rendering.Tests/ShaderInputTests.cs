@@ -25,6 +25,7 @@ public sealed class ShaderInputTests
             .Prepare(
                 snapshot: snapshot,
                 alpha: 1f,
+                highestStops: Batchers.HighestStops,
                 width: 1600,
                 height: 900,
                 meshes: Meshes,
