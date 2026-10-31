@@ -28,3 +28,7 @@ The lighting pass on demo-exit at 1080p, Release, measured on a quiet machine ag
 **2026-10-31T14:22:50Z**
 
 2026-10-31: launched through the workflow MCP (ultracode-ticket-completion, version 88962f00-4bb7-41be-89dd-bb3951a51fd8), run 8885be90-f0e0-442f-aa07-43c94ccb9dcf, branch ter-ox1a-light-reach-exposure from cd8b233c.
+
+**2026-10-31T16:12:09Z**
+
+2026-10-31: the first run (8885be90, old script version 88962f00) built the ticket (HEAD 858c84f9, both suites passed) but ended with output_schema. Continuation run 43735db1-af68-4151-a76d-9d28243e9162 (version 3cde7d7d-f5f8-4f91-aee3-b2258cb90dc6) verifies the work and runs the review and fix stages on the same worktree and branch.
