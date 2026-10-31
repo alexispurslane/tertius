@@ -1,6 +1,6 @@
 ---
 id: ter-nwhv
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-10-27T13:14:57Z
@@ -40,3 +40,7 @@ Found by the review of ter-qsfz (2026-10-27). A hair pixel's dominant reflection
 **2026-10-31T18:41:01Z**
 
 2026-10-31, builder (fix stage after the review): the hair cut in reflectingPixel now compares the cosine d . n_g with SurfaceFadeCosine directly, not the clamped quotient, so every Vulkan driver decides the boundary alike; captures unchanged. The standard-model test of the surface fade runs with the environment map off: on its real frame, a delta without its fade breaks the bound at 10,737 of 12,081 band pixels, against 175 with the map on. The SSR design doc (start rule, flowchart, pixel table, fades) states the hair cut. New ticket ter-acr3: the same grazing hits stay open for normal-mapped surfaces of other models. Captures: hair-rugs rugs.png and low.png equal the option-B trial byte for byte; scripts/reflections.json equals a capture with the b4cce41e shader in 204 of 204 files.
+
+**2026-10-31T19:38:11Z**
+
+2026-10-31, integration: continuation run 718fdeaf ended ready for integration (option B in 7d9d0b2f, review fix 29789c71). Hand mutations of reflectingPixel, each killed: no-hair-cut (the hair condition removed) by the two hair tests; cut-every-model (the cut for every model) and no-fade (the fade fixed at 1) by AStandardPixelWhoseRayGrazesItsSurfaceTakesTheScreensReflectionInTheShareOfTheSurfaceFade. Coverage of the changed C# lines: 1 of 82, all in the hair-rugs scene and the shared glowing box, construction code without branches that the captures check, like the other showcase scenes; the shader change is GLSL, which coverage does not count. Merged as 4f683c5b. tools/test-all.sh on the merge passed except the ter-a00h flake (ContactAllocationTests.StepsOfAwakeBodiesInATurningFrameAllocateNothingOnAnyThread, 1 and 1 bytes per tick), which passed alone in Release.

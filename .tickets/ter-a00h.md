@@ -23,3 +23,7 @@ tags: [tests, flaky]
 **2026-10-31T19:20:49Z**
 
 2026-10-31, third occurrence: the Release run of tools/test-all.sh on the ter-uu2y merge (no physics change), at a 5-minute load of about 23 while a coverage run of another branch ran, failed two other allocation tests of the same kind. ContactAllocationTests.StepsWithManyPersistingContactsAndAPendingPairAllocateNothingOnAnyThread: 'the windows gave 3 and 1 bytes per tick'. RefusedRailsAllocationTests.ARailsComponentThatTheGuardRefusesAllocatesNothingInTheTicksAfterItsLog: 'the windows gave 173 and 36 bytes per tick'. Both classes passed alone in Release a minute later. So the flake is not one test: every test that counts the whole process's allocations over a window can fail on a busy machine. A fix belongs in the shared measurement, not in one test.
+
+**2026-10-31T19:38:11Z**
+
+2026-10-31, fourth occurrence: the Release run of tools/test-all.sh on the ter-nwhv merge (no physics change) failed StepsOfAwakeBodiesInATurningFrameAllocateNothingOnAnyThread again, 'the windows gave 1 and 1 bytes per tick', at a 5-minute load of about 44. It passed alone in Release a minute later.
