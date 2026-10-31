@@ -12,8 +12,8 @@ public static partial class DemoScenes
     /// <item>The Sun of <see cref="SunRoot"/>, and <c>mars</c>, a frame 1.524 AU from it along +X whose origin is the
     /// planet's center. Its air is <see cref="Air"/>: a butterscotch sky, an ochre haze and a warm tint on the sunlight. The
     /// frame's bubble reaches 300 km above the ground, 27 scale heights, so a view above the air keeps the planet's
-    /// record. Past that edge the record goes, and the ground's haze and tint go with it in one frame
-    /// (docs/plans/atmosphere.md, "Not in this ticket").</item>
+    /// record. Past that edge the camera's chain holds no planet medium, so the snapshot takes the air that is densest at
+    /// the eye, which is still this one (docs/plans/atmosphere.md, rule 5).</item>
     /// <item>Two sites on the ground, each a flat plate 30 km wide with pillars along its +Z at 15 m to 12 km, which grow
     /// with their distance and stand side by side in the view: <c>day</c>, 50° from the point under the Sun, where the Sun stands 40° up, and <c>dusk</c>,
     /// 89° from it, where the Sun stands 1° up.</item>
@@ -22,7 +22,8 @@ public static partial class DemoScenes
     /// down, where the air is gone and the sky is black. <c>terminator-view</c>, 60 km above the dusk site, looks 12° down
     /// away from the Sun, across the terminator. <c>edge-inside-view</c> and <c>edge-outside-view</c> look 60° down at the
     /// day site from 5 km inside and outside the bubble's edge, the second in the Sun's frame, where no planet's air is on
-    /// the camera's chain.</item>
+    /// the camera's chain and the air comes from the densest one at the eye. Each runs 600 ticks first, so that the
+    /// exposure settles and the two views differ only by the 10 km of height.</item>
     /// </list>
     /// </summary>
     public static class MarsAir

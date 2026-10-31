@@ -42,7 +42,15 @@ public readonly record struct PlanetMedium(
     Vector3 SkyRadiance = default,
     PlanetHaze? Haze = null,
     Vector3? SunTint = null
-);
+)
+{
+    /// <summary>
+    /// The height in m above the planet's surface of a place <paramref name="distance"/> m from its center, 0 at and below
+    /// the radius, where the density stays at the surface density. The density there is the surface density times
+    /// e^(−height / <see cref="ScaleHeight"/>). IMPORTANT: airHeight in atmosphere.glsl is the shaders' copy of this rule.
+    /// </summary>
+    public double HeightAt(double distance) => Math.Max(0, distance - Radius);
+}
 
 /// <summary>
 /// The haze of a planet's air (docs/plans/atmosphere.md, "The haze"): a surface seen through the air fades toward
@@ -187,8 +195,7 @@ public readonly partial struct MediumField
             && !box.Contains(place.ToVector3())
                 ? 0
                 : density,
-            PlanetMedium { Radius: var radius, SurfaceDensity: var surface, ScaleHeight: var scale } => surface
-                * Math.Exp(-Math.Max(0, place.Length - radius) / scale),
+            PlanetMedium planet => planet.SurfaceDensity * Math.Exp(-planet.HeightAt(place.Length) / planet.ScaleHeight),
             null => 0,
         };
 }

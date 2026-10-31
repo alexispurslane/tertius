@@ -184,7 +184,7 @@ struct GpuAtmosphere
 
 Without an atmosphere, every value is 0 except the tint, which is 1. Then `skyRadiance` is black, the haze lets everything through, and no light takes a tint, so every scene of today keeps its look. A sun past the shaders' range of places, 2^62 m, counts as no sun.
 
-`PaintedAtmosphere.cs` and `atmosphere.glsl` hold the same three rules: the density share, the sun's tint and the day factor. The C# copy serves the values at the eye and the impostors' light signature. The GLSL copy serves every shaded point. A change to one rule edits both. The eye's height and share come from the CPU alone, so no pixel computes them again.
+`PaintedAtmosphere.cs` and `atmosphere.glsl` hold the same three rules: the density share, the sun's tint and the day factor. The C# copy serves the values at the eye and the impostors' light signature. The GLSL copy serves every shaded point. A change to one rule edits both. The height above the surface, h, has one C# copy, `PlanetMedium.HeightAt`, which the medium's density, the eye's share and the choice of the air off the chain read, and one GLSL copy, `airHeight`. The eye's height and share come from the CPU alone, so no pixel computes them again.
 
 ## Portable Vulkan
 
@@ -201,7 +201,7 @@ The tests define the behavior first, in the language of the domain:
 
 - A planet medium with a sky, a haze or a tint out of its range is not valid.
 - A camera in a frame with a planet medium gets the atmosphere record: the center, the medium and the sun. A cabin on the surface gets its planet's record. A world without a planet medium gives none.
-- A camera outside the bubble of the air's frame still gets that air, and so does a camera in orbit over a turning ground whose bubble ends 50 km up. The chain's air wins over a denser air off the chain. Of two airs off the chain, the air densest at the eye wins, and of two equally dense airs, the lower frame slot wins (`ter-uu2y`).
+- A camera outside the bubble of the air's frame still gets that air, and so does a camera in orbit over a turning ground whose bubble ends 50 km up. The chain's air wins over a denser air off the chain. Of two airs off the chain, the air with fewer scale heights below the eye wins, even when its surface is farther in meters, and even when both are so far away that both densities are 0 in a double. Of two equally dense airs, the lower frame slot wins, and an eye below two surfaces stands 0 scale heights above both. The choice of an air off the chain allocates nothing (`ter-uu2y`).
 - The sun is the point light that gives the planet's center the most light.
 - The day factor is full by day, half at sunset and zero at night.
 - A frame with a painted sky shows that color behind its ground by day. The sky is black at night. The sky fades to black above the air.
@@ -217,3 +217,4 @@ The tests define the behavior first, in the language of the domain:
 
 - The exposure meter counts no sky pixel (`auto-exposure.md`). So a view of the sky alone keeps the exposure that the view before it set. With a sunlit surface in view, the exposure falls by day, and the stars fade.
 - One air per view (User, `ter-uu2y`). The snapshot keeps one atmosphere record, so a second planet with air in the same view takes no haze and no tint.
+- A view in which the air cannot reach any opaque pixel still pays the haze pass and the tint, because every view of a world with a hazed planet has an atmosphere. Ticket `ter-bgpv` measures that cost and can skip the pass.

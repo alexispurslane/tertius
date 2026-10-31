@@ -49,8 +49,7 @@ internal sealed partial class RenderSnapshotBuilder
             FrameHandle frame = denseFrames[i];
             if (!frames.Medium(frame).TryGetValue(out PlanetMedium planet))
                 continue;
-            double height = Math.Max(0, (relCurrent[i].Position - renderOrigin).Length - planet.Radius);
-            double scaleHeights = height / planet.ScaleHeight;
+            double scaleHeights = planet.HeightAt((relCurrent[i].Position - renderOrigin).Length) / planet.ScaleHeight;
             bool denser =
                 densest is not { } best
                 || scaleHeights < fewest

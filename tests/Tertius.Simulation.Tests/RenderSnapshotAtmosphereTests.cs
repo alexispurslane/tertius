@@ -239,31 +239,84 @@ public sealed class RenderSnapshotAtmosphereTests
     public void OfTwoAirsOffTheChainTheOneDensestAtTheEyeWins()
     {
         using var test = new TestWorld();
-        // The eye in the root is 100 km above Mars, 9.0 of its scale heights, and 50 km above the second planet, 5.9 of its
-        // scale heights. The denser air comes later in slot order, so the slot order does not choose it.
-        SpawnFrame(test: test, parent: test.Root, place: Double3.Zero, medium: new(MarsAir), radius: 1e5f);
+        // The eye at the root's origin is 80 km above the Earth-like planet, 9.4 of its scale heights, and 100 km above
+        // Mars, 9.0 of its scale heights. Mars's surface is farther in meters, and Mars comes later in slot order, so
+        // neither the nearer surface nor the slot order chooses it.
         SpawnFrame(
             test: test,
             parent: test.Root,
-            place: new(0, MarsRadius + 1e5 + EarthAir.Radius + 5e4, 0),
+            place: new(0, EarthAir.Radius + 8e4, 0),
             medium: new(EarthAir),
             radius: 1e5f
         );
-        test.World.Camera = test.SpawnCamera(test.Root, new(new(0, MarsRadius + 1e5, 0), DQuaternion.Identity));
+        SpawnFrame(test: test, parent: test.Root, place: new(0, -(MarsRadius + 1e5), 0), medium: new(MarsAir), radius: 1e5f);
+        test.World.Camera = test.SpawnCamera(test.Root, new(Double3.Zero, DQuaternion.Identity));
 
         test.Run(1);
         RenderAtmosphere? atmosphere = test.World.Latest().Atmosphere;
 
-        atmosphere!.Value.Medium.Should().Be(EarthAir, "the eye stands fewer of its scale heights above the second planet");
-        ExpectNear(atmosphere.Value.Center, new(0, EarthAir.Radius + 5e4, 0), "the second planet's center lies above the eye");
+        atmosphere!.Value.Medium.Should().Be(MarsAir, "the eye stands fewer of Mars's scale heights above its surface");
+        ExpectNear(atmosphere.Value.Center, new(0, -(MarsRadius + 1e5), 0), "Mars's center lies below the eye");
+    }
+
+    [Fact]
+    public void OfTwoFarAirsOffTheChainTheOneFewerScaleHeightsBelowTheEyeWins()
+    {
+        using var test = new TestWorld();
+        // Both surfaces lie 10⁹ m from the eye: 1.2 × 10⁵ Earth scale heights and 9.0 × 10⁴ Mars scale heights. At those
+        // heights both densities are 0 in a double, so a rule that compared densities would tie and give the lower slot,
+        // which is the Earth-like planet's.
+        const double height = 1e9;
+        SpawnFrame(
+            test: test,
+            parent: test.Root,
+            place: new(EarthAir.Radius + height, 0, 0),
+            medium: new(EarthAir),
+            radius: 1e5f
+        );
+        SpawnFrame(test: test, parent: test.Root, place: new(-(MarsRadius + height), 0, 0), medium: new(MarsAir), radius: 1e5f);
+        test.World.Camera = test.SpawnCamera(test.Root, new(Double3.Zero, DQuaternion.Identity));
+
+        test.Run(1);
+
+        test.World.Latest().Atmosphere!.Value.Medium.Should().Be(MarsAir, "the eye stands fewer of Mars's scale heights up");
+    }
+
+    [Fact]
+    public void AnEyeBelowTheSurfacesOfTwoAirsOffTheChainTakesTheAirOfTheLowerFrameSlot()
+    {
+        using var test = new TestWorld();
+        // The eye lies 10⁶ m from both centers, deep below both surfaces, so it stands 0 scale heights above each. It lies
+        // farther below the Earth-like planet's surface, which comes later in slot order, but below the surface the air
+        // is no denser.
+        FrameHandle mars = SpawnFrame(
+            test: test,
+            parent: test.Root,
+            place: new(1e6, 0, 0),
+            medium: new(MarsAir),
+            radius: 1e5f
+        );
+        FrameHandle earth = SpawnFrame(
+            test: test,
+            parent: test.Root,
+            place: new(-1e6, 0, 0),
+            medium: new(EarthAir),
+            radius: 1e5f
+        );
+        mars.Index.Should().BeLessThan(earth.Index, "Mars's frame was created first in a fresh world");
+        test.World.Camera = test.SpawnCamera(test.Root, new(Double3.Zero, DQuaternion.Identity));
+
+        test.Run(1);
+
+        test.World.Latest().Atmosphere!.Value.Medium.Should().Be(MarsAir, "the planet in the lower frame slot gives the air");
     }
 
     [Fact]
     public void OfTwoAirsOffTheChainThatAreEquallyDenseAtTheEyeTheLowerFrameSlotWins()
     {
         using var test = new TestWorld();
-        // Two equal planets on either side of the eye, at the origin of the root. The frame of the first planet frees its
-        // slot, and the planet that takes it comes after the other in the order of creation.
+        // Two equal planets on either side of the eye, at the origin of the root. A frame without air frees its slot, and
+        // the left planet, created last, takes it, so the lower slot is not the first planet created.
         const double distance = MarsRadius + 1e5;
         Entity freed = SpawnFrame(
                 test: test,
@@ -315,6 +368,24 @@ public sealed class RenderSnapshotAtmosphereTests
         test.Run(1);
 
         test.World.Latest().Atmosphere.Should().BeNull("a cabin's air is not a planet's");
+    }
+
+    [Fact]
+    public void ASteadyStateTickThatChoosesAnAirOffTheChainAllocatesNothing()
+    {
+        using var test = new TestWorld(debugChecks: false);
+        // Two airs off the chain, so the build compares candidates at every tick, and a sun, so it chooses the air's sun.
+        SpawnFrame(test: test, parent: test.Root, place: new(0, -(MarsRadius + 1e5), 0), medium: new(MarsAir), radius: 1e5f);
+        SpawnFrame(test: test, parent: test.Root, place: new(0, EarthAir.Radius + 8e4, 0), medium: new(EarthAir), radius: 1e5f);
+        SpawnLight(test: test, frame: test.Root, place: new(SunDistance, 0, 0), light: Star);
+        test.World.Camera = test.SpawnCamera(test.Root, new(Double3.Zero, DQuaternion.Identity));
+        test.Run(30);
+        test.World.Latest().Atmosphere.Should().NotBeNull("the window below must measure the choice of an air");
+
+        long allocated = Allocations.Fewest(() => test.Run(100));
+
+        allocated.Should().Be(0, "the snapshot build chooses the air at every tick");
+        test.World.Errors.Should().BeEmpty();
     }
 
     [Fact]
