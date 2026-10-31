@@ -2012,7 +2012,7 @@ Two Metal System Traces measured the cost (`tools/gpu-trace.sh`, ter-6vhj). Each
 | exposure | 0.126 ms | 0.069 ms | Not explained: the meter's work does not read the look |
 | frame span | 9.685 ms | 9.334 ms | |
 
-Since ter-uu2y, every view of a world with a hazed planet has an atmosphere, because a camera off every planet's chain takes the air that is densest at its eye. So such a view pays the haze pass and the tint, even when the planet is far away or out of the view and T is 1 at every pixel. Ticket ter-bgpv measures that cost and can skip the pass when no opaque pixel can reach the air.
+Since ter-uu2y, every view of a world with a planet medium has an atmosphere, because a camera off every planet's chain takes the air that is densest at its eye. Ticket ter-bgpv measured that no shipped view pays more than the timer's noise, about 0.02 ms, for air that it cannot show, so the renderer has no skip. Only `mars-air` paints a haze, and each of its views shows the air. Over Earth's air, which paints nothing, the haze pass does no GPU work, and the sun's tint costs the direct light no more than the noise of a control trace.
 
 The snapshot holds one record, so a second planet with air in the same view takes no haze and no tint. (User, ter-uu2y) The mean density share of the haze reads the heights at the two ends of a ray only, so a ray that grazes the limb with both ends above the air takes almost no haze.
 

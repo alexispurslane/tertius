@@ -217,4 +217,4 @@ The tests define the behavior first, in the language of the domain:
 
 - The exposure meter counts no sky pixel (`auto-exposure.md`). So a view of the sky alone keeps the exposure that the view before it set. With a sunlit surface in view, the exposure falls by day, and the stars fade.
 - One air per view (User, `ter-uu2y`). The snapshot keeps one atmosphere record, so a second planet with air in the same view takes no haze and no tint.
-- A view in which the air cannot reach any opaque pixel still pays the haze pass and the tint, because every view of a world with a hazed planet has an atmosphere. Ticket `ter-bgpv` measures that cost and can skip the pass.
+- No skip of the haze pass or the tint in a view in which the air cannot reach any opaque pixel. Every view of a world with a planet medium has an atmosphere, but ticket `ter-bgpv` measured no shipped view that pays more than the timer's noise for it (ARCHITECTURE.md, "The atmosphere").
