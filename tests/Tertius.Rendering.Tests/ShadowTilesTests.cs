@@ -24,8 +24,8 @@ public sealed class ShadowTilesTests
     private static readonly MeshData BoxData = Primitives.MorphingBox(new(0.5f));
 
     /// <summary>
-    /// A white spot light of <paramref name="intensity"/> W/sr that casts shadows, in the main view, with the camera at the
-    /// origin.
+    /// A white spot light of <paramref name="intensity"/> W/sr that casts shadows, in the main view, ranked by its light at
+    /// the eye, with the camera at the origin.
     /// </summary>
     private static PreparedLight Spot(
         uint entity,
@@ -43,6 +43,7 @@ public sealed class ShadowTilesTests
             RadiantIntensity = new(intensity),
             Reach = Reach,
             Distance = place.Length(),
+            RankDistance = place.Length(),
             CastsShadow = true,
             InMainView = true,
             Spread = new(Cone.Of(Vector3.Normalize(axis ?? Vector3.UnitX), innerAngle: 0, outerAngle: outerAngle)),
@@ -63,6 +64,7 @@ public sealed class ShadowTilesTests
             RadiantIntensity = new(intensity),
             Reach = Reach,
             Distance = place.Length(),
+            RankDistance = place.Length(),
             CastsShadow = true,
             InMainView = true,
             Spread = new EveryDirection(),

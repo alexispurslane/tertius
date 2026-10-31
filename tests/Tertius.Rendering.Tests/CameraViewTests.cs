@@ -158,9 +158,7 @@ public sealed class CameraViewTests
             float outerAngle = 0.05f + (float)random.NextDouble() * 3f;
             float reach = 1 + (float)random.NextDouble() * 30;
             Cone spread = ConeAlong(axis, outerAngle);
-            bool seen = Enumerable
-                .Range(0, 64)
-                .Any(_ => InView(camera, apex + PointOfCone(random, spread, reach)));
+            bool seen = Enumerable.Range(0, 64).Any(_ => InView(camera, apex + PointOfCone(random, spread, reach)));
 
             if (seen)
                 camera
@@ -194,5 +192,35 @@ public sealed class CameraViewTests
         return depth >= DepthRanges.NearPlane
             && MathF.Abs(Vector3.Dot(point, camera.Right)) <= depth * camera.TanHalfX
             && MathF.Abs(Vector3.Dot(point, camera.Up)) <= depth * camera.TanHalfY;
+    }
+
+    [Fact]
+    public void TheNearestPointOfAnAxisInViewIsWhereTheAxisEntersTheView()
+    {
+        CameraView camera = ScreenTesting.Camera(width: Width, height: Height);
+        // 10 m right of the eye, aimed straight ahead: the right side plane, x = depth · tan, meets it at depth 10 / tan.
+        float entry = 10 / camera.TanHalfX;
+
+        float? nearest = camera.NearestInView(new(10, 0, 0), -Vector3.UnitZ, reach: 30);
+
+        nearest.Should().NotBeNull();
+        nearest!.Value.Should().BeApproximately(MathF.Sqrt(10 * 10 + entry * entry), 1e-4f);
+    }
+
+    [Fact]
+    public void TheNearestPointOfAnAxisInViewIsTheFootOfThePerpendicularFromTheEyeWhenItLiesInView()
+    {
+        CameraView camera = ScreenTesting.Camera(width: Width, height: Height);
+
+        // 20 m ahead and 3 m up, aimed down: the foot of the perpendicular from the eye lies 3 m below the lamp.
+        camera.NearestInView(new(0, 3, -20), -Vector3.UnitY, reach: 30).Should().BeApproximately(20, 1e-5f);
+    }
+
+    [Fact]
+    public void AnAxisThatEndsBeforeTheViewHasNoPointInView()
+    {
+        CameraView camera = ScreenTesting.Camera(width: Width, height: Height);
+
+        camera.NearestInView(new(10, 0, 0), -Vector3.UnitZ, reach: 5).Should().BeNull();
     }
 }

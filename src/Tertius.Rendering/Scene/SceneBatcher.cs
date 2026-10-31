@@ -1033,6 +1033,16 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
         };
         Vector3 relative = position - camera.Offset;
         float reach = (float)LightUnits.Reach(PeakChannel(color) * intensity, cutoffIrradiance);
+        double distance = Math.Sqrt(
+            (double)relative.X * relative.X + (double)relative.Y * relative.Y + (double)relative.Z * relative.Z
+        );
+        (bool inMainView, double rankDistance) = MainViewAndRank(
+            spread: spread,
+            relative: relative,
+            reach: reach,
+            distance: distance,
+            camera: camera
+        );
         return new()
         {
             EntityIndex = entity,
@@ -1040,19 +1050,37 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
             RadiantIntensity = LightUnits.RadiantIntensity(color, intensity),
             Radius = radius,
             Reach = reach,
-            Distance = Math.Sqrt(
-                (double)relative.X * relative.X + (double)relative.Y * relative.Y + (double)relative.Z * relative.Z
-            ),
+            Distance = distance,
             CastsShadow = castsShadow,
-            InMainView = spread switch
-            {
-                Cone cone => !camera.Culls(relative, cone, reach),
-                EveryDirection => !camera.Culls(relative, reach),
-            },
+            InMainView = inMainView,
+            RankDistance = rankDistance,
             Spread = spread,
             Map = EnvironmentChain.MapOf(chainDepth, maps),
         };
     }
+
+    /// <summary>
+    /// Whether the main view keeps a light <paramref name="relative"/> to the eye, by its cone or its sphere cut at its
+    /// <paramref name="reach"/>, and its <see cref="PreparedLight.RankDistance"/>: for a spot light in the main view, the
+    /// eye's distance to its beam in view, else <paramref name="distance"/>, the eye's distance to the light.
+    /// </summary>
+    private static (bool InMainView, double RankDistance) MainViewAndRank(
+        LightSpread spread,
+        Vector3 relative,
+        float reach,
+        double distance,
+        in CameraView camera
+    ) =>
+        spread switch
+        {
+            // Where the axis misses the view, the lamp's strongest light falls outside it, so it ranks by its weakest.
+            Cone cone when !camera.Culls(relative, cone, reach) => (
+                true,
+                camera.NearestInView(relative, cone.Axis, reach) ?? reach
+            ),
+            Cone => (false, distance),
+            EveryDirection => (!camera.Culls(relative, reach), distance),
+        };
 
     /// <summary>
     /// The cone of a spot light at alpha: its unit axes, a zero axis taken as straight down (−Y) and a zero previous axis

@@ -4,8 +4,9 @@ namespace Tertius.Rendering.Tests;
 
 /// <summary>
 /// <see cref="FarShadows.Choose"/>: which far lights get a cascade set, which get far shadows only and which get no slot,
-/// by their irradiance at the eye, with ties in list order (docs/plans/local-light-shadows.md, "Shadows of each light"),
-/// the main view's lights before the lights that only a face of a map keeps (docs/plans/environment-map.md, decision 20).
+/// by the irradiance at which they rank (<see cref="LightUnits.RankIrradiance"/>), here at the eye, with ties in list order
+/// (docs/plans/local-light-shadows.md, "Shadows of each light"), the main view's lights before the lights that only a face
+/// of a map keeps (docs/plans/environment-map.md, decision 20).
 /// </summary>
 public sealed class FarShadowsTests
 {
@@ -20,6 +21,7 @@ public sealed class FarShadowsTests
         {
             RadiantIntensity = new(intensity),
             Distance = FarAway,
+            RankDistance = FarAway,
             CastsShadow = castsShadow,
             InMainView = true,
         };
@@ -33,6 +35,7 @@ public sealed class FarShadowsTests
         {
             RadiantIntensity = new(intensity),
             Distance = 10,
+            RankDistance = 10,
             CastsShadow = true,
             InMainView = true,
         };
@@ -67,7 +70,7 @@ public sealed class FarShadowsTests
 
     [Fact]
     public void AFarLightNearerTheEyeOutranksAMoreIntenseOneFartherAway() =>
-        Slots([Far(8) with { Distance = 4 * FarAway }, Far(1)], cascadedLights: 1)
+        Slots([Far(8) with { Distance = 4 * FarAway, RankDistance = 4 * FarAway }, Far(1)], cascadedLights: 1)
             .Should()
             .Equal([FarOnly, Set(0)], "8 W/sr at four times the distance gives half the irradiance at the eye");
 

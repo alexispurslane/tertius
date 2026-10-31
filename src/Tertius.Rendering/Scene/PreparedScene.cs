@@ -74,6 +74,36 @@ internal struct CameraView
     }
 
     /// <summary>
+    /// The distance in m from the eye to the point nearest the eye of the axis from <paramref name="apex"/> along the unit
+    /// <paramref name="axis"/>, cut at <paramref name="reach"/> m, that lies inside the planes of
+    /// <see cref="Culls(Vector3, float)"/>, or null when the cut axis misses the view.
+    /// </summary>
+    public readonly float? NearestInView(Vector3 apex, Vector3 axis, float reach)
+    {
+        float enter = 0;
+        float leave = reach;
+        for (int index = 0; index < BoundCount; index++)
+        {
+            Plane bound = Bound(index);
+            // Inside the plane where inside + t · rate ≥ 0.
+            float inside = Plane.DotCoordinate(bound, apex);
+            float rate = Vector3.Dot(bound.Normal, axis);
+            if (rate > 0)
+                enter = MathF.Max(enter, -inside / rate);
+            else if (rate < 0)
+                leave = MathF.Min(leave, -inside / rate);
+            else if (inside < 0)
+                return null;
+        }
+
+        if (enter > leave)
+            return null;
+        // The squared distance to the eye is a parabola in t with its lowest point at −apex · axis.
+        float along = Math.Clamp(-Vector3.Dot(apex, axis), enter, leave);
+        return (apex + along * axis).Length();
+    }
+
+    /// <summary>
     /// A plane that bounds the view, with its unit normal pointing into the view: the near plane for
     /// <paramref name="index"/> 0, then the right, left, top and bottom side planes, all through the eye.
     /// </summary>

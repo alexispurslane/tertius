@@ -5,7 +5,8 @@ public readonly record struct NoLocalShadows;
 
 /// <summary>
 /// Near lights cast shadows from an atlas of <paramref name="Tiles"/> depth tiles of <paramref name="TileSize"/>²
-/// texels, ranked by their irradiance at the eye (docs/plans/local-light-shadows.md).
+/// texels, ranked by their intensity over the square of the eye's distance to their spot of light (ARCHITECTURE.md, "Local
+/// shadows").
 /// </summary>
 /// <param name="Tiles">The budget: 1 up to the device's largest image array. A spot light takes 1, a point light 6.</param>
 /// <param name="TileSize">The side of a tile in texels: a power of two from 64 to 4,096, and at most the device's largest image.</param>

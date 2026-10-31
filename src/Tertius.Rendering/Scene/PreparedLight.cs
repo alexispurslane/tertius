@@ -75,6 +75,15 @@ internal struct PreparedLight
     /// </summary>
     public bool InMainView;
 
+    /// <summary>
+    /// The distance D in m from the eye to the light's spot of light, by which the shadow budgets rank it
+    /// (<see cref="LightUnits.RankIrradiance"/>), because a spot of light D from the eye shows on screen in proportion to
+    /// 1 / D². For a spot light in the main view, the eye's distance to the point nearest the eye of its axis, cut at its
+    /// reach, inside the view, or its reach where that axis misses the view. For any other light, the eye's distance to the
+    /// light, <see cref="Distance"/>.
+    /// </summary>
+    public double RankDistance;
+
     public LightSpread Spread;
 
     /// <summary>How the light casts shadows in this frame. The default holds none.</summary>
