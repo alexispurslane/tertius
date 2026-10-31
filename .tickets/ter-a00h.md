@@ -5,7 +5,7 @@ deps: []
 links: []
 created: 2026-10-31T17:25:55Z
 type: bug
-priority: 3
+priority: 2
 assignee: Alexis Purslane
 tags: [tests, flaky]
 ---
