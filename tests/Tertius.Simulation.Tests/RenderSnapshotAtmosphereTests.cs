@@ -175,9 +175,15 @@ public sealed class RenderSnapshotAtmosphereTests
         test.Run(1);
         RenderAtmosphere? atmosphere = test.World.Latest().Atmosphere;
 
-        atmosphere.Should().NotBeNull("the camera looks down through the planet's air, though its chain holds no planet");
+        atmosphere
+            .Should()
+            .NotBeNull("the camera looks down through the planet's air, though its chain holds no planet");
         atmosphere!.Value.Medium.Should().Be(MarsAir);
-        ExpectNear(atmosphere.Value.Center, new(0, -(MarsRadius + 3.05e5), 0), "the planet's center lies below the eye");
+        ExpectNear(
+            atmosphere.Value.Center,
+            new(0, -(MarsRadius + 3.05e5), 0),
+            "the planet's center lies below the eye"
+        );
     }
 
     [Fact]
@@ -209,9 +215,15 @@ public sealed class RenderSnapshotAtmosphereTests
         test.Run(1);
         RenderAtmosphere? atmosphere = test.World.Latest().Atmosphere;
 
-        atmosphere.Should().NotBeNull("the ground's air lies below the orbit, though the orbit is outside the ground's bubble");
+        atmosphere
+            .Should()
+            .NotBeNull("the ground's air lies below the orbit, though the orbit is outside the ground's bubble");
         atmosphere!.Value.Medium.Should().Be(EarthAir);
-        ExpectNear(atmosphere.Value.Center, new(0, -(earthRadius + 2e5), 0), "the ground turns about the planet's center");
+        ExpectNear(
+            atmosphere.Value.Center,
+            new(0, -(earthRadius + 2e5), 0),
+            "the ground turns about the planet's center"
+        );
     }
 
     [Fact]
@@ -249,7 +261,13 @@ public sealed class RenderSnapshotAtmosphereTests
             medium: new(EarthAir),
             radius: 1e5f
         );
-        SpawnFrame(test: test, parent: test.Root, place: new(0, -(MarsRadius + 1e5), 0), medium: new(MarsAir), radius: 1e5f);
+        SpawnFrame(
+            test: test,
+            parent: test.Root,
+            place: new(0, -(MarsRadius + 1e5), 0),
+            medium: new(MarsAir),
+            radius: 1e5f
+        );
         test.World.Camera = test.SpawnCamera(test.Root, new(Double3.Zero, DQuaternion.Identity));
 
         test.Run(1);
@@ -267,7 +285,13 @@ public sealed class RenderSnapshotAtmosphereTests
         // stands 50 km above the second. Seen from the root's origin, the second lies about 16,900 km below, and the first
         // comes first in slot order, so only the eye's place chooses the second.
         var eye = new Double3(2e7, 0, 0);
-        SpawnFrame(test: test, parent: test.Root, place: new(0, -(MarsRadius + 1e5), 0), medium: new(MarsAir), radius: 1e5f);
+        SpawnFrame(
+            test: test,
+            parent: test.Root,
+            place: new(0, -(MarsRadius + 1e5), 0),
+            medium: new(MarsAir),
+            radius: 1e5f
+        );
         var below = new Double3(eye.X, -(MarsRadius + 5e4), 0);
         SpawnFrame(test: test, parent: test.Root, place: below, medium: new(MarsAir), radius: 1e5f);
         test.World.Camera = test.SpawnCamera(test.Root, new(eye, DQuaternion.Identity));
@@ -294,12 +318,20 @@ public sealed class RenderSnapshotAtmosphereTests
             medium: new(EarthAir),
             radius: 1e5f
         );
-        SpawnFrame(test: test, parent: test.Root, place: new(-(MarsRadius + height), 0, 0), medium: new(MarsAir), radius: 1e5f);
+        SpawnFrame(
+            test: test,
+            parent: test.Root,
+            place: new(-(MarsRadius + height), 0, 0),
+            medium: new(MarsAir),
+            radius: 1e5f
+        );
         test.World.Camera = test.SpawnCamera(test.Root, new(Double3.Zero, DQuaternion.Identity));
 
         test.Run(1);
 
-        test.World.Latest().Atmosphere!.Value.Medium.Should().Be(MarsAir, "the eye stands fewer of Mars's scale heights up");
+        test.World.Latest()
+            .Atmosphere!.Value.Medium.Should()
+            .Be(MarsAir, "the eye stands fewer of Mars's scale heights up");
     }
 
     [Fact]
@@ -328,7 +360,9 @@ public sealed class RenderSnapshotAtmosphereTests
 
         test.Run(1);
 
-        test.World.Latest().Atmosphere!.Value.Medium.Should().Be(MarsAir, "the planet in the lower frame slot gives the air");
+        test.World.Latest()
+            .Atmosphere!.Value.Medium.Should()
+            .Be(MarsAir, "the planet in the lower frame slot gives the air");
     }
 
     [Fact]
@@ -339,13 +373,12 @@ public sealed class RenderSnapshotAtmosphereTests
         // the left planet, created last, takes it, so the lower slot is not the first planet created.
         const double distance = MarsRadius + 1e5;
         Entity freed = SpawnFrame(
-                test: test,
-                parent: test.Root,
-                place: new(0, 0, 9e7),
-                medium: MediumField.None,
-                radius: 1e5f
-            )
-            .Entity;
+            test: test,
+            parent: test.Root,
+            place: new(0, 0, 9e7),
+            medium: MediumField.None,
+            radius: 1e5f
+        ).Entity;
         FrameHandle right = SpawnFrame(
             test: test,
             parent: test.Root,
@@ -395,8 +428,20 @@ public sealed class RenderSnapshotAtmosphereTests
     {
         using var test = new TestWorld(debugChecks: false);
         // Two airs off the chain, so the build compares candidates at every tick, and a sun, so it chooses the air's sun.
-        SpawnFrame(test: test, parent: test.Root, place: new(0, -(MarsRadius + 1e5), 0), medium: new(MarsAir), radius: 1e5f);
-        SpawnFrame(test: test, parent: test.Root, place: new(0, EarthAir.Radius + 8e4, 0), medium: new(EarthAir), radius: 1e5f);
+        SpawnFrame(
+            test: test,
+            parent: test.Root,
+            place: new(0, -(MarsRadius + 1e5), 0),
+            medium: new(MarsAir),
+            radius: 1e5f
+        );
+        SpawnFrame(
+            test: test,
+            parent: test.Root,
+            place: new(0, EarthAir.Radius + 8e4, 0),
+            medium: new(EarthAir),
+            radius: 1e5f
+        );
         SpawnLight(test: test, frame: test.Root, place: new(SunDistance, 0, 0), light: Star);
         test.World.Camera = test.SpawnCamera(test.Root, new(Double3.Zero, DQuaternion.Identity));
         test.Run(30);

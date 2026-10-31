@@ -195,7 +195,8 @@ public readonly partial struct MediumField
             && !box.Contains(place.ToVector3())
                 ? 0
                 : density,
-            PlanetMedium planet => planet.SurfaceDensity * Math.Exp(-planet.HeightAt(place.Length) / planet.ScaleHeight),
+            PlanetMedium planet => planet.SurfaceDensity
+                * Math.Exp(-planet.HeightAt(place.Length) / planet.ScaleHeight),
             null => 0,
         };
 }
