@@ -257,15 +257,18 @@ public sealed class ContactListenerTests
     }
 }
 
-/// <summary>Runs the tests of <see cref="ContactAllocationTests"/> alone, because they count the bytes that every thread allocates.</summary>
+/// <summary>
+/// Runs the tests of <see cref="ContactAllocationTests"/> alone, because their <see cref="StepAllocations"/> swaps joltc's
+/// contact callbacks for the whole process.
+/// </summary>
 [CollectionDefinition(nameof(ContactAllocationTests), DisableParallelization = true)]
 public sealed class ContactAllocationCollection;
 
 /// <summary>
 /// Jolt reports every contact of every awake body in every step, on its worker threads, so the backend's callbacks for
 /// those reports must not allocate. The gravity pass reads and writes every awake body in every step, so it must not
-/// allocate either. The tests count the bytes that the whole process allocates, because the callbacks run on Jolt's
-/// threads, so they run while no other test runs.
+/// allocate either. The tests count the bytes that every thread of the step allocates, Jolt's threads included (see
+/// <see cref="StepAllocations"/>).
 /// </summary>
 [Collection(nameof(ContactAllocationTests))]
 public sealed class ContactAllocationTests
@@ -282,7 +285,11 @@ public sealed class ContactAllocationTests
     [Fact]
     public void StepsWithManyPersistingContactsAndAPendingPairAllocateNothingOnAnyThread()
     {
-        using World world = NewWorld(backend: out JoltPhysicsBackend backend, debugChecks: false);
+        using World world = NewWorldWithStepAllocations(
+            out StepAllocations steps,
+            out JoltPhysicsBackend backend,
+            debugChecks: false
+        );
         FrameHandle ground = Ground(world, 9.81f);
         world.Spawn(
             KinematicDrift.Drifting(
@@ -324,8 +331,8 @@ public sealed class ContactAllocationTests
         // a Jolt body, such as JoltPhysicsSharp makes for a locked body, and the next lookup makes it again.
         const int Ticks = 200;
         const int ReportsPerTick = Columns * Rows + Rows * (Columns - 1);
-        long first = BytesPerTick(world, Ticks);
-        long second = BytesPerTick(world, Ticks);
+        long first = BytesPerTick(steps, world, Ticks);
+        long second = BytesPerTick(steps, world, Ticks);
 
         Math.Min(first, second)
             .Should()
@@ -350,7 +357,7 @@ public sealed class ContactAllocationTests
     [Fact]
     public void StepsWithContactsThroughAGhostThatStartAndEndAllocateNothingOnAnyThread()
     {
-        using World world = NewWorld(backend: out _, debugChecks: false);
+        using World world = NewWorldWithStepAllocations(out StepAllocations steps, out _, debugChecks: false);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f)));
         FrameHandle bubble = world.GetOwnedFrame(
             world.Spawn(new() { Frame = space, AsFrame = new(FrameBounds.Sphere(10)) })
@@ -396,8 +403,8 @@ public sealed class ContactAllocationTests
 
         const int Ticks = 200;
         int startedBefore = blockContacts.Started;
-        long first = BytesPerTick(world, Ticks);
-        long second = BytesPerTick(world, Ticks);
+        long first = BytesPerTick(steps, world, Ticks);
+        long second = BytesPerTick(steps, world, Ticks);
 
         Math.Min(first, second)
             .Should()
@@ -422,7 +429,11 @@ public sealed class ContactAllocationTests
     [Fact]
     public void StepsOfAwakeBodiesInATurningFrameAllocateNothingOnAnyThread()
     {
-        using World world = NewWorld(backend: out JoltPhysicsBackend backend, debugChecks: false);
+        using World world = NewWorldWithStepAllocations(
+            out StepAllocations steps,
+            out JoltPhysicsBackend backend,
+            debugChecks: false
+        );
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         const double Rate = 0.3;
         FrameHandle station = world.GetOwnedFrame(
@@ -460,8 +471,8 @@ public sealed class ContactAllocationTests
             .Be(Crates, "every crate goes round the axis in the station");
 
         const int Ticks = 200;
-        long first = BytesPerTick(world, Ticks);
-        long second = BytesPerTick(world, Ticks);
+        long first = BytesPerTick(steps, world, Ticks);
+        long second = BytesPerTick(steps, world, Ticks);
 
         Math.Min(first, second)
             .Should()
@@ -472,27 +483,23 @@ public sealed class ContactAllocationTests
         world.Errors.Should().BeEmpty();
     }
 
-    private static long BytesPerTick(World world, int ticks)
+    private static long BytesPerTick(StepAllocations steps, World world, int ticks)
     {
         long bytes = 0;
         for (int t = 0; t < ticks; t++)
-            bytes += BytesOfATickAfterACollection(world);
+            bytes += BytesOfATickAfterACollection(steps, world);
         return bytes / ticks;
     }
 
     /// <summary>
-    /// The bytes that the whole process allocates in a tick of <paramref name="world"/> after a full garbage collection,
-    /// which drops every managed object that nothing holds. The finalizers that the collection queues run before the count
-    /// starts, because they allocate on their own thread: after a full collection, .NET's shared array pools trim
-    /// themselves and read the memory load.
+    /// The bytes that the threads of the step allocate in a tick of <paramref name="world"/> after a full garbage
+    /// collection, which drops every managed object that nothing holds. The finalizer thread's work after the collection,
+    /// such as the trim of .NET's shared array pools, is not work of the step and does not count (ter-a00h).
     /// </summary>
-    private static long BytesOfATickAfterACollection(World world)
+    private static long BytesOfATickAfterACollection(StepAllocations steps, World world)
     {
         GC.Collect();
-        GC.WaitForPendingFinalizers();
-        long before = GC.GetTotalAllocatedBytes(precise: true);
-        world.Tick();
-        return GC.GetTotalAllocatedBytes(precise: true) - before;
+        return steps.Bytes(world.Tick);
     }
 
     /// <summary>Counts the Collision and CollisionEnded events that its entity hears, without allocating.</summary>

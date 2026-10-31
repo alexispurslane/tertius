@@ -51,6 +51,21 @@ public static class WorldTesting
         return new(NewOptions(debugChecks, configure), faults);
     }
 
+    /// <summary>
+    /// Like <see cref="NewWorld"/>, but the world runs on a <see cref="StepAllocations"/> around the new real backend, which
+    /// counts what the threads of its steps allocate. Dispose the world before another such world is made.
+    /// </summary>
+    public static World NewWorldWithStepAllocations(
+        out StepAllocations steps,
+        out JoltPhysicsBackend backend,
+        bool debugChecks = true
+    )
+    {
+        backend = NewBackend(warnings: null);
+        steps = new(backend);
+        return new(NewOptions(debugChecks, configure: null), steps);
+    }
+
     private static JoltPhysicsBackend NewBackend(List<string>? warnings)
     {
         Action<string>? log = warnings is null

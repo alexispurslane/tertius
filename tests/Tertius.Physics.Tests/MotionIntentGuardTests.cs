@@ -418,16 +418,16 @@ public sealed class MotionIntentGuardTests
 }
 
 /// <summary>
-/// Runs the tests of <see cref="RefusedRailsAllocationTests"/> alone, because they count the bytes that every thread
-/// allocates.
+/// Runs the tests of <see cref="RefusedRailsAllocationTests"/> alone, because their <see cref="StepAllocations"/> swaps
+/// joltc's contact callbacks for the whole process.
 /// </summary>
 [CollectionDefinition(nameof(RefusedRailsAllocationTests), DisableParallelization = true)]
 public sealed class RefusedRailsAllocationCollection;
 
 /// <summary>
 /// A rails component whose entity the guard of every motion intent refuses runs in every tick, so its judgment must not
-/// allocate (see <see cref="World.TakesMotionIntent"/>). The test counts the bytes that the whole process allocates, so it
-/// runs while no other test runs. The world runs on the real backend.
+/// allocate (see <see cref="World.TakesMotionIntent"/>). The test counts the bytes that every thread of the step allocates
+/// (see <see cref="StepAllocations"/>). The world runs on the real backend.
 /// </summary>
 [Collection(nameof(RefusedRailsAllocationTests))]
 public sealed class RefusedRailsAllocationTests
@@ -446,7 +446,7 @@ public sealed class RefusedRailsAllocationTests
     [Fact]
     public void ARailsComponentThatTheGuardRefusesAllocatesNothingInTheTicksAfterItsLog()
     {
-        using World world = NewWorld(backend: out _, debugChecks: false);
+        using World world = NewWorldWithStepAllocations(out StepAllocations steps, out _, debugChecks: false);
         FrameHandle space = Scenes.AsteroidSpace(world);
         var log = new List<string>();
         world.Log += log.Add;
@@ -472,8 +472,8 @@ public sealed class RefusedRailsAllocationTests
         log.Should().HaveCount(2, "each component logs its refusal once");
 
         const int Ticks = 200;
-        long first = BytesPerTick(world, Ticks);
-        long second = BytesPerTick(world, Ticks);
+        long first = BytesPerTick(steps, world, Ticks);
+        long second = BytesPerTick(steps, world, Ticks);
 
         Math.Min(first, second)
             .Should()
@@ -485,11 +485,6 @@ public sealed class RefusedRailsAllocationTests
         world.Errors.Should().BeEmpty();
     }
 
-    private static long BytesPerTick(World world, int ticks)
-    {
-        long before = GC.GetTotalAllocatedBytes(precise: true);
-        for (int t = 0; t < ticks; t++)
-            world.Tick();
-        return (GC.GetTotalAllocatedBytes(precise: true) - before) / ticks;
-    }
+    private static long BytesPerTick(StepAllocations steps, World world, int ticks) =>
+        steps.Bytes(() => Tick(world, ticks)) / ticks;
 }
