@@ -148,7 +148,6 @@ public sealed unsafe class VulkanRenderer : IRenderer
             textures = Own(new TextureStore(device, Allocator));
             materials = Own(new MaterialStore(device, Allocator));
             BrdfTableImages = Own(new BrdfTableImages(device, Allocator));
-
             uploads = new(
                 maxTextureSize: (int)device.Properties.Limits.MaxImageDimension2D,
                 deformBytesLimit: device.Properties.Limits.MaxStorageBufferRange
