@@ -72,14 +72,15 @@ internal static class LightUnits
         MathF.Asin(MathF.Min(radius / MathF.Max(distance, 1e-6f), 1));
 
     /// <summary>
-    /// The irradiance at the eye, in W/m²: the luminance of the radiant intensity over max(d², R², NearestDistance²). Lights
-    /// rank for shadows by it.
+    /// The irradiance by which every shadow budget ranks a light, in W/m²: the luminance of the radiant intensity over
+    /// max(D², R², NearestDistance²), with D the light's <see cref="PreparedLight.RankDistance"/>, the eye's distance to its
+    /// spot of light. For a point light it is the irradiance at the eye.
     /// </summary>
-    public static float EyeIrradiance(in PreparedLight light)
+    public static float RankIrradiance(in PreparedLight light)
     {
         double radius = light.Radius;
         double distanceSquared = Math.Max(
-            Math.Max(light.Distance * light.Distance, radius * radius),
+            Math.Max(light.RankDistance * light.RankDistance, radius * radius),
             NearestDistance * NearestDistance
         );
         return (float)(ExposureMeter.Luminance(light.RadiantIntensity) / distanceSquared);

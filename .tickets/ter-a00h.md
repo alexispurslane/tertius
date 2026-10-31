@@ -79,3 +79,7 @@ tags: [tests, flaky]
 **2026-10-31T23:06:38Z**
 
 Orchestrator's pass before the merge. Coverage: the only changed executable src line is the ContactListener.Callbacks accessor, which every StepAllocations construction runs (mutant a9, the accessor returning null, fails 7 of 7 StepAllocationsTests), so no coverage run. Hand mutations (worktree a7ffb2e7, against StepAllocationsTests): a2 physics thread uncounted: killed (AnAllocationOnThePhysicsThreadDuringAStepCounts); a4 a second counter allowed: killed; a5 the validate refusal removed: killed (ATableWithAValidateCallbackIsRefused; the first form, '== 1', matched the test's fake pointer 1 and was not a real mutant); a6 a refused backend not disposed: killed; a9 accessor returns null: killed; a3 (ticking thread uncounted) did not build (IDE0059), so not run. Survived: a1 job-thread bytes never counted (4 of 4 runs: Jolt ran every callback on the physics thread here), a8 Dispose keeps the wrappers installed, a7 physics-thread callbacks counted twice. ter-asj1 holds the tests that kill them. The counter's verdicts are sound for today's tests; the survivors are gaps in the counter's own tests.
+
+**2026-10-31T23:10:06Z**
+
+2026-10-31, third occurrence, the first in Checked: the full Checked run of ter-19fm at 2216ebb3 (no physics change) failed with 'the windows gave 2 and 1 bytes per tick'. The class passed 3 of 3 alone. It is the first window with 2 bytes per tick; the earlier failures gave 1 and 1.

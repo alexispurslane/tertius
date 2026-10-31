@@ -1,13 +1,24 @@
 using System.Numerics;
+using System.Runtime.CompilerServices;
 using Silk.NET.Vulkan;
 
 namespace Tertius.Rendering;
 
-/// <summary>The interpolated camera of one frame. World space is camera-relative: the eye is at the origin.</summary>
+/// <summary>
+/// The interpolated camera of one frame. World space is camera-relative: the eye is at the origin. Its invariants, which
+/// the init accessors of <see cref="TanHalfX"/> and <see cref="TanHalfY"/> keep, both required:
+/// <list type="bullet">
+/// <item>sideScaleX = SideScale(<see cref="TanHalfX"/>).</item>
+/// <item>sideScaleY = SideScale(<see cref="TanHalfY"/>).</item>
+/// </list>
+/// </summary>
 internal struct CameraView
 {
     /// <summary>The share of the shorter side of the screen over which a reflection fades out toward each edge.</summary>
     public const float EdgeFadeShare = 0.1f;
+
+    /// <summary>The planes that bound the view: the near plane and the four side planes (<see cref="Bound"/>).</summary>
+    private const int BoundCount = 5;
 
     public Quaternion Rotation;
     public Vector3 Right;
@@ -19,8 +30,6 @@ internal struct CameraView
 
     public float VerticalFov;
     public float Aspect;
-    public float TanHalfX;
-    public float TanHalfY;
     public int Width;
     public int Height;
 
@@ -30,6 +39,37 @@ internal struct CameraView
     /// <summary>The root frame's axes in world axes, interpolated like <see cref="Rotation"/>.</summary>
     public Quaternion RootRotation;
 
+    /// <summary>SideScale of <see cref="TanHalfX"/>, set with it.</summary>
+    private float sideScaleX;
+
+    /// <summary>SideScale of <see cref="TanHalfY"/>, set with it.</summary>
+    private float sideScaleY;
+
+    /// <summary>
+    /// The tangent of half the horizontal field of view. Setting it also sets the scale of the left and right planes of
+    /// <see cref="Bound"/>, so that no test of a plane takes a square root.
+    /// </summary>
+    public required float TanHalfX
+    {
+        readonly get;
+        init
+        {
+            field = value;
+            sideScaleX = SideScale(value);
+        }
+    }
+
+    /// <summary>The tangent of half the vertical field of view. Setting it also sets the scale of the top and bottom planes.</summary>
+    public required float TanHalfY
+    {
+        readonly get;
+        init
+        {
+            field = value;
+            sideScaleY = SideScale(value);
+        }
+    }
+
     /// <summary>The angle that one pixel covers at the center of the screen.</summary>
     public readonly float PixelAngle => 2f * TanHalfY / Math.Max(Height, 1);
 
@@ -38,18 +78,101 @@ internal struct CameraView
     public readonly Matrix4x4 ViewProjection(int range) =>
         View * DepthRanges.RangeProjection(range, VerticalFov, Aspect);
 
-    /// <summary>True when a sphere is completely outside the four side planes or behind the near plane.</summary>
-    public readonly bool Culls(Vector3 center, float radius)
+    /// <summary>
+    /// True when a sphere lies completely outside one of the planes that bound the view (<see cref="Bound"/>): behind the
+    /// near plane or outside one of the four side planes. The planes are unrolled, so that each inlined Bound folds to its
+    /// own plane: on the hot path of instance culling, a loop over the planes cost SceneBatcherBenchmarks 0.17 ms per
+    /// 20,000 instances (ter-19fm).
+    /// </summary>
+    public readonly bool Culls(Vector3 center, float radius) =>
+        Plane.DotCoordinate(Bound(0), center) + radius < 0
+        || Plane.DotCoordinate(Bound(1), center) + radius < 0
+        || Plane.DotCoordinate(Bound(2), center) + radius < 0
+        || Plane.DotCoordinate(Bound(3), center) + radius < 0
+        || Plane.DotCoordinate(Bound(4), center) + radius < 0;
+
+    /// <summary>
+    /// True when a spot lamp's cone at <paramref name="apex"/>, cut at <paramref name="reach"/>, lies completely outside one
+    /// of the planes of <see cref="Culls(Vector3, float)"/>. Conservative: a cone outside the view near an edge where two
+    /// planes meet, yet outside neither plane alone, is kept. A cone of a whole turn culls as the sphere of its reach.
+    /// </summary>
+    public readonly bool Culls(Vector3 apex, in Cone cone, float reach)
     {
-        float depth = Vector3.Dot(center, Forward);
-        if (depth + radius < DepthRanges.NearPlane)
-            return true;
-        float x = Vector3.Dot(center, Right);
-        float y = Vector3.Dot(center, Up);
-        // A side plane through the eye has normal (±1, 0, −tan) / √(1 + tan²) in (x, y, depth) coordinates.
-        float scaleX = MathF.Sqrt(1 + TanHalfX * TanHalfX);
-        float scaleY = MathF.Sqrt(1 + TanHalfY * TanHalfY);
-        return MathF.Abs(x) - depth * TanHalfX > radius * scaleX || MathF.Abs(y) - depth * TanHalfY > radius * scaleY;
+        float sinOuter = MathF.Sin(cone.OuterAngle);
+        for (int index = 0; index < BoundCount; index++)
+        {
+            Plane bound = Bound(index);
+            if (Plane.DotCoordinate(bound, apex) + reach * Inward(bound.Normal, cone, sinOuter) < 0)
+                return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// The distance in m from the eye to the point nearest the eye of the axis from <paramref name="apex"/> along the unit
+    /// <paramref name="axis"/>, cut at <paramref name="reach"/> m, that lies inside the planes of
+    /// <see cref="Culls(Vector3, float)"/>, or null when the cut axis misses the view.
+    /// </summary>
+    public readonly float? EyeDistanceToAxisInView(Vector3 apex, Vector3 axis, float reach)
+    {
+        float enter = 0;
+        float leave = reach;
+        for (int index = 0; index < BoundCount; index++)
+        {
+            Plane bound = Bound(index);
+            // Inside the plane where inside + t · rate ≥ 0.
+            float inside = Plane.DotCoordinate(bound, apex);
+            float rate = Vector3.Dot(bound.Normal, axis);
+            if (rate > 0)
+                enter = MathF.Max(enter, -inside / rate);
+            else if (rate < 0)
+                leave = MathF.Min(leave, -inside / rate);
+            else if (inside < 0)
+                return null;
+        }
+
+        if (enter > leave)
+            return null;
+        // The squared distance to the eye is a parabola in t with its lowest point at −apex · axis.
+        float along = Math.Clamp(-Vector3.Dot(apex, axis), enter, leave);
+        return (apex + along * axis).Length();
+    }
+
+    /// <summary>
+    /// A plane that bounds the view, with its unit normal pointing into the view: the near plane for
+    /// <paramref name="index"/> 0, then the right, left, top and bottom side planes, all through the eye.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private readonly Plane Bound(int index) =>
+        index switch
+        {
+            0 => new(Forward, -DepthRanges.NearPlane),
+            1 => new((TanHalfX * Forward - Right) * sideScaleX, 0),
+            2 => new((TanHalfX * Forward + Right) * sideScaleX, 0),
+            3 => new((TanHalfY * Forward - Up) * sideScaleY, 0),
+            4 => new((TanHalfY * Forward + Up) * sideScaleY, 0),
+            _ => throw new ArgumentOutOfRangeException(nameof(index), index, "A view has five bounding planes."),
+        };
+
+    /// <summary>
+    /// 1 / √(1 + tan²), which scales tan · Forward ± Right or tan · Forward ± Up, the inward normal of a side plane through
+    /// the eye, of length √(1 + tan²), to unit length.
+    /// </summary>
+    private static float SideScale(float tan) => 1 / MathF.Sqrt(1 + tan * tan);
+
+    /// <summary>
+    /// How far a unit step along the directions of <paramref name="cone"/> goes along the unit <paramref name="normal"/>
+    /// at most, and at least 0: 1 when the normal lies inside the cone, else the cosine of its angle to the cone's edge.
+    /// </summary>
+    private static float Inward(Vector3 normal, in Cone cone, float sinOuter)
+    {
+        float cosToAxis = Vector3.Dot(normal, cone.Axis);
+        if (cosToAxis >= cone.CosOuter)
+            return 1;
+        // cos(φ − θ) = cos φ cos θ + sin φ sin θ, with φ the normal's angle to the axis and θ the outer half-angle.
+        float sinToAxis = MathF.Sqrt(MathF.Max(0, 1 - cosToAxis * cosToAxis));
+        return MathF.Max(0, cosToAxis * cone.CosOuter + sinToAxis * sinOuter);
     }
 
     /// <summary>

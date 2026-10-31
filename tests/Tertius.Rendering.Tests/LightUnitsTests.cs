@@ -4,18 +4,22 @@ namespace Tertius.Rendering.Tests;
 
 /// <summary>
 /// <see cref="LightUnits"/>: the intensity of a point and a spot light from its power, the cutoff irradiance from the
-/// highest exposure, the reach, the line between near and far, the angular radius, the irradiance at the eye and the
-/// interpolated axis (docs/plans/local-light-shadows.md, "The cutoff and the reach").
+/// highest exposure, the reach, the line between near and far, the angular radius, the irradiance by which lights rank
+/// for shadows and the interpolated axis (docs/plans/local-light-shadows.md, "The cutoff and the reach").
 /// </summary>
 public sealed class LightUnitsTests
 {
-    /// <summary>A light of <paramref name="intensity"/> W/sr, its color, radius and distance from the eye.</summary>
+    /// <summary>
+    /// A light of <paramref name="intensity"/> W/sr, its color, radius and distance from the eye, which is also the distance
+    /// at which it ranks for shadows.
+    /// </summary>
     private static PreparedLight Light(float intensity, Vector3 color, float radius, double distance) =>
         new()
         {
             RadiantIntensity = color * intensity,
             Radius = radius,
             Distance = distance,
+            RankDistance = distance,
         };
 
     /// <summary>Hable's f(x) with his published constants (GDC 2010, "Uncharted 2: HDR Lighting").</summary>
@@ -185,22 +189,34 @@ public sealed class LightUnitsTests
     [InlineData(2f, 1.0, 10f / 4)]
     [InlineData(2f, 4.0, 10f / 16)]
     [InlineData(0f, 1e-3, 10f / 1e-4f)]
-    public void TheIrradianceAtTheEyeFloorsTheDistanceAtTheRadius(float radius, double distance, float expected)
+    public void TheRankIrradianceFloorsTheRankDistanceAtTheRadius(float radius, double distance, float expected)
     {
         PreparedLight light = Light(intensity: 10, color: Vector3.One, radius: radius, distance: distance);
 
         LightUnits
-            .EyeIrradiance(light)
+            .RankIrradiance(light)
             .Should()
             .BeApproximately(expected, 1e-6f * expected, "white has a luminance of 1, and I / max(d², R², 1 cm²)");
     }
 
     [Fact]
-    public void TheIrradianceAtTheEyeWeighsTheColorByItsLuminance()
+    public void TheRankIrradianceWeighsTheColorByItsLuminance()
     {
         PreparedLight green = Light(intensity: 10, color: Vector3.UnitY, radius: 0, distance: 1);
 
-        LightUnits.EyeIrradiance(green).Should().BeApproximately(7.152f, 1e-5f, "green's luminance weight is 0.7152");
+        LightUnits.RankIrradiance(green).Should().BeApproximately(7.152f, 1e-5f, "green's luminance weight is 0.7152");
+    }
+
+    [Fact]
+    public void TheRankIrradianceIsTheLightAtTheRankDistanceNotAtTheEye()
+    {
+        // A spot lamp 10 m from the eye whose axis in view comes within 2 m of the eye.
+        PreparedLight light = Light(intensity: 10, color: Vector3.One, radius: 0, distance: 10) with
+        {
+            RankDistance = 2,
+        };
+
+        LightUnits.RankIrradiance(light).Should().BeApproximately(10f / 4, 1e-6f);
     }
 
     [Fact]

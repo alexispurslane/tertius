@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Testing;
 
 namespace Tertius.Rendering.Tests;
 
@@ -24,8 +25,8 @@ public sealed class ShadowTilesTests
     private static readonly MeshData BoxData = Primitives.MorphingBox(new(0.5f));
 
     /// <summary>
-    /// A white spot light of <paramref name="intensity"/> W/sr that casts shadows, in the main view, with the camera at the
-    /// origin.
+    /// A white spot light of <paramref name="intensity"/> W/sr that casts shadows, in the main view, ranked by its light at
+    /// the eye, with the camera at the origin.
     /// </summary>
     private static PreparedLight Spot(
         uint entity,
@@ -43,8 +44,9 @@ public sealed class ShadowTilesTests
             RadiantIntensity = new(intensity),
             Reach = Reach,
             Distance = place.Length(),
+            RankDistance = place.Length(),
             CastsShadow = true,
-            InMainView = true,
+            Tier = MainViewTier.InView,
             Spread = new(Cone.Of(Vector3.Normalize(axis ?? Vector3.UnitX), innerAngle: 0, outerAngle: outerAngle)),
         };
     }
@@ -63,8 +65,9 @@ public sealed class ShadowTilesTests
             RadiantIntensity = new(intensity),
             Reach = Reach,
             Distance = place.Length(),
+            RankDistance = place.Length(),
             CastsShadow = true,
-            InMainView = true,
+            Tier = MainViewTier.InView,
             Spread = new EveryDirection(),
         };
     }
@@ -215,7 +218,7 @@ public sealed class ShadowTilesTests
         [
             Spot(entity: 1, intensity: 5) with
             {
-                InMainView = false,
+                Tier = MainViewTier.FaceOnly,
             },
             Spot(entity: 2, intensity: 1),
         ];
@@ -232,6 +235,39 @@ public sealed class ShadowTilesTests
     }
 
     [Fact]
+    public void RankingLightsOfTwoTiersAllocatesNothing()
+    {
+        var tiles = new ShadowTiles(layers: 2, tileSize: TileSize);
+        PreparedLight[] lights =
+        [
+            Spot(entity: 1, intensity: 5) with
+            {
+                Tier = MainViewTier.FaceOnly,
+            },
+            Spot(entity: 2, intensity: 1),
+        ];
+        List<TileView> views = [];
+        List<TileDraw> draws = [];
+        Frame(tiles, lights);
+
+        Allocations
+            .Fewest(() =>
+            {
+                tiles.Update(
+                    lights: lights,
+                    placed: [],
+                    deformed: FrameMeshes.Static.Deformed,
+                    originFrameId: 1,
+                    views: views,
+                    draws: draws
+                );
+                tiles.Drew();
+            })
+            .Should()
+            .Be(0, "the tiles rank their lights every frame");
+    }
+
+    [Fact]
     public void ANearLightThatOnlyAFaceKeepsTakesTheTilesThatTheMainViewLeavesFree()
     {
         var tiles = new ShadowTiles(layers: 7, tileSize: TileSize);
@@ -239,12 +275,12 @@ public sealed class ShadowTilesTests
         [
             Point(entity: 1, intensity: 5) with
             {
-                InMainView = false,
+                Tier = MainViewTier.FaceOnly,
             },
             Spot(entity: 2, intensity: 1),
             Spot(entity: 3, intensity: 3) with
             {
-                InMainView = false,
+                Tier = MainViewTier.FaceOnly,
             },
         ];
 
