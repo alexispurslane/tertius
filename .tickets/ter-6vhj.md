@@ -44,3 +44,7 @@ From the environment map (ter-nl5u, docs/plans/environment-map.md, "The atmosphe
 - Sunlight: a fixed painted tint per planet on the Sun's light, for what lies in the air. It does not change with the time of day.
 Shared by both designs, settled: the sky comes from the nearest frame on the camera's chain that has a planet medium, at the eye's height in it; the stars fade by day through auto exposure, with no star rule; the color reaches the environment maps through skyRadiance; the tone curve does not change; the render snapshot carries one atmosphere record (the planet's center relative to the camera, its parameters, and which light is its sun).
 Left to the builder by the rules (a choice that changes the look is a fork): the day factor's curve, how the haze and the tint fade with the density share, how the sun light is chosen (deterministic), and whether the sky has a horizon gradient (default: none). The hemisphere ambient (map off) stays as it is. The builder writes the settled rules into docs/plans/atmosphere.md first, then implements. Waits for a free builder slot.
+
+**2026-10-31T15:20:49Z**
+
+2026-10-31: launched through the workflow MCP (ultracode-ticket-completion, version 3cde7d7d-f5f8-4f91-aee3-b2258cb90dc6), run ef4422b3-0f71-472c-a5e7-33554b1f6ade, branch ter-6vhj-painted-atmosphere from 3d1a8c42.
