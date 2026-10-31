@@ -95,6 +95,24 @@ public static partial class DemoScenes
             SpawnSite(world: world, resources: resources, scene: scene, mars: mars, angle: DayAngle, name: "day");
             SpawnSite(world: world, resources: resources, scene: scene, mars: mars, angle: DuskAngle, name: "dusk");
 
+            SpawnViews(world: world, scene: scene, sun: sun, mars: mars, planetPlace: planetPlace);
+            world.Camera = scene["day-view"];
+            return scene;
+        }
+
+        /// <summary>
+        /// The views of the scene, each a camera without a body in <paramref name="mars"/>, or in <paramref name="sun"/>,
+        /// whose axes are mars's, for the view outside mars's bubble. <paramref name="planetPlace"/> is mars's origin in the
+        /// Sun's frame.
+        /// </summary>
+        private static void SpawnViews(
+            World world,
+            SceneInstance scene,
+            FrameHandle sun,
+            FrameHandle mars,
+            Double3 planetPlace
+        )
+        {
             // A view at `eye` in the axes of the site at `angle`, looking along the site's `heading`, `down` rad below the
             // horizon there. It lies in mars, or, if `outsideMars`, at the same place in the Sun's frame, whose axes are
             // mars's.
@@ -139,8 +157,6 @@ public static partial class DemoScenes
                 heading: Double3.UnitZ,
                 outsideMars: true
             );
-            world.Camera = scene["day-view"];
-            return scene;
         }
 
         /// <summary>
