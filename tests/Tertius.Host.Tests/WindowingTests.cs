@@ -303,10 +303,12 @@ public sealed class MouseTrackerTests
 /// <summary>CaptureMailbox: the handover of a capture from the simulation thread to the render thread.</summary>
 public sealed class CaptureMailboxTests
 {
-    /// <summary>How long a test waits for another thread before it fails, so that a bug fails the test instead of hanging the run.</summary>
+    /// <summary>
+    /// How long a test waits for another thread before it fails, so that a bug fails the test instead of hanging the
+    /// run. The other thread is a thread of its own and no timer of the pool closes the window, so the bound covers only
+    /// the OS's scheduling of running threads (<see cref="BlockingCall"/>).
+    /// </summary>
     internal static readonly TimeSpan Bound = TimeSpan.FromSeconds(5);
-
-    private static CancellationToken TestStop => TestContext.Current.CancellationToken;
 
     /// <summary>Takes the sink of the waiting capture, as the render thread does. Fails if no request arrives within
     /// <see cref="Bound"/>.</summary>
@@ -329,36 +331,33 @@ public sealed class CaptureMailboxTests
         public void Take(in CapturedImage image) => throw new InvalidOperationException("The mailbox never draws.");
     }
 
-    /// <summary>True if the task ends within <paramref name="time"/>.</summary>
-    private static async Task<bool> EndsWithin(Task task, TimeSpan time) =>
-        await Task.WhenAny(task, Task.Delay(time, TestStop)) == task;
-
     [Fact]
-    public async Task ARequestWaitsUntilTheRenderThreadHasHandedTheSinkItsPixels()
+    public void ARequestWaitsUntilTheRenderThreadHasHandedTheSinkItsPixels()
     {
         var mailbox = new CaptureMailbox();
         var sink = new Sink();
-        var request = Task.Run(() => mailbox.RequestAndWait(sink, CancellationToken.None), TestStop);
+        var request = BlockingCall.Start(() => mailbox.RequestAndWait(sink, CancellationToken.None));
 
         TakeWithin(mailbox).Should().BeSameAs(sink);
-        (await EndsWithin(request, TimeSpan.FromMilliseconds(100)))
+        request
+            .EndsWithin(TimeSpan.FromMilliseconds(100))
             .Should()
             .BeFalse("the request is taken but the sink has no pixels yet");
 
         mailbox.Done();
-        await request.WaitAsync(Bound, TestStop);
+        request.End();
     }
 
     [Fact]
-    public async Task ARequestIsTakenOnce()
+    public void ARequestIsTakenOnce()
     {
         var mailbox = new CaptureMailbox();
-        var request = Task.Run(() => mailbox.RequestAndWait(new Sink(), CancellationToken.None), TestStop);
+        var request = BlockingCall.Start(() => mailbox.RequestAndWait(new Sink(), CancellationToken.None));
         TakeWithin(mailbox);
 
         mailbox.Take().Should().BeNull();
         mailbox.Done();
-        await request.WaitAsync(Bound, TestStop);
+        request.End();
     }
 
     [Fact]
@@ -378,29 +377,27 @@ public sealed class CaptureMailboxTests
     public void WithNoRequestThereIsNothingToTake() => new CaptureMailbox().Take().Should().BeNull();
 
     [Fact]
-    public async Task ARequestStopsWaitingWhenTheWindowCloses()
+    public void ARequestStopsWaitingWhenTheWindowCloses()
     {
         var mailbox = new CaptureMailbox();
-        using var closing = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
+        using var closing = new CancellationTokenSource();
+        var request = BlockingCall.Start(() => mailbox.RequestAndWait(new Sink(), closing.Token));
+        request.WaitUntilBlocked();
 
-        var request = Task.Run(() => mailbox.RequestAndWait(new Sink(), closing.Token), TestStop);
+        closing.Cancel();
 
-        await FluentActions
-            .Awaiting(() => request.WaitAsync(Bound, TestStop))
-            .Should()
-            .ThrowAsync<OperationCanceledException>();
+        FluentActions.Invoking(request.End).Should().Throw<OperationCanceledException>();
     }
 
     [Fact]
-    public async Task ARequestThatTheWindowCancelsBeforeItIsTakenIsTakenBack()
+    public void ARequestThatTheWindowCancelsBeforeItIsTakenIsTakenBack()
     {
         var mailbox = new CaptureMailbox();
-        using var closing = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
-        var request = Task.Run(() => mailbox.RequestAndWait(new Sink(), closing.Token), TestStop);
-        await FluentActions
-            .Awaiting(() => request.WaitAsync(Bound, TestStop))
-            .Should()
-            .ThrowAsync<OperationCanceledException>();
+        using var closing = new CancellationTokenSource();
+        var request = BlockingCall.Start(() => mailbox.RequestAndWait(new Sink(), closing.Token));
+        request.WaitUntilBlocked();
+        closing.Cancel();
+        FluentActions.Invoking(request.End).Should().Throw<OperationCanceledException>();
 
         mailbox.Take().Should().BeNull("the render thread must not draw a capture that nobody waits for");
     }
@@ -545,16 +542,19 @@ public sealed class WindowPlaybackTests
             stop: closing.Token
         );
         playback.WaitForTick().Should().BeTrue();
-        closing.CancelAfter(TimeSpan.FromMilliseconds(50));
-
         // The second tick would start an hour later.
-        var clock = Stopwatch.StartNew();
-        playback.WaitForTick().Should().BeFalse();
-        clock.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(5));
+        bool second = true;
+        var wait = BlockingCall.Start(() => second = playback.WaitForTick());
+        wait.WaitUntilBlocked();
+
+        closing.Cancel();
+
+        wait.End();
+        second.Should().BeFalse();
     }
 
     [Fact]
-    public async Task ASpeedSoSlowThatATickLastsMonthsStillWaitsAndStops()
+    public void ASpeedSoSlowThatATickLastsMonthsStillWaitsAndStops()
     {
         using var closing = new CancellationTokenSource();
         // At this speed, one tick lasts about 190 days of wall clock, longer than one wait can be.
@@ -566,11 +566,13 @@ public sealed class WindowPlaybackTests
             stop: closing.Token
         );
         playback.WaitForTick().Should().BeTrue();
-        closing.CancelAfter(TimeSpan.FromMilliseconds(50));
+        bool second = true;
+        var wait = BlockingCall.Start(() => second = playback.WaitForTick());
+        wait.WaitUntilBlocked();
 
-        bool second = await Task.Run(playback.WaitForTick, TestContext.Current.CancellationToken)
-            .WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        closing.Cancel();
 
+        wait.End();
         second.Should().BeFalse();
     }
 
@@ -648,10 +650,10 @@ public sealed class WindowPlaybackTests
     }
 
     [Fact]
-    public async Task ACaptureThatTheWindowClosesOnStopsTheRun()
+    public void ACaptureThatTheWindowClosesOnStopsTheRun()
     {
         using World world = HostTesting.NewWorld();
-        using var closing = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
+        using var closing = new CancellationTokenSource();
         var playback = new WindowPlayback(
             pacer: new(0.02, 1),
             captures: new(),
@@ -661,9 +663,13 @@ public sealed class WindowPlaybackTests
         );
 
         // Nobody serves the capture, so only the closing ends the wait.
-        bool captured = await Task.Run(() => playback.Capture(world, "x"), TestContext.Current.CancellationToken)
-            .WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        bool captured = true;
+        var capture = BlockingCall.Start(() => captured = playback.Capture(world, "x"));
+        capture.WaitUntilBlocked();
 
+        closing.Cancel();
+
+        capture.End();
         captured.Should().BeFalse();
     }
 }
