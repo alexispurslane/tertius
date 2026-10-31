@@ -1,6 +1,6 @@
 ---
 id: ter-a9hh
-status: open
+status: in_progress
 deps: []
 links: [ter-acr3]
 created: 2026-10-31T20:54:22Z
@@ -23,3 +23,7 @@ Workflow run 0776a43b-52db-49c0-9682-c0a825a031a3 (version 869b0b07), branch ter
 **2026-10-31T21:31:30Z**
 
 Run 0776a43b stopped by the orchestrator about two minutes after its start, with cleanup complete and the checkout clean at d4bd48de: ter-a00h's fix stage had started, so five builders ran against the user's limit of four. Start it again when a builder slot frees; the brief is in /tmp/briefs/a9hh.txt.
+
+**2026-10-31T22:50:33Z**
+
+Restart: workflow run b6a99e92-88ec-4925-90c0-db817d6060f5 (version 869b0b07) attaches the clean worktree at d4bd48de; brief /tmp/briefs/a9hh-cont.txt.
