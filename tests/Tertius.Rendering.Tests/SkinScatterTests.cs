@@ -6,8 +6,8 @@ namespace Tertius.Rendering.Tests;
 /// </summary>
 public sealed class SkinScatterTests
 {
-    // At a view depth of 1 m, one meter across the view covers 4,000 pixels: a pixel is 0.25 mm, and the reach 32 pixels.
-    private const double PixelsPerMeterAtOneMeter = 4000;
+    // At a view depth of 1 m, the reach of the skin's kernel covers 32 pixels.
+    private const double PixelsPerMeterAtOneMeter = 32 / SkinProfile.Reach;
 
     private static readonly Double3 Skin = new(0.6, 0.4, 0.2);
 
@@ -68,6 +68,9 @@ public sealed class SkinScatterTests
             new ScatterTap(Offset: offset, Weight: new(0.25, 0.25, 0.25)),
         ]);
 
+    /// <summary>The meters across the view that <paramref name="pixels"/> pixels cover at a view depth of 1 m.</summary>
+    private static double Meters(double pixels) => pixels / PixelsPerMeterAtOneMeter;
+
     private static Double3 AlongTheRow(ScatterField field, int x, ScatterKernel kernel) =>
         SkinScatter.Pass(field: field, source: field.Light, x: x, y: 0, axis: ScatterAxis.Rows, kernel: kernel);
 
@@ -96,7 +99,7 @@ public sealed class SkinScatterTests
     [Fact]
     public void LightCrossesALitEdgeIntoTheDarkAndRedGoesFarthest()
     {
-        // Lit up to pixel 99, dark from pixel 100; a pixel is 0.25 mm.
+        // Lit up to pixel 99, dark from pixel 100.
         ScatterField field = Row(
             width: 201,
             light: x => x < 100 ? new Double3(1, 1, 1) : Double3.Zero,
@@ -186,8 +189,8 @@ public sealed class SkinScatterTests
     [Fact]
     public void ATapBetweenOneAndTwoSlopeLimitsMixesItsLightWithTheCenters()
     {
-        // The tap at +4 mm lands on pixel 66. Its depth rises 1.5 times the slope limit's rise across 4 mm.
-        const double offset = 0.004;
+        // The tap at +16 pixels lands on pixel 66. Its depth rises 1.5 times the slope limit's rise across its offset.
+        double offset = Meters(16);
         ScatterField field = Row(
             width: 101,
             light: x => x == 66 ? Double3.Zero : new Double3(1, 1, 1),
@@ -208,7 +211,7 @@ public sealed class SkinScatterTests
     [Fact]
     public void AKernelBelowHalfAPixelLeavesThePixelAsItWas()
     {
-        // At 65 m, the reach of 8 mm covers 0.49 pixels.
+        // At 65.3 m, the reach covers 0.49 pixels.
         ScatterField field = Row(
             width: 11,
             light: x => x == 5 ? Skin : new Double3(3, 2, 1),
@@ -222,9 +225,31 @@ public sealed class SkinScatterTests
     }
 
     [Fact]
+    public void TheKernelsOwnOutermostTapDecidesWhetherItReachesPastThePixel()
+    {
+        // At 65.3 m the skin's reach covers 0.49 pixels, and a kernel of twice that reach 0.98 pixels: its outer taps
+        // read the neighbors.
+        ScatterField field = Row(
+            width: 11,
+            light: x => x == 5 ? Skin : new Double3(3, 2, 1),
+            skin: _ => true,
+            viewDepth: _ => 65.3
+        );
+
+        Double3 scattered = AlongTheRow(field, x: 5, kernel: ThreeTaps(2 * SkinProfile.Reach));
+
+        ShouldBeNear(
+            actual: scattered,
+            expected: 0.5 * Skin + 0.5 * new Double3(3, 2, 1),
+            tolerance: 1e-14,
+            because: "the kernel that the pass runs, not the skin's profile, says how far its taps reach"
+        );
+    }
+
+    [Fact]
     public void TwiceTheDepthHalvesThePixelsOfTheKernel()
     {
-        // The tap at +4 mm lands 16 pixels away at 1 m, and 8 pixels away at 2 m.
+        // The outer tap lands 16 pixels away at 1 m, and 8 pixels away at 2 m.
         static Double3 light(int x) =>
             x switch
             {
@@ -235,8 +260,8 @@ public sealed class SkinScatterTests
         ScatterField near = Row(width: 101, light: light, skin: _ => true, viewDepth: _ => 1);
         ScatterField far = Row(width: 101, light: light, skin: _ => true, viewDepth: _ => 2);
 
-        Double3 atOneMeter = AlongTheRow(near, x: 50, kernel: ThreeTaps(0.004));
-        Double3 atTwoMeters = AlongTheRow(far, x: 50, kernel: ThreeTaps(0.004));
+        Double3 atOneMeter = AlongTheRow(near, x: 50, kernel: ThreeTaps(Meters(16)));
+        Double3 atTwoMeters = AlongTheRow(far, x: 50, kernel: ThreeTaps(Meters(16)));
 
         atOneMeter.Should().Be(new Double3(0.25, 0, 0));
         atTwoMeters.Should().Be(new Double3(0, 0.25, 0));
@@ -249,7 +274,7 @@ public sealed class SkinScatterTests
     [Fact]
     public void ATapReadsThePixelNearestItsOffset()
     {
-        // The taps at ±3.9 mm lie 15.6 pixels away: nearest to pixels 34 and 66, not 35 and 65.
+        // The outer taps lie 15.6 pixels away: nearest to pixels 34 and 66, not 35 and 65.
         ScatterField field = Row(
             width: 101,
             light: x => x is 34 or 66 ? new Double3(1, 1, 1) : Double3.Zero,
@@ -257,7 +282,7 @@ public sealed class SkinScatterTests
             viewDepth: _ => 1
         );
 
-        Double3 scattered = AlongTheRow(field, x: 50, kernel: ThreeTaps(0.0039));
+        Double3 scattered = AlongTheRow(field, x: 50, kernel: ThreeTaps(Meters(15.6)));
 
         scattered.Should().Be(new Double3(0.5, 0.5, 0.5), "each tap rounds its offset to the nearest pixel");
     }
@@ -265,7 +290,7 @@ public sealed class SkinScatterTests
     [Fact]
     public void TapsPastTheImageReadTheEdgePixel()
     {
-        // A column of 5 pixels in the middle of 3 columns; the taps at ±4 mm lie 16 pixels away, past both ends.
+        // A column of 5 pixels in the middle of 3 columns; the outer taps lie 16 pixels away, past both ends.
         ScatterField field = Field(
             width: 3,
             height: 5,
@@ -288,7 +313,7 @@ public sealed class SkinScatterTests
             x: 1,
             y: 3,
             axis: ScatterAxis.Columns,
-            kernel: ThreeTaps(0.004)
+            kernel: ThreeTaps(Meters(16))
         );
 
         scattered

@@ -55,10 +55,11 @@ Not in scope, by the user's list: an eye material, two specular lobes for skin, 
 | The scatter image | Full resolution, `RGBA16F`: D in rgb and 1 in a at a skin pixel, 0 at every other pixel. |
 | The row image | Full resolution, `RGBA16F`: the scatter image after the pass along the rows. |
 | The scattered light, S | D after the pass along the rows and the pass along the columns. |
-| The profile, R_c(r) | The skin's diffusion profile in color channel c: the share of the light that enters at a point and leaves at distance r from it, per square meter. A sum of six Gaussians (d'Eon, Luebke and Enderton 2007). |
+| The profile, R_c(r) | The skin's diffusion profile in color channel c: the share of the light that enters at a point and leaves at distance r from it, per square meter. A sum of six Gaussians (d'Eon, Luebke and Enderton 2007), widened by the width scale. |
+| The width scale | 4: how many times wider than the measured profile the skin scatters, `SkinProfile.WidthScale` (decision 34). |
 | The kernel, P_c(x) | The profile's marginal along one axis: P_c(x) = ∫ R_c(√(x² + y²)) dy. |
 | A tap | One sample of the kernel: an offset x_i in meters and a weight w_{i,c} per channel. |
-| The reach | 8 mm, the largest tap offset. |
+| The reach | 32 mm, the largest tap offset: 8 mm of the measured profile times the width scale. |
 | The view depth, z | A pixel's distance along the camera's forward axis: d / \|r\|, with d its distance and r its view ray with a forward component of 1, as in [ambient-occlusion.md](ambient-occlusion.md). |
 | Pixels per meter, s(z) | How many pixels one meter across the view covers at view depth z: H / (2 z tan(φ_y / 2)), with H the image's height and φ_y the vertical field of view. |
 | The slope limit | tan 60°, √3: the steepest rise of depth per meter across the view that a tap still counts as the center's surface. |
@@ -77,6 +78,10 @@ Not in scope, by the user's list: an eye material, two specular lobes for skin, 
 Made at the fix of Part 4's darkened cards (`ter-qsfz`), and so numbered after the decisions below:
 
 33. Under the screen-space light, a hair receiver's own card blocks nothing: its own surface blocks no sector, and a step that reads a point of its card's plane is left out. Other cards and other surfaces still block it and give it their bounce. (User, 2026-10-27, option A of `ter-qsfz`) The card's plane is the plane at right angles to the pixel's geometric normal, the card's, which the normals target holds beside the fiber normal, so the rule needs no new target. Reason: half of a turned card's own points lie above the plane of a hair pixel's fiber normal, so they blocked its hemisphere, and a card turned 40° about its strand shaded 7% darker than one that faces the eye: the card planes showed. A card whose strip bends, or whose vertex normals lean off its triangles, is not one plane (`ter-3yy5`).
+
+Made after a side-by-side capture of the test head (`ter-t2w6`):
+
+34. Skin scatters four times wider than the measured profile of d'Eon, Luebke and Enderton 2007: `SkinProfile.WidthScale` = 4 multiplies every Gaussian's width, so every variance by 16, and the reach by 4. It is an artistic choice of the user over the measured profile. At the measured width, the scatter on the 0.1 m head at 0.45 m was a band of about 3 px. Four times wider, the nose's shadow line turns clearly red and soft. The user: "wider is much better in my opinion!" No material parameter and no renderer option set the width, because only one skin exists. (User, 2026-10-27)
 
 ### Settled by this design
 
@@ -576,7 +581,7 @@ where
 
 ### The profile and the kernel
 
-The profile of human skin, a sum of six Gaussians, G(v, r) = exp(−r² / (2v)) / (2πv), with these variances and weights per channel (d'Eon, Luebke and Enderton 2007):
+The profile of human skin, a sum of six Gaussians, G(v, r) = exp(−r² / (2v)) / (2πv), with these measured variances and weights per channel (d'Eon, Luebke and Enderton 2007):
 
 | Variance (mm²) | Red | Green | Blue |
 |---|---|---|---|
@@ -586,6 +591,8 @@ The profile of human skin, a sum of six Gaussians, G(v, r) = exp(−r² / (2v)) 
 | 0.567 | 0.113 | 0.007 | 0.007 |
 | 1.99 | 0.358 | 0.004 | 0 |
 | 7.41 | 0.078 | 0 | 0 |
+
+The skin scatters four times wider than this (decision 34). `SkinProfile` writes every length of the profile in one unit, a millimeter of the measured profile, which is WidthScale · 1 mm = 4 mm of the rendered skin. So every variance in the table counts 16 times as large, and the reach is 8 such units, 32 mm. A width scale on the Gaussians alone would leave the reach behind, and the outermost taps would cut the tails.
 
 Each channel's weights sum to 1, so the profile keeps the light that enters. A 2D Gaussian is the product of two 1D Gaussians, so the kernel is the same sum in one dimension:
 
@@ -598,11 +605,11 @@ The separable scatter applies P_c(x) along the rows and then P_c(y) along the co
 `SkinProfile.Kernel(tapsPerSide)` makes the taps, with n = tapsPerSide:
 
 ```
-x_i = sign(i) · Reach · (i / n)²                          i = −n … n,  Reach = 8 mm
+x_i = sign(i) · Reach · (i / n)²                          i = −n … n,  Reach = 32 mm
 w_{i,c} = ∫ from b_i to b_{i+1} of P_c(x) dx              b_i = (x_{i−1} + x_i) / 2,  b_{−n} = −∞,  b_{n+1} = +∞
 ```
 
-The taps crowd toward the center, where the profile is steep. The widest Gaussian has σ = 2.72 mm, so the reach is three of its widths, and the outermost taps hold the tails beyond them. The center tap holds the narrowest Gaussians, which at n = 8 lie within its interval of ±0.0625 mm. Each channel's weights sum to exactly 1. `SkinProfile` integrates each interval in doubles, by the error function. The renderer uploads the kernel with the first frame as 2n + 1 `vec4`: rgb the weights, a the offset in meters.
+The taps crowd toward the center, where the profile is steep. The widest Gaussian has σ = 4 · 2.72 mm = 10.9 mm, so the reach is three of its widths at every width scale, and the outermost taps hold the tails beyond them. The center tap holds the narrowest Gaussians, which at n = 8 lie within its interval of ±0.25 mm. Each channel's weights sum to exactly 1. `SkinProfile` integrates each interval in doubles, by the error function. The renderer uploads the kernel with the first frame as 2n + 1 `vec4`: rgb the weights, a the offset in meters.
 
 ### The diffuse light D
 
@@ -640,7 +647,8 @@ vec3 scatterAlong(ivec2 pixel, ivec2 axis, vec3 center)
 {
     float depth = viewDepthAt(pixel);
     float pixelsPerMeter = frame.viewport.y / (2.0 * depth * length(frame.cameraUp.xyz));
-    if (Reach * pixelsPerMeter < 0.5)
+    // The outermost tap's offset is the kernel's reach (ScatterKernel.Reach).
+    if (kernel[2 * scatterTapsPerSide].a * pixelsPerMeter < 0.5)
         return center;
     ivec2 last = imageSize(scatterImage) - 1;
     vec3 sum = vec3(0.0);
@@ -809,7 +817,7 @@ Every kind takes one path. Only the alpha mode's runs and the model's response d
 | The shading model's code | None: an integer comparison | Safe |
 | `pixelsPerMeter` in `scatterAlong` | A view depth or a field of view of 0 | Safe: a skin pixel has a distance above 0, and its view ray lies inside the frustum, so its forward cosine is above 0. tan(φ_y / 2) ≥ tan(5 · 10⁻⁷) by the field of view's floor. A very near pixel with a narrow field gives a large but finite value |
 | The tap's offset | A product past the range of an `int` | Fixed: the offset is clamped to ±16,384 as a float before the conversion, and the pixel is clamped to the image |
-| `rise` | A tap offset of 0 | Safe: the center tap, the only one at offset 0, skips the test. Every other offset is at least Reach / n² = 0.031 mm at n = 16 |
+| `rise` | A tap offset of 0 | Safe: the center tap, the only one at offset 0, skips the test. Every other offset is at least Reach / n² = 0.125 mm at n = 16 |
 | The scatter image's blend | A sum past 65,504 | Safe: each part is at most MaxRadiance, so the exact sum is at most 64,512, which a half float holds exactly, and a blend that rounds to nearest or toward zero gives at most that |
 | The columns pass's store | A negative or a too large sum | Safe: every input is finite and at most 64,512, and the clamp to [0, MaxRadiance] acts on finite values |
 
@@ -851,6 +859,8 @@ The existing GPU tests of glass, puffs and the transparent pass pass unchanged i
 - `RedScattersFartherThanGreenAndGreenFartherThanBlue`: the marginals' variances, Σ w_k v_k per channel, in that order.
 - `TheKernelsWeightsSumToOneInEachChannel`, for 1 to 16 taps per side.
 - `TheKernelIsSymmetric`
+- `RedLightSpreadsFourTimesAsFarAsInTheMeasuredSkin`: the red marginal's standard deviation is 4 times the measured profile's 1.176 mm (decision 34).
+- `TheReachSpansTheSameWidthsOfTheWidestGaussianAtAnyScale`: Reach / σ of the widest Gaussian is 8 mm / 2.72 mm, so the width scale moves the reach and the Gaussians together.
 - `TheTapsCrowdTowardTheCenter`: x_1 = Reach / n², x_n = Reach.
 - `TheOutermostTapsHoldTheTails`: w_n is the integral from b_n to infinity.
 - `TheKernelsSecondMomentIsTheProfilesVariance`: Σ w_i x_i² within 5 % of Σ w_k v_k at 8 taps per side. The test records the measured error.
@@ -863,6 +873,7 @@ The existing GPU tests of glass, puffs and the transparent pass pass unchanged i
 - `ATapAcrossADepthStepGivesWayToTheCenter`
 - `ATapWithinTheSlopeLimitKeepsItsOwnLight`
 - `AKernelBelowHalfAPixelLeavesThePixelAsItWas`
+- `TheKernelsOwnOutermostTapDecidesWhetherItReachesPastThePixel`: the pass takes the reach from the kernel that it runs, `ScatterKernel.Reach`, so the shader keeps no copy of `SkinProfile.Reach`.
 - `TwiceTheDepthHalvesThePixelsOfTheKernel`
 - `TapsPastTheImageReadTheEdgePixel`
 
@@ -1047,7 +1058,8 @@ With the scatter on, the fringed fan's second run and the glass fan's first run 
 - The separable kernel approximates the radial profile: a lit point spreads as a soft cross more than a disk.
 - The scatter uses one profile, that of human skin, with no width per material.
 - Pre-scatter texturing softens the skin image's detail, most in red (decision 12).
-- In an extreme close-up, about 10 cm from the eye at 1080p, the kernel reaches about 75 pixels with 17 taps, and the outer taps show as steps at sharp shadow edges. More taps per side buy it back.
+- In an extreme close-up, about 10 cm from the eye at 1080p, the kernel reaches about 300 pixels with 17 taps, and the outer taps show as steps at sharp shadow edges. More taps per side buy it back.
+- At the width scale of 4, light crosses a depth step of about a centimeter, such as the edge of the test head's nose, because the slope limit grows with the tap's offset: a tap past 6.4 mm keeps the light of a surface 11 mm nearer. The head then shows a faint red ring beside the nose, +3 to +6 of 255 in red on average within 30 px of its edge. More taps do not change it (`ter-t2w6`, measured on 2026-10-31).
 - No transmission: an ear in front of a light stays dark but for its ambient light and its scatter (fork 1).
 - The environment faces and the impostor captures do not scatter (decision 19).
 - The fringe of one hair is not sorted inside the hair (decision 23).
@@ -1178,13 +1190,14 @@ Parts 3, 4 and 5 run one after another because they share the shaders of the opa
   internal readonly record struct ProfileGaussian(double Variance, Double3 Weight);           // variance in m²
   internal sealed record SkinProfile(ImmutableArray<ProfileGaussian> Gaussians)
   {
-      public const double Reach = 0.008;                                                      // m
+      public const double WidthScale = 4;                                                     // decision 34
+      public const double Reach = 0.032;                                                      // m: 8 mm · WidthScale
       public static SkinProfile Human { get; }
       public Double3 Marginal(double x);                                                      // P_c(x), per meter
       public ScatterKernel Kernel(int tapsPerSide);
   }
   internal readonly record struct ScatterTap(double Offset, Double3 Weight);                 // offset in m
-  internal sealed record ScatterKernel(ImmutableArray<ScatterTap> Taps);
+  internal sealed record ScatterKernel(ImmutableArray<ScatterTap> Taps) { public double Reach { get; } }   // the outermost offset
 
   internal enum ScatterAxis { Rows, Columns }
   internal sealed record ScatterField(int Width, int Height, Double3[] Light, bool[] Skin, double[] ViewDepth, double TanHalfY);

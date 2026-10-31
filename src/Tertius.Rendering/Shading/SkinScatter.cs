@@ -58,7 +58,7 @@ internal static class SkinScatter
         Double3 centerLight = source[center];
         double depth = field.ViewDepth[center];
         double pixelsPerMeter = PixelsPerMeter(viewDepth: depth, height: field.Height, tanHalfY: field.TanHalfY);
-        if (SkinProfile.Reach * pixelsPerMeter < 0.5)
+        if (kernel.Reach * pixelsPerMeter < 0.5)
             return centerLight;
         (int stepX, int stepY) = axis switch
         {

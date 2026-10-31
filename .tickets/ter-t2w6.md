@@ -27,3 +27,17 @@ Open points for the builder to measure, not to guess:
 
 The skin-and-hair head capture matches cap-wide/head.png of the experiment. docs/plans/skin-and-hair.md (the reach row near line 61, the profile near lines 579 and 601, the safe-offset row near line 812, the test near line 854) and ARCHITECTURE.md say the width scale and the user's reason. The reference images of skin, if any, are re-approved with the three-image review.
 
+
+## Notes
+
+**2026-10-31T14:32:10Z**
+
+Settled: SkinProfile.WidthScale = 4 is applied once, as the unit ProfileMillimeter = WidthScale · 1 mm. The reach is 8 of those units (32 mm) and every variance is in their square (x16). The shader keeps no copy of the reach: scatterAlong takes it from the kernel's outermost tap, kernel[2n].a, and SkinScatter.Pass from ScatterKernel.Reach, the same value. This costs one uniform read and removes the second store, so no test that compares two copies is needed.
+
+**2026-10-31T14:32:10Z**
+
+Measured the red ring beside the nose (2026-10-31, head capture of scripts/skin-and-hair.json, ring = head pixels on the lit side within 30 px of the nose's edge). 16 taps per side against 8: mean red change under 0.1 of 255, so it is not the tap steps, and the default stays 8. Rejecting every tap across a depth step of 4 mm: mean red -5.7, -6.0, -3.1 of 255 in the bands 0-10, 10-20, 20-30 px (max -22). The same rejection in a control scene without the nose: -0.4 to -0.6. So the ring is light across the nose's depth step of about 11 mm, which the slope limit lets through for every tap past 6.4 mm at the 32 mm reach. Reported as a fork.
+
+**2026-10-31T14:32:10Z**
+
+The capture of the head and the ear at 8 taps matches cap-wide of the experiment bit for bit. The C#-against-GPU tolerance of SkinScatterRenderTests now scales with the largest of the light before, D and the expected result, because the HDR image holds the result as a half float and the wider scatter can double a dark pixel's light.
