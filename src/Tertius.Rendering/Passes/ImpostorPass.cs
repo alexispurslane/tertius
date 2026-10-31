@@ -142,6 +142,8 @@ internal sealed unsafe class ImpostorPass : RenderPass, IRangeDrawer
                     map: capture.Map,
                     // An impostor keeps its glow in the bounce light: its G-buffer marks no light of its own.
                     holdsLight: false,
+                    // A capture writes no card code (Shaders/impostor_capture.frag).
+                    placedIndex: 0,
                     hemisphere: capture.Hemisphere
                 )
             );

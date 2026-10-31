@@ -205,7 +205,9 @@ internal sealed unsafe class ShadowPass : RenderPass
             scale: caster.Scale,
             material: caster.Material,
             map: 0,
-            holdsLight: caster.HoldsLight
+            holdsLight: caster.HoldsLight,
+            // A shadow image writes no card code.
+            placedIndex: 0
         );
 
     /// <summary>

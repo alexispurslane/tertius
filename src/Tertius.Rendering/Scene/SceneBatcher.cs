@@ -418,7 +418,10 @@ internal sealed class SceneBatcher(
                 materials: materials,
                 maps: scene.MapCount,
                 holdsLight: lightHolders.Contains(instance.EntityIndex)
-            );
+            ) with
+            {
+                PlacedIndex = scene.PlacedCount - 1,
+            };
             bool visible = (instance.Flags & RenderFlags.Visible) != 0;
             if (visible && !camera.Culls(placement.Position, placement.Radius))
                 scene.AddVisible() = placed with { Depth = Vector3.Dot(placement.Position, camera.Forward) };
@@ -863,6 +866,7 @@ internal sealed class SceneBatcher(
             material: instance.Material,
             map: instance.Map,
             holdsLight: instance.HoldsLight,
+            placedIndex: instance.PlacedIndex,
             hemisphere: instance.Hemisphere
         );
         if (instance.Mesh == currentMesh)

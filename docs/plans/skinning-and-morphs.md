@@ -451,6 +451,8 @@ where
 
 `DeformPushConstants` is the 8-byte C# struct of the push block.
 
+Changed by ter-3yy5 (2026-10-31): `DeformVertex` ends with `uint card`, the vertex's card number (docs/plans/skin-and-hair.md, "The card number"). It has 84 bytes of fields, padded to 96. A vertex of the region is a 52-byte `GpuVertex` with the card after `texCoord`, and `deform.comp` writes it as 13 words. The sizes of 80 and 48 bytes in this plan describe the layouts before that change. ARCHITECTURE.md, "Skinning and morph targets", holds the current sizes.
+
 ### The pass
 
 `deform.comp` runs 64 invocations per workgroup, one per vertex, and one dispatch per frame over every job. A job has ⌈count / 64⌉ workgroups, and its workgroups follow those of the job before it. Its set holds five storage buffers: binding 0 is the window, the region's range of the vertex buffer as a `float` array, because std430 pads a `vec3` to 16 bytes and a vertex is 48 bytes. Bindings 1, 2, 3 and 4 are the deform vertices, the morph deltas, the pose buffer and the job table.

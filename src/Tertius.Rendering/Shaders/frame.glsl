@@ -26,7 +26,18 @@ struct GpuInstance
     uint map;
     // 1 when the instance's entity holds a light, whose face its glow is, else 0 (GpuInstance.HoldsLight).
     uint holdsLight;
-};                            // std430: 88 bytes of members, a stride of 96
+    // The instance's place among the frame's placed instances, the same in every view and depth range that draws it,
+    // which its hair pixels' card codes mix in (GpuInstance.PlacedIndex).
+    uint placedIndex;
+};                            // std430: 92 bytes of members, a stride of 96
+
+// A hair pixel's card code (docs/plans/skin-and-hair.md, "The card number"): the number of its card in its mesh, mixed
+// with its instance's place into 13 bits. 5063, about 2^13 / φ and odd, puts neighbor instances' codes far apart, and the
+// cards of one instance take distinct codes up to 2^13 cards. CardCode.Of is the C# twin.
+uint cardCode(uint card, uint placedIndex)
+{
+    return (card + placedIndex * 5063u) & 0x1FFFu;
+}
 
 // The glow that a surface sends to other surfaces as their light: its emission, or none where its entity holds a light. An
 // entity sends its power once (user, 2026-10-27): one that holds a light sends it through that light, and its glow is the
@@ -58,6 +69,33 @@ struct GpuMaterial
 const uint ShadingStandard = 0u;
 const uint ShadingSkin = 1u;
 const uint ShadingHair = 2u;
+
+// The shading target's B and A (docs/plans/skin-and-hair.md, "The shading target"): bit 0 of B is the light mark, bits 0
+// and 1 of A the model's code, and the 13 bits above them, 7 of B and 6 of A, a hair pixel's card code, 0 for another
+// model. CardCode (Channels, Read, LightMarkOf and ModelOf) holds the C# twins.
+uvec2 lightModelAndCardWords(uint holdsLight, uint model, uint cardCode)
+{
+    uint written = model == ShadingHair ? cardCode : 0u;
+    return uvec2(holdsLight | ((written & 0x7Fu) << 1), model | ((written >> 7) << 2));
+}
+
+uint lightMarkOfWord(uint b)
+{
+    return b & 1u;
+}
+
+uint modelOfWord(uint a)
+{
+    return a & 3u;
+}
+
+// NoCard: the card code of a pixel that is not hair, which no 13-bit code equals.
+const uint NoCard = 0xFFFFFFFFu;
+
+uint cardOfWords(uint b, uint a)
+{
+    return modelOfWord(a) == ShadingHair ? (b >> 1) | ((a >> 2) << 7) : NoCard;
+}
 
 // The shadow slot of a light in GpuLight.shadow.x (GpuLight.*Slot in GpuTypes.cs).
 const uint NoSlot = 0u;

@@ -10,15 +10,15 @@ internal enum VertexInput
     /// <summary>No vertex buffer: fullscreen passes generate their vertices.</summary>
     None,
 
-    /// <summary>Every attribute of the <see cref="Vertex"/> layout, at locations 0 to 3.</summary>
+    /// <summary>Every attribute of the <see cref="GpuVertex"/> layout, at locations 0 to 4.</summary>
     Mesh,
 
-    /// <summary>Only <see cref="Vertex.Position"/> at location 0, with the <see cref="Vertex"/> stride. Depth-only passes.</summary>
+    /// <summary>Only <see cref="GpuVertex.Position"/> at location 0, with the <see cref="GpuVertex"/> stride. Depth-only passes.</summary>
     PositionOnly,
 
     /// <summary>
-    /// <see cref="Vertex.Position"/> at location 0 and <see cref="Vertex.TexCoord"/> at location 3, with the
-    /// <see cref="Vertex"/> stride: the depth-only passes of cutout casters, which test the base color's alpha.
+    /// <see cref="GpuVertex.Position"/> at location 0 and <see cref="GpuVertex.TexCoord"/> at location 3, with the
+    /// <see cref="GpuVertex"/> stride: the depth-only passes of cutout casters, which test the base color's alpha.
     /// </summary>
     PositionAndTexCoord,
 }
@@ -175,9 +175,10 @@ internal sealed record GraphicsPipelineDesc
         PipelineShaderStageCreateInfo* stages = stackalloc PipelineShaderStageCreateInfo[2];
         uint stageCount = WriteStages(shaders: shaders, entry: entry, constants: constants, stages: stages);
 
-        var binding = new VertexInputBindingDescription(0, (uint)Unsafe.SizeOf<Vertex>(), VertexInputRate.Vertex);
-        VertexInputAttributeDescription* attributes = stackalloc VertexInputAttributeDescription[4];
+        var binding = new VertexInputBindingDescription(0, (uint)Unsafe.SizeOf<GpuVertex>(), VertexInputRate.Vertex);
+        VertexInputAttributeDescription* attributes = stackalloc VertexInputAttributeDescription[5];
         PipelineVertexInputStateCreateInfo vertexInput = VertexInputState(binding: &binding, attributes: attributes);
+
         var inputAssembly = new PipelineInputAssemblyStateCreateInfo
         {
             SType = StructureType.PipelineInputAssemblyStateCreateInfo,
@@ -196,6 +197,7 @@ internal sealed record GraphicsPipelineDesc
             RasterizationSamples = SampleCountFlags.Count1Bit,
         };
         PipelineDepthStencilStateCreateInfo depthStencil = DepthStencilState();
+
         PipelineColorBlendAttachmentState* blends =
             stackalloc PipelineColorBlendAttachmentState[Math.Max(ColorAttachments.Length, 1)];
         PipelineColorBlendStateCreateInfo colorBlend = ColorBlendState(blends);
@@ -288,7 +290,7 @@ internal sealed record GraphicsPipelineDesc
 
     /// <summary>
     /// The vertex input state of <see cref="VertexInput"/>. It writes the attribute descriptions into
-    /// <paramref name="attributes"/> (room for four) and points at them and at <paramref name="binding"/>.
+    /// <paramref name="attributes"/> (room for five) and points at them and at <paramref name="binding"/>.
     /// </summary>
     private unsafe PipelineVertexInputStateCreateInfo VertexInputState(
         VertexInputBindingDescription* binding,
@@ -308,7 +310,7 @@ internal sealed record GraphicsPipelineDesc
             PVertexBindingDescriptions = hasVertices ? binding : null,
             VertexAttributeDescriptionCount = VertexInput switch
             {
-                VertexInput.Mesh => 4u,
+                VertexInput.Mesh => 5u,
                 VertexInput.PositionOnly => 1u,
                 VertexInput.PositionAndTexCoord => 2u,
                 VertexInput.None => 0u,
@@ -358,32 +360,38 @@ internal sealed record GraphicsPipelineDesc
         };
     }
 
-    /// <summary>The four attributes of a <see cref="Vertex"/> at locations 0 to 3 of binding 0, into <paramref name="attributes"/>.</summary>
+    /// <summary>The five attributes of a <see cref="GpuVertex"/> at locations 0 to 4 of binding 0, into <paramref name="attributes"/>.</summary>
     private static unsafe void WriteMeshAttributes(VertexInputAttributeDescription* attributes)
     {
         attributes[0] = new(
             location: 0,
             binding: 0,
             format: Format.R32G32B32Sfloat,
-            offset: (uint)Marshal.OffsetOf<Vertex>(nameof(Vertex.Position))
+            offset: (uint)Marshal.OffsetOf<GpuVertex>(nameof(GpuVertex.Position))
         );
         attributes[1] = new(
             location: 1,
             binding: 0,
             format: Format.R32G32B32Sfloat,
-            offset: (uint)Marshal.OffsetOf<Vertex>(nameof(Vertex.Normal))
+            offset: (uint)Marshal.OffsetOf<GpuVertex>(nameof(GpuVertex.Normal))
         );
         attributes[2] = new(
             location: 2,
             binding: 0,
             format: Format.R32G32B32A32Sfloat,
-            offset: (uint)Marshal.OffsetOf<Vertex>(nameof(Vertex.Tangent))
+            offset: (uint)Marshal.OffsetOf<GpuVertex>(nameof(GpuVertex.Tangent))
         );
         attributes[3] = new(
             location: 3,
             binding: 0,
             format: Format.R32G32Sfloat,
-            offset: (uint)Marshal.OffsetOf<Vertex>(nameof(Vertex.TexCoord))
+            offset: (uint)Marshal.OffsetOf<GpuVertex>(nameof(GpuVertex.TexCoord))
+        );
+        attributes[4] = new(
+            location: 4,
+            binding: 0,
+            format: Format.R32Uint,
+            offset: (uint)Marshal.OffsetOf<GpuVertex>(nameof(GpuVertex.Card))
         );
     }
 }

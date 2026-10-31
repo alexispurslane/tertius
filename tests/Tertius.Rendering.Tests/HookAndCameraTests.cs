@@ -144,7 +144,8 @@ public sealed class HookAndCameraTests
                     scale: Vector3.One,
                     material: 0,
                     map: 0,
-                    holdsLight: false
+                    holdsLight: false,
+                    placedIndex: 0
                 )
             );
             AppendedCommand = context.Scene.AppendCommand(

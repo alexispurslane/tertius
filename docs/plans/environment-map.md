@@ -144,13 +144,13 @@ A face draws the far, middle and near ranges in that order into one RGBA16F colo
 SurfaceSample s = sampleMaterial(inMaterial, inTexCoord, inNormal, inTangent);
 ShadingInput shading = ...;   // as in impostor_capture.frag, both sky shares 0
 vec3 V = normalize(-inPosition);   // toward the eye, which every face shares
-vec3 glow = glowSent(s.emissive, inMaterialMapAndLight.z);
+vec3 glow = glowSent(s.emissive, inInstanceWords.z);
 outColor = vec4(directRadiance(shading, glow, inPosition, V, ShadowMapsHolding), 0.0);   // alpha: no open sky
 ```
 
 where
 
-- `inMaterialMapAndLight.z` = 1 when the instance's entity holds a light (`GpuInstance.HoldsLight`), else 0. It is the mark that the bounce source reads (screen-space-illumination.md, "The bounce source").
+- `inInstanceWords.z` = 1 when the instance's entity holds a light (`GpuInstance.HoldsLight`), else 0. It is the mark that the bounce source reads (screen-space-illumination.md, "The bounce source").
 - `glowSent` = the rule in `frame.glsl` that both readers of the mark call: the emission where the entity holds no light, else 0 (decision 18).
 - `glow` = the glow that the surface adds to the face.
 - `directRadiance` = every light of the frame's list reflected toward V, each with its shadows (a far light's far shadows and cascade set, a near light's tiles), plus the glow, clamped to 65,504, in plain radiance (see "Part 5: the readers").

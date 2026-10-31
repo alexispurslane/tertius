@@ -112,6 +112,6 @@ public sealed class FlatFloorSectorsTests(ITestOutputHelper output)
     /// <summary>What a step reads at the floor texel <paramref name="texel"/>, or null for sky.</summary>
     private static StepTexel? FloorAt((int X, int Y) texel) =>
         DepthAt(texel) is { } z
-            ? new(Position: RayAt((texel.X, texel.Y)) * z, GeometricNormal: Up, DirectLight: FloorLight)
+            ? new(Position: RayAt((texel.X, texel.Y)) * z, GeometricNormal: Up, DirectLight: FloorLight, Card: null)
             : null;
 }

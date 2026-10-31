@@ -12,7 +12,8 @@ layout(location = 0) in vec3 inPosition;
 layout(location = 1) in vec3 inNormal;
 layout(location = 2) in vec4 inTangent;
 layout(location = 3) in vec2 inTexCoord;
-layout(location = 4) flat in uvec3 inMaterialMapAndLight;  // x: the material. y: the instance's map. z: GpuInstance.holdsLight
+layout(location = 4) flat in uvec4 inInstanceWords;  // x: the material. y: the instance's map. z: GpuInstance.holdsLight. w:
+                                                     // the card code (mesh.vert)
 layout(location = 5) flat in vec4 inHemisphere;
 
 layout(location = 0) out vec4 outBaseColor;
@@ -34,8 +35,8 @@ void main()
 {
     // A surface at the eye has no direction toward it, and one whose vertex normal has no direction faces the eye.
     vec3 V = towardEye(inPosition);
-    SurfaceSample s = sampleMaterial(inMaterialMapAndLight.x, inTexCoord, inNormal, inTangent, V);
-    outBaseColor = vec4(s.baseColor.rgb, mapCode(inMaterialMapAndLight.y));
+    SurfaceSample s = sampleMaterial(inInstanceWords.x, inTexCoord, inNormal, inTangent, V);
+    outBaseColor = vec4(s.baseColor.rgb, mapCode(inInstanceWords.y));
     // The shading normal for lighting, a hair's fiber normal, and the vertex normal for shadow-map bias: a normal map does
     // not move the surface that the shadow map sees.
     outNormal = vec4(octEncode(s.normal), octEncode(s.geometricNormal));
@@ -48,7 +49,8 @@ void main()
     // Euclidean distance, not depth: the direct and ambient passes rebuild the position as ray × distance, which does not
     // depend on which depth range drew the pixel.
     outDistance = length(inPosition - draw.eye.xyz);
-    // The model's code, a hair's strand (docs/plans/skin-and-hair.md, "The shading target"), and whether the entity
-    // holds a light, whose face its glow is (docs/plans/screen-space-illumination.md, "The bounce source").
-    outShading = uvec4(s.model == ShadingHair ? strandCode(s.strand) : uvec2(0u), inMaterialMapAndLight.z, s.model);
+    // The model's code, a hair's strand and card code (docs/plans/skin-and-hair.md, "The shading target"), and whether
+    // the entity holds a light, whose face its glow is (docs/plans/screen-space-illumination.md, "The bounce source").
+    outShading = uvec4(s.model == ShadingHair ? strandCode(s.strand) : uvec2(0u),
+                       lightModelAndCardWords(inInstanceWords.z, s.model, inInstanceWords.w));
 }

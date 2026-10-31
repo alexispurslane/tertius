@@ -62,11 +62,7 @@ internal sealed unsafe class OcclusionPipeline : IDisposable
         Vk vk = context.Vk;
         CommandBuffer commandBuffer = context.CommandBuffer;
         context.BeginComputePass(pipeline: pipeline, layout: layouts.OcclusionLayout, passSet: set);
-        var push = OcclusionPushConstants.For(
-            setting: setting,
-            lastDenoise: lastDenoise,
-            subPixelPrecisionBits: device.Properties.Limits.SubPixelPrecisionBits
-        );
+        var push = OcclusionPushConstants.For(setting: setting, lastDenoise: lastDenoise);
         vk.CmdPushConstants(
             commandBuffer: commandBuffer,
             layout: layouts.OcclusionLayout,

@@ -98,7 +98,7 @@ public sealed class RendererOptions
 
     /// <summary>
     /// Whether posed instances draw their meshes deformed by their rig poses, in every pass. Off, each draws as uploaded.
-    /// On by default. Each deformed instance takes 48 bytes of device memory per vertex (docs/plans/skinning-and-morphs.md,
+    /// On by default. Each deformed instance takes 52 bytes of device memory per vertex (docs/plans/skinning-and-morphs.md,
     /// "Memory and cost").
     /// </summary>
     public bool Deformation { get; set; } = true;

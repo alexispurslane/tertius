@@ -134,6 +134,12 @@ internal struct PreparedInstance
     /// <summary>Whether the instance's entity holds a light: a light of the snapshot carries the entity's index.</summary>
     public bool HoldsLight;
 
+    /// <summary>
+    /// The instance's place among the frame's placed instances: the number that tells its hair cards from another
+    /// instance's, the same in every view and depth range that draws it (<see cref="CardCode.Of"/>).
+    /// </summary>
+    public int PlacedIndex;
+
     /// <summary>Whether the shadow views draw the instance: its flags hold <see cref="RenderFlags.CastsShadow"/>.</summary>
     public readonly bool CastsShadow => (Flags & RenderFlags.CastsShadow) != 0;
 }

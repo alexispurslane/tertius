@@ -23,7 +23,11 @@ internal readonly record struct NearStep(
 /// <param name="Position">P(t), the pixel's view position at the texel's view depth.</param>
 /// <param name="GeometricNormal">The unit geometric normal at that pixel.</param>
 /// <param name="DirectLight">The direct image at that pixel, pre-exposed.</param>
-internal readonly record struct StepTexel(Double3 Position, Double3 GeometricNormal, Double3 DirectLight);
+/// <param name="Card">
+/// The card code of that pixel, <see cref="CardCode.Read"/>, or null where it is not hair. Required, so that no reader of
+/// a hair pixel reads it as not hair by omission.
+/// </param>
+internal readonly record struct StepTexel(Double3 Position, Double3 GeometricNormal, Double3 DirectLight, uint? Card);
 
 /// <summary>
 /// The own surface of a receiver that is not hair: the plane at right angles to its geometric normal, which blocks the
@@ -34,51 +38,16 @@ internal readonly record struct StepTexel(Double3 Position, Double3 GeometricNor
 internal readonly record struct OwnPlane(Double3 Normal);
 
 /// <summary>
-/// A hair receiver's own card, which blocks nothing, because its own surface is its fibers: a step that reads a point
-/// of the card is left out (docs/plans/skin-and-hair.md, "Hair in each pass"). The card is the plane through the
-/// receiver's surface point at right angles to its geometric normal, the card's, in view space.
+/// A hair receiver's own card, which blocks nothing, because its own surface is its fibers: a step that reads a pixel of
+/// the card is left out (docs/plans/skin-and-hair.md, "Hair in each pass").
 /// </summary>
-/// <param name="Point">The receiver's surface point: the view position of its texel's representative pixel.</param>
-/// <param name="Normal">The receiver's unit view-space geometric normal.</param>
-/// <param name="VertexSnap">How far the rasterizer's snapping can move a vertex across its view ray, per m of its distance: <see cref="SnapPerMeter"/>.</param>
-internal readonly record struct OwnCard(Double3 Point, Double3 Normal, double VertexSnap)
-{
-    /// <summary>
-    /// The angle in radians by which a normal that the normals target stores can miss the normal that it encodes: a step
-    /// of one SNORM16 component turns an octahedral normal by at most 3√2 / 32767, and a driver may round 1.5 steps from
-    /// the value, so 6.4 / 32767; 8 / 32767 leaves room. sectors.glsl holds the same.
-    /// </summary>
-    public const double NormalPrecision = 8.0 / 32767;
-
-    /// <summary>
-    /// How far the rasterizer's snapping can move a vertex across its view ray, per m of its distance: a vertex snaps
-    /// to 1 / 2^bits of a pixel, so it moves up to 2^−(bits + 1) pixels on each axis, √2 times that across.
-    /// </summary>
-    /// <param name="pixelWidth">The width in m of a full-resolution pixel at a view depth of 1 m: 2 t_x / W.</param>
-    /// <param name="subPixelPrecisionBits">The device's limit of that name, at least 4 by the Vulkan spec.</param>
-    public static double SnapPerMeter(double pixelWidth, int subPixelPrecisionBits) =>
-        pixelWidth * Math.Sqrt(2) / Math.Pow(2, subPixelPrecisionBits + 1);
-
-    /// <summary>
-    /// Whether <paramref name="texelPoint"/>, the real point that a step read, lies on the card's plane, within what the
-    /// reads can put a point of that plane off it (sectors.glsl, onOwnCard): each point's depth by 1 −
-    /// <see cref="HorizonSearch.CenterBias"/> and the snapping by <see cref="VertexSnap"/> of its distance, and the
-    /// stored normal by <see cref="NormalPrecision"/> times the distance between the two points.
-    /// </summary>
-    public bool Holds(Double3 texelPoint)
-    {
-        double offPlane = Math.Abs(Double3.Dot(Normal, texelPoint - Point));
-        double tolerance =
-            (1 - HorizonSearch.CenterBias + VertexSnap) * (Point.Length + texelPoint.Length)
-            + NormalPrecision * Double3.Distance(texelPoint, Point);
-        return offPlane <= tolerance;
-    }
-}
+/// <param name="Card">The receiver's card code, <see cref="CardCode.Of"/>, which every pixel of its card carries.</param>
+internal readonly record struct OwnCard(uint Card);
 
 /// <summary>
 /// A receiver's own surface, which the near steps of its slices see first: <see cref="OwnPlane"/>, or a hair
-/// receiver's <see cref="OwnCard"/>. occlusion_sectors.comp tells them apart by the shading target's model code. This
-/// is a generated union.
+/// receiver's <see cref="OwnCard"/>. occlusion_sectors.comp tells them apart by the shading target's model code, which
+/// cardAt reads with the card code. This is a generated union.
 /// </summary>
 [GeneratedUnion(typeof(OwnPlane), typeof(OwnCard))]
 internal readonly partial struct OwnSurface
@@ -95,12 +64,12 @@ internal readonly partial struct OwnSurface
             null => throw new InvalidOperationException("A receiver's own surface has a kind."),
         };
 
-    /// <summary>Whether a step that reads <paramref name="texelPoint"/>, P(t), is left out: a point of a hair receiver's own card.</summary>
-    public bool LeavesOut(Double3 texelPoint) =>
+    /// <summary>Whether a step that reads <paramref name="read"/> is left out: a pixel of a hair receiver's own card.</summary>
+    public bool LeavesOut(StepTexel read) =>
         this switch
         {
             OwnPlane => false,
-            OwnCard card => card.Holds(texelPoint),
+            OwnCard(var card) => read.Card == card,
             null => throw new InvalidOperationException("A receiver's own surface has a kind."),
         };
 }
@@ -236,14 +205,9 @@ internal static class SectorSearch
             {
                 int sign = (int)side;
                 (int X, int Y) stepTexel = (X: texel.X + sign * nearest.X, Y: texel.Y + sign * nearest.Y);
-                bool inside =
-                    stepTexel.X >= 0
-                    && stepTexel.Y >= 0
-                    && stepTexel.X < halfSize.Width
-                    && stepTexel.Y < halfSize.Height;
-                if (!inside || texelAt(stepTexel) is not { } read)
+                if (!Inside(stepTexel, halfSize) || texelAt(stepTexel) is not { } read)
                     continue;
-                if (ownSurface.LeavesOut(read.Position))
+                if (ownSurface.LeavesOut(read))
                     continue;
                 Double3? surfacePoint = SurfacePoint(
                     exactRay: rayThrough((X: texel.X + sign * exact.X, Y: texel.Y + sign * exact.Y)),
@@ -270,6 +234,10 @@ internal static class SectorSearch
         }
         return steps;
     }
+
+    /// <summary>Whether <paramref name="texel"/> lies inside a half-resolution image of <paramref name="halfSize"/>.</summary>
+    private static bool Inside((int X, int Y) texel, (int Width, int Height) halfSize) =>
+        texel.X >= 0 && texel.Y >= 0 && texel.X < halfSize.Width && texel.Y < halfSize.Height;
 
     /// <summary>Whether a blocker's geometric normal has a positive cosine with the direction back toward the point that it blocks.</summary>
     public static bool Faces(Double3 geometricNormal, Double3 towardReceiver) =>

@@ -129,7 +129,7 @@ public sealed class SkinScatterRenderTests
     private static uint[] Models(VulkanRenderer renderer)
     {
         byte[] shading = renderer.ReadShading();
-        return [.. Enumerable.Range(0, Width * Height).Select(pixel => (uint)shading[pixel * 4 + 3])];
+        return [.. Enumerable.Range(0, Width * Height).Select(pixel => CardCode.ModelOf(shading[pixel * 4 + 3]))];
     }
 
     /// <summary>

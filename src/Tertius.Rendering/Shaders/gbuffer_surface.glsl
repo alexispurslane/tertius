@@ -66,7 +66,7 @@ ShadingInput materialAt(ivec2 pixel)
     s.occlusion = 1.0;
     s.bounce = vec3(0.0);
     uvec4 shading = texelFetch(gbufferShading, pixel, 0);
-    s.model = shading.a;
+    s.model = modelOfWord(shading.a);
     s.strand = s.model == ShadingHair ? strandOfCode(shading.rg) : vec3(0.0);
     return s;
 }

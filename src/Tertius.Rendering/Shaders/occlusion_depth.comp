@@ -24,7 +24,7 @@ void main()
     // The light that leaves the pixel alike in every direction: its diffuse light, at most MaxRadiance, and the glow that it
     // sends (glowSent, frame.glsl). The G-buffer pass pre-exposed the glow. Sky and impostors hold no diffuse light, and an
     // impostor marks no light, so it keeps its glow.
-    vec3 glow = glowSent(texelFetch(gbufferEmissive, pixel, 0).rgb, texelFetch(gbufferShading, pixel, 0).b);
+    vec3 glow = glowSent(texelFetch(gbufferEmissive, pixel, 0).rgb, lightMarkOfWord(texelFetch(gbufferShading, pixel, 0).b));
     vec3 source = min(imageLoad(diffuseImage, pixel).rgb + glow, vec3(MaxRadiance));
     imageStore(occlusionSource, texel, vec4(source, 0.0));
     // An exact copy: an SNORM16 value k / 32767 stores back as k.

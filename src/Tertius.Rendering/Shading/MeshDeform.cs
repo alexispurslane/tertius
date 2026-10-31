@@ -63,11 +63,11 @@ internal sealed partial record MeshDeform
     /// The deform vertices, the sparse deltas, the influence spheres and the longest deltas of <paramref name="mesh"/>, or
     /// null for a mesh without rigging. <see cref="UploadQueue.AddMesh"/> has checked the rigging.
     /// </summary>
-    public static PackedDeform? Pack(MeshData mesh)
+    public static PackedDeform? Pack(StagedMesh mesh)
     {
-        if (mesh.Rigging is not { } rigging)
+        if (mesh.Data.Rigging is not { } rigging)
             return null;
-        Vertex[] vertices = mesh.Vertices;
+        Vertex[] vertices = mesh.Data.Vertices;
         // A vertex's deltas come in morph order, whatever the order of the targets, because the sums follow it.
         MorphTarget[] targets = [.. rigging.Morphs.OrderBy(target => target.Morph)];
         var packed = new GpuDeformVertex[vertices.Length];
@@ -78,7 +78,7 @@ internal sealed partial record MeshDeform
             foreach (MorphTarget target in targets)
                 AddDelta(target: target, vertex: index, deltas: deltas);
             packed[index] = Packed(
-                vertex: GeometryStore.Staged(vertices[index]),
+                vertex: mesh.Vertices[index],
                 skin: rigging.Skin?.Vertices[index],
                 morphStart: start,
                 morphCount: deltas.Count - start
@@ -145,7 +145,7 @@ internal sealed partial record MeshDeform
     /// One vertex after its morphs and its skin, as deform.comp writes it: <paramref name="deltas"/> are the vertex's own
     /// deltas, and <paramref name="rows"/> the job's pose rows of <paramref name="paletteJoints"/> palette joints.
     /// </summary>
-    public static Vertex Deformed(
+    public static GpuVertex Deformed(
         in GpuDeformVertex source,
         ReadOnlySpan<GpuMorphDelta> deltas,
         ReadOnlySpan<Vector4> rows,
@@ -187,6 +187,7 @@ internal sealed partial record MeshDeform
             Normal = NormalizedOr(sn),
             Tangent = new(NormalizedOr(st), source.Tangent.W),
             TexCoord = source.TexCoord,
+            Card = source.Card,
         };
     }
 
@@ -333,7 +334,7 @@ internal sealed partial record MeshDeform
     }
 
     /// <summary>A staged vertex with its morph list and its skin, or one identity joint for a mesh without a skin.</summary>
-    private static GpuDeformVertex Packed(in Vertex vertex, VertexSkin? skin, int morphStart, int morphCount)
+    private static GpuDeformVertex Packed(in GpuVertex vertex, VertexSkin? skin, int morphStart, int morphCount)
     {
         (uint joints01, uint joints23, Vector4 weights) = skin switch
         {
@@ -355,6 +356,7 @@ internal sealed partial record MeshDeform
             Joints01 = joints01,
             Joints23 = joints23,
             Weights = weights,
+            Card = vertex.Card,
         };
     }
 

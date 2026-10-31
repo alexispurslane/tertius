@@ -77,7 +77,7 @@ Not in scope, by the user's list: an eye material, two specular lobes for skin, 
 
 Made at the fix of Part 4's darkened cards (`ter-qsfz`), and so numbered after the decisions below:
 
-33. Under the screen-space light, a hair receiver's own card blocks nothing: its own surface blocks no sector, and a step that reads a point of its card's plane is left out. Other cards and other surfaces still block it and give it their bounce. (User, 2026-10-27, option A of `ter-qsfz`) The card's plane is the plane at right angles to the pixel's geometric normal, the card's, which the normals target holds beside the fiber normal, so the rule needs no new target. Reason: half of a turned card's own points lie above the plane of a hair pixel's fiber normal, so they blocked its hemisphere, and a card turned 40° about its strand shaded 7% darker than one that faces the eye: the card planes showed. A card whose strip bends, or whose vertex normals lean off its triangles, is not one plane (`ter-3yy5`).
+33. Under the screen-space light, a hair receiver's own card blocks nothing: its own surface blocks no sector, and a step whose pixel carries the receiver's card is left out, at any bend of the card. Other cards, other instances and other surfaces still block it and give it their bounce. A curl that folds back over its own card never shades it. (User, 2026-10-27, option A of `ter-qsfz`; user, 2026-10-31, design A of `ter-3yy5`, the card number) A card is a connected strip of triangles, and the G-buffer writes a hair pixel's card, mixed with its instance, into the shading target's 13 spare bits ("The card number"). Reason: half of a turned card's own points lie above the plane of a hair pixel's fiber normal, so they blocked its hemisphere, and a card turned 40° about its strand shaded 7% darker than one that faces the eye: the card planes showed. The first rule took the card as the plane at right angles to the pixel's geometric normal, which covers only flat cards: on a smooth-shaded strip that bends, the interpolated normal leans off the triangle and the next segment lies off the plane, so a card bent by 15° to each side of its ridge shaded 8% darker again. Declined: a cone of half angle θ around the card's plane, which also skips the other cards within θ, sin²θ of the cosine-weighted light, 33% at 35°.
 
 Made after a side-by-side capture of the test head (`ter-t2w6`):
 
@@ -294,10 +294,12 @@ The shading target's channels:
 | Channel | Standard | Skin | Hair |
 |---|---|---|---|
 | R, G | 0 | 0 | The strand's octahedral code, 8 bits each |
-| B | 0 | 0 | 0 |
-| A | 0 | 1 | 2 |
+| B, bit 0 | The light mark | The light mark | The light mark |
+| B, bits 1 to 7 | 0 | 0 | The card code's bits 0 to 6 |
+| A, bits 0 and 1 | 0 | 1 | 2 |
+| A, bits 2 to 7 | 0 | 0 | The card code's bits 7 to 12 |
 
-Since `ter-vtc7`, B of every model holds the light mark: 1 where the pixel's entity holds a light, else 0 (docs/plans/screen-space-illumination.md, "The bounce source").
+Since `ter-vtc7`, bit 0 of B holds the light mark: 1 where the pixel's entity holds a light, else 0 (docs/plans/screen-space-illumination.md, "The bounce source"). Since `ter-3yy5`, the 13 bits above the light mark and the model's code hold a hair pixel's card code ("The card number"). `lightModelAndCardWords` in `frame.glsl` writes B and A, and `lightMarkOfWord`, `modelOfWord` and `cardOfWords` read them; `CardCode.Channels` and `CardCode.Read` are the C# twins.
 
 ```glsl
 // The strand's octahedral code (docs/plans/skin-and-hair.md, "The shading target"). StrandCode is the C# twin. floor(x + 0.5)
@@ -311,7 +313,7 @@ where
 - `octEncode`, `octDecode` = the normals target's encoding (`octahedral.glsl`).
 - `strand` = a unit vector, so its octahedral code lies in [−1, 1]² and the clamp only bounds rounding.
 
-The target is a `UINT` format, so it holds integers and its codes need no rule for the rounding of a conversion. It is cleared to 0, so the sky and every pixel that nothing draws read as standard. `gbuffer.frag` writes it for every lit fragment, and `impostor.frag` writes 0: a billboard's pixel is unlit, which the base color's alpha of 0 already says. `surfaceAt` reads it at G-buffer set binding 10, after the lights' atlas at 8 and the bounce's direct image at 9. `StrandCode` and `ShadingCode` are the C# twins, and a GPU test pins the shaders to them.
+The target is a `UINT` format, so it holds integers and its codes need no rule for the rounding of a conversion: every bit survives on every driver. It is cleared to 0, so the sky and every pixel that nothing draws read as standard. `gbuffer.frag` writes it for every lit fragment, and `impostor.frag` writes 0: a billboard's pixel is unlit, which the base color's alpha of 0 already says. `surfaceAt` reads it at G-buffer set binding 10, after the lights' atlas at 8 and the bounce's direct image at 9. `StrandCode` and `ShadingCode` are the C# twins, and a GPU test pins the shaders to them.
 
 ## Hair
 
@@ -541,11 +543,36 @@ A hair card is a sheet of strands with no back (decision 32). So a hair material
 |---|---|
 | G-buffer | Draws both sides of the card. Writes n_f as the shading normal, the card's vertex normal turned toward the eye as the geometric normal, the strand's code and 2 into the shading target, and metallic 0 |
 | Direct light | `hairResponse` for each light, which it takes from either side of its card. Its shadow lookups use the geometric normal turned toward the light. |
-| Occlusion and bounce | Around n_f. Its own card blocks nothing (decision 33): its own surface blocks no sector, and a step that reads a point of its card's plane is left out. Other cards and surfaces block and bounce as for any surface |
+| Occlusion and bounce | Around n_f. Its own card blocks nothing (decision 33): its own surface blocks no sector, and a step whose pixel carries its card code is left out. Other cards, other instances and other surfaces block and bounce as for any surface |
 | Ambient light | `ambientTerms` at n_f, with the occlusion and the bounce |
 | Reflections | As any surface, along the dominant direction about n_f |
 | Transparent (fringe) | The same functions, forward, with an occlusion of 1 and a bounce of 0 |
 | Environment faces, impostor captures | The same functions, forward: the core only |
+
+### The card number
+
+A hair pixel's own card is the set of pixels that its card's triangles cover, at any bend of the card. Four steps carry it from the mesh to the occlusion sectors pass (decision 33):
+
+1. `UploadQueue.AddMesh` numbers the cards of every mesh, on the caller's thread (`MeshCards.Number`), and builds each GPU vertex with its card (`StagedMesh.Of`). A card is a connected strip of triangles: two triangles lie on one card when a chain of triangles joins them, each with a vertex position of the next. So a strip whose exporter splits its vertices at a sharp bend or a seam, with one position and two normals, stays one card. The cards count from 0 in the order of their first triangles. The renderer does not know which material a mesh draws with, so it numbers every mesh.
+2. Separate cards share no vertex, so every vertex of a triangle carries the triangle's card: `GpuVertex.Card`, a `uint` at offset 48 of the 52-byte vertex of the global vertex buffer, at location 4. The deform vertices carry it into the deformed copies (`GpuDeformVertex.Card`).
+3. `mesh.vert` mixes the card with the instance's place among the frame's placed instances, `GpuInstance.PlacedIndex`, which every view and depth range of the instance shares, and passes the code flat as w of `outInstanceWords`:
+
+   ```glsl
+   uint cardCode(uint card, uint placedIndex)
+   {
+       return (card + placedIndex * 5063u) & 0x1FFFu;
+   }
+   ```
+
+   where
+
+   - `card` = the vertex's card number in its mesh, from 0.
+   - `placedIndex` = the instance's place among the frame's placed instances, from 0.
+   - 5063 = 2^13 / φ, rounded to an odd number: neighbor instances lie at least 3,129 codes apart, and the instances of one card take every code before one repeats.
+
+4. `gbuffer.frag` writes a hair pixel's code into the shading target's 13 spare bits, and the sectors pass, for a hair receiver, reads each step's code at the step texel's representative pixel (`cardAt` in `occlusion.glsl`). A step whose code is the receiver's is left out. A pixel of another model has no code (`NoCard`), so it always blocks a hair receiver.
+
+A collision makes another card's step count as the receiver's own, so that step blocks nothing. The cards of one instance never collide below 2^13 cards; in a mesh of more cards, cards i and i + 8,192 share a code. Two instances' cards collide in about one of 8,192 pairs: each card of one instance shares its code with at most one card of the other.
 
 ## Skin
 
@@ -954,16 +981,23 @@ The existing GPU tests of glass, puffs and the transparent pass pass unchanged i
 - `AnEnvironmentFaceAndACaptureShadeHairAsFibers`
 - `StandardPixelsKeepTheirLight`: within the existing tests' tolerances. The six reference images pass.
 
-`SectorSearchTests` (existing, C#), for decision 33:
+`SectorSearchTests` (existing, C#), for decision 33, since `ter-3yy5` by the card code:
 
 - `AHairReceiverTakesNoStepThatReadsItsOwnCard`
-- `AHairReceiverTakesTheStepsOfACardOneMillimeterBehindItsOwn`
-- `AHairReceiversCardHoldsAPointThatTheDepthsPrecisionPutsOffItsPlane`
-- `AHairReceiversCardHoldsAPointThatItsNormalsPrecisionPutsOffItsPlane`
-- `AHairReceiversCardHoldsAPointThatTheRasterizersSnappingPutsOffItsPlane`
+- `AHairReceiverTakesNoStepOfItsOwnCardWhereTheCardBendsAwayFromItsPlane`
+- `AHairReceiverTakesTheStepsOfAnotherCard`
+- `AHairReceiverTakesTheStepsOfASurfaceThatIsNotHair`
 - `AHairReceiversOwnSurfaceBlocksNoSector`
 
-`BounceLightShaderTests` (existing, GPU): `TheSectorPassGathersWhatTheCSharpCopyGathersForAHairReceiver`, a hair card turned 40° on the corner's floor, pins the sectors pass at three hair receivers to the C# copy with its `OwnCard`. `OcclusionPushConstantsTests` (existing): `TheSubPixelPrecisionComesFromTheDevice`.
+`BounceLightShaderTests` (existing, GPU): `TheSectorPassGathersWhatTheCSharpCopyGathersForAHairReceiver`, a hair card turned 40° on the corner's floor, pins the sectors pass at three hair receivers to the C# copy with its `OwnCard` and the card codes that the shading target holds.
+
+Added by `ter-3yy5`, the card number:
+
+- `MeshCardsTests` (C#): `EachConnectedStripIsOneCardAndEachTriangleTakesItsStripsNumber`, `TrianglesThatMeetOnlyAtVerticesOfOnePositionAreOneCard`, `CardsAreNumberedInTheOrderOfTheirFirstTriangles`.
+- `CardCodeTests` (C#): `TheCardsOfOneInstanceHaveDistinctCodesUpToEightThousandOneHundredNinetyTwoCards`, `OneCardOfTwoInstancesHasTwoCodes`, `TheCardsOfNeighborInstancesLieFarApartInTheCodes`, `AHairPixelsChannelsGiveBackItsCodeItsLightMarkAndItsModel`, `APixelOfAnotherModelHasNoCard`.
+- `HairRenderTests` (GPU): `UnderTheScreenSpaceLightABentSmoothShadedCardShadesAsAFlatCard`, a card of two smooth-shaded segments, each turned 15° from its ridge, turned 40° about its strand, against a flat card that faces the eye, within 1% at the ridge and on each segment; `UnderTheScreenSpaceLightOneCardOfAHairMeshDarkensAnotherCardOfTheSameMeshBehindIt`. `UnderTheScreenSpaceLightAHairCardDarkensAHairCardBehindIt` draws two instances of one mesh, so it pins the instance in the code.
+- `ShadingTargetTests` (GPU): `TheGBufferWritesAHairPixelsCardCodeBesideItsLightMarkAndItsModelsCode`, two cards of one mesh in two instances.
+- `DeformationGpuTests` (GPU): `ADeformedCopyCarriesTheCardNumbersOfItsMesh`.
 
 ### Part 5: the skin scatter
 
@@ -1007,6 +1041,7 @@ At 1920 × 1080, 2,073,600 pixels:
 | The kernel buffer | 33 × 16 B, room for 16 taps per side | 528 B |
 | `GpuMaterial` | Unchanged: the new fields take its padding | 0 |
 | `PreparedInstance.Alpha`, on the CPU | 8 B × 20,000 instances | 160 KB |
+| The card number, `ter-3yy5` | 4 B per static vertex and per region vertex, 16 B per deform vertex | 0.08 MB for a mesh of 20,000 vertices; if it deforms, 0.32 MB more once and 0.08 MB per deformed instance |
 
 At 3840 × 2160 the images take four times as much: 33.2 MB and 132.7 MB.
 
@@ -1059,6 +1094,16 @@ With the scatter on, the fringed fan's second run and the glass fan's first run 
 - The cores enter the screen-space passes as opaque surfaces: the reflections' two passes take about 0.6 ms more with cores than with the glass fan (0.61 to 0.62 ms by the runs with the scatter off), and the occlusion sectors 0.11 to 0.12 ms more by the runs with the scatter off. The runs with it on, whose means vary, give −0.12 to 0.29 ms for the sectors.
 - The fan as fringed hair against the same fan as glass, by the two runs of each with the scatter off: 0.47 to 0.51 ms more frame span (11.43 and 11.47 against 10.96 and 10.98 ms); as cutout hair, 0.53 to 0.62 ms less (10.36 and 10.43 ms). Per pass, by the means of the same runs, the cores add to the G-buffer, direct, ambient, occlusion and reflection passes about 1.1 ms, and the transparent pass takes 0.68 ms less for the fringed fan and 1.74 ms less for the cutout fan, which has none. The sums of the passes' own times do not add up to the spans' differences: +0.16 and −1.14 ms against +0.48 and −0.58 ms. The span also holds the gaps between the passes, and the exposure pass takes 0.29 and 0.60 ms less with either fan than with the glass fan. So the frame's cost here is the span's difference. The design estimated 0.5 to 1 ms for a head of hair over 15 % of the screen.
 
+The card number's cost (`ter-3yy5`, 2026-10-31): `scripts/hair-bent-cards.json`, 240 frames of the `bent-camera` view, five bent hair cards that fill much of the screen, at 1920 × 1080 in Release, by the GPU timer of a headless run with `--video none`, two runs of each build on one checkout, the base at e4244a5c with the scene added. The means in ms, with the 95th percentiles in parentheses:
+
+| Pass | Base, 2 runs | Branch, 2 runs |
+|---|---|---|
+| G-buffer | 0.405, 0.391 (0.51, 0.51) | 0.384, 0.414 (0.52, 0.52) |
+| occlusion sectors | 1.426, 1.389 (1.78, 1.85) | 1.389, 1.481 (1.84, 1.89) |
+| frame span | 9.480, 9.254 (10.85, 10.86) | 9.246, 9.742 (11.27, 11.13) |
+
+The differences of the means, +0.001 ms in the G-buffer pass and +0.03 ms in the sectors pass, are smaller than the differences between two runs of one build, 0.03 ms and 0.09 ms. So the card code costs no time that these runs can show: the G-buffer pass writes the same 4 bytes, and the sectors pass reads the shading target once per step of a hair receiver in place of the plane test's arithmetic.
+
 ## Known limits
 
 - The scatter sees only what the screen shows. Light that would scatter in from skin behind an edge or past the image's edge is missing, and the taps there take the center's light.
@@ -1091,7 +1136,10 @@ With the scatter on, the fringed fan's second run and the glass fan's first run 
 - The fringe casts no shadow, and the fringe takes no crease shadowing: its occlusion is 1.
 - The highlights lose the light that Marschner's 1 / cos² θ_d returns at views along the strand. A card is rarely seen along its strands.
 - A fringed instance never becomes an impostor, so a far human's hair draws as geometry.
-- Under the screen-space light, the rule that a hair pixel's own card blocks nothing holds for a flat card. On a card strip that bends, or a smooth-shaded card whose vertex normals lean off its triangles, the card's own points block its pixels again (`ter-3yy5`).
+- Under the screen-space light, a curl that folds back over its own card never shades it: the whole strip is the hair pixel's own card (decision 33).
+- Two strips that touch at one exact vertex position are one card, so they never shade each other under the screen-space light. An example is two cards whose roots an exporter snaps to one scalp vertex. The join by position keeps a strip that an exporter splits at a sharp bend or a seam as one card ("The card number"). MakeHuman's `afro01` has no vertices that share a position: its 342 strips stay 342 cards.
+- A strip is one card however large it is. MakeHuman's `afro01` holds two connected sheets of 378 quads each around the head, beside 340 single-quad cards, so neither sheet shades itself under the screen-space light.
+- A step on another card whose card code collides with the receiver's blocks nothing: about one of 8,192 pairs of cards of two instances, and cards 8,192 apart in a mesh of more cards ("The card number").
 - A normal map that tilts the strand off its card can put a hair pixel's reflection below the card, where the reflections' surface fade cuts it (`ter-nwhv`).
 
 ## Compared with a design from scratch

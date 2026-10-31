@@ -8,7 +8,7 @@
 // MeshDeform.InvocationsPerGroup.
 layout(local_size_x = 64) in;
 
-// A vertex as uploaded, with its morph list and its skin: GpuDeformVertex, 80 bytes.
+// A vertex as uploaded, with its morph list, its skin and its card number: GpuDeformVertex, 96 bytes.
 struct DeformVertex
 {
     vec3 position;
@@ -19,6 +19,7 @@ struct DeformVertex
     vec2 texCoord;
     uvec2 joints;      // the four joints, two 16-bit halves per word, joint 0 in the low half of x
     vec4 weights;      // each at least 0, with a sum of 1
+    uint card;         // GpuVertex.Card, which the copy keeps
 };
 
 // One morph's deltas for one vertex: GpuMorphDelta, 48 bytes.
@@ -32,8 +33,9 @@ struct MorphDelta
     float pad1;
 };
 
-// The region's range of the global vertex buffer, as floats: std430 pads a vec3 to 16 bytes, and a Vertex is 48.
-layout(set = 0, binding = 0, std430) writeonly buffer RegionBlock { float region[]; };
+// The region's range of the global vertex buffer, as 32-bit words: std430 pads a vec3 to 16 bytes, and a GpuVertex is
+// 52. Words, not floats, so the card number's bits store exactly: a float store may flush a denormal's bits to 0.
+layout(set = 0, binding = 0, std430) writeonly buffer RegionBlock { uint region[]; };
 layout(set = 0, binding = 1, std430) readonly buffer SourceBlock { DeformVertex sources[]; };
 layout(set = 0, binding = 2, std430) readonly buffer DeltaBlock { MorphDelta deltas[]; };
 // The frame's pose rows: per job, three rows per palette joint, then the weights four to a row.
@@ -84,22 +86,23 @@ uint jointOf(uvec2 joints, uint s)
     return (s & 1u) == 0u ? word & 0xFFFFu : word >> 16u;
 }
 
-// Writes the 12 floats of Vertex k of the region.
-void writeVertex(uint k, vec3 position, vec3 normal, vec4 tangent, vec2 texCoord)
+// Writes the 13 words of GpuVertex k of the region.
+void writeVertex(uint k, vec3 position, vec3 normal, vec4 tangent, vec2 texCoord, uint card)
 {
-    uint f = 12u * k;
-    region[f] = position.x;
-    region[f + 1u] = position.y;
-    region[f + 2u] = position.z;
-    region[f + 3u] = normal.x;
-    region[f + 4u] = normal.y;
-    region[f + 5u] = normal.z;
-    region[f + 6u] = tangent.x;
-    region[f + 7u] = tangent.y;
-    region[f + 8u] = tangent.z;
-    region[f + 9u] = tangent.w;
-    region[f + 10u] = texCoord.x;
-    region[f + 11u] = texCoord.y;
+    uint f = 13u * k;
+    region[f] = floatBitsToUint(position.x);
+    region[f + 1u] = floatBitsToUint(position.y);
+    region[f + 2u] = floatBitsToUint(position.z);
+    region[f + 3u] = floatBitsToUint(normal.x);
+    region[f + 4u] = floatBitsToUint(normal.y);
+    region[f + 5u] = floatBitsToUint(normal.z);
+    region[f + 6u] = floatBitsToUint(tangent.x);
+    region[f + 7u] = floatBitsToUint(tangent.y);
+    region[f + 8u] = floatBitsToUint(tangent.z);
+    region[f + 9u] = floatBitsToUint(tangent.w);
+    region[f + 10u] = floatBitsToUint(texCoord.x);
+    region[f + 11u] = floatBitsToUint(texCoord.y);
+    region[f + 12u] = card;
 }
 
 void main()
@@ -140,6 +143,7 @@ void main()
         sp,
         normalizedOr(sn, vec3(0)),
         vec4(normalizedOr(st, vec3(0)), v.tangent.w),
-        v.texCoord
+        v.texCoord,
+        v.card
     );
 }

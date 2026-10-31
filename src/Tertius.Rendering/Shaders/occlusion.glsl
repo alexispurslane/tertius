@@ -29,8 +29,6 @@ layout(push_constant, std430) uniform OcclusionPush
     uint slices;
     uint stepsPerSide;
     uint lastDenoise;
-    // The device's subPixelPrecisionBits: the rasterizer snaps a vertex to 1 / 2^bits of a pixel.
-    uint subPixelPrecisionBits;
 } occlusion;
 
 // (t_x, t_y): the tangents of half the horizontal and half the vertical field of view. The frame constants carry them
@@ -97,10 +95,12 @@ vec3 geometricNormalAt(ivec2 pixel)
     return toViewAxes(octDecode(texelFetch(gbufferNormal, pixel, 0).ba));
 }
 
-// Whether a full-resolution pixel shades as hair: its shading model's code in the shading target.
-bool hairAt(ivec2 pixel)
+// The card code of a full-resolution pixel that shades as hair, NoCard for another model (docs/plans/skin-and-hair.md,
+// "The shading target").
+uint cardAt(ivec2 pixel)
 {
-    return texelFetch(gbufferShading, pixel, 0).a == ShadingHair;
+    uvec4 shading = texelFetch(gbufferShading, pixel, 0);
+    return cardOfWords(shading.b, shading.a);
 }
 
 // The view-space geometric normal of a half-resolution texel's representative pixel, from the depth pass's copy.
