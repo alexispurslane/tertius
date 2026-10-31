@@ -13,3 +13,9 @@ tags: [rendering, reflections, hair]
 
 Found by the review of ter-acr3 (2026-10-31). On the tilted hair rug of hair-rugs, with the hair cut of decision 35 (docs/plans/skin-and-hair.md) removed, rays whose cosine with the card's geometric normal lies between 0 and SurfaceFadeCosine (0.05) hit their own card a few pixels from their start: the first reflecting row spreads over rows 413 to 436, with 22 in-column downward steps and 15 isolated bright pixels (ter-acr3's note). A standard copy of the same rug, with the same 10-degree normal map, shows none of this: rows 412 to 414, 0 steps, 0 isolated pixels. Section 2 of docs/plans/screen-space-reflections.md argues that the origin offset of two pixel footprints along n_g keeps a ray that rises from a flat surface in front of it, and the standard capture agrees. The hair card is flat too, so that argument does not explain the hair hits. Candidates to test: the hair ray's direction and cone come from the fiber normal n_f, not from the shading normal, so its cone can reach below the card while its dominant direction stays above it; the card's depth or geometric normal in the G-buffer can differ from the plane that the trace intersects (alpha-tested strands, the card's thickness); the half-resolution trace and its upsample. The work: find the cause with a capture or a test, and state it in section 7 'The fades' of screen-space-reflections.md. The cause decides whether the cut of decision 35 or design 1 (an own-surface skip through ter-3yy5's card number) targets the real mechanism. Not required now: the cut hides the edge on every shipped scene.
 
+
+## Notes
+
+**2026-10-31T21:30:55Z**
+
+Workflow run 0776a43b-52db-49c0-9682-c0a825a031a3 (version 869b0b07), branch ter-a9hh-hair-card-self-hit from d4bd48de. Find the cause with probes and band.py; no shipped renderer change; a fork if the cause points to a fix that changes what the user sees or costs.
