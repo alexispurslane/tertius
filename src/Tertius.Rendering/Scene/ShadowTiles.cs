@@ -563,8 +563,9 @@ internal sealed class ShadowTiles
         /// </summary>
         public static readonly Comparison<Candidate> Ranked = static (a, b) =>
         {
+            // NOTE: not Tier.CompareTo, which is Enum.CompareTo(object) and boxes both tiers on every comparison.
             if (a.Tier != b.Tier)
-                return b.Tier.CompareTo(a.Tier);
+                return a.Tier > b.Tier ? -1 : 1;
             return a.Irradiance != b.Irradiance ? b.Irradiance.CompareTo(a.Irradiance) : a.Light.CompareTo(b.Light);
         };
     }

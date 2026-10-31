@@ -50,20 +50,22 @@ public sealed class SpotLampViewTests
     }
 
     /// <summary>
-    /// A white spot lamp of radius 0 at <paramref name="position"/> along <paramref name="direction"/>, named
-    /// <paramref name="entity"/>, that casts shadows, whose reach at −10 stops is <paramref name="reach"/> m.
+    /// A spot lamp of radius 0 at <paramref name="position"/> along <paramref name="direction"/>, named
+    /// <paramref name="entity"/>, that casts shadows, whose reach at −10 stops is <paramref name="reach"/> m: white unless
+    /// <paramref name="color"/> names another color, whose brightest channel is 1.
     /// </summary>
     private static SpotRenderLight Lamp(
         uint entity,
         Vector3 position,
         Vector3 direction,
         float reach,
-        float outerConeAngle = Narrow
+        float outerConeAngle = Narrow,
+        Vector3? color = null
     ) =>
         Gpu.Spot(
             position: position,
             direction: direction,
-            color: Vector3.One,
+            color: color ?? Vector3.One,
             intensity: (float)(reach * reach * Cutoff),
             innerConeAngle: 0,
             outerConeAngle: outerConeAngle,
@@ -201,29 +203,6 @@ public sealed class SpotLampViewTests
             );
     }
 
-    [Fact]
-    public void ASpotLampWhoseConeReachesTheViewButWhoseAxisMissesItRanksByItsLightAtItsReach()
-    {
-        RenderSnapshot snapshot = Dark();
-        // Right of the view, aimed further right: the edge of its 60° cone comes into the view 18 m from the lamp, its axis
-        // never does. At the eye its light is 3.5 times the other lamp's.
-        snapshot.Lights.Add(
-            Lamp(entity: 1, position: new(12, 0, -5), direction: Vector3.UnitX, reach: 30, outerConeAngle: MathF.PI / 3)
-        );
-        // 20 m ahead and 3 m up, aimed down at the floor in view: its axis passes 20 m from the eye.
-        snapshot.Lights.Add(Lamp(entity: 2, position: new(0, 3, -20), direction: -Vector3.UnitY, reach: 25));
-
-        PreparedScene scene = Prepare(snapshot: snapshot);
-
-        scene.LightSpan.ToArray().Select(light => light.InMainView).Should().Equal(true, true);
-        TileHolders(scene)
-            .Should()
-            .Equal(
-                [2u],
-                "at its reach the first lamp's light is the cutoff, the second's on its axis 25² / 20² cutoffs"
-            );
-    }
-
     /// <summary>
     /// A spot lamp right of the view, aimed further right: the edge of its 60° cone comes into the view 18 m from the lamp,
     /// its axis never does. Its reach at −10 stops is 30 m, so it ranks at its light at its reach, 1 cutoff.
@@ -252,6 +231,51 @@ public sealed class SpotLampViewTests
         TileHolders(scene)
             .Should()
             .Equal([2u], "the strongest light of a lamp whose axis misses the view falls outside the view");
+    }
+
+    [Fact]
+    public void OfTwoSpotLampsWhoseAxesMissTheViewTheOneWithMoreLightAtItsReachTakesTheTile()
+    {
+        RenderSnapshot snapshot = Dark();
+        // A green lamp 13 m from the eye with a reach of 40 m: at the eye its light is 0.7152 × 40² / 13² = 6.8 cutoffs.
+        snapshot.Lights.Add(
+            Lamp(
+                entity: 1,
+                position: new(12, 0, -5),
+                direction: Vector3.UnitX,
+                reach: 40,
+                outerConeAngle: MathF.PI / 3,
+                color: Vector3.UnitY
+            )
+        );
+        // A white lamp 26 m from the eye, right of the view and aimed further right: the edge of its 60° cone comes into the
+        // view 35 m from the lamp, its axis never does. At the eye its light is 50² / 26² = 3.7 cutoffs.
+        snapshot.Lights.Add(
+            Lamp(
+                entity: 2,
+                position: new(24, 0, -10),
+                direction: Vector3.UnitX,
+                reach: 50,
+                outerConeAngle: MathF.PI / 3
+            )
+        );
+
+        PreparedScene scene = Prepare(snapshot: snapshot);
+
+        scene
+            .LightSpan.ToArray()
+            .Should()
+            .AllSatisfy(light =>
+            {
+                light.Tier.Should().Be(MainViewTier.AxisMissesView);
+                light.RankDistance.Should().Be(light.Reach, "a lamp whose axis misses the view ranks at its reach");
+            });
+        TileHolders(scene)
+            .Should()
+            .Equal(
+                [2u],
+                "at its reach the white lamp's light is the cutoff, the green lamp's 0.7152 cutoffs, because the reach follows the brightest channel"
+            );
     }
 
     [Fact]

@@ -145,7 +145,12 @@ public sealed class ImpostorManagerTests
     [Fact]
     public void ProjectedHeightIsTheDiameterOfTheSpheresImageAtTheCenterOfTheScreen()
     {
-        var camera = new CameraView { Height = Height, TanHalfY = MathF.Tan(Gpu.Fov / 2) };
+        var camera = new CameraView
+        {
+            Height = Height,
+            TanHalfX = MathF.Tan(Gpu.Fov / 2) * Width / Height,
+            TanHalfY = MathF.Tan(Gpu.Fov / 2),
+        };
         float distance = 12f,
             radius = 2f;
         // The tangent cone's half angle, projected: the image's top and bottom edges are at ±tan(asin(r / d)).

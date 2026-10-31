@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Testing;
 
 namespace Tertius.Rendering.Tests;
 
@@ -231,6 +232,39 @@ public sealed class ShadowTilesTests
                 [NoSlot, Tiles(first: 0, count: 1)],
                 "a light that only a face keeps must not change the main view's pixels"
             );
+    }
+
+    [Fact]
+    public void RankingLightsOfTwoTiersAllocatesNothing()
+    {
+        var tiles = new ShadowTiles(layers: 2, tileSize: TileSize);
+        PreparedLight[] lights =
+        [
+            Spot(entity: 1, intensity: 5) with
+            {
+                Tier = MainViewTier.FaceOnly,
+            },
+            Spot(entity: 2, intensity: 1),
+        ];
+        List<TileView> views = [];
+        List<TileDraw> draws = [];
+        Frame(tiles, lights);
+
+        Allocations
+            .Fewest(() =>
+            {
+                tiles.Update(
+                    lights: lights,
+                    placed: [],
+                    deformed: FrameMeshes.Static.Deformed,
+                    originFrameId: 1,
+                    views: views,
+                    draws: draws
+                );
+                tiles.Drew();
+            })
+            .Should()
+            .Be(0, "the tiles rank their lights every frame");
     }
 
     [Fact]

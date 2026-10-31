@@ -4,7 +4,14 @@ using Silk.NET.Vulkan;
 
 namespace Tertius.Rendering;
 
-/// <summary>The interpolated camera of one frame. World space is camera-relative: the eye is at the origin.</summary>
+/// <summary>
+/// The interpolated camera of one frame. World space is camera-relative: the eye is at the origin. Its invariants, which
+/// the init accessors of <see cref="TanHalfX"/> and <see cref="TanHalfY"/> keep, both required:
+/// <list type="bullet">
+/// <item>sideScaleX = SideScale(<see cref="TanHalfX"/>).</item>
+/// <item>sideScaleY = SideScale(<see cref="TanHalfY"/>).</item>
+/// </list>
+/// </summary>
 internal struct CameraView
 {
     /// <summary>The share of the shorter side of the screen over which a reflection fades out toward each edge.</summary>
@@ -24,31 +31,6 @@ internal struct CameraView
     public float VerticalFov;
     public float Aspect;
 
-    /// <summary>
-    /// The tangent of half the horizontal field of view. Setting it also sets the scale of the left and right planes of
-    /// <see cref="Bound"/>, so that no test of a plane takes a square root.
-    /// </summary>
-    public float TanHalfX
-    {
-        readonly get;
-        init
-        {
-            field = value;
-            sideScaleX = SideScale(value);
-        }
-    }
-
-    /// <summary>The tangent of half the vertical field of view. Setting it also sets the scale of the top and bottom planes.</summary>
-    public float TanHalfY
-    {
-        readonly get;
-        init
-        {
-            field = value;
-            sideScaleY = SideScale(value);
-        }
-    }
-
     public int Width;
     public int Height;
 
@@ -63,6 +45,31 @@ internal struct CameraView
 
     /// <summary>SideScale of <see cref="TanHalfY"/>, set with it.</summary>
     private float sideScaleY;
+
+    /// <summary>
+    /// The tangent of half the horizontal field of view. Setting it also sets the scale of the left and right planes of
+    /// <see cref="Bound"/>, so that no test of a plane takes a square root.
+    /// </summary>
+    public required float TanHalfX
+    {
+        readonly get;
+        init
+        {
+            field = value;
+            sideScaleX = SideScale(value);
+        }
+    }
+
+    /// <summary>The tangent of half the vertical field of view. Setting it also sets the scale of the top and bottom planes.</summary>
+    public required float TanHalfY
+    {
+        readonly get;
+        init
+        {
+            field = value;
+            sideScaleY = SideScale(value);
+        }
+    }
 
     /// <summary>The angle that one pixel covers at the center of the screen.</summary>
     public readonly float PixelAngle => 2f * TanHalfY / Math.Max(Height, 1);
