@@ -179,6 +179,9 @@ public sealed class EnvironmentFaceTests
     /// <summary>The glow of the black panel of the glow tests, in W/(m² sr) per channel.</summary>
     private const float PanelGlow = 5;
 
+    /// <summary>The entity of the glowing wall behind the panel, which holds no light.</summary>
+    private const uint WallEntity = 8;
+
     [Fact]
     public void EachFaceHoldsWhatLiesInItsDirection()
     {
@@ -461,13 +464,24 @@ public sealed class EnvironmentFaceTests
                     EntityIndex = PanelEntity,
                 }
             );
+            // A glowing wall behind the lamp fills the face. Where the panel covers it, the face reads 0 only if it draws
+            // the panel dark, not if it leaves the panel out.
+            RenderInstance wall = EnvironmentScenes.Square(
+                plane: renderer.CreateMesh(Primitives.Plane(1f)),
+                material: EnvironmentScenes.Emissive(renderer, new(PanelGlow)),
+                center: new(20, 0, 0),
+                halfSize: 10,
+                chainDepth: TestChains.CamerasFrame
+            );
+            wall.EntityIndex = WallEntity;
+            snapshot.Instances.Add(wall);
 
             renderer.Render(snapshot, 1f);
 
             EnvironmentScenes
                 .Center(EnvironmentScenes.Face(renderer, CubeFace.PositiveX))
                 .Should()
-                .Be(Vector3.Zero, "the black panel reflects nothing, and its glow is its light's face");
+                .Be(Vector3.Zero, "the black panel hides the wall and reflects nothing, and its glow is its light's face");
         }
         finally
         {

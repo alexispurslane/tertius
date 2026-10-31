@@ -28,6 +28,15 @@ struct GpuInstance
     uint holdsLight;
 };                            // std430: 88 bytes of members, a stride of 96
 
+// The glow that a surface sends to other surfaces as their light: its emission, or none where its entity holds a light. An
+// entity sends its power once (user, 2026-10-27): one that holds a light sends it through that light, and its glow is the
+// light's face, not a second source. The bounce source (occlusion_depth.comp) and the environment faces
+// (environment_face.frag) read the rule here. holdsLight is GpuInstance.holdsLight, or the G-buffer's copy of it.
+vec3 glowSent(vec3 emissive, uint holdsLight)
+{
+    return holdsLight == 0u ? emissive : vec3(0.0);
+}
+
 // GpuMaterial.NoMap: the map index of a material that has no such map.
 const uint NoMap = 0xFFFFFFFFu;
 

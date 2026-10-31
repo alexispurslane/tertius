@@ -29,11 +29,10 @@ void main()
     SurfaceSample s = sampleMaterial(inMaterialMapAndLight.x, inTexCoord, inNormal, inTangent, V);
     // A face takes no ambient light, so nothing reads the sky shares or the footprint that forwardShading gives it.
     ShadingInput shading = forwardShading(s, inPosition, vec4(0.0), draw.map, V);
+    // The glow of an entity that holds a light adds nothing, as in the bounce source. Else the map's irradiance lights the
+    // room with the lamp's power a second time. So the map shows such a glow dark, in its reflections too.
+    vec3 glow = glowSent(s.emissive, inMaterialMapAndLight.z);
     // A face of map i keeps the lights of maps 0 to i: a map leaves out the lamps of the subtree that it leaves out
     // (docs/plans/environment-maps-per-frame.md, decision 13).
-    // An entity that holds a light sends its power once, through that light, and its glow is the light's face, as in the
-    // bounce source (docs/plans/screen-space-illumination.md, "The bounce source"). Else the map's irradiance lights the
-    // room with the lamp's power a second time. So the map shows such a glow dark, in its reflections too.
-    vec3 glow = inMaterialMapAndLight.z == 0u ? s.emissive : vec3(0.0);
     outColor = vec4(directRadiance(shading, glow, inPosition, V, ShadowMapsHolding, draw.map), 0.0);
 }
