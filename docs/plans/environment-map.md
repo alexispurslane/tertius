@@ -69,7 +69,7 @@ The user made the decisions marked (User): decisions 1 to 11 in the ticket's not
 Settled by this design:
 16. A face is shaded in a forward pass, as the impostor capture is: one draw per depth range into the face, with the shading in the fragment shader. A face has 16,384 texels, so overdraw costs little, and a G-buffer of six faces adds five images and a lighting pass for nothing. The impostor capture is the existing pass that shades objects off screen.
 17. The capture takes no ambient light. A face holds the light that the sun, the lamps and emission send toward the camera, so the main view's surfaces get one bounce of that light. Three reasons. A face then depends only on the frame that draws it. With the previous map as the capture's ambient, each face depends on every earlier face, a chain with no end, and a still after a camera step needs repeated refreshes to converge. The hemisphere is excluded by decision 4. And SSAO already left out bounced brightening because SSGI (`ter-a24f`) adds real bounced light. The cost: in a room, the parts that only bounced light reaches are black in the map, so interiors are darker than with many bounces.
-18. A face draws the opaque instances, the impostor objects as geometry, emission and the sky, with no stars (decision 13). It draws no transparent instance and no puff, because SSR's rays read the HDR image before the transparent pass (`ter-jxv9`, the user's decision). The map and SSR then show the same things, and the fade from one to the other has no seam where glass appears or vanishes.
+18. A face draws the opaque instances, the impostor objects as geometry, emission and the sky, with no stars (decision 13). It draws no transparent instance and no puff, because SSR's rays read the HDR image before the transparent pass (`ter-jxv9`, the user's decision). The map and SSR then show the same things, and the fade from one to the other has no seam where glass appears or vanishes. A face leaves out the emission of an instance whose entity holds a light (user, 2026-10-31, `ter-ylzk`). An entity sends its power once: an entity that holds a light sends it through that light, and its glow is the face of that light, not a second source. So the map's irradiance and its reflections carry no glow of a lamp, and the lamp's power reaches the room once, through its light. The cost, which the user accepted: a lamp's panel shows dark in the map's reflections, also where a reflected panel leaves the screen and SSR hands over to the map. The other option kept the panel in the reflections with a second output of the faces, at the cost of memory and a change to the faces and the prefilter. The user declined it.
 19. A face samples each far light's cascade set by the finest cascade whose box holds the point. The main view picks its cascade by view depth along the camera's forward axis, which holds only for points in its frustum. A near light's tiles of the local shadow atlas cover every direction from the light, so a face samples them as the main view does. See "The shadow maps in a face". (The lights plan, [local-light-shadows.md](local-light-shadows.md), gave every far light its set and every near light its tiles. This decision had the one sun's cascades.)
 20. One light list serves every view of a frame. A light is kept when its reach, which the renderer derives from its power (local-light-shadows.md, "The cutoff and the reach"), touches the main view's frustum or a face that the frame draws. Each light's `PreparedLight.InMainView` holds whether the main view keeps it, written once where the batcher prepares the light, and the main view's shaders, its lit puffs and its impostors' light signatures take only the lights that it keeps (`ter-mgap`). Every shadow budget, the cascade sets of the far lights and the tiles of the local shadow atlas, ranks the lights that the main view keeps before the lights that only a face keeps, and within each group as before. The far lights of the main view also count the share of far shadows from the brightest far light of the main view. So a light that only a face keeps gets a budget only when the main view's lights leave one free, and the main view's direct light and the shadow slots of its lights stay as before. Such a light reaches the main view only through the map, where it lights a surface that a face sees. A far light's far shadows count a caster as in the maps only where that light's own set draws it, so what another light's set draws changes no pixel of the main view (`ter-ozwq`).
 21. A face draws no impostor billboard and culls no small object. The impostor manager decides for the main view's visible objects only. Rasterization point-samples a texel's center, so an object smaller than a texel keeps its light in the map on average, as a small object does on screen. A cull for cost waits for a measurement that shows a need.
@@ -118,7 +118,8 @@ A face's view matrix takes x = q · right, y = q · up and z = −q · forward, 
 |---|---|---|
 | Opaque instances with `Visible`, the planets and the sun's sphere included | Yes, as geometry | The scene seen from the camera (User) |
 | Objects that the main view draws as impostors | Yes, as geometry | Decision 21 |
-| Emission, the lamp panels included | Yes | It is light |
+| Emission of an entity that holds no light, such as a screen or a marker | Yes | It is light |
+| Emission of an entity that holds a light, such as a lamp's panel | No | Decision 18: the glow is its light's face, and the lamp's power reaches the room once, through its light |
 | The sky: `skyRadiance`, black until the atmosphere ticket | Yes, as background, with an open-sky share of 1 | The map holds the sky (User) |
 | The stars | No | The ambient specular term computes them for each pixel (User, decision 13) |
 | Transparent instances | No | Decision 18: SSR shows no glass either |
@@ -129,7 +130,7 @@ The sky is drawn first, by a fullscreen triangle that writes `vec4(skyRadiance(d
 
 `skyRadiance(direction)` in `sky.glsl` is the sky's light without the stars. It returns black until the atmosphere ticket (decision 14). The stars stay out of the map's color: the readers add them for each pixel, where the open-sky share lets them through (see "The reflected stars").
 
-The sun's sphere, 0.53° across from Earth, is smaller than a texel, 0.4° to 0.9° at W = 128. It covers a texel's center about a quarter of the time, so it comes and goes as the sun crosses the texels. Its light in the map is at most about 1 % of what the directional sun gives, so it needs no rule of its own. An emissive panel that stands for a point light, such as a cabin lamp, lights twice: through its point light and through the map. In the shuttle's cabin the panels add a few percent to their lamps' light.
+The sun's sphere, 0.53° across from Earth, is smaller than a texel, 0.4° to 0.9° at W = 128. It covers a texel's center about a quarter of the time, so it comes and goes as the sun crosses the texels. Its light in the map is at most about 1 % of what the directional sun gives, so it needs no rule of its own. A lamp's panel, which glows on the entity that holds the lamp's light, is dark in the map (decision 18). Before `ter-ylzk`, its glow lit the room a second time through the map's irradiance.
 
 ### The three depth ranges in a face
 
@@ -143,12 +144,15 @@ A face draws the far, middle and near ranges in that order into one RGBA16F colo
 SurfaceSample s = sampleMaterial(inMaterial, inTexCoord, inNormal, inTangent);
 ShadingInput shading = ...;   // as in impostor_capture.frag, both sky shares 0
 vec3 V = normalize(-inPosition);   // toward the eye, which every face shares
-outColor = vec4(directRadiance(shading, s.emissive, inPosition, V, ShadowMapsHolding), 0.0);   // alpha: no open sky
+vec3 glow = inMaterialMapAndLight.z == 0u ? s.emissive : vec3(0.0);
+outColor = vec4(directRadiance(shading, glow, inPosition, V, ShadowMapsHolding), 0.0);   // alpha: no open sky
 ```
 
 where
 
-- `directRadiance` = every light of the frame's list reflected toward V, each with its shadows (a far light's far shadows and cascade set, a near light's tiles), plus the emission, clamped to 65,504, in plain radiance (see "Part 5: the readers").
+- `inMaterialMapAndLight.z` = 1 when the instance's entity holds a light (`GpuInstance.HoldsLight`), else 0. It is the mark that the bounce source reads (screen-space-illumination.md, "The bounce source").
+- `glow` = the surface's emission where its entity holds no light, else 0 (decision 18).
+- `directRadiance` = every light of the frame's list reflected toward V, each with its shadows (a far light's far shadows and cascade set, a near light's tiles), plus the glow, clamped to 65,504, in plain radiance (see "Part 5: the readers").
 - `ShadowMapsHolding` = the rule of the shadow maps for a view that is not the main view (next section).
 - `V` = the unit direction from the surface point to the eye. A face's highlights are those that the camera's eye sees, because the map is the light that arrives at the eye.
 
@@ -170,7 +174,7 @@ A near light's tiles need no such rule. A spot light's tile and a point light's 
 
 #### No ambient light in the capture
 
-Decision 17. A face's surfaces get every light of the list with its shadows (far shadows, cascade sets and tiles), and their emission. A surface that none of these reach is black in the map.
+Decision 17. A face's surfaces get every light of the list with its shadows (far shadows, cascade sets and tiles), and their emission where their entity holds no light (decision 18). A surface that none of these reach is black in the map.
 
 ### Culling and level of detail
 
@@ -944,6 +948,8 @@ internal enum EnvironmentImage { Radiance, Specular }
 - `AFaceShowsTheSunsMapShadowBehindTheCamera`: a ground and a box 5 m behind the main view. The face behind the camera shows the box's shadow on the ground and the lit ground beside it.
 - `AFaceIsLitByALampThatTheMainViewDoesNotSee`.
 - `AFaceTakesNoAmbientLight`: a gray wall that no light reaches, under a bright `World.Ambient`, is black in its face.
+- `AGlowOfAnEntityThatHoldsALightAddsNothingToTheMap`: a black glowing panel whose entity holds a lamp behind it is black in its face (decision 18).
+- `AGlowWithoutALightOfItsOwnStaysInTheMap`: the same panel beside a lamp of another entity shows its glow in its face.
 - `TheSkyMarksOpenSkyAndASurfaceMarksNone`: a wall that covers half of face +Z. Its texels have an alpha of 0, and the rest of the map has 1.
 - `AFaceHoldsNoStars`: with no geometry, every texel of every face holds a color of 0 at level 0.
 - `AFaceHoldsPlainRadianceWhateverTheExposure`: `FixedExposure(3)` and `FixedExposure(0)` give the same texels.

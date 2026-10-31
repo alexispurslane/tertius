@@ -12,9 +12,9 @@ layout(location = 0) out vec3 outPosition;
 layout(location = 1) out vec3 outNormal;
 layout(location = 2) out vec4 outTangent;
 layout(location = 3) out vec2 outTexCoord;
-// x: the material. y: the instance's environment map. z: whether its entity holds a light, which only gbuffer.frag reads.
-// They share a location so that environment_face.frag, which reads only the material, still consumes the whole location:
-// a face has no ambient light, and draw.map filters its lights.
+// x: the material. y: the instance's environment map. z: whether its entity holds a light, which gbuffer.frag and
+// environment_face.frag read. They share a location so that environment_face.frag, which reads no map, still consumes the
+// whole location: a face has no ambient light, and draw.map filters its lights.
 layout(location = 4) flat out uvec3 outMaterialMapAndLight;
 layout(location = 5) flat out vec4 outHemisphere;
 

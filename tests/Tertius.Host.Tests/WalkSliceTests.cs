@@ -136,11 +136,14 @@ public sealed class WalkSliceTests(WalkRun run) : IClassFixture<WalkRun>
         // Facing the nose, the top left of the image shows the roof, which the lamps leave dark away from them. After the
         // quarter turn, the person faces the port wall from 3.5 m away, and the wall, lit by the lamps, fills the image.
         // In SI units each capture takes the automatic exposure of a scripted run, which raises the dim cabin, so the roof
-        // shows (42, 39, 35): dark beside the lamp-lit wall, not dark on an absolute scale.
+        // is dark beside the lamp-lit wall, not dark on an absolute scale. The roof showed (42, 39, 35), under half the
+        // wall, while the map held the ceiling panels' glow: that glow lit the floor and the walls a second time but not the
+        // roof, which faces away from the panels. The map now leaves a lamp's glow out (ter-ylzk), so the exposure rises
+        // by about 1.2 stops, and the roof shows (74, 69, 63), about two thirds of the wall's (109, 103, 95).
         (int r, int g, int b) roof = run.Capture("cabin").Average(300, 100);
         (int r, int g, int b) wall = run.Capture("turned").Average(300, 100);
 
-        (roof.r + roof.g + roof.b < (wall.r + wall.g + wall.b) / 2)
+        (roof.r + roof.g + roof.b < 3 * (wall.r + wall.g + wall.b) / 4)
             .Should()
             .BeTrue($"facing the nose, the top left shows the roof, darker than the lamp-lit wall {wall}, not {roof}");
         (wall.r > 80 && wall.r > wall.b)

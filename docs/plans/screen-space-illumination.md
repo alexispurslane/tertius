@@ -598,10 +598,13 @@ The light that a blocker bounces, its bounce source, is the light that leaves it
 - Only the diffuse part of the direct light bounces (decision 16). A highlight leaves toward the eye alone, so it does not light the floor beside it.
 - An entity sends its power once (user, 2026-10-27). An entity that holds a light sends its power through that light, and its glowing surface is the face of that light, not a second source. So a glow bounces only where its entity holds no light. A lamp's panel lights its surroundings through the lamp's light alone. A screen or a marker, which holds no light, still bounces its glow.
 
+The environment map follows the same rule with the same mark (user, 2026-10-31, `ter-ylzk`). `environment_face.frag` reads the mark from `mesh.vert` and adds a surface's glow only where its entity holds no light. So the map's SH irradiance, the ambient light of every open sector, carries no glow of a lamp. The lamp's panel also shows dark in the map's reflections, where SSR hands a reflected panel that leaves the screen over to the map. The user accepted that cost and declined a second output of the faces that kept the panel in the reflections (environment-map.md, decision 18).
+
 ```mermaid
 flowchart LR
     B["SceneBatcher: the entities that the snapshot's lights carry"] --> GI["GpuInstance.holdsLight"]
     GI --> MV["mesh.vert, location 4 z"] --> GF["gbuffer.frag: the shading target's B"]
+    MV --> EF["environment_face.frag: glow = (z = 0 ? emission : 0)"] --> EMAP[("The environment map: its irradiance and its reflections")]
     DP["Direct pass: the diffuse part of DirectTerms"] --> DF[("The diffuse image: rgb diffuse, a the skin mask")]
     DF --> OD["occlusion depth: source = diffuse + (B = 0 ? emission : 0), capped at MaxRadiance"]
     GF --> OD
@@ -1053,7 +1056,6 @@ This design has the same parts, with these differences:
 - Sky counts with its depth, 10¹⁸ m, among the depths around a step's exact place, so the plane of a surface beside the sky is kept up to half a texel toward it. A face that the eye sees nearly edge-on can so reach up to half a texel of screen past its silhouette against the sky, which is a long way in depth.
 - A glossy blocker bounces no highlight, toward the receiver or toward the eye: only its diffuse light bounces (decision 16, "The bounce source").
 - A glow bounces only where its entity holds no light ("The bounce source"). A light whose glowing body is a separate entity bounces twice, through its light and through that body's glow: the scene puts the glow and the light on one entity.
-- The environment map keeps a lamp's glow (`environment_face.frag` adds the emission of every instance), so the lamp's power reaches the room a second time there: through the map's SH irradiance, as ambient light, in every open sector. The rule "an entity sends its power once" holds on the screen-space bounce alone. A face receives the light mark (`inMaterialMapAndLight.z`) and could drop the glow of an entity that holds a light, but that also darkens the lamp's panel in the map's specular reflections; to keep the reflections and drop the glow from the irradiance alone, the faces need a second output. The choice is open (`ter-vtc7`, review).
 - Glass and puffs neither block nor bounce.
 - An impostor bounces its captured light, its ambient light included (decision 30).
 - A blocker off the screen blocks nothing: a step whose texel lies outside the image is left out, so its directions take the ambient light.

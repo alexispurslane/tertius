@@ -36,7 +36,8 @@ internal struct GpuInstance
 
     /// <summary>
     /// 1 when the instance's entity holds a light, whose face its glow is, else 0: such a glow bounces no light
-    /// (docs/plans/screen-space-illumination.md, "The bounce source").
+    /// (docs/plans/screen-space-illumination.md, "The bounce source"), and the environment map leaves it out
+    /// (docs/plans/environment-map.md, "How a face is lit").
     /// </summary>
     public uint HoldsLight;
 
