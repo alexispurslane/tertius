@@ -42,3 +42,27 @@ Candidates, each a temporary change, traced on above with the haze on every othe
 Decision. Within each trace, the wall-clock span from the reflections to the bloom grows by the haze pass's time plus 0.001 ms as shipped, and plus 0.011 ms when the clear waits. So the overlap is free parallel work, and the probe barrier would cost the frame time. The renderer keeps its barriers and its pass order. No code changed, so the brief's pixel comparison, validation run, demo-exit deck trace and test runs do not apply. The meter runs 0.016 to 0.020 ms faster after the haze pass in every trace. Why is not established (one guess, not tested: the haze pass just wrote the HDR image, so the meter's reads find it in the GPU's cache).
 
 Observation for the tools, not done here: tools/gpu-trace.py reports each pass's busy time as the union of its own intervals, so an encoder in flight beside another pass counts in both. A column of each pass's time outside the other passes' intervals would show such an overlap directly.
+
+**2026-10-31T21:34:29Z**
+
+Review fix (builder, 2026-10-31). This note corrects the 'Decision' paragraph of the note above. No new trace ran: a temporary script read the kept exports in /tmp/ter-0y0z/traces again. The window is the wall-clock GPU time from the end of the reflections' last interval to the start of the bloom's first interval after it.
+
+Correction. The note above compared the window with the haze pass's busy time. That busy time also holds a short interval of the haze pass's render encoder, 5.7 ms (above) to 7.5 ms (day) before the window, beside the G-buffer and the ambient light. So the two numbers did not measure the same thing. Paired medians in ms (standard error), for the haze inside the window / the haze's early interval / the window / the idle time inside the window / the window minus the haze inside it:
+- above, as shipped: +0.145 (0.003) / +0.016 (0.0005) / +0.163 (0.005) / +0.040 (0.002) / +0.016 (0.003).
+- above, control: +0.000 (0.0005) / -0.001 / +0.008 (0.003) / +0.004 (0.004) / +0.006 (0.003).
+- day, as shipped: +0.162 (0.005) / +0.018 / +0.173 (0.003) / +0.035 (0.001) / +0.011 (0.001).
+- above, the clear waits (probe): +0.155 (0.007) / +0.018 / +0.185 (0.004) / +0.050 (0.001) / +0.033 (0.001).
+- Other probes, the window minus the haze inside it: haze barrier removed +0.013 (0.002), constant haze color +0.018 (0.002), meter with its own bin per invocation +0.031 (0.001), identity haze -0.024 (0.003).
+So as shipped, the window grows by the haze's work inside it plus about 0.010 ms beyond the control, which is below ter-bgpv's 0.02 ms threshold. Its cause is not established. The clear-waits probe grows the window by 0.033 ms beyond the haze, against 0.016 ms as shipped, so it costs the frame about 0.017 ms (the earlier 0.011 ms against 0.001 ms was wrong, and so was the commit message of 11c641f1). The decision stands, with stronger support: keep the barriers and the pass order.
+
+Timing facts, medians over the hazed frames: the clear starts 0.007 ms after the haze pass's interval inside the window starts (not after the haze pass's first interval). The clear's interval ends 0.0006 ms (above) to 0.0009 ms (day) before the haze pass's interval ends. That the haze's fragments hold the GPU's cores is the likely reason, not a measured one. One fact fits it: in the identity probe, whose fragments are cheap, the clear ends 0.062 ms before the haze pass ends.
+
+Control parity. In every alternating trace, each frame without the haze has an odd index in the frame order, and the control also pairs the odd frames with their even neighbors. So the control measures the same frame slots, and any alternation between the slots is in the control's noise.
+
+The brief's test 'down to the control's noise'. With the probe, the clear's extra time is -0.000 ms, at the control's -0.002 ms. The exposure pass's -0.015 ms is below the control because the meter's speed-up after the haze (0.016 to 0.019 ms) remains. That speed-up is a saving, not an extra cost, and its reason is still not established.
+
+ter-6vhj's size. Its difference, 0.126 - 0.069 = 0.057 ms, is about half of the paired +0.114 ms in day. Two facts can explain the gap. Its runs were not paired, and separate runs drift by about 13 % in every pass. Its haze pass took 0.126 ms, against 0.186 ms now, and the clear's extra time follows the haze's work inside the window (shipped +0.121 for +0.145, day +0.134 for +0.162, constant color +0.075 for +0.089). No measurement splits the gap between the two.
+
+Tool work, filed as tickets under ter-pq5y: ter-9hie (passes.md shows each pass's time alone, and tools/README.md says that the busy time minus the time alone is shared time) and ter-e91p (a paired mode in tools/gpu-trace.py, after ter-9hie). The temporary scripts stay out of the commits, as the brief says.
+
+ARCHITECTURE.md, 'The atmosphere': the table now gives the haze inside the window, the window, and the window minus the haze inside it. The prose states the 0.010 ms residual, the probe's 0.017 ms cost, the clear's start after the haze's fragment work, the core occupancy as the likely reason, the meter and the clear as the reasons why the exposure pass is faster outside the haze, and the two possible reasons for ter-6vhj's smaller size. The new prose spells 'neighbors'.
