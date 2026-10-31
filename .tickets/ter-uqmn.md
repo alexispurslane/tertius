@@ -20,3 +20,7 @@ ter-3dp5 measured the skin and hair epic on demo-exit's deck window (120 frames 
 **2026-10-31T14:22:50Z**
 
 2026-10-31: launched through the workflow MCP (ultracode-ticket-completion, version 88962f00-4bb7-41be-89dd-bb3951a51fd8), run c8b52f8d-5ec7-4fd0-87a4-adc3660b394e, branch ter-uqmn-shading-model-cost from cd8b233c.
+
+**2026-10-31T16:34:07Z**
+
+2026-10-31: the first run (c8b52f8d, old script version 88962f00) isolated the cause (the hair branch inside the light loop, about 0.5 ms of the deck's direct pass) and committed a loop per model (2f881901), then stopped at a fork because the loop per model changes pixels on this Mac (230 pixels of demo-exit by 1 of 255; worst 3 pixels by 7 in one hair-glass frame) through Metal's fast math. The user accepted the pixel change for about 0.5 ms on the direct pass and 0.15 ms on the transparent pass. Continuation run 5a158d46-a326-4677-816b-e019d9f53fd0 (version 3cde7d7d-f5f8-4f91-aee3-b2258cb90dc6) finishes the docs and runs the review and fix stages.
