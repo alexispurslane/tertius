@@ -22,3 +22,9 @@ Design points for the builder to settle by the rules (stop on a fork that change
 
 The lighting pass on demo-exit at 1080p, Release, measured on a quiet machine against main, drops by the share of the lamps whose new reach misses the view; lamp-hall-16 does not get slower. No light pops at the edge of its reach when the exposure changes (a capture series over an exposure change shows it). ARCHITECTURE.md names the rule.
 
+
+## Notes
+
+**2026-10-31T14:22:50Z**
+
+2026-10-31: launched through the workflow MCP (ultracode-ticket-completion, version 88962f00-4bb7-41be-89dd-bb3951a51fd8), run 8885be90-f0e0-442f-aa07-43c94ccb9dcf, branch ter-ox1a-light-reach-exposure from cd8b233c.

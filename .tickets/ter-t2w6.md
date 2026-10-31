@@ -27,3 +27,9 @@ Open points for the builder to measure, not to guess:
 
 The skin-and-hair head capture matches cap-wide/head.png of the experiment. docs/plans/skin-and-hair.md (the reach row near line 61, the profile near lines 579 and 601, the safe-offset row near line 812, the test near line 854) and ARCHITECTURE.md say the width scale and the user's reason. The reference images of skin, if any, are re-approved with the three-image review.
 
+
+## Notes
+
+**2026-10-31T14:22:50Z**
+
+2026-10-31: launched through the workflow MCP (ultracode-ticket-completion, version 88962f00-4bb7-41be-89dd-bb3951a51fd8), run 18ca0692-0168-4304-b5d3-e2dd322a4375, branch ter-t2w6-skin-scatter-wide from cd8b233c. The experiment's diff and captures are in ~/Library/Caches/tertius/ter-t2w6-experiment/.
