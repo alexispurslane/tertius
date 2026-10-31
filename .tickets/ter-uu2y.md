@@ -1,6 +1,6 @@
 ---
 id: ter-uu2y
-status: in_progress
+status: closed
 deps: [ter-6vhj]
 links: []
 created: 2026-10-31T17:37:40Z
