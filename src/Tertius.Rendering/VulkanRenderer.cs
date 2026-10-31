@@ -224,6 +224,9 @@ public sealed unsafe class VulkanRenderer : IRenderer
 
     internal SceneBatcher Batcher { get; }
 
+    /// <summary>The exposure buffer, its readbacks and the steps since the last reading. A test hook.</summary>
+    internal ExposureResources Exposure => exposure;
+
     internal FrameGraph Graph { get; } = new();
 
     internal PreparedScene LastScene { get; } = new();

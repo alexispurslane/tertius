@@ -91,7 +91,7 @@ public sealed class LightReachRenderTests
     [Fact]
     public void AStillAfterACutIntoALampLitRoomSettlesAsAFreshRendererDoes()
     {
-        float fresh = SettledStops(AutoExposure.Default, LampLitSquare);
+        FilmFrame fresh = SettledStill(AutoExposure.Default, LampLitSquare);
         VulkanRenderer renderer = Renderer(AutoExposure.Default);
         try
         {
@@ -103,10 +103,44 @@ public sealed class LightReachRenderTests
                 frames: 4
             );
             // At the tick of the frame before: a camera cut, which the metering draw settles in one endless step. Its
-            // meter must see the lamp's light on the square, which the exposure before the cut cannot show.
+            // meter must see the lamp's light on the square, which the exposure before the cut cannot show, and the shown
+            // draw must light the square at the settled exposure, which the metering draw's reading does not yet give.
             FilmFrame cut = Still(renderer: renderer, snapshot: LampLitSquare(renderer), time: 3 * FrameSeconds);
 
-            cut.Stops.Should().BeApproximately(fresh, 1f / 16);
+            cut.Stops.Should().BeApproximately(fresh.Stops, 1f / 16);
+            cut.Luma.Should().BeApproximately(fresh.Luma, 1f / 64, "the lamp lights the square as in a fresh renderer");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void TheExposureReadingAndTheStepsSinceItStayInStepThroughFramesInFlightCapturesAndCuts()
+    {
+        VulkanRenderer renderer = Gpu.Headless(
+            width: Width,
+            height: Height,
+            framesInFlight: 3,
+            exposure: AutoExposure.Default
+        );
+        try
+        {
+            RenderSnapshot snapshot = DimSunlitSquare(renderer);
+            for (int frame = 0; frame < 8; frame++)
+            {
+                snapshot.Time = frame * FrameSeconds;
+                renderer.Render(snapshot, 1f);
+                renderer.Exposure.AssertInvariants();
+            }
+
+            // A capture collects its own frame, ahead of the slots in flight.
+            Film(renderer: renderer, snapshot: snapshot, start: 8 * FrameSeconds, frameSeconds: FrameSeconds, frames: 2);
+            renderer.Exposure.AssertInvariants();
+            // A cut at the tick of the frame before: a metering draw, then the shown draw.
+            Still(renderer: renderer, snapshot: LampLitSquare(renderer), time: 9 * FrameSeconds);
+            renderer.Exposure.AssertInvariants();
         }
         finally
         {

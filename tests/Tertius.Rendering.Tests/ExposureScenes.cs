@@ -167,12 +167,19 @@ internal static class ExposureScenes
     /// The exposure at which a new renderer under <paramref name="exposure"/> settles on the view that
     /// <paramref name="build"/> makes: its first frame's step is endless, so it reaches its target.
     /// </summary>
-    public static float SettledStops(ExposureSetting exposure, Func<VulkanRenderer, RenderSnapshot> build)
+    public static float SettledStops(ExposureSetting exposure, Func<VulkanRenderer, RenderSnapshot> build) =>
+        SettledStill(exposure: exposure, build: build).Stops;
+
+    /// <summary>
+    /// The first frame of a new renderer under <paramref name="exposure"/> on the view that <paramref name="build"/>
+    /// makes, at the exposure on which it settles (<see cref="SettledStops"/>), and its luma.
+    /// </summary>
+    public static FilmFrame SettledStill(ExposureSetting exposure, Func<VulkanRenderer, RenderSnapshot> build)
     {
         VulkanRenderer renderer = Renderer(exposure);
         try
         {
-            return Still(renderer: renderer, snapshot: build(renderer), time: 0).Stops;
+            return Still(renderer: renderer, snapshot: build(renderer), time: 0);
         }
         finally
         {

@@ -2283,7 +2283,7 @@ Every stops value (`Stops`, `MinStops`, `MaxStops` and `CompensationStops`) is f
 | When | Who | What |
 |---|---|---|
 | The first drawn frame, in the uploads | `RecordSeed` | `vkCmdFillBuffer` writes the first exposure: `FixedExposure.Stops`, or 0 stops clamped into the `AutoExposure` range. A first call whose output skips the frame seeds in the next call that draws. |
-| The start of every drawn frame, before the first pass | `RecordReadback` | Copies the exposure buffer into the readback buffer of the frame's slot, and keeps the step of the frame's adapt step for that slot. |
+| The start of every drawn frame, before the first pass | `RecordReadback` | Copies the exposure buffer into the readback buffer of the frame's slot, and keeps the step of the frame's adapt step under the frame's number. |
 | The G-buffer, direct, ambient and transparent passes | `gbuffer.frag`, `impostor.frag`, `direct.frag`, `ambient.frag`, `transparent.frag` and `puff.vert` | Read `exposureStops`. The ambient pass divides the estimate target's pre-exposed net bounce by the scale. The sectors pass exposes M with `exposed`, which caps it at c. |
 | The exposure pass, under `AutoExposure` | The adapt step | Reads `exposureStops`, the S that the frame used, and writes the S of the next frame. |
 | After each wait on a slot's fence, in `Render`: the wait before the slot records again, and a capture's wait for its own frame | `Collect` | Reads the slot's readback buffer into `ExposureResources.Latest`, which `RenderStats.Exposure` reports. It keeps only a newer frame. |
@@ -2448,21 +2448,32 @@ where
 - `ApproachFactor` = 1 − e^(−step / τ), 0 for a step of 0 and 1 for an endless step.
 - `highest` = S_hi, the highest exposure that the frame uses or that its adapt step writes.
 
-The approach rises with S, so a rise from a higher exposure toward the highest target ends higher, and S_hi is never below the GPU's exposure. Under `FixedExposure`, S_hi is the fixed stops. The bound holds the frame's own adapt step for the meter: its histogram must see the lights that the next exposure can show. A metering draw after a camera cut has an endless step, so its S_hi is `MaxStops`, and it meters as it did before the reach followed the exposure. In a film at 60 Hz with two frames in flight, the bound lies about 0.1 stops above the exposure at 0 stops.
+The approach rises with S, so a rise from a higher exposure toward the highest target ends higher, and S_hi is never below the GPU's exposure. Under `FixedExposure`, S_hi is the fixed stops. The bound holds the frame's own adapt step for the meter: its histogram must see the lights that the next exposure can show. A metering draw after a camera cut has an endless step, so its S_hi is `MaxStops`, and it meters as it did before the reach followed the exposure.
+
+In a film at 60 Hz with two frames in flight, the renderer prepares frame N after it collects the reading of frame N − 2. So the bound holds three steps of 1/60 s, of frames N − 2, N − 1 and N. At 0 stops it lies 10 · (1 − e^(−0.05 / 3)) ≈ 0.17 stops above the exposure. A reach grows as 2^(S / 2), so a light reaches about 6 % farther than the reach of the exposure itself.
+
+`ExposureResources` keeps the steps in a ring of `FramesInFlight` + 1 entries, at the entry of the frame's number modulo the entry count. The ring holds every frame from the reading to the frame that the batcher prepares, so `HighestStops` and `RecordReadback` can run in either order. Its remarks list the invariants of `Latest` and the ring, and `AssertInvariants` checks them on demand.
 
 A light fades to 0 at the edge of its reach through the window (1 − d⁴ / reach⁴)² of `lightIrradiance`, as before. The reach moves continuously with the exposure, so no light pops when the exposure changes. The window takes at most 1.09 · E_cut of a light's irradiance, at 0.9 of its reach, so a white matte surface loses at most about half an 8-bit step of each light. No margin above S_hi is needed for this. A mirror's highlight is brighter than a matte surface by its peak, so a far lamp's highlight on polished metal dims over the last fifth of the reach at every exposure, not only at +10 (docs/plans/local-light-shadows.md, "Known limits").
 
-The cost, measured on 2026-10-31 on the M1 Max at 1920 × 1080 in Release, two runs of each build, alternating base and branch:
+The cost, measured on 2026-10-31 on the M1 Max at 1920 × 1080 in Release, alternating base and branch. The light list is `PreparedScene.LightCount`, which `RenderStats.Lights` reports: the lights that the direct pass loops over at each pixel (`frame.counts.x`). It holds the lights that the main view keeps, `InMainView`, and the lights that only a face of an environment map keeps, which the main view's loop skips by `viewKeeps`. Both counts include the star.
 
-| Run | Load | Lights that the main view keeps | Lighting pass, mean | Frame span, mean |
-|---|---|---|---|---|
-| `demo-exit`, all 3,888 frames, GPU timer | 3 to 15 | 22 → 19.6 | 5.87 and 5.88 → 5.66 and 5.67 ms | 17.06 and 17.07 → 16.88 and 17.01 ms |
-| `demo-exit`'s deck, frames 399 to 518, trace | 25 to 43 | 22 → 14.8 | 7.73 and 6.10 → 5.57 and 5.35 ms | 22.32 and 18.58 → 17.76 and 17.26 ms |
-| `lamp-hall-16`, 301 frames, GPU timer, six runs each | 6 to 13 | 16 → 16 | 2.65 → 2.61 ms | 10.42 → 10.21 ms |
+| Run | Load | Light list | Lights with `InMainView` | Lighting pass, mean | Frame span, mean |
+|---|---|---|---|---|---|
+| `demo-exit`, all 3,888 frames, GPU timer, two runs each | 3 to 15 | 22 → 19.99 | 22 → 19.59 | 5.87 and 5.88 → 5.66 and 5.67 ms | 17.06 and 17.07 → 16.88 and 17.01 ms |
+| `demo-exit`'s deck, frames 399 to 518, trace, two runs each | 2.3 to 6.0 | 22 → 15.12 | 22 → 14.25 | 6.21 and 6.12 → 5.41 and 5.41 ms | 18.40 and 18.19 → 17.31 and 17.30 ms |
+| The same deck frames without a local light, trace, two runs each | 3.2 to 6.0 | 1 → 1 | 1 → 1 | 0.49 and 0.51 → 0.49 and 0.49 ms | 13.25 and 13.34 → 12.73 and 13.46 ms |
+| `lamp-hall-16`, 301 frames, GPU timer, six runs each | 6 to 13 | Every light | Every light | 2.65 → 2.61 ms | 10.42 → 10.21 ms |
 
-The trace's lighting pass is the pass's own GPU time (tools/README.md, "GPU trace"). The first base trace ran under a rising load, and its 95th percentile was 10.3 ms against 6.1 ms in the second. lamp-hall-16 settles at about +5 stops, where every lamp still reaches the whole hall, so it keeps every lamp and costs the same within the spread between runs.
+The trace's lighting pass is the pass's own GPU time (tools/README.md, "GPU trace"). The run without a local light drops every point and spot light where the batcher collects the lights, by a temporary edit of both builds. lamp-hall-16 settles at about +5 stops, where every lamp still reaches the whole hall, so it keeps every lamp and costs the same within the spread between runs.
 
-In demo-exit, the cabin and the deck shots have an exposure near 0 stops, and their main view keeps about 14.7 of the 22 lamps. The other shots have +2 to +4 stops, and keep nearly every lamp. The captures of the tails of demo-exit's nine shots differ from the base's by at most one 8-bit level in 99.99 % of their pixels.
+In demo-exit, the cabin and the deck shots have an exposure near 0 stops. In the deck frames, the light list drops from 22 to 15.12 lights, and 0.87 of the 15.12 are lights that only a face keeps (5.7 % of the list, 2.0 % over the whole run). The other shots have +2 to +4 stops, and keep nearly every lamp. The captures of the tails of demo-exit's nine shots differ from the base's by at most one 8-bit level in 99.99 % of their pixels.
+
+The lighting pass does not drop by the share of the list that the branch drops. Without a local light it takes 0.49 ms on both builds. So the part that the 21 lamps cost drops from 5.67 to 4.92 ms, by 13 %, while the list loses 31 % of its lights. The lamps differ in cost:
+
+- All 21 lamps of the deck are point lamps. The 10 nearest hold the 60 shadow tiles of the atlas on both builds, and each adds its PCF taps where it shines.
+- Every lamp that the branch drops is a lamp without a tile, 68 m or more from the eye.
+- If each lamp without a tile costs the same, each of the 6.88 dropped lamps cost 0.11 ms. The 10 lamps with tiles then cost about 0.45 ms each. This split is an estimate from the sums above, not a separate measurement.
 
 #### Compute pipelines and sets
 
