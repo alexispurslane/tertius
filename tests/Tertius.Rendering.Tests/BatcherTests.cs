@@ -2107,11 +2107,18 @@ public sealed class BatcherTests
         ((int)Marshal.OffsetOf<OcclusionPushConstants>(nameof(OcclusionPushConstants.LastDenoise))).Should().Be(12);
         Unsafe.SizeOf<DrawIndexedIndirectCommand>().Should().Be(20);
         Unsafe.SizeOf<Vertex>().Should().Be(48);
-        Unsafe
-            .SizeOf<GpuVertex>()
+    }
+
+    [Fact]
+    public void GpuVertexIsTheVertexWithItsCardNumberBehindIt()
+    {
+        Unsafe.SizeOf<GpuVertex>().Should().Be(52, "deform.comp writes 13 words per vertex");
+        ((int)Marshal.OffsetOf<GpuVertex>(nameof(GpuVertex.TexCoord)))
             .Should()
-            .Be(52, "mesh.vert reads the card at offset 48, and deform.comp writes 13 words");
-        ((int)Marshal.OffsetOf<GpuVertex>(nameof(GpuVertex.Card))).Should().Be(48);
+            .Be((int)Marshal.OffsetOf<Vertex>(nameof(Vertex.TexCoord)), "the fields of Vertex keep their offsets");
+        ((int)Marshal.OffsetOf<GpuVertex>(nameof(GpuVertex.Card)))
+            .Should()
+            .Be(48, "deform.comp writes the card as word 12");
     }
 
     [Theory]

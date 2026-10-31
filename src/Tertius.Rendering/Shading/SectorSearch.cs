@@ -207,12 +207,7 @@ internal static class SectorSearch
             {
                 int sign = (int)side;
                 (int X, int Y) stepTexel = (X: texel.X + sign * nearest.X, Y: texel.Y + sign * nearest.Y);
-                bool inside =
-                    stepTexel.X >= 0
-                    && stepTexel.Y >= 0
-                    && stepTexel.X < halfSize.Width
-                    && stepTexel.Y < halfSize.Height;
-                if (!inside || texelAt(stepTexel) is not { } read)
+                if (!Inside(stepTexel, halfSize) || texelAt(stepTexel) is not { } read)
                     continue;
                 if (ownSurface.LeavesOut(read))
                     continue;
@@ -241,6 +236,10 @@ internal static class SectorSearch
         }
         return steps;
     }
+
+    /// <summary>Whether <paramref name="texel"/> lies inside a half-resolution image of <paramref name="halfSize"/>.</summary>
+    private static bool Inside((int X, int Y) texel, (int Width, int Height) halfSize) =>
+        texel.X >= 0 && texel.Y >= 0 && texel.X < halfSize.Width && texel.Y < halfSize.Height;
 
     /// <summary>Whether a blocker's geometric normal has a positive cosine with the direction back toward the point that it blocks.</summary>
     public static bool Faces(Double3 geometricNormal, Double3 towardReceiver) =>

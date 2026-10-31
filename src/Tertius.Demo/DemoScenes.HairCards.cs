@@ -164,7 +164,6 @@ public static partial class DemoScenes
         const float length = 2 * HairCardHalfSize;
         const float segmentLength = length / BentCardSegments;
         static Vector3 Along(float angle) => new(0, -MathF.Sin(angle), MathF.Cos(angle));
-        static Vector3 FrontOf(float angle) => new(0, MathF.Cos(angle), MathF.Sin(angle));
 
         var rows = new Vector3[BentCardSegments + 1];
         for (int segment = 0; segment < BentCardSegments; segment++)
@@ -179,7 +178,8 @@ public static partial class DemoScenes
                 vertices[2 * row + side] = new()
                 {
                     Position = rows[row] - middle + new Vector3((2 * side - 1) * HairCardHalfSize, 0, 0),
-                    Normal = FrontOf(normalAngle),
+                    // The front of the segments at that angle: Along turned a quarter toward +Y.
+                    Normal = new(0, MathF.Cos(normalAngle), MathF.Sin(normalAngle)),
                     Tangent = new(x: 1, y: 0, z: 0, w: 1),
                     TexCoord = new(side, (float)row / BentCardSegments),
                 };

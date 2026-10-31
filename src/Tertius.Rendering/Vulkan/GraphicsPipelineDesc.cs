@@ -178,6 +178,7 @@ internal sealed record GraphicsPipelineDesc
         var binding = new VertexInputBindingDescription(0, (uint)Unsafe.SizeOf<GpuVertex>(), VertexInputRate.Vertex);
         VertexInputAttributeDescription* attributes = stackalloc VertexInputAttributeDescription[5];
         PipelineVertexInputStateCreateInfo vertexInput = VertexInputState(binding: &binding, attributes: attributes);
+
         var inputAssembly = new PipelineInputAssemblyStateCreateInfo
         {
             SType = StructureType.PipelineInputAssemblyStateCreateInfo,
@@ -196,6 +197,7 @@ internal sealed record GraphicsPipelineDesc
             RasterizationSamples = SampleCountFlags.Count1Bit,
         };
         PipelineDepthStencilStateCreateInfo depthStencil = DepthStencilState();
+
         PipelineColorBlendAttachmentState* blends =
             stackalloc PipelineColorBlendAttachmentState[Math.Max(ColorAttachments.Length, 1)];
         PipelineColorBlendStateCreateInfo colorBlend = ColorBlendState(blends);
