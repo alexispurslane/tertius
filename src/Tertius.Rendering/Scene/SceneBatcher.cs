@@ -1075,7 +1075,7 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
         spread switch
         {
             Cone cone when camera.Culls(relative, cone, reach) => (MainViewTier.FaceOnly, distance),
-            // Where the axis misses the view, the lamp's strongest light falls outside it, so it ranks in a tier below.
+            // Where the axis, along which the lamp's light is strongest, misses the view, the lamp ranks a tier lower.
             Cone cone => camera.EyeDistanceToAxisInView(relative, cone.Axis, reach) switch
             {
                 { } beam => (MainViewTier.InView, beam),

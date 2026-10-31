@@ -19,3 +19,7 @@ tags: [tests, flaky]
 **2026-10-31T18:30:43Z**
 
 2026-10-31, second occurrence: the Release run of tools/test-all.sh on the ter-ox1a merge (no physics change), at a 5-minute load of about 37, failed with the same text, 'the windows gave 1 and 1 bytes per tick'. The class passed alone in Release a minute later. Both failures give exactly 1 byte per tick in both windows of 200 ticks, so something allocates about 200 to 399 bytes in each window under load, not a one-time cost. Raised to P2: it now fails one full run in two on a busy machine.
+
+**2026-10-31T23:10:06Z**
+
+2026-10-31, third occurrence, the first in Checked: the full Checked run of ter-19fm at 2216ebb3 (no physics change) failed with 'the windows gave 2 and 1 bytes per tick'. The class passed 3 of 3 alone. It is the first window with 2 bytes per tick; the earlier failures gave 1 and 1.

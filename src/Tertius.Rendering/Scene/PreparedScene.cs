@@ -30,7 +30,6 @@ internal struct CameraView
 
     public float VerticalFov;
     public float Aspect;
-
     public int Width;
     public int Height;
 
