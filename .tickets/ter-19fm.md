@@ -1,6 +1,6 @@
 ---
 id: ter-19fm
-status: open
+status: in_progress
 deps: [ter-ox1a]
 links: []
 created: 2026-10-31T17:13:54Z
@@ -20,3 +20,7 @@ Found by ter-ox1a's fixer and the orchestrator (2026-10-31). PreparedLight.InMai
 **2026-10-31T19:02:31Z**
 
 2026-10-31, the user's choice of two designs: B. (1) The cone test: a spot lamp's PreparedLight.InMainView holds only when its cone, cut at its reach, reaches the view frustum (point lights keep the sphere test). (2) The ranking: a spot lamp in the main view ranks for shadows by its irradiance at the point of its axis that is nearest the eye and inside the view frustum: luminance(I) / max(t^2, R^2, NearestDistance^2), with t the distance along the axis from the lamp to that point, and the axis cut at the reach. Point lights keep the eye irradiance. Rejected: A, the eye irradiance for every light, under which a spot lamp that only clips the edge of the view can outrank one that lights the floor ahead. One ticket, two commits: the cone test first, then the ranking.
+
+**2026-10-31T19:03:28Z**
+
+2026-10-31: launched through the workflow MCP (ultracode-ticket-completion, version 869b0b07-3413-4b06-8707-a88a91bf6e91), run e1eaacb5-1045-445f-8b16-712c448dc38d, branch ter-19fm-spot-cone-in-view from eddfe104.
