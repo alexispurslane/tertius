@@ -18,6 +18,9 @@ layout(set = 3, binding = 3) uniform ScatterKernel
     // Tap i of 0 to 2n: rgb its weight per channel, a its offset in m. Tap n is the center, with offset 0
     // (SkinProfile.Kernel).
     vec4 kernel[2 * MaxScatterTapsPerSide + 1];
+    // ScatterKernel.WidthScale: how many times wider than the measured profile the offsets are. The slope rule divides a
+    // tap's offset by it. GpuScatterKernel in Scene/GpuTypes.cs is the C# copy of this block. Change both together.
+    float kernelWidthScale;
 };
 
 const float SlopeLimit = 1.7320508075688772;  // tan 60°, per meter of the measured profile
@@ -59,7 +62,7 @@ vec3 scatterAlong(ivec2 pixel, ivec2 axis, vec3 center)
         if (i != scatterTapsPerSide && imageLoad(diffuseImage, at).a > 0.0)
         {
             // Up to the slope limit the tap keeps its own light, and up to twice the limit it gives way to the center's.
-            float run = abs(tap.a) / skinWidthScale;
+            float run = abs(tap.a) / kernelWidthScale;
             float rise = abs(viewDepthAt(at) - depth) / (run * SlopeLimit);
             light = mix(center, sourceAt(at, axis), clamp(2.0 - rise, 0.0, 1.0));
         }

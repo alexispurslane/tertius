@@ -32,8 +32,8 @@ internal static class SkinScatter
 {
     /// <summary>
     /// tan 60°: the steepest rise of depth per meter of the measured profile across the view at which a tap still counts
-    /// as the center's surface. A tap's offset counts <see cref="SkinProfile.WidthScale"/> times shorter in this rule, so
-    /// the wider scatter crosses no larger depth step than the measured profile does (user, 2026-10-31).
+    /// as the center's surface. A tap's offset counts its kernel's <see cref="ScatterKernel.WidthScale"/> times shorter in
+    /// this rule, so the wider scatter crosses no larger depth step than the measured profile does (user, 2026-10-31).
     /// </summary>
     public const double SlopeLimit = 1.7320508075688772;
 
@@ -48,8 +48,7 @@ internal static class SkinScatter
     /// <summary>
     /// The kernel's sum along <paramref name="axis"/> at the skin pixel (<paramref name="x"/>, <paramref name="y"/>) of
     /// <paramref name="source"/>: D for the rows, the row image for the columns. Each tap reads the one pixel nearest it.
-    /// The kernel gives the taps' offsets and reach, but the slope rule reads every kernel's offsets as
-    /// <see cref="SkinProfile.WidthScale"/> times the measured profile's, as the shader does by its constant skinWidthScale.
+    /// The kernel gives the taps' offsets, their reach and the unit of the offsets in the slope rule, its width scale.
     /// </summary>
     public static Double3 Pass(
         ScatterField field,
@@ -84,7 +83,7 @@ internal static class SkinScatter
             if (i != middle && field.Skin[at])
             {
                 // Up to the slope limit the tap keeps its own light, and up to twice the limit it gives way to the center's.
-                double run = Math.Abs(tap.Offset) / SkinProfile.WidthScale;
+                double run = Math.Abs(tap.Offset) / kernel.WidthScale;
                 double rise = Math.Abs(field.ViewDepth[at] - depth) / (run * SlopeLimit);
                 light = Double3.Lerp(centerLight, source[at], Math.Clamp(2 - rise, 0, 1));
             }

@@ -332,15 +332,19 @@ public sealed class SkinScatterRenderTests
     }
 
     /// <summary>The default kernel as the GPU holds it: singles.</summary>
-    private static ScatterKernel KernelAsTheGpuHoldsIt() =>
-        new([
-            .. SkinProfile
-                .Human.Kernel(SeparableSubsurface.Default.TapsPerSide)
-                .Taps.Select(tap => new ScatterTap(
+    private static ScatterKernel KernelAsTheGpuHoldsIt()
+    {
+        ScatterKernel kernel = SkinProfile.Human.Kernel(SeparableSubsurface.Default.TapsPerSide);
+        return new(
+            [
+                .. kernel.Taps.Select(tap => new ScatterTap(
                     Offset: (float)tap.Offset,
                     Weight: new((float)tap.Weight.X, (float)tap.Weight.Y, (float)tap.Weight.Z)
                 )),
-        ]);
+            ],
+            WidthScale: (float)kernel.WidthScale
+        );
+    }
 
     /// <summary>The row image of the C# copy at each skin pixel, rounded to half floats as the GPU stores it.</summary>
     private static Double3[] RowsOf(ScatterField field, ScatterKernel kernel)

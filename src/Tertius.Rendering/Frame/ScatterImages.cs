@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Silk.NET.Vulkan;
 
@@ -21,8 +22,8 @@ internal sealed unsafe class ScatterImages : IDisposable
     private readonly DeviceAllocator allocator;
     private readonly DescriptorLayouts layouts;
 
-    // The kernel's 2n + 1 taps as the buffer holds them, computed in doubles when the images are made.
-    private readonly Vector4[] kernelTaps;
+    // The kernel buffer's contents, computed in doubles when the images are made.
+    private readonly GpuScatterKernel kernelBlock;
 
     // False from the creation until the first frame's uploads copy the kernel into its buffer, then true.
     private bool kernelUploaded;
@@ -42,11 +43,11 @@ internal sealed unsafe class ScatterImages : IDisposable
         this.allocator = allocator;
         this.layouts = layouts;
         Setting = setting;
-        kernelTaps = TapsOf(SkinProfile.Human.Kernel(setting.TapsPerSide));
+        kernelBlock = BlockOf(SkinProfile.Human.Kernel(setting.TapsPerSide));
         Kernel = GpuBuffer.Create(
             device: device,
             allocator: allocator,
-            size: (ulong)(KernelTaps * sizeof(Vector4)),
+            size: (ulong)Unsafe.SizeOf<GpuScatterKernel>(),
             usage: BufferUsageFlags.UniformBufferBit | BufferUsageFlags.TransferDstBit,
             memoryUsage: MemoryUsage.GpuOnly,
             name: "scatter kernel"
@@ -62,7 +63,7 @@ internal sealed unsafe class ScatterImages : IDisposable
     /// <summary>The diffuse image after the pass along the rows: 0 at every pixel that is not skin.</summary>
     public GpuImage Rows { get; private set; }
 
-    /// <summary>The kernel's 2n + 1 taps as vec4, rgb the weights and a the offset in m, then zeros to <see cref="KernelTaps"/>.</summary>
+    /// <summary>The kernel's uniform block, a <see cref="GpuScatterKernel"/>.</summary>
     public GpuBuffer Kernel { get; }
 
     /// <summary>Set 3 of <see cref="DescriptorLayouts.ScatterLayout"/>, with the targets' HDR image.</summary>
@@ -85,9 +86,7 @@ internal sealed unsafe class ScatterImages : IDisposable
         if (kernelUploaded)
             return;
         StagingSlice stage = staging.Allocate(Kernel.Size);
-        Span<Vector4> taps = MemoryMarshal.Cast<byte, Vector4>(stage.Bytes);
-        taps.Clear();
-        kernelTaps.CopyTo(taps);
+        MemoryMarshal.Write(stage.Bytes, in kernelBlock);
 
         barriers.Buffer(Kernel, BufferUse.TransferDestination);
         barriers.Flush(device.Vk, commandBuffer);
@@ -102,16 +101,22 @@ internal sealed unsafe class ScatterImages : IDisposable
         kernelUploaded = true;
     }
 
-    /// <summary>The taps of <paramref name="kernel"/> as <c>vec4</c>: rgb the weights and a the offset in m.</summary>
-    private static Vector4[] TapsOf(ScatterKernel kernel) =>
-        [
-            .. kernel.Taps.Select(tap => new Vector4(
+    /// <summary><paramref name="kernel"/> as the GPU holds it, with zeros in the tap slots past its taps.</summary>
+    private static GpuScatterKernel BlockOf(ScatterKernel kernel)
+    {
+        var block = new GpuScatterKernel { WidthScale = (float)kernel.WidthScale };
+        for (int i = 0; i < kernel.Taps.Length; i++)
+        {
+            ScatterTap tap = kernel.Taps[i];
+            block.Taps[i] = new(
                 x: (float)tap.Weight.X,
                 y: (float)tap.Weight.Y,
                 z: (float)tap.Weight.Z,
                 w: (float)tap.Offset
-            )),
-        ];
+            );
+        }
+        return block;
+    }
 
     [MemberNotNull(nameof(Rows))]
     private void Create(RenderTargets targets)

@@ -59,14 +59,18 @@ public sealed class SkinScatterTests
         );
 
     /// <summary>
-    /// A kernel of three taps: half the light at the center and a quarter at <paramref name="offset"/> meters on each side.
+    /// A kernel of three taps: half the light at the center and a quarter at <paramref name="offset"/> meters on each side,
+    /// <paramref name="widthScale"/> times wider than the measured profile.
     /// </summary>
-    private static ScatterKernel ThreeTaps(double offset) =>
-        new([
-            new ScatterTap(Offset: -offset, Weight: new(0.25, 0.25, 0.25)),
-            new ScatterTap(Offset: 0, Weight: new(0.5, 0.5, 0.5)),
-            new ScatterTap(Offset: offset, Weight: new(0.25, 0.25, 0.25)),
-        ]);
+    private static ScatterKernel ThreeTaps(double offset, double widthScale = SkinProfile.WidthScale) =>
+        new(
+            [
+                new ScatterTap(Offset: -offset, Weight: new(0.25, 0.25, 0.25)),
+                new ScatterTap(Offset: 0, Weight: new(0.5, 0.5, 0.5)),
+                new ScatterTap(Offset: offset, Weight: new(0.25, 0.25, 0.25)),
+            ],
+            widthScale
+        );
 
     /// <summary>The meters across the view that <paramref name="pixels"/> pixels cover at a view depth of 1 m.</summary>
     private static double Meters(double pixels) => pixels / PixelsPerMeterAtOneMeter;
@@ -166,7 +170,8 @@ public sealed class SkinScatterTests
     {
         // Past pixel 50 the skin is in shadow and turns away, its depth rising 0.4 times tan 60° per meter of the measured
         // profile across. A tap reads the pixel nearest its offset, up to twice as far: still within the limit.
-        const double slope = 0.4 * SkinScatter.SlopeLimit / SkinProfile.WidthScale;
+        ScatterKernel kernel = SkinProfile.Human.Kernel(8);
+        double slope = 0.4 * SkinScatter.SlopeLimit / kernel.WidthScale;
         static Double3 light(int x) => x <= 50 ? Skin : Double3.Zero;
         ScatterField sloped = Row(
             width: 101,
@@ -175,7 +180,6 @@ public sealed class SkinScatterTests
             viewDepth: x => x <= 50 ? 1 : 1 + slope * (x - 50) / PixelsPerMeterAtOneMeter
         );
         ScatterField flat = Row(width: 101, light: light, skin: _ => true, viewDepth: _ => 1);
-        ScatterKernel kernel = SkinProfile.Human.Kernel(8);
 
         Double3 scattered = AlongTheRow(sloped, x: 50, kernel: kernel);
 
@@ -186,6 +190,33 @@ public sealed class SkinScatterTests
             because: "a slope below the limit is the center's own surface"
         );
         scattered.X.Should().BeLessThan(Skin.X, "the lit pixel loses light into the shadow beside it");
+    }
+
+    [Fact]
+    public void TheHumanKernelCountsItsOffsetsInTheSkinsOwnWidth()
+    {
+        // Past pixel 50 the skin is in shadow and turns away, its depth rising 1.5 times tan 60° per meter of the measured
+        // profile across, read in the skin's width: past the slope limit. Read in the measured profile's own width, the
+        // same rise is 4 times flatter and within the limit, so the taps past the edge would keep their shadow.
+        ScatterKernel kernel = SkinProfile.Human.Kernel(8);
+        double slope = 1.5 * SkinScatter.SlopeLimit / SkinProfile.WidthScale;
+        static Double3 light(int x) => x <= 50 ? Skin : Double3.Zero;
+        ScatterField sloped = Row(
+            width: 101,
+            light: light,
+            skin: _ => true,
+            viewDepth: x => x <= 50 ? 1 : 1 + slope * (x - 50) / PixelsPerMeterAtOneMeter
+        );
+        ScatterField flat = Row(width: 101, light: light, skin: _ => true, viewDepth: _ => 1);
+
+        Double3 scattered = AlongTheRow(sloped, x: 50, kernel: kernel);
+
+        scattered
+            .X.Should()
+            .BeGreaterThan(
+                AlongTheRow(flat, x: 50, kernel: kernel).X + 1e-6,
+                "the taps past the edge give way to the lit center instead of bringing their shadow"
+            );
     }
 
     [Fact]
@@ -215,14 +246,15 @@ public sealed class SkinScatterTests
     {
         // The tap at +8 mm lands on a pixel whose depth rises 0.9 times tan 60° of the tap's offset in the measured profile.
         double offset = Meters(8);
+        ScatterKernel kernel = ThreeTaps(offset);
         ScatterField field = Row(
             width: 101,
             light: x => x == 58 ? Double3.Zero : Skin,
             skin: _ => true,
-            viewDepth: x => x == 58 ? 1 + 0.9 * SkinScatter.SlopeLimit * offset / SkinProfile.WidthScale : 1
+            viewDepth: x => x == 58 ? 1 + 0.9 * SkinScatter.SlopeLimit * offset / kernel.WidthScale : 1
         );
 
-        Double3 scattered = AlongTheRow(field, x: 50, kernel: ThreeTaps(offset));
+        Double3 scattered = AlongTheRow(field, x: 50, kernel: kernel);
 
         ShouldBeNear(
             actual: scattered,
@@ -233,19 +265,43 @@ public sealed class SkinScatterTests
     }
 
     [Fact]
+    public void AKernelAtTheMeasuredWidthJudgesADepthStepByItsWholeOffset()
+    {
+        // The tap at +8 mm of a kernel at the measured profile's own width lands on a pixel whose depth rises 0.9 times
+        // tan 60° of the whole 8 mm: past the slope limit of the skin's width scale, within the limit of the kernel's.
+        double offset = Meters(8);
+        ScatterField field = Row(
+            width: 101,
+            light: x => x == 58 ? Double3.Zero : Skin,
+            skin: _ => true,
+            viewDepth: x => x == 58 ? 1 + 0.9 * SkinScatter.SlopeLimit * offset : 1
+        );
+
+        Double3 scattered = AlongTheRow(field, x: 50, kernel: ThreeTaps(offset, widthScale: 1));
+
+        ShouldBeNear(
+            actual: scattered,
+            expected: 0.75 * Skin,
+            tolerance: 1e-14,
+            because: "the kernel that the pass runs, not the skin's profile, gives the unit of its offsets"
+        );
+    }
+
+    [Fact]
     public void ATapBetweenOneAndTwoSlopeLimitsMixesItsLightWithTheCenters()
     {
         // The tap at +16 pixels lands on pixel 66. Its depth rises 1.5 times the slope limit's rise across its offset in
         // the measured profile.
         double offset = Meters(16);
+        ScatterKernel kernel = ThreeTaps(offset);
         ScatterField field = Row(
             width: 101,
             light: x => x == 66 ? Double3.Zero : new Double3(1, 1, 1),
             skin: _ => true,
-            viewDepth: x => x == 66 ? 1 + 1.5 * SkinScatter.SlopeLimit * offset / SkinProfile.WidthScale : 1
+            viewDepth: x => x == 66 ? 1 + 1.5 * SkinScatter.SlopeLimit * offset / kernel.WidthScale : 1
         );
 
-        Double3 scattered = AlongTheRow(field, x: 50, kernel: ThreeTaps(offset));
+        Double3 scattered = AlongTheRow(field, x: 50, kernel: kernel);
 
         ShouldBeNear(
             actual: scattered,

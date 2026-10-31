@@ -642,7 +642,7 @@ x_i = sign(i) · Reach · (i / n)²                          i = −n … n,  Re
 w_{i,c} = ∫ from b_i to b_{i+1} of P_c(x) dx              b_i = (x_{i−1} + x_i) / 2,  b_{−n} = −∞,  b_{n+1} = +∞
 ```
 
-The taps crowd toward the center, where the profile is steep. The widest Gaussian has σ = 4 · 2.72 mm = 10.9 mm, so the reach is three of its widths at every width scale, and the outermost taps hold the tails beyond them. The center tap holds the narrowest Gaussians, which at n = 8 lie within its interval of ±0.25 mm. Each channel's weights sum to exactly 1. `SkinProfile` integrates each interval in doubles, by the error function. The renderer uploads the kernel with the first frame as 2n + 1 `vec4`: rgb the weights, a the offset in meters.
+The taps crowd toward the center, where the profile is steep. The widest Gaussian has σ = 4 · 2.72 mm = 10.9 mm, so the reach is three of its widths at every width scale, and the outermost taps hold the tails beyond them. The center tap holds the narrowest Gaussians, which at n = 8 lie within its interval of ±0.25 mm. Each channel's weights sum to exactly 1. `SkinProfile` integrates each interval in doubles, by the error function. The kernel also carries the unit of its offsets for the slope rule, its width scale (`ScatterKernel.WidthScale`), which `SkinProfile.Kernel` sets to `SkinProfile.WidthScale`. The renderer uploads the kernel with the first frame as 2n + 1 `vec4`, rgb the weights and a the offset in meters, and the width scale after them.
 
 ### The diffuse light D
 
@@ -694,7 +694,7 @@ vec3 scatterAlong(ivec2 pixel, ivec2 axis, vec3 center)
         vec3 light = center;
         if (i != scatterTapsPerSide && imageLoad(scatterImage, at).a > 0.0)
         {
-            float run = abs(tap.a) / skinWidthScale;
+            float run = abs(tap.a) / kernelWidthScale;
             float rise = abs(viewDepthAt(at) - depth) / (run * SlopeLimit);
             light = mix(center, sourceAt(at), clamp(2.0 - rise, 0.0, 1.0));
         }
@@ -708,11 +708,11 @@ where
 
 - `viewDepthAt(p)` = z at pixel p, from the distance target and the view ray.
 - `frame.viewport.y` = H. `length(frame.cameraUp.xyz)` = tan(φ_y / 2). So `pixelsPerMeter` = s(z).
-- `kernel[i]` = tap i of the kernel buffer, a uniform buffer of 2 · 16 + 1 = 33 `vec4`, zeros after the last tap: rgb its weights, a its offset x_i in meters. Tap n, `scatterTapsPerSide`, is the center, with offset 0. A uniform buffer takes no storage-buffer slot of the compute stage, and 528 bytes fit any device's uniform-buffer range.
+- `kernel[i]` = tap i of the array of 2 · 16 + 1 = 33 `vec4` at the start of the kernel buffer, zeros after the last tap: rgb its weights, a its offset x_i in meters. Tap n, `scatterTapsPerSide`, is the center, with offset 0. The kernel buffer is a uniform buffer that holds `GpuScatterKernel`, the C# copy of the block. A uniform buffer takes no storage-buffer slot of the compute stage, and the buffer's 532 bytes fit any device's uniform-buffer range.
 - `MaxSide` = 16,384, the largest image side.
 - `imageLoad(scatterImage, at).a` = 1 at a skin pixel, 0 elsewhere: the mask.
-- `skinWidthScale` = the width scale, a specialization constant that `ShaderConstants` sets from `SkinProfile.WidthScale` for every pipeline.
-- `run` = the tap's offset in the measured profile, in meters: its offset over the width scale (decision 34).
+- `kernelWidthScale` = the kernel's width scale (`ScatterKernel.WidthScale`), the float after the 33 `vec4` in the same uniform block. The kernel that gives the offsets also gives their unit, so a kernel of another width never meets the slope rule of the skin's.
+- `run` = the tap's offset in the measured profile, in meters: its offset over the kernel's width scale (decision 34).
 - `rise` = the tap's depth step over the depth step of the slope limit across `run`. Up to 1 the tap keeps its own light, and from 1 to 2 it gives way to the center's.
 - `sourceAt(at)` = the source image at the tap.
 
@@ -911,6 +911,7 @@ The existing GPU tests of glass, puffs and the transparent pass pass unchanged i
 - `ATapAcrossTheNosesDepthStepGivesWayToTheCenter`: a tap at 8 mm across a step of 11 mm, the step at the edge of the test head's nose. The width scale widens the scatter, not the depth step that a tap may cross.
 - `ATapWithinTheSlopeLimitOfItsMeasuredOffsetKeepsItsOwnLight`: a step of 0.9 times the slope limit's step across the tap's offset over the width scale.
 - `ATapBetweenOneAndTwoSlopeLimitsMixesItsLightWithTheCenters`
+- `AKernelAtTheMeasuredWidthJudgesADepthStepByItsWholeOffset`: the slope rule takes the unit of the offsets from the kernel that the pass runs, `ScatterKernel.WidthScale`, not from `SkinProfile.WidthScale` (`ter-o0a6`).
 - `AKernelBelowHalfAPixelLeavesThePixelAsItWas`
 - `TheKernelsOwnOutermostTapDecidesWhetherItReachesPastThePixel`: the pass takes the reach from the kernel that it runs, `ScatterKernel.Reach`, so the shader keeps no copy of `SkinProfile.Reach`.
 - `TwiceTheDepthHalvesThePixelsOfTheKernel`
@@ -1049,14 +1050,14 @@ At 1920 × 1080, 2,073,600 pixels:
 |---|---|---|
 | The shading target, always | 4 B × 2,073,600 | 8.3 MB |
 | The scatter image and the row image, under `SeparableSubsurface` | 2 × 8 B × 2,073,600 | 33.2 MB |
-| The kernel buffer | 33 × 16 B, room for 16 taps per side | 528 B |
+| The kernel buffer | 33 × 16 B, room for 16 taps per side, and 4 B for the width scale | 532 B |
 | `GpuMaterial` | Unchanged: the new fields take its padding | 0 |
 | `PreparedInstance.Alpha`, on the CPU | 8 B × 20,000 instances | 160 KB |
 | The card number, `ter-3yy5` | 4 B per static vertex and per region vertex, 16 B per deform vertex | 0.08 MB for a mesh of 20,000 vertices; if it deforms, 0.32 MB more once and 0.08 MB per deformed instance |
 
 At 3840 × 2160 the images take four times as much: 33.2 MB and 132.7 MB.
 
-The memory is the arithmetic of the formats as built: the shading target is R8G8B8A8_UINT, the scatter image and the row image R16G16B16A16_SFLOAT, and the kernel buffer 33 `vec4`. `GpuMaterial` keeps its stride of 64 bytes, with 60 bytes of fields.
+The memory is the arithmetic of the formats as built: the shading target is R8G8B8A8_UINT, the scatter image and the row image R16G16B16A16_SFLOAT, and the kernel buffer `GpuScatterKernel`, 33 `vec4` and a float. `GpuMaterial` keeps its stride of 64 bytes, with 60 bytes of fields.
 
 ### GPU time, measured
 
@@ -1276,7 +1277,7 @@ Parts 3, 4 and 5 run one after another because they share the shaders of the opa
       public ScatterKernel Kernel(int tapsPerSide);
   }
   internal readonly record struct ScatterTap(double Offset, Double3 Weight);                 // offset in m
-  internal sealed record ScatterKernel(ImmutableArray<ScatterTap> Taps) { public double Reach { get; } }   // the outermost offset
+  internal sealed record ScatterKernel(ImmutableArray<ScatterTap> Taps, double WidthScale) { public double Reach { get; } }   // the outermost offset
 
   internal enum ScatterAxis { Rows, Columns }
   internal sealed record ScatterField(int Width, int Height, Double3[] Light, bool[] Skin, double[] ViewDepth, double TanHalfY);
