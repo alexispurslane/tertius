@@ -41,7 +41,7 @@ public sealed class ShaderConstantsTests
         },
     };
 
-    public static TheoryData<string> Shaders => new(DeclaredByShader.Keys);
+    public static TheoryData<string> Shaders => [with(DeclaredByShader.Keys)];
 
     [Theory]
     [MemberData(nameof(Shaders))]
@@ -81,8 +81,12 @@ public sealed class ShaderConstantsTests
     /// <summary>The specialization constants that <paramref name="spirv"/> declares, by their SpecId decoration.</summary>
     private static Dictionary<uint, Declared> SpecializationConstants(byte[] spirv)
     {
-        const ushort OpTypeBool = 20, OpTypeInt = 21, OpSpecConstantTrue = 48, OpSpecConstantFalse = 49;
-        const ushort OpSpecConstant = 50, OpDecorate = 71;
+        const ushort OpTypeBool = 20,
+            OpTypeInt = 21,
+            OpSpecConstantTrue = 48,
+            OpSpecConstantFalse = 49;
+        const ushort OpSpecConstant = 50,
+            OpDecorate = 71;
         const uint SpecId = 1;
 
         ReadOnlySpan<uint> words = MemoryMarshal.Cast<byte, uint>(spirv);
