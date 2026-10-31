@@ -137,6 +137,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             Allocator = Own(new DeviceAllocator(device));
             releases = Own(new DeferredReleases());
             ShaderLibrary shaders = Own(new ShaderLibrary(device, ShaderLibrary.EngineShaders));
+
             int glowLevels = GlowLevelsOf(options.Bloom);
             layouts = Own(
                 new DescriptorLayouts(device: device, framesInFlight: options.FramesInFlight, glowLevels: glowLevels)
@@ -147,6 +148,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             textures = Own(new TextureStore(device, Allocator));
             materials = Own(new MaterialStore(device, Allocator));
             BrdfTableImages = Own(new BrdfTableImages(device, Allocator));
+
             uploads = new(
                 maxTextureSize: (int)device.Properties.Limits.MaxImageDimension2D,
                 deformBytesLimit: device.Properties.Limits.MaxStorageBufferRange
@@ -158,6 +160,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 subsurface: options.Subsurface,
                 screenSpaceLight: options.ScreenSpaceLight
             );
+
             // Before every pass, whose shading constants say whether the scatter is on.
             ScatterImages = CreateScatterImages(options.Subsurface);
             exposure = CreateExposure(options);
@@ -634,6 +637,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
         // Before the frame graph, whose ambient pass reads the target, and whose occlusion passes overwrite it.
         targets.RecordEstimateClear(vk: device.Vk, commandBuffer: commandBuffer, barriers: barriers);
         frame.UpdateSharedDescriptors(materials: materials, textures: textures, geometry: geometry, deforms: deforms);
+
         Batcher.Prepare(
             snapshot: snapshot,
             alpha: alpha,
@@ -656,6 +660,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
         );
         Graph.Prepare(context);
         frame.Write(LastScene);
+
         // Before every pass, so the reading is the exposure that all of this frame's passes use.
         exposure.RecordReadback(
             commandBuffer: commandBuffer,
