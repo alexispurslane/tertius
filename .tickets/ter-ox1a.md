@@ -32,3 +32,7 @@ The lighting pass on demo-exit at 1080p, Release, measured on a quiet machine ag
 **2026-10-31T16:12:09Z**
 
 2026-10-31: the first run (8885be90, old script version 88962f00) built the ticket (HEAD 858c84f9, both suites passed) but ended with output_schema. Continuation run 43735db1-af68-4151-a76d-9d28243e9162 (version 3cde7d7d-f5f8-4f91-aee3-b2258cb90dc6) verifies the work and runs the review and fix stages on the same worktree and branch.
+
+**2026-10-31T16:26:44Z**
+
+2026-10-31: continuation run 43735db1 verified the work (no change) and its review stopped at fulfillment 'unverified': the demo-exit speed-up is about a third of the share of lamps cut, unexplained, and the lamp counts do not say whether they count map-only lights. Findings: the cut test checks only the exposure (medium), the acceptance gap (medium), the step store keyed by slot (low), 0.1 stops should be about 0.17 (low). Continuation run 95b02844-94b8-44ad-8baa-ed857f22e36d (version 3cde7d7d-f5f8-4f91-aee3-b2258cb90dc6) fixes them, measures the pass's fixed cost and the two light counts, adds the invariant check, and checks the shadow tile rank.
