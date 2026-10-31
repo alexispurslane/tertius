@@ -724,11 +724,15 @@ public sealed class HairRenderTests
     /// bias, at most 1.5 · 0.39 = 0.58: 2.4 in all. With the floor, a tap's reference rises above the plane by 3.2
     /// texels per texel of dot(û, offset), so the 4 taps with dot(û, offset) of 0.93 to 2.1 pass over the caster: the
     /// card takes about a quarter of the sun, 12 times the tolerance. With the cosine 0.93, it shows 0.
+    /// The most uphill tap passes over the caster when its floored term less the plane's true rise, 7.6 − 0.81, less
+    /// the footprint, 0.54, plus the constant bias, 0.5, is above the gap: 6.7 against 3. Both premises keep half a
+    /// texel spare, four times the depth step of the 16-bit fallback map.
     /// </remarks>
     [Fact]
     public void AHairCardLitFromBehindKeepsTheShadowOfACasterCloseBehindIt()
     {
-        const float GapTexels = 3;
+        const float GapTexels = 3,
+            SpareTexels = 0.5f;
         var toSun = Vector3.Normalize(new(0.2f, 0.3f, -0.93f));
         var towardSun = -Vector3.UnitZ;
         float cosine = Vector3.Dot(towardSun, toSun),
@@ -739,10 +743,13 @@ public sealed class HairRenderTests
             1.5f * across / MathF.Max(receiverCosine, ShadowPass.MinimumReceiverCosine);
         float trueNeed =
             Reach(cosine) + across / cosine + ShadowPass.ConstantBiasTexels + ShadowPass.SlopeBias * sine / cosine;
-        trueNeed.Should().BeLessThan(GapTexels - 0.5f, "every tap sees the caster with the cosine turned to the sun");
-        Reach(-cosine)
+        float flooredRise = Reach(-cosine) - Reach(cosine) - across / cosine + ShadowPass.ConstantBiasTexels;
+        trueNeed
             .Should()
-            .BeGreaterThan(GapTexels + 4, "the floored cosine lifts the uphill taps over the caster");
+            .BeLessThan(GapTexels - SpareTexels, "every tap sees the caster with the cosine turned to the sun");
+        flooredRise
+            .Should()
+            .BeGreaterThan(GapTexels + SpareTexels, "the floored cosine lifts the most uphill tap over the caster");
         CardCenter.Z.Should().BeGreaterThan(-ShadowCascades.BlendStart(0), "the card lies in the first cascade alone");
 
         VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
@@ -750,7 +757,8 @@ public sealed class HairRenderTests
         {
             MeshId plane = renderer.CreateMesh(Primitives.Plane(1));
             RenderSnapshot snapshot = SunOnly(toSun);
-            float gap = FirstCascadeTexel() * (GapTexels * cosine + ShadowPass.NormalOffsetTexels * sine);
+            float texel = FirstCascadeTexel();
+            float gap = texel * (GapTexels * cosine + ShadowPass.NormalOffsetTexels * sine);
             RenderInstance caster = Card(
                 plane: plane,
                 material: Standard(renderer),
@@ -763,6 +771,8 @@ public sealed class HairRenderTests
             RenderInstance card = Card(plane: plane, material: Hair(renderer), rotation: FacingTheCamera);
 
             Vector3 shown = At(Rendered(renderer, snapshot, card, caster), Ahead);
+            float rendererTexel = renderer.LastScene.CascadeSets[0][0].TexelSize;
+            rendererTexel.Should().BeApproximately(texel, 1e-5f * texel, "the gap is in the renderer's texels");
             Vector3 lit = FiberLight(
                 fiber: StoredAt(renderer, Ahead),
                 hair: BrownHair,
@@ -771,9 +781,8 @@ public sealed class HairRenderTests
             );
 
             lit.X.Should().BeGreaterThan(0.05f, "the sun lights the card from behind where nothing stands in its way");
-            LargestChannelDifference(shown, Vector3.Zero)
-                .Should()
-                .BeLessThanOrEqualTo(0.02f * lit.X, "the caster's shadow covers the card: shown {0}", shown);
+            float leak = LargestChannelDifference(shown, Vector3.Zero);
+            leak.Should().BeLessThanOrEqualTo(0.02f * lit.X, "the caster's shadow covers the card: shown {0}", shown);
         }
         finally
         {
