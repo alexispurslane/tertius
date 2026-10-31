@@ -539,10 +539,11 @@ public sealed unsafe class VulkanRenderer : IRenderer
         // Reset only now: if anything above threw, the fence stays signaled and the next frame does not hang.
         device.Vk.ResetFences(device.Device, 1, &fence).Check("vkResetFences");
         output.SubmitAndPresent(frame);
-        // Only now, so that a frame that threw above leaves the maps' drawn chain, the slot's readback and the tiles'
-        // records as they were.
+        // Only now, so that a frame that threw above leaves the maps' drawn chain, the slot's readback, the tiles' records
+        // and the exposure's steps as they were.
         environmentMap?.Drew(served: Served(snapshot), slot: frame.Index);
         localShadows?.Tiles.Drew();
+        exposure.Drew(frame: frameNumber, step: exposureStep);
         frame.Number = frameNumber;
         frameNumber++;
 
@@ -664,13 +665,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
         frame.Write(LastScene);
 
         // Before every pass, so the reading is the exposure that all of this frame's passes use.
-        exposure.RecordReadback(
-            commandBuffer: commandBuffer,
-            barriers: barriers,
-            slot: frame.Index,
-            frame: frameNumber,
-            step: exposureStep
-        );
+        exposure.RecordReadback(commandBuffer: commandBuffer, barriers: barriers, slot: frame.Index);
         Graph.Record(context);
         output.FinishRecording(barriers, commandBuffer);
         device.Vk.EndCommandBuffer(commandBuffer).Check("vkEndCommandBuffer");
@@ -787,11 +782,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             targets.Smaa?.Tables.Upload(commandBuffer: commandBuffer, staging: frame.Staging, barriers: barriers);
             // Frame 0 is the first drawn frame, because the frame number counts submitted frames.
             if (frameNumber == 0)
-                exposure.RecordSeed(
-                    commandBuffer: commandBuffer,
-                    barriers: barriers,
-                    stops: exposureSetting.InitialStops
-                );
+                exposure.RecordSeed(commandBuffer: commandBuffer, barriers: barriers);
             device.EndLabel(commandBuffer);
         }
     }

@@ -33,13 +33,14 @@ public sealed class LightReachRenderTests
 
     /// <summary>
     /// A matte white square that fills the view <see cref="Ahead"/>, lit by the Sun behind the camera, which wants about
-    /// −11 stops, with a household bulb 50 m behind the camera, whose reach is about 730 m at +10 stops.
+    /// −11 stops, with a household bulb 10 m behind the camera. The bulb's reach is about 23 m at the seed's 0 stops, so
+    /// its sphere holds the eye, and about 0.6 m at the settled exposure's bound of −10.65 stops.
     /// </summary>
     private static RenderSnapshot SunlitSquareWithABulbBehind(VulkanRenderer renderer)
     {
         RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitZ, starIrradiance: SolarConstant);
         AddGraySquare(renderer, snapshot);
-        snapshot.Lights.Add(Bulb(new(0, 0, 50)));
+        snapshot.Lights.Add(Bulb(new(0, 0, 10)));
         return snapshot;
     }
 

@@ -12,13 +12,13 @@ namespace Tertius.Rendering;
 /// <item>The exposure buffer holds the seed, or what the last adapt step wrote. The CPU never maps it.</item>
 /// <item>The histogram holds the counts of the last metered frame.</item>
 /// <item>A slot's readback buffer holds the exposure that the slot's last drawn frame used, once its fence signals.</item>
-/// <item>The steps hold the step of the adapt step of each of the last FramesInFlight + 1 recorded frames.</item>
+/// <item>The steps hold the step of the adapt step of each of the last FramesInFlight + 1 drawn frames.</item>
 /// </list>
 /// Invariants of <see cref="Latest"/> and the steps, checked by <see cref="AssertInvariants"/>:
 /// <list type="bullet">
 /// <item>An entry of the steps holds no frame, or a frame whose number modulo the entry count is the entry's index.</item>
-/// <item><see cref="Latest"/> is of a recorded frame, no newer than the newest recorded frame.</item>
-/// <item>Every frame from <see cref="Latest"/>'s, or frame 0 before a reading, to the newest recorded frame holds its entry.</item>
+/// <item><see cref="Latest"/> is of a drawn frame, no newer than the newest drawn frame.</item>
+/// <item>Every frame from <see cref="Latest"/>'s, or frame 0 before a reading, to the newest drawn frame holds its entry.</item>
 /// </list>
 /// </remarks>
 internal sealed unsafe class ExposureResources : IDisposable
@@ -33,9 +33,9 @@ internal sealed unsafe class ExposureResources : IDisposable
     private readonly ExposureSetting setting;
     private readonly GpuBuffer[] readbacks;
 
-    // The step in s by which a recorded frame's adapt step moves the exposure, at the entry of its number modulo the
-    // entry count. Frame N is prepared after the slot of frame N − FramesInFlight finished, so FramesInFlight + 1 entries
-    // hold every frame from the reading to frame N, whichever of HighestStops and RecordReadback runs first.
+    // The step in s by which a drawn frame's adapt step moves the exposure, at the entry of its number modulo the entry
+    // count. Frame N is prepared after the slot of frame N − FramesInFlight finished, so the reading is of that frame or a
+    // newer one, and FramesInFlight + 1 entries hold every frame from the reading to frame N once frame N is drawn.
     private readonly (long Frame, float Step)[] steps;
 
     public ExposureResources(
@@ -104,8 +104,8 @@ internal sealed unsafe class ExposureResources : IDisposable
     /// <summary>The exposure of the last frame whose GPU work finished, or null before one has.</summary>
     public ExposureReading? Latest { get; private set; }
 
-    /// <summary>Writes <paramref name="stops"/> into the exposure buffer, in the first drawn frame.</summary>
-    public void RecordSeed(CommandBuffer commandBuffer, BarrierBatch barriers, float stops)
+    /// <summary>Writes the setting's initial stops into the exposure buffer, in the first drawn frame.</summary>
+    public void RecordSeed(CommandBuffer commandBuffer, BarrierBatch barriers)
     {
         barriers.Buffer(Buffer, BufferUse.TransferDestination);
         barriers.Flush(device.Vk, commandBuffer);
@@ -114,19 +114,20 @@ internal sealed unsafe class ExposureResources : IDisposable
             dstBuffer: Buffer.Handle,
             dstOffset: 0,
             size: ExposureBytes,
-            data: BitConverter.SingleToUInt32Bits(stops)
+            data: BitConverter.SingleToUInt32Bits(setting.InitialStops)
         );
     }
 
     /// <summary>
-    /// The highest exposure, in stops, that <paramref name="frame"/> uses or its adapt step writes after a step of
-    /// <paramref name="step"/> s: <see cref="Latest"/>, or the seed before any reading, raised as far as the adapt steps
-    /// of the frames since and of this frame can raise it (<see cref="ExposureMeter.HighestStops"/>).
+    /// The highest exposure, in stops, that <paramref name="frame"/>, the frame after the newest drawn one, uses or its
+    /// adapt step writes after a step of <paramref name="step"/> s: <see cref="Latest"/>, or the seed before any reading,
+    /// raised as far as the adapt steps of the frames since and of this frame can raise it
+    /// (<see cref="ExposureMeter.HighestStops"/>).
     /// </summary>
     public float HighestStops(long frame, float step)
     {
         ExposureReading known = Known;
-        Contract.Requires(frame >= NewestRecorded && frame - known.Frame < steps.Length);
+        Contract.Requires(frame == NewestDrawn + 1 && frame - known.Frame < steps.Length);
         Span<float> since = stackalloc float[steps.Length];
         int count = 0;
         for (long earlier = known.Frame; earlier < frame; earlier++)
@@ -140,16 +141,9 @@ internal sealed unsafe class ExposureResources : IDisposable
         return ExposureMeter.HighestStops(setting: setting, knownStops: known.Stops, steps: since[..count]);
     }
 
-    /// <summary>
-    /// Copies the exposure that this frame's passes use into the readback buffer of <paramref name="slot"/>, and keeps the
-    /// <paramref name="step"/> in s of the frame's adapt step for <see cref="HighestStops"/>.
-    /// </summary>
-    public void RecordReadback(CommandBuffer commandBuffer, BarrierBatch barriers, int slot, long frame, float step)
+    /// <summary>Copies the exposure that this frame's passes use into the readback buffer of <paramref name="slot"/>.</summary>
+    public void RecordReadback(CommandBuffer commandBuffer, BarrierBatch barriers, int slot)
     {
-        // A frame that threw before its submission records again under the same number.
-        Contract.Requires(frame >= NewestRecorded && frame - Known.Frame < steps.Length);
-        steps[Entry(frame)] = (frame, step);
-        Contract.Ensures(NewestRecorded == frame);
         GpuBuffer readback = readbacks[slot];
         barriers.Buffer(Buffer, BufferUse.TransferSource);
         barriers.Buffer(readback, BufferUse.TransferDestination);
@@ -165,6 +159,17 @@ internal sealed unsafe class ExposureResources : IDisposable
 
         // Left in the batch: the first pass's flush records it with its own barriers, before the frame's fence.
         barriers.Buffer(readback, BufferUse.HostRead);
+    }
+
+    /// <summary>
+    /// Keeps the <paramref name="step"/> in s of the adapt step of <paramref name="frame"/>, the frame after the newest
+    /// drawn one, for <see cref="HighestStops"/>, once the frame is submitted.
+    /// </summary>
+    public void Drew(long frame, float step)
+    {
+        Contract.Requires(frame == NewestDrawn + 1 && frame - Known.Frame < steps.Length);
+        steps[Entry(frame)] = (frame, step);
+        Contract.Ensures(NewestDrawn == frame);
     }
 
     /// <summary>
@@ -189,7 +194,7 @@ internal sealed unsafe class ExposureResources : IDisposable
         for (int entry = 0; entry < steps.Length; entry++)
             Contract.Invariant(steps[entry].Frame < 0 || Entry(steps[entry].Frame) == entry);
 
-        long newest = NewestRecorded;
+        long newest = NewestDrawn;
         if (Latest is { Frame: var latestFrame })
             Contract.Invariant(latestFrame >= 0 && latestFrame <= newest);
         for (long frame = Known.Frame; frame <= newest; frame++)
@@ -199,8 +204,8 @@ internal sealed unsafe class ExposureResources : IDisposable
     /// <summary>The exposure from which <see cref="HighestStops"/> starts: <see cref="Latest"/>, or the seed at frame 0.</summary>
     private ExposureReading Known => Latest ?? new(Frame: 0, Stops: setting.InitialStops);
 
-    /// <summary>The newest frame that <see cref="RecordReadback"/> recorded, or −1 before any.</summary>
-    private long NewestRecorded
+    /// <summary>The newest frame that <see cref="Drew"/> kept, or −1 before any.</summary>
+    private long NewestDrawn
     {
         get
         {
