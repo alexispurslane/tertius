@@ -16,6 +16,9 @@ namespace Tertius.Testing;
 /// times and keeps the fewest bytes. A one-time allocation of the runtime then does not fail a test, and a path that
 /// allocates every time still does.
 /// </para>
+/// <para>
+/// A test that says a world's step allocates nothing on any thread counts with <see cref="StepAllocations"/> instead.
+/// </para>
 /// </remarks>
 public static class Allocations
 {
