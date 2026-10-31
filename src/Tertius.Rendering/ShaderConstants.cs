@@ -56,10 +56,12 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
         storage->Data[1] = values.CutoutAlpha ? 1u : 0u;
         storage->Data[2] = (uint)tapsPerSide;
         storage->Data[3] = BitConverter.SingleToUInt32Bits((float)SkinProfile.WidthScale);
+
         storage->Entries[0] = new(EnvironmentMapId, 0, sizeof(uint));
         storage->Entries[1] = new(CutoutAlphaId, sizeof(uint), sizeof(uint));
         storage->Entries[2] = new(ScatterTapsPerSideId, 2 * sizeof(uint), sizeof(uint));
         storage->Entries[3] = new(SkinWidthScaleId, 3 * sizeof(uint), sizeof(uint));
+
         storage->Info = new()
         {
             MapEntryCount = SpecializationStorage.Count,
