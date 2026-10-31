@@ -19,7 +19,7 @@ layout(set = 3, binding = 3) uniform ScatterKernel
     // (SkinProfile.Kernel).
     vec4 kernel[2 * MaxScatterTapsPerSide + 1];
     // ScatterKernel.WidthScale: how many times wider than the measured profile the offsets are. The slope rule divides a
-    // tap's offset by it. In std140 it lies at byte 528, after the 33 vec4, and the block holds 532 bytes.
+    // tap's offset by it. GpuScatterKernel in Scene/GpuTypes.cs is the C# copy of this block. Change both together.
     float kernelWidthScale;
 };
 

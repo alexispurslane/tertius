@@ -704,10 +704,10 @@ where
 
 - `viewDepthAt(p)` = z at pixel p, from the distance target and the view ray.
 - `frame.viewport.y` = H. `length(frame.cameraUp.xyz)` = tan(φ_y / 2). So `pixelsPerMeter` = s(z).
-- `kernel[i]` = tap i of the kernel buffer, a uniform buffer of 2 · 16 + 1 = 33 `vec4`, zeros after the last tap: rgb its weights, a its offset x_i in meters. Tap n, `scatterTapsPerSide`, is the center, with offset 0. A uniform buffer takes no storage-buffer slot of the compute stage, and its 544 bytes fit any device's uniform-buffer range.
+- `kernel[i]` = tap i of the array of 2 · 16 + 1 = 33 `vec4` at the start of the kernel buffer, zeros after the last tap: rgb its weights, a its offset x_i in meters. Tap n, `scatterTapsPerSide`, is the center, with offset 0. The kernel buffer is a uniform buffer that holds `GpuScatterKernel`, the C# copy of the block. A uniform buffer takes no storage-buffer slot of the compute stage, and the buffer's 532 bytes fit any device's uniform-buffer range.
 - `MaxSide` = 16,384, the largest image side.
 - `imageLoad(scatterImage, at).a` = 1 at a skin pixel, 0 elsewhere: the mask.
-- `kernelWidthScale` = the kernel's width scale (`ScatterKernel.WidthScale`), the float after the taps in the same uniform block: at byte 528 in std140, so the block holds 532 bytes. The kernel that gives the offsets also gives their unit, so a kernel of another width never meets the slope rule of the skin's.
+- `kernelWidthScale` = the kernel's width scale (`ScatterKernel.WidthScale`), the float after the 33 `vec4` in the same uniform block. The kernel that gives the offsets also gives their unit, so a kernel of another width never meets the slope rule of the skin's.
 - `run` = the tap's offset in the measured profile, in meters: its offset over the kernel's width scale (decision 34).
 - `rise` = the tap's depth step over the depth step of the slope limit across `run`. Up to 1 the tap keeps its own light, and from 1 to 2 it gives way to the center's.
 - `sourceAt(at)` = the source image at the tap.
@@ -1039,14 +1039,14 @@ At 1920 × 1080, 2,073,600 pixels:
 |---|---|---|
 | The shading target, always | 4 B × 2,073,600 | 8.3 MB |
 | The scatter image and the row image, under `SeparableSubsurface` | 2 × 8 B × 2,073,600 | 33.2 MB |
-| The kernel buffer | 33 × 16 B, room for 16 taps per side, and 16 B for the width scale | 544 B |
+| The kernel buffer | 33 × 16 B, room for 16 taps per side, and 4 B for the width scale | 532 B |
 | `GpuMaterial` | Unchanged: the new fields take its padding | 0 |
 | `PreparedInstance.Alpha`, on the CPU | 8 B × 20,000 instances | 160 KB |
 | The card number, `ter-3yy5` | 4 B per static vertex and per region vertex, 16 B per deform vertex | 0.08 MB for a mesh of 20,000 vertices; if it deforms, 0.32 MB more once and 0.08 MB per deformed instance |
 
 At 3840 × 2160 the images take four times as much: 33.2 MB and 132.7 MB.
 
-The memory is the arithmetic of the formats as built: the shading target is R8G8B8A8_UINT, the scatter image and the row image R16G16B16A16_SFLOAT, and the kernel buffer 34 `vec4`. `GpuMaterial` keeps its stride of 64 bytes, with 60 bytes of fields.
+The memory is the arithmetic of the formats as built: the shading target is R8G8B8A8_UINT, the scatter image and the row image R16G16B16A16_SFLOAT, and the kernel buffer `GpuScatterKernel`, 33 `vec4` and a float. `GpuMaterial` keeps its stride of 64 bytes, with 60 bytes of fields.
 
 ### GPU time, measured
 

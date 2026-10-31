@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Silk.NET.Vulkan;
 
@@ -17,16 +18,12 @@ internal sealed unsafe class ScatterImages : IDisposable
     /// <summary>The kernel buffer's taps: room for the most taps per side, so its uniform block has one size.</summary>
     public const int KernelTaps = 2 * SeparableSubsurface.MaxTapsPerSide + 1;
 
-    // The kernel buffer's vec4: the taps, then one that holds the width scale in x. The uniform block ends 4 bytes into
-    // the last, at 532 bytes, and the buffer holds 544.
-    private const int KernelVectors = KernelTaps + 1;
-
     private readonly VulkanDevice device;
     private readonly DeviceAllocator allocator;
     private readonly DescriptorLayouts layouts;
 
     // The kernel buffer's contents, computed in doubles when the images are made.
-    private readonly Vector4[] kernelBlock;
+    private readonly GpuScatterKernel kernelBlock;
 
     // False from the creation until the first frame's uploads copy the kernel into its buffer, then true.
     private bool kernelUploaded;
@@ -50,7 +47,7 @@ internal sealed unsafe class ScatterImages : IDisposable
         Kernel = GpuBuffer.Create(
             device: device,
             allocator: allocator,
-            size: (ulong)(KernelVectors * sizeof(Vector4)),
+            size: (ulong)Unsafe.SizeOf<GpuScatterKernel>(),
             usage: BufferUsageFlags.UniformBufferBit | BufferUsageFlags.TransferDstBit,
             memoryUsage: MemoryUsage.GpuOnly,
             name: "scatter kernel"
@@ -66,10 +63,7 @@ internal sealed unsafe class ScatterImages : IDisposable
     /// <summary>The diffuse image after the pass along the rows: 0 at every pixel that is not skin.</summary>
     public GpuImage Rows { get; private set; }
 
-    /// <summary>
-    /// The kernel's uniform block: its 2n + 1 taps as vec4, rgb the weights and a the offset in m, then zeros to
-    /// <see cref="KernelTaps"/>, then the width scale.
-    /// </summary>
+    /// <summary>The kernel's uniform block, a <see cref="GpuScatterKernel"/>.</summary>
     public GpuBuffer Kernel { get; }
 
     /// <summary>Set 3 of <see cref="DescriptorLayouts.ScatterLayout"/>, with the targets' HDR image.</summary>
@@ -92,7 +86,7 @@ internal sealed unsafe class ScatterImages : IDisposable
         if (kernelUploaded)
             return;
         StagingSlice stage = staging.Allocate(Kernel.Size);
-        kernelBlock.CopyTo(MemoryMarshal.Cast<byte, Vector4>(stage.Bytes));
+        MemoryMarshal.Write(stage.Bytes, in kernelBlock);
 
         barriers.Buffer(Kernel, BufferUse.TransferDestination);
         barriers.Flush(device.Vk, commandBuffer);
@@ -107,19 +101,20 @@ internal sealed unsafe class ScatterImages : IDisposable
         kernelUploaded = true;
     }
 
-    /// <summary>
-    /// <paramref name="kernel"/> as the uniform block ScatterKernel of skin_scatter.glsl lays it out in std140: the taps as
-    /// <c>vec4</c>, rgb the weights and a the offset in m, then zeros up to <see cref="KernelTaps"/>, then the width scale.
-    /// </summary>
-    private static Vector4[] BlockOf(ScatterKernel kernel)
+    /// <summary><paramref name="kernel"/> as the GPU holds it, with zeros in the tap slots past its taps.</summary>
+    private static GpuScatterKernel BlockOf(ScatterKernel kernel)
     {
-        var block = new Vector4[KernelVectors];
+        var block = new GpuScatterKernel { WidthScale = (float)kernel.WidthScale };
         for (int i = 0; i < kernel.Taps.Length; i++)
         {
             ScatterTap tap = kernel.Taps[i];
-            block[i] = new(x: (float)tap.Weight.X, y: (float)tap.Weight.Y, z: (float)tap.Weight.Z, w: (float)tap.Offset);
+            block.Taps[i] = new(
+                x: (float)tap.Weight.X,
+                y: (float)tap.Weight.Y,
+                z: (float)tap.Weight.Z,
+                w: (float)tap.Offset
+            );
         }
-        block[KernelTaps] = new(x: (float)kernel.WidthScale, y: 0, z: 0, w: 0);
         return block;
     }
 

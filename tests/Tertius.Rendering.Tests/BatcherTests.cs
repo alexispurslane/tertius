@@ -2071,6 +2071,15 @@ public sealed class BatcherTests
     }
 
     [Fact]
+    public void TheScatterKernelMatchesTheShadersKernelBlock()
+    {
+        ((int)Marshal.OffsetOf<GpuScatterKernel>(nameof(GpuScatterKernel.WidthScale)))
+            .Should()
+            .Be(528, "std140 puts the float after the 33 vec4");
+        Unsafe.SizeOf<GpuScatterKernel>().Should().Be(532);
+    }
+
+    [Fact]
     public void GpuStructsMatchTheShaderLayouts()
     {
         Unsafe.SizeOf<GpuInstance>().Should().Be(96, "std430 rounds 92 bytes of members up to the vec4's 16");

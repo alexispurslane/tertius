@@ -132,8 +132,7 @@ internal readonly record struct ScatterTap(double Offset, Double3 Weight);
 /// (docs/plans/skin-and-hair.md, "The profile and the kernel").
 /// </summary>
 /// <param name="WidthScale">
-/// How many times wider than the measured profile the taps' offsets are, above 0: the slope rule divides each offset by
-/// it (<see cref="SkinScatter.SlopeLimit"/>). <see cref="SkinProfile.Kernel"/> sets <see cref="SkinProfile.WidthScale"/>.
+/// How many times wider than the measured profile the offsets are, above 0. The slope rule divides offsets by it.
 /// </param>
 internal sealed record ScatterKernel(ImmutableArray<ScatterTap> Taps, double WidthScale)
 {

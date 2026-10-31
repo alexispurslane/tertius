@@ -517,6 +517,27 @@ internal struct ShadowMatrices
     private Matrix4x4 element;
 }
 
+/// <summary>
+/// The uniform block ScatterKernel of Shaders/skin_scatter.glsl (std140), which <see cref="ScatterImages.Kernel"/> holds: a
+/// <see cref="ScatterKernel"/> as singles (docs/plans/skin-and-hair.md, "The two passes"). 532 bytes.
+/// </summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct GpuScatterKernel
+{
+    /// <summary>Tap i: rgb its weight per channel, w its offset in m. The slots past the kernel's 2n + 1 taps hold zeros.</summary>
+    public ScatterTapArray Taps;
+
+    /// <summary><see cref="ScatterKernel.WidthScale"/>.</summary>
+    public float WidthScale;
+}
+
+/// <summary>Room for the most taps of a scatter kernel, laid out as a std140 <c>vec4[33]</c>.</summary>
+[InlineArray(ScatterImages.KernelTaps)]
+internal struct ScatterTapArray
+{
+    private Vector4 element;
+}
+
 /// <summary>The push constants of every mesh pass (Shaders/draw.glsl). 84 bytes.</summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct DrawPushConstants
