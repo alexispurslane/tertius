@@ -604,7 +604,10 @@ public sealed class WindowPlaybackTests
             stop: CancellationToken.None
         );
         bool fresh = false;
-        var renderThread = ServeOneCapture(mailbox, sink => fresh = world.RenderSnapshots.AcquireLatest() != null);
+        BlockingCall renderThread = ServeOneCapture(
+            mailbox,
+            sink => fresh = world.RenderSnapshots.AcquireLatest() != null
+        );
 
         playback.Capture(world, "x").Should().BeTrue();
 
@@ -627,7 +630,7 @@ public sealed class WindowPlaybackTests
             stop: CancellationToken.None
         );
         // The render thread hands the sink the pixels of the frame that it drew: here one pixel.
-        var renderThread = ServeOneCapture(mailbox, sink => sink.Take(new([200, 100, 50, 0], 1, 1)));
+        BlockingCall renderThread = ServeOneCapture(mailbox, sink => sink.Take(new([200, 100, 50, 0], 1, 1)));
 
         playback.Capture(world, "shot").Should().BeTrue();
 

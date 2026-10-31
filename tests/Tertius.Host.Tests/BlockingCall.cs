@@ -21,7 +21,8 @@ internal sealed class BlockingCall
     private readonly Thread thread;
     private Exception? thrown;
 
-    private BlockingCall(Action call) =>
+    private BlockingCall(Action call)
+    {
         thread = new(() =>
         {
             try
@@ -36,6 +37,7 @@ internal sealed class BlockingCall
         {
             IsBackground = true,
         };
+    }
 
     /// <summary>Starts <paramref name="call"/> on a thread of its own.</summary>
     public static BlockingCall Start(Action call)

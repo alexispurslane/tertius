@@ -734,10 +734,10 @@ public sealed class HairRenderTests
         const float GapTexels = 3,
             SpareTexels = 0.5f;
         var toSun = Vector3.Normalize(new(0.2f, 0.3f, -0.93f));
-        var towardSun = -Vector3.UnitZ;
+        Vector3 towardSun = -Vector3.UnitZ;
         float cosine = Vector3.Dot(towardSun, toSun),
             sine = MathF.Sqrt(1 - cosine * cosine);
-        LightBasis light = LightBasis.FromDirection(toSun);
+        var light = LightBasis.FromDirection(toSun);
         float across = MathF.Abs(Vector3.Dot(towardSun, light.X)) + MathF.Abs(Vector3.Dot(towardSun, light.Y));
         float Reach(float receiverCosine) =>
             1.5f * across / MathF.Max(receiverCosine, ShadowPass.MinimumReceiverCosine);
