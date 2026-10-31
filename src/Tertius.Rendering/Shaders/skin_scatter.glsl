@@ -20,8 +20,7 @@ layout(set = 3, binding = 3) uniform ScatterKernel
     vec4 kernel[2 * MaxScatterTapsPerSide + 1];
 };
 
-const float Reach = 0.008;                    // SkinProfile.Reach, in m: the largest tap offset
-const float SlopeLimit = 1.7320508075688772;  // tan 60°
+const float SlopeLimit = 1.7320508075688772;  // tan 60°, per meter of the measured profile
 // The largest image side. A tap's offset is clamped to it as a float before its conversion to an integer, which would
 // overflow for a tap far past the image.
 const float MaxSide = 16384.0;
@@ -46,7 +45,8 @@ vec3 scatterAlong(ivec2 pixel, ivec2 axis, vec3 center)
     float depth = viewDepthAt(pixel);
     // s(z) = H / (2 z tan(φ_y / 2)): length(cameraUp) is the tangent of the vertical half angle.
     float pixelsPerMeter = frame.viewport.y / (2.0 * depth * length(frame.cameraUp.xyz));
-    if (Reach * pixelsPerMeter < 0.5)
+    // The outermost tap's offset is the kernel's reach (ScatterKernel.Reach).
+    if (kernel[2 * scatterTapsPerSide].a * pixelsPerMeter < 0.5)
         return center;
     ivec2 last = imageSize(diffuseImage) - 1;
     vec3 sum = vec3(0.0);
@@ -59,7 +59,8 @@ vec3 scatterAlong(ivec2 pixel, ivec2 axis, vec3 center)
         if (i != scatterTapsPerSide && imageLoad(diffuseImage, at).a > 0.0)
         {
             // Up to the slope limit the tap keeps its own light, and up to twice the limit it gives way to the center's.
-            float rise = abs(viewDepthAt(at) - depth) / (abs(tap.a) * SlopeLimit);
+            float run = abs(tap.a) / skinWidthScale;
+            float rise = abs(viewDepthAt(at) - depth) / (run * SlopeLimit);
             light = mix(center, sourceAt(at, axis), clamp(2.0 - rise, 0.0, 1.0));
         }
         sum += tap.rgb * light;

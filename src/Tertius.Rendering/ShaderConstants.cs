@@ -20,6 +20,9 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
     /// <summary>The constant_id of scatterTapsPerSide in subsurface.glsl.</summary>
     public const uint ScatterTapsPerSideId = 2;
 
+    /// <summary>The constant_id of skinWidthScale in subsurface.glsl, always <see cref="SkinProfile.WidthScale"/>.</summary>
+    public const uint SkinWidthScaleId = 3;
+
     /// <summary>
     /// True in the cutout pipeline of an opaque pass, whose material sample discards a texel below its material's cutoff
     /// (docs/plans/skin-and-hair.md, "The cutout test"); false in the solid pipelines, which keep their early depth writes.
@@ -42,8 +45,8 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
     {
         if (constants is not { } values)
             return null;
-        // VkBool32s, the type of a bool specialization constant, and an int, at the offsets of their entries. Without the
-        // scatter no shader reads the taps per side, and 1 is the shader's own default.
+        // VkBool32s, the type of a bool specialization constant, an int and a float, at the offsets of their entries.
+        // Without the scatter no shader reads the taps per side, and 1 is the shader's own default.
         int tapsPerSide = values.Subsurface switch
         {
             NoSubsurface => 1,
@@ -52,9 +55,13 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
         storage->Data[0] = values.EnvironmentMap ? 1u : 0u;
         storage->Data[1] = values.CutoutAlpha ? 1u : 0u;
         storage->Data[2] = (uint)tapsPerSide;
+        storage->Data[3] = BitConverter.SingleToUInt32Bits((float)SkinProfile.WidthScale);
+
         storage->Entries[0] = new(EnvironmentMapId, 0, sizeof(uint));
         storage->Entries[1] = new(CutoutAlphaId, sizeof(uint), sizeof(uint));
         storage->Entries[2] = new(ScatterTapsPerSideId, 2 * sizeof(uint), sizeof(uint));
+        storage->Entries[3] = new(SkinWidthScaleId, 3 * sizeof(uint), sizeof(uint));
+
         storage->Info = new()
         {
             MapEntryCount = SpecializationStorage.Count,
@@ -74,9 +81,9 @@ internal struct SpecializationStorage
 {
     /// <summary>
     /// The number of constants: one per field of <see cref="ShaderConstants"/>, the subsurface setting's being its taps per
-    /// side.
+    /// side, and the skin's width scale.
     /// </summary>
-    public const int Count = 3;
+    public const int Count = 4;
 
     public SpecializationValues Data;
     public SpecializationEntries Entries;

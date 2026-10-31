@@ -1,7 +1,7 @@
 ---
 id: ter-n7lw
 status: in_progress
-deps: [ter-t2w6, ter-3yy5, ter-nwhv]
+deps: [ter-t2w6, ter-3yy5, ter-nwhv, ter-o0a6]
 links: []
 created: 2026-10-26T18:16:23Z
 type: epic
