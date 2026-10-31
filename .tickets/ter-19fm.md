@@ -28,3 +28,7 @@ Found by ter-ox1a's fixer and the orchestrator (2026-10-31). PreparedLight.InMai
 **2026-10-31T20:01:53Z**
 
 2026-10-31: run e1eaacb5 committed the cone test (e9c8b993) and stopped at a fork in design B's ranking: with t the lamp's distance along its axis to the in-view axis point nearest the eye, a lamp that points away from the eye has t = 0 and ranks at the top at any distance, so in lamp-hall-16-spot with 4 tiles the four farthest lamps (15.7 to 21.3 m, 12.3 % of the floor light) took the tiles from lamps 6.6 to 10.8 m away (43.9 %). The user's choice of two designs (eye to beam, eye to lamp): eye to beam. A spot lamp in the main view ranks by luminance(I) / max(D², R², NearestDistance²), with D the eye's distance to the in-view axis point nearest the eye; where its cone reaches the view but its axis misses it, D is its reach. Point lights keep D = the eye's distance to the lamp, so one rule covers every light: a spot of light D from the eye shows on screen in proportion to 1/D². Rejected: eye to lamp for every light (no ranking code), under which a lamp whose beam only clips the view's edge can take a tile from one that lights the floor ahead.
+
+**2026-10-31T20:02:19Z**
+
+2026-10-31: continuation run 12ab987c-c076-4377-9bf1-f2ca1606142b (version 869b0b07-3413-4b06-8707-a88a91bf6e91) applies the saved ranking patch with the eye-to-beam distance, then runs the review and the fix.
