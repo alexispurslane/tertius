@@ -20,3 +20,7 @@ Found by the review of ter-qsfz (2026-10-27). A hair pixel's dominant reflection
 **2026-10-31T14:40:37Z**
 
 2026-10-31: the user chose design 2, keep the fade. A hair ray that points below its card (cosine with the card's normal below SurfaceFadeCosine) traces nothing and keeps the reflection that the ambient pass gave it, the environment map's. The work: a test with a normal-mapped hair card that pins this fallback (the pixel keeps the ambient specular, never black), and docs/plans/skin-and-hair.md and ARCHITECTURE.md state the rule in place of the known limit. Declined: design 1, where the own card is no surface to SSR (rays below the card trace and skip hits on their own card through ter-3yy5's card number); it can come later if a normal-mapped hair asset looks patchy. Waits for a free builder slot.
+
+**2026-10-31T17:16:46Z**
+
+2026-10-31: workflow run f915dd37-5727-47e4-a8ae-d47cc8c462c4 (version 3cde7d7d-f5f8-4f91-aee3-b2258cb90dc6), branch ter-nwhv-hair-reflection-fade, base f7942bec.
