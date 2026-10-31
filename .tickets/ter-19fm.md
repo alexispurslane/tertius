@@ -44,3 +44,7 @@ Continuation run 2aca1e4d-0477-4cd2-81df-ae135c458c38 (version 869b0b07) started
 **2026-10-31T21:41:19Z**
 
 Run 2aca1e4d: build (tier rule f9e9bfd0, low findings dda9a4e0) and review done; the review asked for 2 medium and 4 low fixes (a boxing tier comparison on a per-frame path, no test of the rank inside tier 2, an unenforced cache in CameraView, three doc items). The orchestrator stopped its fix stage at its start, cleanup complete, checkout clean at dda9a4e0, because it made a fifth builder. A continuation with those findings starts when a slot frees (brief /tmp/briefs/19fm-cont2.txt).
+
+**2026-10-31T22:44:52Z**
+
+Continuation run c106152e-8e5f-42cb-bb45-dac03d7cde4d (version 869b0b07) attaches the worktree at dda9a4e0 to fix the six findings of review run 2aca1e4d, with the base eddfe104 unchanged.
