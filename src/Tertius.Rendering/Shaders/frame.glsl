@@ -50,6 +50,11 @@ const uint ShadingStandard = 0u;
 const uint ShadingSkin = 1u;
 const uint ShadingHair = 2u;
 
+// ShaderConstants.ShadesFibersId: false in the one-sided variant of a SidedPipeline, true in every other pipeline. Only a
+// hair material draws both sides, so no ShadingHair surface reaches that variant, and the test drops the fiber's code
+// from it: the hair branch of sampleMaterial and the fiber's light loop (docs/plans/skin-and-hair.md, "Cost").
+layout(constant_id = 3) const bool shadesFibers = true;
+
 // The shadow slot of a light in GpuLight.shadow.x (GpuLight.*Slot in GpuTypes.cs).
 const uint NoSlot = 0u;
 const uint CascadeSetSlot = 1u;

@@ -32,6 +32,12 @@ public static partial class DemoScenes
     /// <summary>The cards of one fan of the skin-and-hair scene.</summary>
     private const int StrandFanCards = 12;
 
+    /// <summary>The cards of each row of the wall of hair of <c>lamp-hall-16-hair</c>, along the hall's Z.</summary>
+    private const int HairWallColumns = 24;
+
+    /// <summary>The rows of cards of the wall of hair of <c>lamp-hall-16-hair</c>.</summary>
+    private const int HairWallRows = 4;
+
     /// <summary>The cutoff of the fringed and the cutout strand materials.</summary>
     private const float StrandCutoff = 0.5f;
 
@@ -303,6 +309,71 @@ public static partial class DemoScenes
             eye: AboveFloor(0.3, 1.6, 5.6),
             target: AboveFloor(-3, 1.3, 5.6)
         );
+    }
+
+    /// <summary>
+    /// The hall of <c>lamp-hall-16</c> (<see cref="LampHall"/>) with a wall of cutout hair: the measured view of hair under
+    /// many shadowed lamps (docs/plans/skin-and-hair.md, "Cost").
+    /// <list type="bullet">
+    /// <item>The wall, <c>hair-wall-0</c> and on, stands between four lamps, 1.2 m above the floor at its middle: rows of
+    /// upright strand cards of the cutout hair material, 6 cm apart, so that their strands overlap and the floor and the
+    /// pillars show through the gaps between them. Each card turns 20 degrees about its strand, one way and then the other,
+    /// so that the lamps light it from both sides.</item>
+    /// <item>The view <c>hair-camera</c>, the world's camera, looks along -X at the wall from 0.9 m, so that the wall fills
+    /// most of the frame. Many SIMD groups there hold hair pixels and pixels of the floor beside each other.</item>
+    /// </list>
+    /// </summary>
+    private static SceneInstance LampHallHair(World world, IRenderResources resources)
+    {
+        SceneInstance scene = LampHall(world: world, resources: resources, lamps: 16, spot: false, moving: false);
+        FrameHandle hall = world.GetOwnedFrame(scene["hall"]);
+        TextureId strands = resources.CreateTexture(StrandImage());
+        MeshId card = resources.CreateMesh(StrandCard());
+        StrandFan fan = StrandFans.Single(f => f.Alpha is CutoutAlpha);
+        MaterialId[] materials =
+        [
+            .. new[] { DarkBrownHair, LightBrownHair }.Select(color =>
+                resources.CreateMaterial(
+                    new(BaseColor: color, Roughness: 0.35f, BaseColorMap: strands, Model: fan.Model, Alpha: fan.Alpha)
+                )
+            ),
+        ];
+        var middle = new Double3(2, 1.2, 0);
+        var facingPlusX = DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI / 2);
+        for (int row = 0; row < HairWallRows; row++)
+        for (int column = 0; column < HairWallColumns; column++)
+        {
+            int i = row * HairWallColumns + column;
+            double twist = (i % 2 == 0 ? 20 : -20) * Math.PI / 180;
+            var offset = new Double3(
+                0.01 * (column % 3),
+                (row - (HairWallRows - 1) / 2.0) * StrandCardLength * 0.8,
+                (column - (HairWallColumns - 1) / 2.0) * 0.06
+            );
+            scene.Add(
+                $"hair-wall-{i}",
+                world.Spawn(
+                    new()
+                    {
+                        Frame = hall,
+                        Pose = new(middle + offset, facingPlusX * DQuaternion.FromAxisAngle(Double3.UnitY, twist)),
+                        Render = new RenderData
+                        {
+                            Mesh = card,
+                            Material = materials[i % materials.Length],
+                            BoundingRadius = StrandCardBoundingRadius,
+                            Flags = RenderFlags.Visible | RenderFlags.CastsShadow | RenderFlags.NoImpostor,
+                        },
+                    }
+                )
+            );
+        }
+
+        Entity camera = world.Spawn(ViewIn(hall, LookingAt(middle + new Double3(0.9, 0, 0), middle)));
+        scene.Add("hair-camera", camera);
+        scene.AddView("hair-camera");
+        world.Camera = camera;
+        return scene;
     }
 
     /// <summary>

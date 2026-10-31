@@ -24,6 +24,7 @@ public sealed class ShadowScenesTests : IDisposable
     [InlineData("lamp-hall-16", 16)]
     [InlineData("lamp-hall-64", 64)]
     [InlineData("lamp-hall-16-moving", 16)]
+    [InlineData("lamp-hall-16-hair", 16)]
     public void APointLampHallHasItsCountOfPointLampsThatCastShadows(string name, int count)
     {
         SceneInstance scene = Build(name);
@@ -80,6 +81,33 @@ public sealed class ShadowScenesTests : IDisposable
             moved.Should().Be(0, "every tile of a still lamp is cached after the first frame");
     }
 
+    /// <summary>
+    /// The hair hall measures a SIMD group that shades hair and other pixels together under many shadowed lamps
+    /// (docs/plans/skin-and-hair.md, "Cost"), so its view looks at the wall of hair from close by, with the hall's lamps
+    /// all round.
+    /// </summary>
+    [Fact]
+    public void TheHairHallsViewLooksAtItsWallOfHairCardsFromCloseBy()
+    {
+        SceneInstance scene = Build("lamp-hall-16-hair");
+        FrameHandle hall = world.GetFrame(scene["pillar-0"]);
+        Double3 eye = world.PoseIn(scene["hair-camera"], hall).Position;
+
+        Entity[] cards =
+        [
+            .. Enumerable
+                .Range(0, int.MaxValue)
+                .Select(i => scene.EntityOf($"hair-wall-{i}"))
+                .TakeWhile(card => card is not null)
+                .Select(card => card!.Value),
+        ];
+
+        world.Camera.Should().Be(scene["hair-camera"]);
+        scene.Views.Should().Contain("hair-camera");
+        cards.Should().HaveCountGreaterThan(50, "the wall of cards fills most of the view");
+        cards.Should().AllSatisfy(card => (world.PoseIn(card, hall).Position - eye).Length.Should().BeLessThan(2));
+    }
+
     [Theory]
     [InlineData("stars-1", 1)]
     [InlineData("stars-2", 2)]
@@ -127,6 +155,7 @@ public sealed class ShadowScenesTests : IDisposable
     [InlineData("lamp-hall-4-spot-moving.json")]
     [InlineData("lamp-hall-16-spot-moving.json")]
     [InlineData("lamp-hall-64-spot-moving.json")]
+    [InlineData("lamp-hall-16-hair.json")]
     [InlineData("stars-1.json")]
     [InlineData("stars-2.json")]
     [InlineData("stars-4.json")]

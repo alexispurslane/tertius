@@ -79,6 +79,7 @@ public static partial class DemoScenes
             new("spot-box", SpotBox),
             new("pillar-room", PillarRoom),
             .. HallLampCounts.SelectMany(LampHallScenes),
+            new("lamp-hall-16-hair", LampHallHair),
             .. StarCounts.Select(stars => new Scene(
                 $"stars-{stars}",
                 (world, resources) => Stars(world, resources, stars)
