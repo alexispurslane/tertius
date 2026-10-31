@@ -40,3 +40,7 @@ The lighting pass on demo-exit at 1080p, Release, measured on a quiet machine ag
 **2026-10-31T17:13:55Z**
 
 2026-10-31: fork settled by the user. The user chose to build the shadow tile hysteresis (ter-4xw0). The orchestrator found that the fork's example comes from the sphere test of a spot lamp's main-view flag and the direction-blind eye irradiance, filed as ter-19fm, and the hysteresis follows it. By the user's rule 'quick fix first', ter-ox1a keeps the pure ranking and merges first; ARCHITECTURE.md names the limit until the two tickets land. Fixer run 95b02844 resolved the four review findings in 22935484 and measured the deck: direct pass base 6.21/6.12 ms, branch 5.41/5.41 ms; without local lights 0.49 ms on both; loop 22 -> 15.12 lights (14.25 in the main view); the cut lamps are all far lamps without shadows, so the lamps' cost drops 13 % for 31 % of the loop (load 2.3 to 6, GPU lock, alternated). The orchestrator accepts these as the quiet repeat.
+
+**2026-10-31T17:14:25Z**
+
+2026-10-31: continuation run 600916c9-75eb-4d98-b153-ba1e7721a9d5 (version 3cde7d7d-f5f8-4f91-aee3-b2258cb90dc6) adds the shadow tile limit to ARCHITECTURE.md and runs the review and fix stages on 22935484.
