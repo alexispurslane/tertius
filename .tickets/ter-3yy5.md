@@ -1,6 +1,6 @@
 ---
 id: ter-3yy5
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-10-27T13:14:42Z
@@ -38,3 +38,7 @@ Waiting for the user. Options seen so far: (1) the face normal from derivatives 
 **2026-10-31T17:19:46Z**
 
 Orchestrator's pass before the merge (2026-10-31). Hand mutations, each built and run against its test class: (1) MeshCards.Number joins no triangles: killed by all 5 MeshCardsTests. (2) It joins no shared positions: killed by TwoStripsThatTouchAtOnePositionAreOneCard and TrianglesThatMeetOnlyAtVerticesOfOnePositionAreOneCard. (3) CardCode's instance step 0: killed by OneCardOfTwoInstancesHasTwoCodes and TheCardsOfNeighborInstancesLieFarApartInTheCodes. (4) The C# own-card test never matches (card + 1): killed by 3 SectorSearchTests. (5) occlusion_sectors.comp never skips the own card: killed by 4 HairRenderTests, the red test among them. (6) mesh.vert writes card 0 for every vertex: killed by all 35 HairRenderTests. (7) mesh.vert drops the instance from the code: killed by UnderTheScreenSpaceLightAHairCardDarkensAHairCardBehindIt. (8) deform.comp writes 0 as the card word: killed by ADeformedCopyCarriesTheCardNumbersOfItsMesh. (9) The G-buffer writes the code for every model: killed by TheGBufferWritesEachModelsCode. Coverage of the changed lines runs once for the whole epic ter-n7lw, before it closes (project rule: each epic).
+
+**2026-10-31T17:31:55Z**
+
+2026-10-31: merged into main (a7c101ce). tools/test-all.sh on the merged code: every module passed in Checked and Release, except one Release run of the physics test ContactAllocationTests.StepsOfAwakeBodiesInATurningFrameAllocateNothingOnAnyThread at a load of 34, which passed alone a minute later; filed as ter-a00h. The merge changes no physics code.
