@@ -15,12 +15,16 @@ public static partial class DemoScenes
     /// <summary>The turn of each card of a fan about its vertical strand, from -X to +X, in degrees.</summary>
     private static readonly double[] HairCardTurns = [-60, -30, 0, 30, 60];
 
-    /// <summary>The review scenes of hair shading (docs/plans/skin-and-hair.md): the fans lit from the front and from behind.</summary>
+    /// <summary>
+    /// The review scenes of hair shading (docs/plans/skin-and-hair.md): the fans lit from the front and from behind, and
+    /// the rugs of the hair reflections.
+    /// </summary>
     private static IEnumerable<Scene> HairCardScenes =>
         [
             new("hair-cards", (world, resources) => HairCards(world, resources, toSun: new(0.3, 0.6, 1))),
             new("hair-cards-backlit", (world, resources) => HairCards(world, resources, toSun: new(0.25, 0.45, -1))),
             new("hair-bent-cards", HairBentCards),
+            new("hair-rugs", HairRugs),
         ];
 
     /// <summary>The segments of each bent card of the hair-bent-cards scene, along its strands.</summary>

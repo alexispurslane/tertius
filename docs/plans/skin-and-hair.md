@@ -85,6 +85,10 @@ Made after a side-by-side capture of the test head (`ter-t2w6`):
 
     The width scale does not widen the slope rule (decision 16). The slope rule divides each tap's offset by the width scale, so a tap tolerates the same depth step as at the measured width. At the full width, light crossed the 11 mm step at the edge of the test head's nose, and a faint red ring showed beside the nose. The user chose this rule over the ring and over an absolute limit on the depth step, which needs a new constant. The cost: the scatter narrows wherever the surface turns more than about 23° from the eye. A tap starts to give way there and gives way fully at about 41°. On a round head, that is the outer 60 % of its radius, not only the pixels near its silhouette. (User, 2026-10-31)
 
+Made at the review of the hair reflections (`ter-nwhv`):
+
+35. A hair ray that points below its card, or less than a cosine of `SurfaceFadeCosine` above it, traces nothing. A normal map tilts the strand off its card (decision 28), so the eye's direction mirrored about the strand can point below the card, for a card far from edge-on too. When the dominant direction of a hair pixel has a cosine below `SurfaceFadeCosine`, 0.05, with the card's geometric normal, the pixel starts no ray, at either trace resolution. It keeps the reflection that the ambient pass gave it, the environment map's while the map is on. The surface fade blends nothing for hair, because a ray inside its range grazes the card and hits the card a few pixels from its start: a share of those hits ends the screen's reflection at a ragged, speckled edge. A pixel of any other model keeps the surface fade. `reflectingPixel` in `reflection_pixel.glsl` holds the rule, and the trace, the half-resolution trace and the upsample all call it. The cost: a tilted strand whose reflection points less than a cosine of 0.05 above its card shows the environment map's reflection, not the screen's, and the two meet at a straight edge. (User, 2026-10-31, design 2 of `ter-nwhv`, with the cut at `SurfaceFadeCosine`) The user declined design 1, in which a hair pixel's own card is no surface to its ray, so that a ray below the card traces and skips the hits on its own card through the card number of `ter-3yy5`. It can come later if a normal-mapped hair asset looks patchy.
+
 ### Settled by this design
 
 Each by the user's decisions and the project's rules, with its reason.
@@ -545,7 +549,7 @@ A hair card is a sheet of strands with no back (decision 32). So a hair material
 | Direct light | `hairResponse` for each light, which it takes from either side of its card. Its shadow lookups use the geometric normal turned toward the light. |
 | Occlusion and bounce | Around n_f. Its own card blocks nothing (decision 33): its own surface blocks no sector, and a step whose pixel carries its card code is left out. Other cards, other instances and other surfaces block and bounce as for any surface |
 | Ambient light | `ambientTerms` at n_f, with the occlusion and the bounce |
-| Reflections | As any surface, along the dominant direction about n_f |
+| Reflections | As any surface, along the dominant direction about n_f. A ray whose cosine with the card's normal is below `SurfaceFadeCosine` traces nothing, and the pixel keeps the ambient pass's reflection (decision 35) |
 | Transparent (fringe) | The same functions, forward, with an occlusion of 1 and a bounce of 0 |
 | Environment faces, impostor captures | The same functions, forward: the core only |
 
@@ -981,6 +985,13 @@ The existing GPU tests of glass, puffs and the transparent pass pass unchanged i
 - `AnEnvironmentFaceAndACaptureShadeHairAsFibers`
 - `StandardPixelsKeepTheirLight`: within the existing tests' tolerances. The six reference images pass.
 
+`HairReflectionRenderTests` (new, GPU, `ter-nwhv`), on a hair floor whose normal map tilts its strands off the card, for decision 35:
+
+- `AHairPixelWhoseRayPointsBelowTheSurfaceFadeKeepsTheEnvironmentMapsReflection`: at tilts of 10° and 45°, at both trace resolutions, each pixel whose ray has a cosine below `SurfaceFadeCosine` with the card shows what it shows with the reflections off, within the half float's rounding, and that light is above 0.
+- `AHairPixelWhoseRayGrazesItsCardKeepsTheAmbientTermExactly`: at both trace resolutions, each pixel whose ray has a cosine between 0 and `SurfaceFadeCosine` with the card shows exactly what it shows with the reflections off.
+- `AStandardPixelWhoseRayGrazesItsSurfaceTakesTheScreensReflectionInTheShareOfTheSurfaceFade`: on the same floor of the standard model, with the environment map off, a pixel of fade f changes by at most f · W times the brightest light in the scene, and more than half of the pixels change. So the hair rule does not reach other surfaces. The map is off because the map holds the wall, and under it a delta without its fade also keeps inside the bound. The other surfaces keep the same grazing hits that made the hair's edge ragged (`ter-acr3`).
+- `AHairCardWhoseStrandsLieInItsPlaneReflectsTheWallThroughItsRays`: without a tilt, every ray points at least `SurfaceFadeCosine` above the card, and a hit replaces the ambient specular term W · gray with W · C, within 2 %.
+
 `SectorSearchTests` (existing, C#), for decision 33, since `ter-3yy5` by the card code:
 
 - `AHairReceiverTakesNoStepThatReadsItsOwnCard`
@@ -1140,7 +1151,8 @@ The differences of the means, +0.001 ms in the G-buffer pass and +0.03 ms in the
 - Two strips that touch at one exact vertex position are one card, so they never shade each other under the screen-space light. An example is two cards whose roots an exporter snaps to one scalp vertex. The join by position keeps a strip that an exporter splits at a sharp bend or a seam as one card ("The card number"). MakeHuman's `afro01` has no vertices that share a position: its 342 strips stay 342 cards.
 - A strip is one card however large it is. MakeHuman's `afro01` holds two connected sheets of 378 quads each around the head, beside 340 single-quad cards, so neither sheet shades itself under the screen-space light.
 - A step on another card whose card code collides with the receiver's blocks nothing: about one of 8,192 pairs of cards of two instances, and cards 8,192 apart in a mesh of more cards ("The card number").
-- A normal map that tilts the strand off its card can put a hair pixel's reflection below the card, where the reflections' surface fade cuts it (`ter-nwhv`).
+- A strand that a normal map tilts off its card can point its reflection below the card, or less than a cosine of `SurfaceFadeCosine` above it. The pixel then shows the environment map's reflection, not the screen's (decision 35). A normal map that varies from texel to texel can make the hair's reflection patchy, with the screen's reflection on some texels and the map's on others.
+- On a tilted strand, the screen's reflection and the map's meet at a straight edge where the cosine crosses `SurfaceFadeCosine`. The two differ where the map does not hold the reflected object, such as the glowing bar of the scene `hair-rugs` (`scripts/hair-rugs.json`) on its tilted rug. Without the cut, many rays inside the fade's range hit their own card a few pixels from their start, and the edge was ragged and speckled (`ter-nwhv`, 2026-10-31). If a normal-mapped hair asset shows the straight edge, the follow-up is design 1 of decision 35: a hair ray skips the hits on its own card through the card number of `ter-3yy5`, so it traces down to a cosine of 0.
 
 ## Compared with a design from scratch
 
