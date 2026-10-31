@@ -6,8 +6,9 @@ namespace Tertius.Rendering.Tests;
 
 /// <summary>
 /// The screen-space reflections of hair on the GPU (docs/plans/skin-and-hair.md, "The reflections of hair"): a hair
-/// pixel whose dominant direction points below its card, as a normal map that tilts the strand off the card can make it,
-/// traces no ray and keeps the reflection that the ambient pass gave it. The card is a hair floor, the reflection tests'
+/// pixel whose dominant direction has a cosine below <see cref="ScreenRay.SurfaceFadeCosine"/> with its card's normal, as
+/// a normal map that tilts the strand off the card can make it, traces no ray and keeps the reflection that the ambient
+/// pass gave it. A pixel of the standard model keeps the surface fade. The card is a hair floor, the reflection tests'
 /// floor of 60 m by 60 m 1.5 m below the eye, whose strands run along +v, toward the eye. A wall that glows 3 stands on
 /// it 9.5 m ahead. The floor's roughness of 26 / 255 makes its dominant direction lie within 1° of the eye's direction
 /// mirrored along the strand.
@@ -28,10 +29,13 @@ public sealed class HairReflectionRenderTests
     private const float Gray = 0.2f;
 
     /// <summary>
-    /// The cosine with the card's normal below which a pixel's ray surely points below its card: the rounding of the
-    /// 16-bit normals in the G-buffer moves the C# copy's cosine by far less.
+    /// How far the C# copy's cosine with the card's normal can lie from the GPU's: the rounding of the 16-bit normals in
+    /// the G-buffer moves it by far less. A test keeps this far from a cosine at which the GPU's decision changes.
     /// </summary>
-    private const double SurelyBelow = -0.01;
+    private const double CosineMargin = 0.002;
+
+    /// <summary>The hair model of the floor: strands along +v.</summary>
+    private static readonly ShadingModel Hair = new HairShading(StrandDirection.PlusV);
 
     /// <summary>Both traces: the fallback holds at either resolution.</summary>
     public static TheoryData<int, TraceResolution> TiltsAndResolutions =>
@@ -45,17 +49,31 @@ public sealed class HairReflectionRenderTests
 
     [Theory]
     [MemberData(nameof(TiltsAndResolutions))]
-    public void AHairPixelWhoseRayPointsBelowItsCardKeepsTheEnvironmentMapsReflection(
+    public void AHairPixelWhoseRayPointsBelowTheSurfaceFadeKeepsTheEnvironmentMapsReflection(
         int tiltDegrees,
         TraceResolution resolution
     )
     {
         // A tilt of 10° puts the rays of the near floor above the card and those of the far floor below it, with the
         // surface fade's range between them. A tilt of 45° puts every ray of the floor below its card.
-        Rendered with = Render(reflections: ReflectionsAt(resolution), tiltDegrees: tiltDegrees, environmentMap: true);
-        Rendered without = Render(reflections: new NoReflections(), tiltDegrees: tiltDegrees, environmentMap: true);
+        Rendered with = Render(
+            reflections: ReflectionsAt(resolution),
+            model: Hair,
+            tiltDegrees: tiltDegrees,
+            environmentMap: true
+        );
+        Rendered without = Render(
+            reflections: new NoReflections(),
+            model: Hair,
+            tiltDegrees: tiltDegrees,
+            environmentMap: true
+        );
 
-        (int X, int Y)[] below = [.. FloorPixels(with).Where(pixel => CosineWithCard(with, pixel) < SurelyBelow)];
+        (int X, int Y)[] below =
+        [
+            .. FloorPixels(with)
+                .Where(pixel => CosineWithCard(with, pixel) < ScreenRay.SurfaceFadeCosine - CosineMargin),
+        ];
         below
             .Length.Should()
             .BeGreaterThan(20_000, "the tilt of {0}° puts the far floor's rays below the card", tiltDegrees);
@@ -68,7 +86,7 @@ public sealed class HairReflectionRenderTests
                 .Should()
                 .BeLessThanOrEqualTo(
                     kept.Y / 1024,
-                    "{0}, whose ray points below its card, traces nothing and keeps the map's reflection: {1}",
+                    "{0}, whose ray points below the surface fade, traces nothing and keeps the map's reflection: {1}",
                     pixel,
                     At(with.Hdr, pixel)
                 );
@@ -78,28 +96,70 @@ public sealed class HairReflectionRenderTests
     [Theory]
     [InlineData(TraceResolution.Full)]
     [InlineData(TraceResolution.Half)]
-    public void AHairPixelWhoseRayGrazesItsCardTakesTheScreensReflectionOnlyInTheShareOfTheSurfaceFade(
-        TraceResolution resolution
-    )
+    public void AHairPixelWhoseRayGrazesItsCardKeepsTheAmbientTermExactly(TraceResolution resolution)
     {
-        // The tilt of 10° puts a band of the floor's rays within a cosine of SurfaceFadeCosine above the card. Their
-        // delta is f · (W · C − a · k · T_s), and C and k · T_s each lie between 0 and the wall's glow, so the delta of a
-        // pixel of fade f is at most f · W times the glow: the map's reflection keeps the share 1 − f.
-        Rendered with = Render(reflections: ReflectionsAt(resolution), tiltDegrees: 10, environmentMap: true);
-        Rendered without = Render(reflections: new NoReflections(), tiltDegrees: 10, environmentMap: true);
+        // The tilt of 10° puts a band of the floor's rays within a cosine of SurfaceFadeCosine above the card. Such a ray
+        // hits its own card a few pixels from its start, so a share of the screen's reflection would end the map's
+        // reflection at a ragged edge inside the band.
+        Rendered with = Render(
+            reflections: ReflectionsAt(resolution),
+            model: Hair,
+            tiltDegrees: 10,
+            environmentMap: true
+        );
+        Rendered without = Render(reflections: new NoReflections(), model: Hair, tiltDegrees: 10, environmentMap: true);
 
         (int X, int Y)[] grazing =
         [
             .. FloorPixels(with)
-                .Where(pixel => CosineWithCard(with, pixel) is > 0.002 and < ScreenRay.SurfaceFadeCosine - 0.002),
+                .Where(pixel =>
+                    CosineWithCard(with, pixel) is > CosineMargin and < ScreenRay.SurfaceFadeCosine - CosineMargin
+                ),
         ];
         grazing.Length.Should().BeGreaterThan(1_000, "the far floor's rays cross the card's plane");
+        foreach ((int X, int Y) pixel in grazing)
+            At(with.Hdr, pixel).Should().Be(At(without.Hdr, pixel), "{0} grazes its card and traces nothing", pixel);
+    }
+
+    [Theory]
+    [InlineData(TraceResolution.Full)]
+    [InlineData(TraceResolution.Half)]
+    public void AStandardPixelWhoseRayGrazesItsSurfaceTakesTheScreensReflectionInTheShareOfTheSurfaceFade(
+        TraceResolution resolution
+    )
+    {
+        // The same floor of the standard model: its normal map leans the shading normal 10° away from the eye, so a band
+        // of the near floor's rays lies within a cosine of SurfaceFadeCosine above the floor. Their delta is
+        // f · (W · C − a · k · T_s), and C and k · T_s each lie between 0 and the wall's glow, so the delta of a pixel of
+        // fade f is at most f · W times the glow, and it is above 0 where the ray hits.
+        Rendered with = Render(
+            reflections: ReflectionsAt(resolution),
+            model: default,
+            tiltDegrees: 10,
+            environmentMap: true
+        );
+        Rendered without = Render(
+            reflections: new NoReflections(),
+            model: default,
+            tiltDegrees: 10,
+            environmentMap: true
+        );
+
+        (int X, int Y)[] grazing =
+        [
+            .. FloorPixels(with)
+                .Where(pixel =>
+                    CosineWithCard(with, pixel) is > CosineMargin and < ScreenRay.SurfaceFadeCosine - CosineMargin
+                ),
+        ];
+        grazing.Length.Should().BeGreaterThan(1_000, "the near floor's rays cross the floor's plane");
+        int reflecting = 0;
         foreach ((int X, int Y) pixel in grazing)
         {
             float fade = (float)(CosineWithCard(with, pixel) / ScreenRay.SurfaceFadeCosine);
             float most = (fade + 0.05f) * SpecularWeight(with, pixel).Y * WallGlow;
-            BrdfTesting
-                .LargestChannelDifference(At(with.Hdr, pixel), At(without.Hdr, pixel))
+            float difference = BrdfTesting.LargestChannelDifference(At(with.Hdr, pixel), At(without.Hdr, pixel));
+            difference
                 .Should()
                 .BeLessThanOrEqualTo(
                     most,
@@ -109,7 +169,9 @@ public sealed class HairReflectionRenderTests
                     At(with.Hdr, pixel),
                     At(without.Hdr, pixel)
                 );
+            reflecting += difference > 0 ? 1 : 0;
         }
+        reflecting.Should().BeGreaterThan(grazing.Length / 2, "most of the grazing rays hit the floor or the wall");
     }
 
     [Theory]
@@ -117,8 +179,13 @@ public sealed class HairReflectionRenderTests
     [InlineData(TraceResolution.Half)]
     public void AHairCardWhoseStrandsLieInItsPlaneReflectsTheWallThroughItsRays(TraceResolution resolution)
     {
-        Rendered with = Render(reflections: ReflectionsAt(resolution), tiltDegrees: 0, environmentMap: false);
-        Rendered without = Render(reflections: new NoReflections(), tiltDegrees: 0, environmentMap: false);
+        Rendered with = Render(
+            reflections: ReflectionsAt(resolution),
+            model: Hair,
+            tiltDegrees: 0,
+            environmentMap: false
+        );
+        Rendered without = Render(reflections: new NoReflections(), model: Hair, tiltDegrees: 0, environmentMap: false);
 
         FloorPixels(with)
             .Min(pixel => CosineWithCard(with, pixel))
@@ -142,12 +209,17 @@ public sealed class HairReflectionRenderTests
     private readonly record struct Rendered(float[] Hdr, float[] Normals, float[] Distances, CameraView Camera);
 
     /// <summary>
-    /// Renders the hair floor, whose normal map leans the shading normal <paramref name="tiltDegrees"/> away from the eye
-    /// and so tilts the strand as far up off the card toward the eye, and the wall, at 640 × 360 and 0 stops. With
-    /// <paramref name="environmentMap"/>, under a map of 32 texels that draws all six faces in the frame; without, under
-    /// the ambient light of <see cref="Gray"/>.
+    /// Renders the floor of <paramref name="model"/>, whose normal map leans the shading normal <paramref name="tiltDegrees"/>
+    /// away from the eye, and so tilts a strand as far up off the card toward the eye, and the wall, at 640 × 360 and 0
+    /// stops. With <paramref name="environmentMap"/>, under a map of 32 texels that draws all six faces in the frame;
+    /// without, under the ambient light of <see cref="Gray"/>.
     /// </summary>
-    private static Rendered Render(ReflectionSetting reflections, int tiltDegrees, bool environmentMap)
+    private static Rendered Render(
+        ReflectionSetting reflections,
+        ShadingModel model,
+        int tiltDegrees,
+        bool environmentMap
+    )
     {
         VulkanRenderer renderer = Gpu.Headless(
             exposure: new FixedExposure(0),
@@ -157,7 +229,7 @@ public sealed class HairReflectionRenderTests
         try
         {
             RenderSnapshot snapshot = ReflectionTesting.Gray(Gray);
-            snapshot.Instances.Add(HairFloor(renderer, tiltDegrees));
+            snapshot.Instances.Add(Floor(renderer, model, tiltDegrees));
             snapshot.Instances.Add(
                 Block(
                     box: renderer.CreateMesh(Primitives.Box(new(0.5f))),
@@ -181,28 +253,29 @@ public sealed class HairReflectionRenderTests
     }
 
     /// <summary>
-    /// The floor of <see cref="ReflectionTesting.Floor"/> as gray hair of <see cref="Roughness"/>, with a normal map of
-    /// one texel that leans the normal toward the bitangent, −Z, by <paramref name="tiltDegrees"/>.
+    /// The floor of <see cref="ReflectionTesting.Floor"/> as a gray dielectric of <paramref name="model"/> and
+    /// <see cref="Roughness"/>, with a normal map of one texel that leans the normal toward the bitangent, −Z, by
+    /// <paramref name="tiltDegrees"/>.
     /// </summary>
-    private static RenderInstance HairFloor(VulkanRenderer renderer, int tiltDegrees)
+    private static RenderInstance Floor(VulkanRenderer renderer, ShadingModel model, int tiltDegrees)
     {
         float tilt = tiltDegrees * MathF.PI / 180;
         static byte Code(float value) => (byte)MathF.Round((value + 1) / 2 * 255);
         TextureId map = renderer.CreateTexture(
             new(Width: 1, Height: 1, Rgba: [128, Code(MathF.Sin(tilt)), Code(MathF.Cos(tilt)), 255], Srgb: false)
         );
-        var hair = new MaterialDesc(
+        MaterialDesc floor = new MaterialDesc(
             BaseColor: new(x: 0.5f, y: 0.5f, z: 0.5f, w: 1),
             Roughness: Roughness,
             Reflectance: Reflectance,
-            Model: new HairShading(StrandDirection.PlusV)
+            Model: model
         ) with
         {
             NormalMap = map,
         };
         return Gpu.Instance(
             mesh: renderer.CreateMesh(Primitives.Plane(1)),
-            material: renderer.CreateMaterial(hair),
+            material: renderer.CreateMaterial(floor),
             position: new(0, FloorHeight, -20),
             scale: new(30, 1, 30),
             radius: 43,
@@ -220,7 +293,8 @@ public sealed class HairReflectionRenderTests
 
     /// <summary>
     /// The cosine of the pixel's dominant direction with its card's normal: the C# copy of the direction that
-    /// reflectingPixel in reflection_pixel.glsl gives, from the fiber normal that the G-buffer holds.
+    /// reflectingPixel in reflection_pixel.glsl gives, from the shading normal that the G-buffer holds, a hair pixel's
+    /// fiber normal.
     /// </summary>
     private static double CosineWithCard(Rendered frame, (int X, int Y) pixel)
     {
@@ -232,7 +306,10 @@ public sealed class HairReflectionRenderTests
         return Double3.Dot(direction, Decoded(frame.Normals, index, channel: 2));
     }
 
-    /// <summary>W at a floor pixel: the compensated specular albedo of the hair toward the eye, about its fiber normal.</summary>
+    /// <summary>
+    /// W at a floor pixel: the compensated specular albedo of the floor toward the eye, about its shading normal, a hair
+    /// pixel's fiber normal.
+    /// </summary>
     private static Vector3 SpecularWeight(Rendered frame, (int X, int Y) pixel)
     {
         var sample = new MaterialSample(

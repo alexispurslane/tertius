@@ -19,7 +19,8 @@ public static partial class DemoScenes
     /// <item>Both rugs are brown hair of roughness 0.15, whose strands run along the floor toward +Z. The rug
     /// <c>flat-rug</c>, on the -X side, has no normal map. The rug <c>tilted-rug</c>, on the +X side, has a normal map
     /// that leans its strands <see cref="HairRugTilt"/> up off the rug toward +Z, as a strand of a real hair card can
-    /// lean. The far part of that rug then reflects below itself, and keeps the environment map's reflection.</item>
+    /// lean. The far part of that rug then reflects below itself or grazes itself, and keeps the environment map's
+    /// reflection, which meets the screen's at a straight edge.</item>
     /// <item>The <c>bar</c>, 4 m wide and 1.5 m tall, glows white 1.5 m behind the rugs, so that a rug's rays meet it on
     /// the screen.</item>
     /// <item>The view <c>rug-camera</c> looks at the rugs from 3.5 m along +Z and 1.2 m up, and <c>low-camera</c> from
