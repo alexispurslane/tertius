@@ -25,3 +25,7 @@ Options, for the user:
 **2026-10-31T14:29:56Z**
 
 2026-10-31: the user chose option (b). The face pass drops the glow of every instance that holds a light, so the map's irradiance and its reflections carry no glow of a light-holding entity. The user accepted that the lamp's panel shows dark in the map's reflections, also where a reflected panel leaves the screen and screen-space reflections hand over to the map. Option (c), which kept the panel in the reflections with a second face output, was declined.
+
+**2026-10-31T14:30:21Z**
+
+2026-10-31: launched through the workflow MCP (ultracode-ticket-completion, version 88962f00-4bb7-41be-89dd-bb3951a51fd8), run 3f31a9a4-b26e-438b-9d41-38a4ed919b08, branch ter-ylzk-map-drops-lamp-glow from 148d1251.
