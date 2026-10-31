@@ -193,8 +193,8 @@ internal sealed partial class RenderSnapshotBuilder
     }
 
     /// <summary>
-    /// Fills <paramref name="snapshot"/> with the current state: the instances, the lights, the frame outlines when the view
-    /// shows them, and the puffs of <paramref name="puffs"/>, placed after the instances through the same frame poses.
+    /// Fills <paramref name="snapshot"/> with the current state: the instances, the lights, the atmosphere, the frame
+    /// outlines when the view shows them, and the puffs of <paramref name="puffs"/>, placed after the instances through the same frame poses.
     /// Without a live camera, the snapshot has the view settings but nothing in it, and the next build does not interpolate.
     /// </summary>
     public void Build(RenderSnapshot snapshot, in RenderView view, in PuffView puffs)
@@ -238,6 +238,8 @@ internal sealed partial class RenderSnapshotBuilder
         // The instances and the puffs read the depths, so the chain comes first.
         BuildChain(snapshot, cameraFrame);
         BuildInstances(snapshot);
+        // After the lights, among which it chooses the planet's sun.
+        BuildAtmosphere(snapshot, cameraFrame);
         if (view.ShowFrameOutlines)
             BuildOutlines(snapshot);
         BuildPuffs(snapshot, puffs);

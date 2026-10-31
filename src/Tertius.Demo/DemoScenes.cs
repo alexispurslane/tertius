@@ -219,6 +219,7 @@ public static partial class DemoScenes
         new("demo-surface", DemoSurface.Build),
         new("spin-station", SpinStation.Build),
         new("earth-system", EarthSystem.Build),
+        new("mars-air", MarsAir.Build),
         new("demo-exit", DemoExit.Build),
         new("puff-yard", PuffYard),
         new("pbr-spheres", PbrSpheres),

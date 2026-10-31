@@ -301,6 +301,13 @@ internal sealed class FrameGraph : IDisposable
         /// (docs/plans/screen-space-reflections.md, "The order of a frame").
         /// </summary>
         Reflections,
+
+        /// <summary>
+        /// The haze of the atmosphere over the opaque surfaces: after the reflections, so that it covers each surface's
+        /// whole light, and before the transparent pass, whose panes and puffs take their own haze over the hazed image
+        /// (docs/plans/atmosphere.md, "The haze").
+        /// </summary>
+        Haze,
         Transparent,
 
         /// <summary>The exposure's meter and adapt step, under <see cref="AutoExposure"/>: after every writer of the HDR image, before the tone map reads it.</summary>

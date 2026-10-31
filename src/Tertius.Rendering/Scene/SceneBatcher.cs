@@ -159,7 +159,7 @@ internal sealed class SceneBatcher(
         Batch(scene, scene.Meshes);
         // After the main view, so that its instances and commands keep the places that they have without the map.
         BatchFaces(meshes: scene.Meshes, faces: facesOfMaps, scene: scene);
-        WriteConstants(snapshot, scene);
+        WriteConstants(snapshot: snapshot, alpha: alpha, scene: scene);
     }
 
     /// <summary>
@@ -951,11 +951,16 @@ internal sealed class SceneBatcher(
     /// <param name="faces">The faces of each served map, root first.</param>
     private void CollectLights(RenderSnapshot snapshot, float alpha, ReadOnlySpan<FaceMask> faces, PreparedScene scene)
     {
-        foreach (ref readonly RenderLight light in CollectionsMarshal.AsSpan(snapshot.Lights))
+        ReadOnlySpan<RenderLight> lights = CollectionsMarshal.AsSpan(snapshot.Lights);
+        // The atmosphere names its sun by its index in the snapshot's lights (docs/plans/atmosphere.md, "The sun's tint").
+        int? sun = snapshot.Atmosphere?.Sun;
+        for (int i = 0; i < lights.Length; i++)
         {
+            ref readonly RenderLight light = ref lights[i];
             if (!Shines(light))
                 continue;
             PreparedLight prepared = Prepared(light: light, alpha: alpha, camera: scene.Camera, maps: scene.MapCount);
+            prepared.AirSun = i == sun;
             if (Reaches(faces: faces, axes: scene.MapAxes, light: prepared))
                 scene.AddLight() = prepared;
         }
@@ -1267,7 +1272,7 @@ internal sealed class SceneBatcher(
         }
     }
 
-    private static void WriteConstants(RenderSnapshot snapshot, PreparedScene scene)
+    private static void WriteConstants(RenderSnapshot snapshot, float alpha, PreparedScene scene)
     {
         CameraView camera = scene.Camera;
         // The frame constants hold the hemisphere only while it is the light (docs/plans/environment-map.md, "The
@@ -1309,6 +1314,7 @@ internal sealed class SceneBatcher(
                 z: camera.RootRotation.Z,
                 w: camera.RootRotation.W
             ),
+            Atmosphere = PaintedAtmosphere.Prepare(snapshot: snapshot, alpha: alpha, eye: camera.Offset),
         };
         for (int map = 0; map < scene.MapCount; map++)
         {

@@ -47,7 +47,9 @@ namespace Tertius.Rendering;
 /// <item>The reflections (<see cref="ReflectionPass"/>), under <see cref="ConeTracedReflections"/>: by default one ray per
 /// block of 2 × 2 pixels through the depth pyramid into the half-resolution trace, and its upsample, which adds each
 /// pixel's reflection to the lit image; at full resolution, one ray per pixel, whose hit adds it.</item>
-/// <item>Transparent objects: forward-shaded, blended, back to front.</item>
+/// <item>The haze (<see cref="HazePass"/>), when the atmosphere has one: one fullscreen pass that blends the haze over
+/// the opaque surfaces of the lit image.</item>
+/// <item>Transparent objects: forward-shaded, blended, back to front, each seen through the haze.</item>
 /// <item>The exposure pass (<see cref="ExposurePass"/>), under <see cref="AutoExposure"/>: the meter and the adapt step,
 /// which writes the exposure of the next frame.</item>
 /// <item>Bloom (<see cref="BloomPass"/>), when <see cref="RendererOptions.Bloom"/> is on: the glow of the bright light
@@ -1946,6 +1948,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
     private void AddPassesAfterGeometry(ShaderLibrary shaders, RendererOptions options)
     {
         AddLightingPasses(shaders);
+        Graph.Add(FrameGraph.Stage.Haze, new HazePass(device: device, shaders: shaders, layouts: layouts));
         Graph.Add(
             FrameGraph.Stage.Transparent,
             new TransparentPass(device: device, shaders: shaders, layouts: layouts, constants: ShadingConstants)

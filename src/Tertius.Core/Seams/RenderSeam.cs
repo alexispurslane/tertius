@@ -169,6 +169,22 @@ public struct RenderInstance
 /// <param name="PreviousRotation"><paramref name="Rotation"/> at the previous build, or the same rotation when the build does not interpolate.</param>
 public readonly record struct RenderChainFrame(long FrameId, Quaternion Rotation, Quaternion PreviousRotation);
 
+/// <summary>
+/// The air that the camera looks through (docs/plans/atmosphere.md): the planet medium of the nearest frame of
+/// <see cref="RenderSnapshot.Chain"/> that has one, where the frame's origin is, and which light is the planet's sun.
+/// </summary>
+/// <param name="Center">
+/// The origin of the medium's frame, the planet's center, relative to the render origin, in the axes of the camera's frame,
+/// in m, as an instance's position.
+/// </param>
+/// <param name="PreviousCenter">The center at the previous build, relative to the same origin, as an instance's previous position.</param>
+/// <param name="Medium">The planet's air and its look.</param>
+/// <param name="Sun">
+/// The index in <see cref="RenderSnapshot.Lights"/> of the planet's sun: the point light that gives the planet's center the
+/// most light. Null when the snapshot holds no point light.
+/// </param>
+public readonly record struct RenderAtmosphere(Vector3 Center, Vector3 PreviousCenter, PlanetMedium Medium, int? Sun);
+
 /// <summary>The camera. Its current position is the render origin, so <see cref="Position"/> is zero.</summary>
 public struct RenderCamera
 {
@@ -206,6 +222,9 @@ public sealed class RenderSnapshot
     public Double3 OriginInFrame;
 
     public AmbientLight Ambient;
+
+    /// <summary>The air that the camera looks through, or null for none: no sky, no haze and no tint.</summary>
+    public RenderAtmosphere? Atmosphere;
 
     /// <summary>
     /// The chain: the camera's frame first, then each semantic parent up to the root of its tree. Empty without a camera.
@@ -256,9 +275,13 @@ public sealed class RenderSnapshot
     /// <summary>The morph weights of every entry of <see cref="RigPoses"/>, in the entries' order.</summary>
     public readonly List<float> MorphWeights = [];
 
-    /// <summary>Empties the lists of the snapshot, the chain and the rig poses among them, and sets <see cref="PuffAgeStep"/> to 0, so that a builder can fill it again.</summary>
+    /// <summary>
+    /// Empties the lists of the snapshot, the chain and the rig poses among them, sets <see cref="PuffAgeStep"/> to 0, and
+    /// removes the <see cref="Atmosphere"/>, so that a builder can fill it again.
+    /// </summary>
     public void Clear()
     {
+        Atmosphere = null;
         Chain.Clear();
         Instances.Clear();
         Lights.Clear();

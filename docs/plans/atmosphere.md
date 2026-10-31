@@ -163,7 +163,7 @@ At the surface the light takes the whole tint, and above the air it takes none. 
 
 ## The renderer
 
-`Atmosphere.Prepare` (new, `src/Tertius.Rendering/Scene/Atmosphere.cs`) turns the record into the frame's `GpuAtmosphere`, at the interpolated eye. The frame block (`frame.glsl`, `GpuFrameConstants`) holds it at its end:
+`PaintedAtmosphere.Prepare` (new, `src/Tertius.Rendering/Scene/PaintedAtmosphere.cs`) turns the record into the frame's `GpuAtmosphere`, at the interpolated eye. The frame block (`frame.glsl`, `GpuFrameConstants`) holds it at its end:
 
 ```glsl
 struct GpuAtmosphere

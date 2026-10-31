@@ -48,3 +48,11 @@ Left to the builder by the rules (a choice that changes the look is a fork): the
 **2026-10-31T15:29:17Z**
 
 Design doc: docs/plans/atmosphere.md holds the settled rules, the types, the formulas with units, the snapshot record, and the builder's choices: the day factor smoothstep(-6°, +6°) of the sun's elevation; the haze's optical depth from the mean density share along the ray; the tint mix(1, SunTint, s(p)) at the lit point; the sun as the point light with the most irradiance at the planet's center, P (r+g+b) / max(d², R²), ties to the earlier light; no horizon gradient.
+
+**2026-10-31T16:09:55Z**
+
+Implementation choices (builder, 2026-10-31): the haze runs in a new haze pass (HazePass, haze.frag) after the reflections and before the transparent pass, through the dual-source blend that glass already uses, and records nothing without a haze. The panes, fringes and puffs apply the same throughAir rule with their cover (1 − t, the coverage, 0), and environment_face.frag applies it in plain radiance. The sun's GPU light carries GpuLight.airSun, and lightIrradiance applies the tint there, so every pass that adds a light's irradiance takes it. The sky and the haze light are capped at MaxRadiance on the CPU (PaintedAtmosphere.Prepare). The demo's Earth air keeps no look, so demo-surface and every reference image are unchanged; the new mars-air scene and scripts/mars-air.json show the look.
+
+**2026-10-31T16:09:55Z**
+
+Cost (Metal System Trace, 40 frames of mars-air's day view, 1920 x 1080, Release, M1 Max): haze pass 0.126 ms; direct light 1.762 ms against 1.716 ms without the look; environment faces 0.126 against 0.128; ambient light 0.540 against 0.529; exposure 0.126 against 0.069, not explained; frame span 9.685 against 9.334 ms.

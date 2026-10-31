@@ -75,7 +75,8 @@ struct GpuLight
     uvec3 occluders;          // x the first occluder, y the occluders, z how many of the first ones the cascade set also draws
     uint map;                 // the map of the light's carrier: a face of map i keeps it when map <= i
     uint inMainView;          // 1 when the light's reach touches the main view's frustum, else 0
-};                            // std430: 100 bytes of members, a stride of 112
+    uint airSun;              // 1 for the sun of the frame's atmosphere, whose light takes the air's tint, else 0
+};                            // std430: 104 bytes of members, a stride of 112
 
 struct GpuCascadeSet
 {
@@ -92,6 +93,16 @@ struct GpuShadowTile
     float near;               // the near plane, in meters from the light
     float unused;
 };                            // std430: 80 bytes
+
+// The atmosphere of the frame (GpuAtmosphere in GpuTypes.cs, docs/plans/atmosphere.md). Without one, every value is 0 but
+// the tint, which is 1.
+struct GpuAtmosphere
+{
+    vec4 centerRadius;        // xyz the planet's center relative to the eye, w the planet's radius, both in m
+    vec4 sky;                 // rgb the sky, plain radiance; w 1 / the scale height in 1/m, 0 without an atmosphere
+    vec4 haze;                // rgb the haze's light, plain radiance; w 1 / the haze distance in 1/m, 0 without a haze
+    vec4 sunTint;             // rgb the tint of the sun's light at the surface; w unused
+};                            // std140: 64 bytes
 
 struct GpuOutline
 {
@@ -129,6 +140,7 @@ layout(set = 0, binding = 0, std140) uniform FrameBlock
     vec4 rootRotation;        // the root frame's axes in world axes, as a quaternion (xyz, w)
     GpuCascadeSet cascadeSets[4];   // ShadowCascades.MaxSets; set i belongs to the light whose slot names it
     vec4 mapAxes[42];         // R_i: the axes of map i's frame in world axes, a unit quaternion (xyz, w), root first
+    GpuAtmosphere atmosphere; // the air that the camera looks through
 } frame;
 
 layout(set = 0, binding = 1, std430) readonly buffer InstanceBlock { GpuInstance instances[]; };

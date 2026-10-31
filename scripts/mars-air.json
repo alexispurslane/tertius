@@ -1,0 +1,12 @@
+{
+  "scene": "mars-air",
+  "window": { "width": 1280, "height": 720 },
+  "steps": [
+    { "do": "camera", "entity": "day-view" },
+    { "do": "capture", "name": "day" },
+    { "do": "camera", "entity": "dusk-view" },
+    { "do": "capture", "name": "dusk" },
+    { "do": "camera", "entity": "above-view" },
+    { "do": "capture", "name": "above" }
+  ]
+}

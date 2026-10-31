@@ -152,7 +152,7 @@ internal struct GpuMaterial
 }
 
 /// <summary>
-/// One light in the light storage buffer (std430, binding 3 of the frame set). 112 bytes, the last 12 unused.
+/// One light in the light storage buffer (std430, binding 3 of the frame set). 112 bytes, the last 8 unused.
 /// <see cref="From"/> is the one place that encodes a <see cref="PreparedLight"/>, its spread, its shadow slot, its map
 /// and whether the main view keeps it for the shaders.
 /// </summary>
@@ -208,6 +208,12 @@ internal struct GpuLight
     public uint InMainView;
 
     /// <summary>
+    /// 1 when the light is the sun of the frame's atmosphere (<see cref="PreparedLight.AirSun"/>), whose light takes the
+    /// air's tint at every point in the air, else 0 (docs/plans/atmosphere.md, "The sun's tint").
+    /// </summary>
+    public uint AirSun;
+
+    /// <summary>
     /// The GPU form of <paramref name="light"/>, read into the shaders' ranges: the intensity by
     /// <see cref="ShaderInput.Intensity(Vector3)"/>, and the radius at most <see cref="ShaderInput.PositionLimit"/>, so that its
     /// square stays finite.
@@ -246,6 +252,7 @@ internal struct GpuLight
             Occluders = occluders,
             Map = (uint)light.Map,
             InMainView = light.InMainView ? 1u : 0u,
+            AirSun = light.AirSun ? 1u : 0u,
         };
     }
 
@@ -340,7 +347,7 @@ internal struct GpuPuff
     public uint Map;
 }
 
-/// <summary>The frame uniform block (std140). 2,224 bytes.</summary>
+/// <summary>The frame uniform block (std140). 2,288 bytes.</summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct GpuFrameConstants
 {
@@ -391,6 +398,30 @@ internal struct GpuFrameConstants
     /// root first (docs/plans/environment-maps-per-frame.md, decision 9). The entries past the served maps are not read.
     /// </summary>
     public MapAxesArray MapAxes;
+
+    /// <summary>The atmosphere of the frame (docs/plans/atmosphere.md, "The renderer").</summary>
+    public GpuAtmosphere Atmosphere;
+}
+
+/// <summary>
+/// The atmosphere in the frame block (std140), 64 bytes: what the shaders of atmosphere.glsl and sky.glsl read
+/// (docs/plans/atmosphere.md, "The renderer"). Without an atmosphere every value is 0 but the tint, which is 1, so the sky
+/// is black, the haze lets everything through and no light takes a tint.
+/// </summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct GpuAtmosphere
+{
+    /// <summary>xyz the planet's center relative to the interpolated eye, in m; w the planet's radius, in m.</summary>
+    public Vector4 CenterRadius;
+
+    /// <summary>rgb the sky, plain radiance in W/(m²·sr); w 1 / the scale height, in 1/m, 0 without an atmosphere.</summary>
+    public Vector4 Sky;
+
+    /// <summary>rgb the haze's light, plain radiance in W/(m²·sr); w 1 / the haze distance, in 1/m, 0 without a haze.</summary>
+    public Vector4 Haze;
+
+    /// <summary>rgb the tint of the sun's light at the surface, 1 without a tint; w unused.</summary>
+    public Vector4 SunTint;
 }
 
 /// <summary>One cascade set in the frame block (std140). 288 bytes.</summary>

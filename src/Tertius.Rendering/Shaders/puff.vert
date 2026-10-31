@@ -40,7 +40,10 @@ void main()
     outCorner = corner;
     // The case: 0 glow, 1 lit. A glow puff emits its color and takes no light. A lit puff is lit once, at its center
     // (lighting.glsl, scatteredLight), so each of its six vertices computes the same value.
-    vec3 radiance = puff.colorKind.w < 0.5 ? puff.colorKind.rgb : scatteredLight(puff.colorKind.rgb, center, puff.map);
+    vec3 light = puff.colorKind.w < 0.5 ? puff.colorKind.rgb : scatteredLight(puff.colorKind.rgb, center, puff.map);
+    // A puff adds its light and hides nothing, so the haze before its center only dims it (docs/plans/atmosphere.md, "The
+    // haze"): it stands in for none of the haze's light.
+    vec3 radiance = throughAir(light, vec3(0.0), center, vec3(0.0));
     // Puffs that overlap add in the blend unit, so each takes an equal share of the puffs' budget, and all the puffs over
     // a pixel add at most ShaderInput.PuffBudget, half of MaxRadiance, before the blend rounds (ARCHITECTURE.md,
     // "Portable Vulkan").
