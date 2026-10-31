@@ -176,7 +176,9 @@ public sealed class AtmosphereTests
         snapshot.Atmosphere = snapshot.Atmosphere!.Value with { Sun = snapshot.Lights.Count - 1 };
         GpuAtmosphere atmosphere = AtmosphereOf(snapshot);
 
-        Rgb(atmosphere.Sky).Should().Be(Vector3.Zero, "a spot light lights only its cone, so it is never a planet's sun");
+        Rgb(atmosphere.Sky)
+            .Should()
+            .Be(Vector3.Zero, "a spot light lights only its cone, so it is never a planet's sun");
         atmosphere.Sun.Should().Be(Vector4.Zero);
     }
 
