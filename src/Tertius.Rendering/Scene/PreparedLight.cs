@@ -45,6 +45,34 @@ internal readonly record struct Cone(Vector3 Axis, float CosInner, float CosOute
 [GeneratedUnion(typeof(EveryDirection), typeof(Cone), ZeroCase = typeof(EveryDirection))]
 internal readonly partial struct LightSpread;
 
+/// <summary>
+/// Whether the main view keeps a light, and the tier in which every shadow budget ranks it: a higher value ranks first,
+/// and inside a tier the higher <see cref="LightUnits.RankIrradiance"/> ranks first, ties in list order
+/// (docs/plans/local-light-shadows.md, decision 24). The zero value is FaceOnly.
+/// </summary>
+internal enum MainViewTier : byte
+{
+    /// <summary>
+    /// Only a drawn face of a map keeps the light. It ranks last, so it cannot take a slot from a light of the main view
+    /// and change the main view's pixels (docs/plans/environment-map.md, decision 20).
+    /// </summary>
+    FaceOnly,
+
+    /// <summary>
+    /// The main view keeps a spot light's cone, cut at its reach, but its axis, cut at its reach, misses the view. Its
+    /// strongest light falls outside the view, so it ranks below every light whose light falls in view (the user's design
+    /// B of ter-19fm: "the lowest rank among lights in the main view"). A lamp whose beam only clips the view's edge must
+    /// not take a tile from one that lights the floor ahead.
+    /// </summary>
+    AxisMissesView,
+
+    /// <summary>
+    /// The main view keeps the light, and its light falls in view: a point light whose reach sphere reaches the view, or a
+    /// spot light whose axis, cut at its reach, enters the view.
+    /// </summary>
+    InView,
+}
+
 /// <summary>One light of a frame after interpolation and culling, before its GPU form: the analogue of PreparedInstance.</summary>
 internal struct PreparedLight
 {
@@ -68,19 +96,28 @@ internal struct PreparedLight
     public bool CastsShadow;
 
     /// <summary>
-    /// Whether the light can reach the main view's frustum: a point light's reach sphere, or a spot light's cone cut at its
-    /// reach (<see cref="CameraView.Culls(Vector3, in Cone, float)"/>). False for a light that only a drawn face of a map keeps:
-    /// every shadow budget ranks such a light after the lights of the main view, and the main view's shaders and its
-    /// impostors' light signatures leave it out (docs/plans/environment-map.md, decision 20).
+    /// Whether the main view keeps the light, and the tier in which the shadow budgets rank it (<see cref="MainViewTier"/>).
+    /// The batcher sets it with <see cref="RankDistance"/>, from the same test.
     /// </summary>
-    public bool InMainView;
+    public MainViewTier Tier;
 
     /// <summary>
-    /// The distance D in m from the eye to the light's spot of light, by which the shadow budgets rank it
-    /// (<see cref="LightUnits.RankIrradiance"/>), because a spot of light D from the eye shows on screen in proportion to
-    /// 1 / D². For a spot light in the main view, the eye's distance to the point nearest the eye of its axis, cut at its
-    /// reach, inside the view, or its reach where that axis misses the view. For any other light, the eye's distance to the
-    /// light, <see cref="Distance"/>.
+    /// Whether the light can reach the main view's frustum: a point light's reach sphere, or a spot light's cone cut at its
+    /// reach (<see cref="CameraView.Culls(Vector3, in Cone, float)"/>). False for a light that only a drawn face of a map keeps:
+    /// the main view's shaders and its impostors' light signatures leave it out (docs/plans/environment-map.md, decision
+    /// 20). Derived from <see cref="Tier"/>.
+    /// </summary>
+    public readonly bool InMainView => Tier != MainViewTier.FaceOnly;
+
+    /// <summary>
+    /// The distance D in m from the eye to the light's spot of light, by which the shadow budgets rank it inside its
+    /// <see cref="Tier"/> (<see cref="LightUnits.RankIrradiance"/>), because a spot of light D from the eye shows on screen
+    /// in proportion to 1 / D². For a spot light of <see cref="MainViewTier.InView"/>, the eye's distance to the point
+    /// nearest the eye of its axis, cut at its reach, inside the view. For a spot light of
+    /// <see cref="MainViewTier.AxisMissesView"/>, its reach, so that it ranks inside its tier by its light at its reach:
+    /// luminance(I) / reach², which is E_cut × luminance(I) / peak channel(I), because the reach follows the peak channel and
+    /// the rank the luminance. For a white lamp that is E_cut. For any other light, the eye's distance to the light,
+    /// <see cref="Distance"/>.
     /// </summary>
     public double RankDistance;
 

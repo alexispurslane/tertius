@@ -45,7 +45,7 @@ public sealed class ShadowTilesTests
             Distance = place.Length(),
             RankDistance = place.Length(),
             CastsShadow = true,
-            InMainView = true,
+            Tier = MainViewTier.InView,
             Spread = new(Cone.Of(Vector3.Normalize(axis ?? Vector3.UnitX), innerAngle: 0, outerAngle: outerAngle)),
         };
     }
@@ -66,7 +66,7 @@ public sealed class ShadowTilesTests
             Distance = place.Length(),
             RankDistance = place.Length(),
             CastsShadow = true,
-            InMainView = true,
+            Tier = MainViewTier.InView,
             Spread = new EveryDirection(),
         };
     }
@@ -217,7 +217,7 @@ public sealed class ShadowTilesTests
         [
             Spot(entity: 1, intensity: 5) with
             {
-                InMainView = false,
+                Tier = MainViewTier.FaceOnly,
             },
             Spot(entity: 2, intensity: 1),
         ];
@@ -241,12 +241,12 @@ public sealed class ShadowTilesTests
         [
             Point(entity: 1, intensity: 5) with
             {
-                InMainView = false,
+                Tier = MainViewTier.FaceOnly,
             },
             Spot(entity: 2, intensity: 1),
             Spot(entity: 3, intensity: 3) with
             {
-                InMainView = false,
+                Tier = MainViewTier.FaceOnly,
             },
         ];
 

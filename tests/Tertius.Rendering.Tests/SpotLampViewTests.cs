@@ -224,6 +224,51 @@ public sealed class SpotLampViewTests
             );
     }
 
+    /// <summary>
+    /// A spot lamp right of the view, aimed further right: the edge of its 60° cone comes into the view 18 m from the lamp,
+    /// its axis never does. Its reach at −10 stops is 30 m, so it ranks at its light at its reach, 1 cutoff.
+    /// </summary>
+    private static SpotRenderLight LampWhoseAxisMissesTheView(uint entity) =>
+        Lamp(
+            entity: entity,
+            position: new(12, 0, -5),
+            direction: Vector3.UnitX,
+            reach: 30,
+            outerConeAngle: MathF.PI / 3
+        );
+
+    [Fact]
+    public void ASpotLampWhoseAxisMissesTheViewRanksBelowALampWhoseAxisLightsTheFloorInViewThoughItsRankIsHigher()
+    {
+        RenderSnapshot snapshot = Dark();
+        snapshot.Lights.Add(LampWhoseAxisMissesTheView(entity: 1));
+        // 40 m ahead and 3 m up, aimed down at the floor in view: its axis passes 40 m from the eye, where its light is
+        // 25² / 40² = 0.39 cutoffs.
+        snapshot.Lights.Add(Lamp(entity: 2, position: new(0, 3, -40), direction: -Vector3.UnitY, reach: 25));
+
+        PreparedScene scene = Prepare(snapshot: snapshot);
+
+        scene.LightSpan.ToArray().Select(light => light.InMainView).Should().Equal(true, true);
+        TileHolders(scene)
+            .Should()
+            .Equal([2u], "the strongest light of a lamp whose axis misses the view falls outside the view");
+    }
+
+    [Fact]
+    public void APointLampInViewFartherThanItsReachKeepsItsTilesFromASpotLampWhoseAxisMissesTheView()
+    {
+        RenderSnapshot snapshot = Dark();
+        snapshot.Lights.Add(LampWhoseAxisMissesTheView(entity: 1));
+        // 30 m ahead with a reach of 20 m: at the eye its light is 20² / 30² = 0.44 cutoffs.
+        snapshot.Lights.Add(Bulb(entity: 2, position: new(0, 0, -30), reach: 20));
+
+        PreparedScene scene = Prepare(snapshot: snapshot);
+
+        TileHolders(scene, layers: 6)
+            .Should()
+            .Equal([2u], "the point lamp's light falls in view, and it needs all six layers");
+    }
+
     [Fact]
     public void ASpotLampBehindTheEyeAimedIntoTheViewRanksByWhereItsAxisEntersTheView()
     {

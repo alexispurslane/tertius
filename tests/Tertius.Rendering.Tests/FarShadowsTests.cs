@@ -1,3 +1,4 @@
+using System.Numerics;
 using Tertius.Testing;
 
 namespace Tertius.Rendering.Tests;
@@ -5,8 +6,10 @@ namespace Tertius.Rendering.Tests;
 /// <summary>
 /// <see cref="FarShadows.Choose"/>: which far lights get a cascade set, which get far shadows only and which get no slot,
 /// by the irradiance at which they rank (<see cref="LightUnits.RankIrradiance"/>), here at the eye, with ties in list order
-/// (docs/plans/local-light-shadows.md, "Shadows of each light"), the main view's lights before the lights that only a face
-/// of a map keeps (docs/plans/environment-map.md, decision 20).
+/// (docs/plans/local-light-shadows.md, "Shadows of each light"), in the tiers of <see cref="MainViewTier"/>: the main view's
+/// lights whose light falls in view, then its spot lamps whose axis misses the view, then the lights that only a face of a
+/// map keeps (docs/plans/environment-map.md, decision 20). A far spot lamp is rare, but a lamp of 2 × 10^14 W/sr
+/// reaches 2.3 × 10^7 m at −10 stops, so its cone can reach the view from a far distance.
 /// </summary>
 public sealed class FarShadowsTests
 {
@@ -23,11 +26,21 @@ public sealed class FarShadowsTests
             Distance = FarAway,
             RankDistance = FarAway,
             CastsShadow = castsShadow,
-            InMainView = true,
+            Tier = MainViewTier.InView,
         };
 
     /// <summary>The far light of <see cref="Far"/> that only a drawn face of a map keeps.</summary>
-    private static PreparedLight FaceOnly(float intensity) => Far(intensity) with { InMainView = false };
+    private static PreparedLight FaceOnly(float intensity) => Far(intensity) with { Tier = MainViewTier.FaceOnly };
+
+    /// <summary>
+    /// The far light of <see cref="Far"/> as a spot lamp whose cone the main view keeps but whose axis misses the view.
+    /// </summary>
+    private static PreparedLight AxisOutside(float intensity) =>
+        Far(intensity) with
+        {
+            Tier = MainViewTier.AxisMissesView,
+            Spread = new(Cone.Of(Vector3.UnitX, innerAngle: 0, outerAngle: 0.5f)),
+        };
 
     /// <summary>A white near light of <paramref name="intensity"/> W/sr, 10 m from the eye, that casts shadows, in the main view.</summary>
     private static PreparedLight Near(float intensity) =>
@@ -37,7 +50,7 @@ public sealed class FarShadowsTests
             Distance = 10,
             RankDistance = 10,
             CastsShadow = true,
-            InMainView = true,
+            Tier = MainViewTier.InView,
         };
 
     private static LightShadow Set(int set) => new(new CascadeSet(Set: set, Occluders: default, Mapped: 0));
@@ -168,6 +181,36 @@ public sealed class FarShadowsTests
             .Equal(
                 [Set(1), Set(0), default],
                 "past the main view's lights the choice is as before, with the share counted from every far light"
+            );
+
+    [Fact]
+    public void AFarLightWhoseLightFallsInViewOutranksABrighterSpotLampWhoseAxisMissesTheView() =>
+        Slots([AxisOutside(5), Far(1)], cascadedLights: 1)
+            .Should()
+            .Equal([FarOnly, Set(0)], "the spot lamp's strongest light falls outside the view");
+
+    [Fact]
+    public void AFarSpotLampWhoseAxisMissesTheViewOutranksABrighterLightThatOnlyAFaceKeeps() =>
+        Slots([FaceOnly(5), AxisOutside(1)], cascadedLights: 1)
+            .Should()
+            .Equal([FarOnly, Set(0)], "the main view keeps the spot lamp's cone");
+
+    [Fact]
+    public void TheShareOfTheLightsWhoseLightFallsInViewCountsFromTheBrightestOfThem() =>
+        Slots([AxisOutside(1_000), Far(3), Far(1)], cascadedLights: 1)
+            .Should()
+            .Equal(
+                [FarOnly, Set(0), FarOnly],
+                "the lights whose light falls in view get the slots that they would get without the spot lamp"
+            );
+
+    [Fact]
+    public void TheShareOfASpotLampWhoseAxisMissesTheViewCountsFromABrighterLightWhoseLightFallsInView() =>
+        Slots([Far(1_000), AxisOutside(1)], cascadedLights: 2)
+            .Should()
+            .Equal(
+                [Set(0), default],
+                "its shadow cannot show beside a light of the tier above that is 1,000 times brighter"
             );
 
     [Fact]

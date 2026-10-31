@@ -278,10 +278,11 @@ internal sealed class ShadowTiles
     private static float Growth(float was, float now) => MathF.Abs(now - was) / MathF.Abs(was);
 
     /// <summary>
-    /// Ranks the near lights that cast shadows, those that the main view keeps first, each group by
-    /// <see cref="LightUnits.RankIrradiance"/>, ties in list order, and gives each its tiles while they fit. So a light
-    /// that only a face keeps takes only the layers that the main view's lights leave free
-    /// (docs/plans/environment-map.md, decision 20). Clears every near light's slot.
+    /// Ranks the near lights that cast shadows by <see cref="PreparedLight.Tier"/>, each tier by
+    /// <see cref="LightUnits.RankIrradiance"/>, ties in list order, and gives each its tiles while they fit. So a spot lamp
+    /// whose axis misses the view takes only the layers that the lights whose light falls in view leave free, and a light
+    /// that only a face keeps only the layers that the main view's lights leave free (docs/plans/environment-map.md,
+    /// decision 20). Clears every near light's slot.
     /// </summary>
     private void Grant(Span<PreparedLight> lights)
     {
@@ -295,9 +296,7 @@ internal sealed class ShadowTiles
                 continue;
             light.Shadow = default;
             if (light.CastsShadow)
-                candidates.Add(
-                    new(Light: i, InMainView: light.InMainView, Irradiance: LightUnits.RankIrradiance(light))
-                );
+                candidates.Add(new(Light: i, Tier: light.Tier, Irradiance: LightUnits.RankIrradiance(light)));
         }
 
         candidates.Sort(Candidate.Ranked);
@@ -555,17 +554,17 @@ internal sealed class ShadowTiles
             casterIndices.Add(caster);
     }
 
-    /// <summary>A near light that casts shadows, whether the main view keeps it, and its rank irradiance, in W/m².</summary>
-    private readonly record struct Candidate(int Light, bool InMainView, float Irradiance)
+    /// <summary>A near light that casts shadows, its tier, and its rank irradiance, in W/m².</summary>
+    private readonly record struct Candidate(int Light, MainViewTier Tier, float Irradiance)
     {
         /// <summary>
-        /// The main view's lights first (docs/plans/environment-map.md, decision 20), then the brighter first, and of equal
-        /// ones the first in the list (docs/plans/local-light-shadows.md, decision 24).
+        /// The higher tier first (<see cref="MainViewTier"/>), then the brighter first, and of equal ones the first in the
+        /// list (docs/plans/local-light-shadows.md, decision 24).
         /// </summary>
         public static readonly Comparison<Candidate> Ranked = static (a, b) =>
         {
-            if (a.InMainView != b.InMainView)
-                return a.InMainView ? -1 : 1;
+            if (a.Tier != b.Tier)
+                return b.Tier.CompareTo(a.Tier);
             return a.Irradiance != b.Irradiance ? b.Irradiance.CompareTo(a.Irradiance) : a.Light.CompareTo(b.Light);
         };
     }
