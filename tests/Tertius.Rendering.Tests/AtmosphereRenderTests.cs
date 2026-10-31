@@ -652,6 +652,39 @@ public sealed class AtmosphereRenderTests
     }
 
     [Fact]
+    public void TheSunsLightTakesTheTintWhenALampPrecedesItInTheLightList()
+    {
+        VulkanRenderer renderer = Renderer(new NoEnvironmentMap());
+        try
+        {
+            RenderSnapshot snapshot = Scene(SunBehind);
+            AddLitSquare(renderer, snapshot);
+            // A faint lamp just before the square, first in the list, so that the sun is the list's second light.
+            snapshot.Lights.Insert(
+                0,
+                Gpu.Lamp(
+                    position: new(0, 0.5f, -4.5f),
+                    color: Vector3.One,
+                    intensity: 0.01f,
+                    chainDepth: TestChains.CamerasFrame
+                )
+            );
+            Air(snapshot, TintOnly);
+            snapshot.Atmosphere = snapshot.Atmosphere!.Value with { Sun = 1 };
+            Vector3 tinted = Shown(renderer, snapshot, "atmosphere-tint-second-light").Color(Center);
+
+            renderer.LastScene.LightSpan.ToArray().Select(light => light.AirSun).Should().Equal(false, true);
+            Warmth(tinted)
+                .Should()
+                .BeGreaterThan(0.2f, "the air keeps a quarter of the sun's blue, but the square shows {0}", tinted);
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
     public void TheSunsLightTakesNoTintAboveTheAir()
     {
         Vector3 inOrbit = Show(

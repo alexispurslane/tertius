@@ -119,8 +119,10 @@ struct GpuLight
     uvec3 occluders;          // x the first occluder, y the occluders, z how many of the first ones the cascade set also draws
     uint map;                 // the map of the light's carrier: a face of map i keeps it when map <= i
     uint inMainView;          // 1 when the light's reach touches the main view's frustum, else 0
-    uint airSun;              // 1 for the sun of the frame's atmosphere, whose light takes the air's tint, else 0
-};                            // std430: 104 bytes of members, a stride of 112
+};                            // std430: 100 bytes of members, a stride of 112
+
+// GpuFrameConstants.NoAirSun: frame.counts.y of a frame whose light list holds no sun of an atmosphere.
+const uint NoAirSun = 0xFFFFFFFFu;
 
 struct GpuCascadeSet
 {
@@ -176,7 +178,8 @@ layout(set = 0, binding = 0, std140) uniform FrameBlock
     vec4 ambientGround;       // rgb ground color × intensity
     vec4 viewport;            // width, height, 1 / width, 1 / height
     vec4 params;              // x the most pre-exposed light that one puff adds to a pixel, y time in seconds, z angular size of one pixel
-    uvec4 counts;             // x lights, y unused, z cascades of each drawn cascade set (0: no set this frame), w unused
+    uvec4 counts;             // x lights, y the place in the list of the atmosphere's sun, whose light takes the air's tint,
+                              // or NoAirSun; z cascades of each drawn cascade set (0: no set this frame); w unused
     // The cascade sets of the far lights (see ShadowCascades.cs). The sets share one camera and one map size, so these
     // four hold for every set.
     vec4 shadowSplits;        // view depth where each cascade ends

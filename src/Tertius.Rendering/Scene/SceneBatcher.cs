@@ -1330,7 +1330,7 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
                 w: 0f
             ),
             // The shadow pass fills in the cascades when it draws them.
-            Counts = new(X: (uint)scene.LightCount, Y: 0, Z: 0, W: 0),
+            Counts = new(X: (uint)scene.LightCount, Y: AirSunPlace(scene.LightSpan), Z: 0, W: 0),
             RootRotation = new(
                 x: camera.RootRotation.X,
                 y: camera.RootRotation.Y,
@@ -1344,6 +1344,22 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
             Quaternion axes = scene.MapAxes[map];
             scene.Constants.MapAxes[map] = new(x: axes.X, y: axes.Y, z: axes.Z, w: axes.W);
         }
+    }
+
+    /// <summary>
+    /// The place in <paramref name="lights"/> of the atmosphere's sun (<see cref="PreparedLight.AirSun"/>), or
+    /// <see cref="GpuFrameConstants.NoAirSun"/> when no light of the list is that sun. The shaders choose the light loop
+    /// that takes no tint by it (docs/plans/atmosphere.md, "The sun's tint").
+    /// </summary>
+    private static uint AirSunPlace(ReadOnlySpan<PreparedLight> lights)
+    {
+        for (int i = 0; i < lights.Length; i++)
+        {
+            if (lights[i].AirSun)
+                return (uint)i;
+        }
+
+        return GpuFrameConstants.NoAirSun;
     }
 
     private static void Append(ref DrawItem[] items, ref int count, DrawItem item)

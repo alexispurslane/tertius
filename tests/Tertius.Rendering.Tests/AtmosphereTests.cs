@@ -335,9 +335,9 @@ public sealed class AtmosphereTests
 
         scene
             .LightSpan.ToArray()
-            .Select(light => (light.EntityIndex, GpuLight.From(light).AirSun))
+            .Select(light => (light.EntityIndex, light.AirSun))
             .Should()
-            .BeEquivalentTo([(Gpu.StarEntity, 1u), (Gpu.LampEntity, 0u)]);
+            .BeEquivalentTo([(Gpu.StarEntity, true), (Gpu.LampEntity, false)]);
     }
 
     [Fact]
@@ -345,6 +345,30 @@ public sealed class AtmosphereTests
     {
         RenderSnapshot snapshot = WithSun(Vector3.UnitY);
 
-        GpuLight.From(Prepare(snapshot).Lights[0]).AirSun.Should().Be(0u);
+        Prepare(snapshot).Lights[0].AirSun.Should().BeFalse();
+    }
+
+    [Fact]
+    public void TheFrameNamesTheSunsPlaceInTheLightList()
+    {
+        RenderSnapshot snapshot = WithSun(Vector3.UnitY);
+        snapshot.Lights.Insert(
+            0,
+            Gpu.Lamp(position: new(0, 2, -3), color: Vector3.One, intensity: 10, chainDepth: TestChains.CamerasFrame)
+        );
+        Air(snapshot, MarsAir);
+        snapshot.Atmosphere = snapshot.Atmosphere!.Value with { Sun = 1 };
+        PreparedScene scene = Prepare(snapshot);
+
+        scene.LightSpan.ToArray().Select(light => light.EntityIndex).Should().Equal(Gpu.LampEntity, Gpu.StarEntity);
+        scene.Constants.Counts.Y.Should().Be(1u, "the sun is the second light of the list");
+    }
+
+    [Fact]
+    public void TheFrameNamesNoSunWithoutAnAtmosphere()
+    {
+        RenderSnapshot snapshot = WithSun(Vector3.UnitY);
+
+        Prepare(snapshot).Constants.Counts.Y.Should().Be(GpuFrameConstants.NoAirSun);
     }
 }

@@ -147,9 +147,10 @@ bool takesLight(bool fiber, ShadingInput s, vec3 L, float geometricNdotL)
 
 // The irradiance in W/m² per channel that `light` sends to `position` before its shadows: color × intensity over
 // max(d², R², NearestDistance²), times the window of Karis 2013 to the reach and a spot light's cone, and the air's tint
-// for the atmosphere's sun, at most IrradianceLimit. 0 at or beyond the reach. L is the unit direction toward the light, zero when the position is at the
-// light's center, and d its distance.
-vec3 lightIrradiance(GpuLight light, vec3 position, out vec3 L, out float d)
+// if `airSun`, at most IrradianceLimit. 0 at or beyond the reach. airSun must be whether the light is the atmosphere's
+// sun, the light of the list at frame.counts.y. L is the unit direction toward the light, zero when the position is at
+// the light's center, and d its distance.
+vec3 lightIrradiance(GpuLight light, bool airSun, vec3 position, out vec3 L, out float d)
 {
     vec3 toLight = light.positionReach.xyz - position;
     // Finite: a kept light lies within 2^62 m of the eye, and so does every shaded point.
@@ -172,7 +173,7 @@ vec3 lightIrradiance(GpuLight light, vec3 position, out vec3 L, out float d)
     vec3 irradiance = light.intensityKind.rgb * falloff;
     // The atmosphere's sun takes the air's tint at the lit point (docs/plans/atmosphere.md, "The sun's tint"). The tint
     // is at most 1, so the product stays finite.
-    if (light.airSun != 0u)
+    if (airSun)
         irradiance *= sunTintAt(position);
     return min(irradiance, vec3(IrradianceLimit));
 }
@@ -308,10 +309,11 @@ bool viewKeeps(uint view, GpuLight light)
     return view == MainView ? light.inMainView != 0u : light.map <= view;
 }
 
-// directLight for one model: a fiber's light if `fiber`, else a surface's. `fiber` as in respond: directLight is the one
-// caller, and it passes a constant, so each copy of the loop holds one model's code.
+// directLight for one model: a fiber's light if `fiber`, else a surface's. `fiber` as in respond. `tinted` must be
+// whether the list holds the atmosphere's sun; a loop with it false holds no code of the tint. directLight is the one
+// caller, and it passes constants, so each copy of the loop holds one model's code and only the tint that it needs.
 DirectTerms modelLight(
-    bool fiber, ShadingInput s, SurfaceLobes lobes, vec3 position, vec3 V, uint shadowMaps, uint view)
+    bool fiber, bool tinted, ShadingInput s, SurfaceLobes lobes, vec3 position, vec3 V, uint shadowMaps, uint view)
 {
     DirectTerms sum;
     sum.diffuse = vec3(0.0);
@@ -323,7 +325,7 @@ DirectTerms modelLight(
             continue;
         vec3 L;
         float d;
-        vec3 irradiance = lightIrradiance(light, position, L, d);
+        vec3 irradiance = lightIrradiance(light, tinted && i == frame.counts.y, position, L, d);
         float geometricNdotL = dot(s.geometricNormal, L);
         if (irradiance == vec3(0.0) || !takesLight(fiber, s, L, geometricNdotL))
             continue;
@@ -355,10 +357,20 @@ DirectTerms modelLight(
 // so it pays each light's irradiance and shadow lookups twice. A view of hair under 16 shadowed lamps, about a third of
 // whose pixel blocks hold both, showed no measurable cost of it (docs/plans/skin-and-hair.md, "The shading models'
 // cost").
+//
+// For the same reason, the frame chooses between a loop with the air's tint and one without it: only a frame whose list
+// holds the atmosphere's sun takes the loop that compares each light with it. In every frame, the test of the tint inside
+// the one loop, never true without an atmosphere, made the direct pass of demo-exit's deck about 0.2 ms slower. The
+// choice takes that off, and about 0.05 ms off its transparent pass (docs/plans/skin-and-hair.md, "What remains"). The
+// choice is the same for every pixel of a frame.
 DirectTerms directLight(ShadingInput s, SurfaceLobes lobes, vec3 position, vec3 V, uint shadowMaps, uint view)
 {
-    return !dropsFibers && s.model == ShadingHair ? modelLight(true, s, lobes, position, V, shadowMaps, view)
-                                                  : modelLight(false, s, lobes, position, V, shadowMaps, view);
+    bool tinted = frame.counts.y != NoAirSun;
+    if (!dropsFibers && s.model == ShadingHair)
+        return tinted ? modelLight(true, true, s, lobes, position, V, shadowMaps, view)
+                      : modelLight(true, false, s, lobes, position, V, shadowMaps, view);
+    return tinted ? modelLight(false, true, s, lobes, position, V, shadowMaps, view)
+                  : modelLight(false, false, s, lobes, position, V, shadowMaps, view);
 }
 
 // Both parts of directLight, added.
@@ -417,7 +429,7 @@ vec3 scatteredLight(vec3 albedo, vec3 position, uint map)
             continue;
         vec3 L;
         float d;
-        vec3 incoming = lightIrradiance(light, position, L, d);
+        vec3 incoming = lightIrradiance(light, i == frame.counts.y, position, L, d);
         // At the light's center L is a zero vector, which the far shadows' angle cannot take. A surface there takes
         // nothing either, by its dot(N, L) of 0.
         if (incoming == vec3(0.0) || d == 0.0)
