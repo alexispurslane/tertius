@@ -1,6 +1,6 @@
 ---
 id: ter-ylzk
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-10-27T15:10:52Z
@@ -19,3 +19,9 @@ Options, for the user:
 (b) Drop the glow in the faces where the instance holds a light (one line in the face shader). The lamp panel then shows dark in the map's reflections.
 (c) Leave the glow out of the irradiance only (a second output of the faces, or an irradiance-only path), so the reflections keep the panel. Costs memory and a change to the faces and the prefilter.
 
+
+## Notes
+
+**2026-10-31T14:29:56Z**
+
+2026-10-31: the user chose option (b). The face pass drops the glow of every instance that holds a light, so the map's irradiance and its reflections carry no glow of a light-holding entity. The user accepted that the lamp's panel shows dark in the map's reflections, also where a reflected panel leaves the screen and screen-space reflections hand over to the map. Option (c), which kept the panel in the reflections with a second face output, was declined.
