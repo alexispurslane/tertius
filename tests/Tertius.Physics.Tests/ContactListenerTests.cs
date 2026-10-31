@@ -267,8 +267,8 @@ public sealed class ContactAllocationCollection;
 /// <summary>
 /// Jolt reports every contact of every awake body in every step, on its worker threads, so the backend's callbacks for
 /// those reports must not allocate. The gravity pass reads and writes every awake body in every step, so it must not
-/// allocate either. The tests count the bytes that every thread of the step allocates, Jolt's threads included (see
-/// <see cref="StepAllocations"/>).
+/// allocate either. The tests count the bytes that every thread of the step allocates, the contact callbacks on Jolt's
+/// threads included (see <see cref="StepAllocations"/>).
 /// </summary>
 [Collection(nameof(ContactAllocationTests))]
 public sealed class ContactAllocationTests

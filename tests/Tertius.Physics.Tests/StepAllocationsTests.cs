@@ -1,3 +1,6 @@
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+using JoltPhysicsSharp;
 using Tertius.Simulation;
 using static Tertius.Testing.WorldTesting;
 
@@ -15,10 +18,21 @@ public sealed class StepAllocationsCollection;
 /// nothing that another thread of the process allocates in the same window.
 /// </summary>
 [Collection(nameof(StepAllocationsTests))]
-public sealed class StepAllocationsTests
+public sealed unsafe class StepAllocationsTests
 {
     private const int Kilobyte = 1024;
     private const int Megabyte = 1024 * Kilobyte;
+
+    // The bytes of the array that each callback of AllocatingCallbacks allocates. The array object is larger still.
+    private const int CallbackPayload = 64;
+
+    // A table of contact callbacks that allocate CallbackPayload bytes each and report nothing to the world. joltc reads
+    // it through the counter, so it lives as long as the process, as the counter's own table does.
+    private static readonly ContactListenerProcs* AllocatingCallbacks = NewAllocatingCallbacks();
+
+    // The calls that AllocatingCallbacks received, and the array that the latest one allocated.
+    private static int allocatingCalls;
+    private static byte[]? callbackArray;
 
     /// <summary>The window runs on the thread that ticks the world, so what the window allocates counts.</summary>
     [Fact]
@@ -71,16 +85,7 @@ public sealed class StepAllocationsTests
     public void AnAllocationOnThePhysicsThreadDuringAStepCounts()
     {
         var faults = new FaultInjectingBackend(new(JoltBackendOptions.Unpaced));
-        using StepAllocations steps = new(faults);
-        using World world = new(
-            new WorldOptions
-            {
-                MaxDegreeOfParallelism = 1,
-                InitialCapacity = TestCapacity,
-                DebugChecks = false,
-            },
-            steps
-        );
+        using World world = NewWorldWithStepAllocations(faults, out StepAllocations steps);
         Falling(world);
         Tick(world, 10);
         byte[]? kept = null;
@@ -93,6 +98,38 @@ public sealed class StepAllocationsTests
     }
 
     /// <summary>
+    /// Jolt runs the contact callbacks of a step on its job threads and on the physics thread, so what each callback
+    /// allocates counts on whichever thread runs it: here 100 boxes land on a floor and jostle.
+    /// </summary>
+    [Fact]
+    public void WhatAContactCallbackAllocatesCountsOnWhicheverThreadRunsIt()
+    {
+        using World world = NewWorldWithStepAllocations(
+            new JoltPhysicsBackend(JoltBackendOptions.Unpaced),
+            AllocatingCallbacks,
+            out StepAllocations steps
+        );
+        FrameHandle ground = Ground(world, 9.81f);
+        Floor(world, ground);
+        for (int i = 0; i < 100; i++)
+            world.Spawn(
+                new()
+                {
+                    Frame = ground,
+                    Pose = At(i % 10, 1, i / 10),
+                    Body = Cube(),
+                }
+            );
+        int callsBefore = Volatile.Read(ref allocatingCalls);
+
+        long bytes = steps.Bytes(() => Tick(world, 60));
+
+        long calls = Volatile.Read(ref allocatingCalls) - callsBefore;
+        calls.Should().BePositive("the boxes touch the floor and each other in the window");
+        bytes.Should().BeGreaterThanOrEqualTo(calls * CallbackPayload, "every contact callback allocated an array");
+    }
+
+    /// <summary>
     /// A counter swaps joltc's contact callbacks for the whole process until it is disposed, so a second one while it
     /// lives would restore the wrong callbacks when it is disposed first.
     /// </summary>
@@ -100,11 +137,45 @@ public sealed class StepAllocationsTests
     public void ASecondCounterIsRefusedWhileTheFirstLives()
     {
         using World world = NewWorldWithStepAllocations(out _, out _);
-        using JoltPhysicsBackend jolt = new(JoltBackendOptions.Unpaced);
 
-        Action second = () => new StepAllocations(jolt).Dispose();
+        Action second = () => NewWorldWithStepAllocations(out _, out _).Dispose();
 
         second.Should().Throw<InvalidOperationException>().WithMessage("*already*");
+    }
+
+    /// <summary>
+    /// The backend is the counter's from the call on, so a counter that is refused disposes it, and its Jolt threads do
+    /// not outlive the refusal.
+    /// </summary>
+    [Fact]
+    public void ARefusedCounterDisposesTheBackendThatItWasGiven()
+    {
+        using World world = NewWorldWithStepAllocations(out _, out _);
+        var jolt = new JoltPhysicsBackend(JoltBackendOptions.Unpaced);
+        Action second = () => NewWorldWithStepAllocations(jolt, out _).Dispose();
+        second.Should().Throw<InvalidOperationException>();
+
+        Action use = () => jolt.ShapeProblem(new SphereShapeDesc(0.5f));
+
+        use.Should().Throw<ObjectDisposedException>("the refused counter disposed the backend");
+    }
+
+    /// <summary>
+    /// The counter wraps the added, persisted and removed callbacks. A validate callback would run uncounted on Jolt's
+    /// threads, so a table with one is refused.
+    /// </summary>
+    [Fact]
+    public void ATableWithAValidateCallbackIsRefused()
+    {
+        ContactListenerProcs* withValidate = stackalloc ContactListenerProcs[1];
+        *withValidate = *AllocatingCallbacks;
+        withValidate->OnContactValidate = 1;
+
+        Action counted = () =>
+            NewWorldWithStepAllocations(new JoltPhysicsBackend(JoltBackendOptions.Unpaced), withValidate, out _)
+                .Dispose();
+
+        counted.Should().Throw<InvalidOperationException>().WithMessage("*validate*");
     }
 
     /// <summary>A ball that falls in a frame with gravity, so that every step has an awake body.</summary>
@@ -119,5 +190,26 @@ public sealed class StepAllocationsTests
                 Body = new(Shape: new SphereShapeDesc(0.5f), Mass: 1),
             }
         );
+    }
+
+    private static ContactListenerProcs* NewAllocatingCallbacks()
+    {
+        var callbacks = (ContactListenerProcs*)NativeMemory.AllocZeroed((nuint)sizeof(ContactListenerProcs));
+        callbacks->OnContactAdded = &AllocateOnContact;
+        callbacks->OnContactPersisted = &AllocateOnContact;
+        callbacks->OnContactRemoved = &AllocateOnRemoved;
+        return callbacks;
+    }
+
+    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+    private static void AllocateOnContact(nint _, nint _1, nint _2, nint _3, ContactSettings* _4) => Allocate();
+
+    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+    private static void AllocateOnRemoved(nint _, SubShapeIDPair* _1) => Allocate();
+
+    private static void Allocate()
+    {
+        Volatile.Write(ref callbackArray, new byte[CallbackPayload]);
+        Interlocked.Increment(ref allocatingCalls);
     }
 }

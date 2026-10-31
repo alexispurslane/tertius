@@ -49,7 +49,7 @@ public sealed class FastHullForTenMinutes
 
 - Every test of physics runs the real World on the real Jolt backend. Never write a fake backend: a fake drifts from the code that it copies.
 - The one physics test double is `FaultInjectingBackend` in `tests/Tertius.Testing`. It wraps real Jolt, edits its input and output, and throws on request. A test of a state that only a bug produces edits the output of one step with `EditOutput`.
-- `StepAllocations` in `tests/Tertius.Testing` is not a double. It wraps a backend and changes nothing. It counts what the threads of a world's steps allocate: the ticking thread, the physics thread and Jolt's job threads. A test that says a step allocates nothing on any thread uses it, not `GC.GetTotalAllocatedBytes`, which also counts threads that do no work of the step, such as the finalizer thread (ter-a00h).
+- `StepAllocations` in `tests/Tertius.Testing` is not a double. It wraps a backend and changes nothing. It counts what the threads of a world's steps allocate: the ticking thread, the physics thread, and the contact callbacks on Jolt's job threads. It does not count JoltPhysicsSharp's body activation callbacks on those threads (ter-6dju). Make it with `WorldTesting.NewWorldWithStepAllocations`, which gives the world one gameplay thread, because gameplay workers do not count. A test that says a step allocates nothing on any thread uses it, not `GC.GetTotalAllocatedBytes`, which also counts threads that do no work of the step, such as the finalizer thread (ter-a00h).
 - A test of a valid hand-off flies a ball into a bubble with `Scenes.ApproachToBubble`.
 - `IComponent` methods take ref struct parameters, which no mocking library can substitute. Write a small component by hand for each test need:
 

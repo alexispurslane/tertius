@@ -59,8 +59,38 @@ public static class WorldTesting
     public static World NewWorldWithStepAllocations(out StepAllocations steps, out JoltPhysicsBackend backend)
     {
         backend = NewBackend(warnings: null);
-        steps = new(backend);
-        return new(NewOptions(debugChecks: false, configure: null), steps);
+        return NewWorldWithStepAllocations(backend, out steps);
+    }
+
+    /// <summary>
+    /// Like the overload above, but around <paramref name="backend"/>, which the world owns from the call on, even when the
+    /// call throws. This is the one way to make a <see cref="StepAllocations"/>, so that its world has one gameplay thread.
+    /// </summary>
+    public static unsafe World NewWorldWithStepAllocations(IPhysicsBackend backend, out StepAllocations steps) =>
+        NewWorldWithStepAllocations(backend, callbacks: null, out steps);
+
+    /// <summary>
+    /// Like the overload above, but the counting wrappers call <paramref name="callbacks"/> instead of the backend's own
+    /// contact callbacks, so that a test can make every contact callback allocate.
+    /// </summary>
+    internal static unsafe World NewWorldWithStepAllocations(
+        IPhysicsBackend backend,
+        ContactListenerProcs* callbacks,
+        out StepAllocations steps
+    )
+    {
+        steps = new(backend, callbacks);
+        try
+        {
+            // The gameplay workers of a world with more than one thread do not count, so the world has one.
+            return new(NewOptions(debugChecks: false, configure: null), steps);
+        }
+        catch
+        {
+            // The counter keeps joltc's callbacks for the whole process until it is disposed.
+            steps.Dispose();
+            throw;
+        }
     }
 
     private static JoltPhysicsBackend NewBackend(List<string>? warnings)

@@ -27,6 +27,10 @@ namespace Tertius.Physics;
 /// system first updates. A callback that gets user data which is not a <see cref="FrameWorld"/> leaves the report and
 /// counts it in <see cref="StrayReports"/>. Only a bug sends one: a system that kept the listener of JoltPhysicsSharp.
 /// </para>
+/// <para>
+/// The tests' <c>StepAllocations</c> (tests/Tertius.Testing) reads the field <c>callbacks</c> by reflection. While it
+/// lives, joltc calls its counting wrappers, which call this table. A second install of this table would drop them.
+/// </para>
 /// </remarks>
 internal sealed unsafe class ContactListener : IDisposable
 {

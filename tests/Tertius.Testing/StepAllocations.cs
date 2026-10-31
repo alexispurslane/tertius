@@ -8,13 +8,13 @@ using Tertius.Physics;
 namespace Tertius.Testing;
 
 /// <summary>
-/// A world's physics backend, plus a count of what the threads of the world's steps allocate: the thread that ticks the
-/// world, the physics thread, and Jolt's job threads, where the contact callbacks run. Other threads of the process, such
-/// as the finalizer thread, do not count (ter-a00h).
+/// A world's physics backend, plus a count of what the threads of the world's steps allocate: the ticking thread, the
+/// physics thread, and the contact callbacks on Jolt's job threads. Other threads, such as the finalizer, do not count
+/// (ter-a00h). Make one with <see cref="WorldTesting.NewWorldWithStepAllocations(IPhysicsBackend, out StepAllocations)"/>.
 /// </summary>
 /// <remarks>
-/// It forwards every call unchanged. Gameplay workers do not count, so the world runs gameplay on its ticking thread. While
-/// it lives, joltc's contact callbacks for the whole process go through counting wrappers, so only one lives at a time.
+/// It forwards every call unchanged. It does not count JoltPhysicsSharp's body activation callbacks on Jolt's threads
+/// (ter-6dju). Only one lives at a time, because joltc's contact callbacks serve the whole process.
 /// </remarks>
 public sealed unsafe class StepAllocations : IPhysicsBackend
 {
@@ -41,27 +41,27 @@ public sealed unsafe class StepAllocations : IPhysicsBackend
     private long physicsThreadBytes;
 
     /// <summary>
-    /// Wraps <paramref name="backend"/>, which it then owns. Throws <see cref="InvalidOperationException"/>, and leaves
-    /// the backend to the caller, while another counter lives or before the process made a <see cref="JoltPhysicsBackend"/>.
+    /// Wraps <paramref name="backend"/>, which it owns from the call on: it disposes the backend when it throws. The
+    /// world must run gameplay on its ticking thread, because gameplay workers do not count.
     /// </summary>
-    public StepAllocations(IPhysicsBackend backend)
+    /// <param name="forwardTo">The contact callbacks that the counting wrappers call, or null for the backend's own.</param>
+    /// <exception cref="InvalidOperationException">
+    /// Another counter lives, no <see cref="JoltPhysicsBackend"/> gave joltc its callbacks yet, or the callbacks include a
+    /// validate callback, which the counter does not count.
+    /// </exception>
+    internal StepAllocations(IPhysicsBackend backend, ContactListenerProcs* forwardTo = null)
     {
-        if (live is not null)
-            throw new InvalidOperationException(
-                "A StepAllocations already wraps joltc's contact callbacks, which serve the whole process. Dispose it first."
-            );
         this.backend = backend;
-        backendCallbacks = BackendCallbacks();
-        if (countingCallbacks is null)
+        try
         {
-            countingCallbacks = (ContactListenerProcs*)NativeMemory.AllocZeroed((nuint)sizeof(ContactListenerProcs));
-            countingCallbacks->OnContactAdded = &OnContactAdded;
-            countingCallbacks->OnContactPersisted = &OnContactPersisted;
-            countingCallbacks->OnContactRemoved = &OnContactRemoved;
+            WrapContactCallbacks(forwardTo is null ? BackendCallbacks() : forwardTo);
+        }
+        catch
+        {
+            backend.Dispose();
+            throw;
         }
 
-        countingCallbacks->OnContactValidate = backendCallbacks->OnContactValidate;
-        JoltNative.ContactListenerSetProcs(countingCallbacks);
         live = this;
     }
 
@@ -163,6 +163,29 @@ public sealed unsafe class StepAllocations : IPhysicsBackend
         backend.Dispose();
     }
 
+    /// <summary>Gives joltc the counting wrappers of <paramref name="callbacks"/>, the table that they then call.</summary>
+    private static void WrapContactCallbacks(ContactListenerProcs* callbacks)
+    {
+        if (live is not null)
+            throw new InvalidOperationException(
+                "A StepAllocations already wraps joltc's contact callbacks, which serve the whole process. Dispose it first."
+            );
+        if (callbacks->OnContactValidate != 0)
+            throw new InvalidOperationException(
+                "The contact callbacks include a validate callback, which runs on Jolt's threads and which the count does not wrap."
+            );
+        backendCallbacks = callbacks;
+        if (countingCallbacks is null)
+        {
+            countingCallbacks = (ContactListenerProcs*)NativeMemory.AllocZeroed((nuint)sizeof(ContactListenerProcs));
+            countingCallbacks->OnContactAdded = &OnContactAdded;
+            countingCallbacks->OnContactPersisted = &OnContactPersisted;
+            countingCallbacks->OnContactRemoved = &OnContactRemoved;
+        }
+
+        JoltNative.ContactListenerSetProcs(countingCallbacks);
+    }
+
     /// <summary>The table of the backend's contact callbacks, which the backend gave joltc when it was first made.</summary>
     private static ContactListenerProcs* BackendCallbacks()
     {
@@ -178,12 +201,16 @@ public sealed unsafe class StepAllocations : IPhysicsBackend
     }
 
     /// <summary>
-    /// Adds what a callback allocated on this thread since <paramref name="before"/>, unless this is the physics thread,
-    /// whose whole step counts already.
+    /// This thread's count before a callback, or -1 on the physics thread, whose whole step counts already. It reads the
+    /// thread's id first, so that what the read itself allocates on a new thread does not count.
     /// </summary>
+    private static long JobThreadCountBefore() =>
+        Environment.CurrentManagedThreadId == physicsThread ? -1 : GC.GetAllocatedBytesForCurrentThread();
+
+    /// <summary>Adds what a callback allocated on this thread since <paramref name="before"/>, unless that is -1.</summary>
     private static void CountJobThread(long before)
     {
-        if (Environment.CurrentManagedThreadId == physicsThread)
+        if (before < 0)
             return;
         long bytes = GC.GetAllocatedBytesForCurrentThread() - before;
         if (bytes != 0)
@@ -191,15 +218,9 @@ public sealed unsafe class StepAllocations : IPhysicsBackend
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
-    private static void OnContactAdded(
-        nint userData,
-        nint body1,
-        nint body2,
-        nint manifold,
-        ContactSettings* settings
-    )
+    private static void OnContactAdded(nint userData, nint body1, nint body2, nint manifold, ContactSettings* settings)
     {
-        long before = GC.GetAllocatedBytesForCurrentThread();
+        long before = JobThreadCountBefore();
         backendCallbacks->OnContactAdded(userData, body1, body2, manifold, settings);
         CountJobThread(before);
     }
@@ -213,7 +234,7 @@ public sealed unsafe class StepAllocations : IPhysicsBackend
         ContactSettings* settings
     )
     {
-        long before = GC.GetAllocatedBytesForCurrentThread();
+        long before = JobThreadCountBefore();
         backendCallbacks->OnContactPersisted(userData, body1, body2, manifold, settings);
         CountJobThread(before);
     }
@@ -221,7 +242,7 @@ public sealed unsafe class StepAllocations : IPhysicsBackend
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     private static void OnContactRemoved(nint userData, SubShapeIDPair* pair)
     {
-        long before = GC.GetAllocatedBytesForCurrentThread();
+        long before = JobThreadCountBefore();
         backendCallbacks->OnContactRemoved(userData, pair);
         CountJobThread(before);
     }
