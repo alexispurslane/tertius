@@ -173,6 +173,15 @@ public sealed class EnvironmentFaceTests
 {
     private const int Size = EnvironmentScenes.FaceSize;
 
+    /// <summary>The entity of the black glowing panel of the glow tests, which no other instance holds.</summary>
+    private const uint PanelEntity = 7;
+
+    /// <summary>The glow of the black panel of the glow tests, in W/(m² sr) per channel.</summary>
+    private const float PanelGlow = 5;
+
+    /// <summary>The entity of the glowing wall behind the panel, which holds no light.</summary>
+    private const uint WallEntity = 8;
+
     [Fact]
     public void EachFaceHoldsWhatLiesInItsDirection()
     {
@@ -423,6 +432,91 @@ public sealed class EnvironmentFaceTests
                 .Center(EnvironmentScenes.Face(renderer, CubeFace.PositiveX))
                 .Should()
                 .Be(Vector3.Zero, "no sun, lamp or emission reaches the wall, and a face takes no ambient light");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void AGlowOfAnEntityThatHoldsALightAddsNothingToTheMap()
+    {
+        // The entity sends its power once, through its light, and its glow is that light's face (docs/plans/environment-
+        // map.md, "How a face is lit"). Else the map's irradiance lights the room with the lamp's power a second time.
+        VulkanRenderer renderer = EnvironmentScenes.Renderer();
+        try
+        {
+            RenderSnapshot snapshot = EnvironmentScenes.Dark();
+            RenderInstance panel = EnvironmentScenes.Square(
+                plane: renderer.CreateMesh(Primitives.Plane(1f)),
+                material: EnvironmentScenes.Emissive(renderer, new(PanelGlow)),
+                center: new(10, 0, 0),
+                halfSize: 5,
+                chainDepth: TestChains.CamerasFrame
+            );
+            panel.EntityIndex = PanelEntity;
+            snapshot.Instances.Add(panel);
+            // Behind the panel, the lamp's light reaches only the panel's back.
+            snapshot.Lights.Add(
+                Gpu.Lamp(position: new(12, 0, 0), color: Vector3.One, intensity: 1, chainDepth: TestChains.CamerasFrame) with
+                {
+                    EntityIndex = PanelEntity,
+                }
+            );
+            // A glowing wall behind the lamp fills the face. Where the panel covers it, the face reads 0 only if it draws
+            // the panel dark, not if it leaves the panel out.
+            RenderInstance wall = EnvironmentScenes.Square(
+                plane: renderer.CreateMesh(Primitives.Plane(1f)),
+                material: EnvironmentScenes.Emissive(renderer, new(PanelGlow)),
+                center: new(20, 0, 0),
+                halfSize: 10,
+                chainDepth: TestChains.CamerasFrame
+            );
+            wall.EntityIndex = WallEntity;
+            snapshot.Instances.Add(wall);
+
+            renderer.Render(snapshot, 1f);
+
+            EnvironmentScenes
+                .Center(EnvironmentScenes.Face(renderer, CubeFace.PositiveX))
+                .Should()
+                .Be(Vector3.Zero, "the black panel hides the wall and reflects nothing, and its glow is its light's face");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void AGlowWithoutALightOfItsOwnStaysInTheMap()
+    {
+        VulkanRenderer renderer = EnvironmentScenes.Renderer();
+        try
+        {
+            RenderSnapshot snapshot = EnvironmentScenes.Dark();
+            RenderInstance panel = EnvironmentScenes.Square(
+                plane: renderer.CreateMesh(Primitives.Plane(1f)),
+                material: EnvironmentScenes.Emissive(renderer, new(PanelGlow)),
+                center: new(10, 0, 0),
+                halfSize: 5,
+                chainDepth: TestChains.CamerasFrame
+            );
+            panel.EntityIndex = PanelEntity;
+            snapshot.Instances.Add(panel);
+            // Behind the panel, the lamp's light reaches only the panel's back. The lamp is another entity's.
+            snapshot.Lights.Add(
+                Gpu.Lamp(position: new(12, 0, 0), color: Vector3.One, intensity: 1, chainDepth: TestChains.CamerasFrame)
+            );
+
+            renderer.Render(snapshot, 1f);
+
+            EnvironmentScenes.ShouldBeNear(
+                EnvironmentScenes.Center(EnvironmentScenes.Face(renderer, CubeFace.PositiveX)),
+                new(PanelGlow),
+                "a glow with no light of its own, such as a screen's, is a source of its own"
+            );
         }
         finally
         {
