@@ -1,6 +1,6 @@
 ---
 id: ter-5ird
-status: in_progress
+status: open
 deps: []
 links: []
 created: 2026-10-31T21:17:06Z
@@ -19,3 +19,7 @@ Found by the coverage check of epic ter-n7lw (2026-10-31). The epic's changed en
 **2026-10-31T21:30:55Z**
 
 Workflow run 10a316ab-f4fb-4f63-bef4-afa1df798711 (version 869b0b07), branch ter-5ird-hair-scene-script-checks from d4bd48de.
+
+**2026-10-31T21:35:25Z**
+
+Run 10a316ab stopped by the orchestrator after about 5 minutes, cleanup complete: ter-vr5r's fix stage started, which made five builders against the user's limit of four. The worktree ~/.t3/worktrees/tertius/ter-5ird-hair-scene-script-checks keeps the builder's untracked, unfinished tests/Tertius.Host.Tests/HairSkinAndReflectionScenesTests.cs (250 lines, never built or run). A continuation attaches that worktree and inspects the file before it goes on.
