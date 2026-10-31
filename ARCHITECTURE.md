@@ -2009,10 +2009,10 @@ Two Metal System Traces measured the cost (`tools/gpu-trace.sh`, ter-6vhj). Each
 | direct light | 1.762 ms | 1.716 ms | The sun's tint, one more exponential per lit pixel |
 | environment faces | 0.126 ms | 0.128 ms | The faces' haze, within the noise |
 | ambient light | 0.540 ms | 0.529 ms | The sky pixels read one more constant |
-| exposure | 0.126 ms | 0.069 ms | Not explained: the meter's work does not read the look |
+| exposure | 0.126 ms | 0.069 ms | Not explained: the meter's work does not read the look. The cost comes with the haze pass (paired traces, ter-bgpv), and ter-0y0z looks for its cause |
 | frame span | 9.685 ms | 9.334 ms | |
 
-Since ter-uu2y, every view of a world with a planet medium has an atmosphere, because a camera off every planet's chain takes the air that is densest at its eye. Ticket ter-bgpv measured that no shipped view pays more than the timer's noise, about 0.02 ms, for air that it cannot show, so the renderer has no skip. Only `mars-air` paints a haze, and each of its views shows the air. Over Earth's air, which paints nothing, the haze pass does no GPU work, and the sun's tint costs the direct light no more than the noise of a control trace.
+Since ter-uu2y, every view of a world with a planet medium has an atmosphere, because a camera off every planet's chain takes the air that is densest at its eye. Ticket ter-bgpv measured the cost of air that a view cannot show with paired Metal System Traces (`tools/gpu-trace.sh`, frames with and without the record alternate). No shipped view pays more than the noise of that statistic, a control difference of at most 0.007 ms, which is below the ticket's 0.02 ms threshold. So the renderer has no skip. Only `mars-air` paints a haze, and each of its views shows the air. Over Earth's air, which paints nothing, the haze pass does no GPU work, and the sun's tint costs the direct light no more than the control's noise. The decision holds while no shipped scene gives a haze to an air whose views can leave the planet out of view. Such a scene re-opens the skip, and the ter-bgpv ticket note holds the shader facts for it: the haze has no cut-off radius, and the sun's tint is taken at the lit point only.
 
 The snapshot holds one record, so a second planet with air in the same view takes no haze and no tint. (User, ter-uu2y) The mean density share of the haze reads the heights at the two ends of a ray only, so a ray that grazes the limb with both ends above the air takes almost no haze.
 
