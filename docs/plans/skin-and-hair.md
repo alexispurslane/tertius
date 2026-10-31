@@ -1012,8 +1012,8 @@ The shading target's cost with no skin and no hair: the deck window of `scripts/
 The GPU timer's spans: base 17.28, 16.73, 17.23, 17.21; branch 20.38, 17.91, 18.32; branch with the scatter off 17.76, 18.67, 18.84. The first branch run was disturbed: every pass of it is slower. The two traces with the scatter off agree within 0.1 ms in each pass shown, and both have a high 95th percentile; most of their other passes, such as the reflections and the occlusion sectors, are also 0.05 to 0.2 ms slower than in the branch's runs with the scatter on.
 
 - The epic costs demo-exit about 1 ms of frame span with the scatter on, 17.2 against 18.3 ms without the disturbed run, about 6 %. The design estimated about 0.3 ms.
-- The direct pass grows by 0.4 to 0.9 ms with the scatter on (6.13 and 6.28 against 5.37 to 5.75 ms) and by 0.8 to 1.3 ms with it off (6.59 and 6.69 ms), against an estimate of 0.02 ms for the shading target's read. So the growth does not come from the scatter. That the pass takes 0.3 to 0.6 ms more with the scatter off, where it writes one attachment fewer, is not explained: part of it may be the state of the machine, as the off runs' other passes are slower too. No run isolates the cause of the growth. The candidates, which ticket `ter-uqmn` of the performance coda measures: `respond` and `takesLight` in the light loop in place of `brdf`, which choose by the pixel's model and keep the two parts apart, per light per pixel; the shading target's fetch; and the larger shader's occupancy.
-- The transparent pass grows by 0.4 to 0.7 ms, with no fringe in the window (2.10 to 2.32 against 1.62 to 1.71 ms). The candidates, also for `ter-uqmn`: the glass's shading through `forwardShading` and `respond`, and its runs by sides. The design did not estimate it.
+- The direct pass grows by 0.4 to 0.9 ms with the scatter on (6.13 and 6.28 against 5.37 to 5.75 ms) and by 0.8 to 1.3 ms with it off (6.59 and 6.69 ms), against an estimate of 0.02 ms for the shading target's read. So the growth does not come from the scatter. That the pass takes 0.3 to 0.6 ms more with the scatter off, where it writes one attachment fewer, is not explained: part of it may be the state of the machine, as the off runs' other passes are slower too. No run isolates the cause of the growth. Ticket `ter-uqmn` isolated it and brought most of it down (see "The shading models' cost" below).
+- The transparent pass grows by 0.4 to 0.7 ms, with no fringe in the window (2.10 to 2.32 against 1.62 to 1.71 ms). The design did not estimate it. `ter-uqmn` measured its parts (see "The shading models' cost" below).
 - The ambient pass grows by 0.14 to 0.16 ms under `SeparableSubsurface` against the runs with the scatter off, and not without it (0.433 and 0.442 against 0.420 to 0.516 ms): the blend of its second attachment, the scatter image, at every pixel (estimate 0.1 to 0.15 ms for both lighting passes). The direct pass's write of the scatter image does not show beyond the spread.
 - The G-buffer pass grows by 0.03 to 0.05 ms, within the spread: the shading target's write (estimate 0.05 to 0.1 ms).
 - The scatter passes with no skin on screen: 0.10 to 0.11 ms (estimate 0.05 to 0.1 ms).
@@ -1039,6 +1039,47 @@ With the scatter on, the fringed fan's second run and the glass fan's first run 
 - The cutout draws: the G-buffer pass takes 0.08 ms more than with the cards as glass, which draw no core, by the runs with the scatter off. The runs with it on, whose means vary, give 0.01 to 0.14 ms. A fringed card's core costs the same as a cutout's. The shadow maps take the same time for all three fans (0.18 to 0.21 ms), as glass with `CastsShadow` casts its whole rectangle.
 - The cores enter the screen-space passes as opaque surfaces: the reflections' two passes take about 0.6 ms more with cores than with the glass fan (0.61 to 0.62 ms by the runs with the scatter off), and the occlusion sectors 0.11 to 0.12 ms more by the runs with the scatter off. The runs with it on, whose means vary, give −0.12 to 0.29 ms for the sectors.
 - The fan as fringed hair against the same fan as glass, by the two runs of each with the scatter off: 0.47 to 0.51 ms more frame span (11.43 and 11.47 against 10.96 and 10.98 ms); as cutout hair, 0.53 to 0.62 ms less (10.36 and 10.43 ms). Per pass, by the means of the same runs, the cores add to the G-buffer, direct, ambient, occlusion and reflection passes about 1.1 ms, and the transparent pass takes 0.68 ms less for the fringed fan and 1.74 ms less for the cutout fan, which has none. The sums of the passes' own times do not add up to the spans' differences: +0.16 and −1.14 ms against +0.48 and −0.58 ms. The span also holds the gaps between the passes, and the exposure pass takes 0.29 and 0.60 ms less with either fan than with the glass fan. So the frame's cost here is the span's difference. The design estimated 0.5 to 1 ms for a head of hair over 15 % of the screen.
+
+### The shading models' cost
+
+Ticket `ter-uqmn` (2026-10-31) isolated the growth of the direct and the transparent pass with no skin and no hair on screen, and removed most of it. Its traces took the deck window of `scripts/demo-exit.json`: 120 frames from frame 399, 1920 × 1080, Release, the default configuration (`SeparableSubsurface`), `tools/gpu-trace.sh --no-counters`. Three commits ran in turn: the commit before the merge of this epic (`bf812296`), the ticket's base (`cd8b233c`) and the ticket's branch. Other builds shared the machine, so the 1-minute load at the start of a run was 3.8 to 56. The numbers are the medians of each pass's own time in ms. Other work disturbed three runs: their medians lie 0.15 ms or more and their means 0.5 ms or more above the other runs of the same commit. The tables leave them out, and the ticket's notes name them.
+
+| Pass | Before the merge, 4 runs | Base, 5 runs | Branch, 2 runs |
+|---|---|---|---|
+| direct light | 5.22 to 5.25 | 6.07 to 6.10 | 5.53, 5.55 |
+| transparent | 1.56 to 1.59 | 1.93 to 1.95 | 1.76, 1.77 |
+| frame span | 16.01 to 16.91 | 18.04 to 18.50 | 17.47, 17.48 |
+
+Diagnostic builds from the base removed one candidate after another, two runs of each:
+
+| Build | Direct light | Transparent |
+|---|---|---|
+| Base | 6.07 to 6.10 | 1.93 to 1.95 |
+| No hair code in `respond` and `takesLight` | 5.57, 5.60 | 1.87, 1.88 |
+| Also no shadow normal turned toward the light | 5.59, 5.61 | 1.70, 1.71 |
+| Also no fetch of the shading target | 5.47, 5.49 | 1.71, 1.77 |
+| Also one sum in place of the two parts of `DirectTerms` | 5.42, 5.42 | 1.65, 1.66 |
+
+- The cause in the direct pass: the hair code inside the light loop. `respond` and `takesLight` chose the model again for each light, and that cost about 0.5 ms of the gap of 0.85 ms with no hair on screen. The fetch of the shading target costs about 0.1 ms, and the two sums of `DirectTerms` about 0.05 ms.
+- The shadow normal turned toward the light costs nothing measurable in the direct pass. In the transparent pass, the hair code and the turned normal together cost 0.22 to 0.25 ms.
+- The fix: `directLight` chooses the model once per pixel, before the loop over the lights. It runs `modelLight` with `fiber` as a constant, so each copy of the loop holds the code of one model. A surface takes a light only where its geometric normal faces it, so only the fiber loop turns the shadow normal. The direct pass takes 0.52 to 0.57 ms less than the base, and the transparent pass 0.16 to 0.19 ms less.
+
+What remains against the commit before the merge, and why it stays:
+
+- The direct pass takes 0.28 to 0.33 ms more. The fetch of the shading target, about 0.1 ms, stays because the pass must know each pixel's model to choose its loop, and the shading target is the one store of the model. The two sums, about 0.05 ms, stay because the diffuse part goes alone into the diffuse image. About 0.19 ms remains with all of these removed, 5.42 against 5.22 to 5.25 ms. By elimination it is the diffuse image, the pass's second attachment, which the skin scatter and the screen-space light read. No build isolated it. The pass writes the diffuse image only under the skin scatter or the screen-space light, and the default configuration has the scatter on.
+- The transparent pass takes about 0.2 ms more. The two sums cost about 0.05 ms (1.65 to 1.66 against 1.70 to 1.71 ms), and the fiber loop's code about 0.06 ms (the branch against the build with no hair code and no turned normal). A glass hair material shades as hair in this pass, so its shader keeps both loops. About 0.1 ms remains with all of these removed, 1.65 to 1.66 against 1.56 to 1.59 ms. It comes from the merge's changes to the material's sampling, which give every sample its model, its geometric normal and a hair's strand in `sampleMaterial`. No build isolated it.
+
+`scripts/skin-and-hair.json` does not get slower. The same method took two runs each of the base and the branch, with the load at 12 to 59:
+
+| View | Direct light, base | Direct light, branch | Frame span, base | Frame span, branch |
+|---|---|---|---|---|
+| Head (`--start 1`) | 1.68, 1.79 | 1.28, 1.44 | 10.54, 10.80 | 9.06, 9.88 |
+| Fringed fan (123) | 1.28, 1.57 | 1.09, 1.11 | 10.38, 10.94 | 9.25, 9.40 |
+| Cutout fan (244) | 1.80, 1.82 | 1.35, 1.38 | 11.24, 11.28 | 9.61, 10.01 |
+
+The fringed fan's transparent pass takes 0.79 and 0.93 ms on the base and 0.72 and 0.75 ms on the branch.
+
+The loop per model changes pixels on this Mac by rounding. The Metal source that SPIRV-Cross gives holds the same text in both loops, but Metal's fast math rounds the separate surface loop differently. A build with only the surface loop's unturned shadow normal keeps every byte. Two runs of the base on `skin-and-hair.json` give the same bytes in 486 of 486 frames. Against the base, 230 pixels in 3,888 frames of `demo-exit.json` differ, each by 1 of 255 in one channel. In `skin-and-hair.json`, 102 pixels differ: 99 by 1 of 255, and 3 adjacent pixels of the glass fan's frame `hair-glass-timing-000109` by up to 7. The user accepted this change for the time that it saves (2026-10-31).
 
 ## Known limits
 
