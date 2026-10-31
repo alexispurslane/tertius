@@ -17,7 +17,8 @@ public readonly record struct UniformMedium(float Density, float Drag, BoundingB
 /// The air of a planet at the frame's origin, at one temperature, so its density falls by the factor e per scale height
 /// above the planet's radius. Below the radius the density stays at the surface density. It matches
 /// <see cref="PointGravity"/>, centred on the frame's origin. It also holds the air's look, which the renderer paints for a
-/// camera whose chain holds the frame (docs/plans/atmosphere.md): the sky, the haze and the sun's tint. Each part of the
+/// camera whose chain holds the frame, or for a camera whose chain holds no planet medium when this air is the densest at
+/// its eye (docs/plans/atmosphere.md): the sky, the haze and the sun's tint. Each part of the
 /// look defaults to none.
 /// </summary>
 /// <param name="Radius">The radius of the planet, in m, 0 or more.</param>

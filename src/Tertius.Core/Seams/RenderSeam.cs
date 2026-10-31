@@ -171,7 +171,8 @@ public readonly record struct RenderChainFrame(long FrameId, Quaternion Rotation
 
 /// <summary>
 /// The air that the camera looks through (docs/plans/atmosphere.md): the planet medium of the nearest frame of
-/// <see cref="RenderSnapshot.Chain"/> that has one, where the frame's origin is, and which light is the planet's sun.
+/// <see cref="RenderSnapshot.Chain"/> that has one, or, when no chain frame has one, of the planet frame that is densest at
+/// the eye; where the frame's origin is; and which light is the planet's sun.
 /// </summary>
 /// <param name="Center">
 /// The origin of the medium's frame, the planet's center, relative to the render origin, in the axes of the camera's frame,

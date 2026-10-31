@@ -18,7 +18,7 @@ The look reaches the environment maps through `skyRadiance` and through the shar
 2. The sky is a painted sky radiance, RGB in W/(m²·sr): the full-day value at the surface. Its brightness follows two rules. It is multiplied by a day factor of the Sun's elevation, so the sky is dark at night. It is multiplied by the density share at the eye, so space above the air stays black.
 3. The haze is a painted haze color and a haze distance per planet. It is on only where the planet sets it. It applies in every pass that shades a surface seen through the air, the environment faces included, through one shared function.
 4. The sun's tint is a fixed painted tint per planet on the Sun's light, for what lies in the air. It does not change with the time of day.
-5. The sky comes from the nearest frame on the camera's chain that has a planet medium, at the eye's height in that frame. So a cabin on the surface sees the planet's sky through its windows, and orbit sees black.
+5. The sky comes from the nearest frame on the camera's chain that has a planet medium, at the eye's height in that frame. So a cabin on the surface sees the planet's sky through its windows, and orbit sees black. If no chain frame has a planet medium, the air comes from the planet frame that is densest at the eye (User, `ter-uu2y`). So a camera outside the bubble of the air's frame keeps the haze and the tint of the ground below it.
 6. The stars fade by day through auto exposure alone. No star rule dims them.
 7. The tone curve does not change. The hemisphere ambient light, with the map off, stays as it is.
 8. The render snapshot carries one atmosphere record: the planet's center relative to the camera, its parameters, and which light is its sun.
@@ -28,7 +28,7 @@ The look reaches the environment maps through `skyRadiance` and through the shar
 | Term | Meaning |
 |---|---|
 | The planet | The frame whose medium is a `PlanetMedium`. Its origin is the planet's center. |
-| The atmosphere's frame | The nearest frame of `RenderSnapshot.Chain`, camera first, whose medium is a `PlanetMedium`. If no chain frame has one, there is none. |
+| The atmosphere's frame | The nearest frame of `RenderSnapshot.Chain`, camera first, whose medium is a `PlanetMedium`. If no chain frame has one, it is the frame of the world with a `PlanetMedium` that puts the eye the fewest scale heights above its surface, h_e / H. Of two that tie, the frame with the lower slot wins. If no frame of the world has a planet medium, there is none. |
 | R | The planet's radius, `PlanetMedium.Radius`, in m. |
 | H | The scale height, `PlanetMedium.ScaleHeight`, in m. |
 | c | The planet's center relative to the eye, in the camera's frame axes, in m. |
@@ -156,14 +156,15 @@ At the surface the light takes the whole tint, and above the air it takes none. 
 |---|---|---|
 | The day factor's curve | `smoothstep(−6°, +6°, e)` of the elevation angle | A smooth sunset, centered at the horizon. Dark at the end of civil twilight, full by the time the sun is a hand's width up. |
 | How the haze fades with the density share | The optical depth takes the mean density share along the ray | With the eye's share alone, the haze vanishes over the ground seen from above the air, though that ground lies in the air. The mean along the ray is exact for a flat ground and costs two exponentials. |
-| How the tint fades with the density share | `mix(1, SunTint, s(p))` at the lit point | Full at the surface, none above the air, and continuous between them. It is the tint of the point, not of the eye. So the ground seen from above the air keeps its tint while the camera stays inside the planet frame's bubble, and a ship in orbit seen from the ground does not take it. |
+| How the tint fades with the density share | `mix(1, SunTint, s(p))` at the lit point | Full at the surface, none above the air, and continuous between them. It is the tint of the point, not of the eye. So the ground seen from above the air keeps its tint, inside the planet frame's bubble and outside it, and a ship in orbit seen from the ground does not take it. |
 | The day factor of the haze light | D(e(p)) at each hazed point | With D at the eye, a view across the terminator lost it: the night ground glowed with the haze of the daylit eye, and from the night side the day side went dark. D at the point costs one `asin` per hazed pixel, and the sky keeps D at the eye, as settled. |
 | How the sun is chosen | The point light with the most irradiance at the planet's center, P · (r + g + b) / max(d², R²), in doubles. A tie keeps the earlier light of `RenderSnapshot.Lights`. | A planet's day comes from the light that outshines all the others there. The floor at R² keeps a light near the center from winning by its nearness. A spot light lights only its cone, so it cannot be a planet's sun. The list order is the slot order of the entities, which every run shares, so the choice is deterministic. |
 | A horizon gradient | None: one color in every direction | The default of the ticket. |
+| How the air off the chain is chosen (`ter-uu2y`) | The smallest h_e / H, with h_e = max(0, \|c\| − R), in doubles from the frame poses of the build. A tie keeps the lower frame slot. | The air densest at the eye is the air that the eye looks through. The heights compare directly, not the densities e^(−h_e / H), so far planets do not all tie at 0. The slot order is the same in every run, so the choice is deterministic. The build already places every frame, so the choice reads poses that it has. |
 
 ## The snapshot build
 
-`RenderSnapshotBuilder.Build` writes the atmosphere after the chain and the lights. It walks `RenderSnapshot.Chain` from the camera's frame up. The first frame whose medium is a `PlanetMedium` gives the record: its pose relative to the camera's physics home less the render origin, now and at the previous build, as an instance's positions are. Then it chooses the sun among the lights of the snapshot. A snapshot without a camera, or without such a frame, has no atmosphere.
+`RenderSnapshotBuilder.Build` writes the atmosphere after the chain and the lights. It walks `RenderSnapshot.Chain` from the camera's frame up. The first frame whose medium is a `PlanetMedium` gives the record. If no chain frame has one, `RenderSnapshotBuilder.AtmosphereFrame` looks at every frame of the tree and takes the planet frame that is densest at the eye. The record holds the chosen frame's pose relative to the camera's physics home less the render origin, now and at the previous build, as an instance's positions are. Then it chooses the sun among the lights of the snapshot. A snapshot without a camera, or of a world without a planet medium, has no atmosphere.
 
 ## The renderer
 
@@ -199,7 +200,8 @@ Without an atmosphere, every value is 0 except the tint, which is 1. Then `skyRa
 The tests define the behavior first, in the language of the domain:
 
 - A planet medium with a sky, a haze or a tint out of its range is not valid.
-- A camera in a frame with a planet medium gets the atmosphere record: the center, the medium and the sun. A cabin on the surface gets its planet's record. A chain without a planet medium gives none.
+- A camera in a frame with a planet medium gets the atmosphere record: the center, the medium and the sun. A cabin on the surface gets its planet's record. A world without a planet medium gives none.
+- A camera outside the bubble of the air's frame still gets that air, and so does a camera in orbit over a turning ground whose bubble ends 50 km up. The chain's air wins over a denser air off the chain. Of two airs off the chain, the air densest at the eye wins, and of two equally dense airs, the lower frame slot wins (`ter-uu2y`).
 - The sun is the point light that gives the planet's center the most light.
 - The day factor is full by day, half at sunset and zero at night.
 - A frame with a painted sky shows that color behind its ground by day. The sky is black at night. The sky fades to black above the air.
@@ -214,4 +216,4 @@ The tests define the behavior first, in the language of the domain:
 ## Not in this ticket
 
 - The exposure meter counts no sky pixel (`auto-exposure.md`). So a view of the sky alone keeps the exposure that the view before it set. With a sunlit surface in view, the exposure falls by day, and the stars fade.
-- Open fork for the user: the record comes from the camera's chain. A camera that leaves the bubble of the atmosphere's frame loses the record, and with it the haze and the tint of the ground below, in one frame. A tall bubble does not hide this edge. Seen from above the air, the ground takes the haze of its whole air column, about τ = H / `Haze.Distance`. For `mars-air` that is τ ≈ 0.74 and T ≈ 0.48 at the 300 km edge of its bubble. So the full-column haze and the tint pop off at any bubble edge, whatever its height. A planet whose air lies on a frame with a low bubble, such as the demo's Earth pattern with its edge 50 km up, never shows the haze or the tint of its ground from orbit.
+- One air per view (User, `ter-uu2y`). The snapshot keeps one atmosphere record, so a second planet with air in the same view takes no haze and no tint.
