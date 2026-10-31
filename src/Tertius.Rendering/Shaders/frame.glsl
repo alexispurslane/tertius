@@ -72,7 +72,7 @@ const uint ShadingHair = 2u;
 
 // The shading target's B and A (docs/plans/skin-and-hair.md, "The shading target"): bit 0 of B is the light mark, bits 0
 // and 1 of A the model's code, and the 13 bits above them, 7 of B and 6 of A, a hair pixel's card code, 0 for another
-// model. CardCode.Channels and CardCode.Read are the C# twins.
+// model. CardCode (Channels, Read, LightMarkOf and ModelOf) holds the C# twins.
 uvec2 lightModelAndCardWords(uint holdsLight, uint model, uint cardCode)
 {
     uint written = model == ShadingHair ? cardCode : 0u;

@@ -265,9 +265,10 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
             foreach (Vector3 point in OnTheHairCard)
             {
                 (int X, int Y) texel = TexelOf(point);
-                (shading[(2 * texel.Y * Width + 2 * texel.X) * 4 + 3] & 0b11)
+                CardCode
+                    .ModelOf(shading[(2 * texel.Y * Width + 2 * texel.X) * 4 + 3])
                     .Should()
-                    .Be((int)ShadingCode.Hair, "the receiver at {0} is a hair pixel", point);
+                    .Be(ShadingCode.Hair, "the receiver at {0} is a hair pixel", point);
                 (NearTexel expected, int onOwnCard) = images.NearHair(texel, setting);
                 onOwnCard.Should().BePositive("the test needs steps that read the receiver's own card at {0}", point);
                 expected
@@ -796,7 +797,8 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
             return new StepTexel(
                 Position: position,
                 GeometricNormal: NormalAt(position),
-                DirectLight: new(Source[pixel], Source[pixel + 1], Source[pixel + 2])
+                DirectLight: new(Source[pixel], Source[pixel + 1], Source[pixel + 2]),
+                Card: null
             );
         }
 

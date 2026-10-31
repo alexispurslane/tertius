@@ -705,7 +705,8 @@ public sealed class BatcherTests
             scale: scale,
             material: 7,
             map: 0,
-            holdsLight: false
+            holdsLight: false,
+            placedIndex: 0
         );
         var point = new Vector3(0.4f, -1.1f, 2.5f);
         var p = new Vector4(point, 1);

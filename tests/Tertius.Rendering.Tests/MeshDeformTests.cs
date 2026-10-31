@@ -22,8 +22,7 @@ public sealed class MeshDeformTests
 
     private static MeshData TwistingCylinder() => Primitives.TwistingBendingCylinder(radius: Radius, length: Length);
 
-    private static PackedDeform Packed(MeshData mesh) =>
-        MeshDeform.Pack(mesh, MeshCards.Number(mesh.Vertices, mesh.Indices))!;
+    private static PackedDeform Packed(MeshData mesh) => MeshDeform.Pack(StagedMesh.Of(mesh))!;
 
     /// <summary>The pose rows of <paramref name="previous"/> and <paramref name="current"/> at <paramref name="alpha"/>, and the posed bound.</summary>
     private static (Vector4[] Rows, float Bound) Rows(MeshDeform deform, RigPose previous, RigPose current, float alpha)
@@ -228,7 +227,7 @@ public sealed class MeshDeformTests
     {
         MeshData box = Primitives.Box(Vector3.One);
 
-        MeshDeform.Pack(box, MeshCards.Number(box.Vertices, box.Indices)).Should().BeNull();
+        MeshDeform.Pack(StagedMesh.Of(box)).Should().BeNull();
     }
 
     [Fact]

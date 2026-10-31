@@ -1276,7 +1276,7 @@ public sealed class ShadowTilesTests
         /// <summary>A rigid mesh 0, <paramref name="mesh"/> as static mesh 1, and its copy in <paramref name="pose"/> as frame mesh 2.</summary>
         public static FrameMeshes Posed(MeshData mesh, RigPose pose)
         {
-            MeshDeform deform = MeshDeform.Pack(mesh, MeshCards.Number(mesh.Vertices, mesh.Indices))!.Deform;
+            MeshDeform deform = MeshDeform.Pack(StagedMesh.Of(mesh))!.Deform;
             var rows = new Vector4[deform.PoseRows];
             float bound = deform.PoseInto(
                 previousJoints: pose.Joints.AsSpan(),
@@ -1310,7 +1310,7 @@ public sealed class ShadowTilesTests
         {
             FrameMeshes one = Posed(mesh, first),
                 two = Posed(mesh, second ?? first);
-            MeshDeform deform = MeshDeform.Pack(mesh, MeshCards.Number(mesh.Vertices, mesh.Indices))!.Deform;
+            MeshDeform deform = MeshDeform.Pack(StagedMesh.Of(mesh))!.Deform;
             return new(
                 Meshes: [.. one.Meshes, two.Meshes[2]],
                 StaticMeshCount: 2,

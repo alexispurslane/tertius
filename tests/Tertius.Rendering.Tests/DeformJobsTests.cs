@@ -18,7 +18,7 @@ public sealed class DeformJobsTests
             IndexCount: 3,
             VertexOffset: 0,
             Radius: 1,
-            Deform: MeshDeform.Pack(mesh, MeshCards.Number(mesh.Vertices, mesh.Indices))!.Deform
+            Deform: MeshDeform.Pack(StagedMesh.Of(mesh))!.Deform
         );
     }
 
@@ -36,13 +36,7 @@ public sealed class DeformJobsTests
     public void RecordNamesTheMeshsSourcesAndTheJobsCopyAndRows()
     {
         MeshData cylinder = Primitives.BendingCylinder(radius: 0.2f, length: 2);
-        MeshDeform deform = MeshDeform
-            .Pack(cylinder, MeshCards.Number(cylinder.Vertices, cylinder.Indices))!
-            .Deform with
-        {
-            Source = 100,
-            Deltas = 7,
-        };
+        MeshDeform deform = MeshDeform.Pack(StagedMesh.Of(cylinder))!.Deform with { Source = 100, Deltas = 7 };
         MeshInfo[] meshes =
         [
             new(FirstIndex: 0, IndexCount: 3, VertexOffset: 0, Radius: 1, Deform: null),

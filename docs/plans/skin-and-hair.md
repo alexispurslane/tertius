@@ -546,7 +546,7 @@ A hair card is a sheet of strands with no back (decision 32). So a hair material
 
 A hair pixel's own card is the set of pixels that its card's triangles cover, at any bend of the card. Four steps carry it from the mesh to the occlusion sectors pass (decision 33):
 
-1. `UploadQueue.AddMesh` numbers the cards of every mesh, on the caller's thread (`MeshCards.Number`). A card is a connected strip of triangles: two triangles lie on one card when a chain of triangles joins them, each with a vertex position of the next. So a strip whose exporter splits its vertices at a sharp bend or a seam, with one position and two normals, stays one card. The cards count from 0 in the order of their first triangles. The renderer does not know which material a mesh draws with, so it numbers every mesh.
+1. `UploadQueue.AddMesh` numbers the cards of every mesh, on the caller's thread (`MeshCards.Number`), and builds each GPU vertex with its card (`StagedMesh.Of`). A card is a connected strip of triangles: two triangles lie on one card when a chain of triangles joins them, each with a vertex position of the next. So a strip whose exporter splits its vertices at a sharp bend or a seam, with one position and two normals, stays one card. The cards count from 0 in the order of their first triangles. The renderer does not know which material a mesh draws with, so it numbers every mesh.
 2. Separate cards share no vertex, so every vertex of a triangle carries the triangle's card: `GpuVertex.Card`, a `uint` at offset 48 of the 52-byte vertex of the global vertex buffer, at location 4. The deform vertices carry it into the deformed copies (`GpuDeformVertex.Card`).
 3. `mesh.vert` mixes the card with the instance's place among the frame's placed instances, `GpuInstance.PlacedIndex`, which every view and depth range of the instance shares, and passes the code flat as w of `outInstanceWords`:
 
@@ -1106,6 +1106,8 @@ The differences of the means, +0.001 ms in the G-buffer pass and +0.03 ms in the
 - The highlights lose the light that Marschner's 1 / cos² θ_d returns at views along the strand. A card is rarely seen along its strands.
 - A fringed instance never becomes an impostor, so a far human's hair draws as geometry.
 - Under the screen-space light, a curl that folds back over its own card never shades it: the whole strip is the hair pixel's own card (decision 33).
+- Two strips that touch at one exact vertex position are one card, so they never shade each other under the screen-space light. An example is two cards whose roots an exporter snaps to one scalp vertex. The join by position keeps a strip that an exporter splits at a sharp bend or a seam as one card ("The card number"). MakeHuman's `afro01` has no vertices that share a position: its 342 strips stay 342 cards.
+- A strip is one card however large it is. MakeHuman's `afro01` holds two connected sheets of 378 quads each around the head, beside 340 single-quad cards, so neither sheet shades itself under the screen-space light.
 - A step on another card whose card code collides with the receiver's blocks nothing: about one of 8,192 pairs of cards of two instances, and cards 8,192 apart in a mesh of more cards ("The card number").
 - A normal map that tilts the strand off its card can put a hair pixel's reflection below the card, where the reflections' surface fade cuts it (`ter-nwhv`).
 

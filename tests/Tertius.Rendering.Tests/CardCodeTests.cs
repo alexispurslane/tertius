@@ -41,8 +41,8 @@ public sealed class CardCodeTests
         (byte b, byte a) = CardCode.Channels(code: code, holdsLight: holdsLight, model: ShadingCode.Hair);
 
         CardCode.Read(b: b, a: a).Should().Be(code);
-        (b & 1).Should().Be(holdsLight ? 1 : 0, "B keeps its light mark in bit 0");
-        (a & 0b11).Should().Be((int)ShadingCode.Hair, "A keeps the model's code in bits 0 and 1");
+        CardCode.LightMarkOf(b).Should().Be(holdsLight ? 1u : 0u, "B keeps its light mark beside the code");
+        CardCode.ModelOf(a).Should().Be(ShadingCode.Hair, "A keeps the model's code beside the code");
     }
 
     [Theory]

@@ -99,4 +99,44 @@ public sealed class MeshCardsTests
 
         CardOfEachTriangle(indices, cards).Should().Equal([0, 1]);
     }
+
+    [Fact]
+    public void TwoStripsThatTouchAtOnePositionAreOneCard()
+    {
+        // Two strips that fan out from one root at the origin, as an exporter can snap two cards' roots to one scalp
+        // vertex. Each strip has its own copy of the root. The cost of the join by position: the two never shade each
+        // other under the screen-space light (docs/plans/skin-and-hair.md, "Known limits").
+        Vertex[] vertices =
+        [
+            At(new(0, 0, 0), Vector3.UnitY),
+            At(new(-0.1f, 0, 1), Vector3.UnitY),
+            At(new(-0.2f, 0, 1), Vector3.UnitY),
+            At(new(0, 0, 0), Vector3.UnitY),
+            At(new(0.2f, 0, 1), Vector3.UnitY),
+            At(new(0.1f, 0, 1), Vector3.UnitY),
+        ];
+        uint[] indices = [0, 1, 2, 3, 4, 5];
+
+        uint[] cards = MeshCards.Number(vertices, indices);
+
+        CardOfEachTriangle(indices, cards).Should().Equal([0, 0], "the strips share the position of their root");
+    }
+
+    [Fact]
+    public void AVertexOfNoTriangleTakesANumberAfterTheCards()
+    {
+        // Vertex 1 belongs to no triangle. It draws nothing, so its number only has to name no card of a triangle.
+        Vertex[] vertices =
+        [
+            At(new(0, 0, 0), Vector3.UnitY),
+            At(new(3, 0, 0), Vector3.UnitY),
+            At(new(1, 0, 0), Vector3.UnitY),
+            At(new(0, 0, 1), Vector3.UnitY),
+        ];
+        uint[] indices = [0, 3, 2];
+
+        uint[] cards = MeshCards.Number(vertices, indices);
+
+        cards.Should().Equal([0, 1, 0, 0], "the triangle's strip is card 0, and the lone vertex comes after it");
+    }
 }

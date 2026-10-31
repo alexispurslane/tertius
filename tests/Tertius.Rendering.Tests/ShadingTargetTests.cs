@@ -67,9 +67,10 @@ public sealed class ShadingTargetTests
             At(shading: shading, point: centers[1])
                 .Should()
                 .Equal([0, 0, 0, (byte)ShadingCode.Skin], "a skin pixel holds no strand");
-            (At(shading: shading, point: centers[2])[3] & 0b11)
+            CardCode
+                .ModelOf(At(shading: shading, point: centers[2])[3])
                 .Should()
-                .Be((int)ShadingCode.Hair, "A holds the model's code in bits 0 and 1, below a hair pixel's card code");
+                .Be(ShadingCode.Hair, "A holds the model's code below a hair pixel's card code");
         }
         finally
         {

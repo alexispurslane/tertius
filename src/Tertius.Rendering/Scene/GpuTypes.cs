@@ -80,7 +80,10 @@ internal struct GpuInstance
 
     /// <param name="map">The instance's map, from 0 to <see cref="EnvironmentChain.MaxMaps"/> − 1.</param>
     /// <param name="holdsLight">Whether the instance's entity holds a light.</param>
-    /// <param name="placedIndex">The instance's place among the frame's placed instances, 0 for a draw that writes no G-buffer.</param>
+    /// <param name="placedIndex">
+    /// The instance's place among the frame's placed instances, <see cref="PreparedInstance.PlacedIndex"/>. A draw that
+    /// writes no card code passes 0. Required, so that no G-buffer draw gives all its instances one place by omission.
+    /// </param>
     public static GpuInstance From(
         Vector3 position,
         Quaternion rotation,
@@ -88,8 +91,8 @@ internal struct GpuInstance
         uint material,
         int map,
         bool holdsLight,
-        HemisphereUp hemisphere = default,
-        int placedIndex = 0
+        int placedIndex,
+        HemisphereUp hemisphere = default
     )
     {
         // Rotation matrix columns from the unit quaternion, then scaled per axis: M = T · R · S.

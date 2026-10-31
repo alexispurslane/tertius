@@ -4,8 +4,9 @@ using System.Runtime.InteropServices;
 
 namespace Tertius.Rendering;
 
-// C# mirrors of the structs of Shaders/deform.comp, in std430 (docs/plans/skinning-and-morphs.md, "The layouts"). Change
-// both sides together; GpuDeformTypesTests checks the sizes and the offsets.
+// C# mirrors of the structs of Shaders/deform.comp, in std430 (docs/plans/skinning-and-morphs.md, "The layouts", and its
+// change by ter-3yy5, which added the card). Change both sides together; GpuDeformTypesTests checks the sizes and the
+// offsets.
 
 /// <summary>
 /// A vertex of a deforming mesh as uploaded, with its morph list, its skin and its card number. 84 bytes of fields,

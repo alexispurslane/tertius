@@ -45,8 +45,8 @@ internal sealed class UploadQueue(int maxTextureSize, long deformBytesLimit)
             if (index >= vertexCount)
                 throw new ArgumentException($"Index {index} is out of range for {vertexCount} vertices.", nameof(mesh));
         // On the caller's thread, so the render thread never walks a mesh's triangles.
-        uint[] cards = MeshCards.Number(mesh.Vertices, mesh.Indices);
-        PackedDeform? deform = MeshDeform.Pack(mesh, cards);
+        var staged = StagedMesh.Of(mesh);
+        PackedDeform? deform = MeshDeform.Pack(staged);
         lock (gate)
         {
             (long vertexBytes, long deltaBytesAfter) = deform is null
@@ -54,7 +54,7 @@ internal sealed class UploadQueue(int maxTextureSize, long deformBytesLimit)
                 : DeformBytesWith(deform);
             var id = new MeshId(Next(ref meshCount, "meshes"));
             (deformVertexBytes, deltaBytes) = (vertexBytes, deltaBytesAfter);
-            pending.Meshes.Add((id, mesh, cards));
+            pending.Meshes.Add((id, staged));
             pending.Deforms.Add(deform);
             return id;
         }
@@ -256,8 +256,7 @@ internal sealed class UploadQueue(int maxTextureSize, long deformBytesLimit)
     /// <summary>One frame's worth of queued resources, each list in id order.</summary>
     public sealed class Pending
     {
-        /// <summary>Each mesh with the card number of each of its vertices, <see cref="MeshCards.Number"/>.</summary>
-        public readonly List<(MeshId Id, MeshData Data, uint[] Cards)> Meshes = [];
+        public readonly List<(MeshId Id, StagedMesh Mesh)> Meshes = [];
         public readonly List<(TextureId Id, TextureData Data)> Textures = [];
         public readonly List<(MaterialId Id, MaterialDesc Desc)> Materials = [];
 

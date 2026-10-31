@@ -1111,9 +1111,10 @@ public sealed class HairRenderTests
                 (seenBehind, seenFront) => Math.Abs(seenBehind - seenFront) <= 1,
                 "a hair card stores the strand of its mesh's frame and the hair model, seen from either side"
             );
-        (front.Shading[3] & 0b11)
+        CardCode
+            .ModelOf(front.Shading[3])
             .Should()
-            .Be((int)ShadingCode.Hair, "the model's bits name hair, so the test can fail");
+            .Be(ShadingCode.Hair, "the model's bits name hair, so the test can fail");
     }
 
     [Fact]

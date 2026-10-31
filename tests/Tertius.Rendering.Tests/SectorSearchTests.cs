@@ -96,7 +96,8 @@ public sealed class SectorSearchTests
             texelAt: place => new StepTexel(
                 Position: WallRayThrough(place) * 5,
                 GeometricNormal: TowardTheEye,
-                DirectLight: Red
+                DirectLight: Red,
+                Card: null
             ),
             ownSurface: new OwnPlane(TowardTheEye)
         );
@@ -369,7 +370,8 @@ public sealed class SectorSearchTests
             texelAt: place => new StepTexel(
                 Position: WallRayThrough(place) * 5,
                 GeometricNormal: TowardTheEye,
-                DirectLight: Red
+                DirectLight: Red,
+                Card: null
             ),
             ownSurface: new OwnPlane(TowardTheEye)
         );
@@ -554,7 +556,8 @@ public sealed class SectorSearchTests
             return new(
                 Position: WallRayThrough((texel.X, texel.Y)) * 5,
                 GeometricNormal: TowardTheEye,
-                DirectLight: Red
+                DirectLight: Red,
+                Card: null
             );
         }
 
@@ -588,7 +591,9 @@ public sealed class SectorSearchTests
         static StepTexel? FloorAt((int X, int Y) texel)
         {
             Double3 ray = WallRayThrough((texel.X, texel.Y));
-            return ray.Y < 0 ? new(Position: ray / -ray.Y, GeometricNormal: Double3.UnitY, DirectLight: Red) : null;
+            return ray.Y < 0
+                ? new(Position: ray / -ray.Y, GeometricNormal: Double3.UnitY, DirectLight: Red, Card: null)
+                : null;
         }
 
         var steps = new List<NearStep>();
@@ -627,7 +632,8 @@ public sealed class SectorSearchTests
             return new StepTexel(
                 Position: ray * (planeOffset / Double3.Dot(normal, ray)),
                 GeometricNormal: normal,
-                DirectLight: Red
+                DirectLight: Red,
+                Card: null
             );
         }
 

@@ -81,10 +81,10 @@ public sealed class ConvexEdgeSectorsTests(ITestOutputHelper output)
         Double3 ray = RayAt((texel.X, texel.Y));
         double frontX = ray.X * FrontDepth;
         if (frontX is >= EdgeX and <= FarX)
-            return new(Position: ray * FrontDepth, GeometricNormal: FrontNormal, DirectLight: FaceLight);
+            return new(Position: ray * FrontDepth, GeometricNormal: FrontNormal, DirectLight: FaceLight, Card: null);
         double sideDepth = EdgeX / ray.X;
         if (ray.X > 0 && sideDepth is >= FrontDepth and <= BackDepth)
-            return new(Position: ray * sideDepth, GeometricNormal: SideNormal, DirectLight: FaceLight);
+            return new(Position: ray * sideDepth, GeometricNormal: SideNormal, DirectLight: FaceLight, Card: null);
         return null;
     }
 

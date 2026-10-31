@@ -55,7 +55,7 @@ public class SceneBatcherBenchmarks
             IndexCount: (uint)Chain.Indices.Length,
             VertexOffset: 24,
             Radius: GeometryStore.Radius(Chain.Vertices),
-            Deform: MeshDeform.Pack(Chain)!.Deform
+            Deform: MeshDeform.Pack(StagedMesh.Of(Chain))!.Deform
         ),
     ];
 

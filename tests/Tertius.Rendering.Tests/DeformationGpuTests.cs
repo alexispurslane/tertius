@@ -52,7 +52,7 @@ public sealed class DeformationGpuTests
     /// <summary>Every vertex of <paramref name="mesh"/> deformed in C# by the still <paramref name="pose"/>.</summary>
     private static GpuVertex[] Expected(MeshData mesh, RigPose pose)
     {
-        PackedDeform packed = MeshDeform.Pack(mesh, MeshCards.Number(mesh.Vertices, mesh.Indices))!;
+        PackedDeform packed = MeshDeform.Pack(StagedMesh.Of(mesh))!;
         var rows = new Vector4[packed.Deform.PoseRows];
         packed.Deform.PoseInto(
             previousJoints: pose.Joints.AsSpan(),

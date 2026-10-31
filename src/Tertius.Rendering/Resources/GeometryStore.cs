@@ -89,7 +89,7 @@ internal sealed unsafe class GeometryStore : IDisposable
     /// </summary>
     public void Upload(
         CommandBuffer commandBuffer,
-        List<(MeshId Id, MeshData Data, uint[] Cards)> pending,
+        List<(MeshId Id, StagedMesh Mesh)> pending,
         List<PackedDeform?> deforms,
         DeformStore deformStore,
         StagingArena staging,
@@ -102,10 +102,10 @@ internal sealed unsafe class GeometryStore : IDisposable
             return;
         ulong newVertices = 0,
             newIndices = 0;
-        foreach ((_, MeshData data, _) in pending)
+        foreach ((_, StagedMesh mesh) in pending)
         {
-            newVertices += (ulong)data.Vertices.Length;
-            newIndices += (ulong)data.Indices.Length;
+            newVertices += (ulong)mesh.Vertices.Length;
+            newIndices += (ulong)mesh.Data.Indices.Length;
         }
 
         Grow(
@@ -156,7 +156,7 @@ internal sealed unsafe class GeometryStore : IDisposable
     /// adds each mesh's range in the buffers and its deformation to the mesh table.
     /// </summary>
     private void Stage(
-        List<(MeshId Id, MeshData Data, uint[] Cards)> pending,
+        List<(MeshId Id, StagedMesh Mesh)> pending,
         List<PackedDeform?> deforms,
         DeformStore deformStore,
         StagingSlice vertexStage,
@@ -168,13 +168,14 @@ internal sealed unsafe class GeometryStore : IDisposable
             indexCursor = 0;
         for (int mesh = 0; mesh < pending.Count; mesh++)
         {
-            (MeshId id, MeshData data, uint[] cards) = pending[mesh];
+            (MeshId id, StagedMesh staged) = pending[mesh];
+            MeshData data = staged.Data;
             // The upload queue hands out dense ids under one lock and drains them in order, so each id names the next
             // slot. If that broke, an instance would draw another mesh.
             Contract.Assert(id.Value == meshes.Count);
-            var staged = new Span<GpuVertex>((GpuVertex*)vertexStage.Pointer + vertexCursor, data.Vertices.Length);
-            for (int i = 0; i < staged.Length; i++)
-                staged[i] = GpuVertex.Of(Staged(data.Vertices[i]), cards[i]);
+            staged
+                .Vertices.AsSpan()
+                .CopyTo(new Span<GpuVertex>((GpuVertex*)vertexStage.Pointer + vertexCursor, staged.Vertices.Length));
             MemoryMarshal
                 .AsBytes(data.Indices.AsSpan())
                 .CopyTo(new(indexStage.Pointer + indexCursor * sizeof(uint), data.Indices.Length * sizeof(uint)));

@@ -23,13 +23,11 @@ internal readonly record struct NearStep(
 /// <param name="Position">P(t), the pixel's view position at the texel's view depth.</param>
 /// <param name="GeometricNormal">The unit geometric normal at that pixel.</param>
 /// <param name="DirectLight">The direct image at that pixel, pre-exposed.</param>
-/// <param name="Card">The card code of that pixel, <see cref="CardCode.Read"/>, or null where it is not hair.</param>
-internal readonly record struct StepTexel(
-    Double3 Position,
-    Double3 GeometricNormal,
-    Double3 DirectLight,
-    uint? Card = null
-);
+/// <param name="Card">
+/// The card code of that pixel, <see cref="CardCode.Read"/>, or null where it is not hair. Required, so that no reader of
+/// a hair pixel reads it as not hair by omission.
+/// </param>
+internal readonly record struct StepTexel(Double3 Position, Double3 GeometricNormal, Double3 DirectLight, uint? Card);
 
 /// <summary>
 /// The own surface of a receiver that is not hair: the plane at right angles to its geometric normal, which blocks the

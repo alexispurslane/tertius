@@ -866,8 +866,8 @@ internal sealed class SceneBatcher(
             material: instance.Material,
             map: instance.Map,
             holdsLight: instance.HoldsLight,
-            hemisphere: instance.Hemisphere,
-            placedIndex: instance.PlacedIndex
+            placedIndex: instance.PlacedIndex,
+            hemisphere: instance.Hemisphere
         );
         if (instance.Mesh == currentMesh)
         {

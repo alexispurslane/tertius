@@ -1,9 +1,10 @@
 namespace Tertius.Rendering;
 
 /// <summary>
-/// A hair pixel's card code in the shading target, the C# twin of cardCode and cardAt in the shaders
-/// (docs/plans/skin-and-hair.md, "The shading target"): the card number mixed with the instance into the 13 spare bits,
-/// 7 above B's light mark and 6 above A's model code. A pixel of another model writes 0 there and has no card.
+/// A hair pixel's card code in the shading target, and the layout of the target's B and A that holds it: the C# twin of
+/// cardCode and of the word helpers of Shaders/frame.glsl (docs/plans/skin-and-hair.md, "The shading target"). The code
+/// is the card number mixed with the instance into the 13 spare bits, 7 above B's light mark and 6 above A's model code.
+/// A pixel of another model writes 0 there and has no card. A C# reader of B or A decodes it only here.
 /// </summary>
 internal static class CardCode
 {
@@ -36,7 +37,13 @@ internal static class CardCode
         return (B: (byte)(((written & 0x7F) << 1) | lightMark), A: (byte)(((written >> 7) << 2) | model));
     }
 
-    /// <summary>The card code that B and A hold, or null where the pixel is not hair.</summary>
+    /// <summary>The card code that B and A hold, or null where the pixel is not hair. The twin of cardOfWords.</summary>
     public static uint? Read(byte b, byte a) =>
-        (a & 0b11) == ShadingCode.Hair ? (uint)(b >> 1) | ((uint)(a >> 2) << 7) : null;
+        ModelOf(a) == ShadingCode.Hair ? (uint)(b >> 1) | ((uint)(a >> 2) << 7) : null;
+
+    /// <summary>The <see cref="ShadingCode"/> of the pixel's model that A holds. The twin of modelOfWord.</summary>
+    public static uint ModelOf(byte a) => a & 0b11u;
+
+    /// <summary>B's light mark: 1 where the pixel's entity holds a light, 0 otherwise. The twin of lightMarkOfWord.</summary>
+    public static uint LightMarkOf(byte b) => b & 1u;
 }
