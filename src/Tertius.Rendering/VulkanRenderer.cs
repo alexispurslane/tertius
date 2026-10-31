@@ -536,9 +536,11 @@ public sealed unsafe class VulkanRenderer : IRenderer
             image: image,
             capture: capture
         );
+
         // Reset only now: if anything above threw, the fence stays signaled and the next frame does not hang.
         device.Vk.ResetFences(device.Device, 1, &fence).Check("vkResetFences");
         output.SubmitAndPresent(frame);
+
         // Only now, so that a frame that threw above leaves the maps' drawn chain, the slot's readback, the tiles' records
         // and the exposure's steps as they were.
         environmentMap?.Drew(served: Served(snapshot), slot: frame.Index);
