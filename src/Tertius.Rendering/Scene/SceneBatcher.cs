@@ -25,11 +25,7 @@ internal readonly record struct MeshInfo(
 /// <param name="cascadedLights">How many far lights get a cascade set, 0 to <see cref="RendererOptions.MaxCascadedLights"/>.</param>
 /// <param name="shadowMapSize">The side of each cascade's shadow map in texels, <see cref="ShadowMap.Size"/>.</param>
 /// <param name="depthRangeScale">How many times deeper than wide each cascade box is, <see cref="ShadowMap.DepthRangeScale"/>.</param>
-internal sealed class SceneBatcher(
-    int cascadedLights,
-    int shadowMapSize,
-    float depthRangeScale
-)
+internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float depthRangeScale)
 {
     private const float DefaultVerticalFov = MathF.PI / 3f;
 

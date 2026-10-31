@@ -137,7 +137,13 @@ public sealed class LightReachRenderTests
             }
 
             // A capture collects its own frame, ahead of the slots in flight.
-            Film(renderer: renderer, snapshot: snapshot, start: 8 * FrameSeconds, frameSeconds: FrameSeconds, frames: 2);
+            Film(
+                renderer: renderer,
+                snapshot: snapshot,
+                start: 8 * FrameSeconds,
+                frameSeconds: FrameSeconds,
+                frames: 2
+            );
             renderer.Exposure.AssertInvariants();
             // A cut at the tick of the frame before: a metering draw, then the shown draw.
             Still(renderer: renderer, snapshot: LampLitSquare(renderer), time: 9 * FrameSeconds);

@@ -382,7 +382,11 @@ public sealed class ExposureMeterTests
         ExposureMeter
             .HighestStops(auto, knownStops: 0, steps: [3])
             .Should()
-            .BeApproximately(10 * (1 - 1 / MathF.E), 1e-5f, "one time constant into the dark covers all but 1/e of the way");
+            .BeApproximately(
+                10 * (1 - 1 / MathF.E),
+                1e-5f,
+                "one time constant into the dark covers all but 1/e of the way"
+            );
     }
 
     [Fact]

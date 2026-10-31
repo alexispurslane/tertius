@@ -102,7 +102,6 @@ public sealed unsafe class VulkanRenderer : IRenderer
     private readonly OcclusionImages? occlusionImages;
     private readonly BarrierBatch barriers = new();
     private readonly GpuTimer timer;
-    private readonly ExposureResources exposure;
     private readonly ExposureSetting exposureSetting;
     private readonly EnvironmentMap? environmentMap;
     private readonly ShadowAtlas? shadowAtlas;
@@ -164,7 +163,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
 
             // Before every pass, whose shading constants say whether the scatter is on.
             ScatterImages = CreateScatterImages(options.Subsurface);
-            exposure = CreateExposure(options);
+            Exposure = CreateExposure(options);
             environmentMap = CreateEnvironmentMap(options);
             (ShadowMap, shadowAtlas) = CreateShadowImages(options);
             // After the shadow map, whose size and depth format shape the cascade boxes that the batcher fits.
@@ -227,7 +226,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
     internal SceneBatcher Batcher { get; }
 
     /// <summary>The exposure buffer, its readbacks and the steps since the last reading. A test hook.</summary>
-    internal ExposureResources Exposure => exposure;
+    internal ExposureResources Exposure { get; }
 
     internal FrameGraph Graph { get; } = new();
 
@@ -547,7 +546,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
         // and the exposure's steps as they were.
         environmentMap?.Drew(served: Served(snapshot), slot: frame.Index);
         localShadows?.Tiles.Drew();
-        exposure.Drew(frame: frameNumber, step: exposureStep);
+        Exposure.Drew(frame: frameNumber, step: exposureStep);
         frame.Number = frameNumber;
         frameNumber++;
 
@@ -564,7 +563,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             impostors: Impostors,
             indirectDrawCalls: context.IndirectDrawCalls,
             gpuTimings: timer.Latest,
-            exposure: exposure.Latest
+            exposure: Exposure.Latest
         );
         return true;
     }
@@ -575,7 +574,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
         {
             SubmittedInstances = snapshot.Instances.Count,
             GpuTimings = timer.Latest,
-            Exposure = exposure.Latest,
+            Exposure = Exposure.Latest,
             Rendered = false,
         };
 
@@ -599,7 +598,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
         // A fence also covers every earlier submission, so all frames up to this slot's last one are done.
         releases.Collect(frame.Number);
         timer.Collect(frame.Index, frame.Number);
-        exposure.Collect(frame.Index, frame.Number);
+        Exposure.Collect(frame.Index, frame.Number);
         environmentMap?.Collect(frame.Index, frame.Number);
         frame.Staging.Reset();
     }
@@ -648,7 +647,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
         Batcher.Prepare(
             snapshot: snapshot,
             alpha: alpha,
-            highestStops: exposure.HighestStops(frame: frameNumber, step: exposureStep),
+            highestStops: Exposure.HighestStops(frame: frameNumber, step: exposureStep),
             width: (int)targets.Extent.Width,
             height: (int)targets.Extent.Height,
             meshes: geometry.Meshes,
@@ -669,7 +668,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
         frame.Write(LastScene);
 
         // Before every pass, so the reading is the exposure that all of this frame's passes use.
-        exposure.RecordReadback(commandBuffer: commandBuffer, barriers: barriers, slot: frame.Index);
+        Exposure.RecordReadback(commandBuffer: commandBuffer, barriers: barriers, slot: frame.Index);
         Graph.Record(context);
         output.FinishRecording(barriers, commandBuffer);
         device.Vk.EndCommandBuffer(commandBuffer).Check("vkEndCommandBuffer");
@@ -786,7 +785,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             targets.Smaa?.Tables.Upload(commandBuffer: commandBuffer, staging: frame.Staging, barriers: barriers);
             // Frame 0 is the first drawn frame, because the frame number counts submitted frames.
             if (frameNumber == 0)
-                exposure.RecordSeed(commandBuffer: commandBuffer, barriers: barriers);
+                Exposure.RecordSeed(commandBuffer: commandBuffer, barriers: barriers);
             device.EndLabel(commandBuffer);
         }
     }
@@ -1138,7 +1137,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// </summary>
     internal uint[] ReadExposureHistogram()
     {
-        GpuBuffer histogram = exposure.Histogram;
+        GpuBuffer histogram = Exposure.Histogram;
         using var buffer = GpuBuffer.Create(
             device: device,
             allocator: Allocator,
@@ -1532,7 +1531,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             Shadows = ShadowMap,
             ShadowAtlas = shadowAtlas,
             Timer = timer,
-            Exposure = exposure,
+            Exposure = Exposure,
             Environment = environmentMap,
         };
 
@@ -1623,7 +1622,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
                     layouts: layouts,
                     textures: textures,
                     tables: BrdfTableImages,
-                    exposure: exposure.Buffer,
+                    exposure: Exposure.Buffer,
                     environment: environmentMap,
                     shadowAtlas: shadowAtlas,
                     index: i
