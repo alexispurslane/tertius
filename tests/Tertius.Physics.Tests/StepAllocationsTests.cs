@@ -24,7 +24,7 @@ public sealed class StepAllocationsTests
     [Fact]
     public void AnAllocationOnTheTickingThreadCounts()
     {
-        using World world = NewWorldWithStepAllocations(out StepAllocations steps, out _, debugChecks: false);
+        using World world = NewWorldWithStepAllocations(out StepAllocations steps, out _);
         Falling(world);
         Tick(world, 10);
         byte[]? kept = null;
@@ -46,7 +46,7 @@ public sealed class StepAllocationsTests
     [Fact]
     public void AnAllocationOnAThreadThatRunsNoWorkOfTheStepDoesNotCount()
     {
-        using World world = NewWorldWithStepAllocations(out StepAllocations steps, out _, debugChecks: false);
+        using World world = NewWorldWithStepAllocations(out StepAllocations steps, out _);
         Falling(world);
         Tick(world, 10);
         byte[]? kept = null;
@@ -99,7 +99,7 @@ public sealed class StepAllocationsTests
     [Fact]
     public void ASecondCounterIsRefusedWhileTheFirstLives()
     {
-        using World world = NewWorldWithStepAllocations(out _, out _, debugChecks: false);
+        using World world = NewWorldWithStepAllocations(out _, out _);
         using JoltPhysicsBackend jolt = new(JoltBackendOptions.Unpaced);
 
         Action second = () => new StepAllocations(jolt).Dispose();

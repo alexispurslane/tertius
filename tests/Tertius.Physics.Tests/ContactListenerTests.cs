@@ -276,6 +276,15 @@ public sealed class ContactAllocationTests
     private const int Columns = 10;
     private const int Rows = 10;
 
+    /// <summary>A ball of radius 0.1 m that nothing slows down and that keeps all of its speed when it bounces.</summary>
+    private static readonly BodyDesc BouncyBall = new(
+        Shape: new SphereShapeDesc(0.1f),
+        Mass: 1,
+        Restitution: 1,
+        LinearDamping: 0,
+        AngularDamping: 0
+    );
+
     /// <summary>
     /// 100 boxes of 1 m ride a kinematic floor that moves at 1 m/s, so every box stays awake. They stand in 10 rows of
     /// 10, each box against its neighbors in the row and the rows 5 cm apart, so Jolt reports 190 contacts again in every
@@ -285,11 +294,7 @@ public sealed class ContactAllocationTests
     [Fact]
     public void StepsWithManyPersistingContactsAndAPendingPairAllocateNothingOnAnyThread()
     {
-        using World world = NewWorldWithStepAllocations(
-            out StepAllocations steps,
-            out JoltPhysicsBackend backend,
-            debugChecks: false
-        );
+        using World world = NewWorldWithStepAllocations(out StepAllocations steps, out JoltPhysicsBackend backend);
         FrameHandle ground = Ground(world, 9.81f);
         world.Spawn(
             KinematicDrift.Drifting(
@@ -357,7 +362,7 @@ public sealed class ContactAllocationTests
     [Fact]
     public void StepsWithContactsThroughAGhostThatStartAndEndAllocateNothingOnAnyThread()
     {
-        using World world = NewWorldWithStepAllocations(out StepAllocations steps, out _, debugChecks: false);
+        using World world = NewWorldWithStepAllocations(out StepAllocations steps, out _);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e7f)));
         FrameHandle bubble = world.GetOwnedFrame(
             world.Spawn(new() { Frame = space, AsFrame = new(FrameBounds.Sphere(10)) })
@@ -380,13 +385,6 @@ public sealed class ContactAllocationTests
                 Body = new(Shape: new BoxShapeDesc(new(0.25f, 1, 1)), Motion: BodyMotion.Static),
             }
         );
-        var bouncy = new BodyDesc(
-            Shape: new SphereShapeDesc(0.1f),
-            Mass: 1,
-            Restitution: 1,
-            LinearDamping: 0,
-            AngularDamping: 0
-        );
         for (int i = 0; i < 16; i++)
             world.Spawn(
                 new()
@@ -394,7 +392,7 @@ public sealed class ContactAllocationTests
                     Frame = space,
                     Pose = At(12, -0.6 + 0.4 * (i % 4), -0.6 + 0.4 * (i / 4)),
                     LinearVelocity = new Vector3(3, 0, 0),
-                    Body = bouncy,
+                    Body = BouncyBall,
                 }
             );
         // Two seconds: each ball has hit the ghost once.
@@ -429,11 +427,7 @@ public sealed class ContactAllocationTests
     [Fact]
     public void StepsOfAwakeBodiesInATurningFrameAllocateNothingOnAnyThread()
     {
-        using World world = NewWorldWithStepAllocations(
-            out StepAllocations steps,
-            out JoltPhysicsBackend backend,
-            debugChecks: false
-        );
+        using World world = NewWorldWithStepAllocations(out StepAllocations steps, out JoltPhysicsBackend backend);
         FrameHandle space = world.CreateRootFrame(new(FrameBounds.Sphere(1e6f)));
         const double Rate = 0.3;
         FrameHandle station = world.GetOwnedFrame(

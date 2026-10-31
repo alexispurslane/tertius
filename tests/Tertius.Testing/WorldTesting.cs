@@ -53,17 +53,14 @@ public static class WorldTesting
 
     /// <summary>
     /// Like <see cref="NewWorld"/>, but the world runs on a <see cref="StepAllocations"/> around the new real backend, which
-    /// counts what the threads of its steps allocate. Dispose the world before another such world is made.
+    /// counts what the threads of its steps allocate. The ticks run as in a game, without the invariant checks. Dispose the
+    /// world before another such world is made.
     /// </summary>
-    public static World NewWorldWithStepAllocations(
-        out StepAllocations steps,
-        out JoltPhysicsBackend backend,
-        bool debugChecks = true
-    )
+    public static World NewWorldWithStepAllocations(out StepAllocations steps, out JoltPhysicsBackend backend)
     {
         backend = NewBackend(warnings: null);
         steps = new(backend);
-        return new(NewOptions(debugChecks, configure: null), steps);
+        return new(NewOptions(debugChecks: false, configure: null), steps);
     }
 
     private static JoltPhysicsBackend NewBackend(List<string>? warnings)

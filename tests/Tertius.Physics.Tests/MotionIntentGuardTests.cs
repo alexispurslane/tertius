@@ -446,7 +446,7 @@ public sealed class RefusedRailsAllocationTests
     [Fact]
     public void ARailsComponentThatTheGuardRefusesAllocatesNothingInTheTicksAfterItsLog()
     {
-        using World world = NewWorldWithStepAllocations(out StepAllocations steps, out _, debugChecks: false);
+        using World world = NewWorldWithStepAllocations(out StepAllocations steps, out _);
         FrameHandle space = Scenes.AsteroidSpace(world);
         var log = new List<string>();
         world.Log += log.Add;
