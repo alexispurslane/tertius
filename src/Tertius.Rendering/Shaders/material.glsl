@@ -110,7 +110,7 @@ SurfaceSample sampleMaterial(uint materialIndex, vec2 uv, vec3 vertexNormal, vec
     s.emissive = m.emissive;
     s.model = m.shading & 3u;
     s.strand = vec3(0.0);
-    if (shadesFibers && s.model == ShadingHair)
+    if (!dropsFibers && s.model == ShadingHair)
     {
         // The strand first, from the frame that the mesh gives, so that it runs the same way seen from either side.
         s.strand = strandOf((m.shading >> 2) & 3u, s.normal, vertexTangent);

@@ -357,7 +357,7 @@ DirectTerms modelLight(
 // cost").
 DirectTerms directLight(ShadingInput s, SurfaceLobes lobes, vec3 position, vec3 V, uint shadowMaps, uint view)
 {
-    return shadesFibers && s.model == ShadingHair ? modelLight(true, s, lobes, position, V, shadowMaps, view)
+    return !dropsFibers && s.model == ShadingHair ? modelLight(true, s, lobes, position, V, shadowMaps, view)
                                                   : modelLight(false, s, lobes, position, V, shadowMaps, view);
 }
 

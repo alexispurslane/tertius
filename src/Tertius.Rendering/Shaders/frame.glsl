@@ -70,10 +70,11 @@ const uint ShadingStandard = 0u;
 const uint ShadingSkin = 1u;
 const uint ShadingHair = 2u;
 
-// ShaderConstants.ShadesFibersId: false in the one-sided variant of a SidedPipeline, true in every other pipeline. Only a
-// hair material draws both sides, so no ShadingHair surface reaches that variant, and the test drops the fiber's code
-// from it: the hair branch of sampleMaterial and the fiber's light loop (docs/plans/skin-and-hair.md, "Cost").
-layout(constant_id = 3) const bool shadesFibers = true;
+// ShaderConstants.DropsFibers, at ShaderConstants.DropsFibersId: true drops the fiber's code, the hair branch of
+// sampleMaterial and the fiber's light loop, so that a ShadingHair surface shades as a standard one
+// (docs/plans/skin-and-hair.md, "Cost"). Only the one-sided variant of a SidedPipeline sets it, which no hair material
+// reaches, because only a hair material draws both sides.
+layout(constant_id = 3) const bool dropsFibers = false;
 
 // The shading target's B and A (docs/plans/skin-and-hair.md, "The shading target"): bit 0 of B is the light mark, bits 0
 // and 1 of A the model's code, and the 13 bits above them, 7 of B and 6 of A, a hair pixel's card code, 0 for another

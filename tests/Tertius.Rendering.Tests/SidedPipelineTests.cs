@@ -24,7 +24,7 @@ public sealed class SidedPipelineTests
     {
         GraphicsPipelineDesc oneSided = SidedPipeline.VariantOf(Glass, twoSided: false);
 
-        oneSided.Constants.Should().Be(Glass.Constants!.Value with { OneSided = true });
+        oneSided.Constants.Should().Be(Glass.Constants!.Value with { DropsFibers = true });
         oneSided.CullMode.Should().Be(CullModeFlags.BackBit);
     }
 
@@ -44,32 +44,32 @@ public sealed class SidedPipelineTests
     {
         GraphicsPipelineDesc oneSided = SidedPipeline.VariantOf(Glass with { Constants = null }, twoSided: false);
 
-        oneSided.Constants.Should().Be(new ShaderConstants(EnvironmentMap: false) { OneSided = true });
+        oneSided.Constants.Should().Be(new ShaderConstants(EnvironmentMap: false) { DropsFibers = true });
     }
 
     [Fact]
-    public unsafe void EveryPipelineButTheOneSidedVariantSpecializesItsShadersToShadeFibers()
+    public unsafe void OnlyAPipelineThatDropsFibersSpecializesItsShadersToDropThem()
     {
         SpecializationStorage storage = default;
 
         uint byDefault = FiberValue(
             ShaderConstants.Specialization(new ShaderConstants(EnvironmentMap: true), &storage)
         );
-        uint oneSided = FiberValue(
-            ShaderConstants.Specialization(new ShaderConstants(EnvironmentMap: true) { OneSided = true }, &storage)
+        uint dropping = FiberValue(
+            ShaderConstants.Specialization(new ShaderConstants(EnvironmentMap: true) { DropsFibers = true }, &storage)
         );
 
-        byDefault.Should().Be(1u, "a pipeline that a hair material can reach shades its fibers");
-        oneSided.Should().Be(0u, "no hair material reaches the one-sided variant");
+        byDefault.Should().Be(0u, "a pipeline that a hair material can reach shades its fibers");
+        dropping.Should().Be(1u, "the one-sided variant, which no hair material reaches, drops them");
     }
 
-    /// <summary>The value that <paramref name="info"/> gives the constant of <see cref="ShaderConstants.ShadesFibersId"/>.</summary>
+    /// <summary>The value that <paramref name="info"/> gives the constant of <see cref="ShaderConstants.DropsFibersId"/>.</summary>
     private static unsafe uint FiberValue(SpecializationInfo* info)
     {
         for (int i = 0; i < info->MapEntryCount; i++)
         {
             SpecializationMapEntry entry = info->PMapEntries[i];
-            if (entry.ConstantID == ShaderConstants.ShadesFibersId)
+            if (entry.ConstantID == ShaderConstants.DropsFibersId)
                 return *(uint*)((byte*)info->PData + entry.Offset);
         }
 

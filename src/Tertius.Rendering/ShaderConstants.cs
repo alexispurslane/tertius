@@ -20,8 +20,8 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
     /// <summary>The constant_id of scatterTapsPerSide in subsurface.glsl.</summary>
     public const uint ScatterTapsPerSideId = 2;
 
-    /// <summary>The constant_id of shadesFibers in frame.glsl.</summary>
-    public const uint ShadesFibersId = 3;
+    /// <summary>The constant_id of dropsFibers in frame.glsl.</summary>
+    public const uint DropsFibersId = 3;
 
     /// <summary>
     /// True in the cutout pipeline of an opaque pass, whose material sample discards a texel below its material's cutoff
@@ -30,12 +30,13 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
     public bool CutoutAlpha { get; init; }
 
     /// <summary>
-    /// True in the one-sided variant of a <see cref="SidedPipeline"/>, false in every other pipeline. Only a hair material
-    /// draws both sides (<see cref="MaterialStore.DrawsBothSides"/>), so no hair material reaches that variant, and its
-    /// shaders drop the code that shades a fiber: the hair branch of the material sample and the fiber's light loop
-    /// (docs/plans/skin-and-hair.md, "Cost"). The shaders read it as shadesFibers, its negation.
+    /// True when the pipeline's shaders drop the code that shades a fiber: the hair branch of the material sample and the
+    /// fiber's light loop (docs/plans/skin-and-hair.md, "Cost"). A pipeline that sets it must never draw a hair material,
+    /// which would then shade as a surface. Only the one-sided variant of a <see cref="SidedPipeline"/> sets it: only a
+    /// hair material draws both sides (<see cref="MaterialStore.DrawsBothSides"/>), so no hair material reaches that
+    /// variant.
     /// </summary>
-    public bool OneSided { get; init; }
+    public bool DropsFibers { get; init; }
 
     /// <summary>
     /// The skin scatter's taps per side (docs/plans/skin-and-hair.md, "The two passes"), which only
@@ -55,27 +56,31 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
             return null;
         // VkBool32s, the type of a bool specialization constant, and an int, at the offsets of their entries. Without the
         // scatter no shader reads the taps per side, and 1 is the shader's own default. A shader that declares none of
-        // these constants ignores their entries (the Vulkan spec, VkSpecializationMapEntry).
+        // these constants ignores their entries (the Vulkan spec, VkSpecializationMapEntry). Each row's value sits at the
+        // offset of its index.
         int tapsPerSide = values.Subsurface switch
         {
             NoSubsurface => 1,
             SeparableSubsurface separable => separable.TapsPerSide,
         };
-        storage->Data[0] = values.EnvironmentMap ? 1u : 0u;
-        storage->Data[1] = values.CutoutAlpha ? 1u : 0u;
-        storage->Data[2] = (uint)tapsPerSide;
-        storage->Data[3] = values.OneSided ? 0u : 1u;
-
-        storage->Entries[0] = new(EnvironmentMapId, 0, sizeof(uint));
-        storage->Entries[1] = new(CutoutAlphaId, sizeof(uint), sizeof(uint));
-        storage->Entries[2] = new(ScatterTapsPerSideId, 2 * sizeof(uint), sizeof(uint));
-        storage->Entries[3] = new(ShadesFibersId, 3 * sizeof(uint), sizeof(uint));
+        ReadOnlySpan<(uint Id, uint Value)> rows =
+        [
+            (EnvironmentMapId, values.EnvironmentMap ? 1u : 0u),
+            (CutoutAlphaId, values.CutoutAlpha ? 1u : 0u),
+            (ScatterTapsPerSideId, (uint)tapsPerSide),
+            (DropsFibersId, values.DropsFibers ? 1u : 0u),
+        ];
+        for (int i = 0; i < rows.Length; i++)
+        {
+            storage->Data[i] = rows[i].Value;
+            storage->Entries[i] = new(rows[i].Id, (uint)(i * sizeof(uint)), sizeof(uint));
+        }
 
         storage->Info = new()
         {
-            MapEntryCount = SpecializationStorage.Count,
+            MapEntryCount = (uint)rows.Length,
             PMapEntries = (SpecializationMapEntry*)&storage->Entries,
-            DataSize = SpecializationStorage.Count * sizeof(uint),
+            DataSize = (nuint)(rows.Length * sizeof(uint)),
             PData = &storage->Data,
         };
         return &storage->Info;
@@ -90,7 +95,7 @@ internal struct SpecializationStorage
 {
     /// <summary>
     /// The number of constants: one per field of <see cref="ShaderConstants"/>, the subsurface setting's being its taps per
-    /// side.
+    /// side. <see cref="ShaderConstants.Specialization"/> writes one row per constant, and a row past this count throws.
     /// </summary>
     public const int Count = 4;
 

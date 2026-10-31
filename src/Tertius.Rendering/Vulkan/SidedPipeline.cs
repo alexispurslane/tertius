@@ -5,7 +5,7 @@ namespace Tertius.Rendering;
 /// <summary>
 /// One pipeline of a pass that shades, in its two variants: one that culls back faces, for the one-sided materials, and
 /// one that culls none, for the two-sided ones, hair (docs/plans/skin-and-hair.md, "Both sides of a hair card"). Only
-/// the two-sided variant shades a fiber (<see cref="ShaderConstants.OneSided"/>).
+/// the two-sided variant shades a fiber (<see cref="ShaderConstants.DropsFibers"/>).
 /// </summary>
 internal readonly record struct SidedPipeline(Pipeline OneSided, Pipeline TwoSided)
 {
@@ -34,8 +34,8 @@ internal readonly record struct SidedPipeline(Pipeline OneSided, Pipeline TwoSid
     /// <summary>
     /// The desc of the variant of <paramref name="desc"/> that draws the materials of <paramref name="twoSided"/>. The
     /// two-sided variant culls no face. The one-sided variant keeps the desc's cull mode, and its shaders drop the code
-    /// that shades a fiber, through <see cref="ShaderConstants.OneSided"/>. A desc without constants gives that variant
-    /// the shaders' own defaults.
+    /// that shades a fiber (<see cref="ShaderConstants.DropsFibers"/>). A desc without constants gives that variant the
+    /// shaders' own defaults.
     /// </summary>
     internal static GraphicsPipelineDesc VariantOf(GraphicsPipelineDesc desc, bool twoSided) =>
         twoSided
@@ -46,7 +46,7 @@ internal readonly record struct SidedPipeline(Pipeline OneSided, Pipeline TwoSid
             }
             : desc with
             {
-                Constants = (desc.Constants ?? new ShaderConstants(EnvironmentMap: false)) with { OneSided = true },
+                Constants = (desc.Constants ?? new ShaderConstants(EnvironmentMap: false)) with { DropsFibers = true },
             };
 
     /// <summary>Destroys both variants.</summary>
