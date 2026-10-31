@@ -1,6 +1,6 @@
 ---
 id: ter-qsye
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-10-31T19:17:55Z

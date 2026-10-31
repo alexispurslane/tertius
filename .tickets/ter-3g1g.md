@@ -1,7 +1,7 @@
 ---
 id: ter-3g1g
 status: open
-deps: [ter-s9cv, ter-a24f, ter-jxv9, ter-nl5u, ter-6vhj, ter-izsu, ter-ff6y, ter-of1p, ter-nydu, ter-p1u7, ter-fhlb, ter-uqmn, ter-ox1a]
+deps: [ter-s9cv, ter-a24f, ter-jxv9, ter-nl5u, ter-6vhj, ter-izsu, ter-ff6y, ter-of1p, ter-nydu, ter-p1u7, ter-fhlb, ter-uqmn, ter-ox1a, ter-0y0z, ter-19fm, ter-qsye, ter-4xw0]
 links: []
 created: 2026-10-25T22:29:46Z
 type: task
@@ -24,3 +24,7 @@ The GPU span of demo-exit at 1920x1080, Release, on the M1 Max, at most 12 ms in
 **2026-10-25T23:20:19Z**
 
 2026-10-25: the user allows every technique of docs/plans/rendering-performance.md, "The techniques", without asking, half-resolution reflections included, and forbids every temporal technique (decision 8): no accumulation over frames, no TAA, no temporal upscaling. Denoise spatially only.
+
+**2026-10-31T21:27:38Z**
+
+2026-10-31: the orchestrator added ter-0y0z, ter-19fm, ter-qsye and ter-4xw0 as dependencies, because this ticket's own text measures the frame after every member of the rendering upgrade merges, and these four still change the frame's cost.

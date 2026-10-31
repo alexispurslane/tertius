@@ -1,6 +1,6 @@
 ---
 id: ter-a9hh
-status: open
+status: in_progress
 deps: []
 links: [ter-acr3]
 created: 2026-10-31T20:54:22Z

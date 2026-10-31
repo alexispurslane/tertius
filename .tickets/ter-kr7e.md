@@ -1,6 +1,6 @@
 ---
 id: ter-kr7e
-status: open
+status: in_progress
 deps: [ter-uqmn]
 links: []
 created: 2026-10-31T21:15:53Z
