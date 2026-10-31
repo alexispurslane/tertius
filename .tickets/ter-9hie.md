@@ -1,6 +1,6 @@
 ---
 id: ter-9hie
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-10-31T21:34:03Z
@@ -24,3 +24,7 @@ passes.md has a column with each pass's time alone: the segments where open_segm
 **2026-10-31T21:36:09Z**
 
 2026-10-31: the orchestrator had filed the same finding on main as ter-v4gw while ter-0y0z's fixer filed this ticket on its branch. ter-v4gw is removed in ter-0y0z's merge, because this ticket has the epic, the acceptance criteria and ter-e91p's dependency. Its one extra point: also report the frame's wall time between named passes, so that a with/without table can read the cost that the frame pays (ter-0y0z's 'window', from the end of the reflections to the start of the bloom).
+
+**2026-10-31T23:22:23Z**
+
+Workflow run 983c3b8a-245c-4b29-ad8b-fd6d09710d6d (version 869b0b07), branch ter-9hie-gpu-trace-time-alone from 960368e1; brief /tmp/briefs/9hie.txt.
