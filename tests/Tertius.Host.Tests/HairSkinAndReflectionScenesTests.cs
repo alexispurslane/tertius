@@ -9,21 +9,32 @@ namespace Tertius.Host.Tests;
 /// The review scenes of hair, skin and the screen-space reflections (docs/plans/skin-and-hair.md and
 /// docs/plans/screen-space-reflections.md): <c>hair-cards</c>, <c>hair-cards-backlit</c>, <c>hair-bent-cards</c>,
 /// <c>hair-rugs</c>, <c>skin-and-hair</c> and <c>reflections</c>. Each scene has the views that its builder names, and
-/// each view looks at what the builder says it shows. The checked-in script of each scene that has one passes the checks
-/// of a run: <c>hair-bent-cards.json</c>, <c>hair-rugs.json</c>, <c>skin-and-hair.json</c> and <c>reflections.json</c>.
-/// The hair card scenes lit from the front and from behind have no script. No test draws, so none needs a GPU.
+/// the views that the tests below check look at what the builder says they show. The scenes with a checked-in script have
+/// one of their own name: <c>hair-bent-cards.json</c>, <c>hair-rugs.json</c>, <c>skin-and-hair.json</c> and
+/// <c>reflections.json</c>. The hair card scenes lit from the front and from behind have no script.
+/// <see cref="CheckedInScriptsTests"/> runs the checks of a run over every checked-in script. No test draws, so none
+/// needs a GPU.
 /// </summary>
 public sealed class HairSkinAndReflectionScenesTests : IDisposable
 {
-    /// <summary>The width of the window of the scenes' scripts divided by its height: 1280 by 720.</summary>
-    private const double ScriptAspect = 16.0 / 9;
-
     private readonly World world = NewJoltWorld();
+
+    /// <summary>
+    /// The size of the pictures of the scene that <see cref="Build"/> made last: the window of the scene's checked-in
+    /// script, or <see cref="ScriptWindow.Default"/> for a scene with no script, which a script with no window key gets.
+    /// </summary>
+    private ScriptWindow window = ScriptWindow.Default;
 
     public void Dispose() => world.Dispose();
 
-    private SceneInstance Build(string name) =>
-        DemoScenes.All.Single(s => s.Name == name).Build(world, RenderResources.None);
+    private static string ScriptPath(string file) => Path.Combine(RepositoryRoot(), "scripts", file);
+
+    private SceneInstance Build(string name)
+    {
+        string script = ScriptPath(name + ".json");
+        window = File.Exists(script) ? Script.Load(script).Window : ScriptWindow.Default;
+        return DemoScenes.All.Single(s => s.Name == name).Build(world, RenderResources.None);
+    }
 
     [Theory]
     [InlineData("hair-cards", "front-camera", "back-camera")]
@@ -48,21 +59,30 @@ public sealed class HairSkinAndReflectionScenesTests : IDisposable
     }
 
     /// <summary>
-    /// The scripts of the hair-rugs and reflections scenes capture before their first camera step, so their first
-    /// pictures show the world's camera that the scene starts with. A script check resolves only the views that a camera
-    /// step names.
+    /// The first capture of each script shows the last camera step before it, or the world's camera that the scene starts
+    /// with when no camera step comes first, as in hair-rugs.json and reflections.json. That camera is one of the scene's
+    /// named views. The checks of a run resolve only the entity that a camera step names, and not the scene's own camera.
     /// </summary>
     [Theory]
-    [InlineData("hair-rugs", "rug-camera")]
-    [InlineData("reflections", "front-camera")]
-    public void TheSceneOfAScriptThatCapturesBeforeItsFirstCameraStepStartsInTheViewOfThatCapture(
-        string name,
-        string view
-    )
+    [InlineData("hair-bent-cards.json")]
+    [InlineData("hair-rugs.json")]
+    [InlineData("skin-and-hair.json")]
+    [InlineData("reflections.json")]
+    public void TheFirstPictureOfEachScriptShowsANamedViewOfItsOwnScene(string file)
     {
-        SceneInstance scene = Build(name);
+        var script = Script.Load(ScriptPath(file));
+        script.Scene.Should().Be(Path.GetFileNameWithoutExtension(file), "each review scene has its own script");
+        SceneInstance scene = Build(script.Scene);
 
-        world.Camera.Should().Be(scene[view]);
+        string? stepped = script
+            .Steps.Select(step => step.Value)
+            .TakeWhile(step => step is not CaptureStep)
+            .OfType<CameraStep>()
+            .LastOrDefault()
+            ?.Entity;
+        Entity shown = stepped is null ? world.Camera : scene[stepped];
+
+        scene.Views.Select(view => scene[view]).Should().Contain(shown);
     }
 
     [Theory]
@@ -187,38 +207,28 @@ public sealed class HairSkinAndReflectionScenesTests : IDisposable
     }
 
     [Fact]
+    public void TheLowViewOfTheReflectionsSceneLooksAlongTheStripsFromTheirNearEnd()
+    {
+        SceneInstance scene = Build("reflections");
+
+        Double3 forward = Forward(scene, "low-camera");
+
+        forward.X.Should().BeApproximately(0, 1e-9);
+        forward.Z.Should().BeLessThan(-0.99, "the strips run along Z, and the view stands just above them");
+        Enumerable
+            .Range(0, 6)
+            .Select(i => $"strip-{i}")
+            .Should()
+            .AllSatisfy(strip => InPicture(scene, "low-camera", strip).Should().BeTrue(strip));
+    }
+
+    [Fact]
     public void TheEdgeViewOfTheReflectionsSceneLooksLevelAtTheBar()
     {
         SceneInstance scene = Build("reflections");
 
         Forward(scene, "edge-camera").Y.Should().BeApproximately(0, 1e-9);
         InPicture(scene, "edge-camera", "bar").Should().BeTrue();
-    }
-
-    /// <summary>
-    /// A run checks every step and resolves every name before its first tick: the scene and each camera. The run stops
-    /// before its first tick here, so it changes nothing. The hair-cards and hair-cards-backlit scenes have no script.
-    /// </summary>
-    [Theory]
-    [InlineData("hair-bent-cards.json")]
-    [InlineData("hair-rugs.json")]
-    [InlineData("skin-and-hair.json")]
-    [InlineData("reflections.json")]
-    public void TheCheckedInScriptOfEachHairSkinAndReflectionScenePassesTheChecksOfARun(string file)
-    {
-        var script = Script.Load(Path.Combine(RepositoryRoot(), "scripts", file));
-        SceneInstance scene = Build(script.Scene);
-
-        RunResult result = ScriptRunner.Run(
-            script: script,
-            world: world,
-            scene: scene,
-            outputFolder: null,
-            playback: new StopsAtOnce()
-        );
-
-        result.Stopped.Should().BeTrue();
-        script.Scene.Should().Be(Path.GetFileNameWithoutExtension(file), "each review scene has its own script");
     }
 
     /// <summary>The scene ids <c>{fan}-0</c> to <c>{fan}-{count - 1}</c> of the cards of one fan.</summary>
@@ -230,22 +240,15 @@ public sealed class HairSkinAndReflectionScenesTests : IDisposable
 
     /// <summary>
     /// Whether the center of the entity <paramref name="id"/> of <paramref name="scene"/> lies in the picture of the view
-    /// <paramref name="view"/>: in front of it, inside the world's vertical field of view and inside the width of the
-    /// scripts' window. A view looks along its own -Z.
+    /// <paramref name="view"/>: in front of it, inside the world's vertical field of view and inside the width that the
+    /// aspect of <see cref="window"/> gives. A view looks along its own -Z.
     /// </summary>
     private bool InPicture(SceneInstance scene, string view, string id)
     {
         FrameHandle frame = world.GetFrame(scene[view]);
         Double3 seen = world.PoseIn(scene[view], frame).InverseTransformPoint(world.PoseIn(scene[id], frame).Position);
         double halfHeight = Math.Tan(world.VerticalFov / 2) * -seen.Z;
-        return seen.Z < 0 && Math.Abs(seen.Y) < halfHeight && Math.Abs(seen.X) < halfHeight * ScriptAspect;
-    }
-
-    /// <summary>A playback that stops the run before its first tick.</summary>
-    private sealed class StopsAtOnce : IPlayback
-    {
-        public bool WaitForTick() => false;
-
-        public bool Capture(World world, string name) => false;
+        double halfWidth = halfHeight * window.Width / window.Height;
+        return seen.Z < 0 && Math.Abs(seen.Y) < halfHeight && Math.Abs(seen.X) < halfWidth;
     }
 }

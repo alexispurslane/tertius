@@ -7,7 +7,8 @@ namespace Tertius.Host.Tests;
 
 /// <summary>
 /// The Blue Danube demo's long script: the checked-in scripts/blue-danube.json is what the generator writes from the demo's
-/// command line, and it passes every check that a run makes before its first tick.
+/// command line, and it films its sections. <see cref="CheckedInScriptsTests"/> runs the checks of a run over every
+/// checked-in script.
 /// </summary>
 public sealed class BlueDanubeScriptTests
 {
@@ -57,28 +58,11 @@ public sealed class BlueDanubeScriptTests
         }
     }
 
-    /// <summary>
-    /// A run checks every step and resolves every name before its first tick: the scene, each camera, each post's target
-    /// and event, and each film's camera and playback. The run of the checked-in script stops before its first tick here,
-    /// so it changes nothing.
-    /// </summary>
     [Fact]
-    public void TheCheckedInScriptPassesTheChecksOfARun()
+    public void TheCheckedInScriptFilms()
     {
         var script = Script.Load(CheckedIn);
-        using World world = NewJoltWorld();
-        SceneInstance scene = DemoScenes.All.Single(s => s.Name == script.Scene).Build(world, RenderResources.None);
 
-        RunResult result = ScriptRunner.Run(
-            script: script,
-            world: world,
-            scene: scene,
-            outputFolder: null,
-            playback: new StopsAtOnce()
-        );
-
-        result.Stopped.Should().BeTrue();
-        world.TickNumber.Should().Be(0);
         script.Steps.Should().Contain(step => step.Value is FilmStep);
     }
 
@@ -133,13 +117,5 @@ public sealed class BlueDanubeScriptTests
         error.ToString().Should().Contain($"Cannot write the script {path}");
         output.ToString().Should().BeEmpty();
         File.Exists(path).Should().BeFalse();
-    }
-
-    /// <summary>A playback that stops the run before its first tick.</summary>
-    private sealed class StopsAtOnce : IPlayback
-    {
-        public bool WaitForTick() => false;
-
-        public bool Capture(World world, string name) => false;
     }
 }

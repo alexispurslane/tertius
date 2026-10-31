@@ -205,6 +205,15 @@ public sealed class LogsOnce(string message) : IComponent
 /// <summary>Worlds and scenes for the tests of scripted runs.</summary>
 public static class HostTesting
 {
+    /// <summary>The file name, with its .json, of every checked-in script in the folder scripts, in ordinal order.</summary>
+    public static TheoryData<string> CheckedInScripts =>
+        [
+            .. Directory
+                .GetFiles(Path.Combine(RepositoryRoot(), "scripts"), "*.json")
+                .Select(path => Path.GetFileName(path))
+                .Order(StringComparer.Ordinal),
+        ];
+
     /// <summary>
     /// The center of mass of the demo shuttle's hull, in meters, in the hull's own axes, as the engine computes it and
     /// publishes it in <see cref="BodyFacts.CenterOfMass"/>: the value that the demo reads (docs/plans/parts.md, "Settled
