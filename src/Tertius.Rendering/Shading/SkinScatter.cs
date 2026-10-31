@@ -48,6 +48,8 @@ internal static class SkinScatter
     /// <summary>
     /// The kernel's sum along <paramref name="axis"/> at the skin pixel (<paramref name="x"/>, <paramref name="y"/>) of
     /// <paramref name="source"/>: D for the rows, the row image for the columns. Each tap reads the one pixel nearest it.
+    /// The kernel gives the taps' offsets and reach, but the slope rule reads every kernel's offsets as
+    /// <see cref="SkinProfile.WidthScale"/> times the measured profile's, as the shader does by its constant skinWidthScale.
     /// </summary>
     public static Double3 Pass(
         ScatterField field,
