@@ -41,3 +41,15 @@ Measured the red ring beside the nose (2026-10-31, head capture of scripts/skin-
 **2026-10-31T14:32:10Z**
 
 The capture of the head and the ear at 8 taps matches cap-wide of the experiment bit for bit. The C#-against-GPU tolerance of SkinScatterRenderTests now scales with the largest of the light before, D and the expected result, because the HDR image holds the result as a half float and the wider scatter can double a dark pixel's light.
+
+**2026-10-31T14:58:43Z**
+
+Settled (user, 2026-10-31, option B): the slope rule measures each tap's offset in the measured profile, run = |offset| / SkinProfile.WidthScale, in SkinScatter.Pass and in scatterAlong. The shader gets the scale as the specialization constant skinWidthScale (constant_id 3), which ShaderConstants.Specialization sets from SkinProfile.WidthScale for every pipeline, so the scale stays written once and no new constant exists. A specialization constant was chosen over a field in the kernel buffer because it is the existing path for C# values fixed for the renderer's life.
+
+**2026-10-31T14:58:43Z**
+
+Measured on 2026-10-31, head capture of scripts/skin-and-hair.json, lit side within 30 px of the nose's edge. The ring is the nose's share of the red change against the measured width: (wide - measured with the nose) - (wide - measured without the nose). Bands 0-10, 10-20, 20-30 px: +1.76, +1.02, +0.47 of 255 (per-pixel max +5) under the new rule, against +7.10, +6.68, +3.03 at 099a36cd. Below 2 in each band, not zero: the outermost taps, past 25.4 mm, still cross the 11 mm step, as taps past 6.4 mm did at the measured width. Against the capture with every tap across a 4 mm step rejected: +0.38, +0.38, +0.56. A capture of this code at WidthScale 1 matches now-cap bit for bit.
+
+**2026-10-31T14:58:43Z**
+
+Head capture against cap-wide/head.png: 106,471 pixels differ, 93,814 of them by 1 of 255 across the whole frame, because the auto exposure moved by 0.001 stops (-7.7872 against -7.7882). 12,657 pixels differ by more than 1, all on the head (x 423-843, y 135-577). The nose and its 30 px ring hold 8,000 of them, mean red -1.49, min -22, max +15. Within 10 px inside the head's silhouette (radius about 225 px): 1,801 pixels by more than 1, mean red +0.42 and +0.53, max change 11 of 255. The ear capture differs by at most 1 of 255. In terms of slope, a tap now keeps all its light up to tan 60° / 4, about 23°, and none from about 41°.

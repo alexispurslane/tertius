@@ -62,7 +62,7 @@ Not in scope, by the user's list: an eye material, two specular lobes for skin, 
 | The reach | 32 mm, the largest tap offset: 8 mm of the measured profile times the width scale. |
 | The view depth, z | A pixel's distance along the camera's forward axis: d / \|r\|, with d its distance and r its view ray with a forward component of 1, as in [ambient-occlusion.md](ambient-occlusion.md). |
 | Pixels per meter, s(z) | How many pixels one meter across the view covers at view depth z: H / (2 z tan(φ_y / 2)), with H the image's height and φ_y the vertical field of view. |
-| The slope limit | tan 60°, √3: the steepest rise of depth per meter across the view that a tap still counts as the center's surface. |
+| The slope limit | tan 60°, √3: the steepest rise of depth per meter of the measured profile across the view that a tap still counts as the center's surface. A tap's offset counts in the measured profile, its offset in meters over the width scale (decision 34). |
 | k, MaxRadiance | As in ARCHITECTURE.md, "Exposure" and "Portable Vulkan": pre-exposed light is radiance times the exposure scale k, and a surface writes at most MaxRadiance, 32,256, into the HDR image. |
 
 ## Decisions
@@ -83,6 +83,8 @@ Made after a side-by-side capture of the test head (`ter-t2w6`):
 
 34. Skin scatters four times wider than the measured profile of d'Eon, Luebke and Enderton 2007: `SkinProfile.WidthScale` = 4 multiplies every Gaussian's width, so every variance by 16, and the reach by 4. It is an artistic choice of the user over the measured profile. At the measured width, the scatter on the 0.1 m head at 0.45 m was a band of about 3 px. Four times wider, the nose's shadow line turns clearly red and soft. The user: "wider is much better in my opinion!" No material parameter and no renderer option set the width, because only one skin exists. (User, 2026-10-27)
 
+    The width scale does not widen the depth rule (decision 16). The slope rule divides each tap's offset by the width scale, so a tap tolerates the same depth step as at the measured width. At the full width, light crossed the 11 mm step at the edge of the test head's nose, and a faint red ring showed beside the nose. The user chose this rule over the ring and over an absolute limit on the depth step, which needs a new constant. The cost: the scatter narrows on steep curves near a silhouette. (User, 2026-10-31)
+
 ### Settled by this design
 
 Each by the user's decisions and the project's rules, with its reason.
@@ -97,7 +99,7 @@ Each by the user's decisions and the project's rules, with its reason.
 13. The scatter adds a difference to the HDR image: HDR += S − D at each skin pixel. Reason: the lighting passes keep writing the whole light of skin, so the bounce light's direct image keeps the direct light that a skin blocker bounces, and a renderer with the scatter off draws skin with no second path. It has the form of the reflections' delta, which adds W · C − a · k · T_s.
 14. The direct pass writes D's direct part into the scatter image, and the ambient pass adds its ambient part through an additive blend on the scatter image alone. That needs the device feature `independentBlend` (see "Portable Vulkan"). Reason: D needs both parts, and neither pass sees the other's. A second image for the direct part costs 16.6 MB at 1080p, and a second light loop in the ambient pass costs the direct pass's lights again at every skin pixel.
 15. Each tap reads the one pixel nearest its position, with `imageLoad`, and no filtering. Reason: each tap's tests of the mask and the depth then hold for the very pixel whose light it takes, and the C# copy gives the same sums. A tap less than half a pixel from the center lands on the center.
-16. A tap gives way to the center's own light when its pixel is not skin, and when the depth between it and the center rises faster than the slope limit. Reason: Jimenez's rule that the kernel follows the surface, with a tolerance that grows with the tap's offset, not one constant. Past 60°, the surface turns so far from the eye that the true scatter covers fewer pixels than the screen-space kernel. The sky, the impostor billboards and every surface that is not skin are not skin.
+16. A tap gives way to the center's own light when its pixel is not skin, and when the depth between it and the center rises faster than the slope limit, across the tap's offset in the measured profile (decision 34). Reason: Jimenez's rule that the kernel follows the surface, with a tolerance that grows with the tap's offset, not one constant. Past 60°, the surface turns so far from the eye that the true scatter covers fewer pixels than the screen-space kernel. The sky, the impostor billboards and every surface that is not skin are not skin.
 17. The kernel is computed once in C#, in doubles, when the renderer is made, and uploaded with the first frame. Reason: it depends only on the profile and the tap count, and the C# copy is then the one source of the weights.
 18. The scatter runs after the ambient pass and before the reflections' radiance pyramid. Reason: D must hold the ambient light, the crease shadowing and the bounce, which the ambient pass adds, and a mirror must show the scattered skin. The transparent pass, the exposure and bloom come after, as for every surface.
 19. The environment faces and the impostor captures shade skin as the standard model, with no scatter. Reason: a face texel at W = 128 covers 1.2 cm at 1 m, and an impostor of a person of 1.8 m is below 200 px, about 9 mm per pixel. Both are as wide as the red light's scatter and wider than the green and blue light's.
@@ -661,7 +663,8 @@ vec3 scatterAlong(ivec2 pixel, ivec2 axis, vec3 center)
         vec3 light = center;
         if (i != scatterTapsPerSide && imageLoad(scatterImage, at).a > 0.0)
         {
-            float rise = abs(viewDepthAt(at) - depth) / (abs(tap.a) * SlopeLimit);
+            float run = abs(tap.a) / skinWidthScale;
+            float rise = abs(viewDepthAt(at) - depth) / (run * SlopeLimit);
             light = mix(center, sourceAt(at), clamp(2.0 - rise, 0.0, 1.0));
         }
         sum += tap.rgb * light;
@@ -677,7 +680,9 @@ where
 - `kernel[i]` = tap i of the kernel buffer, a uniform buffer of 2 · 16 + 1 = 33 `vec4`, zeros after the last tap: rgb its weights, a its offset x_i in meters. Tap n, `scatterTapsPerSide`, is the center, with offset 0. A uniform buffer takes no storage-buffer slot of the compute stage, and 528 bytes fit any device's uniform-buffer range.
 - `MaxSide` = 16,384, the largest image side.
 - `imageLoad(scatterImage, at).a` = 1 at a skin pixel, 0 elsewhere: the mask.
-- `rise` = the tap's depth step over the depth step of the slope limit across its offset. Up to 1 the tap keeps its own light, and from 1 to 2 it gives way to the center's.
+- `skinWidthScale` = the width scale, a specialization constant that `ShaderConstants` sets from `SkinProfile.WidthScale` for every pipeline.
+- `run` = the tap's offset in the measured profile, in meters: its offset over the width scale (decision 34).
+- `rise` = the tap's depth step over the depth step of the slope limit across `run`. Up to 1 the tap keeps its own light, and from 1 to 2 it gives way to the center's.
 - `sourceAt(at)` = the source image at the tap.
 
 The passes:
@@ -872,6 +877,9 @@ The existing GPU tests of glass, puffs and the transparent pass pass unchanged i
 - `ATapOnAPixelThatIsNotSkinGivesWayToTheCenter`
 - `ATapAcrossADepthStepGivesWayToTheCenter`
 - `ATapWithinTheSlopeLimitKeepsItsOwnLight`
+- `ATapAcrossTheNosesDepthStepGivesWayToTheCenter`: a tap at 8 mm across a step of 11 mm, the step at the edge of the test head's nose. The width scale widens the scatter, not the depth step that a tap may cross.
+- `ATapWithinTheSlopeLimitOfItsMeasuredOffsetKeepsItsOwnLight`: a step of 0.9 times the slope limit's step across the tap's offset over the width scale.
+- `ATapBetweenOneAndTwoSlopeLimitsMixesItsLightWithTheCenters`
 - `AKernelBelowHalfAPixelLeavesThePixelAsItWas`
 - `TheKernelsOwnOutermostTapDecidesWhetherItReachesPastThePixel`: the pass takes the reach from the kernel that it runs, `ScatterKernel.Reach`, so the shader keeps no copy of `SkinProfile.Reach`.
 - `TwiceTheDepthHalvesThePixelsOfTheKernel`
@@ -1059,7 +1067,8 @@ With the scatter on, the fringed fan's second run and the glass fan's first run 
 - The scatter uses one profile, that of human skin, with no width per material.
 - Pre-scatter texturing softens the skin image's detail, most in red (decision 12).
 - In an extreme close-up, about 10 cm from the eye at 1080p, the kernel reaches about 300 pixels with 17 taps, and the outer taps show as steps at sharp shadow edges. More taps per side buy it back.
-- At the width scale of 4, light crosses a depth step of about a centimeter, such as the edge of the test head's nose, because the slope limit grows with the tap's offset: a tap past 6.4 mm keeps the light of a surface 11 mm nearer. The head then shows a faint red ring beside the nose, +3 to +6 of 255 in red on average within 30 px of its edge. More taps do not change it (`ter-t2w6`, measured on 2026-10-31).
+- The slope rule measures a tap's offset in the measured profile (decision 34). So the scatter narrows on steep curves near a silhouette: a tap keeps all its light up to a slope of tan 60° / 4, about 23°, and none from twice that, about 41°. On the test head, the pixels within 10 px of the silhouette changed by less than 1 of 255 on average, and by at most 11 of 255 in red (`ter-t2w6`, measured on 2026-10-31).
+- The outermost taps still cross a step of about a centimeter: a tap past 25.4 mm keeps the light of a surface 11 mm nearer, as a tap past 6.4 mm did at the measured width. Beside the test head's nose, this adds +1.8, +1.0 and +0.5 of 255 in red on average in the bands 0 to 10, 10 to 20 and 20 to 30 px from its edge, against +7.1, +6.7 and +3.0 under a rule that the width scale widened (`ter-t2w6`, measured on 2026-10-31).
 - No transmission: an ear in front of a light stays dark but for its ambient light and its scatter (fork 1).
 - The environment faces and the impostor captures do not scatter (decision 19).
 - The fringe of one hair is not sorted inside the hair (decision 23).
@@ -1203,7 +1212,7 @@ Parts 3, 4 and 5 run one after another because they share the shaders of the opa
   internal sealed record ScatterField(int Width, int Height, Double3[] Light, bool[] Skin, double[] ViewDepth, double TanHalfY);
   internal static class SkinScatter
   {
-      public const double SlopeLimit = 1.7320508075688772;                                    // tan 60°
+      public const double SlopeLimit = 1.7320508075688772;                                    // tan 60°, per m of the measured profile
       public static double PixelsPerMeter(double viewDepth, int height, double tanHalfY);
       public static Double3 Pass(ScatterField field, ReadOnlySpan<Double3> source, int x, int y, ScatterAxis axis, ScatterKernel kernel);
   }

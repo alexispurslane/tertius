@@ -30,7 +30,11 @@ internal sealed record ScatterField(
 /// </summary>
 internal static class SkinScatter
 {
-    /// <summary>tan 60°: the steepest rise of depth per meter across the view at which a tap still counts as the center's surface.</summary>
+    /// <summary>
+    /// tan 60°: the steepest rise of depth per meter of the measured profile across the view at which a tap still counts
+    /// as the center's surface. A tap's offset counts <see cref="SkinProfile.WidthScale"/> times shorter in this rule, so
+    /// the wider scatter crosses no larger depth step than the measured profile does (user, 2026-10-31).
+    /// </summary>
     public const double SlopeLimit = 1.7320508075688772;
 
     // The largest image side. A tap's offset is clamped to it before its conversion to an integer, which would overflow
@@ -78,7 +82,8 @@ internal static class SkinScatter
             if (i != middle && field.Skin[at])
             {
                 // Up to the slope limit the tap keeps its own light, and up to twice the limit it gives way to the center's.
-                double rise = Math.Abs(field.ViewDepth[at] - depth) / (Math.Abs(tap.Offset) * SlopeLimit);
+                double run = Math.Abs(tap.Offset) / SkinProfile.WidthScale;
+                double rise = Math.Abs(field.ViewDepth[at] - depth) / (run * SlopeLimit);
                 light = Double3.Lerp(centerLight, source[at], Math.Clamp(2 - rise, 0, 1));
             }
             sum += tap.Weight * light;
