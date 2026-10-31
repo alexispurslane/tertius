@@ -710,25 +710,27 @@ public sealed class HairRenderTests
         return 2 * radius / (ShadowMap.DefaultSize - 2 * ShadowCascades.MarginTexels);
     }
 
+    /// <remarks>
+    /// The arithmetic, in texels of the first cascade (5.85 cm: a sphere of radius 59.6 m over 2,040 texels) and in
+    /// depth along the light. The shadow lookups take the card's normal turned toward the sun, at cosine 0.93 with
+    /// it: seen from the sun, the card's plane rises tan θ = 0.39 per texel along û = (−0.58, 0.81) of the light's
+    /// axes. A tap of the 4 × 4 kernel lies up to 1.5 texels off along each axis, so the receiver-plane term,
+    /// max(dot(slope, offset), 0), reaches 1.5 · (0.58 + 0.81) · 0.39 = 0.81 with that cosine, and 7.6 with the
+    /// floor 0.1 in its place (sampleCascade in shadows.glsl).
+    /// The caster stands parallel to the card, <c>GapTexels</c> in front of the lookup point, which the normal offset
+    /// moves sin θ = 0.36 texel off the card toward it. With the cosine 0.93, a tap's reference follows the card's
+    /// plane uphill and keeps the pixel's own depth downhill, so every tap sees the caster when the gap is above the
+    /// downhill drop, 0.81, the spread of a tap's 2 × 2 footprint, 0.54, the constant bias, 0.5, and the caster's slope
+    /// bias, at most 1.5 · 0.39 = 0.58: 2.4 in all. With the floor, a tap's reference rises above the plane by 3.2
+    /// texels per texel of dot(û, offset), so the 4 taps with dot(û, offset) of 0.93 to 2.1 pass over the caster: the
+    /// card takes about a quarter of the sun, 12 times the tolerance. With the cosine 0.93, it shows 0.
+    /// </remarks>
     [Fact]
     public void AHairCardLitFromBehindKeepsTheShadowOfACasterCloseBehindIt()
     {
-        // The arithmetic, in texels of the first cascade (5.85 cm: a sphere of radius 59.6 m over 2,040 texels) and in
-        // depth along the light. The shadow lookups take the card's normal turned toward the sun, at cosine 0.93 with
-        // it: seen from the sun, the card's plane rises tan θ = 0.39 per texel along û = (−0.58, 0.81) of the light's
-        // axes. A tap of the 4 × 4 kernel lies up to 1.5 texels off along each axis, so the receiver-plane term,
-        // max(dot(slope, offset), 0), reaches 1.5 · (0.58 + 0.81) · 0.39 = 0.81 with that cosine, and 7.6 with the
-        // floor 0.1 in its place (sampleCascade in shadows.glsl).
-        // The caster stands parallel to the card, GapTexels in front of the lookup point, which the normal offset moves
-        // sin θ = 0.36 texel off the card toward it. With the cosine 0.93, a tap's reference follows the card's plane
-        // uphill and keeps the pixel's own depth downhill, so every tap sees the caster when the gap is above the
-        // downhill drop, 0.81, the spread of a tap's 2 × 2 footprint, 0.54, the constant bias, 0.5, and the caster's
-        // slope bias, at most 1.5 · 0.39 = 0.58: 2.4 in all. With the floor, a tap's reference rises above the plane by
-        // 3.2 texels per texel of dot(û, offset), so the 4 taps with dot(û, offset) of 0.93 to 2.1 pass over the caster:
-        // the card takes about a quarter of the sun.
         const float GapTexels = 3;
         var toSun = Vector3.Normalize(new(0.2f, 0.3f, -0.93f));
-        Vector3 towardSun = -Vector3.UnitZ;
+        var towardSun = -Vector3.UnitZ;
         float cosine = Vector3.Dot(towardSun, toSun),
             sine = MathF.Sqrt(1 - cosine * cosine);
         LightBasis light = LightBasis.FromDirection(toSun);
@@ -758,16 +760,9 @@ public sealed class HairRenderTests
             {
                 Flags = RenderFlags.Visible | RenderFlags.CastsShadow,
             };
+            RenderInstance card = Card(plane: plane, material: Hair(renderer), rotation: FacingTheCamera);
 
-            Vector3 shown = At(
-                Rendered(
-                    renderer,
-                    snapshot,
-                    Card(plane: plane, material: Hair(renderer), rotation: FacingTheCamera),
-                    caster
-                ),
-                Ahead
-            );
+            Vector3 shown = At(Rendered(renderer, snapshot, card, caster), Ahead);
             Vector3 lit = FiberLight(
                 fiber: StoredAt(renderer, Ahead),
                 hair: BrownHair,
@@ -776,8 +771,6 @@ public sealed class HairRenderTests
             );
 
             lit.X.Should().BeGreaterThan(0.05f, "the sun lights the card from behind where nothing stands in its way");
-            // Every tap sees the caster, so the card shows 0. A quarter of the sun, the floored cosine's leak, is 12 times
-            // the tolerance.
             LargestChannelDifference(shown, Vector3.Zero)
                 .Should()
                 .BeLessThanOrEqualTo(0.02f * lit.X, "the caster's shadow covers the card: shown {0}", shown);
