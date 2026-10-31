@@ -87,17 +87,23 @@ public readonly partial struct MediumField
             null => true,
         };
 
-    private static bool IsValidPlanet(in PlanetMedium planet) =>
+    private static bool IsValidPlanet(in PlanetMedium planet) => IsValidAir(planet) && IsValidLook(planet);
+
+    /// <summary>The air's shape: a finite radius of 0 or more, a surface density and a drag of 0 or more, and a scale height above 0.</summary>
+    private static bool IsValidAir(in PlanetMedium planet) =>
         double.IsFinite(planet.Radius)
         && planet.Radius >= 0
         && NotNegative(planet.SurfaceDensity)
         && float.IsFinite(planet.ScaleHeight)
         && planet.ScaleHeight > 0
-        && NotNegative(planet.Drag)
-        && NotNegative(planet.SkyRadiance)
+        && NotNegative(planet.Drag);
+
+    /// <summary>The air's look: a sky of 0 or more, a haze of light of 0 or more and a distance above 0, and a tint from 0 to 1.</summary>
+    private static bool IsValidLook(in PlanetMedium planet) =>
+        NotNegative(planet.SkyRadiance)
         && (
             planet.Haze is not { } haze
-            || (NotNegative(haze.Radiance) && float.IsFinite(haze.Distance) && haze.Distance > 0)
+            || (NotNegative(haze.Radiance) && haze.Distance is > 0 and < float.PositiveInfinity)
         )
         && (planet.SunTint is not { } tint || (NotNegative(tint) && Vector3.Max(tint, Vector3.One) == Vector3.One));
 

@@ -282,6 +282,8 @@ public sealed class RenderSnapshot
     public void Clear()
     {
         Atmosphere = null;
+        PuffAgeStep = 0;
+
         Chain.Clear();
         Instances.Clear();
         Lights.Clear();
@@ -291,7 +293,6 @@ public sealed class RenderSnapshot
         RigPoses.Clear();
         JointPoses.Clear();
         MorphWeights.Clear();
-        PuffAgeStep = 0;
     }
 
     /// <summary>Appends the rig pose of the posed instance <paramref name="instance"/>, after every entry of <see cref="RigPoses"/>.</summary>

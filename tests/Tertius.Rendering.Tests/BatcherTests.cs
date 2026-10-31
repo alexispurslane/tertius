@@ -2056,6 +2056,20 @@ public sealed class BatcherTests
     }
 
     [Fact]
+    public void TheFrameConstantsMatchTheShadersFrameBlock()
+    {
+        Unsafe.SizeOf<GpuFrameConstants>().Should().Be(2288);
+        ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.Counts))).Should().Be(304);
+        ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.RootRotation))).Should().Be(384);
+        ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.CascadeSets))).Should().Be(400);
+        ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.MapAxes))).Should().Be(1552);
+        ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.Atmosphere)))
+            .Should()
+            .Be(2224, "the atmosphere follows the 42 map axes");
+        Unsafe.SizeOf<GpuAtmosphere>().Should().Be(64, "std140 lays out four vec4s in 64 bytes");
+    }
+
+    [Fact]
     public void GpuStructsMatchTheShaderLayouts()
     {
         Unsafe.SizeOf<GpuInstance>().Should().Be(96, "std430 rounds 84 bytes of members up to the vec4's 16");
@@ -2074,14 +2088,6 @@ public sealed class BatcherTests
         Unsafe.SizeOf<GpuOutline>().Should().Be(48);
         ((int)Marshal.OffsetOf<GpuOutline>(nameof(GpuOutline.Radii))).Should().Be(32);
         Unsafe.SizeOf<OutlinePushConstants>().Should().Be(4);
-        Unsafe.SizeOf<GpuFrameConstants>().Should().Be(2288);
-        ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.Counts))).Should().Be(304);
-        ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.RootRotation))).Should().Be(384);
-        ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.CascadeSets))).Should().Be(400);
-        ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.MapAxes))).Should().Be(1552);
-        ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.Atmosphere)))
-            .Should()
-            .Be(2224, "the atmosphere follows the 42 map axes");
         Unsafe
             .SizeOf<GpuCascadeSet>()
             .Should()
