@@ -166,7 +166,7 @@ O = P + n_g · min(2 θ_px, 1/2) z                      the origin, two pixel fo
 where n is the shading normal and n_g the geometric normal of the G-buffer.
 
 - d leans from the mirror direction toward n as the roughness rises (decision 17).
-- f_surface fades a ray that leaves below the geometric surface. Only a normal map can turn the shading normal so far from the geometric one. The demo has no normal maps, so the factor is 1 there.
+- f_surface fades a ray that leaves below the geometric surface. Only a normal map can turn the shading normal so far from the geometric one, or tilt a hair strand off its card (docs/plans/skin-and-hair.md, decision 35). Of the demo scenes, only `hair-rugs` has such a normal map, so the factor is 1 elsewhere.
 - The offset of 2 z θ_px: a ray that rises from a flat surface at a grazing angle stays within half a pixel's depth step of the surface over the next pixel. A point at height b above the surface lies in front of the surface along every view ray when b > z θ_px cos φ / 2, where φ is the angle between the view ray and the surface. 2 z θ_px is four times that bound at any φ, and covers the error of the 16-bit normals.
 
 ### 3. The ray's image on the screen
