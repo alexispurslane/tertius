@@ -128,18 +128,21 @@ DirectTerms surfaceResponse(ShadingInput s, SurfaceLobes lobes, vec3 V, vec3 L)
     return terms;
 }
 
-// The radiance toward V per unit irradiance from direction L, by the shading model.
-DirectTerms respond(ShadingInput s, SurfaceLobes lobes, vec3 V, vec3 L)
+// The radiance toward V per unit irradiance from direction L: a fiber's if `fiber`, else a surface's. `fiber` must be
+// whether s shades as hair, which directLight alone decides and modelLight passes on (see directLight).
+DirectTerms respond(bool fiber, ShadingInput s, SurfaceLobes lobes, vec3 V, vec3 L)
 {
-    return s.model == ShadingHair ? hairResponse(s, lobes, V, L) : surfaceResponse(s, lobes, V, L);
+    return fiber ? hairResponse(s, lobes, V, L) : surfaceResponse(s, lobes, V, L);
 }
 
 // Whether a light from L reaches the point at all, before its shadows: a fiber takes light from every side, a surface
-// only from the side that both its normals face. A normal map can tilt the shading normal toward a light on a surface
-// that itself faces away; that surface is in its own shadow.
-bool takesLight(ShadingInput s, vec3 L)
+// only from the side that both its normals face. geometricNdotL is the cosine of s.geometricNormal with L. A normal map
+// can tilt the shading normal toward a light on a surface that itself faces away; that surface is in its own shadow.
+// `fiber` as in respond. modelLight relies on the surface's rule: it passes a surface's geometric normal and cosine to
+// the shadow lookups unturned, which lightVisibility takes only facing the light.
+bool takesLight(bool fiber, ShadingInput s, vec3 L, float geometricNdotL)
 {
-    return s.model == ShadingHair || (dot(s.normal, L) > 0.0 && dot(s.geometricNormal, L) > 0.0);
+    return fiber || (dot(s.normal, L) > 0.0 && geometricNdotL > 0.0);
 }
 
 // The irradiance in W/m² per channel that `light` sends to `position` before its shadows: color × intensity over
@@ -305,13 +308,10 @@ bool viewKeeps(uint view, GpuLight light)
     return view == MainView ? light.inMainView != 0u : light.map <= view;
 }
 
-// Every light of the list that the view keeps reflected toward V in its two parts, each dimmed by its shadows as
-// shadowMaps says: a face of map i passes i, and every other caller MainView. The lights add in the order of the list,
-// so the sum rounds the same way on every run. A light adds only where takesLight says. A hair card's shadow lookups
-// take its geometric normal turned toward the light, the side that the light sees (docs/plans/skin-and-hair.md,
-// decision 27). The result is plain radiance: no ambient light, no emission and no exposure. The direct pass writes it
-// into the direct image (Shaders/direct_pass.glsl).
-DirectTerms directLight(ShadingInput s, SurfaceLobes lobes, vec3 position, vec3 V, uint shadowMaps, uint view)
+// directLight for one model: a fiber's light if `fiber`, else a surface's. `fiber` as in respond: directLight is the one
+// caller, and it passes a constant, so each copy of the loop holds one model's code.
+DirectTerms modelLight(
+    bool fiber, ShadingInput s, SurfaceLobes lobes, vec3 position, vec3 V, uint shadowMaps, uint view)
 {
     DirectTerms sum;
     sum.diffuse = vec3(0.0);
@@ -324,21 +324,41 @@ DirectTerms directLight(ShadingInput s, SurfaceLobes lobes, vec3 position, vec3 
         vec3 L;
         float d;
         vec3 irradiance = lightIrradiance(light, position, L, d);
-        if (irradiance == vec3(0.0) || !takesLight(s, L))
-            continue;
         float geometricNdotL = dot(s.geometricNormal, L);
-        vec3 shadowNormal = geometricNdotL < 0.0 ? -s.geometricNormal : s.geometricNormal;
-        float visibility =
-            lightVisibility(light, position, L, d, shadowNormal, abs(geometricNdotL), shadowMaps);
+        if (irradiance == vec3(0.0) || !takesLight(fiber, s, L, geometricNdotL))
+            continue;
+        // A surface's geometric normal faces every light that it takes (takesLight), so only a fiber's turns.
+        vec3 shadowNormal = fiber && geometricNdotL < 0.0 ? -s.geometricNormal : s.geometricNormal;
+        float visibility = lightVisibility(
+            light, position, L, d, shadowNormal, fiber ? abs(geometricNdotL) : geometricNdotL, shadowMaps);
         if (visibility > 0.0)
         {
-            DirectTerms terms = respond(s, lobes, V, L);
+            DirectTerms terms = respond(fiber, s, lobes, V, L);
             vec3 weight = irradiance * visibility;
             sum.diffuse += terms.diffuse * weight;
             sum.specular += terms.specular * weight;
         }
     }
     return sum;
+}
+
+// Every light of the list that the view keeps reflected toward V in its two parts, each dimmed by its shadows as
+// shadowMaps says: a face of map i passes i, and every other caller MainView. The lights add in the order of the list,
+// so the sum rounds the same way on every run. A light adds only where takesLight says. A hair card's shadow lookups
+// take its geometric normal turned toward the light, the side that the light sees (docs/plans/skin-and-hair.md,
+// decision 27). The result is plain radiance: no ambient light, no emission and no exposure. The direct pass writes it
+// into the direct image (Shaders/direct_pass.glsl).
+//
+// A pixel has one model, so directLight chooses the model once per pixel, before the loop over the lights, and each
+// model has a loop of its own. Chosen per light inside one loop, the hair's code made the direct pass of demo-exit's deck
+// about 0.5 ms slower with no hair on screen. The trade-off: a subgroup that holds hair and other pixels runs both loops,
+// so it pays each light's irradiance and shadow lookups twice. A view of hair under 16 shadowed lamps, about a third of
+// whose pixel blocks hold both, showed no measurable cost of it (docs/plans/skin-and-hair.md, "The shading models'
+// cost").
+DirectTerms directLight(ShadingInput s, SurfaceLobes lobes, vec3 position, vec3 V, uint shadowMaps, uint view)
+{
+    return !dropsFibers && s.model == ShadingHair ? modelLight(true, s, lobes, position, V, shadowMaps, view)
+                                                  : modelLight(false, s, lobes, position, V, shadowMaps, view);
 }
 
 // Both parts of directLight, added.

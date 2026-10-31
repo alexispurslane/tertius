@@ -1078,8 +1078,8 @@ The shading target's cost with no skin and no hair: the deck window of `scripts/
 The GPU timer's spans: base 17.28, 16.73, 17.23, 17.21; branch 20.38, 17.91, 18.32; branch with the scatter off 17.76, 18.67, 18.84. The first branch run was disturbed: every pass of it is slower. The two traces with the scatter off agree within 0.1 ms in each pass shown, and both have a high 95th percentile; most of their other passes, such as the reflections and the occlusion sectors, are also 0.05 to 0.2 ms slower than in the branch's runs with the scatter on.
 
 - The epic costs demo-exit about 1 ms of frame span with the scatter on, 17.2 against 18.3 ms without the disturbed run, about 6 %. The design estimated about 0.3 ms.
-- The direct pass grows by 0.4 to 0.9 ms with the scatter on (6.13 and 6.28 against 5.37 to 5.75 ms) and by 0.8 to 1.3 ms with it off (6.59 and 6.69 ms), against an estimate of 0.02 ms for the shading target's read. So the growth does not come from the scatter. That the pass takes 0.3 to 0.6 ms more with the scatter off, where it writes one attachment fewer, is not explained: part of it may be the state of the machine, as the off runs' other passes are slower too. No run isolates the cause of the growth. The candidates, which ticket `ter-uqmn` of the performance coda measures: `respond` and `takesLight` in the light loop in place of `brdf`, which choose by the pixel's model and keep the two parts apart, per light per pixel; the shading target's fetch; and the larger shader's occupancy.
-- The transparent pass grows by 0.4 to 0.7 ms, with no fringe in the window (2.10 to 2.32 against 1.62 to 1.71 ms). The candidates, also for `ter-uqmn`: the glass's shading through `forwardShading` and `respond`, and its runs by sides. The design did not estimate it.
+- The direct pass grows by 0.4 to 0.9 ms with the scatter on (6.13 and 6.28 against 5.37 to 5.75 ms) and by 0.8 to 1.3 ms with it off (6.59 and 6.69 ms), against an estimate of 0.02 ms for the shading target's read. So the growth does not come from the scatter. That the pass takes 0.3 to 0.6 ms more with the scatter off, where it writes one attachment fewer, is not explained: part of it may be the state of the machine, as the off runs' other passes are slower too. No run isolates the cause of the growth. Ticket `ter-uqmn` isolated it and brought most of it down in both configurations. Its runs of 2026-10-31 with the scatter off took as long as with it on, so the extra time with the scatter off did not repeat (see "The shading models' cost" below).
+- The transparent pass grows by 0.4 to 0.7 ms, with no fringe in the window (2.10 to 2.32 against 1.62 to 1.71 ms). The design did not estimate it. `ter-uqmn` measured its parts (see "The shading models' cost" below).
 - The ambient pass grows by 0.14 to 0.16 ms under `SeparableSubsurface` against the runs with the scatter off, and not without it (0.433 and 0.442 against 0.420 to 0.516 ms): the blend of its second attachment, the scatter image, at every pixel (estimate 0.1 to 0.15 ms for both lighting passes). The direct pass's write of the scatter image does not show beyond the spread.
 - The G-buffer pass grows by 0.03 to 0.05 ms, within the spread: the shading target's write (estimate 0.05 to 0.1 ms).
 - The scatter passes with no skin on screen: 0.10 to 0.11 ms (estimate 0.05 to 0.1 ms).
@@ -1115,6 +1115,103 @@ The card number's cost (`ter-3yy5`, 2026-10-31): `scripts/hair-bent-cards.json`,
 | frame span | 9.480, 9.254 (10.85, 10.86) | 9.246, 9.742 (11.27, 11.13) |
 
 The differences of the means, +0.001 ms in the G-buffer pass and +0.03 ms in the sectors pass, are smaller than the differences between two runs of one build, 0.03 ms and 0.09 ms. So the card code costs no time that these runs can show: the G-buffer pass writes the same 4 bytes, and the sectors pass reads the shading target once per step of a hair receiver in place of the plane test's arithmetic.
+
+### The shading models' cost
+
+Ticket `ter-uqmn` (2026-10-31) isolated the growth of the direct and the transparent pass with no skin and no hair on screen, and removed most of it. Its traces took the deck window of `scripts/demo-exit.json`: 120 frames from frame 399, 1920 × 1080, Release, the default configuration (`SeparableSubsurface`), `tools/gpu-trace.sh --no-counters`. Three commits ran in turn: the commit before the merge of this epic (`bf812296`), the ticket's base (`cd8b233c`) and the ticket's branch. Other builds shared the machine, so the 1-minute load at the start of a run was 3.8 to 56. The numbers are the medians of each pass's own time in ms. The base also holds three merges after `bf812296`: `ter-qsfz` (89555b40), `ter-fs7b` (0fe2e820) and `ter-vtc7` (cf4a74cc). The tables leave out three runs that other work disturbed, each with a direct-pass median above every other run of its commit and a mean above their median by 0.5 ms or more: the run before the merge at a load of 8 (median 5.44, mean 5.81 ms, against a median of 5.27 ms of the other runs' means), the run before the merge at a load of 56 (median 7.10 ms), and a branch run (median 5.70, mean 6.25 ms). Two runs timed out and gave no trace, one of the base and one of the branch.
+
+| Pass | Before the merge, 4 runs | Base, 5 runs | Branch, 2 runs |
+|---|---|---|---|
+| direct light | 5.22 to 5.25 | 6.07 to 6.10 | 5.53, 5.55 |
+| transparent | 1.56 to 1.59 | 1.93 to 1.95 | 1.76, 1.77 |
+| frame span | 16.01 to 16.91 | 18.04 to 18.50 | 17.47, 17.48 |
+
+Diagnostic builds from the base removed one candidate after another, two runs of each:
+
+| Build | Direct light | Transparent |
+|---|---|---|
+| Base | 6.07 to 6.10 | 1.93 to 1.95 |
+| No hair code in `respond` and `takesLight` | 5.57, 5.60 | 1.87, 1.88 |
+| Also no shadow normal turned toward the light | 5.59, 5.61 | 1.70, 1.71 |
+| Also no fetch of the shading target | 5.47, 5.49 | 1.71, 1.77 |
+| Also one sum in place of the two parts of `DirectTerms` | 5.42, 5.42 | 1.65, 1.66 |
+
+- The cause in the direct pass: the hair code inside the light loop. `respond` and `takesLight` chose the model again for each light, and that cost about 0.5 ms of the gap of 0.85 ms with no hair on screen. The fetch of the shading target costs about 0.1 ms, and the two sums of `DirectTerms` about 0.05 ms.
+- The shadow normal turned toward the light costs nothing measurable in the direct pass. In the transparent pass, the hair code and the turned normal together cost 0.22 to 0.25 ms.
+- The fix: `directLight` chooses the model once per pixel, before the loop over the lights. It runs `modelLight` with `fiber` as a constant, so each copy of the loop holds the code of one model. A surface takes a light only where its geometric normal faces it, so only the fiber loop turns the shadow normal. The direct pass takes 0.52 to 0.57 ms less than the base, and the transparent pass 0.16 to 0.19 ms less.
+
+`scripts/skin-and-hair.json` did not get slower. The same method took two runs each of the base and the loop per model, with the load at 12 to 59:
+
+| View | Direct light, base | Direct light, loop per model | Frame span, base | Frame span, loop per model |
+|---|---|---|---|---|
+| Head (`--start 1`) | 1.68, 1.79 | 1.28, 1.44 | 10.54, 10.80 | 9.06, 9.88 |
+| Fringed fan (123) | 1.28, 1.57 | 1.09, 1.11 | 10.38, 10.94 | 9.25, 9.40 |
+| Cutout fan (244) | 1.80, 1.82 | 1.35, 1.38 | 11.24, 11.28 | 9.61, 10.01 |
+
+The fringed fan's transparent pass took 0.79 and 0.93 ms on the base and 0.72 and 0.75 ms with the loop per model.
+
+#### The fiber constant and the second series
+
+The review of the loop per model found three open points. The transparent pass kept the fiber loop in every glass pipeline. A subgroup that holds hair pixels and other pixels runs both loops, and no measured view covered it. And no run measured `NoSubsurface`, where the growth of 2026-10-27 was larger. The fix stage answered them:
+
+- The specialization constant `dropsFibers` (constant_id 3, `ShaderConstants.DropsFibers`) is true in the one-sided variant of each `SidedPipeline` and false in every other pipeline. Only hair draws both sides (`MaterialStore.DrawsBothSides`), so no hair material reaches the one-sided variant, which drops the fiber's loop and the hair branch of `sampleMaterial`. The fullscreen direct pass reads every model from the shading target, so it keeps the constant false. The constant changes only speed, so `ShaderConstantsTests` makes sure that the compiled shaders declare it, and each other constant, at its id in `ShaderConstants`.
+- `modelLight` computes the geometric normal's cosine with the light once and passes it to `takesLight`, so the test of the surface's rule and the shadow lookups' input are one value.
+- The new scene `lamp-hall-16-hair` (`scripts/lamp-hall-16-hair.json`) is the hall of `lamp-hall-16` with a wall of 96 cutout strand cards 0.9 m in front of the view. In its capture, about a third of the blocks of 8 × 4 pixels, as many as the M1 Max's SIMD width of 32, hold strand pixels and pixels of the floor or the pillars, by a count that takes a pixel as hair by its color.
+
+The second series ran on 2026-10-31 from 13:35 to 15:04: the same method, one series per view, with the builds in turn and the GPU measurement lock taken for each series. The comparison builds are source exports: `bf812296`, the base, the base with the new scene, the branch with the constant and without the cosine passed once, the branch with both changes, and the builds that chose the loop per subgroup. A run whose G-buffer median, the same work in every run of a build, lies more than 10 % from the other runs of its build is left out: two deck runs, slower in every pass, and three hall runs whose G-buffer pass took 0.333 to 0.335 ms against 0.427 to 0.439 ms, faster in every pass. Two runs timed out in xctrace and gave no trace.
+
+The deck, by series, with the 1-minute load at the start of each run:
+
+| Pass | Configuration | Before the merge | Base | Branch |
+|---|---|---|---|---|
+| direct light | default, load 7.2 to 52 | 5.25, 5.31 | 6.12, 6.09, 6.09 | 5.46, 5.48 |
+| transparent | default | 1.58, 1.59 | 2.00, 1.91, 1.93 | 1.66, 1.69 |
+| frame span | default | 16.20, 16.78 | 18.22, 17.98, 18.02 | 17.17, 17.35 |
+| direct light | `NoSubsurface`, load 4.8 to 12.7 | 5.26, 5.26, 5.45 | 6.08, 6.20, 6.09 | 5.47, 5.57 |
+| transparent | `NoSubsurface` | 1.56, 1.59, 1.60 | 1.92, 1.97, 1.94 | 1.66, 1.69 |
+| frame span | `NoSubsurface` | 16.51, 16.86, 17.11 | 17.54, 18.66, 17.75 | 16.79, 17.51 |
+
+`bf812296` has no subsurface setting and no scatter, so its runs in the `NoSubsurface` rows ran with no option. The loads of the default series rose above 8 in most runs, so it is no quiet repeat. The `NoSubsurface` series started at 4.8 to 12.7. Five of its runs started below a load of 8: both branch runs, two runs before the merge and one base run. Those three runs of the earlier commits agree with the other runs of their commits within 0.2 ms. The third branch run timed out, so the branch has no run above a load of 8 in this series.
+
+- With the scatter off, the base's direct pass takes 6.08 to 6.20 ms, the same as with it on. The 0.3 to 0.6 ms more with the scatter off of 2026-10-27 does not repeat, so it was the state of the machine. The branch removes about 0.6 ms in both configurations.
+- The fix stage's two changes together take 0.07 to 0.11 ms off the transparent pass: 1.66 to 1.69 ms against 1.76 and 1.77 ms with the loop per model alone. Every glass material of the deck is one-sided. No deck build separates the constant from the cosine passed once. The two values also come from two series: 1.76 and 1.77 ms from the first, 1.66 to 1.69 ms from this one. Their base runs agree within about 0.05 ms, 1.93 to 1.95 ms in the first series against 1.91 to 2.00 ms here.
+- The G-buffer pass runs no light loop. In the hall it takes 0.430 to 0.431 ms on the branch, with or without the cosine passed once, against 0.437 to 0.439 ms on the base. The one-sided variant drops the hair branch of the material sample, so the about 0.01 ms points to the constant.
+
+The hall, `lamp-hall-16-hair.json` from frame 30, the direct pass, load 4.4 to 69:
+
+| Build | Runs | Direct light |
+|---|---|---|
+| Base with the new scene | 8 | 6.12 to 6.58 |
+| Branch without the cosine passed once | 5 | 6.03 to 6.67 |
+| Branch | 2 | 6.38, 6.48 |
+| Branch with the loop chosen per subgroup, two variants | 6 | 5.81 to 6.68 |
+
+The second loop of a subgroup that holds both models costs no measurable time in this view. The per-subgroup builds chose the loop by `subgroupBallot` votes. In one, a subgroup of one model ran that model's loop, and a mixed subgroup one loop that chose the model per light (4 runs, 6.27 to 6.68 ms). In the other, a subgroup with no hair ran the surface loop, and every other subgroup the loop that chose per light (2 runs, 5.81 and 6.44 ms). Neither ran measurably faster, so the branch keeps the simpler choice per pixel. The ballots need no new device support: the renderer already requires the ballot operations in the fragment stage (ARCHITECTURE.md, "Required device features").
+
+`skin-and-hair.json`, the branch against the base, two runs each, load 3.7 to 42:
+
+| View | Direct light, base | Direct light, branch | Frame span, base | Frame span, branch |
+|---|---|---|---|---|
+| Head (`--start 1`) | 1.72, 1.81 | 1.61, 1.57 | 10.78, 10.76 | 10.49, 10.48 |
+| Fringed fan (123) | 1.82, 1.82 | 1.58, 1.59 | 12.36, 12.33 | 11.96, 11.97 |
+| Cutout fan (244) | 1.81, 1.82 | 1.58, 1.59 | 11.32, 11.38 | 11.00, 11.00 |
+
+The fringed fan's transparent pass takes 1.08 and 1.09 ms on the base and 1.02 and 1.02 ms on the branch.
+
+#### What remains
+
+Against the commit before the merge, in both configurations:
+
+- The direct pass takes 0.2 to 0.3 ms more (5.46 to 5.57 against 5.25 to 5.45 ms). The fetch of the shading target, about 0.1 ms, stays because the pass must know each pixel's model to choose its loop, and the shading target is the one store of the model. The two sums of `DirectTerms`, about 0.05 ms, stay because the diffuse part goes alone into the diffuse image. No build attributes the rest, 0.05 to 0.2 ms. The default screen-space light makes the diffuse image in both configurations, so the runs with the scatter off do not test the diffuse image.
+- The transparent pass takes about 0.1 ms more (1.66 to 1.69 against 1.56 to 1.60 ms). The two sums cost about 0.05 ms (1.65 to 1.66 against 1.70 to 1.71 ms in the diagnostic builds). No build attributes the other 0.05 ms. Its candidates are `forwardShading` before the occlusion discard, the runs by sides, and the three merges in the base after `bf812296`.
+
+Ticket `ter-qsye` isolates both remainders.
+
+#### Pixels
+
+The loop per model alone changed pixels on this Mac by rounding: 230 pixels in 3,888 frames of `demo-exit.json`, each by 1 of 255 in one channel, and 102 pixels of `skin-and-hair.json`, 99 by 1 of 255 and 3 adjacent pixels of the glass fan's frame `hair-glass-timing-000109` by up to 7. The Metal source that SPIRV-Cross gives holds the same text in both loops, but Metal's fast math rounds the separate surface loop differently. The user accepted this change for the time that it saves (2026-10-31). Two runs of the base on `skin-and-hair.json` give the same bytes in 486 of 486 frames.
+
+The branch with the fix stage's changes changes fewer pixels. Against the base, no byte of the 3,888 frames of `demo-exit.json` differs, and 39 pixels in 33 frames of `skin-and-hair.json` differ, each by 1 of 255: 21 in the fringed fan's film and 18 in the cutout fan's. No build isolated which of the two changes restored the bytes.
 
 ## Known limits
 

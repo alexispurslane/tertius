@@ -1,0 +1,123 @@
+using System.Runtime.InteropServices;
+using Silk.NET.Vulkan;
+
+namespace Tertius.Rendering.Tests;
+
+/// <summary>
+/// The link between <see cref="ShaderConstants"/> and the shaders that the build embeds: each constant's id in C# is
+/// the constant_id that its shaders declare, and the shaders' defaults are the values of the default constants. A driver
+/// ignores a specialization entry whose id no shader declares (the Vulkan spec, VkSpecializationMapEntry), and a
+/// constant such as <see cref="ShaderConstants.DropsFibers"/> changes only speed, so no render test sees a broken link.
+/// </summary>
+public sealed class ShaderConstantsTests
+{
+    private static readonly Declared False = new(Type: "bool", Default: 0);
+
+    /// <summary>
+    /// The specialization constants that each shader declares, by constant_id. The table covers every constant, and each
+    /// constant in a shader that declares no other, so a swap of two ids on either side shows.
+    /// </summary>
+    private static readonly Dictionary<string, Dictionary<uint, Declared>> DeclaredByShader = new()
+    {
+        ["ambient.frag"] = new() { [ShaderConstants.EnvironmentMapId] = False },
+        ["environment_face.frag"] = new()
+        {
+            [ShaderConstants.CutoutAlphaId] = False,
+            [ShaderConstants.DropsFibersId] = False,
+        },
+        ["skin_scatter_rows.comp"] = new() { [ShaderConstants.ScatterTapsPerSideId] = new(Type: "int", Default: 1) },
+        ["direct.frag"] = new() { [ShaderConstants.DropsFibersId] = False },
+        ["gbuffer.frag"] = new()
+        {
+            [ShaderConstants.EnvironmentMapId] = False,
+            [ShaderConstants.CutoutAlphaId] = False,
+            [ShaderConstants.DropsFibersId] = False,
+        },
+        ["transparent.frag"] = new()
+        {
+            [ShaderConstants.EnvironmentMapId] = False,
+            [ShaderConstants.CutoutAlphaId] = False,
+            [ShaderConstants.DropsFibersId] = False,
+        },
+    };
+
+    public static TheoryData<string> Shaders => new(DeclaredByShader.Keys);
+
+    [Theory]
+    [MemberData(nameof(Shaders))]
+    public void AShaderDeclaresItsSpecializationConstantsAtTheIdsOfShaderConstants(string file)
+    {
+        IReadOnlyDictionary<uint, Declared> declared = SpecializationConstants(
+            ShaderLibrary.LoadSpirv(ShaderLibrary.EngineShaders, file)
+        );
+
+        declared.Should().BeEquivalentTo(DeclaredByShader[file]);
+    }
+
+    [Theory]
+    [MemberData(nameof(Shaders))]
+    public unsafe void TheDefaultConstantsSpecializeAShaderToItsOwnDefaults(string file)
+    {
+        IReadOnlyDictionary<uint, Declared> declared = SpecializationConstants(
+            ShaderLibrary.LoadSpirv(ShaderLibrary.EngineShaders, file)
+        );
+        SpecializationStorage storage = default;
+        SpecializationInfo* info = ShaderConstants.Specialization(new ShaderConstants(EnvironmentMap: false), &storage);
+
+        Dictionary<uint, uint> given = [];
+        for (int i = 0; i < info->MapEntryCount; i++)
+        {
+            SpecializationMapEntry entry = info->PMapEntries[i];
+            given[entry.ConstantID] = *(uint*)((byte*)info->PData + entry.Offset);
+        }
+
+        foreach ((uint id, Declared constant) in declared)
+            given[id].Should().Be(constant.Default, $"a pipeline without constants takes constant_id {id}'s default");
+    }
+
+    /// <summary>A specialization constant that SPIR-V declares: its type and its default value as one word.</summary>
+    private readonly record struct Declared(string Type, uint Default);
+
+    /// <summary>The specialization constants that <paramref name="spirv"/> declares, by their SpecId decoration.</summary>
+    private static Dictionary<uint, Declared> SpecializationConstants(byte[] spirv)
+    {
+        const ushort OpTypeBool = 20, OpTypeInt = 21, OpSpecConstantTrue = 48, OpSpecConstantFalse = 49;
+        const ushort OpSpecConstant = 50, OpDecorate = 71;
+        const uint SpecId = 1;
+
+        ReadOnlySpan<uint> words = MemoryMarshal.Cast<byte, uint>(spirv);
+        Dictionary<uint, string> types = [];
+        Dictionary<uint, uint> specIds = [];
+        Dictionary<uint, Declared> constants = [];
+        // The header takes 5 words. Each instruction's first word holds its word count above its opcode.
+        for (int at = 5; at < words.Length; at += (int)(words[at] >> 16))
+        {
+            ReadOnlySpan<uint> operands = words.Slice(at + 1, (int)(words[at] >> 16) - 1);
+            switch ((ushort)words[at])
+            {
+                case OpTypeBool:
+                    types[operands[0]] = "bool";
+                    break;
+                case OpTypeInt:
+                    types[operands[0]] = operands[2] == 1 ? "int" : "uint";
+                    break;
+                case OpSpecConstantTrue or OpSpecConstantFalse or OpSpecConstant:
+                    uint value = (ushort)words[at] switch
+                    {
+                        OpSpecConstantTrue => 1,
+                        OpSpecConstantFalse => 0,
+                        _ => operands[2],
+                    };
+                    constants[operands[1]] = new(Type: types[operands[0]], Default: value);
+                    break;
+                case OpDecorate when operands[1] == SpecId:
+                    specIds[operands[0]] = operands[2];
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        return specIds.ToDictionary(pair => pair.Value, pair => constants[pair.Key]);
+    }
+}
