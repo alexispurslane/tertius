@@ -459,7 +459,12 @@ public sealed class EnvironmentFaceTests
             snapshot.Instances.Add(panel);
             // Behind the panel, the lamp's light reaches only the panel's back.
             snapshot.Lights.Add(
-                Gpu.Lamp(position: new(12, 0, 0), color: Vector3.One, intensity: 1, chainDepth: TestChains.CamerasFrame) with
+                Gpu.Lamp(
+                    position: new(12, 0, 0),
+                    color: Vector3.One,
+                    intensity: 1,
+                    chainDepth: TestChains.CamerasFrame
+                ) with
                 {
                     EntityIndex = PanelEntity,
                 }
@@ -481,7 +486,10 @@ public sealed class EnvironmentFaceTests
             EnvironmentScenes
                 .Center(EnvironmentScenes.Face(renderer, CubeFace.PositiveX))
                 .Should()
-                .Be(Vector3.Zero, "the black panel hides the wall and reflects nothing, and its glow is its light's face");
+                .Be(
+                    Vector3.Zero,
+                    "the black panel hides the wall and reflects nothing, and its glow is its light's face"
+                );
         }
         finally
         {
