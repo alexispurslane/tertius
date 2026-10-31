@@ -260,6 +260,26 @@ public sealed class RenderSnapshotAtmosphereTests
     }
 
     [Fact]
+    public void TheDensestAirIsMeasuredFromTheEyeNotFromTheOriginOfTheCamerasFrame()
+    {
+        using var test = new TestWorld();
+        // Two equal airs off the chain. The root's origin stands 100 km above the first, and the eye, 20,000 km along x,
+        // stands 50 km above the second. Seen from the root's origin, the second lies about 16,900 km below, and the first
+        // comes first in slot order, so only the eye's place chooses the second.
+        var eye = new Double3(2e7, 0, 0);
+        SpawnFrame(test: test, parent: test.Root, place: new(0, -(MarsRadius + 1e5), 0), medium: new(MarsAir), radius: 1e5f);
+        var below = new Double3(eye.X, -(MarsRadius + 5e4), 0);
+        SpawnFrame(test: test, parent: test.Root, place: below, medium: new(MarsAir), radius: 1e5f);
+        test.World.Camera = test.SpawnCamera(test.Root, new(eye, DQuaternion.Identity));
+
+        test.Run(1);
+        RenderAtmosphere? atmosphere = test.World.Latest().Atmosphere;
+
+        atmosphere.Should().NotBeNull();
+        ExpectNear(atmosphere!.Value.Center, below - eye, "the air 50 km below the eye is the densest at the eye");
+    }
+
+    [Fact]
     public void OfTwoFarAirsOffTheChainTheOneFewerScaleHeightsBelowTheEyeWins()
     {
         using var test = new TestWorld();
