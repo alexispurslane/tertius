@@ -55,13 +55,14 @@ Not in scope, by the user's list: an eye material, two specular lobes for skin, 
 | The scatter image | Full resolution, `RGBA16F`: D in rgb and 1 in a at a skin pixel, 0 at every other pixel. |
 | The row image | Full resolution, `RGBA16F`: the scatter image after the pass along the rows. |
 | The scattered light, S | D after the pass along the rows and the pass along the columns. |
-| The profile, R_c(r) | The skin's diffusion profile in color channel c: the share of the light that enters at a point and leaves at distance r from it, per square meter. A sum of six Gaussians (d'Eon, Luebke and Enderton 2007). |
+| The profile, R_c(r) | The skin's diffusion profile in color channel c: the share of the light that enters at a point and leaves at distance r from it, per square meter. A sum of six Gaussians (d'Eon, Luebke and Enderton 2007), widened by the width scale. |
+| The width scale | 4: how many times wider than the measured profile the skin scatters, `SkinProfile.WidthScale` (decision 34). |
 | The kernel, P_c(x) | The profile's marginal along one axis: P_c(x) = ∫ R_c(√(x² + y²)) dy. |
 | A tap | One sample of the kernel: an offset x_i in meters and a weight w_{i,c} per channel. |
-| The reach | 8 mm, the largest tap offset. |
+| The reach | 32 mm, the largest tap offset: 8 mm of the measured profile times the width scale. |
 | The view depth, z | A pixel's distance along the camera's forward axis: d / \|r\|, with d its distance and r its view ray with a forward component of 1, as in [ambient-occlusion.md](ambient-occlusion.md). |
 | Pixels per meter, s(z) | How many pixels one meter across the view covers at view depth z: H / (2 z tan(φ_y / 2)), with H the image's height and φ_y the vertical field of view. |
-| The slope limit | tan 60°, √3: the steepest rise of depth per meter across the view that a tap still counts as the center's surface. |
+| The slope limit | tan 60°, √3: the steepest rise of depth per meter of the measured profile across the view that a tap still counts as the center's surface. A tap's offset counts in the measured profile, its offset in meters over the width scale (decision 34). |
 | k, MaxRadiance | As in ARCHITECTURE.md, "Exposure" and "Portable Vulkan": pre-exposed light is radiance times the exposure scale k, and a surface writes at most MaxRadiance, 32,256, into the HDR image. |
 
 ## Decisions
@@ -76,7 +77,17 @@ Not in scope, by the user's list: an eye material, two specular lobes for skin, 
 
 Made at the fix of Part 4's darkened cards (`ter-qsfz`), and so numbered after the decisions below:
 
-33. Under the screen-space light, a hair receiver's own card blocks nothing: its own surface blocks no sector, and a step that reads a point of its card's plane is left out. Other cards and other surfaces still block it and give it their bounce. (User, 2026-10-27, option A of `ter-qsfz`) The card's plane is the plane at right angles to the pixel's geometric normal, the card's, which the normals target holds beside the fiber normal, so the rule needs no new target. Reason: half of a turned card's own points lie above the plane of a hair pixel's fiber normal, so they blocked its hemisphere, and a card turned 40° about its strand shaded 7% darker than one that faces the eye: the card planes showed. A card whose strip bends, or whose vertex normals lean off its triangles, is not one plane (`ter-3yy5`).
+33. Under the screen-space light, a hair receiver's own card blocks nothing: its own surface blocks no sector, and a step whose pixel carries the receiver's card is left out, at any bend of the card. Other cards, other instances and other surfaces still block it and give it their bounce. A curl that folds back over its own card never shades it. (User, 2026-10-27, option A of `ter-qsfz`; user, 2026-10-31, design A of `ter-3yy5`, the card number) A card is a connected strip of triangles, and the G-buffer writes a hair pixel's card, mixed with its instance, into the shading target's 13 spare bits ("The card number"). Reason: half of a turned card's own points lie above the plane of a hair pixel's fiber normal, so they blocked its hemisphere, and a card turned 40° about its strand shaded 7% darker than one that faces the eye: the card planes showed. The first rule took the card as the plane at right angles to the pixel's geometric normal, which covers only flat cards: on a smooth-shaded strip that bends, the interpolated normal leans off the triangle and the next segment lies off the plane, so a card bent by 15° to each side of its ridge shaded 8% darker again. Declined: a cone of half angle θ around the card's plane, which also skips the other cards within θ, sin²θ of the cosine-weighted light, 33% at 35°.
+
+Made after a side-by-side capture of the test head (`ter-t2w6`):
+
+34. Skin scatters four times wider than the measured profile of d'Eon, Luebke and Enderton 2007: `SkinProfile.WidthScale` = 4 multiplies every Gaussian's width, so every variance by 16, and the reach by 4. It is an artistic choice of the user over the measured profile. At the measured width, the scatter on the 0.1 m head at 0.45 m was a band of about 3 px. Four times wider, the nose's shadow line turns clearly red and soft. The user: "wider is much better in my opinion!" No material parameter and no renderer option set the width, because only one skin exists. (User, 2026-10-27)
+
+    The width scale does not widen the slope rule (decision 16). The slope rule divides each tap's offset by the width scale, so a tap tolerates the same depth step as at the measured width. At the full width, light crossed the 11 mm step at the edge of the test head's nose, and a faint red ring showed beside the nose. The user chose this rule over the ring and over an absolute limit on the depth step, which needs a new constant. The cost: the scatter narrows wherever the surface turns more than about 23° from the eye. A tap starts to give way there and gives way fully at about 41°. On a round head, that is the outer 60 % of its radius, not only the pixels near its silhouette. (User, 2026-10-31)
+
+Made at the review of the hair reflections (`ter-nwhv`):
+
+35. A hair ray that points below its card, or less than a cosine of `SurfaceFadeCosine` above it, traces nothing. A normal map tilts the strand off its card (decision 28), so the eye's direction mirrored about the strand can point below the card, for a card far from edge-on too. When the dominant direction of a hair pixel has a cosine below `SurfaceFadeCosine`, 0.05, with the card's geometric normal, the pixel starts no ray, at either trace resolution. It keeps the reflection that the ambient pass gave it, the environment map's while the map is on. The surface fade blends nothing for hair, because a ray inside its range grazes the card and hits the card a few pixels from its start: a share of those hits ends the screen's reflection at a ragged, speckled edge. A pixel of any other model keeps the surface fade. `reflectingPixel` in `reflection_pixel.glsl` holds the rule, and the trace, the half-resolution trace and the upsample all call it. The cost: a tilted strand whose reflection points less than a cosine of 0.05 above its card shows the environment map's reflection, not the screen's, and the two meet at a straight edge. (User, 2026-10-31, design 2 of `ter-nwhv`, with the cut at `SurfaceFadeCosine`) The user declined design 1, in which a hair pixel's own card is no surface to its ray, so that a ray below the card traces and skips the hits on its own card through the card number of `ter-3yy5`. It can come later if a normal-mapped hair asset looks patchy.
 
 ### Settled by this design
 
@@ -92,7 +103,7 @@ Each by the user's decisions and the project's rules, with its reason.
 13. The scatter adds a difference to the HDR image: HDR += S − D at each skin pixel. Reason: the lighting passes keep writing the whole light of skin, so the bounce light's direct image keeps the direct light that a skin blocker bounces, and a renderer with the scatter off draws skin with no second path. It has the form of the reflections' delta, which adds W · C − a · k · T_s.
 14. The direct pass writes D's direct part into the scatter image, and the ambient pass adds its ambient part through an additive blend on the scatter image alone. That needs the device feature `independentBlend` (see "Portable Vulkan"). Reason: D needs both parts, and neither pass sees the other's. A second image for the direct part costs 16.6 MB at 1080p, and a second light loop in the ambient pass costs the direct pass's lights again at every skin pixel.
 15. Each tap reads the one pixel nearest its position, with `imageLoad`, and no filtering. Reason: each tap's tests of the mask and the depth then hold for the very pixel whose light it takes, and the C# copy gives the same sums. A tap less than half a pixel from the center lands on the center.
-16. A tap gives way to the center's own light when its pixel is not skin, and when the depth between it and the center rises faster than the slope limit. Reason: Jimenez's rule that the kernel follows the surface, with a tolerance that grows with the tap's offset, not one constant. Past 60°, the surface turns so far from the eye that the true scatter covers fewer pixels than the screen-space kernel. The sky, the impostor billboards and every surface that is not skin are not skin.
+16. A tap gives way to the center's own light when its pixel is not skin, and when the depth between it and the center rises faster than the slope limit, across the tap's offset in the measured profile (decision 34). Reason: Jimenez's rule that the kernel follows the surface, with a tolerance that grows with the tap's offset, not one constant. In the measured profile, past 60°, the surface turns so far from the eye that the true scatter covers fewer pixels than the screen-space kernel. In the rendered skin, four times wider, a tap starts to give way where the surface turns about 23° from the eye and gives way fully at about 41° (decision 34). The sky, the impostor billboards and every surface that is not skin are not skin.
 17. The kernel is computed once in C#, in doubles, when the renderer is made, and uploaded with the first frame. Reason: it depends only on the profile and the tap count, and the C# copy is then the one source of the weights.
 18. The scatter runs after the ambient pass and before the reflections' radiance pyramid. Reason: D must hold the ambient light, the crease shadowing and the bounce, which the ambient pass adds, and a mirror must show the scattered skin. The transparent pass, the exposure and bloom come after, as for every surface.
 19. The environment faces and the impostor captures shade skin as the standard model, with no scatter. Reason: a face texel at W = 128 covers 1.2 cm at 1 m, and an impostor of a person of 1.8 m is below 200 px, about 9 mm per pixel. Both are as wide as the red light's scatter and wider than the green and blue light's.
@@ -287,10 +298,12 @@ The shading target's channels:
 | Channel | Standard | Skin | Hair |
 |---|---|---|---|
 | R, G | 0 | 0 | The strand's octahedral code, 8 bits each |
-| B | 0 | 0 | 0 |
-| A | 0 | 1 | 2 |
+| B, bit 0 | The light mark | The light mark | The light mark |
+| B, bits 1 to 7 | 0 | 0 | The card code's bits 0 to 6 |
+| A, bits 0 and 1 | 0 | 1 | 2 |
+| A, bits 2 to 7 | 0 | 0 | The card code's bits 7 to 12 |
 
-Since `ter-vtc7`, B of every model holds the light mark: 1 where the pixel's entity holds a light, else 0 (docs/plans/screen-space-illumination.md, "The bounce source").
+Since `ter-vtc7`, bit 0 of B holds the light mark: 1 where the pixel's entity holds a light, else 0 (docs/plans/screen-space-illumination.md, "The bounce source"). Since `ter-3yy5`, the 13 bits above the light mark and the model's code hold a hair pixel's card code ("The card number"). `lightModelAndCardWords` in `frame.glsl` writes B and A, and `lightMarkOfWord`, `modelOfWord` and `cardOfWords` read them; `CardCode.Channels` and `CardCode.Read` are the C# twins.
 
 ```glsl
 // The strand's octahedral code (docs/plans/skin-and-hair.md, "The shading target"). StrandCode is the C# twin. floor(x + 0.5)
@@ -304,7 +317,7 @@ where
 - `octEncode`, `octDecode` = the normals target's encoding (`octahedral.glsl`).
 - `strand` = a unit vector, so its octahedral code lies in [−1, 1]² and the clamp only bounds rounding.
 
-The target is a `UINT` format, so it holds integers and its codes need no rule for the rounding of a conversion. It is cleared to 0, so the sky and every pixel that nothing draws read as standard. `gbuffer.frag` writes it for every lit fragment, and `impostor.frag` writes 0: a billboard's pixel is unlit, which the base color's alpha of 0 already says. `surfaceAt` reads it at G-buffer set binding 10, after the lights' atlas at 8 and the bounce's direct image at 9. `StrandCode` and `ShadingCode` are the C# twins, and a GPU test pins the shaders to them.
+The target is a `UINT` format, so it holds integers and its codes need no rule for the rounding of a conversion: every bit survives on every driver. It is cleared to 0, so the sky and every pixel that nothing draws read as standard. `gbuffer.frag` writes it for every lit fragment, and `impostor.frag` writes 0: a billboard's pixel is unlit, which the base color's alpha of 0 already says. `surfaceAt` reads it at G-buffer set binding 10, after the lights' atlas at 8 and the bounce's direct image at 9. `StrandCode` and `ShadingCode` are the C# twins, and a GPU test pins the shaders to them.
 
 ## Hair
 
@@ -534,11 +547,36 @@ A hair card is a sheet of strands with no back (decision 32). So a hair material
 |---|---|
 | G-buffer | Draws both sides of the card. Writes n_f as the shading normal, the card's vertex normal turned toward the eye as the geometric normal, the strand's code and 2 into the shading target, and metallic 0 |
 | Direct light | `hairResponse` for each light, which it takes from either side of its card. Its shadow lookups use the geometric normal turned toward the light. |
-| Occlusion and bounce | Around n_f. Its own card blocks nothing (decision 33): its own surface blocks no sector, and a step that reads a point of its card's plane is left out. Other cards and surfaces block and bounce as for any surface |
+| Occlusion and bounce | Around n_f. Its own card blocks nothing (decision 33): its own surface blocks no sector, and a step whose pixel carries its card code is left out. Other cards, other instances and other surfaces block and bounce as for any surface |
 | Ambient light | `ambientTerms` at n_f, with the occlusion and the bounce |
-| Reflections | As any surface, along the dominant direction about n_f |
+| Reflections | As any surface, along the dominant direction about n_f. A ray whose cosine with the card's normal is below `SurfaceFadeCosine` traces nothing, and the pixel keeps the ambient pass's reflection (decision 35) |
 | Transparent (fringe) | The same functions, forward, with an occlusion of 1 and a bounce of 0 |
 | Environment faces, impostor captures | The same functions, forward: the core only |
+
+### The card number
+
+A hair pixel's own card is the set of pixels that its card's triangles cover, at any bend of the card. Four steps carry it from the mesh to the occlusion sectors pass (decision 33):
+
+1. `UploadQueue.AddMesh` numbers the cards of every mesh, on the caller's thread (`MeshCards.Number`), and builds each GPU vertex with its card (`StagedMesh.Of`). A card is a connected strip of triangles: two triangles lie on one card when a chain of triangles joins them, each with a vertex position of the next. So a strip whose exporter splits its vertices at a sharp bend or a seam, with one position and two normals, stays one card. The cards count from 0 in the order of their first triangles. The renderer does not know which material a mesh draws with, so it numbers every mesh.
+2. Separate cards share no vertex, so every vertex of a triangle carries the triangle's card: `GpuVertex.Card`, a `uint` at offset 48 of the 52-byte vertex of the global vertex buffer, at location 4. The deform vertices carry it into the deformed copies (`GpuDeformVertex.Card`).
+3. `mesh.vert` mixes the card with the instance's place among the frame's placed instances, `GpuInstance.PlacedIndex`, which every view and depth range of the instance shares, and passes the code flat as w of `outInstanceWords`:
+
+   ```glsl
+   uint cardCode(uint card, uint placedIndex)
+   {
+       return (card + placedIndex * 5063u) & 0x1FFFu;
+   }
+   ```
+
+   where
+
+   - `card` = the vertex's card number in its mesh, from 0.
+   - `placedIndex` = the instance's place among the frame's placed instances, from 0.
+   - 5063 = 2^13 / φ, rounded to an odd number: neighbor instances lie at least 3,129 codes apart, and the instances of one card take every code before one repeats.
+
+4. `gbuffer.frag` writes a hair pixel's code into the shading target's 13 spare bits, and the sectors pass, for a hair receiver, reads each step's code at the step texel's representative pixel (`cardAt` in `occlusion.glsl`). A step whose code is the receiver's is left out. A pixel of another model has no code (`NoCard`), so it always blocks a hair receiver.
+
+A collision makes another card's step count as the receiver's own, so that step blocks nothing. The cards of one instance never collide below 2^13 cards; in a mesh of more cards, cards i and i + 8,192 share a code. Two instances' cards collide in about one of 8,192 pairs: each card of one instance shares its code with at most one card of the other.
 
 ## Skin
 
@@ -576,7 +614,7 @@ where
 
 ### The profile and the kernel
 
-The profile of human skin, a sum of six Gaussians, G(v, r) = exp(−r² / (2v)) / (2πv), with these variances and weights per channel (d'Eon, Luebke and Enderton 2007):
+The profile of human skin, a sum of six Gaussians, G(v, r) = exp(−r² / (2v)) / (2πv), with these measured variances and weights per channel (d'Eon, Luebke and Enderton 2007):
 
 | Variance (mm²) | Red | Green | Blue |
 |---|---|---|---|
@@ -586,6 +624,8 @@ The profile of human skin, a sum of six Gaussians, G(v, r) = exp(−r² / (2v)) 
 | 0.567 | 0.113 | 0.007 | 0.007 |
 | 1.99 | 0.358 | 0.004 | 0 |
 | 7.41 | 0.078 | 0 | 0 |
+
+The skin scatters four times wider than this (decision 34). `SkinProfile` writes every length of the profile in one unit, a millimeter of the measured profile, which is WidthScale · 1 mm = 4 mm of the rendered skin. So every variance in the table counts 16 times as large, and the reach is 8 such units, 32 mm. A width scale on the Gaussians alone would leave the reach behind, and the outermost taps would cut the tails.
 
 Each channel's weights sum to 1, so the profile keeps the light that enters. A 2D Gaussian is the product of two 1D Gaussians, so the kernel is the same sum in one dimension:
 
@@ -598,11 +638,11 @@ The separable scatter applies P_c(x) along the rows and then P_c(y) along the co
 `SkinProfile.Kernel(tapsPerSide)` makes the taps, with n = tapsPerSide:
 
 ```
-x_i = sign(i) · Reach · (i / n)²                          i = −n … n,  Reach = 8 mm
+x_i = sign(i) · Reach · (i / n)²                          i = −n … n,  Reach = 32 mm
 w_{i,c} = ∫ from b_i to b_{i+1} of P_c(x) dx              b_i = (x_{i−1} + x_i) / 2,  b_{−n} = −∞,  b_{n+1} = +∞
 ```
 
-The taps crowd toward the center, where the profile is steep. The widest Gaussian has σ = 2.72 mm, so the reach is three of its widths, and the outermost taps hold the tails beyond them. The center tap holds the narrowest Gaussians, which at n = 8 lie within its interval of ±0.0625 mm. Each channel's weights sum to exactly 1. `SkinProfile` integrates each interval in doubles, by the error function. The renderer uploads the kernel with the first frame as 2n + 1 `vec4`: rgb the weights, a the offset in meters.
+The taps crowd toward the center, where the profile is steep. The widest Gaussian has σ = 4 · 2.72 mm = 10.9 mm, so the reach is three of its widths at every width scale, and the outermost taps hold the tails beyond them. The center tap holds the narrowest Gaussians, which at n = 8 lie within its interval of ±0.25 mm. Each channel's weights sum to exactly 1. `SkinProfile` integrates each interval in doubles, by the error function. The kernel also carries the unit of its offsets for the slope rule, its width scale (`ScatterKernel.WidthScale`), which `SkinProfile.Kernel` sets to `SkinProfile.WidthScale`. The renderer uploads the kernel with the first frame as 2n + 1 `vec4`, rgb the weights and a the offset in meters, and the width scale after them.
 
 ### The diffuse light D
 
@@ -640,7 +680,8 @@ vec3 scatterAlong(ivec2 pixel, ivec2 axis, vec3 center)
 {
     float depth = viewDepthAt(pixel);
     float pixelsPerMeter = frame.viewport.y / (2.0 * depth * length(frame.cameraUp.xyz));
-    if (Reach * pixelsPerMeter < 0.5)
+    // The outermost tap's offset is the kernel's reach (ScatterKernel.Reach).
+    if (kernel[2 * scatterTapsPerSide].a * pixelsPerMeter < 0.5)
         return center;
     ivec2 last = imageSize(scatterImage) - 1;
     vec3 sum = vec3(0.0);
@@ -653,7 +694,8 @@ vec3 scatterAlong(ivec2 pixel, ivec2 axis, vec3 center)
         vec3 light = center;
         if (i != scatterTapsPerSide && imageLoad(scatterImage, at).a > 0.0)
         {
-            float rise = abs(viewDepthAt(at) - depth) / (abs(tap.a) * SlopeLimit);
+            float run = abs(tap.a) / kernelWidthScale;
+            float rise = abs(viewDepthAt(at) - depth) / (run * SlopeLimit);
             light = mix(center, sourceAt(at), clamp(2.0 - rise, 0.0, 1.0));
         }
         sum += tap.rgb * light;
@@ -666,10 +708,12 @@ where
 
 - `viewDepthAt(p)` = z at pixel p, from the distance target and the view ray.
 - `frame.viewport.y` = H. `length(frame.cameraUp.xyz)` = tan(φ_y / 2). So `pixelsPerMeter` = s(z).
-- `kernel[i]` = tap i of the kernel buffer, a uniform buffer of 2 · 16 + 1 = 33 `vec4`, zeros after the last tap: rgb its weights, a its offset x_i in meters. Tap n, `scatterTapsPerSide`, is the center, with offset 0. A uniform buffer takes no storage-buffer slot of the compute stage, and 528 bytes fit any device's uniform-buffer range.
+- `kernel[i]` = tap i of the array of 2 · 16 + 1 = 33 `vec4` at the start of the kernel buffer, zeros after the last tap: rgb its weights, a its offset x_i in meters. Tap n, `scatterTapsPerSide`, is the center, with offset 0. The kernel buffer is a uniform buffer that holds `GpuScatterKernel`, the C# copy of the block. A uniform buffer takes no storage-buffer slot of the compute stage, and the buffer's 532 bytes fit any device's uniform-buffer range.
 - `MaxSide` = 16,384, the largest image side.
 - `imageLoad(scatterImage, at).a` = 1 at a skin pixel, 0 elsewhere: the mask.
-- `rise` = the tap's depth step over the depth step of the slope limit across its offset. Up to 1 the tap keeps its own light, and from 1 to 2 it gives way to the center's.
+- `kernelWidthScale` = the kernel's width scale (`ScatterKernel.WidthScale`), the float after the 33 `vec4` in the same uniform block. The kernel that gives the offsets also gives their unit, so a kernel of another width never meets the slope rule of the skin's.
+- `run` = the tap's offset in the measured profile, in meters: its offset over the kernel's width scale (decision 34).
+- `rise` = the tap's depth step over the depth step of the slope limit across `run`. Up to 1 the tap keeps its own light, and from 1 to 2 it gives way to the center's.
 - `sourceAt(at)` = the source image at the tap.
 
 The passes:
@@ -809,7 +853,7 @@ Every kind takes one path. Only the alpha mode's runs and the model's response d
 | The shading model's code | None: an integer comparison | Safe |
 | `pixelsPerMeter` in `scatterAlong` | A view depth or a field of view of 0 | Safe: a skin pixel has a distance above 0, and its view ray lies inside the frustum, so its forward cosine is above 0. tan(φ_y / 2) ≥ tan(5 · 10⁻⁷) by the field of view's floor. A very near pixel with a narrow field gives a large but finite value |
 | The tap's offset | A product past the range of an `int` | Fixed: the offset is clamped to ±16,384 as a float before the conversion, and the pixel is clamped to the image |
-| `rise` | A tap offset of 0 | Safe: the center tap, the only one at offset 0, skips the test. Every other offset is at least Reach / n² = 0.031 mm at n = 16 |
+| `rise` | A tap offset of 0 | Safe: the center tap, the only one at offset 0, skips the test. Every other offset is at least Reach / n² = 0.125 mm at n = 16 |
 | The scatter image's blend | A sum past 65,504 | Safe: each part is at most MaxRadiance, so the exact sum is at most 64,512, which a half float holds exactly, and a blend that rounds to nearest or toward zero gives at most that |
 | The columns pass's store | A negative or a too large sum | Safe: every input is finite and at most 64,512, and the clamp to [0, MaxRadiance] acts on finite values |
 
@@ -851,6 +895,8 @@ The existing GPU tests of glass, puffs and the transparent pass pass unchanged i
 - `RedScattersFartherThanGreenAndGreenFartherThanBlue`: the marginals' variances, Σ w_k v_k per channel, in that order.
 - `TheKernelsWeightsSumToOneInEachChannel`, for 1 to 16 taps per side.
 - `TheKernelIsSymmetric`
+- `RedLightSpreadsFourTimesAsFarAsInTheMeasuredSkin`: the red marginal's standard deviation is 4 times the measured profile's 1.176 mm (decision 34).
+- `TheReachSpansTheSameWidthsOfTheWidestGaussianAtAnyScale`: Reach / σ of the widest Gaussian is 8 mm / 2.72 mm, so the width scale moves the reach and the Gaussians together.
 - `TheTapsCrowdTowardTheCenter`: x_1 = Reach / n², x_n = Reach.
 - `TheOutermostTapsHoldTheTails`: w_n is the integral from b_n to infinity.
 - `TheKernelsSecondMomentIsTheProfilesVariance`: Σ w_i x_i² within 5 % of Σ w_k v_k at 8 taps per side. The test records the measured error.
@@ -862,7 +908,12 @@ The existing GPU tests of glass, puffs and the transparent pass pass unchanged i
 - `ATapOnAPixelThatIsNotSkinGivesWayToTheCenter`
 - `ATapAcrossADepthStepGivesWayToTheCenter`
 - `ATapWithinTheSlopeLimitKeepsItsOwnLight`
+- `ATapAcrossTheNosesDepthStepGivesWayToTheCenter`: a tap at 8 mm across a step of 11 mm, the step at the edge of the test head's nose. The width scale widens the scatter, not the depth step that a tap may cross.
+- `ATapWithinTheSlopeLimitOfItsMeasuredOffsetKeepsItsOwnLight`: a step of 0.9 times the slope limit's step across the tap's offset over the width scale.
+- `ATapBetweenOneAndTwoSlopeLimitsMixesItsLightWithTheCenters`
+- `AKernelAtTheMeasuredWidthJudgesADepthStepByItsWholeOffset`: the slope rule takes the unit of the offsets from the kernel that the pass runs, `ScatterKernel.WidthScale`, not from `SkinProfile.WidthScale` (`ter-o0a6`).
 - `AKernelBelowHalfAPixelLeavesThePixelAsItWas`
+- `TheKernelsOwnOutermostTapDecidesWhetherItReachesPastThePixel`: the pass takes the reach from the kernel that it runs, `ScatterKernel.Reach`, so the shader keeps no copy of `SkinProfile.Reach`.
 - `TwiceTheDepthHalvesThePixelsOfTheKernel`
 - `TapsPastTheImageReadTheEdgePixel`
 
@@ -935,16 +986,30 @@ The existing GPU tests of glass, puffs and the transparent pass pass unchanged i
 - `AnEnvironmentFaceAndACaptureShadeHairAsFibers`
 - `StandardPixelsKeepTheirLight`: within the existing tests' tolerances. The six reference images pass.
 
-`SectorSearchTests` (existing, C#), for decision 33:
+`HairReflectionRenderTests` (new, GPU, `ter-nwhv`), on a hair floor whose normal map tilts its strands off the card, for decision 35:
+
+- `AHairPixelWhoseRayPointsBelowTheSurfaceFadeKeepsTheEnvironmentMapsReflection`: at tilts of 10° and 45°, at both trace resolutions, each pixel whose ray has a cosine below `SurfaceFadeCosine` with the card shows what it shows with the reflections off, within the half float's rounding, and that light is above 0.
+- `AHairPixelWhoseRayGrazesItsCardKeepsTheAmbientTermExactly`: at both trace resolutions, each pixel whose ray has a cosine between 0 and `SurfaceFadeCosine` with the card shows exactly what it shows with the reflections off.
+- `AStandardPixelWhoseRayGrazesItsSurfaceTakesTheScreensReflectionInTheShareOfTheSurfaceFade`: on the same floor of the standard model, with the environment map off, a pixel of fade f changes by at most f · W times the brightest light in the scene, and more than half of the pixels change. So the hair rule does not reach other surfaces. The map is off because the map holds the wall, and under it a delta without its fade also keeps inside the bound. The other surfaces keep the same grazing hits that made the hair's edge ragged (`ter-acr3`).
+- `AHairCardWhoseStrandsLieInItsPlaneReflectsTheWallThroughItsRays`: without a tilt, every ray points at least `SurfaceFadeCosine` above the card, and a hit replaces the ambient specular term W · gray with W · C, within 2 %.
+
+`SectorSearchTests` (existing, C#), for decision 33, since `ter-3yy5` by the card code:
 
 - `AHairReceiverTakesNoStepThatReadsItsOwnCard`
-- `AHairReceiverTakesTheStepsOfACardOneMillimeterBehindItsOwn`
-- `AHairReceiversCardHoldsAPointThatTheDepthsPrecisionPutsOffItsPlane`
-- `AHairReceiversCardHoldsAPointThatItsNormalsPrecisionPutsOffItsPlane`
-- `AHairReceiversCardHoldsAPointThatTheRasterizersSnappingPutsOffItsPlane`
+- `AHairReceiverTakesNoStepOfItsOwnCardWhereTheCardBendsAwayFromItsPlane`
+- `AHairReceiverTakesTheStepsOfAnotherCard`
+- `AHairReceiverTakesTheStepsOfASurfaceThatIsNotHair`
 - `AHairReceiversOwnSurfaceBlocksNoSector`
 
-`BounceLightShaderTests` (existing, GPU): `TheSectorPassGathersWhatTheCSharpCopyGathersForAHairReceiver`, a hair card turned 40° on the corner's floor, pins the sectors pass at three hair receivers to the C# copy with its `OwnCard`. `OcclusionPushConstantsTests` (existing): `TheSubPixelPrecisionComesFromTheDevice`.
+`BounceLightShaderTests` (existing, GPU): `TheSectorPassGathersWhatTheCSharpCopyGathersForAHairReceiver`, a hair card turned 40° on the corner's floor, pins the sectors pass at three hair receivers to the C# copy with its `OwnCard` and the card codes that the shading target holds.
+
+Added by `ter-3yy5`, the card number:
+
+- `MeshCardsTests` (C#): `EachConnectedStripIsOneCardAndEachTriangleTakesItsStripsNumber`, `TrianglesThatMeetOnlyAtVerticesOfOnePositionAreOneCard`, `CardsAreNumberedInTheOrderOfTheirFirstTriangles`.
+- `CardCodeTests` (C#): `TheCardsOfOneInstanceHaveDistinctCodesUpToEightThousandOneHundredNinetyTwoCards`, `OneCardOfTwoInstancesHasTwoCodes`, `TheCardsOfNeighborInstancesLieFarApartInTheCodes`, `AHairPixelsChannelsGiveBackItsCodeItsLightMarkAndItsModel`, `APixelOfAnotherModelHasNoCard`.
+- `HairRenderTests` (GPU): `UnderTheScreenSpaceLightABentSmoothShadedCardShadesAsAFlatCard`, a card of two smooth-shaded segments, each turned 15° from its ridge, turned 40° about its strand, against a flat card that faces the eye, within 1% at the ridge and on each segment; `UnderTheScreenSpaceLightOneCardOfAHairMeshDarkensAnotherCardOfTheSameMeshBehindIt`. `UnderTheScreenSpaceLightAHairCardDarkensAHairCardBehindIt` draws two instances of one mesh, so it pins the instance in the code.
+- `ShadingTargetTests` (GPU): `TheGBufferWritesAHairPixelsCardCodeBesideItsLightMarkAndItsModelsCode`, two cards of one mesh in two instances.
+- `DeformationGpuTests` (GPU): `ADeformedCopyCarriesTheCardNumbersOfItsMesh`.
 
 ### Part 5: the skin scatter
 
@@ -985,13 +1050,14 @@ At 1920 × 1080, 2,073,600 pixels:
 |---|---|---|
 | The shading target, always | 4 B × 2,073,600 | 8.3 MB |
 | The scatter image and the row image, under `SeparableSubsurface` | 2 × 8 B × 2,073,600 | 33.2 MB |
-| The kernel buffer | 33 × 16 B, room for 16 taps per side | 528 B |
+| The kernel buffer | 33 × 16 B, room for 16 taps per side, and 4 B for the width scale | 532 B |
 | `GpuMaterial` | Unchanged: the new fields take its padding | 0 |
 | `PreparedInstance.Alpha`, on the CPU | 8 B × 20,000 instances | 160 KB |
+| The card number, `ter-3yy5` | 4 B per static vertex and per region vertex, 16 B per deform vertex | 0.08 MB for a mesh of 20,000 vertices; if it deforms, 0.32 MB more once and 0.08 MB per deformed instance |
 
 At 3840 × 2160 the images take four times as much: 33.2 MB and 132.7 MB.
 
-The memory is the arithmetic of the formats as built: the shading target is R8G8B8A8_UINT, the scatter image and the row image R16G16B16A16_SFLOAT, and the kernel buffer 33 `vec4`. `GpuMaterial` keeps its stride of 64 bytes, with 60 bytes of fields.
+The memory is the arithmetic of the formats as built: the shading target is R8G8B8A8_UINT, the scatter image and the row image R16G16B16A16_SFLOAT, and the kernel buffer `GpuScatterKernel`, 33 `vec4` and a float. `GpuMaterial` keeps its stride of 64 bytes, with 60 bytes of fields.
 
 ### GPU time, measured
 
@@ -1039,6 +1105,16 @@ With the scatter on, the fringed fan's second run and the glass fan's first run 
 - The cutout draws: the G-buffer pass takes 0.08 ms more than with the cards as glass, which draw no core, by the runs with the scatter off. The runs with it on, whose means vary, give 0.01 to 0.14 ms. A fringed card's core costs the same as a cutout's. The shadow maps take the same time for all three fans (0.18 to 0.21 ms), as glass with `CastsShadow` casts its whole rectangle.
 - The cores enter the screen-space passes as opaque surfaces: the reflections' two passes take about 0.6 ms more with cores than with the glass fan (0.61 to 0.62 ms by the runs with the scatter off), and the occlusion sectors 0.11 to 0.12 ms more by the runs with the scatter off. The runs with it on, whose means vary, give −0.12 to 0.29 ms for the sectors.
 - The fan as fringed hair against the same fan as glass, by the two runs of each with the scatter off: 0.47 to 0.51 ms more frame span (11.43 and 11.47 against 10.96 and 10.98 ms); as cutout hair, 0.53 to 0.62 ms less (10.36 and 10.43 ms). Per pass, by the means of the same runs, the cores add to the G-buffer, direct, ambient, occlusion and reflection passes about 1.1 ms, and the transparent pass takes 0.68 ms less for the fringed fan and 1.74 ms less for the cutout fan, which has none. The sums of the passes' own times do not add up to the spans' differences: +0.16 and −1.14 ms against +0.48 and −0.58 ms. The span also holds the gaps between the passes, and the exposure pass takes 0.29 and 0.60 ms less with either fan than with the glass fan. So the frame's cost here is the span's difference. The design estimated 0.5 to 1 ms for a head of hair over 15 % of the screen.
+
+The card number's cost (`ter-3yy5`, 2026-10-31): `scripts/hair-bent-cards.json`, 240 frames of the `bent-camera` view, five bent hair cards that fill much of the screen, at 1920 × 1080 in Release, by the GPU timer of a headless run with `--video none`, two runs of each build on one checkout, the base at e4244a5c with the scene added. The means in ms, with the 95th percentiles in parentheses:
+
+| Pass | Base, 2 runs | Branch, 2 runs |
+|---|---|---|
+| G-buffer | 0.405, 0.391 (0.51, 0.51) | 0.384, 0.414 (0.52, 0.52) |
+| occlusion sectors | 1.426, 1.389 (1.78, 1.85) | 1.389, 1.481 (1.84, 1.89) |
+| frame span | 9.480, 9.254 (10.85, 10.86) | 9.246, 9.742 (11.27, 11.13) |
+
+The differences of the means, +0.001 ms in the G-buffer pass and +0.03 ms in the sectors pass, are smaller than the differences between two runs of one build, 0.03 ms and 0.09 ms. So the card code costs no time that these runs can show: the G-buffer pass writes the same 4 bytes, and the sectors pass reads the shading target once per step of a hair receiver in place of the plane test's arithmetic.
 
 ### The shading models' cost
 
@@ -1144,7 +1220,19 @@ The branch with the fix stage's changes changes fewer pixels. Against the base, 
 - The separable kernel approximates the radial profile: a lit point spreads as a soft cross more than a disk.
 - The scatter uses one profile, that of human skin, with no width per material.
 - Pre-scatter texturing softens the skin image's detail, most in red (decision 12).
-- In an extreme close-up, about 10 cm from the eye at 1080p, the kernel reaches about 75 pixels with 17 taps, and the outer taps show as steps at sharp shadow edges. More taps per side buy it back.
+- In an extreme close-up, about 10 cm from the eye at 1080p, the kernel reaches about 300 pixels with 17 taps, and the outer taps show as steps at sharp shadow edges. More taps per side buy it back.
+- The slope rule measures a tap's offset in the measured profile (decision 34). So the scatter narrows wherever the surface turns more than about 23° from the eye: a tap keeps all its light up to a slope of tan 60° / 4, about 23°, and none from twice that, about 41°. On a round head, that is the outer 60 % of its radius. The table gives the change of the test head's capture against the rule that the width scale widened, by the distance inside the silhouette, outside the nose's region (`ter-t2w6`, measured on 2026-10-31). Deeper than 20 px, no pixel changed by more than 5 of 255. From 40 to 80 px inside, the rule takes back most of the widening's mean gain in red: +0.08 of 255 against the measured width, where the widened rule gave +0.35.
+
+  | Inside the silhouette | Pixels that changed by more than 1 of 255 | Mean change in red | Largest change in red |
+  |---|---|---|---|
+  | 0 to 5 px | 982 of 6,980 | +0.42 | −11 |
+  | 5 to 10 px | 819 of 6,856 | +0.53 | −8 |
+  | 10 to 20 px | 670 of 13,212 | +0.27 | −6 |
+  | 20 to 40 px | 1,004 of 24,464 | −0.11 | −4 |
+  | 40 to 80 px | 537 of 41,480 | −0.26 | −3 |
+
+- A tap past 25.4 mm still keeps the light of a surface 11 mm nearer, as a tap past 6.4 mm did at the measured width. Beside the test head's nose, this light adds no measurable red. A capture that rejects every tap across a depth step of 4 mm gives the same red beside the nose within 0.03 of 255 (`ter-t2w6`, measured on 2026-10-31).
+- Beside a nearer surface of skin, the scatter adds the light of the center where the head's own surface hides behind it. The wider scatter makes this visible: beside the test head's nose, on its lit side, it adds +1.8, +1.0 and +0.5 of 255 more red than the measured width on average, in the bands 0 to 10, 10 to 20 and 20 to 30 px from the nose's edge. No depth-step rule removes it. It is the first known limit at an edge: a tap that lands on the nose gives way to the center's light, and the head behind the nose, which the tap would take without the nose, is darker (62 against 102 of 255 in red at the scatter off). A model of only this rule on the capture without the nose gives +2.2, +1.4 and +0.7 (`ter-t2w6`, measured on 2026-10-31).
 - No transmission: an ear in front of a light stays dark but for its ambient light and its scatter (fork 1).
 - The environment faces and the impostor captures do not scatter (decision 19).
 - The fringe of one hair is not sorted inside the hair (decision 23).
@@ -1157,8 +1245,12 @@ The branch with the fix stage's changes changes fewer pixels. Against the base, 
 - The fringe casts no shadow, and the fringe takes no crease shadowing: its occlusion is 1.
 - The highlights lose the light that Marschner's 1 / cos² θ_d returns at views along the strand. A card is rarely seen along its strands.
 - A fringed instance never becomes an impostor, so a far human's hair draws as geometry.
-- Under the screen-space light, the rule that a hair pixel's own card blocks nothing holds for a flat card. On a card strip that bends, or a smooth-shaded card whose vertex normals lean off its triangles, the card's own points block its pixels again (`ter-3yy5`).
-- A normal map that tilts the strand off its card can put a hair pixel's reflection below the card, where the reflections' surface fade cuts it (`ter-nwhv`).
+- Under the screen-space light, a curl that folds back over its own card never shades it: the whole strip is the hair pixel's own card (decision 33).
+- Two strips that touch at one exact vertex position are one card, so they never shade each other under the screen-space light. An example is two cards whose roots an exporter snaps to one scalp vertex. The join by position keeps a strip that an exporter splits at a sharp bend or a seam as one card ("The card number"). MakeHuman's `afro01` has no vertices that share a position: its 342 strips stay 342 cards.
+- A strip is one card however large it is. MakeHuman's `afro01` holds two connected sheets of 378 quads each around the head, beside 340 single-quad cards, so neither sheet shades itself under the screen-space light.
+- A step on another card whose card code collides with the receiver's blocks nothing: about one of 8,192 pairs of cards of two instances, and cards 8,192 apart in a mesh of more cards ("The card number").
+- A strand that a normal map tilts off its card can point its reflection below the card, or less than a cosine of `SurfaceFadeCosine` above it. The pixel then shows the environment map's reflection, not the screen's (decision 35). A normal map that varies from texel to texel can make the hair's reflection patchy, with the screen's reflection on some texels and the map's on others.
+- On a tilted strand, the screen's reflection and the map's meet at a straight edge where the cosine crosses `SurfaceFadeCosine`. The two differ where the map does not hold the reflected object, such as the glowing bar of the scene `hair-rugs` (`scripts/hair-rugs.json`) on its tilted rug. Without the cut, many rays inside the fade's range hit their own card a few pixels from their start, and the edge was ragged and speckled (`ter-nwhv`, 2026-10-31). If a normal-mapped hair asset shows the straight edge, the follow-up is design 1 of decision 35: a hair ray skips the hits on its own card through the card number of `ter-3yy5`, so it traces down to a cosine of 0.
 
 ## Compared with a design from scratch
 
@@ -1275,19 +1367,20 @@ Parts 3, 4 and 5 run one after another because they share the shaders of the opa
   internal readonly record struct ProfileGaussian(double Variance, Double3 Weight);           // variance in m²
   internal sealed record SkinProfile(ImmutableArray<ProfileGaussian> Gaussians)
   {
-      public const double Reach = 0.008;                                                      // m
+      public const double WidthScale = 4;                                                     // decision 34
+      public const double Reach = 0.032;                                                      // m: 8 mm · WidthScale
       public static SkinProfile Human { get; }
       public Double3 Marginal(double x);                                                      // P_c(x), per meter
       public ScatterKernel Kernel(int tapsPerSide);
   }
   internal readonly record struct ScatterTap(double Offset, Double3 Weight);                 // offset in m
-  internal sealed record ScatterKernel(ImmutableArray<ScatterTap> Taps);
+  internal sealed record ScatterKernel(ImmutableArray<ScatterTap> Taps, double WidthScale) { public double Reach { get; } }   // the outermost offset
 
   internal enum ScatterAxis { Rows, Columns }
   internal sealed record ScatterField(int Width, int Height, Double3[] Light, bool[] Skin, double[] ViewDepth, double TanHalfY);
   internal static class SkinScatter
   {
-      public const double SlopeLimit = 1.7320508075688772;                                    // tan 60°
+      public const double SlopeLimit = 1.7320508075688772;                                    // tan 60°, per m of the measured profile
       public static double PixelsPerMeter(double viewDepth, int height, double tanHalfY);
       public static Double3 Pass(ScatterField field, ReadOnlySpan<Double3> source, int x, int y, ScatterAxis axis, ScatterKernel kernel);
   }

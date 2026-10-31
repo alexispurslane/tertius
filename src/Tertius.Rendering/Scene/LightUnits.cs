@@ -29,17 +29,11 @@ internal static class LightUnits
     /// </summary>
     private const float CancelledLength = 1e-4f;
 
-    /// <summary>The highest exposure in stops that a frame can use: the fixed stops, or the automatic exposure's highest.</summary>
-    public static float HighestStops(ExposureSetting exposure) =>
-        exposure switch
-        {
-            FixedExposure(var stops) => stops,
-            AutoExposure auto => auto.MaxStops,
-        };
-
-    /// <summary>E_cut = π · R_cut / 2^HighestStops, in W/m²: below it a light alone changes no pixel at any exposure.</summary>
-    public static double CutoffIrradiance(ExposureSetting exposure) =>
-        Math.PI * CutoffRadiance / Math.Pow(2, HighestStops(exposure));
+    /// <summary>
+    /// E_cut = π · R_cut / 2^<paramref name="highestStops"/>, in W/m²: below it a light alone changes no pixel of a frame
+    /// whose exposure is at most <paramref name="highestStops"/>.
+    /// </summary>
+    public static double CutoffIrradiance(float highestStops) => Math.PI * CutoffRadiance / Math.Pow(2, highestStops);
 
     /// <summary>The intensity, in W/sr, of a point light of <paramref name="power"/> W: P / (4π).</summary>
     public static double PointIntensity(double power) => power / (4 * Math.PI);

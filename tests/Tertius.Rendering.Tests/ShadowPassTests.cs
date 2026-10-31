@@ -37,10 +37,11 @@ public sealed class ShadowPassTests
         snapshot.Lights.Add(Star(Vector3.UnitX, irradiance: 1));
         var scene = new PreparedScene();
         Batchers
-            .With(exposure: new FixedExposure(0), cascadedLights: 2)
+            .WithCascadedLights(2)
             .Prepare(
                 snapshot: snapshot,
                 alpha: 1f,
+                highestStops: 0,
                 width: 1600,
                 height: 900,
                 meshes: Meshes,

@@ -21,12 +21,11 @@ void main()
     // The distance target holds 0 for sky. SkyDepth puts sky beyond every radius, where an infinite depth gives NaN.
     float z = distanceToEye > 0.0 ? distanceToEye / length(ray) : SkyDepth;
     imageStore(viewDepth, texel, vec4(z));
-    // The light that leaves the pixel alike in every direction: its diffuse light, and its glow where its entity holds no
-    // light, whose face the glow is otherwise. The G-buffer pass pre-exposed the glow. Sky and impostors hold no diffuse
-    // light, and an impostor marks no light, so it keeps its glow.
-    vec3 source = imageLoad(diffuseImage, pixel).rgb;
-    if (texelFetch(gbufferShading, pixel, 0).b == 0u)
-        source = min(source + texelFetch(gbufferEmissive, pixel, 0).rgb, vec3(MaxRadiance));
+    // The light that leaves the pixel alike in every direction: its diffuse light, at most MaxRadiance, and the glow that it
+    // sends (glowSent, frame.glsl). The G-buffer pass pre-exposed the glow. Sky and impostors hold no diffuse light, and an
+    // impostor marks no light, so it keeps its glow.
+    vec3 glow = glowSent(texelFetch(gbufferEmissive, pixel, 0).rgb, lightMarkOfWord(texelFetch(gbufferShading, pixel, 0).b));
+    vec3 source = min(imageLoad(diffuseImage, pixel).rgb + glow, vec3(MaxRadiance));
     imageStore(occlusionSource, texel, vec4(source, 0.0));
     // An exact copy: an SNORM16 value k / 32767 stores back as k.
     imageStore(occlusionGeometricNormal, texel, vec4(texelFetch(gbufferNormal, pixel, 0).ba, 0.0, 0.0));

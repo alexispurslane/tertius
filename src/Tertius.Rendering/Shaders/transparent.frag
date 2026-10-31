@@ -10,7 +10,8 @@ layout(location = 0) in vec3 inPosition;
 layout(location = 1) in vec3 inNormal;
 layout(location = 2) in vec4 inTangent;
 layout(location = 3) in vec2 inTexCoord;
-layout(location = 4) flat in uvec3 inMaterialMapAndLight;  // x: the material. y: the instance's map. z: GpuInstance.holdsLight
+layout(location = 4) flat in uvec4 inInstanceWords;  // x: the material. y: the instance's map. z: GpuInstance.holdsLight. w:
+                                                     // the card code (mesh.vert)
 layout(location = 5) flat in vec4 inHemisphere;
 
 // Dual-source blending (BlendMode.Transmittance): the target becomes outColor + target · outTransmittance.
@@ -21,8 +22,8 @@ void main()
 {
     vec3 V = towardEye(inPosition);
     // Before the discard below, so implicit derivatives stay defined for the whole quad.
-    SurfaceSample s = sampleMaterial(inMaterialMapAndLight.x, inTexCoord, inNormal, inTangent, V);
-    ShadingInput shading = forwardShading(s, inPosition, inHemisphere, inMaterialMapAndLight.y, V);
+    SurfaceSample s = sampleMaterial(inInstanceWords.x, inTexCoord, inNormal, inTangent, V);
+    ShadingInput shading = forwardShading(s, inPosition, inHemisphere, inInstanceWords.y, V);
 
     // The hardware depth buffer only holds the nearest depth range, so occlusion by opaque surfaces uses the
     // G-buffer distance, which covers all ranges.
@@ -49,6 +50,8 @@ void main()
     // outColor is radiance, so it takes the exposure that every pass's radiance takes. The transmittance is a fraction
     // of the radiance behind, and never takes such a factor. The blend keeps the target's alpha, so neither alpha
     // matters.
-    outColor = vec4(radiance, 0.0);
+    // The haze between the eye and the pane stands in for the share of the haze's light that the pane hides, 1 − T
+    // (docs/plans/atmosphere.md, "The haze"). The pane's bound holds: each part is at most MaxRadiance · (1 − T).
+    outColor = vec4(throughAir(radiance, 1.0 - transmittance, inPosition, exposed(frame.atmosphere.haze.rgb, exposure)), 0.0);
     outTransmittance = vec4(transmittance, 0.0);
 }

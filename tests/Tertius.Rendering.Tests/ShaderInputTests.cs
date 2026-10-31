@@ -25,6 +25,7 @@ public sealed class ShaderInputTests
             .Prepare(
                 snapshot: snapshot,
                 alpha: 1f,
+                highestStops: Batchers.HighestStops,
                 width: 1600,
                 height: 900,
                 meshes: Meshes,
@@ -264,6 +265,7 @@ public sealed class ShaderInputTests
             material: 0,
             map: 0,
             holdsLight: false,
+            placedIndex: 0,
             hemisphere: HemisphereUp.Along(new(float.NaN, 1, 0))
         );
         var away = GpuInstance.From(
@@ -273,6 +275,7 @@ public sealed class ShaderInputTests
             material: 0,
             map: 0,
             holdsLight: false,
+            placedIndex: 0,
             hemisphere: HemisphereUp.AwayFrom(new(float.PositiveInfinity, 0, 0))
         );
 

@@ -22,16 +22,10 @@ internal readonly record struct MeshInfo(
 /// The glass instances, the fringes and the puffs sort together back to front, and the batcher cuts that list into the
 /// runs of the transparent pass. Allocates nothing once its arrays have grown to the scene.
 /// </summary>
-/// <param name="exposure">The renderer's exposure setting, whose highest stops set the cutoff irradiance.</param>
 /// <param name="cascadedLights">How many far lights get a cascade set, 0 to <see cref="RendererOptions.MaxCascadedLights"/>.</param>
 /// <param name="shadowMapSize">The side of each cascade's shadow map in texels, <see cref="ShadowMap.Size"/>.</param>
 /// <param name="depthRangeScale">How many times deeper than wide each cascade box is, <see cref="ShadowMap.DepthRangeScale"/>.</param>
-internal sealed class SceneBatcher(
-    ExposureSetting exposure,
-    int cascadedLights,
-    int shadowMapSize,
-    float depthRangeScale
-)
+internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float depthRangeScale)
 {
     private const float DefaultVerticalFov = MathF.PI / 3f;
 
@@ -91,14 +85,11 @@ internal sealed class SceneBatcher(
     /// <summary>Hooks that edit the visible instances before batching. See <see cref="IInstanceProcessor"/>.</summary>
     public List<IInstanceProcessor> Processors { get; } = [];
 
-    /// <summary>
-    /// E_cut, in W/m²: the irradiance below which a light alone changes no pixel at the renderer's highest exposure. The
-    /// reach of every light ends there (docs/plans/local-light-shadows.md, "The cutoff and the reach").
-    /// </summary>
-    public double CutoffIrradiance { get; } = LightUnits.CutoffIrradiance(exposure);
-
     /// <param name="snapshot">The tick to draw.</param>
     /// <param name="alpha">Interpolation factor from the previous transforms (0) to the current ones (1).</param>
+    /// <param name="highestStops">
+    /// The highest exposure, in stops, that the frame uses or its adapt step writes. Each light's reach ends at its cutoff.
+    /// </param>
     /// <param name="width">Output width in pixels.</param>
     /// <param name="height">Output height in pixels.</param>
     /// <param name="meshes">Meshes that are on the GPU. Instances of <see cref="MeshId.None"/> and of other meshes are skipped.</param>
@@ -115,6 +106,7 @@ internal sealed class SceneBatcher(
     public void Prepare(
         RenderSnapshot snapshot,
         float alpha,
+        float highestStops,
         int width,
         int height,
         ReadOnlySpan<MeshInfo> meshes,
@@ -127,6 +119,7 @@ internal sealed class SceneBatcher(
         alpha = ClampAlpha(alpha);
         scene.Reset();
         scene.Camera = InterpolateCamera(snapshot: snapshot, alpha: alpha, width: width, height: height);
+        scene.Atmosphere = PaintedAtmosphere.Prepare(snapshot: snapshot, alpha: alpha, eye: scene.Camera.Offset);
         // With the map off, one map stands for none, and every object takes map 0 (decision 24).
         (ReadOnlyMemory<FaceMask> drawn, scene.Ambient) = environment switch
         {
@@ -150,7 +143,13 @@ internal sealed class SceneBatcher(
         PlaceInstances(snapshot: snapshot, alpha: alpha, materials: materials, scene: scene);
         CollectPuffs(snapshot, alpha, scene);
         // Before the processors: impostor captures are lit by the lights as their far shadows leave them.
-        CollectLights(snapshot: snapshot, alpha: alpha, faces: facesOfMaps, scene: scene);
+        CollectLights(
+            snapshot: snapshot,
+            alpha: alpha,
+            cutoffIrradiance: LightUnits.CutoffIrradiance(highestStops),
+            faces: facesOfMaps,
+            scene: scene
+        );
         // After the lights, which take the cascade sets, and before the far shadows, which follow what each set draws.
         FitCascadeSets(snapshot, scene);
         CollectFarShadows(scene);
@@ -418,7 +417,10 @@ internal sealed class SceneBatcher(
                 materials: materials,
                 maps: scene.MapCount,
                 holdsLight: lightHolders.Contains(instance.EntityIndex)
-            );
+            ) with
+            {
+                PlacedIndex = scene.PlacedCount - 1,
+            };
             bool visible = (instance.Flags & RenderFlags.Visible) != 0;
             if (visible && !camera.Culls(placement.Position, placement.Radius))
                 scene.AddVisible() = placed with { Depth = Vector3.Dot(placement.Position, camera.Forward) };
@@ -863,6 +865,7 @@ internal sealed class SceneBatcher(
             material: instance.Material,
             map: instance.Map,
             holdsLight: instance.HoldsLight,
+            placedIndex: instance.PlacedIndex,
             hemisphere: instance.Hemisphere
         );
         if (instance.Mesh == currentMesh)
@@ -948,14 +951,32 @@ internal sealed class SceneBatcher(
     /// (docs/plans/environment-map.md, decision 20), each marked with whether the main view keeps it. Then chooses the far
     /// lights' slots (<see cref="FarShadows.Choose"/>).
     /// </summary>
+    /// <param name="cutoffIrradiance">E_cut of the frame, in W/m², where each light's reach ends.</param>
     /// <param name="faces">The faces of each served map, root first.</param>
-    private void CollectLights(RenderSnapshot snapshot, float alpha, ReadOnlySpan<FaceMask> faces, PreparedScene scene)
+    private void CollectLights(
+        RenderSnapshot snapshot,
+        float alpha,
+        double cutoffIrradiance,
+        ReadOnlySpan<FaceMask> faces,
+        PreparedScene scene
+    )
     {
-        foreach (ref readonly RenderLight light in CollectionsMarshal.AsSpan(snapshot.Lights))
+        ReadOnlySpan<RenderLight> lights = CollectionsMarshal.AsSpan(snapshot.Lights);
+        // The atmosphere names its sun by its index in the snapshot's lights (docs/plans/atmosphere.md, "The sun's tint").
+        int? sun = snapshot.Atmosphere?.Sun;
+        for (int i = 0; i < lights.Length; i++)
         {
+            ref readonly RenderLight light = ref lights[i];
             if (!Shines(light))
                 continue;
-            PreparedLight prepared = Prepared(light: light, alpha: alpha, camera: scene.Camera, maps: scene.MapCount);
+            PreparedLight prepared = Prepared(
+                light: light,
+                alpha: alpha,
+                cutoffIrradiance: cutoffIrradiance,
+                camera: scene.Camera,
+                maps: scene.MapCount
+            );
+            prepared.AirSun = i == sun;
             if (Reaches(faces: faces, axes: scene.MapAxes, light: prepared))
                 scene.AddLight() = prepared;
         }
@@ -965,10 +986,17 @@ internal sealed class SceneBatcher(
 
     /// <summary>
     /// A light that <see cref="Shines(in RenderLight)"/>, interpolated by alpha, relative to the interpolated eye of
-    /// <paramref name="camera"/>, with its radiant intensity, its reach and its distance computed in doubles, whether the
-    /// main view keeps it, its map among <paramref name="maps"/> served maps, and no shadow slot yet.
+    /// <paramref name="camera"/>, with its radiant intensity, its reach to <paramref name="cutoffIrradiance"/> and its
+    /// distance computed in doubles, whether the main view keeps it, its map among <paramref name="maps"/> served maps, and
+    /// no shadow slot yet.
     /// </summary>
-    private PreparedLight Prepared(in RenderLight light, float alpha, in CameraView camera, int maps)
+    private static PreparedLight Prepared(
+        in RenderLight light,
+        float alpha,
+        double cutoffIrradiance,
+        in CameraView camera,
+        int maps
+    )
     {
         (
             uint entity,
@@ -1004,7 +1032,7 @@ internal sealed class SceneBatcher(
             null => throw new UnreachableException("A light that shines holds a case."),
         };
         Vector3 relative = position - camera.Offset;
-        float reach = (float)LightUnits.Reach(PeakChannel(color) * intensity, CutoffIrradiance);
+        float reach = (float)LightUnits.Reach(PeakChannel(color) * intensity, cutoffIrradiance);
         return new()
         {
             EntityIndex = entity,
@@ -1309,6 +1337,7 @@ internal sealed class SceneBatcher(
                 z: camera.RootRotation.Z,
                 w: camera.RootRotation.W
             ),
+            Atmosphere = scene.Atmosphere,
         };
         for (int map = 0; map < scene.MapCount; map++)
         {

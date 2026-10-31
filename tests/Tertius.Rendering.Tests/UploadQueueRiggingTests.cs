@@ -269,7 +269,7 @@ public sealed class UploadQueueRiggingTests
 
         pending.Deforms.Should().HaveCount(2);
         pending.Deforms[0].Should().BeNull("a rigid mesh does not deform");
-        pending.Deforms[1]!.Deform.VertexCount.Should().Be(pending.Meshes[1].Data.Vertices.Length);
+        pending.Deforms[1]!.Deform.VertexCount.Should().Be(pending.Meshes[1].Mesh.Data.Vertices.Length);
     }
 
     [Fact]

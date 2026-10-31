@@ -35,13 +35,15 @@ public sealed class BatcherTests
         float alpha = 1f,
         int materials = 8,
         SceneBatcher? batcher = null,
-        EnvironmentDraw environment = default
+        EnvironmentDraw environment = default,
+        float highestStops = Batchers.HighestStops
     )
     {
         var scene = new PreparedScene();
         (batcher ?? Batchers.Default()).Prepare(
             snapshot: snapshot,
             alpha: alpha,
+            highestStops: highestStops,
             width: 1600,
             height: 900,
             meshes: Meshes,
@@ -705,7 +707,8 @@ public sealed class BatcherTests
             scale: scale,
             material: 7,
             map: 0,
-            holdsLight: false
+            holdsLight: false,
+            placedIndex: 0
         );
         var point = new Vector3(0.4f, -1.1f, 2.5f);
         var p = new Vector4(point, 1);
@@ -895,17 +898,17 @@ public sealed class BatcherTests
     private static RenderSnapshot Dark() => Gpu.Snapshot(Vector3.UnitY, starIrradiance: 0);
 
     /// <summary>
-    /// A batcher whose exposure is fixed at −10 stops, where the cutoff irradiance is π · 2^−13 · 2^10 = π / 8 W/m², so
-    /// that a lamp's reach is a few meters.
+    /// The highest exposure of a frame of −10 stops, where the cutoff irradiance is π · 2^−13 · 2^10 = π / 8 W/m², so that
+    /// a lamp's reach is a few meters.
     /// </summary>
-    private static SceneBatcher TenStopsDown() => Batchers.With(exposure: new FixedExposure(-10), cascadedLights: 1);
+    private const float TenStopsDown = -10;
 
     /// <summary>A white lamp at <paramref name="position"/> whose reach is 10 m at −10 stops, or no light at all when <paramref name="shines"/> is false.</summary>
     private static PointRenderLight Lamp(Vector3 position, bool shines = true) =>
         Gpu.Lamp(
             position: position,
             color: Vector3.One,
-            intensity: shines ? (float)(100 * LightUnits.CutoffIrradiance(new FixedExposure(-10))) : 0,
+            intensity: shines ? (float)(100 * LightUnits.CutoffIrradiance(TenStopsDown)) : 0,
             chainDepth: TestChains.CamerasFrame
         );
 
@@ -1122,7 +1125,7 @@ public sealed class BatcherTests
 
         PreparedScene scene = Prepare(
             snapshot: snapshot,
-            batcher: TenStopsDown(),
+            highestStops: TenStopsDown,
             environment: MapOf(FaceMask.PositiveX)
         );
 
@@ -1141,7 +1144,7 @@ public sealed class BatcherTests
         snapshot.Lights.Add(Lamp(new(0, 0, -50)));
         snapshot.Lights.Add(Lamp(new(0, 50, 0)));
 
-        PreparedScene scene = Prepare(snapshot: snapshot, batcher: TenStopsDown(), environment: MapOf(FaceMask.All));
+        PreparedScene scene = Prepare(snapshot: snapshot, highestStops: TenStopsDown, environment: MapOf(FaceMask.All));
 
         scene.LightSpan.ToArray().Select(light => light.InMainView).Should().Equal(false, true, true, false);
     }
@@ -1154,7 +1157,7 @@ public sealed class BatcherTests
         snapshot.Lights.Add(Lamp(new(50, 0, 0)));
         snapshot.Lights.Add(Lamp(new(0, 0, -5)));
 
-        PreparedScene scene = Prepare(snapshot: snapshot, batcher: TenStopsDown(), environment: MapOf(FaceMask.All));
+        PreparedScene scene = Prepare(snapshot: snapshot, highestStops: TenStopsDown, environment: MapOf(FaceMask.All));
 
         scene
             .LightSpan.ToArray()
@@ -1167,7 +1170,7 @@ public sealed class BatcherTests
     public void AFarLightOfTheMainViewTakesTheCascadeSetBeforeABrighterOneThatOnlyAFaceKeeps()
     {
         const float distance = 3e7f;
-        double cutoff = LightUnits.CutoffIrradiance(new FixedExposure(-10));
+        double cutoff = LightUnits.CutoffIrradiance(TenStopsDown);
         PointRenderLight FarLamp(float z, double eyeShareOfTheCutoff) =>
             Gpu.Lamp(
                 position: new(0, 0, z),
@@ -1183,7 +1186,7 @@ public sealed class BatcherTests
         snapshot.Lights.Add(FarLamp(z: distance, eyeShareOfTheCutoff: 0.81));
         snapshot.Lights.Add(FarLamp(z: -distance, eyeShareOfTheCutoff: 0.25));
 
-        PreparedScene scene = Prepare(snapshot: snapshot, batcher: TenStopsDown(), environment: MapOf(FaceMask.All));
+        PreparedScene scene = Prepare(snapshot: snapshot, highestStops: TenStopsDown, environment: MapOf(FaceMask.All));
 
         scene
             .LightSpan.ToArray()
@@ -1200,7 +1203,7 @@ public sealed class BatcherTests
 
         PreparedScene scene = Prepare(
             snapshot: snapshot,
-            batcher: TenStopsDown(),
+            highestStops: TenStopsDown,
             environment: MapOf(FaceMask.All & ~FaceMask.PositiveX)
         );
 
@@ -1217,7 +1220,7 @@ public sealed class BatcherTests
         for (int i = 0; i < places.Length; i++)
             snapshot.Lights.Add(Lamp(places[i], shines[i]));
 
-        PreparedScene scene = Prepare(snapshot: snapshot, batcher: TenStopsDown(), environment: MapOf(FaceMask.All));
+        PreparedScene scene = Prepare(snapshot: snapshot, highestStops: TenStopsDown, environment: MapOf(FaceMask.All));
 
         scene.LightSpan.ToArray().Select(light => light.Position).Should().Equal(places[0], places[1], places[2]);
     }
@@ -1230,7 +1233,7 @@ public sealed class BatcherTests
         snapshot.Lights.Add(Lamp(new(0, 0, -5)));
         snapshot.Instances.Add(Box(new(10, 0, 0), chainDepth: TestChains.CamerasFrame));
 
-        PreparedScene scene = Prepare(snapshot: snapshot, batcher: TenStopsDown(), environment: new WithoutMap());
+        PreparedScene scene = Prepare(snapshot: snapshot, highestStops: TenStopsDown, environment: new WithoutMap());
 
         scene.LightCount.Should().Be(1);
         scene.Lights[0].Position.Should().Be(new Vector3(0, 0, -5));
@@ -1300,6 +1303,7 @@ public sealed class BatcherTests
         batcher.Prepare(
             snapshot: snapshot,
             alpha: 1f,
+            highestStops: Batchers.HighestStops,
             width: 1600,
             height: 900,
             meshes: Meshes,
@@ -1313,6 +1317,7 @@ public sealed class BatcherTests
         batcher.Prepare(
             snapshot: snapshot,
             alpha: 1f,
+            highestStops: Batchers.HighestStops,
             width: 1600,
             height: 900,
             meshes: Meshes,
@@ -1396,7 +1401,7 @@ public sealed class BatcherTests
 
         PreparedScene scene = Prepare(
             snapshot: snapshot,
-            batcher: TenStopsDown(),
+            highestStops: TenStopsDown,
             environment: MapOf(FaceMask.None, FaceMask.None, FaceMask.None)
         );
 
@@ -1435,7 +1440,7 @@ public sealed class BatcherTests
         snapshot.Lights.Add(LampAt(new(0, 0, -5), chainDepth: 0));
         snapshot.Puffs.Add(Puff(new(4, 0, -10)) with { ChainDepth = 0 });
 
-        PreparedScene scene = Prepare(snapshot: snapshot, batcher: TenStopsDown(), environment: new WithoutMap());
+        PreparedScene scene = Prepare(snapshot: snapshot, highestStops: TenStopsDown, environment: new WithoutMap());
 
         scene.MapCount.Should().Be(1);
         scene.Instances[0].Map.Should().Be(0u);
@@ -1507,12 +1512,12 @@ public sealed class BatcherTests
 
         PreparedScene outer = Prepare(
             snapshot: snapshot,
-            batcher: TenStopsDown(),
+            highestStops: TenStopsDown,
             environment: MapOf(FaceMask.PositiveX, FaceMask.None)
         );
         PreparedScene inner = Prepare(
             snapshot: snapshot,
-            batcher: TenStopsDown(),
+            highestStops: TenStopsDown,
             environment: MapOf(FaceMask.None, FaceMask.PositiveX)
         );
 
@@ -1529,7 +1534,7 @@ public sealed class BatcherTests
 
         PreparedScene scene = Prepare(
             snapshot: snapshot,
-            batcher: TenStopsDown(),
+            highestStops: TenStopsDown,
             environment: MapOf(FaceMask.None, FaceMask.None, FaceMask.None)
         );
 
@@ -1991,6 +1996,7 @@ public sealed class BatcherTests
         batcher.Prepare(
             snapshot: snapshot,
             alpha: 1f,
+            highestStops: Batchers.HighestStops,
             width: 1600,
             height: 900,
             meshes: Meshes,
@@ -2004,6 +2010,7 @@ public sealed class BatcherTests
         batcher.Prepare(
             snapshot: Empty(),
             alpha: 1f,
+            highestStops: Batchers.HighestStops,
             width: 1600,
             height: 900,
             meshes: Meshes,
@@ -2056,28 +2063,48 @@ public sealed class BatcherTests
     }
 
     [Fact]
+    public void TheFrameConstantsMatchTheShadersFrameBlock()
+    {
+        Unsafe.SizeOf<GpuFrameConstants>().Should().Be(2320);
+        ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.Counts))).Should().Be(304);
+        ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.RootRotation))).Should().Be(384);
+        ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.CascadeSets))).Should().Be(400);
+        ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.MapAxes))).Should().Be(1552);
+        ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.Atmosphere)))
+            .Should()
+            .Be(2224, "the atmosphere follows the 42 map axes");
+        Unsafe.SizeOf<GpuAtmosphere>().Should().Be(96, "std140 lays out six vec4s in 96 bytes");
+    }
+
+    [Fact]
+    public void TheScatterKernelMatchesTheShadersKernelBlock()
+    {
+        ((int)Marshal.OffsetOf<GpuScatterKernel>(nameof(GpuScatterKernel.WidthScale)))
+            .Should()
+            .Be(528, "std140 puts the float after the 33 vec4");
+        Unsafe.SizeOf<GpuScatterKernel>().Should().Be(532);
+    }
+
+    [Fact]
     public void GpuStructsMatchTheShaderLayouts()
     {
-        Unsafe.SizeOf<GpuInstance>().Should().Be(96, "std430 rounds 84 bytes of members up to the vec4's 16");
+        Unsafe.SizeOf<GpuInstance>().Should().Be(96, "std430 rounds 92 bytes of members up to the vec4's 16");
         ((int)Marshal.OffsetOf<GpuInstance>(nameof(GpuInstance.Map))).Should().Be(80);
+        ((int)Marshal.OffsetOf<GpuInstance>(nameof(GpuInstance.PlacedIndex))).Should().Be(88);
         Unsafe.SizeOf<GpuMaterial>().Should().Be(64, "std430 rounds a struct with a vec4 up to 16 bytes");
         ((int)Marshal.OffsetOf<GpuMaterial>(nameof(GpuMaterial.Metallic))).Should().Be(28);
         ((int)Marshal.OffsetOf<GpuMaterial>(nameof(GpuMaterial.MetallicRoughnessMap))).Should().Be(48);
         ((int)Marshal.OffsetOf<GpuMaterial>(nameof(GpuMaterial.Shading))).Should().Be(52);
         ((int)Marshal.OffsetOf<GpuMaterial>(nameof(GpuMaterial.AlphaCutoff))).Should().Be(56);
-        Unsafe.SizeOf<GpuLight>().Should().Be(112, "std430 rounds 100 bytes of members up to the vec4's 16");
+        Unsafe.SizeOf<GpuLight>().Should().Be(112, "std430 rounds 104 bytes of members up to the vec4's 16");
         ((int)Marshal.OffsetOf<GpuLight>(nameof(GpuLight.Shadow))).Should().Be(64);
         ((int)Marshal.OffsetOf<GpuLight>(nameof(GpuLight.Occluders))).Should().Be(80);
         ((int)Marshal.OffsetOf<GpuLight>(nameof(GpuLight.Map))).Should().Be(92, "std430 packs a uint after a uvec3");
         ((int)Marshal.OffsetOf<GpuLight>(nameof(GpuLight.InMainView))).Should().Be(96);
+        ((int)Marshal.OffsetOf<GpuLight>(nameof(GpuLight.AirSun))).Should().Be(100);
         Unsafe.SizeOf<GpuOutline>().Should().Be(48);
         ((int)Marshal.OffsetOf<GpuOutline>(nameof(GpuOutline.Radii))).Should().Be(32);
         Unsafe.SizeOf<OutlinePushConstants>().Should().Be(4);
-        Unsafe.SizeOf<GpuFrameConstants>().Should().Be(2224);
-        ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.Counts))).Should().Be(304);
-        ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.RootRotation))).Should().Be(384);
-        ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.CascadeSets))).Should().Be(400);
-        ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.MapAxes))).Should().Be(1552);
         Unsafe
             .SizeOf<GpuCascadeSet>()
             .Should()
@@ -2101,14 +2128,23 @@ public sealed class BatcherTests
         ((int)Marshal.OffsetOf<EnvironmentDownsamplePushConstants>(nameof(EnvironmentDownsamplePushConstants.Map)))
             .Should()
             .Be(8);
-        Unsafe.SizeOf<OcclusionPushConstants>().Should().Be(20);
+        Unsafe.SizeOf<OcclusionPushConstants>().Should().Be(16);
         ((int)Marshal.OffsetOf<OcclusionPushConstants>(nameof(OcclusionPushConstants.RadiusMeters))).Should().Be(0);
         ((int)Marshal.OffsetOf<OcclusionPushConstants>(nameof(OcclusionPushConstants.LastDenoise))).Should().Be(12);
-        ((int)Marshal.OffsetOf<OcclusionPushConstants>(nameof(OcclusionPushConstants.SubPixelPrecisionBits)))
-            .Should()
-            .Be(16);
         Unsafe.SizeOf<DrawIndexedIndirectCommand>().Should().Be(20);
         Unsafe.SizeOf<Vertex>().Should().Be(48);
+    }
+
+    [Fact]
+    public void GpuVertexIsTheVertexWithItsCardNumberBehindIt()
+    {
+        Unsafe.SizeOf<GpuVertex>().Should().Be(52, "deform.comp writes 13 words per vertex");
+        ((int)Marshal.OffsetOf<GpuVertex>(nameof(GpuVertex.TexCoord)))
+            .Should()
+            .Be((int)Marshal.OffsetOf<Vertex>(nameof(Vertex.TexCoord)), "the fields of Vertex keep their offsets");
+        ((int)Marshal.OffsetOf<GpuVertex>(nameof(GpuVertex.Card)))
+            .Should()
+            .Be(48, "deform.comp writes the card as word 12");
     }
 
     [Theory]

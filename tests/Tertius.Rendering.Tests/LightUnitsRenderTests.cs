@@ -31,7 +31,7 @@ public sealed class LightUnitsRenderTests
         Reflectance: 0.5
     );
 
-    private static readonly double Cutoff = LightUnits.CutoffIrradiance(new FixedExposure(0));
+    private static readonly double Cutoff = LightUnits.CutoffIrradiance(0);
 
     private static VulkanRenderer Renderer(int cascadedLights = 1) =>
         Gpu.Headless(width: Width, height: Height, cascadedLights: cascadedLights);

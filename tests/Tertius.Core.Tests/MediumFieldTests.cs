@@ -101,6 +101,17 @@ public sealed class MediumFieldTests
     }
 
     [Fact]
+    public void APlanetMediumsHeightIsTheDistanceAboveItsRadiusAndZeroBelowIt()
+    {
+        var air = new PlanetMedium(Radius: EarthRadius, SurfaceDensity: SeaLevelAir, ScaleHeight: ScaleHeight, Drag: 2);
+
+        air.HeightAt(EarthRadius + 1000).Should().Be(1000);
+        air.HeightAt(EarthRadius).Should().Be(0);
+        air.HeightAt(EarthRadius - 1000).Should().Be(0, "below the surface the air is no denser than at it");
+        air.HeightAt(0).Should().Be(0);
+    }
+
+    [Fact]
     public void AMediumWithANumberThatIsNotFiniteOrIsNegativeIsNotValid()
     {
         MediumField.Uniform(SeaLevelAir, 2, Cabin).IsValid.Should().BeTrue();
@@ -165,6 +176,57 @@ public sealed class MediumFieldTests
         ];
         for (int i = 0; i < invalid.Length; i++)
             invalid[i].IsValid.Should().BeFalse($"medium {i}, {invalid[i]}, holds a number out of its range");
+    }
+
+    [Fact]
+    public void APlanetsPaintedLookWithinItsRangesIsValid() =>
+        MediumField
+            .Planet(
+                radius: EarthRadius,
+                surfaceDensity: SeaLevelAir,
+                scaleHeight: ScaleHeight,
+                drag: 2,
+                skyRadiance: new(0, 1e30f, 0.5f),
+                haze: new(new(0, 2, 0), Distance: 1e-3f),
+                sunTint: new(0, 1, 0.5f)
+            )
+            .IsValid.Should()
+            .BeTrue("a black or very bright sky, a haze of any finite light and a tint from 0 to 1 are allowed");
+
+    [Fact]
+    public void APlanetsLookWithANumberOutOfItsRangeIsNotValid()
+    {
+        static MediumField Painted(Vector3 sky = default, PlanetHaze? haze = null, Vector3? tint = null) =>
+            MediumField.Planet(
+                radius: EarthRadius,
+                surfaceDensity: SeaLevelAir,
+                scaleHeight: ScaleHeight,
+                drag: 2,
+                skyRadiance: sky,
+                haze: haze,
+                sunTint: tint
+            );
+
+        MediumField[] invalid =
+        [
+            Painted(sky: new(-0.1f, 0, 0)),
+            Painted(sky: new(0, float.NaN, 0)),
+            Painted(sky: new(0, 0, float.PositiveInfinity)),
+            Painted(haze: new(new(-1, 0, 0), Distance: 100)),
+            Painted(haze: new(new(0, float.NaN, 0), Distance: 100)),
+            Painted(haze: new(new(0, 0, float.PositiveInfinity), Distance: 100)),
+            Painted(haze: new(Vector3.One, Distance: 0)),
+            Painted(haze: new(Vector3.One, Distance: -5)),
+            Painted(haze: new(Vector3.One, Distance: float.NaN)),
+            Painted(haze: new(Vector3.One, Distance: float.PositiveInfinity)),
+            Painted(tint: new(-0.1f, 1, 1)),
+            Painted(tint: new(1, 1.1f, 1)),
+            Painted(tint: new(1, 1, float.NaN)),
+        ];
+        for (int i = 0; i < invalid.Length; i++)
+            invalid[i]
+                .IsValid.Should()
+                .BeFalse($"medium {i}, {invalid[i]}, holds a number of its look out of its range");
     }
 
     [Fact]

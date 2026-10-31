@@ -54,11 +54,12 @@ bool starOfCell(vec3 cell, out vec3 star, out vec3 peak)
     return true;
 }
 
-// The sky's light without the stars, in plain radiance: black until the atmosphere (docs/plans/environment-map.md,
-// decision 14). The atmosphere changes this body alone.
+// The sky's light without the stars, in plain radiance (docs/plans/atmosphere.md, "The sky"): the painted sky of the
+// camera's atmosphere, one color in every direction, which PaintedAtmosphere.cs scales by the time of day and the air's
+// density at the eye and caps at MaxRadiance. Black without an atmosphere.
 vec3 skyRadiance(vec3 direction)
 {
-    return vec3(0.0);
+    return frame.atmosphere.sky.rgb;
 }
 
 // The stars of a sky pixel: the one cell that holds the direction, each star a Gaussian one pixel wide. One cell in fifty

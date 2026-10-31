@@ -129,8 +129,15 @@ public sealed class SkinScatterRenderTests
     private static uint[] Models(VulkanRenderer renderer)
     {
         byte[] shading = renderer.ReadShading();
-        return [.. Enumerable.Range(0, Width * Height).Select(pixel => (uint)shading[pixel * 4 + 3])];
+        return [.. Enumerable.Range(0, Width * Height).Select(pixel => CardCode.ModelOf(shading[pixel * 4 + 3]))];
     }
+
+    /// <summary>
+    /// The pixels across the view that the skin's reach covers at <paramref name="viewDepth"/> m, rounded up: no tap of a
+    /// pixel at that depth lands farther away.
+    /// </summary>
+    private static int ReachInPixels(double viewDepth) =>
+        (int)Math.Ceiling(SkinProfile.Reach * Height / (2 * viewDepth * Math.Tan(Gpu.Fov / 2)));
 
     /// <summary>
     /// Asserts that the middle row's pixels from <paramref name="fromX"/> to <paramref name="toX"/> show the same light
@@ -282,10 +289,13 @@ public sealed class SkinScatterRenderTests
             );
             Double3 before = Rgb(without, pixel);
             Double3 light = field.Light[pixel];
-            double largest = Math.Max(before.X, light.X);
+            Double3 expected = before + scattered - light;
+            // The HDR image holds the sum as a half float, and the scatter can carry more light into a dark pixel than it
+            // had: the rounding follows the largest of the three.
+            double largest = Math.Max(expected.X, Math.Max(before.X, light.X));
             ShouldBeNear(
                 actual: Rgb(with, pixel),
-                expected: before + scattered - light,
+                expected: expected,
                 tolerance: HalfRounding * largest + 1e-5,
                 because: $"pixel {pixel % size.Width}, {pixel / size.Width}"
             );
@@ -322,15 +332,19 @@ public sealed class SkinScatterRenderTests
     }
 
     /// <summary>The default kernel as the GPU holds it: singles.</summary>
-    private static ScatterKernel KernelAsTheGpuHoldsIt() =>
-        new([
-            .. SkinProfile
-                .Human.Kernel(SeparableSubsurface.Default.TapsPerSide)
-                .Taps.Select(tap => new ScatterTap(
+    private static ScatterKernel KernelAsTheGpuHoldsIt()
+    {
+        ScatterKernel kernel = SkinProfile.Human.Kernel(SeparableSubsurface.Default.TapsPerSide);
+        return new(
+            [
+                .. kernel.Taps.Select(tap => new ScatterTap(
                     Offset: (float)tap.Offset,
                     Weight: new((float)tap.Weight.X, (float)tap.Weight.Y, (float)tap.Weight.Z)
                 )),
-        ]);
+            ],
+            WidthScale: (float)kernel.WidthScale
+        );
+    }
 
     /// <summary>The row image of the C# copy at each skin pixel, rounded to half floats as the GPU stores it.</summary>
     private static Double3[] RowsOf(ScatterField field, ScatterKernel kernel)
@@ -478,11 +492,11 @@ public sealed class SkinScatterRenderTests
 
             (float[] without, float[] with) = WithoutAndWith(renderer, snapshot);
 
-            // The kernel reaches about 8 px at this distance, so the skin's last 12 columns take taps on the glow.
+            // The skin's last columns, within the kernel's reach of the glow, take taps on it.
             RowKeepsItsLight(
                 without: without,
                 with: with,
-                fromX: Width / 2 - 12,
+                fromX: Width / 2 - ReachInPixels(viewDepth: 0.3),
                 toX: Width / 2 - 1,
                 because: "a tap on the glow takes the center's light"
             );
@@ -511,11 +525,13 @@ public sealed class SkinScatterRenderTests
 
             (float[] without, float[] with) = WithoutAndWith(renderer, snapshot);
 
+            // The front plane's taps reach farther than the back plane's.
+            int reach = ReachInPixels(viewDepth: 0.3);
             RowKeepsItsLight(
                 without: without,
                 with: with,
-                fromX: Width / 2 - 10,
-                toX: Width / 2 + 10,
+                fromX: Width / 2 - reach,
+                toX: Width / 2 + reach,
                 because: "no tap crosses the step of 0.5 m"
             );
         }
@@ -531,8 +547,8 @@ public sealed class SkinScatterRenderTests
         VulkanRenderer renderer = Scattering();
         try
         {
-            // At this view depth a meter covers 1,000 px, so the outermost tap, at the reach of 8 mm, lands 8 px away.
-            float near = (float)(Height / (2 * 1000 * Math.Tan(Gpu.Fov / 2)));
+            // At this view depth the outermost tap, at the skin's reach, lands 8 px away.
+            float near = (float)(SkinProfile.Reach * Height / (2 * 8 * Math.Tan(Gpu.Fov / 2)));
             int nearSpan = DarkPixelsThatTheScatterLights(renderer, viewDepth: near);
             int farSpan = DarkPixelsThatTheScatterLights(renderer, viewDepth: 2 * near);
 

@@ -6,7 +6,7 @@ namespace Tertius.Rendering.Tests;
 /// <summary>
 /// The shading target of the G-buffer on the GPU (docs/plans/skin-and-hair.md, "The shading target"): each lit pixel
 /// names its shading model by <see cref="ShadingCode"/> in A, and a hair pixel its strand by <see cref="StrandCode"/> in R
-/// and G. The cards are the plane mesh, 3 m ahead.
+/// and G and its card by <see cref="CardCode"/> in the spare bits of B and A. The cards are the plane mesh, 3 m ahead.
 /// </summary>
 [Collection(GpuCollection.Name)]
 public sealed class ShadingTargetTests
@@ -67,7 +67,10 @@ public sealed class ShadingTargetTests
             At(shading: shading, point: centers[1])
                 .Should()
                 .Equal([0, 0, 0, (byte)ShadingCode.Skin], "a skin pixel holds no strand");
-            At(shading: shading, point: centers[2])[3].Should().Be((byte)ShadingCode.Hair);
+            CardCode
+                .ModelOf(At(shading: shading, point: centers[2])[3])
+                .Should()
+                .Be(ShadingCode.Hair, "A holds the model's code below a hair pixel's card code");
         }
         finally
         {
@@ -118,7 +121,74 @@ public sealed class ShadingTargetTests
                 .Should()
                 .BeCloseTo(x, 1, "the shader's strand differs from the C# one by its rounding only");
             ((int)stored[1]).Should().BeCloseTo(y, 1);
-            stored[2..].Should().Equal([0, (byte)ShadingCode.Hair], "B is 0, and A the hair's code");
+            stored[2..]
+                .Should()
+                .Equal(
+                    [0, (byte)ShadingCode.Hair],
+                    "B holds no light mark, and A the hair's code, with the code of card 0 of the first instance, 0"
+                );
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void TheGBufferWritesAHairPixelsCardCodeBesideItsLightMarkAndItsModelsCode()
+    {
+        // One hair mesh of two cards, the plane mesh and a copy 1 m along its +X, drawn by two instances 1 m apart
+        // along Y. The plane mesh's +X turns to the world's +X.
+        MeshData plane = Primitives.Plane(0.4f);
+        Vertex[] second =
+        [
+            .. plane.Vertices.Select(vertex => vertex with { Position = vertex.Position + Vector3.UnitX }),
+        ];
+        var twoCards = new MeshData(
+            [.. plane.Vertices, .. second],
+            [.. plane.Indices, .. plane.Indices.Select(index => index + (uint)plane.Vertices.Length)]
+        );
+        Vector3[] instanceCenters = [new(-0.5f, 0.5f, -3), new(-0.5f, -0.5f, -3)];
+        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
+        try
+        {
+            MeshId mesh = renderer.CreateMesh(twoCards);
+            MaterialId hair = Card(renderer, new HairShading(StrandDirection.PlusV));
+            RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitZ);
+            foreach (Vector3 center in instanceCenters)
+                snapshot.Instances.Add(
+                    Gpu.Instance(
+                        mesh: mesh,
+                        material: hair,
+                        position: center,
+                        scale: Vector3.One,
+                        rotation: FacingTheCamera,
+                        radius: 1.6f,
+                        chainDepth: TestChains.CamerasFrame
+                    )
+                );
+
+            renderer.Render(snapshot, 1f);
+            byte[] shading = renderer.ReadShading();
+
+            for (uint instance = 0; instance < instanceCenters.Length; instance++)
+            for (uint card = 0; card < 2; card++)
+            {
+                byte[] stored = At(shading: shading, point: instanceCenters[instance] + card * Vector3.UnitX);
+                (byte b, byte a) = CardCode.Channels(
+                    code: CardCode.Of(card: card, instance: instance),
+                    holdsLight: false,
+                    model: ShadingCode.Hair
+                );
+                stored[2..]
+                    .Should()
+                    .Equal(
+                        [b, a],
+                        "card {0} of instance {1}, the instance's place in the frame, holds its card code",
+                        card,
+                        instance
+                    );
+            }
         }
         finally
         {

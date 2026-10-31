@@ -10,8 +10,9 @@ namespace Tertius.Rendering;
 /// <remarks>
 /// <para>A face is one rendering per depth range into level 0 of its layer, far to near, each with the face's own
 /// projection of that range and a freshly cleared depth. The far range first draws the sky over every texel, with no depth
-/// test, so the sky shows wherever no surface does. The surfaces are shaded forward, with every light and their
-/// emission and no ambient light.</para>
+/// test, so the sky shows wherever no surface does. The surfaces are shaded forward, with every light and no ambient
+/// light. A surface adds its emission only when its entity holds no light: the glow of a lamp is its light's face, and the
+/// lamp's power reaches the room once, through its light (docs/plans/environment-map.md, "How a face is lit").</para>
 /// <para>A face looks along its map's axes (docs/plans/environment-maps-per-frame.md, decision 9), and keeps the lights of
 /// its map and the maps outside it (decision 13).</para>
 /// <para>A face is a mirror image of a right-handed camera, so the surface pipelines' front faces are clockwise. Each range

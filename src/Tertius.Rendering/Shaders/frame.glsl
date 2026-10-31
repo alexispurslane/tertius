@@ -26,7 +26,27 @@ struct GpuInstance
     uint map;
     // 1 when the instance's entity holds a light, whose face its glow is, else 0 (GpuInstance.HoldsLight).
     uint holdsLight;
-};                            // std430: 88 bytes of members, a stride of 96
+    // The instance's place among the frame's placed instances, the same in every view and depth range that draws it,
+    // which its hair pixels' card codes mix in (GpuInstance.PlacedIndex).
+    uint placedIndex;
+};                            // std430: 92 bytes of members, a stride of 96
+
+// A hair pixel's card code (docs/plans/skin-and-hair.md, "The card number"): the number of its card in its mesh, mixed
+// with its instance's place into 13 bits. 5063, about 2^13 / φ and odd, puts neighbor instances' codes far apart, and the
+// cards of one instance take distinct codes up to 2^13 cards. CardCode.Of is the C# twin.
+uint cardCode(uint card, uint placedIndex)
+{
+    return (card + placedIndex * 5063u) & 0x1FFFu;
+}
+
+// The glow that a surface sends to other surfaces as their light: its emission, or none where its entity holds a light. An
+// entity sends its power once (user, 2026-10-27): one that holds a light sends it through that light, and its glow is the
+// light's face, not a second source. The bounce source (occlusion_depth.comp) and the environment faces
+// (environment_face.frag) read the rule here. holdsLight is GpuInstance.holdsLight, or the G-buffer's copy of it.
+vec3 glowSent(vec3 emissive, uint holdsLight)
+{
+    return holdsLight == 0u ? emissive : vec3(0.0);
+}
 
 // GpuMaterial.NoMap: the map index of a material that has no such map.
 const uint NoMap = 0xFFFFFFFFu;
@@ -55,6 +75,33 @@ const uint ShadingHair = 2u;
 // from it: the hair branch of sampleMaterial and the fiber's light loop (docs/plans/skin-and-hair.md, "Cost").
 layout(constant_id = 3) const bool shadesFibers = true;
 
+// The shading target's B and A (docs/plans/skin-and-hair.md, "The shading target"): bit 0 of B is the light mark, bits 0
+// and 1 of A the model's code, and the 13 bits above them, 7 of B and 6 of A, a hair pixel's card code, 0 for another
+// model. CardCode (Channels, Read, LightMarkOf and ModelOf) holds the C# twins.
+uvec2 lightModelAndCardWords(uint holdsLight, uint model, uint cardCode)
+{
+    uint written = model == ShadingHair ? cardCode : 0u;
+    return uvec2(holdsLight | ((written & 0x7Fu) << 1), model | ((written >> 7) << 2));
+}
+
+uint lightMarkOfWord(uint b)
+{
+    return b & 1u;
+}
+
+uint modelOfWord(uint a)
+{
+    return a & 3u;
+}
+
+// NoCard: the card code of a pixel that is not hair, which no 13-bit code equals.
+const uint NoCard = 0xFFFFFFFFu;
+
+uint cardOfWords(uint b, uint a)
+{
+    return modelOfWord(a) == ShadingHair ? (b >> 1) | ((a >> 2) << 7) : NoCard;
+}
+
 // The shadow slot of a light in GpuLight.shadow.x (GpuLight.*Slot in GpuTypes.cs).
 const uint NoSlot = 0u;
 const uint CascadeSetSlot = 1u;
@@ -71,7 +118,8 @@ struct GpuLight
     uvec3 occluders;          // x the first occluder, y the occluders, z how many of the first ones the cascade set also draws
     uint map;                 // the map of the light's carrier: a face of map i keeps it when map <= i
     uint inMainView;          // 1 when the light's reach touches the main view's frustum, else 0
-};                            // std430: 100 bytes of members, a stride of 112
+    uint airSun;              // 1 for the sun of the frame's atmosphere, whose light takes the air's tint, else 0
+};                            // std430: 104 bytes of members, a stride of 112
 
 struct GpuCascadeSet
 {
@@ -88,6 +136,18 @@ struct GpuShadowTile
     float near;               // the near plane, in meters from the light
     float unused;
 };                            // std430: 80 bytes
+
+// The atmosphere of the frame (GpuAtmosphere in GpuTypes.cs, docs/plans/atmosphere.md). Without one, every value is 0 but
+// the tint, which is 1.
+struct GpuAtmosphere
+{
+    vec4 centerRadius;        // xyz the planet's center relative to the eye, w the planet's radius, both in m
+    vec4 sky;                 // rgb the sky, plain radiance; w 1 / the scale height in 1/m, 0 without an atmosphere
+    vec4 haze;                // rgb the haze's light, plain radiance; w 1 / the haze distance in 1/m, 0 without a haze
+    vec4 sunTint;             // rgb the tint of the sun's light at the surface; w unused
+    vec4 sun;                 // xyz the sun's place relative to the eye, in m; w 1 with a sun, 0 without one
+    vec4 eye;                 // x the eye's height above the surface, in m; y the density share at the eye; zw unused
+};                            // std140: 96 bytes
 
 struct GpuOutline
 {
@@ -125,6 +185,7 @@ layout(set = 0, binding = 0, std140) uniform FrameBlock
     vec4 rootRotation;        // the root frame's axes in world axes, as a quaternion (xyz, w)
     GpuCascadeSet cascadeSets[4];   // ShadowCascades.MaxSets; set i belongs to the light whose slot names it
     vec4 mapAxes[42];         // R_i: the axes of map i's frame in world axes, a unit quaternion (xyz, w), root first
+    GpuAtmosphere atmosphere; // the air that the camera looks through
 } frame;
 
 layout(set = 0, binding = 1, std430) readonly buffer InstanceBlock { GpuInstance instances[]; };

@@ -56,10 +56,10 @@ void main()
     bool readsMap = mapCode > 0.0;
     uint map = readsMap ? mapOfCode(mapCode) : 0u;
     // A hair receiver's own card blocks nothing (docs/plans/skin-and-hair.md, "Hair in each pass"): its own surface is
-    // its fibers, which block no sector and read no map light, and a step that reads a point of the card's plane is left
-    // out. The C# copy's OwnSurface holds the two cases.
-    bool hair = hairAt(2 * texel);
-    vec3 receiverPoint = gtaoViewPosition(centerPlace, z);
+    // its fibers, which block no sector and read no map light, and a step whose pixel carries the receiver's card code is
+    // left out, at any bend of the card. The C# copy's OwnSurface holds the two cases.
+    uint receiverCard = cardAt(2 * texel);
+    bool hair = receiverCard != NoCard;
     float totalWeight = 0.0;
     float open = 0.0;
     vec3 bounce = vec3(0.0);
@@ -94,9 +94,10 @@ void main()
                 // float range, so the depth decides before the length (ARCHITECTURE.md, "Portable Vulkan").
                 if (sampleDepth >= SkyDepth)
                     continue;
-                vec3 texelPoint = gtaoViewPosition(pixelScreenPosition(2 * t), sampleDepth);
-                if (hair && onOwnCard(receiverPoint, setup.geometricNormal, texelPoint))
+                // Only a hair receiver reads the step's card, a read of the full-resolution shading target.
+                if (hair && cardAt(2 * t) == receiverCard)
                     continue;
+                vec3 texelPoint = gtaoViewPosition(pixelScreenPosition(2 * t), sampleDepth);
                 // The depth pass's copies of pixel 2t: half-resolution reads keep the steps' reads dense in the cache.
                 vec3 sampleNormal = texelGeometricNormalAt(t);
                 // A half-resolution texel spans two pixels, 2 / W of the screen.

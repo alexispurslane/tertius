@@ -2,14 +2,15 @@ namespace Tertius.Rendering.Tests;
 
 /// <summary>
 /// The diffusion profile of human skin and the kernel of taps made from it (docs/plans/skin-and-hair.md, "The profile
-/// and the kernel"). Integrals use Simpson's rule on steps far below the narrowest Gaussian's width of 0.08 mm.
+/// and the kernel"). Integrals use Simpson's rule on steps far below the narrowest Gaussian's width of
+/// <see cref="SkinProfile.WidthScale"/> · 0.08 mm.
 /// </summary>
 public sealed class SkinProfileTests
 {
     private const int TapsPerSide = 8;
 
-    // Far past the widest Gaussian, whose width is 2.72 mm: the profile beyond it is below 1e-100.
-    private const double Far = 0.1;
+    // Far past the widest Gaussian, whose width is WidthScale · 2.72 mm: the profile beyond it is below 1e-100.
+    private const double Far = 0.1 * SkinProfile.WidthScale;
 
     public static TheoryData<int> TapCounts => [with(Enumerable.Range(1, 16))];
 
@@ -53,6 +54,38 @@ public sealed class SkinProfileTests
 
         variance.X.Should().BeGreaterThan(variance.Y, "red light travels farthest under the skin");
         variance.Y.Should().BeGreaterThan(variance.Z, "blue light is absorbed soonest");
+    }
+
+    [Fact]
+    public void RedLightSpreadsFourTimesAsFarAsInTheMeasuredSkin()
+    {
+        // The red channel's standard deviation in the profile of d'Eon, Luebke and Enderton 2007: √1.38287 mm².
+        const double measured = 1.1759541657734793e-3;
+
+        double spread = Math.Sqrt(SecondMomentOfTheMarginal().X);
+
+        spread
+            .Should()
+            .BeApproximately(
+                4 * measured,
+                1e-12,
+                "the user chose a scatter four times wider than the measured skin, for the softer, redder shadow lines"
+            );
+    }
+
+    [Fact]
+    public void TheReachSpansTheSameWidthsOfTheWidestGaussianAtAnyScale()
+    {
+        double widest = Math.Sqrt(SkinProfile.Human.Gaussians.Max(gaussian => gaussian.Variance));
+
+        // 8 mm over the measured profile's widest width of √7.41 mm, 2.72 mm.
+        (SkinProfile.Reach / widest)
+            .Should()
+            .BeApproximately(
+                2.938873433,
+                1e-9,
+                "the width scale moves the reach and the Gaussians together, so the outermost tap keeps the same tail"
+            );
     }
 
     [Theory]

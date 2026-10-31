@@ -136,24 +136,11 @@ public sealed class LightUnitsTests
     [Fact]
     public void EachStopOfTheHighestExposureHalvesTheCutoff()
     {
-        double atZero = LightUnits.CutoffIrradiance(new FixedExposure(0));
+        double atZero = LightUnits.CutoffIrradiance(0);
 
         atZero.Should().BeApproximately(Math.PI / 8192, 1e-15, "a white matte surface at E_cut sends R_cut = 2^−13");
-        LightUnits.CutoffIrradiance(new FixedExposure(1)).Should().BeApproximately(atZero / 2, 1e-15);
-        LightUnits.CutoffIrradiance(new FixedExposure(10)).Should().BeApproximately(atZero / 1024, 1e-15);
-    }
-
-    [Fact]
-    public void AFixedExposureCutsOffByItsStopsAndAnAutomaticOneByItsHighestStops()
-    {
-        AutoExposure auto = AutoExposure.Default with { MinStops = -3, MaxStops = 7 };
-
-        LightUnits.HighestStops(new FixedExposure(2.5f)).Should().Be(2.5f);
-        LightUnits.HighestStops(auto).Should().Be(7);
-        LightUnits
-            .CutoffIrradiance(auto)
-            .Should()
-            .Be(LightUnits.CutoffIrradiance(new FixedExposure(7)), "its highest stops, not its lowest or its first");
+        LightUnits.CutoffIrradiance(1).Should().BeApproximately(atZero / 2, 1e-15);
+        LightUnits.CutoffIrradiance(10).Should().BeApproximately(atZero / 1024, 1e-15);
     }
 
     [Fact]

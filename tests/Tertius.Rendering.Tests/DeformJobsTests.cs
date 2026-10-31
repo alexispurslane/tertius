@@ -13,7 +13,13 @@ public sealed class DeformJobsTests
         {
             Rigging = new(new Rig([new RigJoint("Root", null, Pose.Identity)], []), Skin: null, Morphs: []),
         };
-        return new(FirstIndex: 0, IndexCount: 3, VertexOffset: 0, Radius: 1, Deform: MeshDeform.Pack(mesh)!.Deform);
+        return new(
+            FirstIndex: 0,
+            IndexCount: 3,
+            VertexOffset: 0,
+            Radius: 1,
+            Deform: MeshDeform.Pack(StagedMesh.Of(mesh))!.Deform
+        );
     }
 
     /// <summary>The records of one job of each mesh of <paramref name="vertexCounts"/>, and the frame's workgroups.</summary>
@@ -29,11 +35,8 @@ public sealed class DeformJobsTests
     [Fact]
     public void RecordNamesTheMeshsSourcesAndTheJobsCopyAndRows()
     {
-        MeshDeform deform = MeshDeform.Pack(Primitives.BendingCylinder(radius: 0.2f, length: 2))!.Deform with
-        {
-            Source = 100,
-            Deltas = 7,
-        };
+        MeshData cylinder = Primitives.BendingCylinder(radius: 0.2f, length: 2);
+        MeshDeform deform = MeshDeform.Pack(StagedMesh.Of(cylinder))!.Deform with { Source = 100, Deltas = 7 };
         MeshInfo[] meshes =
         [
             new(FirstIndex: 0, IndexCount: 3, VertexOffset: 0, Radius: 1, Deform: null),

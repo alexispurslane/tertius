@@ -7,7 +7,38 @@ namespace Tertius.Rendering;
 // C# mirrors of the shader structs in Shaders/frame.glsl. Layouts follow std430 (storage buffers) and std140 (the
 // frame block). Change both sides together; RendererLayoutTests checks the sizes.
 
-/// <summary>One drawn instance in the instance storage buffer. 88 bytes of fields, padded to 96, the struct's alignment of 16.</summary>
+/// <summary>
+/// A vertex as the global vertex buffer holds it: a staged <see cref="Vertex"/> and the number of its card in its mesh,
+/// <see cref="MeshCards.Number"/>, which a hair pixel's card code takes (docs/plans/skin-and-hair.md, "The card number").
+/// 52 bytes. deform.comp writes the same layout into the deform region.
+/// </summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct GpuVertex
+{
+    public Vector3 Position;
+    public Vector3 Normal;
+
+    /// <summary>Tangent in xyz, bitangent sign in w.</summary>
+    public Vector4 Tangent;
+
+    public Vector2 TexCoord;
+
+    /// <summary>The number of the vertex's card: the connected strip of triangles that holds it.</summary>
+    public uint Card;
+
+    /// <summary><paramref name="vertex"/>, staged, with the number of its <paramref name="card"/>.</summary>
+    public static GpuVertex Of(in Vertex vertex, uint card) =>
+        new()
+        {
+            Position = vertex.Position,
+            Normal = vertex.Normal,
+            Tangent = vertex.Tangent,
+            TexCoord = vertex.TexCoord,
+            Card = card,
+        };
+}
+
+/// <summary>One drawn instance in the instance storage buffer. 92 bytes of fields, padded to 96, the struct's alignment of 16.</summary>
 [StructLayout(LayoutKind.Sequential, Size = 96)]
 internal struct GpuInstance
 {
@@ -35,13 +66,24 @@ internal struct GpuInstance
     public uint Map;
 
     /// <summary>
-    /// 1 when the instance's entity holds a light, whose face its glow is, else 0: such a glow bounces no light
-    /// (docs/plans/screen-space-illumination.md, "The bounce source").
+    /// 1 when the instance's entity holds a light, whose face its glow is, else 0. The shaders' <c>glowSent</c>
+    /// (frame.glsl) reads it: such a glow bounces no light (docs/plans/screen-space-illumination.md, "The bounce source"),
+    /// and the environment map leaves it out (docs/plans/environment-map.md, "How a face is lit").
     /// </summary>
     public uint HoldsLight;
 
+    /// <summary>
+    /// The instance's place among the frame's placed instances, <see cref="PreparedInstance.PlacedIndex"/>: the same in
+    /// every view and depth range that draws it. Its hair pixels' card codes mix it in (<see cref="CardCode.Of"/>).
+    /// </summary>
+    public uint PlacedIndex;
+
     /// <param name="map">The instance's map, from 0 to <see cref="EnvironmentChain.MaxMaps"/> − 1.</param>
     /// <param name="holdsLight">Whether the instance's entity holds a light.</param>
+    /// <param name="placedIndex">
+    /// The instance's place among the frame's placed instances, <see cref="PreparedInstance.PlacedIndex"/>. A draw that
+    /// writes no card code passes 0. Required, so that no G-buffer draw gives all its instances one place by omission.
+    /// </param>
     public static GpuInstance From(
         Vector3 position,
         Quaternion rotation,
@@ -49,6 +91,7 @@ internal struct GpuInstance
         uint material,
         int map,
         bool holdsLight,
+        int placedIndex,
         HemisphereUp hemisphere = default
     )
     {
@@ -79,6 +122,7 @@ internal struct GpuInstance
             Hemisphere = HemisphereOf(position, hemisphere),
             Map = (uint)map,
             HoldsLight = holdsLight ? 1u : 0u,
+            PlacedIndex = (uint)placedIndex,
         };
     }
 
@@ -151,7 +195,7 @@ internal struct GpuMaterial
 }
 
 /// <summary>
-/// One light in the light storage buffer (std430, binding 3 of the frame set). 112 bytes, the last 12 unused.
+/// One light in the light storage buffer (std430, binding 3 of the frame set). 112 bytes, the last 8 unused.
 /// <see cref="From"/> is the one place that encodes a <see cref="PreparedLight"/>, its spread, its shadow slot, its map
 /// and whether the main view keeps it for the shaders.
 /// </summary>
@@ -207,6 +251,12 @@ internal struct GpuLight
     public uint InMainView;
 
     /// <summary>
+    /// 1 when the light is the sun of the frame's atmosphere (<see cref="PreparedLight.AirSun"/>), whose light takes the
+    /// air's tint at every point in the air, else 0 (docs/plans/atmosphere.md, "The sun's tint").
+    /// </summary>
+    public uint AirSun;
+
+    /// <summary>
     /// The GPU form of <paramref name="light"/>, read into the shaders' ranges: the intensity by
     /// <see cref="ShaderInput.Intensity(Vector3)"/>, and the radius at most <see cref="ShaderInput.PositionLimit"/>, so that its
     /// square stays finite.
@@ -245,6 +295,7 @@ internal struct GpuLight
             Occluders = occluders,
             Map = (uint)light.Map,
             InMainView = light.InMainView ? 1u : 0u,
+            AirSun = light.AirSun ? 1u : 0u,
         };
     }
 
@@ -339,7 +390,7 @@ internal struct GpuPuff
     public uint Map;
 }
 
-/// <summary>The frame uniform block (std140). 2,224 bytes.</summary>
+/// <summary>The frame uniform block (std140). 2,320 bytes.</summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct GpuFrameConstants
 {
@@ -390,6 +441,42 @@ internal struct GpuFrameConstants
     /// root first (docs/plans/environment-maps-per-frame.md, decision 9). The entries past the served maps are not read.
     /// </summary>
     public MapAxesArray MapAxes;
+
+    /// <summary>The atmosphere of the frame (docs/plans/atmosphere.md, "The renderer").</summary>
+    public GpuAtmosphere Atmosphere;
+}
+
+/// <summary>
+/// The atmosphere in the frame block (std140), 96 bytes: what the shaders of atmosphere.glsl and sky.glsl read
+/// (docs/plans/atmosphere.md, "The renderer"). Without an atmosphere every value is 0 but the tint, which is 1, so the sky
+/// is black, the haze lets everything through, there is no sun and no light takes a tint.
+/// </summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct GpuAtmosphere
+{
+    /// <summary>xyz the planet's center relative to the interpolated eye, in m; w the planet's radius, in m.</summary>
+    public Vector4 CenterRadius;
+
+    /// <summary>rgb the sky, plain radiance in W/(m²·sr); w 1 / the scale height, in 1/m, 0 without an atmosphere.</summary>
+    public Vector4 Sky;
+
+    /// <summary>
+    /// rgb the haze's light in full day, plain radiance in W/(m²·sr), which the shaders dim by the day factor at each hazed
+    /// point; w 1 / the haze distance, in 1/m, 0 without a haze.
+    /// </summary>
+    public Vector4 Haze;
+
+    /// <summary>rgb the tint of the sun's light at the surface, 1 without a tint; w unused.</summary>
+    public Vector4 SunTint;
+
+    /// <summary>xyz the sun's place relative to the interpolated eye, in m; w 1 with a sun, 0 without one.</summary>
+    public Vector4 Sun;
+
+    /// <summary>x the eye's height above the surface, in m; y the air's density share at the eye, from 0 to 1; zw unused.</summary>
+    public Vector4 Eye;
+
+    /// <summary>Whether the frame's air has a haze: 1 / the haze distance is above 0, the encoding that atmosphere.glsl reads too.</summary>
+    public readonly bool HasHaze => Haze.W != 0;
 }
 
 /// <summary>One cascade set in the frame block (std140). 288 bytes.</summary>
@@ -430,6 +517,27 @@ internal struct ShadowMatrices
     private Matrix4x4 element;
 }
 
+/// <summary>
+/// The uniform block ScatterKernel of Shaders/skin_scatter.glsl (std140), which <see cref="ScatterImages.Kernel"/> holds: a
+/// <see cref="ScatterKernel"/> as singles (docs/plans/skin-and-hair.md, "The two passes"). 532 bytes.
+/// </summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct GpuScatterKernel
+{
+    /// <summary>Tap i: rgb its weight per channel, w its offset in m. The slots past the kernel's 2n + 1 taps hold zeros.</summary>
+    public ScatterTapArray Taps;
+
+    /// <summary>How many times wider than the measured profile the offsets are (<see cref="ScatterKernel.WidthScale"/>).</summary>
+    public float WidthScale;
+}
+
+/// <summary>Room for the most taps of a scatter kernel, laid out as a std140 <c>vec4[33]</c>.</summary>
+[InlineArray(ScatterImages.KernelTaps)]
+internal struct ScatterTapArray
+{
+    private Vector4 element;
+}
+
 /// <summary>The push constants of every mesh pass (Shaders/draw.glsl). 84 bytes.</summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct DrawPushConstants
@@ -445,9 +553,8 @@ internal struct DrawPushConstants
 }
 
 /// <summary>
-/// The push constants of the occlusion passes (Shaders/occlusion.glsl): the setting and the device's sub-pixel
-/// precision. The camera comes from the frame constants, so the occlusion passes and the lighting passes read the one
-/// store. 20 bytes.
+/// The push constants of the occlusion passes (Shaders/occlusion.glsl): the setting. The camera comes from the frame
+/// constants, so the occlusion passes and the lighting passes read the one store. 16 bytes.
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct OcclusionPushConstants
@@ -459,22 +566,14 @@ internal struct OcclusionPushConstants
     /// <summary>1 in the last denoise dispatch, 0 otherwise.</summary>
     public uint LastDenoise;
 
-    /// <summary>The device's limit of that name, which widens a hair card's plane by the rasterizer's snapping (<see cref="OwnCard.SnapPerMeter"/>).</summary>
-    public uint SubPixelPrecisionBits;
-
-    /// <summary>The push constants of one dispatch on a device whose rasterizer has <paramref name="subPixelPrecisionBits"/>.</summary>
-    public static OcclusionPushConstants For(
-        VisibilityBitmaskLight setting,
-        bool lastDenoise,
-        uint subPixelPrecisionBits
-    ) =>
+    /// <summary>The push constants of one dispatch.</summary>
+    public static OcclusionPushConstants For(VisibilityBitmaskLight setting, bool lastDenoise) =>
         new()
         {
             RadiusMeters = setting.RadiusMeters,
             Slices = (uint)setting.Slices,
             StepsPerSide = (uint)setting.StepsPerSide,
             LastDenoise = lastDenoise ? 1u : 0u,
-            SubPixelPrecisionBits = subPixelPrecisionBits,
         };
 }
 

@@ -25,6 +25,7 @@
 #include "hemisphere.glsl"
 #include "brdf.glsl"
 #include "exposure.glsl"
+#include "atmosphere.glsl"
 #include "environment.glsl"
 
 // How a view samples every light's shadow maps (docs/plans/environment-map.md, "The shadow maps in a face").
@@ -145,8 +146,8 @@ bool takesLight(bool fiber, ShadingInput s, vec3 L, float geometricNdotL)
 }
 
 // The irradiance in W/m² per channel that `light` sends to `position` before its shadows: color × intensity over
-// max(d², R², NearestDistance²), times the window of Karis 2013 to the reach and a spot light's cone, at most
-// IrradianceLimit. 0 at or beyond the reach. L is the unit direction toward the light, zero when the position is at the
+// max(d², R², NearestDistance²), times the window of Karis 2013 to the reach and a spot light's cone, and the air's tint
+// for the atmosphere's sun, at most IrradianceLimit. 0 at or beyond the reach. L is the unit direction toward the light, zero when the position is at the
 // light's center, and d its distance.
 vec3 lightIrradiance(GpuLight light, vec3 position, out vec3 L, out float d)
 {
@@ -168,7 +169,12 @@ vec3 lightIrradiance(GpuLight light, vec3 position, out vec3 L, out float d)
     if (light.intensityKind.w > 0.5)
         // Cone.Of keeps cos(inner) above cos(outer), so the edges of smoothstep differ.
         falloff *= smoothstep(light.directionCosOuter.w, light.spotRadius.x, dot(-L, light.directionCosOuter.xyz));
-    return min(light.intensityKind.rgb * falloff, vec3(IrradianceLimit));
+    vec3 irradiance = light.intensityKind.rgb * falloff;
+    // The atmosphere's sun takes the air's tint at the lit point (docs/plans/atmosphere.md, "The sun's tint"). The tint
+    // is at most 1, so the product stays finite.
+    if (light.airSun != 0u)
+        irradiance *= sunTintAt(position);
+    return min(irradiance, vec3(IrradianceLimit));
 }
 
 // The share of `light` that its shadow slot lets through at `position`, by the rule of shadowMaps. L is the unit
