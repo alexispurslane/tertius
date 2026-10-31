@@ -1094,7 +1094,7 @@ public sealed class ImpostorTests(ITestOutputHelper output)
                     Gpu.Lamp(
                         position: center + 1.02f * toward,
                         color: Vector3.One,
-                        intensity: (float)(reach * reach * LightUnits.CutoffIrradiance(new FixedExposure(0))),
+                        intensity: (float)(reach * reach * LightUnits.CutoffIrradiance(0)),
                         chainDepth: TestChains.CamerasFrame
                     )
                 );

@@ -63,7 +63,7 @@ public sealed class BrdfRenderTests
         Double3 toLight = (lightPosition - point).Normalized();
         double distanceSquared = (lightPosition - point).LengthSquared;
         var white = new MaterialSample(BaseColor: new(1, 1, 1), Metallic: 1, Roughness: 0, Reflectance: 0.5);
-        double reach = LightUnits.Reach(1000, LightUnits.CutoffIrradiance(new FixedExposure(0)));
+        double reach = LightUnits.Reach(1000, LightUnits.CutoffIrradiance(0));
         double ratio = distanceSquared / (reach * reach);
         double window = Math.Pow(Math.Clamp(1 - ratio * ratio, 0, 1), 2);
         Double3 reflected = white.Reflected(

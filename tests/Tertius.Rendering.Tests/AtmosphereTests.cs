@@ -47,6 +47,7 @@ public sealed class AtmosphereTests
             .Prepare(
                 snapshot: snapshot,
                 alpha: alpha,
+                highestStops: Batchers.HighestStops,
                 width: 1600,
                 height: 900,
                 meshes: [],

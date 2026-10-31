@@ -696,7 +696,7 @@ public sealed class LocalShadowRenderTests
     /// </summary>
     private static Capture FarBoxUnderASpot(bool withTheLightBehind)
     {
-        double cutoff = LightUnits.CutoffIrradiance(new FixedExposure(0));
+        double cutoff = LightUnits.CutoffIrradiance(0);
         Vector3 spotPlace = FarBoxFloor + new Vector3(0, 0.5f, 0);
         Vector3 behindPlace = -20 * Vector3.Normalize(FarBoxFloor);
         VulkanRenderer renderer = Renderer(

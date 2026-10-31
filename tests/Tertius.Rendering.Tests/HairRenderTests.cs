@@ -204,7 +204,7 @@ public sealed class HairRenderTests
     {
         const double intensity = 5;
         double distanceSquared = (lamp - position).LengthSquared;
-        double reach = LightUnits.Reach(intensity, LightUnits.CutoffIrradiance(new FixedExposure(0)));
+        double reach = LightUnits.Reach(intensity, LightUnits.CutoffIrradiance(0));
         double ratio = distanceSquared / (reach * reach);
         double window = Math.Pow(Math.Clamp(1 - ratio * ratio, 0, 1), 2);
         return (

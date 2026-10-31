@@ -96,6 +96,7 @@ public sealed class BatcherDeformTests
             .Prepare(
                 snapshot: snapshot,
                 alpha: 1f,
+                highestStops: Batchers.HighestStops,
                 width: 1600,
                 height: 900,
                 meshes: Meshes,
@@ -529,6 +530,7 @@ public sealed class BatcherDeformTests
             batcher.Prepare(
                 snapshot: snapshot,
                 alpha: 0.5f,
+                highestStops: Batchers.HighestStops,
                 width: 1600,
                 height: 900,
                 meshes: Meshes,

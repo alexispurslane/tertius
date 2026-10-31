@@ -139,6 +139,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             Allocator = Own(new DeviceAllocator(device));
             releases = Own(new DeferredReleases());
             ShaderLibrary shaders = Own(new ShaderLibrary(device, ShaderLibrary.EngineShaders));
+
             int glowLevels = GlowLevelsOf(options.Bloom);
             layouts = Own(
                 new DescriptorLayouts(device: device, framesInFlight: options.FramesInFlight, glowLevels: glowLevels)
@@ -160,9 +161,10 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 subsurface: options.Subsurface,
                 screenSpaceLight: options.ScreenSpaceLight
             );
+
             // Before every pass, whose shading constants say whether the scatter is on.
             ScatterImages = CreateScatterImages(options.Subsurface);
-            exposure = CreateExposure(options.FramesInFlight);
+            exposure = CreateExposure(options);
             environmentMap = CreateEnvironmentMap(options);
             (ShadowMap, shadowAtlas) = CreateShadowImages(options);
             // After the shadow map, whose size and depth format shape the cascade boxes that the batcher fits.
@@ -223,6 +225,9 @@ public sealed unsafe class VulkanRenderer : IRenderer
     internal ScatterImages? ScatterImages { get; }
 
     internal SceneBatcher Batcher { get; }
+
+    /// <summary>The exposure buffer, its readbacks and the steps since the last reading. A test hook.</summary>
+    internal ExposureResources Exposure => exposure;
 
     internal FrameGraph Graph { get; } = new();
 
@@ -533,13 +538,16 @@ public sealed unsafe class VulkanRenderer : IRenderer
             image: image,
             capture: capture
         );
+
         // Reset only now: if anything above threw, the fence stays signaled and the next frame does not hang.
         device.Vk.ResetFences(device.Device, 1, &fence).Check("vkResetFences");
         output.SubmitAndPresent(frame);
-        // Only now, so that a frame that threw above leaves the maps' drawn chain, the slot's readback and the tiles'
-        // records as they were.
+
+        // Only now, so that a frame that threw above leaves the maps' drawn chain, the slot's readback, the tiles' records
+        // and the exposure's steps as they were.
         environmentMap?.Drew(served: Served(snapshot), slot: frame.Index);
         localShadows?.Tiles.Drew();
+        exposure.Drew(frame: frameNumber, step: exposureStep);
         frame.Number = frameNumber;
         frameNumber++;
 
@@ -636,9 +644,11 @@ public sealed unsafe class VulkanRenderer : IRenderer
         // Before the frame graph, whose ambient pass reads the target, and whose occlusion passes overwrite it.
         targets.RecordEstimateClear(vk: device.Vk, commandBuffer: commandBuffer, barriers: barriers);
         frame.UpdateSharedDescriptors(materials: materials, textures: textures, geometry: geometry, deforms: deforms);
+
         Batcher.Prepare(
             snapshot: snapshot,
             alpha: alpha,
+            highestStops: exposure.HighestStops(frame: frameNumber, step: exposureStep),
             width: (int)targets.Extent.Width,
             height: (int)targets.Extent.Height,
             meshes: geometry.Meshes,
@@ -657,6 +667,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
         );
         Graph.Prepare(context);
         frame.Write(LastScene);
+
         // Before every pass, so the reading is the exposure that all of this frame's passes use.
         exposure.RecordReadback(commandBuffer: commandBuffer, barriers: barriers, slot: frame.Index);
         Graph.Record(context);
@@ -775,11 +786,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             targets.Smaa?.Tables.Upload(commandBuffer: commandBuffer, staging: frame.Staging, barriers: barriers);
             // Frame 0 is the first drawn frame, because the frame number counts submitted frames.
             if (frameNumber == 0)
-                exposure.RecordSeed(
-                    commandBuffer: commandBuffer,
-                    barriers: barriers,
-                    stops: exposureSetting.InitialStops
-                );
+                exposure.RecordSeed(commandBuffer: commandBuffer, barriers: barriers);
             device.EndLabel(commandBuffer);
         }
     }
@@ -1757,21 +1764,21 @@ public sealed unsafe class VulkanRenderer : IRenderer
             )
         );
 
-    /// <summary>The exposure buffer, the histogram and the readbacks of <paramref name="framesInFlight"/> frame slots, which the renderer owns.</summary>
-    private ExposureResources CreateExposure(int framesInFlight) =>
+    /// <summary>The exposure buffer, the histogram and the readbacks of the frame slots of <paramref name="options"/>, which the renderer owns.</summary>
+    private ExposureResources CreateExposure(RendererOptions options) =>
         Own(
             new ExposureResources(
                 device: device,
                 allocator: Allocator,
                 layouts: layouts,
-                framesInFlight: framesInFlight
+                setting: options.Exposure,
+                framesInFlight: options.FramesInFlight
             )
         );
 
     /// <summary>The batcher of <paramref name="options"/>, which fits the cascade boxes of <see cref="ShadowMap"/>.</summary>
     private SceneBatcher CreateBatcher(RendererOptions options) =>
         new(
-            exposure: options.Exposure,
             cascadedLights: options.CascadedLights,
             shadowMapSize: ShadowMap.Size,
             depthRangeScale: ShadowMap.DepthRangeScale
