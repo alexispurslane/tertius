@@ -2029,8 +2029,31 @@ Two Metal System Traces measured the cost (`tools/gpu-trace.sh`, ter-6vhj). Each
 | direct light | 1.762 ms | 1.716 ms | The sun's tint, one more exponential per lit pixel |
 | environment faces | 0.126 ms | 0.128 ms | The faces' haze, within the noise |
 | ambient light | 0.540 ms | 0.529 ms | The sky pixels read one more constant |
-| exposure | 0.126 ms | 0.069 ms | Not explained: the meter's work does not read the look. The cost comes with the haze pass (paired traces, ter-bgpv), and ter-0y0z looks for its cause |
+| exposure | 0.126 ms | 0.069 ms | Not a cost of the frame: the histogram's clear runs beside the haze pass, and the busy time of both passes counts that time (ter-0y0z, below) |
 | frame span | 9.685 ms | 9.334 ms | |
+
+Ticket ter-0y0z found the cause of the exposure row. The exposure pass starts with the histogram's clear, a `vkCmdFillBuffer`, which MoltenVK records as a compute encoder of its own. The clear does not wait for the HDR image, so the GPU starts it about 0.007 ms after the haze pass's fragment work starts. The clear's interval then lasts until the haze pass ends: the median difference of their ends is 0.001 ms. The likely reason is that the haze's fragments hold the GPU's cores, but no measurement shows it.
+
+A pass's busy time is the union of its encoders' intervals, and the encoders of two passes can overlap (tools/README.md, "GPU trace"). So the busy time of both passes counts the clear's interval, but the frame pays it once. The paired traces of `mars-air` used the method of ter-bgpv: 200 frames at 1920 × 1080 in Release, with the haze pass dropped on every other frame. Each frame without the haze was compared with the mean of its two neighbors with it. The window is the wall-clock GPU time from the end of the reflections' last interval to the start of the bloom's first interval after it. The window counts an overlap once.
+
+The haze pass also has a short interval 5.7 to 7.5 ms before the window, beside the G-buffer and the ambient light pass. That interval adds 0.016 ms in `above` and 0.018 ms in `day`, so the table gives the haze pass's time inside the window. The table gives the differences, with the haze minus without, as medians in ms:
+
+| Trace | Exposure | The clear | The meter | Exposure outside the haze pass | Haze inside the window | The window | The window minus the haze inside it |
+|---|---|---|---|---|---|---|---|
+| `above`, as shipped | +0.102 | +0.121 | −0.019 | −0.022 | +0.145 | +0.163 | +0.016 |
+| `above`, control: the haze in every frame | −0.001 | −0.002 | +0.000 | +0.000 | +0.000 | +0.008 | +0.006 |
+| `day`, as shipped | +0.114 | +0.134 | −0.017 | −0.022 | +0.162 | +0.173 | +0.011 |
+| `above`, the clear waits for the haze pass (temporary probe) | −0.015 | −0.000 | −0.016 | −0.015 | +0.155 | +0.185 | +0.033 |
+
+The last column gives how much the window grows beyond the haze pass's work inside it. As shipped, it is 0.016 ms in `above` and 0.011 ms in `day`, against 0.006 ms in the control. The standard error of each is at most about 0.003 ms. So the frame pays about 0.010 ms more than the haze's own work, which is below ter-bgpv's threshold of 0.02 ms. The cause of that 0.010 ms is not established.
+
+Outside the haze pass, the exposure pass is 0.022 ms faster in a hazed frame. Its meter takes 0.017 to 0.019 ms less, and its clear falls inside the haze pass's interval. Why the meter is faster after the haze is not established.
+
+A barrier that makes the clear wait for the haze pass removes the clear's extra busy time. But then the window grows by 0.033 ms more than the haze's work inside it, against 0.016 ms as shipped. The clear no longer runs beside the haze, so that barrier costs the frame about 0.017 ms. So the renderer keeps its barriers and its order as they are.
+
+Three other candidates were ruled out. The haze pass's barrier on the exposure buffer records nothing, because that buffer is already in a read state that covers the fragment stage. A probe whose haze blend writes the image unchanged keeps the blend and the image's layout, but its fragments are cheap. With it, the clear grows by only 0.010 ms, and the exposure pass's difference is −0.011 ms. A probe whose meter gives each invocation its own bin, so that no two atomic adds share an address, still has a difference of +0.148 ms. So the extra time follows the haze's fragment work, not the image's state or the meter's atomics. The ter-0y0z ticket note holds every probe and its numbers.
+
+The exposure row from ter-6vhj has the same cause: those traces measured the day view, whose paired traces show the same overlap. Its difference, 0.126 − 0.069 = 0.057 ms, is about half of the paired +0.114 ms. Its two runs were not paired, and separate runs drift by about 13 % in every pass. Its haze pass also took 0.126 ms, against 0.186 ms in the paired `day` trace, and the clear's extra time follows the haze's work in the window. No measurement splits the gap between these two reasons.
 
 Since ter-uu2y, every view of a world with a planet medium has an atmosphere, because a camera off every planet's chain takes the air that is densest at its eye. Ticket ter-bgpv measured the cost of air that a view cannot show with paired Metal System Traces (`tools/gpu-trace.sh`, frames with and without the record alternate). No shipped view pays more than the noise of that statistic, a control difference of at most 0.007 ms, which is below the ticket's 0.02 ms threshold. So the renderer has no skip. Only `mars-air` paints a haze, and each of its views shows the air. Over Earth's air, which paints nothing, the haze pass does no GPU work, and the sun's tint costs the direct light no more than the control's noise. The decision holds while no shipped scene gives a haze to an air whose views can leave the planet out of view. Such a scene re-opens the skip, and the ter-bgpv ticket note holds the shader facts for it: the haze has no cut-off radius, and the sun's tint is taken at the lit point only.
 
