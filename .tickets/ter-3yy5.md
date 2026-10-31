@@ -1,6 +1,6 @@
 ---
 id: ter-3yy5
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-10-27T13:14:42Z
