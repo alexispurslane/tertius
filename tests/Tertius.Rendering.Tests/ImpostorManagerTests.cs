@@ -25,7 +25,9 @@ public sealed class ImpostorManagerTests
             IndexCount: (uint)MorphingBoxData.Indices.Length,
             VertexOffset: 324,
             Radius: GeometryStore.Radius(MorphingBoxData.Vertices),
-            Deform: MeshDeform.Pack(MorphingBoxData)!.Deform
+            Deform: MeshDeform
+                .Pack(MorphingBoxData, MeshCards.Number(MorphingBoxData.Vertices, MorphingBoxData.Indices))!
+                .Deform
         ),
     ];
 

@@ -125,11 +125,11 @@ public sealed class SkinScatterRenderTests
             .Should()
             .BeLessThanOrEqualTo((float)tolerance, "{0}: shown {1}, expected {2}", because, actual, expected);
 
-    /// <summary>The shading model's code of each pixel, from the shading target's alpha.</summary>
+    /// <summary>The shading model's code of each pixel, from bits 0 and 1 of the shading target's alpha.</summary>
     private static uint[] Models(VulkanRenderer renderer)
     {
         byte[] shading = renderer.ReadShading();
-        return [.. Enumerable.Range(0, Width * Height).Select(pixel => (uint)shading[pixel * 4 + 3])];
+        return [.. Enumerable.Range(0, Width * Height).Select(pixel => (uint)shading[pixel * 4 + 3] & 0b11)];
     }
 
     /// <summary>

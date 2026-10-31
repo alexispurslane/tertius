@@ -19,8 +19,12 @@ public sealed class BatcherDeformTests
 
     private static readonly MeshData CylinderData = Primitives.BendingCylinder(radius: 0.2f, length: 2f);
     private static readonly MeshData BoxData = Primitives.MorphingBox(new(0.5f));
-    private static readonly MeshDeform CylinderDeform = MeshDeform.Pack(CylinderData)!.Deform;
-    private static readonly MeshDeform BoxDeform = MeshDeform.Pack(BoxData)!.Deform;
+    private static readonly MeshDeform CylinderDeform = MeshDeform
+        .Pack(CylinderData, MeshCards.Number(CylinderData.Vertices, CylinderData.Indices))!
+        .Deform;
+    private static readonly MeshDeform BoxDeform = MeshDeform
+        .Pack(BoxData, MeshCards.Number(BoxData.Vertices, BoxData.Indices))!
+        .Deform;
 
     /// <summary>A rigid box, the bending cylinder and the morphing box, with the box's indices first.</summary>
     private static readonly MeshInfo[] Meshes =

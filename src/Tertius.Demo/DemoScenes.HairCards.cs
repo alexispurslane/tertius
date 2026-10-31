@@ -20,7 +20,14 @@ public static partial class DemoScenes
         [
             new("hair-cards", (world, resources) => HairCards(world, resources, toSun: new(0.3, 0.6, 1))),
             new("hair-cards-backlit", (world, resources) => HairCards(world, resources, toSun: new(0.25, 0.45, -1))),
+            new("hair-bent-cards", HairBentCards),
         ];
+
+    /// <summary>The segments of each bent card of the hair-bent-cards scene, along its strands.</summary>
+    private const int BentCardSegments = 6;
+
+    /// <summary>The turn between two neighbor segments of a bent card, in radians: 12°, below the 35° of smooth shading.</summary>
+    private const float BentCardBend = 12 * MathF.PI / 180;
 
     /// <summary>
     /// Two fans of upright square cards on the gray floor of <see cref="EarthSurface"/>, under the sun along
@@ -83,6 +90,114 @@ public static partial class DemoScenes
         scene.AddView("back-camera");
         world.Camera = frontCamera;
         return scene;
+    }
+
+    /// <summary>
+    /// The review scene of a hair card's own shadowing under the screen-space light (ticket ter-3yy5): two fans of brown
+    /// hair cards on the gray floor of <see cref="EarthSurface"/>, under the sun of the hair-cards scene and its sky.
+    /// <list type="bullet">
+    /// <item>The fan <c>flat-0</c> to <c>flat-4</c> on the -X side holds the flat cards of the hair-cards scene.</item>
+    /// <item>The fan <c>bent-0</c> to <c>bent-4</c> on the +X side holds smooth-shaded cards of the same size that curl
+    /// back along their strands (<see cref="BentCardMesh"/>), as a hair card of MPFB does.</item>
+    /// <item>The view <c>front-camera</c> looks at the fans' fronts from 6 m along +Z and 1.6 m up, and the view
+    /// <c>bent-camera</c> at the bent fan's fronts from 2.2 m, at their height.</item>
+    /// </list>
+    /// </summary>
+    private static SceneInstance HairBentCards(World world, IRenderResources resources)
+    {
+        var scene = new SceneInstance();
+        FrameHandle surface = EarthSurface(
+            world: world,
+            resources: resources,
+            scene: scene,
+            floorHalfExtents: new(10, 0.5f, 10)
+        );
+        ReviewSky(world);
+        world.VerticalFov = 40 * MathF.PI / 180;
+
+        var brown = new Vector4(x: 0.45f, y: 0.25f, z: 0.12f, w: 1);
+        MaterialId hair = resources.CreateMaterial(
+            new(BaseColor: brown, Roughness: 0.35f, Reflectance: 0.5f, Model: new HairShading(StrandDirection.PlusV))
+        );
+        HairCardFan(
+            world: world,
+            scene: scene,
+            surface: surface,
+            name: "flat",
+            mesh: resources.CreateMesh(Primitives.Plane(HairCardHalfSize)),
+            material: hair,
+            centerX: -2
+        );
+        HairCardFan(
+            world: world,
+            scene: scene,
+            surface: surface,
+            name: "bent",
+            mesh: resources.CreateMesh(BentCardMesh()),
+            material: hair,
+            centerX: 2
+        );
+
+        var target = new Double3(0, EarthRadius + 0.5, 0);
+        Entity frontCamera = world.Spawn(ViewIn(surface, LookingAt(new(0, EarthRadius + 1.6, 6), target)));
+        scene.Add("front-camera", frontCamera);
+        scene.Add(
+            "bent-camera",
+            world.Spawn(ViewIn(surface, LookingAt(new(2, EarthRadius + 0.7, 2.2), new(2, EarthRadius + 0.6, 0))))
+        );
+        Star(world: world, scene: scene, frame: surface, center: new(0, EarthRadius, 0), direction: new(0.3, 0.6, 1));
+
+        scene.AddView("front-camera");
+        scene.AddView("bent-camera");
+        world.Camera = frontCamera;
+        return scene;
+    }
+
+    /// <summary>
+    /// A hair card in the plane mesh's frame, as long and as wide as <see cref="Primitives.Plane"/> of
+    /// <see cref="HairCardHalfSize"/>: one strip of <see cref="BentCardSegments"/> segments along +Z, its texture's v,
+    /// each turned by <see cref="BentCardBend"/> from the one before toward -Y, behind its front. It is smooth-shaded: a
+    /// vertex between two segments takes the normal halfway between theirs, and an end vertex its segment's normal.
+    /// </summary>
+    private static MeshData BentCardMesh()
+    {
+        const float length = 2 * HairCardHalfSize;
+        const float segmentLength = length / BentCardSegments;
+        static Vector3 Along(float angle) => new(0, -MathF.Sin(angle), MathF.Cos(angle));
+        static Vector3 FrontOf(float angle) => new(0, MathF.Cos(angle), MathF.Sin(angle));
+
+        var rows = new Vector3[BentCardSegments + 1];
+        for (int segment = 0; segment < BentCardSegments; segment++)
+            rows[segment + 1] = rows[segment] + segmentLength * Along(segment * BentCardBend);
+        // The middle of the strip at the origin, so the card turns about it.
+        Vector3 middle = (rows[0] + rows[BentCardSegments]) / 2;
+        var vertices = new Vertex[2 * rows.Length];
+        for (int row = 0; row < rows.Length; row++)
+        {
+            float normalAngle = Math.Clamp(row - 0.5f, 0, BentCardSegments - 1) * BentCardBend;
+            for (int side = 0; side < 2; side++)
+                vertices[2 * row + side] = new()
+                {
+                    Position = rows[row] - middle + new Vector3((2 * side - 1) * HairCardHalfSize, 0, 0),
+                    Normal = FrontOf(normalAngle),
+                    Tangent = new(x: 1, y: 0, z: 0, w: 1),
+                    TexCoord = new(side, (float)row / BentCardSegments),
+                };
+        }
+
+        uint[] indices = new uint[6 * BentCardSegments];
+        for (int segment = 0; segment < BentCardSegments; segment++)
+        {
+            uint left = (uint)(2 * segment),
+                right = left + 1,
+                nextLeft = left + 2,
+                nextRight = left + 3;
+            // Counterclockwise seen from the front, as the plane mesh's.
+            ReadOnlySpan<uint> quad = [left, nextRight, right, left, nextLeft, nextRight];
+            quad.CopyTo(indices.AsSpan(6 * segment));
+        }
+
+        return new(vertices, indices);
     }
 
     /// <summary>

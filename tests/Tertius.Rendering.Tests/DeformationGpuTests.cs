@@ -50,9 +50,9 @@ public sealed class DeformationGpuTests
         );
 
     /// <summary>Every vertex of <paramref name="mesh"/> deformed in C# by the still <paramref name="pose"/>.</summary>
-    private static Vertex[] Expected(MeshData mesh, RigPose pose)
+    private static GpuVertex[] Expected(MeshData mesh, RigPose pose)
     {
-        PackedDeform packed = MeshDeform.Pack(mesh)!;
+        PackedDeform packed = MeshDeform.Pack(mesh, MeshCards.Number(mesh.Vertices, mesh.Indices))!;
         var rows = new Vector4[packed.Deform.PoseRows];
         packed.Deform.PoseInto(
             previousJoints: pose.Joints.AsSpan(),
@@ -79,7 +79,7 @@ public sealed class DeformationGpuTests
     /// Every number of <paramref name="actual"/> lies within 10^−5 × (1 + |expected|) of <paramref name="expected"/>: the GPU
     /// may fuse a multiply and an add (docs/plans/skinning-and-morphs.md, "The math, and its C# copy").
     /// </summary>
-    private static void ShouldMatch(ReadOnlySpan<Vertex> actual, Vertex[] expected, string copy)
+    private static void ShouldMatch(ReadOnlySpan<GpuVertex> actual, GpuVertex[] expected, string copy)
     {
         actual.Length.Should().Be(expected.Length, "{0} has one vertex per vertex of its mesh", copy);
         for (int i = 0; i < expected.Length; i++)
@@ -101,7 +101,7 @@ public sealed class DeformationGpuTests
         }
     }
 
-    private static float[] Numbers(in Vertex v) =>
+    private static float[] Numbers(in GpuVertex v) =>
         [
             v.Position.X,
             v.Position.Y,
@@ -125,7 +125,7 @@ public sealed class DeformationGpuTests
     }
 
     /// <summary>Renders one still frame of a single posed mesh and gives its copy and the C# copy.</summary>
-    private static (Vertex[] Shown, Vertex[] Expected) DeformOne(MeshData mesh, RigPose pose)
+    private static (GpuVertex[] Shown, GpuVertex[] Expected) DeformOne(MeshData mesh, RigPose pose)
     {
         VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
         try
@@ -150,7 +150,7 @@ public sealed class DeformationGpuTests
     {
         MeshData cylinder = Cylinder();
         Rig rig = cylinder.Rigging!.Rig;
-        (Vertex[] shown, Vertex[] expected) = DeformOne(cylinder, BentTip(rig.Rest, rig, angle: 1.1f));
+        (GpuVertex[] shown, GpuVertex[] expected) = DeformOne(cylinder, BentTip(rig.Rest, rig, angle: 1.1f));
 
         ShouldMatch(shown, expected, "the bent cylinder");
     }
@@ -160,7 +160,7 @@ public sealed class DeformationGpuTests
     {
         MeshData box = Primitives.MorphingBox(new(0.5f, 0.3f, 0.4f));
         RigPose pose = box.Rigging!.Rig.Rest with { Weights = [0.5f, -0.75f] };
-        (Vertex[] shown, Vertex[] expected) = DeformOne(box, pose);
+        (GpuVertex[] shown, GpuVertex[] expected) = DeformOne(box, pose);
 
         ShouldMatch(shown, expected, "the stretched, leaning box");
     }
@@ -171,7 +171,7 @@ public sealed class DeformationGpuTests
         MeshData cylinder = Primitives.TwistingBendingCylinder(radius: Radius, length: Length);
         Rig rig = cylinder.Rigging!.Rig;
         RigPose pose = BentTip(rig.Rest, rig, angle: -0.8f) with { Weights = [0.6f] };
-        (Vertex[] shown, Vertex[] expected) = DeformOne(cylinder, pose);
+        (GpuVertex[] shown, GpuVertex[] expected) = DeformOne(cylinder, pose);
 
         ShouldMatch(shown, expected, "the twisted, bent cylinder");
     }
@@ -186,10 +186,32 @@ public sealed class DeformationGpuTests
             Vertices = [.. cylinder.Vertices.Select(v => v with { Tangent = v.Tangent with { W = -1 } })],
         };
         Rig rig = mirrored.Rigging!.Rig;
-        (Vertex[] shown, Vertex[] expected) = DeformOne(mirrored, BentTip(rig.Rest, rig, angle: 0.5f));
+        (GpuVertex[] shown, GpuVertex[] expected) = DeformOne(mirrored, BentTip(rig.Rest, rig, angle: 0.5f));
 
         ShouldMatch(shown, expected, "the mirrored cylinder");
         shown.Should().OnlyContain(v => v.Tangent.W == -1, "a morph or a skin never flips the sign");
+    }
+
+    [Fact]
+    public void ADeformedCopyCarriesTheCardNumbersOfItsMesh()
+    {
+        // Two cylinders 0.5 m apart in one mesh, with one skin: two cards.
+        MeshData one = Cylinder();
+        MeshSkin skin = one.Rigging!.Skin!;
+        var two = new MeshData(
+            [.. one.Vertices, .. one.Vertices.Select(v => v with { Position = v.Position + new Vector3(0.5f, 0, 0) })],
+            [.. one.Indices, .. one.Indices.Select(index => index + (uint)one.Vertices.Length)]
+        )
+        {
+            Rigging = one.Rigging with { Skin = skin with { Vertices = [.. skin.Vertices, .. skin.Vertices] } },
+        };
+        Rig rig = two.Rigging.Rig;
+        uint[] cards = MeshCards.Number(two.Vertices, two.Indices);
+        cards.Distinct().Should().HaveCount(2, "the test needs a mesh of two cards");
+
+        (GpuVertex[] shown, _) = DeformOne(two, BentTip(rig.Rest, rig, angle: 0.7f));
+
+        shown.Select(v => v.Card).Should().Equal(cards, "a morph or a skin never moves a vertex to another card");
     }
 
     [Fact]
@@ -211,7 +233,7 @@ public sealed class DeformationGpuTests
             AddStillPose(snapshot, instance: 1, pose: right);
 
             renderer.Render(snapshot, 1f);
-            Vertex[] shown = renderer.ReadDeformedVertices();
+            GpuVertex[] shown = renderer.ReadDeformedVertices();
 
             int count = cylinder.Vertices.Length;
             shown.Should().HaveCount(2 * count, "each posed instance has its own copy");
@@ -256,7 +278,7 @@ public sealed class DeformationGpuTests
             }
 
             renderer.Render(snapshot, 1f);
-            Vertex[] shown = renderer.ReadDeformedVertices();
+            GpuVertex[] shown = renderer.ReadDeformedVertices();
 
             renderer
                 .Graph.Passes.OfType<DeformPass>()
@@ -459,7 +481,7 @@ public sealed class DeformationGpuTests
             // Once in each frame slot: the slot that drew the box before the growth must follow the grown store too.
             renderer.Render(snapshot, 1f);
             renderer.Render(snapshot, 1f);
-            Vertex[] shown = renderer.ReadDeformedVertices();
+            GpuVertex[] shown = renderer.ReadDeformedVertices();
 
             int boxVertices = box.Vertices.Length;
             ShouldMatch(

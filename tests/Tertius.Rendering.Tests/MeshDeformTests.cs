@@ -22,7 +22,8 @@ public sealed class MeshDeformTests
 
     private static MeshData TwistingCylinder() => Primitives.TwistingBendingCylinder(radius: Radius, length: Length);
 
-    private static PackedDeform Packed(MeshData mesh) => MeshDeform.Pack(mesh)!;
+    private static PackedDeform Packed(MeshData mesh) =>
+        MeshDeform.Pack(mesh, MeshCards.Number(mesh.Vertices, mesh.Indices))!;
 
     /// <summary>The pose rows of <paramref name="previous"/> and <paramref name="current"/> at <paramref name="alpha"/>, and the posed bound.</summary>
     private static (Vector4[] Rows, float Bound) Rows(MeshDeform deform, RigPose previous, RigPose current, float alpha)
@@ -40,7 +41,7 @@ public sealed class MeshDeformTests
     }
 
     /// <summary>Every vertex of <paramref name="mesh"/> deformed by the rig pose between two ends, and the posed bound.</summary>
-    private static (Vertex[] Vertices, float Bound) Deform(
+    private static (GpuVertex[] Vertices, float Bound) Deform(
         MeshData mesh,
         RigPose previous,
         RigPose current,
@@ -49,7 +50,7 @@ public sealed class MeshDeformTests
     {
         PackedDeform packed = Packed(mesh);
         (Vector4[] rows, float bound) = Rows(deform: packed.Deform, previous: previous, current: current, alpha: alpha);
-        Vertex[] vertices =
+        GpuVertex[] vertices =
         [
             .. packed.Vertices.Select(source =>
                 MeshDeform.Deformed(
@@ -63,7 +64,7 @@ public sealed class MeshDeformTests
         return (vertices, bound);
     }
 
-    private static (Vertex[] Vertices, float Bound) Deform(MeshData mesh, RigPose pose) =>
+    private static (GpuVertex[] Vertices, float Bound) Deform(MeshData mesh, RigPose pose) =>
         Deform(mesh: mesh, previous: pose, current: pose, alpha: 1);
 
     private static RigPose WithJoint(RigPose pose, int joint, Pose value) =>
@@ -223,15 +224,19 @@ public sealed class MeshDeformTests
     }
 
     [Fact]
-    public void PackGivesNothingForAMeshWithoutRigging() =>
-        MeshDeform.Pack(Primitives.Box(Vector3.One)).Should().BeNull();
+    public void PackGivesNothingForAMeshWithoutRigging()
+    {
+        MeshData box = Primitives.Box(Vector3.One);
+
+        MeshDeform.Pack(box, MeshCards.Number(box.Vertices, box.Indices)).Should().BeNull();
+    }
 
     [Fact]
     public void RestPoseLeavesEveryVertexInPlace()
     {
         MeshData mesh = TwistingCylinder();
 
-        (Vertex[] deformed, _) = Deform(mesh, mesh.Rigging!.Rig.Rest);
+        (GpuVertex[] deformed, _) = Deform(mesh, mesh.Rigging!.Rig.Rest);
 
         for (int index = 0; index < mesh.Vertices.Length; index++)
         {
@@ -246,7 +251,7 @@ public sealed class MeshDeformTests
     {
         MeshData mesh = Cylinder();
 
-        (Vertex[] deformed, _) = Deform(mesh, BentTip(mesh));
+        (GpuVertex[] deformed, _) = Deform(mesh, BentTip(mesh));
 
         int checkedVertices = 0;
         for (int index = 0; index < mesh.Vertices.Length; index++)
@@ -268,7 +273,7 @@ public sealed class MeshDeformTests
     {
         MeshData mesh = Cylinder();
 
-        (Vertex[] deformed, _) = Deform(mesh, BentTip(mesh));
+        (GpuVertex[] deformed, _) = Deform(mesh, BentTip(mesh));
 
         int middle = Rings / 2 * (Segments + 1);
         for (int index = middle; index < middle + Segments + 1; index++)
@@ -285,7 +290,7 @@ public sealed class MeshDeformTests
         var halfExtents = new Vector3(1, 0.5f, 0.25f);
         MeshData box = Primitives.MorphingBox(halfExtents);
 
-        (Vertex[] deformed, _) = Deform(box, WithWeights(box.Rigging!.Rig.Rest, 1, 0));
+        (GpuVertex[] deformed, _) = Deform(box, WithWeights(box.Rigging!.Rig.Rest, 1, 0));
 
         for (int index = 0; index < box.Vertices.Length; index++)
         {
@@ -301,7 +306,7 @@ public sealed class MeshDeformTests
         var halfExtents = new Vector3(1, 0.5f, 0.25f);
         MeshData box = Primitives.MorphingBox(halfExtents);
 
-        (Vertex[] deformed, _) = Deform(box, WithWeights(box.Rigging!.Rig.Rest, 0, 0.5f));
+        (GpuVertex[] deformed, _) = Deform(box, WithWeights(box.Rigging!.Rig.Rest, 0, 0.5f));
 
         for (int index = 0; index < box.Vertices.Length; index++)
         {
@@ -323,7 +328,7 @@ public sealed class MeshDeformTests
             ],
         };
 
-        (Vertex[] deformed, _) = Deform(mesh, WithWeights(mesh.Rigging!.Rig.Rest, 1));
+        (GpuVertex[] deformed, _) = Deform(mesh, WithWeights(mesh.Rigging!.Rig.Rest, 1));
 
         for (int index = 0; index < mesh.Vertices.Length; index++)
         {
@@ -343,7 +348,7 @@ public sealed class MeshDeformTests
         Vector3 position = mesh.Vertices[top].Position;
         Vector3 delta = mesh.Rigging!.Morphs[0].Positions[top];
 
-        (Vertex[] deformed, _) = Deform(mesh, pose);
+        (GpuVertex[] deformed, _) = Deform(mesh, pose);
 
         ShouldBeClose(
             deformed[top].Position,
@@ -369,7 +374,7 @@ public sealed class MeshDeformTests
         );
         MeshData flat = box with { Rigging = new(new([], [new(Name: "Flatten", Rest: 1)]), Skin: null, [flatten]) };
 
-        (Vertex[] cancelled, _) = Deform(flat, flat.Rigging!.Rig.Rest);
+        (GpuVertex[] cancelled, _) = Deform(flat, flat.Rigging!.Rig.Rest);
 
         cancelled
             .Should()
@@ -384,7 +389,7 @@ public sealed class MeshDeformTests
                 WithJoint(mesh.Rigging!.Rig.Rest, Tip, new(new(0, 1, 0), RandomRotation(random))),
                 (float)(random.NextDouble() * 4 - 2)
             );
-            (Vertex[] deformed, _) = Deform(mesh, pose);
+            (GpuVertex[] deformed, _) = Deform(mesh, pose);
             deformed
                 .Should()
                 .AllSatisfy(vertex =>
@@ -489,7 +494,12 @@ public sealed class MeshDeformTests
             RigPose current = RandomPose(rest, random);
             float alpha = (float)random.NextDouble();
 
-            (Vertex[] deformed, float bound) = Deform(mesh: mesh, previous: previous, current: current, alpha: alpha);
+            (GpuVertex[] deformed, float bound) = Deform(
+                mesh: mesh,
+                previous: previous,
+                current: current,
+                alpha: alpha
+            );
 
             float farthest = deformed.Max(vertex => vertex.Position.Length());
             farthest.Should().BeLessThanOrEqualTo(bound * (1 + 1e-5f), $"trial {trial}");
@@ -644,7 +654,7 @@ public sealed class MeshDeformTests
         MeshData mesh = Cylinder();
         var basePose = new Pose(new(1, 2, 3), Quaternion.CreateFromAxisAngle(Vector3.UnitX, 0.7f));
 
-        (Vertex[] deformed, _) = Deform(mesh, WithJoint(mesh.Rigging!.Rig.Rest, 0, basePose));
+        (GpuVertex[] deformed, _) = Deform(mesh, WithJoint(mesh.Rigging!.Rig.Rest, 0, basePose));
 
         for (int index = 0; index < mesh.Vertices.Length; index++)
             ShouldBeClose(
@@ -683,7 +693,7 @@ public sealed class MeshDeformTests
         );
         MeshData mesh = box with { Rigging = new(rig, skin, []) };
 
-        (Vertex[] deformed, _) = Deform(mesh, WithJoint(rig.Rest, 0, step with { Rotation = QuarterTurnAboutZ }));
+        (GpuVertex[] deformed, _) = Deform(mesh, WithJoint(rig.Rest, 0, step with { Rotation = QuarterTurnAboutZ }));
 
         for (int index = 0; index < box.Vertices.Length; index++)
             ShouldBeClose(

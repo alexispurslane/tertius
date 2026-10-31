@@ -258,16 +258,16 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
                 HalfSize: (Width: halfWidth, Height: halfHeight),
                 Source: renderer.ReadDiffuse(),
                 Normals: renderer.ReadNormals(),
-                SubPixelPrecisionBits: (int)renderer.SubPixelPrecisionBits
+                Shading: shading
             );
             double brightest = images.Source.Where((_, i) => i % 4 != 3).Max();
 
             foreach (Vector3 point in OnTheHairCard)
             {
                 (int X, int Y) texel = TexelOf(point);
-                shading[(2 * texel.Y * Width + 2 * texel.X) * 4 + 3]
+                (shading[(2 * texel.Y * Width + 2 * texel.X) * 4 + 3] & 0b11)
                     .Should()
-                    .Be((byte)ShadingCode.Hair, "the receiver at {0} is a hair pixel", point);
+                    .Be((int)ShadingCode.Hair, "the receiver at {0} is a hair pixel", point);
                 (NearTexel expected, int onOwnCard) = images.NearHair(texel, setting);
                 onOwnCard.Should().BePositive("the test needs steps that read the receiver's own card at {0}", point);
                 expected
@@ -861,20 +861,20 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
 
     /// <summary>
     /// The images of the corner with the hair card that the sector pass reads, as the renderer read them back: the view
-    /// depth of each half-resolution texel, the diffuse image, the bounce source where nothing glows, and the normals
-    /// target, whose normals the C# copy decodes as the pass does, and the device's sub-pixel precision.
+    /// depth of each half-resolution texel, the diffuse image, the bounce source where nothing glows, the normals target,
+    /// whose normals the C# copy decodes as the pass does, and the shading target, which holds each hair pixel's card.
     /// </summary>
     private sealed record HairCardImages(
         float[] ViewDepth,
         (int Width, int Height) HalfSize,
         float[] Source,
         float[] Normals,
-        int SubPixelPrecisionBits
+        byte[] Shading
     )
     {
         /// <summary>
         /// The near slices of the hair receiver at <paramref name="texel"/> by the C# copy, whose own surface is its
-        /// card, and how many of its steps read a point of the card's plane.
+        /// card, and how many of its steps read a pixel of its card.
         /// </summary>
         public (NearTexel Texel, int OnOwnCard) NearHair((int X, int Y) texel, VisibilityBitmaskLight setting)
         {
@@ -884,7 +884,7 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
             int pixel = 2 * texel.Y * Width + 2 * texel.X;
             Double3 fiberNormal = ToView(StoredNormal(Normals, pixel, channel: 0));
             Double3 geometricNormal = ToView(StoredNormal(Normals, pixel, channel: 2));
-            OwnCard card = CardOf(receiverPoint: ViewPosition(texel, z), geometricNormal: geometricNormal);
+            var card = new OwnCard(CardAt(pixel)!.Value);
             (float sliceNoise, float stepNoise) = OcclusionNoise.At((uint)texel.X, (uint)texel.Y);
             double radiusInTexels = setting.RadiusMeters / HorizonSearch.TexelWidth(z, TanHalfX, Width);
             var slices = new NearSlice[setting.Slices];
@@ -934,16 +934,8 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
             );
         }
 
-        /// <summary>The own card of a hair receiver at <paramref name="receiverPoint"/>, as the sectors pass tests it on this device.</summary>
-        private OwnCard CardOf(Double3 receiverPoint, Double3 geometricNormal) =>
-            new(
-                Point: receiverPoint,
-                Normal: geometricNormal,
-                VertexSnap: OwnCard.SnapPerMeter(
-                    pixelWidth: 2 * TanHalfX / Width,
-                    subPixelPrecisionBits: SubPixelPrecisionBits
-                )
-            );
+        /// <summary>The card code of the pixel of index <paramref name="pixel"/>, or null where it is not hair.</summary>
+        private uint? CardAt(int pixel) => CardCode.Read(b: Shading[pixel * 4 + 2], a: Shading[pixel * 4 + 3]);
 
         /// <summary>What a step reads at <paramref name="texel"/>, or null for sky: its geometric normal as the normals target stores it.</summary>
         private StepTexel? StepTexelAt((int X, int Y) texel)
@@ -954,7 +946,8 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
             return new StepTexel(
                 Position: ViewPosition(texel, DepthAt(texel)),
                 GeometricNormal: ToView(StoredNormal(Normals, pixel, channel: 2)),
-                DirectLight: new(Source[pixel * 4], Source[pixel * 4 + 1], Source[pixel * 4 + 2])
+                DirectLight: new(Source[pixel * 4], Source[pixel * 4 + 1], Source[pixel * 4 + 2]),
+                Card: CardAt(pixel)
             );
         }
 

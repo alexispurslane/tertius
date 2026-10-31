@@ -15,24 +15,24 @@ public sealed class DeformRegionTests
         GeometryStore.RegionCapacityFor(vertices: 4_096, maxRegion: 1 << 20).Should().Be(4_096);
 
     [Fact]
-    public void RegionHoldsAtLeastSixteenVertices() =>
+    public void RegionHoldsAtLeastSixtyFourVertices() =>
         GeometryStore
             .RegionCapacityFor(vertices: 3, maxRegion: 1 << 20)
             .Should()
-            .Be(16, "the region's capacity stays a multiple of 768 bytes");
+            .Be(64, "the region's capacity stays a multiple of 3,328 bytes, 13 times 256");
 
     [Fact]
     public void RegionStopsAtTheMostThatItsWindowHolds() =>
-        GeometryStore.RegionCapacityFor(vertices: 3_000_000, maxRegion: 2_796_192).Should().Be(2_796_192);
+        GeometryStore.RegionCapacityFor(vertices: 3_000_000, maxRegion: 2_581_056).Should().Be(2_581_056);
 
     [Fact]
-    public void LargestRegionIsAMultipleOfSixteenVerticesWithinTheStorageRange()
+    public void LargestRegionIsAMultipleOfSixtyFourVerticesWithinTheStorageRange()
     {
         // The spec's least maxStorageBufferRange, 2^27 bytes.
         int largest = GeometryStore.MaxRegion(1u << 27);
 
-        largest.Should().Be(2_796_192, "2^27 / 48 is 2,796,202.67, and the multiple of 16 below it is 2,796,192");
-        ((long)largest * 48).Should().BeLessThanOrEqualTo(1L << 27);
+        largest.Should().Be(2_581_056, "2^27 / 52 is 2,581,110.15, and the multiple of 64 below it is 2,581,056");
+        ((long)largest * 52).Should().BeLessThanOrEqualTo(1L << 27);
     }
 
     [Fact]

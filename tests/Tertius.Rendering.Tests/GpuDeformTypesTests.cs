@@ -12,9 +12,9 @@ public sealed class GpuDeformTypesTests
     private static int Offset<T>(string field) => (int)Marshal.OffsetOf<T>(field);
 
     [Fact]
-    public void GpuDeformVertexIs80Bytes()
+    public void GpuDeformVertexIs96Bytes()
     {
-        Unsafe.SizeOf<GpuDeformVertex>().Should().Be(80);
+        Unsafe.SizeOf<GpuDeformVertex>().Should().Be(96, "std430 rounds 84 bytes of members up to the vec4's 16");
         Offset<GpuDeformVertex>(nameof(GpuDeformVertex.Position)).Should().Be(0);
         Offset<GpuDeformVertex>(nameof(GpuDeformVertex.MorphStart)).Should().Be(12);
         Offset<GpuDeformVertex>(nameof(GpuDeformVertex.Normal)).Should().Be(16);
@@ -24,6 +24,7 @@ public sealed class GpuDeformTypesTests
         Offset<GpuDeformVertex>(nameof(GpuDeformVertex.Joints01)).Should().Be(56);
         Offset<GpuDeformVertex>(nameof(GpuDeformVertex.Joints23)).Should().Be(60);
         Offset<GpuDeformVertex>(nameof(GpuDeformVertex.Weights)).Should().Be(64);
+        Offset<GpuDeformVertex>(nameof(GpuDeformVertex.Card)).Should().Be(80);
     }
 
     [Fact]

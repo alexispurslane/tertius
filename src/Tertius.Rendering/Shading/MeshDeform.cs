@@ -63,7 +63,8 @@ internal sealed partial record MeshDeform
     /// The deform vertices, the sparse deltas, the influence spheres and the longest deltas of <paramref name="mesh"/>, or
     /// null for a mesh without rigging. <see cref="UploadQueue.AddMesh"/> has checked the rigging.
     /// </summary>
-    public static PackedDeform? Pack(MeshData mesh)
+    /// <param name="cards">The card number of each vertex, <see cref="MeshCards.Number"/> of the mesh.</param>
+    public static PackedDeform? Pack(MeshData mesh, uint[] cards)
     {
         if (mesh.Rigging is not { } rigging)
             return null;
@@ -81,7 +82,8 @@ internal sealed partial record MeshDeform
                 vertex: GeometryStore.Staged(vertices[index]),
                 skin: rigging.Skin?.Vertices[index],
                 morphStart: start,
-                morphCount: deltas.Count - start
+                morphCount: deltas.Count - start,
+                card: cards[index]
             );
         }
 
@@ -145,7 +147,7 @@ internal sealed partial record MeshDeform
     /// One vertex after its morphs and its skin, as deform.comp writes it: <paramref name="deltas"/> are the vertex's own
     /// deltas, and <paramref name="rows"/> the job's pose rows of <paramref name="paletteJoints"/> palette joints.
     /// </summary>
-    public static Vertex Deformed(
+    public static GpuVertex Deformed(
         in GpuDeformVertex source,
         ReadOnlySpan<GpuMorphDelta> deltas,
         ReadOnlySpan<Vector4> rows,
@@ -187,6 +189,7 @@ internal sealed partial record MeshDeform
             Normal = NormalizedOr(sn),
             Tangent = new(NormalizedOr(st), source.Tangent.W),
             TexCoord = source.TexCoord,
+            Card = source.Card,
         };
     }
 
@@ -333,7 +336,7 @@ internal sealed partial record MeshDeform
     }
 
     /// <summary>A staged vertex with its morph list and its skin, or one identity joint for a mesh without a skin.</summary>
-    private static GpuDeformVertex Packed(in Vertex vertex, VertexSkin? skin, int morphStart, int morphCount)
+    private static GpuDeformVertex Packed(in Vertex vertex, VertexSkin? skin, int morphStart, int morphCount, uint card)
     {
         (uint joints01, uint joints23, Vector4 weights) = skin switch
         {
@@ -355,6 +358,7 @@ internal sealed partial record MeshDeform
             Joints01 = joints01,
             Joints23 = joints23,
             Weights = weights,
+            Card = card,
         };
     }
 

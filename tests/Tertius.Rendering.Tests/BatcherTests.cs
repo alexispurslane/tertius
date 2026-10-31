@@ -2058,8 +2058,9 @@ public sealed class BatcherTests
     [Fact]
     public void GpuStructsMatchTheShaderLayouts()
     {
-        Unsafe.SizeOf<GpuInstance>().Should().Be(96, "std430 rounds 84 bytes of members up to the vec4's 16");
+        Unsafe.SizeOf<GpuInstance>().Should().Be(96, "std430 rounds 92 bytes of members up to the vec4's 16");
         ((int)Marshal.OffsetOf<GpuInstance>(nameof(GpuInstance.Map))).Should().Be(80);
+        ((int)Marshal.OffsetOf<GpuInstance>(nameof(GpuInstance.PlacedIndex))).Should().Be(88);
         Unsafe.SizeOf<GpuMaterial>().Should().Be(64, "std430 rounds a struct with a vec4 up to 16 bytes");
         ((int)Marshal.OffsetOf<GpuMaterial>(nameof(GpuMaterial.Metallic))).Should().Be(28);
         ((int)Marshal.OffsetOf<GpuMaterial>(nameof(GpuMaterial.MetallicRoughnessMap))).Should().Be(48);
@@ -2101,14 +2102,16 @@ public sealed class BatcherTests
         ((int)Marshal.OffsetOf<EnvironmentDownsamplePushConstants>(nameof(EnvironmentDownsamplePushConstants.Map)))
             .Should()
             .Be(8);
-        Unsafe.SizeOf<OcclusionPushConstants>().Should().Be(20);
+        Unsafe.SizeOf<OcclusionPushConstants>().Should().Be(16);
         ((int)Marshal.OffsetOf<OcclusionPushConstants>(nameof(OcclusionPushConstants.RadiusMeters))).Should().Be(0);
         ((int)Marshal.OffsetOf<OcclusionPushConstants>(nameof(OcclusionPushConstants.LastDenoise))).Should().Be(12);
-        ((int)Marshal.OffsetOf<OcclusionPushConstants>(nameof(OcclusionPushConstants.SubPixelPrecisionBits)))
-            .Should()
-            .Be(16);
         Unsafe.SizeOf<DrawIndexedIndirectCommand>().Should().Be(20);
         Unsafe.SizeOf<Vertex>().Should().Be(48);
+        Unsafe
+            .SizeOf<GpuVertex>()
+            .Should()
+            .Be(52, "mesh.vert reads the card at offset 48, and deform.comp writes 13 words");
+        ((int)Marshal.OffsetOf<GpuVertex>(nameof(GpuVertex.Card))).Should().Be(48);
     }
 
     [Theory]

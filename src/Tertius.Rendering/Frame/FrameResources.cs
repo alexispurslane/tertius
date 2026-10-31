@@ -346,7 +346,7 @@ internal sealed unsafe class FrameResources : IDisposable
         // A growth of the region or of the static capacity makes a new vertex buffer, so the buffer names the window.
         if (region.Capacity > 0 && windowBuffer != geometry.VertexBuffer)
         {
-            ulong vertexSize = (ulong)Unsafe.SizeOf<Vertex>();
+            ulong vertexSize = (ulong)Unsafe.SizeOf<GpuVertex>();
             layouts.WriteBuffer(
                 set: DeformSet,
                 binding: 0,

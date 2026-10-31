@@ -14,7 +14,8 @@ layout(location = 0) in vec3 inPosition;
 layout(location = 1) in vec3 inNormal;
 layout(location = 2) in vec4 inTangent;
 layout(location = 3) in vec2 inTexCoord;
-layout(location = 4) flat in uvec3 inMaterialMapAndLight;  // x: the material. y: the instance's map. z: GpuInstance.holdsLight
+layout(location = 4) flat in uvec4 inInstanceWords;  // x: the material. y: the instance's map. z: GpuInstance.holdsLight. w:
+                                                     // the card code (mesh.vert)
 layout(location = 5) flat in vec4 inHemisphere;
 
 // Dual-source blending (BlendMode.Transmittance): the target becomes outColor + target · outTransmittance.
@@ -25,11 +26,11 @@ void main()
 {
     vec3 V = towardEye(inPosition);
     // Before the discards below, so implicit derivatives stay defined for the whole quad.
-    SurfaceSample s = sampleMaterial(inMaterialMapAndLight.x, inTexCoord, inNormal, inTangent, V);
-    ShadingInput shading = forwardShading(s, inPosition, inHemisphere, inMaterialMapAndLight.y, V);
+    SurfaceSample s = sampleMaterial(inInstanceWords.x, inTexCoord, inNormal, inTangent, V);
+    ShadingInput shading = forwardShading(s, inPosition, inHemisphere, inInstanceWords.y, V);
     float coverage = s.baseColor.a;
     // The core drew in the G-buffer pass, and a clear texel covers nothing.
-    if (reachesCutoff(coverage, materials[inMaterialMapAndLight.x].alphaCutoff) || coverage <= 0.0)
+    if (reachesCutoff(coverage, materials[inInstanceWords.x].alphaCutoff) || coverage <= 0.0)
         discard;
     // The G-buffer distance covers every depth range, as in transparent.frag.
     float opaqueDistance = texelFetch(gbufferDistance, ivec2(gl_FragCoord.xy), 0).r;

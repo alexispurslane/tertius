@@ -956,9 +956,6 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// </summary>
     internal ResourceState ShadingTargetState => targets.Shading.State;
 
-    /// <summary>The device's subPixelPrecisionBits, which the occlusion sectors pass reads. A test hook.</summary>
-    internal uint SubPixelPrecisionBits => device.Properties.Limits.SubPixelPrecisionBits;
-
     /// <summary>
     /// The HDR image of the last frame, RGBA per pixel, row by row from the top: pre-exposed radiance. A test hook: it
     /// waits for the device to be idle and submits its own copy.
@@ -1081,12 +1078,12 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// The deformed copies of the last frame, job after job, as the deform pass wrote them. A test hook: it waits for the
     /// device to be idle and submits its own copy.
     /// </summary>
-    internal Vertex[] ReadDeformedVertices()
+    internal GpuVertex[] ReadDeformedVertices()
     {
         ReadOnlySpan<DeformJob> jobs = LastScene.Deforms;
         ReadOnlySpan<MeshInfo> meshes = geometry.Meshes;
         var copies = new BufferCopy[jobs.Length];
-        ulong vertexSize = (ulong)sizeof(Vertex),
+        ulong vertexSize = (ulong)sizeof(GpuVertex),
             read = 0;
         for (int i = 0; i < jobs.Length; i++)
         {
@@ -1123,7 +1120,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             local.Buffer(buffer, BufferUse.HostRead);
             local.Flush(device.Vk, commandBuffer);
         });
-        return new ReadOnlySpan<Vertex>(buffer.Mapped, (int)read).ToArray();
+        return new ReadOnlySpan<GpuVertex>(buffer.Mapped, (int)read).ToArray();
     }
 
     /// <summary>

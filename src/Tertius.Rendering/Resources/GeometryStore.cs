@@ -21,10 +21,10 @@ internal sealed unsafe class GeometryStore : IDisposable
     private const ulong InitialIndices = 256 * 1024;
 
     /// <summary>
-    /// The region's base and capacity are multiples of this many vertices: 768 bytes, a multiple of the 256 bytes of the
-    /// spec's largest minStorageBufferOffsetAlignment.
+    /// The region's base and capacity are multiples of this many vertices: 3,328 bytes of 52-byte vertices, a multiple of
+    /// the 256 bytes of the spec's largest minStorageBufferOffsetAlignment.
     /// </summary>
-    private const int RegionAlignment = 16;
+    private const int RegionAlignment = 64;
 
     private readonly VulkanDevice device;
     private readonly DeviceAllocator allocator;
@@ -74,7 +74,7 @@ internal sealed unsafe class GeometryStore : IDisposable
     /// <see cref="RegionAlignment"/>.
     /// </summary>
     internal static int MaxRegion(uint maxStorageBufferRange) =>
-        (int)(maxStorageBufferRange / (uint)Unsafe.SizeOf<Vertex>() / RegionAlignment * RegionAlignment);
+        (int)(maxStorageBufferRange / (uint)Unsafe.SizeOf<GpuVertex>() / RegionAlignment * RegionAlignment);
 
     /// <summary>
     /// The region's capacity for a need of <paramref name="vertices"/>: the next power of two, at least
@@ -89,7 +89,7 @@ internal sealed unsafe class GeometryStore : IDisposable
     /// </summary>
     public void Upload(
         CommandBuffer commandBuffer,
-        List<(MeshId Id, MeshData Data)> pending,
+        List<(MeshId Id, MeshData Data, uint[] Cards)> pending,
         List<PackedDeform?> deforms,
         DeformStore deformStore,
         StagingArena staging,
@@ -102,7 +102,7 @@ internal sealed unsafe class GeometryStore : IDisposable
             return;
         ulong newVertices = 0,
             newIndices = 0;
-        foreach ((_, MeshData data) in pending)
+        foreach ((_, MeshData data, _) in pending)
         {
             newVertices += (ulong)data.Vertices.Length;
             newIndices += (ulong)data.Indices.Length;
@@ -117,7 +117,7 @@ internal sealed unsafe class GeometryStore : IDisposable
             frame: frame
         );
 
-        int vertexSize = Unsafe.SizeOf<Vertex>();
+        int vertexSize = Unsafe.SizeOf<GpuVertex>();
         StagingSlice vertexStage = staging.Allocate(newVertices * (ulong)vertexSize);
         StagingSlice indexStage = staging.Allocate(newIndices * sizeof(uint));
         Stage(
@@ -156,7 +156,7 @@ internal sealed unsafe class GeometryStore : IDisposable
     /// adds each mesh's range in the buffers and its deformation to the mesh table.
     /// </summary>
     private void Stage(
-        List<(MeshId Id, MeshData Data)> pending,
+        List<(MeshId Id, MeshData Data, uint[] Cards)> pending,
         List<PackedDeform?> deforms,
         DeformStore deformStore,
         StagingSlice vertexStage,
@@ -168,13 +168,13 @@ internal sealed unsafe class GeometryStore : IDisposable
             indexCursor = 0;
         for (int mesh = 0; mesh < pending.Count; mesh++)
         {
-            (MeshId id, MeshData data) = pending[mesh];
+            (MeshId id, MeshData data, uint[] cards) = pending[mesh];
             // The upload queue hands out dense ids under one lock and drains them in order, so each id names the next
             // slot. If that broke, an instance would draw another mesh.
             Contract.Assert(id.Value == meshes.Count);
-            var staged = new Span<Vertex>((Vertex*)vertexStage.Pointer + vertexCursor, data.Vertices.Length);
+            var staged = new Span<GpuVertex>((GpuVertex*)vertexStage.Pointer + vertexCursor, data.Vertices.Length);
             for (int i = 0; i < staged.Length; i++)
-                staged[i] = Staged(data.Vertices[i]);
+                staged[i] = GpuVertex.Of(Staged(data.Vertices[i]), cards[i]);
             MemoryMarshal
                 .AsBytes(data.Indices.AsSpan())
                 .CopyTo(new(indexStage.Pointer + indexCursor * sizeof(uint), data.Indices.Length * sizeof(uint)));
@@ -210,7 +210,7 @@ internal sealed unsafe class GeometryStore : IDisposable
                 commandBuffer: commandBuffer,
                 old: VertexBuffer,
                 replacement: CreateVertexBuffer(capacity + (ulong)regionCapacity),
-                usedBytes: VertexCount * (ulong)Unsafe.SizeOf<Vertex>(),
+                usedBytes: VertexCount * (ulong)Unsafe.SizeOf<GpuVertex>(),
                 barriers: barriers,
                 releases: releases,
                 frame: frame
@@ -257,7 +257,7 @@ internal sealed unsafe class GeometryStore : IDisposable
             commandBuffer: commandBuffer,
             old: VertexBuffer,
             replacement: CreateVertexBuffer(vertexCapacity + (ulong)capacity),
-            usedBytes: VertexCount * (ulong)Unsafe.SizeOf<Vertex>(),
+            usedBytes: VertexCount * (ulong)Unsafe.SizeOf<GpuVertex>(),
             barriers: barriers,
             releases: releases,
             frame: frame
@@ -298,7 +298,7 @@ internal sealed unsafe class GeometryStore : IDisposable
         GpuBuffer.Create(
             device: device,
             allocator: allocator,
-            size: vertices * (ulong)Unsafe.SizeOf<Vertex>(),
+            size: vertices * (ulong)Unsafe.SizeOf<GpuVertex>(),
             // Storage: the deform pass writes the region through a window of the buffer.
             usage: BufferUsageFlags.VertexBufferBit
                 | BufferUsageFlags.StorageBufferBit

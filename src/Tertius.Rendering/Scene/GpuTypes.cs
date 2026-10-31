@@ -7,7 +7,38 @@ namespace Tertius.Rendering;
 // C# mirrors of the shader structs in Shaders/frame.glsl. Layouts follow std430 (storage buffers) and std140 (the
 // frame block). Change both sides together; RendererLayoutTests checks the sizes.
 
-/// <summary>One drawn instance in the instance storage buffer. 88 bytes of fields, padded to 96, the struct's alignment of 16.</summary>
+/// <summary>
+/// A vertex as the global vertex buffer holds it: a staged <see cref="Vertex"/> and the number of its card in its mesh,
+/// <see cref="MeshCards.Number"/>, which a hair pixel's card code takes (docs/plans/skin-and-hair.md, "The card number").
+/// 52 bytes. deform.comp writes the same layout into the deform region.
+/// </summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct GpuVertex
+{
+    public Vector3 Position;
+    public Vector3 Normal;
+
+    /// <summary>Tangent in xyz, bitangent sign in w.</summary>
+    public Vector4 Tangent;
+
+    public Vector2 TexCoord;
+
+    /// <summary>The number of the vertex's card: the connected strip of triangles that holds it.</summary>
+    public uint Card;
+
+    /// <summary><paramref name="vertex"/>, staged, with the number of its <paramref name="card"/>.</summary>
+    public static GpuVertex Of(in Vertex vertex, uint card) =>
+        new()
+        {
+            Position = vertex.Position,
+            Normal = vertex.Normal,
+            Tangent = vertex.Tangent,
+            TexCoord = vertex.TexCoord,
+            Card = card,
+        };
+}
+
+/// <summary>One drawn instance in the instance storage buffer. 92 bytes of fields, padded to 96, the struct's alignment of 16.</summary>
 [StructLayout(LayoutKind.Sequential, Size = 96)]
 internal struct GpuInstance
 {
@@ -41,8 +72,15 @@ internal struct GpuInstance
     /// </summary>
     public uint HoldsLight;
 
+    /// <summary>
+    /// The instance's place among the frame's placed instances, <see cref="PreparedInstance.PlacedIndex"/>: the same in
+    /// every view and depth range that draws it. Its hair pixels' card codes mix it in (<see cref="CardCode.Of"/>).
+    /// </summary>
+    public uint PlacedIndex;
+
     /// <param name="map">The instance's map, from 0 to <see cref="EnvironmentChain.MaxMaps"/> − 1.</param>
     /// <param name="holdsLight">Whether the instance's entity holds a light.</param>
+    /// <param name="placedIndex">The instance's place among the frame's placed instances, 0 for a draw that writes no G-buffer.</param>
     public static GpuInstance From(
         Vector3 position,
         Quaternion rotation,
@@ -50,7 +88,8 @@ internal struct GpuInstance
         uint material,
         int map,
         bool holdsLight,
-        HemisphereUp hemisphere = default
+        HemisphereUp hemisphere = default,
+        int placedIndex = 0
     )
     {
         // Rotation matrix columns from the unit quaternion, then scaled per axis: M = T · R · S.
@@ -80,6 +119,7 @@ internal struct GpuInstance
             Hemisphere = HemisphereOf(position, hemisphere),
             Map = (uint)map,
             HoldsLight = holdsLight ? 1u : 0u,
+            PlacedIndex = (uint)placedIndex,
         };
     }
 
@@ -446,9 +486,8 @@ internal struct DrawPushConstants
 }
 
 /// <summary>
-/// The push constants of the occlusion passes (Shaders/occlusion.glsl): the setting and the device's sub-pixel
-/// precision. The camera comes from the frame constants, so the occlusion passes and the lighting passes read the one
-/// store. 20 bytes.
+/// The push constants of the occlusion passes (Shaders/occlusion.glsl): the setting. The camera comes from the frame
+/// constants, so the occlusion passes and the lighting passes read the one store. 16 bytes.
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct OcclusionPushConstants
@@ -460,22 +499,14 @@ internal struct OcclusionPushConstants
     /// <summary>1 in the last denoise dispatch, 0 otherwise.</summary>
     public uint LastDenoise;
 
-    /// <summary>The device's limit of that name, which widens a hair card's plane by the rasterizer's snapping (<see cref="OwnCard.SnapPerMeter"/>).</summary>
-    public uint SubPixelPrecisionBits;
-
-    /// <summary>The push constants of one dispatch on a device whose rasterizer has <paramref name="subPixelPrecisionBits"/>.</summary>
-    public static OcclusionPushConstants For(
-        VisibilityBitmaskLight setting,
-        bool lastDenoise,
-        uint subPixelPrecisionBits
-    ) =>
+    /// <summary>The push constants of one dispatch.</summary>
+    public static OcclusionPushConstants For(VisibilityBitmaskLight setting, bool lastDenoise) =>
         new()
         {
             RadiusMeters = setting.RadiusMeters,
             Slices = (uint)setting.Slices,
             StepsPerSide = (uint)setting.StepsPerSide,
             LastDenoise = lastDenoise ? 1u : 0u,
-            SubPixelPrecisionBits = subPixelPrecisionBits,
         };
 }
 
