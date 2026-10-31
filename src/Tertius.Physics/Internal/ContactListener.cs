@@ -37,7 +37,6 @@ internal sealed unsafe class ContactListener : IDisposable
     // ---- The process-wide callbacks ----
 
     // The table that joltc reads. joltc keeps the pointer, so the table lives in native memory until the process ends.
-    private static ContactListenerProcs* callbacks;
     private static int strayReports;
 
     /// <summary>The number of reports that reached these callbacks from a listener that is not a <see cref="ContactListener"/>
@@ -45,7 +44,7 @@ internal sealed unsafe class ContactListener : IDisposable
     public static int StrayReports => Volatile.Read(ref strayReports);
 
     /// <summary>The table that joltc reads, or null before the first install. Only the tests' step count reads it.</summary>
-    internal static ContactListenerProcs* Callbacks => callbacks;
+    internal static ContactListenerProcs* Callbacks { get; private set; }
 
     // Keeps the world alive, and lets a callback find it from the user data of the native listener.
     private GCHandle world;
@@ -79,12 +78,12 @@ internal sealed unsafe class ContactListener : IDisposable
         // That static constructor fills the table with JoltPhysicsSharp's callbacks. Run it now, so that it cannot
         // overwrite this table later, when the first system is created.
         RuntimeHelpers.RunClassConstructor(typeof(PhysicsSystem).TypeHandle);
-        Contract.Requires(callbacks is null);
-        callbacks = (ContactListenerProcs*)NativeMemory.AllocZeroed((nuint)sizeof(ContactListenerProcs));
-        callbacks->OnContactAdded = &OnContactAdded;
-        callbacks->OnContactPersisted = &OnContactPersisted;
-        callbacks->OnContactRemoved = &OnContactRemoved;
-        JoltNative.ContactListenerSetProcs(callbacks);
+        Contract.Requires(Callbacks is null);
+        Callbacks = (ContactListenerProcs*)NativeMemory.AllocZeroed((nuint)sizeof(ContactListenerProcs));
+        Callbacks->OnContactAdded = &OnContactAdded;
+        Callbacks->OnContactPersisted = &OnContactPersisted;
+        Callbacks->OnContactRemoved = &OnContactRemoved;
+        JoltNative.ContactListenerSetProcs(Callbacks);
     }
 
     private static FrameWorld? WorldOf(nint userData)
