@@ -193,6 +193,33 @@ public sealed class SkinScatterTests
     }
 
     [Fact]
+    public void TheHumanKernelCountsItsOffsetsInTheSkinsOwnWidth()
+    {
+        // Past pixel 50 the skin is in shadow and turns away, its depth rising 1.5 times tan 60° per meter of the measured
+        // profile across, read in the skin's width: past the slope limit. Read in the measured profile's own width, the
+        // same rise is 4 times flatter and within the limit, so the taps past the edge would keep their shadow.
+        ScatterKernel kernel = SkinProfile.Human.Kernel(8);
+        double slope = 1.5 * SkinScatter.SlopeLimit / SkinProfile.WidthScale;
+        static Double3 light(int x) => x <= 50 ? Skin : Double3.Zero;
+        ScatterField sloped = Row(
+            width: 101,
+            light: light,
+            skin: _ => true,
+            viewDepth: x => x <= 50 ? 1 : 1 + slope * (x - 50) / PixelsPerMeterAtOneMeter
+        );
+        ScatterField flat = Row(width: 101, light: light, skin: _ => true, viewDepth: _ => 1);
+
+        Double3 scattered = AlongTheRow(sloped, x: 50, kernel: kernel);
+
+        scattered
+            .X.Should()
+            .BeGreaterThan(
+                AlongTheRow(flat, x: 50, kernel: kernel).X + 1e-6,
+                "the taps past the edge give way to the lit center instead of bringing their shadow"
+            );
+    }
+
+    [Fact]
     public void ATapAcrossTheNosesDepthStepGivesWayToTheCenter()
     {
         // The tap at +8 mm lands on the nose's shadowed side, 11 mm nearer: within tan 60° of the tap's 8 mm, but past
