@@ -9,6 +9,9 @@ internal struct CameraView
     /// <summary>The share of the shorter side of the screen over which a reflection fades out toward each edge.</summary>
     public const float EdgeFadeShare = 0.1f;
 
+    /// <summary>The planes that bound the view: the near plane and the four side planes (<see cref="Bound"/>).</summary>
+    private const int BoundCount = 5;
+
     public Quaternion Rotation;
     public Vector3 Right;
     public Vector3 Up;
@@ -50,6 +53,57 @@ internal struct CameraView
         float scaleX = MathF.Sqrt(1 + TanHalfX * TanHalfX);
         float scaleY = MathF.Sqrt(1 + TanHalfY * TanHalfY);
         return MathF.Abs(x) - depth * TanHalfX > radius * scaleX || MathF.Abs(y) - depth * TanHalfY > radius * scaleY;
+    }
+
+    /// <summary>
+    /// True when a spot lamp's cone at <paramref name="apex"/>, cut at <paramref name="reach"/>, lies completely outside one
+    /// of the planes of <see cref="Culls(Vector3, float)"/>. Conservative: a cone outside the view near an edge where two
+    /// planes meet, yet outside neither plane alone, is kept. A cone of a whole turn culls as the sphere of its reach.
+    /// </summary>
+    public readonly bool Culls(Vector3 apex, in Cone cone, float reach)
+    {
+        float sinOuter = MathF.Sin(cone.OuterAngle);
+        for (int index = 0; index < BoundCount; index++)
+        {
+            Plane bound = Bound(index);
+            if (Plane.DotCoordinate(bound, apex) + reach * Inward(bound.Normal, cone, sinOuter) < 0)
+                return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// A plane that bounds the view, with its unit normal pointing into the view: the near plane for
+    /// <paramref name="index"/> 0, then the right, left, top and bottom side planes, all through the eye.
+    /// </summary>
+    private readonly Plane Bound(int index)
+    {
+        float scaleX = MathF.Sqrt(1 + TanHalfX * TanHalfX);
+        float scaleY = MathF.Sqrt(1 + TanHalfY * TanHalfY);
+        return index switch
+        {
+            0 => new(Forward, -DepthRanges.NearPlane),
+            1 => new((TanHalfX * Forward - Right) / scaleX, 0),
+            2 => new((TanHalfX * Forward + Right) / scaleX, 0),
+            3 => new((TanHalfY * Forward - Up) / scaleY, 0),
+            4 => new((TanHalfY * Forward + Up) / scaleY, 0),
+            _ => throw new ArgumentOutOfRangeException(nameof(index), index, "A view has five bounding planes."),
+        };
+    }
+
+    /// <summary>
+    /// How far a unit step along the directions of <paramref name="cone"/> goes along the unit <paramref name="normal"/>
+    /// at most, and at least 0: 1 when the normal lies inside the cone, else the cosine of its angle to the cone's edge.
+    /// </summary>
+    private static float Inward(Vector3 normal, in Cone cone, float sinOuter)
+    {
+        float cosToAxis = Vector3.Dot(normal, cone.Axis);
+        if (cosToAxis >= cone.CosOuter)
+            return 1;
+        // cos(φ − θ) = cos φ cos θ + sin φ sin θ, with φ the normal's angle to the axis and θ the outer half-angle.
+        float sinToAxis = MathF.Sqrt(MathF.Max(0, 1 - cosToAxis * cosToAxis));
+        return MathF.Max(0, cosToAxis * cone.CosOuter + sinToAxis * sinOuter);
     }
 
     /// <summary>

@@ -68,7 +68,8 @@ internal struct PreparedLight
     public bool CastsShadow;
 
     /// <summary>
-    /// Whether the light's reach touches the main view's frustum. False for a light that only a drawn face of a map keeps:
+    /// Whether the light can reach the main view's frustum: a point light's reach sphere, or a spot light's cone cut at its
+    /// reach (<see cref="CameraView.Culls(Vector3, in Cone, float)"/>). False for a light that only a drawn face of a map keeps:
     /// every shadow budget ranks such a light after the lights of the main view, and the main view's shaders and its
     /// impostors' light signatures leave it out (docs/plans/environment-map.md, decision 20).
     /// </summary>

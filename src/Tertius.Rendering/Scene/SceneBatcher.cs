@@ -1044,7 +1044,11 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
                 (double)relative.X * relative.X + (double)relative.Y * relative.Y + (double)relative.Z * relative.Z
             ),
             CastsShadow = castsShadow,
-            InMainView = !camera.Culls(relative, reach),
+            InMainView = spread switch
+            {
+                Cone cone => !camera.Culls(relative, cone, reach),
+                EveryDirection => !camera.Culls(relative, reach),
+            },
             Spread = spread,
             Map = EnvironmentChain.MapOf(chainDepth, maps),
         };
