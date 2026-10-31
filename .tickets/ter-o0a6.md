@@ -1,6 +1,6 @@
 ---
 id: ter-o0a6
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-10-31T15:23:29Z

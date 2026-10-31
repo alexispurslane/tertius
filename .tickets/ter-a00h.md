@@ -1,6 +1,6 @@
 ---
 id: ter-a00h
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-10-31T17:25:55Z
@@ -27,3 +27,7 @@ tags: [tests, flaky]
 **2026-10-31T19:38:11Z**
 
 2026-10-31, fourth occurrence: the Release run of tools/test-all.sh on the ter-nwhv merge (no physics change) failed StepsOfAwakeBodiesInATurningFrameAllocateNothingOnAnyThread again, 'the windows gave 1 and 1 bytes per tick', at a 5-minute load of about 44. It passed alone in Release a minute later.
+
+**2026-10-31T19:41:12Z**
+
+2026-10-31: workflow run e4e12510-6c35-41d8-8186-df3a8096e685 (version 869b0b07-3413-4b06-8707-a88a91bf6e91), branch ter-a00h-allocation-windows from faed5b97. Settled: the tests keep proving that no thread that does the step's work allocates; threads that do no work of the step do not count; no retry, extra windows or raised bound. A production-code hook for the measurement is a fork.
