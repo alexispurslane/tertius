@@ -5,13 +5,19 @@ using ThreadState = System.Threading.ThreadState;
 namespace Tertius.Host.Tests;
 
 /// <summary>
-/// A call that blocks, as the simulation thread makes it, on a thread of its own. A dedicated thread starts at once
-/// also when the thread pool is busy. A test that closes the window does it on the test thread with
-/// <see cref="CancellationTokenSource.Cancel()"/>, not with a timer of the pool, so that
-/// <see cref="CaptureMailboxTests.Bound"/> measures the code and not the pool's delays.
+/// Runs a call on a thread of its own, which starts at once also when the thread pool is busy. A test that closes the
+/// window calls <see cref="CancellationTokenSource.Cancel()"/> itself, not a pool timer, so that <see cref="Bound"/>
+/// measures the code and not the pool.
 /// </summary>
 internal sealed class BlockingCall
 {
+    /// <summary>
+    /// How long a test waits for another thread before it fails, so that a bug fails the test instead of hanging the
+    /// run. The call runs on a thread of its own and no pool timer closes the window, so the bound covers only the OS's
+    /// scheduling of threads that can run.
+    /// </summary>
+    internal static readonly TimeSpan Bound = TimeSpan.FromSeconds(5);
+
     private readonly Thread thread;
     private Exception? thrown;
 
@@ -39,14 +45,15 @@ internal sealed class BlockingCall
         return started;
     }
 
-    /// <summary>Returns once the call blocks in a wait, or has ended. Fails if neither happens within
-    /// <see cref="CaptureMailboxTests.Bound"/>.</summary>
+    /// <summary>Returns once the call blocks in a wait, or has ended. Any wait counts, not only the one that the test
+    /// means, so a test that acts after it must also hold if it acts before that wait. Fails if neither happens within
+    /// <see cref="Bound"/>.</summary>
     public void WaitUntilBlocked()
     {
         var clock = Stopwatch.StartNew();
         while ((thread.ThreadState & (ThreadState.WaitSleepJoin | ThreadState.Stopped)) == 0)
         {
-            clock.Elapsed.Should().BeLessThan(CaptureMailboxTests.Bound, "the call must start to wait");
+            clock.Elapsed.Should().BeLessThan(Bound, "the call must start to wait");
             Thread.Yield();
         }
     }
@@ -55,10 +62,10 @@ internal sealed class BlockingCall
     public bool EndsWithin(TimeSpan time) => thread.Join(time);
 
     /// <summary>Waits for the call to end, and throws on the test thread what the call threw. Fails if the call does
-    /// not end within <see cref="CaptureMailboxTests.Bound"/>.</summary>
+    /// not end within <see cref="Bound"/>.</summary>
     public void End()
     {
-        EndsWithin(CaptureMailboxTests.Bound).Should().BeTrue("the call must end");
+        EndsWithin(Bound).Should().BeTrue("the call must end");
         if (thrown is not null)
             ExceptionDispatchInfo.Throw(thrown);
     }

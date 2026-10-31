@@ -303,22 +303,15 @@ public sealed class MouseTrackerTests
 /// <summary>CaptureMailbox: the handover of a capture from the simulation thread to the render thread.</summary>
 public sealed class CaptureMailboxTests
 {
-    /// <summary>
-    /// How long a test waits for another thread before it fails, so that a bug fails the test instead of hanging the
-    /// run. The other thread is a thread of its own and no timer of the pool closes the window, so the bound covers only
-    /// the OS's scheduling of running threads (<see cref="BlockingCall"/>).
-    /// </summary>
-    internal static readonly TimeSpan Bound = TimeSpan.FromSeconds(5);
-
     /// <summary>Takes the sink of the waiting capture, as the render thread does. Fails if no request arrives within
-    /// <see cref="Bound"/>.</summary>
+    /// <see cref="BlockingCall.Bound"/>.</summary>
     internal static ICaptureSink TakeWithin(CaptureMailbox mailbox)
     {
         var clock = Stopwatch.StartNew();
         ICaptureSink? sink;
         while ((sink = mailbox.Take()) is null)
         {
-            clock.Elapsed.Should().BeLessThan(Bound, "the request must arrive");
+            clock.Elapsed.Should().BeLessThan(BlockingCall.Bound, "the request must arrive");
             Thread.Yield();
         }
 
@@ -578,30 +571,24 @@ public sealed class WindowPlaybackTests
 
     /// <summary>
     /// Plays the render thread for one capture, on a thread of its own: takes the request within
-    /// <see cref="CaptureMailboxTests.Bound"/>, runs <paramref name="draw"/> with its sink, and tells the mailbox that it
-    /// is done, also when <paramref name="draw"/> throws, so that the capture does not wait for ever. Await the task
-    /// within the same bound: it rethrows on the test thread what the render thread threw.
+    /// <see cref="BlockingCall.Bound"/>, runs <paramref name="draw"/> with its sink, and tells the mailbox that it is
+    /// done, also when <paramref name="draw"/> throws, so that the capture does not wait for ever.
     /// </summary>
-    private static Task ServeOneCapture(CaptureMailbox mailbox, Action<ICaptureSink> draw) =>
-        Task.Factory.StartNew(
-            action: () =>
+    private static BlockingCall ServeOneCapture(CaptureMailbox mailbox, Action<ICaptureSink> draw) =>
+        BlockingCall.Start(() =>
+        {
+            try
             {
-                try
-                {
-                    draw(CaptureMailboxTests.TakeWithin(mailbox));
-                }
-                finally
-                {
-                    mailbox.Done();
-                }
-            },
-            cancellationToken: CancellationToken.None,
-            creationOptions: TaskCreationOptions.LongRunning,
-            scheduler: TaskScheduler.Default
-        );
+                draw(CaptureMailboxTests.TakeWithin(mailbox));
+            }
+            finally
+            {
+                mailbox.Done();
+            }
+        });
 
     [Fact]
-    public async Task ACapturePublishesTheStateOfItsMomentForTheRenderThread()
+    public void ACapturePublishesTheStateOfItsMomentForTheRenderThread()
     {
         using World world = HostTesting.NewWorld();
         HostTesting.Probes(world);
@@ -617,16 +604,16 @@ public sealed class WindowPlaybackTests
             stop: CancellationToken.None
         );
         bool fresh = false;
-        Task renderThread = ServeOneCapture(mailbox, sink => fresh = world.RenderSnapshots.AcquireLatest() != null);
+        var renderThread = ServeOneCapture(mailbox, sink => fresh = world.RenderSnapshots.AcquireLatest() != null);
 
         playback.Capture(world, "x").Should().BeTrue();
 
-        await renderThread.WaitAsync(CaptureMailboxTests.Bound, TestContext.Current.CancellationToken);
+        renderThread.End();
         fresh.Should().BeTrue("the capture publishes a snapshot of its moment before the render thread draws it");
     }
 
     [Fact]
-    public async Task ACaptureHandsTheRenderThreadASinkThatWritesThePngOfItsNameIntoTheFolder()
+    public void ACaptureHandsTheRenderThreadASinkThatWritesThePngOfItsNameIntoTheFolder()
     {
         using World world = HostTesting.NewWorld();
         string folder = HostTesting.NewFolder();
@@ -640,11 +627,11 @@ public sealed class WindowPlaybackTests
             stop: CancellationToken.None
         );
         // The render thread hands the sink the pixels of the frame that it drew: here one pixel.
-        Task renderThread = ServeOneCapture(mailbox, sink => sink.Take(new([200, 100, 50, 0], 1, 1)));
+        var renderThread = ServeOneCapture(mailbox, sink => sink.Take(new([200, 100, 50, 0], 1, 1)));
 
         playback.Capture(world, "shot").Should().BeTrue();
 
-        await renderThread.WaitAsync(CaptureMailboxTests.Bound, TestContext.Current.CancellationToken);
+        renderThread.End();
         File.Exists(path).Should().BeTrue("the capture is saved before Capture returns");
         Png.Load(path).At(0, 0).Should().Be((200, 100, 50));
     }
