@@ -38,6 +38,27 @@ public static partial class DemoScenes
         ReviewSky(world);
         world.VerticalFov = 40 * MathF.PI / 180;
 
+        SpawnHairRugs(world: world, resources: resources, scene: scene, surface: surface);
+        scene.Add("bar", world.Spawn(RugBar(surface, resources)));
+
+        var target = new Double3(0, EarthRadius, -0.5);
+        Entity rugCamera = world.Spawn(ViewIn(surface, LookingAt(new(0, EarthRadius + 1.2, 3.5), target)));
+        scene.Add("rug-camera", rugCamera);
+        scene.Add("low-camera", world.Spawn(ViewIn(surface, LookingAt(new(0, EarthRadius + 0.5, 3), target))));
+        Star(world: world, scene: scene, frame: surface, center: new(0, EarthRadius, 0), direction: new(0.3, 0.6, 1));
+
+        scene.AddView("rug-camera");
+        scene.AddView("low-camera");
+        world.Camera = rugCamera;
+        return scene;
+    }
+
+    /// <summary>
+    /// The rugs <c>flat-rug</c> and <c>tilted-rug</c> of the hair-rugs scene, 1 cm above the floor of
+    /// <paramref name="surface"/>: the plane mesh unturned, so that its front is +Y and its v, the strand, grows along +Z.
+    /// </summary>
+    private static void SpawnHairRugs(World world, IRenderResources resources, SceneInstance scene, FrameHandle surface)
+    {
         MeshId rug = resources.CreateMesh(Primitives.Plane(HairRugHalfSize));
         var hair = new MaterialDesc(
             BaseColor: new(x: 0.45f, y: 0.25f, z: 0.12f, w: 1),
@@ -76,38 +97,30 @@ public static partial class DemoScenes
                 )
             )
         );
-        var barHalfExtents = new Vector3(2, 0.75f, 0.1f);
-        scene.Add(
-            "bar",
-            world.Spawn(
-                DrawnAt(
-                    frame: surface,
-                    position: new(0, EarthRadius + barHalfExtents.Y, -2.5),
-                    render: Shaded(
-                        mesh: resources.CreateMesh(Primitives.Box(barHalfExtents)),
-                        material: resources.CreateMaterial(
-                            new(
-                                BaseColor: new(x: 0, y: 0, z: 0, w: 1),
-                                Roughness: UsualRoughness,
-                                Reflectance: 0,
-                                Emissive: new(6800)
-                            )
-                        ),
-                        boundingRadius: barHalfExtents.Length()
+    }
+
+    /// <summary>
+    /// The <c>bar</c> of the hair-rugs scene in <paramref name="surface"/>: a white glowing box 4 m wide and 1.5 m tall,
+    /// 1.5 m behind the rugs.
+    /// </summary>
+    private static SpawnDesc RugBar(FrameHandle surface, IRenderResources resources)
+    {
+        var halfExtents = new Vector3(2, 0.75f, 0.1f);
+        return DrawnAt(
+            frame: surface,
+            position: new(0, EarthRadius + halfExtents.Y, -2.5),
+            render: Shaded(
+                mesh: resources.CreateMesh(Primitives.Box(halfExtents)),
+                material: resources.CreateMaterial(
+                    new(
+                        BaseColor: new(x: 0, y: 0, z: 0, w: 1),
+                        Roughness: UsualRoughness,
+                        Reflectance: 0,
+                        Emissive: new(6800)
                     )
-                )
+                ),
+                boundingRadius: halfExtents.Length()
             )
         );
-
-        var target = new Double3(0, EarthRadius, -0.5);
-        Entity rugCamera = world.Spawn(ViewIn(surface, LookingAt(new(0, EarthRadius + 1.2, 3.5), target)));
-        scene.Add("rug-camera", rugCamera);
-        scene.Add("low-camera", world.Spawn(ViewIn(surface, LookingAt(new(0, EarthRadius + 0.5, 3), target))));
-        Star(world: world, scene: scene, frame: surface, center: new(0, EarthRadius, 0), direction: new(0.3, 0.6, 1));
-
-        scene.AddView("rug-camera");
-        scene.AddView("low-camera");
-        world.Camera = rugCamera;
-        return scene;
     }
 }

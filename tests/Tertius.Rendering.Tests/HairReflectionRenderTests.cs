@@ -56,7 +56,9 @@ public sealed class HairReflectionRenderTests
         Rendered without = Render(reflections: new NoReflections(), tiltDegrees: tiltDegrees, environmentMap: true);
 
         (int X, int Y)[] below = [.. FloorPixels(with).Where(pixel => CosineWithCard(with, pixel) < SurelyBelow)];
-        below.Length.Should().BeGreaterThan(20_000, "the tilt of {0}° puts the far floor's rays below the card", tiltDegrees);
+        below
+            .Length.Should()
+            .BeGreaterThan(20_000, "the tilt of {0}° puts the far floor's rays below the card", tiltDegrees);
         foreach ((int X, int Y) pixel in below)
         {
             Vector3 kept = At(without.Hdr, pixel);
