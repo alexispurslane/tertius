@@ -32,3 +32,7 @@ Found by ter-ox1a's fixer and the orchestrator (2026-10-31). PreparedLight.InMai
 **2026-10-31T20:02:19Z**
 
 2026-10-31: continuation run 12ab987c-c076-4377-9bf1-f2ca1606142b (version 869b0b07-3413-4b06-8707-a88a91bf6e91) applies the saved ranking patch with the eye-to-beam distance, then runs the review and the fix.
+
+**2026-10-31T20:41:24Z**
+
+Settled by the orchestrator from the user's decisions (2026-10-31), after review 12ab987c: a spot lamp whose cone reaches the main view but whose axis misses the view ranks for shadows in its own tier, below every main-view light whose beam (spot lamp) or position (point light) is in view, and above every light that only a face keeps. Inside that tier it ranks by its light at its reach, luminance(I)/reach^2, ties in list order. ShadowTiles and FarShadows both use this one tier order. Reason: the user's design B says that such a lamp has 'the lowest rank among lights in the main view', and the user rejected design A because a lamp whose beam only clips the view's edge can take a tile from one that lights the floor ahead. The rank at its reach alone (D = reach) does not give the lowest rank: a lamp at (0, 3, -40) aimed down with a 25 m reach ranks at 0.39 cutoffs, below an edge lamp at 1.0 cutoff (the reviewer's scene). RankDistance = +infinity was rejected, because then FarShadows' Share threshold never gives such a far lamp a slot. The user can override this choice.
