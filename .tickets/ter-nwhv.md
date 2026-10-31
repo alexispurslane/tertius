@@ -24,3 +24,7 @@ Found by the review of ter-qsfz (2026-10-27). A hair pixel's dominant reflection
 **2026-10-31T17:16:46Z**
 
 2026-10-31: workflow run f915dd37-5727-47e4-a8ae-d47cc8c462c4 (version 3cde7d7d-f5f8-4f91-aee3-b2258cb90dc6), branch ter-nwhv-hair-reflection-fade, base f7942bec.
+
+**2026-10-31T18:11:55Z**
+
+2026-10-31: run f915dd37 stopped at a fork: on a tilted strand, rays whose cosine with their own card lies between about 0 and 0.03 hit that card, so the screen's reflection ends at a ragged, speckled edge inside the surface fade (option A, the code then), against option B (a hair pixel below SurfaceFadeCosine traces nothing) and option C (design 1, declined). Settled by the orchestrator as B from the user's note of 14:40, whose words state B's rule ('cosine with the card's normal below SurfaceFadeCosine traces nothing'). The trial captures show the same edge between the screen's reflection and the map's in A and B, ragged in A and straight in B. Continuation run 718fdeaf-3602-4146-93ea-ebf93f6e1157 (version 869b0b07-3413-4b06-8707-a88a91bf6e91) builds B on the same branch and worktree, base f7942bec.

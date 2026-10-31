@@ -1,6 +1,6 @@
 ---
 id: ter-o0a6
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-10-31T15:23:29Z
@@ -23,3 +23,7 @@ Two designs: (1) keep the specialization constant, documented (as built in ter-t
 **2026-10-31T15:41:33Z**
 
 2026-10-31: the user chose design 2, the kernel carries its width scale: SkinProfile.Kernel sets the scale on ScatterKernel, ScatterImages writes it after the taps in the kernel's uniform block, SkinScatter.Pass and scatterAlong read it there, and constant_id 3 with the fourth specialization entry go. The image must not change. Reason: one path for the 4, so a kernel of another width cannot meet the slope rule of the wrong one, and ShaderConstants no longer knows the skin. Waits for a free builder slot.
+
+**2026-10-31T18:11:55Z**
+
+2026-10-31: launched through the workflow MCP (ultracode-ticket-completion, version 869b0b07-3413-4b06-8707-a88a91bf6e91), run 984db3fb-f000-48ba-a589-9b4bd6e17315, branch ter-o0a6-kernel-width-scale from 99275c90. An earlier start, run 2f4c8a6d, had a mistyped base commit; it was cancelled before it made a thread, a branch or a worktree.
