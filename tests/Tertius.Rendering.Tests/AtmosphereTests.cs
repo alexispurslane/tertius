@@ -5,9 +5,10 @@ namespace Tertius.Rendering.Tests;
 
 /// <summary>
 /// What the batcher makes of a snapshot's atmosphere record (docs/plans/atmosphere.md, "The model"): the sky, the haze's
-/// light and the sun's tint in the frame constants, at the interpolated eye. The sky is the painted sky times the day
-/// factor and the density share at the eye. The haze's light is the painted haze times the day factor. Only the sun's GPU
-/// light takes the tint. The camera is at the render origin, and the planet's center lies below it.
+/// light, the sun's tint, the sun's place and the eye's air in the frame constants, at the interpolated eye. The sky is the
+/// painted sky times the day factor and the density share at the eye. The haze's light is the painted haze, which the
+/// shaders dim by the day factor at each hazed point. Only the sun's GPU light takes the tint. The camera is at the render
+/// origin, and the planet's center lies below it.
 /// </summary>
 public sealed class AtmosphereTests
 {
@@ -153,11 +154,11 @@ public sealed class AtmosphereTests
         GpuAtmosphere atmosphere = AtmosphereOf(snapshot);
 
         Rgb(atmosphere.Sky).Should().Be(Vector3.Zero);
-        Rgb(atmosphere.Haze).Should().Be(Vector3.Zero, "the haze sends no light at night either");
+        atmosphere.Sun.Should().Be(Vector4.Zero, "the shaders find no sun, so the haze sends no light either");
     }
 
     [Fact]
-    public void TheHazesLightFollowsTheTimeOfDayButNotTheHeight()
+    public void TheHazesLightReachesTheShaderAtItsFullDayValueWhateverTheTimeOfDayAndTheHeight()
     {
         RenderSnapshot day = WithSun(new(0.3f, 1, -0.4f));
         Air(day, MarsAir, height: ScaleHeight);
@@ -165,7 +166,45 @@ public sealed class AtmosphereTests
         Air(dusk, MarsAir, height: ScaleHeight);
 
         ExpectNear(Rgb(AtmosphereOf(day).Haze), PaintedHaze, "the haze's density enters through the transmittance");
-        ExpectNear(Rgb(AtmosphereOf(dusk).Haze), PaintedHaze / 2, "the haze dims at dusk as the sky does");
+        ExpectNear(
+            Rgb(AtmosphereOf(dusk).Haze),
+            PaintedHaze,
+            "the shaders dim the haze by the day at each hazed point"
+        );
+    }
+
+    [Fact]
+    public void TheSunsPlaceReachesTheShaderRelativeToTheInterpolatedEye()
+    {
+        RenderSnapshot snapshot = WithSun(Vector3.UnitY);
+        snapshot.Camera.PreviousPosition = new(0, -10, 0);
+        Air(snapshot, MarsAir);
+        Vector4 sun = Prepare(snapshot, alpha: 0.5f).Constants.Atmosphere.Sun;
+
+        // The test star stands still, StarDistance up, and halfway the eye is 5 m below the render origin.
+        sun.Should().Be(new Vector4(x: 0, y: (float)Gpu.StarDistance + 5, z: 0, w: 1));
+    }
+
+    [Fact]
+    public void TheEyesHeightAndDensityShareReachTheShader()
+    {
+        RenderSnapshot snapshot = WithSun(Vector3.UnitY);
+        Air(snapshot, MarsAir, height: ScaleHeight);
+        Vector4 eye = AtmosphereOf(snapshot).Eye;
+
+        eye.X.Should().BeApproximately(ScaleHeight, 0.5f, "the eye stands one scale height above the surface");
+        eye.Y.Should().BeApproximately(1 / MathF.E, 1e-5f, "one scale height up, the air is 1/e as dense");
+    }
+
+    [Fact]
+    public void AnEyeBelowTheSurfaceBreathesTheSurfacesAir()
+    {
+        RenderSnapshot snapshot = WithSun(Vector3.UnitY);
+        Air(snapshot, MarsAir, height: -50);
+
+        AtmosphereOf(snapshot)
+            .Eye.Should()
+            .Be(new Vector4(x: 0, y: 1, z: 0, w: 0), "the density stays at the surface's below it");
     }
 
     [Fact]

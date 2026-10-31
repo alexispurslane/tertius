@@ -181,7 +181,7 @@ public readonly record struct RenderChainFrame(long FrameId, Quaternion Rotation
 /// <param name="Medium">The planet's air and its look.</param>
 /// <param name="Sun">
 /// The index in <see cref="RenderSnapshot.Lights"/> of the planet's sun: the point light that gives the planet's center the
-/// most light. Null when the snapshot holds no point light.
+/// most light. Null when no point light gives the planet's center any light.
 /// </param>
 public readonly record struct RenderAtmosphere(Vector3 Center, Vector3 PreviousCenter, PlanetMedium Medium, int? Sun);
 

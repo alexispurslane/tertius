@@ -2058,7 +2058,7 @@ public sealed class BatcherTests
     [Fact]
     public void TheFrameConstantsMatchTheShadersFrameBlock()
     {
-        Unsafe.SizeOf<GpuFrameConstants>().Should().Be(2288);
+        Unsafe.SizeOf<GpuFrameConstants>().Should().Be(2320);
         ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.Counts))).Should().Be(304);
         ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.RootRotation))).Should().Be(384);
         ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.CascadeSets))).Should().Be(400);
@@ -2066,7 +2066,7 @@ public sealed class BatcherTests
         ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.Atmosphere)))
             .Should()
             .Be(2224, "the atmosphere follows the 42 map axes");
-        Unsafe.SizeOf<GpuAtmosphere>().Should().Be(64, "std140 lays out four vec4s in 64 bytes");
+        Unsafe.SizeOf<GpuAtmosphere>().Should().Be(96, "std140 lays out six vec4s in 96 bytes");
     }
 
     [Fact]

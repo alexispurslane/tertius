@@ -70,7 +70,7 @@ public sealed class AtmosphereRenderTests
     /// <summary>Gives <paramref name="snapshot"/> the air of <paramref name="medium"/>, with the eye <paramref name="height"/> m above its surface and the first light as its sun.</summary>
     private static void Air(RenderSnapshot snapshot, PlanetMedium medium, float height = 0)
     {
-        var center = new Vector3(0, -(MarsRadius + height), 0);
+        var center = new Vector3(0, -((float)medium.Radius + height), 0);
         snapshot.Atmosphere = new(Center: center, PreviousCenter: center, Medium: medium, Sun: 0);
     }
 
@@ -295,6 +295,319 @@ public sealed class AtmosphereRenderTests
                 0.02f,
                 "at night the haze sends no light, so it only dims the white square, but it shows {0}",
                 dusk
+            );
+    }
+
+    /// <summary>
+    /// <see cref="HazeOnly"/> on a planet 1 km in radius, so that its horizon bends within the view: the far square's up,
+    /// away from the center, leans 72° from the eye's.
+    /// </summary>
+    private static readonly PlanetMedium SmallHazyPlanet = HazeOnly with { Radius = 1000 };
+
+    [Fact]
+    public void ASurfaceOnTheNightSideTakesNoHazeLightWhileTheEyeIsInDaylight()
+    {
+        // The sun stands 11° above the eye's horizon, from −X, and 12° below the far square's.
+        Vector3 far = Show(
+                "atmosphere-haze-night-side",
+                new(-1, 0.2f, 0),
+                (renderer, snapshot) =>
+                {
+                    AddNearAndFar(renderer, snapshot);
+                    Air(snapshot, SmallHazyPlanet);
+                }
+            )
+            .Color(FarPixel);
+
+        Warmth(far)
+            .Should()
+            .BeLessThan(
+                0.02f,
+                "night has fallen at the far square, so the haze there only dims it, but it shows {0}",
+                far
+            );
+    }
+
+    [Fact]
+    public void ASurfaceOnTheDaySideKeepsItsHazeLightWhileTheEyeIsAtNight()
+    {
+        // The sun stands 6° below the eye's horizon, from +X, and 14° above the far square's.
+        Vector3 far = Show(
+                "atmosphere-haze-day-side",
+                new(1, -0.1f, 0),
+                (renderer, snapshot) =>
+                {
+                    AddNearAndFar(renderer, snapshot);
+                    Air(snapshot, SmallHazyPlanet);
+                }
+            )
+            .Color(FarPixel);
+
+        Warmth(far)
+            .Should()
+            .BeGreaterThan(0.2f, "the day goes on at the far square, so its haze glows orange, but it shows {0}", far);
+    }
+
+    // ---- The haze over glass, fringes and puffs -------------------------------------------------------------------
+
+    /// <summary>The HDR light, pre-exposed at 0 stops, at <paramref name="pixel"/> of one frame of the scene that <paramref name="build"/> makes, without the environment map.</summary>
+    private static Vector3 HdrAt(Vector2 pixel, Action<VulkanRenderer, RenderSnapshot> build)
+    {
+        VulkanRenderer renderer = Renderer(new NoEnvironmentMap());
+        try
+        {
+            RenderSnapshot snapshot = Scene(HighSun);
+            build(renderer, snapshot);
+            renderer.Render(snapshot, 1f);
+            float[] hdr = renderer.ReadHdr();
+            int i = ((int)pixel.Y * Width + (int)pixel.X) * 4;
+            return new(hdr[i], hdr[i + 1], hdr[i + 2]);
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>Asserts that each channel of two HDR colors agrees within the rounding of half floats.</summary>
+    private static void ExpectSameLight(Vector3 actual, Vector3 expected, string because)
+    {
+        float tolerance = 4f / 1024 * MathF.Max(MathF.Max(expected.X, expected.Y), MathF.Max(expected.Z, 1e-3f));
+        var difference = Vector3.Abs(actual - expected);
+        MathF
+            .Max(difference.X, MathF.Max(difference.Y, difference.Z))
+            .Should()
+            .BeLessThanOrEqualTo(tolerance, "{0}: {1} against {2}", because, actual, expected);
+    }
+
+    /// <summary>A black card of reflectance 0 that emits <paramref name="radiance"/>, of base alpha <paramref name="alpha"/> under <paramref name="mode"/>.</summary>
+    private static MaterialId Card(VulkanRenderer renderer, Vector3 radiance, float alpha, AlphaMode mode) =>
+        renderer.CreateMaterial(
+            new(
+                BaseColor: new(x: 0, y: 0, z: 0, w: alpha),
+                Roughness: 0.5f,
+                Reflectance: 0,
+                Emissive: radiance,
+                Alpha: mode
+            )
+        );
+
+    /// <summary>Adds a square of <paramref name="material"/> 3 km ahead, where the far square of <see cref="AddNearAndFar"/> stands.</summary>
+    private static void AddFarCard(VulkanRenderer renderer, RenderSnapshot snapshot, MaterialId material) =>
+        snapshot.Instances.Add(
+            Gpu.Instance(
+                mesh: renderer.CreateMesh(Primitives.Plane(450)),
+                material: material,
+                position: new(900, 0, -3000),
+                scale: Vector3.One,
+                rotation: FacingPlusZ,
+                chainDepth: TestChains.CamerasFrame
+            )
+        );
+
+    [Fact]
+    public void AClearPaneLeavesTheHazedSurfaceBehindItAsTheHazeAloneShowsIt()
+    {
+        Vector3 alone = HdrAt(
+            FarPixel,
+            (renderer, snapshot) =>
+            {
+                AddNearAndFar(renderer, snapshot);
+                Air(snapshot, HazeOnly);
+            }
+        );
+        Vector3 behindPane = HdrAt(
+            FarPixel,
+            (renderer, snapshot) =>
+            {
+                AddNearAndFar(renderer, snapshot);
+                // A pane that neither reflects nor scatters, 2.5 km ahead on the ray to the far square.
+                snapshot.Instances.Add(
+                    Gpu.Instance(
+                        mesh: renderer.CreateMesh(Primitives.Plane(400)),
+                        material: Card(renderer: renderer, radiance: Vector3.Zero, alpha: 0, mode: new GlassAlpha()),
+                        position: new(750, 0, -2500),
+                        scale: Vector3.One,
+                        rotation: FacingPlusZ,
+                        chainDepth: TestChains.CamerasFrame
+                    )
+                );
+                Air(snapshot, HazeOnly);
+            }
+        );
+
+        Warmth(alone).Should().BeGreaterThan(0.2f, "3 km of haze hides the far square, as {0}", alone);
+        ExpectSameLight(behindPane, alone, "a clear pane adds no haze of its own to the haze over the whole ray");
+    }
+
+    [Fact]
+    public void AnOpaquePaneFadesIntoTheHazeAsAnOpaqueSurfaceDoes()
+    {
+        var glow = new Vector3(0.5f);
+        Vector3 opaque = HdrAt(
+            FarPixel,
+            (renderer, snapshot) =>
+            {
+                AddFarCard(
+                    renderer,
+                    snapshot,
+                    Card(renderer: renderer, radiance: glow, alpha: 1, mode: new OpaqueAlpha())
+                );
+                Air(snapshot, HazeOnly);
+            }
+        );
+        Vector3 pane = HdrAt(
+            FarPixel,
+            (renderer, snapshot) =>
+            {
+                AddFarCard(
+                    renderer,
+                    snapshot,
+                    Card(renderer: renderer, radiance: glow, alpha: 1, mode: new GlassAlpha())
+                );
+                Air(snapshot, HazeOnly);
+            }
+        );
+
+        Warmth(opaque).Should().BeGreaterThan(0.2f, "3 km of haze hides the opaque square, as {0}", opaque);
+        ExpectSameLight(
+            pane,
+            opaque,
+            "glass that lets nothing through hides the haze's light behind it as a wall does"
+        );
+    }
+
+    [Fact]
+    public void AFringeFadesIntoTheHazeByTheShareThatItCovers()
+    {
+        const float coverage = 0.4f;
+        var glow = new Vector3(0.5f);
+        Vector3 opaque = HdrAt(
+            FarPixel,
+            (renderer, snapshot) =>
+            {
+                AddFarCard(
+                    renderer,
+                    snapshot,
+                    Card(renderer: renderer, radiance: glow, alpha: 1, mode: new OpaqueAlpha())
+                );
+                Air(snapshot, HazeOnly);
+            }
+        );
+        // Every texel's alpha lies below the cutoff, so the whole card is fringe, over the black sky.
+        Vector3 fringe = HdrAt(
+            FarPixel,
+            (renderer, snapshot) =>
+            {
+                AddFarCard(
+                    renderer,
+                    snapshot,
+                    Card(renderer: renderer, radiance: glow, alpha: coverage, mode: new FringedAlpha(0.5f))
+                );
+                Air(snapshot, HazeOnly);
+            }
+        );
+
+        ExpectSameLight(fringe, coverage * opaque, "the fringe stands in for its share of the hazed surface");
+    }
+
+    [Fact]
+    public void AGlowPuffDimsInTheHazeAndTakesNoneOfItsColor()
+    {
+        static void AddFarPuff(RenderSnapshot snapshot)
+        {
+            snapshot.PuffLooks.Add(
+                new(
+                    Life: 2f,
+                    StartRadius: 300f,
+                    EndRadius: 300f,
+                    TemperatureRatio: 0.5f,
+                    Shading: PuffShading.Glow(new(0.5f))
+                )
+            );
+            var position = new Vector3(900, 0, -3000);
+            snapshot.Puffs.Add(
+                new()
+                {
+                    Position = position,
+                    PreviousPosition = position,
+                    Age = 0f,
+                    Look = 0,
+                }
+            );
+        }
+
+        Vector3 inVacuum = HdrAt(FarPixel, (_, snapshot) => AddFarPuff(snapshot));
+        Vector3 inHaze = HdrAt(
+            FarPixel,
+            (_, snapshot) =>
+            {
+                AddFarPuff(snapshot);
+                Air(snapshot, HazeOnly);
+            }
+        );
+
+        inVacuum.X.Should().BeGreaterThan(0.05f, "the puff glows at the pixel, as {0}", inVacuum);
+        inHaze.X.Should().BeLessThan(0.2f * inVacuum.X, "3 km of haze lets through about 5% of the puff's light");
+        Warmth(inHaze)
+            .Should()
+            .BeLessThan(0.002f, "a puff hides nothing, so it shows none of the haze's light: {0}", inHaze);
+    }
+
+    // ---- The haze in the screen-space reflections ----------------------------------------------------------------
+
+    [Fact]
+    public void AScreenSpaceReflectionShowsAFarSurfaceThroughTheHazeAsTheEnvironmentMapDoes()
+    {
+        static Vector3 Reflection(ReflectionSetting reflections)
+        {
+            VulkanRenderer renderer = Gpu.Headless(
+                width: Width,
+                height: Height,
+                environmentMap: SmallMap,
+                reflections: reflections
+            );
+            try
+            {
+                RenderSnapshot snapshot = Scene(HighSun);
+                snapshot.Instances.Add(ReflectionTesting.Floor(renderer, ReflectionTesting.Mirror()));
+                // A wide glowing wall 3 km ahead, which the floor mirrors on screen.
+                AddGlow(
+                    renderer: renderer,
+                    snapshot: snapshot,
+                    position: new(0, 200, -3000),
+                    halfSize: 1500,
+                    rotation: FacingPlusZ
+                );
+                Air(snapshot, HazeOnly);
+                // The floor pixel that mirrors the wall's point 100 m up, 44 m ahead on the floor.
+                Vector2 mirrored = Gpu.Project(
+                    point: new(0, 2 * ReflectionTesting.FloorHeight - 100, -3000),
+                    width: Width,
+                    height: Height
+                );
+                return Shown(renderer, snapshot, "atmosphere-reflection-haze").Color(mirrored);
+            }
+            finally
+            {
+                Gpu.DisposeAndAssertClean(renderer);
+            }
+        }
+
+        Vector3 traced = Reflection(ReflectionTesting.Reflections);
+        Vector3 mapped = Reflection(new NoReflections());
+
+        Warmth(mapped)
+            .Should()
+            .BeGreaterThan(0.2f, "the map's face sees the wall through 3 km of haze, as {0}", mapped);
+        Vector3
+            .Abs(traced - mapped)
+            .Should()
+            .Match<Vector3>(
+                d => d.X <= 0.05f && d.Y <= 0.05f && d.Z <= 0.05f,
+                "the ray's hit shows the wall through the haze as the map does: {0} against {1}",
+                traced,
+                mapped
             );
     }
 

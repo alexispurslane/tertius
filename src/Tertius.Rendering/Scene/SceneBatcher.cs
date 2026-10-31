@@ -127,6 +127,7 @@ internal sealed class SceneBatcher(
         alpha = ClampAlpha(alpha);
         scene.Reset();
         scene.Camera = InterpolateCamera(snapshot: snapshot, alpha: alpha, width: width, height: height);
+        scene.Atmosphere = PaintedAtmosphere.Prepare(snapshot: snapshot, alpha: alpha, eye: scene.Camera.Offset);
         // With the map off, one map stands for none, and every object takes map 0 (decision 24).
         (ReadOnlyMemory<FaceMask> drawn, scene.Ambient) = environment switch
         {
@@ -159,7 +160,7 @@ internal sealed class SceneBatcher(
         Batch(scene, scene.Meshes);
         // After the main view, so that its instances and commands keep the places that they have without the map.
         BatchFaces(meshes: scene.Meshes, faces: facesOfMaps, scene: scene);
-        WriteConstants(snapshot: snapshot, alpha: alpha, scene: scene);
+        WriteConstants(snapshot, scene);
     }
 
     /// <summary>
@@ -1272,7 +1273,7 @@ internal sealed class SceneBatcher(
         }
     }
 
-    private static void WriteConstants(RenderSnapshot snapshot, float alpha, PreparedScene scene)
+    private static void WriteConstants(RenderSnapshot snapshot, PreparedScene scene)
     {
         CameraView camera = scene.Camera;
         // The frame constants hold the hemisphere only while it is the light (docs/plans/environment-map.md, "The
@@ -1314,7 +1315,7 @@ internal sealed class SceneBatcher(
                 z: camera.RootRotation.Z,
                 w: camera.RootRotation.W
             ),
-            Atmosphere = PaintedAtmosphere.Prepare(snapshot: snapshot, alpha: alpha, eye: camera.Offset),
+            Atmosphere = scene.Atmosphere,
         };
         for (int map = 0; map < scene.MapCount; map++)
         {

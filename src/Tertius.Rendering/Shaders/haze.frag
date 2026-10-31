@@ -7,8 +7,8 @@
 
 // The haze over the opaque surfaces of the main view (HazePass.cs, docs/plans/atmosphere.md, "The haze"): after the
 // reflections, so that it covers each surface's whole light, and before the transparent pass, whose panes and puffs take
-// their own haze. The blend makes the lit image throughAir of itself with a cover of 1: the haze's exposed light times
-// (1 − T), plus the image times T. A sky pixel keeps the painted sky.
+// their own haze. The blend makes the lit image throughAir of itself with a cover of 1: the haze's exposed light times the
+// day factor at the surface times (1 − T), plus the image times T. A sky pixel keeps the painted sky.
 
 layout(location = 0) in vec3 inRay;
 

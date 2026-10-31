@@ -36,8 +36,8 @@ The look reaches the environment maps through `skyRadiance` and through the shar
 | Density share s(p) | e^(−h(p) / H): the density at p over the surface density, from 0 to 1. `MediumField.DensityAt` gives the same ratio. |
 | Eye share s_e | s at the eye, e^(−h_e / H) with h_e = max(0, \|c\| − R). |
 | The sun | The light of the snapshot that the atmosphere record names. |
-| Sun elevation e | The angle of the sun above the eye's horizon, in rad, from −π/2 to π/2: asin(up · toward the sun), with up = −c / \|c\|. |
-| Day factor D(e) | A number from 0 to 1 that scales the sky and the haze light by the time of day. |
+| Sun elevation e(p) | The angle of the sun above the horizon of a point p, in rad, from −π/2 to π/2: asin(up · toward the sun), with up = (p − c) / \|p − c\|. At the eye, p = 0 and up = −c / \|c\|. |
+| Day factor D(e) | A number from 0 to 1 that scales the sky and the haze light by the time of day. The sky takes D at the eye, and the haze light takes D at each hazed point. |
 
 ## The types
 
@@ -78,11 +78,11 @@ public RenderAtmosphere? Atmosphere;
 | `Center` | The origin of the atmosphere's frame relative to the render origin, in the axes of the camera's frame, in m, as an instance's position. |
 | `PreviousCenter` | The center at the previous build, relative to the same origin, as an instance's previous position. The renderer interpolates the two. |
 | `Medium` | The planet medium of the atmosphere's frame, the look included. |
-| `Sun` | The index in `RenderSnapshot.Lights` of the planet's sun. If no light is a point light, it is null. |
+| `Sun` | The index in `RenderSnapshot.Lights` of the planet's sun. If no point light gives the planet's center any light, it is null. |
 
 ## The model
 
-The renderer computes three values per frame on the CPU, at the interpolated eye. The shaders compute two values per shaded point.
+The renderer computes the values at the eye once per frame on the CPU, at the interpolated eye: the sky, the eye's height h_e and its share s_e. The shaders compute three values per shaded point: the transmittance T, the day factor D at the point, and the sun's tint.
 
 ### The sky
 
@@ -101,7 +101,7 @@ D(e) = smoothstep(−6°, +6°, e)
 
 The sky is full from 6° of sun elevation up, half at sunset, and dark from 6° below the horizon. 6° below is the end of civil twilight, where the real sky is about a thousandth of its daytime brightness. Over a lit ground, auto exposure then shows it as black.
 
-Without a sun, D is 0: a planet with no point light has night. An eye at the planet's center has no horizon, and D counts the sun as overhead there.
+Without a sun, D is 0: a planet with no point light has night. A point at the planet's center has no horizon, and D counts the sun as overhead there.
 
 ### The haze
 
@@ -113,15 +113,17 @@ m  = (s_e − s(p)) / x               when |x| ≥ 0.01
 m  = (s_e + s(p)) / 2               when |x| < 0.01
 τ  = d · m / Haze.Distance          the optical depth, 0 or more
 T  = e^(−τ)                         the transmittance, from 0 to 1
-hazeLight = min(Haze.Radiance · D(e), MaxRadiance)       in W/(m²·sr)
+hazeLight(p) = min(Haze.Radiance, MaxRadiance) · D(e(p))     in W/(m²·sr)
 ```
 
-m is the mean density share along the straight ray from the eye to p. The air's density falls by the factor e per H of height. The mean is exact for a flat ground, and the ray's heights at both ends come from the real sphere. So a ray along the ground takes the full haze, and a ray that climbs takes less. A ray from above the air down to the ground takes the haze of the air column that it crosses. Near |x| = 0 the quotient loses its digits, and the mean of the two ends differs from it by less than x²/12 of s_e.
+m is the mean density share along the straight ray from the eye to p. The air's density falls by the factor e per H of height. The mean is exact for a flat ground, and the ray's heights at both ends come from the real sphere. So a ray along the ground takes the full haze, and a ray that climbs takes less. A ray from above the air down to the ground takes the haze of the air column that it crosses. Near |x| = 0 the quotient loses its digits, and the mean of the two ends differs from it by less than x²/12 of s_e. The mean reads the heights at the two ends only. So a ray that grazes the limb with both ends above the air takes almost no haze, for example a ship seen past the planet's edge. The painted design accepts this.
+
+The haze light takes the day factor at the hazed point, not at the eye. So from a daylit eye, ground past the terminator, the line between day and night, takes no haze light and stays dark. From an eye at night, the day side keeps its haze light.
 
 The shared function, `throughAir` in `atmosphere.glsl`, gives the light that reaches the eye from a surface at p:
 
 ```
-throughAir(light, cover, p) = light · T(p) + hazeLight · (1 − T(p)) · cover
+throughAir(light, cover, p) = light · T(p) + hazeLight(p) · (1 − T(p)) · cover
 ```
 
 `cover` is the share of the haze's light that the surface stands in for, per channel: 1 for an opaque surface, 1 − t for a pane of glass that lets through t, and 0 for an additive puff. With that share, the glass and the opaque surface behind it compose exactly: the haze before the pane, the pane, and the hazed light behind it add to the same sum as one haze over the whole ray.
@@ -132,6 +134,7 @@ throughAir(light, cover, p) = light · T(p) + hazeLight · (1 − T(p)) · cover
 | `transparent.frag`, `fringe.frag` | The pane's light, with `cover` = 1 − t. |
 | `puff.vert` | The puff's light at its center, with `cover` = 0. |
 | `environment_face.frag` | Every surface of a face, in plain radiance, with `cover` = 1. |
+| `reflection_ray.glsl` | The hit of a screen-space reflection ray, with `cover` = the hit's coverage. The radiance pyramid holds the lit image from before the haze pass, so the hit takes the haze between the eye and it, as the map's face gives it. The haze pass then gives the mirror's own haze to the sum. |
 
 A sky pixel takes no haze: the sky is the painted sky. The impostor captures take none either, because they store the light at the surface. An impostor in the main view lies in the G-buffer, so the haze pass hazes it as any opaque pixel.
 
@@ -145,7 +148,7 @@ At a point p, the sun's light is multiplied by:
 tint(p) = mix(1, SunTint, s(p))      per channel
 ```
 
-At the surface the light takes the whole tint, and above the air it takes none. `lightIrradiance` in `lighting.glsl` applies it, because every pass that adds a light's irradiance at a point calls it. The renderer marks the sun's GPU light, `GpuLight.airSun`, and only that light takes the tint.
+At the surface the light takes the whole tint, and above the air it takes none. `lightIrradiance` in `lighting.glsl` applies it, because every pass that adds a light's irradiance at a point calls it. The renderer marks the sun's GPU light, `GpuLight.airSun`, and only that light takes the tint. An impostor's light signature is the C# copy of `lightIrradiance` (`ImpostorManager`). It multiplies the sun's irradiance by the same tint at the instance's center, `PaintedAtmosphere.SunTintAt`. So a camera that enters a tinted air, or an object that climbs out of it, recaptures the impostor.
 
 ## Choices that the rules left to the builder
 
@@ -153,7 +156,8 @@ At the surface the light takes the whole tint, and above the air it takes none. 
 |---|---|---|
 | The day factor's curve | `smoothstep(−6°, +6°, e)` of the elevation angle | A smooth sunset, centered at the horizon. Dark at the end of civil twilight, full by the time the sun is a hand's width up. |
 | How the haze fades with the density share | The optical depth takes the mean density share along the ray | With the eye's share alone, the haze vanishes over the ground seen from above the air, though that ground lies in the air. The mean along the ray is exact for a flat ground and costs two exponentials. |
-| How the tint fades with the density share | `mix(1, SunTint, s(p))` at the lit point | Full at the surface, none above the air, and continuous between them. It is the tint of the point, not of the eye. So the ground seen from orbit keeps its tint, and a ship in orbit seen from the ground does not take it. |
+| How the tint fades with the density share | `mix(1, SunTint, s(p))` at the lit point | Full at the surface, none above the air, and continuous between them. It is the tint of the point, not of the eye. So the ground seen from above the air keeps its tint while the camera stays inside the planet frame's bubble, and a ship in orbit seen from the ground does not take it. |
+| The day factor of the haze light | D(e(p)) at each hazed point | With D at the eye, a view across the terminator lost it: the night ground glowed with the haze of the daylit eye, and from the night side the day side went dark. D at the point costs one `asin` per hazed pixel, and the sky keeps D at the eye, as settled. |
 | How the sun is chosen | The point light with the most irradiance at the planet's center, P · (r + g + b) / max(d², R²), in doubles. A tie keeps the earlier light of `RenderSnapshot.Lights`. | A planet's day comes from the light that outshines all the others there. The floor at R² keeps a light near the center from winning by its nearness. A spot light lights only its cone, so it cannot be a planet's sun. The list order is the slot order of the entities, which every run shares, so the choice is deterministic. |
 | A horizon gradient | None: one color in every direction | The default of the ticket. |
 
@@ -163,25 +167,30 @@ At the surface the light takes the whole tint, and above the air it takes none. 
 
 ## The renderer
 
-`PaintedAtmosphere.Prepare` (new, `src/Tertius.Rendering/Scene/PaintedAtmosphere.cs`) turns the record into the frame's `GpuAtmosphere`, at the interpolated eye. The frame block (`frame.glsl`, `GpuFrameConstants`) holds it at its end:
+`PaintedAtmosphere.Prepare` (new, `src/Tertius.Rendering/Scene/PaintedAtmosphere.cs`) turns the record into the frame's `GpuAtmosphere`, at the interpolated eye. The batcher prepares it with the camera, as `PreparedScene.Atmosphere`, so that the impostors' light signature can read it. The frame block (`frame.glsl`, `GpuFrameConstants`) holds it at its end:
 
 ```glsl
 struct GpuAtmosphere
 {
     vec4 centerRadius;   // xyz c: the planet's center relative to the eye, in m; w R
     vec4 sky;            // rgb the sky, plain radiance; w 1 / H, 0 without an atmosphere
-    vec4 haze;           // rgb hazeLight, plain radiance; w 1 / Haze.Distance, 0 without a haze
+    vec4 haze;           // rgb min(Haze.Radiance, MaxRadiance), plain radiance; w 1 / Haze.Distance, 0 without a haze
     vec4 sunTint;        // rgb SunTint, 1 without a tint; w unused
+    vec4 sun;            // xyz the sun's place relative to the eye, in m; w 1 with a sun, 0 without one
+    vec4 eye;            // x h_e, in m; y s_e; zw unused
 };
 ```
 
-Without an atmosphere, every value is 0 except the tint, which is 1. Then `skyRadiance` is black, the haze lets everything through, and no light takes a tint, so every scene of today keeps its look.
+Without an atmosphere, every value is 0 except the tint, which is 1. Then `skyRadiance` is black, the haze lets everything through, and no light takes a tint, so every scene of today keeps its look. A sun past the shaders' range of places, 2^62 m, counts as no sun.
+
+`PaintedAtmosphere.cs` and `atmosphere.glsl` hold the same three rules: the density share, the sun's tint and the day factor. The C# copy serves the values at the eye and the impostors' light signature. The GLSL copy serves every shaded point. A change to one rule edits both. The eye's height and share come from the CPU alone, so no pixel computes them again.
 
 ## Portable Vulkan
 
 - The sky and the haze light are capped at MaxRadiance on the CPU, after `ShaderInput.Radiance`. So a face texel and the haze pass's output stay inside the half float's range.
 - 1 / H and 1 / Haze.Distance are at most 2^62 per meter. Every height and distance is at most 2^62 m (`ShaderInput.PositionLimit`), so each product stays below 2^124 and finite. `exp` of a large negative number gives 0, never a NaN.
 - If \|x\| < 0.01, the mean m does not divide by x. Both shares lie from 0 to 1, so m is finite.
+- `dayFactorAt` takes the lengths of p − c and of the sun's place less p. Each difference lies within 2^63 m, so its squared length stays below 2^128 and finite. A zero length counts as the sun overhead, so no division by 0 happens.
 - The haze pass blends with the dual-source blend that the transparent pass already uses (`BlendMode.Transmittance`, the device feature dualSrcBlend). It needs no new feature.
 - The convex sum `light · T + hazeLight · (1 − T)` stays at most the larger of its two parts, so it keeps the surfaces' share of MaxRadiance.
 
@@ -195,11 +204,14 @@ The tests define the behavior first, in the language of the domain:
 - The day factor is full by day, half at sunset and zero at night.
 - A frame with a painted sky shows that color behind its ground by day. The sky is black at night. The sky fades to black above the air.
 - Haze grows with distance, and a planet that sets none has none.
+- A surface on the night side takes no haze light while the eye is in daylight, and a surface on the day side keeps it while the eye is at night.
+- A clear pane leaves the hazed surface behind it as the haze alone shows it. An opaque pane fades into the haze as an opaque surface does. A fringe fades by the share that it covers. A glow puff dims in the haze and takes none of its color.
+- A screen-space reflection shows a far surface through the haze as the environment map does.
+- An impostor recaptures when the camera enters a tinted air.
 - The sun's light takes the tint inside the air and not in orbit.
 - The environment faces see the same sky and the same haze.
 
 ## Not in this ticket
 
 - The exposure meter counts no sky pixel (`auto-exposure.md`). So a view of the sky alone keeps the exposure that the view before it set. With a sunlit surface in view, the exposure falls by day, and the stars fade.
-- The record comes from the camera's chain. A camera that leaves the bubble of the atmosphere's frame loses the record, and with it the haze and the tint of the ground below. A planet frame whose bubble reaches well above its air, many scale heights, hides that edge: there the sky is black already, and the haze of a view down is small.
-- The screen-space reflections read the lit image before the haze pass. A mirror shows a reflected surface without the haze along the reflected path, and the mirror's own haze applies to the sum.
+- Open fork for the user: the record comes from the camera's chain. A camera that leaves the bubble of the atmosphere's frame loses the record, and with it the haze and the tint of the ground below, in one frame. A tall bubble does not hide this edge. Seen from above the air, the ground takes the haze of its whole air column, about τ = H / `Haze.Distance`. For `mars-air` that is τ ≈ 0.74 and T ≈ 0.48 at the 300 km edge of its bubble. So the full-column haze and the tint pop off at any bubble edge, whatever its height. A planet whose air lies on a frame with a low bubble, such as the demo's Earth pattern with its edge 50 km up, never shows the haze or the tint of its ground from orbit.

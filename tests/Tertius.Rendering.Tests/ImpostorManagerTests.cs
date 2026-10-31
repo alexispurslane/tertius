@@ -971,6 +971,83 @@ public sealed class ImpostorManagerTests
         Captures(Scene(lightOffset: new(0, 3f, 0), spot: true, spotTurn: 0.8f)).Should().Be(1);
     }
 
+    /// <summary>
+    /// A Mars-sized air whose tint keeps half the sun's green and a quarter of its blue, with its surface
+    /// <paramref name="height"/> m below the eye and the test star as its sun.
+    /// </summary>
+    private static RenderAtmosphere TintedAir(float height)
+    {
+        const float radius = 3_389_500;
+        var center = new Vector3(0, -(radius + height), 0);
+        var air = new PlanetMedium(
+            Radius: radius,
+            SurfaceDensity: 0.02f,
+            ScaleHeight: 11_100,
+            Drag: 2,
+            SunTint: new(1, 0.5f, 0.25f)
+        );
+        return new(Center: center, PreviousCenter: center, Medium: air, Sun: 0);
+    }
+
+    private static int CapturesIn(Harness harness, Vector3 position, RenderAtmosphere? air)
+    {
+        RenderSnapshot snapshot = Snapshot();
+        snapshot.Atmosphere = air;
+        snapshot.Instances.Add(Ball(entity: 1, position: position));
+        harness.Run(snapshot);
+        return harness.Manager.Captures.Length;
+    }
+
+    [Fact]
+    public void TheSunsTintIsBakedSoACameraThatEntersATintedAirRecaptures()
+    {
+        (Harness harness, float distance) = Captured(100f);
+        var position = new Vector3(0, 0, -distance);
+
+        CapturesIn(harness, position, TintedAir(height: 0))
+            .Should()
+            .Be(1, "at the surface the air takes half the sun's green and three quarters of its blue");
+        CapturesIn(harness, position, TintedAir(height: 0)).Should().Be(0, "nothing changed");
+    }
+
+    [Fact]
+    public void ATintedAirFarBelowTheObjectChangesNoSignature()
+    {
+        (Harness harness, float distance) = Captured(100f);
+
+        CapturesIn(harness, new(0, 0, -distance), TintedAir(height: 500_000))
+            .Should()
+            .Be(0, "45 scale heights up, the air is gone, so the sun's light keeps its color");
+    }
+
+    [Fact]
+    public void OnlyTheSunTakesTheTintSoAnAirWithoutASunChangesNoLampLitSignature()
+    {
+        float distance = DistanceFor(100f);
+        var position = new Vector3(0, 0, -distance);
+        var harness = new Harness();
+
+        int Captures(RenderAtmosphere? air)
+        {
+            RenderSnapshot snapshot = Snapshot(intensity: 0);
+            snapshot.Atmosphere = air;
+            snapshot.Instances.Add(Ball(entity: 1, position: position));
+            snapshot.Lights.Add(
+                Gpu.Lamp(
+                    position: position + new Vector3(2.5f, 1, 0),
+                    color: Vector3.One,
+                    intensity: 5,
+                    chainDepth: TestChains.CamerasFrame
+                )
+            );
+            harness.Run(snapshot);
+            return harness.Manager.Captures.Length;
+        }
+
+        Captures(null).Should().Be(1, "the first sight of an impostor is captured");
+        Captures(TintedAir(height: 0) with { Sun = null }).Should().Be(0, "the air has no sun to tint");
+    }
+
     [Fact]
     public void ALampThatBrightensRecapturesTheObjectsItReaches()
     {

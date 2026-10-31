@@ -102,7 +102,9 @@ struct GpuAtmosphere
     vec4 sky;                 // rgb the sky, plain radiance; w 1 / the scale height in 1/m, 0 without an atmosphere
     vec4 haze;                // rgb the haze's light, plain radiance; w 1 / the haze distance in 1/m, 0 without a haze
     vec4 sunTint;             // rgb the tint of the sun's light at the surface; w unused
-};                            // std140: 64 bytes
+    vec4 sun;                 // xyz the sun's place relative to the eye, in m; w 1 with a sun, 0 without one
+    vec4 eye;                 // x the eye's height above the surface, in m; y the density share at the eye; zw unused
+};                            // std140: 96 bytes
 
 struct GpuOutline
 {

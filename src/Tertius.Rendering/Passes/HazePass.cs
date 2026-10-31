@@ -31,8 +31,7 @@ internal sealed unsafe class HazePass : RenderPass
 
     public override void Record(FrameContext context)
     {
-        // 1 / the haze distance, 0 without a haze (PaintedAtmosphere.Prepare).
-        if (context.Scene.Constants.Atmosphere.Haze.W == 0)
+        if (!context.Scene.Constants.Atmosphere.HasHaze)
             return;
         RenderTargets targets = context.Targets;
         BarrierBatch barriers = context.Barriers;

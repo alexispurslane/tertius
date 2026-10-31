@@ -707,15 +707,16 @@ internal sealed partial class ImpostorManager : IInstanceProcessor
     }
 
     /// <summary>
-    /// The frame's lights, ambient light and occluders, as the capture shader sees them: only the lights that the main view
-    /// keeps (<see cref="PreparedLight.InMainView"/>), so a light that only a face of the map keeps changes no signature
-    /// (docs/plans/environment-map.md, decision 20).
+    /// The frame's lights, ambient light, occluders and atmosphere, as the capture shader sees them: only the lights that
+    /// the main view keeps (<see cref="PreparedLight.InMainView"/>), so a light that only a face of the map keeps changes no
+    /// signature (docs/plans/environment-map.md, decision 20).
     /// </summary>
     private readonly ref struct SceneLight(PreparedScene scene)
     {
         private readonly ReadOnlySpan<Vector4> occluders = scene.Occluders.AsSpan(0, scene.OccluderCount);
         private readonly ReadOnlySpan<PreparedLight> lights = scene.Lights.AsSpan(0, scene.LightCount);
         private readonly AmbientSource ambient = scene.Ambient;
+        private readonly GpuAtmosphere atmosphere = scene.Atmosphere;
 
         public LightSignature At(in PreparedInstance instance)
         {
@@ -745,7 +746,8 @@ internal sealed partial class ImpostorManager : IInstanceProcessor
         /// <summary>
         /// The irradiance of <paramref name="light"/> at the instance's center past its far shadows, and the unit
         /// direction toward the light, or null where it adds nothing. As the lighting shader's lightIrradiance, with its
-        /// window measured to the nearest point of the bounding sphere, so that a light that grazes the object counts.
+        /// window measured to the nearest point of the bounding sphere, so that a light that grazes the object counts, and
+        /// the air's tint at the center for the atmosphere's sun.
         /// </summary>
         private (Vector3 Irradiance, Vector3 Unit)? IrradianceAt(in PreparedLight light, in PreparedInstance instance)
         {
@@ -761,8 +763,11 @@ internal sealed partial class ImpostorManager : IInstanceProcessor
             Vector3 unit = toLight / distance;
             if (light.Spread is Cone { Axis: var axis, CosInner: var cosInner, CosOuter: var cosOuter })
                 falloff *= SmoothStep(cosOuter, cosInner, Vector3.Dot(-unit, axis));
+            Vector3 unlimited = light.RadiantIntensity * falloff;
+            if (light.AirSun)
+                unlimited *= PaintedAtmosphere.SunTintAt(atmosphere, instance.Position);
             // The shader's cap, so that the sums stay finite single floats.
-            var irradiance = Vector3.Min(light.RadiantIntensity * falloff, new Vector3(ShaderInput.IrradianceLimit));
+            var irradiance = Vector3.Min(unlimited, new Vector3(ShaderInput.IrradianceLimit));
             OccluderRange? range = light.Shadow switch
             {
                 CascadeSet { Occluders: var cascadeOccluders } => cascadeOccluders,

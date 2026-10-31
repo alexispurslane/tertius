@@ -12,13 +12,17 @@ public static partial class DemoScenes
     /// <item>The Sun of <see cref="SunRoot"/>, and <c>mars</c>, a frame 1.524 AU from it along +X whose origin is the
     /// planet's center. Its air is <see cref="Air"/>: a butterscotch sky, an ochre haze and a warm tint on the sunlight. The
     /// frame's bubble reaches 300 km above the ground, 27 scale heights, so a view above the air keeps the planet's
-    /// record.</item>
+    /// record. Past that edge the record goes, and the ground's haze and tint go with it in one frame
+    /// (docs/plans/atmosphere.md, "Not in this ticket").</item>
     /// <item>Two sites on the ground, each a flat plate 30 km wide with pillars along its +Z at 15 m to 12 km, which grow
     /// with their distance and stand side by side in the view: <c>day</c>, 50° from the point under the Sun, where the Sun stands 40° up, and <c>dusk</c>,
     /// 89° from it, where the Sun stands 1° up.</item>
     /// <item>The views, each a camera without a body: <c>day-view</c> and <c>dusk-view</c>, 1.7 m above their sites,
     /// looking along the pillars 4° down, and <c>above-view</c>, 120 km above the day site, looking along the same line 20°
-    /// down, where the air is gone and the sky is black.</item>
+    /// down, where the air is gone and the sky is black. <c>terminator-view</c>, 60 km above the dusk site, looks 12° down
+    /// away from the Sun, across the terminator. <c>edge-inside-view</c> and <c>edge-outside-view</c> look 60° down at the
+    /// day site from 5 km inside and outside the bubble's edge, the second in the Sun's frame, where no planet's air is on
+    /// the camera's chain.</item>
     /// </list>
     /// </summary>
     public static class MarsAir
@@ -35,8 +39,9 @@ public static partial class DemoScenes
         /// <summary>
         /// The air: Mars's surface density, 0.020 kg/m³, and the painted look. The Sun gives 586 W/m² at 1.524 AU, so the
         /// ochre ground with the Sun 40° up sends about 54 W/(m²·sr) of red, and about 80 with the sky's light. The sky is a
-        /// little brighter, as a dusty sky by day is, and the haze a little paler, so that the far ground fades into the sky at the horizon. The haze lets
-        /// through 1/e of the light per 15 km at the surface, so a column of the air straight up lets through about half.
+        /// little brighter, as a dusty sky by day is, and the haze a little paler. The haze lets through 1/e of the light per
+        /// 15 km at the surface, so a column of the air straight up lets through about half. The plate's edge, 15 km away,
+        /// still shows through about 37% of its light, so the day view keeps a sharp horizon.
         /// The tint keeps 88% of the green and 75% of the blue of the sunlight.
         /// </summary>
         public static MediumField Air =>
@@ -66,11 +71,12 @@ public static partial class DemoScenes
             scene.Add("sun", sun.Entity);
             world.Ambient = SpaceAmbient;
 
+            var planetPlace = new Double3(1.524 * AstronomicalUnit, 0, 0);
             Entity planet = world.Spawn(
                 new()
                 {
                     Frame = sun,
-                    Pose = new(new(1.524 * AstronomicalUnit, 0, 0), DQuaternion.Identity),
+                    Pose = new(planetPlace, DQuaternion.Identity),
                     AsFrame = new(FrameBounds.Sphere((float)(Radius + 300e3)), GravityField.Point(Mu), Air),
                     Render = new RenderData
                     {
@@ -89,20 +95,50 @@ public static partial class DemoScenes
             SpawnSite(world: world, resources: resources, scene: scene, mars: mars, angle: DayAngle, name: "day");
             SpawnSite(world: world, resources: resources, scene: scene, mars: mars, angle: DuskAngle, name: "dusk");
 
-            void View(string id, double angle, Double3 eye, double down)
+            // A view at `eye` in the axes of the site at `angle`, looking along the site's `heading`, `down` rad below the
+            // horizon there. It lies in mars, or, if `outsideMars`, at the same place in the Sun's frame, whose axes are
+            // mars's.
+            void View(string id, double angle, Double3 eye, double down, Double3 heading, bool outsideMars = false)
             {
                 DQuaternion site = SiteRotation(angle);
                 Double3 up = site.Rotate(Double3.UnitY),
-                    along = site.Rotate(Double3.UnitZ);
+                    along = site.Rotate(heading);
                 DQuaternion facing = AttitudeAutopilot.Facing(along * Math.Cos(down) - up * Math.Sin(down), up);
-                scene.Add(id, world.Spawn(ViewIn(mars, new(SitePlace(angle, eye), facing))));
+                SpawnDesc view = outsideMars
+                    ? ViewIn(sun, new(planetPlace + SitePlace(angle, eye), facing))
+                    : ViewIn(mars, new(SitePlace(angle, eye), facing));
+                scene.Add(id, world.Spawn(view));
                 scene.AddView(id);
             }
 
             double gentle = 4 * Math.PI / 180;
-            View(id: "day-view", angle: DayAngle, eye: new(0, 1.7, 0), down: gentle);
-            View(id: "dusk-view", angle: DuskAngle, eye: new(0, 1.7, 0), down: gentle);
-            View(id: "above-view", angle: DayAngle, eye: new(0, 120e3, 0), down: 20 * Math.PI / 180);
+            View(id: "day-view", angle: DayAngle, eye: new(0, 1.7, 0), down: gentle, heading: Double3.UnitZ);
+            View(id: "dusk-view", angle: DuskAngle, eye: new(0, 1.7, 0), down: gentle, heading: Double3.UnitZ);
+            View(
+                id: "above-view",
+                angle: DayAngle,
+                eye: new(0, 120e3, 0),
+                down: 20 * Math.PI / 180,
+                heading: Double3.UnitZ
+            );
+            // The site's +X points away from the Sun, so this view looks across the terminator, 59 km ahead.
+            View(
+                id: "terminator-view",
+                angle: DuskAngle,
+                eye: new(0, 60e3, 0),
+                down: 12 * Math.PI / 180,
+                heading: Double3.UnitX
+            );
+            double steep = 60 * Math.PI / 180;
+            View(id: "edge-inside-view", angle: DayAngle, eye: new(0, 295e3, 0), down: steep, heading: Double3.UnitZ);
+            View(
+                id: "edge-outside-view",
+                angle: DayAngle,
+                eye: new(0, 305e3, 0),
+                down: steep,
+                heading: Double3.UnitZ,
+                outsideMars: true
+            );
             world.Camera = scene["day-view"];
             return scene;
         }
@@ -125,7 +161,7 @@ public static partial class DemoScenes
 
         /// <summary>
         /// The site <paramref name="name"/> at <paramref name="angle"/> rad from the point under the Sun: a flat plate 30 km
-        /// wide whose top is the ground, and the pillars along its +Z, the nearest on the left.
+        /// wide whose top is the ground, and the pillars along its +Z, the nearest on the right of a view along +Z.
         /// </summary>
         private static void SpawnSite(
             World world,

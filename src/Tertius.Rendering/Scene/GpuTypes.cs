@@ -347,7 +347,7 @@ internal struct GpuPuff
     public uint Map;
 }
 
-/// <summary>The frame uniform block (std140). 2,288 bytes.</summary>
+/// <summary>The frame uniform block (std140). 2,320 bytes.</summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct GpuFrameConstants
 {
@@ -404,9 +404,9 @@ internal struct GpuFrameConstants
 }
 
 /// <summary>
-/// The atmosphere in the frame block (std140), 64 bytes: what the shaders of atmosphere.glsl and sky.glsl read
+/// The atmosphere in the frame block (std140), 96 bytes: what the shaders of atmosphere.glsl and sky.glsl read
 /// (docs/plans/atmosphere.md, "The renderer"). Without an atmosphere every value is 0 but the tint, which is 1, so the sky
-/// is black, the haze lets everything through and no light takes a tint.
+/// is black, the haze lets everything through, there is no sun and no light takes a tint.
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct GpuAtmosphere
@@ -417,11 +417,23 @@ internal struct GpuAtmosphere
     /// <summary>rgb the sky, plain radiance in W/(m²·sr); w 1 / the scale height, in 1/m, 0 without an atmosphere.</summary>
     public Vector4 Sky;
 
-    /// <summary>rgb the haze's light, plain radiance in W/(m²·sr); w 1 / the haze distance, in 1/m, 0 without a haze.</summary>
+    /// <summary>
+    /// rgb the haze's light in full day, plain radiance in W/(m²·sr), which the shaders dim by the day factor at each hazed
+    /// point; w 1 / the haze distance, in 1/m, 0 without a haze.
+    /// </summary>
     public Vector4 Haze;
 
     /// <summary>rgb the tint of the sun's light at the surface, 1 without a tint; w unused.</summary>
     public Vector4 SunTint;
+
+    /// <summary>xyz the sun's place relative to the interpolated eye, in m; w 1 with a sun, 0 without one.</summary>
+    public Vector4 Sun;
+
+    /// <summary>x the eye's height above the surface, in m; y the air's density share at the eye, from 0 to 1; zw unused.</summary>
+    public Vector4 Eye;
+
+    /// <summary>Whether the frame's air has a haze: 1 / the haze distance is above 0, the encoding that atmosphere.glsl reads too.</summary>
+    public readonly bool HasHaze => Haze.W != 0;
 }
 
 /// <summary>One cascade set in the frame block (std140). 288 bytes.</summary>
