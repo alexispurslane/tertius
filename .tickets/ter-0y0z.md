@@ -20,3 +20,7 @@ Found by ter-bgpv, 2026-10-31. In mars-air, view above (1920 x 1080, Release, M1
 **2026-10-31T20:18:16Z**
 
 2026-10-31: the orchestrator filed the same finding as ter-kc9w on main while this ticket was created on the ter-bgpv branch; ter-kc9w is removed in the merge, because ARCHITECTURE.md's cost table names this ticket. Its one extra fact: on a loaded machine, separate runs with and without the haze drift by about 13 % in every pass, so only frame-alternating paired traces resolve this cost.
+
+**2026-10-31T20:48:34Z**
+
+Workflow run aa281c9f-e0fa-4837-92d7-8b635235f629 (version 869b0b07), branch ter-0y0z-exposure-after-haze from 5ab54297. Measure first with ter-bgpv's paired traces; remove the cost only with a change that is correct by the Vulkan spec and changes no pixel; report a fork if the only fix changes pixels or two fixes differ in result or cost.
