@@ -1,6 +1,6 @@
 ---
 id: ter-ox1a
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-10-27T11:48:52Z

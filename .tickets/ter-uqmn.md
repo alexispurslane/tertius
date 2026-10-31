@@ -1,6 +1,6 @@
 ---
 id: ter-uqmn
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-10-27T12:22:51Z

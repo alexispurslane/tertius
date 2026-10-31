@@ -1,6 +1,6 @@
 ---
 id: ter-t2w6
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-10-27T15:45:02Z
