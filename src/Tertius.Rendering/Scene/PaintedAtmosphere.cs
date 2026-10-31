@@ -49,7 +49,7 @@ internal static class PaintedAtmosphere
         PlanetMedium planet = air.Medium;
         Vector3? toSun = SunPlace(snapshot: snapshot, sun: air.Sun, alpha: alpha, eye: eye);
         float day = toSun is { } place ? DayFactor(Elevation(up: -center, toSun: place)) : 0;
-        double height = Math.Max(0, center.Length() - planet.Radius);
+        double height = planet.HeightAt(center.Length());
         float eyeShare = (float)Math.Exp(-height / planet.ScaleHeight);
         Vector4 haze = planet.Haze is { } painted
             ? new(Capped(painted.Radiance), InverseLength(painted.Distance))

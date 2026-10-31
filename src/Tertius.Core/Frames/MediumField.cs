@@ -17,7 +17,8 @@ public readonly record struct UniformMedium(float Density, float Drag, BoundingB
 /// The air of a planet at the frame's origin, at one temperature, so its density falls by the factor e per scale height
 /// above the planet's radius. Below the radius the density stays at the surface density. It matches
 /// <see cref="PointGravity"/>, centred on the frame's origin. It also holds the air's look, which the renderer paints for a
-/// camera whose chain holds the frame (docs/plans/atmosphere.md): the sky, the haze and the sun's tint. Each part of the
+/// camera whose chain holds the frame, or for a camera whose chain holds no planet medium when this air is the densest at
+/// its eye (docs/plans/atmosphere.md): the sky, the haze and the sun's tint. Each part of the
 /// look defaults to none.
 /// </summary>
 /// <param name="Radius">The radius of the planet, in m, 0 or more.</param>
@@ -41,7 +42,15 @@ public readonly record struct PlanetMedium(
     Vector3 SkyRadiance = default,
     PlanetHaze? Haze = null,
     Vector3? SunTint = null
-);
+)
+{
+    /// <summary>
+    /// The height in m above the planet's surface of a place <paramref name="distance"/> m from its center, 0 at and below
+    /// the radius, where the density stays at the surface density. The density there is the surface density times
+    /// e^(−height / <see cref="ScaleHeight"/>). IMPORTANT: airHeight in atmosphere.glsl is the shaders' copy of this rule.
+    /// </summary>
+    public double HeightAt(double distance) => Math.Max(0, distance - Radius);
+}
 
 /// <summary>
 /// The haze of a planet's air (docs/plans/atmosphere.md, "The haze"): a surface seen through the air fades toward
@@ -186,8 +195,7 @@ public readonly partial struct MediumField
             && !box.Contains(place.ToVector3())
                 ? 0
                 : density,
-            PlanetMedium { Radius: var radius, SurfaceDensity: var surface, ScaleHeight: var scale } => surface
-                * Math.Exp(-Math.Max(0, place.Length - radius) / scale),
+            PlanetMedium planet => planet.SurfaceDensity * Math.Exp(-planet.HeightAt(place.Length) / planet.ScaleHeight),
             null => 0,
         };
 }

@@ -3,7 +3,8 @@
 // shape, the sun's place, the eye's height and share, and the look, which PaintedAtmosphere.cs prepares at the
 // interpolated eye. Without an atmosphere, 1 / H and 1 / the haze distance are 0 and the tint is 1, so the haze lets
 // everything through and no light changes. Positions are camera-relative world positions, so the eye is at the origin.
-// IMPORTANT: PaintedAtmosphere.cs holds the C# copy of the share, the tint and the day factor. A change edits both.
+// IMPORTANT: PaintedAtmosphere.cs holds the C# copy of the share, the tint and the day factor, and PlanetMedium.HeightAt
+// (MediumField.cs) the C# copy of h(p). A change edits every copy.
 // Needs frame.glsl.
 #ifndef TERTIUS_ATMOSPHERE_GLSL
 #define TERTIUS_ATMOSPHERE_GLSL

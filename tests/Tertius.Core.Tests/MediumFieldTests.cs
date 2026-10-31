@@ -101,6 +101,17 @@ public sealed class MediumFieldTests
     }
 
     [Fact]
+    public void APlanetMediumsHeightIsTheDistanceAboveItsRadiusAndZeroBelowIt()
+    {
+        var air = new PlanetMedium(Radius: EarthRadius, SurfaceDensity: SeaLevelAir, ScaleHeight: ScaleHeight, Drag: 2);
+
+        air.HeightAt(EarthRadius + 1000).Should().Be(1000);
+        air.HeightAt(EarthRadius).Should().Be(0);
+        air.HeightAt(EarthRadius - 1000).Should().Be(0, "below the surface the air is no denser than at it");
+        air.HeightAt(0).Should().Be(0);
+    }
+
+    [Fact]
     public void AMediumWithANumberThatIsNotFiniteOrIsNegativeIsNotValid()
     {
         MediumField.Uniform(SeaLevelAir, 2, Cabin).IsValid.Should().BeTrue();
