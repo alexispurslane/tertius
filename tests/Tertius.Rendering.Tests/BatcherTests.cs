@@ -2057,6 +2057,20 @@ public sealed class BatcherTests
     }
 
     [Fact]
+    public void TheFrameConstantsMatchTheShadersFrameBlock()
+    {
+        Unsafe.SizeOf<GpuFrameConstants>().Should().Be(2320);
+        ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.Counts))).Should().Be(304);
+        ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.RootRotation))).Should().Be(384);
+        ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.CascadeSets))).Should().Be(400);
+        ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.MapAxes))).Should().Be(1552);
+        ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.Atmosphere)))
+            .Should()
+            .Be(2224, "the atmosphere follows the 42 map axes");
+        Unsafe.SizeOf<GpuAtmosphere>().Should().Be(96, "std140 lays out six vec4s in 96 bytes");
+    }
+
+    [Fact]
     public void GpuStructsMatchTheShaderLayouts()
     {
         Unsafe.SizeOf<GpuInstance>().Should().Be(96, "std430 rounds 92 bytes of members up to the vec4's 16");
@@ -2067,19 +2081,15 @@ public sealed class BatcherTests
         ((int)Marshal.OffsetOf<GpuMaterial>(nameof(GpuMaterial.MetallicRoughnessMap))).Should().Be(48);
         ((int)Marshal.OffsetOf<GpuMaterial>(nameof(GpuMaterial.Shading))).Should().Be(52);
         ((int)Marshal.OffsetOf<GpuMaterial>(nameof(GpuMaterial.AlphaCutoff))).Should().Be(56);
-        Unsafe.SizeOf<GpuLight>().Should().Be(112, "std430 rounds 100 bytes of members up to the vec4's 16");
+        Unsafe.SizeOf<GpuLight>().Should().Be(112, "std430 rounds 104 bytes of members up to the vec4's 16");
         ((int)Marshal.OffsetOf<GpuLight>(nameof(GpuLight.Shadow))).Should().Be(64);
         ((int)Marshal.OffsetOf<GpuLight>(nameof(GpuLight.Occluders))).Should().Be(80);
         ((int)Marshal.OffsetOf<GpuLight>(nameof(GpuLight.Map))).Should().Be(92, "std430 packs a uint after a uvec3");
         ((int)Marshal.OffsetOf<GpuLight>(nameof(GpuLight.InMainView))).Should().Be(96);
+        ((int)Marshal.OffsetOf<GpuLight>(nameof(GpuLight.AirSun))).Should().Be(100);
         Unsafe.SizeOf<GpuOutline>().Should().Be(48);
         ((int)Marshal.OffsetOf<GpuOutline>(nameof(GpuOutline.Radii))).Should().Be(32);
         Unsafe.SizeOf<OutlinePushConstants>().Should().Be(4);
-        Unsafe.SizeOf<GpuFrameConstants>().Should().Be(2224);
-        ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.Counts))).Should().Be(304);
-        ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.RootRotation))).Should().Be(384);
-        ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.CascadeSets))).Should().Be(400);
-        ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.MapAxes))).Should().Be(1552);
         Unsafe
             .SizeOf<GpuCascadeSet>()
             .Should()

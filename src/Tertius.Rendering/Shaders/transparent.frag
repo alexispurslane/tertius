@@ -50,6 +50,8 @@ void main()
     // outColor is radiance, so it takes the exposure that every pass's radiance takes. The transmittance is a fraction
     // of the radiance behind, and never takes such a factor. The blend keeps the target's alpha, so neither alpha
     // matters.
-    outColor = vec4(radiance, 0.0);
+    // The haze between the eye and the pane stands in for the share of the haze's light that the pane hides, 1 − T
+    // (docs/plans/atmosphere.md, "The haze"). The pane's bound holds: each part is at most MaxRadiance · (1 − T).
+    outColor = vec4(throughAir(radiance, 1.0 - transmittance, inPosition, exposed(frame.atmosphere.haze.rgb, exposure)), 0.0);
     outTransmittance = vec4(transmittance, 0.0);
 }

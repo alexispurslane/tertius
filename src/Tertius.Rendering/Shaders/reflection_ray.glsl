@@ -10,10 +10,10 @@ layout(set = 3, binding = 0) uniform texture2D depthPyramid;     // RG32F, mip m
 layout(set = 3, binding = 1) uniform texture2D radiancePyramid;  // RGBA16F: premultiplied radiance, coverage
 layout(set = 3, binding = 2) uniform sampler mipSampler;         // linear, linear between mips, clamped
 
-// The result of the pixel's ray: the radiance pyramid's read at the hit and the cone level, premultiplied radiance in
-// RGB and coverage in A, both times the ray's fade, the edge fade and 1 − q, and the view depth of the hit in m. False
-// for a ray that hits nothing. texelSide is the side of the trace's texel in pixels, the distance to the next ray: 1 at
-// full resolution, 2 at half.
+// The result of the pixel's ray: the radiance pyramid's read at the hit and the cone level, seen through the haze from
+// the eye, premultiplied radiance in RGB and coverage in A, both times the ray's fade, the edge fade and 1 − q, and the
+// view depth of the hit in m. False for a ray that hits nothing. texelSide is the side of the trace's texel in pixels,
+// the distance to the next ray: 1 at full resolution, 2 at half.
 bool traceReflection(ReflectingPixel p, float texelSide, out vec4 rayResult, out float hitDepth)
 {
     vec3 origin = p.toSurface * p.distanceToEye + p.s.geometricNormal * originOffset(p.viewDepth);
@@ -33,7 +33,12 @@ bool traceReflection(ReflectingPixel p, float texelSide, out vec4 rayResult, out
     float level = coneLevel(p.alpha, p.s.reflectionFootprint, texelSide, length(hitPoint - origin), hitDistance,
         float(textureQueryLevels(radiancePyramid) - 1));
     vec4 traced = textureLod(sampler2D(radiancePyramid, mipSampler), hit * frame.viewport.zw, level);
-    rayResult = edgeFade(hit) * (1.0 - entryShare) * traced;
+    // The pyramid holds the lit image from before the haze pass. The hit takes the haze between the eye and it, as the
+    // environment faces give the map's reflection of it, and the haze pass then gives the mirror's own haze to both
+    // (docs/plans/atmosphere.md, "The haze"). The hit's light is premultiplied, so its coverage is the cover. Both parts
+    // are at most MaxRadiance, and so is their convex sum.
+    vec3 hazed = throughAir(traced.rgb, vec3(traced.a), hitPoint, preExposed(frame.atmosphere.haze.rgb));
+    rayResult = edgeFade(hit) * (1.0 - entryShare) * vec4(hazed, traced.a);
     return true;
 }
 

@@ -9,8 +9,8 @@
 // One surface of an environment face, drawn with mesh.vert in one of the face's three depth ranges
 // (EnvironmentFacePass.cs). It is impostor_capture.frag without the ambient light (docs/plans/environment-map.md, "How a
 // face is lit"): every light, a cascade set by the finest cascade whose box holds the point, and the emission of an
-// entity that holds no light, in plain radiance. The map is the light that arrives at the camera's eye, so V points
-// toward the eye at the origin.
+// entity that holds no light, in plain radiance, seen through the atmosphere's haze. The map is the light that arrives at
+// the camera's eye, so V points toward the eye at the origin.
 
 layout(location = 0) in vec3 inPosition;
 layout(location = 1) in vec3 inNormal;
@@ -34,5 +34,8 @@ void main()
     vec3 glow = glowSent(s.emissive, inInstanceWords.z);
     // A face of map i keeps the lights of maps 0 to i: a map leaves out the lamps of the subtree that it leaves out
     // (docs/plans/environment-maps-per-frame.md, decision 13).
-    outColor = vec4(directRadiance(shading, glow, inPosition, V, ShadowMapsHolding, draw.map), 0.0);
+    vec3 radiance = directRadiance(shading, glow, inPosition, V, ShadowMapsHolding, draw.map);
+    // The face sees the surface through the same haze as the main view, from the same eye (docs/plans/atmosphere.md,
+    // "The haze"). Both parts are at most MaxRadiance, and so is their convex sum.
+    outColor = vec4(throughAir(radiance, vec3(1.0), inPosition, frame.atmosphere.haze.rgb), 0.0);
 }

@@ -11,6 +11,7 @@ ARCHITECTURE.md stays the binding design. When a feature is done, its decisions 
 | [Ambient occlusion](ambient-occlusion.md) | `ter-b3h5` |
 | [Anti-aliasing](anti-aliasing.md) | `ter-gcm3` |
 | [Asset pipeline](asset-pipeline.md) | `ter-kge6` |
+| [Atmosphere: a painted sky, haze and a sun tint per planet](atmosphere.md) | `ter-6vhj` |
 | [Automatic exposure](auto-exposure.md) | `ter-zzyr` |
 | [Bounce light](screen-space-illumination.md) | `ter-a24f` |
 | [Code quality tooling](code-quality-tooling.md) | `ter-9gj5` |

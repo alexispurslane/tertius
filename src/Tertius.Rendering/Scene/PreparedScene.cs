@@ -231,6 +231,12 @@ internal sealed class PreparedScene
     /// <summary>The ambient light of the frame: the snapshot's hemisphere, or the map with its latest irradiance reading.</summary>
     public AmbientSource Ambient;
 
+    /// <summary>
+    /// The frame's atmosphere at the interpolated eye (<see cref="PaintedAtmosphere.Prepare"/>), set with the camera: the
+    /// impostors' light signature reads it, and the frame constants carry it to the shaders.
+    /// </summary>
+    public GpuAtmosphere Atmosphere;
+
     public GpuFrameConstants Constants;
     public readonly Matrix4x4[] RangeViewProjection = new Matrix4x4[DepthRanges.Count];
 

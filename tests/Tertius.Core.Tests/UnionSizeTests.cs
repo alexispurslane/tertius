@@ -26,9 +26,10 @@ public sealed class UnionSizeTests
         Unsafe.SizeOf<GravityField>().Should().Be(56);
 
     [Fact]
-    public void AMediumFieldTakesFiftySixBytes() =>
-        // The two cases share their float slots, so the medium is smaller than the 72 bytes of two whole cases side by side.
-        Unsafe.SizeOf<MediumField>().Should().Be(56);
+    public void AMediumFieldTakesOneHundredAndFourBytes() =>
+        // The two cases share their float slots, and a planet's look adds its sky, its optional haze and its optional tint
+        // (docs/plans/atmosphere.md, "The types"). The frame tree holds one medium per frame, so the size matters little.
+        Unsafe.SizeOf<MediumField>().Should().Be(104);
 
     [Fact]
     public void AQueryShapeTakesTwentyFourBytes() =>

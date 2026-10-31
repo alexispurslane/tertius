@@ -127,6 +127,7 @@ internal sealed class SceneBatcher(
         alpha = ClampAlpha(alpha);
         scene.Reset();
         scene.Camera = InterpolateCamera(snapshot: snapshot, alpha: alpha, width: width, height: height);
+        scene.Atmosphere = PaintedAtmosphere.Prepare(snapshot: snapshot, alpha: alpha, eye: scene.Camera.Offset);
         // With the map off, one map stands for none, and every object takes map 0 (decision 24).
         (ReadOnlyMemory<FaceMask> drawn, scene.Ambient) = environment switch
         {
@@ -955,11 +956,16 @@ internal sealed class SceneBatcher(
     /// <param name="faces">The faces of each served map, root first.</param>
     private void CollectLights(RenderSnapshot snapshot, float alpha, ReadOnlySpan<FaceMask> faces, PreparedScene scene)
     {
-        foreach (ref readonly RenderLight light in CollectionsMarshal.AsSpan(snapshot.Lights))
+        ReadOnlySpan<RenderLight> lights = CollectionsMarshal.AsSpan(snapshot.Lights);
+        // The atmosphere names its sun by its index in the snapshot's lights (docs/plans/atmosphere.md, "The sun's tint").
+        int? sun = snapshot.Atmosphere?.Sun;
+        for (int i = 0; i < lights.Length; i++)
         {
+            ref readonly RenderLight light = ref lights[i];
             if (!Shines(light))
                 continue;
             PreparedLight prepared = Prepared(light: light, alpha: alpha, camera: scene.Camera, maps: scene.MapCount);
+            prepared.AirSun = i == sun;
             if (Reaches(faces: faces, axes: scene.MapAxes, light: prepared))
                 scene.AddLight() = prepared;
         }
@@ -1313,6 +1319,7 @@ internal sealed class SceneBatcher(
                 z: camera.RootRotation.Z,
                 w: camera.RootRotation.W
             ),
+            Atmosphere = scene.Atmosphere,
         };
         for (int map = 0; map < scene.MapCount; map++)
         {
