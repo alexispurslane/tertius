@@ -527,7 +527,7 @@ internal struct GpuScatterKernel
     /// <summary>Tap i: rgb its weight per channel, w its offset in m. The slots past the kernel's 2n + 1 taps hold zeros.</summary>
     public ScatterTapArray Taps;
 
-    /// <summary><see cref="ScatterKernel.WidthScale"/>.</summary>
+    /// <summary>How many times wider than the measured profile the offsets are (<see cref="ScatterKernel.WidthScale"/>).</summary>
     public float WidthScale;
 }
 
