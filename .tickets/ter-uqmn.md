@@ -28,3 +28,7 @@ ter-3dp5 measured the skin and hair epic on demo-exit's deck window (120 frames 
 **2026-10-31T17:15:33Z**
 
 2026-10-31: run 5a158d46 updated the docs (069c5bf7); its review stopped at correctness 'unverified' and fulfillment 'changes-required', with 8 findings (saved in /tmp/uqmn-review-5a158d46.json). The three medium ones: the one-sided transparent pipeline still holds the fiber loop although it never shades a fiber; the transparent pass's remaining 0.1 ms is attributed by elimination only; a SIMD group with hair and other pixels runs the light work twice. Fix continuation run a8e4f431-94e3-4fce-80d4-0bc143994512 (version 3cde7d7d-f5f8-4f91-aee3-b2258cb90dc6) adds a fiber specialization constant, measures a hair view under many lamps and NoSubsurface, and resolves the rest.
+
+**2026-10-31T19:51:28Z**
+
+2026-10-31: run a8e4f431 ended failed (output_json), because its fixer ended a turn while a timing series ran in the background (old script version 3cde7d7d). The fixer thread finished later and reported done=true on 867a0ec3, clean: all 8 findings of review 5a158d46 resolved (shadesFibers in the one-sided pipelines, lamp-hall-16-hair, the NoSubsurface series, ticket ter-qsye for the unattributed remainder, doc fixes). The orchestrator merged main into the branch (ef561998): shadesFibers takes constant_id 3, which ter-o0a6 freed. Continuation run c1a6ae45-170c-435f-bf56-9b4f606f6ede (version 869b0b07-3413-4b06-8707-a88a91bf6e91), review base 43f2b9cc, runs the checks, the review and a fix if needed.
