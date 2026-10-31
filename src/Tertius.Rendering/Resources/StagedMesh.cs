@@ -7,7 +7,10 @@ namespace Tertius.Rendering;
 /// </summary>
 internal sealed class StagedMesh
 {
-    private StagedMesh(MeshData data, GpuVertex[] vertices) => (Data, Vertices) = (data, vertices);
+    private StagedMesh(MeshData data, GpuVertex[] vertices)
+    {
+        (Data, Vertices) = (data, vertices);
+    }
 
     /// <summary>The mesh as the caller gave it: its indices, its rigging and its vertices before staging.</summary>
     public MeshData Data { get; }
