@@ -29,3 +29,7 @@ Options, for the user:
 **2026-10-31T14:30:21Z**
 
 2026-10-31: launched through the workflow MCP (ultracode-ticket-completion, version 88962f00-4bb7-41be-89dd-bb3951a51fd8), run 3f31a9a4-b26e-438b-9d41-38a4ed919b08, branch ter-ylzk-map-drops-lamp-glow from 148d1251.
+
+**2026-10-31T14:50:52Z**
+
+2026-10-31: run 3f31a9a4 finished the work in cafaab80 (both full runs passed) and failed only its output schema. The orchestrator settled the changed WalkSliceTests bound (roof < 3 * wall / 4) as a consequence of the user's choice. Continuation run a1790cd3-ba6e-4b54-8846-258ccf123496 (version 3cde7d7d-f5f8-4f91-aee3-b2258cb90dc6) verifies, reviews and fixes.

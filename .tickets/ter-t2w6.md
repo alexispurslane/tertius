@@ -33,3 +33,7 @@ The skin-and-hair head capture matches cap-wide/head.png of the experiment. docs
 **2026-10-31T14:22:50Z**
 
 2026-10-31: launched through the workflow MCP (ultracode-ticket-completion, version 88962f00-4bb7-41be-89dd-bb3951a51fd8), run 18ca0692-0168-4304-b5d3-e2dd322a4375, branch ter-t2w6-skin-scatter-wide from cd8b233c. The experiment's diff and captures are in ~/Library/Caches/tertius/ter-t2w6-experiment/.
+
+**2026-10-31T14:50:52Z**
+
+2026-10-31: run 18ca0692 stopped at a fork (the red ring beside the nose comes from the nose's depth step) and failed its output schema, because the service never showed the builder the schema. The user chose option B: the depth rule stays at the measured profile's size, through the same width scale. Continuation run 7210e798-27e9-4c1b-b4af-47b428953fda (version 3cde7d7d-f5f8-4f91-aee3-b2258cb90dc6) builds on 099a36cd.
