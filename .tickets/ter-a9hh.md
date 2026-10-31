@@ -1,6 +1,6 @@
 ---
 id: ter-a9hh
-status: in_progress
+status: open
 deps: []
 links: [ter-acr3]
 created: 2026-10-31T20:54:22Z
@@ -19,3 +19,7 @@ Found by the review of ter-acr3 (2026-10-31). On the tilted hair rug of hair-rug
 **2026-10-31T21:30:55Z**
 
 Workflow run 0776a43b-52db-49c0-9682-c0a825a031a3 (version 869b0b07), branch ter-a9hh-hair-card-self-hit from d4bd48de. Find the cause with probes and band.py; no shipped renderer change; a fork if the cause points to a fix that changes what the user sees or costs.
+
+**2026-10-31T21:31:30Z**
+
+Run 0776a43b stopped by the orchestrator about two minutes after its start, with cleanup complete and the checkout clean at d4bd48de: ter-a00h's fix stage had started, so five builders ran against the user's limit of four. Start it again when a builder slot frees; the brief is in /tmp/briefs/a9hh.txt.
