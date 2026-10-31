@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Runtime.CompilerServices;
 using Silk.NET.Vulkan;
 
 namespace Tertius.Rendering;
@@ -22,8 +23,32 @@ internal struct CameraView
 
     public float VerticalFov;
     public float Aspect;
-    public float TanHalfX;
-    public float TanHalfY;
+
+    /// <summary>
+    /// The tangent of half the horizontal field of view. Setting it also sets the scale of the left and right planes of
+    /// <see cref="Bound"/>, so that no test of a plane takes a square root.
+    /// </summary>
+    public float TanHalfX
+    {
+        readonly get;
+        init
+        {
+            field = value;
+            sideScaleX = SideScale(value);
+        }
+    }
+
+    /// <summary>The tangent of half the vertical field of view. Setting it also sets the scale of the top and bottom planes.</summary>
+    public float TanHalfY
+    {
+        readonly get;
+        init
+        {
+            field = value;
+            sideScaleY = SideScale(value);
+        }
+    }
+
     public int Width;
     public int Height;
 
@@ -33,6 +58,12 @@ internal struct CameraView
     /// <summary>The root frame's axes in world axes, interpolated like <see cref="Rotation"/>.</summary>
     public Quaternion RootRotation;
 
+    /// <summary>SideScale of <see cref="TanHalfX"/>, set with it.</summary>
+    private float sideScaleX;
+
+    /// <summary>SideScale of <see cref="TanHalfY"/>, set with it.</summary>
+    private float sideScaleY;
+
     /// <summary>The angle that one pixel covers at the center of the screen.</summary>
     public readonly float PixelAngle => 2f * TanHalfY / Math.Max(Height, 1);
 
@@ -41,19 +72,18 @@ internal struct CameraView
     public readonly Matrix4x4 ViewProjection(int range) =>
         View * DepthRanges.RangeProjection(range, VerticalFov, Aspect);
 
-    /// <summary>True when a sphere is completely outside the four side planes or behind the near plane.</summary>
-    public readonly bool Culls(Vector3 center, float radius)
-    {
-        float depth = Vector3.Dot(center, Forward);
-        if (depth + radius < DepthRanges.NearPlane)
-            return true;
-        float x = Vector3.Dot(center, Right);
-        float y = Vector3.Dot(center, Up);
-        // A side plane through the eye has normal (±1, 0, −tan) / √(1 + tan²) in (x, y, depth) coordinates.
-        float scaleX = MathF.Sqrt(1 + TanHalfX * TanHalfX);
-        float scaleY = MathF.Sqrt(1 + TanHalfY * TanHalfY);
-        return MathF.Abs(x) - depth * TanHalfX > radius * scaleX || MathF.Abs(y) - depth * TanHalfY > radius * scaleY;
-    }
+    /// <summary>
+    /// True when a sphere lies completely outside one of the planes that bound the view (<see cref="Bound"/>): behind the
+    /// near plane or outside one of the four side planes. The planes are unrolled, so that each inlined Bound folds to its
+    /// own plane: on the hot path of instance culling, a loop over the planes cost SceneBatcherBenchmarks 0.17 ms per
+    /// 20,000 instances (ter-19fm).
+    /// </summary>
+    public readonly bool Culls(Vector3 center, float radius) =>
+        Plane.DotCoordinate(Bound(0), center) + radius < 0
+        || Plane.DotCoordinate(Bound(1), center) + radius < 0
+        || Plane.DotCoordinate(Bound(2), center) + radius < 0
+        || Plane.DotCoordinate(Bound(3), center) + radius < 0
+        || Plane.DotCoordinate(Bound(4), center) + radius < 0;
 
     /// <summary>
     /// True when a spot lamp's cone at <paramref name="apex"/>, cut at <paramref name="reach"/>, lies completely outside one
@@ -78,7 +108,7 @@ internal struct CameraView
     /// <paramref name="axis"/>, cut at <paramref name="reach"/> m, that lies inside the planes of
     /// <see cref="Culls(Vector3, float)"/>, or null when the cut axis misses the view.
     /// </summary>
-    public readonly float? NearestInView(Vector3 apex, Vector3 axis, float reach)
+    public readonly float? EyeDistanceToAxisInView(Vector3 apex, Vector3 axis, float reach)
     {
         float enter = 0;
         float leave = reach;
@@ -107,20 +137,23 @@ internal struct CameraView
     /// A plane that bounds the view, with its unit normal pointing into the view: the near plane for
     /// <paramref name="index"/> 0, then the right, left, top and bottom side planes, all through the eye.
     /// </summary>
-    private readonly Plane Bound(int index)
-    {
-        float scaleX = MathF.Sqrt(1 + TanHalfX * TanHalfX);
-        float scaleY = MathF.Sqrt(1 + TanHalfY * TanHalfY);
-        return index switch
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private readonly Plane Bound(int index) =>
+        index switch
         {
             0 => new(Forward, -DepthRanges.NearPlane),
-            1 => new((TanHalfX * Forward - Right) / scaleX, 0),
-            2 => new((TanHalfX * Forward + Right) / scaleX, 0),
-            3 => new((TanHalfY * Forward - Up) / scaleY, 0),
-            4 => new((TanHalfY * Forward + Up) / scaleY, 0),
+            1 => new((TanHalfX * Forward - Right) * sideScaleX, 0),
+            2 => new((TanHalfX * Forward + Right) * sideScaleX, 0),
+            3 => new((TanHalfY * Forward - Up) * sideScaleY, 0),
+            4 => new((TanHalfY * Forward + Up) * sideScaleY, 0),
             _ => throw new ArgumentOutOfRangeException(nameof(index), index, "A view has five bounding planes."),
         };
-    }
+
+    /// <summary>
+    /// 1 / √(1 + tan²), which scales tan · Forward ± Right or tan · Forward ± Up, the inward normal of a side plane through
+    /// the eye, of length √(1 + tan²), to unit length.
+    /// </summary>
+    private static float SideScale(float tan) => 1 / MathF.Sqrt(1 + tan * tan);
 
     /// <summary>
     /// How far a unit step along the directions of <paramref name="cone"/> goes along the unit <paramref name="normal"/>

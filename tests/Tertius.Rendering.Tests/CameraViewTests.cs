@@ -5,7 +5,9 @@ namespace Tertius.Rendering.Tests;
 /// <summary>
 /// The screen's geometry of the camera that the reflection trace uses: view rays, the projection of points to pixels,
 /// inverse depth and the edge fade (docs/plans/screen-space-reflections.md, "The ray's image on the screen"). Also the
-/// cull of a spot lamp's cone cut at its reach (ARCHITECTURE.md, "The reach from the exposure").
+/// cull of a spot lamp's cone cut at its reach (ARCHITECTURE.md, "The reach from the exposure"), and the eye's distance to
+/// the point of a lamp's axis in view nearest the eye, by which the shadow budgets rank a spot lamp (ARCHITECTURE.md,
+/// "Local shadows", the rank).
 /// </summary>
 public sealed class CameraViewTests
 {
@@ -133,6 +135,18 @@ public sealed class CameraViewTests
     }
 
     [Fact]
+    public void ANarrowConeThatOneSidePlaneCullsIsCulledThoughTheSphereOfItsReachIsNot()
+    {
+        CameraView camera = ScreenTesting.Camera(width: Width, height: Height);
+        // 20 m right of the view's axis and 5 m ahead, aimed further right: the right side plane lies 10.4 m from the lamp,
+        // inside the reach of 12 m, but no direction of the cone goes toward that plane.
+        var apex = new Vector3(20, 0, -5);
+
+        camera.Culls(apex, ConeAlong(Vector3.UnitX, 0.1f), reach: 12).Should().BeTrue();
+        camera.Culls(apex, 12).Should().BeFalse("the sphere of the reach crosses the right side plane");
+    }
+
+    [Fact]
     public void TheNearPlaneCullsAConeExactlyWhenItsEdgeStopsShortOfIt()
     {
         CameraView camera = ScreenTesting.Camera(width: Width, height: Height);
@@ -153,8 +167,8 @@ public sealed class CameraViewTests
 
         for (int cone = 0; cone < 2000; cone++)
         {
-            var apex = new Vector3(Spread(random, 20), Spread(random, 20), Spread(random, 20));
-            Vector3 axis = Vector3.Normalize(new(Spread(random, 1), Spread(random, 1), Spread(random, 1)));
+            var apex = new Vector3(Uniform(random, 20), Uniform(random, 20), Uniform(random, 20));
+            var axis = Vector3.Normalize(new(Uniform(random, 1), Uniform(random, 1), Uniform(random, 1)));
             float outerAngle = 0.05f + (float)random.NextDouble() * 3f;
             float reach = 1 + (float)random.NextDouble() * 30;
             Cone spread = ConeAlong(axis, outerAngle);
@@ -168,16 +182,16 @@ public sealed class CameraViewTests
         }
     }
 
-    /// <summary>A value in [−<paramref name="half"/>, <paramref name="half"/>).</summary>
-    private static float Spread(Random random, float half) => ((float)random.NextDouble() * 2 - 1) * half;
+    /// <summary>A uniform random value in [−<paramref name="half"/>, <paramref name="half"/>).</summary>
+    private static float Uniform(Random random, float half) => ((float)random.NextDouble() * 2 - 1) * half;
 
     /// <summary>A point of <paramref name="cone"/> cut at <paramref name="reach"/>, relative to its apex.</summary>
     private static Vector3 PointOfCone(Random random, Cone cone, float reach)
     {
-        Vector3 side = Vector3.Normalize(
+        var side = Vector3.Normalize(
             Vector3.Cross(cone.Axis, MathF.Abs(cone.Axis.X) < 0.9f ? Vector3.UnitX : Vector3.UnitY)
         );
-        Vector3 other = Vector3.Cross(cone.Axis, side);
+        var other = Vector3.Cross(cone.Axis, side);
         float off = (float)random.NextDouble() * cone.OuterAngle * 0.999f;
         float around = (float)random.NextDouble() * 2 * MathF.PI;
         Vector3 direction =
@@ -195,32 +209,42 @@ public sealed class CameraViewTests
     }
 
     [Fact]
-    public void TheNearestPointOfAnAxisInViewIsWhereTheAxisEntersTheView()
+    public void TheEyesDistanceToAnAxisInViewIsItsDistanceToWhereTheAxisEntersTheView()
     {
         CameraView camera = ScreenTesting.Camera(width: Width, height: Height);
         // 10 m right of the eye, aimed straight ahead: the right side plane, x = depth · tan, meets it at depth 10 / tan.
         float entry = 10 / camera.TanHalfX;
 
-        float? nearest = camera.NearestInView(new(10, 0, 0), -Vector3.UnitZ, reach: 30);
+        float? nearest = camera.EyeDistanceToAxisInView(new(10, 0, 0), -Vector3.UnitZ, reach: 30);
 
         nearest.Should().NotBeNull();
         nearest!.Value.Should().BeApproximately(MathF.Sqrt(10 * 10 + entry * entry), 1e-4f);
     }
 
     [Fact]
-    public void TheNearestPointOfAnAxisInViewIsTheFootOfThePerpendicularFromTheEyeWhenItLiesInView()
+    public void TheEyesDistanceToAnAxisInViewIsItsDistanceToTheFootOfThePerpendicularWhenThatLiesInView()
     {
         CameraView camera = ScreenTesting.Camera(width: Width, height: Height);
 
         // 20 m ahead and 3 m up, aimed down: the foot of the perpendicular from the eye lies 3 m below the lamp.
-        camera.NearestInView(new(0, 3, -20), -Vector3.UnitY, reach: 30).Should().BeApproximately(20, 1e-5f);
+        camera.EyeDistanceToAxisInView(new(0, 3, -20), -Vector3.UnitY, reach: 30).Should().BeApproximately(20, 1e-5f);
     }
 
     [Fact]
-    public void AnAxisThatEndsBeforeTheViewHasNoPointInView()
+    public void AnAxisThatEndsBeforeTheViewHasNoDistanceInView()
     {
         CameraView camera = ScreenTesting.Camera(width: Width, height: Height);
 
-        camera.NearestInView(new(10, 0, 0), -Vector3.UnitZ, reach: 5).Should().BeNull();
+        camera.EyeDistanceToAxisInView(new(10, 0, 0), -Vector3.UnitZ, reach: 5).Should().BeNull();
+    }
+
+    [Fact]
+    public void AnAxisParallelToTheNearPlaneAndBehindItHasNoDistanceInView()
+    {
+        CameraView camera = ScreenTesting.Camera(width: Width, height: Height);
+
+        // 1 cm ahead of the eye, behind the near plane at 5 cm, aimed right: the four side planes keep a piece of the axis
+        // within 1 cm of the lamp, but the axis never crosses the near plane.
+        camera.EyeDistanceToAxisInView(new(0, 0, -0.01f), Vector3.UnitX, reach: 30).Should().BeNull();
     }
 }
