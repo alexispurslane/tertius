@@ -75,7 +75,7 @@ internal sealed record SkinProfile(ImmutableArray<ProfileGaussian> Gaussians)
             taps[tapsPerSide - i] = new(Offset: -offset, Weight: weight);
             tailBeyondInner = tailBeyondOuter;
         }
-        return new([.. taps]);
+        return new([.. taps], WidthScale);
     }
 
     /// <summary>x_i, the offset of tap <paramref name="i"/> of 0 to n, in meters.</summary>
@@ -127,10 +127,15 @@ internal sealed record SkinProfile(ImmutableArray<ProfileGaussian> Gaussians)
 internal readonly record struct ScatterTap(double Offset, Double3 Weight);
 
 /// <summary>
-/// The taps of one pass of the separable scatter, in the order of their offsets, with the center in the middle. The
-/// renderer uploads them as 2n + 1 vec4 (docs/plans/skin-and-hair.md, "The profile and the kernel").
+/// The taps of one pass of the separable scatter, in the order of their offsets, with the center in the middle, and the
+/// unit of their offsets for the slope rule. The renderer uploads them as 2n + 1 vec4 and the width scale after them
+/// (docs/plans/skin-and-hair.md, "The profile and the kernel").
 /// </summary>
-internal sealed record ScatterKernel(ImmutableArray<ScatterTap> Taps)
+/// <param name="WidthScale">
+/// How many times wider than the measured profile the taps' offsets are, above 0: the slope rule divides each offset by
+/// it (<see cref="SkinScatter.SlopeLimit"/>). <see cref="SkinProfile.Kernel"/> sets <see cref="SkinProfile.WidthScale"/>.
+/// </param>
+internal sealed record ScatterKernel(ImmutableArray<ScatterTap> Taps, double WidthScale)
 {
     /// <summary>The outermost tap's offset, in meters: no tap lies farther from the center.</summary>
     public double Reach => Taps[^1].Offset;
