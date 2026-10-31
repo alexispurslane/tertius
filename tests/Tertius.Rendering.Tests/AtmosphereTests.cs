@@ -158,6 +158,68 @@ public sealed class AtmosphereTests
     }
 
     [Fact]
+    public void ASunThatNamesASpotLightGivesNight()
+    {
+        RenderSnapshot snapshot = WithSun(new(0.3f, 1, -0.4f));
+        Air(snapshot, MarsAir);
+        snapshot.Lights.Add(
+            Gpu.Spot(
+                position: new(0, 10, 0),
+                direction: -Vector3.UnitY,
+                color: Vector3.One,
+                intensity: 100,
+                innerConeAngle: 0.3f,
+                outerConeAngle: 0.5f,
+                chainDepth: 0
+            )
+        );
+        snapshot.Atmosphere = snapshot.Atmosphere!.Value with { Sun = snapshot.Lights.Count - 1 };
+        GpuAtmosphere atmosphere = AtmosphereOf(snapshot);
+
+        Rgb(atmosphere.Sky).Should().Be(Vector3.Zero, "a spot light lights only its cone, so it is never a planet's sun");
+        atmosphere.Sun.Should().Be(Vector4.Zero);
+    }
+
+    [Fact]
+    public void ASunPastTheSnapshotsLightsGivesNight()
+    {
+        RenderSnapshot snapshot = WithSun(new(0.3f, 1, -0.4f));
+        Air(snapshot, MarsAir);
+        snapshot.Atmosphere = snapshot.Atmosphere!.Value with { Sun = snapshot.Lights.Count };
+        GpuAtmosphere atmosphere = AtmosphereOf(snapshot);
+
+        Rgb(atmosphere.Sky).Should().Be(Vector3.Zero, "the record names no light of the snapshot");
+        atmosphere.Sun.Should().Be(Vector4.Zero);
+    }
+
+    [Fact]
+    public void AnEyeAtThePlanetsCenterCountsTheSunAsOverhead()
+    {
+        // The sun shines from below the eye, which is night for an eye on the surface above the center.
+        RenderSnapshot snapshot = WithSun(new(0.2f, -1, 0.3f));
+        Air(snapshot, MarsAir, height: -MarsRadius);
+
+        ExpectNear(
+            Rgb(AtmosphereOf(snapshot).Sky),
+            PaintedSky,
+            "the center has no horizon, so the sun stands overhead and the air is the surface's"
+        );
+    }
+
+    [Fact]
+    public void APlanetBeyondTheShadersRangeGivesTheViewNoAir()
+    {
+        RenderSnapshot snapshot = WithSun(new(0.3f, 1, -0.4f));
+        var center = new Vector3(0, -1e19f, 0);
+        snapshot.Atmosphere = new(Center: center, PreviousCenter: center, Medium: MarsAir, Sun: 0);
+        GpuAtmosphere atmosphere = AtmosphereOf(snapshot);
+
+        atmosphere.Sky.Should().Be(Vector4.Zero, "a center past ShaderInput.PositionLimit cannot reach the shaders");
+        atmosphere.Haze.Should().Be(Vector4.Zero);
+        Rgb(atmosphere.SunTint).Should().Be(Vector3.One);
+    }
+
+    [Fact]
     public void TheHazesLightReachesTheShaderAtItsFullDayValueWhateverTheTimeOfDayAndTheHeight()
     {
         RenderSnapshot day = WithSun(new(0.3f, 1, -0.4f));
