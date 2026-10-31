@@ -39,7 +39,17 @@ public static partial class DemoScenes
         world.VerticalFov = 40 * MathF.PI / 180;
 
         SpawnHairRugs(world: world, resources: resources, scene: scene, surface: surface);
-        scene.Add("bar", world.Spawn(RugBar(surface, resources)));
+        scene.Add(
+            "bar",
+            world.Spawn(
+                GlowingBox(
+                    surface: surface,
+                    resources: resources,
+                    standsOn: new(0, EarthRadius, -2.5),
+                    halfExtents: new(2, 0.75f, 0.1f)
+                )
+            )
+        );
 
         var target = new Double3(0, EarthRadius, -0.5);
         Entity rugCamera = world.Spawn(ViewIn(surface, LookingAt(new(0, EarthRadius + 1.2, 3.5), target)));
@@ -95,31 +105,6 @@ public static partial class DemoScenes
                         boundingRadius: rugRadius
                     )
                 )
-            )
-        );
-    }
-
-    /// <summary>
-    /// The <c>bar</c> of the hair-rugs scene in <paramref name="surface"/>: a white glowing box 4 m wide and 1.5 m tall,
-    /// 1.5 m behind the rugs.
-    /// </summary>
-    private static SpawnDesc RugBar(FrameHandle surface, IRenderResources resources)
-    {
-        var halfExtents = new Vector3(2, 0.75f, 0.1f);
-        return DrawnAt(
-            frame: surface,
-            position: new(0, EarthRadius + halfExtents.Y, -2.5),
-            render: Shaded(
-                mesh: resources.CreateMesh(Primitives.Box(halfExtents)),
-                material: resources.CreateMaterial(
-                    new(
-                        BaseColor: new(x: 0, y: 0, z: 0, w: 1),
-                        Roughness: UsualRoughness,
-                        Reflectance: 0,
-                        Emissive: new(6800)
-                    )
-                ),
-                boundingRadius: halfExtents.Length()
             )
         );
     }

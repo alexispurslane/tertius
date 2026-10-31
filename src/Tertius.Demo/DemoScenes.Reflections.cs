@@ -155,7 +155,19 @@ public static partial class DemoScenes
             )
         );
 
-        scene.Add("bar", world.Spawn(GlowingBar(surface: surface, resources: resources)));
+        // The bar: 2 m tall and 0.2 m square, on the strip of roughness 0.2, whose bright edges show how far each
+        // reflection blurs.
+        scene.Add(
+            "bar",
+            world.Spawn(
+                GlowingBox(
+                    surface: surface,
+                    resources: resources,
+                    standsOn: new(-1, ReflectionsFloor, -2),
+                    halfExtents: new(0.1f, 1, 0.1f)
+                )
+            )
+        );
 
         scene.Add(
             "lamp",
@@ -182,15 +194,18 @@ public static partial class DemoScenes
     }
 
     /// <summary>
-    /// The <c>bar</c> of the reflections scene in <paramref name="surface"/>: a white glowing box 2 m tall and 0.2 m
-    /// square, on the strip of roughness 0.2, whose bright edges show how far each reflection blurs.
+    /// A white glowing box in <paramref name="surface"/> of <paramref name="halfExtents"/>, which stands on the point
+    /// <paramref name="standsOn"/>. It emits a radiance of 6800 and reflects nothing.
     /// </summary>
-    private static SpawnDesc GlowingBar(FrameHandle surface, IRenderResources resources)
-    {
-        var halfExtents = new Vector3(0.1f, 1, 0.1f);
-        return DrawnAt(
+    private static SpawnDesc GlowingBox(
+        FrameHandle surface,
+        IRenderResources resources,
+        Double3 standsOn,
+        Vector3 halfExtents
+    ) =>
+        DrawnAt(
             frame: surface,
-            position: new(-1, ReflectionsFloor + halfExtents.Y, -2),
+            position: standsOn + new Double3(0, halfExtents.Y, 0),
             render: Shaded(
                 mesh: resources.CreateMesh(Primitives.Box(halfExtents)),
                 material: resources.CreateMaterial(
@@ -204,7 +219,6 @@ public static partial class DemoScenes
                 boundingRadius: halfExtents.Length()
             )
         );
-    }
 
     /// <summary>
     /// An entity with no body in <paramref name="frame"/> at <paramref name="position"/>, unturned, that draws
