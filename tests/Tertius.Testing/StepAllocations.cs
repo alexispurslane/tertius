@@ -1,5 +1,4 @@
 using System.Numerics;
-using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using JoltPhysicsSharp;
@@ -189,12 +188,7 @@ public sealed unsafe class StepAllocations : IPhysicsBackend
     /// <summary>The table of the backend's contact callbacks, which the backend gave joltc when it was first made.</summary>
     private static ContactListenerProcs* BackendCallbacks()
     {
-        FieldInfo field =
-            typeof(ContactListener).GetField("callbacks", BindingFlags.Static | BindingFlags.NonPublic)
-            ?? throw new InvalidOperationException(
-                "ContactListener has no static field 'callbacks', so the count cannot wrap the contact callbacks."
-            );
-        var callbacks = (ContactListenerProcs*)Pointer.Unbox(field.GetValue(null)!);
+        ContactListenerProcs* callbacks = ContactListener.Callbacks;
         return callbacks is not null
             ? callbacks
             : throw new InvalidOperationException("No JoltPhysicsBackend gave joltc its contact callbacks yet.");

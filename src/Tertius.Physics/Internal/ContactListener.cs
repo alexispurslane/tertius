@@ -28,7 +28,7 @@ namespace Tertius.Physics;
 /// counts it in <see cref="StrayReports"/>. Only a bug sends one: a system that kept the listener of JoltPhysicsSharp.
 /// </para>
 /// <para>
-/// The tests' <c>StepAllocations</c> (tests/Tertius.Testing) reads the field <c>callbacks</c> by reflection. While it
+/// The tests' <c>StepAllocations</c> (tests/Tertius.Testing) reads this table through <see cref="Callbacks"/>. While it
 /// lives, joltc calls its counting wrappers, which call this table. A second install of this table would drop them.
 /// </para>
 /// </remarks>
@@ -43,6 +43,9 @@ internal sealed unsafe class ContactListener : IDisposable
     /// <summary>The number of reports that reached these callbacks from a listener that is not a <see cref="ContactListener"/>
     /// .</summary>
     public static int StrayReports => Volatile.Read(ref strayReports);
+
+    /// <summary>The table that joltc reads, or null before the first install. Only the tests' step count reads it.</summary>
+    internal static ContactListenerProcs* Callbacks => callbacks;
 
     // Keeps the world alive, and lets a callback find it from the user data of the native listener.
     private GCHandle world;
