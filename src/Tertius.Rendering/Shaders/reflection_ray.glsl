@@ -30,7 +30,7 @@ bool traceReflection(ReflectingPixel p, float texelSide, out vec4 rayResult, out
     vec3 hitPoint = normalize(hitRay) * hitDistance;
     // The view ray's forward part is 1, so its length is at least 1.
     hitDepth = hitDistance / length(hitRay);
-    float level = coneLevel(p.alpha, p.s.reflectionFootprint, texelSide, length(hitPoint - origin), hitDistance,
+    float level = coneLevel(p.alpha, reflectionFootprintAt(p.pixel), texelSide, length(hitPoint - origin), hitDistance,
         float(textureQueryLevels(radiancePyramid) - 1));
     vec4 traced = textureLod(sampler2D(radiancePyramid, mipSampler), hit * frame.viewport.zw, level);
     // The pyramid holds the lit image from before the haze pass. The hit takes the haze between the eye and it, as the
