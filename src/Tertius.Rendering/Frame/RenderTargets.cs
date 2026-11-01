@@ -230,7 +230,7 @@ internal sealed class RenderTargets : IDisposable
     {
         if (ReflectionTargets.ScreenProblem(extent.Width, extent.Height) is { } problem)
             throw new ArgumentOutOfRangeException(nameof(extent), problem);
-        // Only the half-resolution trace keeps the own-ray list.
+        // A full-resolution trace binds no own-ray list, so a screen above the range still reflects at full resolution.
         if (
             resolution == TraceResolution.Half
             && OwnRayList.RangeProblem(extent, device.Properties.Limits.MaxStorageBufferRange) is { } range
