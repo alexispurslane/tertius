@@ -41,8 +41,9 @@ internal sealed class ShadowTiles
     /// <summary>
     /// How many times as strong as its light a holder, a light whose entity holds layers in <see cref="records"/>, ranks
     /// for tiles: a challenger, a light that holds none, takes the layers only with more than this many times the holder's
-    /// rank irradiance in the holder's tier, or from a higher tier than the holder reaches even at
-    /// <see cref="HolderReachGrowth"/> times its reach (docs/plans/local-light-shadows.md, settled fork 2).
+    /// rank irradiance in the holder's tier, or with exactly this many times when it comes first in the list, or from a
+    /// higher tier than the holder reaches even at <see cref="HolderReachGrowth"/> times its reach
+    /// (docs/plans/local-light-shadows.md, settled fork 2).
     /// </summary>
     public const float HolderMargin = 2;
 
@@ -295,12 +296,12 @@ internal sealed class ShadowTiles
     private static float Growth(float was, float now) => MathF.Abs(now - was) / MathF.Abs(was);
 
     /// <summary>
-    /// Ranks the near lights that cast shadows by <see cref="PreparedLight.Tier"/>, each tier by
-    /// <see cref="LightUnits.RankIrradiance"/>, ties in list order, and gives each its tiles while they fit. So a spot lamp
-    /// whose axis misses the view takes only the layers that the lights whose light falls in view leave free, and a light
-    /// that only a face keeps only the layers that the main view's lights leave free (docs/plans/environment-map.md,
-    /// decision 20). A holder ranks as if its light were <see cref="HolderMargin"/> times as strong
-    /// (<see cref="Candidate.Holder"/>), so a ranking that swings by less than the margin keeps one owner. Clears every
+    /// Ranks the near lights that cast shadows by tier, each tier by <see cref="LightUnits.RankIrradiance"/>, ties in list
+    /// order, and gives each its tiles while they fit. A challenger ranks at its <see cref="PreparedLight.Tier"/>, and a
+    /// holder as if its light were <see cref="HolderMargin"/> times as strong (<see cref="Candidate.Holder"/>), so a
+    /// ranking that swings by less than the margin keeps one owner. So a challenger spot lamp whose axis misses the view
+    /// takes only the layers that the lights whose light falls in view leave free, and a challenger that only a face keeps
+    /// only the layers that the main view's lights leave free (docs/plans/environment-map.md, decision 20). Clears every
     /// near light's slot.
     /// </summary>
     private void Grant(Span<PreparedLight> lights, in CameraView camera)
@@ -601,14 +602,7 @@ internal sealed class ShadowTiles
         /// </summary>
         public static Candidate Holder(int light, in PreparedLight prepared, in CameraView camera)
         {
-            MainViewTier grown = camera
-                .TierAndRankDistance(
-                    spread: prepared.Spread,
-                    relative: prepared.Position,
-                    reach: prepared.Reach * HolderReachGrowth,
-                    distance: prepared.Distance
-                )
-                .Tier;
+            MainViewTier grown = camera.TierAndRankDistance(light: prepared, reach: prepared.Reach * HolderReachGrowth).Tier;
             return new(Light: light, Tier: grown, Irradiance: HolderMargin * LightUnits.RankIrradiance(prepared));
         }
 

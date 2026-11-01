@@ -140,28 +140,28 @@ internal struct CameraView
     }
 
     /// <summary>
-    /// The one tier rule: the <see cref="PreparedLight.Tier"/> of a light <paramref name="relative"/> to the eye, by its
-    /// cone or its sphere cut at <paramref name="reach"/>, and its <see cref="PreparedLight.RankDistance"/>: for a spot light
-    /// in the main view, the eye's distance to its beam in view, or <paramref name="reach"/> where its axis misses the view,
-    /// else <paramref name="distance"/>, the eye's distance to the light. The batcher calls it at the light's reach, and
-    /// <see cref="ShadowTiles"/> at a holder's grown reach. A longer reach never gives a lower tier.
+    /// The one tier rule: the <see cref="PreparedLight.Tier"/> of <paramref name="light"/>, by its cone or its sphere cut at
+    /// <paramref name="reach"/>, and its <see cref="PreparedLight.RankDistance"/>: for a spot light in the main view, the
+    /// eye's distance to its beam in view, or <paramref name="reach"/> where its axis misses the view, else its
+    /// <see cref="PreparedLight.Distance"/>. It reads only the light's <see cref="PreparedLight.Spread"/>,
+    /// <see cref="PreparedLight.Position"/> and <see cref="PreparedLight.Distance"/>. The batcher calls it at the light's
+    /// <see cref="PreparedLight.Reach"/>, and <see cref="ShadowTiles"/> at a holder's grown reach. A longer reach never
+    /// gives a lower tier.
     /// </summary>
-    public readonly (MainViewTier Tier, double RankDistance) TierAndRankDistance(
-        LightSpread spread,
-        Vector3 relative,
-        float reach,
-        double distance
-    ) =>
-        spread switch
+    public readonly (MainViewTier Tier, double RankDistance) TierAndRankDistance(in PreparedLight light, float reach) =>
+        light.Spread switch
         {
-            Cone cone when Culls(relative, cone, reach) => (MainViewTier.FaceOnly, distance),
+            Cone cone when Culls(light.Position, cone, reach) => (MainViewTier.FaceOnly, light.Distance),
             // Where the axis, along which the lamp's light is strongest, misses the view, the lamp ranks a tier lower.
-            Cone cone => EyeDistanceToAxisInView(relative, cone.Axis, reach) switch
+            Cone cone => EyeDistanceToAxisInView(light.Position, cone.Axis, reach) switch
             {
                 { } beam => (MainViewTier.InView, beam),
                 null => (MainViewTier.AxisMissesView, reach),
             },
-            EveryDirection => (Culls(relative, reach) ? MainViewTier.FaceOnly : MainViewTier.InView, distance),
+            EveryDirection => (
+                Culls(light.Position, reach) ? MainViewTier.FaceOnly : MainViewTier.InView,
+                light.Distance
+            ),
         };
 
     /// <summary>

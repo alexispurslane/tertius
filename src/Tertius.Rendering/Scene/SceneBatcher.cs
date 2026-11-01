@@ -1036,13 +1036,7 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
         double distance = Math.Sqrt(
             (double)relative.X * relative.X + (double)relative.Y * relative.Y + (double)relative.Z * relative.Z
         );
-        (MainViewTier tier, double rankDistance) = camera.TierAndRankDistance(
-            spread: spread,
-            relative: relative,
-            reach: reach,
-            distance: distance
-        );
-        return new()
+        PreparedLight prepared = new()
         {
             EntityIndex = entity,
             Position = relative,
@@ -1051,11 +1045,11 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
             Reach = reach,
             Distance = distance,
             CastsShadow = castsShadow,
-            Tier = tier,
-            RankDistance = rankDistance,
             Spread = spread,
             Map = EnvironmentChain.MapOf(chainDepth, maps),
         };
+        (prepared.Tier, prepared.RankDistance) = camera.TierAndRankDistance(light: prepared, reach: prepared.Reach);
+        return prepared;
     }
 
     /// <summary>

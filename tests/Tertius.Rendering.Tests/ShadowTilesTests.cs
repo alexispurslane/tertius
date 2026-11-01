@@ -506,6 +506,36 @@ public sealed class ShadowTilesTests
     }
 
     [Fact]
+    public void AFrameThatWasNeverSubmittedMakesNoHolder()
+    {
+        var tiles = new ShadowTiles(layers: 1, tileSize: TileSize);
+        PreparedLight[] lights = [Spot(entity: 1, intensity: 1), Spot(entity: 2, intensity: 0.5f)];
+        Frame(tiles, lights);
+        // A frame in which the challenger takes the tile throws before its submission, so it records nothing.
+        lights[1].RadiantIntensity = new(3);
+        tiles.Update(
+            lights: lights,
+            camera: Eye,
+            placed: [],
+            deformed: FrameMeshes.Static.Deformed,
+            originFrameId: 1,
+            views: [],
+            draws: []
+        );
+        lights[1].RadiantIntensity = new(1.9f);
+
+        Frame(tiles, lights);
+
+        lights
+            .Select(light => light.Shadow)
+            .Should()
+            .Equal(
+                [Tiles(first: 0, count: 1), NoSlot],
+                "the records still name the first light, which ranks at twice its 1 W/sr, above the 1.9 W/sr"
+            );
+    }
+
+    [Fact]
     public void ALightThatStaysInTheBudgetKeepsItsLayers()
     {
         var tiles = new ShadowTiles(layers: 3, tileSize: TileSize);

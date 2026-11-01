@@ -2572,7 +2572,7 @@ where
 
 So the culled test is exact for each plane: the cut cone is wholly outside a plane exactly when its point deepest into the plane is outside it. The test is conservative across planes. A cut cone that misses the view near an edge or a corner where two planes meet, yet lies outside neither plane alone, stays in the main view. The sphere test has the same error. A cone of a whole turn, θ = π, culls as the sphere of its reach, because the sphere test reads the same planes. `CameraView.Culls(center, radius)` culls a sphere when `Plane.DotCoordinate(Bound(index), center) + radius` is below 0 for one plane. `CameraView` computes each side plane's scale, 1 / √(1 + tan²), when its tangent is set, so a plane takes no square root. Instance culling runs the sphere test, so it tests the five planes in an unrolled expression, with `Bound` inlined.
 
-A change of exposure can move a shadow tile from one lamp to another, as a turn of the camera can, but only past the holder margin (see "Local shadows", the rank). The tiles go by tier, and the tier follows the exposure, because the reach decides whether a light's sphere or cone reaches the view and whether a spot lamp's cut axis enters it. A spot lamp's D follows the exposure too wherever the reach decides it. A lamp of tier 2 ranks at its reach. A lamp of tier 1 whose axis point nearest the eye in view is the end of its axis at its reach ranks at the eye's distance to that end. A light that holds tiles ranks in the tier of √2 times its reach, so a holder keeps its tier while the exposure falls by up to one stop, and a challenger in the same tier needs more than twice the holder's rank irradiance. The tiles rank a spot lamp by the eye's distance to its beam in view, not by its light at the eye (see "Local shadows", the rank).
+A change of exposure can move a shadow tile from one lamp to another, as a turn of the camera can, but only past the holder margin (see "Local shadows", the rank). The tiles go by tier, and the tier follows the exposure, because the reach decides whether a light's sphere or cone reaches the view and whether a spot lamp's cut axis enters it. A spot lamp's D follows the exposure too wherever the reach decides it. A lamp of tier 2 ranks at its reach. A lamp of tier 1 whose axis point nearest the eye in view is the end of its axis at its reach ranks at the eye's distance to that end. A light that holds tiles ranks in the tier of √2 times its reach, so a holder keeps its tier while the exposure falls by up to one stop, and a challenger in the same tier needs more than twice the holder's rank irradiance, or exactly twice when it comes first in the list. The tiles rank a spot lamp by the eye's distance to its beam in view, not by its light at the eye (see "Local shadows", the rank).
 
 An example of the change that the cone test removes: an atlas of one layer, and two spot lamps of equal power that cast shadows. Each has an outer half-angle of at most 60°, so each needs one tile. Lamp X stands 30 m behind the eye and points away from the view. Lamp Z stands 60 m ahead and lights the floor in view. At an exposure where a reach is 25 m, X's sphere misses the view, and Z holds the tile. At an exposure one stop higher, the reach is 35 m, because a reach grows as 2^(S / 2). Under the sphere test, X's sphere then held the eye, X's irradiance at the eye was 4 times Z's, and X took the tile, so Z's shadow went off while Z's light stayed on screen. Under the cone test X's cone lies behind the near plane at both exposures, so X is not in the main view, and Z keeps the tile (`SpotLampViewTests`). The exposure rises when the view gets darker, so a darker view, not a brighter one, gave this change.
 
@@ -2708,7 +2708,7 @@ The near lights that cast shadows take tiles of one shared atlas (docs/plans/loc
 
 - The atlas. `ShadowAtlas` (`Frame/ShadowAtlas.cs`) owns one 2D array depth image of `Tiles` layers of `TileSize`² texels, in the cascades' format (`ShadowMap.ChooseFormat`), with a view of each layer to render into. A tile is one layer. Depth is reversed, cleared to 0, so an empty texel shadows nothing. The constructor refuses `Tiles` above the device's `maxImageArrayLayers` with `ArgumentOutOfRangeException`. The shading passes sample the whole array at G-buffer set binding 8 with the cascades' comparison sampler, and read the frame's tile views, `GpuShadowTile` of 80 bytes (the view-projection, the layer, the texel size at 1 m and the near plane), at frame set binding 15. Both bindings are partially bound and stay empty under `NoLocalShadows`, when the renderer makes no atlas and no pass.
 - The budget. `ShadowTiles.Update`, in `LocalShadowPass.Prepare`, is the one choke point. It ranks the near lights that cast shadows by the order of the rank below, by tier, each tier by `LightUnits.RankIrradiance`, ties in list order, and gives each its tiles while they fit: one for a spot light of outer half-angle up to 60° (`ShadowTiles.WidestCone`), six, one per cube face in `CubeFace` order, for a point light or a wider spot light. A light that does not fit is skipped, and a later one that fits still gets its tiles. A light that holds tiles ranks with the holder margin of the rank below, so the set of lights with tiles depends on the frame's lights and on which lights held tiles in the last submitted frame. `InMainView` follows the exposure, so a change of exposure past the holder margin can move a tile (see "The reach from the exposure"). A spot lamp is in the main view only when its cone, cut at its reach, can reach the view, so a spot lamp that points away from the view holds no tile before the main view's lights. A light that keeps its tiles keeps its layers, and a new one takes the lowest layers that no light of the frame holds.
-- The rank. Every shadow budget, `ShadowTiles.Update` and `FarShadows.Choose`, ranks the lights in one order, so that they never disagree. First by tier, `PreparedLight.Tier`, a `MainViewTier`, the higher tier first:
+- The rank. Every shadow budget, `ShadowTiles.Update` and `FarShadows.Choose`, ranks the lights by one order, so that they never disagree on a light that holds no tiles. Only the tiles add the holder margin below: a holder ranks by its grown tier and at twice its rank irradiance. First by tier, `PreparedLight.Tier`, a `MainViewTier`, the higher tier first:
 
   1. `InView`: the main view keeps the light, and its light falls in view. That is a point light whose reach sphere reaches the view, or a spot lamp whose axis, cut at its reach, enters the view.
   2. `AxisMissesView`: a spot lamp whose cone, cut at its reach, reaches the view, but whose cut axis misses the view.
@@ -2721,43 +2721,40 @@ The near lights that cast shadows take tiles of one shared atlas (docs/plans/loc
   One tier rule, `CameraView.TierAndRankDistance`, gives the tier and D, with the same planes. The batcher calls it at each light's reach to set `PreparedLight.Tier` and `RankDistance`, and the shadow tiles call it at a holder's grown reach (the holder margin below):
 
   ```csharp
-  spread switch
+  light.Spread switch
   {
-      Cone cone when Culls(relative, cone, reach) => (MainViewTier.FaceOnly, distance),
+      Cone cone when Culls(light.Position, cone, reach) => (MainViewTier.FaceOnly, light.Distance),
       // Where the axis, along which the lamp's light is strongest, misses the view, the lamp ranks a tier lower.
-      Cone cone => EyeDistanceToAxisInView(relative, cone.Axis, reach) switch
+      Cone cone => EyeDistanceToAxisInView(light.Position, cone.Axis, reach) switch
       {
           { } beam => (MainViewTier.InView, beam),
           null => (MainViewTier.AxisMissesView, reach),
       },
-      EveryDirection => (Culls(relative, reach) ? MainViewTier.FaceOnly : MainViewTier.InView, distance),
+      EveryDirection => (
+          Culls(light.Position, reach) ? MainViewTier.FaceOnly : MainViewTier.InView,
+          light.Distance
+      ),
   };
   ```
 
   where
 
-  - `spread` = the light's spread: a `Cone` for a spot light, `EveryDirection` for a point light.
-  - `relative` = the light's position relative to the eye, in m.
-  - `Culls(relative, cone, reach)` = the cone test of "The reach from the exposure".
-  - `Culls(relative, reach)` = the sphere test of a point light's reach.
-  - `EyeDistanceToAxisInView(relative, cone.Axis, reach)` = the distance in m from the eye to the point of the lamp's axis, cut at its reach, that lies inside the view's five planes and nearest the eye, or null when the cut axis misses the view. It clips the axis against each plane, then takes the foot of the perpendicular from the eye, clamped into the clipped axis.
+  - `light` = the `PreparedLight`. The rule reads only its `Spread`, `Position` and `Distance`, so the batcher and the shadow tiles cannot pass it different inputs.
+  - `light.Spread` = the light's spread: a `Cone` for a spot light, `EveryDirection` for a point light.
+  - `light.Position` = the light's position relative to the eye, in m.
+  - `Culls(light.Position, cone, reach)` = the cone test of "The reach from the exposure".
+  - `Culls(light.Position, reach)` = the sphere test of a point light's reach.
+  - `EyeDistanceToAxisInView(light.Position, cone.Axis, reach)` = the distance in m from the eye to the point of the lamp's axis, cut at its reach, that lies inside the view's five planes and nearest the eye, or null when the cut axis misses the view. It clips the axis against each plane, then takes the foot of the perpendicular from the eye, clamped into the clipped axis.
   - `beam` = that distance in m, the D of a spot lamp of tier 1.
-  - `reach` = the light's reach in m, the D of a spot lamp of tier 2.
-  - `distance` = the light's distance from the eye in m, the D of a point light and of a spot light that only a face keeps: they rank by their irradiance at the eye.
+  - `reach` = the reach in m at which the rule tests the light: its `PreparedLight.Reach` for the batcher, √2 times that for a holder. It is the D of a spot lamp of tier 2.
+  - `light.Distance` = the light's distance from the eye in m, the D of a point light and of a spot light that only a face keeps: they rank by their irradiance at the eye.
 
   So in a hall of lamps below the eye that point down, the tiles go to the nearest lamps. A spot lamp whose beam only clips the edge of the view, farther from the eye, ranks below one that lights the floor ahead, though its light at the eye is larger. A spot lamp whose axis misses the view ranks below a lamp that lights the floor 40 m ahead, and below a point light in view that is farther from the eye than its own reach. A lamp behind the eye that is aimed into the view ranks by the point where its axis enters the view (`SpotLampViewTests`).
 
   The holder margin. A holder is a light whose entity holds layers in the records of the last submitted frame (see "The cache"). A challenger is a near light that casts shadows and holds none. A holder ranks for tiles as if its light were twice as strong (`ShadowTiles.Candidate.Holder`):
 
   ```csharp
-  MainViewTier grown = camera
-      .TierAndRankDistance(
-          spread: prepared.Spread,
-          relative: prepared.Position,
-          reach: prepared.Reach * HolderReachGrowth,
-          distance: prepared.Distance
-      )
-      .Tier;
+  MainViewTier grown = camera.TierAndRankDistance(light: prepared, reach: prepared.Reach * HolderReachGrowth).Tier;
   return new(Light: light, Tier: grown, Irradiance: HolderMargin * LightUnits.RankIrradiance(prepared));
   ```
 
@@ -2769,7 +2766,7 @@ The near lights that cast shadows take tiles of one shared atlas (docs/plans/loc
   - `grown` = the tier of the one tier rule at √2 times the holder's reach. A longer reach never gives a lower tier.
   - `light` = the holder's index in the frame's lights, which still breaks ties in list order.
 
-  So a challenger takes a holder's tiles only with more than twice the holder's rank irradiance in the holder's grown tier, or from a higher tier than the holder reaches even at √2 times its reach. A challenger that is more than twice as bright takes the tiles in the first frame in which it is. A ranking that swings by less than the margin at the budget's edge keeps one owner. A light that loses its tiles has no record after that frame, so it is a challenger again. The grown tier is an input of the shadow ranking only. `PreparedLight.Tier`, which decides the direct pass's lights, does not change. `FarShadows.Choose` has no holder margin. The user chose this design on 2026-10-31 (`ter-4xw0`, docs/plans/local-light-shadows.md, settled fork 2). Rejected: a margin in time of N drawn frames, under which every handover waits N frames and a swing slower than N frames still swaps each time, and a margin inside one tier only, under which a change of tier, which follows the exposure, still hands the tiles over at once.
+  So a challenger takes a holder's tiles only with more than twice the holder's rank irradiance in the holder's grown tier, or with exactly twice when it comes first in the list, or from a higher tier than the holder reaches even at √2 times its reach. A challenger that is more than twice as bright takes the tiles in the first frame in which it is. A ranking that swings by less than the margin at the budget's edge keeps one owner. A light that loses its tiles has no record after that frame, so it is a challenger again. The grown tier is an input of the shadow ranking only. `PreparedLight.Tier`, which decides the direct pass's lights, does not change. `FarShadows.Choose` has no holder margin. The user chose this design on 2026-10-31 (`ter-4xw0`, docs/plans/local-light-shadows.md, settled fork 2). Rejected: a margin in time of N drawn frames, under which every handover waits N frames and a swing slower than N frames still swaps each time, and a margin inside one tier only, under which a change of tier, which follows the exposure, still hands the tiles over at once.
 
   Rejected: the distance along the axis from the lamp to that point, the first form of design B. A lamp that points away from the eye then ranks at the top at any distance. In `lamp-hall-16-spot` with 4 tiles, the four farthest lamps, 15.7 to 21.3 m from the eye with 12.3 % of the floor's light on screen, took the tiles from lamps 6.6 to 10.8 m away with 43.9 %. Also rejected: the irradiance at the eye for every light, under which a lamp whose beam only clips the edge of the view can take a tile from one that lights the floor ahead. The rank's ties keep the list order, the snapshot's order, which every run shares.
 - The views. A spot light's tile looks along its axis, a point light's along each face's axis, each with a reversed-Z perspective with an infinite far plane, the near plane max(R, 5 cm), and a field widened by `MarginTexels`, 4 texels on every side, so the filter and the normal offset stay inside a tile at its edge and at a face's seam (`ShadowTiles.ViewProjection`). A tile draws the casters whose spheres come within the light's reach and its widened frustum.
