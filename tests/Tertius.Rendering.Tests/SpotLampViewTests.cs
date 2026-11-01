@@ -386,6 +386,55 @@ public sealed class SpotLampViewTests
     }
 
     [Fact]
+    public void APointLampHolderWhoseReachSlipsOutOfTheViewLosesItsTilesAtOnce()
+    {
+        var tiles = new ShadowTiles(layers: 6, tileSize: TileSize);
+        // Its axis passes 5 m from the eye, so it ranks at 5.5² / 5² = 1.21 cutoffs.
+        SpotRenderLight ahead = Lamp(entity: 2, position: new(0, 3, -5), direction: -Vector3.UnitY, reach: 5.5f);
+        RenderSnapshot before = Dark();
+        // 5 m behind the eye with a reach of 8 m, it ranks at 8² / 5² = 2.56 cutoffs and takes all six layers.
+        before.Lights.Add(Bulb(entity: 1, position: new(0, 0, 5), reach: 8));
+        before.Lights.Add(ahead);
+        PreparedScene first = Prepare(snapshot: before);
+        tiles.Update(
+            lights: first.LightSpan,
+            camera: first.Camera,
+            placed: first.PlacedSpan,
+            deformed: first.Deformed,
+            originFrameId: 1,
+            views: [],
+            draws: []
+        );
+        tiles.Drew();
+        RenderSnapshot after = Dark();
+        // With a reach of 4.5 m its sphere stops 0.5 m behind the eye, though √2 × 4.5 m = 6.4 m reaches into the
+        // view.
+        after.Lights.Add(Bulb(entity: 1, position: new(0, 0, 5), reach: 4.5f));
+        after.Lights.Add(ahead);
+
+        PreparedScene scene = Prepare(snapshot: after);
+        tiles.Update(
+            lights: scene.LightSpan,
+            camera: scene.Camera,
+            placed: scene.PlacedSpan,
+            deformed: scene.Deformed,
+            originFrameId: 2,
+            views: [],
+            draws: []
+        );
+
+        scene
+            .LightSpan.ToArray()
+            .Where(light => light.Shadow.HasValue)
+            .Select(light => light.EntityIndex)
+            .Should()
+            .Equal(
+                [2u],
+                "the batcher drops the bulb from the light list, so twice its 0.81 cutoffs, 1.62, never meets the 1.21"
+            );
+    }
+
+    [Fact]
     public void PointLampsRankByTheirLightAtTheEye()
     {
         RenderSnapshot snapshot = Dark();

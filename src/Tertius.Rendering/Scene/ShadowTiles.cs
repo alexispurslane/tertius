@@ -39,11 +39,18 @@ internal sealed class ShadowTiles
     public const float WidestCone = MathF.PI / 3;
 
     /// <summary>
-    /// How many times as strong as its light a holder, a light whose entity holds layers in <see cref="records"/>, ranks
-    /// for tiles: a challenger, a light that holds none, takes the layers only with more than this many times the holder's
-    /// rank irradiance in the holder's tier, or with exactly this many times when it comes first in the list, or from a
-    /// higher tier than the holder reaches even at <see cref="HolderReachGrowth"/> times its reach
-    /// (docs/plans/local-light-shadows.md, settled fork 2).
+    /// How many times as strong as its light a holder, a light whose entity holds layers in <see cref="records"/>,
+    /// ranks for tiles: a challenger, a light that holds none, takes the layers only with more than this many times the
+    /// holder's rank irradiance in the holder's tier, or with exactly this many times when it comes first in the list,
+    /// or from a higher tier than the holder reaches even at <see cref="HolderReachGrowth"/> times its reach
+    /// (docs/plans/local-light-shadows.md, settled fork 2). The margin spans tiers only inside the light list, and only
+    /// inside the main view's tiers. A holder that the batcher drops from the list, because its own reach misses the
+    /// view and no drawn face keeps it (SceneBatcher.Reaches), loses its layers at once, and a holder that only a face
+    /// keeps ranks at <see cref="MainViewTier.FaceOnly"/>. So today the margin spans a change of tier only for a spot
+    /// lamp between <see cref="MainViewTier.AxisMissesView"/> and <see cref="MainViewTier.InView"/>, and a point lamp
+    /// gets it inside its tier only. NOTE: if a scene shows a point lamp's shadows that pop at the view's edge, the
+    /// known follow-up is design B of the fork in ter-4xw0: keep a holder in the light list while
+    /// √<see cref="HolderMargin"/> times its reach meets the view.
     /// </summary>
     public const float HolderMargin = 2;
 
@@ -296,13 +303,14 @@ internal sealed class ShadowTiles
     private static float Growth(float was, float now) => MathF.Abs(now - was) / MathF.Abs(was);
 
     /// <summary>
-    /// Ranks the near lights that cast shadows by tier, each tier by <see cref="LightUnits.RankIrradiance"/>, ties in list
-    /// order, and gives each its tiles while they fit. A challenger ranks at its <see cref="PreparedLight.Tier"/>, and a
-    /// holder as if its light were <see cref="HolderMargin"/> times as strong (<see cref="Candidate.Holder"/>), so a
-    /// ranking that swings by less than the margin keeps one owner. So a challenger spot lamp whose axis misses the view
-    /// takes only the layers that the lights whose light falls in view leave free, and a challenger that only a face keeps
-    /// only the layers that the main view's lights leave free (docs/plans/environment-map.md, decision 20). Clears every
-    /// near light's slot.
+    /// Ranks the near lights that cast shadows by tier, each tier by <see cref="LightUnits.RankIrradiance"/>, ties in
+    /// list order, and gives each its tiles while they fit. A challenger ranks at its <see cref="PreparedLight.Tier"/>,
+    /// and a holder as if its light were <see cref="HolderMargin"/> times as strong (<see cref="Candidate.Holder"/>),
+    /// so a ranking that swings by less than the margin keeps one owner. So a challenger spot lamp whose axis misses
+    /// the view takes only the layers that the lights whose light falls in view leave free, and a light that only a
+    /// face keeps, holder or challenger, only the layers that the main view's lights leave free
+    /// (docs/plans/environment-map.md, decision 20). A holder that the batcher dropped from <paramref name="lights"/>
+    /// is not ranked, so it loses its layers at once (<see cref="HolderMargin"/>). Clears every near light's slot.
     /// </summary>
     private void Grant(Span<PreparedLight> lights, in CameraView camera)
     {
@@ -596,13 +604,18 @@ internal sealed class ShadowTiles
         /// <summary>
         /// A light that holds layers: it ranks as if its light were <see cref="HolderMargin"/> times as strong, at
         /// <see cref="HolderMargin"/> times its rank irradiance, in the tier that the one tier rule
-        /// (<see cref="CameraView.TierAndRankDistance"/>) gives at <see cref="HolderReachGrowth"/> times its reach. The
-        /// grown tier is an input of this ranking only: <see cref="PreparedLight.Tier"/>, which decides the direct pass's
-        /// lights, stays as the batcher set it.
+        /// (<see cref="CameraView.TierAndRankDistance"/>) gives at <see cref="HolderReachGrowth"/> times its reach. A
+        /// holder that only a face keeps (<see cref="MainViewTier.FaceOnly"/>) stays in that tier, so that the main
+        /// view's shadow slots never depend on the faces that a map draws (docs/plans/environment-map.md, decision 20).
+        /// The grown tier is an input of this ranking only: <see cref="PreparedLight.Tier"/>, which decides the direct
+        /// pass's lights, stays as the batcher set it.
         /// </summary>
         public static Candidate Holder(int light, in PreparedLight prepared, in CameraView camera)
         {
-            MainViewTier grown = camera.TierAndRankDistance(light: prepared, reach: prepared.Reach * HolderReachGrowth).Tier;
+            MainViewTier grown =
+                prepared.Tier is MainViewTier.FaceOnly
+                    ? MainViewTier.FaceOnly
+                    : camera.TierAndRankDistance(light: prepared, reach: prepared.Reach * HolderReachGrowth).Tier;
             return new(Light: light, Tier: grown, Irradiance: HolderMargin * LightUnits.RankIrradiance(prepared));
         }
 

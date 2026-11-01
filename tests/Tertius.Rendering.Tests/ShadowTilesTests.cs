@@ -536,6 +536,30 @@ public sealed class ShadowTilesTests
     }
 
     [Fact]
+    public void AHolderThatOnlyAFaceKeepsLosesItsTilesToALightOfTheMainViewWithLessThanTwiceItsLight()
+    {
+        var tiles = new ShadowTiles(layers: 1, tileSize: TileSize);
+        // 60 m behind the eye and aimed ahead, its cone cut at its reach of 50 m ends 10 m behind the eye, but cut at
+        // √2 × 50 m = 70.7 m it enters the view.
+        PreparedLight holder = Spot(entity: 1, position: new(-60, 0, 0)) with
+        {
+            Tier = MainViewTier.FaceOnly,
+        };
+        Frame(tiles, [holder]);
+        PreparedLight[] lights = [holder, Spot(entity: 2, intensity: 1.5f, position: new(60, 0, 0))];
+
+        Frame(tiles, lights);
+
+        lights
+            .Select(light => light.Shadow)
+            .Should()
+            .Equal(
+                [NoSlot, Tiles(first: 0, count: 1)],
+                "a holder that only a face keeps ranks at its own tier, so the faces never move the main view's shadows"
+            );
+    }
+
+    [Fact]
     public void ALightThatStaysInTheBudgetKeepsItsLayers()
     {
         var tiles = new ShadowTiles(layers: 3, tileSize: TileSize);
