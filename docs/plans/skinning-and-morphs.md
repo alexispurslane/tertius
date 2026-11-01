@@ -990,7 +990,7 @@ The tests follow tests/STYLE.md: one behavior per test, named as a statement. Ea
 
 - `RigsSceneDeformsEveryPosedInstance`: `DeformedInstances` counts the scene's posed instances, and `UndeformedPosedInstances` is 0.
 - `RigsSceneGivesTheSameRigPosesOnEveryRun`
-- `EveryPosedInstanceOfARigsSceneChangesItsRigPoseFromTickToTick` and `TheCheckedInScriptOfEachRigsScenePassesTheChecksOfARun`
+- `EveryPosedInstanceOfARigsSceneChangesItsRigPoseFromTickToTick` and `TheCheckedInScriptOfEachRigsSceneNamesItsOwnScene`. Ticket ter-5ird moved the checks of a run of each checked-in script to `CheckedInScriptsTests`.
 
 `RigSwayTests` (Host.Tests) pins the demo component `RigSway`: the turn of a joint and its sign, a morph's weight, the phase, the rest of the joints and morphs that no sway names, and the write of its own entity's rig pose for the end of each tick.
 

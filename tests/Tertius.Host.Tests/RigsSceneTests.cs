@@ -11,7 +11,7 @@ namespace Tertius.Host.Tests;
 /// The demo scenes of skinning and morph targets (docs/plans/skinning-and-morphs.md, "Part 5"): <c>rigs</c>, whose
 /// bending cylinder, morphing box and twisting cylinder sway, and <c>rigs-crowd</c>, whose 100 cylinders of 20,202
 /// vertices measure the cost. Each posed instance draws a deformed copy, the sway is the same on every run, and each
-/// scene's checked-in script passes the checks of a run.
+/// scene has a checked-in script of its own name.
 /// </summary>
 public sealed class RigsSceneTests : IDisposable
 {
@@ -100,26 +100,16 @@ public sealed class RigsSceneTests : IDisposable
     }
 
     /// <summary>
-    /// A run checks every step and resolves every name before its first tick: the scene and each camera. The run stops
-    /// before its first tick here, so it changes nothing.
+    /// Each rigs scene has its own checked-in script. <see cref="CheckedInScriptsTests"/> runs the checks of a run over every
+    /// checked-in script.
     /// </summary>
     [Theory]
     [InlineData("rigs.json")]
     [InlineData("rigs-crowd.json")]
-    public void TheCheckedInScriptOfEachRigsScenePassesTheChecksOfARun(string file)
+    public void TheCheckedInScriptOfEachRigsSceneNamesItsOwnScene(string file)
     {
         var script = Script.Load(Path.Combine(RepositoryRoot(), "scripts", file));
-        SceneInstance scene = Build(world, RenderResources.None, script.Scene);
 
-        RunResult result = ScriptRunner.Run(
-            script: script,
-            world: world,
-            scene: scene,
-            outputFolder: null,
-            playback: new StopsAtOnce()
-        );
-
-        result.Stopped.Should().BeTrue();
         script.Scene.Should().Be(Path.GetFileNameWithoutExtension(file), "each rigs scene has its own script");
     }
 
@@ -136,13 +126,5 @@ public sealed class RigsSceneTests : IDisposable
         public TextureId CreateTexture(TextureData texture) => new(next++);
 
         public MaterialId CreateMaterial(MaterialDesc material) => new(next++);
-    }
-
-    /// <summary>A playback that stops the run before its first tick.</summary>
-    private sealed class StopsAtOnce : IPlayback
-    {
-        public bool WaitForTick() => false;
-
-        public bool Capture(World world, string name) => false;
     }
 }

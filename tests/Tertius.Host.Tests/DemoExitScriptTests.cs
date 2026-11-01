@@ -8,7 +8,7 @@ namespace Tertius.Host.Tests;
 /// <summary>
 /// The exit's short script (docs/plans/blue-danube-demo.md, "The exit", "Sections of the long script"): the checked-in
 /// scripts/demo-exit.json is what the generator writes for the scene <c>demo-exit</c> from the exit's sections and the coda's, and it
-/// passes every check that a run makes before its first tick.
+/// films them in their order. <see cref="CheckedInScriptsTests"/> runs the checks of a run over every checked-in script.
 /// </summary>
 public sealed class DemoExitScriptTests
 {
@@ -45,12 +45,9 @@ public sealed class DemoExitScriptTests
         }
     }
 
-    /// <summary>
-    /// The script names the scene <c>demo-exit</c>, films the exit's sections and then the coda's, in their order, and
-    /// passes the checks of a run.
-    /// </summary>
+    /// <summary>The script names the scene <c>demo-exit</c> and films the exit's sections and then the coda's, in their order.</summary>
     [Fact]
-    public void TheCheckedInScriptFilmsTheExitsSectionsAndTheCodasAndPassesTheChecksOfARun()
+    public void TheCheckedInScriptFilmsTheExitsSectionsAndThenTheCodas()
     {
         var script = Script.Load(CheckedIn);
         script.Scene.Should().Be(BlueDanube.ExitSceneName);
@@ -60,19 +57,6 @@ public sealed class DemoExitScriptTests
             .Select(film => film.Name)
             .Should()
             .Equal(BlueDanube.ExitSections.Concat(BlueDanube.CodaSections).Select(section => section.Name));
-        using World world = NewJoltWorld();
-        SceneInstance scene = DemoScenes.All.Single(s => s.Name == script.Scene).Build(world, RenderResources.None);
-
-        RunResult result = ScriptRunner.Run(
-            script: script,
-            world: world,
-            scene: scene,
-            outputFolder: null,
-            playback: new StopsAtOnce()
-        );
-
-        result.Stopped.Should().BeTrue();
-        world.TickNumber.Should().Be(0);
     }
 
     /// <summary>
@@ -91,13 +75,5 @@ public sealed class DemoExitScriptTests
         exit.Should().Be(ScriptCommand.CommandLineError);
         error.ToString().Should().Contain("--generate <file> [<scene>]");
         File.Exists("a.json").Should().BeFalse();
-    }
-
-    /// <summary>A playback that stops the run before its first tick.</summary>
-    private sealed class StopsAtOnce : IPlayback
-    {
-        public bool WaitForTick() => false;
-
-        public bool Capture(World world, string name) => false;
     }
 }

@@ -13,14 +13,6 @@ public sealed class ScriptJsonFormatTests
 {
     private const string NotValid = "The script is not valid JSON of a script: ";
 
-    public static TheoryData<string> CheckedInScripts =>
-        [
-            .. Directory
-                .GetFiles(Path.Combine(HostTesting.RepositoryRoot(), "scripts"), "*.json")
-                .Select(path => Path.GetFileName(path))
-                .Order(StringComparer.Ordinal),
-        ];
-
     private static Script ScriptWith(string step) => Script.Parse($$"""{ "scene": "probes", "steps": [ {{step}} ] }""");
 
     [Fact]
@@ -101,7 +93,7 @@ public sealed class ScriptJsonFormatTests
     // The expected steps come from the raw JSON of the file, never from the types that read it, so the test holds through
     // a change of those types. A post with no payload key writes "payload": null, which reads as the same post.
     [Theory]
-    [MemberData(nameof(CheckedInScripts))]
+    [MemberData(nameof(HostTesting.CheckedInScripts), MemberType = typeof(HostTesting))]
     public void EveryCheckedInScriptWritesBackTheStepsOfItsFileAndReadsBackAsItself(string file)
     {
         string text = File.ReadAllText(Path.Combine(HostTesting.RepositoryRoot(), "scripts", file));

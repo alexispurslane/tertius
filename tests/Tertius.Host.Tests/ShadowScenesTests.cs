@@ -137,8 +137,8 @@ public sealed class ShadowScenesTests : IDisposable
     }
 
     /// <summary>
-    /// A run checks every step and resolves every name before its first tick: the scene and each camera. The run stops
-    /// before its first tick here, so it changes nothing.
+    /// Each shadow scene has its own checked-in script, which films its passes for the cost. <see
+    /// cref="CheckedInScriptsTests"/> runs the checks of a run over every checked-in script.
     /// </summary>
     [Theory]
     [InlineData("spot-box.json")]
@@ -159,20 +159,10 @@ public sealed class ShadowScenesTests : IDisposable
     [InlineData("stars-1.json")]
     [InlineData("stars-2.json")]
     [InlineData("stars-4.json")]
-    public void TheCheckedInScriptOfEachShadowScenePassesTheChecksOfARun(string file)
+    public void TheCheckedInScriptOfEachShadowSceneFilmsThePassesOfItsOwnScene(string file)
     {
         var script = Script.Load(Path.Combine(RepositoryRoot(), "scripts", file));
-        SceneInstance scene = Build(script.Scene);
 
-        RunResult result = ScriptRunner.Run(
-            script: script,
-            world: world,
-            scene: scene,
-            outputFolder: null,
-            playback: new StopsAtOnce()
-        );
-
-        result.Stopped.Should().BeTrue();
         script
             .Scene.Should()
             .Be(Path.GetFileNameWithoutExtension(file), "each scene of the shadows has its own script");
@@ -188,12 +178,4 @@ public sealed class ShadowScenesTests : IDisposable
                 .TakeWhile(lamp => lamp is not null)
                 .Select(lamp => world.GetRender(lamp!.Value).Light),
         ];
-
-    /// <summary>A playback that stops the run before its first tick.</summary>
-    private sealed class StopsAtOnce : IPlayback
-    {
-        public bool WaitForTick() => false;
-
-        public bool Capture(World world, string name) => false;
-    }
 }
