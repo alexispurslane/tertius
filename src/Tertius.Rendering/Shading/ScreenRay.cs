@@ -51,8 +51,8 @@ internal readonly record struct ScreenRay(
     public const float MostOriginOffsetShare = 0.5f;
 
     /// <summary>
-    /// The cosine between the ray and the geometric normal below which a ray fades out. A hair pixel whose ray lies below
-    /// it starts no ray (docs/plans/skin-and-hair.md, decision 35).
+    /// The cosine between the ray and the geometric normal below which a ray fades out, for a pixel of every model
+    /// (docs/plans/skin-and-hair.md, decision 35).
     /// </summary>
     public const float SurfaceFadeCosine = 0.05f;
 
