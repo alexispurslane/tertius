@@ -20,3 +20,7 @@ After ter-uqmn, demo-exit's deck window (120 frames from 399, 1920x1080, Release
 **2026-10-31T21:30:55Z**
 
 Workflow run 8cbd776d-a0c7-4338-aa37-f2a015f55e15 (version 869b0b07), branch ter-qsye-remaining-pass-cost from d4bd48de. Attribute with drift-cancelling measurements (paired traces or interleaved builds with a control); check for encoder overlaps before blaming shader work; remove only what keeps every pixel.
+
+**2026-11-01T00:02:39Z**
+
+2026-10-31: run 8cbd776d stopped at a fork (pipeline variants without the tinted loop, about 0.07 ms more on the deck's transparent pass). The orchestrator settled option A, stop at the branch, by the rule 'leave out a feature that is not needed yet'. Continuation run ef700124-e9a1-4b45-8df6-8575da20d006 (version 869b0b07) records it, then goes through review and fix.

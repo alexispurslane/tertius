@@ -21,3 +21,9 @@ For (1), call the counting wrappers from a managed thread that is not the physic
 
 Each of the three mutants fails a test on every run (or (3) is recorded as accepted with its reason). Checked and Release runs of the Physics tests pass.
 
+
+## Notes
+
+**2026-11-01T00:02:39Z**
+
+2026-10-31: launched through the workflow MCP (version 869b0b07-3413-4b06-8707-a88a91bf6e91), run e19a3dbb-2e9c-4407-a82c-e8b9bb87013c, branch ter-asj1-step-allocation-mutants from 2368d274.

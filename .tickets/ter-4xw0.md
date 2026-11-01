@@ -20,3 +20,7 @@ The user chose on 2026-10-31 to build the hysteresis that docs/plans/local-light
 **2026-11-01T00:00:59Z**
 
 2026-10-31, the user's choice of two designs: a value margin that spans tiers. A holder (a light whose entity holds layers in ShadowTiles.records, the store of the last submitted frame) ranks for shadow tiles as if its light were twice as strong: its rank irradiance times 2, and its main-view tier computed at its reach times sqrt(2), because reach = sqrt(peak / cutoff), so twice the light gives sqrt(2) the reach. So a challenger takes a holder's tiles only when it has more than twice the holder's irradiance in the same tier, or stands in a higher tier than the holder reaches even at sqrt(2) its reach. The grown tier is an input of the shadow ranking only: PreparedLight.Tier, which decides the direct pass's light list, does not change. The holders come from records, so no new stored state. Rejected: a time margin of N drawn frames (a count in each record, every handover waits N frames, and a swing slower than N frames still swaps each time), and a margin inside one tier only (a tier change, which follows the exposure through each light's reach, would still hand the tiles over at once, the cause that the ticket names). This replaces the deferral of settled fork 2 in docs/plans/local-light-shadows.md.
+
+**2026-11-01T00:02:39Z**
+
+2026-10-31: launched through the workflow MCP (version 869b0b07-3413-4b06-8707-a88a91bf6e91), run 571f8633-d7b0-440e-b938-8f4c989b0c28, branch ter-4xw0-shadow-tile-hysteresis from e2a8a51a.
