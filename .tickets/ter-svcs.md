@@ -1,6 +1,6 @@
 ---
 id: ter-svcs
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-11-01T01:39:41Z
@@ -22,3 +22,9 @@ Every alternating trace whose frames without the pass are the odd frames carries
 ## Acceptance Criteria
 
 The cause of each offset is named with evidence from a trace, and tools/README.md 'GPU trace' says how the paired mode handles it.
+
+## Notes
+
+**2026-11-01T02:09:22Z**
+
+2026-10-31: workflow run 349e2f35-2c20-4023-a0b4-cd8f021c46ff (version 869b0b07), branch ter-svcs-control-offsets from 87ee9caf. Settled by the orchestrator before the launch: the paired mode does not subtract the control's medians; a cause in the tool's method is fixed, and a cause in the renderer's work is documented in tools/README.md.
