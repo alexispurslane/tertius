@@ -16,3 +16,9 @@ Found on 2026-11-01 in ter-pjza's captures of demo-exit's floor film (one frame 
 ## Acceptance Criteria
 
 The cause of each artifact (the steps, the cut lines, the green line) is named with evidence, and either fixed with the image of the other review scenes kept, or recorded as a limit of screen-space reflections in ARCHITECTURE.md.
+
+## Notes
+
+**2026-11-01T15:49:07Z**
+
+The deck film shows the same kind of fault: the floor's reflection of the greenhouse breaks into blocky fragments (captures/mfyv-candidates/c4-gather/exit-films/deck.png in the main checkout, ter-mfyv's final build at 1920 x 1080; ter-mfyv did not touch the reflections).

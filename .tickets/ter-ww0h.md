@@ -1,6 +1,6 @@
 ---
 id: ter-ww0h
-status: open
+status: in_progress
 deps: [ter-mfyv]
 links: []
 created: 2026-11-01T02:46:28Z
