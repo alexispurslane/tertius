@@ -119,3 +119,15 @@ The four low findings of the review of run 26a0f03a (2026-11-01).
 The cost runs' 1-minute load was not logged. /tmp/kn1d-fix/measure.sh read it with sysctl vm.loadavg and printed it to the builder's console, and no file in captures/kn1d-fix/measure holds it. The 8.4 to 9.9 of the earlier note is the builder's report of that console output.
 
 No image changed in this stage.
+
+**2026-11-01T22:59:11Z**
+
+The two low findings and the gaps of the review of d5fd17fd (2026-11-01).
+
+1. The maps' margins derive from the bias model. The model's constants moved from ShadowPass into a new static class, ShadowBias (src/Tertius.Rendering/Scene/ShadowBias.cs): SlopeBias, NormalOffsetTexels, ConstantBiasTexels and the new FilterClearanceTexels = 2, the filter's reach. This also names the owner of the model, which the review's design gap asked about: both shadow passes, the batcher and the cascades use it, and the batcher no longer reads a pass class. ShadowCascades.MarginTexels is now a constant expression, 0.5 texel of snapping plus FilterClearanceTexels plus NormalOffsetTexels, rounded up to whole texels, which gives today's 4. ShadowTiles.MarginTexels still copies it. In shadows.glsl, ShadowHoldingMarginTexels = 3.0 is gone: acrossBox computes the margin as 2 * (FilterClearanceTexels + frame.shadowParams.y) * frame.shadowParams.x, the same 3 texels exactly in floats. So one edit of NormalOffsetTexels now moves both lookups and both margins. The filter's reach has two stores, one in C# and one in GLSL, because the filter is shader code and the C# margin needs it. Each comment names its twin. The change keeps every result, so it has no red test: a test that pins the derivation would test constants, and the derivation itself makes the mistake impossible.
+
+2. The summary of ConstantBiasTexels now says: the cascades' constant depth bias toward the light, in texels of depth, which every pass that samples the cascades adds (shadowParams.z). The tiles take none. ARCHITECTURE.md, "Shadow bias", says the same and describes the two margins.
+
+Gaps. The white sun streaks at the top right of the spinward main view: the orchestrator already added them to ter-trz2 (its note of 2026-11-01T22:42:58Z), so this ticket files nothing. The plan's listings of lightVisibility, the loop and the shadow functions (docs/plans/local-light-shadows.md) now show sinTheta. The plan's decision 33 names ShadowBias.
+
+No image changed. The checks: the Checked build has 0 warnings and 0 errors. The Checked tests pass 9,758 of 9,772 (14 skipped), and the Release tests pass 9,745 of 9,759 (14 skipped).

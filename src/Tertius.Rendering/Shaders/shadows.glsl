@@ -10,7 +10,7 @@
 //
 // Bias, the same model for the cascades and the tiles (docs/plans/local-light-shadows.md, decision 33), in parts that
 // each scale with the texel size:
-//  - The shadow passes add a slope-scaled depth bias to the casters, ShadowPass.SlopeBias. Every tap compares against
+//  - The shadow passes add a slope-scaled depth bias to the casters, ShadowBias.SlopeBias. Every tap compares against
 //    the receiver's own depth, and the filter compares texels up to 2.5 texels from the lookup along each texel axis,
 //    so the bias covers the receiver's slope over that reach along an axis. On a slope diagonal to the texel grid the
 //    corner texels lie up to 2.5 texels off along both axes, and Vulkan lets the slope be the larger of the two axes'
@@ -97,9 +97,9 @@ float cascadeShadow(uint set, vec3 position, vec3 geometricNormal, float sinThet
 // only for points in the main view's frustum: a point behind the camera has a negative depth, and cascade 0 does not hold
 // it once it lies more than a few meters back. Each set has its own boxes, along its own light.
 
-// How far from a box's edge, in texels, a held point lies at least: the 4 × 4 taps reach 2 texels from the lookup point,
-// and the normal offset moves the lookup up to 1 texel.
-const float ShadowHoldingMarginTexels = 3.0;
+// How far the 4 × 4 taps reach from the lookup, in texels: they compare the 5 × 5 texels around the lookup's texel, up
+// to 2 texels from it. The C# twin is ShadowBias.FilterClearanceTexels.
+const float FilterClearanceTexels = 2.0;
 
 // A position in the clip space of a cascade box: xy in [−1, 1] across the box, z in [0, 1] along the light.
 vec3 cascadeClip(uint set, uint cascade, vec3 position)
@@ -108,9 +108,10 @@ vec3 cascadeClip(uint set, uint cascade, vec3 position)
 }
 
 // How far across a cascade box a clip position lies: 0 at the box's center, 1 at the margin of the filter, more beyond.
+// The margin keeps a held point the filter's reach plus the normal offset (frame.shadowParams.y) from the box's edge.
 float acrossBox(vec3 clip)
 {
-    float margin = 2.0 * ShadowHoldingMarginTexels * frame.shadowParams.x;
+    float margin = 2.0 * (FilterClearanceTexels + frame.shadowParams.y) * frame.shadowParams.x;
     return max(abs(clip.x), abs(clip.y)) / (1.0 - margin);
 }
 

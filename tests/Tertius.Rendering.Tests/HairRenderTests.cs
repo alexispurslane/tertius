@@ -736,8 +736,8 @@ public sealed class HairRenderTests
         float need =
             1.5f * across / cosine
             + across / cosine
-            + ShadowPass.ConstantBiasTexels
-            + ShadowPass.SlopeBias * sine / cosine;
+            + ShadowBias.ConstantBiasTexels
+            + ShadowBias.SlopeBias * sine / cosine;
         need.Should().BeLessThan(GapTexels - SpareTexels, "every tap sees the caster");
         CardCenter.Z.Should().BeGreaterThan(-ShadowCascades.BlendStart(0), "the card lies in the first cascade alone");
 
@@ -747,7 +747,7 @@ public sealed class HairRenderTests
             MeshId plane = renderer.CreateMesh(Primitives.Plane(1));
             RenderSnapshot snapshot = SunOnly(toSun);
             float texel = FirstCascadeTexel();
-            float gap = texel * (GapTexels * cosine + ShadowPass.NormalOffsetTexels * sine);
+            float gap = texel * (GapTexels * cosine + ShadowBias.NormalOffsetTexels * sine);
             RenderInstance caster = Card(
                 plane: plane,
                 material: Standard(renderer),

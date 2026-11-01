@@ -46,7 +46,7 @@ internal sealed unsafe class LocalShadowPass : RenderPass
                 DepthClamp = true,
                 CullMode = CullModeFlags.None,
                 // Reversed depth: a negative bias moves casters away from the light.
-                DepthBiasSlope = -ShadowPass.SlopeBias,
+                DepthBiasSlope = -ShadowBias.SlopeBias,
             }
         );
         boundsPipeline = new ComputePipelineDesc
