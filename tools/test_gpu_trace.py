@@ -294,6 +294,108 @@ class ControlPairs(unittest.TestCase):
         self.assertTrue(gpu_trace.paired(_frames([True] * 3), ["a", "x", "b"], "x", control=True)["control"])
 
 
+def _starts(count):
+    """The first GPU start of each of count frames of _frames, keyed by frame name, as gpu_intervals gives them."""
+    return {f"f{i}": i * 20 * MS for i in range(count)}
+
+
+def _lose(intervals, *frames):
+    """intervals without every key of the named frames: frames whose encoders the trace lost."""
+    return {key: spans for key, spans in intervals.items() if key[0] not in frames}
+
+
+class FramesThatTheReportCannotRead(unittest.TestCase):
+    """per_frame, summarize and paired with the starts of gpu_intervals: a frame of the trace whose passes the report
+    cannot name keeps its place in the order of the frames and gives no values."""
+
+    def odd_frames_longer(self, count):
+        """count frames of _frames, all with x, in which a lasts 1 ms longer in each odd frame."""
+        intervals = _frames([True] * count)
+        for i in range(1, count, 2):
+            ((start, end),) = intervals[(f"f{i}", "a")]
+            intervals[(f"f{i}", "a")] = [(start, end + MS)]
+        return intervals
+
+    def test_the_control_pairs_the_odd_frames_of_the_trace_after_a_frame_that_the_report_cannot_read(self):
+        intervals = _lose(self.odd_frames_longer(9), "f3")
+        result = gpu_trace.paired(intervals, ["a", "x", "b"], "x", control=True, starts=_starts(9))
+        # The pairs around frames 1, 5 and 7 each give the even neighbors minus the longer odd frame: -1 ms.
+        self.assertEqual((result["pairs"], _paired_row(result, "a")["busy"]["medianMs"]), (3, -1.0))
+
+    def test_the_frames_after_a_frame_that_the_report_cannot_read_keep_their_index(self):
+        intervals = _lose(_frames([True, False, True, False, True, False, True, False, True]), "f4")
+        result = gpu_trace.paired(intervals, ["a", "x", "b"], "x", starts=_starts(9))
+        self.assertEqual((result["frames"], result["pairs"], result["parity"], result["leftOut"]), (9, 2, "odd", [3, 5]))
+
+    def test_a_frame_that_the_report_cannot_read_is_not_a_frame_without_the_pass(self):
+        result = gpu_trace.paired(_lose(_frames([True] * 3), "f1"), ["a", "x", "b"], "x", starts=_starts(3))
+        self.assertEqual((result["pairs"], result["leftOut"]), (0, []))
+
+    def test_the_summary_names_the_frames_that_the_report_cannot_read_by_their_index(self):
+        found = gpu_trace.summarize(_lose(_frames([True] * 5), "f2"), ["a", "x", "b"], {}, ("a", "b"), starts=_starts(5))
+        self.assertEqual(found["unread"], [2])
+
+    def test_a_frame_that_the_report_cannot_read_counts_in_no_statistic(self):
+        found = gpu_trace.summarize(_lose(_frames([True] * 5), "f2"), ["a", "x", "b"], {}, ("a", "b"), starts=_starts(5))
+        self.assertEqual((found["frame"]["frames"], found["window"]["frames"], found["window"]["missing"]), (4, 4, 0))
+
+    def test_without_starts_every_frame_of_the_intervals_is_read(self):
+        self.assertEqual(gpu_trace.summarize(_frames([True] * 3), ["a", "x", "b"], {})["unread"], [])
+
+    def test_a_line_below_the_table_names_the_frames_that_the_report_cannot_read(self):
+        intervals = _lose(_frames([True] * 5), "f2")
+        report = {"device": "Test GPU", "width": 64, "height": 32, "commandBuffers": {"frames": 4, "skipped": 0}}
+        report |= gpu_trace.summarize(intervals, ["a", "x", "b"], {}, starts=_starts(5))
+        lines = gpu_trace.table(report, has_counters=False).splitlines()
+        self.assertIn(
+            "The report cannot read the passes of frames 2: the trace lost some of their encoders, or they hold another"
+            " number of timestamp encoders. Each keeps its place in the order of the frames and gives no values"
+            " (tools/README.md, \"GPU trace\").",
+            lines,
+        )
+
+
+class GpuIntervals(unittest.TestCase):
+    """gpu_intervals: reads the exported table of GPU intervals into the intervals of each pass and the first GPU start
+    of each frame."""
+
+    def intervals(self, rows):
+        """gpu_intervals on a table of rows (start ns, duration ns, process, command buffer, encoder, label)."""
+        columns = ["start", "duration", "process", "cmdbuffer-id", "encoder-id", "event-label"]
+        body = "".join(
+            "<row>" + "".join(f'<c fmt="{fmt}">{text}</c>' for fmt, text in cells) + "</row>"
+            for cells in (
+                [("", start), ("", duration), (process, ""), (buffer, ""), (encoder, ""), (label, "")]
+                for start, duration, process, buffer, encoder, label in rows
+            )
+        )
+        schema = "".join(f"<col><mnemonic>{name}</mnemonic></col>" for name in columns)
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "metal-gpu-intervals.xml"
+            path.write_text(f"<trace-query-result><node><schema>{schema}</schema>{body}</node></trace-query-result>")
+            return gpu_trace.gpu_intervals(path, "Demo", {"e1": ("b1", "a"), "e2": ("b1", "a")})
+
+    def test_a_command_buffer_with_a_timestamp_encoder_is_a_frame_from_its_first_gpu_start(self):
+        stamp = f"Queue 0-0:{gpu_trace.STAMP}   (Demo (1)) 0x1"
+        _, starts = self.intervals([
+            (50, 5, "Demo (1)", "b1", "e1", "Queue 0-0:vkCmdDispatch ComputeEncoder"),
+            (40, 5, "Demo (1)", "b1", "s1", stamp),
+            (90, 5, "Demo (1)", "b2", "s2", stamp),
+            (95, 5, "Demo (1)", "b2", "e3", "Queue 0-0:vkCmdDispatch ComputeEncoder"),
+            (70, 5, "Demo (1)", "b3", "e4", "Queue 0-0:vkCmdCopyBuffer BlitEncoder"),
+            (80, 5, "Other (2)", "b4", "s4", stamp),
+        ])
+        self.assertEqual(starts, {"b1": 40, "b2": 90})
+
+    def test_the_intervals_hold_only_the_encoders_that_name_a_pass(self):
+        found, _ = self.intervals([
+            (50, 5, "Demo (1)", "b1", "e1", "Queue 0-0:vkCmdDispatch ComputeEncoder"),
+            (60, 5, "Demo (1)", "b1", "e2", "Queue 0-0:vkCmdDispatch ComputeEncoder"),
+            (40, 5, "Demo (1)", "b1", "s1", f"Queue 0-0:{gpu_trace.STAMP}   (Demo (1)) 0x1"),
+        ])
+        self.assertEqual(found, {("b1", "a"): [(50, 55), (60, 65)]})
+
+
 class BootstrapError(unittest.TestCase):
     """bootstrap_error: the moving-block bootstrap standard error of the median of a series, in the unit of the
     values."""

@@ -159,17 +159,29 @@ def union(intervals: list[tuple[int, int]]) -> list[tuple[int, int]]:
 
 
 def gpu_intervals(table: Path, process: str, named):
-    """The GPU intervals of each pass in each command buffer: {(buffer, pass): [(start, end)]}, in nanoseconds."""
+    """The GPU intervals of each pass in each command buffer, {(buffer, pass): [(start, end)]}, and the first GPU start
+    of each frame of the trace, {buffer: start}, in nanoseconds.
+
+    A frame of the trace is a command buffer of the process whose GPU intervals hold a timestamp encoder, because the
+    renderer writes stamps in each frame's command buffer and in no other. The table labels each interval with its
+    encoder, so a frame counts even when the trace lost its rows in the encoder list, which named comes from. Then the
+    frame has no intervals of a pass, and it keeps its place in the order of the frames (per_frame).
+    """
     by_pass: dict[tuple[str, str], list[tuple[int, int]]] = defaultdict(list)
+    first: dict[str, int] = {}
+    stamped: set[str] = set()
     for row in rows(table):
         if not of_process(row, process):
             continue
-        found = named.get(row["encoder-id"][0])
-        if found is None:
-            continue
+        buffer = row["cmdbuffer-id"][0]
         start = int(row["start"][1])
-        by_pass[found].append((start, start + int(row["duration"][1])))
-    return {key: union(spans) for key, spans in by_pass.items()}
+        first[buffer] = min(first.get(buffer, start), start)
+        if STAMP in (row["event-label"][0] or ""):
+            stamped.add(buffer)
+        found = named.get(row["encoder-id"][0])
+        if found is not None:
+            by_pass[found].append((start, start + int(row["duration"][1])))
+    return {key: union(spans) for key, spans in by_pass.items()}, {buffer: first[buffer] for buffer in stamped}
 
 
 def open_segments(intervals: dict):
@@ -247,25 +259,31 @@ def window(frame: dict[str, list[tuple[int, int]]], first: str, second: str) -> 
     return min(starts) - end if starts else None
 
 
-def per_frame(intervals: dict, passes: list[str], between: "tuple[str, str] | None" = None) -> dict:
+def per_frame(intervals: dict, passes: list[str], between: "tuple[str, str] | None" = None,
+              starts: "dict[str, int] | None" = None) -> dict:
     """The quantities of each frame of the trace, in ns, that summarize and paired reduce.
 
-    intervals and passes are those of summarize. A frame is a command buffer in which a pass of the frame graph has GPU
-    work, and the frames are in the order of their first GPU start. Returns "rows", {row: one (busy, alone) per frame},
-    with None for a frame in which the row has no interval, for each of BEFORE, passes and AFTER that has an interval in
-    some frame, in that order; "span", the frame span of each frame; and "window" when between names two passes, the
+    intervals and passes are those of summarize. starts holds the first GPU start of each frame of the trace (see
+    gpu_intervals), also of a frame in which no pass has an interval because the trace lost its encoders. Without
+    starts, the frames are the command buffers in which a pass of the frame graph has GPU work. The frames are in the
+    order of their first GPU start, so a frame that the report cannot read keeps its place, and the frames after it
+    keep their index. Returns "rows", {row: one (busy, alone) per frame}, with None for a frame in which the row has no
+    interval, for each of BEFORE, passes and AFTER that has an interval in some frame, in that order; "span", the frame
+    span of each frame, None for a frame without an interval of a pass; and "window" when between names two passes, the
     window of each frame or None (see window).
     """
     frames = frames_by_buffer(intervals, passes)
-    order = sorted(frames, key=lambda buffer: min(start for spans in frames[buffer].values() for start, _ in spans))
+    first = {buffer: min(start for spans in frames[buffer].values() for start, _ in spans) for buffer in frames}
+    first |= starts or {}
+    order = sorted(first, key=first.get)
     times = busy_and_alone(intervals)
-    found: dict = {"rows": {}, "span": [frame_span(frames[buffer]) for buffer in order]}
+    found: dict = {"rows": {}, "span": [frame_span(frames[buffer]) if buffer in frames else None for buffer in order]}
     for row in [BEFORE, *passes, AFTER]:
         values = [times.get((buffer, row)) for buffer in order]
         if any(value is not None for value in values):
             found["rows"][row] = values
     if between:
-        found["window"] = [window(frames[buffer], *between) for buffer in order]
+        found["window"] = [window(frames.get(buffer, {}), *between) for buffer in order]
     return found
 
 
@@ -310,18 +328,22 @@ def limiters(counters: dict[str, float]) -> list[tuple[str, float]]:
     return sorted(found, key=lambda pair: -pair[1])
 
 
-def summarize(intervals: dict, passes: list[str], counters: dict, between: "tuple[str, str] | None" = None) -> dict:
+def summarize(intervals: dict, passes: list[str], counters: dict, between: "tuple[str, str] | None" = None,
+              starts: "dict[str, int] | None" = None) -> dict:
     """The statistics of the passes over the frames, in ms, as passes.json holds them.
 
     intervals maps each (command buffer, pass) to its GPU intervals in ns, with BEFORE and AFTER for the encoders around
-    the passes. passes names the passes in recording order, and counters maps a pass name to its counter means. Returns
-    "frame", the summary of the frame spans; "passes", one entry per pass with GPU work, in the order BEFORE, passes,
-    AFTER, with the summary of its busy time and an "alone" and a "shared" summary; "window" when between names two
-    passes, with "from", "to", "missing" (the frames without a window) and its summary when a frame has one; and "idle",
-    the passes with no GPU work in any frame. The shared time of a frame is the busy time minus the time alone.
+    the passes. passes names the passes in recording order, and counters maps a pass name to its counter means. starts
+    is that of per_frame. Returns "frame", the summary of the frame spans; "passes", one entry per pass with GPU work, in
+    the order BEFORE, passes, AFTER, with the summary of its busy time and an "alone" and a "shared" summary; "window"
+    when between names two passes, with "from", "to", "missing" (the frames without a window) and its summary when a
+    frame has one; "unread", the index of each frame of starts that has no interval of a pass, which no statistic
+    counts; and "idle", the passes with no GPU work in any frame. The shared time of a frame is the busy time minus the
+    time alone.
     """
-    frames = per_frame(intervals, passes, between)
-    summarized: dict = {"frame": summary([span / 1e6 for span in frames["span"]]), "passes": []}
+    frames = per_frame(intervals, passes, between, starts)
+    spans = [span / 1e6 for span in frames["span"] if span is not None]
+    summarized: dict = {"frame": summary(spans), "passes": []}
     for name, values in frames["rows"].items():
         found = [value for value in values if value is not None]
         summarized["passes"].append(
@@ -336,9 +358,10 @@ def summarize(intervals: dict, passes: list[str], counters: dict, between: "tupl
     if between:
         first, second = between
         times = [time / 1e6 for time in frames["window"] if time is not None]
-        summarized["window"] = {"from": first, "to": second, "missing": len(frames["window"]) - len(times)}
+        summarized["window"] = {"from": first, "to": second, "missing": len(spans) - len(times)}
         if times:
             summarized["window"] |= summary(times)
+    summarized["unread"] = [index for index, span in enumerate(frames["span"]) if span is None]
     # A pass of the frame graph that gave the GPU no encoder in any frame, such as the outlines with none to draw.
     summarized["idle"] = [name for name in passes if name not in frames["rows"]]
     return summarized
@@ -413,31 +436,34 @@ def paired_median(values: "list[float | None]", triples: "list[tuple[int, int, i
 
 
 def paired(intervals: dict, passes: list[str], name: str, control: bool = False,
-           between: "tuple[str, str] | None" = None) -> dict:
+           between: "tuple[str, str] | None" = None, starts: "dict[str, int] | None" = None) -> dict:
     """The paired statistics of a trace whose frames alternate with and without pass name, or of its control, in ms, as
     passes.json holds them under "paired".
 
-    intervals and passes are those of summarize, and the frames those of per_frame, counted from 0. Without control,
-    each frame in which name has no GPU work pairs with its two neighbors when name has GPU work in both. With control,
-    each odd frame pairs with its two even neighbors, and a frame in which name has no GPU work pairs with none, so the
-    control compares only frames that all run name. Each pair gives the mean of the two neighbors minus the frame: with
-    name minus without it. A pass with no GPU work in a frame takes 0 ms there.
+    intervals, passes and starts are those of summarize, and the frames those of per_frame, counted from 0. Without
+    control, each frame in which name has no GPU work pairs with its two neighbors when name has GPU work in both. With
+    control, each odd frame pairs with its two even neighbors, and a frame in which name has no GPU work pairs with none,
+    so the control compares only frames that all run name. A frame that the report cannot read (summarize, "unread")
+    is in no pair, so the control's odd frames after it are those of the trace. Each pair gives the mean of the two
+    neighbors minus the frame: with name minus without it. A pass with no GPU work in a frame takes 0 ms there.
 
     Returns "pass", "control", "resamples", "blockPairs" (BLOCK_PAIRS), "seed" and "minErrorPairs" (MIN_ERROR_PAIRS);
     "frames", the number of frames; "pairs", the number of pairs; "leftOut", the frames not on the "with" side that make
-    no pair (pairs); "parity", "odd", "even" or "odd and even", the parity of the paired frames, when there is a pair;
-    "passes", one entry per row of per_frame, each with the paired_median of its "busy" time and its time "alone" (empty
-    without a pair); "frame", the paired_median of the frame span; and "window" when between names two passes, with
-    "from", "to" and the paired_median of the window.
+    no pair (pairs), without the frames that the report cannot read; "parity", "odd", "even" or "odd and even", the
+    parity of the paired frames, when there is a pair; "passes", one entry per row of per_frame, each with the
+    paired_median of its "busy" time and its time "alone" (empty without a pair); "frame", the paired_median of the frame
+    span; and "window" when between names two passes, with "from", "to" and the paired_median of the window.
     """
-    frames = per_frame(intervals, passes, between)
-    count = len(frames["span"])
+    frames = per_frame(intervals, passes, between, starts)
+    read = [span is not None for span in frames["span"]]
+    count = len(read)
     with_name = [value is not None for value in frames["rows"].get(name, [None] * count)]
     if control:
         marks = [index % 2 == 0 if runs else None for index, runs in enumerate(with_name)]
     else:
-        marks = with_name
+        marks = [runs if read[index] else None for index, runs in enumerate(with_name)]
     triples, left_out = pairs(marks)
+    left_out = [index for index in left_out if read[index]]
 
     def ms(values: list) -> list:
         return [None if value is None else value / 1e6 for value in values]
@@ -517,6 +543,13 @@ def table(report: dict, has_counters: bool) -> str:
                 f"{found['missing']} frames have no window from {found['from']} to {found['to']}: one of the two passes has no"
                 f" GPU work in them, or {found['to']} starts only before {found['from']} ends (tools/README.md, \"GPU trace\").",
             ]
+    if report["unread"]:
+        lines += [
+            "",
+            f"The report cannot read the passes of {frame_list(report['unread'])}: the trace lost some of their encoders,"
+            " or they hold another number of timestamp encoders. Each keeps its place in the order of the frames and gives"
+            " no values (tools/README.md, \"GPU trace\").",
+        ]
     if report["idle"]:
         lines += ["", f"Passes with no GPU work in any frame: {', '.join(report['idle'])}."]
     if not has_counters:
@@ -655,7 +688,7 @@ def report(args) -> int:
     if frames == 0:
         print(f"No command buffer of {args.process} holds {len(passes) + 1} timestamp encoders.", file=sys.stderr)
         return 1
-    intervals = gpu_intervals(export(args.trace, "metal-gpu-intervals", exports), args.process, named)
+    intervals, starts = gpu_intervals(export(args.trace, "metal-gpu-intervals", exports), args.process, named)
     if not any(name in passes for _, name in intervals):
         print(f"The trace holds no GPU intervals for the passes of {args.process}.", file=sys.stderr)
         return 1
@@ -666,9 +699,10 @@ def report(args) -> int:
 
     report = {"device": timings["device"], "width": timings["width"], "height": timings["height"]}
     report["commandBuffers"] = {"frames": frames, "skipped": skipped}
-    report |= summarize(intervals, passes, counters, args.window)
+    report |= summarize(intervals, passes, counters, args.window, starts)
     if args.paired or args.control:
-        report["paired"] = paired(intervals, passes, args.paired or args.control, args.control is not None, args.window)
+        name = args.paired or args.control
+        report["paired"] = paired(intervals, passes, name, args.control is not None, args.window, starts)
     (args.out / "passes.json").write_text(json.dumps(report, indent=2))
     text = table(report, has_counters)
     (args.out / "passes.md").write_text(text)

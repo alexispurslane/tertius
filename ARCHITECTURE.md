@@ -2044,11 +2044,11 @@ The haze pass also has a short interval 5.7 to 7.5 ms before the window, beside 
 | Trace | Exposure | The clear | The meter | Exposure outside the haze pass | Haze inside the window | The window | The window minus the haze inside it |
 |---|---|---|---|---|---|---|---|
 | `above`, as shipped | +0.102 | +0.121 | −0.019 | −0.022 | +0.145 | +0.163 | +0.016 |
-| `above`, control: the haze in every frame | −0.001 | −0.002 | +0.000 | +0.000 | +0.000 | +0.008 | +0.006 |
+| `above`, control: the haze in every frame | −0.002 | −0.001 | −0.000 | +0.000 | −0.000 | −0.001 | −0.001 |
 | `day`, as shipped | +0.114 | +0.134 | −0.017 | −0.022 | +0.162 | +0.173 | +0.011 |
 | `above`, the clear waits for the haze pass (temporary probe) | −0.015 | −0.000 | −0.016 | −0.015 | +0.155 | +0.185 | +0.033 |
 
-The last column gives how much the window grows beyond the haze pass's work inside it. As shipped, it is 0.016 ms in `above` and 0.011 ms in `day`, against 0.006 ms in the control. The standard error of each is at most about 0.003 ms. So the frame pays about 0.010 ms more than the haze's own work, which is below ter-bgpv's threshold of 0.02 ms. The cause of that 0.010 ms is not established.
+The last column gives how much the window grows beyond the haze pass's work inside it. As shipped, it is 0.016 ms in `above` and 0.011 ms in `day`, against −0.001 ms in the control. The standard error of each is at most about 0.003 ms. So the frame pays about 0.012 to 0.017 ms more than the haze's own work, which is below ter-bgpv's threshold of 0.02 ms. The cause of that time is not established. The control trace lost one frame's encoders. ter-0y0z's script gave each frame after it the index of the frame before it. So its control row paired other frames than the other traces did, and it gave the window +0.008 ms. ter-svcs corrected the order (tools/README.md, "Reading the control").
 
 Outside the haze pass, the exposure pass is 0.022 ms faster in a hazed frame. Its meter takes 0.017 to 0.019 ms less, and its clear falls inside the haze pass's interval. Why the meter is faster after the haze is not established.
 
