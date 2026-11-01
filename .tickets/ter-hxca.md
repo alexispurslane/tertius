@@ -1,6 +1,6 @@
 ---
 id: ter-hxca
-status: open
+status: in_progress
 deps: []
 links: [ter-u63a]
 created: 2026-11-01T23:57:17Z
