@@ -10,7 +10,7 @@ priority: 2
 assignee: Alexis Purslane
 tags: [rendering, screen-space-light]
 ---
-# Screen-space light: stamp out the splashing: the open share S, a lower bound on the read lobes, an outlier clamp and a second denoise
+# Screen-space light: stamp out the splashing: the open share S, a lower bound on the read lobes, and the cheapest clean set of slices and denoise passes
 
 ## The fix: settled by the user on 2026-11-01
 
@@ -29,12 +29,13 @@ This ticket computes the open share's light as D times the open pieces' share of
 The user: "that splashing is really truly horrible and I want to stamp it out with flat prejudice." So every candidate of ter-xgra that costs nothing measurable or about 0.05 ms goes in, beside the share form, and not only if specks remain:
 
 1. A lower bound on the lobe width of every map read, open and blocked: roughness 0.5 in ter-xgra's probe, about 0.01 ms. It replaces the open item above on the lobe width. The ticket measures the bound and records its value.
-2. A spatial outlier clamp before the denoise: each texel's estimate is limited to the range of its neighbors on the same surface. Under 0.05 ms in ter-xgra's estimate, not yet probed. It acts on G and on S, so it also covers artifact 3 (the bounce's blotches).
-3. A second dispatch of the denoise: about 0.05 ms. It also covers artifact 3.
+2. The cheapest clean set of slices and denoise passes (user, 2026-11-01, after ter-xgra's fix stage). Part of the splashing is the angular noise of 3 slices, in S and in G: spinward's ceiling, chute-top, the demo-surface cabin's ceiling panel, part of brake-run, and the bounce's blotches (artifact 3) on brake-run, the terminal, the mirror-balls wall and the cabin floor. No lobe width removes it. On top of the share form and the lobe bound, the builder tries one and two more denoise dispatches and 4, 5 and 6 slices, alone and together, and keeps the cheapest set that is clean on every one of those views. Clean: no blotch, speck or grain shows at 3x beside the 16-slice, 3-step reference, and the review's noise measure lies within 10 % of the reference's. The set may cost up to about 1.1 ms. If no set within that is clean, the builder reports the best set and its cost as a fork. ter-xgra measured on the old code: two more denoise dispatches +0.11 ms (softer, not gone), 6 slices +0.99 ms (some mottling left).
+
+Dropped by the user after ter-xgra's fix stage: the 3 x 3 outlier clamp. It changed nothing visible and cost +0.10 ms.
 
 Two candidates are gone with the subtraction: the one clamp factor for all channels and the cap of M at (1 − V) · D. The share form has no clamp and no M. Out of scope: 16 slices (about 5 ms), one map read per slice (it does not fit the share form, which reads per piece), and a thinner slab (artifact 4 is a limit, and κ is SSR's shared constant).
 
-Each part is measured on its own, in this order: the share form, then 1, 2 and 3. Each reports its cost and its captures. Nothing accumulates over frames (decision 8). If a part makes a view worse, for example the outlier clamp removes a real thin shadow, the builder reports it as a fork and does not drop it alone.
+Each part is measured on its own, in this order: the share form, then 1 and 2. Each reports its cost and its captures. Nothing accumulates over frames (decision 8). If a part makes a view worse, for example the lobe bound turns the cabin's base face black, the builder reports it as a fork and does not drop it alone.
 
 Found by the orchestrator on 2026-10-31, in the screenshots of ter-qsye (main cae67c5e, headless Release, 1280 x 720). Script captures/deck-fringe-2026-10-31/late.json: demo-exit, cabin camera, post LeaveShip, run 399 ticks, deck camera, run 520 ticks, capture deck-late. At that moment a bright blue light floods the deck through the opening at the upper left.
 
@@ -46,7 +47,7 @@ Not caused by ter-qsye: its builder found all 740 deck frames identical to its b
 
 ## Acceptance Criteria
 
-The open share's light is D(n) · S, as the section "The fix" says, and the subtraction D(n) − M and its clamp are gone. The lobe bound, the outlier clamp and the second denoise are in, each with its measured cost. The deck-late crease, the brake-run crease, unbelt, chute-top and spinward (ter-xgra's artifact 1), the deck-late band (artifact 2) and the bounce's blotches beside lit surfaces in brake-run, terminal, mirror-balls and cabin (artifact 3) show no blotches, dots, splashes or brown hue at the default ScreenSpaceLight. Each is compared with the light-off view and with a reference at 16 slices and 3 steps (ter-xgra found that more steps make M's reads sharper, so 16 x 16 is not a reference for the map's reads). A render test pins two behaviors: an open point keeps exactly D(n), and a crease beside a small bright light in the map gets the map's light over its open directions, within a stated tolerance of a reference at many slices. The cost is measured against ter-pjza's numbers.
+The open share's light is D(n) · S, as the section "The fix" says, and the subtraction D(n) − M and its clamp are gone. The lobe bound and the cheapest clean set of slices and denoise passes are in, each with its measured cost. The deck-late crease, the brake-run crease, unbelt, chute-top and spinward (ter-xgra's artifact 1), the deck-late band (artifact 2) and the bounce's blotches beside lit surfaces in brake-run, terminal, mirror-balls and cabin (artifact 3) show no blotches, dots, splashes or brown hue at the default ScreenSpaceLight. Each is compared with the light-off view and with a reference at 16 slices and 3 steps (ter-xgra found that more steps make M's reads sharper, so 16 x 16 is not a reference for the map's reads). A render test pins two behaviors: an open point keeps exactly D(n), and a crease beside a small bright light in the map gets the map's light over its open directions, within a stated tolerance of a reference at many slices. The cost is measured against ter-pjza's numbers.
 
 ## Notes
 
