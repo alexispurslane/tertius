@@ -406,6 +406,12 @@ public sealed class SpotLampViewTests
             draws: []
         );
         tiles.Drew();
+        first
+            .LightSpan.ToArray()
+            .Where(light => light.Shadow.HasValue)
+            .Select(light => light.EntityIndex)
+            .Should()
+            .Equal([1u], "the bulb holds the six layers before its reach shrinks");
         RenderSnapshot after = Dark();
         // With a reach of 4.5 m its sphere stops 0.5 m behind the eye, though √2 × 4.5 m = 6.4 m reaches into the
         // view.

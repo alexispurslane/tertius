@@ -26,7 +26,7 @@ internal readonly record struct TileDraw(int View, int First, int Count);
 /// <list type="bullet">
 /// <item>A layer belongs to at most one light.</item>
 /// <item>A light holds 1 or 6 layers.</item>
-/// <item>A layer's record names the entity of the light whose view holds it.</item>
+/// <item>A layer's record names the entity of the light whose view holds it, and that light's tier in the last submitted frame.</item>
 /// <item>No two views of a frame share a layer.</item>
 /// <item>A layer without a view of the last submitted frame holds no record.</item>
 /// <item>A record's casters' pose ranges follow one another in caster order from 0 and end at the end of its pose rows.</item>
@@ -45,12 +45,13 @@ internal sealed class ShadowTiles
     /// or from a higher tier than the holder reaches even at <see cref="HolderReachGrowth"/> times its reach
     /// (docs/plans/local-light-shadows.md, settled fork 2). The margin spans tiers only inside the light list, and only
     /// inside the main view's tiers. A holder that the batcher drops from the list, because its own reach misses the
-    /// view and no drawn face keeps it (SceneBatcher.Reaches), loses its layers at once, and a holder that only a face
-    /// keeps ranks at <see cref="MainViewTier.FaceOnly"/>. So today the margin spans a change of tier only for a spot
-    /// lamp between <see cref="MainViewTier.AxisMissesView"/> and <see cref="MainViewTier.InView"/>, and a point lamp
-    /// gets it inside its tier only. NOTE: if a scene shows a point lamp's shadows that pop at the view's edge, the
-    /// known follow-up is design B of the fork in ter-4xw0: keep a holder in the light list while
-    /// √<see cref="HolderMargin"/> times its reach meets the view.
+    /// view and no drawn face keeps it (SceneBatcher.Reaches), loses its layers at once, a holder that only a face
+    /// keeps ranks at <see cref="MainViewTier.FaceOnly"/>, and a light that took its layers while only a face kept it
+    /// ranks as a challenger once it is in the main view (<see cref="RanksAsHolder"/>). So today the margin spans a
+    /// change of tier only for a spot lamp between <see cref="MainViewTier.AxisMissesView"/> and
+    /// <see cref="MainViewTier.InView"/>, and a point lamp gets it inside its tier only. NOTE: if a scene shows a point
+    /// lamp's shadows that pop at the view's edge, the known follow-up is design B of the fork in ter-4xw0: keep a
+    /// holder in the light list while √<see cref="HolderMargin"/> times its reach meets the view.
     /// </summary>
     public const float HolderMargin = 2;
 
@@ -94,11 +95,11 @@ internal sealed class ShadowTiles
     /// <summary>The records of the views that the frame in flight draws, by layer.</summary>
     private readonly List<(int Layer, TileRecord Record)> drawnRecords = [];
 
-    /// <summary>The layer of each view of the frame in flight and its light's entity.</summary>
-    private readonly List<(int Layer, uint LightEntity)> frameTiles = [];
+    /// <summary>The layer of each view of the frame in flight, its light's entity, and its light's tier.</summary>
+    private readonly List<(int Layer, uint LightEntity, MainViewTier Tier)> frameTiles = [];
 
-    /// <summary>The layer of each view of the last submitted frame and its light's entity, for AssertInvariants.</summary>
-    private readonly List<(int Layer, uint LightEntity)> drawnTiles = [];
+    /// <summary>The layer of each view of the last submitted frame, its light's entity and tier, for AssertInvariants.</summary>
+    private readonly List<(int Layer, uint LightEntity, MainViewTier Tier)> drawnTiles = [];
 
     public ShadowTiles(int layers, int tileSize)
     {
@@ -167,7 +168,8 @@ internal sealed class ShadowTiles
 
     /// <summary>
     /// Keeps what the frame of the last <see cref="Update"/> chose, once that frame is submitted: the layers of its lights,
-    /// and the records of the views that it drew. A layer of no light of the frame becomes free.
+    /// the records of the views that it drew, and the tier of each light in the records of its layers. A layer of no
+    /// light of the frame becomes free.
     /// </summary>
     public void Drew()
     {
@@ -185,6 +187,11 @@ internal sealed class ShadowTiles
                 spareRecords.Push(replaced);
             records[layer] = record;
         }
+
+        // Every view's layer now holds a record, a kept one or the one that the frame drew (AssertInvariants).
+        foreach ((int layer, uint _, MainViewTier tier) in frameTiles)
+            if (records[layer] is { } kept)
+                kept.Tier = tier;
 
         drawnRecords.Clear();
         drawnTiles.Clear();
@@ -248,8 +255,10 @@ internal sealed class ShadowTiles
             Contract.Invariant(held.Count() is 1 or CubeFaces.Count);
 
         Contract.Invariant(drawnTiles.Select(tile => tile.Layer).Distinct().Count() == drawnTiles.Count);
-        foreach ((int layer, uint lightEntity) in drawnTiles)
-            Contract.Invariant(records[layer]?.LightEntity == lightEntity);
+        foreach ((int layer, uint lightEntity, MainViewTier tier) in drawnTiles)
+            Contract.Invariant(
+                records[layer] is { } record && record.LightEntity == lightEntity && record.Tier == tier
+            );
 
         // Each view's layer holds a record, so as many records as views leave none on a layer without a view.
         Contract.Invariant(drawnTiles.Count == records.Count(record => record is not null));
@@ -305,11 +314,11 @@ internal sealed class ShadowTiles
     /// <summary>
     /// Ranks the near lights that cast shadows by tier, each tier by <see cref="LightUnits.RankIrradiance"/>, ties in
     /// list order, and gives each its tiles while they fit. A challenger ranks at its <see cref="PreparedLight.Tier"/>,
-    /// and a holder as if its light were <see cref="HolderMargin"/> times as strong (<see cref="Candidate.Holder"/>),
-    /// so a ranking that swings by less than the margin keeps one owner. So a challenger spot lamp whose axis misses
-    /// the view takes only the layers that the lights whose light falls in view leave free, and a light that only a
-    /// face keeps, holder or challenger, only the layers that the main view's lights leave free
-    /// (docs/plans/environment-map.md, decision 20). A holder that the batcher dropped from <paramref name="lights"/>
+    /// and a holder (<see cref="RanksAsHolder"/>) as if its light were <see cref="HolderMargin"/> times as strong
+    /// (<see cref="Candidate.Holder"/>), so a ranking that swings by less than the margin keeps one owner. So a
+    /// challenger spot lamp whose axis misses the view takes only the layers that the lights whose light falls in view
+    /// leave free, and a light that only a face keeps, holder or challenger, only the layers that the main view's lights
+    /// leave free (docs/plans/environment-map.md, decision 20). A holder that the batcher dropped from <paramref name="lights"/>
     /// is not ranked, so it loses its layers at once (<see cref="HolderMargin"/>). Clears every near light's slot.
     /// </summary>
     private void Grant(Span<PreparedLight> lights, in CameraView camera)
@@ -327,7 +336,7 @@ internal sealed class ShadowTiles
                 continue;
             // The holders come from the records, the layers of the last submitted frame.
             candidates.Add(
-                Held(light.EntityIndex) > 0
+                RanksAsHolder(light)
                     ? Candidate.Holder(light: i, prepared: light, camera: camera)
                     : Candidate.Challenger(light: i, prepared: light)
             );
@@ -371,6 +380,22 @@ internal sealed class ShadowTiles
         for (int layer = 0; layer < Layers; layer++)
             if (records[layer]?.LightEntity == entity)
                 layerLights[layer] = light;
+    }
+
+    /// <summary>
+    /// Whether <paramref name="light"/> ranks as a holder: its entity holds layers in <see cref="records"/>, and either
+    /// it held them from a tier of the main view in the last submitted frame, or only a face still keeps it. So a light
+    /// that took the layers that the main view's lights left free, while only a face kept it, ranks as a challenger once
+    /// it is in the main view, and the faces that a map drew never decide which light of the main view keeps a layer
+    /// (docs/plans/environment-map.md, decision 20).
+    /// </summary>
+    private bool RanksAsHolder(in PreparedLight light)
+    {
+        // All the records of one light name its one tier of the last submitted frame.
+        foreach (TileRecord? record in records)
+            if (record?.LightEntity == light.EntityIndex)
+                return record.Tier is not MainViewTier.FaceOnly || light.Tier is MainViewTier.FaceOnly;
+        return false;
     }
 
     /// <summary>How many layers the light of <paramref name="entity"/> holds in <see cref="records"/>.</summary>
@@ -433,7 +458,7 @@ internal sealed class ShadowTiles
             // The faces take the light's layers in ascending order, so a light that keeps its layers keeps its faces.
             TileAim aim = cone ? new(new ConeAim()) : new(new FaceAim((CubeFace)face++));
             views.Add(new(Layer: layer, Light: light, Aim: aim));
-            frameTiles.Add((layer, LightEntity: lights[light].EntityIndex));
+            frameTiles.Add((layer, LightEntity: lights[light].EntityIndex, lights[light].Tier));
             var frustum = TileFrustum.Of(light: lights[light], aim: aim, tileSize: TileSize);
             CollectSeen(frustum: frustum, light: lights[light], placed: placed);
             ReadOnlySpan<int> seen = CollectionsMarshal.AsSpan(tileCasters);
@@ -605,8 +630,10 @@ internal sealed class ShadowTiles
         /// A light that holds layers: it ranks as if its light were <see cref="HolderMargin"/> times as strong, at
         /// <see cref="HolderMargin"/> times its rank irradiance, in the tier that the one tier rule
         /// (<see cref="CameraView.TierAndRankDistance"/>) gives at <see cref="HolderReachGrowth"/> times its reach. A
-        /// holder that only a face keeps (<see cref="MainViewTier.FaceOnly"/>) stays in that tier, so that the main
-        /// view's shadow slots never depend on the faces that a map draws (docs/plans/environment-map.md, decision 20).
+        /// holder that only a face keeps (<see cref="MainViewTier.FaceOnly"/>) stays in that tier. With
+        /// <see cref="RanksAsHolder"/>, which makes a light that held its layers only for a face a challenger in the main
+        /// view, this keeps the main view's shadow slots from ever depending on the faces that a map draws
+        /// (docs/plans/environment-map.md, decision 20).
         /// The grown tier is an input of this ranking only: <see cref="PreparedLight.Tier"/>, which decides the direct
         /// pass's lights, stays as the batcher set it.
         /// </summary>
@@ -754,6 +781,10 @@ internal sealed class ShadowTiles
     private sealed class TileRecord
     {
         public uint LightEntity;
+
+        /// <summary>The tier of the light of <see cref="LightEntity"/> in the last submitted frame, which Drew sets.</summary>
+        public MainViewTier Tier;
+
         public long OriginFrameId;
         public TileFrustum Frustum;
         public readonly List<RecordedCaster> Casters = [];

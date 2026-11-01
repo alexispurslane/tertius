@@ -560,6 +560,81 @@ public sealed class ShadowTilesTests
     }
 
     [Fact]
+    public void ALightThatTookItsTilesWhileOnlyAFaceKeptItRanksAsAChallengerInTheMainView()
+    {
+        var tiles = new ShadowTiles(layers: 1, tileSize: TileSize);
+        Frame(tiles, [Spot(entity: 1, intensity: 1) with { Tier = MainViewTier.FaceOnly }]);
+        PreparedLight[] lights = [Spot(entity: 1, intensity: 1), Spot(entity: 2, intensity: 1.5f)];
+
+        Frame(tiles, lights);
+
+        lights
+            .Select(light => light.Shadow)
+            .Should()
+            .Equal(
+                [NoSlot, Tiles(first: 0, count: 1)],
+                "the first lamp took the tile only because a face drew it, so the faces must not give it the margin"
+            );
+    }
+
+    [Fact]
+    public void AHolderThatOnlyAFaceKeepsKeepsItsTilesWhileAChallengerThatOnlyAFaceKeepsIsLessThanTwiceAsBright()
+    {
+        var tiles = new ShadowTiles(layers: 1, tileSize: TileSize);
+        PreparedLight[] lights =
+        [
+            Spot(entity: 1, intensity: 1) with
+            {
+                Tier = MainViewTier.FaceOnly,
+            },
+            Spot(entity: 2, intensity: 0.5f) with
+            {
+                Tier = MainViewTier.FaceOnly,
+            },
+        ];
+        Frame(tiles, lights);
+        lights[1].RadiantIntensity = new(1.9f);
+
+        Frame(tiles, lights);
+
+        lights
+            .Select(light => light.Shadow)
+            .Should()
+            .Equal(
+                [Tiles(first: 0, count: 1), NoSlot],
+                "among the lights that only a face keeps, the holder ranks at twice its 1 W/sr, above the 1.9 W/sr"
+            );
+    }
+
+    [Fact]
+    public void AFrameThatWasNeverSubmittedTakesNoTilesFromAHolder()
+    {
+        var tiles = new ShadowTiles(layers: 1, tileSize: TileSize);
+        Frame(tiles, [Spot(entity: 1, intensity: 1)]);
+        // A frame without the holder throws before its submission, so its records stay as they were.
+        tiles.Update(
+            lights: [],
+            camera: Eye,
+            placed: [],
+            deformed: FrameMeshes.Static.Deformed,
+            originFrameId: 1,
+            views: [],
+            draws: []
+        );
+        PreparedLight[] lights = [Spot(entity: 1, intensity: 1), Spot(entity: 2, intensity: 1.9f)];
+
+        Frame(tiles, lights);
+
+        lights
+            .Select(light => light.Shadow)
+            .Should()
+            .Equal(
+                [Tiles(first: 0, count: 1), NoSlot],
+                "the records still name the first light, which ranks at twice its 1 W/sr, above the 1.9 W/sr"
+            );
+    }
+
+    [Fact]
     public void ALightThatStaysInTheBudgetKeepsItsLayers()
     {
         var tiles = new ShadowTiles(layers: 3, tileSize: TileSize);
