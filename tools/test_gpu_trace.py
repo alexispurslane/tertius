@@ -330,8 +330,10 @@ class BootstrapError(unittest.TestCase):
 class PairedTable(unittest.TestCase):
     """table: the paired table of passes.md, below the table of the passes."""
 
-    def lines(self, marks, control=False):
+    def lines(self, marks, control=False, missing=()):
         intervals = _frames(marks)
+        for key in missing:
+            del intervals[key]
         report = {"device": "Test GPU", "width": 64, "height": 32, "commandBuffers": {"frames": len(marks), "skipped": 0}}
         report |= gpu_trace.summarize(intervals, ["a", "x", "b"], {}, ("a", "b"))
         report["paired"] = gpu_trace.paired(intervals, ["a", "x", "b"], "x", control=control, between=("a", "b"))
@@ -365,6 +367,12 @@ class PairedTable(unittest.TestCase):
         lines = self.lines([False, True, False, True, False])
         self.assertIn("Left out, with no neighbor pair: frames 0, 4.", lines)
 
+    def test_a_line_names_the_pairs_left_out_of_the_window_row(self):
+        lines = self.lines([True, False, True, False, True], missing=[("f2", "b")])
+        self.assertIn(
+            "Left out of the window row, because a frame of the pair has no window: the pairs around frames 1, 3.", lines
+        )
+
     def test_the_control_table_says_that_it_is_the_control(self):
         self.assertTrue(any(line.startswith("Control:") for line in self.lines([True] * 5, control=True)))
 
@@ -376,6 +384,12 @@ class PairedMedian(unittest.TestCase):
 
     def test_pairs_gives_each_paired_frame_with_its_two_neighbors(self):
         self.assertEqual(gpu_trace.pairs([True, False, True, False, True]), ([(0, 1, 2), (2, 3, 4)], []))
+
+    def test_the_first_frame_makes_no_pair_with_the_last_frame_as_its_neighbor_before(self):
+        self.assertEqual(gpu_trace.pairs([False, True, False, True]), ([(1, 2, 3)], [0]))
+
+    def test_a_frame_marked_none_makes_no_pair_even_between_two_frames_on_the_with_side(self):
+        self.assertEqual(gpu_trace.pairs([True, None, True]), ([], [1]))
 
     def test_a_pair_with_a_frame_without_a_value_is_left_out_and_named_by_its_middle_frame(self):
         found = gpu_trace.paired_median([2.0, 1.0, None, 1.0, 2.0, 0.5, 2.0], [(0, 1, 2), (2, 3, 4), (4, 5, 6)])
