@@ -29,7 +29,9 @@ public sealed unsafe class StepAllocations : IPhysicsBackend
     // What the wrappers saw the callbacks allocate on Jolt's job threads, other than the physics thread.
     private static long jobThreadBytes;
 
-    // The managed id of the thread that runs the steps. It runs Jolt's jobs too while it waits for an update.
+    // The managed id of the thread that runs the steps of the live counter, or 0 before its first step. It runs Jolt's
+    // jobs too while it waits for an update. Managed ids start at 1, and the runtime gives the id of a thread that ended
+    // to a new thread, so a counter does not keep the id of an earlier counter's physics thread.
     private static int physicsThread;
 
     /// <summary>The counting wrappers that joltc calls while a counter lives. Only the counter's own tests call them.</summary>
@@ -64,6 +66,7 @@ public sealed unsafe class StepAllocations : IPhysicsBackend
             throw;
         }
 
+        physicsThread = 0;
         live = this;
     }
 
@@ -176,8 +179,8 @@ public sealed unsafe class StepAllocations : IPhysicsBackend
                 "A StepAllocations already wraps joltc's contact callbacks, which serve the whole process. Dispose it first."
             );
         // Dispose gives joltc the backend's callbacks again, so they must exist also when the wrappers call others.
-        ContactListenerProcs* backend = BackendCallbacks();
-        ContactListenerProcs* callbacks = forwardTo is null ? backend : forwardTo;
+        ContactListenerProcs* backendCallbacks = BackendCallbacks();
+        ContactListenerProcs* callbacks = forwardTo is null ? backendCallbacks : forwardTo;
         if (callbacks->OnContactValidate != 0)
             throw new InvalidOperationException(
                 "The contact callbacks include a validate callback, which runs on Jolt's threads and which the count does not wrap."

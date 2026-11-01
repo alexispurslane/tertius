@@ -146,10 +146,6 @@ public sealed unsafe class StepAllocationsTests
             AllocatingCallbacks,
             out StepAllocations steps
         );
-        Falling(world);
-        // The steps name the physics thread, which lives as long as the world, so no thread that the test starts shares
-        // its id.
-        Tick(world, 10);
         using var go = new ManualResetEventSlim();
         var job = new Thread(() =>
         {
@@ -174,6 +170,62 @@ public sealed unsafe class StepAllocationsTests
             .BeGreaterThanOrEqualTo(
                 (long)CallsOnAThread * CallbackPayload,
                 "each callback on the test's thread allocated an array"
+            );
+    }
+
+    /// <summary>
+    /// The thread that ran the steps of an earlier counter is not the physics thread of a later one, so what a contact
+    /// callback allocates on it counts. The runtime gives the id of a thread that ended to a new thread, so a stale id
+    /// would drop the count of any thread that got it.
+    /// </summary>
+    [Fact]
+    public void WhatAContactCallbackAllocatesOnAThreadThatRanTheStepsOfAnEarlierCounterCounts()
+    {
+        var earlier = new FaultInjectingBackend(new(JoltBackendOptions.Unpaced))
+        {
+            ThrowFromStep = new InvalidOperationException("The step only names its thread."),
+        };
+        using var stepped = new ManualResetEventSlim();
+        using var go = new ManualResetEventSlim();
+        Thread job;
+        using (NewWorldWithStepAllocations(earlier, out StepAllocations earlierSteps))
+        {
+            job = new Thread(() =>
+            {
+                try
+                {
+                    earlierSteps.Step(default, new());
+                }
+                catch (InvalidOperationException) { }
+
+                stepped.Set();
+                go.Wait();
+                for (int i = 0; i < CallsOnAThread; i++)
+                    StepAllocations.CountingCallbacks->OnContactRemoved(0, null);
+            })
+            {
+                IsBackground = true,
+            };
+            job.Start();
+            stepped.Wait(TestContext.Current.CancellationToken);
+        }
+
+        using World world = NewWorldWithStepAllocations(
+            new JoltPhysicsBackend(JoltBackendOptions.Unpaced),
+            AllocatingCallbacks,
+            out StepAllocations steps
+        );
+
+        long bytes = steps.Bytes(() =>
+        {
+            go.Set();
+            job.Join();
+        });
+
+        bytes.Should()
+            .BeGreaterThanOrEqualTo(
+                (long)CallsOnAThread * CallbackPayload,
+                "the thread runs no step of the later counter"
             );
     }
 
