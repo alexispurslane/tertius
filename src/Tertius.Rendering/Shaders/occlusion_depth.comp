@@ -27,6 +27,8 @@ void main()
     vec3 glow = glowSent(texelFetch(gbufferEmissive, pixel, 0).rgb, lightMarkOfWord(texelFetch(gbufferShading, pixel, 0).b));
     vec3 source = min(imageLoad(diffuseImage, pixel).rgb + glow, vec3(MaxRadiance));
     imageStore(occlusionSource, texel, vec4(source, 0.0));
-    // An exact copy: an SNORM16 value k / 32767 stores back as k.
-    imageStore(occlusionGeometricNormal, texel, vec4(texelFetch(gbufferNormal, pixel, 0).ba, 0.0, 0.0));
+    // The depth again beside the normal, so that a near step reads both in one load. An exact copy: packSnorm2x16 rounds
+    // an SNORM16 value k / 32767 back to k.
+    uvec2 depthAndNormal = uvec2(floatBitsToUint(z), packSnorm2x16(texelFetch(gbufferNormal, pixel, 0).ba));
+    imageStore(occlusionDepthAndNormal, texel, uvec4(depthAndNormal, 0u, 0u));
 }

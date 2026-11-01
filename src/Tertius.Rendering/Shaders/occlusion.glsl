@@ -18,8 +18,9 @@ layout(set = 3, binding = 3, rgba16f) uniform image2D estimateTarget;   // full:
 layout(set = 3, binding = 4, rgba16f) uniform image2D denoiseSource;
 layout(set = 3, binding = 5, rgba16f) uniform image2D denoiseDestination;
 layout(set = 3, binding = 6, rgba16f) uniform image2D occlusionSource;  // half: the bounce source at pixel 2t
-// half: the octahedral world geometric normal at pixel 2t, the normals target's ba
-layout(set = 3, binding = 7, rg16_snorm) uniform image2D occlusionGeometricNormal;
+// half: x the bits of the texel's view depth, y the octahedral world geometric normal at pixel 2t, the normals target's ba
+// as packSnorm2x16 packs it (OcclusionImages.DepthAndNormal)
+layout(set = 3, binding = 7, rg32ui) uniform uimage2D occlusionDepthAndNormal;
 // full: rgb the diffuse part of each lit pixel's direct light, pre-exposed (RenderTargets.Diffuse)
 layout(set = 3, binding = 8, rgba16f) uniform readonly image2D diffuseImage;
 
@@ -103,10 +104,24 @@ uint cardAt(ivec2 pixel)
     return cardOfWords(shading.b, shading.a);
 }
 
-// The view-space geometric normal of a half-resolution texel's representative pixel, from the depth pass's copy.
-vec3 texelGeometricNormalAt(ivec2 texel)
+// The depth pass's copy of a half-resolution texel inside the image, its view depth and its representative pixel's
+// geometric normal in one texel, which a near step reads in one load.
+uvec2 depthAndNormalAt(ivec2 texel)
 {
-    return toViewAxes(octDecode(imageLoad(occlusionGeometricNormal, texel).rg));
+    return imageLoad(occlusionDepthAndNormal, texel).xy;
+}
+
+// The view depth that a copy of depthAndNormalAt holds, the very float of the view depth image.
+float depthOf(uvec2 depthAndNormal)
+{
+    return uintBitsToFloat(depthAndNormal.x);
+}
+
+// The view-space geometric normal that a copy of depthAndNormalAt holds. unpackSnorm2x16 gives back the SNORM16 values
+// of the normals target, as a read of an RG16 SNORM image does.
+vec3 geometricNormalOf(uvec2 depthAndNormal)
+{
+    return toViewAxes(octDecode(unpackSnorm2x16(depthAndNormal.y)));
 }
 
 // The view depth of a half-resolution texel. A texel outside the image reads the border texel, as XeGTAO's clamped

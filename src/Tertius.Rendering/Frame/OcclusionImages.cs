@@ -14,7 +14,7 @@ internal sealed class OcclusionImages : IDisposable
     public const Format EdgesFormat = Format.R8Unorm;
     public const Format TermFormat = Format.R16G16B16A16Sfloat;
     public const Format SourceFormat = Format.R16G16B16A16Sfloat;
-    public const Format GeometricNormalFormat = Format.R16G16SNorm;
+    public const Format DepthAndNormalFormat = Format.R32G32Uint;
 
     /// <summary>The storage images of the occlusion set, which the four passes bind in one compute stage.</summary>
     public const int StorageImages = 9;
@@ -67,10 +67,12 @@ internal sealed class OcclusionImages : IDisposable
     public GpuImage Source { get; private set; }
 
     /// <summary>
-    /// The octahedral world geometric normal at each texel's representative pixel, the normals target's BA, which the depth
-    /// pass copies for the near steps.
+    /// The view depth of each texel and the octahedral world geometric normal at its representative pixel, which the depth
+    /// pass copies for the near steps, so that a step reads both in one load: x the bits of the float in
+    /// <see cref="ViewDepth"/>, y the normals target's BA as GLSL's packSnorm2x16 packs them, which give back the stored
+    /// SNORM16 values.
     /// </summary>
-    public GpuImage GeometricNormal { get; private set; }
+    public GpuImage DepthAndNormal { get; private set; }
 
     /// <summary>XeGTAO's packed depth edges, which the denoise reads.</summary>
     public GpuImage Edges { get; private set; }
@@ -101,7 +103,7 @@ internal sealed class OcclusionImages : IDisposable
     [MemberNotNull(
         nameof(ViewDepth),
         nameof(Source),
-        nameof(GeometricNormal),
+        nameof(DepthAndNormal),
         nameof(Edges),
         nameof(TermA),
         nameof(TermB)
@@ -111,7 +113,7 @@ internal sealed class OcclusionImages : IDisposable
         HalfExtent = new((targets.Extent.Width + 1) / 2, (targets.Extent.Height + 1) / 2);
         ViewDepth = CreateImage(format: ViewDepthFormat, name: "occlusion view depth");
         Source = CreateImage(format: SourceFormat, name: "occlusion source");
-        GeometricNormal = CreateImage(format: GeometricNormalFormat, name: "occlusion geometric normal");
+        DepthAndNormal = CreateImage(format: DepthAndNormalFormat, name: "occlusion depth and normal");
         Edges = CreateImage(format: EdgesFormat, name: "occlusion edges");
         TermA = CreateImage(format: TermFormat, name: "occlusion term A");
         TermB = CreateImage(format: TermFormat, name: "occlusion term B");
@@ -130,7 +132,7 @@ internal sealed class OcclusionImages : IDisposable
         layouts.WriteStorageImage(set: set, binding: 4, image: denoiseSource);
         layouts.WriteStorageImage(set: set, binding: 5, image: denoiseDestination);
         layouts.WriteStorageImage(set: set, binding: 6, image: Source);
-        layouts.WriteStorageImage(set: set, binding: 7, image: GeometricNormal);
+        layouts.WriteStorageImage(set: set, binding: 7, image: DepthAndNormal);
         layouts.WriteStorageImage(
             set: set,
             binding: 8,
@@ -159,7 +161,7 @@ internal sealed class OcclusionImages : IDisposable
         if (StorageImageProblem(device.Properties.Limits.MaxPerStageDescriptorStorageImages) is { } storageImages)
             throw new NotSupportedException($"{storageImages} ({device.DeviceName})");
         foreach (
-            Format format in (Format[])[ViewDepthFormat, SourceFormat, GeometricNormalFormat, EdgesFormat, TermFormat]
+            Format format in (Format[])[ViewDepthFormat, SourceFormat, DepthAndNormalFormat, EdgesFormat, TermFormat]
         )
             if ((device.FormatProperties(format).OptimalTilingFeatures & FormatFeatureFlags.StorageImageBit) == 0)
                 throw new NotSupportedException($"{format} cannot be a storage image on {device.DeviceName}.");
@@ -169,7 +171,7 @@ internal sealed class OcclusionImages : IDisposable
     {
         ViewDepth.Dispose();
         Source.Dispose();
-        GeometricNormal.Dispose();
+        DepthAndNormal.Dispose();
         Edges.Dispose();
         TermA.Dispose();
         TermB.Dispose();

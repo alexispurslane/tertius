@@ -1014,12 +1014,31 @@ public sealed unsafe class VulkanRenderer : IRenderer
         ReadLevel(image: OcclusionImagesOrThrow().Source, layer: 0, mip: 0);
 
     /// <summary>
-    /// The depth pass's copy of the octahedral geometric normal of the last frame at half resolution, RG per texel, row by
-    /// row from the top. A test hook, like <see cref="ReadOcclusionViewDepth"/>.
+    /// The depth pass's copy of the view depth and the octahedral geometric normal of the last frame at half resolution,
+    /// row by row from the top, as <see cref="OcclusionImages.DepthAndNormal"/> says: one depth in m per texel, and the
+    /// normal's two components per texel. A test hook, like <see cref="ReadOcclusionViewDepth"/>.
     /// </summary>
     /// <exception cref="InvalidOperationException">The screen-space light is off.</exception>
-    internal (float[] Rg, int Width, int Height) ReadOcclusionGeometricNormal() =>
-        ReadLevel(image: OcclusionImagesOrThrow().GeometricNormal, layer: 0, mip: 0);
+    internal (float[] Depths, float[] Normals, int Width, int Height) ReadOcclusionDepthAndNormal()
+    {
+        (float[] words, int width, int height) = ReadLevel(
+            image: OcclusionImagesOrThrow().DepthAndNormal,
+            layer: 0,
+            mip: 0
+        );
+        float[] depths = new float[width * height];
+        float[] normals = new float[2 * width * height];
+        for (int i = 0; i < depths.Length; i++)
+        {
+            depths[i] = words[2 * i];
+            // packSnorm2x16 puts the first component in the low half of the word.
+            uint packedNormal = BitConverter.SingleToUInt32Bits(words[2 * i + 1]);
+            normals[2 * i] = SnormValue((short)(packedNormal & 0xFFFF));
+            normals[2 * i + 1] = SnormValue((short)(packedNormal >> 16));
+        }
+
+        return (depths, normals, width, height);
+    }
 
     /// <summary>
     /// Level 1 to L of the last frame's depth pyramid: the near and the far bound of each texel of its mip, padding
@@ -1291,6 +1310,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
             Format.R16G16B16A16Sfloat => (4, StoredChannel.Half),
             Format.R32Sfloat => (1, StoredChannel.Float),
             Format.R32G32Sfloat => (2, StoredChannel.Float),
+            // Each word comes back as the bits of a float, which its hook takes apart.
+            Format.R32G32Uint => (2, StoredChannel.Float),
             Format.R16G16B16A16SNorm => (4, StoredChannel.Snorm16),
             Format.R16G16SNorm => (2, StoredChannel.Snorm16),
             Format.R8G8B8A8Uint => (4, StoredChannel.Uint8),
@@ -1347,10 +1368,9 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 new ReadOnlySpan<float>(buffer.Mapped, count).CopyTo(values);
                 break;
             case StoredChannel.Snorm16:
-                // Vulkan's conversion of a signed normalized integer, which maps both −32,768 and −32,767 to −1.
                 var integers = new ReadOnlySpan<short>(buffer.Mapped, count);
                 for (int i = 0; i < count; i++)
-                    values[i] = Math.Max(integers[i] / 32767f, -1f);
+                    values[i] = SnormValue(integers[i]);
                 break;
             case StoredChannel.Uint8:
                 var bytes = new ReadOnlySpan<byte>(buffer.Mapped, count);
@@ -1363,6 +1383,9 @@ public sealed unsafe class VulkanRenderer : IRenderer
 
         return values;
     }
+
+    /// <summary>Vulkan's conversion of a signed normalized 16-bit integer, which maps both −32,768 and −32,767 to −1.</summary>
+    private static float SnormValue(short integer) => Math.Max(integer / 32767f, -1f);
 
     /// <summary>
     /// Records the copy of one mip of one layer of <paramref name="image"/>, of <paramref name="extent"/>, into

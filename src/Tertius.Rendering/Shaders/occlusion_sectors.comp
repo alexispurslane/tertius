@@ -89,7 +89,9 @@ void main()
                 ivec2 t = texel + (sideIndex == 0 ? offset : -offset);
                 if (!insideHalf(t))
                     continue;
-                float sampleDepth = viewDepthAt(t);
+                // The depth pass's copy: the step's depth and normal in one load, which keeps the steps' reads dense.
+                uvec2 depthAndNormal = depthAndNormalAt(t);
+                float sampleDepth = depthOf(depthAndNormal);
                 // Sky blocks nothing. Its view position, SkyDepth times a long view ray, would square past the single
                 // float range, so the depth decides before the length (ARCHITECTURE.md, "Portable Vulkan").
                 if (sampleDepth >= SkyDepth)
@@ -98,8 +100,7 @@ void main()
                 if (hair && cardAt(2 * t) == receiverCard)
                     continue;
                 vec3 texelPoint = gtaoViewPosition(pixelScreenPosition(2 * t), sampleDepth);
-                // The depth pass's copies of pixel 2t: half-resolution reads keep the steps' reads dense in the cache.
-                vec3 sampleNormal = texelGeometricNormalAt(t);
+                vec3 sampleNormal = geometricNormalOf(depthAndNormal);
                 // A half-resolution texel spans two pixels, 2 / W of the screen.
                 vec2 exactPlace = centerPlace + side * exactOffset * 2.0 / vec2(fullSize());
                 vec2 around = depthsAround(t, sampleDepth, side * (exactOffset - vec2(offset)));

@@ -22,7 +22,7 @@ public sealed class OcclusionImagesTests
         [
             images.ViewDepth.Extent,
             images.Source.Extent,
-            images.GeometricNormal.Extent,
+            images.DepthAndNormal.Extent,
             images.Edges.Extent,
             images.TermA.Extent,
             images.TermB.Extent,
@@ -44,8 +44,8 @@ public sealed class OcclusionImagesTests
         images.TermB.Format.Should().Be(Format.R16G16B16A16Sfloat, "occlusion.glsl declares the terms rgba16f");
         images.Source.Format.Should().Be(Format.R16G16B16A16Sfloat, "occlusion.glsl declares occlusionSource rgba16f");
         images
-            .GeometricNormal.Format.Should()
-            .Be(Format.R16G16SNorm, "occlusion.glsl declares occlusionGeometricNormal rg16_snorm");
+            .DepthAndNormal.Format.Should()
+            .Be(Format.R32G32Uint, "occlusion.glsl declares occlusionDepthAndNormal rg32ui");
     }
 
     [Fact]
