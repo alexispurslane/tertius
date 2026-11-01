@@ -1,6 +1,6 @@
 ---
 id: ter-y8z0
-status: open
+status: in_progress
 deps: [ter-rjts]
 links: []
 created: 2026-11-01T16:01:19Z
