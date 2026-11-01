@@ -705,8 +705,9 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         [
             // One per frame set, and the scatter set's kernel.
             new(DescriptorType.UniformBuffer, frames + 1),
-            // Those of each frame set and each deform set, the two of the exposure set and the two of the prefilter set.
-            new(DescriptorType.StorageBuffer, (FrameSetStorageBuffers + DeformSetStorageBuffers) * frames + 4),
+            // Those of each frame set and each deform set, the two of the exposure set, the two of the prefilter set and the
+            // own-ray list of the reflection set.
+            new(DescriptorType.StorageBuffer, (FrameSetStorageBuffers + DeformSetStorageBuffers) * frames + 5),
             // Three per frame set (the material sampler and the immutable linear clamp and environment samplers), the
             // immutable samplers of the G-buffer, atlas, post, reflection and prefilter sets, and one per glow source set.
             new(DescriptorType.Sampler, 3 * frames + 5 + glowSourceSets),
@@ -856,6 +857,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             StorageImage(binding: 3),
             StorageImage(binding: 4),
             StorageImage(binding: 5),
+            new(binding: 6, descriptorType: DescriptorType.StorageBuffer, descriptorCount: 1, stageFlags: ShaderStageFlags.ComputeBit),
         ];
         return (
             CreateLayout(bindings: level, name: "pyramid level set"),

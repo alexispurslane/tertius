@@ -312,6 +312,45 @@ public sealed class ReflectionShaderTests
         }
     }
 
+    [Fact]
+    public void TheUpsampleHandsEachPixelWhoseOwnRayTheCSharpUpsampleChoosesToTheOwnRayDispatchOnce()
+    {
+        float[] lit = RenderHdr(new NoReflections(), MirrorsBeforeTiles).Hdr;
+        VulkanRenderer renderer = Headless(ReflectionsAt(TraceResolution.Half));
+        try
+        {
+            renderer.Render(MirrorsBeforeTiles(renderer), 1f);
+            float[] shown = renderer.ReadHdr();
+            var frame = UpsampleFrame.Of(renderer);
+            (int X, int Y)[] listed = renderer.ReadOwnRayPixels();
+
+            listed.Should().OnlyHaveUniqueItems("the own-ray dispatch traces each pixel once");
+            foreach ((int X, int Y) pixel in listed)
+                frame
+                    .Upsampled(pixel)
+                    .TryGetValue(out OwnRay _)
+                    .Should()
+                    .BeTrue("listed pixel {0} has texels whose rays disagree", pixel);
+            var listedSet = listed.ToHashSet();
+            int reflectedOwnRays = 0;
+            for (int y = 0; y < Height; y++)
+            for (int x = 0; x < Width; x++)
+            {
+                Vector3 reflected = At(shown, (x, y)) - At(lit, (x, y));
+                if (reflected.X + reflected.Y + reflected.Z < 0.2f || !frame.Upsampled((x, y)).TryGetValue(out OwnRay _))
+                    continue;
+                listedSet.Should().Contain((x, y), "pixel ({0}, {1}) reflects through its own ray", x, y);
+                reflectedOwnRays++;
+            }
+
+            reflectedOwnRays.Should().BeGreaterThan(100, "the reflections of the wall's outlines trace their own rays");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
     [Theory]
     // About 0.3 and 0.5, which the G-buffer's 8 bits hold exactly. At 0.5 the dominant direction leans far from the
     // mirror direction.

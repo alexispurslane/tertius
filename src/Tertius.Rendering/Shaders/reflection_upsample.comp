@@ -5,16 +5,16 @@
 // joint bilateral upsample of the rays of the up to four texels around each reflecting pixel, whose weights are cut by
 // each texel's distance from the pixel's tangent plane and by the turn of its geometric normal, and the delta of the
 // pixel from the mean. Where the rays of the texels that a pixel blends hit different surfaces, the pixel traces its own
-// ray instead, as the full-resolution trace does. ReflectionUpsample in Shading/ is its C# copy.
-#include "reflection_ray.glsl"
+// ray instead, as the full-resolution trace does: the upsample appends it to the own-ray list, and
+// reflection_own_rays.comp traces the listed pixels after it, so that the rays fill whole waves and the upsample holds
+// no trace. ReflectionUpsample in Shading/ is its C# copy.
+#include "reflection_own_rays.glsl"
 
 layout(local_size_x = 8, local_size_y = 8) in;
 
 layout(set = 3, binding = 3, rgba16f) uniform image2D hdrImage;              // the lit image, at this pixel only
 layout(set = 3, binding = 4, rgba16f) uniform readonly image2D tracedImage;   // ⌈W / 2⌉ × ⌈H / 2⌉
 layout(set = 3, binding = 5, r32f) uniform readonly image2D hitDepthImage;    // the same size
-
-const float OwnTexelSide = 1.0;  // in pixels: a pixel's own ray, as at full resolution
 
 // The cosine to the power of ReflectionUpsample.NormalPower, 8, by three squares: pow is exp2 of a log2, which is
 // infinite at 0 and which fast math may assume finite.
@@ -120,14 +120,12 @@ void main()
     // The texels' rays hit different surfaces: a hit beside a miss, or hits farther apart in depth than the trace's
     // slab, which a surface at depth z fills to (1 + ThicknessShare) z. No blend places the outline between them.
     bool raysDisagree = (anyHit && anyMiss) || farthest > (1.0 + ThicknessShare) * nearest;
-    vec4 rayResult = sum / weights;
     if (raysDisagree)
     {
-        float ownHitDepth;
-        if (!traceReflection(p, OwnTexelSide, rayResult, ownHitDepth))
-            return;
+        appendOwnRay(pixel);
+        return;
     }
-    vec3 delta = reflectionDelta(p, rayResult);
+    vec3 delta = reflectionDelta(p, sum / weights);
     vec4 lit = imageLoad(hdrImage, pixel);
     imageStore(hdrImage, pixel, vec4(clamp(lit.rgb + delta, 0.0, MaxRadiance), lit.a));
 }

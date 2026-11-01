@@ -13,6 +13,9 @@ internal sealed record FullTrace;
 /// <summary>
 /// The half-resolution trace: <paramref name="Traced"/>, RGBA16F of ⌈W / 2⌉ × ⌈H / 2⌉, holds for each texel the result
 /// of its representative pixel's ray, and <paramref name="HitDepths"/>, R32F of the same size, the view depth of its hit.
-/// <see cref="ReflectionTargets"/> owns the images.
+/// <paramref name="OwnRays"/> is the list of the pixels whose texels' rays disagree, which the upsample writes and its
+/// own-ray dispatch reads: the dispatch's indirect command and the count of the list in its first
+/// <see cref="ReflectionTargets.OwnRayHeaderBytes"/> bytes, then one packed pixel per entry, room for every pixel of the
+/// screen. <see cref="ReflectionTargets"/> owns the images and the buffer.
 /// </summary>
-internal sealed record HalfTrace(GpuImage Traced, GpuImage HitDepths);
+internal sealed record HalfTrace(GpuImage Traced, GpuImage HitDepths, GpuBuffer OwnRays);
