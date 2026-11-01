@@ -16,6 +16,8 @@
 #   --window <from> <to>
 #                     adds a row with each frame's wall-clock GPU time from the end of pass <from> to the start of
 #                     pass <to>
+#   --paired <pass>   adds the paired table, for a run whose frames alternate with and without <pass>
+#   --control <pass>  adds the paired table's control, for a run whose frames all run <pass>
 # Arguments after the script go to the demo's headless run, such as --screen-space-light off.
 # Writes <out>/run.trace (open it in Instruments), <out>/run (the run's gpu-timings.json and exposure.json; --video none
 # draws each capture and writes no image),
@@ -42,6 +44,7 @@ out=
 counters=1
 keep=0
 window=()
+pairing=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --start) start=$2; shift 2 ;;
@@ -51,6 +54,7 @@ while [[ $# -gt 0 ]]; do
     --no-counters) counters=0; shift ;;
     --keep-exports) keep=1; shift ;;
     --window) window=(--window "${2:?--window takes two pass names}" "${3:?--window takes two pass names}"); shift 3 ;;
+    --paired|--control) pairing=("$1" "${2:?$1 takes a pass name}"); shift 2 ;;
     -*) echo "Unknown option $1." >&2; exit 2 ;;
     *) break ;;
   esac
@@ -111,7 +115,7 @@ if [[ ! -f "$out/run/gpu-timings.json" ]]; then
 fi
 grep -E '^GPU frame span' "$out/run.log" || true
 
-python3 -I tools/gpu-trace.py report "$out/run.trace" "$out/run/gpu-timings.json" "$out" "${window[@]}"
+python3 -I tools/gpu-trace.py report "$out/run.trace" "$out/run/gpu-timings.json" "$out" "${window[@]}" "${pairing[@]}"
 if [[ "$keep" -eq 0 ]]; then
   rm -rf "$out/export"
 fi

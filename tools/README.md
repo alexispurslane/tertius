@@ -233,7 +233,7 @@ The filter matches the full name of the method, with wildcards. A filter that na
 nix develop --command bash -c 'bash tools/gpu-trace.sh --start 399 --frames 120 scripts/demo-exit.json'
 ```
 
-The script builds the demo in Release, and traces the built binary, so the trace holds no build. It keeps the frames from `--start` (counted from 0 over the script's captures and film frames, default 0) for `--frames` frames (default 120, and 0 keeps every frame to the end of the script). The frames before `--start` become run steps of the same ticks, so the world reaches the same state without a render. Frame 399 is the first frame of demo-exit's deck camera. The size is 1920x1080 unless `--size` gives another. `--window FROM TO` adds the window row of the table (see below). Arguments after the script go to the demo's headless run, such as `--screen-space-light off` (ARCHITECTURE.md, "Host and scripted runs"). The output goes to `captures/gpu-trace/<script>-<start>`, which git ignores, or to `--out <dir>`:
+The script builds the demo in Release, and traces the built binary, so the trace holds no build. It keeps the frames from `--start` (counted from 0 over the script's captures and film frames, default 0) for `--frames` frames (default 120, and 0 keeps every frame to the end of the script). The frames before `--start` become run steps of the same ticks, so the world reaches the same state without a render. Frame 399 is the first frame of demo-exit's deck camera. The size is 1920x1080 unless `--size` gives another. `--window FROM TO` adds the window row of the table (see below). `--paired PASS` and `--control PASS` add the paired table (see "The paired mode" below). Arguments after the script go to the demo's headless run, such as `--screen-space-light off` (ARCHITECTURE.md, "Host and scripted runs"). The output goes to `captures/gpu-trace/<script>-<start>`, which git ignores, or to `--out <dir>`:
 
 - `run.trace`: the trace. Open it in Instruments to see the timeline and the counters.
 - `run/`: the run's `gpu-timings.json` and `exposure.json`, and its printed lines in `run.log`. The run passes `--video none`, so it draws and times each frame as the cost recipe does (docs/plans/rendering-upgrade.md, "Measuring the cost of a feature") and writes no image.
@@ -249,7 +249,7 @@ How the script reads the trace:
 - A pass's time alone is the part of its busy time in which no other encoder that the table counts runs. The table counts the encoders of the passes and those before the first pass and after the last pass, in every frame. It does not count the timestamp encoders, or the encoders of the command buffers that it leaves out, so the time alone can overlap them. The script cuts the timeline at every start and end of an interval, and adds each segment in which only the pass is open.
 - The busy time minus the time alone is the time that the pass shares with other passes. In that time, the GPU runs the pass beside other work, so the busy time can be more than the pass costs the frame. The means in the table subtract: the mean busy time minus the mean time alone is the mean shared time. For example, in mars-air's view above (ter-0y0z), the haze pass had a mean busy time of 0.173 ms and a mean time alone of 0.034 ms, so it shared 0.139 ms. The exposure pass's histogram clear runs beside it. The medians and the 95th percentiles do not subtract, because each one comes from its own frame. `passes.json` gives them for the shared time of each frame, as `"shared"` beside `"alone"`: the haze's median shared time was 0.141 ms.
 - `--window FROM TO` adds a row after the frame span, with the window of each frame in milliseconds. The window is the wall-clock GPU time from the end of pass FROM's last interval to the next start of pass TO. That start is the first start of an interval of TO at or after the end of FROM. It holds all the GPU work between the two passes and the idle time, so it is what the frame pays for that part. The frame span row and the window row put a wall-clock time in the busy columns. A frame in which FROM or TO has no GPU work, or in which TO starts only before FROM ends, has no window. A line below the table counts those frames.
-- To read what a pass between FROM and TO costs the frame, compare the window of frames with and without the pass in one trace. The frames must alternate, as in ter-bgpv's paired traces, and ter-e91p will add that comparison to the report. Do not compare the windows of two separate runs: on a loaded machine, separate runs drift by about 13 % in every pass (ter-0y0z). Two runs resolve only a cost that is larger than that drift.
+- A pass between FROM and TO costs the frame the difference of the window with and without the pass. `--paired` gives that difference for one trace whose frames alternate (see "The paired mode" below).
 - The counters come from the instrument "Metal GPU Counters", which records the counter set "Performance Limiters" headless (tables `gpu-counter-info` and `gpu-counter-value`). The script averages each counter over the samples that fall inside a pass's intervals. A sample comes about every 10 µs, so a pass of 0.05 ms has a few samples per frame, and its limiters are rough.
 - The counter instrument also records Instruments' shader timeline, and both slow the GPU a little. So take the frame span and the timer's pass times from `gpu-timings.json` of a run without the trace, each pass's own busy time from a trace with `--no-counters`, and the limiters from a trace with counters. `--no-counters` records a smaller trace with times only.
 - The trace counts every frame's command buffer, and the metering draws too: under `AutoExposure`, the first frame after the run steps that replace the frames before `--start`, and each still after a long step, draw once more to meter the exposure (ARCHITECTURE.md, "The metering draw"), and `gpu-timings.json` leaves those draws out. So the trace's frame count can be larger than the file's: 121 against 120 on demo-exit's deck. For a script of stills after long steps, half of the trace's frames are metering draws.
@@ -267,7 +267,49 @@ nix develop --command python3 -I tools/gpu-trace.py report captures/gpu-trace/de
 
 The new `passes.md` has no line with the load averages, because only `gpu-trace.sh` writes that line. A new folder keeps the first `passes.md` with its load line. The report exports the trace's tables again into the new folder and keeps them there. For a trace with counters, that export takes more than a gigabyte. Delete the `export` folder after the report.
 
-`tools/test_gpu_trace.py` tests the pure functions of `tools/gpu-trace.py` on synthetic intervals: the busy time, the time alone and the window. It uses the Python standard library only, so it needs no trace and no Mac. Run it in the dev shell:
+### The paired mode
+
+The paired mode measures what one pass costs each pass of the frame, and the frame. Use it for a cost that is smaller than the drift between two runs. On a loaded machine, separate runs drift by about 13 % in every pass (ter-0y0z). So two runs with and without a pass resolve only a cost larger than that drift. The paired mode compares frames of one trace, so a slow change of the GPU clock or of the load cancels.
+
+The trace needs frames that alternate with and without the pass. Make them with a temporary probe in the renderer that skips the pass on every other frame, and keep the probe out of the commits. ter-bgpv's probe dropped the atmosphere record, and ter-0y0z's probe returned from `HazePass.Record` on every other call. Then record the trace and give the pass's name to `--paired`:
+
+```bash
+nix develop --command bash -c 'bash tools/gpu-trace.sh --no-counters --start 20 --frames 200 --window reflections bloom --paired haze <script.json>'
+```
+
+`--paired PASS` adds a second table to `passes.md`, and an entry `"paired"` to `passes.json`. The method:
+
+1. The report orders the frames by their first GPU start and counts them from 0.
+2. A frame in which PASS has GPU work is a frame with the pass. A frame in which PASS has no GPU work is a frame without it.
+3. Each frame without the pass whose two neighbors both have it makes one pair. The pair's difference is the mean of the two neighbors minus the frame, so a positive value is time that the pass adds.
+4. For each pass, the report computes the difference of the busy time and of the time alone. A pass with no GPU work in a frame takes 0 ms there. So the row of PASS itself gives its own busy time and time alone.
+5. The frame span row gives the difference of the frame span. With `--window FROM TO`, the window row gives the difference of the window, over the pairs whose three frames all have a window.
+6. Each row gives the median of its differences over the pairs, the paired median, in milliseconds. It also gives the bootstrap standard error of that median in milliseconds.
+
+The bootstrap draws as many differences as there are pairs, with replacement, and takes their median. It does this 2000 times. The standard error is the standard deviation of those 2000 medians. The draws use the fixed seed 1, so two reports of one trace give the same errors. The text above the table states the resample count and the seed.
+
+How to read the paired table:
+
+- A paired median is the typical cost of the pass in one frame. Read it with its standard error: a median smaller than about two standard errors is not resolved.
+- The paired median is the median of the differences, not the difference of two medians. Medians do not subtract: the median busy time of the frames with the pass minus that of the frames without it can differ from the paired median.
+- The busy column of PASS gives the pass's own busy time. The busy columns of the other passes show how the pass changes them. For example, take mars-air's view above (ter-0y0z). The haze pass's paired median was +0.162 ms, and the exposure pass's was +0.102 ms (standard error 0.007 ms). The exposure pass grows because its histogram clear runs beside the haze pass.
+- The alone columns show what the pass costs the other passes outside their shared time. In the same trace, the exposure pass's time alone fell by 0.022 ms in the frames with the haze.
+- The window row is the cost that the frame pays between FROM and TO. In the same trace, the window from the reflections to the bloom grew by 0.163 ms (standard error 0.005 ms): the haze pass's work inside the window, 0.145 ms, plus 0.016 ms.
+- The frame span row has a large standard error, 0.015 to 0.072 ms in ter-0y0z's traces. For a small cost, read the window or the passes.
+
+A line below the table names the frames that no pair holds, by their index from 0. Two kinds of frames have no pair: a frame without the pass at an end of the trace, and a frame without the pass that has a neighbor without it. A second line names the pairs that the window row leaves out.
+
+The control measures the noise of the method. Record a trace with the same script and no probe, so that every frame runs the pass. Give the pass's name to `--control` instead of `--paired`. The control pairs each odd frame with its two even neighbors. A frame without GPU work of the pass pairs with none, so the control compares only frames that all run the pass. In an alternating trace whose first frame has the pass, the frames without the pass are the odd frames. So the control compares the same slots of the frame order. Its medians give the noise floor. If a row's paired median in the alternating trace is not clearly larger than the control's median of that row, the row shows no cost. In ter-0y0z's control, the window's median was +0.008 ms (standard error 0.003 ms) and the haze pass's busy median was -0.000 ms.
+
+`--paired` and `--control` work on a trace recorded before, as `--window` does:
+
+```bash
+nix develop --command python3 -I tools/gpu-trace.py report <folder>/run.trace <folder>/run/gpu-timings.json <folder>/paired --paired haze --window reflections bloom
+```
+
+### Tests
+
+`tools/test_gpu_trace.py` tests the pure functions of `tools/gpu-trace.py` on synthetic intervals: the busy time, the time alone, the window and the paired mode with its control and its bootstrap. It uses the Python standard library only, so it needs no trace and no Mac. Run it in the dev shell:
 
 ```bash
 nix develop --command python3 -I tools/test_gpu_trace.py
