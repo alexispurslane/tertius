@@ -19,3 +19,9 @@ Work, on main after ter-mfyv merges (its changes to the loop count): a temporary
 ## Acceptance Criteria
 
 A ticket note gives the four counts per film of demo-exit and the estimated time each design could save, and the probe is not in the commits.
+
+## Notes
+
+**2026-11-01T15:49:35Z**
+
+2026-11-01: workflow run cc31bfac-6ab6-4171-97a3-c9bc5552525b (version 869b0b07), branch ter-ww0h-wall-blocked-lamps from 612d6aa0 (main after ter-mfyv's merge). The brief asks first for the per-lamp costs on the current code, because ter-mfyv's tile bounds already skip the taps of fully blocked pixels.
