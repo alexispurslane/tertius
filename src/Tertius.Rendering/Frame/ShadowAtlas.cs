@@ -16,7 +16,10 @@ internal sealed unsafe class ShadowAtlas : IDisposable
     /// <summary>The binding of <see cref="Bounds"/> in the G-buffer set, partially bound: empty with <see cref="NoLocalShadows"/>.</summary>
     public const uint BoundsBinding = 11;
 
-    /// <summary>The format of <see cref="Bounds"/>: R the nearest depth of a window, G its farthest.</summary>
+    /// <summary>
+    /// The format of <see cref="Bounds"/>: R the least reversed depth of a window, the farthest from the light, and G its
+    /// greatest, the nearest.
+    /// </summary>
     public const Format BoundsFormat = Format.R32G32Sfloat;
 
     /// <summary>The binding of the frame's tile views (<see cref="GpuShadowTile"/>) in the frame set, partially bound.</summary>
@@ -53,31 +56,30 @@ internal sealed unsafe class ShadowAtlas : IDisposable
             // The shaders declare an array, also for an atlas of one tile.
             arrayView: true
         );
-        Bounds = GpuImage.Create(
-            device: device,
-            allocator: allocator,
-            extent: new((uint)TileSize / 2, (uint)TileSize / 2),
-            format: BoundsFormat,
-            usage: ImageUsageFlags.StorageBit | ImageUsageFlags.SampledBit | ImageUsageFlags.TransferSrcBit,
-            mipLevels: 1,
-            name: "local shadow bounds",
-            arrayLayers: (uint)Tiles,
-            arrayView: true
-        );
         try
         {
+            Bounds = GpuImage.Create(
+                device: device,
+                allocator: allocator,
+                extent: new((uint)BoundsSize, (uint)BoundsSize),
+                format: BoundsFormat,
+                usage: ImageUsageFlags.StorageBit | ImageUsageFlags.SampledBit | ImageUsageFlags.TransferSrcBit,
+                mipLevels: 1,
+                name: "local shadow bounds",
+                arrayLayers: (uint)Tiles,
+                arrayView: true
+            );
             for (int i = 0; i < layerViews.Length; i++)
                 layerViews[i] = Image.CreateLayerView((uint)i);
+            BoundsSet = layouts.AllocateShadowBoundsSet();
+            layouts.WriteImage(set: BoundsSet, binding: 0, arrayElement: 0, image: Image);
+            layouts.WriteStorageImage(set: BoundsSet, binding: 1, image: Bounds);
         }
         catch
         {
             Dispose();
             throw;
         }
-
-        BoundsSet = layouts.AllocateShadowBoundsSet();
-        layouts.WriteImage(set: BoundsSet, binding: 0, arrayElement: 0, image: Image);
-        layouts.WriteStorageImage(set: BoundsSet, binding: 1, image: Bounds);
     }
 
     /// <summary>The layers of the atlas: the budget of tiles.</summary>
@@ -86,14 +88,18 @@ internal sealed unsafe class ShadowAtlas : IDisposable
     /// <summary>The side of every tile in texels.</summary>
     public int TileSize { get; }
 
+    /// <summary>The side of every layer of <see cref="Bounds"/> in texels: one texel per two of the tile's.</summary>
+    public int BoundsSize => TileSize / 2;
+
     public Format Format { get; }
 
     /// <summary>The array image. Its default view spans every tile.</summary>
     public GpuImage Image { get; }
 
     /// <summary>
-    /// The bounds of every tile, half the tile's side, one layer per tile: texel k holds the nearest (R) and the farthest
-    /// (G) reversed depth of the tile's texels 2k to 2k + 5 along each axis, clamped to the tile (Shaders/shadow_bounds.comp).
+    /// The bounds of every tile, <see cref="BoundsSize"/>² texels, one layer per tile: texel k holds the least (R) and the
+    /// greatest (G) reversed depth, the farthest from the light and the nearest, of the tile's texels 2k to 2k + 5 along
+    /// each axis, clamped to the tile (Shaders/shadow_bounds.comp).
     /// A layer's bounds are those of the tile that the layer held when <see cref="LocalShadowPass"/> last drew it.
     /// </summary>
     public GpuImage Bounds { get; }
@@ -120,7 +126,8 @@ internal sealed unsafe class ShadowAtlas : IDisposable
             if (view.Handle != 0)
                 device.Vk.DestroyImageView(device.Device, view, null);
         Array.Clear(layerViews);
-        Bounds.Dispose();
+        // A constructor that failed disposes before it created the bounds.
+        Bounds?.Dispose();
         Image.Dispose();
     }
 }

@@ -259,9 +259,10 @@ float tileShadow(GpuLight light, vec3 position, vec3 L, float d, vec3 geometricN
     vec2 first = floor(corner);
     vec2 f = corner - first;
 
-    // The bounds texel at floor(first / 2) holds the nearest and the farthest depth of texels 2k to 2k + 5, which hold
-    // the 5 × 5 (shadow_bounds.comp). Where every one of them lies nearer the light than the lookup, every comparison
-    // fails and the filter gives 0; where none does, every one passes and it gives 1. So the bounds decide those pixels
+    // The bounds texel at floor(first / 2) holds the least (x) and the greatest (y) reversed depth of texels 2k to 2k + 5,
+    // which hold the 5 × 5 (shadow_bounds.comp). Below the least, every one of them lies nearer the light than the
+    // lookup, every comparison fails and the filter gives 0; at the greatest or above, none does, every one passes and it
+    // gives 1. So the bounds decide those pixels
     // with the filter's own result. The clamp comes before the conversion to int, which is undefined for a float out of
     // range; the gathers' texels clamp to the tile's edge as the bounds' do.
     vec2 lastWindow = vec2(textureSize(shadowBounds, 0).xy - 1);

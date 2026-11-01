@@ -611,7 +611,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// <summary>
     /// The layout of the G-buffer set: five G-buffer images, the shadow cascades, <paramref name="shadowSampler"/> as an
     /// immutable sampler, the estimate target, the local shadow atlas, partially bound, the direct image and the shading
-    /// target, the sixth G-buffer image. The sampler
+    /// target, the sixth G-buffer image, and the atlas's bounds, partially bound. The sampler
     /// is immutable because portability implementations may not allow updating comparison sampler descriptors
     /// (VkPhysicalDevicePortabilitySubsetFeaturesKHR::mutableComparisonSamplers).
     /// </summary>

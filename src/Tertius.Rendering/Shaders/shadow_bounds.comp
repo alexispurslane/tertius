@@ -1,6 +1,7 @@
 #version 460
 // The bounds of the drawn tiles of the local shadow atlas (ARCHITECTURE.md, "Local shadows"): texel k of a bounds layer
-// holds the nearest and the farthest reversed depth of the tile's texels 2k to 2k + 5 along each axis, clamped to the tile.
+// holds the least and the greatest reversed depth of the tile's texels 2k to 2k + 5 along each axis, clamped to the tile:
+// the depth farthest from the light and the one nearest it.
 // So the texel at floor(b / 2) holds every texel of the 5 × 5 that tileShadow's taps compare from texel b, and tileShadow
 // knows from one fetch when all of them pass or all fail. One invocation per bounds texel, and workgroup z names the drawn
 // tile among the dispatch's layers. LocalShadowPass dispatches after the tile pass draws the tiles.
@@ -12,7 +13,7 @@ const int GroupSide = 8;
 layout(local_size_x = GroupSide, local_size_y = GroupSide) in;
 
 layout(set = 0, binding = 0) uniform texture2DArray atlas;                // D32: one tile per layer, reversed depth
-layout(set = 0, binding = 1, rg32f) uniform writeonly image2DArray bounds; // half the tile's side: r nearest, g farthest
+layout(set = 0, binding = 1, rg32f) uniform writeonly image2DArray bounds; // half the tile's side: r least, g greatest
 
 // ShadowBoundsPushConstants.MaxLayers: the drawn tiles of one dispatch.
 const int MaxLayers = 32;

@@ -893,7 +893,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
 
     /// <summary>
     /// Reads the bounds of one layer of the local shadow atlas back to the CPU, row by row from the top: per texel the
-    /// nearest and the farthest reversed depth of its window of the tile (ARCHITECTURE.md, "Local shadows"). A test and
+    /// least and the greatest reversed depth of its window of the tile (ARCHITECTURE.md, "Local shadows"). A test and
     /// tooling hook, like <see cref="ReadShadowTile"/>.
     /// </summary>
     /// <exception cref="InvalidOperationException">Local shadows are off.</exception>

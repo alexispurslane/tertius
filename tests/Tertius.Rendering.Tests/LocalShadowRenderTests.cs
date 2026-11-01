@@ -972,6 +972,7 @@ public sealed class LocalShadowRenderTests
 
             renderer.Render(snapshot, 1f);
 
+            renderer.ReadShadowTile(0).Distinct().Count().Should().BeGreaterThan(1, "the tile sees the floor and the box");
             BoundsMismatches(renderer, layer: 0).Should().Be(0, "the tile pass derives the bounds from the tile it drew");
         }
         finally
@@ -1000,19 +1001,92 @@ public sealed class LocalShadowRenderTests
         }
     }
 
-    /// <summary>
-    /// How many texels of the bounds of atlas layer <paramref name="layer"/> differ from the nearest and the farthest depth
-    /// of the tile in their window: texel k of a bounds row covers the tile's texels 2k to 2k + 5 along each axis, clamped
-    /// to the tile. Fails first when the tile holds one depth, which would make every window agree.
-    /// </summary>
-    private static int BoundsMismatches(VulkanRenderer renderer, int layer)
+    [Fact]
+    public void TheBoundsOfATileRedrawnAloneLandInThatTilesOwnLayer()
     {
-        int size = LocalShadowAtlas.Default.TileSize,
+        // Two spot lights over a box each take layers 0 and 1. Each later frame moves one box, so one of the two frames
+        // redraws only the tile of layer 1, the first and only tile of its bounds dispatch.
+        VulkanRenderer renderer = Renderer();
+        try
+        {
+            var kit = Kit.Create(renderer);
+            var side = new Vector3(3, 0, 0);
+            RenderSnapshot TwoSpots(Vector3 leftBox, Vector3 rightBox)
+            {
+                RenderSnapshot snapshot = Dark();
+                snapshot.Instances.Add(kit.Floor(center: new(0, -2, -7), halfSize: 8));
+                snapshot.Lights.Add(ShadowingSpot(position: SpotPlace - side, direction: -Vector3.UnitY, entity: 1));
+                snapshot.Lights.Add(ShadowingSpot(position: SpotPlace + side, direction: -Vector3.UnitY, entity: 2));
+                snapshot.Instances.Add(kit.Caster(center: leftBox, size: Vector3.One));
+                snapshot.Instances.Add(kit.Caster(center: rightBox, size: Vector3.One));
+                return snapshot;
+            }
+
+            renderer.Render(TwoSpots(leftBox: BoxPlace - side, rightBox: BoxPlace + side), 1f);
+            renderer.LastFrameStats.ShadowTilesDrawn.Should().Be(2);
+
+            Vector3 moved = new(0, 0, 0.5f);
+            renderer.Render(TwoSpots(leftBox: BoxPlace - side + moved, rightBox: BoxPlace + side), 1f);
+            renderer.LastFrameStats.ShadowTilesDrawn.Should().Be(1, "only the left box moved");
+            int[] afterTheLeft = [BoundsMismatches(renderer, layer: 0), BoundsMismatches(renderer, layer: 1)];
+
+            renderer.Render(TwoSpots(leftBox: BoxPlace - side + moved, rightBox: BoxPlace + side + moved), 1f);
+            renderer.LastFrameStats.ShadowTilesDrawn.Should().Be(1, "only the right box moved");
+            int[] afterTheRight = [BoundsMismatches(renderer, layer: 0), BoundsMismatches(renderer, layer: 1)];
+
+            afterTheLeft.Should().Equal([0, 0], "the bounds follow the left light's tile into its own layer");
+            afterTheRight.Should().Equal([0, 0], "the bounds follow the right light's tile into its own layer");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void EveryTileOfAFrameThatDrawsMoreTilesThanOneBoundsDispatchHoldsGetsItsBounds()
+    {
+        // Six point lights draw 36 tiles, past the 32 of one dispatch. Each light sits inside a box, so every face of it
+        // sees a wall.
+        const int tileSize = 64;
+        VulkanRenderer renderer = Renderer(new LocalShadowAtlas(Tiles: 64, TileSize: tileSize));
+        try
+        {
+            var kit = Kit.Create(renderer);
+            RenderSnapshot snapshot = Dark();
+            for (int i = 0; i < 6; i++)
+            {
+                var lamp = new Vector3(-5 + 2 * i, 0, -8);
+                snapshot.Lights.Add(ShadowingLamp(position: lamp, entity: (uint)(1 + i)));
+                snapshot.Instances.Add(kit.Caster(center: lamp, size: Vector3.One));
+            }
+
+            renderer.Render(snapshot, 1f);
+
+            renderer.LastFrameStats.ShadowTilesDrawn.Should().Be(36);
+            int[] mismatches = [.. Enumerable.Range(0, 36).Select(layer => BoundsMismatches(renderer, layer, tileSize))];
+            mismatches.Should().OnlyContain(count => count == 0, "each dispatch writes the bounds of its own tiles");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>
+    /// How many texels of the bounds of atlas layer <paramref name="layer"/> differ from the least and the greatest depth
+    /// of the tile in their window: texel k of a bounds row covers the tile's texels 2k to 2k + 5 along each axis, clamped
+    /// to the tile. Fails first when the tile holds no caster: an empty tile is cleared to 0, which bounds that were never
+    /// written can match.
+    /// </summary>
+    private static int BoundsMismatches(VulkanRenderer renderer, int layer, int? tileSize = null)
+    {
+        int size = tileSize ?? LocalShadowAtlas.Default.TileSize,
             half = size / 2;
         float[] tile = renderer.ReadShadowTile(layer);
         float[] bounds = renderer.ReadShadowTileBounds(layer);
-        tile.Distinct().Count().Should().BeGreaterThan(1, "the tile sees the floor and the box");
-        bounds.Length.Should().Be(half * half * 2, "a bounds texel holds the nearest and the farthest depth");
+        tile.Should().Contain(depth => depth > 0, "the tile holds a caster");
+        bounds.Length.Should().Be(half * half * 2, "a bounds texel holds the least and the greatest depth");
         int mismatches = 0;
         for (int ky = 0; ky < half; ky++)
         {

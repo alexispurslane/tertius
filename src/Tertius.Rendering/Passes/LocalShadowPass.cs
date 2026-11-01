@@ -193,7 +193,7 @@ internal sealed unsafe class LocalShadowPass : RenderPass
             dynamicOffsetCount: 0,
             pDynamicOffsets: null
         );
-        uint groups = ((uint)atlas.TileSize / 2 + BoundsGroupSize - 1) / BoundsGroupSize;
+        uint groups = ((uint)atlas.BoundsSize + BoundsGroupSize - 1) / BoundsGroupSize;
         PreparedScene scene = context.Scene;
         List<TileCommands> drawn = scene.DrawnTiles;
         for (int first = 0; first < drawn.Count; first += ShadowBoundsPushConstants.MaxLayers)
