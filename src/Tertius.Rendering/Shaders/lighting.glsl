@@ -145,13 +145,15 @@ bool takesLight(bool fiber, ShadingInput s, vec3 L, float geometricNdotL)
     return fiber || (dot(s.normal, L) > 0.0 && geometricNdotL > 0.0);
 }
 
-// The irradiance in W/m² per channel that `light` sends to `position` before its shadows: color × intensity over
-// max(d², R², NearestDistance²), times the window of Karis 2013 to the reach and a spot light's cone, and the air's tint
-// if `airSun`, at most IrradianceLimit. 0 at or beyond the reach. airSun must be whether the light is the atmosphere's
-// sun, the light of the list at frame.counts.y. L is the unit direction toward the light, zero when the position is at
-// the light's center, and d its distance.
-vec3 lightIrradiance(GpuLight light, bool airSun, vec3 position, out vec3 L, out float d)
+// The irradiance in W/m² per channel that the light at `index` of the list sends to `position` before its shadows:
+// color × intensity over max(d², R², NearestDistance²), times the window of Karis 2013 to the reach and a spot light's
+// cone, and the air's tint for the atmosphere's sun, the light at frame.counts.y, at most IrradianceLimit. 0 at or beyond
+// the reach. `tinted` may be false only when frame.counts.y is NoAirSun: a constant false leaves the tint's code out of
+// the caller's loop. L is the unit direction toward the light, zero when the position is at the light's center, and d
+// its distance.
+vec3 lightIrradiance(uint index, bool tinted, vec3 position, out vec3 L, out float d)
 {
+    GpuLight light = lights[index];
     vec3 toLight = light.positionReach.xyz - position;
     // Finite: a kept light lies within 2^62 m of the eye, and so does every shaded point.
     float distanceSq = dot(toLight, toLight);
@@ -173,7 +175,7 @@ vec3 lightIrradiance(GpuLight light, bool airSun, vec3 position, out vec3 L, out
     vec3 irradiance = light.intensityKind.rgb * falloff;
     // The atmosphere's sun takes the air's tint at the lit point (docs/plans/atmosphere.md, "The sun's tint"). The tint
     // is at most 1, so the product stays finite.
-    if (airSun)
+    if (tinted && index == frame.counts.y)
         irradiance *= sunTintAt(position);
     return min(irradiance, vec3(IrradianceLimit));
 }
@@ -309,9 +311,9 @@ bool viewKeeps(uint view, GpuLight light)
     return view == MainView ? light.inMainView != 0u : light.map <= view;
 }
 
-// directLight for one model: a fiber's light if `fiber`, else a surface's. `fiber` as in respond. `tinted` must be
-// whether the list holds the atmosphere's sun; a loop with it false holds no code of the tint. directLight is the one
-// caller, and it passes constants, so each copy of the loop holds one model's code and only the tint that it needs.
+// directLight for one model: a fiber's light if `fiber`, else a surface's. `fiber` as in respond, `tinted` as in
+// lightIrradiance. directLight is the one caller, and it passes constants, so each copy of the loop holds one model's
+// code and only the tint that it needs.
 DirectTerms modelLight(
     bool fiber, bool tinted, ShadingInput s, SurfaceLobes lobes, vec3 position, vec3 V, uint shadowMaps, uint view)
 {
@@ -325,7 +327,7 @@ DirectTerms modelLight(
             continue;
         vec3 L;
         float d;
-        vec3 irradiance = lightIrradiance(light, tinted && i == frame.counts.y, position, L, d);
+        vec3 irradiance = lightIrradiance(i, tinted, position, L, d);
         float geometricNdotL = dot(s.geometricNormal, L);
         if (irradiance == vec3(0.0) || !takesLight(fiber, s, L, geometricNdotL))
             continue;
@@ -429,7 +431,8 @@ vec3 scatteredLight(vec3 albedo, vec3 position, uint map)
             continue;
         vec3 L;
         float d;
-        vec3 incoming = lightIrradiance(light, i == frame.counts.y, position, L, d);
+        // The puffs keep one loop for every frame, so they pay the compare with frame.counts.y for each light.
+        vec3 incoming = lightIrradiance(i, true, position, L, d);
         // At the light's center L is a zero vector, which the far shadows' angle cannot take. A surface there takes
         // nothing either, by its dot(N, L) of 0.
         if (incoming == vec3(0.0) || d == 0.0)

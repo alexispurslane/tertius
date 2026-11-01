@@ -39,9 +39,9 @@ public sealed class AtmosphereTests
         snapshot.Atmosphere = new(Center: center, PreviousCenter: center, Medium: medium, Sun: 0);
     }
 
-    private static PreparedScene Prepare(RenderSnapshot snapshot, float alpha = 1f)
+    private static PreparedScene Prepare(RenderSnapshot snapshot, float alpha = 1f, PreparedScene? scene = null)
     {
-        var scene = new PreparedScene();
+        scene ??= new PreparedScene();
         Batchers
             .Default()
             .Prepare(
@@ -323,21 +323,38 @@ public sealed class AtmosphereTests
         Rgb(atmosphere.Haze).Should().Be(new Vector3(ShaderInput.MaxRadiance, 2, 0));
     }
 
+    /// <summary>A white lamp of intensity 10 W/sr 3 m ahead and 2 m up.</summary>
+    private static PointRenderLight Lamp(Vector3? color = null) =>
+        Gpu.Lamp(
+            position: new(0, 2, -3),
+            color: color ?? Vector3.One,
+            intensity: 10,
+            chainDepth: TestChains.CamerasFrame
+        );
+
     [Fact]
-    public void OnlyTheSunsLightTakesTheTint()
+    public void TheSceneNamesTheSunsPlaceInItsLightList()
     {
         RenderSnapshot snapshot = WithSun(Vector3.UnitY);
-        snapshot.Lights.Add(
-            Gpu.Lamp(position: new(0, 2, -3), color: Vector3.One, intensity: 10, chainDepth: TestChains.CamerasFrame)
-        );
+        snapshot.Lights.Insert(0, Lamp());
         Air(snapshot, MarsAir);
+        snapshot.Atmosphere = snapshot.Atmosphere!.Value with { Sun = 1 };
         PreparedScene scene = Prepare(snapshot);
 
-        scene
-            .LightSpan.ToArray()
-            .Select(light => (light.EntityIndex, light.AirSun))
-            .Should()
-            .BeEquivalentTo([(Gpu.StarEntity, true), (Gpu.LampEntity, false)]);
+        scene.AirSunLight.Should().Be(1);
+        scene.Lights[1].EntityIndex.Should().Be(Gpu.StarEntity);
+    }
+
+    [Fact]
+    public void TheSunsPlaceCountsOnlyTheLightsThatTheSceneKeeps()
+    {
+        RenderSnapshot snapshot = WithSun(Vector3.UnitY);
+        // A black lamp shines no light, so the scene drops it, and the snapshot's second light becomes the scene's first.
+        snapshot.Lights.Insert(0, Lamp(color: Vector3.Zero));
+        Air(snapshot, MarsAir);
+        snapshot.Atmosphere = snapshot.Atmosphere!.Value with { Sun = 1 };
+
+        Prepare(snapshot).AirSunLight.Should().Be(0);
     }
 
     [Fact]
@@ -345,17 +362,24 @@ public sealed class AtmosphereTests
     {
         RenderSnapshot snapshot = WithSun(Vector3.UnitY);
 
-        Prepare(snapshot).Lights[0].AirSun.Should().BeFalse();
+        Prepare(snapshot).AirSunLight.Should().BeNull();
+    }
+
+    [Fact]
+    public void TheSunsPlaceLastsOnlyForItsFrame()
+    {
+        RenderSnapshot withAir = WithSun(Vector3.UnitY);
+        Air(withAir, MarsAir);
+        PreparedScene scene = Prepare(withAir);
+
+        Prepare(WithSun(Vector3.UnitY), scene: scene).AirSunLight.Should().BeNull();
     }
 
     [Fact]
     public void TheFrameNamesTheSunsPlaceInTheLightList()
     {
         RenderSnapshot snapshot = WithSun(Vector3.UnitY);
-        snapshot.Lights.Insert(
-            0,
-            Gpu.Lamp(position: new(0, 2, -3), color: Vector3.One, intensity: 10, chainDepth: TestChains.CamerasFrame)
-        );
+        snapshot.Lights.Insert(0, Lamp());
         Air(snapshot, MarsAir);
         snapshot.Atmosphere = snapshot.Atmosphere!.Value with { Sun = 1 };
         PreparedScene scene = Prepare(snapshot);

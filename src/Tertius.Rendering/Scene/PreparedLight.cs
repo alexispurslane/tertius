@@ -81,10 +81,4 @@ internal struct PreparedLight
 
     /// <summary>The light's map, <see cref="EnvironmentChain.MapOf"/> of its chain depth, or 0 with the map off.</summary>
     public int Map;
-
-    /// <summary>
-    /// Whether the light is the sun of the snapshot's atmosphere (<see cref="RenderAtmosphere.Sun"/>), whose light takes the
-    /// air's tint (docs/plans/atmosphere.md, "The sun's tint").
-    /// </summary>
-    public bool AirSun;
 }

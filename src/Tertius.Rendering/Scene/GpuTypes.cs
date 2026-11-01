@@ -195,7 +195,7 @@ internal struct GpuMaterial
 }
 
 /// <summary>
-/// One light in the light storage buffer (std430, binding 3 of the frame set). 112 bytes, the last 8 unused.
+/// One light in the light storage buffer (std430, binding 3 of the frame set). 112 bytes, the last 12 unused.
 /// <see cref="From"/> is the one place that encodes a <see cref="PreparedLight"/>, its spread, its shadow slot, its map
 /// and whether the main view keeps it for the shaders.
 /// </summary>
@@ -409,9 +409,9 @@ internal struct GpuFrameConstants
     public Vector4 Params;
 
     /// <summary>
-    /// x: the lights; y: the place in the light list of the atmosphere's sun (<see cref="PreparedLight.AirSun"/>), or
-    /// <see cref="NoAirSun"/>; z: the cascades of each drawn cascade set, <see cref="ShadowCascades.Count"/>, or 0 when no
-    /// set was drawn; w: unused.
+    /// x: the lights; y: the place in the light list of the atmosphere's sun (<see cref="PreparedScene.AirSunLight"/>), or
+    /// <see cref="NoAirSun"/>, by which the shaders choose the light loop that takes no tint; z: the cascades of each drawn
+    /// cascade set, <see cref="ShadowCascades.Count"/>, or 0 when no set was drawn; w: unused.
     /// </summary>
     public UInt4 Counts;
 
