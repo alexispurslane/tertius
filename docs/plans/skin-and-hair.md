@@ -1250,7 +1250,7 @@ What stays, and why:
 - The fetch of the shading target, about 0.04 ms by the probe. The pass must know each pixel's model to choose its loop, and the shading target is the one store of the model.
 - The two sums of `DirectTerms`, 0.02 to 0.06 ms. The diffuse part goes alone into the diffuse image.
 - The diffuse image, about 0.03 to 0.04 ms. The bounce light reads it as its source (`ter-vtc7`), and the scatter reads it as D.
-- The loop with the tint, in a pipeline that also holds the loop without it. A pipeline variant without the tinted loop, chosen per frame, would take about 0.07 ms more off the deck's transparent pass. Each pass with a light loop would then need two pipelines and a choice by the CPU per frame. That choice is open for the user.
+- The loop with the tint, in a pipeline that also holds the loop without it. A pipeline variant without the tinted loop, chosen per frame, would take about 0.07 ms more off the deck's transparent pass. Each pass with a light loop would then need two pipelines and a choice by the CPU per frame. The branch leaves these variants out (2026-10-31), by the rule to leave out a feature that is not needed yet. The 0.07 ms is about 0.6 % of the 12 ms frame. If a later measurement shows the frame over its budget, these variants are a known lever.
 
 #### Pixels
 
