@@ -7,6 +7,8 @@ The standard library only. The file loads gpu-trace.py by its path, because the 
 """
 
 import importlib.util
+import random
+import statistics
 import subprocess
 import sys
 import tempfile
@@ -224,8 +226,9 @@ class PairedFrames(unittest.TestCase):
 
     def test_the_result_names_the_pass_the_mode_and_the_bootstrap(self):
         self.assertEqual(
-            {key: self.result[key] for key in ("pass", "control", "resamples", "seed")},
-            {"pass": "x", "control": False, "resamples": gpu_trace.RESAMPLES, "seed": gpu_trace.SEED},
+            {key: self.result[key] for key in ("pass", "control", "resamples", "blockPairs", "seed", "minErrorPairs")},
+            {"pass": "x", "control": False, "resamples": gpu_trace.RESAMPLES, "blockPairs": gpu_trace.BLOCK_PAIRS,
+             "seed": gpu_trace.SEED, "minErrorPairs": gpu_trace.MIN_ERROR_PAIRS},
         )
 
     def test_a_slow_drift_over_the_frames_cancels_in_the_pairs(self):
@@ -292,7 +295,8 @@ class ControlPairs(unittest.TestCase):
 
 
 class BootstrapError(unittest.TestCase):
-    """bootstrap_error: the bootstrap standard error of a median, in the unit of the values."""
+    """bootstrap_error: the moving-block bootstrap standard error of the median of a series, in the unit of the
+    values."""
 
     values = [0.11, 0.13, 0.09, 0.2, 0.15, 0.12, 0.1, 0.17, 0.14]
 
@@ -311,20 +315,121 @@ class BootstrapError(unittest.TestCase):
             gpu_trace.bootstrap_error(doubled, 500, 3), 2 * gpu_trace.bootstrap_error(self.values, 500, 3), places=12
         )
 
-    def test_the_error_is_the_spread_of_the_medians_of_the_resamples(self):
-        # Resamples of 1, 2 and 3 have the medians 1, 2 or 3 with the chances 7/27, 13/27 and 7/27, whose standard
-        # deviation is sqrt(14/27), about 0.72.
-        self.assertAlmostEqual(gpu_trace.bootstrap_error([1.0, 2.0, 3.0], 20_000, 5), (14 / 27) ** 0.5, delta=0.01)
+    def test_each_resample_joins_blocks_of_consecutive_values(self):
+        # With B = BLOCK_PAIRS, at least 4, a resample of the B + 1 values 1 to B + 1 is the block from 1 or from 2,
+        # each with the chance 1/2, then the first value of a second such block, 1 or 2. Its median is B / 2 after the
+        # block from 1 and B / 2 + 1 after the block from 2, whichever that value is, so the standard deviation of the
+        # medians is 0.5. Single values drawn alone give about 1.0.
+        values = [float(value) for value in range(1, gpu_trace.BLOCK_PAIRS + 2)]
+        self.assertAlmostEqual(gpu_trace.bootstrap_error(values, 20_000, 5), 0.5, delta=0.01)
 
-    def test_the_paired_errors_use_the_fixed_seed_and_resample_count(self):
-        intervals = _frames([True, False] * 5 + [True], drift_ns=7_000)
-        busy = [sum(end - start for start, end in intervals.get((f"f{i}", "x"), [])) / MS for i in range(11)]
-        differences = [(busy[i - 1] + busy[i + 1]) / 2 - busy[i] for i in range(1, 10, 2)]
-        result = gpu_trace.paired(intervals, ["a", "x", "b"], "x")
+    def test_the_paired_errors_use_the_differences_in_trace_order(self):
+        # x's busy time in frame i grows by ((7 i) mod 11) * 10 µs, so the differences are in no order of their values,
+        # and their sorted order gives another error.
+        count = gpu_trace.MIN_ERROR_PAIRS + 6
+        intervals = _frames([True, False] * count + [True])
+        for i in range(0, 2 * count + 1, 2):
+            ((start, end),) = intervals[(f"f{i}", "x")]
+            intervals[(f"f{i}", "x")] = [(start, end + ((7 * i) % 11) * 10_000)]
+        busy = [sum(end - start for start, end in intervals.get((f"f{i}", "x"), [])) / MS for i in range(2 * count + 1)]
+        differences = [(busy[i - 1] + busy[i + 1]) / 2 - busy[i] for i in range(1, 2 * count, 2)]
+        found = _paired_row(gpu_trace.paired(intervals, ["a", "x", "b"], "x"), "x")["busy"]["standardErrorMs"]
         self.assertEqual(
-            _paired_row(result, "x")["busy"]["standardErrorMs"],
-            gpu_trace.bootstrap_error(differences, gpu_trace.RESAMPLES, gpu_trace.SEED),
+            (found, found == gpu_trace.bootstrap_error(sorted(differences), gpu_trace.RESAMPLES, gpu_trace.SEED)),
+            (gpu_trace.bootstrap_error(differences, gpu_trace.RESAMPLES, gpu_trace.SEED), False),
         )
+
+    def test_a_pair_left_out_of_a_quantity_joins_the_pairs_on_its_two_sides_into_one_series(self):
+        # Values in no order, so that the order of the differences matters, with one more pair than MIN_ERROR_PAIRS.
+        count = gpu_trace.MIN_ERROR_PAIRS + 1
+        values = [((7 * i) % 11) / 4 for i in range(2 * count + 1)]
+        values[7] = None
+        triples = [(i - 1, i, i + 1) for i in range(1, 2 * count, 2)]
+        # Frame 7 has no value, so its pair is left out, and the series of differences runs from frame 5 to frame 9.
+        kept = [(values[b] + values[a]) / 2 - values[f] for b, f, a in triples if f != 7]
+        self.assertEqual(
+            gpu_trace.paired_median(values, triples)["standardErrorMs"],
+            gpu_trace.bootstrap_error(kept, gpu_trace.RESAMPLES, gpu_trace.SEED),
+        )
+
+
+def _independent_bootstrap_error(values, resamples, seed):
+    """The bootstrap of ter-e91p, which drew single values as if they were independent, for the comparison below."""
+    draws = random.Random(seed)
+    return statistics.stdev(statistics.median(draws.choices(values, k=len(values))) for _ in range(resamples))
+
+
+class _AlternatingFrames:
+    """Synthetic alternating traces of 201 frames, 100 pairs, for the classes below. The pass costs 0.16 ms in each frame
+    with it, the even frames, and each frame has independent Gaussian noise with a standard deviation of 0.01 ms. When
+    noise_without is false, the frames without the pass have no noise: the time of the pass itself, which is 0 ms there.
+
+    The real standard error of the paired median is the standard deviation of the paired medians of real_traces
+    independent traces from the seed 7, which the class computes. The two bootstraps run on 400 other traces from the
+    seed 11, with 250 resamples each, and the tests compare the mean of their errors with the real error. The seeds make
+    the result the same in every run.
+    """
+
+    noise_without = True
+    real_traces = 20_000
+    traces = 400
+
+    @classmethod
+    def differences(cls, draws):
+        frames = [
+            (0.16 + draws.gauss(0, 0.01)) if i % 2 == 0 else (draws.gauss(0, 0.01) if cls.noise_without else 0.0)
+            for i in range(201)
+        ]
+        triples, _ = gpu_trace.pairs([i % 2 == 0 for i in range(201)])
+        return [(frames[before] + frames[after]) / 2 - frames[frame] for before, frame, after in triples]
+
+    @classmethod
+    def setUpClass(cls):
+        draws = random.Random(7)
+        cls.real = statistics.stdev(statistics.median(cls.differences(draws)) for _ in range(cls.real_traces))
+        draws = random.Random(11)
+        cls.series = [cls.differences(draws) for _ in range(cls.traces)]
+
+    def ratio(self, error):
+        return statistics.mean(error(values, 250, seed) for seed, values in enumerate(self.series)) / self.real
+
+
+class BlockBootstrapOnAlternatingFrames(_AlternatingFrames, unittest.TestCase):
+    """bootstrap_error on the paired differences of _AlternatingFrames with noise in every frame, as in the rows of the
+    other passes.
+
+    Neighboring pairs share a frame, so their differences correlate by 1/6. A bootstrap error of the median varies by
+    about 22 % from trace to trace, so the mean over 400 traces varies by about 1.1 %, and the real error by about
+    0.5 %. Here the mean ratio is 0.979 for blocks of 6 pairs and 0.927 for single differences. The bound 0.955 lies
+    about 2 standard deviations from both.
+    """
+
+    def test_the_block_bootstrap_error_lies_near_the_real_standard_error_of_the_paired_median(self):
+        self.assertAlmostEqual(self.ratio(gpu_trace.bootstrap_error), 1.0, delta=0.045)
+
+    def test_the_bootstrap_of_single_differences_is_too_small_in_the_same_setup(self):
+        self.assertLess(self.ratio(_independent_bootstrap_error), 0.955)
+
+
+class BlockBootstrapOnTheRowOfThePass(_AlternatingFrames, unittest.TestCase):
+    """bootstrap_error on the paired differences of _AlternatingFrames without noise in the frames without the pass, as
+    in the row of the pass itself.
+
+    A difference is then the mean of its two neighbors, so neighboring differences correlate by 1/2. The mean ratio over
+    400 traces varies by about 1.3 %, and the real error from 10,000 traces by about 0.7 %. Here the mean ratio is 0.961
+    for blocks of 6 pairs and 0.793 for single differences. The bound 1 - 0.08 lies about 3 standard deviations below
+    the first, and the bound 0.88 more than 5 from both.
+    """
+
+    noise_without = False
+    real_traces = 10_000
+    traces = 400
+
+    def test_the_block_bootstrap_error_lies_near_the_real_standard_error_of_the_paired_median(self):
+        self.assertAlmostEqual(self.ratio(gpu_trace.bootstrap_error), 1.0, delta=0.08)
+
+    def test_the_bootstrap_of_single_differences_is_too_small_in_the_same_setup(self):
+        self.assertLess(self.ratio(_independent_bootstrap_error), 0.88)
 
 
 class PairedTable(unittest.TestCase):
@@ -352,16 +457,30 @@ class PairedTable(unittest.TestCase):
         )
 
     def test_a_paired_row_gives_the_pairs_and_the_signed_medians_and_errors(self):
-        self.assertEqual(self.row(self.lines([True, False, True]), "x"), ["x", "1", "+2.5000", "0.0000", "+2.0000", "0.0000"])
+        lines = self.lines([True, False] * gpu_trace.MIN_ERROR_PAIRS + [True])
+        self.assertEqual(
+            self.row(lines, "x"), ["x", str(gpu_trace.MIN_ERROR_PAIRS), "+2.5000", "0.0000", "+2.0000", "0.0000"]
+        )
+
+    def test_a_row_of_fewer_pairs_than_the_minimum_gives_its_medians_without_errors(self):
+        self.assertEqual(self.row(self.lines([True, False, True]), "x"), ["x", "1", "+2.5000", "", "+2.0000", ""])
 
     def test_the_paired_window_row_names_its_two_passes(self):
         self.assertEqual(
-            self.row(self.lines([True, False, True]), "a end to b start"), ["a end to b start", "1", "+2.0000", "0.0000", "", ""]
+            self.row(self.lines([True, False, True]), "a end to b start"), ["a end to b start", "1", "+2.0000", "", "", ""]
         )
 
-    def test_the_text_states_the_resamples_and_the_seed(self):
+    def test_the_text_states_the_resamples_the_block_length_and_the_seed(self):
         text = "\n".join(self.lines([True, False, True]))
-        self.assertIn(f"{gpu_trace.RESAMPLES} resamples with the seed {gpu_trace.SEED}", text)
+        self.assertIn(
+            f"moving-block bootstrap of {gpu_trace.RESAMPLES} resamples, with blocks of {gpu_trace.BLOCK_PAIRS}"
+            f" consecutive pairs and the seed {gpu_trace.SEED}",
+            text,
+        )
+
+    def test_the_text_states_the_fewest_pairs_that_give_a_standard_error(self):
+        text = "\n".join(self.lines([True, False, True]))
+        self.assertIn(f"A row of fewer than {gpu_trace.MIN_ERROR_PAIRS} pairs gives no standard error", text)
 
     def test_a_line_names_the_frames_that_were_left_out(self):
         lines = self.lines([False, True, False, True, False])
@@ -397,6 +516,18 @@ class PairedMedian(unittest.TestCase):
 
     def test_a_quantity_with_a_value_in_every_frame_leaves_out_no_pair(self):
         self.assertEqual(gpu_trace.paired_median([2.0, 1.0, 2.0], [(0, 1, 2)])["leftOut"], [])
+
+    def test_a_quantity_with_fewer_pairs_than_the_minimum_has_a_median_but_no_standard_error(self):
+        count = gpu_trace.MIN_ERROR_PAIRS - 1
+        found = gpu_trace.paired_median([((7 * i) % 11) / 4 for i in range(2 * count + 1)], gpu_trace.pairs(
+            [i % 2 == 0 for i in range(2 * count + 1)])[0])
+        self.assertEqual((found["pairs"], "medianMs" in found, "standardErrorMs" in found), (count, True, False))
+
+    def test_a_quantity_with_the_minimum_number_of_pairs_has_a_standard_error(self):
+        count = gpu_trace.MIN_ERROR_PAIRS
+        found = gpu_trace.paired_median([((7 * i) % 11) / 4 for i in range(2 * count + 1)], gpu_trace.pairs(
+            [i % 2 == 0 for i in range(2 * count + 1)])[0])
+        self.assertGreater(found["standardErrorMs"], 0.0)
 
 
 class OneRowRule(unittest.TestCase):
@@ -439,9 +570,14 @@ class PairedText(unittest.TestCase):
         lines = self.lines([False, True, False, True, False])
         self.assertTrue(any("The frames without x are the even frames." in line for line in lines))
 
-    def test_the_text_says_that_neighboring_pairs_share_a_frame_so_the_errors_are_somewhat_too_small(self):
+    def test_the_text_says_that_the_blocks_hold_the_shared_frames_but_not_a_slower_drift_or_a_cycle(self):
         text = " ".join(self.lines([True, False, True, False, True]))
-        self.assertIn("Neighboring pairs share a frame, so the standard errors are somewhat too small", text)
+        self.assertIn(
+            "Neighboring pairs share a frame, and the blocks keep that correlation. A drift that correlates pairs farther"
+            " apart than a block still makes the errors too small, and a cycle of a pass's work over the frames can make"
+            " them too small or too large",
+            text,
+        )
 
 
 class ReportOptions(unittest.TestCase):
