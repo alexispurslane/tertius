@@ -29,7 +29,9 @@ namespace Tertius.Physics;
 /// </para>
 /// <para>
 /// The tests' <c>StepAllocations</c> (tests/Tertius.Testing) reads this table through <see cref="Callbacks"/>. While it
-/// lives, joltc calls its counting wrappers, which call this table. A second install of this table would drop them.
+/// lives, joltc calls its counting wrappers, which call this table, or a table that the counter's own tests give it. Its
+/// Dispose gives joltc this table again, read through <see cref="Callbacks"/>. A second install of this table would drop
+/// the wrappers.
 /// </para>
 /// </remarks>
 internal sealed unsafe class ContactListener : IDisposable
