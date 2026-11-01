@@ -78,3 +78,21 @@ Cost, the deck window (frames 399 to 518, the trace's own busy time, mean ms per
 | bounds 2 | 6.2 | 4.860 | 17.370 | 0.280 |
 | gather 2 | 4.1 | 4.990 | 18.186 | 0.274 |
 Two earlier gather runs at load 12.5 and 12.2 gave 5.097 (span 18.486, share 0.276) and 4.594 (span 16.930, share 0.271). In gather 2, every pass ran slower (transparent's time alone 0.804 ms against 0.711 to 0.747), so the absolute times do not resolve the change. The share of the span falls from 0.280 to 0.273 on average, about 0.12 ms of a 17.3 ms frame. The bounds already skip most taps that the gather makes cheaper: the gather alone on the base gave 4.928 ms (share 0.280 against 0.302 on the base) in the first run.
+
+**2026-11-01T14:04:01Z**
+
+Final measurement and remainder (builder, 2026-11-01). Release, 1920 x 1080, Apple M1 Max, two traces of every frame of demo-exit by gpu-trace.sh --no-counters --frames 0 on 0b354d69 (both changes). Each pass's own busy time, the mean over all 3,889 frames, in ms:
+| Run | Load | Direct light | Local shadows | Frame span |
+|---|---|---|---|---|
+| ter-3g1g's trace (87ee9caf) | 2.3 | 6.009 | 0.239 | 17.555 |
+| base trace of the first run (ef3b6ae5) | 5.8 to 7.4 | 5.843 | 0.229 | 16.909 |
+| branch, run 1 | 4.3 to 3.9 | 5.337 | 0.349 | 16.938 |
+| branch, run 2 | 2.9 to 5.7 | 5.385 | 0.350 | 17.009 |
+The direct light pass is at 5.34 to 5.39 ms against its share of 3.80 ms, so 1.54 to 1.59 ms remain. It lost 0.46 to 0.67 ms, and its share of the frame span fell from 0.342 and 0.346 on the two bases to 0.315 and 0.317. The local shadow pass gained 0.11 to 0.12 ms for the bounds' dispatches. The frame span does not show the net saving of about 0.4 ms: in both branch runs the untouched passes ran 3 to 6 % slower than in the base trace (reflections 1.962 and 1.977 against 1.883, occlusion sectors 1.618 and 1.634 against 1.543), within the drift between runs. The bloom's busy time grew from 0.382 to 0.553 ms while its time alone stayed at 0.32 ms, and the transparent pass's time alone fell from 0.544 to 0.325 ms: the two now overlap more, which moves time between their busy columns and costs nothing.
+
+The profile after the changes (deck window, frame 399, 120 frames, with counters, load 5.2 to 4.6): direct light 4.787 ms, ALU limiter 36 %, Texture Sample limiter 10 % (was 53 %), Texture Filtering 10 %, F32 utilization 15 %, Buffer Read 3 %, fragment occupancy 13 %, reads 1.6 GB/s. No unit is near its limit. The rest of the pass is the light loop's own work: every lamp's irradiance and BRDF at every pixel, which a list by reach does not cull on demo-exit (the profile note). With the image rule, no further change has a target: the cascades' lookup takes a receiver-plane term per tap, so gathers would compare 4 texels against one reference where the taps use four, which is another filter.
+
+Candidate default changes (the user decides; none is in the code). Each one-run probe of the deck window (frames 399 to 518, --no-counters) against the branch's 4.594 to 4.990 ms (share of the span 0.271 to 0.276):
+1. The cutoff irradiance E_cut 4 times higher (LightUnits.CutoffIrradiance; R_cut from 2^-13 to 2^-11): every light's reach halves, so a light ends where it adds about 2 levels to a white matte surface instead of half a level, and the per-pixel reach test skips more lamps. Direct light 4.034 ms, share 0.240, about 0.55 ms less; load 3.9 to 4.2. Image: the nine film captures move at most 1 level, on 0.005 to 0.30 % of their pixels. Captures: captures/mfyv/c4-gather/exit-films (the current default) and captures/mfyv/d1-cut4/exit-films (the new one), in this worktree.
+2. E_cut 16 times higher (R_cut 2^-9): reach a quarter. Direct light 3.785 ms, share 0.227, about 0.75 ms less; load 5.2 to 4.2. Image: up to 36 levels on a few pixels (antispinward 16 levels, stack 36, deck 6), 0.07 to 3.4 % of pixels move by 1 level. Captures: captures/mfyv/d2-cut16/exit-films.
+Neither reaches the share alone. The local shadow pass's bounds cost of 0.12 ms is a candidate for a later ticket that keeps the image, for example one dispatch with no barrier per group of tiles.
