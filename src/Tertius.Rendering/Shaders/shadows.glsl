@@ -8,15 +8,13 @@
 // Filtering: 4 × 4 hardware-PCF taps one texel apart. Each tap is a bilinear 2 × 2 comparison, so together they
 // cover 5 × 5 texels with a smooth tent-like weight. The tiles compute the same filter from 9 gathers (tileShadow).
 //
-// Bias, in three parts that each scale with the cascade's texel size:
-//  - The shadow pass adds a slope-scaled depth bias to the casters, which covers the difference between a tap's
-//    position and the centers of the texels its bilinear footprint compares against.
-//  - Receiver-plane depth: where the receiver's own plane rises toward the light, a tap compares against the plane's
-//    depth at the tap's position rather than the pixel's, so the wide kernel does not shadow a surface with itself.
-//    The plane comes from the geometric normal; its slope is limited where the surface is almost parallel to the
-//    light. The correction is one-sided: where the plane falls away from the light, the pixel's own depth is kept,
-//    because a surface farther from the light than the receiver cannot shadow it. Extrapolating the plane downhill
-//    would let the kernel find a wall standing on the receiver's plane and creep shadow onto its lit side.
+// Bias, the same model for the cascades and the tiles (docs/plans/local-light-shadows.md, decision 33), in parts that
+// each scale with the texel size:
+//  - The shadow passes add a slope-scaled depth bias to the casters, ShadowPass.SlopeBias. Every tap compares against
+//    the receiver's own depth, and the filter compares texels up to 2.5 texels from the lookup, so the bias covers the
+//    receiver's slope over that reach. No tap compares against the receiver's plane extrapolated toward the light: at a
+//    grazing light, that plane passes under a wall that stands on the receiver, and the taps saw the light past the
+//    wall (ter-kn1d).
 //  - A normal offset of one texel, scaled by sin(angle to the light), plus half a texel of constant depth bias.
 #ifndef TERTIUS_SHADOWS_GLSL
 #define TERTIUS_SHADOWS_GLSL
@@ -31,12 +29,6 @@ float sampleCascade(uint set, uint cascade, vec3 position, vec3 geometricNormal,
     vec3 lookup = position + geometricNormal * (frame.shadowParams.y * texel * sinTheta);
     vec4 clip = frame.cascadeSets[set].viewProj[cascade] * vec4(lookup, 1.0);
     vec2 uv = clip.xy * 0.5 + 0.5;
-
-    // The receiver's plane: depth changes by −n.xy / n.z per unit of lateral distance in light space, which is
-    // axisX.w times that in [0, 1] depth per unit of uv.
-    vec4 axisX = frame.cascadeSets[set].axisX;
-    vec3 lightNormal = vec3(dot(geometricNormal, axisX.xyz), dot(geometricNormal, frame.cascadeSets[set].axisY.xyz), NdotL);
-    vec2 slope = -lightNormal.xy / max(lightNormal.z, frame.shadowParams.w) * axisX.w;
     float reference = clip.z + frame.shadowParams.z;
     float invSize = frame.shadowParams.x;
     // ShadowMap.Layer: the layers of a set follow those of the sets before it.
@@ -48,7 +40,7 @@ float sampleCascade(uint set, uint cascade, vec3 position, vec3 geometricNormal,
         for (int x = 0; x < 4; x++)
         {
             vec2 offset = vec2(float(x) - 1.5, float(y) - 1.5) * invSize;
-            vec4 coordinate = vec4(uv + offset, layer, reference + max(dot(slope, offset), 0.0));
+            vec4 coordinate = vec4(uv + offset, layer, reference);
             // Explicit zero gradients (mip 0): the calling code branches per pixel, where implicit derivatives are undefined.
             lit += textureGrad(sampler2DArrayShadow(shadowCascades, shadowSampler), coordinate, vec2(0.0), vec2(0.0));
         }
@@ -232,11 +224,10 @@ const float TileNormalOffsetTexels = 1.0;
 // The share of a near light that its atlas tiles let through at a world position (docs/plans/local-light-shadows.md,
 // "Sampling"): the one tile of a spot light, or the tile of the cube face of a point light that holds the direction from
 // the light to the position. The filter of the cascades' 4 × 4 PCF taps, computed from gathers, with the normal offset at
-// the receiver's distance and the tile pass's slope-scaled bias, and no receiver-plane term, because a tile's depth is
-// not linear across it. Texels past the tile clamp to its edge. The tile's bounds skip the gathers where every
-// comparison agrees. L is the unit direction toward the light and d its distance;
-// geometricNormal is the interpolated vertex normal, and NdotL its cosine with L, which must be at least 0, with 0 for a
-// hair card edge-on to the light.
+// the receiver's distance and the casters' slope-scaled bias, as the cascades take them. Texels past the tile clamp to
+// its edge. The tile's bounds skip the gathers where every comparison agrees. L is the unit direction toward the light
+// and d its distance; geometricNormal is the interpolated vertex normal, and NdotL its cosine with L, which must be at
+// least 0, with 0 for a hair card edge-on to the light.
 float tileShadow(GpuLight light, vec3 position, vec3 L, float d, vec3 geometricNormal, float NdotL)
 {
     // A point light's six views follow the cube faces in layer order (ShadowTiles.AddViews).

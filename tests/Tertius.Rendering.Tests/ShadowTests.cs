@@ -873,6 +873,114 @@ public sealed class ShadowTests
         }
     }
 
+    /// <summary>The floor of <see cref="WallOnFloorScene"/>, 2 m below the camera.</summary>
+    private const float WallFloorY = -2f;
+
+    /// <summary>Where the near face of the wall of <see cref="WallOnFloorScene"/> stands along z, 1 m in front of the camera.</summary>
+    private const float WallFace = -1f;
+
+    /// <summary>
+    /// The scene of the wall on the floor, lit by <paramref name="sun"/> alone, with no ambient light, and seen through
+    /// <paramref name="camera"/>. The floor is a slab 1 m thick, as the wheel's floor is, and ends at the wall's far
+    /// face. With <paramref name="wall"/> the wall stands on it and both cast; without it, nothing casts, so the sun
+    /// lights the whole floor.
+    /// </summary>
+    /// <remarks>
+    /// The slab matters at a grazing sun. The filter reaches 2.5 texels from the lookup, and the normal offset lifts the
+    /// lookup only 1 texel, so the lowest taps look below the floor's top. A floor of no thickness that ends at the wall
+    /// lets those taps see the sun under its edge; the slab's end face stops them, as the wheel's floor does.
+    /// </remarks>
+    private static RenderSnapshot WallOnFloorScene(Kit kit, Vector3 sun, Quaternion camera, bool wall)
+    {
+        const float thickness = 0.3f,
+            wallHeight = 5f,
+            floorThickness = 1f,
+            floorFar = WallFace - thickness,
+            floorNear = 10f;
+        RenderSnapshot snapshot = Gpu.Snapshot(sun);
+        snapshot.Ambient.Intensity = 0;
+        snapshot.Camera.Rotation = camera;
+        snapshot.Camera.PreviousRotation = camera;
+        snapshot.Instances.Add(
+            Gpu.Instance(
+                mesh: kit.Box,
+                material: kit.Ground,
+                position: new(0, WallFloorY - floorThickness / 2, (floorFar + floorNear) / 2),
+                scale: new(20f, floorThickness, floorNear - floorFar),
+                flags: wall ? Caster : RenderFlags.None,
+                chainDepth: TestChains.CamerasFrame
+            )
+        );
+        if (wall)
+            snapshot.Instances.Add(
+                Gpu.Instance(
+                    mesh: kit.Box,
+                    material: kit.White,
+                    position: new(0, WallFloorY + wallHeight / 2, WallFace - thickness / 2),
+                    scale: new(20f, wallHeight, thickness),
+                    flags: Caster,
+                    chainDepth: TestChains.CamerasFrame
+                )
+            );
+        return snapshot;
+    }
+
+    /// <summary>
+    /// A wall like the wheel's side walls, 0.3 m thick and 5 m tall, stands on a floor that ends at its far face, with
+    /// the sun behind it. The sun grazes the floor at the cosines of demo-exit's spinward room: 0.134 at the floor's crease
+    /// after the sun crossed the floor's plane, and 0.025 at the ceiling's crease before (ter-kn1d). The wall's shadow
+    /// covers the floor up to its base. A tap of the filter that compared against the floor's plane extrapolated toward the
+    /// light, under the wall, saw past the wall and lit a sliver along the base.
+    /// </summary>
+    [Theory]
+    [InlineData(0.134f)]
+    [InlineData(0.025f)]
+    public void AShadowReachesTheBaseOfAWallOnAFloorThatTheSunGrazes(float sunCosine)
+    {
+        const int width = 960,
+            height = 540;
+        VulkanRenderer renderer = Gpu.Headless(width: width, height: height);
+        try
+        {
+            var kit = Kit.Create(renderer);
+            Quaternion camera = Gpu.PitchDown(55f * MathF.PI / 180f);
+            var sun = new Vector3(0, sunCosine, -MathF.Sqrt(1 - sunCosine * sunCosine));
+            RenderSnapshot Scene(bool wall) => WallOnFloorScene(kit: kit, sun: sun, camera: camera, wall: wall);
+
+            renderer.Render(Scene(wall: false), 1f);
+            float[] lit = renderer.ReadHdr();
+            renderer.Render(Scene(wall: true), 1f);
+            float[] shadowed = renderer.ReadHdr();
+
+            // The share of the sun that reaches the floor at each sample, beside the wall's base and out to 0.4 m from it.
+            var shares = new List<string>();
+            float worst = 0;
+            foreach (float x in (float[])[-0.8f, -0.3f, 0.2f, 0.7f])
+            foreach (float distance in (float[])[0.02f, 0.05f, 0.1f, 0.15f, 0.2f, 0.25f, 0.4f])
+            {
+                Vector2 pixel = Gpu.Project(
+                    point: new(x, WallFloorY, WallFace + distance),
+                    cameraRotation: camera,
+                    width: width,
+                    height: height
+                );
+                int green = ((int)pixel.Y * width + (int)pixel.X) * 4 + 1;
+                lit[green].Should().BeGreaterThan(0, "the sun lights the floor there without the wall");
+                float share = shadowed[green] / lit[green];
+                shares.Add($"{share:F3} at {distance} m, x = {x}");
+                worst = MathF.Max(worst, share);
+            }
+
+            worst
+                .Should()
+                .BeLessThan(0.05f, "the wall hides the sun from the floor up to its base ({0})", string.Join("; ", shares));
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
     // ---- The wall along the cascade seams ------------------------------------------------------------------------
     // A wall 16 m tall and 4 m thick runs straight away from 20 m to 440 m. The sun, 30 degrees up from +X, throws a
     // 28 m shadow to its left, through the cascade seams at about 51 m, 109 m and 277 m. Every sample is compared with the

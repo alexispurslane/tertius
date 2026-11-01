@@ -10,12 +10,6 @@ namespace Tertius.Rendering;
 /// </summary>
 internal sealed unsafe class LocalShadowPass : RenderPass
 {
-    /// <summary>
-    /// The casters' slope-scaled depth bias, in multiples of their largest depth change per texel, measured between acne
-    /// and shadows that leave their casters (docs/plans/local-light-shadows.md, decision 33).
-    /// </summary>
-    public const float SlopeBias = 2.5f;
-
     /// <summary>The width and the height of a workgroup of shadow_bounds.comp, its local size.</summary>
     private const uint BoundsGroupSize = 8;
 
@@ -52,7 +46,7 @@ internal sealed unsafe class LocalShadowPass : RenderPass
                 DepthClamp = true,
                 CullMode = CullModeFlags.None,
                 // Reversed depth: a negative bias moves casters away from the light.
-                DepthBiasSlope = -SlopeBias,
+                DepthBiasSlope = -ShadowPass.SlopeBias,
             }
         );
         boundsPipeline = new ComputePipelineDesc

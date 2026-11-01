@@ -415,7 +415,7 @@ vec3 directRadiance(ShadingInput s, vec3 emission, vec3 position, vec3 V, uint s
 // every facing of a matte surface lit by the same lights. The mean of the cosine over every facing is 1/4, so each light
 // gives albedo / (4π) times its irradiance and visibility. The ambient light gives the albedo times the mean radiance of
 // its source: its map's without the stars, or the mean of the sky and the ground color, whose shares average one half. A
-// light's visibility samples its maps with L as the normal, which needs no normal offset and no receiver-plane slope.
+// light's visibility samples its maps with L as the normal, which needs no normal offset.
 // Only the main view draws puffs, and a puff's center can lie outside its frustum, so the puff takes only the lights that
 // the main view keeps.
 vec3 scatteredLight(vec3 albedo, vec3 position, uint map)

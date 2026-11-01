@@ -28,17 +28,20 @@ namespace Tertius.Rendering;
 /// </remarks>
 internal sealed unsafe class ShadowPass : RenderPass
 {
-    /// <summary>The caster's slope-scaled depth bias, in multiples of its largest depth change per texel.</summary>
-    public const float SlopeBias = 1.5f;
+    /// <summary>
+    /// The casters' slope-scaled depth bias in the cascades and in the local shadow atlas, in multiples of their largest
+    /// depth change per texel. Every tap of the 4 × 4 filter compares against the receiver's own depth, and the filter
+    /// compares texels up to 2.5 texels from the lookup, so the bias covers that slope. A receiver-plane term
+    /// in its place let a grazing light pass under a wall that stands on the receiver (ter-kn1d). Measured between acne
+    /// and shadows that leave their casters (docs/plans/local-light-shadows.md, decision 33).
+    /// </summary>
+    public const float SlopeBias = 2.5f;
 
     /// <summary>How far the direct pass moves its lookup along the geometric normal, in texels, times sin(angle to the light).</summary>
     public const float NormalOffsetTexels = 1f;
 
     /// <summary>The direct pass's constant depth bias toward the light, in texels of depth.</summary>
     public const float ConstantBiasTexels = 0.5f;
-
-    /// <summary>Receiver planes are treated as at most this steep: the cosine of their angle to the light.</summary>
-    public const float MinimumReceiverCosine = 0.1f;
 
     private readonly VulkanDevice device;
     private readonly ShadowMap map;
@@ -134,7 +137,7 @@ internal sealed unsafe class ShadowPass : RenderPass
     internal static void WriteSets(PreparedScene scene)
     {
         for (int set = 0; set < scene.CascadeSetCount; set++)
-            WriteSet(scene: scene, set: set, light: scene.CascadeBases[set]);
+            WriteSet(scene: scene, set: set);
     }
 
     /// <summary>
@@ -299,16 +302,13 @@ internal sealed unsafe class ShadowPass : RenderPass
         );
     }
 
-    /// <summary>Writes the matrices and the light-space axes of one cascade set into the frame constants.</summary>
-    private static void WriteSet(PreparedScene scene, int set, in LightBasis light)
+    /// <summary>Writes the matrices of one cascade set into the frame constants.</summary>
+    private static void WriteSet(PreparedScene scene, int set)
     {
         ref ShadowCascadeArray cascades = ref scene.CascadeSets[set];
         ref GpuCascadeSet gpu = ref scene.Constants.CascadeSets[set];
         for (int i = 0; i < ShadowCascades.Count; i++)
             gpu.ViewProj[i] = cascades[i].ViewProjection;
-        // Every box has the same shape: a light-space slope s moves depth by s · h / d per unit of uv.
-        gpu.AxisX = new(light.X, cascades[0].HalfExtent / cascades[0].DepthHalfRange);
-        gpu.AxisY = new(light.Y, 0f);
     }
 
     /// <summary>Writes what every cascade set shares into the frame constants: the splits, the texels and the biases.</summary>
@@ -342,7 +342,7 @@ internal sealed unsafe class ShadowPass : RenderPass
             x: 1f / map.Size,
             y: NormalOffsetTexels,
             z: ConstantBiasTexels * depthPerUv / map.Size,
-            w: MinimumReceiverCosine
+            w: 0f
         );
     }
 
