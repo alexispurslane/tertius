@@ -1,6 +1,6 @@
 ---
 id: ter-asj1
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-10-31T23:06:30Z
