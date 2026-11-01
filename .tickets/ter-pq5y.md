@@ -28,3 +28,7 @@ A change that fails either condition is a default change: ter-3g1g takes it to t
 **2026-11-01T13:15:31Z**
 
 2026-11-01: continuation runs after the disk filled up (version 869b0b07, each with worktreePath and the refined image rule): ter-mfyv d5506515-e4c2-4a03-87cb-7bd5c4a4546b, ter-rjts fca26158-0f42-4fc7-a7c2-0c8118a6e5b2, ter-pjza d9dea78a-d313-438e-8aaf-951e0c1c53f3, ter-prio 9c9870f4-0baa-44e0-8e9b-825d23f39a17. The first runs: b14a2f6e (blocked, ENOSPC), 338f0bac, 251261a0 and ab44f491 (agent_failed, ENOSPC).
+
+**2026-11-01T14:25:02Z**
+
+Ruling on the image rule's adjacency clause (orchestrator, 2026-11-01, asked for by the ter-mfyv review). SMAA blends across an edge onto the pixels on both sides of it, so one edge decision that flips moves up to two touching pixels. Such a pair counts as one threshold site under condition 2, when the same comparison with SMAA off stays within 2 levels. Any other touching threshold pixels still fail condition 2. This covers ter-mfyv's gather PCF: unbelt (1259,590)+(1260,591) and pillar-room (1526,832)+(1527,832) are each one SMAA edge decision, and all 15 captures stay within 1 level with SMAA off. Apart from the rule, the user asked on 2026-11-01 for the gather PCF to go into ter-mfyv without further benchmarking, so the gather is the user's decision too.
