@@ -13,8 +13,9 @@ internal enum ReflectionStep
     Trace,
 
     /// <summary>
-    /// The joint bilateral upsample of the half-resolution trace, which adds the delta of each pixel: "reflections". Only
-    /// over a <see cref="HalfTrace"/>.
+    /// The joint bilateral upsample of the half-resolution trace, which adds the delta of each pixel, and the own rays of
+    /// the pixels whose texels' rays disagree, in a second, indirect dispatch: "reflections". Only over a
+    /// <see cref="HalfTrace"/>.
     /// </summary>
     Upsample,
 }
@@ -22,7 +23,8 @@ internal enum ReflectionStep
 /// <summary>
 /// One step of the reflections under <see cref="ConeTracedReflections"/> (docs/plans/screen-space-reflections.md, "The
 /// passes"): the trace at the targets' resolution, or the half-resolution trace's upsample. One invocation per pixel or
-/// texel, in 8 × 8 workgroups, over sets 0 to 2 of the scene layout and the reflection set.
+/// texel, in 8 × 8 workgroups, over sets 0 to 2 of the scene layout and the reflection set. The upsample's own rays run
+/// after it in workgroups of 64 invocations, one per listed pixel.
 /// </summary>
 internal sealed unsafe class ReflectionPass : RenderPass
 {
@@ -35,6 +37,9 @@ internal sealed unsafe class ReflectionPass : RenderPass
     private readonly ConeTracedReflections setting;
     private readonly ReflectionStep step;
     private readonly Pipeline pipeline;
+
+    /// <summary>The upsample's own rays, or null for the trace, which has no own-ray list.</summary>
+    private readonly OwnRayDispatch? ownRays;
 
     /// <exception cref="ArgumentException"><paramref name="step"/> is the upsample, and the targets trace at full resolution.</exception>
     public ReflectionPass(
@@ -90,6 +95,8 @@ internal sealed unsafe class ReflectionPass : RenderPass
             // compiled module holds no constant and ignores them (ComputePipelineDesc.Constants).
             Constants = constants,
         }.Create(device, shaders);
+        if (step == ReflectionStep.Upsample)
+            ownRays = new OwnRayDispatch(device: device, shaders: shaders, layouts: layouts, constants: constants);
     }
 
     public override string Name { get; }
@@ -98,6 +105,7 @@ internal sealed unsafe class ReflectionPass : RenderPass
     {
         Vk vk = context.Vk;
         CommandBuffer commandBuffer = context.CommandBuffer;
+        ownRays?.Clear(context, UpsampledTrace().OwnRays);
         DeclareUses(context);
         context.BeginComputePass(pipeline: pipeline, layout: layouts.ReflectionLayout, passSet: targets.TraceSet);
         var push = ReflectionPushConstants.For(setting);
@@ -116,9 +124,14 @@ internal sealed unsafe class ReflectionPass : RenderPass
             groupCountY: (extent.Height + GroupSize - 1) / GroupSize,
             groupCountZ: 1
         );
+        ownRays?.Trace(context, UpsampledTrace().OwnRays);
     }
 
-    public override void Dispose() => device.Vk.DestroyPipeline(device.Device, pipeline, null);
+    public override void Dispose()
+    {
+        device.Vk.DestroyPipeline(device.Device, pipeline, null);
+        ownRays?.Dispose();
+    }
 
     /// <summary>The images and the buffer that the step reads and writes, and how.</summary>
     private void DeclareUses(FrameContext context)
@@ -151,7 +164,9 @@ internal sealed unsafe class ReflectionPass : RenderPass
                 HalfTrace upsampled = UpsampledTrace();
                 barriers.Image(upsampled.Traced, ImageUse.StorageCompute);
                 barriers.Image(upsampled.HitDepths, ImageUse.StorageCompute);
-                // A pixel whose texels' rays disagree traces its own ray through the pyramids.
+                // The upsample appends to the own-ray list by atomic adds, after its header's clear.
+                barriers.Buffer(upsampled.OwnRays, BufferUse.ComputeWrite);
+                // A pixel whose texels' rays disagree traces its own ray through the pyramids in the second dispatch.
                 DeclarePyramids(barriers);
                 break;
             default:

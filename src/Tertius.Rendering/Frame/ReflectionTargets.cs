@@ -100,7 +100,7 @@ internal sealed unsafe class ReflectionTargets : IDisposable
 
     /// <summary>
     /// Set 3 of <see cref="DescriptorLayouts.ReflectionLayout"/>, written: both pyramids, the HDR image and, for a
-    /// <see cref="HalfTrace"/>, its images at bindings 4 and 5.
+    /// <see cref="HalfTrace"/>, its images at bindings 4 and 5 and its own-ray list at binding 6.
     /// </summary>
     public DescriptorSet TraceSet { get; }
 
@@ -177,7 +177,8 @@ internal sealed unsafe class ReflectionTargets : IDisposable
             TraceResolution.Full => new FullTrace(),
             TraceResolution.Half => new HalfTrace(
                 Traced: CreateHalfImage(screen: extent, format: RadianceFormat, name: "reflection trace"),
-                HitDepths: CreateHalfImage(screen: extent, format: HitDepthFormat, name: "reflection hit depths")
+                HitDepths: CreateHalfImage(screen: extent, format: HitDepthFormat, name: "reflection hit depths"),
+                OwnRays: CreateOwnRayList(extent)
             ),
         };
         depthMipViews = MipViews(DepthImage);
@@ -237,6 +238,7 @@ internal sealed unsafe class ReflectionTargets : IDisposable
             case HalfTrace half:
                 layouts.WriteStorageImage(set: TraceSet, binding: 4, image: half.Traced);
                 layouts.WriteStorageImage(set: TraceSet, binding: 5, image: half.HitDepths);
+                layouts.WriteBuffer(set: TraceSet, binding: 6, type: DescriptorType.StorageBuffer, buffer: half.OwnRays);
                 break;
             case FullTrace:
                 // The full-resolution trace writes the HDR image only, so bindings 4 and 5 stay unwritten.
@@ -259,6 +261,7 @@ internal sealed unsafe class ReflectionTargets : IDisposable
         switch (Trace)
         {
             case HalfTrace half:
+                half.OwnRays.Dispose();
                 half.HitDepths.Dispose();
                 half.Traced.Dispose();
                 break;
@@ -282,6 +285,24 @@ internal sealed unsafe class ReflectionTargets : IDisposable
             usage: ImageUsageFlags.StorageBit | ImageUsageFlags.TransferSrcBit,
             mipLevels: 1,
             name: name
+        );
+
+    /// <summary>
+    /// The own-ray list of a <paramref name="screen"/>, in the layout of <see cref="OwnRayList"/>. The pass clears the
+    /// header by a transfer, the upsample appends by atomic adds, the own-ray dispatch reads it as its indirect command,
+    /// and the read hook copies it out.
+    /// </summary>
+    private GpuBuffer CreateOwnRayList(Extent2D screen) =>
+        GpuBuffer.Create(
+            device: device,
+            allocator: allocator,
+            size: OwnRayList.Bytes(screen),
+            usage: BufferUsageFlags.StorageBufferBit
+                | BufferUsageFlags.IndirectBufferBit
+                | BufferUsageFlags.TransferDstBit
+                | BufferUsageFlags.TransferSrcBit,
+            memoryUsage: MemoryUsage.GpuOnly,
+            name: "reflection own rays"
         );
 
     /// <summary>A pyramid image: built as a storage image, sampled by the builds and the trace, copied out by the read hooks.</summary>

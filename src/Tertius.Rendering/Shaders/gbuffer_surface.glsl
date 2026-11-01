@@ -4,8 +4,9 @@
 // (docs/plans/screen-space-illumination.md, "The ambient pass"). So does the reflection's footprint, which the ambient
 // pass and the pass that adds the reflections' delta (the full-resolution trace, or the upsample at half resolution)
 // take from the G-buffer, so that the delta takes away the very ambient specular term that the ambient pass added
-// (docs/plans/environment-map.md, "Where it runs"). The ambient pass skips it where its light does not read it. The
-// pixel must lie inside the G-buffer: texelFetch outside an image is undefined.
+// (docs/plans/environment-map.md, "Where it runs"). Both take it only where their ambient light reads it
+// (withAmbientFootprint), and the reflections' cone reads it at a hit. The pixel must lie inside the G-buffer: texelFetch
+// outside an image is undefined.
 #ifndef TERTIUS_GBUFFER_SURFACE_GLSL
 #define TERTIUS_GBUFFER_SURFACE_GLSL
 
@@ -83,13 +84,6 @@ ShadingInput estimatedAt(ivec2 pixel)
     return s;
 }
 
-ShadingInput surfaceAt(ivec2 pixel)
-{
-    ShadingInput s = estimatedAt(pixel);
-    s.reflectionFootprint = reflectionFootprintAt(pixel);
-    return s;
-}
-
 // Whether the ambient light reads the surface's footprint: only the map's reflected stars read it, and only where the
 // lobe alone does not end their fade (lobeEndsStarFade).
 bool ambientReadsFootprint(ShadingInput s)
@@ -98,14 +92,19 @@ bool ambientReadsFootprint(ShadingInput s)
     return !skipsTermsThatAddNothing || environmentMapOn && !lobeEndsStarFade(roughness * roughness);
 }
 
-// The surface for the ambient light alone: surfaceAt's, but with the footprint left at p where the ambient light does
-// not read it, which gives the same light and saves the G-buffer reads of reflectionFootprintAt.
-ShadingInput ambientSurfaceAt(ivec2 pixel)
+// The surface s of the pixel for the ambient light: with the footprint f where the ambient light reads it, and with it
+// left at p elsewhere, which gives the same light and saves the G-buffer reads of reflectionFootprintAt.
+ShadingInput withAmbientFootprint(ShadingInput s, ivec2 pixel)
 {
-    ShadingInput s = estimatedAt(pixel);
     if (ambientReadsFootprint(s))
         s.reflectionFootprint = reflectionFootprintAt(pixel);
     return s;
+}
+
+// The surface with the estimate, for the ambient light alone.
+ShadingInput ambientSurfaceAt(ivec2 pixel)
+{
+    return withAmbientFootprint(estimatedAt(pixel), pixel);
 }
 
 #endif

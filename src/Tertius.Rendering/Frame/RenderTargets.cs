@@ -116,8 +116,8 @@ internal sealed class RenderTargets : IDisposable
         bool diffuse
     )
     {
-        if (reflections is not null)
-            CheckReflectedScreen(extent);
+        if (reflections is { } traced)
+            CheckReflectedScreen(device: device, extent: extent, resolution: traced);
         this.device = device;
         this.allocator = allocator;
         this.layouts = layouts;
@@ -202,14 +202,17 @@ internal sealed class RenderTargets : IDisposable
     public DescriptorSet[] GlowSources { get; }
 
     /// <summary>Recreates every target at a new size. The device must be idle.</summary>
-    /// <exception cref="ArgumentOutOfRangeException">Reflections are on, and a side is above <see cref="ReflectionTargets.MaxSide"/>.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// Reflections are on, and a side is above <see cref="ReflectionTargets.MaxSide"/>, or the own-ray list passes the
+    /// device's storage buffer range (<see cref="OwnRayList.RangeProblem"/>).
+    /// </exception>
     public void Resize(Extent2D extent)
     {
         if (extent.Width == Extent.Width && extent.Height == Extent.Height)
             return;
         // Before anything is destroyed, so that a refused size leaves every target as it was.
         if (Reflections is not null)
-            CheckReflectedScreen(extent);
+            CheckReflectedScreen(device: device, extent: extent, resolution: Reflections.Resolution);
         DestroyImages();
         Create(extent);
         // The trace keeps its resolution across a resize.
@@ -217,10 +220,16 @@ internal sealed class RenderTargets : IDisposable
         Smaa?.Resize(extent);
     }
 
-    private static void CheckReflectedScreen(Extent2D extent)
+    private static void CheckReflectedScreen(VulkanDevice device, Extent2D extent, TraceResolution resolution)
     {
         if (ReflectionTargets.ScreenProblem(extent.Width, extent.Height) is { } problem)
             throw new ArgumentOutOfRangeException(nameof(extent), problem);
+        // A full-resolution trace binds no own-ray list, so a screen above the range still reflects at full resolution.
+        if (
+            resolution == TraceResolution.Half
+            && OwnRayList.RangeProblem(extent, device.Properties.Limits.MaxStorageBufferRange) is { } range
+        )
+            throw new ArgumentOutOfRangeException(nameof(extent), range);
     }
 
     /// <summary>Makes every target at <paramref name="extent"/> and writes the sets that read them.</summary>

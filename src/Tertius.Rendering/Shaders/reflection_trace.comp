@@ -10,19 +10,14 @@ layout(local_size_x = 8, local_size_y = 8) in;
 
 layout(set = 3, binding = 3, rgba16f) uniform image2D hdrImage;  // the lit image, read and written at this pixel only
 
-const float TexelSide = 1.0;  // in pixels: each pixel traces its own ray
-
 void main()
 {
     ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
     if (any(greaterThanEqual(pixel, imageSize(hdrImage))))
         return;
-    ReflectingPixel p;
-    vec4 rayResult;
-    float hitDepth;
-    if (!reflectingPixel(pixel, p) || !traceReflection(p, TexelSide, rayResult, hitDepth))
+    vec3 delta;
+    if (!ownRayDelta(pixel, delta))
         return;
-    vec3 delta = reflectionDelta(p, rayResult);
     vec4 lit = imageLoad(hdrImage, pixel);
     imageStore(hdrImage, pixel, vec4(clamp(lit.rgb + delta, 0.0, MaxRadiance), lit.a));
 }

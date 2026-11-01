@@ -1102,6 +1102,48 @@ public sealed unsafe class VulkanRenderer : IRenderer
     }
 
     /// <summary>
+    /// The pixels whose own rays the last frame's upsample handed to its own-ray dispatch, in the order of the list. A test
+    /// hook, like <see cref="ReadReflectionTrace"/>.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">Reflections are off, or traced at full resolution.</exception>
+    internal (int X, int Y)[] ReadOwnRayPixels()
+    {
+        ReflectionTargets pyramids = targets.Reflections ?? throw new InvalidOperationException("Reflections are off.");
+        GpuBuffer ownRays = pyramids.Trace switch
+        {
+            HalfTrace half => half.OwnRays,
+            FullTrace => throw new InvalidOperationException("The trace runs at full resolution."),
+            null => throw new UnreachableException("The targets always hold a trace."),
+        };
+        using var readback = GpuBuffer.Create(
+            device: device,
+            allocator: Allocator,
+            size: ownRays.Size,
+            usage: BufferUsageFlags.TransferDstBit,
+            memoryUsage: MemoryUsage.Readback,
+            name: "own rays readback"
+        );
+        SubmitAndWait(commandBuffer =>
+        {
+            var local = new BarrierBatch();
+            local.Buffer(ownRays, BufferUse.TransferSource);
+            local.Buffer(readback, BufferUse.TransferDestination);
+            local.Flush(device.Vk, commandBuffer);
+            var region = new BufferCopy(srcOffset: 0, dstOffset: 0, size: ownRays.Size);
+            device.Vk.CmdCopyBuffer(
+                commandBuffer: commandBuffer,
+                srcBuffer: ownRays.Handle,
+                dstBuffer: readback.Handle,
+                regionCount: 1,
+                pRegions: &region
+            );
+            local.Buffer(readback, BufferUse.HostRead);
+            local.Flush(device.Vk, commandBuffer);
+        });
+        return OwnRayList.Pixels(new ReadOnlySpan<uint>(readback.Mapped, (int)(ownRays.Size / sizeof(uint))));
+    }
+
+    /// <summary>
     /// One level of the last frame's radiance pyramid: premultiplied RGB and the coverage of each texel, row by row from
     /// the top. A test hook: it waits for the device to be idle and submits its own copy.
     /// </summary>

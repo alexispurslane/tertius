@@ -221,6 +221,57 @@ public sealed class PyramidRenderTests
     }
 
     [Fact]
+    public void ARadianceLevelBuiltFromAnOddSizedLevelTakesTheThirteenTapsAroundEachTexelsCenter()
+    {
+        VulkanRenderer renderer = Gpu.Headless(reflections: ConeTracedReflections.Default);
+        try
+        {
+            renderer.Render(Scene(renderer), 1f);
+            (float[] below, int belowWidth, int belowHeight) = renderer.ReadRadiancePyramidLevel(3);
+            (float[] level, int levelWidth, int levelHeight) = renderer.ReadRadiancePyramidLevel(4);
+
+            // Level 3 is 80 × 45, odd in height, so the taps of a texel lie on no texel corner along y, and the corners of
+            // the even build, 2p − 1 to 2p + 3, drift from them by up to a texel at the bottom.
+            (belowWidth, belowHeight)
+                .Should()
+                .Be((80, 45));
+            (levelWidth, levelHeight).Should().Be((40, 22));
+            level.Should().Contain(value => value > 0.01f, "the scene's lit surfaces reach level 4");
+            for (int y = 0; y < levelHeight; y++)
+            for (int x = 0; x < levelWidth; x++)
+            {
+                var center = new Vector2((x + 0.5f) / levelWidth, (y + 0.5f) / levelHeight);
+                (Vector4 expected, Vector4 spread) = Jimenez13AtCenter(
+                    rgba: below,
+                    width: belowWidth,
+                    height: belowHeight,
+                    center: center
+                );
+                for (int channel = 0; channel < 4; channel++)
+                {
+                    float wanted = expected[channel];
+                    // Vulkan rounds a bilinear tap's weights to as few as 4 bits (subTexelPrecisionBits), so a tap may
+                    // miss by a sixteenth of the step between the texels that it blends.
+                    level[4 * (y * levelWidth + x) + channel]
+                        .Should()
+                        .BeApproximately(
+                            wanted,
+                            2e-3f * Math.Abs(wanted) + spread[channel] / 16 + 1e-5f,
+                            "texel ({0}, {1}), channel {2}",
+                            x,
+                            y,
+                            channel
+                        );
+                }
+            }
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
     public void ThePyramidsFollowAResize()
     {
         const int newWidth = 321,
@@ -468,13 +519,67 @@ public sealed class PyramidRenderTests
             return sum / 4;
         }
 
-        Vector4 inner = (Tap(-1, -1) + Tap(1, -1) + Tap(-1, 1) + Tap(1, 1)) / 4;
-        Vector4 g = Tap(0, 0);
+        return Jimenez13Weights(Tap);
+    }
+
+    /// <summary>
+    /// Jimenez's 13-tap downsample of an RGBA level around <paramref name="center"/>, in texture coordinates from 0 to 1,
+    /// whose taps lie whole texels apart and are bilinear reads clamped to the edge, as the radiance build's odd-size path
+    /// takes them. Also gives the spread of each channel, the largest value less the smallest, over the texels that the
+    /// taps blend.
+    /// </summary>
+    private static (Vector4 Value, Vector4 Spread) Jimenez13AtCenter(
+        float[] rgba,
+        int width,
+        int height,
+        Vector2 center
+    )
+    {
+        Vector4 Texel(int x, int y)
+        {
+            int index = 4 * (Math.Clamp(y, 0, height - 1) * width + Math.Clamp(x, 0, width - 1));
+            return new(x: rgba[index], y: rgba[index + 1], z: rgba[index + 2], w: rgba[index + 3]);
+        }
+
+        var smallest = new Vector4(float.MaxValue);
+        var largest = new Vector4(float.MinValue);
+        Vector4 Tap(int dx, int dy)
+        {
+            // The texel space of the level below, where texel i spans i to i + 1 and a bilinear read at s blends texels
+            // ⌊s − 0.5⌋ and the next.
+            float sx = center.X * width + dx - 0.5f,
+                sy = center.Y * height + dy - 0.5f;
+            int x0 = (int)MathF.Floor(sx),
+                y0 = (int)MathF.Floor(sy);
+            float fx = sx - x0,
+                fy = sy - y0;
+            Vector4 sum = Vector4.Zero;
+            for (int j = 0; j < 2; j++)
+            for (int i = 0; i < 2; i++)
+            {
+                Vector4 texel = Texel(x0 + i, y0 + j);
+                smallest = Vector4.Min(smallest, texel);
+                largest = Vector4.Max(largest, texel);
+                sum += texel * (i == 0 ? 1 - fx : fx) * (j == 0 ? 1 - fy : fy);
+            }
+
+            return sum;
+        }
+
+        Vector4 value = Jimenez13Weights(Tap);
+        return (value, largest - smallest);
+    }
+
+    /// <summary>The 13-tap kernel over <paramref name="tap"/>, whose offsets are in texels of the level below.</summary>
+    private static Vector4 Jimenez13Weights(Func<int, int, Vector4> tap)
+    {
+        Vector4 inner = (tap(-1, -1) + tap(1, -1) + tap(-1, 1) + tap(1, 1)) / 4;
+        Vector4 g = tap(0, 0);
         Vector4 corners =
-            (Tap(-2, -2) + Tap(0, -2) + Tap(-2, 0) + g) / 4
-            + (Tap(0, -2) + Tap(2, -2) + g + Tap(2, 0)) / 4
-            + (Tap(-2, 0) + g + Tap(-2, 2) + Tap(0, 2)) / 4
-            + (g + Tap(2, 0) + Tap(0, 2) + Tap(2, 2)) / 4;
+            (tap(-2, -2) + tap(0, -2) + tap(-2, 0) + g) / 4
+            + (tap(0, -2) + tap(2, -2) + g + tap(2, 0)) / 4
+            + (tap(-2, 0) + g + tap(-2, 2) + tap(0, 2)) / 4
+            + (g + tap(2, 0) + tap(0, 2) + tap(2, 2)) / 4;
         return inner * 0.5f + corners * 0.125f;
     }
 }

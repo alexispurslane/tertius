@@ -639,6 +639,28 @@ public sealed class ReflectionRenderTests
 
     [Theory]
     [MemberData(nameof(Resolutions))]
+    public void NoPixelOfAFloorAtTheCapPassesTheCapAtTheOutlineOfItsReflection(TraceResolution resolution)
+    {
+        // At half resolution the box's reflected outline, a hit beside a miss, traces its own rays in a dispatch of its own,
+        // which must cap its sum as the trace and the upsample do.
+        const float cap = ShaderInput.MaxRadiance;
+        float[] hdr = RenderHdr(
+            ReflectionsAt(resolution),
+            renderer =>
+            {
+                RenderSnapshot snapshot = Dark();
+                snapshot.Instances.Add(Floor(renderer, Mirror() with { Emissive = new(cap) }));
+                snapshot.Instances.Add(Box(renderer, Glow(renderer, new(cap))));
+                return snapshot;
+            }
+        ).Hdr;
+
+        hdr.Should()
+            .OnlyContain(value => value <= cap, "every pass that adds a reflection caps its sum at MaxRadiance");
+    }
+
+    [Theory]
+    [MemberData(nameof(Resolutions))]
     public void TwoRendersGiveTheSameBits(TraceResolution resolution)
     {
         float[] first = RenderHdr(ReflectionsAt(resolution), renderer => BoxAbove(renderer, Mirror(51 / 255f))).Hdr;
@@ -1237,11 +1259,127 @@ public sealed class ReflectionRenderTests
         }
     }
 
+    [Theory]
+    [MemberData(nameof(Resolutions))]
+    public void ACurvedMirrorThatReflectsABlackNeighborDoesNotChangeWhenTheStarsTurn(TraceResolution resolution)
+    {
+        // The neighbor adds no light, so where the mirror ball's rays hit it, the mirror shows the stars' mean that the
+        // ambient pass added, less the share that the hits take away. That share must be the very term that the ambient
+        // pass added, with the mirror's footprint f: a term of single stars, as with the footprint p, would leave their
+        // dips, which move with the stars, and no bright reflection would hide them.
+        float[] lit = RenderUnderMap(
+            reflections: new NoReflections(),
+            scene: MirrorBesideGlow(Quaternion.Identity, glow: 0)
+        ).Hdr;
+        float[] reflected = RenderUnderMap(
+            reflections: ReflectionsAt(resolution),
+            scene: MirrorBesideGlow(Quaternion.Identity, glow: 0)
+        ).Hdr;
+        (int X, int Y)[] mirror = MirrorBallPixels();
+        mirror
+            .Count(pixel => At(reflected, pixel).Y < 0.5f * At(lit, pixel).Y)
+            .Should()
+            .BeGreaterThan(200, "the mirror's right side reflects the black ball through its rays' hits");
+
+        foreach (
+            Quaternion turn in (Quaternion[])
+                [
+                    Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 2),
+                    Quaternion.CreateFromAxisAngle(Vector3.UnitX, MathF.PI / 2),
+                ]
+        )
+        {
+            float[] turned = RenderUnderMap(
+                reflections: ReflectionsAt(resolution),
+                scene: MirrorBesideGlow(turn, glow: 0)
+            ).Hdr;
+            (int X, int Y)[] differing =
+            [
+                .. mirror.Where(pixel =>
+                    BrdfTesting.LargestChannelDifference(At(turned, pixel), At(reflected, pixel))
+                    > At(lit, pixel).Y / 1024
+                ),
+            ];
+            differing
+                .Should()
+                .BeEmpty(
+                    "the trace takes away the term that the ambient pass added, whatever the stars along d; first {0}: {1} and {2}",
+                    differing.FirstOrDefault(),
+                    At(turned, differing.FirstOrDefault()),
+                    At(reflected, differing.FirstOrDefault())
+                );
+        }
+    }
+
+    [Theory]
+    [MemberData(nameof(Resolutions))]
+    public void ACurvedMirrorReflectsAFineGratingAsItsMeanWhereItsFootprintSpansTheBars(TraceResolution resolution)
+    {
+        // The mirror ball's d turns by many pixel angles to the next pixel, so each pixel's cone reads the pyramid at the
+        // level of its footprint f, where the grating's bars, about 2 px apart on the screen, have blended into their
+        // mean. A cone of the footprint p would read single bars, a bright or a dim one from pixel to pixel.
+        float[] hdr = RenderHdr(ReflectionsAt(resolution), MirrorBesideGrating).Hdr;
+        HashSet<(int X, int Y)> reflecting = [.. MirrorBallPixels().Where(pixel => At(hdr, pixel).Y > 0.05f * Bright)];
+        var steps = new List<float>();
+        foreach ((int X, int Y) pixel in reflecting)
+        {
+            (int X, int Y) right = (X: pixel.X + 1, Y: pixel.Y);
+            if (!reflecting.Contains(right))
+                continue;
+            float here = At(hdr, pixel).Y,
+                there = At(hdr, right).Y;
+            steps.Add(2 * Math.Abs(here - there) / (here + there));
+        }
+
+        steps.Count.Should().BeGreaterThan(1000, "the mirror's right side reflects the grating");
+        // Measured on 2026-11-01: 0.05 at full and 0.09 at half resolution, and 0.41 and 1.07 with the cone of p.
+        steps
+            .Average()
+            .Should()
+            .BeLessThan(
+                0.2f,
+                "the step between neighbors is the slow change of the grating's blurred image, not a bar's"
+            );
+    }
+
+    /// <summary>
+    /// A white mirror ball of 1 m radius at <see cref="MirrorBall"/> in the dark, and to its right a grating 2 m tall
+    /// that runs 4 m along the view, from 2 m to 6 m ahead: 80 bars 5 cm wide, which glow <see cref="Bright"/> and a tenth
+    /// of it in turn and face the ball.
+    /// </summary>
+    private static RenderSnapshot MirrorBesideGrating(VulkanRenderer renderer)
+    {
+        RenderSnapshot snapshot = Dark();
+        snapshot.Instances.Add(
+            Gpu.Instance(
+                mesh: renderer.CreateMesh(Primitives.Sphere(1f, 64, 32)),
+                material: renderer.CreateMaterial(Mirror()),
+                position: MirrorBall,
+                scale: Vector3.One,
+                chainDepth: TestChains.CamerasFrame
+            )
+        );
+        MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
+        MaterialId bright = Glow(renderer, new(Bright));
+        MaterialId dim = Glow(renderer, new(Bright / 10));
+        const float bar = 0.05f;
+        for (int i = 0; i < 80; i++)
+            snapshot.Instances.Add(
+                Block(
+                    box: box,
+                    material: i % 2 == 0 ? bright : dim,
+                    center: new(2.05f, 0, -6 + bar * (i + 0.5f)),
+                    size: new(0.1f, 2, bar)
+                )
+            );
+        return snapshot;
+    }
+
     /// <summary>
     /// A white mirror ball of 1 m radius at <see cref="MirrorBall"/> and a ball of the same size that glows
-    /// <see cref="Bright"/> 2.5 m to its right, in the dark, with the root axes turned by <paramref name="root"/>.
+    /// <paramref name="glow"/> 2.5 m to its right, in the dark, with the root axes turned by <paramref name="root"/>.
     /// </summary>
-    private static Func<VulkanRenderer, RenderSnapshot> MirrorBesideGlow(Quaternion root) =>
+    private static Func<VulkanRenderer, RenderSnapshot> MirrorBesideGlow(Quaternion root, float glow = Bright) =>
         renderer =>
         {
             RenderSnapshot snapshot = Dark();
@@ -1259,7 +1397,7 @@ public sealed class ReflectionRenderTests
             snapshot.Instances.Add(
                 Gpu.Instance(
                     mesh: sphere,
-                    material: Glow(renderer, new(Bright)),
+                    material: Glow(renderer, new(glow)),
                     position: MirrorBall + new Vector3(2.5f, 0, 0),
                     scale: Vector3.One,
                     chainDepth: TestChains.CamerasFrame

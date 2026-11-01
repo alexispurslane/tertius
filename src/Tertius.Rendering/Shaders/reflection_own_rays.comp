@@ -1,0 +1,26 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#extension GL_EXT_samplerless_texture_functions : require
+// The own rays of the half-resolution reflections (docs/plans/screen-space-reflections.md, "Rays at outlines"): each
+// pixel that reflection_upsample.comp listed traces its own ray, by the full-resolution trace's ownRayDelta, and adds its
+// delta to the lit image. The upsample wrote no pixel of the list, so each pixel here is written once in the frame.
+#include "reflection_own_rays.glsl"
+
+layout(local_size_x = 64) in;  // OwnRayGroupSize
+
+layout(set = 3, binding = 3, rgba16f) uniform image2D hdrImage;  // the lit image, at this pixel only
+
+void main()
+{
+    uint count = ownRays.count;
+    for (uint entry = gl_GlobalInvocationID.x; entry < count; entry += MostOwnRayGroups * OwnRayGroupSize)
+    {
+        ivec2 pixel = ownRayPixel(entry);
+        // The upsample listed only a pixel that starts a ray, from the same G-buffer.
+        vec3 delta;
+        if (!ownRayDelta(pixel, delta))
+            continue;
+        vec4 lit = imageLoad(hdrImage, pixel);
+        imageStore(hdrImage, pixel, vec4(clamp(lit.rgb + delta, 0.0, MaxRadiance), lit.a));
+    }
+}
