@@ -1,6 +1,6 @@
 ---
 id: ter-r5hb
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-10-31T23:33:23Z
