@@ -74,3 +74,7 @@ The user's decision, 2026-11-01, after the build (head 073ca495): use 3 slices w
 **2026-11-01T21:17:46Z**
 
 Run 964690f2: build done (head 073ca495). Review: correctness pass, design pass, fulfillment changes-required. Its medium finding is the cabin panel's scallops, which the user's choice of 3 slices with 6 blurs addresses. The other findings (saved in /tmp/briefs/k96l-review.json): stale rows in ARCHITECTURE.md about the old estimate (medium); only a comment keeps the denoise's dispatch count even; four places know the packing's layout; the GgxLobe comments' 5 % claim no longer holds under the bound; blocked and open pieces take their angles by two rules; constants out of order and 16 lines past 120 characters; OpenShareCreaseTests' tolerance allows a +40 % slice bias; part 3's load is not recorded. The orchestrator stopped the run at the start of its fix stage, with the worktree clean, so that the FSR experiment's timing series gets a quiet GPU. A continuation applies the user's choice and these findings after that series.
+
+**2026-11-01T22:08:21Z**
+
+Continuation run 96c8265a-279e-4934-bbc4-eab902b1e769 (same version, branch, base c6fdb3a0, preserved worktree): 3 slices with 6 blurs by the user's decision, and the review's findings.

@@ -36,3 +36,7 @@ The diagnosis (run a84b9182, branch head 65629c74) found a sun leak under the ne
 **2026-11-01T20:46:41Z**
 
 Run 26a0f03a: build done (head b268b4c8), review passed correctness, fulfillment and design, with four low findings (saved in /tmp/briefs/kn1d-review.json): (1) the normal offset still has two stores, ShadowPass.NormalOffsetTexels for the cascades and the GLSL literal TileNormalOffsetTexels for the tiles; (2) the absolute value of the cosine in the hair card's turn toward the light has no observable effect and no test; (3) the comments in ShadowPass.cs:34, shadows.glsl:14 and ARCHITECTURE.md:2738 claim that the slope bias covers the receiver's slope over the filter's reach, which holds only along a texel axis, and the known limits leave out the 1-level rings on lit ground; (4) stale comments in ShadowPass.WriteSets and ShadowTests.cs:1094, and the plan's frame.glsl listing still shows axisX and axisY. The orchestrator stopped the run at the start of its fix stage, with the worktree clean at b268b4c8, so that the FSR experiment's timing series gets a quiet GPU (the user, 2026-11-01). The fix stage continues after that series.
+
+**2026-11-01T22:08:21Z**
+
+Continuation run 587b9690-e6eb-41d5-830c-75434c4859cb (same version, branch and base, preserved worktree): clears the review's four low findings.
