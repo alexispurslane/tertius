@@ -24,11 +24,11 @@ internal sealed class OcclusionDenoisePass(
     );
 
     /// <summary>
-    /// How many blurs the pass runs: four, which with the default 4 slices leave noise in S and G within 10 % of a
-    /// 16-slice reference (docs/plans/screen-space-illumination.md, decision 43). Six blurs spread a crease's darkening
-    /// past the tests' tolerance. Even, so that the last writes term A, which the upsample reads.
+    /// How many blurs the pass runs: six, which with the default 3 slices leave noise in S and G within 10 % of a
+    /// 16-slice reference and no scallops on the cabin's ceiling panel (docs/plans/screen-space-illumination.md, decision
+    /// 43). Even, so that the last writes term A, which the upsample reads.
     /// </summary>
-    public const int Dispatches = 4;
+    public const int Dispatches = 6;
 
     public override string Name => "occlusion denoise";
 

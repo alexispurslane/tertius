@@ -259,6 +259,14 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
         }
     }
 
+    /// <summary>
+    /// The floor at the corner keeps the open floor's light within 6/255. The denoise's 6 blurs pull the corner's
+    /// estimate partly from the walls' texels, whose bounce G lacks the floor's light, because only direct light and
+    /// emission bounce, so the corner loses a little light. The user accepted that spread for the default of 3 slices and
+    /// 6 blurs (docs/plans/screen-space-illumination.md, decision 43, 2026-11-01). Measured loss: 1/255 at 2 blurs, 3/255
+    /// at 4, 4/255 at 6. The tolerance keeps the 2/255 that the earlier 3/255 left above the loss of 2 blurs, for the
+    /// capture's rounding to 8 bits and the slices' error, over the loss of 6: 4/255 + 2/255.
+    /// </summary>
     [Fact]
     public void InAFurnaceACreaseGetsTheLightOfTheOpenFloor()
     {
@@ -280,7 +288,7 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
             output.WriteLine($"floor at the corner {atTheCorner * 255:0.0}, open floor {open * 255:0.0} of 255");
             atTheCorner
                 .Should()
-                .BeApproximately(open, 3f / 255, "each direction is open or blocked, and both bring the same light");
+                .BeApproximately(open, 6f / 255, "each direction is open or blocked, and both bring the same light");
         }
         finally
         {

@@ -14,11 +14,11 @@ public readonly record struct NoScreenSpaceLight;
 public readonly record struct VisibilityBitmaskLight(float RadiusMeters, int Slices, int StepsPerSide)
 {
     /// <summary>
-    /// The renderer's default: 1 m, 4 slices and 3 steps on each side. With the denoise's 4 blurs, 4 slices are the
-    /// cheapest set whose noise lies within 10 % of a 16-slice reference (docs/plans/screen-space-illumination.md,
-    /// decision 43).
+    /// The renderer's default: 1 m, 3 slices and 3 steps on each side. With the denoise's 6 blurs, 3 slices leave noise
+    /// within 10 % of a 16-slice reference, and no scallops on the cabin's ceiling panel, for less than 4 slices with 4
+    /// blurs cost (docs/plans/screen-space-illumination.md, decision 43).
     /// </summary>
-    public static VisibilityBitmaskLight Default => new(RadiusMeters: 1, Slices: 4, StepsPerSide: 3);
+    public static VisibilityBitmaskLight Default => new(RadiusMeters: 1, Slices: 3, StepsPerSide: 3);
 }
 
 /// <summary>

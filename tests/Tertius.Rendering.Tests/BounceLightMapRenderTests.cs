@@ -162,7 +162,7 @@ public sealed class BounceLightMapRenderTests(ITestOutputHelper output)
     /// The crease of a dimly glowing near wall and the floor, under the map of the far glowing wall, which glows twice
     /// as bright, and of a small bright lamp high up and ahead, which the open directions of the crease face. The map
     /// holds the near wall too, so the crease's blocked directions hold much of the map's light, and S is well below 1.
-    /// The crease's light at the default 4 slices lies within 10 % of a reference at 16 slices, the most that the
+    /// The crease's light at the default 3 slices lies within 10 % of a reference at 16 slices, the most that the
     /// setting allows, in the mean over ten floor points along the crease, 5 cm from the wall: the slices' noise averages
     /// out along the crease, as the denoise averages it, and the open share S is a ratio of reads of one store, so no
     /// read's error takes the crease past the open directions' light.
@@ -203,7 +203,7 @@ public sealed class BounceLightMapRenderTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// The floor around a small box beside the crease of <see cref="AddDimWallFarGlowAndLamp"/>, at the default 4
+    /// The floor around a small box beside the crease of <see cref="AddDimWallFarGlowAndLamp"/>, at the default 3
     /// slices, has at most 10 % more grain in the open share S than a reference at 16 slices. The grain is the mean of
     /// each pixel's difference from the mean of the 9 × 9 pixels around it: the measure of the captures' review
     /// (ter-xgra), which saw blotches and specks where 3 slices' noise outlived 2 blurs: 1.27 times the reference's grain

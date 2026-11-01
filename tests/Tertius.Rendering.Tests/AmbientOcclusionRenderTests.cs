@@ -143,11 +143,19 @@ public sealed class AmbientOcclusionRenderTests(ITestOutputHelper output)
             .BeApproximately(expected, 0.03, "the near sectors estimate the share that the wall and its slab hide");
     }
 
+    /// <summary>
+    /// The floor's V within <paramref name="tolerance"/> of the wall's share, 0.03 at 0.3 m and 0.6 m. At 0.15 m, 2
+    /// half-resolution texels from the crease, the tolerance is 0.05, because the denoise's 6 blurs reach 6 texels and
+    /// the crease cuts them on the wall's side: the blurs pull V toward the open floor's. The user accepted that spread for
+    /// the default of 3 slices and 6 blurs (docs/plans/screen-space-illumination.md, decision 43, 2026-11-01). Measured
+    /// pull at 0.172 m: +0.016 at 2 blurs, +0.025 at 4, +0.032 at 6. The tolerance keeps the 0.014 that 0.03 left above
+    /// the pull of 2 blurs, for the slices' error, over the pull of 6: 0.032 + 0.014 = 0.046, rounded up to 0.05.
+    /// </summary>
     [Theory]
-    [InlineData(0.15)]
-    [InlineData(0.3)]
-    [InlineData(0.6)]
-    public void AFloorBesideATallWallLosesOnlyTheShareThatTheWallHidesWithinTheRadius(double distance)
+    [InlineData(0.15, 0.05)]
+    [InlineData(0.3, 0.03)]
+    [InlineData(0.6, 0.03)]
+    public void AFloorBesideATallWallLosesOnlyTheShareThatTheWallHidesWithinTheRadius(double distance, double tolerance)
     {
         (double measured, double rowDistance) = FloorBesideAWall(
             wallCenter: TallWallCenter,
@@ -161,7 +169,7 @@ public sealed class AmbientOcclusionRenderTests(ITestOutputHelper output)
             .Should()
             .BeApproximately(
                 expected,
-                0.03,
+                tolerance,
                 "the near sectors find the wall within the radius, and beyond it an open sector takes the ambient light"
             );
     }
