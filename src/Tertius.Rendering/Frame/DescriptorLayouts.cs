@@ -128,36 +128,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         DeformSet = CreateDeformSetLayout();
         ScatterSet = CreateScatterSetLayout();
 
-        const ShaderStageFlags graphics = ShaderStageFlags.VertexBit | ShaderStageFlags.FragmentBit;
-        var drawPush = new PushConstantRange(graphics, 0, (uint)Unsafe.SizeOf<DrawPushConstants>());
-        ReadOnlySpan<DescriptorSetLayout> sceneSets = [FrameSet, TextureSet, GBufferSet, AtlasSet];
-        SceneLayout = CreatePipelineLayout(sets: sceneSets[..3], push: drawPush, name: "scene layout");
-        ImpostorLayout = CreatePipelineLayout(sets: sceneSets, push: drawPush, name: "impostor layout");
-        AmbientScatterLayout = CreatePipelineLayout(
-            sets: [FrameSet, TextureSet, GBufferSet, ScatterSet],
-            push: drawPush,
-            name: "ambient scatter layout"
-        );
-        OverlayLayout = CreatePipelineLayout(
-            sets: sceneSets[..3],
-            push: new(ShaderStageFlags.FragmentBit, 0, (uint)Unsafe.SizeOf<OutlinePushConstants>()),
-            name: "overlay layout"
-        );
-        PostLayout = CreatePipelineLayout(
-            sets: [PostSet],
-            push: new(ShaderStageFlags.FragmentBit, 0, (uint)Unsafe.SizeOf<ToneMapPushConstants>()),
-            name: "post layout"
-        );
-        BloomLayout = CreatePipelineLayout(
-            sets: [GlowSourceSet],
-            push: new(ShaderStageFlags.FragmentBit, 0, (uint)Unsafe.SizeOf<BloomPushConstants>()),
-            name: "bloom layout"
-        );
-        SmaaLayout = CreatePipelineLayout(
-            sets: [SmaaSet],
-            push: new(graphics, 0, (uint)Unsafe.SizeOf<SmaaPushConstants>()),
-            name: "smaa layout"
-        );
+        (SceneLayout, ImpostorLayout, AmbientScatterLayout, OverlayLayout, PostLayout, BloomLayout, SmaaLayout) =
+            CreateGraphicsLayouts();
         (
             ExposureLayout,
             EnvironmentPrefilterLayout,
@@ -643,6 +615,50 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         Span<DescriptorBindingFlags> flags = stackalloc DescriptorBindingFlags[gbuffer.Length];
         flags[(int)ShadowAtlas.AtlasBinding] = DescriptorBindingFlags.PartiallyBoundBit;
         return CreateLayout(bindings: gbuffer, name: "g-buffer set", bindingFlags: flags);
+    }
+
+    /// <summary>The pipeline layouts of the graphics passes, after the set layouts that they hold.</summary>
+    private (
+        PipelineLayout Scene,
+        PipelineLayout Impostor,
+        PipelineLayout AmbientScatter,
+        PipelineLayout Overlay,
+        PipelineLayout Post,
+        PipelineLayout Bloom,
+        PipelineLayout Smaa
+    ) CreateGraphicsLayouts()
+    {
+        const ShaderStageFlags graphics = ShaderStageFlags.VertexBit | ShaderStageFlags.FragmentBit;
+        var drawPush = new PushConstantRange(graphics, 0, (uint)Unsafe.SizeOf<DrawPushConstants>());
+        ReadOnlySpan<DescriptorSetLayout> sceneSets = [FrameSet, TextureSet, GBufferSet, AtlasSet];
+        PipelineLayout sceneLayout = CreatePipelineLayout(sets: sceneSets[..3], push: drawPush, name: "scene layout");
+        PipelineLayout impostorLayout = CreatePipelineLayout(sets: sceneSets, push: drawPush, name: "impostor layout");
+        PipelineLayout ambientScatterLayout = CreatePipelineLayout(
+            sets: [FrameSet, TextureSet, GBufferSet, ScatterSet],
+            push: drawPush,
+            name: "ambient scatter layout"
+        );
+        PipelineLayout overlayLayout = CreatePipelineLayout(
+            sets: sceneSets[..3],
+            push: new(ShaderStageFlags.FragmentBit, 0, (uint)Unsafe.SizeOf<OutlinePushConstants>()),
+            name: "overlay layout"
+        );
+        PipelineLayout postLayout = CreatePipelineLayout(
+            sets: [PostSet],
+            push: new(ShaderStageFlags.FragmentBit, 0, (uint)Unsafe.SizeOf<ToneMapPushConstants>()),
+            name: "post layout"
+        );
+        PipelineLayout bloomLayout = CreatePipelineLayout(
+            sets: [GlowSourceSet],
+            push: new(ShaderStageFlags.FragmentBit, 0, (uint)Unsafe.SizeOf<BloomPushConstants>()),
+            name: "bloom layout"
+        );
+        PipelineLayout smaaLayout = CreatePipelineLayout(
+            sets: [SmaaSet],
+            push: new(graphics, 0, (uint)Unsafe.SizeOf<SmaaPushConstants>()),
+            name: "smaa layout"
+        );
+        return (sceneLayout, impostorLayout, ambientScatterLayout, overlayLayout, postLayout, bloomLayout, smaaLayout);
     }
 
     /// <summary>
@@ -1240,6 +1256,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         // Destroying a pool frees its sets.
         vk.DestroyDescriptorPool(device.Device, pool, null);
         vk.DestroyDescriptorPool(device.Device, texturePool, null);
+
         vk.DestroyPipelineLayout(device.Device, SceneLayout, null);
         vk.DestroyPipelineLayout(device.Device, ImpostorLayout, null);
         vk.DestroyPipelineLayout(device.Device, AmbientScatterLayout, null);
@@ -1255,6 +1272,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         vk.DestroyPipelineLayout(device.Device, ReflectionLayout, null);
         vk.DestroyPipelineLayout(device.Device, DeformLayout, null);
         vk.DestroyPipelineLayout(device.Device, ScatterLayout, null);
+
         vk.DestroyDescriptorSetLayout(device.Device, FrameSet, null);
         vk.DestroyDescriptorSetLayout(device.Device, TextureSet, null);
         vk.DestroyDescriptorSetLayout(device.Device, GBufferSet, null);
@@ -1272,6 +1290,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         vk.DestroyDescriptorSetLayout(device.Device, ReflectionSet, null);
         vk.DestroyDescriptorSetLayout(device.Device, DeformSet, null);
         vk.DestroyDescriptorSetLayout(device.Device, ScatterSet, null);
+
         vk.DestroySampler(device.Device, ShadowSampler, null);
         vk.DestroySampler(device.Device, AtlasSampler, null);
         vk.DestroySampler(device.Device, LinearClampSampler, null);
