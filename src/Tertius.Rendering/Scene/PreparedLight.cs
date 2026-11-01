@@ -62,8 +62,10 @@ internal enum MainViewTier : byte
     /// The main view keeps a spot light's cone, cut at its reach, but its axis, cut at its reach, misses the view. Its
     /// light is strongest along that axis, so it ranks below every light whose light falls in view (the user's design B
     /// of ter-19fm: "the lowest rank among lights in the main view"). A lamp whose beam only clips the view's edge must
-    /// not take a tile from one that lights the floor ahead. A wide inner cone can still put full light in view: a
-    /// known limit of the rule (ARCHITECTURE.md, "Local shadows", the rank).
+    /// not take a tile from one that lights the floor ahead. The one exception is a holder of tiles, which ranks in the
+    /// tier of a longer reach (<see cref="ShadowTiles.HolderMargin"/>): a holder of this tier whose axis enters the view at
+    /// that reach keeps its tiles against a lamp that lights the floor ahead with less than twice its light. A wide inner
+    /// cone can still put full light in view: a known limit of the rule (ARCHITECTURE.md, "Local shadows", the rank).
     /// </summary>
     AxisMissesView,
 

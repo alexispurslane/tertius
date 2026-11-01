@@ -1,6 +1,6 @@
 ---
 id: ter-xkex
-status: open
+status: closed
 deps: [ter-r5hb]
 links: []
 created: 2026-11-01T01:19:16Z
@@ -24,3 +24,7 @@ After ter-r5hb merges, deck-late at the default reflections shows no streaks on 
 **2026-11-01T01:19:31Z**
 
 The evidence (the script, the full deck-late.png and the 3x crops) is in captures/deck-fringe-2026-10-31/, which git ignores, so it lives only on this machine. The script re-creates every image: dotnet run -c Release --project src/Tertius.Demo -- --script captures/deck-fringe-2026-10-31/late.json --headless --out <folder>, plus one switch for the A/B runs.
+
+**2026-11-01T01:45:25Z**
+
+Closed by ter-r5hb (orchestrator, 2026-10-31). The same script on main ea5d806c, with the default reflections at 256 steps, shows no streaks on the cabin's lower wall: captures/deck-fringe-2026-10-31/deck-late-256-steps-3x.png against fringe-3x.png (128 steps). So the streaks were rays that ran out of steps before they reached the sill. The floor band of ter-k96l is unchanged in the same image.

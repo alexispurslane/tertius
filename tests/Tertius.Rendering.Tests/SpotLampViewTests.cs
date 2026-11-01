@@ -101,6 +101,7 @@ public sealed class SpotLampViewTests
         var tiles = new ShadowTiles(layers: layers, tileSize: TileSize);
         tiles.Update(
             lights: scene.LightSpan,
+            camera: scene.Camera,
             placed: scene.PlacedSpan,
             deformed: scene.Deformed,
             originFrameId: 1,
@@ -308,6 +309,135 @@ public sealed class SpotLampViewTests
         TileHolders(scene)
             .Should()
             .Equal([1u], "the first lamp's axis in view comes 4 m from the eye, the second's 6 m");
+    }
+
+    /// <summary>
+    /// A frame of a 60° spot lamp 2 m right of the view with a reach of <paramref name="holderReach"/> m, whose axis
+    /// enters the view through the right plane 10 m from the lamp, and a spot lamp 40 m ahead with a reach of 15 m, aimed
+    /// down at the floor in view: the lights after the update of <paramref name="tiles"/>, with the lamp right of the view
+    /// first. The frame is submitted.
+    /// </summary>
+    private static PreparedLight[] FrameOfALampRightOfTheView(ShadowTiles tiles, float holderReach)
+    {
+        RenderSnapshot snapshot = Dark();
+        snapshot.Lights.Add(
+            Lamp(
+                entity: 1,
+                position: new(8.558f, 0, -5.546f),
+                direction: new(0.5622f, 0, -0.827f),
+                reach: holderReach,
+                outerConeAngle: MathF.PI / 3
+            )
+        );
+        // Its axis passes 40 m from the eye, so it ranks at 15² / 40² = 0.14 cutoffs.
+        snapshot.Lights.Add(Lamp(entity: 2, position: new(0, 3, -40), direction: -Vector3.UnitY, reach: 15));
+        PreparedScene scene = Prepare(snapshot: snapshot);
+        tiles.Update(
+            lights: scene.LightSpan,
+            camera: scene.Camera,
+            placed: scene.PlacedSpan,
+            deformed: scene.Deformed,
+            originFrameId: 1,
+            views: [],
+            draws: []
+        );
+        tiles.Drew();
+        return scene.LightSpan.ToArray();
+    }
+
+    [Fact]
+    public void AHolderWhoseAxisFallsShortOfTheViewKeepsItsTilesWhileTheRootOfTwoTimesItsReachMeetsTheView()
+    {
+        var tiles = new ShadowTiles(layers: 1, tileSize: TileSize);
+        // With a reach of 13 m the axis enters the view, 19.8 m from the eye: 13² / 19.8² = 0.43 cutoffs.
+        FrameOfALampRightOfTheView(tiles: tiles, holderReach: 13);
+
+        // With a reach of 8 m the axis falls short of the view, but at √2 × 8 m = 11.3 m it enters it.
+        PreparedLight[] lights = FrameOfALampRightOfTheView(tiles: tiles, holderReach: 8);
+
+        lights[0]
+            .Tier.Should()
+            .Be(MainViewTier.AxisMissesView, "the grown tier is an input of the shadow ranking only");
+        lights
+            .Select(light => light.Shadow.HasValue)
+            .Should()
+            .Equal(
+                [true, false],
+                "the holder ranks in the tier of its grown reach, so the lamp ahead, whose axis is in view, does not take its tile"
+            );
+    }
+
+    [Fact]
+    public void AHolderWhoseGrownReachStillMissesTheViewWithItsAxisLosesItsTilesToALampWhoseAxisIsInView()
+    {
+        var tiles = new ShadowTiles(layers: 1, tileSize: TileSize);
+        FrameOfALampRightOfTheView(tiles: tiles, holderReach: 13);
+
+        // √2 × 6 m = 8.5 m, so even the grown axis falls short of the view.
+        PreparedLight[] lights = FrameOfALampRightOfTheView(tiles: tiles, holderReach: 6);
+
+        lights
+            .Select(light => light.Shadow.HasValue)
+            .Should()
+            .Equal(
+                [false, true],
+                "the holder ranks a tier lower, though twice its light at its reach, 2 cutoffs, is more than the lamp ahead's 0.14"
+            );
+    }
+
+    [Fact]
+    public void APointLampHolderWhoseReachSlipsOutOfTheViewLosesItsTilesAtOnce()
+    {
+        var tiles = new ShadowTiles(layers: 6, tileSize: TileSize);
+        // Its axis passes 5 m from the eye, so it ranks at 5.5² / 5² = 1.21 cutoffs.
+        SpotRenderLight ahead = Lamp(entity: 2, position: new(0, 3, -5), direction: -Vector3.UnitY, reach: 5.5f);
+        RenderSnapshot before = Dark();
+        // 5 m behind the eye with a reach of 8 m, it ranks at 8² / 5² = 2.56 cutoffs and takes all six layers.
+        before.Lights.Add(Bulb(entity: 1, position: new(0, 0, 5), reach: 8));
+        before.Lights.Add(ahead);
+        PreparedScene first = Prepare(snapshot: before);
+        tiles.Update(
+            lights: first.LightSpan,
+            camera: first.Camera,
+            placed: first.PlacedSpan,
+            deformed: first.Deformed,
+            originFrameId: 1,
+            views: [],
+            draws: []
+        );
+        tiles.Drew();
+        first
+            .LightSpan.ToArray()
+            .Where(light => light.Shadow.HasValue)
+            .Select(light => light.EntityIndex)
+            .Should()
+            .Equal([1u], "the bulb holds the six layers before its reach shrinks");
+        RenderSnapshot after = Dark();
+        // With a reach of 4.5 m its sphere stops 0.5 m behind the eye, though √2 × 4.5 m = 6.4 m reaches into the
+        // view.
+        after.Lights.Add(Bulb(entity: 1, position: new(0, 0, 5), reach: 4.5f));
+        after.Lights.Add(ahead);
+
+        PreparedScene scene = Prepare(snapshot: after);
+        tiles.Update(
+            lights: scene.LightSpan,
+            camera: scene.Camera,
+            placed: scene.PlacedSpan,
+            deformed: scene.Deformed,
+            originFrameId: 2,
+            views: [],
+            draws: []
+        );
+
+        scene
+            .LightSpan.ToArray()
+            .Where(light => light.Shadow.HasValue)
+            .Select(light => light.EntityIndex)
+            .Should()
+            .Equal(
+                [2u],
+                "the batcher drops the bulb from the light list, so twice its 0.81 cutoffs, 1.62, never meets the 1.21"
+            );
     }
 
     [Fact]
