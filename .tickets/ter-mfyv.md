@@ -1,6 +1,6 @@
 ---
 id: ter-mfyv
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-11-01T02:14:19Z
@@ -19,3 +19,9 @@ The direct light pass takes 6.009 ms of the frame's 17.56 ms in the trace, 34 % 
 ## Acceptance Criteria
 
 The direct light pass's own busy time on demo-exit (a trace of every frame, two runs or a paired trace) is at most 3.80 ms, or the changes that keep the image are exhausted and a note gives the remainder and each candidate default change with its measured saving and captures. Every change keeps the image by the pixel comparison of decision 7. ARCHITECTURE.md gives the new cost.
+
+## Notes
+
+**2026-11-01T02:17:05Z**
+
+2026-10-31: workflow run b14a2f6e-7bc1-494f-aba7-d234d0c1f72d (version 869b0b07), branch ter-mfyv-direct-light-share from ef3b6ae5. Settled by the orchestrator before the launch: a change keeps the image when no pixel of the comparison captures differs by more than 2 of 255 levels in any channel of the final 8-bit image; a larger change is a default change, which ter-3g1g takes to the user with captures.

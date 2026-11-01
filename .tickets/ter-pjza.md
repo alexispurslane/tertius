@@ -1,6 +1,6 @@
 ---
 id: ter-pjza
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-11-01T02:14:19Z
@@ -19,3 +19,9 @@ The screen-space light's passes and the ambient pass take, in ms per frame (own 
 ## Acceptance Criteria
 
 The five passes' own busy time on demo-exit (a trace of every frame, two runs or a paired trace) is at most 1.75 ms, or the changes that keep the image are exhausted and a note gives the remainder and each candidate default change with its measured saving and captures. Every change keeps the image by the pixel comparison of decision 7. ARCHITECTURE.md gives the new cost.
+
+## Notes
+
+**2026-11-01T02:17:05Z**
+
+2026-10-31: workflow run 251261a0-570a-46fb-82f7-d3c4676596e4 (version 869b0b07), branch ter-pjza-screen-space-light-share from ef3b6ae5. Settled by the orchestrator before the launch: a change keeps the image when no pixel of the comparison captures differs by more than 2 of 255 levels in any channel of the final 8-bit image; a larger change is a default change, which ter-3g1g takes to the user with captures.

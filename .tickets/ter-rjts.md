@@ -1,6 +1,6 @@
 ---
 id: ter-rjts
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-11-01T02:14:19Z
@@ -19,3 +19,9 @@ The four passes of the reflections take, in ms per frame (own time, then share):
 ## Acceptance Criteria
 
 The four passes' own busy time on demo-exit (a trace of every frame, two runs or a paired trace) is at most 2.59 ms, or the changes that keep the image are exhausted and a note gives the remainder and each candidate default change with its measured saving and captures. A note explains the growth from 3.27 ms. Every change keeps the image by the pixel comparison of decision 7. ARCHITECTURE.md gives the new cost.
+
+## Notes
+
+**2026-11-01T02:17:05Z**
+
+2026-10-31: workflow run 338f0bac-7500-4f84-818a-237a8c030ca5 (version 869b0b07), branch ter-rjts-reflections-share from ef3b6ae5. Settled by the orchestrator before the launch: a change keeps the image when no pixel of the comparison captures differs by more than 2 of 255 levels in any channel of the final 8-bit image; a larger change is a default change, which ter-3g1g takes to the user with captures.

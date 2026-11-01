@@ -101,11 +101,20 @@ def _two_frames():
     }
 
 
+def _first_starts(intervals):
+    """The first GPU start of each command buffer of intervals: the frames of the trace as gpu_intervals gives them
+    when the trace lost no encoder."""
+    first = {}
+    for (buffer, _), spans in intervals.items():
+        first[buffer] = min([first.get(buffer, spans[0][0]), *(start for start, _ in spans)])
+    return first
+
+
 class Summarize(unittest.TestCase):
     """summarize: the statistics of each pass over the frames, in milliseconds, in the order of the frame graph."""
 
     def setUp(self):
-        self.report = gpu_trace.summarize(_two_frames(), ["a", "b", "c"], {}, ("a", "b"))
+        self.report = gpu_trace.summarize(_two_frames(), _first_starts(_two_frames()), ["a", "b", "c"], {}, ("a", "b"))
         self.rows = {entry["pass"]: entry for entry in self.report["passes"]}
 
     def test_each_pass_gives_its_time_alone_beside_its_busy_time(self):
@@ -132,7 +141,8 @@ class Summarize(unittest.TestCase):
         self.assertEqual(self.report["window"]["missing"], 1)
 
     def test_without_two_passes_the_summary_has_no_window(self):
-        self.assertNotIn("window", gpu_trace.summarize(_two_frames(), ["a", "b", "c"], {}))
+        intervals = _two_frames()
+        self.assertNotIn("window", gpu_trace.summarize(intervals, _first_starts(intervals), ["a", "b", "c"], {}))
 
 
 class Table(unittest.TestCase):
@@ -140,7 +150,7 @@ class Table(unittest.TestCase):
 
     def setUp(self):
         report = {"device": "Test GPU", "width": 64, "height": 32, "commandBuffers": {"frames": 2, "skipped": 0}}
-        report |= gpu_trace.summarize(_two_frames(), ["a", "b", "c"], {}, ("a", "b"))
+        report |= gpu_trace.summarize(_two_frames(), _first_starts(_two_frames()), ["a", "b", "c"], {}, ("a", "b"))
         self.lines = gpu_trace.table(report, has_counters=False).splitlines()
 
     def row(self, name):
@@ -200,7 +210,8 @@ class PairedFrames(unittest.TestCase):
     of the differences in ms, with minus without."""
 
     def setUp(self):
-        self.result = gpu_trace.paired(_frames([True, False] * 5 + [True]), ["a", "x", "b"], "x", between=("a", "b"))
+        intervals = _frames([True, False] * 5 + [True])
+        self.result = gpu_trace.paired(intervals, _first_starts(intervals), ["a", "x", "b"], "x", between=("a", "b"))
 
     def test_the_dropped_pass_costs_its_whole_busy_time(self):
         self.assertEqual(_paired_row(self.result, "x")["busy"]["medianMs"], 2.5)
@@ -232,7 +243,8 @@ class PairedFrames(unittest.TestCase):
         )
 
     def test_a_slow_drift_over_the_frames_cancels_in_the_pairs(self):
-        drifting = gpu_trace.paired(_frames([True, False] * 5 + [True], drift_ns=7_000), ["a", "x", "b"], "x")
+        intervals = _frames([True, False] * 5 + [True], drift_ns=7_000)
+        drifting = gpu_trace.paired(intervals, _first_starts(intervals), ["a", "x", "b"], "x")
         self.assertAlmostEqual(_paired_row(drifting, "a")["busy"]["medianMs"], 0.0, places=9)
 
     def test_the_paired_median_is_the_median_of_the_differences_not_the_difference_of_the_medians(self):
@@ -243,7 +255,7 @@ class PairedFrames(unittest.TestCase):
             intervals[(f"f{i}", "a")] = [(i * 20 * MS, i * 20 * MS + int(length * MS))]
             if i % 2 == 0:
                 intervals[(f"f{i}", "x")] = [(i * 20 * MS + 10 * MS, i * 20 * MS + 11 * MS)]
-        result = gpu_trace.paired(intervals, ["a", "x"], "x")
+        result = gpu_trace.paired(intervals, _first_starts(intervals), ["a", "x"], "x")
         # Differences: (1 + 3) / 2 - 1 = 1, (3 + 3) / 2 - 1 = 2, (3 + 3) / 2 - 2 = 1, so the median is 1. The medians
         # of the two kinds of frames are 3 and 1, whose difference is 2.
         self.assertEqual(_paired_row(result, "a")["busy"]["medianMs"], 1.0)
@@ -254,21 +266,23 @@ class LeftOutFrames(unittest.TestCase):
     result names it by its index in the order of the frames' first GPU start, counted from 0."""
 
     def test_frames_without_the_pass_at_the_two_ends_of_the_trace_are_left_out(self):
-        result = gpu_trace.paired(_frames([False, True, False, True, False]), ["a", "x", "b"], "x")
+        intervals = _frames([False, True, False, True, False])
+        result = gpu_trace.paired(intervals, _first_starts(intervals), ["a", "x", "b"], "x")
         self.assertEqual((result["leftOut"], result["pairs"]), ([0, 4], 1))
 
     def test_two_neighboring_frames_without_the_pass_are_both_left_out(self):
-        result = gpu_trace.paired(_frames([True, False, True, False, False, True, False, True]), ["a", "x", "b"], "x")
+        intervals = _frames([True, False, True, False, False, True, False, True])
+        result = gpu_trace.paired(intervals, _first_starts(intervals), ["a", "x", "b"], "x")
         self.assertEqual((result["leftOut"], result["pairs"]), ([3, 4], 2))
 
     def test_a_frame_whose_window_does_not_exist_leaves_its_pair_out_of_the_window_only(self):
         intervals = _frames([True, False, True, False, True])
         del intervals[("f2", "b")]
-        result = gpu_trace.paired(intervals, ["a", "x", "b"], "x", between=("a", "b"))
+        result = gpu_trace.paired(intervals, _first_starts(intervals), ["a", "x", "b"], "x", between=("a", "b"))
         self.assertEqual((result["window"]["leftOut"], result["window"]["pairs"], result["pairs"]), ([1, 3], 0, 2))
 
     def test_a_trace_in_which_no_frame_drops_the_pass_has_no_pairs_and_no_medians(self):
-        result = gpu_trace.paired(_frames([True] * 4), ["a", "x", "b"], "x")
+        result = gpu_trace.paired(_frames([True] * 4), _first_starts(_frames([True] * 4)), ["a", "x", "b"], "x")
         self.assertEqual((result["pairs"], result["passes"]), (0, []))
 
 
@@ -277,21 +291,179 @@ class ControlPairs(unittest.TestCase):
     the pass, so the medians give the noise floor of the method."""
 
     def test_the_control_on_frames_that_all_run_the_pass_gives_a_median_of_zero_in_every_pass(self):
-        result = gpu_trace.paired(_frames([True] * 9, drift_ns=7_000), ["a", "x", "b"], "x", control=True)
+        intervals = _frames([True] * 9, drift_ns=7_000)
+        result = gpu_trace.paired(intervals, _first_starts(intervals), ["a", "x", "b"], "x", control=True)
         medians = [entry[kind]["medianMs"] for entry in result["passes"] for kind in ("busy", "alone")]
         self.assertEqual(len(medians), 6)
         self.assertLess(max(abs(median) for median in [*medians, result["frame"]["medianMs"]]), 1e-9)
 
     def test_the_control_pairs_each_odd_frame_that_has_two_neighbors(self):
-        result = gpu_trace.paired(_frames([True] * 8), ["a", "x", "b"], "x", control=True)
+        intervals = _frames([True] * 8)
+        result = gpu_trace.paired(intervals, _first_starts(intervals), ["a", "x", "b"], "x", control=True)
         self.assertEqual((result["pairs"], result["leftOut"]), (3, [7]))
 
     def test_the_control_leaves_out_a_frame_without_the_pass_and_the_odd_frames_beside_it(self):
-        result = gpu_trace.paired(_frames([True, True, False, True, True, True, True]), ["a", "x", "b"], "x", control=True)
+        intervals = _frames([True, True, False, True, True, True, True])
+        result = gpu_trace.paired(intervals, _first_starts(intervals), ["a", "x", "b"], "x", control=True)
         self.assertEqual((result["pairs"], result["leftOut"]), (1, [1, 2, 3]))
 
     def test_the_control_says_that_it_is_the_control(self):
-        self.assertTrue(gpu_trace.paired(_frames([True] * 3), ["a", "x", "b"], "x", control=True)["control"])
+        intervals = _frames([True] * 3)
+        self.assertTrue(gpu_trace.paired(intervals, _first_starts(intervals), ["a", "x", "b"], "x", control=True)["control"])
+
+
+def _starts(count):
+    """The first GPU start of each of count frames of _frames, keyed by frame name, as gpu_intervals gives them."""
+    return {f"f{i}": i * 20 * MS for i in range(count)}
+
+
+def _lose(intervals, *frames):
+    """intervals without every key of the named frames: frames whose encoders the trace lost."""
+    return {key: spans for key, spans in intervals.items() if key[0] not in frames}
+
+
+class FramesThatTheReportCannotRead(unittest.TestCase):
+    """per_frame, summarize and paired with the starts of gpu_intervals: a frame of the trace whose passes the report
+    cannot name keeps its place in the order of the frames and gives no values."""
+
+    def odd_frames_longer(self, count):
+        """count frames of _frames, all with x, in which a lasts 1 ms longer in each odd frame."""
+        intervals = _frames([True] * count)
+        for i in range(1, count, 2):
+            ((start, end),) = intervals[(f"f{i}", "a")]
+            intervals[(f"f{i}", "a")] = [(start, end + MS)]
+        return intervals
+
+    def test_the_control_pairs_the_odd_frames_of_the_trace_after_a_frame_that_the_report_cannot_read(self):
+        intervals = _lose(self.odd_frames_longer(9), "f3")
+        result = gpu_trace.paired(intervals, _starts(9), ["a", "x", "b"], "x", control=True)
+        # The pairs around frames 1, 5 and 7 each give the even neighbors minus the longer odd frame: -1 ms.
+        self.assertEqual((result["pairs"], _paired_row(result, "a")["busy"]["medianMs"]), (3, -1.0))
+
+    def test_the_frames_after_a_frame_that_the_report_cannot_read_keep_their_index(self):
+        intervals = _lose(_frames([True, False, True, False, True, False, True, False, True]), "f4")
+        result = gpu_trace.paired(intervals, _starts(9), ["a", "x", "b"], "x")
+        self.assertEqual((result["frames"], result["pairs"], result["parity"], result["leftOut"]), (9, 2, "odd", [3, 5]))
+
+    def test_a_frame_that_the_report_cannot_read_is_not_a_frame_without_the_pass(self):
+        result = gpu_trace.paired(_lose(_frames([True] * 3), "f1"), _starts(3), ["a", "x", "b"], "x")
+        self.assertEqual((result["pairs"], result["leftOut"]), (0, []))
+
+    def test_the_summary_names_the_frames_that_the_report_cannot_read_by_their_index(self):
+        found = gpu_trace.summarize(_lose(_frames([True] * 5), "f2"), _starts(5), ["a", "x", "b"], {}, ("a", "b"))
+        self.assertEqual(found["unread"], [2])
+
+    def test_a_frame_that_the_report_cannot_read_counts_in_no_statistic(self):
+        found = gpu_trace.summarize(_lose(_frames([True] * 5), "f2"), _starts(5), ["a", "x", "b"], {}, ("a", "b"))
+        self.assertEqual((found["frame"]["frames"], found["window"]["frames"], found["window"]["missing"]), (4, 4, 0))
+
+    def test_a_trace_in_which_every_frame_has_an_interval_of_a_pass_has_no_frame_that_the_report_cannot_read(self):
+        intervals = _frames([True] * 3)
+        self.assertEqual(gpu_trace.summarize(intervals, _first_starts(intervals), ["a", "x", "b"], {})["unread"], [])
+
+    def test_a_line_below_the_table_names_the_frames_that_the_report_cannot_read(self):
+        intervals = _lose(_frames([True] * 5), "f2")
+        report = {"device": "Test GPU", "width": 64, "height": 32, "commandBuffers": {"frames": 4, "skipped": 0}}
+        report |= gpu_trace.summarize(intervals, _starts(5), ["a", "x", "b"], {})
+        lines = gpu_trace.table(report, has_counters=False).splitlines()
+        self.assertIn(
+            "The report cannot read the passes of frames 2: the trace lost some of their encoders, or they hold another"
+            " number of timestamp encoders. Each keeps its place in the order of the frames and gives no values"
+            " (tools/README.md, \"GPU trace\").",
+            lines,
+        )
+
+
+class GpuIntervals(unittest.TestCase):
+    """gpu_intervals: reads the exported table of GPU intervals into the intervals of each pass and the first GPU start
+    of each frame."""
+
+    def intervals(self, rows):
+        """gpu_intervals on a table of rows (start ns, duration ns, process, command buffer, encoder, label)."""
+        columns = ["start", "duration", "process", "cmdbuffer-id", "encoder-id", "event-label"]
+        body = "".join(
+            "<row>" + "".join(f'<c fmt="{fmt}">{text}</c>' for fmt, text in cells) + "</row>"
+            for cells in (
+                [("", start), ("", duration), (process, ""), (buffer, ""), (encoder, ""), (label, "")]
+                for start, duration, process, buffer, encoder, label in rows
+            )
+        )
+        schema = "".join(f"<col><mnemonic>{name}</mnemonic></col>" for name in columns)
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "metal-gpu-intervals.xml"
+            path.write_text(f"<trace-query-result><node><schema>{schema}</schema>{body}</node></trace-query-result>")
+            return gpu_trace.gpu_intervals(path, "Demo", {"e1": ("b1", "a"), "e2": ("b1", "a")})
+
+    def test_a_command_buffer_with_a_timestamp_encoder_is_a_frame_from_its_first_gpu_start(self):
+        stamp = f"Queue 0-0:{gpu_trace.STAMP}   (Demo (1)) 0x1"
+        _, starts = self.intervals([
+            (50, 5, "Demo (1)", "b1", "e1", "Queue 0-0:vkCmdDispatch ComputeEncoder"),
+            (40, 5, "Demo (1)", "b1", "s1", stamp),
+            (90, 5, "Demo (1)", "b2", "s2", stamp),
+            (95, 5, "Demo (1)", "b2", "e3", "Queue 0-0:vkCmdDispatch ComputeEncoder"),
+            (70, 5, "Demo (1)", "b3", "e4", "Queue 0-0:vkCmdCopyBuffer BlitEncoder"),
+            (80, 5, "Other (2)", "b4", "s4", stamp),
+        ])
+        self.assertEqual(starts, {"b1": 40, "b2": 90})
+
+    def test_a_command_buffer_with_an_encoder_of_a_pass_is_a_frame_even_when_the_trace_lost_its_timestamp_intervals(self):
+        _, starts = self.intervals([(50, 5, "Demo (1)", "b1", "e1", "Queue 0-0:vkCmdDispatch ComputeEncoder")])
+        self.assertEqual(starts, {"b1": 50})
+
+    def test_the_intervals_hold_only_the_encoders_that_name_a_pass(self):
+        found, _ = self.intervals([
+            (50, 5, "Demo (1)", "b1", "e1", "Queue 0-0:vkCmdDispatch ComputeEncoder"),
+            (60, 5, "Demo (1)", "b1", "e2", "Queue 0-0:vkCmdDispatch ComputeEncoder"),
+            (40, 5, "Demo (1)", "b1", "s1", f"Queue 0-0:{gpu_trace.STAMP}   (Demo (1)) 0x1"),
+        ])
+        self.assertEqual(found, {("b1", "a"): [(50, 55), (60, 65)]})
+
+
+class CommandBuffers(unittest.TestCase):
+    """passes_by_encoder and command_buffers: the first line of passes.md counts the frames of the frame order and the
+    other command buffers of the encoder list."""
+
+    def listed(self, rows):
+        """passes_by_encoder on an encoder list of rows (process, command buffer, encoder, label, index) for the pass a."""
+        columns = ["process", "cmdbuffer-id", "encoder-id", "encoder-label", "encoder-label-indexed"]
+        body = "".join(
+            "<row>" + "".join(f'<c fmt="{text}"></c>' for text in cells) + "</row>"
+            for cells in ([process, buffer, encoder, label, f"[{index}] {label}"] for process, buffer, encoder, label, index in rows)
+        )
+        schema = "".join(f"<col><mnemonic>{name}</mnemonic></col>" for name in columns)
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "metal-application-encoders-list.xml"
+            path.write_text(f"<trace-query-result><node><schema>{schema}</schema>{body}</node></trace-query-result>")
+            return gpu_trace.passes_by_encoder(path, "Demo", ["a"])
+
+    def test_the_encoder_list_names_the_passes_of_a_command_buffer_with_one_more_timestamp_than_passes(self):
+        named, _ = self.listed([
+            ("Demo (1)", "b1", "s1", gpu_trace.STAMP, 0),
+            ("Demo (1)", "b1", "e1", "vkCmdDispatch ComputeEncoder", 1),
+            ("Demo (1)", "b1", "s2", gpu_trace.STAMP, 2),
+            ("Demo (1)", "b2", "e2", "vkCmdCopyBuffer BlitEncoder", 0),
+        ])
+        self.assertEqual(named, {"e1": ("b1", "a")})
+
+    def test_the_encoder_list_gives_every_command_buffer_that_it_lists(self):
+        _, listed = self.listed([
+            ("Demo (1)", "b1", "s1", gpu_trace.STAMP, 0),
+            ("Demo (1)", "b1", "e1", "vkCmdDispatch ComputeEncoder", 1),
+            ("Demo (1)", "b1", "s2", gpu_trace.STAMP, 2),
+            ("Demo (1)", "b2", "e2", "vkCmdCopyBuffer BlitEncoder", 0),
+            ("Other (2)", "b3", "e3", "vkCmdCopyBuffer BlitEncoder", 0),
+        ])
+        self.assertEqual(listed, {"b1", "b2"})
+
+    def test_every_frame_of_the_order_counts_as_a_frame_also_one_that_the_encoder_list_lost(self):
+        # Two uploads make the encoder list longer than the frame order, so the count must come from the order.
+        found = gpu_trace.command_buffers({"b1", "b2", "upload", "upload-2"}, {"b1": 10, "b2": 20, "lost": 30})
+        self.assertEqual(found["frames"], 3)
+
+    def test_the_other_command_buffers_are_those_of_the_encoder_list_that_are_not_frames(self):
+        # b2 is a frame whose encoder list holds another number of timestamps: it is a frame, not another command buffer.
+        found = gpu_trace.command_buffers({"b1", "b2", "upload"}, {"b1": 10, "b2": 20, "lost": 30})
+        self.assertEqual(found["skipped"], 1)
 
 
 class BootstrapError(unittest.TestCase):
@@ -333,7 +505,7 @@ class BootstrapError(unittest.TestCase):
             intervals[(f"f{i}", "x")] = [(start, end + ((7 * i) % 11) * 10_000)]
         busy = [sum(end - start for start, end in intervals.get((f"f{i}", "x"), [])) / MS for i in range(2 * count + 1)]
         differences = [(busy[i - 1] + busy[i + 1]) / 2 - busy[i] for i in range(1, 2 * count, 2)]
-        found = _paired_row(gpu_trace.paired(intervals, ["a", "x", "b"], "x"), "x")["busy"]["standardErrorMs"]
+        found = _paired_row(gpu_trace.paired(intervals, _first_starts(intervals), ["a", "x", "b"], "x"), "x")["busy"]["standardErrorMs"]
         self.assertEqual(
             (found, found == gpu_trace.bootstrap_error(sorted(differences), gpu_trace.RESAMPLES, gpu_trace.SEED)),
             (gpu_trace.bootstrap_error(differences, gpu_trace.RESAMPLES, gpu_trace.SEED), False),
@@ -440,8 +612,8 @@ class PairedTable(unittest.TestCase):
         for key in missing:
             del intervals[key]
         report = {"device": "Test GPU", "width": 64, "height": 32, "commandBuffers": {"frames": len(marks), "skipped": 0}}
-        report |= gpu_trace.summarize(intervals, ["a", "x", "b"], {}, ("a", "b"))
-        report["paired"] = gpu_trace.paired(intervals, ["a", "x", "b"], "x", control=control, between=("a", "b"))
+        report |= gpu_trace.summarize(intervals, _first_starts(intervals), ["a", "x", "b"], {}, ("a", "b"))
+        report["paired"] = gpu_trace.paired(intervals, _first_starts(intervals), ["a", "x", "b"], "x", control=control, between=("a", "b"))
         return gpu_trace.table(report, has_counters=False).splitlines()
 
     def row(self, lines, name):
@@ -537,8 +709,8 @@ class OneRowRule(unittest.TestCase):
         intervals = _frames([True, False, True])
         for i in range(3):
             intervals[(f"f{i}", "z")] = [(i * 20 * MS + 10 * MS, i * 20 * MS + 10 * MS)]
-        summarized = [entry["pass"] for entry in gpu_trace.summarize(intervals, ["a", "x", "b", "z"], {})["passes"]]
-        found = [entry["pass"] for entry in gpu_trace.paired(intervals, ["a", "x", "b", "z"], "x")["passes"]]
+        summarized = [entry["pass"] for entry in gpu_trace.summarize(intervals, _first_starts(intervals), ["a", "x", "b", "z"], {})["passes"]]
+        found = [entry["pass"] for entry in gpu_trace.paired(intervals, _first_starts(intervals), ["a", "x", "b", "z"], "x")["passes"]]
         self.assertEqual((summarized, found), (["a", "x", "b", "z"], ["a", "x", "b", "z"]))
 
 
@@ -549,8 +721,8 @@ class PairedText(unittest.TestCase):
     def lines(self, marks, control=False):
         intervals = _frames(marks)
         report = {"device": "Test GPU", "width": 64, "height": 32, "commandBuffers": {"frames": len(marks), "skipped": 0}}
-        report |= gpu_trace.summarize(intervals, ["a", "x", "b"], {})
-        report["paired"] = gpu_trace.paired(intervals, ["a", "x", "b"], "x", control=control)
+        report |= gpu_trace.summarize(intervals, _first_starts(intervals), ["a", "x", "b"], {})
+        report["paired"] = gpu_trace.paired(intervals, _first_starts(intervals), ["a", "x", "b"], "x", control=control)
         return gpu_trace.table(report, has_counters=False).splitlines()
 
     def test_a_report_with_no_pair_still_names_the_frames_left_out(self):
