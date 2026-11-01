@@ -66,3 +66,7 @@ The evidence (the script, the full deck-late.png and the 3x crops) is in capture
 **2026-11-01T18:28:49Z**
 
 2026-11-01: workflow run 964690f2-acf3-4e26-af1a-bd1e0c8c1718 (version 869b0b07), branch ter-k96l-stamp-out-the-splashing from c6fdb3a0. Brief: /tmp/briefs/k96l.txt.
+
+**2026-11-01T21:16:25Z**
+
+The user's decision, 2026-11-01, after the build (head 073ca495): use 3 slices with 6 denoise blurs in place of 4 slices with 4 blurs. Reasons: it removes the soft scallops that remain on the demo-surface cabin's ceiling panel, which the user finds noticeable and annoying, and it costs +0.485 ms in place of +0.660 ms. The user accepts its cost: the 12-pixel blur spreads the crease darkening a little on the floor ('a little less accurate on the floor, but I don't think in a way that people would notice'). So the two tolerances that this set breaks widen, each with a comment that cites this decision and derives its value: AmbientOcclusionRenderTests at 0.15 m (0.641 against 0.609, tolerance 0.03) and InAFurnaceACreaseGetsTheLightOfTheOpenFloor (0.792 against 0.808, tolerance 3/255). The review of run 964690f2 continues; the orchestrator stops the run before its fix stage and starts a continuation with this decision and the review's findings after the FSR experiment's timing series.
