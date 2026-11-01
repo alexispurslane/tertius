@@ -1,7 +1,7 @@
 ---
 id: ter-ku9c
 status: open
-deps: []
+deps: [ter-b2da]
 links: []
 created: 2026-11-01T03:28:53Z
 type: task

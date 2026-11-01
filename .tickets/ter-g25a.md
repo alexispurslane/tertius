@@ -1,7 +1,7 @@
 ---
 id: ter-g25a
 status: open
-deps: []
+deps: [ter-b2da]
 links: []
 created: 2026-11-01T13:09:14Z
 type: task

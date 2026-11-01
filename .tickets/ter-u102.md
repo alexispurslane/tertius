@@ -1,7 +1,7 @@
 ---
 id: ter-u102
 status: open
-deps: []
+deps: [ter-b2da]
 links: []
 created: 2026-11-01T03:01:55Z
 type: task

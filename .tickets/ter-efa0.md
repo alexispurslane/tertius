@@ -1,7 +1,7 @@
 ---
 id: ter-efa0
 status: open
-deps: []
+deps: [ter-b2da]
 links: []
 created: 2026-11-01T18:14:47Z
 type: task
