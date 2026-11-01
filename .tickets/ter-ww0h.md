@@ -29,3 +29,7 @@ A ticket note gives the four counts per film of demo-exit and the estimated time
 **2026-11-01T18:14:47Z**
 
 2026-11-01, from ter-prio's builder: at about 12:00, one of ter-prio's commands removed /tmp/tertius-gpu-measure.lock while another builder held it, during ter-ww0h's trace /tmp/ww0h/traces/hall-r-1 (started 11:56). ter-xgra's film captures then ran beside that trace. Repeat hall-r-1 before any conclusion rests on it. ter-prio's scripts now release the lock only after they took it.
+
+**2026-11-01T18:38:04Z**
+
+2026-11-01: the orchestrator stopped workflow run cc31bfac at the start of its review, by the pause of ter-pq5y. The build finished at c2c39308 on branch ter-ww0h-wall-blocked-lamps; that commit holds only this ticket's result note, which a later continuation reviews before the merge. The result, unreviewed: 41.6 % of the tested pairs of shadowed lamps have visibility 0, and the bounds decide 99 % of them; 40.0 % of the (16 x 16 tile, shadowed lamp) pairs with a tested pixel are dark; 1.51 dark shadowed lamps and 0.98 unshadowed lamps that light no pixel per frame. Upper bounds per frame: design B 0.99 ms (1.23 with the tiles that no pixel reaches), design A 0.39 ms (0.52). The pass needs 1.54 to 1.59 ms less to reach its share of 3.80 ms. The unshadowed lamps that light pixels cost 1.65 ms. The builder recommends B and not A. The hall-r-1 trace that the GPU lock incident touched was recorded again.
