@@ -32,3 +32,7 @@ A change that fails either condition is a default change: ter-3g1g takes it to t
 **2026-11-01T14:25:02Z**
 
 Ruling on the image rule's adjacency clause (orchestrator, 2026-11-01, asked for by the ter-mfyv review). SMAA blends across an edge onto the pixels on both sides of it, so one edge decision that flips moves up to two touching pixels. Such a pair counts as one threshold site under condition 2, when the same comparison with SMAA off stays within 2 levels. Any other touching threshold pixels still fail condition 2. This covers ter-mfyv's gather PCF: unbelt (1259,590)+(1260,591) and pillar-room (1526,832)+(1527,832) are each one SMAA edge decision, and all 15 captures stay within 1 level with SMAA off. Apart from the rule, the user asked on 2026-11-01 for the gather PCF to go into ter-mfyv without further benchmarking, so the gather is the user's decision too.
+
+**2026-11-01T15:34:07Z**
+
+2026-11-01: ter-prio's first continuation (9c9870f4) ended with done=false and no fork (environment faces, G-buffer and prefilter not tried). Second continuation: run 06ca6f7f-672b-4d5f-af1c-770674c27361 (version 869b0b07), from HEAD d1c9c63c. Settled for it: a single-pass prefilter downsampler with the same kernel is pass fusion and in scope; a different bloom filter is a default change (a note only); async compute is out of this ticket (an estimate as a note).
