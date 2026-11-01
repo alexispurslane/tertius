@@ -94,12 +94,16 @@ vec3 environmentSpecular(uint map, vec3 d, float roughness, float footprint)
 // α of the specular map's lobe per rad of the width of the part of the sky that a read stands for: GgxLobe.AlphaPerWidth.
 const float LobeAlphaPerWidth = 0.12108;
 
+// The lower bound on the roughness of a read for a part, GgxLobe.MinPieceRoughness: a sharper read lets a small bright
+// part of the map show in some texels and not in their neighbors (docs/plans/screen-space-illumination.md, decision 42).
+const float MinPieceRoughness = 0.5;
+
 // The roughness of the specular map's lobe that blurs a read over a part of the sky `width` rad wide: at most 5 % of the
 // lobe's weight lies beyond either end of the part, so the read keeps to its part (docs/plans/screen-space-illumination.md,
-// decision 41). GgxLobe.RoughnessForWidth is the C# copy.
+// decision 41), but never below MinPieceRoughness. GgxLobe.RoughnessForWidth is the C# copy.
 float roughnessForWidth(float width)
 {
-    return sqrt(LobeAlphaPerWidth * width);
+    return max(sqrt(LobeAlphaPerWidth * width), MinPieceRoughness);
 }
 
 // The mean of map `map`'s radiance over every direction, E_00 Y_00 / π, without the stars: the lit puffs' ambient light.

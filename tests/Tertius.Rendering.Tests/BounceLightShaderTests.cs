@@ -450,48 +450,18 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
     )
     {
         NearTexel expected = bounds.First;
-        double totalWeight = AmbientEstimate.TotalWeight(expected.Slices);
-        double flippedShare = 0;
-        for (int slice = 0; slice < expected.Slices.Length; slice++)
-            flippedShare +=
-                expected.Ties[slice].Count * expected.Slices[slice].Sectors.Weight / (SliceSectors.Count * totalWeight);
-
+        double flippedShare = FlippedShare(expected);
         int i = (texel.Y * gpu.HalfWidth + texel.X) * 4;
         var bounce = new Double3(gpu.Term[i], gpu.Term[i + 1], gpu.Term[i + 2]);
         int j = (texel.Y * gpu.HalfWidth + texel.X) * 3;
         var openShare = new Double3(gpu.OpenShare[j], gpu.OpenShare[j + 1], gpu.OpenShare[j + 2]);
         AmbientEstimate estimate = expected.Estimate;
         Double3 other = bounds.Second.Estimate.Bounce;
-        (Double3 leastShare, Double3 mostShare, Double3 shareTolerance) = OpenShareRange(
-            bounds: bounds,
-            flippedShare: flippedShare,
-            brightest: brightest
-        );
         output.WriteLine(
             $"{point}: GPU ({bounce}, {gpu.Term[i + 3]:0.000000}, S {openShare}), C# ({estimate.Bounce} to {other}, "
-                + $"{estimate.Occlusion:0.000000}, S {leastShare} to {mostShare})"
+                + $"{estimate.Occlusion:0.000000})"
         );
-        foreach (
-            (double actual, double least, double most, double tolerance) in (ReadOnlySpan<(
-                double Actual,
-                double Least,
-                double Most,
-                double Tolerance
-            )>)
-                [
-                    (openShare.X, leastShare.X, mostShare.X, shareTolerance.X),
-                    (openShare.Y, leastShare.Y, mostShare.Y, shareTolerance.Y),
-                    (openShare.Z, leastShare.Z, mostShare.Z, shareTolerance.Z),
-                ]
-        )
-            actual
-                .Should()
-                .BeInRange(
-                    least - tolerance - HalfFloatError(1),
-                    most + tolerance + HalfFloatError(1),
-                    "S at {0}: the open pieces' share of the map's light, or V's share where the map holds none",
-                    point
-                );
+        OpenShareShouldLieWithin(openShare, OpenShareRange(bounds, flippedShare, brightest), point);
         ((double)gpu.Term[i + 3])
             .Should()
             .BeApproximately(estimate.Occlusion, flippedShare + HalfFloatError(estimate.Occlusion), "V at {0}", point);
@@ -516,6 +486,50 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
                     point
                 );
         }
+    }
+
+    /// <summary>
+    /// The share of the cosine weight in the sectors next to a tie of <paramref name="texel"/>, which single floats can
+    /// move to the other side of the tie.
+    /// </summary>
+    private static double FlippedShare(NearTexel texel)
+    {
+        double totalWeight = AmbientEstimate.TotalWeight(texel.Slices);
+        double flippedShare = 0;
+        for (int slice = 0; slice < texel.Slices.Length; slice++)
+            flippedShare +=
+                texel.Ties[slice].Count * texel.Slices[slice].Sectors.Weight / (SliceSectors.Count * totalWeight);
+        return flippedShare;
+    }
+
+    /// <summary>Asserts that each channel of the sector pass's S, <paramref name="openShare"/>, lies within <paramref name="range"/>.</summary>
+    private static void OpenShareShouldLieWithin(
+        Double3 openShare,
+        (Double3 Least, Double3 Most, Double3 Tolerance) range,
+        Vector3 point
+    )
+    {
+        foreach (
+            (double actual, double least, double most, double tolerance) in (ReadOnlySpan<(
+                double Actual,
+                double Least,
+                double Most,
+                double Tolerance
+            )>)
+                [
+                    (openShare.X, range.Least.X, range.Most.X, range.Tolerance.X),
+                    (openShare.Y, range.Least.Y, range.Most.Y, range.Tolerance.Y),
+                    (openShare.Z, range.Least.Z, range.Most.Z, range.Tolerance.Z),
+                ]
+        )
+            actual
+                .Should()
+                .BeInRange(
+                    least - tolerance - HalfFloatError(1),
+                    most + tolerance + HalfFloatError(1),
+                    "S at {0}: the open pieces' share of the map's light, or V's share where the map holds none",
+                    point
+                );
     }
 
     /// <summary>

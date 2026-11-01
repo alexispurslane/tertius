@@ -187,14 +187,38 @@ public sealed class GgxLobeTests
     }
 
     [Theory]
+    [InlineData(0.05)]
+    [InlineData(0.5)]
+    [InlineData(1.5)]
+    public void APartNarrowerThanTheLobeBoundIsReadWithTheLobeOfTheBound(double width)
+    {
+        // The bound keeps a read from being so sharp that a small bright part of the map shows in some texels and not in
+        // their neighbors (docs/plans/screen-space-illumination.md, decision 42).
+        double roughness = GgxLobe.RoughnessForWidth(width);
+
+        roughness.Should().Be(GgxLobe.MinPieceRoughness, "a read is never sharper than the bound's lobe");
+        roughness.Should().BeGreaterThan(Math.Sqrt(GgxLobe.AlphaPerWidth * width), "the bound binds here");
+    }
+
+    [Theory]
+    [InlineData(2.6)]
+    [InlineData(3.1)]
+    public void APartWiderThanTheLobeBoundIsReadWithTheLobeOfItsOwnWidth(double width)
+    {
+        double alpha = GgxLobe.AlphaPerWidth * width;
+
+        GgxLobe.RoughnessForWidth(width).Should().BeApproximately(Math.Sqrt(alpha), 1e-12, "α grows with the width");
+    }
+
+    [Theory]
     [InlineData(0.1)]
     [InlineData(0.5)]
     [InlineData(1.5)]
-    public void TheLobeForAWidthPutsAtMostATwentiethOfItsWeightBeyondEitherEndOfThePart(double width)
+    public void TheLobeOfAlphaPerWidthPutsAtMostATwentiethOfItsWeightBeyondEitherEndOfThePart(double width)
     {
         // The prefilter's kernel with n = v, over the light directions l: D (n·h) / (4 v·h) times n·l, with h halfway
         // between l and n. A direction lies beyond the part's end where its angle from n along x exceeds width / 2.
-        var lobe = new GgxLobe(GgxLobe.RoughnessForWidth(width));
+        var lobe = new GgxLobe(Math.Sqrt(GgxLobe.AlphaPerWidth * width));
         const int polarCount = 1500;
         const int azimuthCount = 360;
         double total = 0;

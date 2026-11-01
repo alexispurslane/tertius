@@ -21,7 +21,7 @@ public sealed class BounceLightMapRenderTests(ITestOutputHelper output)
     /// The largest share by which a floor point within the radius of the wall may differ from one beyond it. See
     /// <see cref="AFloorPointBesideAGlowingWallThatTheMapAlsoHoldsGetsTheWallsLightOnce"/> for where it comes from.
     /// </summary>
-    private const double OnceTolerance = 0.03;
+    private const double OnceTolerance = 0.07;
 
     /// <summary>A small map: no test here depends on the face size.</summary>
     private static readonly SceneEnvironmentMap SmallMap = SceneEnvironmentMap.Default with { FaceSize = 32 };
@@ -52,10 +52,12 @@ public sealed class BounceLightMapRenderTests(ITestOutputHelper output)
     /// 1 − b took the map's mean, L / 2, so the point got (b + (1 − b) / 2) / (1 / 2) = 1 + b times the light away from
     /// the wall: 1.21 on this Mac, so b ≈ 0.21 after the blurs. Read in its own directions, the open share takes the
     /// map's light where the wall lies beyond the radius and nothing elsewhere, and what remains is the blur of each read
-    /// and the quadrature of the parts. A read puts at most 5 % of its lobe's weight beyond an end of its part
-    /// (GgxLobe.RoughnessForWidth), and a part that reaches the horizon, below which the map holds the black floor, so
-    /// misses at most 5 % of its light: 2 × 0.05 × 0.21 ≈ 0.02 of the light away from the wall. Sharp reads, at level 0,
-    /// left 0.002 for the quadrature, so 0.03 holds both with a margin.
+    /// and the quadrature of the parts. A read of a part narrower than 2.07 rad takes the bound's lobe
+    /// (GgxLobe.MinPieceRoughness), which puts 11 % of its weight beyond either end of a part 0.95 rad wide, the width
+    /// of the blocked share b from the horizon, and 24 % beyond a part 0.5 rad wide, where the steps break the blocked
+    /// run into parts. So a blocked read takes up to a quarter of its light from beyond its part: 0.24 × 0.21 ≈ 0.05 of
+    /// the light away from the wall. Sharp reads, at level 0, left 0.002 for the quadrature, so 0.07 holds both with a
+    /// margin. Without the bound, every read kept 95 % of its weight on its part, and 0.03 held.
     /// </summary>
     [Fact]
     public void AFloorPointBesideAGlowingWallThatTheMapAlsoHoldsGetsTheWallsLightOnce()
@@ -91,7 +93,7 @@ public sealed class BounceLightMapRenderTests(ITestOutputHelper output)
     /// Before decision 41, the open share took the map's mean over the hemisphere, half the glowing wall's light, and the
     /// point got 1 − b times the light away from the wall: 0.79 on this Mac. The tolerance is the one of
     /// <see cref="AFloorPointBesideAGlowingWallThatTheMapAlsoHoldsGetsTheWallsLightOnce"/>, with the sides swapped: a
-    /// read of the black wall takes in at most 5 % of the glowing wall's light beyond its part.
+    /// read of the black wall takes in up to a quarter of its light from the glowing wall beyond its part.
     /// </summary>
     [Fact]
     public void AFloorPointBesideADarkWallGetsTheLightOfTheBrightPartOfTheMapThatItsOpenDirectionsFace()

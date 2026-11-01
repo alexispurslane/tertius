@@ -50,28 +50,12 @@ public sealed class OcclusionUpsampleShaderTests(ITestOutputHelper output)
                 if (input.ExpectedAt(x, y) is not { } expected)
                     continue;
                 int p = y * Width + x;
-                double[] wanted =
-                [
-                    expected.Bounce.X,
-                    expected.Bounce.Y,
-                    expected.Bounce.Z,
-                    expected.Occlusion,
-                    expected.OpenShare.X,
-                    expected.OpenShare.Y,
-                    expected.OpenShare.Z,
-                ];
-                float[] actual = [.. estimate.AsSpan(4 * p, 4), .. openShare.AsSpan(3 * p, 3)];
-                for (int c = 0; c < wanted.Length; c++)
-                    ((double)actual[c])
-                        .Should()
-                        .BeApproximately(
-                            wanted[c],
-                            Math.Abs(wanted[c]) * 2e-3 + 1e-4,
-                            "pixel ({0}, {1}) channel {2} must hold the C# copy's estimate",
-                            x,
-                            y,
-                            c
-                        );
+                ShouldHold(
+                    expected: expected,
+                    actual: [.. estimate.AsSpan(4 * p, 4), .. openShare.AsSpan(3 * p, 3)],
+                    x: x,
+                    y: y
+                );
                 compared++;
                 if (x == Width - 1 || y == Height - 1)
                     comparedOnTheEdges++;
@@ -86,6 +70,35 @@ public sealed class OcclusionUpsampleShaderTests(ITestOutputHelper output)
         {
             Gpu.DisposeAndAssertClean(renderer);
         }
+    }
+
+    /// <summary>
+    /// Asserts that pixel (<paramref name="x"/>, <paramref name="y"/>) holds <paramref name="expected"/>:
+    /// <paramref name="actual"/> holds the estimate target's G and V, then the pixel's S.
+    /// </summary>
+    private static void ShouldHold(AmbientEstimate expected, float[] actual, int x, int y)
+    {
+        double[] wanted =
+        [
+            expected.Bounce.X,
+            expected.Bounce.Y,
+            expected.Bounce.Z,
+            expected.Occlusion,
+            expected.OpenShare.X,
+            expected.OpenShare.Y,
+            expected.OpenShare.Z,
+        ];
+        for (int c = 0; c < wanted.Length; c++)
+            ((double)actual[c])
+                .Should()
+                .BeApproximately(
+                    wanted[c],
+                    Math.Abs(wanted[c]) * 2e-3 + 1e-4,
+                    "pixel ({0}, {1}) channel {2} must hold the C# copy's estimate",
+                    x,
+                    y,
+                    c
+                );
     }
 
     /// <summary>The matte corner under a white ambient light, with a box on the floor whose edges cut the weights.</summary>
