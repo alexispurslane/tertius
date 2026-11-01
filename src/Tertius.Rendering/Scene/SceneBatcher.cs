@@ -962,7 +962,8 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
     )
     {
         ReadOnlySpan<RenderLight> lights = CollectionsMarshal.AsSpan(snapshot.Lights);
-        // The atmosphere names its sun by its index in the snapshot's lights (docs/plans/atmosphere.md, "The sun's tint").
+        // The atmosphere names its sun by its index in the snapshot's lights, and the scene by its place in the kept lights
+        // (docs/plans/atmosphere.md, "The sun's tint").
         int? sun = snapshot.Atmosphere?.Sun;
         for (int i = 0; i < lights.Length; i++)
         {
@@ -976,9 +977,11 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
                 camera: scene.Camera,
                 maps: scene.MapCount
             );
-            prepared.AirSun = i == sun;
-            if (Reaches(faces: faces, axes: scene.MapAxes, light: prepared))
-                scene.AddLight() = prepared;
+            if (!Reaches(faces: faces, axes: scene.MapAxes, light: prepared))
+                continue;
+            if (i == sun)
+                scene.AirSunLight = scene.LightCount;
+            scene.AddLight() = prepared;
         }
 
         FarShadows.Choose(scene.LightSpan, cascadedLights);
@@ -1364,7 +1367,12 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
                 w: 0f
             ),
             // The shadow pass fills in the cascades when it draws them.
-            Counts = new(X: (uint)scene.LightCount, Y: 0, Z: 0, W: 0),
+            Counts = new(
+                X: (uint)scene.LightCount,
+                Y: scene.AirSunLight is { } sun ? (uint)sun : GpuFrameConstants.NoAirSun,
+                Z: 0,
+                W: 0
+            ),
             RootRotation = new(
                 x: camera.RootRotation.X,
                 y: camera.RootRotation.Y,

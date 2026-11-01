@@ -413,6 +413,12 @@ internal sealed class PreparedScene
     public int LightCount;
 
     /// <summary>
+    /// The place in <see cref="Lights"/> of the sun of the snapshot's atmosphere (<see cref="RenderAtmosphere.Sun"/>), whose
+    /// light takes the air's tint, or null when the list holds no such sun (docs/plans/atmosphere.md, "The sun's tint").
+    /// </summary>
+    public int? AirSunLight;
+
+    /// <summary>
     /// The far shadows: xyz camera-relative center, w the radius of the caster's bounding sphere (see
     /// <see cref="Eclipse.Visibility"/>). Each far light with a slot has its own run of them, which its slot names.
     /// </summary>
@@ -674,6 +680,7 @@ internal sealed class PreparedScene
         InstanceCount = 0;
         CommandCount = 0;
         LightCount = 0;
+        AirSunLight = null;
         PlacedCount = 0;
         OutlineCount = 0;
         OccluderCount = 0;

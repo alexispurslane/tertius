@@ -1200,12 +1200,57 @@ The fringed fan's transparent pass takes 1.08 and 1.09 ms on the base and 1.02 a
 
 #### What remains
 
-Against the commit before the merge, in both configurations:
+After `ter-uqmn`, against the commit before the merge, in both configurations, the direct pass took 0.2 to 0.3 ms more (5.46 to 5.57 against 5.25 to 5.45 ms) and the transparent pass about 0.1 ms more (1.66 to 1.69 against 1.56 to 1.60 ms). Ticket `ter-qsye` (2026-10-31) attributed both remainders.
 
-- The direct pass takes 0.2 to 0.3 ms more (5.46 to 5.57 against 5.25 to 5.45 ms). The fetch of the shading target, about 0.1 ms, stays because the pass must know each pixel's model to choose its loop, and the shading target is the one store of the model. The two sums of `DirectTerms`, about 0.05 ms, stay because the diffuse part goes alone into the diffuse image. No build attributes the rest, 0.05 to 0.2 ms. The default screen-space light makes the diffuse image in both configurations, so the runs with the scatter off do not test the diffuse image.
-- The transparent pass takes about 0.1 ms more (1.66 to 1.69 against 1.56 to 1.60 ms). The two sums cost about 0.05 ms (1.65 to 1.66 against 1.70 to 1.71 ms in the diagnostic builds). No build attributes the other 0.05 ms. Its candidates are `forwardShading` before the occlusion discard, the runs by sides, and the three merges in the base after `bf812296`.
+The overlap of passes does not explain them. `tools/gpu-trace.py` counts a pass's busy time as the union of its own encoders' intervals, so an encoder that runs beside another pass counts in both. In the traces of `ter-uqmn`, the longest interval of the direct pass, its fragment work, grows by about 0.19 ms from `bf812296` to the branch, as much as its busy time. The transparent pass's longest interval grows by 0.08 to 0.1 ms, also as much as its busy time.
 
-Ticket `ter-qsye` isolates both remainders.
+The method cancels the drift of a loaded machine, which moves separate runs by up to about 13 %. One probe build of the base swaps one candidate's pipeline for a variant without that candidate on every other frame, and marks those frames by an extra timestamp in the trace. The statistic is the median over about 99 frames of the difference between a variant frame and the mean of its two neighbors. A control probe swaps identical pipelines. Each trace took 200 frames of the deck window from frame 399, 1920 × 1080, Release, `tools/gpu-trace.sh --no-counters`, under the GPU measurement lock, with the 1-minute load at 2 to 76. The probe, its scripts and the traces stayed out of the commits.
+
+| Candidate removed | Direct light | Transparent |
+|---|---|---|
+| None (control, 4 runs) | −0.014 to +0.025 | −0.012 to +0.004 |
+| The air's tint and haze, every part | −0.23 | −0.14 |
+| The test of the tint per light alone (`airSun`), 3 runs | −0.22, −0.22, −0.49 (disturbed) | −0.15, −0.11, −0.12 |
+| The haze of a pane alone (`throughAir`) | +0.00 | −0.03 |
+| The diffuse image, 2 runs | −0.04, −0.03 | |
+| The fetch of the shading target, 2 runs | −0.04, −0.04 | |
+| The two sums of `DirectTerms`, 2 runs | −0.02, −0.06 | −0.01, −0.01 |
+| The fiber's loop in the fullscreen pass | −0.00 | |
+| `forwardShading` before the occlusion discard, 2 runs | | −0.03, −0.00 |
+| The flat input of `mesh.vert` as `uvec2` | | +0.00 |
+
+The values are medians in ms, with standard errors of 0.01 to 0.05 ms. A probe that changes only the direct pass moved the transparent pass by up to 0.04 ms, so a difference below about 0.04 ms is noise. The deck holds no air, so no light takes the tint. Still, the test inside each light loop of whether a light is the atmosphere's sun cost the direct pass about 0.22 ms and the transparent pass about 0.12 ms. `ter-6vhj` added it after `bf812296`. The runs by sides add no draw on the deck: its glass is one run of one-sided materials in every frame.
+
+Four ways to keep the tint for the sun cost these amounts on the deck, by the same probe:
+
+| Variant | Direct light | Transparent | Pixels |
+|---|---|---|---|
+| The tint once per pixel before the loop, the test per light kept | −0.03 | +0.20 | not checked |
+| The sun named by its place in the list, no light's flag read | −0.08 | −0.05 | not checked |
+| A second loop without the tint, chosen per frame (4 runs, 2 with each way to name the sun) | −0.20 to −0.21 | −0.04 to −0.05 | unchanged |
+| No code of the tint in the pipeline, a constant | −0.22 | −0.12 | changes where air is |
+
+The branch takes the second loop, with the sun named by its place in the list. `frame.counts.y` holds that place, or `NoAirSun`, and the per-light flag `GpuLight.airSun` is gone, so one value of the frame says which light is the sun. On the CPU, `PreparedScene.AirSunLight` holds the same place, from which the frame block and an impostor's light signature read it. `directLight` passes `tinted` as a constant to `modelLight`, whose loop has `lightIrradiance` compare each light's place with the sun's only when the frame has a sun. In `station`'s view `watch`, whose air has a sun, the probe of this loop took the direct pass +0.004 ± 0.024 ms, against a control of −0.005 ± 0.009 ms. The constant of the last row is no option by itself: a frame with air needs the tint. It needs a pipeline per case, chosen per frame.
+
+Against its base (`d4bd48de`), the branch keeps every byte: the deck's 740 frames (the deck film of `demo-exit.json` from tick 399), the 486 frames of `skin-and-hair.json`, and the captures of `station`, `mars-air`, `orbit`, `earth-system`, `mirror-balls` and `puff-yard`. The first five have air with a sun, so they run the loop with the tint.
+
+Interleaved runs on the deck window (120 frames from 399), 2 of `bf812296`, 5 of the base, 3 of the control and 6 of the branch, with a second export of the base as the control pair, and the medians of each pass's own time in ms:
+
+| Pass | `bf812296` | Base | Control | Branch |
+|---|---|---|---|---|
+| direct light | 5.29, 5.33 | 5.34 to 5.35 (5 runs) | 5.35 to 5.37 | 5.14 to 5.16 (6 runs) |
+| transparent | 1.59, 1.61 | 1.62 to 1.64 (5 runs) | 1.64 | 1.62 to 1.69 (6 runs) |
+
+The loads at the start were 6 to 41. Two runs are left out. One is a run of `bf812296` whose G-buffer pass took 0.329 ms against 0.256 and 0.257 ms, which the rule of more than 10 % from the other runs of its build excludes. The other is a base run at a load of 33 whose direct pass took 5.73 ms and transparent pass 1.96 ms, both more than 0.3 ms above every other run of its build. The branch's direct pass now takes 0.13 to 0.19 ms less than `bf812296`. Its transparent pass lies within the spread of the base, and the probe gives the second loop about 0.05 ms there.
+
+`skin-and-hair.json` did not get slower. The cutout fan's direct pass took 1.23 to 1.24 ms against 1.26 to 1.28 ms on the base and on the control, by three runs each at a load of 3 to 8. The fringed fan's took 1.21 to 1.23 ms against 1.25 to 1.27 ms on the base, and its transparent pass 1.07 to 1.12 ms against 1.09 to 1.12 ms. The head's runs spread with the GPU's clock: its G-buffer pass took 0.245 to 0.361 ms. So the paired probe measured the head: +0.015 ± 0.017 ms against a control of −0.019 ± 0.014 ms, no change. It gave the fringed fan's direct pass −0.043 ± 0.019 ms against +0.015 ± 0.011 ms.
+
+What stays, and why:
+
+- The fetch of the shading target, about 0.04 ms by the probe. The pass must know each pixel's model to choose its loop, and the shading target is the one store of the model.
+- The two sums of `DirectTerms`, 0.02 to 0.06 ms. The diffuse part goes alone into the diffuse image.
+- The diffuse image, about 0.03 to 0.04 ms. The bounce light reads it as its source (`ter-vtc7`), and the scatter reads it as D.
+- The loop with the tint, in a pipeline that also holds the loop without it. A pipeline variant without the tinted loop, chosen per frame, would take about 0.07 ms more off the deck's transparent pass. Each pass with a light loop would then need two pipelines and a choice by the CPU per frame. The branch leaves these variants out (2026-10-31), by the rule to leave out a feature that is not needed yet. The 0.07 ms is about 0.6 % of the 12 ms frame. If a later measurement shows the frame over its budget, these variants are a known lever.
 
 #### Pixels
 

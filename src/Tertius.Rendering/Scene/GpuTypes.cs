@@ -195,7 +195,7 @@ internal struct GpuMaterial
 }
 
 /// <summary>
-/// One light in the light storage buffer (std430, binding 3 of the frame set). 112 bytes, the last 8 unused.
+/// One light in the light storage buffer (std430, binding 3 of the frame set). 112 bytes, the last 12 unused.
 /// <see cref="From"/> is the one place that encodes a <see cref="PreparedLight"/>, its spread, its shadow slot, its map
 /// and whether the main view keeps it for the shaders.
 /// </summary>
@@ -251,12 +251,6 @@ internal struct GpuLight
     public uint InMainView;
 
     /// <summary>
-    /// 1 when the light is the sun of the frame's atmosphere (<see cref="PreparedLight.AirSun"/>), whose light takes the
-    /// air's tint at every point in the air, else 0 (docs/plans/atmosphere.md, "The sun's tint").
-    /// </summary>
-    public uint AirSun;
-
-    /// <summary>
     /// The GPU form of <paramref name="light"/>, read into the shaders' ranges: the intensity by
     /// <see cref="ShaderInput.Intensity(Vector3)"/>, and the radius at most <see cref="ShaderInput.PositionLimit"/>, so that its
     /// square stays finite.
@@ -295,7 +289,6 @@ internal struct GpuLight
             Occluders = occluders,
             Map = (uint)light.Map,
             InMainView = light.InMainView ? 1u : 0u,
-            AirSun = light.AirSun ? 1u : 0u,
         };
     }
 
@@ -394,6 +387,9 @@ internal struct GpuPuff
 [StructLayout(LayoutKind.Sequential)]
 internal struct GpuFrameConstants
 {
+    /// <summary><see cref="Counts"/>.Y of a frame whose light list holds no sun of an atmosphere.</summary>
+    public const uint NoAirSun = uint.MaxValue;
+
     // System.Numerics matrices are row-major with row vectors. Their bytes read as a column-major GLSL mat4 give
     // the transpose, which is the matrix for column vectors. So M_numerics = (P · V)ᵀ uploads as P · V.
     public Matrix4x4 FarViewProj;
@@ -413,8 +409,9 @@ internal struct GpuFrameConstants
     public Vector4 Params;
 
     /// <summary>
-    /// x: the lights; y: unused, because each light carries its own occluders; z: the cascades of each drawn cascade set,
-    /// <see cref="ShadowCascades.Count"/>, or 0 when no set was drawn; w: unused.
+    /// x: the lights; y: the place in the light list of the atmosphere's sun (<see cref="PreparedScene.AirSunLight"/>), or
+    /// <see cref="NoAirSun"/>, by which the shaders choose the light loop that takes no tint; z: the cascades of each drawn
+    /// cascade set, <see cref="ShadowCascades.Count"/>, or 0 when no set was drawn; w: unused.
     /// </summary>
     public UInt4 Counts;
 

@@ -652,6 +652,164 @@ public sealed class AtmosphereRenderTests
     }
 
     [Fact]
+    public void TheSunsLightTakesTheTintWhenALampPrecedesItInTheLightList()
+    {
+        VulkanRenderer renderer = Renderer(new NoEnvironmentMap());
+        try
+        {
+            RenderSnapshot snapshot = Scene(SunBehind);
+            AddLitSquare(renderer, snapshot);
+            // A faint lamp just before the square, first in the list, so that the sun is the list's second light.
+            snapshot.Lights.Insert(
+                0,
+                Gpu.Lamp(
+                    position: new(0, 0.5f, -4.5f),
+                    color: Vector3.One,
+                    intensity: 0.01f,
+                    chainDepth: TestChains.CamerasFrame
+                )
+            );
+            Air(snapshot, TintOnly);
+            snapshot.Atmosphere = snapshot.Atmosphere!.Value with { Sun = 1 };
+            Vector3 tinted = Shown(renderer, snapshot, "atmosphere-tint-second-light").Color(Center);
+
+            renderer.LastScene.AirSunLight.Should().Be(1);
+            Warmth(tinted)
+                .Should()
+                .BeGreaterThan(0.2f, "the air keeps a quarter of the sun's blue, but the square shows {0}", tinted);
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>A sun ahead of the camera, behind the square of <see cref="AddLitSquare"/>, which it lights only from the back.</summary>
+    private static readonly Vector3 SunAhead = new(0.2f, 0.5f, -1);
+
+    [Fact]
+    public void ALampsLightTakesNoTintInsideTheAir()
+    {
+        static void AddLampAndSquare(VulkanRenderer renderer, RenderSnapshot snapshot)
+        {
+            AddLitSquare(renderer, snapshot);
+            // A lamp 1 m before the square, first in the list, so that the sun is the list's second light.
+            snapshot.Lights.Insert(
+                0,
+                Gpu.Lamp(position: new(0, 0, -4), color: Vector3.One, intensity: 3, chainDepth: TestChains.CamerasFrame)
+            );
+        }
+
+        Vector3 inAir = Show(
+                "atmosphere-tint-lamp",
+                SunAhead,
+                (renderer, snapshot) =>
+                {
+                    AddLampAndSquare(renderer, snapshot);
+                    Air(snapshot, TintOnly);
+                    snapshot.Atmosphere = snapshot.Atmosphere!.Value with { Sun = 1 };
+                }
+            )
+            .Color(Center);
+        Vector3 plain = Show("atmosphere-tint-lamp-plain", SunAhead, AddLampAndSquare).Color(Center);
+
+        plain.X.Should().BeGreaterThan(0.3f, "the lamp lights the square, which shows {0}", plain);
+        ExpectSame(
+            inAir,
+            plain,
+            "only the sun's light takes the air's tint, and the sun lights only the square's back"
+        );
+    }
+
+    [Fact]
+    public void HairTakesTheSunsTintInsideTheAir()
+    {
+        static void AddHairCard(VulkanRenderer renderer, RenderSnapshot snapshot) =>
+            snapshot.Instances.Add(
+                Gpu.Instance(
+                    mesh: renderer.CreateMesh(Primitives.Plane(2f)),
+                    material: renderer.CreateMaterial(
+                        MaterialDesc.Color(new(x: 0.8f, y: 0.8f, z: 0.8f, w: 1), roughness: 0.5f) with
+                        {
+                            Model = new HairShading(StrandDirection.PlusV),
+                        }
+                    ),
+                    position: new(0, 0, -5),
+                    scale: Vector3.One,
+                    rotation: FacingPlusZ,
+                    chainDepth: TestChains.CamerasFrame
+                )
+            );
+
+        Vector3 inAir = HdrAt(
+            Center,
+            (renderer, snapshot) =>
+            {
+                AddHairCard(renderer, snapshot);
+                Air(snapshot, TintOnly);
+            }
+        );
+        Vector3 plain = HdrAt(Center, AddHairCard);
+
+        plain.X.Should().BeGreaterThan(0.01f, "the sun lights the hair, which shows {0}", plain);
+        (inAir.Z / inAir.X)
+            .Should()
+            .BeLessThan(
+                0.5f * plain.Z / plain.X,
+                "the air keeps a quarter of the sun's blue, but the hair shows {0} against {1}",
+                inAir,
+                plain
+            );
+    }
+
+    [Fact]
+    public void ALitPuffTakesTheSunsTintInsideTheAir()
+    {
+        static void AddLitPuff(RenderSnapshot snapshot)
+        {
+            snapshot.PuffLooks.Add(
+                new(
+                    Life: 2f,
+                    StartRadius: 0.5f,
+                    EndRadius: 0.5f,
+                    TemperatureRatio: 0.5f,
+                    Shading: PuffShading.Lit(new(0.8f))
+                )
+            );
+            var position = new Vector3(0, 0, -5);
+            snapshot.Puffs.Add(
+                new()
+                {
+                    Position = position,
+                    PreviousPosition = position,
+                    Age = 0f,
+                    Look = 0,
+                }
+            );
+        }
+
+        Vector3 inAir = HdrAt(
+            Center,
+            (_, snapshot) =>
+            {
+                AddLitPuff(snapshot);
+                Air(snapshot, TintOnly);
+            }
+        );
+        Vector3 plain = HdrAt(Center, (_, snapshot) => AddLitPuff(snapshot));
+
+        plain.X.Should().BeGreaterThan(0.01f, "the sun lights the puff, which shows {0}", plain);
+        (inAir.Z / inAir.X)
+            .Should()
+            .BeLessThan(
+                0.5f * plain.Z / plain.X,
+                "the air keeps a quarter of the sun's blue, but the puff shows {0} against {1}",
+                inAir,
+                plain
+            );
+    }
+
+    [Fact]
     public void TheSunsLightTakesNoTintAboveTheAir()
     {
         Vector3 inOrbit = Show(

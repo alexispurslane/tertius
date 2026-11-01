@@ -2096,12 +2096,11 @@ public sealed class BatcherTests
         ((int)Marshal.OffsetOf<GpuMaterial>(nameof(GpuMaterial.MetallicRoughnessMap))).Should().Be(48);
         ((int)Marshal.OffsetOf<GpuMaterial>(nameof(GpuMaterial.Shading))).Should().Be(52);
         ((int)Marshal.OffsetOf<GpuMaterial>(nameof(GpuMaterial.AlphaCutoff))).Should().Be(56);
-        Unsafe.SizeOf<GpuLight>().Should().Be(112, "std430 rounds 104 bytes of members up to the vec4's 16");
+        Unsafe.SizeOf<GpuLight>().Should().Be(112, "std430 rounds 100 bytes of members up to the vec4's 16");
         ((int)Marshal.OffsetOf<GpuLight>(nameof(GpuLight.Shadow))).Should().Be(64);
         ((int)Marshal.OffsetOf<GpuLight>(nameof(GpuLight.Occluders))).Should().Be(80);
         ((int)Marshal.OffsetOf<GpuLight>(nameof(GpuLight.Map))).Should().Be(92, "std430 packs a uint after a uvec3");
         ((int)Marshal.OffsetOf<GpuLight>(nameof(GpuLight.InMainView))).Should().Be(96);
-        ((int)Marshal.OffsetOf<GpuLight>(nameof(GpuLight.AirSun))).Should().Be(100);
         Unsafe.SizeOf<GpuOutline>().Should().Be(48);
         ((int)Marshal.OffsetOf<GpuOutline>(nameof(GpuOutline.Radii))).Should().Be(32);
         Unsafe.SizeOf<OutlinePushConstants>().Should().Be(4);

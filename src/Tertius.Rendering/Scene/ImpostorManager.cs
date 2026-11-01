@@ -715,6 +715,7 @@ internal sealed partial class ImpostorManager : IInstanceProcessor
     {
         private readonly ReadOnlySpan<Vector4> occluders = scene.Occluders.AsSpan(0, scene.OccluderCount);
         private readonly ReadOnlySpan<PreparedLight> lights = scene.Lights.AsSpan(0, scene.LightCount);
+        private readonly int? airSunLight = scene.AirSunLight;
         private readonly AmbientSource ambient = scene.Ambient;
         private readonly GpuAtmosphere atmosphere = scene.Atmosphere;
 
@@ -732,9 +733,9 @@ internal sealed partial class ImpostorManager : IInstanceProcessor
             };
             Vector3 total = Vector3.Zero,
                 direction = Vector3.Zero;
-            foreach (ref readonly PreparedLight light in lights)
+            for (int index = 0; index < lights.Length; index++)
             {
-                if (!light.InMainView || IrradianceAt(light, instance) is not ({ } irradiance, var unit))
+                if (!lights[index].InMainView || IrradianceAt(index, instance) is not ({ } irradiance, var unit))
                     continue;
                 total += irradiance;
                 direction += Vector3.Transform(unit, inverse) * LengthInDoubles(irradiance);
@@ -744,13 +745,14 @@ internal sealed partial class ImpostorManager : IInstanceProcessor
         }
 
         /// <summary>
-        /// The irradiance of <paramref name="light"/> at the instance's center past its far shadows, and the unit
-        /// direction toward the light, or null where it adds nothing. As the lighting shader's lightIrradiance, with its
-        /// window measured to the nearest point of the bounding sphere, so that a light that grazes the object counts, and
-        /// the air's tint at the center for the atmosphere's sun.
+        /// The irradiance of the light at <paramref name="index"/> of the list at the instance's center past its far
+        /// shadows, and the unit direction toward the light, or null where it adds nothing. As the lighting shader's
+        /// lightIrradiance, with its window measured to the nearest point of the bounding sphere, so that a light that
+        /// grazes the object counts, and the air's tint at the center for the atmosphere's sun.
         /// </summary>
-        private (Vector3 Irradiance, Vector3 Unit)? IrradianceAt(in PreparedLight light, in PreparedInstance instance)
+        private (Vector3 Irradiance, Vector3 Unit)? IrradianceAt(int index, in PreparedInstance instance)
         {
+            ref readonly PreparedLight light = ref lights[index];
             Vector3 toLight = light.Position - instance.Position;
             float distance = toLight.Length();
             float nearest = MathF.Max(distance - instance.Radius, 0f);
@@ -764,7 +766,7 @@ internal sealed partial class ImpostorManager : IInstanceProcessor
             if (light.Spread is Cone { Axis: var axis, CosInner: var cosInner, CosOuter: var cosOuter })
                 falloff *= SmoothStep(cosOuter, cosInner, Vector3.Dot(-unit, axis));
             Vector3 unlimited = light.RadiantIntensity * falloff;
-            if (light.AirSun)
+            if (index == airSunLight)
                 unlimited *= PaintedAtmosphere.SunTintAt(atmosphere, instance.Position);
             // The shader's cap, so that the sums stay finite single floats.
             var irradiance = Vector3.Min(unlimited, new Vector3(ShaderInput.IrradianceLimit));

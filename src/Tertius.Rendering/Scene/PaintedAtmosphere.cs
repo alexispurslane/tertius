@@ -68,7 +68,7 @@ internal static class PaintedAtmosphere
     /// <summary>
     /// The factor by which the sun's light at <paramref name="position"/>, camera-relative, takes the tint of
     /// <paramref name="atmosphere"/>: mix(1, tint, s(p)) per channel, from 0 to 1. The C# copy of sunTintAt in
-    /// atmosphere.glsl, which the lighting shader applies to the light that <see cref="GpuLight.AirSun"/> marks.
+    /// atmosphere.glsl, which the lighting shader applies to the light that <see cref="GpuFrameConstants.Counts"/>.Y names.
     /// </summary>
     public static Vector3 SunTintAt(in GpuAtmosphere atmosphere, Vector3 position)
     {

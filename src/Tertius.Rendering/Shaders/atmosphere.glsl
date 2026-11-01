@@ -27,7 +27,7 @@ float airShare(vec3 position)
 }
 
 // The sun's tint at `position`: the planet's tint where the air is at its surface density, none where there is no air,
-// mix(1, SunTint, s(p)). lightIrradiance applies it to the light that GpuLight.airSun marks.
+// mix(1, SunTint, s(p)). lightIrradiance applies it to the light that frame.counts.y names.
 vec3 sunTintAt(vec3 position)
 {
     return mix(vec3(1.0), frame.atmosphere.sunTint.rgb, airShare(position));

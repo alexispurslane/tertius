@@ -1055,6 +1055,46 @@ public sealed class ImpostorManagerTests
     }
 
     [Fact]
+    public void ALampBesideTheAirsSunTakesNoTint()
+    {
+        float distance = DistanceFor(100f);
+        var position = new Vector3(0, 0, -distance);
+        var harness = new Harness();
+
+        // The star (light 0) gives no light. The lamp beside the ball is light 1. Light 2, the air's sun here, is a
+        // faint lamp in front of the eye: it is in the list, but its reach, about 1.6 m, ends far short of the ball.
+        int Captures(RenderAtmosphere? air)
+        {
+            RenderSnapshot snapshot = Snapshot(intensity: 0);
+            snapshot.Atmosphere = air;
+            snapshot.Instances.Add(Ball(entity: 1, position: position));
+            snapshot.Lights.Add(
+                Gpu.Lamp(
+                    position: position + new Vector3(2.5f, 1, 0),
+                    color: Vector3.One,
+                    intensity: 5,
+                    chainDepth: TestChains.CamerasFrame
+                )
+            );
+            snapshot.Lights.Add(
+                Gpu.Lamp(
+                    position: new(0, 0, -3),
+                    color: Vector3.One,
+                    intensity: 1e-6f,
+                    chainDepth: TestChains.CamerasFrame
+                )
+            );
+            harness.Run(snapshot);
+            return harness.Manager.Captures.Length;
+        }
+
+        Captures(null).Should().Be(1, "the first sight of an impostor is captured");
+        Captures(TintedAir(height: 0) with { Sun = 2 })
+            .Should()
+            .Be(0, "only the sun's light takes the tint, and the sun's light does not reach the ball");
+    }
+
+    [Fact]
     public void ALampThatBrightensRecapturesTheObjectsItReaches()
     {
         var harness = new Harness();
