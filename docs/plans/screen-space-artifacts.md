@@ -17,6 +17,7 @@ The user decided on 2026-11-01 to pause the performance work and fix these artif
 3. A fix that changes a default, or that costs GPU time, is a design decision. It comes to the user as two designs with captures, as CLAUDE.md says. A fix of a plain bug, where the code does not do what its design says, needs no such step.
 4. The running performance workflows finish the stage that they are in, and nothing new starts in ter-pq5y until this epic closes. Finished performance work still merges: each such change keeps the image under the share tickets' image rule, so it does not move the starting point.
 5. The crease fix (ter-k96l) computes the open share's light as D(n) · S: the map's irradiance at the normal times the open pieces' share of the map's light over all pieces, from reads along the open and the blocked pieces. It replaces decision 42's D(n) − M of [screen-space-illumination.md](screen-space-illumination.md) and its clamp at 0. An open point keeps exactly D(n), the result stays between 0 and D(n), and a read's error appears in both sums of the share. (User, 2026-11-01, after ter-xgra traced the crease blotches and the brown band to M and the clamp.)
+6. Every cheap splash fix of ter-xgra goes into ter-k96l beside the share form: a lower bound on the lobe width of the map reads (about 0.01 ms), a spatial outlier clamp before the denoise (under 0.05 ms) and a second denoise dispatch (about 0.05 ms). (User, 2026-11-01: "that splashing is really truly horrible and I want to stamp it out with flat prejudice.")
 
 ## The artifacts known on 2026-11-01
 
