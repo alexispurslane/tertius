@@ -2,7 +2,7 @@ namespace Tertius.Rendering;
 
 /// <summary>
 /// The occlusion denoise pass, under <see cref="VisibilityBitmaskLight"/> (docs/plans/ambient-occlusion.md, "The denoise"):
-/// XeGTAO's 3 × 3 edge-aware blur, run <see cref="Dispatches"/> times, from term A to term B and back, so that term A
+/// XeGTAO's 3 × 3 edge-aware blur, run <see cref="BlurPairs"/> times from term A to term B and back, so that term A
 /// holds the result.
 /// </summary>
 internal sealed class OcclusionDenoisePass(
@@ -13,6 +13,14 @@ internal sealed class OcclusionDenoisePass(
     VisibilityBitmaskLight setting
 ) : RenderPass
 {
+    /// <summary>
+    /// How many pairs of blurs the pass runs: three, so six blurs, which with the default 3 slices leave noise in S and
+    /// G within 10 % of a 16-slice reference and no scallops on the cabin's ceiling panel
+    /// (docs/plans/screen-space-illumination.md, decision 43). The count is of pairs, so that the last blur always
+    /// writes term A, which the upsample reads.
+    /// </summary>
+    public const int BlurPairs = 3;
+
     private readonly OcclusionPipeline pipeline = new(
         device: device,
         shaders: shaders,
@@ -23,13 +31,6 @@ internal sealed class OcclusionDenoisePass(
         constants: null
     );
 
-    /// <summary>
-    /// How many blurs the pass runs: six, which with the default 3 slices leave noise in S and G within 10 % of a
-    /// 16-slice reference and no scallops on the cabin's ceiling panel (docs/plans/screen-space-illumination.md, decision
-    /// 43). Even, so that the last writes term A, which the upsample reads.
-    /// </summary>
-    public const int Dispatches = 6;
-
     public override string Name => "occlusion denoise";
 
     public override void Record(FrameContext context)
@@ -38,7 +39,8 @@ internal sealed class OcclusionDenoisePass(
         barriers.Image(images.Edges, ImageUse.StorageCompute);
         barriers.Image(images.TermA, ImageUse.StorageCompute);
         barriers.Image(images.TermB, ImageUse.StorageCompute, discard: true);
-        for (int dispatch = 0; dispatch < Dispatches; dispatch++)
+        const int blurs = 2 * BlurPairs;
+        for (int dispatch = 0; dispatch < blurs; dispatch++)
         {
             // Each later dispatch reads what the one before wrote, and writes its image only after that one read it.
             if (dispatch > 0)
@@ -50,7 +52,7 @@ internal sealed class OcclusionDenoisePass(
             pipeline.DispatchDenoise(
                 context: context,
                 set: dispatch % 2 == 0 ? images.SetAToB : images.SetBToA,
-                last: dispatch == Dispatches - 1
+                last: dispatch == blurs - 1
             );
         }
     }

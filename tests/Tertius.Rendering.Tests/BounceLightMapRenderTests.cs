@@ -175,11 +175,17 @@ public sealed class BounceLightMapRenderTests(ITestOutputHelper output)
             .. Enumerable.Range(0, 10).Select(k => new Vector3(WallX + 0.05f, FloorHeight, -3f - 0.25f * k)),
         ];
 
-        (float[] hdr, _, float[] openShare) = RenderedWithEstimate(VisibilityBitmaskLight.Default, AddDimWallFarGlowAndLamp);
+        (float[] hdr, _, float[] openShare) = RenderedWithEstimate(
+            VisibilityBitmaskLight.Default,
+            AddDimWallFarGlowAndLamp
+        );
         double light = MeanLight(hdr, crease);
         double reference = MeanLight(
             Rendered(
-                VisibilityBitmaskLight.Default with { Slices = ScreenSpaceLightSetting.MaxSlices },
+                VisibilityBitmaskLight.Default with
+                {
+                    Slices = ScreenSpaceLightSetting.MaxSlices,
+                },
                 AddDimWallFarGlowAndLamp
             ),
             crease
@@ -190,9 +196,13 @@ public sealed class BounceLightMapRenderTests(ITestOutputHelper output)
             int j = 3 * (pixel.Y * Width + pixel.X);
             return (openShare[j] + openShare[j + 1] + openShare[j + 2]) / 3.0;
         });
-        output.WriteLine($"the crease at the default {light:0.0000}, at 16 slices {reference:0.0000}, S {share:0.0000}");
+        output.WriteLine(
+            $"the crease at the default {light:0.0000}, at 16 slices {reference:0.0000}, S {share:0.0000}"
+        );
 
-        share.Should().BeLessThan(0.85, "the test needs a crease whose blocked directions hold much of the map's light");
+        share
+            .Should()
+            .BeLessThan(0.85, "the test needs a crease whose blocked directions hold much of the map's light");
         light
             .Should()
             .BeApproximately(
@@ -218,17 +228,25 @@ public sealed class BounceLightMapRenderTests(ITestOutputHelper output)
             new Vector3(BoxCenter.X + 0.6f, FloorHeight, BoxCenter.Z - 0.6f)
         );
 
-        double grain = Grain(RenderedWithEstimate(VisibilityBitmaskLight.Default, AddBoxBesideTheCrease).OpenShare, around);
+        double grain = Grain(
+            RenderedWithEstimate(VisibilityBitmaskLight.Default, AddBoxBesideTheCrease).OpenShare,
+            around
+        );
         double reference = Grain(
             RenderedWithEstimate(
-                VisibilityBitmaskLight.Default with { Slices = ScreenSpaceLightSetting.MaxSlices },
+                VisibilityBitmaskLight.Default with
+                {
+                    Slices = ScreenSpaceLightSetting.MaxSlices,
+                },
                 AddBoxBesideTheCrease
             ).OpenShare,
             around
         );
         output.WriteLine($"the grain at the default {grain:0.00000}, at 16 slices {reference:0.00000}");
 
-        grain.Should().BeLessThanOrEqualTo(1.1 * reference, "the denoise averages away the noise of the default's slices");
+        grain
+            .Should()
+            .BeLessThanOrEqualTo(1.1 * reference, "the denoise averages away the noise of the default's slices");
     }
 
     /// <summary>The center of the box of <see cref="AddBoxBesideTheCrease"/>, 0.5 m from the wall's face.</summary>

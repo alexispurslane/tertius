@@ -312,12 +312,26 @@ public sealed class SectorSearchTests
         Within(0.625)
             .Should()
             .Be(
-                new NearSlice(Sectors: Facing, Blocked: SectorMask.None, Light: Double3.Zero, BlockedMapLight: Double3.Zero, OpenMapLight: Double3.Zero),
+                new NearSlice(
+                    Sectors: Facing,
+                    Blocked: SectorMask.None,
+                    Light: Double3.Zero,
+                    BlockedMapLight: Double3.Zero,
+                    OpenMapLight: Double3.Zero
+                ),
                 "the edge at the radius is hard"
             );
         Within(0.5)
             .Should()
-            .Be(new NearSlice(Sectors: Facing, Blocked: SectorMask.None, Light: Double3.Zero, BlockedMapLight: Double3.Zero, OpenMapLight: Double3.Zero));
+            .Be(
+                new NearSlice(
+                    Sectors: Facing,
+                    Blocked: SectorMask.None,
+                    Light: Double3.Zero,
+                    BlockedMapLight: Double3.Zero,
+                    OpenMapLight: Double3.Zero
+                )
+            );
         Within(0.626).Blocked.Count.Should().BePositive();
     }
 

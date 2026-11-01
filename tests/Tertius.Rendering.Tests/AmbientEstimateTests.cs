@@ -44,8 +44,20 @@ public sealed class AmbientEstimateTests
                 BlockedMapLight: Double3.Zero,
                 OpenMapLight: Double3.Zero
             ),
-            new(Sectors: sectors[1], Blocked: SectorMask.None, Light: Double3.Zero, BlockedMapLight: Double3.Zero, OpenMapLight: Double3.Zero),
-            new(Sectors: sectors[2], Blocked: SectorMask.Run(start: 0, end: 8), Light: Sky * 3, BlockedMapLight: Double3.Zero, OpenMapLight: Double3.Zero),
+            new(
+                Sectors: sectors[1],
+                Blocked: SectorMask.None,
+                Light: Double3.Zero,
+                BlockedMapLight: Double3.Zero,
+                OpenMapLight: Double3.Zero
+            ),
+            new(
+                Sectors: sectors[2],
+                Blocked: SectorMask.Run(start: 0, end: 8),
+                Light: Sky * 3,
+                BlockedMapLight: Double3.Zero,
+                OpenMapLight: Double3.Zero
+            ),
         ];
         double total = TotalWeight(sectors);
 
@@ -123,7 +135,13 @@ public sealed class AmbientEstimateTests
         var sectors = new SliceSectors(new HorizonSlice(toEye: TowardTheEye, normal: Double3.UnitY, angle: 0));
         NearSlice[] near =
         [
-            new(Sectors: sectors, Blocked: SectorMask.Run(start: 4, end: 20), Light: Red * 16, BlockedMapLight: Double3.Zero, OpenMapLight: Double3.Zero),
+            new(
+                Sectors: sectors,
+                Blocked: SectorMask.Run(start: 4, end: 20),
+                Light: Red * 16,
+                BlockedMapLight: Double3.Zero,
+                OpenMapLight: Double3.Zero
+            ),
         ];
         sectors.Weight.Should().Be(0, "the test needs a slice with no weight");
 

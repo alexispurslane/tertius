@@ -98,9 +98,11 @@ const float LobeAlphaPerWidth = 0.12108;
 // part of the map show in some texels and not in their neighbors (docs/plans/screen-space-illumination.md, decision 42).
 const float MinPieceRoughness = 0.5;
 
-// The roughness of the specular map's lobe that blurs a read over a part of the sky `width` rad wide: at most 5 % of the
-// lobe's weight lies beyond either end of the part, so the read keeps to its part (docs/plans/screen-space-illumination.md,
-// decision 41), but never below MinPieceRoughness. GgxLobe.RoughnessForWidth is the C# copy.
+// The roughness of the specular map's lobe that blurs a read over a part of the sky `width` rad wide:
+// max(sqrt(LobeAlphaPerWidth · width), MinPieceRoughness) (docs/plans/screen-space-illumination.md, decisions 41 and
+// 42). Only a part wider than 2.07 rad keeps 95 % of the lobe's weight on itself. A narrower part takes the bound's
+// lobe, which puts up to 11 % of its weight beyond either end of a part 0.95 rad wide and 24 % beyond a part 0.5 rad
+// wide. GgxLobe.RoughnessForWidth is the C# copy.
 float roughnessForWidth(float width)
 {
     return max(sqrt(LobeAlphaPerWidth * width), MinPieceRoughness);

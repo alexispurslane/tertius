@@ -815,7 +815,8 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
         public AmbientEstimate Estimate => AmbientEstimate.OfSlices(Slices);
 
         /// <summary>The map's light along the open sectors, each slice's by its weight.</summary>
-        public Double3 OpenMapLight => Slices.Aggregate(Double3.Zero, (sum, s) => sum + s.OpenMapLight * s.Sectors.Weight);
+        public Double3 OpenMapLight =>
+            Slices.Aggregate(Double3.Zero, (sum, s) => sum + s.OpenMapLight * s.Sectors.Weight);
 
         /// <summary>The map's light along the blocked sectors, each slice's by its weight.</summary>
         public Double3 BlockedMapLight =>

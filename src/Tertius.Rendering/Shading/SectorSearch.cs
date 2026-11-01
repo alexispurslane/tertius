@@ -279,7 +279,12 @@ internal static class SectorSearch
         SectorRun ownRun = ownSurface.Run(sectors);
         SectorMask blocked = ownRun.Sectors;
         Double3 light = Double3.Zero;
-        Double3 blockedMapLight = MapLightOf(sectors: sectors, part: blocked, anglesOf: ownRun.PartAngles, mapLight: mapLight);
+        Double3 blockedMapLight = MapLightOf(
+            sectors: sectors,
+            part: blocked,
+            anglesOf: ownRun.PartAngles,
+            mapLight: mapLight
+        );
         foreach (NearStep step in steps)
         {
             if (!HorizonSlice.Hides(sampleDistance: Double3.Distance(step.Position, center), radius: radius))

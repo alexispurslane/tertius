@@ -118,7 +118,9 @@ internal readonly record struct SliceSectors
 
     /// <summary>
     /// The middle and the width of the angles of <paramref name="piece"/>, an unbroken piece of sectors that is not
-    /// empty: from the boundary where its first sector begins to the one where its last sector ends.
+    /// empty: from the boundary where its first sector begins to the one where its last sector ends. An open piece takes
+    /// these angles, because it has no slab whose angles it could take, as a blocked part takes
+    /// <see cref="SectorRun.PartAngles"/> (docs/plans/screen-space-illumination.md, decision 42, "Two rules").
     /// </summary>
     public (double Middle, double Width) PieceAngles(SectorMask piece)
     {

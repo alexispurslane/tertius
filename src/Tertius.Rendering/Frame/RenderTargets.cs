@@ -49,14 +49,8 @@ internal sealed class RenderTargets : IDisposable
     public const Format DepthFormat = Format.D32Sfloat;
     public const Format HdrFormat = Format.R16G16B16A16Sfloat;
     public const Format DirectFormat = Format.R16G16B16A16Sfloat;
-    public const Format EstimateFormat = Format.R32G32B32A32Uint;
+    public const Format EstimateFormat = EstimatePacking.Format;
     public const Format DiffuseFormat = Format.R16G16B16A16Sfloat;
-
-    /// <summary>
-    /// The second word of the open estimate as packEstimate packs it (Shaders/estimate.glsl): G.b = 0 in its low half and
-    /// V = 1, the half float 0x3C00, in its high half.
-    /// </summary>
-    public const uint OpenOcclusionWord = 0x3C00_0000;
 
     /// <summary>The binding of the estimate target in the G-buffer set (Shaders/gbuffer_inputs.glsl).</summary>
     public const uint EstimateBinding = 7;
@@ -367,8 +361,7 @@ internal sealed class RenderTargets : IDisposable
             return;
         barriers.Image(Estimate, ImageUse.TransferDestination, discard: true);
         barriers.Flush(vk, commandBuffer);
-        // packEstimate of the open estimate (Shaders/estimate.glsl): every half 0 but V, 1.0 in the high half of y.
-        var openEstimate = new ClearColorValue(uint32_0: 0, uint32_1: OpenOcclusionWord, uint32_2: 0, uint32_3: 0);
+        ClearColorValue openEstimate = EstimatePacking.OpenTexel;
         var whole = new ImageSubresourceRange(
             aspectMask: ImageAspectFlags.ColorBit,
             baseMipLevel: 0,

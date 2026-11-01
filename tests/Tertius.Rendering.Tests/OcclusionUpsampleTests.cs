@@ -186,7 +186,10 @@ public sealed class OcclusionUpsampleTests
         Double3 offShare = new(0.25, 1, 0.75);
         Dictionary<(int X, int Y), UpsampleTexel> texels = new()
         {
-            [(X: 3, Y: 5)] = new(Position: Pixel, Estimate: new(Bounce: nearBounce, Occlusion: 0.4, OpenShare: nearShare)),
+            [(X: 3, Y: 5)] = new(
+                Position: Pixel,
+                Estimate: new(Bounce: nearBounce, Occlusion: 0.4, OpenShare: nearShare)
+            ),
             [(X: 4, Y: 5)] = new(
                 Position: Pixel + new Double3(TexelWidth, TexelWidth / 4, 0),
                 Estimate: new(Bounce: offBounce, Occlusion: 0.8, OpenShare: offShare)

@@ -3,8 +3,9 @@
 // B and the estimate target store it as seven half floats in an RGBA32UI texel, two to a word as packHalf2x16 packs
 // them: x G.rg, y (G.b, V), z (1 − S).rg, w ((1 − S).b, 0). The images store 1 − S, not S, so that an open texel
 // stores exact zeros, which the blurs and the upsample keep as zeros, and an open point keeps exactly D(n): the blurs'
-// sums of ones can come to just below 1, and a device that rounds a store toward zero keeps that. AmbientEstimate in
-// Shading/ is the C# copy, and it holds S.
+// sums of ones can come to just below 1, and a device that rounds a store toward zero keeps that. EstimatePacking in
+// Frame/ holds the layout's C# side: the format, the open texel and the reads of the test hooks. AmbientEstimate in
+// Shading/ is the C# copy of the estimate, and it holds S.
 #ifndef TERTIUS_ESTIMATE_GLSL
 #define TERTIUS_ESTIMATE_GLSL
 

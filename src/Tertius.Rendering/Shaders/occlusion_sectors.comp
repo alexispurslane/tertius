@@ -34,7 +34,8 @@ vec3 blockedMapLightOf(SliceGeometry g, SectorRun run, uint part, uint map)
 }
 
 // The map's light along the open sectors `open`: for each unbroken piece, its count times the map's light along the
-// middle of the angles of its boundaries. SectorSearch.Near is the C# copy.
+// middle of the angles of its boundaries. An open piece has no slab whose angles it could take, as a blocked part takes
+// its run's (docs/plans/screen-space-illumination.md, decision 42, "Two rules"). SectorSearch.Near is the C# copy.
 vec3 openMapLightOf(SliceGeometry g, uint open, uint map)
 {
     vec3 light = vec3(0.0);

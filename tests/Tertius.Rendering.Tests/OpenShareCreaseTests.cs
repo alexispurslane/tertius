@@ -30,22 +30,68 @@ public sealed class OpenShareCreaseTests(ITestOutputHelper output)
     private const double SpotSpread = 0.2;
 
     /// <summary>
-    /// D(n) · S, with D 15 % short of the reads' irradiance, lies within 25 % of the many-slice reference in each
-    /// channel: 15 % for the stores' disagreement, which scales the open light alone, and 10 % for the noise of 3
-    /// slices in the mean over 8 turns of the slices, as the denoise's neighbors give it. The subtraction D(n) − M of
-    /// before takes the stores' disagreement from the whole irradiance, which is twenty times the open light in red
-    /// here: it gave 2.5 times the reference in red and 0.66 times it in blue, a change of hue.
+    /// A store of D that falls 15 % short of the reads' irradiance scales the open light by 0.85 and changes nothing
+    /// else: S is a ratio of reads from the specular map alone. The subtraction D(n) − M of before took the stores'
+    /// disagreement from the whole irradiance, which is twenty times the open light in red here: it gave 2.5 times the
+    /// reference in red and 0.66 times it in blue, a change of hue.
     /// </summary>
     [Fact]
-    public void ACreaseBesideASmallBrightLightInTheMapGetsTheMapsLightOverItsOpenDirectionsWithinAQuarterOfAManySliceReference()
+    public void AStoreOfDThatFallsShortScalesTheCreasesOpenLightAndNothingElse()
     {
         Double3 irradiance = Irradiance();
-        Double3 storedIrradiance = irradiance * (1 - StoreShortfall);
-        Double3 reference = irradiance * Estimate(slices: 64, sliceNoise: 0.5f).OpenShare;
+        AmbientEstimate estimate = Estimate(slices: 3, sliceNoise: 0.5f);
+
+        Double3 exact = DiffuseLight(irradiance, estimate);
+        Double3 short_ = DiffuseLight(irradiance * (1 - StoreShortfall), estimate);
+        output.WriteLine($"open light with D exact {exact}, with D 15 % short {short_}");
+
+        foreach (
+            (double actual, double expected) in (ReadOnlySpan<(double Actual, double Expected)>)
+                [(short_.X, exact.X), (short_.Y, exact.Y), (short_.Z, exact.Z)]
+        )
+            actual.Should().BeApproximately((1 - StoreShortfall) * expected, 1e-12 * expected);
+    }
+
+    /// <summary>
+    /// The crease's S at 3 slices, in the mean over 64 turns of the slices, as the denoise's neighbors give it, lies
+    /// within 0.03 of S at 64 slices in each channel: the open light within 3 % of the map's irradiance. The tolerance is
+    /// the bias of a ratio of sums over 3 slices where one blocked direction holds most of the map's light, as the spot
+    /// does here: S at 3 slices measured +0.017, +0.025 and +0.027 above S at 64 slices in red, green and blue
+    /// (1.34, 1.27 and 1.13 times it). A bias of 40 % on S at 3 slices takes every channel past it.
+    /// </summary>
+    [Fact]
+    public void ACreaseBesideASmallBrightLightInTheMapHasAtThreeSlicesTheOpenShareOfManySlicesWithinThreeHundredths()
+    {
+        const int turns = 64;
+        Double3 reference = Estimate(slices: 64, sliceNoise: 0.5f).OpenShare;
         Double3 open = Double3.Zero;
-        for (int turn = 0; turn < 8; turn++)
-            open += DiffuseLight(storedIrradiance, Estimate(slices: 3, sliceNoise: turn / 8f)) / 8;
-        output.WriteLine($"irradiance {irradiance}, reference open light {reference}, open light at 3 slices {open}");
+        for (int turn = 0; turn < turns; turn++)
+            open += Estimate(slices: 3, sliceNoise: (turn + 0.5f) / turns).OpenShare / turns;
+        output.WriteLine($"S at 64 slices {reference}, at 3 slices {open}");
+
+        reference.X.Should().BeLessThan(0.3, "the test needs a crease whose open share is small");
+        foreach (
+            (double actual, double expected) in (ReadOnlySpan<(double Actual, double Expected)>)
+                [(open.X, reference.X), (open.Y, reference.Y), (open.Z, reference.Z)]
+        )
+            actual.Should().BeApproximately(expected, 0.03, "the slices' noise averages out over the turns");
+    }
+
+    /// <summary>
+    /// D(n) · S at 64 slices lies within 15 % of the map's light over the directions that the wall leaves open within the
+    /// radius, by quadrature, in each channel. It measured 13 %, 12 % and 8 % short in red, green and blue: the lobe
+    /// bound's price (decision 42), as a read of an open piece beside the wall is blurred into the dim sky and a read of
+    /// a blocked piece into the spot.
+    /// </summary>
+    [Fact]
+    public void ACreaseBesideASmallBrightLightInTheMapGetsTheMapsLightOverItsOpenDirectionsWithinFifteenPercent()
+    {
+        Double3 irradiance = Irradiance();
+        Double3 reference = Irradiance(onlyOpen: true);
+        Double3 open = DiffuseLight(irradiance, Estimate(slices: 64, sliceNoise: 0.5f));
+        output.WriteLine(
+            $"irradiance {irradiance}, over the open directions {reference}, open light at 64 slices {open}"
+        );
 
         reference.X.Should().BeLessThan(0.3 * irradiance.X, "the test needs a crease whose open light is small");
         foreach (
@@ -56,21 +102,23 @@ public sealed class OpenShareCreaseTests(ITestOutputHelper output)
                 .Should()
                 .BeApproximately(
                     expected,
-                    0.25 * expected,
-                    "the open directions bring the map's light along them, whatever the store of D holds"
+                    0.15 * expected,
+                    "the open directions bring the map's light along them, through the bound's lobe"
                 );
     }
 
     /// <summary>The diffuse light of a white receiver of the map's irradiance <paramref name="irradiance"/> under <paramref name="estimate"/>.</summary>
     private static Double3 DiffuseLight(Double3 irradiance, AmbientEstimate estimate) =>
-        new AmbientTerms(Diffuse: irradiance, Specular: Double3.Zero).Occluded(
-            occlusion: estimate.Occlusion,
-            openShare: estimate.OpenShare,
-            bounce: estimate.Bounce,
-            diffuseColor: new(1, 1, 1),
-            nDotV: 1,
-            lobe: new GgxLobe(1)
-        ).Diffuse;
+        new AmbientTerms(Diffuse: irradiance, Specular: Double3.Zero)
+            .Occluded(
+                occlusion: estimate.Occlusion,
+                openShare: estimate.OpenShare,
+                bounce: estimate.Bounce,
+                diffuseColor: new(1, 1, 1),
+                nDotV: 1,
+                lobe: new GgxLobe(1)
+            )
+            .Diffuse;
 
     /// <summary>The estimate of the receiver with <paramref name="slices"/> slices, turned by <paramref name="sliceNoise"/>.</summary>
     private static AmbientEstimate Estimate(int slices, float sliceNoise)
@@ -126,8 +174,12 @@ public sealed class OpenShareCreaseTests(ITestOutputHelper output)
         return SkyLight + SpotLight * Math.Exp(-angle * angle / (2 * SpotSpread * SpotSpread));
     }
 
-    /// <summary>The map's irradiance at the receiver's normal over π, by the midpoint rule over its hemisphere.</summary>
-    private static Double3 Irradiance()
+    /// <summary>
+    /// The map's irradiance at the receiver's normal over π, by the midpoint rule over its hemisphere, or with
+    /// <paramref name="onlyOpen"/> over the directions that the wall leaves open within the radius: those that reach
+    /// the plane x = <see cref="WallX"/> only beyond <see cref="Radius"/>.
+    /// </summary>
+    private static Double3 Irradiance(bool onlyOpen = false)
     {
         const int rings = 400;
         const int segments = 800;
@@ -143,9 +195,11 @@ public sealed class OpenShareCreaseTests(ITestOutputHelper output)
                     Math.Sin(polar) * Math.Sin(azimuth),
                     -Math.Cos(polar)
                 );
+                if (onlyOpen && direction.X * Radius > WallX)
+                    continue;
                 sum += MapLight(direction) * (Math.Cos(polar) * Math.Sin(polar));
             }
         }
-        return sum * ((Math.PI / 2) / rings * (2 * Math.PI / segments) / Math.PI);
+        return sum * (Math.PI / 2 / rings * (2 * Math.PI / segments) / Math.PI);
     }
 }
