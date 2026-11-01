@@ -21,3 +21,9 @@ ter-a9hh (2026-10-31) found that grazing hair rays inside the surface fade's ran
 
 A ticket note gives the paired cost numbers and the method. Either the cut is gone with MaxSteps 256, tests updated red first (the hair cut's tests now pin the fade), snapshots reviewed with the reference, actual and FLIP images, and screenshots of hair-rugs; or the numbers show why the cut stays.
 
+
+## Notes
+
+**2026-11-01T00:15:58Z**
+
+2026-10-31: launched through the workflow MCP (version 869b0b07-3413-4b06-8707-a88a91bf6e91), run 642dc040-a1dd-4cd9-abb3-2d032e6d5399, branch ter-r5hb-hair-reflection-steps from c25d6f21.
