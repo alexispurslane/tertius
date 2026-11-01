@@ -456,7 +456,8 @@ class CommandBuffers(unittest.TestCase):
         self.assertEqual(listed, {"b1", "b2"})
 
     def test_every_frame_of_the_order_counts_as_a_frame_also_one_that_the_encoder_list_lost(self):
-        found = gpu_trace.command_buffers({"b1", "b2", "upload"}, {"b1": 10, "b2": 20, "lost": 30})
+        # Two uploads make the encoder list longer than the frame order, so the count must come from the order.
+        found = gpu_trace.command_buffers({"b1", "b2", "upload", "upload-2"}, {"b1": 10, "b2": 20, "lost": 30})
         self.assertEqual(found["frames"], 3)
 
     def test_the_other_command_buffers_are_those_of_the_encoder_list_that_are_not_frames(self):
