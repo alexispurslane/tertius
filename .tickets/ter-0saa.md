@@ -5,7 +5,7 @@ deps: [ter-ww0h, ter-b2da]
 links: []
 created: 2026-11-01T18:38:04Z
 type: task
-priority: 2
+priority: 1
 assignee: Alexis Purslane
 parent: ter-pq5y
 tags: [rendering, performance, direct-light]
