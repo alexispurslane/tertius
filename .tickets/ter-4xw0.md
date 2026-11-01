@@ -32,3 +32,7 @@ The user chose on 2026-10-31 to build the hysteresis that docs/plans/local-light
 **2026-11-01T00:55:57Z**
 
 2026-10-31, fork settled by the orchestrator: design A. The user left the choice to the orchestrator ('pick something reasonable'). A has less code and no new coupling, and no checked-in scene shows the pop at the view's edge, which is the project's rule for leaving a feature out ('leave out a feature that is not needed yet', and settled fork 2's original 'hysteresis waits until a scene shows the pop'). So: a holder whose own Tier is FaceOnly ranks at FaceOnly (environment-map.md decision 20 stays as it is); a holder that the batcher drops from the light list (its own reach misses the view and no drawn face keeps it) loses its tiles at once; the margin spans tiers only inside the list, which today means a spot lamp across AxisMissesView and InView. The docs say so. Design B, keeping a holder in the light list while sqrt(2) its reach meets the view, is the known follow-up if a scene shows point-lamp shadows popping at the view's edge.
+
+**2026-11-01T00:56:19Z**
+
+2026-10-31: continuation run 57867dac-c29a-4e0e-9bd7-b8a0047b81b1 (version 869b0b07) builds design A on the preserved worktree (HEAD 3927908c), then goes through review and fix.
