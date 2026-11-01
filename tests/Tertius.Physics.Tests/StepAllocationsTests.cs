@@ -166,7 +166,8 @@ public sealed unsafe class StepAllocationsTests
         });
 
         (Volatile.Read(ref allocatingCalls) - callsBefore).Should().Be(CallsOnAThread);
-        bytes.Should()
+        bytes
+            .Should()
             .BeGreaterThanOrEqualTo(
                 (long)CallsOnAThread * CallbackPayload,
                 "each callback on the test's thread allocated an array"
@@ -222,7 +223,8 @@ public sealed unsafe class StepAllocationsTests
             job.Join();
         });
 
-        bytes.Should()
+        bytes
+            .Should()
             .BeGreaterThanOrEqualTo(
                 (long)CallsOnAThread * CallbackPayload,
                 "the thread runs no step of the later counter"
@@ -251,7 +253,8 @@ public sealed unsafe class StepAllocationsTests
 
         // An array of CallbackPayload bytes is larger than CallbackPayload but smaller than twice that, so the arrays
         // counted twice reach this bound and the arrays counted once leave room for the rest of the step.
-        bytes.Should()
+        bytes
+            .Should()
             .BeGreaterThanOrEqualTo((long)CallsOnAThread * CallbackPayload)
             .And.BeLessThan(
                 2L * CallsOnAThread * CallbackPayload,
@@ -266,11 +269,7 @@ public sealed unsafe class StepAllocationsTests
     [Fact]
     public void AWorldMadeAfterACounterThatCalledOtherCallbacksHearsItsContacts()
     {
-        NewWorldWithStepAllocations(
-                new JoltPhysicsBackend(JoltBackendOptions.Unpaced),
-                AllocatingCallbacks,
-                out _
-            )
+        NewWorldWithStepAllocations(new JoltPhysicsBackend(JoltBackendOptions.Unpaced), AllocatingCallbacks, out _)
             .Dispose();
         using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
         FrameHandle ground = Ground(world, 9.81f);

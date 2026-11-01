@@ -24,7 +24,6 @@ public sealed unsafe class StepAllocations : IPhysicsBackend
     private static ContactListenerProcs* wrappedCallbacks;
 
     // joltc keeps the pointer to the table, so the table lives as long as the process, as the backend's does.
-    private static ContactListenerProcs* countingCallbacks;
 
     // What the wrappers saw the callbacks allocate on Jolt's job threads, other than the physics thread.
     private static long jobThreadBytes;
@@ -35,7 +34,7 @@ public sealed unsafe class StepAllocations : IPhysicsBackend
     private static int physicsThread;
 
     /// <summary>The counting wrappers that joltc calls while a counter lives. Only the counter's own tests call them.</summary>
-    internal static ContactListenerProcs* CountingCallbacks => countingCallbacks;
+    internal static ContactListenerProcs* CountingCallbacks { get; private set; }
 
     private readonly IPhysicsBackend backend;
 
@@ -186,15 +185,15 @@ public sealed unsafe class StepAllocations : IPhysicsBackend
                 "The contact callbacks include a validate callback, which runs on Jolt's threads and which the count does not wrap."
             );
         wrappedCallbacks = callbacks;
-        if (countingCallbacks is null)
+        if (CountingCallbacks is null)
         {
-            countingCallbacks = (ContactListenerProcs*)NativeMemory.AllocZeroed((nuint)sizeof(ContactListenerProcs));
-            countingCallbacks->OnContactAdded = &OnContactAdded;
-            countingCallbacks->OnContactPersisted = &OnContactPersisted;
-            countingCallbacks->OnContactRemoved = &OnContactRemoved;
+            CountingCallbacks = (ContactListenerProcs*)NativeMemory.AllocZeroed((nuint)sizeof(ContactListenerProcs));
+            CountingCallbacks->OnContactAdded = &OnContactAdded;
+            CountingCallbacks->OnContactPersisted = &OnContactPersisted;
+            CountingCallbacks->OnContactRemoved = &OnContactRemoved;
         }
 
-        JoltNative.ContactListenerSetProcs(countingCallbacks);
+        JoltNative.ContactListenerSetProcs(CountingCallbacks);
     }
 
     /// <summary>The table of the backend's contact callbacks, which the backend gave joltc when it was first made.</summary>
