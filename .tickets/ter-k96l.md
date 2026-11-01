@@ -1,6 +1,6 @@
 ---
 id: ter-k96l
-status: open
+status: in_progress
 deps: [ter-xgra]
 links: []
 created: 2026-11-01T01:19:16Z
@@ -62,3 +62,7 @@ The evidence (the script, the full deck-late.png and the 3x crops) is in capture
 **2026-11-01T17:30:40Z**
 
 2026-11-01, from ter-xgra's review (the fix stage is still running, so these may change): (1) The brown band's bias comes from the two stores of the map: D is band-2 spherical harmonics, M comes from the specular map, so a converged M can exceed D under a small bright light (Known limit 2). The share form removes that class: D(n) · S never goes below 0, so no clamp and no hue change. D keeps its own band-2 error, now only as a bias of D. The fixer probes a brute-force D to measure how large that bias is. (2) The cabin base face above the deck-late crease (x 1200 to 1900, y 560 to 700) responds the opposite way to the floor: a wider lobe makes it black (rough1), because the lowest blocked piece's lobe reaches past the receiver's own plane (Known limit 1). So the lower bound on the lobe width can darken a vertical face beside a crease. This ticket checks that face with every lobe width, and clips a read's lobe at the receiver's plane if the bound darkens it. A face that turns black is a fork for the user, not a reason to drop the bound alone. (3) Part of artifact 1 is the angular noise of 3 slices in M (spinward, chute-top, part of brake-run), which no lobe width removes. In the share form that noise moves into S. The outlier clamp and the second denoise are its fixes, and the acceptance views include spinward and chute-top. (4) Two more views of artifact 1: the floor at the foot of the stacked boxes in the floor film (about 1400,860 to 1520,960) and the base of the gray ceiling panel in the demo-surface cabin (1800 to 1920, 470 to 490). The reviewer's noise measure (the mean absolute difference between luma and its 9 x 9 box blur, times 100, over a fixed box) scores each view against the light-off twin and the 16 x 3 reference.
+
+**2026-11-01T18:28:49Z**
+
+2026-11-01: workflow run 964690f2-acf3-4e26-af1a-bd1e0c8c1718 (version 869b0b07), branch ter-k96l-stamp-out-the-splashing from c6fdb3a0. Brief: /tmp/briefs/k96l.txt.
