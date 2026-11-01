@@ -22,3 +22,9 @@ The one model: a ticket's mutation step makes one table of mutants with one resu
 1. tools/mutate runs a list of mutants (C# and GLSL), one at a time, as CLAUDE.md's Testing section says, restores every file, and prints the shared table. Its pure parts have tests. A replay of at least 10 of ter-rjts's hand mutations (commit 71e6428b's message), C# and GLSL, with at least one survivor, gives the same results on main.
 2. One command runs Stryker on a branch's changed lines outside rendering with the official settings, under a machine-wide lock, and prints the shared table, with timeouts, NoCoverage and lines without a compiled mutant listed apart. A calibration run on a recent ticket outside rendering with a known hand-mutation table reports wall time, load, results and what each method found or missed.
 3. tools/README.md documents both, and CLAUDE.md's Testing section states the decision and the procedure, so that a hardening brief only names the commands.
+
+## Notes
+
+**2026-11-01T23:59:57Z**
+
+2026-11-01: workflow run 7fcc4fb2-fde1-468c-b565-adf99b9497ea (version 869b0b07), branch ter-hxca-mutation-runners from d636add2. Settled by the orchestrator before the launch: the mutant list is JSON; Stryker's test projects are the module's own plus those that reference it, never Tertius.Rendering.Tests; NoCoverage counts as survived and a timeout as killed, each listed apart; a machine-wide lock /tmp/tertius-stryker.lock; the concurrency, the timeout and the share of timeouts that makes a run invalid come from a measured calibration. Brief: /tmp/briefs/hxca.txt.
