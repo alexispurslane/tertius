@@ -7,6 +7,9 @@ The standard library only. The file loads gpu-trace.py by its path, because the 
 """
 
 import importlib.util
+import subprocess
+import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -364,6 +367,90 @@ class PairedTable(unittest.TestCase):
 
     def test_the_control_table_says_that_it_is_the_control(self):
         self.assertTrue(any(line.startswith("Control:") for line in self.lines([True] * 5, control=True)))
+
+
+
+class PairedMedian(unittest.TestCase):
+    """pairs and paired_median: the pairs are (before, frame, after) index triples, and a pair whose three frames do not
+    all have a value is left out of that quantity alone."""
+
+    def test_pairs_gives_each_paired_frame_with_its_two_neighbors(self):
+        self.assertEqual(gpu_trace.pairs([True, False, True, False, True]), ([(0, 1, 2), (2, 3, 4)], []))
+
+    def test_a_pair_with_a_frame_without_a_value_is_left_out_and_named_by_its_middle_frame(self):
+        found = gpu_trace.paired_median([2.0, 1.0, None, 1.0, 2.0, 0.5, 2.0], [(0, 1, 2), (2, 3, 4), (4, 5, 6)])
+        self.assertEqual((found["pairs"], found["leftOut"], found["medianMs"]), (1, [1, 3], 1.5))
+
+    def test_a_quantity_with_a_value_in_every_frame_leaves_out_no_pair(self):
+        self.assertEqual(gpu_trace.paired_median([2.0, 1.0, 2.0], [(0, 1, 2)])["leftOut"], [])
+
+
+class OneRowRule(unittest.TestCase):
+    """summarize and paired give a row to the same passes: each pass with an interval in some frame."""
+
+    def test_a_pass_whose_intervals_all_have_zero_length_has_a_row_in_both_tables(self):
+        intervals = _frames([True, False, True])
+        for i in range(3):
+            intervals[(f"f{i}", "z")] = [(i * 20 * MS + 10 * MS, i * 20 * MS + 10 * MS)]
+        summarized = [entry["pass"] for entry in gpu_trace.summarize(intervals, ["a", "x", "b", "z"], {})["passes"]]
+        found = [entry["pass"] for entry in gpu_trace.paired(intervals, ["a", "x", "b", "z"], "x")["passes"]]
+        self.assertEqual((summarized, found), (["a", "x", "b", "z"], ["a", "x", "b", "z"]))
+
+
+class PairedText(unittest.TestCase):
+    """table: the lines around the paired table name the frames left out, the parity of the frames without the pass and
+    how far the standard errors can be trusted."""
+
+    def lines(self, marks, control=False):
+        intervals = _frames(marks)
+        report = {"device": "Test GPU", "width": 64, "height": 32, "commandBuffers": {"frames": len(marks), "skipped": 0}}
+        report |= gpu_trace.summarize(intervals, ["a", "x", "b"], {})
+        report["paired"] = gpu_trace.paired(intervals, ["a", "x", "b"], "x", control=control)
+        return gpu_trace.table(report, has_counters=False).splitlines()
+
+    def test_a_report_with_no_pair_still_names_the_frames_left_out(self):
+        lines = self.lines([True, True], control=True)
+        self.assertIn(
+            "Left out, an odd frame without two even neighbors that run x, or a frame without GPU work of x: frames 1.", lines
+        )
+
+    def test_a_long_list_of_left_out_frames_gives_its_count_and_its_first_frames(self):
+        lines = self.lines([False] * 25)
+        self.assertIn(
+            "Left out, with no neighbor pair: 25 frames, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 and 15 more (passes.json lists all).",
+            lines,
+        )
+
+    def test_the_text_says_whether_the_frames_without_the_pass_are_the_odd_or_the_even_frames(self):
+        lines = self.lines([False, True, False, True, False])
+        self.assertTrue(any("The frames without x are the even frames." in line for line in lines))
+
+    def test_the_text_says_that_neighboring_pairs_share_a_frame_so_the_errors_are_somewhat_too_small(self):
+        text = " ".join(self.lines([True, False, True, False, True]))
+        self.assertIn("Neighboring pairs share a frame, so the standard errors are somewhat too small", text)
+
+
+class ReportOptions(unittest.TestCase):
+    """report: the command line of the paired mode, run as a process, before any trace is read."""
+
+    def run_report(self, folder, *options):
+        timings = Path(folder) / "gpu-timings.json"
+        timings.write_text('{"passes": [{"pass": "a"}, {"pass": "x"}]}')
+        script = Path(__file__).with_name("gpu-trace.py")
+        command = [sys.executable, "-I", str(script), "report", str(Path(folder) / "none.trace"), str(timings), folder]
+        return subprocess.run([*command, *options], capture_output=True, text=True)
+
+    def test_paired_and_control_exclude_each_other(self):
+        with tempfile.TemporaryDirectory() as folder:
+            self.assertEqual(self.run_report(folder, "--paired", "x", "--control", "x").returncode, 2)
+
+    def test_an_unknown_pass_is_named_with_the_option_that_gave_it(self):
+        with tempfile.TemporaryDirectory() as folder:
+            found = self.run_report(folder, "--window", "a", "y", "--control", "w")
+        self.assertEqual(
+            (found.returncode, found.stderr.splitlines()[:2]),
+            (1, ["--window y: y is not a pass of the run.", "--control w: w is not a pass of the run."]),
+        )
 
 
 if __name__ == "__main__":

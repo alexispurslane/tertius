@@ -18,6 +18,7 @@
 #                     pass <to>
 #   --paired <pass>   adds the paired table, for a run whose frames alternate with and without <pass>
 #   --control <pass>  adds the paired table's control, for a run whose frames all run <pass>
+#                     (give --paired or --control once, not both)
 # Arguments after the script go to the demo's headless run, such as --screen-space-light off.
 # Writes <out>/run.trace (open it in Instruments), <out>/run (the run's gpu-timings.json and exposure.json; --video none
 # draws each capture and writes no image),
@@ -54,7 +55,9 @@ while [[ $# -gt 0 ]]; do
     --no-counters) counters=0; shift ;;
     --keep-exports) keep=1; shift ;;
     --window) window=(--window "${2:?--window takes two pass names}" "${3:?--window takes two pass names}"); shift 3 ;;
-    --paired|--control) pairing=("$1" "${2:?$1 takes a pass name}"); shift 2 ;;
+    --paired|--control)
+      [[ ${#pairing[@]} -eq 0 ]] || { echo "Give one --paired or one --control, not both and not twice." >&2; exit 2; }
+      pairing=("$1" "${2:?$1 takes a pass name}"); shift 2 ;;
     -*) echo "Unknown option $1." >&2; exit 2 ;;
     *) break ;;
   esac
