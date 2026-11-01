@@ -12,6 +12,18 @@ tags: [rendering, screen-space-light]
 ---
 # Screen-space light: a blotchy dark-brown band along the floor's creases on demo-exit's deck under a bright environment map
 
+## The fix: settled by the user on 2026-11-01
+
+This ticket computes the open share's light as D times the open pieces' share of the map's light. It replaces decision 42's subtraction, D(n) − M. The user called it "the obviously correct optimal approach". No other form of the fix is in scope, and the two-designs step does not apply to this choice.
+
+- The sectors pass reads the map along the open pieces as well as along the blocked pieces, with the same rule for a read's direction and lobe.
+- The open light is D(n) · S, where S = (the map's light along the open pieces) / (the map's light along all pieces). D(n) stays the irradiance at the pixel's full-resolution normal.
+- The diffuse term is c_diff · (D(n) · S + G). It needs no clamp at 0, because S lies between 0 and 1.
+- What follows from the form: an open point keeps exactly D(n), because S = 1 there. The result never goes below 0, so no pixel turns black or brown from an overshoot. A read's error appears in both sums of S, so much of it cancels. D(n) and S come from different stores of the map, but S is a ratio of reads from one store, so the two stores no longer have to agree.
+- Settled by the orchestrator inside this design: S is taken per color channel, so that the open light takes the color of the open directions. Where the map's light along all pieces is 0 in a channel, S in that channel is the open share of the cosine weight.
+- Left to this ticket's design, with the reason recorded: how the estimate stores S beside G and V (the targets carry G − M and V today), and the measured cost of the open pieces' reads.
+- The fix updates decision 42 and "Known limits" in docs/plans/screen-space-illumination.md, and the section on the screen-space light in ARCHITECTURE.md.
+
 Found by the orchestrator on 2026-10-31, in the screenshots of ter-qsye (main cae67c5e, headless Release, 1280 x 720). Script captures/deck-fringe-2026-10-31/late.json: demo-exit, cabin camera, post LeaveShip, run 399 ticks, deck camera, run 520 ticks, capture deck-late. At that moment a bright blue light floods the deck through the opening at the upper left.
 
 What shows: along the crease where the deck floor meets the cabin's base, and along the base of the far wall, the floor carries a band about 10 to 20 px wide of dark brown blotches, and a smaller blotch lies at the foot of the blue pillar. 3x crops: captures/deck-fringe-2026-10-31/fringe-3x.png (cabin base) and captures/deck-fringe-2026-10-31/fringe-left-3x.png (far wall).
@@ -22,7 +34,7 @@ Not caused by ter-qsye: its builder found all 740 deck frames identical to its b
 
 ## Acceptance Criteria
 
-The deck-late view shows no blotches along the floor's creases, at the default ScreenSpaceLight, or the ticket records why the blotches are the right answer of the estimate and what a later change would cost. A reference image or a render test pins the result.
+The open share's light is D(n) · S, as the section "The fix" says, and the subtraction D(n) − M and its clamp are gone. The deck-late crease, the brake-run crease, unbelt, chute-top and spinward (ter-xgra's artifact 1) and the deck-late band (artifact 2) show no blotches, dots or brown hue at the default ScreenSpaceLight. Each is compared with the light-off view and with a reference at 16 slices and 3 steps (ter-xgra found that more steps make M's reads sharper, so 16 x 16 is not a reference for the map's reads). A render test pins two behaviors: an open point keeps exactly D(n), and a crease beside a small bright light in the map gets the map's light over its open directions, within a stated tolerance of a reference at many slices. The cost is measured against ter-pjza's numbers.
 
 ## Notes
 
