@@ -478,24 +478,52 @@ vec3 blockerLight(vec3 direct, vec3 geometricNormal, vec3 towardReceiver)
 #endif
 ```
 
-`gtao.glsl` gains the receiver's geometric normal in the texel setup, `gtaoSliceGeometry(texel setup, slice)`, which computes V̂, ô, γ, T and W in the lines that `gtaoEstimate` has today, and `gtaoExactStepOffset(slice, step, ...)`, which computes the offset of today before its snap (`ter-rxjr`). `gtaoEstimate` and its horizon cosines go: the sectors replace them. The slice loop of `occlusion_sectors.comp`, which replaces `occlusion_horizons.comp`, and its reads of the map (decision 42), after the texel setup. `environmentLobe` and `roughnessForWidth` are in `environment.glsl`, `fromViewAxes` in `occlusion.glsl`:
+`gtao.glsl` gains the receiver's geometric normal in the texel setup, `gtaoSliceGeometry(texel setup, slice)`, which computes V̂, ô, γ, T and W in the lines that `gtaoEstimate` has today, and `gtaoExactStepOffset(slice, step, ...)`, which computes the offset of today before its snap (`ter-rxjr`). `gtaoEstimate` and its horizon cosines go: the sectors replace them. The slice loop of `occlusion_sectors.comp`, which replaces `occlusion_horizons.comp`, and its reads of the map (decision 42), after the texel setup. `environmentLobe` and `roughnessForWidth` are in `environment.glsl`, `fromViewAxes` in `occlusion.glsl`. The listing shows the share form of `ter-k96l` (decision 42). Each `...` marks lines that `occlusion_sectors.comp` holds in full: the hair receiver and the reads of each step.
 
 ```glsl
-// M of a part of a run: for each unbroken piece of the part, its count times the map's light along the middle of its
-// angles, read with a lobe that keeps to them (docs/plans/screen-space-illumination.md, decision 42). A nearer step can
-// block sectors amid the run, so the part can fall in pieces. SectorSearch.Near is the C# copy.
-vec3 mapLightOf(SliceGeometry g, SectorRun run, uint part, uint map)
+// The map's light along the middle of the angles `angles`, from first to last, read with a lobe that keeps to them
+// (docs/plans/screen-space-illumination.md, decision 42).
+vec3 mapLightAlong(SliceGeometry g, vec2 angles, uint map)
+{
+    vec3 direction = fromViewAxes(sliceDirection(g, 0.5 * (angles.x + angles.y)));
+    return environmentLobe(map, direction, roughnessForWidth(angles.y - angles.x)).rgb;
+}
+
+// The map's light along a part of a run: for each unbroken piece of the part, its count times the map's light along
+// the middle of its angles in the run. A nearer step can block sectors amid the run, so the part can fall in pieces.
+// SectorSearch.Near is the C# copy.
+vec3 blockedMapLightOf(SliceGeometry g, SectorRun run, uint part, uint map)
 {
     vec3 light = vec3(0.0);
     for (uint rest = part; rest != 0u;)
     {
         uint piece = lowestPiece(rest);
         rest &= ~piece;
-        vec2 angles = partAngles(run, piece);
-        vec3 direction = fromViewAxes(sliceDirection(g, 0.5 * (angles.x + angles.y)));
-        light += float(bitCount(piece)) * environmentLobe(map, direction, roughnessForWidth(angles.y - angles.x)).rgb;
+        light += float(bitCount(piece)) * mapLightAlong(g, partAngles(run, piece), map);
     }
     return light;
+}
+
+// The map's light along the open sectors `open`: for each unbroken piece, its count times the map's light along the
+// middle of the angles of its boundaries. An open piece has no slab whose angles it could take, as a blocked part takes
+// its run's (docs/plans/screen-space-illumination.md, decision 42, "Two rules"). SectorSearch.Near is the C# copy.
+vec3 openMapLightOf(SliceGeometry g, uint open, uint map)
+{
+    vec3 light = vec3(0.0);
+    for (uint rest = open; rest != 0u;)
+    {
+        uint piece = lowestPiece(rest);
+        rest &= ~piece;
+        light += float(bitCount(piece)) * mapLightAlong(g, pieceAngles(g, piece), map);
+    }
+    return light;
+}
+
+// One channel's share of the map's light along the blocked sectors, or `fallback` where the map holds none. The sums
+// add reads of half floats, by the slice weights, so a sum that is not 0 lies far above the smallest normal float.
+float blockedShareOf(float blockedMapLight, float allMapLight, float fallback)
+{
+    return allMapLight > 0.0 ? blockedMapLight / allMapLight : fallback;
 }
 
 // Only a lit texel names its map. An unlit one, an impostor's, takes no ambient light, and its estimate holds the
@@ -503,54 +531,25 @@ vec3 mapLightOf(SliceGeometry g, SectorRun run, uint part, uint map)
 float mapCode = environmentMapOn ? texelFetch(gbufferBaseColor, 2 * texel, 0).a : 0.0;
 bool readsMap = mapCode > 0.0;
 uint map = readsMap ? mapOfCode(mapCode) : 0u;
+...
 float totalWeight = 0.0;
 float open = 0.0;
+float blockedWeight = 0.0;
 vec3 bounce = vec3(0.0);
-vec3 replaced = vec3(0.0);
+vec3 blockedMap = vec3(0.0);
+vec3 openMap = vec3(0.0);
 for (int slice = 0; slice < slices; slice++)
 {
     SliceGeometry g = gtaoSliceGeometry(setup, slice);
     // The receiver's own surface first, so no step gives light to a direction below it.
-    SectorRun ownSurface = ownSurfaceRun(g, setup.geometricNormal);
+    SectorRun ownSurface = hair ? noRun(g) : ownSurfaceRun(g, setup.geometricNormal);
     uint blocked = runSectors(ownSurface);
     vec3 light = vec3(0.0);
-    // M: the map's light along the blocked directions, which their blockers' light replaces.
+    // The map's light along the blocked directions, which their blockers' light replaces.
     vec3 mapLight = vec3(0.0);
     if (readsMap && blocked != 0u)
-        mapLight += mapLightOf(g, ownSurface, blocked, map);
-    // Where R spans at most the nearest step, the near range holds no step (decision 21). SectorSearch.SliceSteps is
-    // the C# copy of this loop: change both together.
-    for (int stepIndex = 0; radiusInTexels > NearestStepTexels && stepIndex < stepsPerSide; stepIndex++)
-    {
-        vec2 exactOffset = gtaoExactStepOffset(setup, slice, stepIndex);
-        // The texel nearest the step's exact place, whose depth, plane and light the step reads.
-        ivec2 offset = ivec2(round(exactOffset));
-        // Plus side first, as XeGTAO's order: a step gives light only to the sectors that no nearer step blocked.
-        for (int sideIndex = 0; sideIndex < 2; sideIndex++)
-        {
-            float side = sideIndex == 0 ? 1.0 : -1.0;
-            ivec2 t = texel + (sideIndex == 0 ? offset : -offset);
-            if (!insideHalf(t))
-                continue;
-            float sampleDepth = viewDepthAt(t);
-            // Sky blocks nothing. Its view position, SkyDepth times a long view ray, would square past the single
-            // float range, so the depth decides before the length (ARCHITECTURE.md, "Portable Vulkan").
-            if (sampleDepth >= SkyDepth)
-                continue;
-            // The depth pass's copies of pixel 2t: half-resolution reads keep the steps' reads dense in the cache.
-            vec3 sampleNormal = texelGeometricNormalAt(t);
-            // A half-resolution texel spans two pixels, 2 / W of the screen.
-            vec2 exactPlace = centerPlace + side * exactOffset * 2.0 / vec2(fullSize());
-            vec2 around = depthsAround(t, sampleDepth, side * (exactOffset - vec2(offset)));
-            vec3 samplePosition;
-            bool onSlice = stepSurfacePoint(gtaoViewPosition(exactPlace, 1.0),
-                                            gtaoViewPosition(pixelScreenPosition(2 * t), sampleDepth),
-                                            sampleNormal, around, setup.center.z + occlusion.radiusMeters,
-                                            samplePosition);
-            // GTAO's hard edge: a step blocks only within the radius.
-            if (!onSlice || !(length(samplePosition - setup.center) < occlusion.radiusMeters))
-                continue;
-            SectorRun run = stepRun(g, setup.center, samplePosition, side);
+        mapLight += blockedMapLightOf(g, ownSurface, blocked, map);
+        ...
             uint fresh = runSectors(run) & ~blocked;
             if (fresh == 0u)
                 continue;
@@ -558,35 +557,47 @@ for (int slice = 0; slice < slices; slice++)
             light += float(bitCount(fresh)) * blockerLight(imageLoad(occlusionSource, t).rgb, sampleNormal,
                                                         setup.center - samplePosition);
             if (readsMap)
-                mapLight += mapLightOf(g, run, fresh, map);
+                mapLight += blockedMapLightOf(g, run, fresh, map);
         }
     }
     totalWeight += g.weight;
     // Beyond the radius, an open sector takes the ambient light (decision 40).
     open += g.weight * float(bitCount(~blocked));
+    blockedWeight += g.weight * float(bitCount(blocked));
     bounce += g.weight * light;
-    replaced += g.weight * mapLight;
+    blockedMap += g.weight * mapLight;
+    // The open sectors' reads, after the steps: only then is every open piece known.
+    if (readsMap)
+        openMap += g.weight * openMapLightOf(g, ~blocked, map);
 }
 if (!(totalWeight > MinTotalWeight))
 {
-    imageStore(occlusionTermA, texel, vec4(0.0, 0.0, 0.0, 1.0));
+    imageStore(occlusionTermA, texel, packEstimate(openEstimate()));
     return;
 }
 // Normalized by the total weight, so the open and the blocked shares sum to 1 (decision 17). The bounce, a mean of
-// pre-exposed direct light, lies in [0, c], and the map's light is exposed and capped at c, so the net bounce lies in
-// [−c, c], within the half floats.
+// pre-exposed direct light, lies in [0, c], within the half floats. The blocked share of the map's light is a ratio
+// of reads of one store, so the exposure and much of each read's error cancel in it. A texel that blocks nothing
+// has a blocked map light of exactly 0, so its share is exactly 0 and S exactly 1. A channel in which the map holds
+// no light along any sector, and every channel with the map off or at an unlit texel, takes the blocked share of the
+// cosine weight, 1 − V. The division can round past 1, which the upsample's clamp takes back.
 float scale = float(SectorCount) * totalWeight;
-vec3 netBounce = bounce / scale;
-if (readsMap)
-    netBounce -= exposed(replaced / scale, exposureScale());
-imageStore(occlusionTermA, texel, vec4(netBounce, open / scale));
+vec3 allMap = blockedMap + openMap;
+float fallback = blockedWeight / scale;
+Estimate estimate;
+estimate.bounce = bounce / scale;
+estimate.occlusion = open / scale;
+estimate.blockedShare = vec3(blockedShareOf(blockedMap.r, allMap.r, fallback),
+                             blockedShareOf(blockedMap.g, allMap.g, fallback),
+                             blockedShareOf(blockedMap.b, allMap.b, fallback));
+imageStore(occlusionTermA, texel, packEstimate(estimate));
 ```
 
 ### The denoise and the upsample
 
-Both stay XeGTAO's and GTAO's, with the estimate's four channels in place of one. The denoise blurs the vec4 with the edges' weights, so the bounce and the occlusion of a texel take the same neighbors. The upsample's weights stay those of the tangent plane and the bilinear footprint, and they apply to all four channels. It writes (rgb, clamp(a, 0, 1)) into the estimate target, and the clamp keeps the rounding of the blurs' sums within [0, 1]. The rgb, the net bounce, needs no clamp: it lies in [−c, c] ("The estimate of a texel"), and each blur and the upsample average it with non-negative weights that sum to 1, so the mean stays in [−c, c].
+Before `ter-k96l`, both stayed XeGTAO's and GTAO's, with the estimate's four channels in place of one. The denoise blurred the vec4 with the edges' weights, so the bounce and the occlusion of a texel took the same neighbors. The upsample's weights were those of the tangent plane and the bilinear footprint, and they applied to all four channels. It wrote (rgb, clamp(a, 0, 1)) into the estimate target, and the clamp kept the rounding of the blurs' sums within [0, 1]. The rgb, the net bounce, needed no clamp: it lay in [−c, c], and each blur and the upsample averaged it with non-negative weights that sum to 1.
 
-(`ter-k96l`.) The estimate now has seven channels, G, V and 1 − S, packed as half floats in RGBA32UI texels. `estimate.glsl` owns the packing: `unpackEstimate`, `addWeighted`, `dividedEstimate` and `packEstimate`. The denoise unpacks its nine texels, blurs every channel with the same weights, and packs the mean. It runs 6 blurs, A to B and back, as a loop over 2 × `OcclusionDenoisePass.BlurPairs` (decision 43). The upsample clamps V and 1 − S to [0, 1], and G needs no clamp.
+(`ter-k96l`.) The estimate now has seven channels, G, V and 1 − S, and no net bounce, packed as half floats in RGBA32UI texels. `estimate.glsl` owns the packing: `unpackEstimate`, `addWeighted`, `dividedEstimate` and `packEstimate`. The denoise unpacks its nine texels, blurs every channel with the same weights, and packs the mean. It runs 6 blurs, A to B and back, as a loop over 2 × `OcclusionDenoisePass.BlurPairs` (decision 43). The edges' weights and the upsample's weights are as before, and they apply to all seven channels. The upsample clamps V and 1 − S to [0, 1]. G needs no clamp: it lies in [0, c], and each blur and the upsample average it with non-negative weights that sum to 1.
 
 ## The lighting split
 
@@ -597,10 +608,10 @@ flowchart TD
     GB --> OD["occlusion depth"]
     DI --> OD
     OD --> OS["occlusion sectors: the masks and the estimate"]
-    OS --> DN["occlusion denoise, twice"]
+    OS --> DN["occlusion denoise: the blurs of decision 43"]
     DN --> UP["occlusion upsample"]
-    UP --> ET[("The estimate target: G, V")]
-    DI --> AP["Ambient pass: direct + ambient terms with V and G, capped at c"]
+    UP --> ET[("The estimate target: G, V, 1 − S")]
+    DI --> AP["Ambient pass: direct + ambient terms with V, S and G, capped at c"]
     ET --> AP
     AP --> HDR[("The HDR image")]
     HDR --> RF["SSR: radiance pyramid and trace"]
@@ -818,7 +829,7 @@ The masks live in registers only, one word per slice in the sectors pass, so no 
 1. `ShadowMaps`, `EnvironmentFaces`, `EnvironmentPrefilter`, `ImpostorCaptures`, `GBuffer`, as their designs give them.
 2. `DepthPyramid` (SSR's stage): "depth pyramid", under reflections only. It reads the distance target that the G-buffer pass finished.
 3. `DirectLight` (today's `Lighting`): "direct light", always. It reads the G-buffer and the shadow maps.
-4. `AmbientOcclusion`: under `VisibilityBitmaskLight`, "occlusion depth", "occlusion sectors", "occlusion denoise" (four dispatches since `ter-k96l`) and "occlusion upsample". After the direct pass, because the depth pass copies the direct image for the sectors pass.
+4. `AmbientOcclusion`: under `VisibilityBitmaskLight`, "occlusion depth", "occlusion sectors", "occlusion denoise" (the blurs of decision 43) and "occlusion upsample". After the direct pass, because the depth pass copies the direct image for the sectors pass.
 5. `AmbientLight` (new): "ambient light", always. After the occlusion passes, whose estimate target it reads.
 6. `Reflections` (SSR's): after the ambient pass, so that the radiance pyramid holds the bounce.
 7. `Transparent`, `Exposure`, `Bloom`, `ToneMap`, `AntiAliasing`, `Overlay`, `Readback`, as today.
@@ -844,7 +855,7 @@ Every compute shader keeps the local size 8 × 8. The depth, sectors and denoise
 | | The edges image, term A | `StorageCompute` | Yes | The last frame's reads |
 | | While the map is on: the base color target, the map's specular image | `SampledCompute` | | Read to read, after the G-buffer pass and the faces' prefilter |
 | | While the map is on: the exposure buffer | `ComputeRead` | | Read to read. (`ter-k96l`: gone. The blocked share is a ratio of reads, in which the exposure cancels, so the sectors pass reads no exposure.) |
-| Occlusion denoise | Term A, term B, the edges image | As today, with a flush before each of its 6 dispatches but the first (decision 43) | | As today |
+| Occlusion denoise | Term A, term B, the edges image | As today, with a flush before each of its dispatches but the first (decision 43) | | As today |
 | Occlusion upsample | Term A, the view depth image | `StorageCompute` | | The last denoise write |
 | | The estimate target | `StorageCompute` | Yes | The last frame's ambient pass read, and SSR's trace read |
 | Ambient light | The estimate target | `SampledFragment` | | The upsample's write, or the clear's write |
@@ -872,7 +883,7 @@ All four occlusion pipelines share `DescriptorLayouts.OcclusionLayout`: sets 0 t
 | 7 | Storage image, rg16_snorm | The copy of the geometric normal (decision 25) |
 | 8 | Storage image, rgba16f, read only | The diffuse image, full size (`RenderTargets.Diffuse`) |
 
-`OcclusionImages` writes two such sets. `SetAToB` holds term A and term B in bindings 4 and 5, and `SetBToA` the other way. Every pass binds `SetAToB`, except the denoise's second, fourth and sixth dispatches, which bind `SetBToA`. Vulkan guarantees at least 4 bound sets, which these use. The distance and the normals come from set 2, bindings 4 and 1, which the sets 0 of today's layout repeated.
+`OcclusionImages` writes two such sets. `SetAToB` holds term A and term B in bindings 4 and 5, and `SetBToA` the other way. Every pass binds `SetAToB`, except the denoise's even dispatches, the second, the fourth and so on, which bind `SetBToA`. Vulkan guarantees at least 4 bound sets, which these use. The distance and the normals come from set 2, bindings 4 and 1, which the sets 0 of today's layout repeated.
 
 The G-buffer set changes:
 
@@ -986,8 +997,8 @@ flowchart TD
 | The direct image | The direct pass | Stage `DirectLight`, every frame | The depth pass (at 2t, for its copy), the ambient pass (at the pixel), the test hook `ReadDirect` | The same frame | `RenderTargets.Direct`, G-buffer binding 9 | The HDR image: one pass writes it, later passes of the frame read it |
 | The view depth image, the edges image | As GTAO | As GTAO | As GTAO | The same frame | `OcclusionImages` | Unchanged |
 | The copies of the bounce source and the geometric normal (decision 25) | The depth pass, from the diffuse, the emissive and the shading target and from the normals target at 2t | Stage `AmbientOcclusion`, every frame | The sectors pass (at t), the test hooks `ReadOcclusionSource` and `ReadOcclusionGeometricNormal` | The same frame | `OcclusionImages.Source`, `GeometricNormal`, occlusion set bindings 6 and 7 | The view depth image: the depth pass derives it from a full-resolution target of the same frame |
-| Term A | The sectors pass (the estimate), the denoise's second, fourth and sixth dispatches | Stage `AmbientOcclusion` | The denoise's first, third and fifth dispatches, the upsample, the test hooks `ReadOcclusionTerm` and `ReadOcclusionTermOpenShare` | The same frame | `OcclusionImages.TermA` | GTAO's term A, which held the estimate before and after the blur |
-| Term B | The denoise's first, third and fifth dispatches | The same | The denoise's second, fourth and sixth dispatches | The same | `OcclusionImages.TermB` | GTAO's |
+| Term A | The sectors pass (the estimate), the denoise's even dispatches, the second, the fourth and so on | Stage `AmbientOcclusion` | The denoise's odd dispatches, the first, the third and so on, the upsample, the test hooks `ReadOcclusionTerm` and `ReadOcclusionTermOpenShare` | The same frame | `OcclusionImages.TermA` | GTAO's term A, which held the estimate before and after the blur |
+| Term B | The denoise's odd dispatches, the first, the third and so on | The same | The denoise's even dispatches | The same | `OcclusionImages.TermB` | GTAO's |
 | The estimate target | `RecordEstimateClear` (first frame after a creation, `EstimatePacking.OpenTexel`), the upsample (every frame under `VisibilityBitmaskLight`) | Before the graph, then stage `AmbientOcclusion` | The ambient pass, SSR's trace through `estimatedAt`, the test hooks `ReadEstimate` and `ReadEstimateOpenShare` | The same frame | `RenderTargets.Estimate`, G-buffer binding 7 | The occlusion target, which it replaces |
 | 1 − S, the blocked pieces' share of the map's light (decision 42) | The sectors pass: while the map is on, from one read of the specular map for each unbroken piece of newly blocked sectors, of the receiver's own surface and of the open sectors, summed per slice by the slices' weights; 1 − V where the map holds no light | Stage `AmbientOcclusion` | The denoise and the upsample carry it, `estimatedAt` turns it into `ShadingInput.openShare`, the test hooks `ReadOcclusionTermOpenShare` and `ReadEstimateOpenShare` | The same frame | Term A's and the estimate target's fifth to seventh halves (`estimate.glsl`, `EstimatePacking`) | G, the blockers' light, which shares its texel |
 | The map's specular image, the base color target's map code (its alpha), the constant `environmentMapOn` | The faces' prefilter, the G-buffer pass, the renderer at the pipeline's creation | Before stage `AmbientOcclusion` in each frame; the constant for the renderer's life | The ambient pass and the other readers of before, and now the sectors pass while the map is on (decision 42). The sectors pass reads no exposure (`ter-k96l`) | The same frame | `EnvironmentMap.Specular`, the base color target, the specialization constant | The ambient pass's reads of the same values |
@@ -1315,7 +1326,7 @@ The reads add about 0.1 ms in the deck and 0.14 ms in the cabin, whose near wall
 
 ### `ter-k96l`
 
-`ter-k96l` measured each part with the renderer's own GPU timers: the deck window of `demo-exit` (`time-deck.json`, 120 frames at 1920 × 1080, Release, `--video none`), the five passes, from the occlusion depth pass to the ambient pass. Each series ran the builds in turn, in a rotated order, with a copy of the base build as a control, and the table gives the medians. Other agents built and tested at the same time, and the one-minute load was 2 to 14.
+`ter-k96l` measured each part with the renderer's own GPU timers: the deck window of `demo-exit` (`time-deck.json`, 120 frames at 1920 × 1080, Release, `--video none`), the five passes, from the occlusion depth pass to the ambient pass. Each series ran the builds in turn, in a rotated order, with a copy of the base build as a control, and the table gives the medians. Other agents built and tested at the same time. The one-minute load was 2.2 to 13.9 in part 1 and 3.6 to 9 in part 2. Part 3's loads were not recorded. The last series recorded 9.2 to 38.5.
 
 | Part | Base, the five passes | The part | Control | Where |
 |---|---|---|---|---|
@@ -1325,7 +1336,7 @@ The reads add about 0.1 ms in the deck and 0.14 ms in the cabin, whose near wall
 | 3, a second series: 3 slices and 6 blurs, 8 rounds | 2.854 ms | +0.485 ms | −0.003 ms | sectors +0.004, denoise +0.610, upsample +0.145, ambient −0.269 |
 | The user's set, 3 slices and 6 blurs (decision 43), against `c6fdb3a0`, 12 rounds | 2.394 ms, D(n) − M | +0.963 ms | +0.004 ms | depth +0.018, sectors +0.268, denoise +0.708, upsample +0.217, ambient −0.227 |
 
-In part 1, the open pieces' reads cost about 0.19 ms, the bisection of the boundary angles about 0.07 ms, and the 16-byte texels about 0.18 ms in the denoise, the upsample and the ambient pass. The images grow by 24.9 MB at 1920 × 1080: term A and term B by 4,147,200 B each, the estimate target by 16,588,800 B. In part 3, a slice costs about 0.41 ms and a blur about 0.15 ms. Part 3's one-minute loads were not recorded. The last series recorded each run's load: 9.2 to 12.0 in rounds 1 to 7, and up to 38.5 in rounds 8 to 12, when another agent built. Its medians over 12 rounds hold the control within 0.004 ms. A pass's busy time moves with its neighbors, so the ambient pass's −0.144 ms is not a gain of the change.
+In part 1, the open pieces' reads cost about 0.19 ms, the bisection of the boundary angles about 0.07 ms, and the 16-byte texels about 0.18 ms in the denoise, the upsample and the ambient pass. The images grow by 24.9 MB at 1920 × 1080: term A and term B by 4,147,200 B each, the estimate target by 16,588,800 B. In part 3, a slice costs about 0.41 ms and a blur about 0.15 ms. The last series recorded each run's load: 9.2 to 12.0 in rounds 1 to 7, and up to 38.5 in rounds 8 to 12, when another agent built. Its medians over 12 rounds hold the control within 0.004 ms. The timers split the five passes' time unreliably among the passes, because a pass's measured busy time moves with its neighbors. So the ambient pass's −0.144, −0.269 and −0.227 ms are not gains of the change, and the upsample's +0.217 ms is partly the ambient pass's time. The traces below give each pass's own busy time, and they show no gain in the ambient pass: 0.598 and 0.618 ms with the user's set, against 0.591 and 0.567 ms in `ter-pjza`'s traces. The sum of the five passes is the reliable number of the timers.
 
 Traces of every frame of `demo-exit`, `tools/gpu-trace.sh --no-counters --frames 0`, 3,889 frames each, the mean of each pass's own busy time, in ms. Runs 1 and 2 measured 4 slices with 4 blurs, and started at loads of 6.6 and 7.7. Runs 3 and 4 measured the user's set, 3 slices with 6 blurs, and started at loads of 26.6 and 10.6. `ter-pjza`'s two runs before `ter-k96l` are beside them.
 

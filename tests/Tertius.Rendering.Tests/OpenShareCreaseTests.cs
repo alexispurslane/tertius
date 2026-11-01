@@ -17,6 +17,9 @@ public sealed class OpenShareCreaseTests(ITestOutputHelper output)
     /// <summary>The share by which the store of D falls short of the reads' irradiance: band-2 spherical harmonics fell short by more under a small bright light (ter-xgra).</summary>
     private const double StoreShortfall = 0.15;
 
+    /// <summary>The spot's angular spread, in rad: a sixteenth of the hemisphere's width.</summary>
+    private const double SpotSpread = 0.2;
+
     private static readonly Double3 Center = new(0, 0, 2);
     private static readonly Double3 TowardTheEye = new(0, 0, -1);
     private static readonly Double3 WallNormal = new(-1, 0, 0);
@@ -25,9 +28,6 @@ public sealed class OpenShareCreaseTests(ITestOutputHelper output)
 
     /// <summary>The spot's direction from the center, toward the wall: the wall lies about 6 cm away along it.</summary>
     private static readonly Double3 SpotDirection = new Double3(0.8, 0.2, -0.55).Normalized();
-
-    /// <summary>The spot's angular spread, in rad: a sixteenth of the hemisphere's width.</summary>
-    private const double SpotSpread = 0.2;
 
     /// <summary>
     /// A store of D that falls 15 % short of the reads' irradiance scales the open light by 0.85 and changes nothing

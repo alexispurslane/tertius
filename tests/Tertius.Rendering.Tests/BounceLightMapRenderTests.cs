@@ -45,6 +45,9 @@ public sealed class BounceLightMapRenderTests(ITestOutputHelper output)
         new(WallX + 2.5f, FloorHeight, -4.5f),
     ];
 
+    /// <summary>The center of the box of <see cref="AddBoxBesideTheCrease"/>, 0.5 m from the wall's face.</summary>
+    private static readonly Vector3 BoxCenter = new(WallX + 0.6f, FloorHeight + 0.1f, -4f);
+
     /// <summary>
     /// The wall glows, and the rest of the map is black. From every floor point the wall fills the half of the sky
     /// toward it, so every floor point gets half the wall's radiance L, beside the wall as away from it. Beside it, the
@@ -248,9 +251,6 @@ public sealed class BounceLightMapRenderTests(ITestOutputHelper output)
             .Should()
             .BeLessThanOrEqualTo(1.1 * reference, "the denoise averages away the noise of the default's slices");
     }
-
-    /// <summary>The center of the box of <see cref="AddBoxBesideTheCrease"/>, 0.5 m from the wall's face.</summary>
-    private static readonly Vector3 BoxCenter = new(WallX + 0.6f, FloorHeight + 0.1f, -4f);
 
     /// <summary>The scene of <see cref="AddDimWallFarGlowAndLamp"/>, with a matte box 0.2 m wide on the floor at <see cref="BoxCenter"/>.</summary>
     private static void AddBoxBesideTheCrease(VulkanRenderer renderer, RenderSnapshot snapshot)
