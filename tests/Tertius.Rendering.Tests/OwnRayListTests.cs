@@ -26,10 +26,8 @@ public sealed class OwnRayListTests
     }
 
     [Fact]
-    public void TheListOfAScreenHoldsTheHeaderAndOneWordPerPixel()
-    {
+    public void TheListOfAScreenHoldsTheHeaderAndOneWordPerPixel() =>
         OwnRayList.Bytes(new Extent2D(1920, 1080)).Should().Be(16 + 4 * 1920 * 1080, "8.3 MB at 1080p");
-    }
 
     [Fact]
     public void AScreenWhoseListFillsTheDevicesStorageBufferRangeExactlyIsCovered()
@@ -53,8 +51,6 @@ public sealed class OwnRayListTests
     }
 
     [Fact]
-    public void TheSpecificationsLeastStorageBufferRangeCoversAnEightKScreen()
-    {
+    public void TheSpecificationsLeastStorageBufferRangeCoversAnEightKScreen() =>
         OwnRayList.RangeProblem(new Extent2D(7680, 4320), maxStorageBufferRange: 1u << 27).Should().BeNull();
-    }
 }

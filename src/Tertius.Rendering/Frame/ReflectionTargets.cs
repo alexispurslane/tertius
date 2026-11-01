@@ -238,7 +238,12 @@ internal sealed unsafe class ReflectionTargets : IDisposable
             case HalfTrace half:
                 layouts.WriteStorageImage(set: TraceSet, binding: 4, image: half.Traced);
                 layouts.WriteStorageImage(set: TraceSet, binding: 5, image: half.HitDepths);
-                layouts.WriteBuffer(set: TraceSet, binding: 6, type: DescriptorType.StorageBuffer, buffer: half.OwnRays);
+                layouts.WriteBuffer(
+                    set: TraceSet,
+                    binding: 6,
+                    type: DescriptorType.StorageBuffer,
+                    buffer: half.OwnRays
+                );
                 break;
             case FullTrace:
                 // The full-resolution trace writes the HDR image only, so bindings 4 and 5 stay unwritten.

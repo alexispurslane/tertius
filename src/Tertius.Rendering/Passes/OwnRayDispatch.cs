@@ -13,7 +13,12 @@ internal sealed unsafe class OwnRayDispatch : IDisposable
     private readonly Pipeline pipeline;
 
     /// <param name="constants">The renderer's constants: the own rays add their deltas, whose fallback reads the map while it is on.</param>
-    public OwnRayDispatch(VulkanDevice device, ShaderLibrary shaders, DescriptorLayouts layouts, ShaderConstants constants)
+    public OwnRayDispatch(
+        VulkanDevice device,
+        ShaderLibrary shaders,
+        DescriptorLayouts layouts,
+        ShaderConstants constants
+    )
     {
         this.device = device;
         pipeline = new ComputePipelineDesc

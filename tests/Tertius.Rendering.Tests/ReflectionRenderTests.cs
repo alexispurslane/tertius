@@ -1323,7 +1323,7 @@ public sealed class ReflectionRenderTests
         var steps = new List<float>();
         foreach ((int X, int Y) pixel in reflecting)
         {
-            (int X, int Y) right = (X: pixel.X + 1, Y: pixel.Y);
+            (int X, int Y) right = (X: pixel.X + 1, pixel.Y);
             if (!reflecting.Contains(right))
                 continue;
             float here = At(hdr, pixel).Y,

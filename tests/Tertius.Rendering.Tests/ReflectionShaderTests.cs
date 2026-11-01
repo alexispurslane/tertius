@@ -331,7 +331,7 @@ public sealed class ReflectionShaderTests
                     .TryGetValue(out OwnRay _)
                     .Should()
                     .BeTrue("listed pixel {0} has texels whose rays disagree", pixel);
-            var listedSet = listed.ToHashSet();
+            HashSet<(int X, int Y)> listedSet = [.. listed];
             int reflectedOwnRays = 0;
             for (int y = 0; y < Height; y++)
             for (int x = 0; x < Width; x++)

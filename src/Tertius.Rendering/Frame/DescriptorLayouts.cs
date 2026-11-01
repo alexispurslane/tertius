@@ -922,7 +922,12 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             StorageImage(binding: 3),
             StorageImage(binding: 4),
             StorageImage(binding: 5),
-            new(binding: 6, descriptorType: DescriptorType.StorageBuffer, descriptorCount: 1, stageFlags: ShaderStageFlags.ComputeBit),
+            new(
+                binding: 6,
+                descriptorType: DescriptorType.StorageBuffer,
+                descriptorCount: 1,
+                stageFlags: ShaderStageFlags.ComputeBit
+            ),
         ];
         return (
             CreateLayout(bindings: level, name: "pyramid level set"),
