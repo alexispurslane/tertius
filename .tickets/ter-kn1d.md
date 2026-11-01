@@ -2,7 +2,7 @@
 id: ter-kn1d
 status: in_progress
 deps: []
-links: []
+links: [ter-trz2, ter-fu8n]
 created: 2026-11-01T18:54:33Z
 type: bug
 priority: 1
