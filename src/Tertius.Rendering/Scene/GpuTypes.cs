@@ -637,6 +637,20 @@ internal struct OutlinePushConstants
     public uint EncodeSrgb;
 }
 
+/// <summary>
+/// The push constants of one dispatch of the shadow bounds, shadow_bounds.comp (<see cref="LocalShadowPass"/>): 128 bytes,
+/// the push constant size that every Vulkan device offers.
+/// </summary>
+[StructLayout(LayoutKind.Sequential)]
+internal unsafe struct ShadowBoundsPushConstants
+{
+    /// <summary>The drawn tiles of one dispatch: its workgroups' z runs from 0 to their count less 1.</summary>
+    public const int MaxLayers = 32;
+
+    /// <summary>The atlas layer of each drawn tile of the dispatch, each below <see cref="ShadowAtlas.Tiles"/>.</summary>
+    public fixed uint Layers[MaxLayers];
+}
+
 /// <summary>The push constants of the depth pyramid's tail, depth_pyramid_tail.comp (<see cref="DepthPyramidTail"/>).</summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct DepthTailPushConstants

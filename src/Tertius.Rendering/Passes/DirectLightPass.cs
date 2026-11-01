@@ -47,8 +47,7 @@ internal sealed unsafe class DirectLightPass : RenderPass
             barriers.Image(image, ImageUse.SampledFragment);
         // Always, even in a frame without shadow maps: the descriptor promises this layout whenever the shader runs.
         barriers.Image(context.Shadows.Image, ImageUse.SampledFragment);
-        if (context.ShadowAtlas is { } atlas)
-            barriers.Image(atlas.Image, ImageUse.SampledFragment);
+        context.ShadowAtlas?.DeclareSampled(barriers, ImageUse.SampledFragment);
         // Discarded, and still after the last frame's ambient pass read it.
         barriers.Image(targets.Direct, ImageUse.ColorAttachment, discard: true);
         barriers.Buffer(context.Exposure.Buffer, BufferUse.ShaderRead);

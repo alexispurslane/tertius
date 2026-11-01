@@ -19,8 +19,9 @@ namespace Tertius.Rendering;
 /// <description>the G-buffer targets for the direct, ambient and transparent passes (rewritten on resize),
 /// the shadow cascades of every cascade set (binding 5) and their comparison sampler (binding 6, immutable), which the vertex stage also reads
 /// for the lit puffs, the estimate target (binding 7), the local shadow atlas (binding 8, partially bound), which the
-/// comparison sampler also reads and which stays empty without the atlas, and the direct image (binding 9). The estimate
-/// target and the direct image are rewritten on resize. One.</description></item>
+/// comparison sampler also reads and which stays empty without the atlas, the direct image (binding 9), the shading
+/// target (binding 10) and the atlas's bounds (binding 11, partially bound), empty without the atlas. The estimate target
+/// and the direct image are rewritten on resize. One.</description></item>
 /// <item><term>set 3, impostor atlas</term><description>the impostor atlas's color and depth-offset arrays and their
 /// sampler (immutable), for the billboards in the G-buffer pass. One, written once.</description></item>
 /// <item><term>post</term><description>the HDR image for tone mapping, and the summed bloom levels (binding 1) with the
@@ -52,6 +53,8 @@ namespace Tertius.Rendering;
 /// <item><term>scatter</term><description>set 3 of <see cref="ScatterLayout"/>: the diffuse image, the row image and the
 /// HDR image as storage images, and the kernel as a uniform buffer, for the skin scatter's passes. One, allocated under
 /// <see cref="SeparableSubsurface"/> and rewritten on resize.</description></item>
+/// <item><term>shadow bounds</term><description>the set of <see cref="ShadowBoundsLayout"/>: the local shadow atlas and
+/// its bounds as a storage image, for the compute stage. One with the atlas, written once.</description></item>
 /// <item><term>deform</term><description>the set of <see cref="DeformLayout"/>: the deform region's window of the vertex
 /// buffer, the deform vertices, the morph deltas, the frame's pose rows and its job table, five storage buffers for the
 /// compute stage (docs/plans/skinning-and-morphs.md, "The pass"). One per frame in flight.</description></item>
@@ -126,6 +129,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         (PyramidLevelSet, DepthTailSet, ReflectionSet) = CreateReflectionSetLayouts(AtlasSampler);
         DeformSet = CreateDeformSetLayout();
         ScatterSet = CreateScatterSetLayout();
+        ShadowBoundsSet = CreateShadowBoundsSetLayout();
 
         const ShaderStageFlags graphics = ShaderStageFlags.VertexBit | ShaderStageFlags.FragmentBit;
         var drawPush = new PushConstantRange(graphics, 0, (uint)Unsafe.SizeOf<DrawPushConstants>());
@@ -160,7 +164,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             DepthTailLayout,
             ReflectionLayout,
             DeformLayout,
-            ScatterLayout
+            ScatterLayout,
+            ShadowBoundsLayout
         ) = CreateComputeLayouts();
 
         (pool, texturePool) = CreatePools(framesInFlight: (uint)framesInFlight, glowSourceSets: (uint)glowLevels + 1);
@@ -317,6 +322,15 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// <summary>Sets 0 to 2 of <see cref="SceneLayout"/> and the scatter set, with no push constants, for the scatter passes.</summary>
     public PipelineLayout ScatterLayout { get; }
 
+    /// <summary>
+    /// The set of <see cref="ShadowBoundsLayout"/>: the local shadow atlas as a sampled image (binding 0) and its bounds as
+    /// a storage image (binding 1) (Shaders/shadow_bounds.comp).
+    /// </summary>
+    public DescriptorSetLayout ShadowBoundsSet { get; }
+
+    /// <summary>The shadow bounds set and <see cref="ShadowBoundsPushConstants"/>, for the dispatch of each drawn tile's bounds.</summary>
+    public PipelineLayout ShadowBoundsLayout { get; }
+
     /// <summary>The deform pass's one set: the region's window, the deform vertices, the morph deltas, the pose rows and the job table.</summary>
     public DescriptorSetLayout DeformSet { get; }
 
@@ -376,6 +390,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     public DescriptorSet AllocateDeformSet() => Allocate(pool, DeformSet, null);
 
     public DescriptorSet AllocateScatterSet() => Allocate(pool, ScatterSet, null);
+
+    public DescriptorSet AllocateShadowBoundsSet() => Allocate(pool, ShadowBoundsSet, null);
 
     public DescriptorSet AllocateTextureSet()
     {
@@ -595,7 +611,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// <summary>
     /// The layout of the G-buffer set: five G-buffer images, the shadow cascades, <paramref name="shadowSampler"/> as an
     /// immutable sampler, the estimate target, the local shadow atlas, partially bound, the direct image and the shading
-    /// target, the sixth G-buffer image. The sampler
+    /// target, the sixth G-buffer image, and the atlas's bounds, partially bound. The sampler
     /// is immutable because portability implementations may not allow updating comparison sampler descriptors
     /// (VkPhysicalDevicePortabilitySubsetFeaturesKHR::mutableComparisonSamplers).
     /// </summary>
@@ -626,9 +642,12 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             // The reflections' compute passes read each pixel's surface, its model included, and the occlusion sectors
             // pass reads a receiver's model, because a hair receiver's own card blocks nothing.
             Image(binding: RenderTargets.ShadingBinding, stages: shading),
+            // Every stage that samples the tiles reads their bounds first.
+            Image(binding: ShadowAtlas.BoundsBinding, stages: graphics),
         ];
         Span<DescriptorBindingFlags> flags = stackalloc DescriptorBindingFlags[gbuffer.Length];
         flags[(int)ShadowAtlas.AtlasBinding] = DescriptorBindingFlags.PartiallyBoundBit;
+        flags[(int)ShadowAtlas.BoundsBinding] = DescriptorBindingFlags.PartiallyBoundBit;
         return CreateLayout(bindings: gbuffer, name: "g-buffer set", bindingFlags: flags);
     }
 
@@ -644,7 +663,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         PipelineLayout DepthTail,
         PipelineLayout Reflection,
         PipelineLayout Deform,
-        PipelineLayout Scatter
+        PipelineLayout Scatter,
+        PipelineLayout ShadowBounds
     ) CreateComputeLayouts()
     {
         PipelineLayout exposure = CreatePipelineLayout(
@@ -694,7 +714,12 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             push: null,
             name: "scatter layout"
         );
-        return (exposure, environmentPrefilter, occlusion, pyramid, depthTail, reflection, deform, scatter);
+        PipelineLayout shadowBounds = CreatePipelineLayout(
+            sets: [ShadowBoundsSet],
+            push: new(ShaderStageFlags.ComputeBit, 0, (uint)Unsafe.SizeOf<ShadowBoundsPushConstants>()),
+            name: "shadow bounds layout"
+        );
+        return (exposure, environmentPrefilter, occlusion, pyramid, depthTail, reflection, deform, scatter, shadowBounds);
     }
 
     /// <summary>The shared pool, which holds <paramref name="glowSourceSets"/> glow source sets, and the pool of the texture sets.</summary>
@@ -710,12 +735,12 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             // Three per frame set (the material sampler and the immutable linear clamp and environment samplers), the
             // immutable samplers of the G-buffer, atlas, post, reflection and prefilter sets, and one per glow source set.
             new(DescriptorType.Sampler, 3 * frames + 5 + glowSourceSets),
-            // 20 for the G-buffer, post and atlas sets, three per frame set for the tables and the specular map, one per
+            // 21 for the G-buffer, post and atlas sets, three per frame set for the tables and the specular map, one per
             // glow source set, two for the meter set, one per pyramid level set, one for the depth tail set, two for the
-            // reflection set and one for the prefilter set.
-            new(DescriptorType.SampledImage, 20 + 3 * frames + glowSourceSets + 2 + PyramidLevelSets + 1 + 2 + 1),
+            // reflection set, one for the prefilter set and one for the shadow bounds set.
+            new(DescriptorType.SampledImage, 21 + 3 * frames + glowSourceSets + 2 + PyramidLevelSets + 1 + 2 + 1 + 1),
             // Those of each of the two occlusion sets, one per pyramid level set, the depth tail set's mips, three for the
-            // reflection set, four per environment levels set and three for the scatter set.
+            // reflection set, four per environment levels set, three for the scatter set and one for the shadow bounds set.
             new(
                 DescriptorType.StorageImage,
                 2 * OcclusionImages.StorageImages
@@ -724,16 +749,17 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
                     + 3
                     + 4 * EnvironmentLevelsSets
                     + 3
+                    + 1
             ),
             // The SMAA set.
             new(DescriptorType.CombinedImageSampler, SmaaBindings),
         ];
-        // The frame sets, the deform sets, the G-buffer, post, atlas, meter, exposure, SMAA, reflection, prefilter and
-        // scatter sets, the two occlusion sets, the glow source sets, the pyramid level sets, the depth tail set and the
+        // The frame sets, the deform sets, the G-buffer, post, atlas, meter, exposure, SMAA, reflection, prefilter,
+        // scatter and shadow bounds sets, the two occlusion sets, the glow source sets, the pyramid level sets, the depth tail set and the
         // environment levels sets. The reflection sets exist even with reflections off: they cost nothing per frame.
         DescriptorPool shared = CreatePool(
             sizes: sizes,
-            maxSets: 2 * frames + 12 + glowSourceSets + PyramidLevelSets + EnvironmentLevelsSets,
+            maxSets: 2 * frames + 13 + glowSourceSets + PyramidLevelSets + EnvironmentLevelsSets,
             flags: 0,
             name: "descriptor pool"
         );
@@ -894,6 +920,13 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             ),
         ];
         return CreateLayout(bindings: scatter, name: "scatter set");
+    }
+
+    /// <summary>The layout of the shadow bounds set: the atlas as a sampled image and its bounds as a storage image, for the compute stage.</summary>
+    private DescriptorSetLayout CreateShadowBoundsSetLayout()
+    {
+        Span<DescriptorSetLayoutBinding> bounds = [Image(binding: 0, stages: ShaderStageFlags.ComputeBit), StorageImage(binding: 1)];
+        return CreateLayout(bindings: bounds, name: "shadow bounds set");
     }
 
     /// <summary>A binding of one storage image for the compute stage.</summary>
@@ -1233,6 +1266,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         vk.DestroyPipelineLayout(device.Device, ReflectionLayout, null);
         vk.DestroyPipelineLayout(device.Device, DeformLayout, null);
         vk.DestroyPipelineLayout(device.Device, ScatterLayout, null);
+        vk.DestroyPipelineLayout(device.Device, ShadowBoundsLayout, null);
         vk.DestroyDescriptorSetLayout(device.Device, FrameSet, null);
         vk.DestroyDescriptorSetLayout(device.Device, TextureSet, null);
         vk.DestroyDescriptorSetLayout(device.Device, GBufferSet, null);
@@ -1250,6 +1284,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         vk.DestroyDescriptorSetLayout(device.Device, ReflectionSet, null);
         vk.DestroyDescriptorSetLayout(device.Device, DeformSet, null);
         vk.DestroyDescriptorSetLayout(device.Device, ScatterSet, null);
+        vk.DestroyDescriptorSetLayout(device.Device, ShadowBoundsSet, null);
         vk.DestroySampler(device.Device, ShadowSampler, null);
         vk.DestroySampler(device.Device, AtlasSampler, null);
         vk.DestroySampler(device.Device, LinearClampSampler, null);

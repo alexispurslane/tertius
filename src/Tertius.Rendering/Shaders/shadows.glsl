@@ -6,7 +6,7 @@
 // and the last cascade fades out to fully lit at 2 km, so there are no shadow-map shadows beyond it.
 //
 // Filtering: 4 × 4 hardware-PCF taps one texel apart. Each tap is a bilinear 2 × 2 comparison, so together they
-// cover 5 × 5 texels with a smooth tent-like weight.
+// cover 5 × 5 texels with a smooth tent-like weight. The tiles compute the same filter from 9 gathers (tileShadow).
 //
 // Bias, in three parts that each scale with the cascade's texel size:
 //  - The shadow pass adds a slope-scaled depth bias to the casters, which covers the difference between a tap's
@@ -231,9 +231,10 @@ const float TileNormalOffsetTexels = 1.0;
 
 // The share of a near light that its atlas tiles let through at a world position (docs/plans/local-light-shadows.md,
 // "Sampling"): the one tile of a spot light, or the tile of the cube face of a point light that holds the direction from
-// the light to the position. The 4 × 4 hardware-PCF taps of the cascades, with the normal offset at the receiver's
-// distance and the tile pass's slope-scaled bias, and no receiver-plane term, because a tile's depth is not linear across
-// it. Taps that leave the tile clamp to its edge. L is the unit direction toward the light and d its distance;
+// the light to the position. The filter of the cascades' 4 × 4 PCF taps, computed from gathers, with the normal offset at
+// the receiver's distance and the tile pass's slope-scaled bias, and no receiver-plane term, because a tile's depth is
+// not linear across it. Texels past the tile clamp to its edge. The tile's bounds skip the gathers where every
+// comparison agrees. L is the unit direction toward the light and d its distance;
 // geometricNormal is the interpolated vertex normal, and NdotL its cosine with L, which must be at least 0, with 0 for a
 // hair card edge-on to the light.
 float tileShadow(GpuLight light, vec3 position, vec3 L, float d, vec3 geometricNormal, float NdotL)
@@ -248,19 +249,47 @@ float tileShadow(GpuLight light, vec3 position, vec3 L, float d, vec3 geometricN
     // the near plane gets the depth 1, nearest the light, which no clamped caster passes, so the floor changes no result.
     vec3 ndc = clip.xyz / max(clip.w, tile.near);
     vec2 uv = ndc.xy * 0.5 + 0.5;
-    float invSize = 1.0 / float(textureSize(shadowAtlas, 0).x);
+    float size = float(textureSize(shadowAtlas, 0).x);
     float layer = float(tile.layer);
 
+    // The filter of the cascades' 4 × 4 bilinear taps at −1.5 to 1.5 texels, computed exactly: it weighs the 5 × 5 texels
+    // from texel `first` by (1 − f, 1, 1, 1, f) along each axis, f the lookup's place within its texel. The hardware's
+    // filter rounds f to the device's sub-texel precision, which Vulkan lets be as coarse as 4 bits.
+    vec2 corner = uv * size - 2.0;
+    vec2 first = floor(corner);
+    vec2 f = corner - first;
+
+    // The bounds texel at floor(first / 2) holds the least (x) and the greatest (y) reversed depth of texels 2k to 2k + 5,
+    // which hold the 5 × 5 (shadow_bounds.comp). Below the least, every one of them lies nearer the light than the
+    // lookup, every comparison fails and the filter gives 0; at the greatest or above, none does, every one passes and it
+    // gives 1. So the bounds decide those pixels
+    // with the filter's own result. The clamp comes before the conversion to int, which is undefined for a float out of
+    // range; the gathers' texels clamp to the tile's edge as the bounds' do.
+    vec2 lastWindow = vec2(textureSize(shadowBounds, 0).xy - 1);
+    ivec2 window = ivec2(clamp(floor(corner * 0.5), vec2(0.0), lastWindow));
+    vec2 bounds = texelFetch(shadowBounds, ivec3(window, int(tile.layer)), 0).rg;
+    if (ndc.z < bounds.x)
+        return 0.0;
+    if (ndc.z >= bounds.y)
+        return 1.0;
+
+    // Nine gathers of 2 × 2 comparisons read the 5 × 5 texels and one unweighted column and row beyond them.
+    float wx[6] = float[6](1.0 - f.x, 1.0, 1.0, 1.0, f.x, 0.0);
+    float wy[6] = float[6](1.0 - f.y, 1.0, 1.0, 1.0, f.y, 0.0);
     float lit = 0.0;
-    for (int y = 0; y < 4; y++)
+    for (int j = 0; j < 3; j++)
     {
-        for (int x = 0; x < 4; x++)
+        float upper = 0.0, lower = 0.0;
+        for (int i = 0; i < 3; i++)
         {
-            vec2 offset = vec2(float(x) - 1.5, float(y) - 1.5) * invSize;
-            // Explicit zero gradients (mip 0): the calling code branches per pixel, where implicit derivatives are undefined.
-            lit += textureGrad(sampler2DArrayShadow(shadowAtlas, shadowSampler), vec4(uv + offset, layer, ndc.z), vec2(0.0),
-                vec2(0.0));
+            // A gather at the shared corner of four texels compares exactly those four: w the upper left, z the upper
+            // right, x the lower left and y the lower right, with the upper row the one of the smaller index.
+            vec2 at = (first + vec2(float(2 * i) + 1.0, float(2 * j) + 1.0)) / size;
+            vec4 g = textureGather(sampler2DArrayShadow(shadowAtlas, shadowSampler), vec3(at, layer), ndc.z);
+            upper += wx[2 * i] * g.w + wx[2 * i + 1] * g.z;
+            lower += wx[2 * i] * g.x + wx[2 * i + 1] * g.y;
         }
+        lit += wy[2 * j] * upper + wy[2 * j + 1] * lower;
     }
     return lit * (1.0 / 16.0);
 }

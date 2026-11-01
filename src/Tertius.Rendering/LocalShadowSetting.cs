@@ -12,7 +12,7 @@ public readonly record struct NoLocalShadows;
 /// <param name="TileSize">The side of a tile in texels: a power of two from 64 to 4,096, and at most the device's largest image.</param>
 public readonly record struct LocalShadowAtlas(int Tiles, int TileSize)
 {
-    /// <summary>64 tiles of 512², 64 MB of D32.</summary>
+    /// <summary>64 tiles of 512², 64 MB of D32, and their bounds, 32 MB of RG32F at half the side.</summary>
     public static LocalShadowAtlas Default => new(Tiles: 64, TileSize: 512);
 }
 

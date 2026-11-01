@@ -313,6 +313,274 @@ public sealed class LocalShadowRenderTests
         }
     }
 
+    [Fact]
+    public void TheShadowsEdgeRampsInProportionToTheReceiversPlaceWithNoSubTexelSteps()
+    {
+        // The filter weighs the 5 × 5 texels from the tap's first texel by (1 − f, 1, 1, 1, f) along each axis, with f
+        // the place of the lookup within its texel. Across a straight edge of a caster, the lit share of a pixel is then
+        // (lit texels + f) / 4, a straight line of the pixel's place in the tile. A filter that rounds f to the device's
+        // sub-texel precision (at least 4 bits in Vulkan) gives a staircase of steps of 1/4 of that precision instead.
+        VulkanRenderer renderer = Renderer(new LocalShadowAtlas(Tiles: 8, TileSize: 64));
+        try
+        {
+            var kit = Kit.Create(renderer);
+            // The camera looks straight down at the floor 0.3 m below it, so a row of pixels crosses the floor at even
+            // steps of about 1 mm, and a tile texel of about 9 cm spans about 90 of them. The spot light points straight
+            // down from 4 m above the floor, so the floor's place in the tile is a linear function of its place too. The
+            // slab's edge lies in the plane x = 0 through the light.
+            Quaternion down = LookAt(-Vector3.UnitY, -Vector3.UnitZ);
+            RenderSnapshot Scene(bool withSlab)
+            {
+                RenderSnapshot snapshot = Dark(down);
+                snapshot.Instances.Add(kit.Floor(center: new(0, -0.3f, 0), halfSize: 3));
+                snapshot.Lights.Add(ShadowingSpot(position: new(0, 3.7f, 0), direction: -Vector3.UnitY));
+                if (withSlab)
+                    snapshot.Instances.Add(kit.Caster(center: new(-1.5f, 1.7f, 0), size: new(3, 0.2f, 3)));
+                return snapshot;
+            }
+
+            renderer.Render(Scene(withSlab: false), 1f);
+            float[] lit = renderer.ReadHdr();
+            renderer.Render(Scene(withSlab: true), 1f);
+            float[] shadowed = renderer.ReadHdr();
+
+            // The lit share of each pixel of the middle row, from the green channel of the HDR image, where the pixel sees
+            // less than a tenth of the light: there the half floats of both images hold the share to about 1e-4. The
+            // pixel counts from the middle of the row, which keeps the fit's sums small.
+            int row = Height / 2;
+            List<(double Pixel, double Share)> ramp = [];
+            for (int x = 0; x < Width; x++)
+            {
+                int i = (row * Width + x) * 4 + 1;
+                double share = shadowed[i] / (double)lit[i];
+                if (share is > 0.005 and < 0.1)
+                    ramp.Add((Pixel: x - Width / 2, Share: share));
+            }
+
+            ramp.Count.Should().BeGreaterThan(20, "the darkest tenth of the edge spans a few cm, tens of pixels");
+            double[] fit = QuadraticFit(ramp);
+            double worst = ramp.Max(point =>
+                Math.Abs(point.Share - (fit[0] + fit[1] * point.Pixel + fit[2] * point.Pixel * point.Pixel))
+            );
+            worst
+                .Should()
+                .BeLessThan(
+                    1.5e-4,
+                    "the share follows the place of the pixel; a step of 1/256 texel would leave up to 5e-4 off the line"
+                );
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Theory]
+    [InlineData(0f)]
+    [InlineData(90f)]
+    public void TheShadowsEdgeRampsInOneStraightLineAllTheWayToFullyLit(float turnDegrees)
+    {
+        // The lit share of a pixel across a straight edge is (lit texels + f) / 4 from fully shadowed to fully lit, one
+        // straight line of the pixel's place. Each of the 5 texels of the filter along an axis has its own weight, so a
+        // gather whose texels took each other's weights bends the line where the edge crosses those texels. The scene
+        // turns by 0° and 90° about the vertical, so that the edge crosses each axis of the tile.
+        VulkanRenderer renderer = Renderer(new LocalShadowAtlas(Tiles: 8, TileSize: 64));
+        try
+        {
+            double[] shares = SharesAcrossTurnedEdge(renderer, turnDegrees);
+
+            // The pixels that are neither fully shadowed nor fully lit, counted from the middle of the row.
+            List<(double Pixel, double Share)> ramp =
+            [
+                .. shares
+                    .Select((share, x) => (Pixel: (double)(x - Width / 2), Share: share))
+                    .Where(point => point.Share is > 0.005 and < 0.995),
+            ];
+            ramp.Count.Should().BeGreaterThan(200, "the edge spans the 4 texels of the filter, about 90 pixels each");
+            double[] fit = QuadraticFit(ramp);
+            double worst = ramp.Max(point =>
+                Math.Abs(point.Share - (fit[0] + fit[1] * point.Pixel + fit[2] * point.Pixel * point.Pixel))
+            );
+            worst
+                .Should()
+                .BeLessThan(
+                    3e-3,
+                    "the half floats of both images hold a share near 1 to about 1e-3, and the share follows the place"
+                );
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Theory]
+    [InlineData(0f)]
+    [InlineData(90f)]
+    public void TheHalfLitMiddleOfTheShadowsEdgeLiesUnderTheCastersEdge(float turnDegrees)
+    {
+        // The filter weighs the texels around the lookup symmetrically, so the floor straight under the caster's edge sees
+        // half the light. A filter that read its texels one texel off would move the whole edge by a texel, about 9 cm
+        // here and about 90 pixels. The scene turns by 0° and 90° about the vertical, so that the edge crosses each axis
+        // of the tile.
+        VulkanRenderer renderer = Renderer(new LocalShadowAtlas(Tiles: 8, TileSize: 64));
+        try
+        {
+            double[] shares = SharesAcrossTurnedEdge(renderer, turnDegrees);
+
+            int half = Enumerable.Range(0, Width).MinBy(x => Math.Abs(shares[x] - 0.5));
+
+            (half - Width / 2)
+                .Should()
+                .BeInRange(
+                    -5,
+                    5,
+                    "the caster's edge lies under the middle of the view, and a texel spans about 90 pixels"
+                );
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>
+    /// The lit share of each pixel of the middle row of the view, from the green channel of two HDR images, with and
+    /// without a slab. The scene of <see cref="TheShadowsEdgeRampsInProportionToTheReceiversPlaceWithNoSubTexelSteps"/>,
+    /// turned by <paramref name="turnDegrees"/> about the vertical: the camera looks straight down at the floor 0.3 m
+    /// below it, under a spot light 4 m above the floor that points straight down, and the slab's edge lies in a
+    /// vertical plane through the light, under the middle of the view and across its rows.
+    /// </summary>
+    private static double[] SharesAcrossTurnedEdge(VulkanRenderer renderer, float turnDegrees)
+    {
+        var kit = Kit.Create(renderer);
+        var turn = Quaternion.CreateFromAxisAngle(Vector3.UnitY, turnDegrees * MathF.PI / 180);
+        Quaternion down = LookAt(-Vector3.UnitY, Vector3.Transform(-Vector3.UnitZ, turn));
+        RenderSnapshot Scene(bool withSlab)
+        {
+            RenderSnapshot snapshot = Dark(down);
+            snapshot.Instances.Add(kit.Floor(center: new(0, -0.3f, 0), halfSize: 3));
+            snapshot.Lights.Add(ShadowingSpot(position: new(0, 3.7f, 0), direction: -Vector3.UnitY));
+            if (withSlab)
+            {
+                snapshot.Instances.Add(
+                    kit.Caster(
+                        center: Vector3.Transform(new Vector3(-1.5f, 1.7f, 0), turn),
+                        size: new(3, 0.2f, 3),
+                        rotation: turn
+                    )
+                );
+            }
+
+            return snapshot;
+        }
+
+        renderer.Render(Scene(withSlab: false), 1f);
+        float[] lit = renderer.ReadHdr();
+        renderer.Render(Scene(withSlab: true), 1f);
+        float[] shadowed = renderer.ReadHdr();
+        int row = Height / 2;
+        return
+        [
+            .. Enumerable
+                .Range(0, Width)
+                .Select(x => shadowed[(row * Width + x) * 4 + 1] / (double)lit[(row * Width + x) * 4 + 1]),
+        ];
+    }
+
+    [Fact]
+    public void AFloorNearerASpotLightThanItsTilesNearPlaneIsLitAsWithoutAShadow()
+    {
+        // A lookup nearer the light than the tile's near plane, 5 cm for a light of radius 0, gets the depth 1, nearest
+        // the light, and so does the floor that the tile pass draws there, which the depth clamp holds at the near plane.
+        // Every comparison passes, and the floor 3 cm under the spot light is fully lit.
+        VulkanRenderer renderer = Renderer();
+        try
+        {
+            var kit = Kit.Create(renderer);
+            // The camera looks straight down at the floor 0.3 m below it, which casts shadows. The spot light of 2 mW/sr
+            // hangs 3 cm above the floor, which it lights with about 2 W/m², as the test lamps light it from 4 m.
+            Quaternion down = LookAt(-Vector3.UnitY, -Vector3.UnitZ);
+            RenderSnapshot Scene(bool castsShadow)
+            {
+                RenderSnapshot snapshot = Dark(down);
+                snapshot.Instances.Add(
+                    kit.Floor(center: new(0, -0.3f, 0), halfSize: 3, flags: RenderFlags.CastsShadow)
+                );
+                snapshot.Lights.Add(
+                    ShadowingSpot(position: new(0, -0.27f, 0), direction: -Vector3.UnitY, intensity: 0.002f) with
+                    {
+                        CastsShadow = castsShadow,
+                    }
+                );
+                return snapshot;
+            }
+
+            renderer.Render(Scene(castsShadow: false), 1f);
+            float[] unshadowed = renderer.ReadHdr();
+            renderer.Render(Scene(castsShadow: true), 1f);
+            float[] shadowed = renderer.ReadHdr();
+
+            renderer.LastFrameStats.ShadowTilesInUse.Should().Be(1, "the spot light casts shadows from one tile");
+            int middle = (Height / 2 * Width + Width / 2) * 4 + 1;
+            unshadowed[middle].Should().BeGreaterThan(0.1f, "the spot light lights the floor straight under it");
+            shadowed[middle]
+                .Should()
+                .BeApproximately(
+                    unshadowed[middle],
+                    unshadowed[middle] * 1e-3f,
+                    "the floor under the light is fully lit"
+                );
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>The coefficients a, b and c of the least-squares fit a + b x + c x² to the points, by the normal equations.</summary>
+    private static double[] QuadraticFit(List<(double Pixel, double Share)> points)
+    {
+        double[] sums = new double[5];
+        double[] right = new double[3];
+        foreach ((double x, double y) in points)
+        {
+            for (int k = 0; k < 5; k++)
+                sums[k] += Math.Pow(x, k);
+            for (int k = 0; k < 3; k++)
+                right[k] += y * Math.Pow(x, k);
+        }
+
+        double[,] m = new double[3, 4];
+        for (int r = 0; r < 3; r++)
+        {
+            for (int c = 0; c < 3; c++)
+                m[r, c] = sums[r + c];
+            m[r, 3] = right[r];
+        }
+
+        for (int p = 0; p < 3; p++)
+        {
+            for (int r = p + 1; r < 3; r++)
+            {
+                double factor = m[r, p] / m[p, p];
+                for (int c = p; c < 4; c++)
+                    m[r, c] -= factor * m[p, c];
+            }
+        }
+
+        double[] result = new double[3];
+        for (int r = 2; r >= 0; r--)
+        {
+            double value = m[r, 3];
+            for (int c = r + 1; c < 3; c++)
+                value -= m[r, c] * result[c];
+            result[r] = value / m[r, r];
+        }
+
+        return result;
+    }
+
     [Theory]
     [InlineData(0f)]
     [InlineData(30f)]
@@ -796,6 +1064,22 @@ public sealed class LocalShadowRenderTests
     }
 
     [Fact]
+    public void WithLocalShadowsOffReadingATilesBoundsIsRefused()
+    {
+        VulkanRenderer renderer = Renderer(new NoLocalShadows());
+        try
+        {
+            Action read = () => renderer.ReadShadowTileBounds(0);
+
+            read.Should().Throw<InvalidOperationException>("without local shadows there is no atlas and so no bounds");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
     public void EveryAtlasLayerReadsBackAsItsLightsTile()
     {
         VulkanRenderer renderer = Renderer();
@@ -853,16 +1137,186 @@ public sealed class LocalShadowRenderTests
     }
 
     [Fact]
+    public void ATilesBoundsHoldTheNearestAndFarthestDepthOfEachWindowOfSixTexels()
+    {
+        VulkanRenderer renderer = Renderer();
+        try
+        {
+            var kit = Kit.Create(renderer);
+            // A spot light tilted off the vertical, so that the floor's depth changes across the tile.
+            RenderSnapshot snapshot = Dark();
+            snapshot.Instances.Add(kit.Floor(center: new(0, -2, -7), halfSize: 8));
+            snapshot.Instances.Add(kit.Caster(center: BoxPlace, size: Vector3.One));
+            snapshot.Lights.Add(ShadowingSpot(position: SpotPlace, direction: Vector3.Normalize(new(0.5f, -1, 0))));
+
+            renderer.Render(snapshot, 1f);
+
+            renderer
+                .ReadShadowTile(0)
+                .Distinct()
+                .Count()
+                .Should()
+                .BeGreaterThan(1, "the tile sees the floor and the box");
+            BoundsMismatches(renderer, layer: 0)
+                .Should()
+                .Be(0, "the tile pass derives the bounds from the tile it drew");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void TheBoundsOfARedrawnTileFollowItsCasterInTheSameFrame()
+    {
+        VulkanRenderer renderer = Renderer();
+        try
+        {
+            var kit = Kit.Create(renderer);
+            renderer.Render(SpotOverABox(kit), 1f);
+
+            renderer.Render(SpotOverABox(kit, box: BoxPlace - Vector3.UnitX), 1f);
+
+            renderer.LastFrameStats.ShadowTilesDrawn.Should().Be(1, "the box moved");
+            BoundsMismatches(renderer, layer: 0)
+                .Should()
+                .Be(0, "the bounds follow the tile in the frame that redrew it");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void TheBoundsOfATileRedrawnAloneLandInThatTilesOwnLayer()
+    {
+        // Two spot lights over a box each take layers 0 and 1. Each later frame moves one box, so one of the two frames
+        // redraws only the tile of layer 1, the first and only tile of its bounds dispatch.
+        VulkanRenderer renderer = Renderer();
+        try
+        {
+            var kit = Kit.Create(renderer);
+            var side = new Vector3(3, 0, 0);
+            RenderSnapshot TwoSpots(Vector3 leftBox, Vector3 rightBox)
+            {
+                RenderSnapshot snapshot = Dark();
+                snapshot.Instances.Add(kit.Floor(center: new(0, -2, -7), halfSize: 8));
+                snapshot.Lights.Add(ShadowingSpot(position: SpotPlace - side, direction: -Vector3.UnitY, entity: 1));
+                snapshot.Lights.Add(ShadowingSpot(position: SpotPlace + side, direction: -Vector3.UnitY, entity: 2));
+                snapshot.Instances.Add(kit.Caster(center: leftBox, size: Vector3.One));
+                snapshot.Instances.Add(kit.Caster(center: rightBox, size: Vector3.One));
+                return snapshot;
+            }
+
+            renderer.Render(TwoSpots(leftBox: BoxPlace - side, rightBox: BoxPlace + side), 1f);
+            renderer.LastFrameStats.ShadowTilesDrawn.Should().Be(2);
+
+            Vector3 moved = new(0, 0, 0.5f);
+            renderer.Render(TwoSpots(leftBox: BoxPlace - side + moved, rightBox: BoxPlace + side), 1f);
+            renderer.LastFrameStats.ShadowTilesDrawn.Should().Be(1, "only the left box moved");
+            int[] afterTheLeft = [BoundsMismatches(renderer, layer: 0), BoundsMismatches(renderer, layer: 1)];
+
+            renderer.Render(TwoSpots(leftBox: BoxPlace - side + moved, rightBox: BoxPlace + side + moved), 1f);
+            renderer.LastFrameStats.ShadowTilesDrawn.Should().Be(1, "only the right box moved");
+            int[] afterTheRight = [BoundsMismatches(renderer, layer: 0), BoundsMismatches(renderer, layer: 1)];
+
+            afterTheLeft.Should().Equal([0, 0], "the bounds follow the left light's tile into its own layer");
+            afterTheRight.Should().Equal([0, 0], "the bounds follow the right light's tile into its own layer");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void EveryTileOfAFrameThatDrawsMoreTilesThanOneBoundsDispatchHoldsGetsItsBounds()
+    {
+        // Six point lights draw 36 tiles, past the 32 of one dispatch. Each light sits inside a box, so every face of it
+        // sees a wall.
+        const int tileSize = 64;
+        VulkanRenderer renderer = Renderer(new LocalShadowAtlas(Tiles: 64, TileSize: tileSize));
+        try
+        {
+            var kit = Kit.Create(renderer);
+            RenderSnapshot snapshot = Dark();
+            for (int i = 0; i < 6; i++)
+            {
+                var lamp = new Vector3(-5 + 2 * i, 0, -8);
+                snapshot.Lights.Add(ShadowingLamp(position: lamp, entity: (uint)(1 + i)));
+                snapshot.Instances.Add(kit.Caster(center: lamp, size: Vector3.One));
+            }
+
+            renderer.Render(snapshot, 1f);
+
+            renderer.LastFrameStats.ShadowTilesDrawn.Should().Be(36);
+            int[] mismatches =
+            [
+                .. Enumerable.Range(0, 36).Select(layer => BoundsMismatches(renderer, layer, tileSize)),
+            ];
+            mismatches.Should().OnlyContain(count => count == 0, "each dispatch writes the bounds of its own tiles");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>
+    /// How many texels of the bounds of atlas layer <paramref name="layer"/> differ from the least and the greatest depth
+    /// of the tile in their window: texel k of a bounds row covers the tile's texels 2k to 2k + 5 along each axis, clamped
+    /// to the tile. Fails first when the tile holds no caster: an empty tile is cleared to 0, which bounds that were never
+    /// written can match.
+    /// </summary>
+    private static int BoundsMismatches(VulkanRenderer renderer, int layer, int? tileSize = null)
+    {
+        int size = tileSize ?? LocalShadowAtlas.Default.TileSize,
+            half = size / 2;
+        float[] tile = renderer.ReadShadowTile(layer);
+        float[] bounds = renderer.ReadShadowTileBounds(layer);
+        tile.Should().Contain(depth => depth > 0, "the tile holds a caster");
+        bounds.Length.Should().Be(half * half * 2, "a bounds texel holds the least and the greatest depth");
+        int mismatches = 0;
+        for (int ky = 0; ky < half; ky++)
+        {
+            for (int kx = 0; kx < half; kx++)
+            {
+                float least = float.MaxValue,
+                    most = float.MinValue;
+                for (int y = 2 * ky; y < 2 * ky + 6; y++)
+                {
+                    for (int x = 2 * kx; x < 2 * kx + 6; x++)
+                    {
+                        float depth = tile[Math.Min(y, size - 1) * size + Math.Min(x, size - 1)];
+                        least = Math.Min(least, depth);
+                        most = Math.Max(most, depth);
+                    }
+                }
+
+                int texel = 2 * (ky * half + kx);
+                if (bounds[texel] != least || bounds[texel + 1] != most)
+                    mismatches++;
+            }
+        }
+
+        return mismatches;
+    }
+
+    [Fact]
     public void AnAtlasOfMoreTilesThanTheDeviceHasLayersIsRefused()
     {
         using var device = VulkanDevice.Create(validation: true, surfaceExtensions: [], createSurface: null);
         using var allocator = new DeviceAllocator(device);
+        using var layouts = new DescriptorLayouts(device: device, framesInFlight: 1, glowLevels: 0);
         int tiles = (int)device.Properties.Limits.MaxImageArrayLayers + 1;
 
         Action make = () =>
             new ShadowAtlas(
                 device: device,
                 allocator: allocator,
+                layouts: layouts,
                 setting: LocalShadowAtlas.Default with
                 {
                     Tiles = tiles,

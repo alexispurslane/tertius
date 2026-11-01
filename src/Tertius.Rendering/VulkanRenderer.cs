@@ -892,6 +892,19 @@ public sealed unsafe class VulkanRenderer : IRenderer
     }
 
     /// <summary>
+    /// Reads the bounds of one layer of the local shadow atlas back to the CPU, row by row from the top: per texel the
+    /// least and the greatest reversed depth of its window of the tile (ARCHITECTURE.md, "Local shadows"). A test and
+    /// tooling hook, like <see cref="ReadShadowTile"/>.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">Local shadows are off.</exception>
+    internal float[] ReadShadowTileBounds(int layer)
+    {
+        ShadowAtlas atlas = shadowAtlas ?? throw new InvalidOperationException("Local shadows are off.");
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)layer, (uint)atlas.Tiles);
+        return ReadLevel(image: atlas.Bounds, layer: layer, mip: 0).Values;
+    }
+
+    /// <summary>
     /// Copies one layer of a square depth image of D32 or D16 to the CPU, as floats from 0 to 1, row by row from the top.
     /// </summary>
     private float[] ReadDepthLayer(GpuImage image, int layer, int size)
@@ -1719,9 +1732,9 @@ public sealed unsafe class VulkanRenderer : IRenderer
     private ShaderConstants ShadingConstants => new(EnvironmentMap: environmentMap is not null);
 
     /// <summary>
-    /// The cascades' shadow map and, under <see cref="LocalShadowAtlas"/>, the local shadow atlas, which the renderer owns,
-    /// written into the G-buffer set once: neither image changes, and resizing rewrites only the other G-buffer bindings.
-    /// Without the atlas its binding stays empty: it is partially bound.
+    /// The cascades' shadow map and, under <see cref="LocalShadowAtlas"/>, the local shadow atlas with its bounds, which the
+    /// renderer owns, written into the G-buffer set once: no image changes, and resizing rewrites only the other G-buffer
+    /// bindings. Without the atlas its two bindings stay empty: they are partially bound.
     /// </summary>
     private (ShadowMap Map, ShadowAtlas? Atlas) CreateShadowImages(RendererOptions options)
     {
@@ -1736,12 +1749,21 @@ public sealed unsafe class VulkanRenderer : IRenderer
         ShadowAtlas? atlas = CreateShadowAtlas(options.LocalShadows);
         layouts.WriteImage(set: targets.GBufferSet, binding: 5, arrayElement: 0, image: map.Image);
         if (atlas is not null)
+        {
             layouts.WriteImage(
                 set: targets.GBufferSet,
                 binding: ShadowAtlas.AtlasBinding,
                 arrayElement: 0,
                 image: atlas.Image
             );
+            layouts.WriteImage(
+                set: targets.GBufferSet,
+                binding: ShadowAtlas.BoundsBinding,
+                arrayElement: 0,
+                image: atlas.Bounds
+            );
+        }
+
         return (map, atlas);
     }
 
@@ -1750,7 +1772,9 @@ public sealed unsafe class VulkanRenderer : IRenderer
         setting switch
         {
             NoLocalShadows => null,
-            LocalShadowAtlas atlas => Own(new ShadowAtlas(device: device, allocator: Allocator, setting: atlas)),
+            LocalShadowAtlas atlas => Own(
+                new ShadowAtlas(device: device, allocator: Allocator, layouts: layouts, setting: atlas)
+            ),
         };
 
     /// <summary>The store of the deformed copies, which the renderer owns, at most one storage buffer's range in size.</summary>
