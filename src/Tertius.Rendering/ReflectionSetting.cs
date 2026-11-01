@@ -16,15 +16,16 @@ public readonly record struct NoReflections;
 /// <param name="Resolution">The pixels that start a ray: one of each block of 2 × 2, or every pixel.</param>
 public readonly record struct ConeTracedReflections(float MaxRoughness, int MaxSteps, TraceResolution Resolution)
 {
-    /// <summary>The most steps a ray takes. 8 times the default, far past any measured need; it bounds the worst frame.</summary>
+    /// <summary>The most steps a ray takes. 4 times the default, far past any measured need; it bounds the worst frame.</summary>
     public const int MaxStepsLimit = 1024;
 
     /// <summary>
-    /// The renderer's default: reflections up to a roughness of 0.6, Unreal Engine 4's default, in 128 steps, traced at
-    /// half resolution, which brings the reflections' passes to their share of the frame (ticket ter-ff6y).
+    /// The renderer's default: reflections up to a roughness of 0.6, Unreal Engine 4's default, in 256 steps, which a
+    /// grazing hair ray needs (ticket ter-r5hb), traced at half resolution, which brings the reflections' passes to their
+    /// share of the frame (ticket ter-ff6y).
     /// </summary>
     public static ConeTracedReflections Default =>
-        new(MaxRoughness: 0.6f, MaxSteps: 128, Resolution: TraceResolution.Half);
+        new(MaxRoughness: 0.6f, MaxSteps: 256, Resolution: TraceResolution.Half);
 
     /// <summary>The weight of the reflection of a surface of this floored roughness: 1 up to half the maximum, 0 at it.</summary>
     internal float RoughnessFade(float roughness) => Math.Clamp(2 - 2 * roughness / MaxRoughness, 0, 1);

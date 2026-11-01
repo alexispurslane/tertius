@@ -5,13 +5,13 @@ using static Tertius.Rendering.Tests.ReflectionTesting;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The screen-space reflections of hair on the GPU (docs/plans/skin-and-hair.md, decision 35): a hair pixel whose
-/// dominant direction has a cosine below <see cref="ScreenRay.SurfaceFadeCosine"/> with its card's normal, as a normal
-/// map that tilts the strand off the card can make it, traces no ray and keeps the reflection that the ambient pass gave
-/// it. A pixel of the standard model keeps the surface fade. The card is a hair floor, the reflection tests' floor of
-/// 60 m by 60 m 1.5 m below the eye, whose strands run along +v, toward the eye. A wall that glows 3 stands on it 9.5 m
-/// ahead. The floor's roughness of 26 / 255 makes its dominant direction lie within 1° of the eye's direction mirrored
-/// along the strand.
+/// The screen-space reflections of hair on the GPU (docs/plans/skin-and-hair.md, decision 35): a hair pixel takes the
+/// surface fade like a pixel of any other model. A pixel whose dominant direction points below its card's normal, as a
+/// normal map that tilts the strand off the card can make it, traces no ray and keeps the reflection that the ambient
+/// pass gave it. A pixel whose direction grazes its card takes the share of the screen's reflection that the fade gives.
+/// The card is a hair floor, the reflection tests' floor of 60 m by 60 m 1.5 m below the eye, whose strands run along
+/// +v, toward the eye. A wall that glows 3 stands on it 9.5 m ahead. The floor's roughness of 26 / 255 makes its
+/// dominant direction lie within 1° of the eye's direction mirrored along the strand.
 /// </summary>
 [Collection(GpuCollection.Name)]
 public sealed class HairReflectionRenderTests
@@ -49,13 +49,14 @@ public sealed class HairReflectionRenderTests
 
     [Theory]
     [MemberData(nameof(TiltsAndResolutions))]
-    public void AHairPixelWhoseRayPointsBelowTheSurfaceFadeKeepsTheEnvironmentMapsReflection(
+    public void AHairPixelWhoseRayPointsBelowItsCardKeepsTheEnvironmentMapsReflection(
         int tiltDegrees,
         TraceResolution resolution
     )
     {
         // A tilt of 10° puts the rays of the near floor above the card and those of the far floor below it, with the
-        // surface fade's range between them. A tilt of 45° puts every ray of the floor below its card.
+        // surface fade's range between them. A tilt of 45° puts every ray of the floor below its card. A ray below the
+        // card has a surface fade of 0.
         Rendered with = Render(
             reflections: ReflectionsAt(resolution),
             model: Hair,
@@ -72,7 +73,7 @@ public sealed class HairReflectionRenderTests
         (int X, int Y)[] below =
         [
             .. FloorPixels(with)
-                .Where(pixel => CosineWithCard(with, pixel) < ScreenRay.SurfaceFadeCosine - CosineMargin),
+                .Where(pixel => CosineWithCard(with, pixel) < -CosineMargin),
         ];
         below
             .Length.Should()
@@ -86,66 +87,45 @@ public sealed class HairReflectionRenderTests
                 .Should()
                 .BeLessThanOrEqualTo(
                     kept.Y / 1024,
-                    "{0}, whose ray points below the surface fade, traces nothing and keeps the map's reflection: {1}",
+                    "{0}, whose ray points below its card, traces nothing and keeps the map's reflection: {1}",
                     pixel,
                     At(with.Hdr, pixel)
                 );
         }
     }
 
-    [Theory]
-    [InlineData(TraceResolution.Full)]
-    [InlineData(TraceResolution.Half)]
-    public void AHairPixelWhoseRayGrazesItsCardKeepsTheAmbientTermExactly(TraceResolution resolution)
-    {
-        // The tilt of 10° puts a band of the floor's rays within a cosine of SurfaceFadeCosine above the card. Such a ray
-        // hits its own card a few pixels from its start, so a share of the screen's reflection would end the map's
-        // reflection at a ragged edge inside the band.
-        Rendered with = Render(
-            reflections: ReflectionsAt(resolution),
-            model: Hair,
-            tiltDegrees: 10,
-            environmentMap: true
-        );
-        Rendered without = Render(reflections: new NoReflections(), model: Hair, tiltDegrees: 10, environmentMap: true);
-
-        (int X, int Y)[] grazing =
-        [
-            .. FloorPixels(with)
-                .Where(pixel =>
-                    CosineWithCard(with, pixel) is > CosineMargin and < ScreenRay.SurfaceFadeCosine - CosineMargin
-                ),
-        ];
-        grazing.Length.Should().BeGreaterThan(1_000, "the far floor's rays cross the card's plane");
-        foreach ((int X, int Y) pixel in grazing)
-            At(with.Hdr, pixel).Should().Be(At(without.Hdr, pixel), "{0} grazes its card and traces nothing", pixel);
-    }
+    /// <summary>Both models and both traces: the surface fade holds alike for each.</summary>
+    public static TheoryData<bool, TraceResolution> ModelsAndResolutions =>
+        new()
+        {
+            { false, TraceResolution.Full },
+            { false, TraceResolution.Half },
+            { true, TraceResolution.Full },
+            { true, TraceResolution.Half },
+        };
 
     [Theory]
-    [InlineData(TraceResolution.Full)]
-    [InlineData(TraceResolution.Half)]
-    public void AStandardPixelWhoseRayGrazesItsSurfaceTakesTheScreensReflectionInTheShareOfTheSurfaceFade(
+    [MemberData(nameof(ModelsAndResolutions))]
+    public void APixelWhoseRayGrazesItsSurfaceTakesTheScreensReflectionInTheShareOfTheSurfaceFade(
+        bool hair,
         TraceResolution resolution
     )
     {
-        // The same floor of the standard model: its normal map leans the shading normal 10° away from the eye, so a band
-        // of the near floor's rays lies within a cosine of SurfaceFadeCosine above the floor. Their delta is
+        // The floor's normal map leans the shading normal 10° away from the eye. On the standard floor, a band of the
+        // near floor's rays then lies within a cosine of SurfaceFadeCosine above the floor. On the hair floor, the
+        // tilted strand puts the band on the far floor, where the rays cross the card's plane. A pixel's delta is
         // f · (W · C − a · k · T_s), and C and k · T_s each lie between 0 and the wall's glow, so the delta of a pixel of
         // fade f is at most f · W times the glow, and it is above 0 where the ray hits. The environment map is off, so
         // T_s is the gray, far from the wall's light: a delta without its fade breaks the bound at most of the band.
         // Under the map, which holds the wall, C and k · T_s nearly agree, and the bound holds with or without the fade.
+        ShadingModel model = hair ? Hair : default;
         Rendered with = Render(
             reflections: ReflectionsAt(resolution),
-            model: default,
+            model: model,
             tiltDegrees: 10,
             environmentMap: false
         );
-        Rendered without = Render(
-            reflections: new NoReflections(),
-            model: default,
-            tiltDegrees: 10,
-            environmentMap: false
-        );
+        Rendered without = Render(reflections: new NoReflections(), model: model, tiltDegrees: 10, environmentMap: false);
 
         (int X, int Y)[] grazing =
         [
@@ -154,7 +134,7 @@ public sealed class HairReflectionRenderTests
                     CosineWithCard(with, pixel) is > CosineMargin and < ScreenRay.SurfaceFadeCosine - CosineMargin
                 ),
         ];
-        grazing.Length.Should().BeGreaterThan(1_000, "the near floor's rays cross the floor's plane");
+        grazing.Length.Should().BeGreaterThan(1_000, "the floor's rays cross the floor's plane");
         int reflecting = 0;
         foreach ((int X, int Y) pixel in grazing)
         {

@@ -30,7 +30,7 @@ struct ReflectingPixel
 };
 
 // Whether the pixel starts a ray: not sky, not an impostor, whose light the atlas holds, and with a roughness fade and a
-// surface fade above 0, or for hair a surface fade of 1: a cosine of SurfaceFadeCosine or more with the card.
+// surface fade above 0.
 bool reflectingPixel(ivec2 pixel, out ReflectingPixel p)
 {
     p.distanceToEye = texelFetch(gbufferDistance, pixel, 0).r;
@@ -49,10 +49,9 @@ bool reflectingPixel(ivec2 pixel, out ReflectingPixel p)
     p.alpha = roughness * roughness;
     p.direction = specularDominantDirection(p.s.normal, reflect(-p.V, p.s.normal), p.alpha);
     float surfaceCosine = dot(p.direction, p.s.geometricNormal);
-    // A hair ray inside the surface fade's range hits its own card a few pixels from its start, so a share of its result
-    // would end the screen's reflection at a ragged, speckled edge: it traces nothing (docs/plans/skin-and-hair.md,
-    // decision 35). The cut compares the cosine itself, which every driver rounds alike, not the fade's quotient.
-    if (surfaceCosine <= 0.0 || (p.s.model == ShadingHair && surfaceCosine < SurfaceFadeCosine))
+    // A ray of any model, hair too, that points into its own geometric surface traces nothing, and one that grazes it
+    // takes the surface fade's share (docs/plans/skin-and-hair.md, decision 35).
+    if (surfaceCosine <= 0.0)
         return false;
     p.viewDepth = p.distanceToEye / length(ray);
     p.pixelFade = roughnessFade * min(surfaceCosine / SurfaceFadeCosine, 1.0);
