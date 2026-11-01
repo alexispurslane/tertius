@@ -1,9 +1,9 @@
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The estimate of a texel, the occlusion V and the bounce G, from its slices' near sectors
-/// (docs/plans/screen-space-illumination.md, "The estimate of a texel"): its shares sum to one, and a furnace gives
-/// every direction the same light.
+/// The estimate of a texel, the occlusion V, the open share S and the bounce G, from its slices' near sectors
+/// (docs/plans/screen-space-illumination.md, "The estimate of a texel"): its shares sum to one, S is the open pieces'
+/// share of the map's light, and a furnace gives every direction the same light.
 /// </summary>
 public sealed class AmbientEstimateTests
 {
@@ -41,10 +41,11 @@ public sealed class AmbientEstimateTests
                 Sectors: sectors[0],
                 Blocked: SectorMask.Run(start: 20, end: 32),
                 Light: Red * 12,
-                MapLight: Double3.Zero
+                BlockedMapLight: Double3.Zero,
+                OpenMapLight: Double3.Zero
             ),
-            new(Sectors: sectors[1], Blocked: SectorMask.None, Light: Double3.Zero, MapLight: Double3.Zero),
-            new(Sectors: sectors[2], Blocked: SectorMask.Run(start: 0, end: 8), Light: Sky * 3, MapLight: Double3.Zero),
+            new(Sectors: sectors[1], Blocked: SectorMask.None, Light: Double3.Zero, BlockedMapLight: Double3.Zero, OpenMapLight: Double3.Zero),
+            new(Sectors: sectors[2], Blocked: SectorMask.Run(start: 0, end: 8), Light: Sky * 3, BlockedMapLight: Double3.Zero, OpenMapLight: Double3.Zero),
         ];
         double total = TotalWeight(sectors);
 
@@ -77,7 +78,8 @@ public sealed class AmbientEstimateTests
                     Sectors: slice,
                     Blocked: new SectorMask((uint)random.NextInt64(1L << 32)),
                     Light: Double3.Zero,
-                    MapLight: Double3.Zero
+                    BlockedMapLight: Double3.Zero,
+                    OpenMapLight: Double3.Zero
                 )),
             ];
             double nearShare = Enumerable
@@ -103,7 +105,8 @@ public sealed class AmbientEstimateTests
                 Sectors: slice,
                 Blocked: SectorMask.None,
                 Light: Double3.Zero,
-                MapLight: Double3.Zero
+                BlockedMapLight: Double3.Zero,
+                OpenMapLight: Double3.Zero
             )),
         ];
 
@@ -120,7 +123,7 @@ public sealed class AmbientEstimateTests
         var sectors = new SliceSectors(new HorizonSlice(toEye: TowardTheEye, normal: Double3.UnitY, angle: 0));
         NearSlice[] near =
         [
-            new(Sectors: sectors, Blocked: SectorMask.Run(start: 4, end: 20), Light: Red * 16, MapLight: Double3.Zero),
+            new(Sectors: sectors, Blocked: SectorMask.Run(start: 4, end: 20), Light: Red * 16, BlockedMapLight: Double3.Zero, OpenMapLight: Double3.Zero),
         ];
         sectors.Weight.Should().Be(0, "the test needs a slice with no weight");
 
@@ -179,29 +182,197 @@ public sealed class AmbientEstimateTests
     }
 
     [Fact]
-    public void WithTheMapTheBounceIsTheBlockersLightLessTheMapsLightThatTheyReplace()
+    public void WithTheMapOnTheBounceIsTheBlockersLightAlone()
     {
         SliceSectors[] sectors = ThreeSlices(TiltedNormal);
         NearSlice[] near =
         [
-            new(Sectors: sectors[0], Blocked: SectorMask.Run(start: 20, end: 32), Light: Red * 12, MapLight: Sky * 12),
-            new(Sectors: sectors[1], Blocked: SectorMask.None, Light: Double3.Zero, MapLight: Double3.Zero),
-            new(Sectors: sectors[2], Blocked: SectorMask.Run(start: 0, end: 8), Light: Double3.Zero, MapLight: Sky * 8),
+            new(
+                Sectors: sectors[0],
+                Blocked: SectorMask.Run(start: 20, end: 32),
+                Light: Red * 12,
+                BlockedMapLight: Sky * 12,
+                OpenMapLight: Sky * 20
+            ),
+            new(
+                Sectors: sectors[1],
+                Blocked: SectorMask.None,
+                Light: Double3.Zero,
+                BlockedMapLight: Double3.Zero,
+                OpenMapLight: Sky * 32
+            ),
         ];
-        double total = TotalWeight(sectors);
+        double total = TotalWeight(sectors[..2]);
 
         var estimate = AmbientEstimate.OfSlices(near);
 
         ShouldBeNear(
             actual: estimate.Bounce,
-            expected: ((Red - Sky) * (12 * sectors[0].Weight) - Sky * (8 * sectors[2].Weight)) / (32 * total),
+            expected: Red * (12 * sectors[0].Weight) / (32 * total),
             tolerance: 1e-15,
-            because: "a blocked direction brings its blocker's light in place of the map's"
+            because: "the open share S takes the map's light of the blocked directions away, not the bounce"
         );
     }
 
     [Fact]
-    public void InAFurnaceUnderAUniformMapTheMapsIrradianceAndTheNetBounceSumToTheMapsLight()
+    public void TheOpenShareInEachChannelIsTheOpenPiecesShareOfTheMapsLightOverAllPieces()
+    {
+        SliceSectors[] sectors = ThreeSlices(TiltedNormal);
+        Double3 blocked0 = new(5, 0.2, 1);
+        Double3 open0 = new(1, 2, 0.5);
+        Double3 blocked2 = new(0.5, 0.1, 3);
+        Double3 open2 = new(2, 1, 0.25);
+        NearSlice[] near =
+        [
+            new(
+                Sectors: sectors[0],
+                Blocked: SectorMask.Run(start: 20, end: 32),
+                Light: Red * 12,
+                BlockedMapLight: blocked0,
+                OpenMapLight: open0
+            ),
+            new(
+                Sectors: sectors[1],
+                Blocked: SectorMask.None,
+                Light: Double3.Zero,
+                BlockedMapLight: Double3.Zero,
+                OpenMapLight: Sky * 32
+            ),
+            new(
+                Sectors: sectors[2],
+                Blocked: SectorMask.Run(start: 0, end: 8),
+                Light: Double3.Zero,
+                BlockedMapLight: blocked2,
+                OpenMapLight: open2
+            ),
+        ];
+        Double3 open = open0 * sectors[0].Weight + Sky * (32 * sectors[1].Weight) + open2 * sectors[2].Weight;
+        Double3 all = open + blocked0 * sectors[0].Weight + blocked2 * sectors[2].Weight;
+
+        var estimate = AmbientEstimate.OfSlices(near);
+
+        ShouldBeNear(
+            actual: estimate.OpenShare,
+            expected: open / all,
+            tolerance: 1e-15,
+            because: "each slice's reads count by its weight, in the open sum as in the sum over all pieces"
+        );
+    }
+
+    [Fact]
+    public void TheOpenShareLiesBetweenZeroAndOneInEachChannel()
+    {
+        SliceSectors[] sectors = ThreeSlices(TiltedNormal);
+        var random = new Random(13);
+        for (int trial = 0; trial < 1000; trial++)
+        {
+            NearSlice[] near =
+            [
+                .. sectors.Select(slice =>
+                {
+                    var blocked = new SectorMask((uint)random.NextInt64(1L << 32));
+                    return new NearSlice(
+                        Sectors: slice,
+                        Blocked: blocked,
+                        Light: Double3.Zero,
+                        BlockedMapLight: RandomLight(random) * blocked.Count,
+                        OpenMapLight: RandomLight(random) * blocked.Open.Count
+                    );
+                }),
+            ];
+
+            Double3 share = AmbientEstimate.OfSlices(near).OpenShare;
+
+            foreach (double channel in (ReadOnlySpan<double>)[share.X, share.Y, share.Z])
+                channel.Should().BeInRange(0, 1, "trial {0}: S is a share of the map's light", trial);
+        }
+    }
+
+    [Fact]
+    public void ATexelThatBlocksNothingHasAnOpenShareOfExactlyOne()
+    {
+        SliceSectors[] sectors = ThreeSlices(TiltedNormal);
+        NearSlice[] near =
+        [
+            .. sectors.Select(slice => new NearSlice(
+                Sectors: slice,
+                Blocked: SectorMask.None,
+                Light: Double3.Zero,
+                BlockedMapLight: Double3.Zero,
+                OpenMapLight: new Double3(0.3, 0.7, 1.9) * (32 * slice.Weight)
+            )),
+        ];
+
+        AmbientEstimate
+            .OfSlices(near)
+            .OpenShare.Should()
+            .Be(new Double3(1, 1, 1), "an open point keeps exactly the map's irradiance at its normal");
+    }
+
+    [Fact]
+    public void AChannelInWhichTheMapHoldsNoLightAlongAnyPieceTakesTheOpenShareOfTheCosineWeight()
+    {
+        SliceSectors[] sectors = ThreeSlices(TiltedNormal);
+        NearSlice[] near =
+        [
+            new(
+                Sectors: sectors[0],
+                Blocked: SectorMask.Run(start: 20, end: 32),
+                Light: Double3.Zero,
+                BlockedMapLight: new(1, 0, 2),
+                OpenMapLight: new(3, 0, 0)
+            ),
+            new(
+                Sectors: sectors[1],
+                Blocked: SectorMask.Run(start: 0, end: 8),
+                Light: Double3.Zero,
+                BlockedMapLight: new(0, 0, 1),
+                OpenMapLight: new(2, 0, 0)
+            ),
+        ];
+
+        var estimate = AmbientEstimate.OfSlices(near);
+
+        estimate
+            .OpenShare.Y.Should()
+            .BeApproximately(estimate.Occlusion, 1e-15, "the green channel holds no map light along any piece");
+        estimate.OpenShare.Z.Should().Be(0, "the blue light lies along the blocked pieces alone");
+    }
+
+    [Fact]
+    public void WithTheMapOffTheOpenShareIsTheOpenShareOfTheCosineWeightInEachChannel()
+    {
+        SliceSectors[] sectors = ThreeSlices(TiltedNormal);
+        NearSlice[] near =
+        [
+            new(
+                Sectors: sectors[0],
+                Blocked: SectorMask.Run(start: 20, end: 32),
+                Light: Red * 12,
+                BlockedMapLight: Double3.Zero,
+                OpenMapLight: Double3.Zero
+            ),
+            new(
+                Sectors: sectors[2],
+                Blocked: SectorMask.Run(start: 0, end: 8),
+                Light: Sky * 3,
+                BlockedMapLight: Double3.Zero,
+                OpenMapLight: Double3.Zero
+            ),
+        ];
+
+        var estimate = AmbientEstimate.OfSlices(near);
+
+        ShouldBeNear(
+            actual: estimate.OpenShare,
+            expected: new Double3(1, 1, 1) * estimate.Occlusion,
+            tolerance: 1e-15,
+            because: "the hemisphere holds no direction, so an open direction takes its mean light, as V says"
+        );
+    }
+
+    [Fact]
+    public void InAFurnaceUnderAUniformMapTheMapsOpenLightAndTheBounceSumToTheMapsLight()
     {
         // Every blocker emits the map's radiance and faces the center.
         SliceSectors[] sectors = ThreeSlices(TiltedNormal);
@@ -235,12 +406,19 @@ public sealed class AmbientEstimateTests
             var estimate = AmbientEstimate.OfSlices(near);
 
             ShouldBeNear(
-                actual: Sky + estimate.Bounce,
+                actual: Sky * estimate.OpenShare + estimate.Bounce,
                 expected: Sky,
                 tolerance: 1e-14,
                 because: $"trial {trial}: the map's irradiance is the map's light, and each blocker replaces it in kind"
             );
         }
+    }
+
+    /// <summary>A light of random channels from 0 to 2, a quarter of them 0.</summary>
+    private static Double3 RandomLight(Random random)
+    {
+        double Channel() => random.Next(4) == 0 ? 0 : 2 * random.NextDouble();
+        return new(Channel(), Channel(), Channel());
     }
 
     /// <summary>A step that emits <see cref="Sky"/> and faces <paramref name="center"/>, on the side that <paramref name="index"/> picks, at a random angle and distance.</summary>

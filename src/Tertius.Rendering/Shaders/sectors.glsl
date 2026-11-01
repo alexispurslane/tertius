@@ -8,6 +8,8 @@
 #include "depth_pyramid.glsl"
 
 const uint SectorCount = 32u;
+// The steps of boundaryAngle's bisection, SliceSectors.BoundarySteps.
+const int BoundarySteps = 8;
 // The total slice weight at or below which a texel holds no estimate (SectorSearch.MinTotalWeight).
 const float MinTotalWeight = 1e-6;
 
@@ -24,6 +26,36 @@ float measureFraction(SliceGeometry g, float angle)
     float low = g.normalAngle - GtaoHalfPi;
     float clamped = clamp(angle, low, g.normalAngle + GtaoHalfPi);
     return (signedArc(clamped, g.normalAngle) - signedArc(low, g.normalAngle)) / g.arc;
+}
+
+// The angle of the boundary `boundary`, from 0 to 32, where sector `boundary` begins: the angle whose measure fraction
+// is boundary / 32. The ends of the hemisphere at 0 and 32, and in between the bisection of m over BoundarySteps steps,
+// within 2^-9 π rad of it (SliceSectors.BoundaryAngle).
+float boundaryAngle(SliceGeometry g, uint boundary)
+{
+    float low = g.normalAngle - GtaoHalfPi;
+    float high = g.normalAngle + GtaoHalfPi;
+    if (boundary == 0u)
+        return low;
+    if (boundary == SectorCount)
+        return high;
+    float fraction = float(boundary) / float(SectorCount);
+    for (int step = 0; step < BoundarySteps; step++)
+    {
+        float middle = 0.5 * (low + high);
+        if (measureFraction(g, middle) < fraction)
+            low = middle;
+        else
+            high = middle;
+    }
+    return 0.5 * (low + high);
+}
+
+// The angles of `piece`, an unbroken piece of a slice's sectors that is not empty, from the boundary where its first
+// sector begins to the one where its last sector ends (SliceSectors.PieceAngles).
+vec2 pieceAngles(SliceGeometry g, uint piece)
+{
+    return vec2(boundaryAngle(g, uint(findLSB(piece))), boundaryAngle(g, uint(findMSB(piece) + 1)));
 }
 
 // The first sector whose center lies after the measure fraction m, from 0 to 32: a tie goes to the later sector.

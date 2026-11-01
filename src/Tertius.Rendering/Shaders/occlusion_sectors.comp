@@ -1,31 +1,57 @@
 #version 460
 // The occlusion sectors pass (docs/plans/screen-space-illumination.md, "A near step" and "The estimate of a texel"): the
 // edges image, and term A, the estimate: the share of the sectors that no near step blocks, which takes the ambient
-// light, and the net bounce, the blockers' direct light less the map's light along the directions that they block while
-// the map is on, over the texel's total slice weight. Engine glue after the shape of vaGTAO.hlsl. XeGTAO's copyright and
-// permission notice are in gtao.glsl.
+// light, the bounce, the blockers' direct light, over the texel's total slice weight, and the blocked share of the map's
+// light, 1 − S, from the map's light along the blocked and along the open sectors while the map is on. Engine glue after
+// the shape of vaGTAO.hlsl. XeGTAO's copyright and permission notice are in gtao.glsl.
 #extension GL_GOOGLE_include_directive : require
 #include "sectors.glsl"
 #include "environment.glsl"
-#include "exposure.glsl"
 
 layout(local_size_x = 8, local_size_y = 8) in;
 
-// M of a part of a run: for each unbroken piece of the part, its count times the map's light along the middle of its
-// angles, read with a lobe that keeps to them (docs/plans/screen-space-illumination.md, decision 42). A nearer step can
-// block sectors amid the run, so the part can fall in pieces. SectorSearch.Near is the C# copy.
-vec3 mapLightOf(SliceGeometry g, SectorRun run, uint part, uint map)
+// The map's light along the middle of the angles `angles`, from first to last, read with a lobe that keeps to them
+// (docs/plans/screen-space-illumination.md, decision 42).
+vec3 mapLightAlong(SliceGeometry g, vec2 angles, uint map)
+{
+    vec3 direction = fromViewAxes(sliceDirection(g, 0.5 * (angles.x + angles.y)));
+    return environmentLobe(map, direction, roughnessForWidth(angles.y - angles.x)).rgb;
+}
+
+// The map's light along a part of a run: for each unbroken piece of the part, its count times the map's light along
+// the middle of its angles in the run. A nearer step can block sectors amid the run, so the part can fall in pieces.
+// SectorSearch.Near is the C# copy.
+vec3 blockedMapLightOf(SliceGeometry g, SectorRun run, uint part, uint map)
 {
     vec3 light = vec3(0.0);
     for (uint rest = part; rest != 0u;)
     {
         uint piece = lowestPiece(rest);
         rest &= ~piece;
-        vec2 angles = partAngles(run, piece);
-        vec3 direction = fromViewAxes(sliceDirection(g, 0.5 * (angles.x + angles.y)));
-        light += float(bitCount(piece)) * environmentLobe(map, direction, roughnessForWidth(angles.y - angles.x)).rgb;
+        light += float(bitCount(piece)) * mapLightAlong(g, partAngles(run, piece), map);
     }
     return light;
+}
+
+// The map's light along the open sectors `open`: for each unbroken piece, its count times the map's light along the
+// middle of the angles of its boundaries. SectorSearch.Near is the C# copy.
+vec3 openMapLightOf(SliceGeometry g, uint open, uint map)
+{
+    vec3 light = vec3(0.0);
+    for (uint rest = open; rest != 0u;)
+    {
+        uint piece = lowestPiece(rest);
+        rest &= ~piece;
+        light += float(bitCount(piece)) * mapLightAlong(g, pieceAngles(g, piece), map);
+    }
+    return light;
+}
+
+// One channel's share of the map's light along the blocked sectors, or `fallback` where the map holds none. The sums
+// add reads of half floats, by the slice weights, so a sum that is not 0 lies far above the smallest normal float.
+float blockedShareOf(float blockedMapLight, float allMapLight, float fallback)
+{
+    return allMapLight > 0.0 ? blockedMapLight / allMapLight : fallback;
 }
 
 void main()
@@ -41,7 +67,7 @@ void main()
     // Sky holds no estimate.
     if (z >= SkyDepth)
     {
-        imageStore(occlusionTermA, texel, vec4(0.0, 0.0, 0.0, 1.0));
+        imageStore(occlusionTermA, texel, packEstimate(openEstimate()));
         return;
     }
     float radiusInTexels = occlusion.radiusMeters / texelWidth(z);
@@ -62,8 +88,10 @@ void main()
     bool hair = receiverCard != NoCard;
     float totalWeight = 0.0;
     float open = 0.0;
+    float blockedWeight = 0.0;
     vec3 bounce = vec3(0.0);
-    vec3 replaced = vec3(0.0);
+    vec3 blockedMap = vec3(0.0);
+    vec3 openMap = vec3(0.0);
     for (int slice = 0; slice < slices; slice++)
     {
         SliceGeometry g = gtaoSliceGeometry(setup, slice);
@@ -71,10 +99,10 @@ void main()
         SectorRun ownSurface = hair ? noRun(g) : ownSurfaceRun(g, setup.geometricNormal);
         uint blocked = runSectors(ownSurface);
         vec3 light = vec3(0.0);
-        // M: the map's light along the blocked directions, which their blockers' light replaces.
+        // The map's light along the blocked directions, which their blockers' light replaces.
         vec3 mapLight = vec3(0.0);
         if (readsMap && blocked != 0u)
-            mapLight += mapLightOf(g, ownSurface, blocked, map);
+            mapLight += blockedMapLightOf(g, ownSurface, blocked, map);
         // Where R spans at most the nearest step, the near range holds no step (decision 21). SectorSearch.SliceSteps is
         // the C# copy of this loop: change both together.
         for (int stepIndex = 0; radiusInTexels > NearestStepTexels && stepIndex < stepsPerSide; stepIndex++)
@@ -120,26 +148,38 @@ void main()
                 light += float(bitCount(fresh)) * blockerLight(imageLoad(occlusionSource, t).rgb, sampleNormal,
                                                             setup.center - samplePosition);
                 if (readsMap)
-                    mapLight += mapLightOf(g, run, fresh, map);
+                    mapLight += blockedMapLightOf(g, run, fresh, map);
             }
         }
         totalWeight += g.weight;
         // Beyond the radius, an open sector takes the ambient light (decision 40).
         open += g.weight * float(bitCount(~blocked));
+        blockedWeight += g.weight * float(bitCount(blocked));
         bounce += g.weight * light;
-        replaced += g.weight * mapLight;
+        blockedMap += g.weight * mapLight;
+        // The open sectors' reads, after the steps: only then is every open piece known.
+        if (readsMap)
+            openMap += g.weight * openMapLightOf(g, ~blocked, map);
     }
     if (!(totalWeight > MinTotalWeight))
     {
-        imageStore(occlusionTermA, texel, vec4(0.0, 0.0, 0.0, 1.0));
+        imageStore(occlusionTermA, texel, packEstimate(openEstimate()));
         return;
     }
     // Normalized by the total weight, so the open and the blocked shares sum to 1 (decision 17). The bounce, a mean of
-    // pre-exposed direct light, lies in [0, c], and the map's light is exposed and capped at c, so the net bounce lies in
-    // [−c, c], within the half floats.
+    // pre-exposed direct light, lies in [0, c], within the half floats. The blocked share of the map's light is a ratio
+    // of reads of one store, so the exposure and much of each read's error cancel in it. A texel that blocks nothing
+    // has a blocked map light of exactly 0, so its share is exactly 0 and S exactly 1. A channel in which the map holds
+    // no light along any sector, and every channel with the map off or at an unlit texel, takes the blocked share of the
+    // cosine weight, 1 − V. The division can round past 1, which the upsample's clamp takes back.
     float scale = float(SectorCount) * totalWeight;
-    vec3 netBounce = bounce / scale;
-    if (readsMap)
-        netBounce -= exposed(replaced / scale, exposureScale());
-    imageStore(occlusionTermA, texel, vec4(netBounce, open / scale));
+    vec3 allMap = blockedMap + openMap;
+    float fallback = blockedWeight / scale;
+    Estimate estimate;
+    estimate.bounce = bounce / scale;
+    estimate.occlusion = open / scale;
+    estimate.blockedShare = vec3(blockedShareOf(blockedMap.r, allMap.r, fallback),
+                                 blockedShareOf(blockedMap.g, allMap.g, fallback),
+                                 blockedShareOf(blockedMap.b, allMap.b, fallback));
+    imageStore(occlusionTermA, texel, packEstimate(estimate));
 }

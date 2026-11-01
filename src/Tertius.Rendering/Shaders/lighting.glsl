@@ -10,7 +10,7 @@
 // shades as the standard model, with metallic 0. The ambient light comes from one ambient source,
 // the scene environment map while it is on and the hemisphere while it is off, which gives a diffuse and a specular
 // term (docs/plans/environment-map.md, "The one source of the ambient light"). The estimate of the light around each
-// point, the occlusion V and the net bounce G − M, applies to the two ambient terms in occludedAmbient alone
+// point, the occlusion V, the open share S and the bounce G, applies to the two ambient terms in occludedAmbient alone
 // (docs/plans/screen-space-illumination.md, "The ambient pass"). Every reader of the ambient light reads it through
 // ambientTerms (docs/plans/screen-space-reflections.md, "The one place where SSR reads the ambient light").
 // lobesRadiance pre-exposes the sum and caps it at MaxRadiance, the surfaces' share of the HDR image (exposure.glsl).
@@ -54,7 +54,8 @@ struct ShadingInput
     float lobeSkyFraction;    // s_l, the lobe's sky share (lobeSkyFraction in hemisphere.glsl)
     float reflectionFootprint; // f, in rad, at least p: how far d moves to a neighboring pixel, set by the caller
     float occlusion;          // V, the unhidden share of the cosine-weighted hemisphere: 1 when nothing hides it
-    vec3 bounce;              // G − M, the net bounce, plain radiance: 0 where no estimate exists
+    vec3 openShare;           // S, per channel: the open directions' share of the ambient source's light, 1 when open
+    vec3 bounce;              // G, the blockers' light, plain radiance: 0 where no estimate exists
     uint map;                 // the environment map that lights the surface, root first; only the map's ambient light reads it
     uint model;               // the shading model's code: ShadingStandard, ShadingSkin or ShadingHair
     vec3 strand;              // T, a hair's unit strand from root to tip; 0 for the other models
@@ -245,16 +246,14 @@ float specularOcclusion(float NdotV, float occlusion, float alpha)
     return clamp(pow(NdotV + occlusion, exp2(-16.0 * alpha - 1.0)) - 1.0 + occlusion, 0.0, 1.0);
 }
 
-// The one place where the estimate applies (docs/plans/screen-space-illumination.md, decision 41): the source's diffuse
-// term less its light along the blocked directions, plus the net bounce under the diffuse color, and the specular term
-// by V_s. The map's light along them is in the net bounce, G − M, so its whole term stays. The hemisphere has no
-// direction at the estimate's texels, so it gives the blocked directions its mean, and the open share V keeps the rest.
-// The max holds the map's term where the half-resolution M exceeds the irradiance at the pixel's own normal. It keeps
-// the terms apart, because SSR replaces the occluded specular term where its ray hits.
+// The one place where the estimate applies (docs/plans/screen-space-illumination.md, decision 42): the source's diffuse
+// term times the open share S, the open directions' share of its light, plus the bounce under the diffuse color, and the
+// specular term by V_s. While the map is on, S is the open pieces' share of the map's light. The hemisphere has no
+// direction at the estimate's texels, so S is V there. S lies in [0, 1] and G in [0, c], so the diffuse term never goes
+// below 0. It keeps the terms apart, because SSR replaces the occluded specular term where its ray hits.
 AmbientTerms occludedAmbient(AmbientTerms terms, ShadingInput s, SurfaceLobes lobes)
 {
-    terms.diffuse = environmentMapOn ? max(terms.diffuse + lobes.diffuseColor * s.bounce, vec3(0.0))
-                                     : terms.diffuse * s.occlusion + lobes.diffuseColor * s.bounce;
+    terms.diffuse = terms.diffuse * s.openShare + lobes.diffuseColor * s.bounce;
     terms.specular *= specularOcclusion(lobes.NdotV, s.occlusion, lobes.alpha);
     return terms;
 }
@@ -451,8 +450,9 @@ vec3 scatteredLight(vec3 albedo, vec3 position, uint map)
 // the fringe of the transparent pass, the environment faces and the impostor captures (docs/plans/skin-and-hair.md, "The
 // fringe"). The reflection's footprint comes from the screen derivatives, so the caller calls this before any discard.
 // The sky shares serve the hemisphere alone, and are 0 while the environment map is on. A forward surface is not in the
-// G-buffer that the occlusion passes read, so it takes no estimate: the occlusion is 1 and the bounce 0, and the surface
-// behind it takes the estimate at its pixel (docs/plans/screen-space-illumination.md, "The passes that keep V = 1").
+// G-buffer that the occlusion passes read, so it takes no estimate: the occlusion and the open share are 1 and the bounce
+// 0, and the surface behind it takes the estimate at its pixel (docs/plans/screen-space-illumination.md, "The passes
+// that keep V = 1").
 ShadingInput forwardShading(SurfaceSample s, vec3 position, vec4 hemisphere, uint map, vec3 V)
 {
     ShadingInput shading;
@@ -467,6 +467,7 @@ ShadingInput forwardShading(SurfaceSample s, vec3 position, vec4 hemisphere, uin
     shading.skyFraction = environmentMapOn ? 0.0 : skyFraction(hemisphere, position, s.normal);
     shading.lobeSkyFraction = environmentMapOn ? 0.0 : lobeSkyFraction(hemisphere, position, s.normal, V, s.roughness);
     shading.occlusion = 1.0;
+    shading.openShare = vec3(1.0);
     shading.bounce = vec3(0.0);
     shading.model = s.model;
     shading.strand = s.strand;

@@ -22,17 +22,21 @@ public sealed class OcclusionUpsampleShaderTests(ITestOutputHelper output)
         VulkanRenderer renderer = Gpu.Headless(
             width: Width,
             height: Height,
-            screenSpaceLight: VisibilityBitmaskLight.Default
+            screenSpaceLight: VisibilityBitmaskLight.Default,
+            environmentMap: SceneEnvironmentMap.Default
         );
         try
         {
+            // The faces draw the map in the first frame, so the open share S varies from texel to texel.
             renderer.Render(CornerWithABox(renderer), 1f);
             float[] estimate = renderer.ReadEstimate();
+            float[] openShare = renderer.ReadEstimateOpenShare();
             (float[] term, int halfWidth, int halfHeight) = renderer.ReadOcclusionTerm();
             var input = new UpsampleInput(
                 Distances: renderer.ReadDistance(),
                 Normals: renderer.ReadNormals(),
                 Term: term,
+                TermOpenShare: renderer.ReadOcclusionTermOpenShare(),
                 Depths: renderer.ReadOcclusionViewDepth().Depths,
                 HalfSize: (halfWidth, halfHeight),
                 Camera: renderer.LastScene.Camera
@@ -46,9 +50,19 @@ public sealed class OcclusionUpsampleShaderTests(ITestOutputHelper output)
                 if (input.ExpectedAt(x, y) is not { } expected)
                     continue;
                 int p = y * Width + x;
-                double[] wanted = [expected.Bounce.X, expected.Bounce.Y, expected.Bounce.Z, expected.Occlusion];
-                for (int c = 0; c < 4; c++)
-                    ((double)estimate[4 * p + c])
+                double[] wanted =
+                [
+                    expected.Bounce.X,
+                    expected.Bounce.Y,
+                    expected.Bounce.Z,
+                    expected.Occlusion,
+                    expected.OpenShare.X,
+                    expected.OpenShare.Y,
+                    expected.OpenShare.Z,
+                ];
+                float[] actual = [.. estimate.AsSpan(4 * p, 4), .. openShare.AsSpan(3 * p, 3)];
+                for (int c = 0; c < wanted.Length; c++)
+                    ((double)actual[c])
                         .Should()
                         .BeApproximately(
                             wanted[c],
@@ -89,11 +103,15 @@ public sealed class OcclusionUpsampleShaderTests(ITestOutputHelper output)
         return scene;
     }
 
-    /// <summary>The images that the upsample reads, read back from the GPU, and the frame's camera.</summary>
+    /// <summary>
+    /// The images that the upsample reads, read back from the GPU, and the frame's camera: term A's bounce and V in
+    /// <paramref name="Term"/>, RGBA, and its S in <paramref name="TermOpenShare"/>, RGB.
+    /// </summary>
     private sealed record UpsampleInput(
         float[] Distances,
         float[] Normals,
         float[] Term,
+        float[] TermOpenShare,
         float[] Depths,
         (int Width, int Height) HalfSize,
         CameraView Camera
@@ -142,7 +160,11 @@ public sealed class OcclusionUpsampleShaderTests(ITestOutputHelper output)
             Vector3 ray = Camera.ViewRayThrough(new(2 * t.X + 0.5f, 2 * t.Y + 0.5f));
             return new(
                 Position: (Double3)ray * Depths[i],
-                Estimate: new(Bounce: new(Term[4 * i], Term[4 * i + 1], Term[4 * i + 2]), Occlusion: Term[4 * i + 3])
+                Estimate: new(
+                    Bounce: new(Term[4 * i], Term[4 * i + 1], Term[4 * i + 2]),
+                    Occlusion: Term[4 * i + 3],
+                    OpenShare: new(TermOpenShare[3 * i], TermOpenShare[3 * i + 1], TermOpenShare[3 * i + 2])
+                )
             );
         }
     }

@@ -14,6 +14,7 @@
 #include "lighting.glsl"
 #include "exposure.glsl"
 #include "screen.glsl"
+#include "estimate.glsl"
 
 // d at a pixel: a surface's specular dominant direction toward the eye, and a sky pixel's view ray.
 vec3 dominantDirectionAt(ivec2 pixel)
@@ -44,7 +45,7 @@ float reflectionFootprintAt(ivec2 pixel)
     return max(frame.params.z, max(alongX, alongY));
 }
 
-// The surface without the estimate, with V = 1 and G = 0, and with the footprint at its floor p, for the direct light,
+// The surface without the estimate, with V = 1, S = 1 and G = 0, and with the footprint at its floor p, for the direct light,
 // which reads none of them. The direct pass reads the surface only through it, so it never reads the estimate target,
 // which the occlusion passes write after it.
 ShadingInput materialAt(ivec2 pixel)
@@ -64,6 +65,7 @@ ShadingInput materialAt(ivec2 pixel)
     s.skyFraction = texelFetch(gbufferEmissive, pixel, 0).a;
     s.reflectionFootprint = frame.params.z;
     s.occlusion = 1.0;
+    s.openShare = vec3(1.0);
     s.bounce = vec3(0.0);
     uvec4 shading = texelFetch(gbufferShading, pixel, 0);
     s.model = modelOfWord(shading.a);
@@ -75,11 +77,12 @@ ShadingInput materialAt(ivec2 pixel)
 ShadingInput estimatedAt(ivec2 pixel)
 {
     ShadingInput s = materialAt(pixel);
-    vec4 estimate = texelFetch(gbufferEstimate, pixel, 0);
-    s.occlusion = estimate.a;
+    Estimate estimate = unpackEstimate(texelFetch(gbufferEstimate, pixel, 0));
+    s.occlusion = estimate.occlusion;
+    s.openShare = 1.0 - estimate.blockedShare;
     // The images hold the bounce pre-exposed. k = exp2(stops) is a normal float above 0, and the quotient stays below
     // c · 2⁶⁴, a finite single float.
-    s.bounce = estimate.rgb / exposureScale();
+    s.bounce = estimate.bounce / exposureScale();
     return s;
 }
 

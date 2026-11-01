@@ -38,8 +38,9 @@ internal static class OcclusionUpsample
 
     /// <summary>
     /// The estimate of the full-resolution <paramref name="pixel"/> at the view <paramref name="position"/>, with its
-    /// occlusion clamped to [0, 1]: the bilinear weights of its 2 × 2 block of texels cut by each texel's distance from
-    /// the pixel's tangent plane, or the texel nearest the plane when none lies on it. The bounce takes the same weights.
+    /// occlusion and its open share clamped to [0, 1]: the bilinear weights of its 2 × 2 block of texels cut by each
+    /// texel's distance from the pixel's tangent plane, or the texel nearest the plane when none lies on it. The bounce
+    /// and the open share take the same weights.
     /// </summary>
     /// <param name="texelWidth">p(z) at the pixel: a texel this far from the plane gets no weight.</param>
     /// <param name="halfSize">The size of the half-resolution image, in texels.</param>
@@ -55,6 +56,7 @@ internal static class OcclusionUpsample
     {
         Double3 bounceSum = Double3.Zero;
         double occlusionSum = 0;
+        Double3 openShareSum = Double3.Zero;
         double weights = 0;
         double nearestOffPlane = double.PositiveInfinity;
         AmbientEstimate nearest = AmbientEstimate.Open;
@@ -65,6 +67,7 @@ internal static class OcclusionUpsample
             double weight = bilinear * Math.Max(0, 1 - offPlane / texelWidth);
             bounceSum += texel.Estimate.Bounce * weight;
             occlusionSum += weight * texel.Estimate.Occlusion;
+            openShareSum += texel.Estimate.OpenShare * weight;
             weights += weight;
             if (offPlane < nearestOffPlane)
             {
@@ -73,8 +76,19 @@ internal static class OcclusionUpsample
             }
         }
         AmbientEstimate estimate =
-            weights > 0 ? new(Bounce: bounceSum / weights, Occlusion: occlusionSum / weights) : nearest;
-        // The bounce needs no clamp: a mean of non-negative light with non-negative weights.
-        return estimate with { Occlusion = Math.Clamp(estimate.Occlusion, 0, 1) };
+            weights > 0
+                ? new(Bounce: bounceSum / weights, Occlusion: occlusionSum / weights, OpenShare: openShareSum / weights)
+                : nearest;
+        // The bounce needs no clamp: a mean of non-negative light with non-negative weights. The shares' clamps keep the
+        // rounding of the sectors pass's division and of the blurs' sums within [0, 1].
+        return estimate with
+        {
+            Occlusion = Math.Clamp(estimate.Occlusion, 0, 1),
+            OpenShare = new(
+                Math.Clamp(estimate.OpenShare.X, 0, 1),
+                Math.Clamp(estimate.OpenShare.Y, 0, 1),
+                Math.Clamp(estimate.OpenShare.Z, 0, 1)
+            ),
+        };
     }
 }

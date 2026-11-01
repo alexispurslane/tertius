@@ -111,18 +111,21 @@ public sealed class BounceLightMapRenderTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// A floor point beyond the radius of every blocker has every sector open: the estimate holds no net bounce and
-    /// no occlusion. So its diffuse light is the map's irradiance at its normal, exactly as with the screen-space light
-    /// off, which writes the open estimate everywhere. The passes' half floats can store V of an open texel as
-    /// 1 − 2⁻¹¹, the largest half below 1, where a device rounds a store toward zero, as this Mac's does: the blurs'
-    /// sums of ones come to just below 1. Only the specular occlusion reads V while the map is on, and it moves the
-    /// pixel by less than one step of the HDR image's half floats, 2⁻¹¹ of its value. Before decision 41, V scaled the
-    /// whole diffuse term, and the pixel moved by that one step.
+    /// A floor point beyond the radius of every blocker has every sector open: the estimate holds no bounce, and its
+    /// open share S is exactly 1, because the map's light along its blocked sectors is exactly 0 and the images store
+    /// 1 − S, whose zeros the blurs and the upsample keep. So its diffuse light is the map's irradiance at its normal,
+    /// exactly as with the screen-space light off. The passes' half floats can store V of an open texel as 1 − 2⁻¹¹, the
+    /// largest half below 1, where a device rounds a store toward zero, as this Mac's does: the blurs' sums of ones come
+    /// to just below 1. Only the specular occlusion reads V, and it moves the pixel by less than one step of the HDR
+    /// image's half floats, 2⁻¹¹ of its value.
     /// </summary>
     [Fact]
     public void AFloorPointWithEverySectorOpenTakesTheMapsIrradianceAsWithTheScreenSpaceLightOff()
     {
-        (float[] on, float[] estimate) = RenderedWithEstimate(VisibilityBitmaskLight.Default, AddDarkWallAndFarGlow);
+        (float[] on, float[] estimate, float[] openShare) = RenderedWithEstimate(
+            VisibilityBitmaskLight.Default,
+            AddDarkWallAndFarGlow
+        );
         float[] off = Rendered(new NoScreenSpaceLight(), AddDarkWallAndFarGlow);
 
         foreach (Vector3 point in AwayFromTheWall)
@@ -136,6 +139,10 @@ public sealed class BounceLightMapRenderTests(ITestOutputHelper output)
                     + $"({estimate[i]}, {estimate[i + 1]}, {estimate[i + 2]}, {estimate[i + 3]})"
             );
             estimate[i..(i + 3)].Should().Equal([0f, 0f, 0f], "every sector of {0} is open", point);
+            int j = 3 * (pixel.Y * Width + pixel.X);
+            openShare[j..(j + 3)]
+                .Should()
+                .Equal([1f, 1f, 1f], "an open point keeps exactly the map's irradiance at {0}", point);
             estimate[i + 3]
                 .Should()
                 .BeGreaterThanOrEqualTo(1 - MathF.Pow(2, -11), "every sector of {0} is open", point);
@@ -144,9 +151,82 @@ public sealed class BounceLightMapRenderTests(ITestOutputHelper output)
                 .Should()
                 .BeLessThan(
                     MathF.Pow(2, -11) * without.X,
-                    "an open sector takes the map's own light, and only the specular occlusion reads V"
+                    "an open point takes the map's irradiance at S = 1, and only the specular occlusion reads V"
                 );
         }
+    }
+
+    /// <summary>
+    /// The crease of a dimly glowing near wall and the floor, under the map of the far glowing wall, which glows twice
+    /// as bright, and of a small bright lamp high up and ahead, which the open directions of the crease face. The map
+    /// holds the near wall too, so the crease's blocked directions hold much of the map's light, and S is well below 1.
+    /// The crease's light at the default 3 slices lies within 10 % of a reference at 16 slices, the most that the
+    /// setting allows, in the mean over ten floor points along the crease, 5 cm from the wall: the slices' noise averages
+    /// out along the crease, as the denoise averages it, and the open share S is a ratio of reads of one store, so no
+    /// read's error takes the crease past the open directions' light.
+    /// </summary>
+    [Fact]
+    public void ACreaseBesideASmallBrightLightInTheMapGetsTheMapsLightOverItsOpenDirectionsWithinATenthOfAManySliceReference()
+    {
+        Vector3[] crease =
+        [
+            .. Enumerable.Range(0, 10).Select(k => new Vector3(WallX + 0.05f, FloorHeight, -3f - 0.25f * k)),
+        ];
+
+        (float[] hdr, _, float[] openShare) = RenderedWithEstimate(VisibilityBitmaskLight.Default, AddDimWallFarGlowAndLamp);
+        double light = MeanLight(hdr, crease);
+        double reference = MeanLight(
+            Rendered(
+                VisibilityBitmaskLight.Default with { Slices = ScreenSpaceLightSetting.MaxSlices },
+                AddDimWallFarGlowAndLamp
+            ),
+            crease
+        );
+        double share = crease.Average(point =>
+        {
+            (int X, int Y) pixel = Pixel(point);
+            int j = 3 * (pixel.Y * Width + pixel.X);
+            return (openShare[j] + openShare[j + 1] + openShare[j + 2]) / 3.0;
+        });
+        output.WriteLine($"the crease at 3 slices {light:0.0000}, at 16 slices {reference:0.0000}, S {share:0.0000}");
+
+        share.Should().BeLessThan(0.85, "the test needs a crease whose blocked directions hold much of the map's light");
+        light
+            .Should()
+            .BeApproximately(
+                reference,
+                0.1 * reference,
+                "the crease takes the map's light over its open directions, as many slices find it"
+            );
+    }
+
+    /// <summary>
+    /// A near wall that glows at half the far wall's radiance, the glowing far wall 41 m right of the eye, and a lamp
+    /// 0.5 m wide, 20 times as bright as the far wall, high up and ahead.
+    /// </summary>
+    private static void AddDimWallFarGlowAndLamp(VulkanRenderer renderer, RenderSnapshot snapshot)
+    {
+        AddWall(
+            snapshot: snapshot,
+            renderer: renderer,
+            material: BrdfTesting.Glow(renderer, new Vector3(0.5f, 0.5f, 0.5f)),
+            x: WallX,
+            faceToward: 1
+        );
+        AddWall(
+            snapshot: snapshot,
+            renderer: renderer,
+            material: BrdfTesting.Glow(renderer, Vector3.One),
+            x: 40,
+            faceToward: -1
+        );
+        AddSlab(
+            snapshot: snapshot,
+            box: UnitBox(renderer),
+            material: BrdfTesting.Glow(renderer, new Vector3(20, 20, 20)),
+            center: new(4, FloorHeight + 5, -12),
+            size: new(0.5f, 0.5f, 0.5f)
+        );
     }
 
     /// <summary>The black near wall, and the glowing far wall 41 m right of the eye, facing −X.</summary>
@@ -175,8 +255,11 @@ public sealed class BounceLightMapRenderTests(ITestOutputHelper output)
     private static float[] Rendered(ScreenSpaceLightSetting setting, Action<VulkanRenderer, RenderSnapshot> addWalls) =>
         RenderedWithEstimate(setting, addWalls).Hdr;
 
-    /// <summary>The HDR image of <see cref="Rendered"/> and the estimate target of the same frame.</summary>
-    private static (float[] Hdr, float[] Estimate) RenderedWithEstimate(
+    /// <summary>
+    /// The HDR image of <see cref="Rendered"/>, and the estimate target of the same frame: its bounce and V in RGBA, and
+    /// its open share S in RGB.
+    /// </summary>
+    private static (float[] Hdr, float[] Estimate, float[] OpenShare) RenderedWithEstimate(
         ScreenSpaceLightSetting setting,
         Action<VulkanRenderer, RenderSnapshot> addWalls
     )
@@ -200,7 +283,11 @@ public sealed class BounceLightMapRenderTests(ITestOutputHelper output)
             addWalls(renderer, snapshot);
             // The faces draw the map in the first frame, and every reader reads it after them.
             renderer.Render(snapshot, 1f);
-            return (Hdr: renderer.ReadHdr(), Estimate: renderer.ReadEstimate());
+            return (
+                Hdr: renderer.ReadHdr(),
+                Estimate: renderer.ReadEstimate(),
+                OpenShare: renderer.ReadEstimateOpenShare()
+            );
         }
         finally
         {

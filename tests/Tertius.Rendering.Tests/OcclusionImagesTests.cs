@@ -40,8 +40,8 @@ public sealed class OcclusionImagesTests
 
         images.ViewDepth.Format.Should().Be(Format.R32Sfloat, "occlusion.glsl declares viewDepth r32f");
         images.Edges.Format.Should().Be(Format.R8Unorm, "occlusion.glsl declares occlusionEdges r8");
-        images.TermA.Format.Should().Be(Format.R16G16B16A16Sfloat, "occlusion.glsl declares the terms rgba16f");
-        images.TermB.Format.Should().Be(Format.R16G16B16A16Sfloat, "occlusion.glsl declares the terms rgba16f");
+        images.TermA.Format.Should().Be(Format.R32G32B32A32Uint, "occlusion.glsl declares the terms rgba32ui");
+        images.TermB.Format.Should().Be(Format.R32G32B32A32Uint, "occlusion.glsl declares the terms rgba32ui");
         images.Source.Format.Should().Be(Format.R16G16B16A16Sfloat, "occlusion.glsl declares occlusionSource rgba16f");
         images
             .DepthAndNormal.Format.Should()

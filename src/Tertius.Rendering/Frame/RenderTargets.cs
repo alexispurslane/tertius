@@ -49,8 +49,14 @@ internal sealed class RenderTargets : IDisposable
     public const Format DepthFormat = Format.D32Sfloat;
     public const Format HdrFormat = Format.R16G16B16A16Sfloat;
     public const Format DirectFormat = Format.R16G16B16A16Sfloat;
-    public const Format EstimateFormat = Format.R16G16B16A16Sfloat;
+    public const Format EstimateFormat = Format.R32G32B32A32Uint;
     public const Format DiffuseFormat = Format.R16G16B16A16Sfloat;
+
+    /// <summary>
+    /// The second word of the open estimate as packEstimate packs it (Shaders/estimate.glsl): G.b = 0 in its low half and
+    /// V = 1, the half float 0x3C00, in its high half.
+    /// </summary>
+    public const uint OpenOcclusionWord = 0x3C00_0000;
 
     /// <summary>The binding of the estimate target in the G-buffer set (Shaders/gbuffer_inputs.glsl).</summary>
     public const uint EstimateBinding = 7;
@@ -352,8 +358,8 @@ internal sealed class RenderTargets : IDisposable
         );
 
     /// <summary>
-    /// Clears the estimate target to (0, 0, 0, 1), no bounce and full visibility, if this is the first frame since its
-    /// creation, and does nothing otherwise.
+    /// Clears the estimate target to the open estimate, no bounce, full visibility and an open share of 1, if this is the
+    /// first frame since its creation, and does nothing otherwise.
     /// </summary>
     public void RecordEstimateClear(Vk vk, CommandBuffer commandBuffer, BarrierBatch barriers)
     {
@@ -361,7 +367,8 @@ internal sealed class RenderTargets : IDisposable
             return;
         barriers.Image(Estimate, ImageUse.TransferDestination, discard: true);
         barriers.Flush(vk, commandBuffer);
-        var openEstimate = new ClearColorValue(float32_0: 0, float32_1: 0, float32_2: 0, float32_3: 1);
+        // packEstimate of the open estimate (Shaders/estimate.glsl): every half 0 but V, 1.0 in the high half of y.
+        var openEstimate = new ClearColorValue(uint32_0: 0, uint32_1: OpenOcclusionWord, uint32_2: 0, uint32_3: 0);
         var whole = new ImageSubresourceRange(
             aspectMask: ImageAspectFlags.ColorBit,
             baseMipLevel: 0,

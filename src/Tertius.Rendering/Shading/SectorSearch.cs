@@ -74,10 +74,20 @@ internal readonly partial struct OwnSurface
         };
 }
 
-/// <summary>A slice after its near steps: its sectors and its blocked sectors.</summary>
+/// <summary>
+/// A slice after its near steps: its sectors, its blocked sectors, the light of their blockers, and the map's light
+/// along its blocked and along its open sectors, whose sums give the open share S (AmbientEstimate).
+/// </summary>
 /// <param name="Light">The sum of newly blocked sectors times their blocker's light.</param>
-/// <param name="MapLight">M: the sum of blocked sectors times the map's light along them, 0 with the map off.</param>
-internal readonly record struct NearSlice(SliceSectors Sectors, SectorMask Blocked, Double3 Light, Double3 MapLight);
+/// <param name="BlockedMapLight">The sum over the blocked sectors of the map's light along them, 0 with the map off.</param>
+/// <param name="OpenMapLight">The sum over the open sectors of the map's light along them, 0 with the map off.</param>
+internal readonly record struct NearSlice(
+    SliceSectors Sectors,
+    SectorMask Blocked,
+    Double3 Light,
+    Double3 BlockedMapLight,
+    Double3 OpenMapLight
+);
 
 /// <summary>
 /// The search of one slice's sectors: the near steps, which block what their slabs cover and give it their direct
@@ -246,7 +256,8 @@ internal static class SectorSearch
     /// <summary>
     /// The near steps of one slice, in order, nearest first: each blocks what it covers and neither the receiver's own
     /// surface nor a nearer step blocked. Each unbroken piece of the sectors that a step newly blocks reads the map along
-    /// the middle of its angles, with the lobe for its width (docs/plans/screen-space-illumination.md, decision 42).
+    /// the middle of its angles, with the lobe for its width, and after the steps so does each unbroken piece of the
+    /// sectors that they leave open (docs/plans/screen-space-illumination.md, decision 42).
     /// </summary>
     /// <remarks>
     /// A step blocks only within <paramref name="radius"/> of the center, GTAO's hard edge. A blocker that faces away
@@ -268,7 +279,7 @@ internal static class SectorSearch
         SectorRun ownRun = ownSurface.Run(sectors);
         SectorMask blocked = ownRun.Sectors;
         Double3 light = Double3.Zero;
-        Double3 replaced = MapLightOf(sectors: sectors, run: ownRun, part: blocked, mapLight: mapLight);
+        Double3 blockedMapLight = MapLightOf(sectors: sectors, part: blocked, anglesOf: ownRun.PartAngles, mapLight: mapLight);
         foreach (NearStep step in steps)
         {
             if (!HorizonSlice.Hides(sampleDistance: Double3.Distance(step.Position, center), radius: radius))
@@ -285,21 +296,32 @@ internal static class SectorSearch
             blocked = blocked.Union(fresh);
             if (Faces(step.GeometricNormal, center - step.Position))
                 light += step.DirectLight * fresh.Count;
-            replaced += MapLightOf(sectors: sectors, run: run, part: fresh, mapLight: mapLight);
+            blockedMapLight += MapLightOf(sectors: sectors, part: fresh, anglesOf: run.PartAngles, mapLight: mapLight);
         }
-        return new(Sectors: sectors, Blocked: blocked, Light: light, MapLight: replaced);
+        return new(
+            Sectors: sectors,
+            Blocked: blocked,
+            Light: light,
+            BlockedMapLight: blockedMapLight,
+            OpenMapLight: MapLightOf(
+                sectors: sectors,
+                part: blocked.Open,
+                anglesOf: sectors.PieceAngles,
+                mapLight: mapLight
+            )
+        );
     }
 
     /// <summary>
     /// The sum over the unbroken pieces of <paramref name="part"/> of each piece's count times the map's light along the
-    /// middle of its angles in <paramref name="run"/>, read with the lobe for its width; 0 for an empty part or with no
-    /// map. A nearer step can block sectors amid the run, so the part can fall in pieces, and a read for the whole part
-    /// would stand on the nearer step's directions.
+    /// middle of its angles, which <paramref name="anglesOf"/> gives, read with the lobe for its width; 0 for an empty
+    /// part or with no map. A nearer step can block sectors amid a run, so a part can fall in pieces, and a read for the
+    /// whole part would stand on the nearer step's directions.
     /// </summary>
     private static Double3 MapLightOf(
         SliceSectors sectors,
-        SectorRun run,
         SectorMask part,
+        Func<SectorMask, (double Middle, double Width)> anglesOf,
         Func<Double3, double, Double3>? mapLight
     )
     {
@@ -309,7 +331,7 @@ internal static class SectorSearch
         for (SectorMask rest = part; rest.Count > 0; rest = rest.Except(rest.LowestPiece))
         {
             SectorMask piece = rest.LowestPiece;
-            (double middle, double width) = run.PartAngles(piece);
+            (double middle, double width) = anglesOf(piece);
             light += mapLight(sectors.DirectionAt(middle), width) * piece.Count;
         }
         return light;

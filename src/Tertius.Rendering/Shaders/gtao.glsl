@@ -240,10 +240,10 @@ vec2 gtaoExactStepOffset(GtaoTexel t, int slice, int stepIndex)
 
 // ---- The denoise -------------------------------------------------------------------------------------------------
 
-// XeGTAO_Denoise (lines 734 to 812) for one texel: XeGTAO's 3 × 3 edge-aware blur of the source term's four channels,
-// the bounce and the occlusion with the same weights. Neighbors outside the image read the border texel, as XeGTAO's
-// clamped sampler does.
-vec4 gtaoDenoise(ivec2 texel, bool lastPass)
+// XeGTAO_Denoise (lines 734 to 812) for one texel: XeGTAO's 3 × 3 edge-aware blur of the source term's estimate, every
+// channel with the same weights (estimate.glsl). Neighbors outside the image read the border texel, as XeGTAO's clamped
+// sampler does.
+Estimate gtaoDenoise(ivec2 texel, bool lastPass)
 {
     const float diagWeight = 0.85 * 0.5;
     float blurAmount = lastPass ? DenoiseBlurBeta : DenoiseBlurBeta / 5.0;
@@ -270,28 +270,19 @@ vec4 gtaoDenoise(ivec2 texel, bool lastPass)
     float weightBL = diagWeight * (edgesC_LRTB.w * edgesB_LRTB.x + edgesC_LRTB.x * edgesL_LRTB.w);
     float weightBR = diagWeight * (edgesC_LRTB.y * edgesR_LRTB.w + edgesC_LRTB.w * edgesB_LRTB.y);
 
-    vec4 ssaoValue = imageLoad(denoiseSource, texel);
-    vec4 ssaoValueL = imageLoad(denoiseSource, clamp(texel + ivec2(-1, 0), ivec2(0), last));
-    vec4 ssaoValueR = imageLoad(denoiseSource, clamp(texel + ivec2(1, 0), ivec2(0), last));
-    vec4 ssaoValueT = imageLoad(denoiseSource, clamp(texel + ivec2(0, -1), ivec2(0), last));
-    vec4 ssaoValueB = imageLoad(denoiseSource, clamp(texel + ivec2(0, 1), ivec2(0), last));
-    vec4 ssaoValueTL = imageLoad(denoiseSource, clamp(texel + ivec2(-1, -1), ivec2(0), last));
-    vec4 ssaoValueTR = imageLoad(denoiseSource, clamp(texel + ivec2(1, -1), ivec2(0), last));
-    vec4 ssaoValueBL = imageLoad(denoiseSource, clamp(texel + ivec2(-1, 1), ivec2(0), last));
-    vec4 ssaoValueBR = imageLoad(denoiseSource, clamp(texel + ivec2(1, 1), ivec2(0), last));
-
-    float sumWeight = blurAmount;
-    vec4 sum = ssaoValue * sumWeight;
-    sum += edgesC_LRTB.x * ssaoValueL;
-    sum += edgesC_LRTB.y * ssaoValueR;
-    sum += edgesC_LRTB.z * ssaoValueT;
-    sum += edgesC_LRTB.w * ssaoValueB;
-    sum += weightTL * ssaoValueTL;
-    sum += weightTR * ssaoValueTR;
-    sum += weightBL * ssaoValueBL;
-    sum += weightBR * ssaoValueBR;
-    sumWeight += dot(edgesC_LRTB, vec4(1.0)) + weightTL + weightTR + weightBL + weightBR;
-    return sum / sumWeight;
+    // The texel and its eight neighbors with their weights, in XeGTAO's order of the sum.
+    const ivec2 offsets[9] = ivec2[9](ivec2(0, 0), ivec2(-1, 0), ivec2(1, 0), ivec2(0, -1), ivec2(0, 1), ivec2(-1, -1),
+                                      ivec2(1, -1), ivec2(-1, 1), ivec2(1, 1));
+    float weights[9] = float[9](blurAmount, edgesC_LRTB.x, edgesC_LRTB.y, edgesC_LRTB.z, edgesC_LRTB.w, weightTL,
+                                weightTR, weightBL, weightBR);
+    Estimate sum = Estimate(vec3(0.0), 0.0, vec3(0.0));
+    for (int i = 0; i < 9; i++)
+    {
+        Estimate value = unpackEstimate(imageLoad(denoiseSource, clamp(texel + offsets[i], ivec2(0), last)));
+        sum = addWeighted(sum, value, weights[i]);
+    }
+    float sumWeight = blurAmount + dot(edgesC_LRTB, vec4(1.0)) + weightTL + weightTR + weightBL + weightBR;
+    return dividedEstimate(sum, sumWeight);
 }
 
 #endif
