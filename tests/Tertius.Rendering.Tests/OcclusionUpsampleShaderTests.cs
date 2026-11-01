@@ -1,0 +1,134 @@
+using System.Numerics;
+using static Tertius.Rendering.Tests.OcclusionScenes;
+
+namespace Tertius.Rendering.Tests;
+
+/// <summary>
+/// The occlusion upsample pass against its C# copy, <see cref="OcclusionUpsample"/>, at every pixel of an image whose
+/// height is odd and whose half-resolution image has an even width: the last row of pixels has no row below it, and the
+/// odd pixels of the last column read a texel beyond the half-resolution image, which gets no weight.
+/// </summary>
+public sealed class OcclusionUpsampleShaderTests(ITestOutputHelper output)
+{
+    private const int Width = 642;
+    private const int Height = 361;
+
+    /// <summary>The share of a weight's range within which the GPU's single floats and the copy's doubles can disagree.</summary>
+    private const double WeightTolerance = 1e-3;
+
+    [Fact]
+    public void TheUpsampleWritesEveryPixelAsTheCSharpCopyDoes()
+    {
+        VulkanRenderer renderer = Gpu.Headless(
+            width: Width,
+            height: Height,
+            screenSpaceLight: VisibilityBitmaskLight.Default
+        );
+        try
+        {
+            MaterialId matte = Matte(renderer);
+            RenderSnapshot scene = Corner(renderer, matte, UnderWhiteAmbientLight(CornerView));
+            AddSlab(
+                snapshot: scene,
+                box: UnitBox(renderer),
+                material: matte,
+                center: new(0.5f, FloorHeight + 0.3f, -3),
+                size: new(0.4f, 0.6f, 0.4f)
+            );
+            renderer.Render(scene, 1f);
+            float[] estimate = renderer.ReadEstimate();
+            float[] distances = renderer.ReadDistance();
+            float[] normals = renderer.ReadNormals();
+            (float[] term, int halfWidth, int halfHeight) = renderer.ReadOcclusionTerm();
+            float[] depths = renderer.ReadOcclusionViewDepth().Depths;
+            CameraView camera = renderer.LastScene.Camera;
+
+            UpsampleTexel TexelAt((int X, int Y) t)
+            {
+                int i = t.Y * halfWidth + t.X;
+                Vector3 ray = camera.ViewRayThrough(new(2 * t.X + 0.5f, 2 * t.Y + 0.5f));
+                return new(
+                    Position: (Double3)ray * depths[i],
+                    Estimate: new(Bounce: new(term[4 * i], term[4 * i + 1], term[4 * i + 2]), Occlusion: term[4 * i + 3])
+                );
+            }
+
+            int compared = 0;
+            int comparedOnTheEdges = 0;
+            for (int y = 0; y < Height; y++)
+            for (int x = 0; x < Width; x++)
+            {
+                int p = y * Width + x;
+                if (distances[p] == 0)
+                    continue;
+                Double3 position =
+                    (Double3)Vector3.Normalize(camera.ViewRayThrough(new(x + 0.5f, y + 0.5f))) * distances[p];
+                Double3 normal = StoredGeometricNormal(normals, p);
+                double texelWidth =
+                    4 * camera.TanHalfX * Double3.Dot(position, camera.Forward) / Width;
+                (int X, int Y)[] block =
+                [
+                    .. OcclusionUpsample
+                        .BlockTexels(pixel: (x, y), halfSize: (halfWidth, halfHeight))
+                        .Select(texel => texel.Coordinates),
+                ];
+                // A weight at the edge of its range, or two texels nearly as near the plane, can fall either way in
+                // single floats.
+                double[] shares = [.. block.Select(t => 1 - OffPlane(normal, TexelAt(t).Position - position) / texelWidth)];
+                if (shares.Any(share => Math.Abs(share) < WeightTolerance))
+                    continue;
+                if (shares.All(share => share < 0) && shares.Length > 1 && NearestIsATie(shares))
+                    continue;
+                AmbientEstimate expected = OcclusionUpsample.Estimate(
+                    pixel: (x, y),
+                    position: position,
+                    geometricNormal: normal,
+                    texelWidth: texelWidth,
+                    halfSize: (halfWidth, halfHeight),
+                    texelAt: TexelAt
+                );
+                double[] wanted = [expected.Bounce.X, expected.Bounce.Y, expected.Bounce.Z, expected.Occlusion];
+                for (int c = 0; c < 4; c++)
+                    ((double)estimate[4 * p + c])
+                        .Should()
+                        .BeApproximately(
+                            wanted[c],
+                            Math.Abs(wanted[c]) * 2e-3 + 1e-4,
+                            "pixel ({0}, {1}) channel {2} must hold the C# copy's estimate",
+                            x,
+                            y,
+                            c
+                        );
+                compared++;
+                if (x == Width - 1 || y == Height - 1)
+                    comparedOnTheEdges++;
+            }
+            output.WriteLine($"compared {compared} pixels, {comparedOnTheEdges} in the last column or row");
+            compared.Should().BeGreaterThan(Width * Height / 2, "most pixels show the corner and lie off every edge of a weight");
+            comparedOnTheEdges.Should().BeGreaterThan(Height / 2, "the last column and the last row show the corner");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    private static double OffPlane(Double3 normal, Double3 offset) => Math.Abs(Double3.Dot(normal, offset));
+
+    /// <summary>Whether two of the texels lie within the tolerance of the same distance from the plane, when none has weight.</summary>
+    private static bool NearestIsATie(double[] shares)
+    {
+        double[] ordered = [.. shares.OrderDescending()];
+        return ordered[0] - ordered[1] < WeightTolerance;
+    }
+
+    /// <summary>The world geometric normal that the normals target stores at pixel <paramref name="p"/>: octDecode of its ba.</summary>
+    private static Double3 StoredGeometricNormal(float[] normals, int p)
+    {
+        var e = new Double3(normals[4 * p + 2], normals[4 * p + 3], 0);
+        Double3 n = e with { Z = 1 - Math.Abs(e.X) - Math.Abs(e.Y) };
+        if (n.Z < 0)
+            n = n with { X = (1 - Math.Abs(e.Y)) * (e.X >= 0 ? 1 : -1), Y = (1 - Math.Abs(e.X)) * (e.Y >= 0 ? 1 : -1) };
+        return n.Normalized();
+    }
+}
