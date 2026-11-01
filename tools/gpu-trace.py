@@ -22,8 +22,9 @@ table. It exports the trace's tables to <out-dir>/export first, unless they are 
 time and its time alone, and passes.json also the shared time, the busy time minus the time alone. --window adds a row
 with each frame's wall-clock GPU time from the end of pass FROM to the start of pass TO. --paired PASS adds a second
 table for a trace whose frames alternate with and without PASS: each frame without it against the mean of its two
-neighbors with it, as paired medians with bootstrap standard errors. --control PASS gives the same table for a trace
-whose frames all run PASS, with each odd frame against its two even neighbors, so it shows the noise of the method.
+neighbors with it, as paired medians with block bootstrap standard errors. --control PASS gives the same table for a
+trace whose frames all run PASS, with each odd frame against its two even neighbors, so it shows the noise of the
+method.
 per_frame computes the quantities of each frame, summarize and paired reduce them to the statistics, and table formats
 passes.md. tools/test_gpu_trace.py tests them and the pure functions below them.
 """
@@ -46,6 +47,15 @@ AFTER = "(after the last pass)"
 FRAME = "frame span"
 RESAMPLES = 2000
 """The number of bootstrap resamples behind each standard error of the paired mode."""
+BLOCK = 5
+"""The number of consecutive pairs in each block of the paired mode's moving-block bootstrap.
+
+Neighboring pairs share a frame, so their differences correlate, and pairs two apart share none. A block of 5 keeps 4
+of every 5 neighbor correlations, and also the correlation of a drift over up to 10 frames. In the simulation of
+ter-2fri, with 100 pairs and independent frame noise, the mean error was about 0.98 times the real standard error of
+the paired median for every block of 3 to 6 pairs, 0.93 for single pairs and 0.95 for blocks of 10, which leave too
+few blocks. 5 is the longest block on that plateau, so it keeps the most of a slow drift.
+"""
 SEED = 1
 """The seed of the paired mode's bootstrap, fixed so that two reports of one trace give the same standard errors."""
 LISTED = 10
@@ -325,13 +335,24 @@ def summarize(intervals: dict, passes: list[str], counters: dict, between: "tupl
 
 
 def bootstrap_error(values: list[float], resamples: int, seed: int) -> float:
-    """The bootstrap standard error of the median of values, in the unit of the values.
+    """The moving-block bootstrap standard error of the median of values, in the unit of the values. values is a series
+    in its order, such as the paired differences in the order of the trace.
 
-    Each of the resamples draws len(values) values from values with replacement. The error is the standard deviation of
-    the medians of the resamples. The draws come from random.Random(seed), so the same arguments give the same error.
+    Each of the resamples joins blocks of BLOCK consecutive values, each from a start drawn with replacement, until it
+    holds len(values) values, and drops the values past that count. With fewer values than BLOCK, a block holds them
+    all. The error is the standard deviation of the medians of the resamples. The draws come from random.Random(seed),
+    so the same arguments give the same error.
     """
     draws = random.Random(seed)
-    return statistics.stdev(statistics.median(draws.choices(values, k=len(values))) for _ in range(resamples))
+    length = min(BLOCK, len(values))
+    medians = []
+    for _ in range(resamples):
+        resample: list[float] = []
+        while len(resample) < len(values):
+            start = draws.randrange(len(values) - length + 1)
+            resample += values[start:start + length]
+        medians.append(statistics.median(resample[:len(values)]))
+    return statistics.stdev(medians)
 
 
 def pairs(marks: "list[bool | None]") -> "tuple[list[tuple[int, int, int]], list[int]]":
@@ -361,8 +382,10 @@ def paired_median(values: "list[float | None]", triples: "list[tuple[int, int, i
 
     Each pair whose three frames all have a value gives the mean of the two neighbors minus the frame. Returns "pairs",
     the number of these differences; "leftOut", the middle frame of each other pair; and, when there is a difference,
-    "medianMs", their median, and "standardErrorMs", its bootstrap standard error from RESAMPLES resamples with the
-    seed SEED.
+    "medianMs", their median, and "standardErrorMs", its moving-block bootstrap standard error (bootstrap_error) from
+    RESAMPLES resamples with the seed SEED. The bootstrap takes the differences in the order of triples, the order of
+    the trace. A pair left out leaves a gap, and a block can hold the differences on its two sides. Those two share no
+    frame, and the block keeps them as they are, so it adds no correlation that the trace does not have.
     """
     differences: list[float] = []
     left_out: list[int] = []
@@ -389,11 +412,12 @@ def paired(intervals: dict, passes: list[str], name: str, control: bool = False,
     control compares only frames that all run name. Each pair gives the mean of the two neighbors minus the frame: with
     name minus without it. A pass with no GPU work in a frame takes 0 ms there.
 
-    Returns "pass", "control", "resamples" and "seed"; "frames", the number of frames; "pairs", the number of pairs;
-    "leftOut", the frames not on the "with" side that make no pair (pairs); "parity", "odd", "even" or "odd and even",
-    the parity of the paired frames, when there is a pair; "passes", one entry per row of per_frame, each with the
-    paired_median of its "busy" time and its time "alone" (empty without a pair); "frame", the paired_median of the
-    frame span; and "window" when between names two passes, with "from", "to" and the paired_median of the window.
+    Returns "pass", "control", "resamples", "blockPairs" (BLOCK) and "seed"; "frames", the number of frames; "pairs",
+    the number of pairs; "leftOut", the frames not on the "with" side that make no pair (pairs); "parity", "odd",
+    "even" or "odd and even", the parity of the paired frames, when there is a pair; "passes", one entry per row of
+    per_frame, each with the paired_median of its "busy" time and its time "alone" (empty without a pair); "frame", the
+    paired_median of the frame span; and "window" when between names two passes, with "from", "to" and the
+    paired_median of the window.
     """
     frames = per_frame(intervals, passes, between)
     count = len(frames["span"])
@@ -416,6 +440,7 @@ def paired(intervals: dict, passes: list[str], name: str, control: bool = False,
         "pass": name,
         "control": control,
         "resamples": RESAMPLES,
+        "blockPairs": BLOCK,
         "seed": SEED,
         "frames": count,
         "pairs": len(triples),
@@ -518,10 +543,11 @@ def paired_table(found: dict) -> list[str]:
         reason = "with no neighbor pair"
     lines.append(
         f"The paired median is the median of the pairs' differences in milliseconds, not the difference of two medians."
-        f" Its standard error, in milliseconds, comes from a bootstrap of {found['resamples']} resamples with the seed"
-        f" {found['seed']}. Neighboring pairs share a frame, so the standard errors are somewhat too small: read them"
-        " beside the control's medians, which show the real noise floor. The frames are counted from 0 in the order of"
-        " their first GPU start (tools/README.md, \"GPU trace\")."
+        f" Its standard error, in milliseconds, comes from a moving-block bootstrap of {found['resamples']} resamples, with"
+        f" blocks of {found['blockPairs']} consecutive pairs and the seed {found['seed']}. Neighboring pairs share a frame,"
+        " and the blocks keep that correlation. A drift that correlates pairs farther apart than a block still makes the"
+        " errors too small: read them beside the control's medians, which show the real noise floor. The frames are"
+        " counted from 0 in the order of their first GPU start (tools/README.md, \"GPU trace\")."
     )
     if found["pairs"]:
         lines += table_of_pairs(found)

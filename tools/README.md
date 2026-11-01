@@ -284,26 +284,30 @@ nix develop --command bash -c 'bash tools/gpu-trace.sh --no-counters --start 20 
 3. Each frame without the pass whose two neighbors both have it makes one pair. The pair's difference is the mean of the two neighbors minus the frame, so a positive value is time that the pass adds.
 4. For each pass, the report computes the difference of the busy time and of the time alone. A pass with no GPU work in a frame takes 0 ms there. So the row of PASS itself gives its own busy time and time alone.
 5. The frame span row gives the difference of the frame span. With `--window FROM TO`, the window row gives the difference of the window. A pair is left out of the window row when one of its three frames has no window.
-6. Each row gives the median of its differences over the pairs, the paired median, in milliseconds. It also gives the bootstrap standard error of that median in milliseconds.
+6. Each row gives the median of its differences over the pairs, the paired median, in milliseconds. It also gives the moving-block bootstrap standard error of that median in milliseconds.
 
-The bootstrap draws as many differences as there are pairs, with replacement, and takes their median. It does this 2000 times. The standard error is the standard deviation of those 2000 medians. The draws use the fixed seed 1, so two reports of one trace give the same errors. The text above the table states the resample count and the seed.
+Neighboring pairs share a frame. In an alternating trace, the pairs at frames 1 and 3 both use frame 2. So the differences of neighboring pairs correlate, and a bootstrap of single differences gives standard errors that are too small. The report uses a moving-block bootstrap instead. A block is a run of 5 consecutive differences in the order of the trace. Each resample joins blocks with random starts, drawn with replacement, until it holds as many differences as there are pairs, and takes their median. The report does this 2000 times. The standard error is the standard deviation of those 2000 medians.
 
-The bootstrap treats the differences as independent, but neighboring pairs share a frame. In an alternating trace, the pairs at frames 1 and 3 both use frame 2. So the standard errors are somewhat too small. If the noise of each frame is independent, the real error is about 1.15 times the reported error. Read the standard errors beside the control's medians, which show the real noise floor.
+The draws use the fixed seed 1, so two reports of one trace give the same errors. The text above the table and `passes.json` (`"resamples"`, `"blockPairs"`, `"seed"`) state the resample count, the block length and the seed.
+
+A block keeps the correlation of the pairs inside it. On synthetic traces of 100 pairs with independent frame noise, the block errors average 0.98 times the real standard error of the paired median. Single differences average 0.93 times (`tools/test_gpu_trace.py`). A pair that a row leaves out leaves a gap, and a block can hold the differences on its two sides as they are. The limit that remains: a drift that correlates pairs farther apart than a block still makes the errors too small. Read the standard errors beside the control's medians, which show the real noise floor.
 
 How to read the paired table:
 
 - A paired median is the typical cost of the pass in one frame. Read it with its standard error: a median smaller than about two standard errors is not resolved.
 - The paired median is the median of the differences, not the difference of two medians. Medians do not subtract: the median busy time of the frames with the pass minus that of the frames without it can differ from the paired median.
-- The busy column of PASS gives the pass's own busy time. The busy columns of the other passes show how the pass changes them. For example, take mars-air's view above (ter-0y0z). The haze pass's paired median was +0.162 ms, and the exposure pass's was +0.102 ms (standard error 0.007 ms). The exposure pass grows because its histogram clear runs beside the haze pass.
+- The busy column of PASS gives the pass's own busy time. The busy columns of the other passes show how the pass changes them. For example, take mars-air's view above (ter-0y0z). The haze pass's paired median was +0.162 ms, and the exposure pass's was +0.102 ms (standard error 0.009 ms). The exposure pass grows because its histogram clear runs beside the haze pass.
 - The alone columns show what the pass costs the other passes outside their shared time. In the same trace, the exposure pass's time alone fell by 0.022 ms in the frames with the haze.
-- The window row is the cost that the frame pays between FROM and TO. In the same trace, the window from the reflections to the bloom grew by 0.163 ms (standard error 0.005 ms).
-- The frame span row has a large standard error, 0.015 to 0.072 ms in ter-0y0z's traces. For a small cost, read the window or the passes.
+- The window row is the cost that the frame pays between FROM and TO. In the same trace, the window from the reflections to the bloom grew by 0.163 ms (standard error 0.006 ms).
+- The frame span row has a large standard error, 0.011 to 0.077 ms in ter-0y0z's traces. For a small cost, read the window or the passes.
 
 The text above the table says whether the frames without the pass are the odd frames or the even frames.
 
 A line below the table names each frame without the pass that makes no pair, by its index from 0. Two kinds of frames without the pass make no pair: a frame at an end of the trace, and a frame that has a neighbor without the pass. A frame with the pass is never named, even when no pair uses it. A second line names the pairs that the window row leaves out, by their middle frame. A line with more than 10 frames gives their count and the first 10 frames, and `passes.json` lists all of them.
 
 The control measures the noise of the method. Record a trace with the same script and no probe, so that every frame runs the pass. Give the pass's name to `--control` instead of `--paired`. The control pairs each odd frame with its two even neighbors. A frame without GPU work of the pass pairs with none, so the control compares only frames that all run the pass. The control's line below the table names each odd frame that makes no pair and each frame without GPU work of the pass. In an alternating trace whose first frame has the pass, the frames without the pass are the odd frames. So the control compares the same slots of the frame order. Its medians give the noise floor. If a row's paired median in the alternating trace is not clearly larger than the control's median of that row, the row shows no cost. In ter-0y0z's control, the window's median was +0.008 ms (standard error 0.003 ms) and the haze pass's busy median was -0.000 ms.
+
+That window median lies 2.9 standard errors from 0, and longer blocks do not change its error. In that trace, the median window of the even frames is about 0.005 ms longer than that of the odd frames, and the paired median is positive in both halves of the trace (ter-2fri). These two facts point to an offset between the even and the odd frames, not to an error that is too small. A cost smaller than the control's median is not resolved.
 
 `--paired` and `--control` work on a trace recorded before, as `--window` does:
 
