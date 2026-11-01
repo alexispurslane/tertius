@@ -1,3 +1,5 @@
+using System.Reflection;
+using Silk.NET.Core;
 using Silk.NET.Vulkan;
 
 namespace Tertius.Rendering.Tests;
@@ -14,7 +16,7 @@ public sealed class DeviceFeatureTests
         DrawIndirectFirstInstance = true,
         DepthClamp = true,
         DualSrcBlend = true,
-        IndependentBlend = true,
+        FragmentStoresAndAtomics = true,
         SamplerAnisotropy = true,
         ShaderStorageImageExtendedFormats = true,
         ImageCubeArray = true,
@@ -62,16 +64,16 @@ public sealed class DeviceFeatureTests
     }
 
     [Fact]
-    public void TheDeviceRequiresIndependentBlend()
+    public void TheDeviceRequiresStoresInTheFragmentStage()
     {
-        // The ambient pass adds its share of the skin's diffuse light to the scatter image and writes the HDR image with
-        // no blend: two blend states in one pipeline (docs/plans/skin-and-hair.md, decision 14).
+        // Under the skin scatter, the ambient pass adds D's ambient part to the diffuse image with a storage write at skin
+        // pixels alone (docs/plans/skin-and-hair.md, decision 14).
         PhysicalDeviceFeatures withoutIt = Core with
         {
-            IndependentBlend = false,
+            FragmentStoresAndAtomics = false,
         };
 
-        VulkanDevice.MissingFeature(withoutIt, Vulkan12, Vulkan13).Should().Be("independentBlend");
+        VulkanDevice.MissingFeature(withoutIt, Vulkan12, Vulkan13).Should().Be("fragmentStoresAndAtomics");
     }
 
     [Fact]
@@ -130,4 +132,55 @@ public sealed class DeviceFeatureTests
             .MissingSubgroupSupport(ShaderStageFlags.FragmentBit, SubgroupOperations)
             .Should()
             .Be("subgroupSupportedStages COMPUTE");
+
+    [Fact]
+    public void ADeviceThatReportsJustTheFeaturesThatTheRendererEnablesIsTaken() =>
+        // The renderer enables every feature that it requires, so the shaders may use each one.
+        VulkanDevice
+            .MissingFeature(
+                VulkanDevice.EnabledCoreFeatures(),
+                VulkanDevice.EnabledVulkan12Features(),
+                VulkanDevice.EnabledVulkan13Features()
+            )
+            .Should()
+            .BeNull();
+
+    [Fact]
+    public void ADeviceWithoutAFeatureThatTheRendererEnablesIsRefusedByItsName()
+    {
+        // vkCreateDevice fails on a device without a feature that it enables, with no name. So the renderer enables only
+        // the features that it requires, as independentBlend left both lists when the ambient pass stopped blending
+        // (ter-pjza).
+        PhysicalDeviceFeatures core = VulkanDevice.EnabledCoreFeatures();
+        PhysicalDeviceVulkan12Features vulkan12 = VulkanDevice.EnabledVulkan12Features();
+        PhysicalDeviceVulkan13Features vulkan13 = VulkanDevice.EnabledVulkan13Features();
+
+        string[] unnamed =
+        [
+            .. EnabledFeaturesNotNamed(core, without => VulkanDevice.MissingFeature(without, vulkan12, vulkan13)),
+            .. EnabledFeaturesNotNamed(vulkan12, without => VulkanDevice.MissingFeature(core, without, vulkan13)),
+            .. EnabledFeaturesNotNamed(vulkan13, without => VulkanDevice.MissingFeature(core, vulkan12, without)),
+        ];
+
+        unnamed.Should().BeEmpty("the refusal of a device without one of these features must name it");
+    }
+
+    /// <summary>
+    /// The Vulkan names of the features that <paramref name="enabled"/> turns on, for each of which
+    /// <paramref name="missing"/> of a copy of <paramref name="enabled"/> without that feature alone gives another name.
+    /// </summary>
+    private static IEnumerable<string> EnabledFeaturesNotNamed<T>(T enabled, Func<T, string?> missing)
+        where T : struct
+    {
+        foreach (FieldInfo field in typeof(T).GetFields(BindingFlags.Public | BindingFlags.Instance))
+        {
+            if (field.FieldType != typeof(Bool32) || !(Bool32)field.GetValue(enabled)!)
+                continue;
+            object without = enabled;
+            field.SetValue(without, new Bool32(false));
+            string vulkanName = char.ToLowerInvariant(field.Name[0]) + field.Name[1..];
+            if (missing((T)without) != vulkanName)
+                yield return vulkanName;
+        }
+    }
 }

@@ -36,7 +36,7 @@ internal sealed class OcclusionSectorsPass(
         // A receiver's model code: a hair receiver's own card blocks nothing.
         barriers.Image(targets.Shading, ImageUse.SampledCompute);
         barriers.Image(images.Source, ImageUse.StorageCompute);
-        barriers.Image(images.GeometricNormal, ImageUse.StorageCompute);
+        barriers.Image(images.DepthAndNormal, ImageUse.StorageCompute);
         barriers.Image(images.Edges, ImageUse.StorageCompute, discard: true);
         barriers.Image(images.TermA, ImageUse.StorageCompute, discard: true);
         // The map code of each texel names its map, whose specular levels the blocked directions read, and the exposure

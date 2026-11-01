@@ -3,14 +3,21 @@
 // to the full-resolution estimate target, whose range weight is the distance from the pixel's tangent plane. The bounce
 // and the occlusion take the same weights (docs/plans/screen-space-illumination.md, "The denoise and the upsample").
 // OcclusionUpsample in Shading/ is its C# copy. Engine glue: XeGTAO's README suggests the method but has no code for it.
+//
+// One invocation writes the 2 × 2 block of pixels of one half-resolution texel, from (2i, 2j) to (2i + 1, 2j + 1).
+// The block's pixels read only texels (i, j) to (i + 1, j + 1), so the compiler shares those reads and their positions
+// among the four pixels, where an invocation per pixel read them up to nine times for the block. Each pixel's arithmetic
+// is the one of an invocation per pixel, so the estimate keeps its bits: an earlier version that passed the four texels
+// to each pixel as arrays let the compiler round some sums otherwise, and one capture changed at an SMAA edge
+// (ter-pjza).
 #extension GL_GOOGLE_include_directive : require
 #include "gtao.glsl"
 
 layout(local_size_x = 8, local_size_y = 8) in;
 
-void main()
+// The estimate of one full-resolution pixel into the estimate target; a pixel beyond the image writes nothing.
+void writePixel(ivec2 pixel)
 {
-    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
     ivec2 full = fullSize();
     if (any(greaterThanEqual(pixel, full)))
         return;
@@ -57,4 +64,14 @@ void main()
     // The net bounce needs no clamp: a mean with non-negative weights of values within [−c, c]. The clamp of V keeps the
     // rounding of the blurs' sums within [0, 1].
     imageStore(estimateTarget, pixel, vec4(estimate.rgb, clamp(estimate.a, 0.0, 1.0)));
+}
+
+void main()
+{
+    ivec2 base = ivec2(gl_GlobalInvocationID.xy);
+    if (!insideHalf(base))
+        return;
+    // An odd width or height leaves the last texel's block one pixel short, which writePixel skips.
+    for (int k = 0; k < 4; k++)
+        writePixel(2 * base + ivec2(k & 1, k >> 1));
 }

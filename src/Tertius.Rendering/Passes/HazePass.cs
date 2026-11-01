@@ -22,7 +22,8 @@ internal sealed unsafe class HazePass : RenderPass
             VertexShader = "lighting.vert",
             FragmentShader = "haze.frag",
             Layout = layouts.SceneLayout,
-            ColorAttachments = [new(RenderTargets.HdrFormat, BlendMode.Transmittance)],
+            ColorFormats = [RenderTargets.HdrFormat],
+            Blend = BlendMode.Transmittance,
             CullMode = CullModeFlags.None,
         }.Create(device, shaders);
     }

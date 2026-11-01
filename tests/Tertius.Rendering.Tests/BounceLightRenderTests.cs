@@ -399,10 +399,11 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void TheDepthPassCopiesTheDiffuseLightAndTheGeometricNormalOfEachTexelsRepresentativePixel()
+    public void TheDepthPassCopiesTheDiffuseLightTheViewDepthAndTheGeometricNormalOfEachTexelsRepresentativePixel()
     {
         // The near steps read the copies in place of the full-resolution images, so the copies must hold the very values
-        // of pixel 2t (decision 25). Nothing glows, so the bounce source is the diffuse light alone.
+        // of pixel 2t (decision 25), and the copy of the depth and the normal the very depth of the view depth image.
+        // Nothing glows, so the bounce source is the diffuse light alone.
         VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: VisibilityBitmaskLight.Default);
         try
         {
@@ -410,7 +411,8 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
             float[] diffuse = renderer.ReadDiffuse();
             float[] normals = renderer.ReadNormals();
             (float[] source, int width, int height) = renderer.ReadOcclusionSource();
-            float[] normalCopy = renderer.ReadOcclusionGeometricNormal().Rg;
+            (float[] depthCopy, float[] normalCopy, _, _) = renderer.ReadOcclusionDepthAndNormal();
+            float[] viewDepth = renderer.ReadOcclusionViewDepth().Depths;
 
             float[] diffuseAtTexels = new float[3 * width * height];
             float[] normalAtTexels = new float[2 * width * height];
@@ -438,10 +440,13 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
                 .BeGreaterThan(1000, "the sun lights the wall and the floor");
             mappedTexels.Should().BeGreaterThan(100, "the sphere's shading normals differ from its geometric normals");
             sourceRgb.Should().Equal(diffuseAtTexels, "a half float stores back as itself on every driver");
-            // The spec lets a driver round a float to SNORM16 other than to the nearest value, so the stored k / 32767
-            // may come back one step off (ARCHITECTURE.md, "Portable Vulkan").
-            const float snormStep = 1f / 32767;
-            normalCopy.Should().Equal(normalAtTexels, (copy, pixel) => Math.Abs(copy - pixel) <= snormStep * 1.01f);
+            depthCopy
+                .Select(BitConverter.SingleToUInt32Bits)
+                .Should()
+                .Equal(viewDepth.Select(BitConverter.SingleToUInt32Bits), "the copy holds the view depth's bits");
+            // k / 32767 times 32767 lies within 10^-2 of k, so packSnorm2x16's round to nearest stores k on every driver
+            // (ARCHITECTURE.md, "Portable Vulkan").
+            normalCopy.Should().Equal(normalAtTexels, "packSnorm2x16 gives back the normals target's SNORM16 values");
         }
         finally
         {

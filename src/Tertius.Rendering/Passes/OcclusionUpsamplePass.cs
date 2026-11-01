@@ -36,7 +36,8 @@ internal sealed class OcclusionUpsamplePass(
         // Discarded, and still after the last frame's ambient pass and reflection trace read it.
         barriers.Image(targets.Estimate, ImageUse.StorageCompute, discard: true);
         barriers.Flush(context.Vk, context.CommandBuffer);
-        pipeline.Dispatch(context, targets.Extent);
+        // One invocation per half-resolution texel, which writes its 2 × 2 block of pixels.
+        pipeline.Dispatch(context, images.HalfExtent);
     }
 
     public override void Dispose() => pipeline.Dispose();

@@ -43,7 +43,7 @@ internal sealed unsafe class LocalShadowPass : RenderPass
                 VertexShader = "shadow.vert",
                 FragmentShader = null,
                 Layout = layouts.SceneLayout,
-                ColorAttachments = [],
+                ColorFormats = [],
                 DepthFormat = atlas.Format,
                 VertexInput = VertexInput.PositionOnly,
                 DepthTest = true,

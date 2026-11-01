@@ -61,7 +61,7 @@ internal sealed unsafe class ShadowPass : RenderPass
                 VertexShader = "shadow.vert",
                 FragmentShader = null,
                 Layout = layouts.SceneLayout,
-                ColorAttachments = [],
+                ColorFormats = [],
                 DepthFormat = map.Format,
                 VertexInput = VertexInput.PositionOnly,
                 DepthTest = true,

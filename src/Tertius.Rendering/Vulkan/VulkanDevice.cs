@@ -445,8 +445,8 @@ internal sealed unsafe class VulkanDevice : IDisposable
             return "depthClamp";
         if (!f.DualSrcBlend)
             return "dualSrcBlend";
-        if (!f.IndependentBlend)
-            return "independentBlend";
+        if (!f.FragmentStoresAndAtomics)
+            return "fragmentStoresAndAtomics";
         if (!f.SamplerAnisotropy)
             return "samplerAnisotropy";
         if (!f.ShaderStorageImageExtendedFormats)
@@ -486,7 +486,7 @@ internal sealed unsafe class VulkanDevice : IDisposable
     }
 
     /// <summary>The Vulkan 1.3 features that the renderer enables, with no next structure.</summary>
-    private static PhysicalDeviceVulkan13Features EnabledVulkan13Features() =>
+    internal static PhysicalDeviceVulkan13Features EnabledVulkan13Features() =>
         new()
         {
             SType = StructureType.PhysicalDeviceVulkan13Features,
@@ -497,7 +497,7 @@ internal sealed unsafe class VulkanDevice : IDisposable
         };
 
     /// <summary>The Vulkan 1.2 features that the renderer enables, for the bindless textures, with no next structure.</summary>
-    private static PhysicalDeviceVulkan12Features EnabledVulkan12Features() =>
+    internal static PhysicalDeviceVulkan12Features EnabledVulkan12Features() =>
         new()
         {
             SType = StructureType.PhysicalDeviceVulkan12Features,
@@ -510,7 +510,7 @@ internal sealed unsafe class VulkanDevice : IDisposable
         };
 
     /// <summary>The Vulkan 1.0 features that the renderer enables.</summary>
-    private static PhysicalDeviceFeatures EnabledCoreFeatures() =>
+    internal static PhysicalDeviceFeatures EnabledCoreFeatures() =>
         new()
         {
             MultiDrawIndirect = true,
@@ -518,9 +518,9 @@ internal sealed unsafe class VulkanDevice : IDisposable
             DepthClamp = true,
             // The transparent pass blends with a second output: what a pane lets through.
             DualSrcBlend = true,
-            // The ambient pass adds to the diffuse image and writes the HDR image with no blend
+            // The ambient pass adds D's ambient part to the diffuse image with a storage write at skin pixels
             // (docs/plans/skin-and-hair.md, decision 14).
-            IndependentBlend = true,
+            FragmentStoresAndAtomics = true,
             SamplerAnisotropy = true,
             // The occlusion passes store R8 and R16F images (docs/plans/ambient-occlusion.md, decision 35).
             ShaderStorageImageExtendedFormats = true,

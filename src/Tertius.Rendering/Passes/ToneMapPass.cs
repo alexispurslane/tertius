@@ -45,7 +45,7 @@ internal sealed unsafe class ToneMapPass : RenderPass
             VertexShader = "fullscreen.vert",
             FragmentShader = shader,
             Layout = layouts.PostLayout,
-            ColorAttachments = [new(smaa is null ? outputFormat : SmaaTargets.ToneMappedFormat)],
+            ColorFormats = [smaa is null ? outputFormat : SmaaTargets.ToneMappedFormat],
             CullMode = CullModeFlags.None,
         }.Create(device, shaders);
     }

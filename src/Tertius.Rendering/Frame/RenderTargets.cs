@@ -86,12 +86,6 @@ internal sealed class RenderTargets : IDisposable
         ShadingFormat,
     ];
 
-    /// <summary>The G-buffer color attachments of the passes that draw it, in the order of <see cref="GBufferFormats"/>, unblended.</summary>
-    public static readonly ColorAttachment[] GBufferAttachments =
-    [
-        .. GBufferFormats.Select(format => new ColorAttachment(format)),
-    ];
-
     private readonly VulkanDevice device;
     private readonly DeviceAllocator allocator;
     private readonly DescriptorLayouts layouts;
@@ -302,7 +296,8 @@ internal sealed class RenderTargets : IDisposable
 
     /// <summary>
     /// The diffuse image at <paramref name="extent"/>. The direct pass draws it, the bounce light's copy and the scatter
-    /// passes read it as a storage image, the ambient pass blends into it, and the read hook copies it.
+    /// passes read it as a storage image, the ambient pass adds to it at skin pixels as a storage image, and the read hook
+    /// copies it.
     /// </summary>
     private GpuImage DiffuseImage(Extent2D extent) =>
         GpuImage.Create(
@@ -415,16 +410,13 @@ internal sealed class RenderTargets : IDisposable
         if (reflections)
             CheckReflectionFormats(device);
         // The spec requires both of RGBA16F on every device (docs/plans/skin-and-hair.md, "Required device features").
-        const FormatFeatureFlags diffuseFeatures =
-            FormatFeatureFlags.ColorAttachmentBit
-            | FormatFeatureFlags.ColorAttachmentBlendBit
-            | FormatFeatureFlags.StorageImageBit;
+        const FormatFeatureFlags diffuseFeatures = FormatFeatureFlags.ColorAttachmentBit | FormatFeatureFlags.StorageImageBit;
         if (
             diffuse
             && (device.FormatProperties(DiffuseFormat).OptimalTilingFeatures & diffuseFeatures) != diffuseFeatures
         )
             throw new NotSupportedException(
-                $"{DiffuseFormat} cannot be a blended color attachment and a storage image on {device.DeviceName}."
+                $"{DiffuseFormat} cannot be a color attachment and a storage image on {device.DeviceName}."
             );
     }
 

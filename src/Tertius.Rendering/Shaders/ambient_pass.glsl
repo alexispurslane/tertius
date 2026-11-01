@@ -1,6 +1,7 @@
 // The ambient pass (docs/plans/screen-space-illumination.md, "The ambient pass"): the direct image plus the ambient light
 // with the estimate applied, capped, into the HDR image, and the sky and the stars on sky pixels. Under the scatter, it
-// also adds D's ambient part to the diffuse image at skin (docs/plans/skin-and-hair.md, "The diffuse light D").
+// also adds D's ambient part to the diffuse image at skin (docs/plans/skin-and-hair.md, "The diffuse light D"), with a
+// storage write at skin pixels alone: every other pixel keeps what the direct pass wrote.
 // ambient.frag and ambient_scatter.frag, which defines SCATTER_OUTPUT, include it, as direct_pass.glsl says.
 #ifndef TERTIUS_AMBIENT_PASS_GLSL
 #define TERTIUS_AMBIENT_PASS_GLSL
@@ -11,14 +12,17 @@
 layout(location = 0) in vec3 inRay;
 layout(location = 0) out vec4 outColor;
 #ifdef SCATTER_OUTPUT
-// The diffuse image. The blend adds the output's rgb and keeps the image's alpha, the mask that the direct pass wrote.
-layout(location = 1) out vec4 outScatter;
+// Set 3 of the ambient scatter layout, the scatter set: the diffuse image, rgb D, a the skin mask that the direct pass
+// wrote. One fragment per pixel reads and writes its own pixel, so no two invocations touch one texel.
+layout(set = 3, binding = 0, rgba16f) uniform image2D diffuseImage;
 #endif
 
-void addScatter(vec3 diffuse)
+// Adds D's ambient part of a skin pixel to the diffuse image, and keeps its mask.
+void addScatter(ivec2 pixel, vec3 diffuse)
 {
 #ifdef SCATTER_OUTPUT
-    outScatter = vec4(diffuse, 0.0);
+    vec4 written = imageLoad(diffuseImage, pixel);
+    imageStore(diffuseImage, pixel, vec4(written.rgb + diffuse, written.a));
 #endif
 }
 
@@ -31,7 +35,6 @@ void main()
     if (texelFetch(gbufferDistance, pixel, 0).r <= 0.0)
     {
         outColor = vec4(preExposed(skyRadiance(direction) + starRadiance(direction)), 1.0);
-        addScatter(vec3(0.0));
         return;
     }
 
@@ -40,7 +43,6 @@ void main()
     if (texelFetch(gbufferBaseColor, pixel, 0).a == 0.0)
     {
         outColor = vec4(direct, 1.0);
-        addScatter(vec3(0.0));
         return;
     }
 
@@ -51,8 +53,9 @@ void main()
     // Each part is finite and at most MaxRadiance, so the sum is finite, and the cap keeps the surfaces' share
     // (docs/plans/screen-space-illumination.md, "The cap at MaxRadiance").
     outColor = vec4(min(direct + exposed(ambient.diffuse + ambient.specular, k), vec3(MaxRadiance)), 1.0);
-    // D's ambient part, at most MaxRadiance, so the blended sum stays at most 2 · MaxRadiance = 64,512.
-    addScatter(s.model == ShadingSkin ? exposed(ambient.diffuse, k) : vec3(0.0));
+    // D's ambient part, at most MaxRadiance, so the sum stays at most 2 · MaxRadiance = 64,512.
+    if (s.model == ShadingSkin)
+        addScatter(pixel, exposed(ambient.diffuse, k));
 }
 
 #endif
