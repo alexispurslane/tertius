@@ -38,6 +38,14 @@ internal sealed class ShadowTiles
     public const float StaleTexels = 0.25f;
     public const float WidestCone = MathF.PI / 3;
 
+    /// <summary>
+    /// How many times as strong as its light a holder, a light whose entity holds layers in <see cref="records"/>, ranks
+    /// for tiles: a challenger, a light that holds none, takes the layers only with more than this many times the holder's
+    /// rank irradiance in the holder's tier, or from a higher tier than the holder reaches even at
+    /// <see cref="HolderReachGrowth"/> times its reach (docs/plans/local-light-shadows.md, settled fork 2).
+    /// </summary>
+    public const float HolderMargin = 2;
+
     /// <summary>The value of a layer of no light in <see cref="layerLights"/>.</summary>
     private const int NoLight = -1;
 
@@ -46,6 +54,13 @@ internal sealed class ShadowTiles
     /// (docs/plans/local-light-shadows.md, "The cache").
     /// </summary>
     private const float RoundingShare = 8f / (1 << 23);
+
+    /// <summary>
+    /// How many times its reach a holder's tier is computed at: √<see cref="HolderMargin"/>, because the reach is
+    /// √(peak intensity / cutoff irradiance) (<see cref="LightUnits.Reach"/>), so a light <see cref="HolderMargin"/> times as
+    /// strong reaches √<see cref="HolderMargin"/> times as far.
+    /// </summary>
+    private static readonly float HolderReachGrowth = MathF.Sqrt(HolderMargin);
 
     /// <summary>What each layer holds, from the submitted frame that drew it, or null for a free layer.</summary>
     private readonly TileRecord?[] records;
@@ -99,10 +114,12 @@ internal sealed class ShadowTiles
     /// record is stale, with its casters. It only reads the records and the layers' owners: <see cref="Drew"/> keeps the
     /// frame's.
     /// </summary>
+    /// <param name="camera">The frame's camera, with which the batcher computed each light's tier.</param>
     /// <param name="placed">The frame's placed instances, whose casters are those that cast shadows, in the snapshot's order.</param>
     /// <param name="deformed">The frame meshes that the casters name, which tell a posed caster's static mesh and pose rows.</param>
     public void Update(
         Span<PreparedLight> lights,
+        in CameraView camera,
         ReadOnlySpan<PreparedInstance> placed,
         DeformedMeshes deformed,
         long originFrameId,
@@ -118,7 +135,7 @@ internal sealed class ShadowTiles
         foreach ((int _, TileRecord record) in drawnRecords)
             spareRecords.Push(record);
         drawnRecords.Clear();
-        Grant(lights);
+        Grant(lights: lights, camera: camera);
         Allot(lights);
 
         // The views follow the list, the snapshot's order, which every run shares.
@@ -282,9 +299,11 @@ internal sealed class ShadowTiles
     /// <see cref="LightUnits.RankIrradiance"/>, ties in list order, and gives each its tiles while they fit. So a spot lamp
     /// whose axis misses the view takes only the layers that the lights whose light falls in view leave free, and a light
     /// that only a face keeps only the layers that the main view's lights leave free (docs/plans/environment-map.md,
-    /// decision 20). Clears every near light's slot.
+    /// decision 20). A holder ranks as if its light were <see cref="HolderMargin"/> times as strong
+    /// (<see cref="Candidate.Holder"/>), so a ranking that swings by less than the margin keeps one owner. Clears every
+    /// near light's slot.
     /// </summary>
-    private void Grant(Span<PreparedLight> lights)
+    private void Grant(Span<PreparedLight> lights, in CameraView camera)
     {
         candidates.Clear();
         tileCounts.Clear();
@@ -295,8 +314,14 @@ internal sealed class ShadowTiles
             if (LightUnits.IsFar(light.Distance))
                 continue;
             light.Shadow = default;
-            if (light.CastsShadow)
-                candidates.Add(new(Light: i, Tier: light.Tier, Irradiance: LightUnits.RankIrradiance(light)));
+            if (!light.CastsShadow)
+                continue;
+            // The holders come from the records, the layers of the last submitted frame.
+            candidates.Add(
+                Held(light.EntityIndex) > 0
+                    ? Candidate.Holder(light: i, prepared: light, camera: camera)
+                    : Candidate.Challenger(light: i, prepared: light)
+            );
         }
 
         candidates.Sort(Candidate.Ranked);
@@ -332,15 +357,21 @@ internal sealed class ShadowTiles
     /// <summary>Gives <paramref name="light"/> the layers that its entity held, when they are as many as its tiles now.</summary>
     private void Keep(int light, uint entity)
     {
-        int held = 0;
-        foreach (TileRecord? record in records)
-            if (record?.LightEntity == entity)
-                held++;
-        if (held != tileCounts[light])
+        if (Held(entity) != tileCounts[light])
             return;
         for (int layer = 0; layer < Layers; layer++)
             if (records[layer]?.LightEntity == entity)
                 layerLights[layer] = light;
+    }
+
+    /// <summary>How many layers the light of <paramref name="entity"/> holds in <see cref="records"/>.</summary>
+    private int Held(uint entity)
+    {
+        int held = 0;
+        foreach (TileRecord? record in records)
+            if (record?.LightEntity == entity)
+                held++;
+        return held;
     }
 
     /// <summary>
@@ -554,9 +585,33 @@ internal sealed class ShadowTiles
             casterIndices.Add(caster);
     }
 
-    /// <summary>A near light that casts shadows, its tier, and its rank irradiance, in W/m².</summary>
+    /// <summary>A near light that casts shadows, the tier and the rank irradiance, in W/m², at which it ranks for tiles.</summary>
     private readonly record struct Candidate(int Light, MainViewTier Tier, float Irradiance)
     {
+        /// <summary>A light that holds no layers: it ranks at its own tier and rank irradiance.</summary>
+        public static Candidate Challenger(int light, in PreparedLight prepared) =>
+            new(Light: light, Tier: prepared.Tier, Irradiance: LightUnits.RankIrradiance(prepared));
+
+        /// <summary>
+        /// A light that holds layers: it ranks as if its light were <see cref="HolderMargin"/> times as strong, at
+        /// <see cref="HolderMargin"/> times its rank irradiance, in the tier that the one tier rule
+        /// (<see cref="CameraView.TierAndRankDistance"/>) gives at <see cref="HolderReachGrowth"/> times its reach. The
+        /// grown tier is an input of this ranking only: <see cref="PreparedLight.Tier"/>, which decides the direct pass's
+        /// lights, stays as the batcher set it.
+        /// </summary>
+        public static Candidate Holder(int light, in PreparedLight prepared, in CameraView camera)
+        {
+            MainViewTier grown = camera
+                .TierAndRankDistance(
+                    spread: prepared.Spread,
+                    relative: prepared.Position,
+                    reach: prepared.Reach * HolderReachGrowth,
+                    distance: prepared.Distance
+                )
+                .Tier;
+            return new(Light: light, Tier: grown, Irradiance: HolderMargin * LightUnits.RankIrradiance(prepared));
+        }
+
         /// <summary>
         /// The higher tier first (<see cref="MainViewTier"/>), then the brighter first, and of equal ones the first in the
         /// list (docs/plans/local-light-shadows.md, decision 24).

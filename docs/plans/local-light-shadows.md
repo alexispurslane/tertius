@@ -72,7 +72,7 @@ The user made the decisions marked (User). This design settled the others by the
 21. A render light carries its entity's index, `EntityIndex`, as an instance does. A tile record names its light by it. A reused slot with a new entity cannot reuse an old tile, because the record also holds the light's place and casters.
 22. A render light carries its previous place, and a spot light its previous axis. The batcher interpolates the place by alpha as it does an instance's, and the axis by a normalized linear interpolation, which falls back to the current axis when the two are nearly opposite. (kept) A spot light is symmetric about its axis, so it carries an axis, not a rotation, and a roll changes no tile.
 23. The angular radius of a light at a point is asin(min(R / d, 1)), the exact angle of a sphere. (changed) Today's sun uses atan(r / d) of its owner's bounding radius. For R ≪ d the two agree, and asin with the clamp is also defined inside the sphere.
-24. Lights rank for shadows by their irradiance at the eye, far lights for cascade sets and near lights for tiles. Ties keep the order of the snapshot, the slot order of the entity table, which every run shares. (changed for near lights) The approved text ranked near lights by projected size on screen, irradiance and distance. With a reach derived from the power, the reach sphere of nearly every lamp holds the camera, so its projected size is the whole screen for all of them and ranks nothing. The irradiance at the eye folds in the power and the distance, and one measure serves both kinds.
+24. Lights rank for shadows by their irradiance at the eye, far lights for cascade sets and near lights for tiles. Ties keep the order of the snapshot, the slot order of the entity table, which every run shares. (changed for near lights) The approved text ranked near lights by projected size on screen, irradiance and distance. With a reach derived from the power, the reach sphere of nearly every lamp holds the camera, so its projected size is the whole screen for all of them and ranks nothing. The irradiance at the eye folds in the power and the distance, and one measure serves both kinds. (changed for near lights by ter-4xw0) A near light that holds tiles ranks for tiles as if its light were twice as strong (settled fork 2).
 25. A far light that casts shadows gets a slot when its irradiance at the eye is at least `FarShadows.Share` of the brightest far light's, shadowed or not, and no slot otherwise. Of those, the first `RendererOptions.CascadedLights` get a `CascadeSet`, 1 by default and at most 4, and the others `FarShadowsOnly`. (kept) The approved text left the share to measure. It is 1/256: a far light dimmer than that changes a surface that the brightest lights by under a quarter of an 8-bit step, so its shadow cannot show there, and a cascade set or an occluder list for it would cost for nothing. The brightest counts whether it casts shadows or not, because it lights the same surfaces either way. See "Known limits" for the place where it can.
 26. Each far light with a slot has its own occluder range, pruned by today's rules against its own angular radius. The split between casters in the maps and casters beyond them exists only for a `CascadeSet`. (kept)
 27. The four cascades of each set live in the frame's uniform block, as an array of `ShadowCascades.MaxSets` entries of `GpuCascadeSet`. `MaxSets` is `RendererOptions.MaxCascadedLights`, 4, the one home of the most cascade sets, so `CheckOptions` cannot accept a `CascadedLights` that the array cannot hold. (changed) The approved text moved them to a buffer. At most four sets of 288 bytes fit the block, the CPU writes them per frame like the rest of it, and no binding is added. The splits, blend starts, texel sizes and bias parameters stay single values, because every set has the same map size and the same camera.
@@ -416,7 +416,7 @@ where
 3. A light that held layers in the frame before and still has tiles keeps its layers. The others take the lowest free layers. A light that lost its tiles frees its layers.
 4. Each light with tiles gets its `AtlasTiles(First, Count)` slot, and the frame's tile views get one entry per tile: the layer, the light and the aim (`ConeAim` for a spot light, `FaceAim(CubeFace)` for each face of a point light).
 
-The set of lights with tiles is a pure function of this frame's lights. Settled fork 2 keeps this pure ranking, with no hysteresis.
+In step 1, a holder, a light whose entity holds layers in the records of the last submitted frame (see "The cache"), ranks as if its light were twice as strong: at twice its rank irradiance, and in the tier that the one tier rule gives at √2 times its reach. So the set of lights with tiles depends on this frame's lights and on the holders. Settled fork 2 gives the details.
 
 ### Tile views
 
@@ -440,7 +440,7 @@ The pass counts the casters into mesh order with the counting sort of `ShadowPas
 
 ### The cache
 
-`ShadowTiles` keeps a record for each layer: the light's entity index, the camera frame's id, the aim, the near plane and the half-angle, and the casters in the order of the snapshot, each with its entity index, part, mesh, position relative to the light, rotation and scale. A tile view is drawn when its layer's record is stale (decision 34):
+`ShadowTiles` keeps a record for each layer: the light's entity index, the camera frame's id, the aim, the near plane and the half-angle, and the casters in the order of the snapshot, each with its entity index, part, mesh, position relative to the light, rotation and scale. The records also name the holders of the budget (settled fork 2): a light is a holder when its entity has a record. A tile view is drawn when its layer's record is stale (decision 34):
 
 - The layer passed to another light, or the camera's frame changed.
 - The list of casters differs: one entered or left, or its mesh changed.
@@ -1138,7 +1138,7 @@ internal struct GpuShadowTile     // std430, 80 bytes
 
 ## Settled forks
 
-Both forks are settled. The first option of each is built.
+Both forks are settled. Fork 1 builds its first option. Fork 2 first built its option A, and later a form of its option B, by the user's choice of 2026-10-31.
 
 ### 1. The stars in SI units
 
@@ -1151,7 +1151,16 @@ The star field is a radiance like any other, and today's numbers suit today's un
 
 ### 2. A light at the edge of the tile budget
 
-The orchestrator settled A, pure ranking, on 2026-10-25, by the user's rule "pure model first". Hysteresis waits until a scene shows the pop. (Orchestrator)
+The orchestrator settled A, pure ranking, on 2026-10-25, by the user's rule "pure model first". Hysteresis waited until a scene showed the pop. (Orchestrator)
+
+Since ter-ox1a, the main-view flag that ranks the tiles follows the exposure, so a shadow can switch lamps when the exposure changes, as well as when the camera turns. On 2026-10-31 the user chose a form of B, a value margin that spans tiers, and ticket ter-4xw0 built it. (User)
+
+- A holder is a light whose entity holds layers in `ShadowTiles`' records, the store of the last submitted frame. A challenger is a near light that casts shadows and holds none.
+- A holder ranks as if its light were twice as strong (`ShadowTiles.HolderMargin` = 2). Its rank irradiance counts twice. Its tier comes from the one tier rule, `CameraView.TierAndRankDistance`, at √2 times its reach, because the reach is √(peak / cutoff), so twice the light gives √2 times the reach.
+- So a challenger takes a holder's tiles only with more than twice the holder's irradiance in the same tier, or from a higher tier than the holder reaches even at √2 times its reach. Ties still go by list order.
+- The grown tier is an input of the shadow ranking only. `PreparedLight.Tier`, which decides the direct pass's lights, does not change. The holders come from the records, so the design adds no stored state.
+
+Rejected: a margin in time of N drawn frames. It needs a count in each record, every handover waits N frames, and a swing slower than N frames still swaps each time. Also rejected: a margin inside one tier only. A change of tier, which follows the exposure through each light's reach, still hands the tiles over at once, and that is the cause that the ticket names.
 
 - A (built if the user does not choose): pure ranking each frame. A light whose rank crosses the budget's edge as the camera moves turns its shadows on and off from one frame to the next. The model has no rule beyond the ranking, and the layer mapping keeps only what the cache needs. This follows the user's rule "pure model first": a second rule waits until a scene shows the pop.
-- B: hysteresis. A light that held tiles in the frame before keeps them until a light without tiles has twice its irradiance at the eye. Shadows at the edge of the budget pop far less. It costs a second rule in the ranking, which reads the layer owners of the frame before, and a light can keep its tiles while a slightly brighter one waits.
+- B (built in the form above): hysteresis. A light that held tiles in the frame before keeps them until a light without tiles has twice its irradiance at the eye. Shadows at the edge of the budget pop far less. It costs a second rule in the ranking, which reads the layer owners of the frame before, and a light can keep its tiles while a slightly brighter one waits.

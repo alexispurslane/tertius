@@ -60,6 +60,7 @@ internal sealed unsafe class LocalShadowPass : RenderPass
         PreparedScene scene = context.Scene;
         Tiles.Update(
             lights: scene.LightSpan,
+            camera: scene.Camera,
             placed: scene.PlacedSpan,
             deformed: scene.Deformed,
             originFrameId: context.Snapshot.OriginFrameId,
