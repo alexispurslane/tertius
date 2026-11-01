@@ -107,7 +107,9 @@ internal sealed record GraphicsPipelineDesc
         foreach (Format format in ColorFormats)
         {
             if (IsInteger(format))
-                throw new ArgumentException($"The pipeline {Name} blends into an attachment of {format}, an integer format.");
+                throw new ArgumentException(
+                    $"The pipeline {Name} blends into an attachment of {format}, an integer format."
+                );
         }
     }
 

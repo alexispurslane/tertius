@@ -642,7 +642,7 @@ internal struct OutlinePushConstants
 /// the push constant size that every Vulkan device offers.
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
-internal unsafe struct ShadowBoundsPushConstants
+internal struct ShadowBoundsPushConstants
 {
     /// <summary>The drawn tiles of one dispatch: its workgroups' z runs from 0 to their count less 1.</summary>
     public const int MaxLayers = 32;

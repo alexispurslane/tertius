@@ -29,7 +29,12 @@ internal sealed unsafe class ShadowAtlas : IDisposable
     private readonly ImageView[] layerViews;
 
     /// <exception cref="ArgumentOutOfRangeException">Tiles is above the device's maxImageArrayLayers.</exception>
-    public ShadowAtlas(VulkanDevice device, DeviceAllocator allocator, DescriptorLayouts layouts, LocalShadowAtlas setting)
+    public ShadowAtlas(
+        VulkanDevice device,
+        DeviceAllocator allocator,
+        DescriptorLayouts layouts,
+        LocalShadowAtlas setting
+    )
     {
         this.device = device;
         uint maxLayers = device.Properties.Limits.MaxImageArrayLayers;

@@ -63,7 +63,9 @@ public sealed class OcclusionUpsampleShaderTests(ITestOutputHelper output)
                     comparedOnTheEdges++;
             }
             output.WriteLine($"compared {compared} pixels, {comparedOnTheEdges} in the last column or row");
-            compared.Should().BeGreaterThan(Width * Height / 2, "most pixels show the corner and lie off every edge of a weight");
+            compared
+                .Should()
+                .BeGreaterThan(Width * Height / 2, "most pixels show the corner and lie off every edge of a weight");
             comparedOnTheEdges.Should().BeGreaterThan(Height / 2, "the last column and the last row show the corner");
         }
         finally

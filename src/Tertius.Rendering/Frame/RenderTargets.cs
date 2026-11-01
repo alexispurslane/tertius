@@ -410,7 +410,8 @@ internal sealed class RenderTargets : IDisposable
         if (reflections)
             CheckReflectionFormats(device);
         // The spec requires both of RGBA16F on every device (docs/plans/skin-and-hair.md, "Required device features").
-        const FormatFeatureFlags diffuseFeatures = FormatFeatureFlags.ColorAttachmentBit | FormatFeatureFlags.StorageImageBit;
+        const FormatFeatureFlags diffuseFeatures =
+            FormatFeatureFlags.ColorAttachmentBit | FormatFeatureFlags.StorageImageBit;
         if (
             diffuse
             && (device.FormatProperties(DiffuseFormat).OptimalTilingFeatures & diffuseFeatures) != diffuseFeatures

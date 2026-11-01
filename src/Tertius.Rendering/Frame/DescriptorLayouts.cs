@@ -748,7 +748,17 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             push: new(ShaderStageFlags.ComputeBit, 0, (uint)Unsafe.SizeOf<ShadowBoundsPushConstants>()),
             name: "shadow bounds layout"
         );
-        return (exposure, environmentPrefilter, occlusion, pyramid, depthTail, reflection, deform, scatter, shadowBounds);
+        return (
+            exposure,
+            environmentPrefilter,
+            occlusion,
+            pyramid,
+            depthTail,
+            reflection,
+            deform,
+            scatter,
+            shadowBounds
+        );
     }
 
     /// <summary>The shared pool, which holds <paramref name="glowSourceSets"/> glow source sets, and the pool of the texture sets.</summary>
@@ -962,7 +972,11 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// <summary>The layout of the shadow bounds set: the atlas as a sampled image and its bounds as a storage image, for the compute stage.</summary>
     private DescriptorSetLayout CreateShadowBoundsSetLayout()
     {
-        Span<DescriptorSetLayoutBinding> bounds = [Image(binding: 0, stages: ShaderStageFlags.ComputeBit), StorageImage(binding: 1)];
+        Span<DescriptorSetLayoutBinding> bounds =
+        [
+            Image(binding: 0, stages: ShaderStageFlags.ComputeBit),
+            StorageImage(binding: 1),
+        ];
         return CreateLayout(bindings: bounds, name: "shadow bounds set");
     }
 
