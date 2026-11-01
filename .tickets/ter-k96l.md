@@ -2,7 +2,7 @@
 id: ter-k96l
 status: in_progress
 deps: [ter-xgra]
-links: []
+links: [ter-5aak]
 created: 2026-11-01T01:19:16Z
 type: bug
 parent: ter-b2da
