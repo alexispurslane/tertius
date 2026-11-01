@@ -4,8 +4,9 @@ namespace Tertius.Rendering;
 
 /// <summary>
 /// Renders the stale tiles of the near lights into the local shadow atlas, after the cascades in
-/// <see cref="FrameGraph.Stage.ShadowMaps"/>, and writes every tile view of the frame. A cached tile draws nothing. The
-/// pipeline, the bias and the casters' commands: ARCHITECTURE.md, "Local shadows".
+/// <see cref="FrameGraph.Stage.ShadowMaps"/>, then the bounds of each tile that it drew, and writes every tile view of the
+/// frame. A cached tile draws nothing and keeps its bounds. The pipeline, the bias and the casters' commands:
+/// ARCHITECTURE.md, "Local shadows".
 /// </summary>
 internal sealed unsafe class LocalShadowPass : RenderPass
 {
@@ -15,10 +16,15 @@ internal sealed unsafe class LocalShadowPass : RenderPass
     /// </summary>
     public const float SlopeBias = 2.5f;
 
+    /// <summary>The width and the height of a workgroup of shadow_bounds.comp, its local size.</summary>
+    private const uint BoundsGroupSize = 8;
+
     private readonly VulkanDevice device;
     private readonly ShadowAtlas atlas;
     private readonly Pipeline pipeline;
     private readonly Pipeline cutoutPipeline;
+    private readonly Pipeline boundsPipeline;
+    private readonly DescriptorLayouts layouts;
     private readonly List<TileView> views = [];
     private readonly List<TileDraw> draws = [];
 
@@ -26,6 +32,7 @@ internal sealed unsafe class LocalShadowPass : RenderPass
     {
         this.device = device;
         this.atlas = atlas;
+        this.layouts = layouts;
         Tiles = new(layers: atlas.Tiles, tileSize: atlas.TileSize);
         (pipeline, cutoutPipeline) = ShadowPass.CreatePipelines(
             device: device,
@@ -48,6 +55,12 @@ internal sealed unsafe class LocalShadowPass : RenderPass
                 DepthBiasSlope = -SlopeBias,
             }
         );
+        boundsPipeline = new ComputePipelineDesc
+        {
+            Name = "local shadow bounds",
+            Shader = "shadow_bounds.comp",
+            Layout = layouts.ShadowBoundsLayout,
+        }.Create(device, shaders);
     }
 
     public override string Name => "local shadows";
@@ -152,11 +165,66 @@ internal sealed unsafe class LocalShadowPass : RenderPass
 
             vk.CmdEndRendering(commandBuffer);
         }
+
+        RecordBounds(context);
+    }
+
+    /// <summary>
+    /// Writes the bounds of each tile that <see cref="Record"/> drew into its own layer, after its depth writes, in one
+    /// dispatch per <see cref="ShadowBoundsPushConstants.MaxLayers"/> tiles. The other layers keep the bounds of the tiles
+    /// that they hold. Each dispatch waits for the one before it: they write disjoint layers, but through one view of every
+    /// layer, which the barriers track as one image.
+    /// </summary>
+    private void RecordBounds(FrameContext context)
+    {
+        Vk vk = context.Vk;
+        CommandBuffer commandBuffer = context.CommandBuffer;
+        BarrierBatch barriers = context.Barriers;
+        barriers.Image(atlas.Image, ImageUse.SampledCompute);
+        vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Compute, boundsPipeline);
+        DescriptorSet set = atlas.BoundsSet;
+        vk.CmdBindDescriptorSets(
+            commandBuffer: commandBuffer,
+            pipelineBindPoint: PipelineBindPoint.Compute,
+            layout: layouts.ShadowBoundsLayout,
+            firstSet: 0,
+            descriptorSetCount: 1,
+            pDescriptorSets: &set,
+            dynamicOffsetCount: 0,
+            pDynamicOffsets: null
+        );
+        uint groups = ((uint)atlas.TileSize / 2 + BoundsGroupSize - 1) / BoundsGroupSize;
+        PreparedScene scene = context.Scene;
+        List<TileCommands> drawn = scene.DrawnTiles;
+        for (int first = 0; first < drawn.Count; first += ShadowBoundsPushConstants.MaxLayers)
+        {
+            int count = Math.Min(ShadowBoundsPushConstants.MaxLayers, drawn.Count - first);
+            var push = new ShadowBoundsPushConstants();
+            for (int i = 0; i < count; i++)
+                push.Layers[i] = scene.ShadowTiles[drawn[first + i].View].Layer;
+            barriers.Image(atlas.Bounds, ImageUse.StorageCompute);
+            barriers.Flush(vk, commandBuffer);
+            vk.CmdPushConstants(
+                commandBuffer: commandBuffer,
+                layout: layouts.ShadowBoundsLayout,
+                stageFlags: ShaderStageFlags.ComputeBit,
+                offset: 0,
+                size: (uint)sizeof(ShadowBoundsPushConstants),
+                pValues: &push
+            );
+            vk.CmdDispatch(
+                commandBuffer: commandBuffer,
+                groupCountX: groups,
+                groupCountY: groups,
+                groupCountZ: (uint)count
+            );
+        }
     }
 
     public override void Dispose()
     {
         device.Vk.DestroyPipeline(device.Device, pipeline, null);
         device.Vk.DestroyPipeline(device.Device, cutoutPipeline, null);
+        device.Vk.DestroyPipeline(device.Device, boundsPipeline, null);
     }
 }

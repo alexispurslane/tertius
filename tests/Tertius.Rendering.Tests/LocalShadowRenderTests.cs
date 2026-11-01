@@ -853,16 +853,100 @@ public sealed class LocalShadowRenderTests
     }
 
     [Fact]
+    public void ATilesBoundsHoldTheNearestAndFarthestDepthOfEachWindowOfSixTexels()
+    {
+        VulkanRenderer renderer = Renderer();
+        try
+        {
+            var kit = Kit.Create(renderer);
+            // A spot light tilted off the vertical, so that the floor's depth changes across the tile.
+            RenderSnapshot snapshot = Dark();
+            snapshot.Instances.Add(kit.Floor(center: new(0, -2, -7), halfSize: 8));
+            snapshot.Instances.Add(kit.Caster(center: BoxPlace, size: Vector3.One));
+            snapshot.Lights.Add(ShadowingSpot(position: SpotPlace, direction: Vector3.Normalize(new(0.5f, -1, 0))));
+
+            renderer.Render(snapshot, 1f);
+
+            BoundsMismatches(renderer, layer: 0).Should().Be(0, "the tile pass derives the bounds from the tile it drew");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void TheBoundsOfARedrawnTileFollowItsCasterInTheSameFrame()
+    {
+        VulkanRenderer renderer = Renderer();
+        try
+        {
+            var kit = Kit.Create(renderer);
+            renderer.Render(SpotOverABox(kit), 1f);
+
+            renderer.Render(SpotOverABox(kit, box: BoxPlace - Vector3.UnitX), 1f);
+
+            renderer.LastFrameStats.ShadowTilesDrawn.Should().Be(1, "the box moved");
+            BoundsMismatches(renderer, layer: 0).Should().Be(0, "the bounds follow the tile in the frame that redrew it");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>
+    /// How many texels of the bounds of atlas layer <paramref name="layer"/> differ from the nearest and the farthest depth
+    /// of the tile in their window: texel k of a bounds row covers the tile's texels 2k to 2k + 5 along each axis, clamped
+    /// to the tile. Fails first when the tile holds one depth, which would make every window agree.
+    /// </summary>
+    private static int BoundsMismatches(VulkanRenderer renderer, int layer)
+    {
+        int size = LocalShadowAtlas.Default.TileSize,
+            half = size / 2;
+        float[] tile = renderer.ReadShadowTile(layer);
+        float[] bounds = renderer.ReadShadowTileBounds(layer);
+        tile.Distinct().Count().Should().BeGreaterThan(1, "the tile sees the floor and the box");
+        bounds.Length.Should().Be(half * half * 2, "a bounds texel holds the nearest and the farthest depth");
+        int mismatches = 0;
+        for (int ky = 0; ky < half; ky++)
+        {
+            for (int kx = 0; kx < half; kx++)
+            {
+                float least = float.MaxValue,
+                    most = float.MinValue;
+                for (int y = 2 * ky; y < 2 * ky + 6; y++)
+                {
+                    for (int x = 2 * kx; x < 2 * kx + 6; x++)
+                    {
+                        float depth = tile[Math.Min(y, size - 1) * size + Math.Min(x, size - 1)];
+                        least = Math.Min(least, depth);
+                        most = Math.Max(most, depth);
+                    }
+                }
+
+                int texel = 2 * (ky * half + kx);
+                if (bounds[texel] != least || bounds[texel + 1] != most)
+                    mismatches++;
+            }
+        }
+
+        return mismatches;
+    }
+
+    [Fact]
     public void AnAtlasOfMoreTilesThanTheDeviceHasLayersIsRefused()
     {
         using var device = VulkanDevice.Create(validation: true, surfaceExtensions: [], createSurface: null);
         using var allocator = new DeviceAllocator(device);
+        using var layouts = new DescriptorLayouts(device: device, framesInFlight: 1, glowLevels: 0);
         int tiles = (int)device.Properties.Limits.MaxImageArrayLayers + 1;
 
         Action make = () =>
             new ShadowAtlas(
                 device: device,
                 allocator: allocator,
+                layouts: layouts,
                 setting: LocalShadowAtlas.Default with
                 {
                     Tiles = tiles,

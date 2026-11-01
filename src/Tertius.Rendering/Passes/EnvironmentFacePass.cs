@@ -106,8 +106,7 @@ internal sealed unsafe class EnvironmentFacePass : RenderPass
         barriers.Buffer(context.Geometry.IndexBuffer, BufferUse.VertexInput);
         barriers.Buffer(context.Materials.Buffer, BufferUse.ShaderRead);
         barriers.Image(context.Shadows.Image, ImageUse.SampledFragment);
-        if (context.ShadowAtlas is { } atlas)
-            barriers.Image(atlas.Image, ImageUse.SampledFragment);
+        context.ShadowAtlas?.DeclareSampled(barriers, ImageUse.SampledFragment);
         barriers.Flush(context.Vk, context.CommandBuffer);
 
         // The last frame's prefilter is the only reader of the radiance map, so each face's discard waits for it alone.

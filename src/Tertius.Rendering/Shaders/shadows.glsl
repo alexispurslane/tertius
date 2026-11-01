@@ -233,7 +233,8 @@ const float TileNormalOffsetTexels = 1.0;
 // "Sampling"): the one tile of a spot light, or the tile of the cube face of a point light that holds the direction from
 // the light to the position. The 4 × 4 hardware-PCF taps of the cascades, with the normal offset at the receiver's
 // distance and the tile pass's slope-scaled bias, and no receiver-plane term, because a tile's depth is not linear across
-// it. Taps that leave the tile clamp to its edge. L is the unit direction toward the light and d its distance;
+// it. Taps that leave the tile clamp to its edge. The tile's bounds skip the taps where they all pass or all fail. L is
+// the unit direction toward the light and d its distance;
 // geometricNormal is the interpolated vertex normal, and NdotL its cosine with L, which must be at least 0, with 0 for a
 // hair card edge-on to the light.
 float tileShadow(GpuLight light, vec3 position, vec3 L, float d, vec3 geometricNormal, float NdotL)
@@ -248,8 +249,28 @@ float tileShadow(GpuLight light, vec3 position, vec3 L, float d, vec3 geometricN
     // the near plane gets the depth 1, nearest the light, which no clamped caster passes, so the floor changes no result.
     vec3 ndc = clip.xyz / max(clip.w, tile.near);
     vec2 uv = ndc.xy * 0.5 + 0.5;
-    float invSize = 1.0 / float(textureSize(shadowAtlas, 0).x);
+    float size = float(textureSize(shadowAtlas, 0).x);
+    float invSize = 1.0 / size;
     float layer = float(tile.layer);
+
+    // The taps compare the 5 × 5 texels from texel floor(corner) on each axis, and the bounds texel at floor(corner / 2)
+    // holds the nearest and the farthest depth of a window around them (shadow_bounds.comp). Where every texel of the
+    // window lies nearer the light than the lookup, every comparison fails and the taps give exactly 0; where none does,
+    // every one passes and they give exactly 1. So the bounds decide those pixels with the taps' own result. Within 1/256
+    // of a texel's edge the hardware's rounding of a tap's coordinate may weigh a texel past the window, so the taps decide
+    // there. The clamp comes before the conversion to int, which is undefined for a float out of range.
+    vec2 corner = uv * size - 2.0;
+    vec2 fromCenter = abs(fract(corner) - 0.5);
+    if (max(fromCenter.x, fromCenter.y) < 0.5 - 1.0 / 256.0)
+    {
+        vec2 lastWindow = vec2(textureSize(shadowBounds, 0).xy - 1);
+        ivec2 window = ivec2(clamp(floor(corner * 0.5), vec2(0.0), lastWindow));
+        vec2 bounds = texelFetch(shadowBounds, ivec3(window, int(tile.layer)), 0).rg;
+        if (ndc.z < bounds.x)
+            return 0.0;
+        if (ndc.z >= bounds.y)
+            return 1.0;
+    }
 
     float lit = 0.0;
     for (int y = 0; y < 4; y++)

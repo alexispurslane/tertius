@@ -1,0 +1,62 @@
+#version 460
+// The bounds of the drawn tiles of the local shadow atlas (ARCHITECTURE.md, "Local shadows"): texel k of a bounds layer
+// holds the nearest and the farthest reversed depth of the tile's texels 2k to 2k + 5 along each axis, clamped to the tile.
+// So the texel at floor(b / 2) holds every texel of the 5 × 5 that tileShadow's taps compare from texel b, and tileShadow
+// knows from one fetch when all of them pass or all fail. One invocation per bounds texel, and workgroup z names the drawn
+// tile among the dispatch's layers. LocalShadowPass dispatches after the tile pass draws the tiles.
+#extension GL_GOOGLE_include_directive : require
+#extension GL_EXT_samplerless_texture_functions : require
+
+const int GroupSide = 8;
+
+layout(local_size_x = GroupSide, local_size_y = GroupSide) in;
+
+layout(set = 0, binding = 0) uniform texture2DArray atlas;                // D32: one tile per layer, reversed depth
+layout(set = 0, binding = 1, rg32f) uniform writeonly image2DArray bounds; // half the tile's side: r nearest, g farthest
+
+// ShadowBoundsPushConstants.MaxLayers: the drawn tiles of one dispatch.
+const int MaxLayers = 32;
+
+layout(push_constant) uniform BoundsPush
+{
+    uint layers[MaxLayers];   // the atlas layer of each drawn tile of the dispatch, in workgroup z order
+} push;
+
+// The texels of a window along each axis: the 5 of the taps' footprint and the one more that a window at an even texel
+// needs to hold a footprint that starts at an odd one.
+const int WindowTexels = 6;
+
+// The atlas texels that a workgroup's windows cover along each axis: 8 windows 2 texels apart, 6 texels wide.
+const int SharedSide = 2 * (GroupSide - 1) + WindowTexels;
+
+shared float depths[SharedSide * SharedSide];
+
+void main()
+{
+    int layer = int(push.layers[gl_WorkGroupID.z]);
+    int last = textureSize(atlas, 0).x - 1;
+    // Each atlas texel that the workgroup's windows cover is fetched once.
+    ivec2 origin = 2 * ivec2(gl_WorkGroupID.xy) * GroupSide;
+    for (int i = int(gl_LocalInvocationIndex); i < SharedSide * SharedSide; i += GroupSide * GroupSide)
+    {
+        ivec2 at = min(origin + ivec2(i % SharedSide, i / SharedSide), ivec2(last));
+        depths[i] = texelFetch(atlas, ivec3(at, layer), 0).r;
+    }
+    barrier();
+
+    ivec2 texel = ivec2(gl_GlobalInvocationID.xy);
+    if (any(greaterThanEqual(texel, imageSize(bounds).xy)))
+        return;
+    ivec2 first = 2 * ivec2(gl_LocalInvocationID.xy);
+    float least = 1.0, most = 0.0;
+    for (int y = 0; y < WindowTexels; y++)
+    {
+        for (int x = 0; x < WindowTexels; x++)
+        {
+            float depth = depths[(first.y + y) * SharedSide + first.x + x];
+            least = min(least, depth);
+            most = max(most, depth);
+        }
+    }
+    imageStore(bounds, ivec3(texel, layer), vec4(least, most, 0.0, 0.0));
+}

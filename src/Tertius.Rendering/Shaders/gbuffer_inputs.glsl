@@ -32,6 +32,9 @@ layout(set = 2, binding = 10) uniform utexture2D gbufferShading;       // RGBA8 
                                                                        // model's code, and a hair pixel's card code above
                                                                        // them (lightModelAndCardWords, frame.glsl);
                                                                        // 0 where nothing lit draws
+layout(set = 2, binding = 11) uniform texture2DArray shadowBounds;    // RG32F: per layer of the atlas, at half its side,
+                                                                       // the nearest and the farthest depth of each
+                                                                       // window (shadow_bounds.comp); partially bound
 
 // The map that a lit pixel's map code names (docs/plans/environment-maps-per-frame.md, decision 20): code c of the 8-bit
 // alpha, from 1 to 255, names map (256 − c) / 2, rounded down. MapCode.MapOf is the C# twin. Code 0 marks an unlit pixel,
