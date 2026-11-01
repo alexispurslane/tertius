@@ -162,7 +162,7 @@ public sealed class BounceLightMapRenderTests(ITestOutputHelper output)
     /// The crease of a dimly glowing near wall and the floor, under the map of the far glowing wall, which glows twice
     /// as bright, and of a small bright lamp high up and ahead, which the open directions of the crease face. The map
     /// holds the near wall too, so the crease's blocked directions hold much of the map's light, and S is well below 1.
-    /// The crease's light at the default 3 slices lies within 10 % of a reference at 16 slices, the most that the
+    /// The crease's light at the default 4 slices lies within 10 % of a reference at 16 slices, the most that the
     /// setting allows, in the mean over ten floor points along the crease, 5 cm from the wall: the slices' noise averages
     /// out along the crease, as the denoise averages it, and the open share S is a ratio of reads of one store, so no
     /// read's error takes the crease past the open directions' light.
@@ -190,7 +190,7 @@ public sealed class BounceLightMapRenderTests(ITestOutputHelper output)
             int j = 3 * (pixel.Y * Width + pixel.X);
             return (openShare[j] + openShare[j + 1] + openShare[j + 2]) / 3.0;
         });
-        output.WriteLine($"the crease at 3 slices {light:0.0000}, at 16 slices {reference:0.0000}, S {share:0.0000}");
+        output.WriteLine($"the crease at the default {light:0.0000}, at 16 slices {reference:0.0000}, S {share:0.0000}");
 
         share.Should().BeLessThan(0.85, "the test needs a crease whose blocked directions hold much of the map's light");
         light
@@ -200,6 +200,86 @@ public sealed class BounceLightMapRenderTests(ITestOutputHelper output)
                 0.1 * reference,
                 "the crease takes the map's light over its open directions, as many slices find it"
             );
+    }
+
+    /// <summary>
+    /// The floor around a small box beside the crease of <see cref="AddDimWallFarGlowAndLamp"/>, at the default 4
+    /// slices, has at most 10 % more grain in the open share S than a reference at 16 slices. The grain is the mean of
+    /// each pixel's difference from the mean of the 9 × 9 pixels around it: the measure of the captures' review
+    /// (ter-xgra), which saw blotches and specks where 3 slices' noise outlived 2 blurs: 1.27 times the reference's grain
+    /// here. A texel's slices turn with the texel, so neighbors see different directions, and the denoise's blurs
+    /// average them away.
+    /// </summary>
+    [Fact]
+    public void TheFloorAroundASmallBoxHasAtMostATenthMoreGrainThanAManySliceReference()
+    {
+        (int X0, int Y0, int X1, int Y1) around = PixelBox(
+            new Vector3(BoxCenter.X - 0.6f, FloorHeight, BoxCenter.Z + 0.6f),
+            new Vector3(BoxCenter.X + 0.6f, FloorHeight, BoxCenter.Z - 0.6f)
+        );
+
+        double grain = Grain(RenderedWithEstimate(VisibilityBitmaskLight.Default, AddBoxBesideTheCrease).OpenShare, around);
+        double reference = Grain(
+            RenderedWithEstimate(
+                VisibilityBitmaskLight.Default with { Slices = ScreenSpaceLightSetting.MaxSlices },
+                AddBoxBesideTheCrease
+            ).OpenShare,
+            around
+        );
+        output.WriteLine($"the grain at the default {grain:0.00000}, at 16 slices {reference:0.00000}");
+
+        grain.Should().BeLessThanOrEqualTo(1.1 * reference, "the denoise averages away the noise of the default's slices");
+    }
+
+    /// <summary>The center of the box of <see cref="AddBoxBesideTheCrease"/>, 0.5 m from the wall's face.</summary>
+    private static readonly Vector3 BoxCenter = new(WallX + 0.6f, FloorHeight + 0.1f, -4f);
+
+    /// <summary>The scene of <see cref="AddDimWallFarGlowAndLamp"/>, with a matte box 0.2 m wide on the floor at <see cref="BoxCenter"/>.</summary>
+    private static void AddBoxBesideTheCrease(VulkanRenderer renderer, RenderSnapshot snapshot)
+    {
+        AddDimWallFarGlowAndLamp(renderer, snapshot);
+        AddSlab(
+            snapshot: snapshot,
+            box: UnitBox(renderer),
+            material: renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.8f, y: 0.8f, z: 0.8f, w: 1), roughness: 1)),
+            center: BoxCenter,
+            size: new(0.2f, 0.2f, 0.2f)
+        );
+    }
+
+    /// <summary>The pixels between two points, inclusive: the least and the most X and Y of their pixels.</summary>
+    private static (int X0, int Y0, int X1, int Y1) PixelBox(Vector3 first, Vector3 second)
+    {
+        (int X, int Y) a = Pixel(first);
+        (int X, int Y) b = Pixel(second);
+        return (Math.Min(a.X, b.X), Math.Min(a.Y, b.Y), Math.Max(a.X, b.X), Math.Max(a.Y, b.Y));
+    }
+
+    /// <summary>
+    /// The grain of <paramref name="rgb"/>, three channels to a pixel, over <paramref name="box"/>: the mean over its
+    /// pixels of the absolute difference between a pixel's mean channel and the mean of the 9 × 9 pixels around it.
+    /// </summary>
+    private static double Grain(float[] rgb, (int X0, int Y0, int X1, int Y1) box)
+    {
+        double Light(int x, int y)
+        {
+            int i = 3 * (y * Width + x);
+            return (rgb[i] + rgb[i + 1] + rgb[i + 2]) / 3.0;
+        }
+        double sum = 0;
+        int count = 0;
+        for (int y = box.Y0; y <= box.Y1; y++)
+        for (int x = box.X0; x <= box.X1; x++)
+        {
+            double around = 0;
+            for (int dy = -4; dy <= 4; dy++)
+            for (int dx = -4; dx <= 4; dx++)
+                around += Light(x + dx, y + dy);
+            around /= 81;
+            sum += Math.Abs(Light(x, y) - around);
+            count++;
+        }
+        return sum / count;
     }
 
     /// <summary>

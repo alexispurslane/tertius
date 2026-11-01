@@ -11,12 +11,12 @@ public sealed class ScreenSpaceLightSettingTests
         (default(ScreenSpaceLightSetting) is NoScreenSpaceLight).Should().BeTrue("the zero case is the open estimate");
 
     [Fact]
-    public void RendererOptionsDefaultToVisibilityBitmaskLightWithARadiusOfOneMeterAndThreeSlicesOfThreeStepsPerSide() =>
+    public void RendererOptionsDefaultToVisibilityBitmaskLightWithARadiusOfOneMeterAndFourSlicesOfThreeStepsPerSide() =>
         (
             new RendererOptions().ScreenSpaceLight is VisibilityBitmaskLight
             {
                 RadiusMeters: 1,
-                Slices: 3,
+                Slices: 4,
                 StepsPerSide: 3
             }
         )
