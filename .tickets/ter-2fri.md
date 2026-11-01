@@ -1,6 +1,6 @@
 ---
 id: ter-2fri
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-11-01T01:02:23Z
@@ -17,3 +17,9 @@ Found by the review of ter-e91p, 2026-10-31. The paired mode of tools/gpu-trace.
 ## Acceptance Criteria
 
 The paired mode's standard errors come from a moving-block bootstrap over the pairs, with the block length and the seed stated in the output. A test on synthetic frames with independent noise gives an error near the analytic one. tools/README.md drops the warning that the errors are somewhat too small, or gives the remaining limit.
+
+## Notes
+
+**2026-11-01T01:16:09Z**
+
+2026-10-31: workflow run 781250fd-3942-424f-bb2f-4decb10cc1fd (version 869b0b07), branch ter-2fri-gpu-trace-block-bootstrap from 15d33693.
