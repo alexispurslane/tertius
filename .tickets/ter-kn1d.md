@@ -1,6 +1,6 @@
 ---
 id: ter-kn1d
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-11-01T18:54:33Z
@@ -22,3 +22,9 @@ Evidence (git ignores captures/, so use the main checkout's absolute paths): cap
 
 Leads, not yet checked: (1) the camera's frame, the map's frame (RenderSnapshot.OriginFrameId) or the served chain changes near tick 3910, and the faces are drawn in one frame's axes but read in another's (docs/plans/environment-map.md, decision 23 and 'The faces and their axes'); (2) the draw rule of the chain leaves out a different subtree, with its lights, after a change of the chain; (3) a basis that the code builds from a direction, for example the ring's up, turns over when that direction crosses a threshold.
 
+
+## Notes
+
+**2026-11-01T18:55:46Z**
+
+Workflow run a84b9182-9905-4d23-8200-18d47d2abb85, version 869b0b07-3413-4b06-8707-a88a91bf6e91, branch ter-kn1d-environment-map-flip, base d9e028ba.
