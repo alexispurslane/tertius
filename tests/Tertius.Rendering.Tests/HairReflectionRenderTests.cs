@@ -135,7 +135,11 @@ public sealed class HairReflectionRenderTests
                 ),
         ];
         grazing.Length.Should().BeGreaterThan(1_000, "the floor's rays cross the floor's plane");
-        int reflecting = 0;
+        // Most rays of each tenth of the fade reflect, so a cut of either model's most grazing rays, from a cosine of
+        // about 0.004 up, fails the lowest tenth. The hair band's rays have long images: at 128 steps, in three of
+        // its tenths only a third to two fifths of the rays hit, and the others run out of steps (ticket ter-r5hb).
+        int[] inTenth = new int[10],
+            reflectingInTenth = new int[10];
         foreach ((int X, int Y) pixel in grazing)
         {
             float fade = (float)(CosineWithCard(with, pixel) / ScreenRay.SurfaceFadeCosine);
@@ -151,9 +155,14 @@ public sealed class HairReflectionRenderTests
                     At(with.Hdr, pixel),
                     At(without.Hdr, pixel)
                 );
-            reflecting += difference > 0 ? 1 : 0;
+            int tenth = (int)(fade * 10);
+            inTenth[tenth]++;
+            reflectingInTenth[tenth] += difference > 0 ? 1 : 0;
         }
-        reflecting.Should().BeGreaterThan(grazing.Length / 2, "most of the grazing rays hit the floor or the wall");
+        reflectingInTenth
+            .Zip(inTenth, (reflecting, all) => (float)reflecting / all)
+            .Should()
+            .OnlyContain(share => share > 0.5f, "most rays of each tenth of the fade hit the floor or the wall");
     }
 
     [Theory]

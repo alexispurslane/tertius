@@ -16,7 +16,7 @@ public readonly record struct NoReflections;
 /// <param name="Resolution">The pixels that start a ray: one of each block of 2 × 2, or every pixel.</param>
 public readonly record struct ConeTracedReflections(float MaxRoughness, int MaxSteps, TraceResolution Resolution)
 {
-    /// <summary>The most steps a ray takes. 4 times the default, far past any measured need; it bounds the worst frame.</summary>
+    /// <summary>The most steps a ray takes, far past any measured need; it bounds the worst frame.</summary>
     public const int MaxStepsLimit = 1024;
 
     /// <summary>
