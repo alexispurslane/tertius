@@ -337,7 +337,10 @@ public sealed class ReflectionShaderTests
             for (int x = 0; x < Width; x++)
             {
                 Vector3 reflected = At(shown, (x, y)) - At(lit, (x, y));
-                if (reflected.X + reflected.Y + reflected.Z < 0.2f || !frame.Upsampled((x, y)).TryGetValue(out OwnRay _))
+                if (
+                    reflected.X + reflected.Y + reflected.Z < 0.2f
+                    || !frame.Upsampled((x, y)).TryGetValue(out OwnRay _)
+                )
                     continue;
                 listedSet.Should().Contain((x, y), "pixel ({0}, {1}) reflects through its own ray", x, y);
                 reflectedOwnRays++;
@@ -370,7 +373,10 @@ public sealed class ReflectionShaderTests
                 // Chosen by the full-resolution render, not by the image under test, so that a pixel which the dispatch
                 // skips, and which then shows no reflection, still counts.
                 Vector3 reflected = At(full, (x, y)) - At(lit, (x, y));
-                if (reflected.X + reflected.Y + reflected.Z < 0.2f || !frame.Upsampled((x, y)).TryGetValue(out OwnRay _))
+                if (
+                    reflected.X + reflected.Y + reflected.Z < 0.2f
+                    || !frame.Upsampled((x, y)).TryGetValue(out OwnRay _)
+                )
                     continue;
                 ShouldShowWhatTheFullTraceShows(shown: At(shown, (x, y)), full: At(full, (x, y)), pixel: (x, y));
                 traced++;
@@ -382,6 +388,36 @@ public sealed class ReflectionShaderTests
                     2 * 64,
                     "the reflections of the wall's outlines fill more than two workgroups of the own-ray dispatch"
                 );
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void AFrameAfterOneWithMoreOwnRaysShowsWhatTheSameFrameShowsInAFreshRenderer()
+    {
+        float[] fresh = RenderHdr(ReflectionsAt(TraceResolution.Half), CubeBeforeAGlowingWall).Hdr;
+        VulkanRenderer renderer = Headless(ReflectionsAt(TraceResolution.Half));
+        try
+        {
+            renderer.Render(TiledWall(renderer), 1f);
+            int listedBefore = renderer.ReadOwnRayPixels().Length;
+            renderer.Render(CubeBeforeAGlowingWall(renderer), 1f);
+            float[] shown = renderer.ReadHdr();
+            int listed = renderer.ReadOwnRayPixels().Length;
+
+            // The own-ray list keeps the first frame's entries past the second frame's count: pixels on the outline of the
+            // tiled wall's reflection, which reflect the glowing wall in the second frame. A dispatch that read past the
+            // count, or a count that the clear did not reset, would add their own rays to the blend of the second frame.
+            shown.Should().Equal(fresh, "the own rays have no history");
+            listed
+                .Should()
+                .BeLessThan(listedBefore, "the tiled wall's reflected outline lists more pixels than the cube's");
+            (listed % 64)
+                .Should()
+                .NotBe(0, "the last workgroup of the own-ray dispatch has invocations past the count");
         }
         finally
         {
@@ -510,6 +546,25 @@ public sealed class ReflectionShaderTests
                 center: new(-0.5f, FloorHeight + 0.015f, -4.75f),
                 size: new(1.5f, 0.03f, 1.5f)
             )
+        );
+        return snapshot;
+    }
+
+    /// <summary>
+    /// A dark scene with a mirror floor before a glowing wall 40 m ahead that every floor ray hits, and a glowing cube on the
+    /// floor 5 m ahead, left of the center. The own rays lie at the outline of the cube's reflection and along the floor's
+    /// seam with the wall, both off the rows of <see cref="TiledWall"/>'s own rays.
+    /// </summary>
+    private static RenderSnapshot CubeBeforeAGlowingWall(VulkanRenderer renderer)
+    {
+        RenderSnapshot snapshot = Dark();
+        snapshot.Instances.Add(Floor(renderer, Mirror()));
+        MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
+        snapshot.Instances.Add(
+            Block(box: box, material: Glow(renderer, new(1)), center: new(0, 48.5f, -40.5f), size: new(200, 100, 1))
+        );
+        snapshot.Instances.Add(
+            Block(box: box, material: Glow(renderer, new(3)), center: new(-2, FloorHeight + 0.25f, -5), size: new(0.5f))
         );
         return snapshot;
     }
