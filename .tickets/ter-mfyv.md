@@ -54,3 +54,27 @@ Cost, the deck window (gpu-trace.sh --no-counters --start 399 --frames 120, the 
 | bounds 1 | 23.0 | 4.907 | 0.636 | 17.951 |
 | bounds 2 | 11.2 | 4.745 | 0.427 | 17.062 |
 The direct light pass loses 0.34 to 0.62 ms, and the local shadow pass gains 0.13 to 0.34 ms for the bounds dispatches and their barrier; the first bounds run ran at load 23. A full trace of the bounds failed on the full disk (ENOSPC); the final measurement covers it.
+
+**2026-11-01T13:37:52Z**
+
+Change 2, the gather PCF (builder, 2026-11-01), on top of the bounds. tileShadow computes the filter of the 16 bilinear PCF taps in the shader: 9 textureGather comparisons (OpImageDrefGather, core Vulkan) weigh the 5 x 5 texels from texel floor(uv * size - 2) by (1 - f, 1, 1, 1, f) on each axis, the weights of the 16 taps, so the filter, the kernel and the sample count are the same. The weights are exact floats, where the hardware's filter rounds f to the device's sub-texel precision (8 bits here, at least 4 in Vulkan). Because the gathers read exactly the texels that the bounds hold, the bounds now decide every pixel; the 1/256-texel margin of change 1 is gone. Test, red first: TheShadowsEdgeRampsInProportionToTheReceiversPlaceWithNoSubTexelSteps fits a parabola to the lit share of 1-mm pixels across a tile's edge, where the share is under 0.1. Base and bounds: 5.1e-4 off the fit, the size of a 1/256-texel step. Gather: 3.9e-5. The test's limit is 1.5e-4.
+
+Image, the same 15 captures against captures/mfyv/base-a (SMAA on) and captures/mfyv/base-noaa (SMAA off, --anti-aliasing off), the change in captures/mfyv/c4-gather and captures/mfyv/c4-noaa. SMAA off: every capture within 1 level (lamp-hall-16-spot byte-identical; 0.008 to 0.27 % of pixels differ by 1 level). SMAA on: 6 pixels above 2 levels, the same 6 as the first run's gather on the base (captures/mfyv/c1-gather):
+| Capture | Pixel (x, y) | Difference | Base RGB | Change RGB |
+|---|---|---|---|---|
+| brake-run | (46, 330) | 7 | 84, 80, 76 | 77, 74, 69 |
+| unbelt | (1259, 590) | 6 | 58, 58, 70 | 52, 53, 66 |
+| unbelt | (1260, 591) | 4 | 35, 37, 53 | 39, 41, 56 |
+| pillar-room | (1526, 832) | 20 | 34, 31, 25 | 14, 12, 8 |
+| pillar-room | (1527, 832) | 3 | 20, 18, 13 | 17, 15, 11 |
+| spot-box | (1153, 629) | 3 | 67, 62, 52 | 64, 59, 50 |
+All lie on silhouettes, and with SMAA off the same pixels move at most 1 level, so SMAA's edge test causes them. The two pairs in unbelt and pillar-room touch (diagonally and side by side): each is one edge decision of SMAA whose blend spans both pixels of the edge. I looked at 21 x 21 crops of the base and the change around each pixel at 12x zoom (/tmp/mfyv/crops4): the difference does not show.
+
+Cost, the deck window (frames 399 to 518, the trace's own busy time, mean ms per frame), in interleaved runs of the bounds alone and the bounds with the gather, swapping only shadows.glsl:
+| Run | Load at start | Direct light | Frame span | Direct light / span |
+|---|---|---|---|---|
+| bounds 1 | 5.3 | 4.856 | 17.338 | 0.280 |
+| gather 1 | 6.0 | 4.615 | 16.990 | 0.272 |
+| bounds 2 | 6.2 | 4.860 | 17.370 | 0.280 |
+| gather 2 | 4.1 | 4.990 | 18.186 | 0.274 |
+Two earlier gather runs at load 12.5 and 12.2 gave 5.097 (span 18.486, share 0.276) and 4.594 (span 16.930, share 0.271). In gather 2, every pass ran slower (transparent's time alone 0.804 ms against 0.711 to 0.747), so the absolute times do not resolve the change. The share of the span falls from 0.280 to 0.273 on average, about 0.12 ms of a 17.3 ms frame. The bounds already skip most taps that the gather makes cheaper: the gather alone on the base gave 4.928 ms (share 0.280 against 0.302 on the base) in the first run.

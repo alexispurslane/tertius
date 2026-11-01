@@ -313,6 +313,111 @@ public sealed class LocalShadowRenderTests
         }
     }
 
+    [Fact]
+    public void TheShadowsEdgeRampsInProportionToTheReceiversPlaceWithNoSubTexelSteps()
+    {
+        // The filter weighs the 5 × 5 texels from the tap's first texel by (1 − f, 1, 1, 1, f) along each axis, with f
+        // the place of the lookup within its texel. Across a straight edge of a caster, the lit share of a pixel is then
+        // (lit texels + f) / 4, a straight line of the pixel's place in the tile. A filter that rounds f to the device's
+        // sub-texel precision (at least 4 bits in Vulkan) gives a staircase of steps of 1/4 of that precision instead.
+        VulkanRenderer renderer = Renderer(new LocalShadowAtlas(Tiles: 8, TileSize: 64));
+        try
+        {
+            var kit = Kit.Create(renderer);
+            // The camera looks straight down at the floor 0.3 m below it, so a row of pixels crosses the floor at even
+            // steps of about 1 mm, and a tile texel of about 9 cm spans about 90 of them. The spot light points straight
+            // down from 4 m above the floor, so the floor's place in the tile is a linear function of its place too. The
+            // slab's edge lies in the plane x = 0 through the light.
+            Quaternion down = LookAt(-Vector3.UnitY, -Vector3.UnitZ);
+            RenderSnapshot Scene(bool withSlab)
+            {
+                RenderSnapshot snapshot = Dark(down);
+                snapshot.Instances.Add(kit.Floor(center: new(0, -0.3f, 0), halfSize: 3));
+                snapshot.Lights.Add(ShadowingSpot(position: new(0, 3.7f, 0), direction: -Vector3.UnitY));
+                if (withSlab)
+                    snapshot.Instances.Add(kit.Caster(center: new(-1.5f, 1.7f, 0), size: new(3, 0.2f, 3)));
+                return snapshot;
+            }
+
+            renderer.Render(Scene(withSlab: false), 1f);
+            float[] lit = renderer.ReadHdr();
+            renderer.Render(Scene(withSlab: true), 1f);
+            float[] shadowed = renderer.ReadHdr();
+
+            // The lit share of each pixel of the middle row, from the green channel of the HDR image, where the pixel sees
+            // less than a tenth of the light: there the half floats of both images hold the share to about 1e-4. The
+            // pixel counts from the middle of the row, which keeps the fit's sums small.
+            int row = Height / 2;
+            List<(double Pixel, double Share)> ramp = [];
+            for (int x = 0; x < Width; x++)
+            {
+                int i = (row * Width + x) * 4 + 1;
+                double share = shadowed[i] / (double)lit[i];
+                if (share is > 0.005 and < 0.1)
+                    ramp.Add((Pixel: x - Width / 2, Share: share));
+            }
+
+            ramp.Count.Should().BeGreaterThan(20, "the darkest tenth of the edge spans a few cm, tens of pixels");
+            double[] fit = QuadraticFit(ramp);
+            double worst = ramp.Max(point =>
+                Math.Abs(point.Share - (fit[0] + fit[1] * point.Pixel + fit[2] * point.Pixel * point.Pixel))
+            );
+            worst
+                .Should()
+                .BeLessThan(
+                    1.5e-4,
+                    "the share follows the place of the pixel; a step of 1/256 texel would leave up to 5e-4 off the line"
+                );
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>The coefficients a, b and c of the least-squares fit a + b x + c x² to the points, by the normal equations.</summary>
+    private static double[] QuadraticFit(List<(double Pixel, double Share)> points)
+    {
+        var sums = new double[5];
+        var right = new double[3];
+        foreach ((double x, double y) in points)
+        {
+            for (int k = 0; k < 5; k++)
+                sums[k] += Math.Pow(x, k);
+            for (int k = 0; k < 3; k++)
+                right[k] += y * Math.Pow(x, k);
+        }
+
+        var m = new double[3, 4];
+        for (int r = 0; r < 3; r++)
+        {
+            for (int c = 0; c < 3; c++)
+                m[r, c] = sums[r + c];
+            m[r, 3] = right[r];
+        }
+
+        for (int p = 0; p < 3; p++)
+        {
+            for (int r = p + 1; r < 3; r++)
+            {
+                double factor = m[r, p] / m[p, p];
+                for (int c = p; c < 4; c++)
+                    m[r, c] -= factor * m[p, c];
+            }
+        }
+
+        var result = new double[3];
+        for (int r = 2; r >= 0; r--)
+        {
+            double value = m[r, 3];
+            for (int c = r + 1; c < 3; c++)
+                value -= m[r, c] * result[c];
+            result[r] = value / m[r, r];
+        }
+
+        return result;
+    }
+
     [Theory]
     [InlineData(0f)]
     [InlineData(30f)]
