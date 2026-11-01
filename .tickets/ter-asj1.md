@@ -21,3 +21,9 @@ For (1), call the counting wrappers from a managed thread that is not the physic
 
 Each of the three mutants fails a test on every run (or (3) is recorded as accepted with its reason). Checked and Release runs of the Physics tests pass.
 
+
+## Notes
+
+**2026-11-01T00:11:35Z**
+
+Settled (2026-10-31): (1) WhatAContactCallbackAllocatesOnAThreadOtherThanThePhysicsThreadCounts calls the counting wrappers 16384 times (1 MB of payload) from a thread that the test starts before the window and releases inside it, after 10 ticks name the live physics thread; the read is the internal StepAllocations.CountingCallbacks (internal to Tertius.Testing, no src change). (2) The Dispose test found a real bug: the counter stored the forwardTo table as the table to restore, so Dispose gave joltc the test's allocating callbacks. Fixed: the wrappers call wrappedCallbacks, and Dispose gives joltc ContactListener.Callbacks again, which the constructor now requires also with forwardTo; the copied backendCallbacks field is gone. AWorldMadeAfterACounterThatCalledOtherCallbacksHearsItsContacts was red on the old code. (3) An exact-count test was cheap, so a7 is killed, not accepted: WhatAContactCallbackAllocatesOnThePhysicsThreadCountsOnce calls the wrappers 16384 times on the physics thread through FaultInjectingBackend.EditNextOutput and bounds the window below 2 x calls x 64 bytes; an array of 64 bytes is 88 bytes, so counted once the window is about 1.44 MB and counted twice 2.88 MB, against the 2 MB bound. Hand mutations, each 5 of 5 runs killed: a1 (0 * before), a8 (Dispose without SetProcs), a8b (Dispose restores wrappedCallbacks, the old bug), a7 (== -physicsThread).

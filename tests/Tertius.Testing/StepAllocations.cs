@@ -20,8 +20,8 @@ public sealed unsafe class StepAllocations : IPhysicsBackend
     // The counter whose wrappers joltc calls. A second one would wrap the wrappers and restore the wrong table.
     private static StepAllocations? live;
 
-    // The backend's own callbacks, which the wrappers call.
-    private static ContactListenerProcs* backendCallbacks;
+    // The callbacks that the wrappers call: the backend's own, or the table that the counter was made with.
+    private static ContactListenerProcs* wrappedCallbacks;
 
     // joltc keeps the pointer to the table, so the table lives as long as the process, as the backend's does.
     private static ContactListenerProcs* countingCallbacks;
@@ -31,6 +31,9 @@ public sealed unsafe class StepAllocations : IPhysicsBackend
 
     // The managed id of the thread that runs the steps. It runs Jolt's jobs too while it waits for an update.
     private static int physicsThread;
+
+    /// <summary>The counting wrappers that joltc calls while a counter lives. Only the counter's own tests call them.</summary>
+    internal static ContactListenerProcs* CountingCallbacks => countingCallbacks;
 
     private readonly IPhysicsBackend backend;
 
@@ -53,7 +56,7 @@ public sealed unsafe class StepAllocations : IPhysicsBackend
         this.backend = backend;
         try
         {
-            WrapContactCallbacks(forwardTo is null ? BackendCallbacks() : forwardTo);
+            WrapContactCallbacks(forwardTo);
         }
         catch
         {
@@ -155,25 +158,31 @@ public sealed unsafe class StepAllocations : IPhysicsBackend
     {
         if (live == this)
         {
-            JoltNative.ContactListenerSetProcs(backendCallbacks);
+            JoltNative.ContactListenerSetProcs(BackendCallbacks());
             live = null;
         }
 
         backend.Dispose();
     }
 
-    /// <summary>Gives joltc the counting wrappers of <paramref name="callbacks"/>, the table that they then call.</summary>
-    private static void WrapContactCallbacks(ContactListenerProcs* callbacks)
+    /// <summary>
+    /// Gives joltc the counting wrappers, which then call <paramref name="forwardTo"/>, or the backend's own callbacks when
+    /// it is null.
+    /// </summary>
+    private static void WrapContactCallbacks(ContactListenerProcs* forwardTo)
     {
         if (live is not null)
             throw new InvalidOperationException(
                 "A StepAllocations already wraps joltc's contact callbacks, which serve the whole process. Dispose it first."
             );
+        // Dispose gives joltc the backend's callbacks again, so they must exist also when the wrappers call others.
+        ContactListenerProcs* backend = BackendCallbacks();
+        ContactListenerProcs* callbacks = forwardTo is null ? backend : forwardTo;
         if (callbacks->OnContactValidate != 0)
             throw new InvalidOperationException(
                 "The contact callbacks include a validate callback, which runs on Jolt's threads and which the count does not wrap."
             );
-        backendCallbacks = callbacks;
+        wrappedCallbacks = callbacks;
         if (countingCallbacks is null)
         {
             countingCallbacks = (ContactListenerProcs*)NativeMemory.AllocZeroed((nuint)sizeof(ContactListenerProcs));
@@ -215,7 +224,7 @@ public sealed unsafe class StepAllocations : IPhysicsBackend
     private static void OnContactAdded(nint userData, nint body1, nint body2, nint manifold, ContactSettings* settings)
     {
         long before = JobThreadCountBefore();
-        backendCallbacks->OnContactAdded(userData, body1, body2, manifold, settings);
+        wrappedCallbacks->OnContactAdded(userData, body1, body2, manifold, settings);
         CountJobThread(before);
     }
 
@@ -229,7 +238,7 @@ public sealed unsafe class StepAllocations : IPhysicsBackend
     )
     {
         long before = JobThreadCountBefore();
-        backendCallbacks->OnContactPersisted(userData, body1, body2, manifold, settings);
+        wrappedCallbacks->OnContactPersisted(userData, body1, body2, manifold, settings);
         CountJobThread(before);
     }
 
@@ -237,7 +246,7 @@ public sealed unsafe class StepAllocations : IPhysicsBackend
     private static void OnContactRemoved(nint userData, SubShapeIDPair* pair)
     {
         long before = JobThreadCountBefore();
-        backendCallbacks->OnContactRemoved(userData, pair);
+        wrappedCallbacks->OnContactRemoved(userData, pair);
         CountJobThread(before);
     }
 }

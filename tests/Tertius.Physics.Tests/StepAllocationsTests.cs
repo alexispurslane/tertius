@@ -26,6 +26,10 @@ public sealed unsafe class StepAllocationsTests
     // The bytes of the array that each callback of AllocatingCallbacks allocates. The array object is larger still.
     private const int CallbackPayload = 64;
 
+    // The contact callbacks that a test runs on one thread: a megabyte of payload, far more than the window's own
+    // allocations on the ticking thread.
+    private const int CallsOnAThread = 16 * Kilobyte;
+
     // A table of contact callbacks that allocate CallbackPayload bytes each and report nothing to the world. joltc reads
     // it through the counter, so it lives as long as the process, as the counter's own table does.
     private static readonly ContactListenerProcs* AllocatingCallbacks = NewAllocatingCallbacks();
@@ -127,6 +131,110 @@ public sealed unsafe class StepAllocationsTests
         long calls = Volatile.Read(ref allocatingCalls) - callsBefore;
         calls.Should().BePositive("the boxes touch the floor and each other in the window");
         bytes.Should().BeGreaterThanOrEqualTo(calls * CallbackPayload, "every contact callback allocated an array");
+    }
+
+    /// <summary>
+    /// A contact callback that a thread other than the physics thread runs counts, as one on a Jolt job thread does. The
+    /// test calls the counting wrappers from a thread of its own, so the count does not depend on where Jolt runs its
+    /// callbacks. The thread starts before the window, so that its start does not count on the ticking thread.
+    /// </summary>
+    [Fact]
+    public void WhatAContactCallbackAllocatesOnAThreadOtherThanThePhysicsThreadCounts()
+    {
+        using World world = NewWorldWithStepAllocations(
+            new JoltPhysicsBackend(JoltBackendOptions.Unpaced),
+            AllocatingCallbacks,
+            out StepAllocations steps
+        );
+        Falling(world);
+        // The steps name the physics thread, which lives as long as the world, so no thread that the test starts shares
+        // its id.
+        Tick(world, 10);
+        using var go = new ManualResetEventSlim();
+        var job = new Thread(() =>
+        {
+            go.Wait();
+            for (int i = 0; i < CallsOnAThread; i++)
+                StepAllocations.CountingCallbacks->OnContactRemoved(0, null);
+        })
+        {
+            IsBackground = true,
+        };
+        job.Start();
+        int callsBefore = Volatile.Read(ref allocatingCalls);
+
+        long bytes = steps.Bytes(() =>
+        {
+            go.Set();
+            job.Join();
+        });
+
+        (Volatile.Read(ref allocatingCalls) - callsBefore).Should().Be(CallsOnAThread);
+        bytes.Should()
+            .BeGreaterThanOrEqualTo(
+                (long)CallsOnAThread * CallbackPayload,
+                "each callback on the test's thread allocated an array"
+            );
+    }
+
+    /// <summary>
+    /// The physics thread's count of a step holds what a contact callback allocates on that thread, so the callback adds
+    /// it once, not twice. The edit of the step's output calls the counting wrappers on the physics thread, so the test
+    /// does not depend on where Jolt runs its callbacks.
+    /// </summary>
+    [Fact]
+    public void WhatAContactCallbackAllocatesOnThePhysicsThreadCountsOnce()
+    {
+        var faults = new FaultInjectingBackend(new(JoltBackendOptions.Unpaced));
+        using World world = NewWorldWithStepAllocations(faults, AllocatingCallbacks, out StepAllocations steps);
+        Falling(world);
+        Tick(world, 10);
+        faults.EditNextOutput = _ =>
+        {
+            for (int i = 0; i < CallsOnAThread; i++)
+                StepAllocations.CountingCallbacks->OnContactRemoved(0, null);
+        };
+
+        long bytes = steps.Bytes(world.Tick);
+
+        // An array of CallbackPayload bytes is larger than CallbackPayload but smaller than twice that, so the arrays
+        // counted twice reach this bound and the arrays counted once leave room for the rest of the step.
+        bytes.Should()
+            .BeGreaterThanOrEqualTo((long)CallsOnAThread * CallbackPayload)
+            .And.BeLessThan(
+                2L * CallsOnAThread * CallbackPayload,
+                "the step's count on the physics thread already holds the arrays"
+            );
+    }
+
+    /// <summary>
+    /// A disposed counter gives joltc the backend's own contact callbacks again, also when its wrappers called others, so
+    /// a world made after it hears its contacts.
+    /// </summary>
+    [Fact]
+    public void AWorldMadeAfterACounterThatCalledOtherCallbacksHearsItsContacts()
+    {
+        NewWorldWithStepAllocations(
+                new JoltPhysicsBackend(JoltBackendOptions.Unpaced),
+                AllocatingCallbacks,
+                out _
+            )
+            .Dispose();
+        using World world = NewWorldWithFaults(faults: out FaultInjectingBackend faults);
+        FrameHandle ground = Ground(world, 9.81f);
+        Floor(world, ground);
+        world.Spawn(
+            new()
+            {
+                Frame = ground,
+                Pose = At(0, 1),
+                Body = Cube(),
+            }
+        );
+
+        Tick(world, 60);
+
+        faults.Outputs.SelectMany(output => output.Contacts).Should().NotBeEmpty("the cube lands on the floor");
     }
 
     /// <summary>
