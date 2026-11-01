@@ -16,12 +16,12 @@ tags: [rendering, screen-space-light]
 
 This ticket computes the open share's light as D times the open pieces' share of the map's light. It replaces decision 42's subtraction, D(n) − M. The user called it "the obviously correct optimal approach". No other form of the fix is in scope, and the two-designs step does not apply to this choice.
 
-- The sectors pass reads the map along the open pieces as well as along the blocked pieces, with the same rule for a read's direction and lobe.
+- The sectors pass reads the map along the open pieces as well as along the blocked pieces, each along the middle of its piece, as decision 42 reads a blocked piece.
 - The open light is D(n) · S, where S = (the map's light along the open pieces) / (the map's light along all pieces). D(n) stays the irradiance at the pixel's full-resolution normal.
 - The diffuse term is c_diff · (D(n) · S + G). It needs no clamp at 0, because S lies between 0 and 1.
 - What follows from the form: an open point keeps exactly D(n), because S = 1 there. The result never goes below 0, so no pixel turns black or brown from an overshoot. A read's error appears in both sums of S, so much of it cancels. D(n) and S come from different stores of the map, but S is a ratio of reads from one store, so the two stores no longer have to agree.
 - Settled by the orchestrator inside this design: S is taken per color channel, so that the open light takes the color of the open directions. Where the map's light along all pieces is 0 in a channel, S in that channel is the open share of the cosine weight.
-- Left to this ticket's design, with the reason recorded: how the estimate stores S beside G and V (the targets carry G − M and V today), and the measured cost of the open pieces' reads.
+- Left to this ticket's design, with the reason recorded: how the estimate stores S beside G and V (the targets carry G − M and V today), the measured cost of the open pieces' reads, and the lobe width of the reads. S bounds the error and cancels part of it, but reads as sharp as decision 42's can still leave artifact 1's specks as milder noise. If they do, a lower bound on the lobe width (ter-xgra measured roughness 0.5 at about 0.01 ms) is a parameter of this form, not another form.
 - The fix updates decision 42 and "Known limits" in docs/plans/screen-space-illumination.md, and the section on the screen-space light in ARCHITECTURE.md.
 
 Found by the orchestrator on 2026-10-31, in the screenshots of ter-qsye (main cae67c5e, headless Release, 1280 x 720). Script captures/deck-fringe-2026-10-31/late.json: demo-exit, cabin camera, post LeaveShip, run 399 ticks, deck camera, run 520 ticks, capture deck-late. At that moment a bright blue light floods the deck through the opening at the upper left.
