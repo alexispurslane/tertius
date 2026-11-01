@@ -43,8 +43,8 @@ internal enum BlendMode
 }
 
 /// <summary>
-/// One color attachment of a graphics pipeline: its format, and how the pipeline's output blends into it. Two attachments
-/// of one pipeline can blend differently, which the device feature independentBlend allows.
+/// One color attachment of a graphics pipeline: its format, and how the pipeline's output blends into it. Every attachment
+/// of one pipeline blends alike: the renderer does not require the device feature independentBlend.
 /// </summary>
 internal readonly record struct ColorAttachment(Format Format, BlendMode Blend = BlendMode.None);
 

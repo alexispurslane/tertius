@@ -42,6 +42,20 @@ public sealed class ResourceUsesTests
             );
 
     [Fact]
+    public void AStorageImageInAFragmentShaderIsReadAndWrittenInTheGeneralLayoutOfTheFragmentStage()
+    {
+        // The ambient pass adds to the diffuse image that the direct pass drew, and the scatter rows read it after.
+        ResourceState storage = ResourceUses.Describe(ImageUse.StorageFragment);
+
+        storage.Layout.Should().Be(ImageLayout.General, "Vulkan reads and writes storage images only in General");
+        storage.Stages.Should().Be(PipelineStageFlags2.FragmentShaderBit);
+        storage
+            .Access.Should()
+            .HaveFlag(AccessFlags2.ShaderStorageReadBit)
+            .And.HaveFlag(AccessFlags2.ShaderStorageWriteBit);
+    }
+
+    [Fact]
     public void ASampledReadOfAStorageImageInAComputeShaderStaysInTheGeneralLayout()
     {
         ResourceState sampled = ResourceUses.Describe(ImageUse.SampledComputeGeneral);

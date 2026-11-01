@@ -57,7 +57,8 @@ namespace Tertius.Rendering;
 /// compute stage (docs/plans/skinning-and-morphs.md, "The pass"). One per frame in flight.</description></item>
 /// </list>
 /// Every pass that draws meshes or reads the G-buffer uses <see cref="SceneLayout"/>, so sets 0 and 1 stay bound
-/// across pipeline changes. <see cref="ImpostorLayout"/> adds set 3 and is compatible with it for sets 0 to 2. The
+/// across pipeline changes. <see cref="ImpostorLayout"/> and <see cref="AmbientScatterLayout"/> add set 3 and are
+/// compatible with it for sets 0 to 2. The
 /// compute layouts of the reflections, <see cref="PyramidLayout"/> and <see cref="ReflectionLayout"/>, and of the
 /// occlusion, <see cref="OcclusionLayout"/>, and of the skin scatter, <see cref="ScatterLayout"/>, take sets 0 to 2 too, whose bindings that their shaders read include the
 /// compute stage (docs/plans/screen-space-reflections.md, "Descriptor sets").
@@ -132,6 +133,11 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         ReadOnlySpan<DescriptorSetLayout> sceneSets = [FrameSet, TextureSet, GBufferSet, AtlasSet];
         SceneLayout = CreatePipelineLayout(sets: sceneSets[..3], push: drawPush, name: "scene layout");
         ImpostorLayout = CreatePipelineLayout(sets: sceneSets, push: drawPush, name: "impostor layout");
+        AmbientScatterLayout = CreatePipelineLayout(
+            sets: [FrameSet, TextureSet, GBufferSet, ScatterSet],
+            push: drawPush,
+            name: "ambient scatter layout"
+        );
         OverlayLayout = CreatePipelineLayout(
             sets: sceneSets[..3],
             push: new(ShaderStageFlags.FragmentBit, 0, (uint)Unsafe.SizeOf<OutlinePushConstants>()),
@@ -241,6 +247,13 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     public PipelineLayout ImpostorLayout { get; }
 
     /// <summary>
+    /// <see cref="SceneLayout"/> plus the scatter set as set 3, for the ambient pass under the skin scatter, which adds to
+    /// the diffuse image at skin pixels. Compatible with <see cref="SceneLayout"/> for sets 0 to 2, as
+    /// <see cref="ImpostorLayout"/> is.
+    /// </summary>
+    public PipelineLayout AmbientScatterLayout { get; }
+
+    /// <summary>
     /// Sets 0 to 2, as in <see cref="SceneLayout"/>, plus <see cref="OutlinePushConstants"/> for the fragment stage, for
     /// the outline pass. Its push constants differ, so it is not compatible with <see cref="SceneLayout"/>: the pass binds
     /// the scene sets again with it.
@@ -309,7 +322,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     public PipelineLayout ReflectionLayout { get; }
 
     /// <summary>
-    /// Set 3 of <see cref="ScatterLayout"/>: the diffuse image, the row image and the HDR image as storage images (bindings 0
+    /// Set 3 of <see cref="ScatterLayout"/> and <see cref="AmbientScatterLayout"/>: the diffuse image, the row image and the HDR image as storage images (bindings 0
     /// to 2), and the kernel as a uniform buffer (binding 3) (Shaders/skin_scatter.glsl).
     /// </summary>
     public DescriptorSetLayout ScatterSet { get; }
@@ -878,12 +891,20 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         return CreateLayout(bindings: bindings, name: "deform set");
     }
 
-    /// <summary>The layout of the scatter set: three storage images and the kernel's uniform buffer, for the compute stage.</summary>
+    /// <summary>
+    /// The layout of the scatter set: three storage images and the kernel's uniform buffer, for the compute stage. The
+    /// diffuse image, binding 0, is also for the fragment stage, where the ambient pass adds to it.
+    /// </summary>
     private DescriptorSetLayout CreateScatterSetLayout()
     {
         Span<DescriptorSetLayoutBinding> scatter =
         [
-            StorageImage(binding: 0),
+            new(
+                binding: 0,
+                descriptorType: DescriptorType.StorageImage,
+                descriptorCount: 1,
+                stageFlags: ShaderStageFlags.FragmentBit | ShaderStageFlags.ComputeBit
+            ),
             StorageImage(binding: 1),
             StorageImage(binding: 2),
             new(
@@ -1221,6 +1242,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         vk.DestroyDescriptorPool(device.Device, texturePool, null);
         vk.DestroyPipelineLayout(device.Device, SceneLayout, null);
         vk.DestroyPipelineLayout(device.Device, ImpostorLayout, null);
+        vk.DestroyPipelineLayout(device.Device, AmbientScatterLayout, null);
         vk.DestroyPipelineLayout(device.Device, PostLayout, null);
         vk.DestroyPipelineLayout(device.Device, OverlayLayout, null);
         vk.DestroyPipelineLayout(device.Device, BloomLayout, null);

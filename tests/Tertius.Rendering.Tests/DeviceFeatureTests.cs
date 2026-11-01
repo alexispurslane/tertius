@@ -14,7 +14,7 @@ public sealed class DeviceFeatureTests
         DrawIndirectFirstInstance = true,
         DepthClamp = true,
         DualSrcBlend = true,
-        IndependentBlend = true,
+        FragmentStoresAndAtomics = true,
         SamplerAnisotropy = true,
         ShaderStorageImageExtendedFormats = true,
         ImageCubeArray = true,
@@ -62,16 +62,16 @@ public sealed class DeviceFeatureTests
     }
 
     [Fact]
-    public void TheDeviceRequiresIndependentBlend()
+    public void TheDeviceRequiresStoresInTheFragmentStage()
     {
-        // The ambient pass adds its share of the skin's diffuse light to the scatter image and writes the HDR image with
-        // no blend: two blend states in one pipeline (docs/plans/skin-and-hair.md, decision 14).
+        // Under the skin scatter, the ambient pass adds D's ambient part to the diffuse image with a storage write at skin
+        // pixels alone (docs/plans/skin-and-hair.md, decision 14).
         PhysicalDeviceFeatures withoutIt = Core with
         {
-            IndependentBlend = false,
+            FragmentStoresAndAtomics = false,
         };
 
-        VulkanDevice.MissingFeature(withoutIt, Vulkan12, Vulkan13).Should().Be("independentBlend");
+        VulkanDevice.MissingFeature(withoutIt, Vulkan12, Vulkan13).Should().Be("fragmentStoresAndAtomics");
     }
 
     [Fact]

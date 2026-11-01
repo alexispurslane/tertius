@@ -72,14 +72,19 @@ internal sealed class FrameContext
     /// 0 to 2 and the pass's own <paramref name="passSet"/> as set 3, through <paramref name="layout"/>, whose first three
     /// sets must be those of <see cref="DescriptorLayouts.SceneLayout"/>.
     /// </summary>
-    public unsafe void BeginComputePass(Pipeline pipeline, PipelineLayout layout, DescriptorSet passSet)
+    public void BeginComputePass(Pipeline pipeline, PipelineLayout layout, DescriptorSet passSet)
     {
         Barriers.Flush(Vk, CommandBuffer);
         Vk.CmdBindPipeline(CommandBuffer, PipelineBindPoint.Compute, pipeline);
         BindSceneSets(PipelineBindPoint.Compute, layout);
+        BindPassSet(PipelineBindPoint.Compute, layout, passSet);
+    }
+
+    /// <summary>Binds a pass's own <paramref name="passSet"/> as set 3 at <paramref name="bindPoint"/> through <paramref name="layout"/>.</summary>
+    private unsafe void BindPassSet(PipelineBindPoint bindPoint, PipelineLayout layout, DescriptorSet passSet) =>
         Vk.CmdBindDescriptorSets(
             commandBuffer: CommandBuffer,
-            pipelineBindPoint: PipelineBindPoint.Compute,
+            pipelineBindPoint: bindPoint,
             layout: layout,
             firstSet: 3,
             descriptorSetCount: 1,
@@ -87,7 +92,6 @@ internal sealed class FrameContext
             dynamicOffsetCount: 0,
             pDynamicOffsets: null
         );
-    }
 
     /// <summary>
     /// Begins rendering into <paramref name="target"/> alone, binds a full-screen <paramref name="pipeline"/> with its one
@@ -128,6 +132,27 @@ internal sealed class FrameContext
         BeginRenderingInto(targets);
         Vk.CmdBindPipeline(CommandBuffer, PipelineBindPoint.Graphics, pipeline);
         BindSceneSets();
+        SetFullViewport();
+        Vk.CmdDraw(commandBuffer: CommandBuffer, vertexCount: 3, instanceCount: 1, firstVertex: 0, firstInstance: 0);
+        Vk.CmdEndRendering(CommandBuffer);
+    }
+
+    /// <summary>
+    /// Draws one full-screen triangle of <paramref name="pipeline"/> as the overload above does, through
+    /// <paramref name="layout"/>, whose first three sets are those of <see cref="DescriptorLayouts.SceneLayout"/>, with the
+    /// pass's own <paramref name="passSet"/> as set 3.
+    /// </summary>
+    public void DrawSceneFullScreen(
+        Pipeline pipeline,
+        PipelineLayout layout,
+        DescriptorSet passSet,
+        ReadOnlySpan<(GpuImage Image, AttachmentLoadOp LoadOp)> targets
+    )
+    {
+        BeginRenderingInto(targets);
+        Vk.CmdBindPipeline(CommandBuffer, PipelineBindPoint.Graphics, pipeline);
+        BindSceneSets(PipelineBindPoint.Graphics, layout);
+        BindPassSet(PipelineBindPoint.Graphics, layout, passSet);
         SetFullViewport();
         Vk.CmdDraw(commandBuffer: CommandBuffer, vertexCount: 3, instanceCount: 1, firstVertex: 0, firstInstance: 0);
         Vk.CmdEndRendering(CommandBuffer);

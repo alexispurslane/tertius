@@ -1961,7 +1961,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 shaders: shaders,
                 layouts: layouts,
                 constants: ShadingConstants,
-                scatter: ScatterImages is not null
+                scatter: ScatterImages
             )
         );
     }

@@ -42,7 +42,7 @@ public sealed class AmbientSkipsTests
                 Bloom = new NoBloom(),
                 EnvironmentMap = SceneEnvironmentMap.Default with { FaceSize = 64 },
                 // The scene has no skin, so the scatter changes no pixel: under it, the pass draws from
-                // ambient_scatter.frag, which also adds to the scatter image, and without it from ambient.frag.
+                // ambient_scatter.frag, which also adds to the diffuse image at skin, and without it from ambient.frag.
                 Subsurface = scatter ? SeparableSubsurface.Default : new NoSubsurface(),
             }
         );
@@ -104,7 +104,7 @@ public sealed class AmbientSkipsTests
                 renderer.Graph.Skipped.Add("ambient light");
                 renderer.Graph.Add(
                     FrameGraph.Stage.AmbientLight,
-                    new EveryTermAmbientPass(scatter: renderer.ScatterImages is not null)
+                    new EveryTermAmbientPass(scatter: renderer.ScatterImages)
                 );
             }
 
@@ -142,8 +142,8 @@ public sealed class AmbientSkipsTests
     /// The ambient pass with the shaders of this project's build, which computes every term: an
     /// <see cref="AmbientLightPass"/> under another name, made at its first frame from the frame's device and layouts.
     /// </summary>
-    /// <param name="scatter">True under the skin scatter.</param>
-    private sealed class EveryTermAmbientPass(bool scatter) : RenderPass
+    /// <param name="scatter">The renderer's scatter images under the skin scatter, else null.</param>
+    private sealed class EveryTermAmbientPass(ScatterImages? scatter) : RenderPass
     {
         private ShaderLibrary? shaders;
         private AmbientLightPass? pass;

@@ -39,6 +39,9 @@ internal enum ImageUse
     /// </summary>
     StorageCompute,
 
+    /// <summary>Read and written as a storage image in a fragment shader, as the ambient pass adds to the diffuse image.</summary>
+    StorageFragment,
+
     /// <summary>Sampled or fetched in a compute shader in the General layout, as the trace reads the pyramids.</summary>
     SampledComputeGeneral,
     TransferSource,
@@ -124,6 +127,11 @@ internal static class ResourceUses
                 AccessFlags2.ShaderStorageReadBit
                     | AccessFlags2.ShaderStorageWriteBit
                     | AccessFlags2.ShaderSampledReadBit
+            ),
+            ImageUse.StorageFragment => new(
+                ImageLayout.General,
+                PipelineStageFlags2.FragmentShaderBit,
+                AccessFlags2.ShaderStorageReadBit | AccessFlags2.ShaderStorageWriteBit
             ),
             ImageUse.SampledComputeGeneral => new(
                 ImageLayout.General,
