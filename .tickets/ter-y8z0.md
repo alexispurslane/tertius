@@ -24,3 +24,7 @@ A ticket note lists every artifact found, with its crop, its stage, the probe ev
 **2026-11-01T17:30:42Z**
 
 2026-11-01, from ter-xgra's review: structures that also show with the screen-space light off, so they probably belong to the reflections: bright dotted specks along the far creases of the floor and chute films, and sawtooth reflections on the floors of brake-run and floor. Not confirmed. ter-xgra's light-off gallery (captures/xgra/ssl-off after the merge) shows them.
+
+**2026-11-01T22:22:21Z**
+
+Workflow run 0cd4b11b-6ebb-4b1a-b696-3a52fe65aef0, version 869b0b07, branch ter-y8z0-reflections-diagnosis, base bd13d8c9 (main after the ter-rjts merge).
