@@ -1,8 +1,8 @@
 ---
 id: ter-u63a
-status: in_progress
+status: closed
 deps: []
-links: []
+links: [ter-hxca]
 created: 2026-11-01T16:19:40Z
 type: task
 priority: 2
@@ -31,3 +31,7 @@ Result in the spans: 76 mutants. 11 Killed, 65 Timeout, 2 RuntimeError, 0 Surviv
 Against the hand mutations on the same code (27 mutants, 25 killed, 37 min, about 140k tokens of one agent): Stryker mutates no GLSL, so it could not make the 15 shader mutants, which include both hand survivors (the writePixel guard and the insideHalf guard). Of the C# lines, the 11 real kills are the blend refusal in GraphicsPipelineDesc and the fragment-stores feature check in VulkanDevice, which the hand table also killed. Orchestrator tokens for the trial were not measured exactly; the scratch project, the stopped run and this triage took several orchestrator turns.
 
 Recommendation: do not use Stryker in place of hand mutations for Rendering. Its GPU tests are slow and depend on the load, so most mutants end as timeouts, and the shaders, where most of the risk is, stay out of reach. Stryker on changed lines stays useful for Core, Simulation and Physics, whose tests are fast and CPU-only. A rerun on a quiet machine with a larger additional timeout can settle the 65 timeouts, at about 20 to 40 min of machine time. The user decides.
+
+**2026-11-01T23:57:17Z**
+
+The user's decision (2026-11-01, after the trial note above): the rendering tickets' hardening keeps mutants that the agent chooses, for C# and GLSL alike, but a new batch script runs them, so the agent writes one list, runs one command and triages the survivors, instead of 3 to 5 tool calls per mutant. Work that is not rendering uses Stryker on its changed lines (tools/stryker). The script is ticket ter-hxca.
