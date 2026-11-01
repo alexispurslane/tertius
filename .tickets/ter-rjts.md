@@ -25,3 +25,7 @@ The four passes' own busy time on demo-exit (a trace of every frame, two runs or
 **2026-11-01T02:17:05Z**
 
 2026-10-31: workflow run 338f0bac-7500-4f84-818a-237a8c030ca5 (version 869b0b07), branch ter-rjts-reflections-share from ef3b6ae5. Settled by the orchestrator before the launch: a change keeps the image when no pixel of the comparison captures differs by more than 2 of 255 levels in any channel of the final 8-bit image; a larger change is a default change, which ter-3g1g takes to the user with captures.
+
+**2026-11-01T18:30:34Z**
+
+2026-11-01: workflow run fca26158 ended with done=false at f8e3cf5e on one fork: the cause of unbelt (1043, 670) under condition 2. The orchestrator ruled that change 1 keeps the image (ruling on ter-pq5y of the same day), so the ticket goes to hardening and the merge. The fix stage kept change 4 (the radiance pyramid's downsample through shared memory, about 0.22 ms less, captures byte-identical) and dropped change 5 (the small mips' tail fails condition 2 under SMAA). Final traces: the four passes 2.819 and 2.720 ms against the share of 2.585 ms (4.090 before). The candidate default changes for ter-3g1g stay as noted: no own rays at outlines (1.061 ms), MaxSteps 128 (about 0.14 ms), the radiance tail (0.003 ms).
