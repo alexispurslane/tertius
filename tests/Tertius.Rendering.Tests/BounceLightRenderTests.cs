@@ -444,10 +444,9 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
                 .Select(BitConverter.SingleToUInt32Bits)
                 .Should()
                 .Equal(viewDepth.Select(BitConverter.SingleToUInt32Bits), "the copy holds the view depth's bits");
-            // The spec lets a driver round a float to SNORM16 other than to the nearest value, so the stored k / 32767
-            // may come back one step off (ARCHITECTURE.md, "Portable Vulkan").
-            const float snormStep = 1f / 32767;
-            normalCopy.Should().Equal(normalAtTexels, (copy, pixel) => Math.Abs(copy - pixel) <= snormStep * 1.01f);
+            // k / 32767 times 32767 lies within 10^-2 of k, so packSnorm2x16's round to nearest stores k on every driver
+            // (ARCHITECTURE.md, "Portable Vulkan").
+            normalCopy.Should().Equal(normalAtTexels, "packSnorm2x16 gives back the normals target's SNORM16 values");
         }
         finally
         {

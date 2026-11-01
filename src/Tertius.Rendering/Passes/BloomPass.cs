@@ -147,7 +147,8 @@ internal sealed unsafe class BloomPass : RenderPass
             VertexShader = "fullscreen.vert",
             FragmentShader = fragmentShader,
             Layout = layouts.BloomLayout,
-            ColorAttachments = [new(RenderTargets.HdrFormat, blend)],
+            ColorFormats = [RenderTargets.HdrFormat],
+            Blend = blend,
             CullMode = CullModeFlags.None,
         }.Create(device, shaders);
 

@@ -1313,7 +1313,6 @@ public sealed unsafe class VulkanRenderer : IRenderer
             // Each word comes back as the bits of a float, which its hook takes apart.
             Format.R32G32Uint => (2, StoredChannel.Float),
             Format.R16G16B16A16SNorm => (4, StoredChannel.Snorm16),
-            Format.R16G16SNorm => (2, StoredChannel.Snorm16),
             Format.R8G8B8A8Uint => (4, StoredChannel.Uint8),
             _ => throw new ArgumentException(
                 $"{image.Name} has the format {image.Format}, which no hook reads.",

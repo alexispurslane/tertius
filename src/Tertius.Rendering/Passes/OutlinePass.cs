@@ -76,7 +76,8 @@ internal sealed class OutlinePass : RenderPass
             VertexShader = "outline.vert",
             FragmentShader = "outline.frag",
             Layout = layouts.OverlayLayout,
-            ColorAttachments = [new(outputFormat, BlendMode.Alpha)],
+            ColorFormats = [outputFormat],
+            Blend = BlendMode.Alpha,
             VertexInput = VertexInput.None,
             // A quad faces either way, by the direction of its segment on the screen.
             CullMode = CullModeFlags.None,

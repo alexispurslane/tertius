@@ -15,7 +15,7 @@ public sealed class SidedPipelineTests
         VertexShader = "mesh.vert",
         FragmentShader = "transparent.frag",
         Layout = default,
-        ColorAttachments = [new(Format.R16G16B16A16Sfloat)],
+        ColorFormats = [Format.R16G16B16A16Sfloat],
         Constants = new ShaderConstants(EnvironmentMap: true) { CutoutAlpha = true },
     };
 

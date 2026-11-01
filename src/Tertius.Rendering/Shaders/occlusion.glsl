@@ -104,8 +104,16 @@ uint cardAt(ivec2 pixel)
     return cardOfWords(shading.b, shading.a);
 }
 
-// The depth pass's copy of a half-resolution texel inside the image, its view depth and its representative pixel's
-// geometric normal in one texel, which a near step reads in one load.
+// Writes the depth pass's copy of a half-resolution texel: the view depth z and the octahedral geometric normal of its
+// representative pixel, as the normals target's ba holds it, in one texel, which a near step reads in one load. x holds
+// z's bits, and y the normal as packSnorm2x16 packs it. The copy is exact: the normal's components are SNORM16 values
+// k / 32767, and their product with 32767 lies within 10^-2 of k, so packSnorm2x16's round to nearest gives back k.
+void storeDepthAndNormal(ivec2 texel, float z, vec2 octahedralNormal)
+{
+    imageStore(occlusionDepthAndNormal, texel, uvec4(floatBitsToUint(z), packSnorm2x16(octahedralNormal), 0u, 0u));
+}
+
+// The depth pass's copy of a half-resolution texel inside the image (storeDepthAndNormal).
 uvec2 depthAndNormalAt(ivec2 texel)
 {
     return imageLoad(occlusionDepthAndNormal, texel).xy;

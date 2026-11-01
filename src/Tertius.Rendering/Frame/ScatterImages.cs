@@ -65,7 +65,12 @@ internal sealed unsafe class ScatterImages : IDisposable
     /// <summary>The kernel's uniform block, a <see cref="GpuScatterKernel"/>.</summary>
     public GpuBuffer Kernel { get; }
 
-    /// <summary>Set 3 of <see cref="DescriptorLayouts.ScatterLayout"/>, with the targets' HDR image.</summary>
+    /// <summary>
+    /// Set 3 of <see cref="DescriptorLayouts.ScatterLayout"/> and of <see cref="DescriptorLayouts.AmbientScatterLayout"/>,
+    /// with the targets' HDR image. The ambient pass binds it while the HDR image is its color attachment, in the
+    /// <c>ColorAttachmentOptimal</c> layout. That is legal only because ambient_scatter.frag uses binding 0 alone: a
+    /// shader that statically uses binding 1 or 2 there needs those images in the General layout.
+    /// </summary>
     public DescriptorSet Set { get; }
 
     /// <summary>Recreates the images at the targets' size and rewrites the set. The device must be idle.</summary>

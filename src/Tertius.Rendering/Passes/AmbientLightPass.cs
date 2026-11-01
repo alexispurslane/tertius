@@ -38,7 +38,7 @@ internal sealed unsafe class AmbientLightPass : RenderPass
             VertexShader = "lighting.vert",
             FragmentShader = scatter is null ? "ambient.frag" : "ambient_scatter.frag",
             Layout = scatter is null ? layouts.SceneLayout : layouts.AmbientScatterLayout,
-            ColorAttachments = [new(RenderTargets.HdrFormat)],
+            ColorFormats = [RenderTargets.HdrFormat],
             CullMode = CullModeFlags.None,
             Constants = constants,
         }.Create(device, shaders);

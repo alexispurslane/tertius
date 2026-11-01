@@ -29,9 +29,9 @@ internal sealed unsafe class DirectLightPass : RenderPass
             VertexShader = "lighting.vert",
             FragmentShader = diffuse ? "direct_diffuse.frag" : "direct.frag",
             Layout = layouts.SceneLayout,
-            ColorAttachments = diffuse
-                ? [new(RenderTargets.DirectFormat), new(RenderTargets.DiffuseFormat)]
-                : [new(RenderTargets.DirectFormat)],
+            ColorFormats = diffuse
+                ? [RenderTargets.DirectFormat, RenderTargets.DiffuseFormat]
+                : [RenderTargets.DirectFormat],
             CullMode = CullModeFlags.None,
             Constants = constants,
         }.Create(device, shaders);

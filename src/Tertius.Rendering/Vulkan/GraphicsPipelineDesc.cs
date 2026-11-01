@@ -43,12 +43,6 @@ internal enum BlendMode
 }
 
 /// <summary>
-/// One color attachment of a graphics pipeline: its format, and how the pipeline's output blends into it. Every attachment
-/// of one pipeline blends alike: the renderer does not require the device feature independentBlend.
-/// </summary>
-internal readonly record struct ColorAttachment(Format Format, BlendMode Blend = BlendMode.None);
-
-/// <summary>
 /// Everything that differs between the engine's graphics pipelines. All of them use dynamic rendering, a dynamic
 /// viewport and scissor, and read vertices as <see cref="VertexInput"/> says.
 /// </summary>
@@ -62,8 +56,15 @@ internal sealed record GraphicsPipelineDesc
 
     public required PipelineLayout Layout { get; init; }
 
-    /// <summary>The color attachments in the order of the fragment shader's outputs: empty for a depth-only pipeline.</summary>
-    public required ColorAttachment[] ColorAttachments { get; init; }
+    /// <summary>The formats of the color attachments in the order of the fragment shader's outputs: empty for a depth-only pipeline.</summary>
+    public required Format[] ColorFormats { get; init; }
+
+    /// <summary>
+    /// How the pipeline's output blends into each of its color attachments. One blend for all of them: the renderer does
+    /// not require the device feature independentBlend, without which every attachment's blend state must be the same.
+    /// </summary>
+    public BlendMode Blend { get; init; }
+
     public Format DepthFormat { get; init; } = Format.Undefined;
     public VertexInput VertexInput { get; init; }
     public bool DepthTest { get; init; }
@@ -101,13 +102,12 @@ internal sealed record GraphicsPipelineDesc
     /// </summary>
     private void RefuseBlendIntoAnInteger()
     {
-        foreach (ColorAttachment attachment in ColorAttachments)
+        if (Blend == BlendMode.None)
+            return;
+        foreach (Format format in ColorFormats)
         {
-            bool blendsAnInteger = attachment.Blend != BlendMode.None && IsInteger(attachment.Format);
-            if (blendsAnInteger)
-                throw new ArgumentException(
-                    $"The pipeline {Name} blends into an attachment of {attachment.Format}, an integer format."
-                );
+            if (IsInteger(format))
+                throw new ArgumentException($"The pipeline {Name} blends into an attachment of {format}, an integer format.");
         }
     }
 
@@ -199,7 +199,7 @@ internal sealed record GraphicsPipelineDesc
         PipelineDepthStencilStateCreateInfo depthStencil = DepthStencilState();
 
         PipelineColorBlendAttachmentState* blends =
-            stackalloc PipelineColorBlendAttachmentState[Math.Max(ColorAttachments.Length, 1)];
+            stackalloc PipelineColorBlendAttachmentState[Math.Max(ColorFormats.Length, 1)];
         PipelineColorBlendStateCreateInfo colorBlend = ColorBlendState(blends);
         DynamicState* dynamicStates = stackalloc DynamicState[] { DynamicState.Viewport, DynamicState.Scissor };
         var dynamic = new PipelineDynamicStateCreateInfo
@@ -229,18 +229,18 @@ internal sealed record GraphicsPipelineDesc
 
     /// <summary>
     /// Creates the pipeline that <paramref name="info"/> describes, for dynamic rendering into
-    /// <see cref="ColorAttachments"/> and <see cref="DepthFormat"/>, and names it.
+    /// <see cref="ColorFormats"/> and <see cref="DepthFormat"/>, and names it.
     /// </summary>
     private unsafe Pipeline CreateForRendering(VulkanDevice device, GraphicsPipelineCreateInfo info)
     {
-        Format* colorFormats = stackalloc Format[Math.Max(ColorAttachments.Length, 1)];
-        for (int i = 0; i < ColorAttachments.Length; i++)
-            colorFormats[i] = ColorAttachments[i].Format;
+        Format* colorFormats = stackalloc Format[Math.Max(ColorFormats.Length, 1)];
+        for (int i = 0; i < ColorFormats.Length; i++)
+            colorFormats[i] = ColorFormats[i];
 
         var rendering = new PipelineRenderingCreateInfo
         {
             SType = StructureType.PipelineRenderingCreateInfo,
-            ColorAttachmentCount = (uint)ColorAttachments.Length,
+            ColorAttachmentCount = (uint)ColorFormats.Length,
             PColorAttachmentFormats = colorFormats,
             DepthAttachmentFormat = DepthFormat,
             StencilAttachmentFormat = Format.Undefined,
@@ -345,17 +345,17 @@ internal sealed record GraphicsPipelineDesc
         };
 
     /// <summary>
-    /// The color blend state: the blend of each color attachment, written into <paramref name="blends"/> (room for at
-    /// least one).
+    /// The color blend state: <see cref="Blend"/> for each color attachment, written into <paramref name="blends"/> (room
+    /// for at least one).
     /// </summary>
     private unsafe PipelineColorBlendStateCreateInfo ColorBlendState(PipelineColorBlendAttachmentState* blends)
     {
-        for (int i = 0; i < ColorAttachments.Length; i++)
-            blends[i] = BlendState(ColorAttachments[i].Blend);
+        for (int i = 0; i < ColorFormats.Length; i++)
+            blends[i] = BlendState(Blend);
         return new PipelineColorBlendStateCreateInfo
         {
             SType = StructureType.PipelineColorBlendStateCreateInfo,
-            AttachmentCount = (uint)ColorAttachments.Length,
+            AttachmentCount = (uint)ColorFormats.Length,
             PAttachments = blends,
         };
     }

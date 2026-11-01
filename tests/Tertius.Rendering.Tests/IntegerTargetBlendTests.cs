@@ -28,7 +28,8 @@ public sealed class IntegerTargetBlendTests
                 VertexShader = "none.vert",
                 FragmentShader = "none.frag",
                 Layout = default,
-                ColorAttachments = [new(Format.R16G16B16A16Sfloat, blend), new(integerFormat, blend)],
+                ColorFormats = [Format.R16G16B16A16Sfloat, integerFormat],
+                Blend = blend,
             };
 
             Action create = () => desc.Create(device, shaders);
