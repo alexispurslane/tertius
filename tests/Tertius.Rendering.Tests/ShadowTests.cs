@@ -1091,8 +1091,8 @@ public sealed class ShadowTests
     /// </summary>
     private static void AssertSunlitSideUnchanged(VulkanRenderer renderer, Kit kit)
     {
-        // A receiver-plane bias that also extrapolated downhill would let the kernel find the wall there and darken
-        // several meters of it.
+        // No bias or filter part may darken lit ground in front of a sunlit face, here in the coarse last cascade too,
+        // where a texel spans meters.
         Quaternion high = Gpu.PitchDown(25f * MathF.PI / 180f);
         const float leftWall = -8f;
         (Capture side, Capture sideReference) = RenderSeams(

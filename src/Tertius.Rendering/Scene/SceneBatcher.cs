@@ -1334,6 +1334,9 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
                 z: camera.PixelAngle,
                 w: 0f
             ),
+            // The normal offset holds for the cascades and the tiles alike, so it is set in every frame, also in one
+            // without cascades. The shadow pass fills in the rest when it draws the cascades.
+            ShadowParams = new(x: 0f, y: ShadowPass.NormalOffsetTexels, z: 0f, w: 0f),
             // The shadow pass fills in the cascades when it draws them.
             Counts = new(
                 X: (uint)scene.LightCount,

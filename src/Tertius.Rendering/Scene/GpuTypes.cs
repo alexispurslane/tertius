@@ -424,7 +424,10 @@ internal struct GpuFrameConstants
     /// <summary>The world size of one shadow map texel in each cascade, the same for every set.</summary>
     public Vector4 ShadowTexel;
 
-    /// <summary>x: 1 / map size; y: normal offset in texels; z: constant depth bias; w: unused.</summary>
+    /// <summary>
+    /// x: 1 / map size; y: normal offset in texels, written in every frame for the cascades and the tiles; z: constant
+    /// depth bias; w: unused.
+    /// </summary>
     public Vector4 ShadowParams;
 
     /// <summary>The root frame's axes in world axes, interpolated, as a quaternion (x, y, z, w). The star field is fixed to them.</summary>

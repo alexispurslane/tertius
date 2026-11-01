@@ -138,8 +138,8 @@ DirectTerms respond(bool fiber, ShadingInput s, SurfaceLobes lobes, vec3 V, vec3
 // Whether a light from L reaches the point at all, before its shadows: a fiber takes light from every side, a surface
 // only from the side that both its normals face. geometricNdotL is the cosine of s.geometricNormal with L. A normal map
 // can tilt the shading normal toward a light on a surface that itself faces away; that surface is in its own shadow.
-// `fiber` as in respond. modelLight relies on the surface's rule: it passes a surface's geometric normal and cosine to
-// the shadow lookups unturned, which lightVisibility takes only facing the light.
+// `fiber` as in respond. modelLight relies on the surface's rule: it passes a surface's geometric normal to the shadow
+// lookups unturned, which lightVisibility takes only facing the light.
 bool takesLight(bool fiber, ShadingInput s, vec3 L, float geometricNdotL)
 {
     return fiber || (dot(s.normal, L) > 0.0 && geometricNdotL > 0.0);
@@ -182,16 +182,16 @@ vec3 lightIrradiance(uint index, bool tinted, vec3 position, out vec3 L, out flo
 
 // The share of `light` that its shadow slot lets through at `position`, by the rule of shadowMaps. L is the unit
 // direction toward the light and d its distance. geometricNormal is the surface that the shadow maps see, turned toward
-// the light, and geometricNdotL its cosine with L, which must be positive, or 0 for a hair card edge-on to the light.
+// the light, and sinTheta the sine of its angle with L: 1 for a hair card edge-on to the light.
 // The impostor capture, ShadowMapsNone, takes the far shadows alone with weight 1, and no tiles.
-float lightVisibility(GpuLight light, vec3 position, vec3 L, float d, vec3 geometricNormal, float geometricNdotL,
+float lightVisibility(GpuLight light, vec3 position, vec3 L, float d, vec3 geometricNormal, float sinTheta,
     uint shadowMaps)
 {
     uint slot = light.shadow.x;
     if (slot == NoSlot)
         return 1.0;
     if (slot == AtlasTilesSlot)
-        return shadowMaps == ShadowMapsNone ? 1.0 : tileShadow(light, position, L, d, geometricNormal, geometricNdotL);
+        return shadowMaps == ShadowMapsNone ? 1.0 : tileShadow(light, position, L, d, geometricNormal, sinTheta);
     // asin(min(R / d, 1)), the exact angle of a sphere, also inside it; the floor of d keeps the division finite.
     float angularRadius = asin(min(light.spotRadius.y / max(d, 1e-6), 1.0));
     if (slot == FarShadowsOnlySlot || shadowMaps == ShadowMapsNone)
@@ -201,12 +201,12 @@ float lightVisibility(GpuLight light, vec3 position, vec3 L, float d, vec3 geome
     {
         float visibility = farShadowVisibility(position, L, angularRadius, light.occluders, beyondShadowMaps(position));
         if (visibility > 0.0)
-            visibility *= cascadeShadow(set, position, geometricNormal, geometricNdotL);
+            visibility *= cascadeShadow(set, position, geometricNormal, sinTheta);
         return visibility;
     }
     float visibility = farShadowVisibility(position, L, angularRadius, light.occluders, beyondShadowMapsHolding(set, position));
     if (visibility > 0.0)
-        visibility *= cascadeShadowHolding(set, position, geometricNormal, geometricNdotL);
+        visibility *= cascadeShadowHolding(set, position, geometricNormal, sinTheta);
     return visibility;
 }
 
@@ -331,10 +331,11 @@ DirectTerms modelLight(
         float geometricNdotL = dot(s.geometricNormal, L);
         if (irradiance == vec3(0.0) || !takesLight(fiber, s, L, geometricNdotL))
             continue;
-        // A surface's geometric normal faces every light that it takes (takesLight), so only a fiber's turns.
+        // A surface's geometric normal faces every light that it takes (takesLight), so only a fiber's turns. The sine
+        // of the angle to the light is the same on both sides of a card.
         vec3 shadowNormal = fiber && geometricNdotL < 0.0 ? -s.geometricNormal : s.geometricNormal;
-        float visibility = lightVisibility(
-            light, position, L, d, shadowNormal, fiber ? abs(geometricNdotL) : geometricNdotL, shadowMaps);
+        float sinTheta = sqrt(max(1.0 - geometricNdotL * geometricNdotL, 0.0));
+        float visibility = lightVisibility(light, position, L, d, shadowNormal, sinTheta, shadowMaps);
         if (visibility > 0.0)
         {
             DirectTerms terms = respond(fiber, s, lobes, V, L);
@@ -437,7 +438,7 @@ vec3 scatteredLight(vec3 albedo, vec3 position, uint map)
         // nothing either, by its dot(N, L) of 0.
         if (incoming == vec3(0.0) || d == 0.0)
             continue;
-        irradiance += incoming * lightVisibility(light, position, L, d, L, 1.0, ShadowMapsMainView);
+        irradiance += incoming * lightVisibility(light, position, L, d, L, 0.0, ShadowMapsMainView);
     }
     return albedo * (meanAmbient + irradiance * (1.0 / (4.0 * PI)));
 }

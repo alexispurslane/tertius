@@ -31,13 +31,19 @@ internal sealed unsafe class ShadowPass : RenderPass
     /// <summary>
     /// The casters' slope-scaled depth bias in the cascades and in the local shadow atlas, in multiples of their largest
     /// depth change per texel. Every tap of the 4 × 4 filter compares against the receiver's own depth, and the filter
-    /// compares texels up to 2.5 texels from the lookup, so the bias covers that slope. A receiver-plane term
-    /// in its place let a grazing light pass under a wall that stands on the receiver (ter-kn1d). Measured between acne
-    /// and shadows that leave their casters (docs/plans/local-light-shadows.md, decision 33).
+    /// compares texels up to 2.5 texels from the lookup along each texel axis, so the bias covers the receiver's slope
+    /// along an axis. On a slope diagonal to the grid the corner texels can fall a little short (ARCHITECTURE.md,
+    /// "Shadow bias"). A receiver-plane term in its place let a grazing light pass under a wall that stands on the
+    /// receiver (ter-kn1d). Measured between acne and shadows that leave their casters
+    /// (docs/plans/local-light-shadows.md, decision 33).
     /// </summary>
     public const float SlopeBias = 2.5f;
 
-    /// <summary>How far the direct pass moves its lookup along the geometric normal, in texels, times sin(angle to the light).</summary>
+    /// <summary>
+    /// How far the shading passes move a shadow lookup along the geometric normal, in texels of the cascade or of the tile
+    /// at the receiver's distance, times sin(angle to the light). The batcher writes it into the frame constants in every
+    /// frame, so the cascades and the tiles read this one value.
+    /// </summary>
     public const float NormalOffsetTexels = 1f;
 
     /// <summary>The direct pass's constant depth bias toward the light, in texels of depth.</summary>
@@ -133,7 +139,7 @@ internal sealed unsafe class ShadowPass : RenderPass
         WriteConstants(scene);
     }
 
-    /// <summary>Writes the matrices and the light-space axes of every cascade set that the batcher fitted into the frame constants.</summary>
+    /// <summary>Writes the matrices of every cascade set that the batcher fitted into the frame constants.</summary>
     internal static void WriteSets(PreparedScene scene)
     {
         for (int set = 0; set < scene.CascadeSetCount; set++)
@@ -337,13 +343,10 @@ internal sealed unsafe class ShadowPass : RenderPass
             w: cascades[3].TexelSize
         );
         float depthPerUv = cascades[0].HalfExtent / cascades[0].DepthHalfRange;
-        // One texel of world distance along the light is depthPerUv / size in [0, 1] depth units.
-        constants.ShadowParams = new(
-            x: 1f / map.Size,
-            y: NormalOffsetTexels,
-            z: ConstantBiasTexels * depthPerUv / map.Size,
-            w: 0f
-        );
+        // One texel of world distance along the light is depthPerUv / size in [0, 1] depth units. The batcher writes the
+        // normal offset, y, in every frame, because the tiles take it too.
+        constants.ShadowParams.X = 1f / map.Size;
+        constants.ShadowParams.Z = ConstantBiasTexels * depthPerUv / map.Size;
     }
 
     public override void Record(FrameContext context)
