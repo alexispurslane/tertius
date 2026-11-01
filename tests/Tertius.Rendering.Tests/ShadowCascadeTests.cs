@@ -218,6 +218,50 @@ public sealed class ShadowCascadeTests
         }
     }
 
+    /// <summary>
+    /// A shading pass moves its lookup up to <see cref="ShadowBias.NormalOffsetTexels"/> off the receiver, and the
+    /// filter's taps compare texels up to <see cref="ShadowBias.FilterClearanceTexels"/> from the lookup. So each box,
+    /// with its center snapped to the texel grid by up to half a texel, keeps both free around the bounding sphere of
+    /// its slice, and no tap from a point of the slice reads past the map's edge. The anchors move the snap by
+    /// different fractions of a texel.
+    /// </summary>
+    [Fact]
+    public void EveryCascadeBoxKeepsTheTapsOfAnOffsetLookupInsideTheMapForEverySnap()
+    {
+        var sun = new Vector3(-0.5f, 0.35f, 0.2f);
+        var light = LightBasis.FromDirection(sun);
+        CameraView camera = Camera(Quaternion.CreateFromYawPitchRoll(1.3f, -0.5f, 0.1f));
+        float leastFreeTexels = float.MaxValue;
+        for (int step = 0; step < 16; step++)
+        {
+            ShadowCascadeArray cascades = Fit(camera, sun, new(123.456 + step * 0.37, -7.89 - step * 0.61, 1e6));
+            for (int i = 0; i < ShadowCascades.Count; i++)
+            {
+                ShadowCascade cascade = cascades[i];
+                (float centerDepth, _) = ShadowCascades.BoundingSphere(
+                    near: cascade.NearDepth,
+                    far: cascade.FarDepth,
+                    tanHalfX: camera.TanHalfX,
+                    tanHalfY: camera.TanHalfY
+                );
+                Vector3 sphere = light.ToLight(camera.Forward * centerDepth);
+                float across = MathF.Max(
+                    MathF.Abs(sphere.X - cascade.Center.X),
+                    MathF.Abs(sphere.Y - cascade.Center.Y)
+                );
+                float free = (cascade.HalfExtent - across - cascade.Radius) / cascade.TexelSize;
+                leastFreeTexels = MathF.Min(leastFreeTexels, free);
+            }
+        }
+
+        leastFreeTexels
+            .Should()
+            .BeGreaterThanOrEqualTo(
+                ShadowBias.FilterClearanceTexels + ShadowBias.NormalOffsetTexels,
+                "the filter's taps around a lookup that the normal offset moved stay inside the box"
+            );
+    }
+
     [Fact]
     public void ShadowDepthIsReversedAndMeasuredAlongTheSun()
     {

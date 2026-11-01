@@ -713,25 +713,28 @@ public sealed class ShadowTests
 
     /// <summary>
     /// The scene of the acne test: wide ground <paramref name="heightAboveGround"/> below the camera, which casts only
-    /// when <paramref name="groundCasts"/> is set, and a box that always casts, so that the cascades are drawn.
+    /// when <paramref name="groundCasts"/> is set, and a box that always casts, so that the cascades are drawn. The
+    /// whole scene, the camera included, is turned by <paramref name="turn"/> about the camera.
     /// </summary>
     private static RenderSnapshot AcneScene(
         Kit kit,
         Vector3 sun,
         Quaternion camera,
         float heightAboveGround,
-        bool groundCasts
+        bool groundCasts,
+        Quaternion turn
     )
     {
         RenderSnapshot snapshot = Gpu.Snapshot(sun);
-        snapshot.Camera.Rotation = camera;
-        snapshot.Camera.PreviousRotation = camera;
+        snapshot.Camera.Rotation = Quaternion.Concatenate(camera, turn);
+        snapshot.Camera.PreviousRotation = snapshot.Camera.Rotation;
         snapshot.Instances.Add(
             Gpu.Instance(
                 mesh: kit.Plane,
                 material: kit.Ground,
-                position: new(0, -heightAboveGround, -1_000f),
+                position: Vector3.Transform(new(0, -heightAboveGround, -1_000f), turn),
                 scale: new(1_500f, 1, 1_500f),
+                rotation: turn,
                 flags: groundCasts ? Caster : RenderFlags.None,
                 chainDepth: TestChains.CamerasFrame
             )
@@ -741,8 +744,9 @@ public sealed class ShadowTests
             Gpu.Instance(
                 mesh: kit.Box,
                 material: kit.White,
-                position: new(-40f, -heightAboveGround + 1f, -30f),
+                position: Vector3.Transform(new(-40f, -heightAboveGround + 1f, -30f), turn),
                 scale: new(2f),
+                rotation: turn,
                 flags: Caster,
                 chainDepth: TestChains.CamerasFrame
             )
@@ -808,10 +812,19 @@ public sealed class ShadowTests
         }
     }
 
+    /// <summary>
+    /// Ground that casts shadows does not shadow itself where the sun lights it. Seen from the sun, flat ground slopes
+    /// along the light's y axis, one axis of the texel grid. With the whole scene turned by 45 degrees about the sun,
+    /// the slope runs diagonally across the grid, where the filter's corner texels lie farthest uphill and the
+    /// slope-scaled bias, which Vulkan takes from the steeper texel axis, covers the least: there the caster bias of
+    /// 2.5 and the normal offset are both needed (ter-kn1d).
+    /// </summary>
     [Theory]
-    [InlineData(20f)]
-    [InlineData(8f)]
-    public void LitGroundHasNoAcne(float sunElevationDegrees)
+    [InlineData(20f, 0f)]
+    [InlineData(8f, 0f)]
+    [InlineData(20f, 45f)]
+    [InlineData(8f, 45f)]
+    public void LitGroundHasNoAcne(float sunElevationDegrees, float turnDegrees)
     {
         const int width = 960,
             height = 540;
@@ -826,6 +839,7 @@ public sealed class ShadowTests
                 MathF.Sin(elevation),
                 -MathF.Cos(azimuth) * MathF.Cos(elevation)
             );
+            var turn = Quaternion.CreateFromAxisAngle(sun, turnDegrees * MathF.PI / 180f);
 
             // A low and a high view cover every cascade. In the reference the ground casts no shadow, so its lit
             // pixels cannot have acne; with self-shadowing they must come out the same.
@@ -846,9 +860,10 @@ public sealed class ShadowTests
                         sun: sun,
                         camera: camera,
                         heightAboveGround: heightAboveGround,
-                        groundCasts: false
+                        groundCasts: false,
+                        turn: turn
                     ),
-                    name: $"acne-{sunElevationDegrees:F0}-{name}-reference"
+                    name: $"acne-{sunElevationDegrees:F0}-{turnDegrees:F0}-{name}-reference"
                 );
                 Capture image = Gpu.RenderAndCapture(
                     renderer: renderer,
@@ -857,9 +872,10 @@ public sealed class ShadowTests
                         sun: sun,
                         camera: camera,
                         heightAboveGround: heightAboveGround,
-                        groundCasts: true
+                        groundCasts: true,
+                        turn: turn
                     ),
-                    name: $"acne-{sunElevationDegrees:F0}-{name}"
+                    name: $"acne-{sunElevationDegrees:F0}-{turnDegrees:F0}-{name}"
                 );
                 renderer.LastFrameStats.ShadowCascades.Should().Be(4);
                 AssertLitGroundUnchanged(reference, image, name);
@@ -973,7 +989,100 @@ public sealed class ShadowTests
 
             worst
                 .Should()
-                .BeLessThan(0.05f, "the wall hides the sun from the floor up to its base ({0})", string.Join("; ", shares));
+                .BeLessThan(
+                    0.05f,
+                    "the wall hides the sun from the floor up to its base ({0})",
+                    string.Join("; ", shares)
+                );
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>
+    /// The scene of the sheet over the ground, seen through <paramref name="camera"/>: ground around
+    /// <paramref name="center"/> that does not cast, under a sun 2 degrees from straight above, with no ambient light.
+    /// A sheet that only casts hovers <paramref name="gap"/> above <paramref name="center"/>; without
+    /// <paramref name="sheet"/> it lies far off the view, so the cascades are drawn in both scenes.
+    /// </summary>
+    private static RenderSnapshot SheetOverGroundScene(
+        Kit kit,
+        Quaternion camera,
+        Vector3 center,
+        float gap,
+        bool sheet
+    )
+    {
+        RenderSnapshot snapshot = Gpu.Snapshot(Vector3.Normalize(new(0.03f, 1f, 0.02f)));
+        snapshot.Ambient.Intensity = 0;
+        snapshot.Camera.Rotation = camera;
+        snapshot.Camera.PreviousRotation = camera;
+        snapshot.Instances.Add(
+            Gpu.Instance(
+                mesh: kit.Plane,
+                material: kit.Ground,
+                position: center,
+                scale: new(10f, 1, 10f),
+                chainDepth: TestChains.CamerasFrame
+            )
+        );
+        snapshot.Instances.Add(
+            Gpu.Instance(
+                mesh: kit.Plane,
+                material: kit.White,
+                position: sheet ? center + new Vector3(0, gap, 0) : new(-40f, 0, -30f),
+                scale: Vector3.One,
+                chainDepth: TestChains.CamerasFrame
+            ) with
+            {
+                Flags = RenderFlags.CastsShadow,
+            }
+        );
+        return snapshot;
+    }
+
+    /// <summary>
+    /// A sheet that only casts hovers 1.2 texels of the first cascade above the ground, under a sun 2 degrees from
+    /// straight above (<see cref="SheetOverGroundScene"/>). The normal offset scales with sin(angle to the light), so a lookup on ground that faces the sun
+    /// stays on the ground, and the sheet shadows it past the constant bias of half a texel. A full texel of offset
+    /// toward the sun would carry the lookup over the sheet.
+    /// </summary>
+    [Fact]
+    public void GroundJustBelowAThinCasterUnderAHighSunIsInItsShadow()
+    {
+        const int width = 960,
+            height = 540;
+        VulkanRenderer renderer = Gpu.Headless(width: width, height: height);
+        try
+        {
+            var kit = Kit.Create(renderer);
+            Quaternion camera = Gpu.PitchDown(60f * MathF.PI / 180f);
+            var center = new Vector3(0, -2, -2 / MathF.Tan(60f * MathF.PI / 180f));
+            float gap = 1.2f * Gpu.FirstCascadeTexel(width: width, height: height);
+            RenderSnapshot Scene(bool sheet) =>
+                SheetOverGroundScene(kit: kit, camera: camera, center: center, gap: gap, sheet: sheet);
+
+            renderer.Render(Scene(sheet: false), 1f);
+            float[] lit = renderer.ReadHdr();
+            renderer.Render(Scene(sheet: true), 1f);
+            float[] shadowed = renderer.ReadHdr();
+
+            foreach (Vector3 offset in (Vector3[])[new(0, 0, 0), new(0.2f, 0, 0), new(-0.2f, 0, 0.15f)])
+            {
+                Vector2 pixel = Gpu.Project(
+                    point: center + offset,
+                    cameraRotation: camera,
+                    width: width,
+                    height: height
+                );
+                int green = ((int)pixel.Y * width + (int)pixel.X) * 4 + 1;
+                lit[green].Should().BeGreaterThan(0, "the sun lights the ground there without the sheet");
+                (shadowed[green] / lit[green])
+                    .Should()
+                    .BeLessThan(0.05f, "the sheet hides the sun from the ground {0} m below it", gap);
+            }
         }
         finally
         {

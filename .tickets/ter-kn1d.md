@@ -131,3 +131,25 @@ The two low findings and the gaps of the review of d5fd17fd (2026-11-01).
 Gaps. The white sun streaks at the top right of the spinward main view: the orchestrator already added them to ter-trz2 (its note of 2026-11-01T22:42:58Z), so this ticket files nothing. The plan's listings of lightVisibility, the loop and the shadow functions (docs/plans/local-light-shadows.md) now show sinTheta. The plan's decision 33 names ShadowBias.
 
 No image changed. The checks: the Checked build has 0 warnings and 0 errors. The Checked tests pass 9,758 of 9,772 (14 skipped), and the Release tests pass 9,745 of 9,759 (14 skipped).
+
+**2026-11-01T23:55:36Z**
+
+Test hardening (2026-11-01): coverage, hand mutations and the tests that they asked for.
+
+Coverage of the changed src lines, Rendering tests in Debug and Release, against d9e028ba: 8 of 8 instrumented lines covered (LocalShadowPass 1/1, ShadowPass 4/4, SceneBatcher 3/3), no branches. ShadowBias.cs and ShadowCascades.MarginTexels hold only constants, and GpuTypes.cs only lost fields, so the tool instruments none of their lines. The coverage tool does not see the shaders, so the hand mutations cover them.
+
+Hand mutations: 22, each built in Checked and run against its covering classes under timeout 120. On the first run, 10 died and 12 survived. After the new tests, 18 die and 4 survive.
+- Killed by the old tests: shadowParams.y written as 0 by the batcher (the spot acne test at 0 degrees), the cosine in place of sinTheta in modelLight (AHairCardLitFromBehindDoesNotShadowItself), SlopeBias 1.5 and the tile pipeline's slope bias 1.5 (the spot acne test at 30 and 60 degrees), the cascade and tile normal offsets reversed, no tile normal offset, and the receiver-plane term put back (AShadowReachesTheBaseOfAWallOnAFloorThatTheSunGrazes, at both cosines).
+- Killed by the new tests: the puffs' sine 1.0, ShadowPass also writing shadowParams.y = 0, the cascade pipeline's slope bias 1.5, no cascade normal offset, the cascade and tile sine set to 1, the tile offset without the distance, half a texel of constant bias in the tiles, and MarginTexels 3 (by dropping the normal offset or the round-up).
+- Survived, as judgment calls: acrossBox's margin without shadowParams.y (a band 1 texel wide at a box's edge, where only a fraction of the filter's weight reads clamped edge texels); the cascade normal offset doubled (more bias only, and the tiles' upper-bound test also accepts a factor under 3); the cascades' constant bias set to 0 (it covers the 16-bit fallback map's depth step of 1/8 texel, and this machine uses 32-bit maps, where a lit plane's lookup depth matches its stored depth); and the sine as sqrt(1 - |cos|) (at most 7% less offset where the angle to the light passes 80 degrees).
+- Not run, equivalent: the batcher's x and z of shadowParams, because ShadowPass.WriteConstants overwrites them whenever cascades exist, and nothing reads them without cascades.
+
+The new tests.
+- ShadowTests.LitGroundHasNoAcne takes a turn of the whole scene about the sun, with two rows at 45 degrees. Flat ground slopes along the light's y axis, a texel axis, and there the slope bias alone or the normal offset alone covers the filter. Turned, the slope runs diagonally across the grid, and both are needed. The unchanged code shows 0 differing pixels in the low view; no cascade normal offset shows 138,621 and 216,664, and a slope bias of 1.5 shows 7,515 and 51,964, against a limit of 397.
+- ShadowTests.GroundJustBelowAThinCasterUnderAHighSunIsInItsShadow: a sheet that only casts, 1.2 texels above ground, under a sun 2 degrees from straight above. A sine of 1 lights the ground (share 1, limit 0.05).
+- LitPuffRenderTests.ALitPuffJustBelowAThinCasterTakesItsShadow: the same for a puff, which a sine of 1 lights.
+- LocalShadowRenderTests.ALitFloorUnderASpotLightHasNoAcne takes a distance and a turn, with rows at 60 degrees turned by 45, at 4 m and 12 m. The unchanged code shows 6 and 2 differing pixels against limits of 25 and 135. The tile offset without the distance shows 9,690 and 110,363.
+- LocalShadowRenderTests.AFloorJustBelowAThinCasterStraightUnderASpotLightIsInItsShadow: a sheet 0.3 tile texels above the floor, straight under a spot light. Half a texel of constant bias or a sine of 1 lights the floor.
+- ShadowCascadeTests.EveryCascadeBoxKeepsTheTapsOfAnOffsetLookupInsideTheMapForEverySnap: over 16 anchors, every box keeps FilterClearanceTexels + NormalOffsetTexels free around its slice's sphere after the snap. MarginTexels 3 leaves 2.505 texels.
+- Gpu.FirstCascadeTexel moved from HairRenderTests into the shared test support, because three tests use it.
+No reference image changed, and no test exposed a bug.

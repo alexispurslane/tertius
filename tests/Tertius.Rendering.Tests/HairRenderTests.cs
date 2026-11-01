@@ -692,24 +692,6 @@ public sealed class HairRenderTests
         }
     }
 
-    /// <summary>
-    /// The world side of a texel of the sun's first cascade, which holds every card of these tests: the texel that
-    /// <see cref="ShadowCascades.Fit"/> gives this camera's slice from the near plane to the first split.
-    /// </summary>
-    private static float FirstCascadeTexel()
-    {
-        float tanHalfY = MathF.Tan(Gpu.Fov / 2);
-        float radius = ShadowCascades
-            .BoundingSphere(
-                near: DepthRanges.NearPlane,
-                far: ShadowCascades.Split(0),
-                tanHalfX: tanHalfY * Width / Height,
-                tanHalfY: tanHalfY
-            )
-            .Radius;
-        return 2 * radius / (ShadowMap.DefaultSize - 2 * ShadowCascades.MarginTexels);
-    }
-
     /// <remarks>
     /// The arithmetic, in texels of the first cascade (5.85 cm: a sphere of radius 59.6 m over 2,040 texels) and in
     /// depth along the light. The shadow lookups take the card's normal turned toward the sun, at cosine 0.93 with
@@ -746,7 +728,7 @@ public sealed class HairRenderTests
         {
             MeshId plane = renderer.CreateMesh(Primitives.Plane(1));
             RenderSnapshot snapshot = SunOnly(toSun);
-            float texel = FirstCascadeTexel();
+            float texel = Gpu.FirstCascadeTexel(width: Width, height: Height);
             float gap = texel * (GapTexels * cosine + ShadowBias.NormalOffsetTexels * sine);
             RenderInstance caster = Card(
                 plane: plane,
