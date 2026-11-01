@@ -14,3 +14,13 @@ tags: [rendering, performance]
 
 The coda of the rendering upgrade (user, 2026-10-25). Design: docs/plans/rendering-performance.md. The frame of demo-exit at 1920x1080, Release, on the development Mac (Apple M1 Max), takes at most 12 ms of GPU time once every feature of the epic is in.
 
+
+## Notes
+
+**2026-11-01T13:10:42Z**
+
+The image rule of the share tickets, refined by the orchestrator on 2026-11-01. It replaces the 2-level rule of 2026-10-31, which blocked every restructuring of a shader: a change that computes the same values in another shader module or with another instruction order moves a few knife-edge pixels by more than 2 levels, because a rounding difference crosses a threshold (a ray that grazes an outline, or SMAA's edge test). ter-rjts (own-ray list: 2 pixels of 2.07 million at 7 levels on reflected outlines), ter-mfyv (gather PCF: 6 single pixels at 3 to 20 levels with SMAA on, all within 1 level with SMAA off) and ter-pjza (an upsample with array arguments: 1 pixel at 11 levels on a silhouette under SMAA) each found such pixels.
+A change keeps the image when both conditions hold:
+1. Same method and same quality. It computes the same quantity with the same sample count, step count, resolution, filter kernel and weights, stored precision, thresholds and defaults. Moving a computation into another shader, pass or dispatch, sharing reads, skipping work whose result no pixel uses, and computing a hardware filter's kernel in the shader with the same weights all count as the same method.
+2. Only isolated threshold pixels move. In the comparison captures, no pixel differs by more than 2 of 255 levels in any channel, except isolated pixels where a rounding difference crosses a threshold: at most 20 such pixels per 1920 x 1080 capture (0.001 %), none adjacent to another. The builder shows the cause of each: the same comparison with SMAA off stays within 2 levels, or a probe shows that the pixel lies on a knife edge (for example an own-ray pixel on a reflected outline). The ticket note lists each such pixel with its position and difference, and the builder looks at a crop of the base and of the change (at least 10x zoom) and states that the difference does not show.
+A change that fails either condition is a default change: ter-3g1g takes it to the user with captures, and no such change goes into the code. A shift of the whole frame (for example the automatic exposure) fails condition 2 even when each pixel moves little.
