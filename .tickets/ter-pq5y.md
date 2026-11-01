@@ -36,3 +36,7 @@ Ruling on the image rule's adjacency clause (orchestrator, 2026-11-01, asked for
 **2026-11-01T15:34:07Z**
 
 2026-11-01: ter-prio's first continuation (9c9870f4) ended with done=false and no fork (environment faces, G-buffer and prefilter not tried). Second continuation: run 06ca6f7f-672b-4d5f-af1c-770674c27361 (version 869b0b07), from HEAD d1c9c63c. Settled for it: a single-pass prefilter downsampler with the same kernel is pass fusion and in scope; a different bloom filter is a default change (a note only); async compute is out of this ticket (an estimate as a note).
+
+**2026-11-01T16:02:47Z**
+
+Paused on 2026-11-01 by the user's decision: correct reflections and screen-space light come before more optimization, because the fixes change the starting point (epic ter-b2da, docs/plans/screen-space-artifacts.md). The running workflows finish their current stage only: ter-rjts finishes its fix stage and merges. ter-prio (06ca6f7f) and ter-ww0h (cc31bfac) stop when their build stage ends, before review. Their branches stay for a later continuation. ter-pjza merges after its hardening. ter-g25a, ter-ku9c and ter-u102 do not start until ter-b2da closes. ter-3g1g now depends on ter-b2da.

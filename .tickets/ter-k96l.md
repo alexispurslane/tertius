@@ -1,10 +1,11 @@
 ---
 id: ter-k96l
 status: open
-deps: []
+deps: [ter-xgra]
 links: []
 created: 2026-11-01T01:19:16Z
 type: bug
+parent: ter-b2da
 priority: 2
 assignee: Alexis Purslane
 tags: [rendering, screen-space-light]

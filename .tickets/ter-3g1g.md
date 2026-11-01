@@ -1,7 +1,7 @@
 ---
 id: ter-3g1g
 status: open
-deps: [ter-s9cv, ter-a24f, ter-jxv9, ter-nl5u, ter-6vhj, ter-izsu, ter-ff6y, ter-of1p, ter-nydu, ter-p1u7, ter-fhlb, ter-uqmn, ter-ox1a, ter-0y0z, ter-19fm, ter-qsye, ter-4xw0, ter-mfyv, ter-rjts, ter-pjza, ter-prio, ter-ww0h]
+deps: [ter-s9cv, ter-a24f, ter-jxv9, ter-nl5u, ter-6vhj, ter-izsu, ter-ff6y, ter-of1p, ter-nydu, ter-p1u7, ter-fhlb, ter-uqmn, ter-ox1a, ter-0y0z, ter-19fm, ter-qsye, ter-4xw0, ter-mfyv, ter-rjts, ter-pjza, ter-prio, ter-ww0h, ter-b2da]
 links: [ter-r5hb]
 created: 2026-10-25T22:29:46Z
 type: task
