@@ -16,5 +16,5 @@ Design: docs/plans/screen-space-artifacts.md. The user decided on 2026-11-01 to 
 
 ## Acceptance Criteria
 
-Demo-exit's nine films and the review scenes of both effects show no artifact that comes from a fault of the implementation; each remaining limit of a screen-space method is recorded in ARCHITECTURE.md with the scene that shows it.
+Demo-exit's nine films and the review scenes of both effects show no artifact that comes from a fault of the implementation. Each remaining limit of a screen-space method is recorded in ARCHITECTURE.md with the scene that shows it.
 
