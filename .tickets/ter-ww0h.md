@@ -25,3 +25,7 @@ A ticket note gives the four counts per film of demo-exit and the estimated time
 **2026-11-01T15:49:35Z**
 
 2026-11-01: workflow run cc31bfac-6ab6-4171-97a3-c9bc5552525b (version 869b0b07), branch ter-ww0h-wall-blocked-lamps from 612d6aa0 (main after ter-mfyv's merge). The brief asks first for the per-lamp costs on the current code, because ter-mfyv's tile bounds already skip the taps of fully blocked pixels.
+
+**2026-11-01T18:14:47Z**
+
+2026-11-01, from ter-prio's builder: at about 12:00, one of ter-prio's commands removed /tmp/tertius-gpu-measure.lock while another builder held it, during ter-ww0h's trace /tmp/ww0h/traces/hall-r-1 (started 11:56). ter-xgra's film captures then ran beside that trace. Repeat hall-r-1 before any conclusion rests on it. ter-prio's scripts now release the lock only after they took it.
