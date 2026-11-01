@@ -1,6 +1,6 @@
 ---
 id: ter-xgra
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-11-01T16:01:19Z
@@ -18,3 +18,9 @@ Diagnosis ticket of docs/plans/screen-space-artifacts.md (section 'What a diagno
 
 A ticket note lists every artifact found, with its crop, its stage, the probe evidence, whether it is a fault or a limit of the method, and the candidate fixes with their cost. The probes are not in the commits.
 
+
+## Notes
+
+**2026-11-01T16:17:34Z**
+
+2026-11-01: workflow run f7a51999-484a-4aa5-af75-d042ed9f5df9 (version 869b0b07), branch ter-xgra-screen-space-light-diagnosis from 79d27a68 (main after the ter-pjza merge). Brief: /tmp/briefs/xgra.txt. Build = the diagnosis, review = an adversarial check of each attribution against its probe evidence, fix = the review's findings.
