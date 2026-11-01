@@ -28,3 +28,7 @@ Leads, not yet checked: (1) the camera's frame, the map's frame (RenderSnapshot.
 **2026-11-01T18:55:46Z**
 
 Workflow run a84b9182-9905-4d23-8200-18d47d2abb85, version 869b0b07-3413-4b06-8707-a88a91bf6e91, branch ter-kn1d-environment-map-flip, base d9e028ba.
+
+**2026-11-01T19:37:40Z**
+
+The diagnosis (run a84b9182, branch head 65629c74) found a sun leak under the near side wall through the cascade filter's receiver-plane term, a design fork. The user chose design A, one bias model, on 2026-11-01: remove the receiver-plane term and give the cascades the tiles' slope bias of 2.5. Rejected: design B (the plane with rejection of taps that are not the receiver's own surface: unmeasured, two bias models, a thin leak left at the base) and MinimumReceiverCosine 0.3 (the map still turns over). Continuation run 26a0f03a-c115-440c-b3c1-c4474eb08861, same version, branch and base, in the preserved worktree.
