@@ -70,11 +70,7 @@ public sealed class HairReflectionRenderTests
             environmentMap: true
         );
 
-        (int X, int Y)[] below =
-        [
-            .. FloorPixels(with)
-                .Where(pixel => CosineWithCard(with, pixel) < -CosineMargin),
-        ];
+        (int X, int Y)[] below = [.. FloorPixels(with).Where(pixel => CosineWithCard(with, pixel) < -CosineMargin)];
         below
             .Length.Should()
             .BeGreaterThan(20_000, "the tilt of {0}° puts the far floor's rays below the card", tiltDegrees);
@@ -125,7 +121,12 @@ public sealed class HairReflectionRenderTests
             tiltDegrees: 10,
             environmentMap: false
         );
-        Rendered without = Render(reflections: new NoReflections(), model: model, tiltDegrees: 10, environmentMap: false);
+        Rendered without = Render(
+            reflections: new NoReflections(),
+            model: model,
+            tiltDegrees: 10,
+            environmentMap: false
+        );
 
         (int X, int Y)[] grazing =
         [
