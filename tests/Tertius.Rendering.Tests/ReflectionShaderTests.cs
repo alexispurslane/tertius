@@ -351,6 +351,44 @@ public sealed class ReflectionShaderTests
         }
     }
 
+    [Fact]
+    public void TheOwnRayDispatchTracesEveryPixelWhoseOwnRayReflectsAtFullResolution()
+    {
+        float[] lit = RenderHdr(new NoReflections(), MirrorsBeforeTiles).Hdr;
+        float[] full = RenderHdr(ReflectionsAt(TraceResolution.Full), MirrorsBeforeTiles).Hdr;
+        VulkanRenderer renderer = Headless(ReflectionsAt(TraceResolution.Half));
+        try
+        {
+            renderer.Render(MirrorsBeforeTiles(renderer), 1f);
+            float[] shown = renderer.ReadHdr();
+            var frame = UpsampleFrame.Of(renderer);
+
+            int traced = 0;
+            for (int y = 0; y < Height; y++)
+            for (int x = 0; x < Width; x++)
+            {
+                // Chosen by the full-resolution render, not by the image under test, so that a pixel which the dispatch
+                // skips, and which then shows no reflection, still counts.
+                Vector3 reflected = At(full, (x, y)) - At(lit, (x, y));
+                if (reflected.X + reflected.Y + reflected.Z < 0.2f || !frame.Upsampled((x, y)).TryGetValue(out OwnRay _))
+                    continue;
+                ShouldShowWhatTheFullTraceShows(shown: At(shown, (x, y)), full: At(full, (x, y)), pixel: (x, y));
+                traced++;
+            }
+
+            traced
+                .Should()
+                .BeGreaterThan(
+                    2 * 64,
+                    "the reflections of the wall's outlines fill more than two workgroups of the own-ray dispatch"
+                );
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
     [Theory]
     // About 0.3 and 0.5, which the G-buffer's 8 bits hold exactly. At 0.5 the dominant direction leans far from the
     // mirror direction.

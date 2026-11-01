@@ -1,6 +1,6 @@
 // The pixel's side of the screen-space reflections (docs/plans/screen-space-reflections.md, "The method"): which pixels
 // start a ray, the ray of a pixel, and the delta f · (W · C − a · k · T_s) that its ray's result adds to the lit image.
-// reflection_trace.comp, reflection_half_trace.comp and reflection_upsample.comp share it.
+// reflection_trace.comp, reflection_half_trace.comp, reflection_upsample.comp and reflection_own_rays.comp share it.
 #ifndef TERTIUS_REFLECTION_PIXEL_GLSL
 #define TERTIUS_REFLECTION_PIXEL_GLSL
 

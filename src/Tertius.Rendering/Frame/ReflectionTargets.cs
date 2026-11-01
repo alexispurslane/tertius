@@ -29,12 +29,6 @@ internal sealed unsafe class ReflectionTargets : IDisposable
     /// </summary>
     public const Format HitDepthFormat = Format.R32Sfloat;
 
-    /// <summary>
-    /// The bytes before the entries of <see cref="HalfTrace.OwnRays"/>: the own-ray dispatch's VkDispatchIndirectCommand
-    /// (x, y, z) and the count of the list, four uints. reflection_upsample.comp and reflection_own_rays.comp declare them.
-    /// </summary>
-    public const int OwnRayHeaderBytes = 16;
-
     /// <summary>The longest side of a screen with reflections, in px: the sets are allocated for <see cref="DepthPyramid.MaxLevels"/> levels.</summary>
     public const int MaxSide = 1 << DepthPyramid.MaxLevels;
 
@@ -294,15 +288,15 @@ internal sealed unsafe class ReflectionTargets : IDisposable
         );
 
     /// <summary>
-    /// The own-ray list of a <paramref name="screen"/> of W × H: the header and W · H entries, because every pixel can
-    /// trace its own ray. The pass clears the header by a transfer, the upsample appends by atomic adds, the own-ray
-    /// dispatch reads it as its indirect command, and the read hook copies it out.
+    /// The own-ray list of a <paramref name="screen"/>, in the layout of <see cref="OwnRayList"/>. The pass clears the
+    /// header by a transfer, the upsample appends by atomic adds, the own-ray dispatch reads it as its indirect command,
+    /// and the read hook copies it out.
     /// </summary>
     private GpuBuffer CreateOwnRayList(Extent2D screen) =>
         GpuBuffer.Create(
             device: device,
             allocator: allocator,
-            size: OwnRayHeaderBytes + sizeof(uint) * (ulong)screen.Width * screen.Height,
+            size: OwnRayList.Bytes(screen),
             usage: BufferUsageFlags.StorageBufferBit
                 | BufferUsageFlags.IndirectBufferBit
                 | BufferUsageFlags.TransferDstBit

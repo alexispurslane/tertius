@@ -1108,13 +1108,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             local.Buffer(readback, BufferUse.HostRead);
             local.Flush(device.Vk, commandBuffer);
         });
-        var words = new ReadOnlySpan<uint>(readback.Mapped, (int)(ownRays.Size / sizeof(uint)));
-        int header = ReflectionTargets.OwnRayHeaderBytes / sizeof(uint);
-        uint count = words[header - 1];
-        var pixels = new (int X, int Y)[count];
-        for (int i = 0; i < pixels.Length; i++)
-            pixels[i] = (X: (int)(words[header + i] & 0xffff), Y: (int)(words[header + i] >> 16));
-        return pixels;
+        return OwnRayList.Pixels(new ReadOnlySpan<uint>(readback.Mapped, (int)(ownRays.Size / sizeof(uint))));
     }
 
     /// <summary>

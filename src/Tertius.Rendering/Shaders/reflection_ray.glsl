@@ -1,6 +1,6 @@
 // The ray of a reflecting pixel through the depth pyramid and its cone's read of the radiance pyramid
 // (docs/plans/screen-space-reflections.md, "The method"), for reflection_trace.comp, reflection_half_trace.comp and the
-// own rays of reflection_upsample.comp.
+// own rays of reflection_own_rays.comp.
 #ifndef TERTIUS_REFLECTION_RAY_GLSL
 #define TERTIUS_REFLECTION_RAY_GLSL
 
@@ -39,6 +39,20 @@ bool traceReflection(ReflectingPixel p, float texelSide, out vec4 rayResult, out
     // are at most MaxRadiance, and so is their convex sum.
     vec3 hazed = throughAir(traced.rgb, vec3(traced.a), hitPoint, preExposed(frame.atmosphere.haze.rgb));
     rayResult = edgeFade(hit) * (1.0 - entryShare) * vec4(hazed, traced.a);
+    return true;
+}
+
+// The delta that the pixel's own ray adds to its lit light, with a texel side of 1 pixel: the full-resolution trace's
+// ray, which reflection_trace.comp traces at every pixel and reflection_own_rays.comp at each listed pixel. False where
+// the pixel starts no ray or its ray hits nothing, which leaves the lit light as it is.
+bool ownRayDelta(ivec2 pixel, out vec3 delta)
+{
+    ReflectingPixel p;
+    vec4 rayResult;
+    float hitDepth;
+    if (!reflectingPixel(pixel, p) || !traceReflection(p, 1.0, rayResult, hitDepth))
+        return false;
+    delta = reflectionDelta(p, rayResult);
     return true;
 }
 
