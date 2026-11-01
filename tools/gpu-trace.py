@@ -5,7 +5,7 @@ the GPU time and the limiters of each pass.
 tools/gpu-trace.sh records the trace and calls this script. Mac only: it reads the tables of `xcrun xctrace export`.
 
     python3 tools/gpu-trace.py trim <script> <start> <frames> <out.json>
-    python3 tools/gpu-trace.py report <trace> <gpu-timings.json> <out-dir> [--process Tertius.Demo]
+    python3 tools/gpu-trace.py report <trace> <gpu-timings.json> <out-dir> [--process Tertius.Demo] [--window FROM TO]
 
 trim keeps the frames from frame <start> (counted from 0 over the script's captures and film frames) to <start> +
 <frames>, or to the end of the script when <frames> is 0. A film frame before <start> becomes a run step of its ticks, so the world reaches the same state without a
@@ -17,7 +17,10 @@ after each pass, so in a command buffer with passes + 1 such encoders, the encod
 pass k. The pass names come from the run's gpu-timings.json, in recording order.
 
 report writes <out-dir>/passes.md, the table, and <out-dir>/passes.json, every counter of every pass, and prints the
-table. It exports the trace's tables to <out-dir>/export first, unless they are there.
+table. It exports the trace's tables to <out-dir>/export first, unless they are there. The table gives each pass's busy
+time and its time alone, and passes.json also the shared time, the busy time minus the time alone. --window adds a row
+with each frame's wall-clock GPU time from the end of pass FROM to the start of pass TO. summarize computes the
+statistics and table formats passes.md. tools/test_gpu_trace.py tests them and the pure functions below them.
 """
 
 import argparse
@@ -123,10 +126,10 @@ def union(intervals: list[tuple[int, int]]) -> list[tuple[int, int]]:
     return merged
 
 
-def gpu_intervals(intervals: Path, process: str, named):
+def gpu_intervals(table: Path, process: str, named):
     """The GPU intervals of each pass in each command buffer: {(buffer, pass): [(start, end)]}, in nanoseconds."""
     by_pass: dict[tuple[str, str], list[tuple[int, int]]] = defaultdict(list)
-    for row in rows(intervals):
+    for row in rows(table):
         if not of_process(row, process):
             continue
         found = named.get(row["encoder-id"][0])
@@ -137,37 +140,81 @@ def gpu_intervals(intervals: Path, process: str, named):
     return {key: union(spans) for key, spans in by_pass.items()}
 
 
-def open_segments(windows: dict[tuple[str, str], list[tuple[int, int]]]):
-    """Cuts the timeline at every start and end of the passes' intervals, and names the passes open in each segment.
+def open_segments(intervals: dict):
+    """Cuts the timeline at every start and end of the intervals, and names the keys open in each segment.
 
-    Returns the sorted cuts and, for the segment from cut i to cut i + 1, the passes whose intervals hold it. The
-    intervals of two passes can overlap, and a long pass can hold a short one, so a time can lie in several passes.
+    intervals maps each key, such as a pass name or a (command buffer, pass) pair, to its [start, end) intervals. Returns
+    the sorted cuts and, for the segment from cut i to cut i + 1, the keys whose intervals hold it. The intervals of two
+    passes can overlap, and a long pass can hold a short one, so a time can lie in several passes.
     """
     events = sorted(
-        (time, step, name)
-        for (_, name), spans in windows.items()
+        (time, step, key)
+        for key, spans in intervals.items()
         for start, end in spans
         for time, step in ((start, 1), (end, -1))
     )
     cuts: list[int] = []
-    segments: list[frozenset[str]] = []
-    open_count: dict[str, int] = defaultdict(int)
-    for time, step, name in events:
+    segments: list[frozenset] = []
+    # Only the open keys stay in open_count, so each event costs the number of open keys, not of all keys seen.
+    open_count: dict = defaultdict(int)
+    for time, step, key in events:
         if not cuts or time != cuts[-1]:
             cuts.append(time)
             segments.append(frozenset())
-        open_count[name] += step
-        segments[-1] = frozenset(name for name, count in open_count.items() if count > 0)
+        open_count[key] += step
+        if open_count[key] == 0:
+            del open_count[key]
+        segments[-1] = frozenset(open_count)
     return cuts, segments
 
 
-def counter_means(info: Path, values: Path, windows: dict[tuple[str, str], list[tuple[int, int]]]):
+def busy_and_alone(intervals: dict[tuple[str, str], list[tuple[int, int]]]) -> dict[tuple[str, str], tuple[int, int]]:
+    """The busy time and the time alone of each pass in each command buffer: {(buffer, pass): (busy, alone)}, in ns.
+
+    The busy time is the length of the union of the pass's own intervals. The time alone is the part of it in which no
+    other key of intervals has an interval open: no other pass, and no pass of another command buffer. So the busy time
+    minus the time alone is the time that the pass shares with the other encoders that the table counts.
+    """
+    cuts, segments = open_segments(intervals)
+    alone: dict[tuple[str, str], int] = defaultdict(int)
+    for at, keys in enumerate(segments[:-1]):
+        if len(keys) == 1:
+            (key,) = keys
+            alone[key] += cuts[at + 1] - cuts[at]
+    return {key: (sum(end - start for start, end in union(spans)), alone[key]) for key, spans in intervals.items()}
+
+
+def frame_span(frame: dict[str, list[tuple[int, int]]]) -> int:
+    """The wall-clock GPU time of one frame from the first start of any of its passes to the last end, in ns. frame maps
+    each pass of the frame that has GPU work to its intervals."""
+    return max(end for spans in frame.values() for _, end in spans) - min(
+        start for spans in frame.values() for start, _ in spans
+    )
+
+
+def window(frame: dict[str, list[tuple[int, int]]], first: str, second: str) -> "int | None":
+    """The wall-clock GPU time of one frame from the end of the last interval of pass first to the start of the first
+    interval of pass second that starts at or after that end, in ns. frame maps each pass of the frame to its intervals.
+
+    None when the frame has no interval of first, or no interval of second that starts at or after first's end.
+    """
+    if not frame.get(first):
+        return None
+    end = max(end for _, end in frame[first])
+    starts = [start for start, _ in frame.get(second, []) if start >= end]
+    return min(starts) - end if starts else None
+
+
+def counter_means(info: Path, values: Path, intervals: dict[tuple[str, str], list[tuple[int, int]]]):
     """The mean of each counter over the samples that fall inside each pass's GPU intervals: {pass: {counter: mean}}.
 
     A sample inside the intervals of several passes counts for each of them.
     """
     names = {row["counter-id"][1]: row["name"][1] for row in rows(info)}
-    cuts, segments = open_segments(windows)
+    by_name: dict[str, list[tuple[int, int]]] = defaultdict(list)
+    for (_, name), spans in intervals.items():
+        by_name[name].extend(spans)
+    cuts, segments = open_segments(by_name)
     sums: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(float))
     counts: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
     for row in rows(values):
@@ -197,6 +244,109 @@ def limiters(counters: dict[str, float]) -> list[tuple[str, float]]:
     """The limiter counters of a pass, highest first."""
     found = [(name.removesuffix(" Limiter"), value) for name, value in counters.items() if name.endswith(" Limiter")]
     return sorted(found, key=lambda pair: -pair[1])
+
+
+def summarize(intervals: dict, passes: list[str], counters: dict, between: "tuple[str, str] | None" = None) -> dict:
+    """The statistics of the passes over the frames, in ms, as passes.json holds them.
+
+    intervals maps each (command buffer, pass) to its GPU intervals in ns, with BEFORE and AFTER for the encoders around
+    the passes. passes names the passes in recording order, and counters maps a pass name to its counter means. Returns
+    "frame", the summary of the frame spans; "passes", one entry per pass with GPU work, in the order BEFORE, passes,
+    AFTER, with the summary of its busy time and an "alone" and a "shared" summary; "window" when between names two
+    passes, with "from", "to", "missing" (the frames without a window) and its summary when a frame has one; and "idle",
+    the passes with no GPU work in any frame. The shared time of a frame is the busy time minus the time alone.
+    """
+    busy: dict[str, list[float]] = defaultdict(list)
+    alone: dict[str, list[float]] = defaultdict(list)
+    shared: dict[str, list[float]] = defaultdict(list)
+    for (_, name), (busy_ns, alone_ns) in busy_and_alone(intervals).items():
+        busy[name].append(busy_ns / 1e6)
+        alone[name].append(alone_ns / 1e6)
+        shared[name].append((busy_ns - alone_ns) / 1e6)
+    frames: dict[str, dict[str, list[tuple[int, int]]]] = defaultdict(dict)
+    for (buffer, name), spans in intervals.items():
+        if name in passes:
+            frames[buffer][name] = spans
+
+    summarized = {"frame": summary([frame_span(frame) / 1e6 for frame in frames.values()])}
+    summarized["passes"] = [
+        {
+            "pass": name,
+            **summary(busy[name]),
+            "alone": summary(alone[name]),
+            "shared": summary(shared[name]),
+            "counters": counters.get(name, {}),
+        }
+        for name in [BEFORE, *passes, AFTER]
+        if busy[name]
+    ]
+    if between:
+        first, second = between
+        found = [window(frame, first, second) for frame in frames.values()]
+        times = [time / 1e6 for time in found if time is not None]
+        summarized["window"] = {"from": first, "to": second, "missing": len(found) - len(times)}
+        if times:
+            summarized["window"] |= summary(times)
+    # A pass of the frame graph that gave the GPU no encoder in any frame, such as the outlines with none to draw.
+    summarized["idle"] = [name for name in passes if not busy[name]]
+    return summarized
+
+
+def table(report: dict, has_counters: bool) -> str:
+    """The text of passes.md for a report: the header facts of passes.json and the result of summarize."""
+    buffers = report["commandBuffers"]
+    lines = [
+        f"{report['device']}, {report['width']} x {report['height']}: {buffers['frames']} frames,"
+        f" {buffers['skipped']} other command buffers.",
+        "The busy time of a pass is the GPU time of its encoders, in milliseconds. Read each pass's own time here: on MoltenVK"
+        " the pass times of gpu-timings.json hold only for the span and for sums of neighbouring passes (tools/README.md,"
+        " \"GPU trace\").",
+        "",
+        "The time alone is the part of the busy time in which no other encoder that the table counts runs, in milliseconds:"
+        " no other pass, no encoder before the first pass or after the last pass, in any frame. The timestamp encoders and"
+        " the other command buffers do not count. The busy time minus the time alone is the time that the pass shares with"
+        " other passes, and passes.json gives its summary as \"shared\".",
+        "",
+        "The frame span row and the window row give a wall-clock GPU time per frame in the busy columns, not a busy time.",
+        "",
+        "| Pass | Frames | Busy mean (ms) | Busy median (ms) | Busy p95 (ms) | Alone mean (ms) | Alone median (ms)"
+        " | Alone p95 (ms) | Top limiter | Second limiter | Read GB/s | Write GB/s |",
+        "|---|---|---|---|---|---|---|---|---|---|---|---|",
+    ]
+    for entry in report["passes"]:
+        top = limiters(entry["counters"])
+        cells = [f"{name} {value:.0f} %" for name, value in top[:2]] + ["-"] * (2 - len(top[:2]))
+        read = entry["counters"].get("GPU Read Bandwidth")
+        write = entry["counters"].get("GPU Write Bandwidth")
+        own = entry["alone"]
+        lines.append(
+            f"| {entry['pass']} | {entry['frames']} | {entry['meanMs']:.3f} | {entry['medianMs']:.3f} | {entry['p95Ms']:.3f}"
+            f" | {own['meanMs']:.3f} | {own['medianMs']:.3f} | {own['p95Ms']:.3f}"
+            f" | {cells[0]} | {cells[1]} | {'-' if read is None else f'{read:.1f}'} | {'-' if write is None else f'{write:.1f}'} |"
+        )
+    frame = report["frame"]
+    lines.append(
+        f"| {FRAME} | {frame['frames']} | {frame['meanMs']:.3f} | {frame['medianMs']:.3f} | {frame['p95Ms']:.3f} | | | | | | | |"
+    )
+    if "window" in report:
+        found = report["window"]
+        label = f"{found['from']} end to {found['to']} start"
+        if "frames" in found:
+            lines.append(
+                f"| {label} | {found['frames']} | {found['meanMs']:.3f} | {found['medianMs']:.3f} | {found['p95Ms']:.3f}"
+                " | | | | | | | |"
+            )
+        if found["missing"]:
+            lines += [
+                "",
+                f"{found['missing']} frames have no window from {found['from']} to {found['to']}: one of the two passes has no"
+                f" GPU work in them, or {found['to']} starts only before {found['from']} ends (tools/README.md, \"GPU trace\").",
+            ]
+    if report["idle"]:
+        lines += ["", f"Passes with no GPU work in any frame: {', '.join(report['idle'])}."]
+    if not has_counters:
+        lines += ["", "The trace holds no GPU counters, so the table has no limiters (tools/README.md, \"GPU trace\")."]
+    return "\n".join(lines) + "\n"
 
 
 def trim(args) -> int:
@@ -236,6 +386,10 @@ def report(args) -> int:
     exports.mkdir(parents=True, exist_ok=True)
     timings = json.loads(args.timings.read_text())
     passes = [entry["pass"] for entry in timings["passes"]]
+    unknown = [name for name in args.window or [] if name not in passes]
+    if unknown:
+        print(f"--window names {', '.join(unknown)}, not a pass of {args.timings}: {', '.join(passes)}.", file=sys.stderr)
+        return 1
 
     named, frames, skipped = passes_by_encoder(
         export(args.trace, "metal-application-encoders-list", exports), args.process, passes
@@ -243,63 +397,22 @@ def report(args) -> int:
     if frames == 0:
         print(f"No command buffer of {args.process} holds {len(passes) + 1} timestamp encoders.", file=sys.stderr)
         return 1
-    windows = gpu_intervals(export(args.trace, "metal-gpu-intervals", exports), args.process, named)
-    if not any(name in passes for _, name in windows):
+    intervals = gpu_intervals(export(args.trace, "metal-gpu-intervals", exports), args.process, named)
+    if not any(name in passes for _, name in intervals):
         print(f"The trace holds no GPU intervals for the passes of {args.process}.", file=sys.stderr)
         return 1
 
-    order = [BEFORE, *passes, AFTER]
-    busy: dict[str, list[float]] = defaultdict(list)
-    for (_, name), spans in windows.items():
-        busy[name].append(sum(end - start for start, end in spans) / 1e6)
-    spans_of_frames: dict[str, list[tuple[int, int]]] = defaultdict(list)
-    for (buffer, name), spans in windows.items():
-        if name in passes:
-            spans_of_frames[buffer].extend(spans)
-    frame_spans = [(max(end for _, end in spans) - min(start for start, _ in spans)) / 1e6 for spans in spans_of_frames.values()]
-
     info = export(args.trace, "gpu-counter-info", exports)
     has_counters = any(True for _ in rows(info))
-    counters = counter_means(info, export(args.trace, "gpu-counter-value", exports), windows) if has_counters else {}
+    counters = counter_means(info, export(args.trace, "gpu-counter-value", exports), intervals) if has_counters else {}
 
     report = {"device": timings["device"], "width": timings["width"], "height": timings["height"]}
     report["commandBuffers"] = {"frames": frames, "skipped": skipped}
-    report["frame"] = summary(frame_spans)
-    report["passes"] = [
-        {"pass": name, **summary(busy[name]), "counters": counters.get(name, {})} for name in order if busy[name]
-    ]
-    # A pass of the frame graph that gave the GPU no encoder in any frame, such as the outlines with none to draw.
-    report["idle"] = [name for name in passes if not busy[name]]
+    report |= summarize(intervals, passes, counters, args.window)
     (args.out / "passes.json").write_text(json.dumps(report, indent=2))
-
-    lines = [
-        f"{timings['device']}, {timings['width']} x {timings['height']}: {frames} frames, {skipped} other command buffers.",
-        "Times are the GPU busy time of each pass's encoders, in milliseconds. Read each pass's own time here: on MoltenVK the"
-        " pass times of gpu-timings.json hold only for the span and for sums of neighbouring passes (tools/README.md, \"GPU trace\").",
-        "",
-        "| Pass | Frames | Mean | Median | p95 | Top limiter | Second limiter | Read GB/s | Write GB/s |",
-        "|---|---|---|---|---|---|---|---|---|",
-    ]
-    for entry in report["passes"]:
-        top = limiters(entry["counters"])
-        cells = [f"{name} {value:.0f} %" for name, value in top[:2]] + ["-"] * (2 - len(top[:2]))
-        read = entry["counters"].get("GPU Read Bandwidth")
-        write = entry["counters"].get("GPU Write Bandwidth")
-        lines.append(
-            f"| {entry['pass']} | {entry['frames']} | {entry['meanMs']:.3f} | {entry['medianMs']:.3f} | {entry['p95Ms']:.3f}"
-            f" | {cells[0]} | {cells[1]} | {'-' if read is None else f'{read:.1f}'} | {'-' if write is None else f'{write:.1f}'} |"
-        )
-    frame = report["frame"]
-    lines.append(
-        f"| {FRAME} | {frame['frames']} | {frame['meanMs']:.3f} | {frame['medianMs']:.3f} | {frame['p95Ms']:.3f} | | | | |"
-    )
-    if report["idle"]:
-        lines += ["", f"Passes with no GPU work in any frame: {', '.join(report['idle'])}."]
-    if not has_counters:
-        lines += ["", "The trace holds no GPU counters, so the table has no limiters (tools/README.md, \"GPU trace\")."]
-    table = "\n".join(lines) + "\n"
-    (args.out / "passes.md").write_text(table)
-    print(table, end="")
+    text = table(report, has_counters)
+    (args.out / "passes.md").write_text(text)
+    print(text, end="")
     return 0
 
 
@@ -317,6 +430,12 @@ def main() -> int:
     reporting.add_argument("timings", type=Path, help="the run's gpu-timings.json, which names the passes")
     reporting.add_argument("out", type=Path)
     reporting.add_argument("--process", default="Tertius.Demo")
+    reporting.add_argument(
+        "--window",
+        nargs=2,
+        metavar=("FROM", "TO"),
+        help="also report each frame's wall-clock GPU time from the end of pass FROM to the start of pass TO",
+    )
     reporting.set_defaults(run=report)
     args = parser.parse_args()
     return args.run(args)

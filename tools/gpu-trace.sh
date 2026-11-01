@@ -13,6 +13,9 @@
 #   --out <dir>       the folder of the trace (default captures/gpu-trace/<script>-<start>)
 #   --no-counters     records no GPU counters: a smaller trace with times and no limiters
 #   --keep-exports    keeps the XML tables that the report exports from the trace, in <out>/export
+#   --window <from> <to>
+#                     adds a row with each frame's wall-clock GPU time from the end of pass <from> to the start of
+#                     pass <to>
 # Arguments after the script go to the demo's headless run, such as --screen-space-light off.
 # Writes <out>/run.trace (open it in Instruments), <out>/run (the run's gpu-timings.json and exposure.json; --video none
 # draws each capture and writes no image),
@@ -38,6 +41,7 @@ size=1920x1080
 out=
 counters=1
 keep=0
+window=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --start) start=$2; shift 2 ;;
@@ -46,6 +50,7 @@ while [[ $# -gt 0 ]]; do
     --out) out=$2; shift 2 ;;
     --no-counters) counters=0; shift ;;
     --keep-exports) keep=1; shift ;;
+    --window) window=(--window "${2:?--window takes two pass names}" "${3:?--window takes two pass names}"); shift 3 ;;
     -*) echo "Unknown option $1." >&2; exit 2 ;;
     *) break ;;
   esac
@@ -106,7 +111,7 @@ if [[ ! -f "$out/run/gpu-timings.json" ]]; then
 fi
 grep -E '^GPU frame span' "$out/run.log" || true
 
-python3 -I tools/gpu-trace.py report "$out/run.trace" "$out/run/gpu-timings.json" "$out"
+python3 -I tools/gpu-trace.py report "$out/run.trace" "$out/run/gpu-timings.json" "$out" "${window[@]}"
 if [[ "$keep" -eq 0 ]]; then
   rm -rf "$out/export"
 fi
