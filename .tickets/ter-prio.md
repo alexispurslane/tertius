@@ -1,6 +1,6 @@
 ---
 id: ter-prio
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-11-01T02:14:19Z
@@ -19,3 +19,9 @@ The 17 passes outside the direct light, the reflections and the screen-space lig
 ## Acceptance Criteria
 
 These passes' own busy time on demo-exit (a trace of every frame, two runs or a paired trace) is at most 2.00 ms, or the changes that keep the image are exhausted and a note gives the remainder, what the gaps hold, and each candidate default change with its measured saving and captures. Every change keeps the image by the pixel comparison of decision 7. ARCHITECTURE.md gives the new cost.
+
+## Notes
+
+**2026-11-01T03:39:56Z**
+
+2026-10-31: workflow run ab44f491-14ca-4a37-9207-314012b96454 (version 869b0b07), branch ter-prio-other-passes-share from 66d34880. Settled by the orchestrator before the launch: a change keeps the image when no pixel of the comparison captures differs by more than 2 of 255 levels in any channel of the final 8-bit image; a larger change is a default change, which ter-3g1g takes to the user with captures.
