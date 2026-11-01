@@ -177,9 +177,7 @@ public sealed class HairSkinAndReflectionScenesTests : IDisposable
     {
         SceneInstance scene = Build("skin-and-hair");
 
-        FanCards(fan, 12)
-            .Should()
-            .AllSatisfy(card => InPicture(scene, $"{fan}-camera", card).Should().BeTrue(card));
+        FanCards(fan, 12).Should().AllSatisfy(card => InPicture(scene, $"{fan}-camera", card).Should().BeTrue(card));
     }
 
     [Fact]
@@ -232,7 +230,8 @@ public sealed class HairSkinAndReflectionScenesTests : IDisposable
     }
 
     /// <summary>The scene ids <c>{fan}-0</c> to <c>{fan}-{count - 1}</c> of the cards of one fan.</summary>
-    private static string[] FanCards(string fan, int count) => [.. Enumerable.Range(0, count).Select(i => $"{fan}-{i}")];
+    private static string[] FanCards(string fan, int count) =>
+        [.. Enumerable.Range(0, count).Select(i => $"{fan}-{i}")];
 
     /// <summary>The direction that the view <paramref name="view"/> of <paramref name="scene"/> looks along, in its frame.</summary>
     private Double3 Forward(SceneInstance scene, string view) =>

@@ -1,6 +1,5 @@
 using Tertius.Demo;
 using Tertius.Host.Scripting;
-using Tertius.Simulation;
 using static Tertius.Host.Tests.HostTesting;
 
 namespace Tertius.Host.Tests;
