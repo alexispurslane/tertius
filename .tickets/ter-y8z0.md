@@ -18,3 +18,9 @@ Diagnosis ticket of docs/plans/screen-space-artifacts.md (section 'What a diagno
 
 A ticket note lists every artifact found, with its crop, its stage, the probe evidence, whether it is a fault or a limit of the method, and the candidate fixes with their cost. The probes are not in the commits.
 
+
+## Notes
+
+**2026-11-01T17:30:42Z**
+
+2026-11-01, from ter-xgra's review: structures that also show with the screen-space light off, so they probably belong to the reflections: bright dotted specks along the far creases of the floor and chute films, and sawtooth reflections on the floors of brake-run and floor. Not confirmed. ter-xgra's light-off gallery (captures/xgra/ssl-off after the merge) shows them.
