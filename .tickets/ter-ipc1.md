@@ -1,6 +1,6 @@
 ---
 id: ter-ipc1
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-11-02T16:37:04Z
@@ -22,3 +22,9 @@ Design it twice: (1) the continuation test at the step's texel, so a near step e
 
 One function per language decides where a depth sample's plane holds, and both readers call it; the docs (screen-space-reflections.md 'The pixel's surface', ARCHITECTURE.md) name one rule; the user chose between the two designs with images.
 
+
+## Notes
+
+**2026-11-02T18:02:21Z**
+
+2026-11-02: launched as workflow run bebaa068-a164-4d94-a183-f53f31faa869, version 869b0b07-3413-4b06-8707-a88a91bf6e91, branch ter-ipc1-one-plane-rule, base 6c71a2943 (brief /tmp/briefs/ipc1.txt): a probe of the ticket's two designs that ends at a fork for the user.

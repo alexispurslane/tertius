@@ -1,6 +1,6 @@
 ---
 id: ter-cvyx
-status: open
+status: in_progress
 deps: []
 links: [ter-eqtb]
 created: 2026-11-02T17:32:29Z
@@ -17,3 +17,9 @@ Found on 2026-11-02 in ter-eqtb's hardening, on the branch ter-eqtb-smooth-steps
 - 14: both pixels' parts reach all four edges. The trace hits a pixel with its hit within 0.005 px of the border to the pixel that the march hits, with the march's entry share from 0.001 to 0.26. Not explained yet: a rounding of the descent's entry across a pixel border inside a cell is one candidate.
 Whether the base before ter-eqtb (the flat slab at level 0) also disagreed at this rate was not measured. The search code is in ter-eqtb's hardening note. To decide: whether the march stays the oracle of the trace with bent surfaces (then the trace must give the march's answer, for example by a level-0 stretch from the pixel's entry edge), or the test's claim changes to the kinds of disagreement that the design allows, with the second kind explained or fixed.
 
+
+## Notes
+
+**2026-11-02T18:02:21Z**
+
+2026-11-02: launched as workflow run ceff2951-d5f6-4f5c-a308-470c6d8857dd, version 869b0b07-3413-4b06-8707-a88a91bf6e91 (build, review, fix), branch ter-cvyx-trace-march, base 6c71a2943 (brief /tmp/briefs/cvyx.txt). The orchestrator's decision: the march stays the oracle of the trace, because the pyramid is an acceleration structure whose answer must not depend on the walk's path; a fork only if that cannot hold or costs more than about 0.05 ms on the step view.
