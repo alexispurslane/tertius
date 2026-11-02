@@ -339,7 +339,10 @@ public sealed class EnvironmentLightingTests
             float offCenter = (along * ray - sphereCenter).LengthSquared();
             if (offCenter > 0.9f)
                 continue;
-            yield return (4 * (y * width + x), Vector3.Normalize((along - MathF.Sqrt(1 - offCenter)) * ray - sphereCenter));
+            yield return (
+                4 * (y * width + x),
+                Vector3.Normalize((along - MathF.Sqrt(1 - offCenter)) * ray - sphereCenter)
+            );
         }
     }
 
@@ -706,6 +709,79 @@ public sealed class EnvironmentLightingTests
                         x,
                         y
                     );
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>
+    /// A lit puff takes the map's mean radiance over every direction, not over the six directions of the faces' centers:
+    /// under one glowing ball toward (1, 1, 1), off every axis, the mean of D at the six faces' centers is 15 % above the
+    /// mean over every direction, and the mean over face +X alone 96 % above it. The six faces of the cube's last level
+    /// hold the means over the faces.
+    /// </summary>
+    [Fact]
+    public void ALitPuffTakesTheMapsMeanRadianceUnderALightOffEveryAxis()
+    {
+        VulkanRenderer renderer = Renderer(SmallMap);
+        try
+        {
+            var albedo = new Vector3(0.8f, 0.6f, 0.4f);
+            RenderSnapshot snapshot = Dark();
+            AddSphere(
+                snapshot: snapshot,
+                mesh: Sphere(renderer),
+                material: BrdfTesting.Glow(renderer, new(400)),
+                position: Vector3.Normalize(Vector3.One) * 10,
+                radius: 0.5f
+            );
+            snapshot.Instances.Add(
+                Gpu.Instance(
+                    mesh: renderer.CreateMesh(Primitives.Plane(4f)),
+                    material: BrdfTesting.Glow(renderer, Vector3.Zero),
+                    position: new(0, 0, -10),
+                    scale: Vector3.One,
+                    rotation: FacingPlusZ,
+                    chainDepth: TestChains.CamerasFrame
+                )
+            );
+            var look = new PuffLook(
+                Life: 2f,
+                StartRadius: 0.5f,
+                EndRadius: 0.5f,
+                TemperatureRatio: 0.5f,
+                Shading: PuffShading.Lit(albedo)
+            );
+            snapshot.PuffLooks.Add(look);
+            var center = new Vector3(0, 0, -6);
+            snapshot.Puffs.Add(
+                new()
+                {
+                    Position = center,
+                    PreviousPosition = center,
+                    Age = 0f,
+                    Look = 0,
+                }
+            );
+
+            Vector3 lit = Shown(renderer, snapshot, "environment-lit-puff-off-axis").Color(Center);
+            Vector3 mean = renderer.ReadEnvironmentIrradiance(map: 0).MeanRadiance;
+            snapshot.PuffLooks[0] = look with { Shading = PuffShading.Glow(albedo * mean) };
+            Vector3 glow = Shown(renderer, snapshot, "environment-glow-puff-off-axis").Color(Center);
+
+            lit.X.Should().BeGreaterThan(0.1f, "the ball lights the puff: {0}", lit);
+            BrdfTesting
+                .LargestChannelDifference(lit, glow)
+                .Should()
+                .BeLessThanOrEqualTo(
+                    Tolerance,
+                    "a lit puff scatters the map's mean radiance {0}: {1} against {2}",
+                    mean,
+                    lit,
+                    glow
+                );
         }
         finally
         {

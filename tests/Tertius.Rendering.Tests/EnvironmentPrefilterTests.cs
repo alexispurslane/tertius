@@ -683,6 +683,120 @@ public sealed class EnvironmentPrefilterTests
         }
     }
 
+    /// <summary>
+    /// The reading that a later frame's batcher gets for each map of a chain of three is the last level of that map's own
+    /// cube: each frame copies the last level of every served map's six layers, and the CPU reads each map's texels from
+    /// its own place in the slot's readback buffer. The scene holds still, so every frame's cubes are the same.
+    /// </summary>
+    [Fact]
+    public void EachMapsReadingInALaterFrameIsTheLastLevelOfItsOwnCube()
+    {
+        // Gpu.Headless's default: a reading reaches the CPU this many frames after its frame.
+        const int framesInFlight = 2;
+        VulkanRenderer renderer = EnvironmentScenes.Renderer(facesPerFrame: CubeFaces.Count);
+        try
+        {
+            RenderSnapshot snapshot = ColorfulInThreeFrames(renderer);
+            for (int frame = 0; frame < framesInFlight + 2; frame++)
+                renderer.Render(snapshot, 1f);
+
+            renderer.LastScene.Ambient.TryGetValue(out MapAmbient ambient).Should().BeTrue("the map is on");
+            for (int map = 0; map < 3; map++)
+            {
+                Irradiance cube = renderer.ReadEnvironmentIrradiance(map: map);
+                Irradiance read = ambient.Irradiance.Span[map]!.Value.Irradiance;
+                for (int texel = 0; texel < Irradiance.Texels; texel++)
+                    read[texel].Should().Be(cube[texel], "texel {0} of map {1}'s reading is its cube's", texel, map);
+            }
+
+            renderer
+                .ReadEnvironmentIrradiance(map: 1)
+                .MeanRadiance.Should()
+                .NotBe(renderer.ReadEnvironmentIrradiance(map: 2).MeanRadiance, "the maps lie in different axes");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>
+    /// The cube convolves the map's level of 32 texels, not a finer one, at the default face size of 128: under a small
+    /// bright square of 0.86° from its center to its sides, whose light a texel of 32 moves by up to half its own width,
+    /// level 0 of the cube is the C# copy's convolution of that level. The C# copy puts the two levels up to 0.5 % of a
+    /// unit irradiance apart under such a light, and the square sends 1.8. Under the broad squares of
+    /// <see cref="Colorful"/> the levels of 32 and 64 give the same convolution within the rounding of half floats.
+    /// </summary>
+    [Fact]
+    public void UnderASmallBrightSquareTheIrradianceCubeIsTheConvolutionOfTheMapsLevelOf32Texels()
+    {
+        const int faceSize = 128;
+        VulkanRenderer renderer = Renderer(faceSize);
+        try
+        {
+            RenderSnapshot snapshot = EnvironmentScenes.Dark();
+            snapshot.Instances.Add(
+                EnvironmentScenes.Square(
+                    plane: renderer.CreateMesh(Primitives.Plane(1f)),
+                    material: EnvironmentScenes.Emissive(renderer, new(2000)),
+                    center: Vector3.Normalize(new(0.1f, 0.2f, 1f)) * 10,
+                    halfSize: 0.15f,
+                    chainDepth: TestChains.CamerasFrame
+                )
+            );
+
+            renderer.Render(snapshot, 1f);
+
+            CubeShouldBeTheConvolution(
+                renderer: renderer,
+                faceSize: faceSize,
+                map: 0,
+                situation: "under a small square"
+            );
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>
+    /// A map of one radiance everywhere gives a cube of exactly that radiance at every face size: the convolution divides
+    /// by the sum of its weights, which is the sum of the light that it weighs, not by π, which their sum misses by up to
+    /// 0.07 % at a source of 16 texels. The half float below 1 lies 0.05 % below it.
+    /// </summary>
+    [Theory]
+    [InlineData(EnvironmentMapSetting.MinFaceSize)]
+    [InlineData(Size)]
+    public void AUniformMapGivesACubeOfItsOwnRadiance(int faceSize)
+    {
+        VulkanRenderer renderer = Renderer(faceSize);
+        try
+        {
+            RenderSnapshot snapshot = EnvironmentScenes.Dark();
+            EnvironmentScenes.AddEnclosure(
+                snapshot: snapshot,
+                plane: renderer.CreateMesh(Primitives.Plane(1f)),
+                material: EnvironmentScenes.Emissive(renderer, Vector3.One),
+                distance: 5,
+                chainDepth: TestChains.CamerasFrame
+            );
+
+            renderer.Render(snapshot, 1f);
+
+            Half[] cube = CubeFaces0(renderer);
+            for (int i = 0; i < cube.Length; i++)
+                if (i % 4 != 3)
+                    ((float)cube[i])
+                        .Should()
+                        .Be(1f, "texel {0} of a uniform map of 1 at face size {1}", i / 4, faceSize);
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
     [Fact]
     public void UnderAWhiteSkyAndABlackGroundTheIrradianceCubeHoldsTheHemispheresDiffuseLight()
     {

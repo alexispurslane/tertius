@@ -74,7 +74,8 @@ public sealed class IrradianceCubeTests
             for (int i = 0; i < 2; i++)
             {
                 double solidAngle = CubeFaces.TexelSolidAngle(2 * x + i, 2 * y + j, faceSize);
-                sum += (double)level[((layer * faceSize + 2 * y + j) * faceSize + 2 * x + i) * 4 + channel] * solidAngle;
+                sum +=
+                    (double)level[((layer * faceSize + 2 * y + j) * faceSize + 2 * x + i) * 4 + channel] * solidAngle;
                 weight += solidAngle;
             }
 
@@ -170,7 +171,11 @@ public sealed class IrradianceCubeTests
         for (int y = 0; y < size; y++)
         for (int x = 0; x < size; x++)
             cube[(layer * size + y) * size + x] = IrradianceCube
-                .Convolve(source, sourceSize, CubeFaces.Direction((CubeFace)layer, (x + 0.5f) / size, (y + 0.5f) / size))
+                .Convolve(
+                    source,
+                    sourceSize,
+                    CubeFaces.Direction((CubeFace)layer, (x + 0.5f) / size, (y + 0.5f) / size)
+                )
                 .AsVector3();
         return cube;
     }
@@ -215,7 +220,7 @@ public sealed class IrradianceCubeTests
     private static IEnumerable<Vector3> RingsAround(Vector3 light)
     {
         var aside = Vector3.Normalize(Vector3.Cross(light, MathF.Abs(light.X) < 0.9f ? Vector3.UnitX : Vector3.UnitY));
-        Vector3 third = Vector3.Cross(light, aside);
+        var third = Vector3.Cross(light, aside);
         for (int degrees = 0; degrees <= 180; degrees += 5)
         {
             float polar = degrees * MathF.PI / 180;
@@ -290,7 +295,13 @@ public sealed class IrradianceCubeTests
             double convolved = IrradianceCube.Convolve(source, IrradianceCube.SourceFaceSize, normal).X;
             Math.Abs(convolved - expected)
                 .Should()
-                .BeLessThanOrEqualTo(Tolerance * peak, "D at {0} is {1}, against the exact {2}", normal, convolved, expected);
+                .BeLessThanOrEqualTo(
+                    Tolerance * peak,
+                    "D at {0} is {1}, against the exact {2}",
+                    normal,
+                    convolved,
+                    expected
+                );
         }
     }
 
@@ -354,4 +365,14 @@ public sealed class IrradianceCubeTests
     [InlineData(1024, 5)]
     public void TheCubeConvolvesTheLevelOfTheMapWhoseFacesHold32Texels(int mapFaceSize, int level) =>
         IrradianceCube.SourceLevel(mapFaceSize).Should().Be(level);
+
+    [Fact]
+    public void ASourceThatIsNotSixFacesOfItsSizeIsRefused()
+    {
+        var fiveFaces = new Half[5 * IrradianceCube.SourceFaceSize * IrradianceCube.SourceFaceSize * 4];
+
+        Action convolve = () => IrradianceCube.Convolve(fiveFaces, IrradianceCube.SourceFaceSize, Vector3.UnitY);
+
+        convolve.Should().Throw<ArgumentException>();
+    }
 }

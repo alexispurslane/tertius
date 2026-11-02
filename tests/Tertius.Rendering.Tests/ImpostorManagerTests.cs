@@ -865,7 +865,30 @@ public sealed class ImpostorManagerTests
         CapturesUnder(MapReading(3f)).Should().Be(1, "the first sight of an impostor is captured");
         CapturesUnder(MapReading(0f, other: new(3f)))
             .Should()
-            .Be(1, "the total stays, but the texel that the light left and the one that it reached change by 0.68 each, of 5.5");
+            .Be(
+                1,
+                "the total stays, but the texel that the light left and the one that it reached change by 0.68 each, of 5.5"
+            );
+    }
+
+    [Fact]
+    public void AMapLightThatChangesItsColorButNotItsBrightnessMakesACaptureStale()
+    {
+        var harness = new Harness();
+        var position = new Vector3(0, 0, -DistanceFor(100f));
+
+        int CapturesUnder(Vector3 texel)
+        {
+            RenderSnapshot snapshot = Snapshot();
+            snapshot.Instances.Add(Ball(entity: 1, position: position));
+            harness.Run(snapshot, MapReading(0f, other: texel));
+            return harness.Manager.Captures.Length;
+        }
+
+        CapturesUnder(new(3f, 0, 0)).Should().Be(1, "the first sight of an impostor is captured");
+        CapturesUnder(new(0, 3f, 0))
+            .Should()
+            .Be(1, "the texel's length stays 3, but its change from red to green is 3 √2 · π / 24 ≈ 0.56, of 5.2");
     }
 
     [Fact]
@@ -891,6 +914,46 @@ public sealed class ImpostorManagerTests
         CapturesUnder(3f * 1.05f)
             .Should()
             .Be(1, "5 % more sun changes them by 0.48 of 10.5, above 2 / h, with the map's light weighed as 5.4");
+    }
+
+    [Fact]
+    public void ALampsChangeWeighsAgainstTheLampsLightAndTheMapsTogether()
+    {
+        var harness = new Harness();
+        var position = new Vector3(0, 0, -DistanceFor(100f));
+        // A uniform map of radiance 1 weighs π · |(1, 1, 1)| ≈ 5.4. The lamp, 2.7 m from the ball, sends it √3 · 21 / 7.25
+        // ≈ 5.0, so the total is about 10.4. A change of the lamp changes its light and its weighted direction alike.
+        EnvironmentDraw map = UniformMapReading(1f);
+
+        int CapturesUnder(float lamp)
+        {
+            RenderSnapshot snapshot = Snapshot(intensity: 0);
+            snapshot.Instances.Add(Ball(entity: 1, position: position));
+            snapshot.Lights.Add(
+                Gpu.Lamp(
+                    position: position + new Vector3(2.5f, 1f, 0),
+                    color: Vector3.One,
+                    intensity: lamp,
+                    chainDepth: TestChains.CamerasFrame
+                )
+            );
+            harness.Run(snapshot, map);
+            return harness.Manager.Captures.Length;
+        }
+
+        CapturesUnder(21f).Should().Be(1, "the first sight of an impostor is captured");
+        CapturesUnder(21f * 1.015f)
+            .Should()
+            .Be(
+                0,
+                "1.5 % more lamp changes the signature by 0.15 of 10.4, below 2 / h, though by 3 % of the lamp's own 5.0"
+            );
+        CapturesUnder(21f * 1.035f)
+            .Should()
+            .Be(
+                1,
+                "3.5 % more lamp changes it by 0.35 of 10.6, above 2 / h, with the map's light weighed as 5.4, not 41.6"
+            );
     }
 
     [Fact]
