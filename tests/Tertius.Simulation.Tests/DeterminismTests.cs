@@ -61,7 +61,7 @@ public sealed class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelp
 
         public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
         {
-            threads.RecordCurrentThread();
+            threads.RecordThreadAndHoldTickThread();
             FoldIntoHash(ref events);
             if (!events.Of<Tick>().Any())
                 return;
@@ -185,12 +185,9 @@ public sealed class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelp
     }
 
     /// <summary>
-    /// The threads that ran gameplay in one run. In a run on several workers, it also holds the thread that calls Tick, in
-    /// the first entity that this thread runs, until another thread runs an entity. Without the hold, a thread pool whose
-    /// threads all run other test classes leaves every chunk to the calling thread: a run on eight workers takes about
-    /// 100 ms, so a pool that frees no thread for that long gives one thread although the world can use several. The hold
-    /// waits at most <see cref="HoldLimit"/>, so a world that runs every chunk on the calling thread fails the test
-    /// instead of hanging it.
+    /// The threads that ran gameplay in one run. On several workers, it holds the thread that calls Tick in its first
+    /// entity until another thread runs one, for at most <see cref="HoldLimit"/>. Without the hold, a thread pool that is
+    /// busy with other test classes can leave every chunk to the calling thread.
     /// </summary>
     /// <param name="holdTickThread">Whether the thread that calls Tick waits for another thread: on several workers.</param>
     private sealed class GameplayThreads(bool holdTickThread)
@@ -206,9 +203,6 @@ public sealed class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelp
         /// <summary>The thread that makes the run, and so calls Tick.</summary>
         private readonly int tickThread = Environment.CurrentManagedThreadId;
 
-        /// <summary>Whether a thread other than <see cref="tickThread"/> ran an entity. Written by the workers.</summary>
-        private bool anotherThreadRan;
-
         /// <summary>Whether the thread that calls Tick waited once. Only that thread reads and writes it.</summary>
         private bool held;
 
@@ -216,22 +210,18 @@ public sealed class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelp
         public int Count => threads.Count;
 
         /// <summary>
-        /// Records that the current thread runs an entity, and holds the thread that calls Tick the first time it runs one.
+        /// Records that the current thread runs an entity. The first time the thread that calls Tick runs one, it blocks
+        /// until another thread has run one, for at most <see cref="HoldLimit"/>.
         /// </summary>
-        public void RecordCurrentThread()
+        public void RecordThreadAndHoldTickThread()
         {
             int thread = Environment.CurrentManagedThreadId;
             threads.TryAdd(thread, 0);
-            if (thread != tickThread)
-            {
-                Volatile.Write(ref anotherThreadRan, true);
-                return;
-            }
-
-            if (!holdTickThread || held)
+            if (!holdTickThread || thread != tickThread || held)
                 return;
             held = true;
-            SpinWait.SpinUntil(() => Volatile.Read(ref anotherThreadRan), HoldLimit);
+            // The tick thread is in the set, so a second thread in it is another thread that ran an entity.
+            SpinWait.SpinUntil(() => threads.Count > 1, HoldLimit);
         }
     }
 
@@ -257,8 +247,8 @@ public sealed class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelp
 
     /// <summary>
     /// Runs the workload on <paramref name="maxDop"/> workers and returns what it ended in, and how many different threads
-    /// ran gameplay. On several workers, the calling thread waits in its first entity until another thread runs one (
-    /// <see cref="GameplayThreads"/>). The world runs on real Jolt, in the wrapper that records every step output.
+    /// ran gameplay (<see cref="GameplayThreads"/>, which holds the calling thread on several workers). The world runs on
+    /// real Jolt, in the wrapper that records every step output.
     /// </summary>
     private static (RunResult Result, int GameplayThreads) Run(int maxDop, int seed = Seed, int ticks = Ticks)
     {
@@ -274,7 +264,7 @@ public sealed class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelp
                 options.SpawnPoolSize = 16;
             }
         );
-        (FrameHandle West, FrameHandle East, FrameHandle Root) frames = SpawnFrames(world);
+        WorkloadFrames frames = SpawnFrames(world);
         var random = new Random(seed);
         SpawnScatter(world: world, threads: threads, random: random, frames: frames);
         SpawnCollisionCourses(world: world, threads: threads, random: random, frames: frames);
@@ -298,11 +288,17 @@ public sealed class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelp
         );
     }
 
+    /// <summary>The three frames of the workload.</summary>
+    /// <param name="West">The static frame in the west.</param>
+    /// <param name="East">The frame on a Kepler orbit in the east.</param>
+    /// <param name="Root">The root frame, whose point gravity pulls the bodies in it.</param>
+    private readonly record struct WorkloadFrames(FrameHandle West, FrameHandle East, FrameHandle Root);
+
     /// <summary>
     /// Spawns the three frames of the workload: a static frame in the west, a frame on a Kepler orbit in the east, and the
     /// root, whose point gravity pulls the bodies in it.
     /// </summary>
-    private static (FrameHandle West, FrameHandle East, FrameHandle Root) SpawnFrames(World world)
+    private static WorkloadFrames SpawnFrames(World world)
     {
         // The Kepler frame below takes its G·M from the point gravity of the root, which also pulls the bodies in the root.
         FrameHandle root = world.CreateRootFrame(new(FrameBounds.Sphere(1e12f), GravityField.Point(1e8)));
@@ -315,7 +311,7 @@ public sealed class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelp
                 )
             )
         );
-        return (west, east, root);
+        return new(West: west, East: east, Root: root);
     }
 
     /// <summary>
@@ -325,7 +321,7 @@ public sealed class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelp
         World world,
         GameplayThreads threads,
         Random random,
-        (FrameHandle West, FrameHandle East, FrameHandle Root) frames
+        WorkloadFrames frames
     )
     {
         for (int i = 0; i < 160; i++)
@@ -371,7 +367,7 @@ public sealed class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelp
         World world,
         GameplayThreads threads,
         Random random,
-        (FrameHandle West, FrameHandle East, FrameHandle Root) frames
+        WorkloadFrames frames
     )
     {
         foreach (FrameHandle frame in new[] { frames.West, frames.East, frames.Root })
@@ -477,11 +473,8 @@ public sealed class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelp
     [Fact]
     public void TheRunOnEightWorkersReallyRunsGameplayOnSeveralThreads()
     {
-        // Equal hashes would prove nothing if every chunk ran on the one thread that called Tick. That thread waits in its first
-        // entity until another thread runs one (GameplayThreads), so a busy thread pool delays this run but does not fail it.
-        if (Environment.ProcessorCount == 1)
-            return;
-
+        // Equal hashes would prove nothing if every chunk ran on the one thread that called Tick. GameplayThreads holds that
+        // thread, so a busy thread pool delays this run but does not fail it.
         runs.EightWorkersGameplayThreads.Should().BeGreaterThan(1);
     }
 
