@@ -52,3 +52,7 @@ Ticket 3 of ter-jw7g's design (docs/plans/environment-map-distances.md, 'Ticket 
 **2026-11-02T22:27:21Z**
 
 2026-11-02, the user's choice after the moment probe (run e7fd2065, head f99de1704, sheets in captures/s6zr/sheets/moments): S + Q2, the solid rule as built plus the near-sample hit. Rejected: the moment form V32 + Q2, and keeping today's read (the orchestrator and the probe had recommended today's read). The user was told: S + Q2 removes the seam lines for about 0.05 ms over S; the soft ghosts on far walls, the door's overshoot (110 against ref1's 64) and the pillar's sharp foot stay; 11 acceptance misses, mean box error 4.87 against ref1; +2.7 ms on the ambient pass over today's read. The user also keeps the distance cube (ter-55xu). The dependency on ter-nw4a is removed: the map takes no cone model, and the build's one owner of the lobe's cone covers ter-nw4a's copy if ter-nw4a merges first.
+
+**2026-11-02T22:28:21Z**
+
+2026-11-02: the build of S + Q2 launched as workflow run 113a5f6f-0c2a-4d78-8c6d-f370cf1120f3, version 869b0b07-3413-4b06-8707-a88a91bf6e91, on branch ter-s6zr-corrected-read (brief /tmp/briefs/s6zr-build-sq2.txt). It merges main, ports Q2 with its C# rule and twin test, makes the one owner of the lobe's cone cover ter-nw4a's site if ter-nw4a is in main, and records the known limits and the accepted misses.
