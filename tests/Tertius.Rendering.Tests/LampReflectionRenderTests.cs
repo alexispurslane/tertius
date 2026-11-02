@@ -125,7 +125,11 @@ public sealed class LampReflectionRenderTests
         once.Should().BeGreaterThan(0.02f, "the light's lobe shows the bulb's disc in the floor");
         reflected
             .Should()
-            .BeApproximately(once, 0.03f * once, "the reflections add no second image of the bulb over its light's disc");
+            .BeApproximately(
+                once,
+                0.03f * once,
+                "the reflections add no second image of the bulb over its light's disc"
+            );
     }
 
     [Fact]
