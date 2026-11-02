@@ -72,7 +72,11 @@ public sealed class GrazingReflectionRenderTests
         judged.Should().BeGreaterThan(3_000, "the lower half of the ball reflects the floor");
         wrong
             .Should()
-            .BeEmpty("the ball shows W · L of the floor wherever its ray meets the floor; {0} of {1} differ", wrong.Count, judged);
+            .BeEmpty(
+                "the ball shows W · L of the floor wherever its ray meets the floor; {0} of {1} differ",
+                wrong.Count,
+                judged
+            );
     }
 
     [Fact]
@@ -100,7 +104,12 @@ public sealed class GrazingReflectionRenderTests
                 dots.Add($"({x}, {y})");
         }
 
-        dots.Should().HaveCountLessThanOrEqualTo(5, "the mirror's reflections show no dotted lines: {0}", string.Join(", ", dots));
+        dots.Should()
+            .HaveCountLessThanOrEqualTo(
+                5,
+                "the mirror's reflections show no dotted lines: {0}",
+                string.Join(", ", dots)
+            );
     }
 
     [Theory]
@@ -249,12 +258,16 @@ public sealed class GrazingReflectionRenderTests
         if (InnerMirrorPoint(BallOverFloor, viewRay) is not { } mirror)
             return null;
         var toPoint = Vector3.Normalize(viewRay);
-        Vector3 reflected = Vector3.Reflect(toPoint, mirror.Normal);
+        var reflected = Vector3.Reflect(toPoint, mirror.Normal);
         if (reflected.Y >= 0)
             return null;
         Vector3 hit = mirror.Point + reflected * ((LowFloor - mirror.Point.Y) / reflected.Y);
         // In front of the eye, and not hidden from it behind the ball.
-        if (hit.Z > -0.5f || hit.Length() > 5 || BallOverFloor.DistanceAlong(Vector3.Zero, Vector3.Normalize(hit)) is not null)
+        if (
+            hit.Z > -0.5f
+            || hit.Length() > 5
+            || BallOverFloor.DistanceAlong(Vector3.Zero, Vector3.Normalize(hit)) is not null
+        )
             return null;
         if (!InsideTheEdgeFade(camera, camera.PixelOf(hit)))
             return null;
@@ -279,7 +292,7 @@ public sealed class GrazingReflectionRenderTests
         if (BallOverMirror.DistanceAlong(Vector3.Zero, toPoint) < distance || distance > 40)
             return null;
         Vector3 point = toPoint * distance;
-        Vector3 reflected = Vector3.Reflect(toPoint, FlatMapNormal);
+        var reflected = Vector3.Reflect(toPoint, FlatMapNormal);
         if (BallOverMirror.DistanceAlong(point, reflected) is not { } along)
             return false;
         Vector3 hit = point + reflected * along;

@@ -85,7 +85,10 @@ internal static class ScreenTesting
     /// What the G-buffer of a synthetic scene holds: each pixel's distance to the eye in m, 0 for sky, and its unit
     /// geometric normal turned toward the eye, the zero vector for sky, row by row from the top.
     /// </summary>
-    public static (float[] Distances, Vector3[] Normals) Surfaces(in CameraView camera, ReadOnlySpan<SceneRectangle> scene)
+    public static (float[] Distances, Vector3[] Normals) Surfaces(
+        in CameraView camera,
+        ReadOnlySpan<SceneRectangle> scene
+    )
     {
         float[] distances = new float[camera.Width * camera.Height];
         var normals = new Vector3[camera.Width * camera.Height];

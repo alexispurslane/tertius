@@ -183,8 +183,10 @@ internal readonly record struct PixelSurface(
         in CameraView camera
     )
     {
-        if (PixelPlane.Of(x: x, y: y, distances: distances, geometricNormals: geometricNormals, camera: camera)
-            is not { } plane)
+        if (
+            PixelPlane.Of(x: x, y: y, distances: distances, geometricNormals: geometricNormals, camera: camera)
+            is not { } plane
+        )
             return null;
         // Whether the plane continues toward the left, upper, right and lower neighbor.
         Span<bool> continues = stackalloc bool[4];

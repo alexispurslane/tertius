@@ -178,7 +178,10 @@ internal readonly record struct ScreenRay(
                     Steps: steps + 1
                 );
             // At level 0 the pixel's surface decided: the ray crosses the pixel. Above it, the cell's slab decides.
-            if (level == 0 || MetCellSlab(pyramid: pyramid, level: level, cell: cell, inW: inW, exit: exit) is not { } slab)
+            if (
+                level == 0
+                || MetCellSlab(pyramid: pyramid, level: level, cell: cell, inW: inW, exit: exit) is not { } slab
+            )
             {
                 // Never back: an entry solved inside a cell can round past the cell's exit. Then the next descent finds
                 // the entry at s, keeps it on an edge, and the nudge moves the walk on.

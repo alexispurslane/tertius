@@ -14,6 +14,7 @@ public sealed class DepthPyramidTests
 
     /// <summary>A camera of 64 × 48 pixels that looks 0.3 rad below the horizon, so the floor fills its lower part.</summary>
     private static CameraView FloorCamera => ScreenTesting.Camera(width: 64, height: 48, pitchDown: 0.3f);
+
     [Fact]
     public void TheTopLevelOfA1920By1080ScreenIsEleven() => DepthPyramid.LevelCount(1920, 1080).Should().Be(11);
 
@@ -140,7 +141,9 @@ public sealed class DepthPyramidTests
         CellBounds bounds = ScreenTesting.Pyramid(camera, Floor).Bounds(0, 32, 40);
 
         float[] corners = [.. Corners(32, 40).Select(corner => FloorInverseDepth(camera, corner))];
-        bounds.Near.Should().BeApproximately(corners.Max(), 1e-5f * corners.Max(), "the plane is nearest at a lower corner");
+        bounds
+            .Near.Should()
+            .BeApproximately(corners.Max(), 1e-5f * corners.Max(), "the plane is nearest at a lower corner");
         bounds.Far.Should().BeApproximately(corners.Min(), 1e-5f * corners.Min(), "and farthest at an upper corner");
     }
 
@@ -157,7 +160,13 @@ public sealed class DepthPyramidTests
 
         pyramid.Surface(32, edge - 1).Should().BeNull("the row above the floor's far edge sees the sky");
         float centerLine = FloorInverseDepth(camera, new(32, edge + 0.5f));
-        bounds.Far.Should().BeApproximately(centerLine, 1e-5f * centerLine, "past its center line the surface keeps the plane's value there");
+        bounds
+            .Far.Should()
+            .BeApproximately(
+                centerLine,
+                1e-5f * centerLine,
+                "past its center line the surface keeps the plane's value there"
+            );
     }
 
     [Fact]
@@ -186,7 +195,13 @@ public sealed class DepthPyramidTests
         CellBounds bounds = DepthPyramid.Of(camera, distances, normals).Bounds(0, 32, 40);
 
         float reach = FloorInverseDepth(camera, new(32, continues ? 40 : 40.5f));
-        bounds.Far.Should().BeApproximately(reach, 1e-5f * reach, "the plane reaches the pixel's top edge only toward a neighbor that continues it");
+        bounds
+            .Far.Should()
+            .BeApproximately(
+                reach,
+                1e-5f * reach,
+                "the plane reaches the pixel's top edge only toward a neighbor that continues it"
+            );
     }
 
     [Fact]
@@ -205,7 +220,9 @@ public sealed class DepthPyramidTests
 
         PixelSurface surface = DepthPyramid.Of(camera, distances, normals).Surface(20, 30)!.Value;
 
-        surface.High.Y.Should().Be(30.5f, "the plane stops at the center line toward a neighbor whose plane does not reach back");
+        surface
+            .High.Y.Should()
+            .Be(30.5f, "the plane stops at the center line toward a neighbor whose plane does not reach back");
     }
 
     [Fact]
@@ -216,7 +233,9 @@ public sealed class DepthPyramidTests
 
         CellBounds bounds = ScreenTesting.Pyramid(camera, wall).Bounds(0, 20, 30);
 
-        bounds.Should().Be(CellBounds.OfSurface(0.1f), "a plane that faces the eye has one inverse depth over the pixel");
+        bounds
+            .Should()
+            .Be(CellBounds.OfSurface(0.1f), "a plane that faces the eye has one inverse depth over the pixel");
     }
 
     [Fact]
@@ -244,7 +263,9 @@ public sealed class DepthPyramidTests
 
         CellBounds bounds = DepthPyramid.Of(camera, distances, normals).Bounds(0, 32, 24);
 
-        bounds.Should().Be(CellBounds.OfSurface(0.1f), "an edge-on plane keeps its center's inverse depth, with no gradient");
+        bounds
+            .Should()
+            .Be(CellBounds.OfSurface(0.1f), "an edge-on plane keeps its center's inverse depth, with no gradient");
     }
 
     [Fact]
@@ -261,7 +282,9 @@ public sealed class DepthPyramidTests
         CellBounds bounds = DepthPyramid.Of(camera, distances, normals).Bounds(0, 32, 25);
 
         float centerLine = (float)(1 / ScreenTesting.DepthAlong(camera.ViewRayThrough(new(32.5f, 25.5f)), wall)!.Value);
-        bounds.Far.Should().BeApproximately(centerLine, 1e-5f * centerLine, "no plane continues into an edge-on neighbor");
+        bounds
+            .Far.Should()
+            .BeApproximately(centerLine, 1e-5f * centerLine, "no plane continues into an edge-on neighbor");
     }
 
     [Theory]
@@ -273,7 +296,11 @@ public sealed class DepthPyramidTests
         (float[] distances, Vector3[] normals) = ScreenTesting.Surfaces(camera, Floor);
 
         Action build = () =>
-            DepthPyramid.Of(camera, fewerDistances ? distances[1..] : distances, fewerDistances ? normals : normals[1..]);
+            DepthPyramid.Of(
+                camera,
+                fewerDistances ? distances[1..] : distances,
+                fewerDistances ? normals : normals[1..]
+            );
 
         build.Should().Throw<ArgumentException>("the pyramid needs one distance and one normal for each pixel");
     }

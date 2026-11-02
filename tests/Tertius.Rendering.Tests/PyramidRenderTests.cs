@@ -105,12 +105,16 @@ public sealed class PyramidRenderTests
             CameraView camera = renderer.LastScene.Camera;
             (float[] bounds, int mipWidth, _) = renderer.ReadDepthPyramidLevel(1);
 
-            distance[PanelLastRow * Width + Width / 2].Should().BeLessThan(PanelFarEdge, "the panel's last row sees it");
-            distance[(PanelLastRow + 1) * Width + Width / 2].Should().BeGreaterThan(PanelFarEdge, "the next row sees the wall");
+            distance[PanelLastRow * Width + Width / 2]
+                .Should()
+                .BeLessThan(PanelFarEdge, "the panel's last row sees it");
+            distance[(PanelLastRow + 1) * Width + Width / 2]
+                .Should()
+                .BeGreaterThan(PanelFarEdge, "the next row sees the wall");
             // The cells of level 1 whose lower row is the panel's last row, under the middle of the panel.
             float centerLine = camera.ViewRayThrough(new(Width / 2, PanelLastRow + 0.5f)).Y / PanelHeight;
             for (int x = 100; x < 220; x++)
-                bounds[2 * ((PanelLastRow / 2) * mipWidth + x) + 1]
+                bounds[2 * (PanelLastRow / 2 * mipWidth + x) + 1]
                     .Should()
                     .BeGreaterThanOrEqualTo(
                         centerLine * (1 - 1e-5f),
@@ -533,7 +537,8 @@ public sealed class PyramidRenderTests
                 continue;
             foreach ((int X, int Y) neighbor in new[] { (x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1) })
             {
-                bool inside = neighbor.X >= 0 && neighbor.Y >= 0 && neighbor.X < camera.Width && neighbor.Y < camera.Height;
+                bool inside =
+                    neighbor.X >= 0 && neighbor.Y >= 0 && neighbor.X < camera.Width && neighbor.Y < camera.Height;
                 if (!inside || plane(neighbor.X, neighbor.Y) is not { } other)
                     continue;
                 if (NearTheCut(own, other) || NearTheCut(other, own))
@@ -602,7 +607,9 @@ public sealed class PyramidRenderTests
     {
         RenderSnapshot snapshot = Gpu.Snapshot(new(0.4f, 0.8f, 0.3f));
         MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
-        MaterialId gray = renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.5f, y: 0.5f, z: 0.5f, w: 1), roughness: 0.5f));
+        MaterialId gray = renderer.CreateMaterial(
+            MaterialDesc.Color(new(x: 0.5f, y: 0.5f, z: 0.5f, w: 1), roughness: 0.5f)
+        );
         float wall = 1.005f * PanelHeight / ((Height / 2 - PanelLastRow - 1.5f) * RowTangent);
         snapshot.Instances.Add(
             Block(
@@ -612,7 +619,9 @@ public sealed class PyramidRenderTests
                 size: new(6, 0.1f, PanelFarEdge - 2)
             )
         );
-        snapshot.Instances.Add(Block(box: box, material: gray, center: new(0, 0, -wall - 0.1f), size: new(14, 8, 0.2f)));
+        snapshot.Instances.Add(
+            Block(box: box, material: gray, center: new(0, 0, -wall - 0.1f), size: new(14, 8, 0.2f))
+        );
         return snapshot;
     }
 
