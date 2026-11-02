@@ -109,12 +109,39 @@ public sealed class MapSearchTests
         scene.Nearest(hit.Direction)!.Value.Surface.Should().BeSameAs(box);
     }
 
+    [Theory]
+    [InlineData(0.1)]
+    [InlineData(0.3)]
+    [InlineData(0.5)]
+    public void ARoughFloorsRayFindsTheBaseOfAWallNearerThanTheFirstEvenSample(double gap)
+    {
+        // A floor point 4.35 m from the eye, and a wall gap m beyond it: the ray meets the wall nearer than |x| / 7, the
+        // ray's length at the first even sample, t = 1/8.
+        var onTheFloor = new Double3(0, -1.5, -4.08);
+        var wall = new Plane(Normal: new(0, 0, -1), Offset: -onTheFloor.Z + gap);
+        var scene = new Scene(new Plane(Normal: new(0, -1, 0), Offset: 1.5), wall);
+        Double3 mirrored = new Double3(0, 1.5, -4.08).Normalized();
+
+        MapHit hit = MapSearch.Hit(
+            field: ref scene,
+            position: onTheFloor,
+            direction: mirrored,
+            alpha: 0.6 * 0.6,
+            faceSize: FaceSize
+        );
+
+        hit.Found.Should().BeTrue("decision C: a rough floor beside a wall reflects the wall's base");
+        Double3 meeting = onTheFloor + gap / -mirrored.Z * mirrored;
+        Angle(hit.Direction, meeting).Should().BeLessThan(1e-9, "the clearance is linear in the sweep on a plane");
+    }
+
     [Fact]
     public void ARayThatStartsBehindAStoredSurfaceCountsOnlyTheCrossingsAfterItComesOutInFront()
     {
         var panel = new Box(Min: new(-0.5, -0.5, -2.1), Max: new(0.5, 0.5, -2));
         var sideWall = new Plane(Normal: Double3.UnitX, Offset: 3);
         var scene = new Scene(panel, sideWall, new Plane(Normal: new(0, 0, -1), Offset: 5));
+        // The near sample, 5/63 m along the ray, also lies behind the panel, so front first ignores it too.
         var hidden = new Double3(0, 0, -5);
         Double3 direction = new Double3(1, 0, 0.3).Normalized();
         scene.Nearest(hidden)!.Value.Surface.Should().BeSameAs(panel, "the shaded point lies behind the panel");
@@ -294,8 +321,10 @@ public sealed class MapSearchTests
         );
 
         double[] levels = [.. sky.Reads.Select(read => read.Level)];
-        levels.Should().HaveCount(MapSearch.Samples, "a ray that meets nothing takes every march sample");
-        levels[0].Should().Be(0, "the cone's cross-section at the first sample is narrower than a level-0 texel");
+        levels
+            .Should()
+            .HaveCount(MapSearch.Samples + 1, "a ray that meets nothing takes the near sample and every even one");
+        levels[0].Should().Be(0, "the cone's cross-section at the near sample is narrower than a level-0 texel");
         levels.Should().BeInAscendingOrder();
         levels[^1]
             .Should()

@@ -29,14 +29,23 @@ internal readonly record struct MapHit(bool Found, Double3 Direction, double Rea
 }
 
 /// <summary>
-/// The search of a map for the place where a reflected ray ends: a march of even samples in the sweep, then regula falsi
-/// steps in the first bracket (docs/plans/environment-map-distances.md, "The search"). The C# twin of mapHit in
-/// environment.glsl.
+/// The search of a map for the place where a reflected ray ends: a march of a near sample and even samples in the sweep,
+/// then regula falsi steps in the first bracket (docs/plans/environment-map-distances.md, "The search"). The C# twin of
+/// mapHit in environment.glsl.
 /// </summary>
 internal static class MapSearch
 {
-    /// <summary>N, the march's samples, at t = k / N for k = 1 to N.</summary>
+    /// <summary>N, the march's even samples, at t = k / N for k = 1 to N, after the <see cref="NearSample"/>.</summary>
     public const int Samples = 8;
+
+    /// <summary>
+    /// t₀, the sweep of the march's first sample, before the even ones. Its point lies |x| / 63 from the shaded point, and
+    /// the eye sees it at most about 1/63 rad from x: about one level-0 texel, 2 / W rad, at the default W = 128. A nearer
+    /// hit falls in the shaded point's own texel, where the map cannot tell it from the shaded point's own surface. The
+    /// sample changes no hit of the even samples: in front, it is only an earlier front end, and behind, front first
+    /// ignores it. So it adds only the bracket from t₀ to 1 / N, the hit nearer than the first even sample.
+    /// </summary>
+    public const double NearSample = 1.0 / 64;
 
     /// <summary>K, the regula falsi steps in the first bracket, before the last secant place.</summary>
     public const int SecantSteps = 3;
@@ -75,9 +84,9 @@ internal static class MapSearch
         var ray = new SweptRay(position: position, direction: direction, alpha: alpha, faceSize: faceSize);
         // The last sample in front, null before the first one.
         Sample? front = null;
-        for (int k = 1; k <= Samples; k++)
+        for (int k = 0; k <= Samples; k++)
         {
-            double sweep = (double)k / Samples;
+            double sweep = k == 0 ? NearSample : (double)k / Samples;
             var sample = new Sample(sweep, ray.Clearance(ref field, sweep));
             // A sample with c = 0 counts as in front, so the sky at t = 1 is never a crossing.
             if (sample.Clearance >= 0)
