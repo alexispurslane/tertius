@@ -1,6 +1,6 @@
 ---
 id: ter-0pj8
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-11-02T12:51:56Z
@@ -131,3 +131,7 @@ New tests (MapSearchTests: 27 now):
 - AtTheRaysEndTheReadsTexelSpansTheFullWidthOfTheGgxLobeAtHalfItsPeak: the last read's level against GGX's own half-maximum angle, not the constant. Kills C29.
 
 Decisions that existing tests already lock in: the sky gives d bit for bit with reach 1 (ARayUnderAnOpenSkyReadsTheMapAlongItsOwnDirection), the near bracket's hit replaces a later hit (ARayThatGoesBehindANearBarBeforeItsFirstEvenSampleStopsBeforeThatSample), a ray that starts behind searches from where it comes out (ARayThatStartsBehindAStoredSurfaceCountsOnlyTheCrossingsAfterItComesOutInFront), and one secant step finds a plane exactly (AFlatWallIsFoundExactlyByTheFirstSecantStep).
+
+**2026-11-02T14:54:01Z**
+
+2026-11-02: merged into main (306fb8f75) after the hardening (e9adda5b7: 44/44 lines, 16/16 branches; 30 mutants, 27 killed, C05 and C23 judgment calls, C13 equivalent). tools/test-all.sh passed in Checked and Release on the merge. The orchestrator added the hardening's texel model to the design's 'Known limits'. Closed.
