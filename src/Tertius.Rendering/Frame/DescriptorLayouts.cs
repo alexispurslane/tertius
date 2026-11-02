@@ -9,8 +9,8 @@ namespace Tertius.Rendering;
 /// <item><term>set 0, frame</term><description>frame constants, instances, materials, lights, occluders, material sampler,
 /// frame outlines, puffs, the BRDF tables (bindings 8 and 9) with their sampler (binding 10, immutable), and the exposure
 /// buffer (binding 11), which every frame's set shares, and the environment map's specular map (binding 12, partially
-/// bound), its sampler (binding 13, immutable) and its irradiance (binding 14, partially bound), which stay empty with the
-/// map off, and the tile views of the local shadows (binding 15, partially bound), empty without the atlas. One per frame
+/// bound), its sampler (binding 13, immutable) and its irradiance cube (binding 14, partially bound), which stay empty
+/// with the map off, and the tile views of the local shadows (binding 15, partially bound), empty without the atlas. One per frame
 /// in flight.</description></item>
 /// <item><term>set 1, textures</term>
 /// <description>the bindless texture array: variable count, partially bound, update-after-bind. One per frame in flight.</description>
@@ -72,10 +72,10 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     private const uint SmaaBindings = 6;
 
     /// <summary>
-    /// The storage buffers of the frame set: bindings 1 to 4, 6, 7, 11, 14 and 15, which the vertex and fragment stages
-    /// all see.
+    /// The storage buffers of the frame set: bindings 1 to 4, 6, 7, 11 and 15, which the vertex and fragment stages all
+    /// see.
     /// </summary>
-    public const uint FrameSetStorageBuffers = 9;
+    public const uint FrameSetStorageBuffers = 8;
 
     /// <summary>
     /// The storage buffers of the deform set: the region's window, the deform vertices, the deltas, the pose rows and the
@@ -89,10 +89,14 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// </summary>
     public const uint PyramidLevelSets = 2 * DepthPyramid.MaxLevels + 1;
 
-    /// <summary>The levels sets of the largest map: one per dispatch of its downsample and of its specular map.</summary>
+    /// <summary>
+    /// The levels sets of the largest map: one per dispatch of its downsample and of its specular map, and one for its
+    /// irradiance cube.
+    /// </summary>
     private static readonly uint EnvironmentLevelsSets = (uint)(
         PrefilterLevels.DownsampleDispatches(PrefilterLevels.RadianceLevels(EnvironmentMapSetting.MaxFaceSize))
         + PrefilterLevels.Dispatches(PrefilterLevels.Count(EnvironmentMapSetting.MaxFaceSize))
+        + 1
     );
 
     private readonly VulkanDevice device;
@@ -164,21 +168,22 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     public DescriptorSetLayout ExposureSet { get; }
 
     /// <summary>
-    /// Set 0 of <see cref="EnvironmentPrefilterLayout"/>: the radiance map and its sampler, the irradiance buffer and the
-    /// buffer of its partial sums (docs/plans/environment-map.md, "Images and buffers").
+    /// Set 0 of <see cref="EnvironmentPrefilterLayout"/>: the radiance map and its sampler (docs/plans/environment-map.md,
+    /// "Images and buffers").
     /// </summary>
     public DescriptorSetLayout EnvironmentPrefilterSet { get; }
 
     /// <summary>
     /// Set 1 of <see cref="EnvironmentPrefilterLayout"/>: four level views of one of the map's images, each of every map's
-    /// layers (six per map), as storage images in bindings 0 to 3. A dispatch of the specular map writes them, and a
-    /// dispatch of the downsample reads binding 0 and writes the others.
+    /// layers (six per map), as storage images in bindings 0 to 3. A dispatch of the specular map writes them, a dispatch
+    /// of the downsample reads binding 0 and writes the others, and the convolution of the irradiance cube writes binding 0.
     /// </summary>
     public DescriptorSetLayout EnvironmentLevelsSet { get; }
 
     /// <summary>
     /// Trilinear filtering over every level, clamped to the edge: the immutable sampler of the environment map's cubes,
-    /// in the frame set (binding 13) and the prefilter set (binding 1). Vulkan filters a cube across its faces.
+    /// in the frame set (binding 13), which reads the specular map and the irradiance cube, and the prefilter set (binding
+    /// 1). Vulkan filters a cube across its faces.
     /// </summary>
     public Sampler EnvironmentSampler { get; }
 
@@ -769,16 +774,16 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         [
             // One per frame set, and the scatter set's kernel.
             new(DescriptorType.UniformBuffer, frames + 1),
-            // Those of each frame set and each deform set, the two of the exposure set, the two of the prefilter set and the
-            // own-ray list of the reflection set.
-            new(DescriptorType.StorageBuffer, (FrameSetStorageBuffers + DeformSetStorageBuffers) * frames + 5),
+            // Those of each frame set and each deform set, the two of the exposure set and the own-ray list of the
+            // reflection set.
+            new(DescriptorType.StorageBuffer, (FrameSetStorageBuffers + DeformSetStorageBuffers) * frames + 3),
             // Three per frame set (the material sampler and the immutable linear clamp and environment samplers), the
             // immutable samplers of the G-buffer, atlas, post, reflection and prefilter sets, and one per glow source set.
             new(DescriptorType.Sampler, 3 * frames + 5 + glowSourceSets),
-            // 21 for the G-buffer, post and atlas sets, three per frame set for the tables and the specular map, one per
-            // glow source set, two for the meter set, one per pyramid level set, one for the depth tail set, two for the
-            // reflection set, one for the prefilter set and one for the shadow bounds set.
-            new(DescriptorType.SampledImage, 21 + 3 * frames + glowSourceSets + 2 + PyramidLevelSets + 1 + 2 + 1 + 1),
+            // 21 for the G-buffer, post and atlas sets, four per frame set for the tables, the specular map and the
+            // irradiance cube, one per glow source set, two for the meter set, one per pyramid level set, one for the depth
+            // tail set, two for the reflection set, one for the prefilter set and one for the shadow bounds set.
+            new(DescriptorType.SampledImage, 21 + 4 * frames + glowSourceSets + 2 + PyramidLevelSets + 1 + 2 + 1 + 1),
             // Those of each of the two occlusion sets, one per pyramid level set, the depth tail set's mips, three for the
             // reflection set, four per environment levels set, three for the scatter set and one for the shadow bounds set.
             new(
@@ -843,9 +848,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     }
 
     /// <summary>
-    /// The layouts of the prefilter set, which holds the radiance map, <paramref name="environmentSampler"/> as its
-    /// immutable sampler, the irradiance buffer and its partial sums, and of the levels set, which holds four storage
-    /// images.
+    /// The layouts of the prefilter set, which holds the radiance map and <paramref name="environmentSampler"/> as its
+    /// immutable sampler, and of the levels set, which holds four storage images.
     /// </summary>
     private (DescriptorSetLayout Prefilter, DescriptorSetLayout Levels) CreateEnvironmentSetLayouts(
         Sampler environmentSampler
@@ -855,18 +859,6 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         [
             Image(binding: 0, stages: ShaderStageFlags.ComputeBit),
             ImmutableSampler(binding: 1, stages: ShaderStageFlags.ComputeBit, sampler: &environmentSampler),
-            new(
-                binding: 2,
-                descriptorType: DescriptorType.StorageBuffer,
-                descriptorCount: 1,
-                stageFlags: ShaderStageFlags.ComputeBit
-            ),
-            new(
-                binding: 3,
-                descriptorType: DescriptorType.StorageBuffer,
-                descriptorCount: 1,
-                stageFlags: ShaderStageFlags.ComputeBit
-            ),
         ];
         Span<DescriptorSetLayoutBinding> levels =
         [
@@ -1069,11 +1061,11 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
                 stageFlags: graphicsAndCompute
             ),
             new(binding: 12, descriptorType: DescriptorType.SampledImage, descriptorCount: 1, stageFlags: shading),
-            ImmutableSampler(binding: 13, stages: shading, sampler: &environment),
-            // The lit puffs evaluate the irradiance's mean in the vertex stage.
+            // The lit puffs read the irradiance cube's mean in the vertex stage, through this sampler.
+            ImmutableSampler(binding: 13, stages: graphicsAndCompute, sampler: &environment),
             new(
                 binding: 14,
-                descriptorType: DescriptorType.StorageBuffer,
+                descriptorType: DescriptorType.SampledImage,
                 descriptorCount: 1,
                 stageFlags: graphicsAndCompute
             ),

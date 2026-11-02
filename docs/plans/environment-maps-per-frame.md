@@ -77,10 +77,10 @@ Settled by this design:
 19. MaxMaps is 42: ⌊256 / 6⌋, the most cubes that one cube array holds within the spec's least `maxImageArrayLayers`, 256. A chain of more than 42 frames merges its outermost frames into map 0, whose frame is the 42nd from the camera. Reason: a portable limit. No scene comes near it. `demo-surface` has four.
 20. The map code. The base color target is `R8G8B8A8_SRGB`. Vulkan applies the sRGB curve to R, G and B only, so the alpha is a plain 8-bit UNORM value. `gbuffer.frag` writes 1.0 there, and `impostor.frag` writes 0, which marks an unlit pixel whose light is baked (`lighting.frag`, and `reflectingPixel` in `reflection_pixel.glsl` for the full-resolution trace, the half-resolution trace and the upsample, test `alpha == 0.0`). The clear value is 0 too. The spec lets a conversion from float to UNORM return either of the two codes nearest the value, and asks only that it should round to nearest. So each map owns two codes, and the written value lies between them: map i writes min((255.5 − 2i) / 255, 1), and a reader decodes i = (256 − c) >> 1 from the code c = round(alpha · 255). Map 0 writes exactly 1.0, as today, which the spec converts to 255 exactly. The code can name 128 maps, 0 to 127, with codes 1 to 255, and code 0 stays the unlit mark. The renderer uses at most 42, codes 173 to 255. Reason: the user's decision 6, written to the spec, and with one map the G-buffer holds today's bits.
 21. `GpuInstance` gains `Map` (80 to 96 bytes), `GpuPuff` gains `Map` (32 to 48 bytes), and `GpuLight` holds its `Map` in the unused part of its last vector (64 bytes as before). `DrawPushConstants` gains `Map` (80 to 84 bytes). The frame constants gain `mapAxes`, 42 quaternions (720 to 1,392 bytes). Reason: each is the honest field. The instance's growth is the one with a cost, which Part 4 measures. If the benchmark shows it, a later change can pack the map into the instance's material word, as "Later" says.
-22. The irradiance buffer holds MaxMaps × 9 `vec4`, 6,048 bytes, from creation, and map i's nine coefficients start at 9i. Each slot's readback buffer has the same size, and its copy takes the first M maps. Reason: it is small, so it never needs to grow, and its binding is written once.
-23. The capacity grows in `EnvironmentMap.FacesFor`, before batching, when M passes it. The growth waits for the device to be idle, makes the cube arrays anew for M maps, rewrites the map's own sets, empties "drawn for", and counts a version that tells each frame slot to rewrite binding 12 of its frame set. So every map refreshes in that frame. The capacity never shrinks. Reason: memory follows the longest chain that the camera has seen, and the growth is the path of a resize (`DrawFrame` waits for the device when the swapchain changes size). At the first frame nothing is in flight, so the first growth costs no wait. A camera that goes back and forth between a cabin and the ground grows once.
+22. The irradiance buffer holds MaxMaps × 9 `vec4`, 6,048 bytes, from creation, and map i's nine coefficients start at 9i. Each slot's readback buffer has the same size, and its copy takes the first M maps. Reason: it is small, so it never needs to grow, and its binding is written once. (`ter-8fz2` replaced the buffer with the irradiance cube array, 16 texels a side and 6 × capacity layers, which grows with the other cube arrays. Each readback buffer holds the cubes' last levels, 24 texels per map, 8,064 bytes, from creation.)
+23. The capacity grows in `EnvironmentMap.FacesFor`, before batching, when M passes it. The growth waits for the device to be idle, makes the cube arrays anew for M maps, rewrites the map's own sets, empties "drawn for", and counts a version that tells each frame slot to rewrite bindings 12 and 14 of its frame set (binding 14, the irradiance cube, since `ter-8fz2`). So every map refreshes in that frame. The capacity never shrinks. Reason: memory follows the longest chain that the camera has seen, and the growth is the path of a resize (`DrawFrame` waits for the device when the swapchain changes size). At the first frame nothing is in flight, so the first growth costs no wait. A camera that goes back and forth between a cabin and the ground grows once.
 24. With `NoEnvironmentMap`, the snapshot still carries the chain and the depths, because the snapshot builder cannot see the renderer's options. The batcher writes map 0 for every object, and the G-buffer writes 1.0. So the frame is the frame from before the map, pixel for pixel, as today.
-25. The face pass draws the drawn faces map by map, and each map's faces in layer order. The prefilter takes the maps in index order. Reason: one fixed order of commands. Each map writes only its own layers and its own nine coefficients, so the order does not change any bits.
+25. The face pass draws the drawn faces map by map, and each map's faces in layer order. The prefilter takes the maps in index order. Reason: one fixed order of commands. Each map writes only its own layers, of the irradiance cube too (before `ter-8fz2`, its own nine coefficients), so the order does not change any bits.
 26. `EnvironmentMap.FacesFor` stays the one choke point of the maps' automatic machinery. It calls the pure predicates `EnvironmentChain.Keeps`, `EnvironmentFaces.InTurn` and `EnvironmentFaces.RefreshesAll`, and acts directly: it grows the images. `EnvironmentMap.Drew(served, slot)`, which `DrawFrame` calls after `SubmitAndPresent`, stores "drawn for" and the slot's count of maps, so that both describe the last submitted frame. No planner and no plan object.
 
 ## The model
@@ -121,7 +121,7 @@ All the maps share the face budget F, slot by slot. A map is prefiltered when on
 | `RenderSnapshot.OriginFrameId`, `RootRotation` and `PreviousRootRotation` are fields | `RenderSnapshot.Chain` holds the chain. The three become properties derived from it. |
 | An instance, a light or a puff carries no frame | Each carries `ChainDepth` |
 | One cube for the radiance map and one for the specular map, `textureCube` at binding 12 | Two cube arrays of 6 × capacity layers, `textureCubeArray` at binding 12 |
-| An irradiance buffer of 9 `vec4` | 9 `vec4` for each of 42 maps |
+| An irradiance buffer of 9 `vec4` | 9 `vec4` for each of 42 maps. Since `ter-8fz2`, an irradiance cube array of 6 × capacity layers at binding 14 |
 | `EnvironmentMap.FrameId`, the camera frame of the faces | `EnvironmentMap`'s "drawn for", the served chain of the faces |
 | `FacesFor` returns one `FaceMask` | `FacesFor` returns a `FaceMask` for each served map, and grows the images when the chain is longer than ever before |
 | `InTurn(frame, F)` over 6 faces | `InTurn(frame, F, faces)` over 6M slots |
@@ -246,7 +246,7 @@ flowchart TD
     B --> P["Batching: each object's map, the maps' axes, each drawn face with the draw rule and the lights of its map"]
     S --> P
     P --> F["Environment faces: each drawn face, in its map's axes, into layer 6i + face"]
-    F --> R["Environment prefilter: each map with a drawn face, into its layers and its 9 coefficients"]
+    F --> R["Environment prefilter: each map with a drawn face, into its layers of the radiance, specular and irradiance cubes"]
     R --> G["G-buffer: the map code of each lit pixel in the base color's alpha"]
     G --> L["Lighting and the reflections' fallback: the pixel's map, its direction turned into the map's axes"]
     R --> T["Transparent pass, impostor captures, lit puffs: the map of the instance or the puff"]
@@ -335,9 +335,9 @@ While M stays the same, every face is at most ⌈6M / F⌉ − 1 frames old: 23 
 
 ## The prefilter of each map
 
-`EnvironmentPrefilterPass` runs today's three steps for each map with a drawn face, in index order (decision 25): the radiance map's mips, the specular levels and the irradiance. `EnvironmentPrefilterPushConstants` and `EnvironmentDownsamplePushConstants` gain `Map`. The shaders read and write layers 6 · Map + face. The irradiance's blocks write the map's partial sums into the one buffer of partial sums, which the maps take in turn, and the sum shader writes coefficients 9 · Map to 9 · Map + 8. The copy into the slot's readback buffer comes once, after the last map, and takes the first M maps. A map without a drawn face keeps its levels and its coefficients (decision 12).
+`EnvironmentPrefilterPass` runs today's three steps for each map with a drawn face, in index order (decision 25): the radiance map's mips, the specular levels and the irradiance. `EnvironmentPrefilterPushConstants` and `EnvironmentDownsamplePushConstants` gain `Map`. The shaders read and write layers 6 · Map + face. Since `ter-8fz2`, the convolution writes level 0 of the map's six layers of the irradiance cube, and the downsample its levels 1 to 3. (Before, the irradiance's blocks wrote the map's partial sums into one buffer of partial sums, and the sum shader wrote coefficients 9 · Map to 9 · Map + 8.) The copy of the cubes' last level into the slot's readback buffer comes once, after the last map, and takes the first M maps. A map without a drawn face keeps its levels and its cube's layers (decision 12).
 
-The barriers move every map's layers of an image to storage use while its level views are bound, because a storage image's layout must hold for every layer of its view: a drawn map's levels go from the reads of the frame before to storage writes, discarding, and the other maps' levels keep their texels. So the pass runs in two steps, first every drawn map's mips, then every drawn map's specular levels and irradiance, each in index order, with a barrier between two maps (see "Images, buffers, growth and descriptors"). At the end of the pass the whole specular image is in `SampledFragment` and the whole radiance image in `SampledCompute`, as today.
+The barriers move every map's layers of an image to storage use while its level views are bound, because a storage image's layout must hold for every layer of its view: a drawn map's levels go from the reads of the frame before to storage writes, discarding, and the other maps' levels keep their texels. So the pass runs in two steps, first every drawn map's mips, then every drawn map's specular levels and irradiance, each in index order, with a barrier between two maps (see "Images, buffers, growth and descriptors"). At the end of the pass the whole specular image is in `SampledFragment` and the whole radiance image in `SampledCompute`, as today, and the whole irradiance cube in `SampledVertexFragment`.
 
 ## Reading the maps
 
@@ -375,13 +375,13 @@ where
 
 ```glsl
 layout(set = 0, binding = 12) uniform textureCubeArray environmentSpecularMap;
-layout(set = 0, binding = 14, std430) readonly buffer EnvironmentIrradianceBlock { vec4 environmentIrradiance[]; };
+layout(set = 0, binding = 14) uniform textureCubeArray environmentIrradianceMap;
 
 vec3 inMapAxes(uint map, vec3 v) { return rotateInverse(frame.mapAxes[map], v); }
 
-vec3 environmentDiffuse(uint map, vec3 normal)                                   // irradiance 9 · map + i at inMapAxes(map, normal)
+vec3 environmentDiffuse(uint map, vec3 normal)                                   // the irradiance cube's layer map at inMapAxes(map, normal)
 vec3 environmentSpecular(uint map, vec3 d, float roughness, float footprint)     // layer map, at inMapAxes(map, d); the stars at d
-vec3 environmentMeanRadiance(uint map)                                           // E_00 of the map: no axes needed
+vec3 environmentMeanRadiance(uint map)                                           // the cube's last level at the six faces' centers: no axes needed
 ```
 
 where
@@ -389,7 +389,7 @@ where
 - `frame.mapAxes[i]` = R_i, interpolated by alpha, as a unit quaternion. `rotateInverse` turns a world direction into the map's axes.
 - The cube array's layer coordinate is `float(map)`, an integer, which Vulkan rounds to itself.
 - The reflected stars stay in world axes at d, and the open-sky share that masks them is read from the map at the turned direction.
-- `environmentMeanRadiance` reads the first coefficient alone, which no turn changes.
+- `environmentMeanRadiance` reads the irradiance cube's last level at the six faces' centers, whose mean no turn changes. (Before `ter-8fz2`, it read the first coefficient of the harmonics alone, which no turn changed either.)
 
 | Pass | Where the map comes from |
 |---|---|
@@ -417,20 +417,19 @@ The CPU side: `MapAmbient` holds one `IrradianceReading?` for each map, and `Imp
 | The specular map | RGBA16F cube array, W × W, 6 × capacity layers, L levels | 1.0 MB per map |
 | The specular level views | One 2D-array view of all layers per level | |
 | The face depth | D32, W × W, one for every map, because faces draw one after another | 64 KB |
-| The irradiance buffer | 42 × 9 `vec4` | 6,048 B |
-| A readback buffer per frame slot | 42 × 9 `vec4`, of which the copy fills M | 6,048 B each |
-| The irradiance's partial sums | 27 floats for each of one map's 6 W / 8 blocks, which the maps take in turn | 10,368 B |
+| The irradiance cube (since `ter-8fz2`, in place of the irradiance buffer and its partial sums) | RGBA16F cube array, 16 × 16, 6 × capacity layers, 4 levels | 16 KB per map |
+| A readback buffer per frame slot | 42 × 24 RGBA16F texels, the cubes' last levels, of which the copy fills M | 8,064 B each |
 
-So the maps take about 2.1 MB each at W = 128: 8.4 MB for the cabin's four. The level views span every layer, so each dispatch of the mips and of the specular levels keeps one levels set, whose four level views span every map's layers, and the descriptor pool does not change. A dispatch picks its map's layers by its push constant `Map`. A storage image's layout must hold for every layer of its view, so while a level view is bound, every map's layers of that image are in `General`: the prefilter first makes every drawn map's mips, then every drawn map's specular levels and irradiance, and the maps with no drawn face keep their texels through the transitions. The synchronization validation tracks a whole view and a whole buffer binding, so a barrier separates two maps' writes, though their layers and coefficients do not overlap.
+So the maps take about 2.1 MB each at W = 128: 8.4 MB for the cabin's four. The level views span every layer, so each dispatch of the mips and of the specular levels keeps one levels set, whose four level views span every map's layers, and the descriptor pool does not change. A dispatch picks its map's layers by its push constant `Map`. A storage image's layout must hold for every layer of its view, so while a level view is bound, every map's layers of that image are in `General`: the prefilter first makes every drawn map's mips, then every drawn map's specular levels and irradiance, and the maps with no drawn face keep their texels through the transitions. The synchronization validation tracks a whole view and a whole buffer binding, so a barrier separates two maps' writes, though their layers do not overlap.
 
-The growth (decision 23): `Grow(maps)` waits for the device, makes the cube arrays and their views for `maps` maps, and only then disposes the old ones, so that a growth that throws, for example out of device memory, leaves the old images whole. It rewrites the prefilter set and every levels set with the new views, empties "drawn for" and adds one to `EnvironmentMap.ImagesVersion`. `FrameResources.UpdateSharedDescriptors` rewrites binding 12 of its frame set when its version differs, as it rewrites binding 2 for a new material buffer. After the wait, no frame set is in use, so the rewrite is legal at each slot's next frame. The readback buffers and the irradiance buffer do not change.
+The growth (decision 23): `Grow(maps)` waits for the device, makes the cube arrays and their views for `maps` maps, and only then disposes the old ones, so that a growth that throws, for example out of device memory, leaves the old images whole. It rewrites the prefilter set and every levels set with the new views, empties "drawn for" and adds one to `EnvironmentMap.ImagesVersion`. `FrameResources.UpdateSharedDescriptors` rewrites bindings 12 and 14 of its frame set when its version differs, as it rewrites binding 2 for a new material buffer. After the wait, no frame set is in use, so the rewrite is legal at each slot's next frame. The readback buffers do not change.
 
 The descriptors that change:
 
 | Set | Binding | Type | Holds |
 |---|---|---|---|
 | 0, the frame set | 12 | Sampled image, cube array view, partially bound | The specular map, every map and level |
-| 0 | 14 | Storage buffer, partially bound | The irradiance of 42 maps |
+| 0 | 14 | Sampled image, cube array view, partially bound, seen by the vertex, fragment and compute stages | The irradiance cubes, every map and level (before `ter-8fz2`, a storage buffer of the irradiance of 42 maps) |
 | 0 of `EnvironmentPrefilterLayout` | 0 | Sampled image, cube array view | The radiance map |
 
 The push constants that change:
@@ -465,8 +464,8 @@ The new shader sites for the site table of ARCHITECTURE.md, "Portable Vulkan":
 | `mapCode` (`gbuffer.frag`): the base color's alpha, converted to an 8-bit UNORM code | A conversion that returns either of the two codes nearest the value, which the spec allows ("should round to nearest") | Safe: map i owns two codes and writes the value between them, so either code decodes to i. Map 0 writes 1.0, which the spec converts to 255 exactly. Map 41, the last, writes codes 173 or 174, so no lit pixel writes the unlit code 0 |
 | `mapOfCode` (`gbuffer_surface.glsl`): round(alpha · 255) and (256 − c) >> 1 | A code of 0, which gives 128, past the maps | Safe: `lighting.frag`, and `reflectingPixel` in the full-resolution trace, the half-resolution trace and the upsample, return for an alpha of 0 before `surfaceAt`. A lit pixel holds a code from 173 to 255, which the G-buffer pass wrote, so the map is at most 41. The round of a finite value in [0, 255] is an integer in range |
 | `inMapAxes` (`environment.glsl`): a quaternion turns a direction | A quaternion that is not unit or not finite | Safe: `SceneBatcher.Interpolate` normalizes it, and counts one whose squared length is not finite as unset, as for the root rotation. A turn by a unit quaternion keeps a unit vector unit. The identity turns a vector to itself exactly, because its vector part is 0 |
-| The cube array's layer `float(map)`, and the irradiance at 9 · map + i | A map past the served maps | Safe: every map index comes from the batcher, below M ≤ 42, or from a code of a lit pixel. The buffer holds 42 maps. Vulkan rounds a layer coordinate to the nearest integer and clamps it to the layers |
-| The prefilter shaders' layer 6 · Map + face and coefficient 9 · Map + i | A map past the capacity | Safe: the pass dispatches only maps below M, and the growth makes the capacity at least M before batching |
+| The cube arrays' layer `float(map)`, of the specular map and of the irradiance cube | A map past the served maps | Safe: every map index comes from the batcher, below M, or from a code of a lit pixel, and both cube arrays hold the capacity's maps, at least M. Vulkan rounds a layer coordinate to the nearest integer and clamps it to the layers |
+| The prefilter shaders' layer 6 · Map + face | A map past the capacity | Safe: the pass dispatches only maps below M, and the growth makes the capacity at least M before batching |
 | `localLights`, `light.map <= lastMap` | None: no float takes part | Safe: a comparison of unsigned integers |
 
 No new value relies on a clamp to turn a NaN into a number, and no new pass blends into a half-float image.

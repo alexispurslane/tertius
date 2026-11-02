@@ -489,29 +489,68 @@ public sealed class EnvironmentPrefilterTests
         }
     }
 
-    [Fact]
-    public void TheIrradianceIsTheProjectionOfTheMapsTexels()
+    /// <summary>The six faces of level 0 of map 0's irradiance cube, in layer order, each RGBA, rows from the top.</summary>
+    private static Half[] CubeFaces0(VulkanRenderer renderer) =>
+        AllFaces(renderer: renderer, level: 0, image: EnvironmentImage.Irradiance);
+
+    /// <summary>The unit direction through the center of texel <paramref name="texel"/> of the cube's level 0, in layer, row and column order.</summary>
+    private static Vector3 CubeTexelDirection(int texel)
     {
-        VulkanRenderer renderer = EnvironmentScenes.Renderer();
+        const int size = IrradianceCube.FaceSize;
+        int layer = texel / (size * size);
+        int x = texel % size;
+        int y = texel / size % size;
+        return CubeFaces.Direction((CubeFace)layer, (x + 0.5f) / size, (y + 0.5f) / size);
+    }
+
+    /// <summary>
+    /// Level 0 of map <paramref name="map"/>'s irradiance cube is the C# copy's convolution of the map's source level, in
+    /// every texel and all four channels, within the rounding of half floats, about 2^-11 of a value.
+    /// </summary>
+    private static void CubeShouldBeTheConvolution(VulkanRenderer renderer, int faceSize, int map, string situation)
+    {
+        Half[] source = AllFaces(
+            renderer: renderer,
+            level: IrradianceCube.SourceLevel(faceSize),
+            image: EnvironmentImage.Radiance,
+            map: map
+        );
+        Half[] cube = AllFaces(renderer: renderer, level: 0, image: EnvironmentImage.Irradiance, map: map);
+        int sourceSize = Math.Min(faceSize, IrradianceCube.SourceFaceSize);
+
+        cube.Length.Should().Be(CubeFaces.Count * IrradianceCube.FaceSize * IrradianceCube.FaceSize * 4);
+        for (int texel = 0; texel < cube.Length / 4; texel++)
+        {
+            Vector4 expected = IrradianceCube.Convolve(source, sourceSize, CubeTexelDirection(texel));
+            var read = new Vector4(
+                x: (float)cube[4 * texel],
+                y: (float)cube[4 * texel + 1],
+                z: (float)cube[4 * texel + 2],
+                w: (float)cube[4 * texel + 3]
+            );
+            (read - expected)
+                .Length()
+                .Should()
+                .BeLessThan(
+                    1e-3f * (1 + expected.Length()),
+                    "texel {0} of map {1} is the C# copy's convolution {2}",
+                    texel,
+                    map,
+                    situation
+                );
+        }
+    }
+
+    [Fact]
+    public void TheIrradianceCubeIsTheConvolutionOfTheMapsLevelOf32Texels()
+    {
+        const int faceSize = 128;
+        VulkanRenderer renderer = Renderer(faceSize);
         try
         {
             renderer.Render(Colorful(renderer, TestChains.CamerasFrame), 1f);
 
-            var expected = Irradiance.Project(
-                AllFaces(renderer: renderer, level: 0, image: EnvironmentImage.Radiance),
-                Size
-            );
-            Irradiance read = renderer.ReadEnvironmentIrradiance(map: 0);
-
-            float total = 0;
-            for (int i = 0; i < Irradiance.Coefficients; i++)
-                total += expected[i].Length();
-            total.Should().BeGreaterThan(0.1f, "the map holds light");
-            for (int i = 0; i < Irradiance.Coefficients; i++)
-                Vector3
-                    .Distance(read[i], expected[i])
-                    .Should()
-                    .BeLessThan(1e-4f * total, "coefficient {0}: the shader projects as Irradiance.Project does", i);
+            CubeShouldBeTheConvolution(renderer: renderer, faceSize: faceSize, map: 0, situation: "at level 2");
         }
         finally
         {
@@ -520,12 +559,33 @@ public sealed class EnvironmentPrefilterTests
     }
 
     /// <summary>
-    /// The irradiance of each frame is the projection of that frame's map, frame after frame: the blocks of every frame
-    /// add up into it, whichever block finishes last, and no frame's sum carries into the next. The six faces are drawn in
-    /// every frame, under a sun that moves between frames, so each frame's map differs from the one before.
+    /// The smallest face size, which convolves its own level 0 of 16 texels, and the largest, which convolves its level 5.
+    /// </summary>
+    [Theory]
+    [InlineData(EnvironmentMapSetting.MinFaceSize)]
+    [InlineData(EnvironmentMapSetting.MaxFaceSize)]
+    public void AtEveryFaceSizeTheIrradianceCubeIsTheConvolutionOfItsSourceLevel(int size)
+    {
+        VulkanRenderer renderer = Renderer(size);
+        try
+        {
+            renderer.Render(Colorful(renderer, TestChains.CamerasFrame), 1f);
+
+            CubeShouldBeTheConvolution(renderer: renderer, faceSize: size, map: 0, situation: $"at face size {size}");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>
+    /// The cube of each frame is the convolution of that frame's map, frame after frame: nothing of one frame's cube carries
+    /// into the next. The six faces are drawn in every frame, under a sun that moves between frames, so each frame's map
+    /// differs from the one before.
     /// </summary>
     [Fact]
-    public void EachFramesIrradianceIsTheProjectionOfThatFramesMap()
+    public void EachFramesIrradianceCubeIsTheConvolutionOfThatFramesMap()
     {
         VulkanRenderer renderer = EnvironmentScenes.Renderer(facesPerFrame: CubeFaces.Count);
         try
@@ -533,30 +593,18 @@ public sealed class EnvironmentPrefilterTests
             RenderSnapshot colorful = Colorful(renderer, TestChains.CamerasFrame);
             RenderSnapshot moved = Gpu.Snapshot(starDirection: new(-0.6f, 0.2f, 0.4f), starIrradiance: 1f);
             moved.Instances.AddRange(colorful.Instances);
-            Irradiance? before = null;
+            Vector3? before = null;
+            int frame = 0;
             foreach (RenderSnapshot snapshot in (RenderSnapshot[])[colorful, moved, colorful])
             {
                 renderer.Render(snapshot, 1f);
 
-                var expected = Irradiance.Project(
-                    AllFaces(renderer: renderer, level: 0, image: EnvironmentImage.Radiance),
-                    Size
-                );
-                Irradiance read = renderer.ReadEnvironmentIrradiance(map: 0);
-                float total = 0;
-                for (int i = 0; i < Irradiance.Coefficients; i++)
-                    total += expected[i].Length();
+                CubeShouldBeTheConvolution(renderer: renderer, faceSize: Size, map: 0, situation: $"in frame {frame}");
+                Vector3 mean = renderer.ReadEnvironmentIrradiance(map: 0).MeanRadiance;
                 if (before is { } last)
-                    Vector3
-                        .Distance(last[0], expected[0])
-                        .Should()
-                        .BeGreaterThan(1e-2f * total, "the sun's move changes the map");
-                for (int i = 0; i < Irradiance.Coefficients; i++)
-                    Vector3
-                        .Distance(read[i], expected[i])
-                        .Should()
-                        .BeLessThan(1e-4f * total, "coefficient {0} is this frame's projection", i);
-                before = expected;
+                    Vector3.Distance(last, mean).Should().BeGreaterThan(1e-3f, "the sun's move changes the map");
+                before = mean;
+                frame++;
             }
         }
         finally
@@ -566,42 +614,234 @@ public sealed class EnvironmentPrefilterTests
     }
 
     /// <summary>
-    /// The smallest face size, the default and the largest: the projection's partial sums cover every texel of every
-    /// face, however many blocks of rows the face splits into.
+    /// Each map of a chain of three has the cube of its own faces, in its own layers: the maps take turns with the cube's
+    /// levels set, and no map's convolution reads or writes another's layers.
     /// </summary>
-    [Theory]
-    [InlineData(EnvironmentMapSetting.MinFaceSize)]
-    [InlineData(128)]
-    [InlineData(EnvironmentMapSetting.MaxFaceSize)]
-    public void AtEveryFaceSizeTheIrradianceIsTheProjectionOfEveryTexel(int size)
+    [Fact]
+    public void EachMapsIrradianceCubeIsTheConvolutionOfItsOwnFaces()
     {
-        VulkanRenderer renderer = Renderer(size);
+        VulkanRenderer renderer = EnvironmentScenes.Renderer();
+        try
+        {
+            renderer.Render(ColorfulInThreeFrames(renderer), 1f);
+
+            for (int map = 0; map < 3; map++)
+                CubeShouldBeTheConvolution(renderer: renderer, faceSize: Size, map: map, situation: "of its own faces");
+            Half[] second = AllFaces(renderer: renderer, level: 0, image: EnvironmentImage.Irradiance, map: 1);
+            Half[] third = AllFaces(renderer: renderer, level: 0, image: EnvironmentImage.Irradiance, map: 2);
+            second.Should().NotEqual(third, "the maps lie in different axes, so their cubes differ");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>
+    /// The reading of the cube's last level holds, in each quarter of each face, the mean of level 0 over that quarter,
+    /// weighted by the solid angles of its texels: the mean that the downsample's three levels make, within their rounding
+    /// to half floats.
+    /// </summary>
+    [Fact]
+    public void TheReadingHoldsTheMeanOfDOverEachQuarterOfEachFace()
+    {
+        VulkanRenderer renderer = EnvironmentScenes.Renderer();
         try
         {
             renderer.Render(Colorful(renderer, TestChains.CamerasFrame), 1f);
 
-            var faces = new List<Half>();
-            for (int layer = 0; layer < CubeFaces.Count; layer++)
-                faces.AddRange(
-                    renderer.ReadEnvironmentFace(
-                        map: 0,
-                        face: (CubeFace)layer,
-                        level: 0,
-                        image: EnvironmentImage.Radiance
+            Half[] cube = AllFaces(renderer: renderer, level: 0, image: EnvironmentImage.Irradiance);
+            Irradiance reading = renderer.ReadEnvironmentIrradiance(map: 0);
+            const int size = IrradianceCube.FaceSize;
+            const int quarter = size / IrradianceCube.CoarsestSize;
+            for (int texel = 0; texel < Irradiance.Texels; texel++)
+            {
+                int layer = texel / 4;
+                int qx = texel % 2;
+                int qy = texel / 2 % 2;
+                Vector3 sum = Vector3.Zero;
+                double weight = 0;
+                for (int y = qy * quarter; y < (qy + 1) * quarter; y++)
+                for (int x = qx * quarter; x < (qx + 1) * quarter; x++)
+                {
+                    float solidAngle = (float)CubeFaces.TexelSolidAngle(x, y, size);
+                    int at = 4 * ((layer * size + y) * size + x);
+                    sum += new Vector3((float)cube[at], (float)cube[at + 1], (float)cube[at + 2]) * solidAngle;
+                    weight += solidAngle;
+                }
+
+                Vector3 expected = sum / (float)weight;
+                Vector3
+                    .Distance(reading[texel], expected)
+                    .Should()
+                    .BeLessThan(3e-3f * (1 + expected.Length()), "texel {0} of the last level", texel);
+            }
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>
+    /// The reading that a later frame's batcher gets for each map of a chain of three is the last level of that map's own
+    /// cube: each frame copies the last level of every served map's six layers, and the CPU reads each map's texels from
+    /// its own place in the slot's readback buffer. The scene holds still, so every frame's cubes are the same.
+    /// </summary>
+    [Fact]
+    public void EachMapsReadingInALaterFrameIsTheLastLevelOfItsOwnCube()
+    {
+        // Gpu.Headless's default: a reading reaches the CPU this many frames after its frame.
+        const int framesInFlight = 2;
+        VulkanRenderer renderer = EnvironmentScenes.Renderer(facesPerFrame: CubeFaces.Count);
+        try
+        {
+            RenderSnapshot snapshot = ColorfulInThreeFrames(renderer);
+            for (int frame = 0; frame < framesInFlight + 2; frame++)
+                renderer.Render(snapshot, 1f);
+
+            renderer.LastScene.Ambient.TryGetValue(out MapAmbient ambient).Should().BeTrue("the map is on");
+            for (int map = 0; map < 3; map++)
+            {
+                Irradiance cube = renderer.ReadEnvironmentIrradiance(map: map);
+                Irradiance read = ambient.Irradiance.Span[map]!.Value.Irradiance;
+                for (int texel = 0; texel < Irradiance.Texels; texel++)
+                    read[texel].Should().Be(cube[texel], "texel {0} of map {1}'s reading is its cube's", texel, map);
+            }
+
+            renderer
+                .ReadEnvironmentIrradiance(map: 1)
+                .MeanRadiance.Should()
+                .NotBe(renderer.ReadEnvironmentIrradiance(map: 2).MeanRadiance, "the maps lie in different axes");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>
+    /// The cube convolves the map's level of 32 texels, not a finer one, at the default face size of 128: under a small
+    /// bright square of 0.86° from its center to its sides, whose light a texel of 32 moves by up to half its own width,
+    /// level 0 of the cube is the C# copy's convolution of that level. The C# copy puts the two levels up to 0.5 % of a
+    /// unit irradiance apart under such a light, and the square sends 1.8. Under the broad squares of
+    /// <see cref="Colorful"/> the levels of 32 and 64 give the same convolution within the rounding of half floats.
+    /// </summary>
+    [Fact]
+    public void UnderASmallBrightSquareTheIrradianceCubeIsTheConvolutionOfTheMapsLevelOf32Texels()
+    {
+        const int faceSize = 128;
+        VulkanRenderer renderer = Renderer(faceSize);
+        try
+        {
+            RenderSnapshot snapshot = EnvironmentScenes.Dark();
+            snapshot.Instances.Add(
+                EnvironmentScenes.Square(
+                    plane: renderer.CreateMesh(Primitives.Plane(1f)),
+                    material: EnvironmentScenes.Emissive(renderer, new(2000)),
+                    center: Vector3.Normalize(new(0.1f, 0.2f, 1f)) * 10,
+                    halfSize: 0.15f,
+                    chainDepth: TestChains.CamerasFrame
+                )
+            );
+
+            renderer.Render(snapshot, 1f);
+
+            CubeShouldBeTheConvolution(
+                renderer: renderer,
+                faceSize: faceSize,
+                map: 0,
+                situation: "under a small square"
+            );
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>
+    /// A map of one radiance everywhere gives a cube of exactly that radiance at every face size: the convolution divides
+    /// by the sum of its weights, which is the sum of the light that it weighs, not by π, which their sum misses by up to
+    /// 0.07 % at a source of 16 texels. The half float below 1 lies 0.05 % below it.
+    /// </summary>
+    [Theory]
+    [InlineData(EnvironmentMapSetting.MinFaceSize)]
+    [InlineData(Size)]
+    public void AUniformMapGivesACubeOfItsOwnRadiance(int faceSize)
+    {
+        VulkanRenderer renderer = Renderer(faceSize);
+        try
+        {
+            RenderSnapshot snapshot = EnvironmentScenes.Dark();
+            EnvironmentScenes.AddEnclosure(
+                snapshot: snapshot,
+                plane: renderer.CreateMesh(Primitives.Plane(1f)),
+                material: EnvironmentScenes.Emissive(renderer, Vector3.One),
+                distance: 5,
+                chainDepth: TestChains.CamerasFrame
+            );
+
+            renderer.Render(snapshot, 1f);
+
+            Half[] cube = CubeFaces0(renderer);
+            for (int i = 0; i < cube.Length; i++)
+                if (i % 4 != 3)
+                    ((float)cube[i])
+                        .Should()
+                        .Be(1f, "texel {0} of a uniform map of 1 at face size {1}", i / 4, faceSize);
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void UnderAWhiteSkyAndABlackGroundTheIrradianceCubeHoldsTheHemispheresDiffuseLight()
+    {
+        VulkanRenderer renderer = EnvironmentScenes.Renderer();
+        try
+        {
+            MeshId plane = renderer.CreateMesh(Primitives.Plane(1f));
+            MaterialId white = EnvironmentScenes.Emissive(renderer, Vector3.One);
+            RenderSnapshot snapshot = EnvironmentScenes.Dark();
+            // A dome of radiance 1 over the horizon: a lid and four walls that end at y = 0, between two rows of the side
+            // faces. Below it, the black sky.
+            snapshot.Instances.Add(
+                EnvironmentScenes.Facing(
+                    plane: plane,
+                    material: white,
+                    center: new(0, 5, 0),
+                    normal: -Vector3.UnitY,
+                    halfSize: 5.5f,
+                    chainDepth: TestChains.CamerasFrame
+                )
+            );
+            foreach (
+                Vector3 side in (ReadOnlySpan<Vector3>)[Vector3.UnitX, -Vector3.UnitX, Vector3.UnitZ, -Vector3.UnitZ]
+            )
+                snapshot.Instances.Add(
+                    EnvironmentScenes.Facing(
+                        plane: plane,
+                        material: white,
+                        center: side * 5 + new Vector3(0, 5.5f, 0),
+                        normal: -side,
+                        halfSize: 5.5f,
+                        chainDepth: TestChains.CamerasFrame
                     )
                 );
-            var expected = Irradiance.Project([.. faces], size);
-            Irradiance read = renderer.ReadEnvironmentIrradiance(map: 0);
 
-            float total = 0;
-            for (int i = 0; i < Irradiance.Coefficients; i++)
-                total += expected[i].Length();
-            total.Should().BeGreaterThan(0.1f, "the map holds light");
-            for (int i = 0; i < Irradiance.Coefficients; i++)
-                Vector3
-                    .Distance(read[i], expected[i])
+            renderer.Render(snapshot, 1f);
+
+            Half[] cube = CubeFaces0(renderer);
+            for (int texel = 0; texel < cube.Length / 4; texel++)
+            {
+                Vector3 normal = CubeTexelDirection(texel);
+                ((float)cube[4 * texel])
                     .Should()
-                    .BeLessThan(1e-4f * total, "coefficient {0} at face size {1} sums every texel", i, size);
+                    .BeApproximately((1 + normal.Y) / 2, 0.03f, "D(n) = (1 + n_y) / 2 at {0}", normal);
+            }
         }
         finally
         {
@@ -718,53 +958,12 @@ public sealed class EnvironmentPrefilterTests
     }
 
     /// <summary>
-    /// Each map of a chain of three has the irradiance of its own level 0, in its own nine coefficients: the maps take turns
-    /// with the buffer of partial sums, and no map's blocks carry into another's sum.
-    /// </summary>
-    [Fact]
-    public void EachMapsIrradianceIsTheProjectionOfItsOwnFaces()
-    {
-        VulkanRenderer renderer = EnvironmentScenes.Renderer();
-        try
-        {
-            renderer.Render(ColorfulInThreeFrames(renderer), 1f);
-
-            var projections = new Irradiance[3];
-            for (int map = 0; map < projections.Length; map++)
-            {
-                projections[map] = Irradiance.Project(
-                    AllFaces(renderer: renderer, level: 0, image: EnvironmentImage.Radiance, map: map),
-                    Size
-                );
-                Irradiance read = renderer.ReadEnvironmentIrradiance(map: map);
-                float total = 0;
-                for (int i = 0; i < Irradiance.Coefficients; i++)
-                    total += projections[map][i].Length();
-                for (int i = 0; i < Irradiance.Coefficients; i++)
-                    Vector3
-                        .Distance(read[i], projections[map][i])
-                        .Should()
-                        .BeLessThan(1e-4f * total, "coefficient {0} of map {1} is its own projection", i, map);
-            }
-
-            Vector3
-                .Distance(projections[1][1], projections[2][1])
-                .Should()
-                .BeGreaterThan(1e-2f, "the maps lie in different axes, so their first band differs");
-        }
-        finally
-        {
-            Gpu.DisposeAndAssertClean(renderer);
-        }
-    }
-
-    /// <summary>
     /// The prefilter records no barrier that the next one covers. For M drawn maps at 128 texels, whose mips take three
     /// runs, the first frame's barriers are: one into the storage layout for the mips; one after each map's run but the
     /// last drawn map's last run, whose writes the levels' barrier orders as it makes the mips read-only; that one; one
-    /// before each map's sum; one between two maps of the levels, none after the last, whose writes the specular map's
-    /// read-only barrier and the readback's barrier order; and the readback's two. So 5M + 2 in all. In the first frame
-    /// the buffers have no earlier use, so the pass's first barrier is empty and records nothing.
+    /// before each map's downsample of its irradiance cube; one between two maps of the levels, none after the last, whose
+    /// writes the specular map's read-only barrier and the readback's barrier order; and the readback's two, before and
+    /// after its copy. So 5M + 2 in all.
     /// </summary>
     [Theory]
     [InlineData(1)]
@@ -829,62 +1028,6 @@ public sealed class EnvironmentPrefilterTests
                     ((float)faces[i] + (float)faces[i + 3])
                         .Should()
                         .BeApproximately(1f, rounding, "color and share mix by the same weights at level {0}", level);
-            }
-        }
-        finally
-        {
-            Gpu.DisposeAndAssertClean(renderer);
-        }
-    }
-
-    [Fact]
-    public void UnderAWhiteSkyAndABlackGroundTheIrradianceIsTheHemispheres()
-    {
-        VulkanRenderer renderer = EnvironmentScenes.Renderer();
-        try
-        {
-            MeshId plane = renderer.CreateMesh(Primitives.Plane(1f));
-            MaterialId white = EnvironmentScenes.Emissive(renderer, Vector3.One);
-            RenderSnapshot snapshot = EnvironmentScenes.Dark();
-            // A dome of radiance 1 over the horizon: a lid and four walls that end at y = 0, between two rows of the side
-            // faces. Below it, the black sky.
-            snapshot.Instances.Add(
-                EnvironmentScenes.Facing(
-                    plane: plane,
-                    material: white,
-                    center: new(0, 5, 0),
-                    normal: -Vector3.UnitY,
-                    halfSize: 5.5f,
-                    chainDepth: TestChains.CamerasFrame
-                )
-            );
-            foreach (
-                Vector3 side in (ReadOnlySpan<Vector3>)[Vector3.UnitX, -Vector3.UnitX, Vector3.UnitZ, -Vector3.UnitZ]
-            )
-                snapshot.Instances.Add(
-                    EnvironmentScenes.Facing(
-                        plane: plane,
-                        material: white,
-                        center: side * 5 + new Vector3(0, 5.5f, 0),
-                        normal: -side,
-                        halfSize: 5.5f,
-                        chainDepth: TestChains.CamerasFrame
-                    )
-                );
-
-            renderer.Render(snapshot, 1f);
-
-            Irradiance irradiance = renderer.ReadEnvironmentIrradiance(map: 0);
-            foreach (
-                Vector3 normal in (ReadOnlySpan<Vector3>)
-                    [Vector3.UnitX, -Vector3.UnitX, Vector3.UnitY, -Vector3.UnitY, Vector3.UnitZ, -Vector3.UnitZ]
-            )
-            {
-                float expected = MathF.PI * (1 + normal.Y) / 2;
-                irradiance
-                    .At(normal)
-                    .X.Should()
-                    .BeApproximately(expected, 0.01f * MathF.PI, "E(n) = π (1 + n_y) / 2 at {0}", normal);
             }
         }
         finally

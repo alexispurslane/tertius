@@ -336,7 +336,7 @@ internal sealed unsafe class VulkanDevice : IDisposable
                 continue;
             }
 
-            string? missing = MissingFeature(vk, candidate) ?? MissingSubgroupSupport(vk, candidate);
+            string? missing = MissingFeature(vk, candidate);
             if (missing != null)
             {
                 reasons.Append($"{name}: missing {missing}. ");
@@ -410,30 +410,6 @@ internal sealed unsafe class VulkanDevice : IDisposable
     ) =>
         // The order only picks which of several missing features the refusal names.
         MissingCoreFeature(f) ?? MissingVulkan12Feature(f12) ?? MissingVulkan13Feature(f13);
-
-    private static string? MissingSubgroupSupport(Vk vk, PhysicalDevice device)
-    {
-        var p11 = new PhysicalDeviceVulkan11Properties { SType = StructureType.PhysicalDeviceVulkan11Properties };
-        var p2 = new PhysicalDeviceProperties2 { SType = StructureType.PhysicalDeviceProperties2, PNext = &p11 };
-        vk.GetPhysicalDeviceProperties2(device, &p2);
-        return MissingSubgroupSupport(p11.SubgroupSupportedStages, p11.SubgroupSupportedOperations);
-    }
-
-    /// <summary>
-    /// The first subgroup support that the renderer requires and the device lacks, by its subgroup properties, or null
-    /// when it has all (ARCHITECTURE.md, "Required device features"): `subgroupBroadcastFirst` in the fragment and compute
-    /// shaders that read the map's ambient light (environment.glsl).
-    /// </summary>
-    internal static string? MissingSubgroupSupport(ShaderStageFlags stages, SubgroupFeatureFlags operations)
-    {
-        if ((operations & SubgroupFeatureFlags.BallotBit) == 0)
-            return "subgroupSupportedOperations BALLOT";
-        if ((stages & ShaderStageFlags.FragmentBit) == 0)
-            return "subgroupSupportedStages FRAGMENT";
-        if ((stages & ShaderStageFlags.ComputeBit) == 0)
-            return "subgroupSupportedStages COMPUTE";
-        return null;
-    }
 
     private static string? MissingCoreFeature(in PhysicalDeviceFeatures f)
     {

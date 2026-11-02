@@ -5,12 +5,9 @@
 #ifndef TERTIUS_ENVIRONMENT_GLSL
 #define TERTIUS_ENVIRONMENT_GLSL
 
+#include "cube_faces.glsl"
 #include "frame.glsl"
 #include "sky.glsl"
-#include "spherical_harmonics.glsl"
-
-// subgroupBroadcastFirst: a device without it in fragment and compute shaders is refused (VulkanDevice).
-#extension GL_KHR_shader_subgroup_ballot : require
 
 // ShaderConstants.EnvironmentMap: true while the renderer's setting is SceneEnvironmentMap, fixed for its life.
 layout(constant_id = 0) const bool environmentMapOn = false;
@@ -29,9 +26,10 @@ const bool skipsTermsThatAddNothing = true;
 layout(set = 0, binding = 12) uniform textureCubeArray environmentSpecularMap;
 // Trilinear, clamped, every level.
 layout(set = 0, binding = 13) uniform sampler environmentSampler;
-// E_lm in xyz, in the order of spherical_harmonics.glsl: map i's nine coefficients from 9i on. Partially bound: empty
-// with the map off.
-layout(set = 0, binding = 14, std430) readonly buffer EnvironmentIrradianceBlock { vec4 environmentIrradiance[]; };
+// RGBA16F, a cube array whose cube i is map i's irradiance cube: level 0 holds D at each texel's direction, 16 texels on a
+// side, alpha the open-sky share that a Lambert surface sees, and each later level the mean of its children over their
+// solid angles, down to 2 texels on a side. Sampled with environmentSampler. Partially bound: empty with the map off.
+layout(set = 0, binding = 14) uniform textureCubeArray environmentIrradianceMap;
 
 // A world direction in the axes of map `map`: the inverse of R_i, frame.mapAxes[map], by the quaternion sandwich with the
 // conjugate. The batcher keeps R_i a unit quaternion, so the turn keeps a unit vector unit, and the identity turns v to
@@ -43,28 +41,14 @@ vec3 inMapAxes(uint map, vec3 v)
     return v + 2.0 * cross(u, cross(u, v) + axes.w * v);
 }
 
-// D(n): the ambient diffuse radiance of map `map` on a surface with the unit normal n, max(Σ E_lm Y_lm(n), 0) / π.
-// The coefficients are read at a map that is uniform over the subgroup (ARCHITECTURE.md, "Reading the map"): each turn of
-// the loop serves the invocations whose map is the first active invocation's, so a subgroup whose pixels share one map
-// takes one turn. Read at each invocation's own map, the nine coefficients took registers per invocation, and the
-// lighting pass, now the ambient pass, ran at a lower occupancy.
+// D(n): the ambient diffuse radiance of map `map` on a surface with the unit normal n, from level 0 of its irradiance cube
+// at n, filtered across the cube's texels and faces.
 vec3 environmentDiffuse(uint map, vec3 normal)
 {
-    float basis[9];
-    shBasis(inMapAxes(map, normal), basis);
-    vec3 irradiance = vec3(0.0);
-    for (;;)
-    {
-        uint subgroupMap = subgroupBroadcastFirst(map);
-        if (subgroupMap == map)
-        {
-            uint first = 9u * subgroupMap;
-            for (uint i = 0u; i < 9u; i++)
-                irradiance += environmentIrradiance[first + i].xyz * basis[i];
-            break;
-        }
-    }
-    return max(irradiance, vec3(0.0)) / PI;
+    return textureLod(
+        samplerCubeArray(environmentIrradianceMap, environmentSampler),
+        vec4(inMapAxes(map, normal), float(map)),
+        0.0).rgb;
 }
 
 // Map `map`'s specular map along the lobe of roughness r, from 0 to 1, at the unit world direction d: the light in rgb
@@ -108,12 +92,20 @@ float roughnessForWidth(float width)
     return max(sqrt(LobeAlphaPerWidth * width), MinPieceRoughness);
 }
 
-// The mean of map `map`'s radiance over every direction, E_00 Y_00 / π, without the stars: the lit puffs' ambient light.
-// E_00 does not depend on the map's axes.
+// The mean of map `map`'s radiance over every direction, without the stars: the lit puffs' ambient light. It is the mean
+// of D over every direction, which the six faces of the irradiance cube's last level hold, a face's mean at its center:
+// there the four texels of a face of 2 texels meet, so the filter weighs each by a quarter, and each spans a quarter of
+// the face. The mean over the sphere does not depend on the map's axes, so the reads stay in them.
 vec3 environmentMeanRadiance(uint map)
 {
-    const float y00 = 0.28209479177387814;   // 1 / (2 √π)
-    return environmentIrradiance[9u * map].xyz * (y00 / PI);
+    float last = float(textureQueryLevels(samplerCubeArray(environmentIrradianceMap, environmentSampler)) - 1);
+    vec3 sum = vec3(0.0);
+    for (uint face = 0u; face < 6u; face++)
+        sum += textureLod(
+            samplerCubeArray(environmentIrradianceMap, environmentSampler),
+            vec4(faceBasis(face).forward, float(map)),
+            last).rgb;
+    return sum / 6.0;
 }
 
 #endif

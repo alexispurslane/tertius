@@ -760,23 +760,36 @@ public sealed class ImpostorManagerTests
         harness.Manager.Captures.Length.Should().Be(0, "every side gets the same ambient light whichever way is up");
     }
 
-    // The ambient part of the signature. The sun, 3 × (1, 0.96, 0.9), sends about 4.8 of light to the ball, so at 100 px
-    // a capture goes stale when the light changes by 2 / 100 of a total of about 5 to 9.
+    // The ambient part of the signature. The map's light counts as the irradiance that it sends to a surface, π / 24 times
+    // the summed lengths of the 24 texels, so a texel of (L, L, L) adds √3 · L · π / 24 ≈ 0.23 · L. The sun,
+    // 3 × (1, 0.96, 0.9), sends about 4.8 of light to the ball, so at 100 px a capture goes stale when the light changes by
+    // 2 / 100 of a total of about 5 to 6.
 
     /// <summary>
-    /// A reading of a map whose irradiance holds <paramref name="band0"/> in every channel of its first coefficient and
-    /// <paramref name="band2"/> in its fifth, the first of band 2.
+    /// A reading of a map whose irradiance holds <paramref name="light"/> in every channel of the first texel of its last
+    /// level and <paramref name="other"/> in the fifth, the first of the second face.
     /// </summary>
-    private static EnvironmentDraw MapReading(float band0, Vector3 band2 = default) =>
-        new WithMap(Faces: new[] { FaceMask.None }, Irradiance: new IrradianceReading?[] { Reading(band0, band2) });
+    private static EnvironmentDraw MapReading(float light, Vector3 other = default) =>
+        new WithMap(Faces: new[] { FaceMask.None }, Irradiance: new IrradianceReading?[] { Reading(light, other) });
 
     /// <summary>A reading as <see cref="MapReading"/> describes it.</summary>
-    private static IrradianceReading Reading(float band0, Vector3 band2 = default)
+    private static IrradianceReading Reading(float light, Vector3 other = default)
     {
-        var coefficients = new Vector3[Irradiance.Coefficients];
-        coefficients[0] = new(band0);
-        coefficients[4] = band2;
-        return new(Frame: 0, Irradiance: new(coefficients));
+        var texels = new Vector3[Irradiance.Texels];
+        texels[0] = new(light);
+        texels[4] = other;
+        return new(Frame: 0, Irradiance: new(texels));
+    }
+
+    /// <summary>A reading of a uniform map of <paramref name="radiance"/> in every channel: D is the radiance at every texel.</summary>
+    private static EnvironmentDraw UniformMapReading(float radiance)
+    {
+        var texels = new Vector3[Irradiance.Texels];
+        Array.Fill(texels, new Vector3(radiance));
+        return new WithMap(
+            Faces: new[] { FaceMask.None },
+            Irradiance: new IrradianceReading?[] { new(Frame: 0, Irradiance: new(texels)) }
+        );
     }
 
     [Theory]
@@ -810,7 +823,7 @@ public sealed class ImpostorManagerTests
 
         CapturesUnder(ownMap: 2f, otherMap: 2f).Should().Be(1, "the first sight of an impostor is captured");
         CapturesUnder(ownMap: 2f, otherMap: 6f).Should().Be(0, "the light of another map does not reach it");
-        CapturesUnder(ownMap: 2.4f, otherMap: 6f).Should().Be(1, "its own map's light changed by 0.69 of 9");
+        CapturesUnder(ownMap: 3f, otherMap: 6f).Should().Be(1, "its own map's light changed by 0.23 of 5.5");
     }
 
     [Fact]
@@ -828,11 +841,119 @@ public sealed class ImpostorManagerTests
         }
 
         CapturesUnder(MapReading(2f)).Should().Be(1, "the first sight of an impostor is captured");
-        CapturesUnder(MapReading(2.05f)).Should().Be(0, "0.09 of 8.3 is below 2 / h");
-        CapturesUnder(MapReading(2.4f)).Should().Be(1, "0.69 of 9 is above 2 / h");
-        CapturesUnder(MapReading(2.4f, band2: new(0.5f, 0, 0)))
+        CapturesUnder(MapReading(2.05f)).Should().Be(0, "0.01 of 5.3 is below 2 / h");
+        CapturesUnder(MapReading(3f)).Should().Be(1, "0.23 of 5.5 is above 2 / h");
+        CapturesUnder(MapReading(3f, other: new(2f, 0, 0)))
             .Should()
-            .Be(1, "every coefficient counts, and 0.5 of 9.5 is above 2 / h");
+            .Be(1, "every texel counts, and 0.26 of 5.7 is above 2 / h");
+    }
+
+    [Fact]
+    public void AMapLightThatMovesToAnotherSideOfTheObjectMakesACaptureStale()
+    {
+        var harness = new Harness();
+        var position = new Vector3(0, 0, -DistanceFor(100f));
+
+        int CapturesUnder(EnvironmentDraw map)
+        {
+            RenderSnapshot snapshot = Snapshot();
+            snapshot.Instances.Add(Ball(entity: 1, position: position));
+            harness.Run(snapshot, map);
+            return harness.Manager.Captures.Length;
+        }
+
+        CapturesUnder(MapReading(3f)).Should().Be(1, "the first sight of an impostor is captured");
+        CapturesUnder(MapReading(0f, other: new(3f)))
+            .Should()
+            .Be(
+                1,
+                "the total stays, but the texel that the light left and the one that it reached change by 0.68 each, of 5.5"
+            );
+    }
+
+    [Fact]
+    public void AMapLightThatChangesItsColorButNotItsBrightnessMakesACaptureStale()
+    {
+        var harness = new Harness();
+        var position = new Vector3(0, 0, -DistanceFor(100f));
+
+        int CapturesUnder(Vector3 texel)
+        {
+            RenderSnapshot snapshot = Snapshot();
+            snapshot.Instances.Add(Ball(entity: 1, position: position));
+            harness.Run(snapshot, MapReading(0f, other: texel));
+            return harness.Manager.Captures.Length;
+        }
+
+        CapturesUnder(new(3f, 0, 0)).Should().Be(1, "the first sight of an impostor is captured");
+        CapturesUnder(new(0, 3f, 0))
+            .Should()
+            .Be(1, "the texel's length stays 3, but its change from red to green is 3 √2 · π / 24 ≈ 0.56, of 5.2");
+    }
+
+    [Fact]
+    public void TheMapsLightWeighsAgainstTheSunsAsTheIrradianceThatItSendsToTheObject()
+    {
+        var harness = new Harness();
+        var position = new Vector3(0, 0, -DistanceFor(100f));
+        // A uniform map of radiance 1 sends π · |(1, 1, 1)| ≈ 5.4 of light to every side of the ball, beside the sun's 4.8.
+        EnvironmentDraw map = UniformMapReading(1f);
+
+        int CapturesUnder(float sun)
+        {
+            RenderSnapshot snapshot = Snapshot(intensity: sun);
+            snapshot.Instances.Add(Ball(entity: 1, position: position));
+            harness.Run(snapshot, map);
+            return harness.Manager.Captures.Length;
+        }
+
+        CapturesUnder(3f).Should().Be(1, "the first sight of an impostor is captured");
+        CapturesUnder(3f * 1.005f)
+            .Should()
+            .Be(0, "0.5 % more sun changes its light and its weighted direction by 0.05 of 10.2, below 2 / h");
+        CapturesUnder(3f * 1.05f)
+            .Should()
+            .Be(1, "5 % more sun changes them by 0.48 of 10.5, above 2 / h, with the map's light weighed as 5.4");
+    }
+
+    [Fact]
+    public void ALampsChangeWeighsAgainstTheLampsLightAndTheMapsTogether()
+    {
+        var harness = new Harness();
+        var position = new Vector3(0, 0, -DistanceFor(100f));
+        // A uniform map of radiance 1 weighs π · |(1, 1, 1)| ≈ 5.4. The lamp, 2.7 m from the ball, sends it √3 · 21 / 7.25
+        // ≈ 5.0, so the total is about 10.4. A change of the lamp changes its light and its weighted direction alike.
+        EnvironmentDraw map = UniformMapReading(1f);
+
+        int CapturesUnder(float lamp)
+        {
+            RenderSnapshot snapshot = Snapshot(intensity: 0);
+            snapshot.Instances.Add(Ball(entity: 1, position: position));
+            snapshot.Lights.Add(
+                Gpu.Lamp(
+                    position: position + new Vector3(2.5f, 1f, 0),
+                    color: Vector3.One,
+                    intensity: lamp,
+                    chainDepth: TestChains.CamerasFrame
+                )
+            );
+            harness.Run(snapshot, map);
+            return harness.Manager.Captures.Length;
+        }
+
+        CapturesUnder(21f).Should().Be(1, "the first sight of an impostor is captured");
+        CapturesUnder(21f * 1.015f)
+            .Should()
+            .Be(
+                0,
+                "1.5 % more lamp changes the signature by 0.15 of 10.4, below 2 / h, though by 3 % of the lamp's own 5.0"
+            );
+        CapturesUnder(21f * 1.035f)
+            .Should()
+            .Be(
+                1,
+                "3.5 % more lamp changes it by 0.35 of 10.6, above 2 / h, with the map's light weighed as 5.4, not 41.6"
+            );
     }
 
     [Fact]

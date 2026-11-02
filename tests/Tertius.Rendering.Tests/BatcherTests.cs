@@ -1278,9 +1278,9 @@ public sealed class BatcherTests
     [Fact]
     public void WithTheMapTheAmbientLightIsTheMapWithItsLatestReading()
     {
-        var coefficients = new Vector3[Irradiance.Coefficients];
-        coefficients[0] = new(1, 2, 3);
-        var reading = new IrradianceReading(Frame: 7, Irradiance: new(coefficients));
+        var texels = new Vector3[Irradiance.Texels];
+        texels[0] = new(1, 2, 3);
+        var reading = new IrradianceReading(Frame: 7, Irradiance: new(texels));
 
         PreparedScene scene = Prepare(
             snapshot: Empty(),

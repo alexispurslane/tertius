@@ -239,38 +239,35 @@ public sealed class ThrowSliceTests(ThrowRun run) : IClassFixture<ThrowRun>
         run.ValidationMessages.Should().BeEmpty();
     }
 
-    /// <summary>
-    /// The green of a crate in the chamber, which Earth's blue light reaches through the open hatch: at least 10 more green
-    /// than red, unlike black space, and less than 10 more blue than green, unlike the chamber's walls, whose blue stands
-    /// about 35 above their green. The blue light lifts the crate's blue to about its green, 4 to 5 above it.
-    /// </summary>
-    private static void ExpectGreen((int R, int G, int B) color, string what) =>
-        (color.G >= color.R + 10 && color.B < color.G + 10)
-            .Should()
-            .BeTrue($"{what} is the green of a crate, not {color}");
-
     [Fact]
-    public void ThePersonSeesTheCarriedCrateLowOnTheRightAndThenTheThrownCrateInTheHatch()
+    public void ThePersonSeesTheCarriedCratesLitTopLowOnTheRightAndThenTheDarkChamberWhereItWas()
     {
-        // In "aim", the person faces the open hatch. The carried copy fills the bottom right of the image: its front face
-        // spans columns 774 to 1130 and rows 627 to 720, below its top face. Black space shows through the hatch above
-        // Earth. Three ticks after the throw, the crate is 1.5 m ahead in the hatch, against space, and spans columns 544
-        // to 736 and rows 283 to 475. The copy is gone from the bottom right, where the chamber's wall shows.
+        // In "aim", the person faces the open hatch. The carried copy fills the bottom right of the image: its top face
+        // spans rows 530 to 627 at column 930, above its front face. Black space shows through the hatch above
+        // Earth. Three ticks after the throw, the crate is 1.5 m ahead in the hatch, and the copy is gone from the bottom
+        // right, where the chamber shows.
         //
         // Changed on purpose by the move to SI units (docs/plans/local-light-shadows.md, Part 5): the cabin's lamps send
-        // less than a thousandth of the light of sunlit Earth, which lights the chamber through the open hatch. So the
-        // chamber's wall shows Earth's blue, not the lamps' warm gray, and the crates a dark blue green under it. Since the
+        // less than a thousandth of the light of sunlit Earth, which lights the chamber through the open hatch. Since the
         // lamps cast shadows (Part 6), the chamber's walls and its shut inner door keep their light out altogether.
+        //
+        // Changed on purpose by the irradiance cube (ter-8fz2): only a surface that faces the hatch takes Earth's diffuse
+        // light, as the brute-force reference D shows. The copy's top face, turned up toward the hatch, shows Earth's
+        // blue. Its front face and the chamber's wall around the hatch face away from it and show black, as they do in the
+        // reference. The band-2 harmonics had lit them a dark blue green with light from behind them, so this test
+        // compared the copy's front with the wall before.
         Png aim = run.Capture("aim"),
             thrown = run.Capture("throw");
         (int r, int g, int b) space = aim.Average(640, 300),
-            wall = thrown.Average(950, 680);
+            top = aim.Average(930, 580),
+            after = thrown.Average(930, 580);
 
-        ExpectGreen(aim.Average(950, 680), "the front of the carried crate");
-        (space.r + space.g + space.b).Should().BeLessThan(30, $"black space shows through the hatch, not {space}");
-        ExpectGreen(thrown.Average(640, 380), "the thrown crate in the hatch");
-        (wall.b > wall.g + 20 && wall.g > wall.r)
+        (top.b > 60 && top.b > top.g + 20 && top.g > top.r)
             .Should()
-            .BeTrue($"the chamber's wall, blue in Earth's light, shows where the copy was, not {wall}");
+            .BeTrue($"the copy's top face, blue in Earth's light through the hatch, shows low on the right, not {top}");
+        (after.r + after.g + after.b)
+            .Should()
+            .BeLessThan(30, $"the dark chamber shows where the copy's top was once the copy is gone, not {after}");
+        (space.r + space.g + space.b).Should().BeLessThan(30, $"black space shows through the hatch, not {space}");
     }
 }
