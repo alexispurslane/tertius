@@ -55,6 +55,13 @@ public sealed class EnvironmentMapPlumbingTests
             .Contain("ColorAttachmentBit", "the face pass draws the distance cubes' level 0");
 
     [Fact]
+    public void ADeviceWhoseHalfFloatCannotBeSampledCannotHoldTheDistanceCubes() =>
+        EnvironmentMap
+            .DistanceFormatProblem(DistanceUses & ~FormatFeatureFlags.SampledImageBit)
+            .Should()
+            .Contain("SampledImageBit", "the shading passes sample the distance cubes through binding 16");
+
+    [Fact]
     public void ADeviceWhoseHalfFloatHasEveryUseCanHoldTheDistanceCubes() =>
         EnvironmentMap.DistanceFormatProblem(DistanceUses).Should().BeNull();
 

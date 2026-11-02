@@ -1,3 +1,4 @@
+using System.Reflection;
 using Silk.NET.Vulkan;
 
 namespace Tertius.Rendering.Tests;
@@ -166,4 +167,50 @@ public sealed class DescriptorLayoutsTests
             .Should()
             .Be(18, "the impostor layout's fragment stage sees eighteen");
     }
+
+    /// <summary>
+    /// A device whose stages see 17 sampled images makes the scene layout, which needs 16, and is refused at the
+    /// impostor layout, which needs 18, before vkCreatePipelineLayout: no validation message reports a layout above the
+    /// limit, and the refusal destroys the samplers and layouts that the constructor made before it.
+    /// </summary>
+    [Fact]
+    public void ALayoutThatNeedsMoreSampledImagesInAStageThanTheDeviceAllowsIsRefusedBeforeItIsMade()
+    {
+        var device = VulkanDevice.Create(validation: true, surfaceExtensions: [], createSurface: null);
+        try
+        {
+            PhysicalDeviceProperties properties = device.Properties;
+            properties.Limits.MaxPerStageDescriptorSampledImages = 17;
+            Report(device, properties);
+
+            Action create = () => new DescriptorLayouts(device: device, framesInFlight: 2, glowLevels: 0).Dispose();
+
+            create
+                .Should()
+                .Throw<NotSupportedException>()
+                .WithMessage("The impostor layout: * 18 sampled images, above the device*limit of 17 sampled images *");
+        }
+        finally
+        {
+            device.Dispose();
+        }
+
+        device
+            .Log.Snapshot()
+            .Should()
+            .BeEmpty("the check runs before the layout exists, and the refusal leaves no object of the device alive");
+    }
+
+    /// <summary>
+    /// Makes <paramref name="device"/> report <paramref name="properties"/> to the renderer. No test device reports
+    /// per-stage limits as low as the specification allows, so a test of a refusal lowers the limits that the renderer
+    /// reads.
+    /// </summary>
+    private static void Report(VulkanDevice device, PhysicalDeviceProperties properties) =>
+        typeof(VulkanDevice)
+            .GetField(
+                $"<{nameof(VulkanDevice.Properties)}>k__BackingField",
+                BindingFlags.Instance | BindingFlags.NonPublic
+            )!
+            .SetValue(device, properties);
 }

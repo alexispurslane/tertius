@@ -342,6 +342,7 @@ public sealed class EnvironmentFaceTests
             renderer.Render(snapshot, 1f);
 
             Half[] wall = EnvironmentScenes.Distances(renderer, CubeFace.PositiveX);
+            wall.Should().HaveCount(Size * Size, "the distance cube holds one inverse distance per texel");
             int center = Size / 2 * Size + Size / 2;
             ((float)wall[center])
                 .Should()
@@ -359,6 +360,41 @@ public sealed class EnvironmentFaceTests
                 .Distances(renderer, CubeFace.NegativeX)
                 .Should()
                 .OnlyContain(distance => (float)distance == 0f, "the sky is infinitely far, an inverse distance of 0");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>
+    /// A surface 10 cm from the eye, in the near range, stores its own inverse distance, up to 10,000 km⁻¹: the
+    /// floor of the distance in environment_face.frag, the near plane of 5 cm, lies below every distance that a face
+    /// draws, so it only keeps a division by 0 out.
+    /// </summary>
+    [Fact]
+    public void ASurfaceTenCentimetersFromTheEyeStoresItsTrueInverseDistance()
+    {
+        VulkanRenderer renderer = EnvironmentScenes.Renderer();
+        try
+        {
+            RenderSnapshot snapshot = EnvironmentScenes.Dark();
+            snapshot.Instances.Add(
+                EnvironmentScenes.Square(
+                    plane: renderer.CreateMesh(Primitives.Plane(1f)),
+                    material: EnvironmentScenes.Matte(renderer),
+                    center: new(0.1f, 0, 0),
+                    halfSize: 1,
+                    chainDepth: TestChains.CamerasFrame
+                )
+            );
+
+            renderer.Render(snapshot, 1f);
+
+            // One rounding to a half float, within one unit in the last place, 2⁻¹⁰ of the value at most.
+            WorstErrorOfAWallAhead(face: EnvironmentScenes.Distances(renderer, CubeFace.PositiveX), distance: 0.1f)
+                .Should()
+                .BeLessThan(1e-3f, "each texel holds 1000 m over its own radial distance, however near the surface");
         }
         finally
         {
