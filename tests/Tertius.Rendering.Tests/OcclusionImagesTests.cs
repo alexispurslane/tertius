@@ -23,6 +23,7 @@ public sealed class OcclusionImagesTests
             images.ViewDepth.Extent,
             images.Source.Extent,
             images.DepthAndNormal.Extent,
+            images.Continuation.Extent,
             images.Edges.Extent,
             images.TermA.Extent,
             images.TermB.Extent,
@@ -46,6 +47,7 @@ public sealed class OcclusionImagesTests
         images
             .DepthAndNormal.Format.Should()
             .Be(Format.R32G32Uint, "occlusion.glsl declares occlusionDepthAndNormal rg32ui");
+        images.Continuation.Format.Should().Be(Format.R8Uint, "occlusion.glsl declares occlusionContinuation r8ui");
     }
 
     [Fact]
@@ -94,11 +96,11 @@ public sealed class OcclusionImagesTests
         OcclusionImages
             .StorageImageProblem(maxPerStageStorageImages: 4)
             .Should()
-            .Contain("9 storage images", "the occlusion set binds every image of the four passes in one compute stage");
+            .Contain("10 storage images", "the occlusion set binds every image of the four passes in one compute stage");
 
     [Fact]
-    public void ADeviceWithNineStorageImagesInAStageCanBindTheOcclusionSet() =>
-        OcclusionImages.StorageImageProblem(maxPerStageStorageImages: 9).Should().BeNull();
+    public void ADeviceWithTenStorageImagesInAStageCanBindTheOcclusionSet() =>
+        OcclusionImages.StorageImageProblem(maxPerStageStorageImages: 10).Should().BeNull();
 
     [Theory]
     [InlineData("occlusion_depth.comp")]

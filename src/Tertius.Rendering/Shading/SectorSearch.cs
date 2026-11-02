@@ -171,7 +171,6 @@ internal static class SectorSearch
                 PixelSurface surface = TexelSurface(
                     texel: stepTexel,
                     read: read,
-                    towardPlace: towardPlace,
                     rayThrough: rayThrough,
                     texelAt: texelAt,
                     halfSize: halfSize
@@ -196,36 +195,34 @@ internal static class SectorSearch
     }
 
     /// <summary>
-    /// The surface of a step's texel in the texel grid (<see cref="PixelSurface.Over"/>, the pixels' rule): its plane over
-    /// the part of its square that reaches toward each of the two neighbors toward the step's exact place that continue it
-    /// (<see cref="PixelPlane.ContinuesInto"/>). A neighbor beyond the image continues the plane, and sky does not. The
-    /// place lies within half a texel of the texel on each axis, so the other two neighbors do not matter.
+    /// The surface of a half-resolution texel that sees a surface, in the texel grid (<see cref="PixelSurface.Over"/>, the
+    /// pixels' rule): its plane over the part of its square that reaches toward each edge neighbor that continues it
+    /// (<see cref="PixelPlane.ContinuesInto"/>). A neighbor beyond the image continues the plane, and sky does not.
+    /// texel_surface.glsl's texelSurface is the GLSL copy, which reads the four answers from the depth pass's
+    /// continuation flags.
     /// </summary>
-    /// <param name="towardPlace">The exact place minus the texel, in texels: at most ½ on each axis.</param>
     private static PixelSurface TexelSurface(
         (int X, int Y) texel,
         StepTexel read,
-        (double X, double Y) towardPlace,
         Func<(double X, double Y), Double3> rayThrough,
         Func<(int X, int Y), StepTexel?> texelAt,
         (int Width, int Height) halfSize
     )
     {
         PixelPlane plane = TexelPlane(texel: texel, read: read, rayThrough: rayThrough);
-        int acrossX = Math.Sign(towardPlace.X);
-        int acrossY = Math.Sign(towardPlace.Y);
-        bool Continues((int X, int Y) neighbor) =>
-            !Inside(neighbor, halfSize)
-            || texelAt(neighbor) is { } other
-                && plane.ContinuesInto(TexelPlane(texel: neighbor, read: other, rayThrough: rayThrough));
-        bool alongRow = Continues((texel.X + acrossX, texel.Y));
-        bool alongColumn = Continues((texel.X, texel.Y + acrossY));
+        bool Continues(int acrossX, int acrossY)
+        {
+            (int X, int Y) neighbor = (texel.X + acrossX, texel.Y + acrossY);
+            return !Inside(neighbor, halfSize)
+                || texelAt(neighbor) is { } other
+                    && plane.ContinuesInto(TexelPlane(texel: neighbor, read: other, rayThrough: rayThrough));
+        }
         return PixelSurface.Over(
             plane: plane,
-            left: acrossX < 0 && alongRow,
-            up: acrossY < 0 && alongColumn,
-            right: acrossX > 0 && alongRow,
-            down: acrossY > 0 && alongColumn
+            left: Continues(-1, 0),
+            up: Continues(0, -1),
+            right: Continues(1, 0),
+            down: Continues(0, 1)
         );
     }
 

@@ -47,6 +47,7 @@ internal sealed class OcclusionDepthPass(
         // Discarded, and after the last frame's sectors pass read them.
         barriers.Image(images.Source, ImageUse.StorageCompute, discard: true);
         barriers.Image(images.DepthAndNormal, ImageUse.StorageCompute, discard: true);
+        barriers.Image(images.Continuation, ImageUse.StorageCompute, discard: true);
         barriers.Flush(context.Vk, context.CommandBuffer);
         pipeline.Dispatch(context, images.HalfExtent);
     }

@@ -26,6 +26,9 @@ layout(set = 3, binding = 6, rgba16f) uniform image2D occlusionSource;  // half:
 layout(set = 3, binding = 7, rg32ui) uniform uimage2D occlusionDepthAndNormal;
 // full: rgb the diffuse part of each lit pixel's direct light, pre-exposed (RenderTargets.Diffuse)
 layout(set = 3, binding = 8, rgba16f) uniform readonly image2D diffuseImage;
+// half: the continuation flags of each texel's plane, bits 0 to 3 for the left, upper, right and lower neighbor
+// (continuationFlags in texel_surface.glsl, OcclusionImages.Continuation)
+layout(set = 3, binding = 9, r8ui) uniform uimage2D occlusionContinuation;
 
 layout(push_constant, std430) uniform OcclusionPush
 {
@@ -107,13 +110,11 @@ uint cardAt(ivec2 pixel)
     return cardOfWords(shading.b, shading.a);
 }
 
-// Writes the depth pass's copy of a half-resolution texel: the view depth z and the octahedral geometric normal of its
-// representative pixel, as the normals target's ba holds it, in one texel, which a near step reads in one load. x holds
-// z's bits, and y the normal as packSnorm2x16 packs it. The copy is exact: the normal's components are SNORM16 values
-// k / 32767, and their product with 32767 lies within 10^-2 of k, so packSnorm2x16's round to nearest gives back k.
-void storeDepthAndNormal(ivec2 texel, float z, vec2 octahedralNormal)
+// Writes the depth pass's copy of a half-resolution texel (texelDepthAndNormal in texel_surface.glsl): the view depth z
+// and the octahedral geometric normal of its representative pixel in one texel, which a near step reads in one load.
+void storeDepthAndNormal(ivec2 texel, uvec2 depthAndNormal)
 {
-    imageStore(occlusionDepthAndNormal, texel, uvec4(floatBitsToUint(z), packSnorm2x16(octahedralNormal), 0u, 0u));
+    imageStore(occlusionDepthAndNormal, texel, uvec4(depthAndNormal, 0u, 0u));
 }
 
 // The depth pass's copy of a half-resolution texel inside the image (storeDepthAndNormal).
@@ -133,6 +134,18 @@ float depthOf(uvec2 depthAndNormal)
 vec3 geometricNormalOf(uvec2 depthAndNormal)
 {
     return toViewAxes(octDecode(unpackSnorm2x16(depthAndNormal.y)));
+}
+
+// Writes the depth pass's continuation flags of a half-resolution texel (continuationFlags in texel_surface.glsl).
+void storeContinuation(ivec2 texel, uint flags)
+{
+    imageStore(occlusionContinuation, texel, uvec4(flags));
+}
+
+// The continuation flags of a half-resolution texel inside the image (storeContinuation).
+uint continuationAt(ivec2 texel)
+{
+    return imageLoad(occlusionContinuation, texel).r;
 }
 
 // The view depth of a half-resolution texel. A texel outside the image reads the border texel, as XeGTAO's clamped

@@ -5,7 +5,7 @@
 #define TERTIUS_SECTORS_GLSL
 
 #include "gtao.glsl"
-#include "depth_pyramid.glsl"
+#include "texel_surface.glsl"
 
 const uint SectorCount = 32u;
 // The steps of boundaryAngle's bisection, SliceSectors.BoundarySteps.
@@ -161,48 +161,17 @@ SectorRun ownSurfaceRun(SliceGeometry g, vec3 geometricNormal)
                                       : runBetween(g, planeAngle + GtaoHalfPi, g.normalAngle + GtaoHalfPi);
 }
 
-// The plane of a half-resolution texel t that sees a surface, in the texel grid, from the depth pass's copy of its view
-// depth and geometric normal: through P(t) along the normal, centered at t (SectorSearch.TexelPlane).
-PixelPlane texelPlane(ivec2 t, uvec2 depthAndNormal)
-{
-    float z = depthOf(depthAndNormal);
-    vec3 n = geometricNormalOf(depthAndNormal);
-    vec3 position = gtaoViewPosition(pixelScreenPosition(2 * t), z);
-    // A texel spans two pixels, 2 / W of the screen: the view ray's x changes by 4 t_x / W per texel, and its y by
-    // −4 t_y / H.
-    vec2 tangents = cameraTangents();
-    return samplePlane(vec2(t), 1.0 / z, dot(n, position), length(position),
-        vec2(n.x * 4.0 * tangents.x / float(fullSize().x), -n.y * 4.0 * tangents.y / float(fullSize().y)));
-}
-
-// Whether an edge neighbor continues a texel's plane: it lies beyond the image, where no depth edge lies, or it sees a
-// surface and planesContinue. Sky does not. The test keeps every imageLoad inside its image.
-bool texelContinues(PixelPlane plane, ivec2 neighbor)
-{
-    if (!insideHalf(neighbor))
-        return true;
-    uvec2 depthAndNormal = depthAndNormalAt(neighbor);
-    return depthOf(depthAndNormal) < SkyDepth && planesContinue(plane, texelPlane(neighbor, depthAndNormal));
-}
-
 // s_f: a step's surface point on its slice, where the view ray through its exact place, exactRay (z = 1), meets the
-// surface of its texel t (sampleSurface, the pixels' rule, SectorSearch.TexelSurface): t's plane over the part of its
-// square that reaches toward each neighbor that continues it, and the plane's value at the part's edge past it.
-// towardPlace is the place minus t, in texels, at most ½ on each axis, so only the two neighbors toward the place
-// matter. The surface's inverse depth is positive everywhere on t's square: the part reaches only toward a neighbor
-// whose center lies within 1 % of the plane. False at a view depth of farthestDepth or more, which lies beyond the
-// radius.
+// surface of its texel t (texelSurface, the pixels' rule, SectorSearch.TexelSurface): t's plane over the part of its
+// square that reaches toward each neighbor that continues it, and the plane's value at the part's edge past it, read
+// with the depth pass's continuation flags of t. towardPlace is the place minus t, in texels, at most ½ on each axis.
+// The surface's inverse depth is positive everywhere on t's square: the part reaches only toward a neighbor whose
+// center lies within 1 % of the plane. False at a view depth of farthestDepth or more, which lies beyond the radius.
 bool stepSurfacePoint(ivec2 t, uvec2 depthAndNormal, vec2 towardPlace, vec3 exactRay, float farthestDepth,
                       out vec3 point)
 {
     point = vec3(0.0);
-    PixelPlane plane = texelPlane(t, depthAndNormal);
-    ivec2 across = ivec2(sign(towardPlace));
-    bool alongRow = texelContinues(plane, t + ivec2(across.x, 0));
-    bool alongColumn = texelContinues(plane, t + ivec2(0, across.y));
-    PixelSurface surface = sampleSurface(plane, bvec4(across.x < 0 && alongRow, across.y < 0 && alongColumn,
-        across.x > 0 && alongRow, across.y > 0 && alongColumn));
-    float w = surfaceW(surface, vec2(t) + towardPlace);
+    float w = surfaceW(texelSurface(t, depthAndNormal, continuationAt(t)), vec2(t) + towardPlace);
     if (!(w * farthestDepth > 1.0))
         return false;
     point = exactRay / w;
