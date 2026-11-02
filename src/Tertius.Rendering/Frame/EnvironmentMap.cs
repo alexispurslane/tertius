@@ -505,6 +505,7 @@ internal sealed unsafe class EnvironmentMap : IDisposable
             var extent = new Extent2D((uint)setting.FaceSize, (uint)setting.FaceSize);
             uint layers = (uint)(CubeFaces.Count * maps);
             int radianceLevels = PrefilterLevels.RadianceLevels(setting.FaceSize);
+
             FaceViews = new ImageView[layers];
             DistanceFaceViews = new ImageView[layers];
             LevelViews = new ImageView[levels];
@@ -513,35 +514,21 @@ internal sealed unsafe class EnvironmentMap : IDisposable
             IrradianceLevelViews = new ImageView[IrradianceCube.Levels];
             try
             {
-                // Storage for its mips, and transfer source for the test hook that reads a level back.
-                Radiance = GpuImage.Create(
+                Radiance = DrawnCubes(
                     device: device,
                     allocator: allocator,
                     extent: extent,
                     format: RadianceFormat,
-                    usage: ImageUsageFlags.ColorAttachmentBit
-                        | ImageUsageFlags.SampledBit
-                        | ImageUsageFlags.StorageBit
-                        | ImageUsageFlags.TransferSrcBit,
-                    mipLevels: (uint)radianceLevels,
-                    name: "environment radiance",
-                    arrayLayers: layers,
-                    cubeArray: true
+                    layers: layers,
+                    name: "environment radiance"
                 );
-                // The same uses as the radiance maps: the face pass draws level 0, the downsample writes the others.
-                Distance = GpuImage.Create(
+                Distance = DrawnCubes(
                     device: device,
                     allocator: allocator,
                     extent: extent,
                     format: DistanceFormat,
-                    usage: ImageUsageFlags.ColorAttachmentBit
-                        | ImageUsageFlags.SampledBit
-                        | ImageUsageFlags.StorageBit
-                        | ImageUsageFlags.TransferSrcBit,
-                    mipLevels: (uint)radianceLevels,
-                    name: "environment distance",
-                    arrayLayers: layers,
-                    cubeArray: true
+                    layers: layers,
+                    name: "environment distance"
                 );
                 Specular = WrittenCubes(
                     device: device,
@@ -559,15 +546,7 @@ internal sealed unsafe class EnvironmentMap : IDisposable
                     layers: layers,
                     name: "environment irradiance"
                 );
-                for (int layer = 0; layer < FaceViews.Length; layer++)
-                {
-                    FaceViews[layer] = Radiance.CreateLayerView((uint)layer);
-                    DistanceFaceViews[layer] = Distance.CreateLayerView((uint)layer);
-                }
-                CreateLevelViews(Specular, LevelViews);
-                CreateLevelViews(Radiance, RadianceLevelViews);
-                CreateLevelViews(Distance, DistanceLevelViews);
-                CreateLevelViews(Irradiance, IrradianceLevelViews);
+                CreateViews();
             }
             catch
             {
@@ -575,6 +554,49 @@ internal sealed unsafe class EnvironmentMap : IDisposable
                 throw;
             }
         }
+
+        /// <summary>Fills the arrays of views with the views of the images.</summary>
+        private void CreateViews()
+        {
+            for (int layer = 0; layer < FaceViews.Length; layer++)
+            {
+                FaceViews[layer] = Radiance.CreateLayerView((uint)layer);
+                DistanceFaceViews[layer] = Distance.CreateLayerView((uint)layer);
+            }
+
+            CreateLevelViews(Specular, LevelViews);
+            CreateLevelViews(Radiance, RadianceLevelViews);
+            CreateLevelViews(Distance, DistanceLevelViews);
+            CreateLevelViews(Irradiance, IrradianceLevelViews);
+        }
+
+        /// <summary>
+        /// A cube array that the face pass draws at level 0 and the downsample writes level by level, with the full mip
+        /// chain of its face size: a color attachment, sampled, storage for its mips, and a transfer source for the test
+        /// hook that reads a level back.
+        /// </summary>
+        private static GpuImage DrawnCubes(
+            VulkanDevice device,
+            DeviceAllocator allocator,
+            Extent2D extent,
+            Format format,
+            uint layers,
+            string name
+        ) =>
+            GpuImage.Create(
+                device: device,
+                allocator: allocator,
+                extent: extent,
+                format: format,
+                usage: ImageUsageFlags.ColorAttachmentBit
+                    | ImageUsageFlags.SampledBit
+                    | ImageUsageFlags.StorageBit
+                    | ImageUsageFlags.TransferSrcBit,
+                mipLevels: (uint)PrefilterLevels.RadianceLevels((int)extent.Width),
+                name: name,
+                arrayLayers: layers,
+                cubeArray: true
+            );
 
         /// <summary>
         /// A cube array that compute shaders write level by level and the readers sample: storage and sampled, and a

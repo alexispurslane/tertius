@@ -1074,8 +1074,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             new(binding: 6, descriptorType: DescriptorType.StorageBuffer, descriptorCount: 1, stageFlags: graphics),
             new(binding: 7, descriptorType: DescriptorType.StorageBuffer, descriptorCount: 1, stageFlags: graphics),
             // The tables sit in the frame set because the impostor capture binds only sets 0 and 1.
-            new(binding: 8, descriptorType: DescriptorType.SampledImage, descriptorCount: 1, stageFlags: shading),
-            new(binding: 9, descriptorType: DescriptorType.SampledImage, descriptorCount: 1, stageFlags: shading),
+            Image(binding: 8, stages: shading),
+            Image(binding: 9, stages: shading),
             new(
                 binding: 10,
                 descriptorType: DescriptorType.Sampler,
@@ -1089,15 +1089,10 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
                 descriptorCount: 1,
                 stageFlags: graphicsAndCompute
             ),
-            new(binding: 12, descriptorType: DescriptorType.SampledImage, descriptorCount: 1, stageFlags: shading),
+            Image(binding: 12, stages: shading),
             // The lit puffs read the irradiance cube's mean in the vertex stage, through this sampler.
             ImmutableSampler(binding: 13, stages: graphicsAndCompute, sampler: &environment),
-            new(
-                binding: 14,
-                descriptorType: DescriptorType.SampledImage,
-                descriptorCount: 1,
-                stageFlags: graphicsAndCompute
-            ),
+            Image(binding: 14, stages: graphicsAndCompute),
             // The lit puffs sample the tiles in the vertex stage. The reflections' compute shaders declare the views but
             // never use them.
             new(
@@ -1107,13 +1102,11 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
                 stageFlags: graphics
             ),
             // The distance cubes, which the shading passes search in the fragment and compute stages.
-            new(binding: 16, descriptorType: DescriptorType.SampledImage, descriptorCount: 1, stageFlags: shading),
+            Image(binding: 16, stages: shading),
         ];
         Span<DescriptorBindingFlags> flags = stackalloc DescriptorBindingFlags[frame.Length];
-        flags[12] = DescriptorBindingFlags.PartiallyBoundBit;
-        flags[14] = DescriptorBindingFlags.PartiallyBoundBit;
-        flags[16] = DescriptorBindingFlags.PartiallyBoundBit;
-        flags[(int)ShadowAtlas.TileViewsBinding] = DescriptorBindingFlags.PartiallyBoundBit;
+        foreach (uint binding in (ReadOnlySpan<uint>)[12, 14, ShadowAtlas.TileViewsBinding, 16])
+            flags[(int)binding] = DescriptorBindingFlags.PartiallyBoundBit;
         return CreateLayout(bindings: frame, name: "frame set", bindingFlags: flags);
     }
 

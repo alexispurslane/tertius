@@ -123,34 +123,8 @@ internal sealed unsafe class EnvironmentPrefilterPass : RenderPass
     /// </summary>
     private void RecordMips(Vk vk, CommandBuffer commandBuffer, BarrierBatch barriers, ReadOnlySpan<bool> drawn)
     {
-        GpuImage radiance = map.Radiance;
-        uint levels = radiance.MipLevels;
-        foreach (GpuImage image in (ReadOnlySpan<GpuImage>)[radiance, map.Distance])
-        {
-            PipelineStageFlags2 lastUse = image.State.Stages;
-            // Level 0 of every map: the drawn faces since the face pass, the others since their last readers.
-            ToGeneral(
-                barriers: barriers,
-                image: image,
-                baseMip: 0,
-                mipCount: 1,
-                oldLayout: ImageLayout.ShaderReadOnlyOptimal,
-                after: lastUse,
-                layers: AllLayers
-            );
-            // Levels 1 and up: a drawn map's texels are all written anew, and the others keep theirs.
-            for (int index = 0; index < drawn.Length; index++)
-                ToGeneral(
-                    barriers: barriers,
-                    image: image,
-                    baseMip: 1,
-                    mipCount: levels - 1,
-                    oldLayout: drawn[index] ? ImageLayout.Undefined : ImageLayout.ShaderReadOnlyOptimal,
-                    after: lastUse,
-                    layers: new LayerRange(FirstLayer(index), CubeFaces.Count)
-                );
-        }
-
+        uint levels = map.Radiance.MipLevels;
+        MipsToGeneral(barriers: barriers, drawn: drawn, levels: levels);
         barriers.Flush(vk, commandBuffer);
         int runs = PrefilterLevels.DownsampleDispatches((int)levels);
         for (int dispatch = 0; dispatch < runs; dispatch++)
@@ -163,29 +137,57 @@ internal sealed unsafe class EnvironmentPrefilterPass : RenderPass
                 lastRun: dispatch == runs - 1
             );
         // The levels' first barrier makes these levels read-only, which orders the last run's writes.
-        barriers.ImageLevels(
-            image: radiance,
-            baseMip: 0,
-            mipCount: levels,
-            oldLayout: ImageLayout.General,
-            newLayout: ImageLayout.ShaderReadOnlyOptimal,
-            srcStages: PipelineStageFlags2.ComputeShaderBit,
-            srcAccess: AccessFlags2.ShaderStorageWriteBit,
-            dstStages: PipelineStageFlags2.ComputeShaderBit,
-            dstAccess: AccessFlags2.ShaderSampledReadBit
-        );
-        ResourceState read = ResourceUses.Describe(ImageUse.SampledFragmentCompute);
-        barriers.ImageLevels(
-            image: map.Distance,
-            baseMip: 0,
-            mipCount: levels,
-            oldLayout: ImageLayout.General,
-            newLayout: read.Layout,
-            srcStages: PipelineStageFlags2.ComputeShaderBit,
-            srcAccess: AccessFlags2.ShaderStorageWriteBit,
-            dstStages: read.Stages,
-            dstAccess: read.Access
-        );
+        foreach (
+            (GpuImage image, ImageUse readers) in (ReadOnlySpan<(GpuImage Image, ImageUse Readers)>)
+                [(map.Radiance, ImageUse.SampledCompute), (map.Distance, ImageUse.SampledFragmentCompute)]
+        )
+        {
+            ResourceState read = ResourceUses.Describe(readers);
+            barriers.ImageLevels(
+                image: image,
+                baseMip: 0,
+                mipCount: levels,
+                oldLayout: ImageLayout.General,
+                newLayout: read.Layout,
+                srcStages: PipelineStageFlags2.ComputeShaderBit,
+                srcAccess: AccessFlags2.ShaderStorageWriteBit,
+                dstStages: read.Stages,
+                dstAccess: read.Access
+            );
+        }
+    }
+
+    /// <summary>
+    /// Makes every layer of the <paramref name="levels"/> levels of the radiance maps and the distance cubes storage
+    /// images, after each image's last readers. Level 0 of every map keeps its texels: the drawn faces since the face
+    /// pass, the others since their last readers. In levels 1 and up, a drawn map's texels are discarded, because the
+    /// downsample writes them all anew, and the other maps keep theirs.
+    /// </summary>
+    private void MipsToGeneral(BarrierBatch barriers, ReadOnlySpan<bool> drawn, uint levels)
+    {
+        foreach (GpuImage image in (ReadOnlySpan<GpuImage>)[map.Radiance, map.Distance])
+        {
+            PipelineStageFlags2 lastUse = image.State.Stages;
+            ToGeneral(
+                barriers: barriers,
+                image: image,
+                baseMip: 0,
+                mipCount: 1,
+                oldLayout: ImageLayout.ShaderReadOnlyOptimal,
+                after: lastUse,
+                layers: AllLayers
+            );
+            for (int index = 0; index < drawn.Length; index++)
+                ToGeneral(
+                    barriers: barriers,
+                    image: image,
+                    baseMip: 1,
+                    mipCount: levels - 1,
+                    oldLayout: drawn[index] ? ImageLayout.Undefined : ImageLayout.ShaderReadOnlyOptimal,
+                    after: lastUse,
+                    layers: new LayerRange(FirstLayer(index), CubeFaces.Count)
+                );
+        }
     }
 
     /// <summary>

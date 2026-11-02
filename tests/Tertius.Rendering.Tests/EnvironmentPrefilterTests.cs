@@ -360,39 +360,14 @@ public sealed class EnvironmentPrefilterTests
             renderer.Render(snapshot, 1f);
 
             Half[] level1 = EnvironmentScenes.Distances(renderer, CubeFace.PositiveX, level: 1);
-            const int size = Size / 2;
             const int row = 7;
             float worst = 0;
             double worstShare = 0;
-            for (int x = 0; x < size; x++)
+            for (int x = 0; x < Size / 2; x++)
             {
-                double wall = 0;
-                double wallAngle = 0;
-                double solidAngle = 0;
-                for (int dy = 0; dy < 2; dy++)
-                for (int dx = 0; dx < 2; dx++)
-                {
-                    (int childX, int childY) = (2 * x + dx, 2 * row + dy);
-                    double childAngle = CubeFaces.TexelSolidAngle(childX, childY, Size);
-                    Vector3 direction = CubeFaces.Direction(
-                        CubeFace.PositiveX,
-                        (childX + 0.5f) / Size,
-                        (childY + 0.5f) / Size
-                    );
-                    // The upper child, row 14, sees the wall, 4 m / direction.X away, and the lower one the sky.
-                    if (dy == 0)
-                    {
-                        wall += 1000.0 * direction.X / 4 * childAngle;
-                        wallAngle += childAngle;
-                    }
-
-                    solidAngle += childAngle;
-                }
-
-                double expected = wall / solidAngle;
-                float read = (float)level1[row * size + x];
+                (double expected, double wallMean) = HalfWallTexel(x: x, row: row);
+                float read = (float)level1[row * Size / 2 + x];
                 worst = MathF.Max(worst, (float)(Math.Abs(read - expected) / expected));
-                double wallMean = wall / wallAngle;
                 worstShare = Math.Max(worstShare, Math.Abs(read / wallMean - 0.5));
             }
 
@@ -407,6 +382,35 @@ public sealed class EnvironmentPrefilterTests
         {
             Gpu.DisposeAndAssertClean(renderer);
         }
+    }
+
+    /// <summary>
+    /// Texel (<paramref name="x"/>, <paramref name="row"/>) of level 1 of face +X under a wall on the plane x = 4 m whose
+    /// lower edge lies between the rows of its children: the solid-angle mean of its children, the upper two on the wall
+    /// and the lower two on the sky, and the solid-angle mean of the two wall children alone.
+    /// </summary>
+    private static (double Expected, double WallMean) HalfWallTexel(int x, int row)
+    {
+        double wall = 0;
+        double wallAngle = 0;
+        double solidAngle = 0;
+        for (int dy = 0; dy < 2; dy++)
+        for (int dx = 0; dx < 2; dx++)
+        {
+            (int childX, int childY) = (2 * x + dx, 2 * row + dy);
+            double childAngle = CubeFaces.TexelSolidAngle(childX, childY, Size);
+            Vector3 direction = CubeFaces.Direction(CubeFace.PositiveX, (childX + 0.5f) / Size, (childY + 0.5f) / Size);
+            // The upper child sees the wall, 4 m / direction.X away, and the lower one the sky, whose w is 0.
+            if (dy == 0)
+            {
+                wall += 1000.0 * direction.X / 4 * childAngle;
+                wallAngle += childAngle;
+            }
+
+            solidAngle += childAngle;
+        }
+
+        return (wall / solidAngle, wall / wallAngle);
     }
 
     [Fact]

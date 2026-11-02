@@ -342,23 +342,13 @@ public sealed class EnvironmentFaceTests
             renderer.Render(snapshot, 1f);
 
             Half[] wall = EnvironmentScenes.Distances(renderer, CubeFace.PositiveX);
-            float worst = 0;
-            for (int y = 0; y < Size; y++)
-            for (int x = 0; x < Size; x++)
-            {
-                Vector3 direction = CubeFaces.Direction(CubeFace.PositiveX, (x + 0.5f) / Size, (y + 0.5f) / Size);
-                // The wall is the plane x = 4 m, which the texel's direction meets 4 m / direction.X away.
-                float expected = 1000f * direction.X / 4f;
-                worst = MathF.Max(worst, MathF.Abs((float)wall[y * Size + x] - expected) / expected);
-            }
-
             int center = Size / 2 * Size + Size / 2;
             ((float)wall[center])
                 .Should()
                 .BeApproximately(250f, 0.5f, "the wall is 4 m ahead at the face's center, 1000 m over 4 m");
             // One rounding to a half float, within one unit in the last place, 2⁻¹⁰ of the value at most: Vulkan lets a
             // device round toward zero.
-            worst
+            WorstErrorOfAWallAhead(face: wall, distance: 4f)
                 .Should()
                 .BeLessThan(1e-3f, "each texel holds 1000 m over its own radial distance, within a half float");
             Vector3 up = CubeFaces.Direction(CubeFace.PositiveY, (Size / 2 + 0.5f) / Size, (Size / 2 + 0.5f) / Size);
@@ -374,6 +364,24 @@ public sealed class EnvironmentFaceTests
         {
             Gpu.DisposeAndAssertClean(renderer);
         }
+    }
+
+    /// <summary>
+    /// The largest relative error of the inverse distances of face +X, <paramref name="face"/>, against a wall on the
+    /// plane x = <paramref name="distance"/> m that fills the face: a texel's direction meets it distance / x away.
+    /// </summary>
+    private static float WorstErrorOfAWallAhead(Half[] face, float distance)
+    {
+        float worst = 0;
+        for (int y = 0; y < Size; y++)
+        for (int x = 0; x < Size; x++)
+        {
+            Vector3 direction = CubeFaces.Direction(CubeFace.PositiveX, (x + 0.5f) / Size, (y + 0.5f) / Size);
+            float expected = 1000f * direction.X / distance;
+            worst = MathF.Max(worst, MathF.Abs((float)face[y * Size + x] - expected) / expected);
+        }
+
+        return worst;
     }
 
     [Fact]
