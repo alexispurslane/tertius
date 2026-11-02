@@ -55,10 +55,14 @@ public sealed class BrdfShaderTests
     private static Quaternion RotationOf(int row) =>
         Quaternion.CreateFromAxisAngle(Vector3.UnitX, MathF.PI / 2 - Rows[row].Tilt * MathF.PI / 180);
 
-    /// <summary>The snapshot of the lit render: the test's sun, and the ambient light of <see cref="Sky"/> and <see cref="Ground"/>.</summary>
-    private static RenderSnapshot Lit()
+    /// <summary>
+    /// The snapshot of the lit render: the test's sun of <paramref name="sunAngularRadius"/> rad, and the ambient light of
+    /// <see cref="Sky"/> and <see cref="Ground"/>.
+    /// </summary>
+    private static RenderSnapshot Lit(float sunAngularRadius)
     {
         RenderSnapshot lit = Gpu.Snapshot(SunDirection, starIrradiance: SunIntensity);
+        Gpu.Star(snapshot: lit, angularRadius: sunAngularRadius);
         lit.Ambient = new()
         {
             SkyColor = Sky,
@@ -75,17 +79,20 @@ public sealed class BrdfShaderTests
         return new(0, Math.Sin(tilt), Math.Cos(tilt));
     }
 
+    /// <summary>The Sun's size and a sun 0.2 rad wide, whose widened lobe changes every square.</summary>
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void TheShadersShadeEachMaterialAsTheCSharpBrdfDoes(bool transparent)
+    [InlineData(false, Gpu.StarAngularRadius)]
+    [InlineData(true, Gpu.StarAngularRadius)]
+    [InlineData(false, 0.2f)]
+    [InlineData(true, 0.2f)]
+    public void TheShadersShadeEachMaterialAsTheCSharpBrdfDoes(bool transparent, float sunAngularRadius)
     {
         VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
         try
         {
             AlphaMode alpha = transparent ? new GlassAlpha() : new OpaqueAlpha();
             MeshId square = renderer.CreateMesh(Primitives.Plane(0.25f));
-            RenderSnapshot lit = Lit();
+            RenderSnapshot lit = Lit(sunAngularRadius);
             Double3 sunIrradiance = Gpu.StarIrradianceRgb(lit);
             RenderSnapshot glowing = Gpu.Snapshot(SunDirection, starIrradiance: 0);
             glowing.Ambient.Intensity = 0;
@@ -102,7 +109,8 @@ public sealed class BrdfShaderTests
                         column: column,
                         pixel: pixels[^1],
                         transparent: transparent,
-                        sunIrradiance: sunIrradiance
+                        sunIrradiance: sunIrradiance,
+                        sunSine: Math.Sin(sunAngularRadius)
                     )
                 );
                 Quaternion rotation = RotationOf(row);
@@ -118,7 +126,7 @@ public sealed class BrdfShaderTests
                 glowing.Instances.Add(Square(mesh: square, material: glow, center: center, rotation: rotation));
             }
 
-            string name = transparent ? "brdf-shader-transparent" : "brdf-shader-opaque";
+            string name = (transparent ? "brdf-shader-transparent-" : "brdf-shader-opaque-") + sunAngularRadius;
             Capture shaded = Gpu.RenderAndCapture(renderer: renderer, snapshot: lit, name: name);
             Capture glows = Gpu.RenderAndCapture(renderer: renderer, snapshot: glowing, name: name + "-glow");
             ShouldMatch(shaded: shaded, glows: glows, pixels: pixels, expected: expected);
@@ -247,9 +255,17 @@ public sealed class BrdfShaderTests
 
     /// <summary>
     /// The C# light of a square at the surface point that <paramref name="pixel"/>'s center sees: the sun of
-    /// <paramref name="sunIrradiance"/> and the hemisphere ambient light, with both sky shares from the geometry.
+    /// <paramref name="sunIrradiance"/> whose angular radius has the sine <paramref name="sunSine"/>, and the hemisphere
+    /// ambient light, with both sky shares from the geometry.
     /// </summary>
-    private static Vector3 ExpectedLight(int row, int column, Vector2 pixel, bool transparent, Double3 sunIrradiance)
+    private static Vector3 ExpectedLight(
+        int row,
+        int column,
+        Vector2 pixel,
+        bool transparent,
+        Double3 sunIrradiance,
+        double sunSine
+    )
     {
         Double3 normal = NormalOf(row);
         Double3 toView = -Ray(pixel, Width, Height);
@@ -266,8 +282,13 @@ public sealed class BrdfShaderTests
         MaterialDesc desc = MaterialOf(row, column);
         MaterialSample material = TestMaterials.SampleOf(desc);
         Double3 sun =
-            material.Reflected(normal: normal, toView: toView, toLight: SunDirection, tables: BrdfTables.Shared)
-            * sunIrradiance;
+            material.Reflected(
+                normal: normal,
+                toView: toView,
+                toLight: SunDirection,
+                tables: BrdfTables.Shared,
+                lightSine: sunSine
+            ) * sunIrradiance;
         Double3 ambient = material.ReflectedHemisphere(
             normal: normal,
             toView: toView,

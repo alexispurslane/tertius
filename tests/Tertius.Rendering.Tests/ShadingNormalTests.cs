@@ -7,8 +7,9 @@ namespace Tertius.Rendering.Tests;
 /// <summary>
 /// The shading normal of a material on the GPU: a material without a normal map shades with its interpolated vertex
 /// normal, and a normal map decodes as glTF's xyz × 2 − 1. Each test finds the sun's highlight on a smooth dark metal
-/// square that fills a 10° view. At the roughness floor the highlight peaks where the half vector meets the shading
-/// normal, so the center of the highlight shows that normal to a quarter of a milliradian.
+/// square that fills a 10° view. At the roughness floor the highlight is the mirror image of the sun's disc, 9.3 mrad
+/// wide, whose center lies where the half vector toward the sun's center meets the shading normal. So the center of the
+/// highlight shows that normal to a quarter of a milliradian.
 /// </summary>
 [Collection(GpuCollection.Name)]
 public sealed class ShadingNormalTests
@@ -23,16 +24,17 @@ public sealed class ShadingNormalTests
     private static readonly Quaternion Facing = Quaternion.CreateFromAxisAngle(Vector3.UnitX, MathF.PI / 2);
 
     /// <summary>
-    /// The pixel of the highlight of the sun along <paramref name="toSun"/> on a surface of shading normal
-    /// <paramref name="normal"/>: the eye sees the sun's mirror image where the half vector is the normal.
+    /// The pixel of the center of the highlight of the sun along <paramref name="toSun"/> on a surface of shading
+    /// normal <paramref name="normal"/>: the eye sees the center of the sun's mirror image where the half vector toward
+    /// the sun's center is the normal.
     /// </summary>
     private static Vector2 MirrorPixel(Double3 normal, Double3 toSun) =>
         Gpu.Project(point: (-Mirror(normal, toSun)).ToVector3(), width: Width, height: Height, fov: NarrowFov);
 
     /// <summary>
-    /// The center of the highlight in <paramref name="image"/>: the mean of the pixel centers at least half as bright as
-    /// the brightest, weighted by luma. The 8-bit pixels near the peak tie, so the brightest one alone can miss it by a
-    /// pixel.
+    /// The center of the highlight in <paramref name="image"/>: the mean of the pixel centers at least half as bright
+    /// as the brightest, weighted by luma. The pixels of the sun's disc tie, so the brightest one alone can miss its
+    /// center by many pixels.
     /// </summary>
     private static Vector2 HighlightCenter(Capture image)
     {
@@ -63,13 +65,19 @@ public sealed class ShadingNormalTests
     /// </summary>
     private static Vector2 HighlightOnAMirror(Vector3 toSun, TextureData? normalMap, string name)
     {
-        // A dim sun keeps the peak below 1 before the tone curve, which would turn the pixels around it white too. The
-        // metal reflects 2%: a white mirror's peak is about 19,000 times its irradiance, so a sun dim enough for it would
-        // fall below the cutoff irradiance, which is set for a matte surface, and the batcher would leave it out. On the
-        // dark metal the sun's irradiance is about 3 times the cutoff.
+        // A dim sun keeps the sun's disc below 1 before the tone curve, which would turn the pixels around it white
+        // too. The metal reflects 2%: a white mirror shows the disc at about 4,200 times its irradiance, so a sun dim
+        // enough for it would fall below the cutoff irradiance, which is set for a matte surface, and the batcher would
+        // leave it out. On the dark metal the sun's irradiance is about 15 times the cutoff.
         var metal = new MaterialSample(BaseColor: new(0.02, 0.02, 0.02), Metallic: 1, Roughness: 0, Reflectance: 0.5);
         double peak = metal
-            .Reflected(normal: Double3.UnitZ, toView: Double3.UnitZ, toLight: Double3.UnitZ, tables: BrdfTables.Shared)
+            .Reflected(
+                normal: Double3.UnitZ,
+                toView: Double3.UnitZ,
+                toLight: Double3.UnitZ,
+                tables: BrdfTables.Shared,
+                lightSine: Gpu.StarSine
+            )
             .X;
         RenderSnapshot snapshot = Gpu.Snapshot(toSun, starIrradiance: (float)(0.5 / peak));
         snapshot.Ambient.Intensity = 0;

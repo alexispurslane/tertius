@@ -229,7 +229,13 @@ public sealed class MaterialSampleTests
                 width: mirror.Lobe.Alpha,
                 integrand: toLight =>
                     mirror
-                        .Reflected(normal: Double3.UnitZ, toView: toView, toLight: toLight, tables: BrdfTables.Shared)
+                        .Reflected(
+                            normal: Double3.UnitZ,
+                            toView: toView,
+                            toLight: toLight,
+                            tables: BrdfTables.Shared,
+                            lightSine: 0
+                        )
                         .X
             );
 
@@ -262,7 +268,8 @@ public sealed class MaterialSampleTests
                                 normal: Double3.UnitZ,
                                 toView: toView,
                                 toLight: toLight,
-                                tables: BrdfTables.Shared
+                                tables: BrdfTables.Shared,
+                                lightSine: 0
                             )
                             .X
                 );
@@ -285,7 +292,8 @@ public sealed class MaterialSampleTests
             normal: Double3.UnitZ,
             toView: toView,
             toLight: toLight,
-            tables: BrdfTables.Shared
+            tables: BrdfTables.Shared,
+            lightSine: 0
         );
         Double3 single =
             black.SingleScatteringBrdf(normal: Double3.UnitZ, toView: toView, toLight: toLight) * toLight.Z;
@@ -323,7 +331,8 @@ public sealed class MaterialSampleTests
             normal: Double3.UnitZ,
             toView: HalfVectorQuadrature.View(0.6),
             toLight: new Double3(0.3, 0, -0.2).Normalized(),
-            tables: BrdfTables.Shared
+            tables: BrdfTables.Shared,
+            lightSine: 0
         );
 
         reflected.Should().Be(Double3.Zero);
@@ -364,7 +373,8 @@ public sealed class MaterialSampleTests
                         normal: Double3.UnitZ,
                         toView: toView,
                         toLight: toLight,
-                        tables: BrdfTables.Shared
+                        tables: BrdfTables.Shared,
+                        lightSine: 0
                     ) * sky
             );
 
@@ -598,7 +608,8 @@ public sealed class MaterialSampleTests
                         normal: Double3.UnitZ,
                         toView: toView,
                         toLight: toLight,
-                        tables: BrdfTables.Shared
+                        tables: BrdfTables.Shared,
+                        lightSine: 0
                     )
             );
 

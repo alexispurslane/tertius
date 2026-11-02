@@ -1,6 +1,6 @@
 ---
 id: ter-eqtb
-status: open
+status: in_progress
 deps: [ter-rjts, ter-y8z0, ter-f3g2, ter-8bda]
 links: [ter-f3g2]
 created: 2026-11-01T15:28:45Z
@@ -35,6 +35,10 @@ The user's decision of 2026-11-01, after ter-f3g2's probe: SSR's roughness limit
 **2026-11-02T11:47:51Z**
 
 2026-11-02: reopened at the user's word. The stair steps come from the level-0 hit test, which still runs on every surface below the SSR limit of 0.37. The demo has no such surface now, but any smooth surface (a mirror, polished metal, a smooth floor) can show them, so the fault stays. Scope from now: artifact 1 on surfaces below the limit. The builder first finds or builds a review view that shows the steps on such a surface (for example mirror-balls, the reflections scene, or a smooth floor in a test scene), then measures the candidates there (planeext, plane0, planeq, grazefade), and the user chooses with images. Its launch waits for the user's answer on epic ter-b2da's open question (the reflected brightness that the 0.37 limit loses), because a change of the limit changes which surfaces this ticket covers.
+
+**2026-11-02T12:04:28Z**
+
+2026-11-02: workflow run b8fc00c8-1229-4ecd-916a-c6a58818fd1c (version 869b0b07), branch ter-eqtb-smooth-steps from f93c19e50. The run finds a view with steps on a surface below 0.37, measures the candidates (A planeext with a bounded depth edge, A2 plane0, B planeq, C grazefade) and ends at a fork for the user's choice.
 
 **2026-11-02T12:44:28Z**
 
@@ -84,3 +88,11 @@ The fork, for the user's choice:
 - My measurements agree with ter-y8z0: A is the fix and C is a mask. One correction: ter-y8z0's planeext had no bound, and a bound with the slab's share kappa leaves dotted lines on curved meshes. The bound needs its own, tighter tolerance.
 
 Report screenshots: sheets/shot-gold0-candidates.png, sheets/shot-gold0-vizclass.png, sheets/shot-floor06-streaks.png, sheets/shot-ballrim.png.
+
+**2026-11-02T13:35:50Z**
+
+2026-11-02, the user's choice after the probe (run b8fc00c8, branch ter-eqtb-smooth-steps at bbfb4933f, evidence copied to captures/eqtb in the main checkout): candidate A, bounded planes (probe planeextc). Each level-0 pixel is its plane (its geometric normal through its center point), which reaches the pixel's edge toward a neighbor only where the neighbor's center lies on the plane within 1 %, and stops at the pixel's center line otherwise. The depth pyramid's bounds and the level-0 hit test read the same surface: one model of a pixel's depth extent (ter-y8z0's finding F6). Rejected: B planeq and A2 plane0 (bands stay), C grazing fade (a mask that removes the reflection). Next: a continuation builds A in the same worktree.
+
+**2026-11-02T13:37:01Z**
+
+2026-11-02: the fix runs as workflow run 2e8dca1e-7eb6-40a9-ae00-4f23d523217d, version 869b0b07-3413-4b06-8707-a88a91bf6e91 (build, review, fix), in the same worktree and branch ter-eqtb-smooth-steps, base b4f84fe5b.
