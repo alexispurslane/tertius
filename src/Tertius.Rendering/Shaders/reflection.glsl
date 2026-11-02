@@ -167,9 +167,12 @@ float slabEntry(ScreenRay ray, RayReciprocals inverse, float s, float inW, float
 
 // The trace's test at level 0 (ScreenRay.MeetPixel): whether the stretch of the image inside a pixel, from s to exit,
 // meets the slab of thickness κ behind the pixel's surface. The ray and the slab are each read at both ends of the
-// stretch, and taken as affine between them. inW is the ray's inverse depth at s: w(s) after a crossing, the slab bound
-// that s was solved for after a descent ("Precision and determinism"). On a hit, gives where the ray enters the slab,
-// clamped into the pixel, and q from the pixel's edge where the image enters it.
+// stretch, and taken as affine between them. Where the surface's part stops at a center line, the surface bends there,
+// so a hit is always real, but a ray can pass the bend inside the slab and still miss: at most half a pixel's gradient
+// in inverse depth off the surface, and only beside a depth edge or a curve beyond ContinuationShare ("The trace
+// through the pyramid"). inW is the ray's inverse depth at s: w(s) after a crossing, the slab bound that s was solved
+// for after a descent ("Precision and determinism"). On a hit, gives where the ray enters the slab, clamped into the
+// pixel, and q from the pixel's edge where the image enters it.
 bool meetsPixelSurface(ScreenRay ray, vec2 pixel, vec2 travel, float s, float inW, float exit, out vec2 hit,
     out float entryShare)
 {

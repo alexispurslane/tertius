@@ -8,6 +8,7 @@ namespace Tertius.Rendering.Tests;
 /// pyramids"): the depth pyramid against its C# copy, the padding of its image, the radiance pyramid against the lit
 /// image and the 13-tap filter, a resize, the passes that the setting adds, and no depth pyramid for the screen-space light
 /// alone. The scene is a floor, two boxes and a lamp under the sky, at 640 × 360, whose odd levels exercise the sizes that round up.
+/// A second scene puts a panel before a wall, for the bounds at a depth edge.
 /// </summary>
 [Collection(GpuCollection.Name)]
 public sealed class PyramidRenderTests
@@ -65,6 +66,40 @@ public sealed class PyramidRenderTests
                         y
                     );
             }
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void ACellAtADepthEdgeBoundsTheNearSurfaceOnlyToTheCenterLineOfItsLastRowWhereItsPlanePassesTheFarSurface()
+    {
+        // The panel's plane, seen from below at a grazing angle, runs steeply in depth: one pixel below the panel's far
+        // edge it lies within 1 % of the wall behind. Only the wall's plane, which never passes back through the panel's
+        // last row, tells the depth edge (the light bars of ter-eqtb's floor film at a roughness limit of 0.6).
+        VulkanRenderer renderer = Gpu.Headless(reflections: ConeTracedReflections.Default);
+        try
+        {
+            renderer.Render(PanelBeforeAWall(renderer), 1f);
+            float[] distance = renderer.ReadDistance();
+            CameraView camera = renderer.LastScene.Camera;
+            (float[] bounds, int mipWidth, _) = renderer.ReadDepthPyramidLevel(1);
+
+            distance[PanelLastRow * Width + Width / 2].Should().BeLessThan(PanelFarEdge, "the panel's last row sees it");
+            distance[(PanelLastRow + 1) * Width + Width / 2].Should().BeGreaterThan(PanelFarEdge, "the next row sees the wall");
+            // The cells of level 1 whose lower row is the panel's last row, under the middle of the panel.
+            float centerLine = camera.ViewRayThrough(new(Width / 2, PanelLastRow + 0.5f)).Y / PanelHeight;
+            for (int x = 100; x < 220; x++)
+                bounds[2 * ((PanelLastRow / 2) * mipWidth + x) + 1]
+                    .Should()
+                    .BeGreaterThanOrEqualTo(
+                        centerLine * (1 - 1e-5f),
+                        "the panel's plane stops at its last row's center line toward the wall, in cell ({0}, {1})",
+                        x,
+                        PanelLastRow / 2
+                    );
         }
         finally
         {
@@ -445,6 +480,44 @@ public sealed class PyramidRenderTests
         {
             Gpu.DisposeAndAssertClean(renderer);
         }
+    }
+
+    /// <summary>The height of the bottom of the panel of <see cref="PanelBeforeAWall"/> above the eye, in m.</summary>
+    private const float PanelHeight = 0.5f;
+
+    /// <summary>The last screen row that sees the panel of <see cref="PanelBeforeAWall"/>: odd, so that it is the lower
+    /// row of its cell of level 1, and the wall's first row lies in the next cell.</summary>
+    private const int PanelLastRow = 149;
+
+    /// <summary>The tangent of the elevation of one screen row, under <see cref="Gpu.Fov"/> at <see cref="Height"/>.
+    /// </summary>
+    private static float RowTangent => 2 * MathF.Tan(Gpu.Fov / 2) / Height;
+
+    /// <summary>The distance ahead of the panel's far edge, in m: where its bottom ends on the boundary between
+    /// <see cref="PanelLastRow"/> and the next row.</summary>
+    private static float PanelFarEdge => PanelHeight / ((Height / 2 - PanelLastRow - 1) * RowTangent);
+
+    /// <summary>
+    /// A gray panel 6 m wide whose bottom lies <see cref="PanelHeight"/> above the eye, from 2 m ahead to
+    /// <see cref="PanelFarEdge"/>, before a gray wall that faces the eye under the sky. The wall stands where the panel's
+    /// plane meets the view ray through the center of the row below <see cref="PanelLastRow"/>, and 0.5 % farther.
+    /// </summary>
+    private static RenderSnapshot PanelBeforeAWall(VulkanRenderer renderer)
+    {
+        RenderSnapshot snapshot = Gpu.Snapshot(new(0.4f, 0.8f, 0.3f));
+        MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
+        MaterialId gray = renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.5f, y: 0.5f, z: 0.5f, w: 1), roughness: 0.5f));
+        float wall = 1.005f * PanelHeight / ((Height / 2 - PanelLastRow - 1.5f) * RowTangent);
+        snapshot.Instances.Add(
+            Block(
+                box: box,
+                material: gray,
+                center: new(0, PanelHeight + 0.05f, -(2 + PanelFarEdge) / 2),
+                size: new(6, 0.1f, PanelFarEdge - 2)
+            )
+        );
+        snapshot.Instances.Add(Block(box: box, material: gray, center: new(0, 0, -wall - 0.1f), size: new(14, 8, 0.2f)));
+        return snapshot;
     }
 
     /// <summary>

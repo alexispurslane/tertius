@@ -190,6 +190,25 @@ public sealed class DepthPyramidTests
     }
 
     [Fact]
+    public void APlaneThatPassesTheCenterOfAFarNeighborByChanceStopsAtItsCenterLineTowardIt()
+    {
+        // A near pixel sees a steep surface whose plane runs through the center point of the wall pixel below it, as a
+        // surface seen at a grazing angle can at its outline. The wall's plane faces the eye and never passes back
+        // through the near pixel's center, so the two pixels see two surfaces with a depth edge between them.
+        CameraView camera = ScreenTesting.Camera(width: 64, height: 48);
+        SceneRectangle[] wall = [new(new(0, 0, -10), new(20, 0, 0), new(0, 20, 0))];
+        (float[] distances, Vector3[] normals) = ScreenTesting.Surfaces(camera, wall);
+        Vector3 nearPoint = Vector3.Normalize(camera.ViewRayThrough(new(20.5f, 30.5f))) * 5;
+        Vector3 wallPoint = camera.ViewRayThrough(new(20.5f, 31.5f)) * 10;
+        distances[30 * camera.Width + 20] = 5;
+        normals[30 * camera.Width + 20] = Vector3.Normalize(Vector3.Cross(wallPoint - nearPoint, camera.Right));
+
+        PixelSurface surface = DepthPyramid.Of(camera, distances, normals).Surface(20, 30)!.Value;
+
+        surface.High.Y.Should().Be(30.5f, "the plane stops at the center line toward a neighbor whose plane does not reach back");
+    }
+
+    [Fact]
     public void APixelThatFacesTheEyeBoundsOnlyItsCentersInverseDepth()
     {
         CameraView camera = ScreenTesting.Camera(width: 64, height: 48);

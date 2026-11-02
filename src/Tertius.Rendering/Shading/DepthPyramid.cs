@@ -16,10 +16,11 @@ internal readonly record struct CellBounds(float Near, float Far)
     public const float ThicknessShare = 0.1f;
 
     /// <summary>
-    /// The share by which the center of a pixel's edge neighbor may stand off the pixel's plane, in inverse depth, and
-    /// still continue it (<see cref="PixelSurface"/>). Far below <see cref="ThicknessShare"/>: at κ, the plane of a
-    /// curved mesh's pixel reaches edges where the neighbor's surface stands off it by several percent, and rays slip
-    /// through the step between the two surfaces, which shows as dotted lines on the reflections of curved meshes.
+    /// The share by which the center of a pixel's edge neighbor may stand off the pixel's plane, in inverse depth, and the
+    /// pixel's center off the neighbor's plane, where the neighbor continues the plane (<see cref="PixelPlane.Holds"/>).
+    /// Far below <see cref="ThicknessShare"/>: at κ, the plane of a curved mesh's pixel reaches edges where the
+    /// neighbor's surface stands off it by several percent, and rays slip through the step between the two surfaces,
+    /// which shows as dotted lines on the reflections of curved meshes.
     /// </summary>
     public const float ContinuationShare = 0.01f;
 
@@ -40,12 +41,90 @@ internal readonly record struct CellBounds(float Near, float Far)
 }
 
 /// <summary>
+/// The plane of a pixel of level 0 that sees a surface: through its center point along its geometric normal, as an
+/// inverse depth that is affine in the screen position. An edge-on plane keeps its center's inverse depth, with no
+/// gradient. The C# copy of PixelPlane in depth_pyramid.glsl.
+/// </summary>
+/// <param name="Center">The pixel's center, in pixels from the screen's top left.</param>
+/// <param name="CenterInverseDepth">The inverse view depth at the center, in 1/m, from the distance target.</param>
+/// <param name="Gradient">The plane's change of inverse depth per pixel, across and down, in 1/m. Zero when edge-on.
+/// </param>
+/// <param name="EdgeOn">Whether the plane holds the pixel's view ray to within <see cref="EdgeOnShare"/>.</param>
+internal readonly record struct PixelPlane(Vector2 Center, float CenterInverseDepth, Vector2 Gradient, bool EdgeOn)
+{
+    /// <summary>
+    /// The share of a pixel's distance below which its plane counts as edge-on: the plane holds the pixel's view ray to
+    /// within a millionth of a radian. Such a pixel keeps its center's inverse depth over its whole square, and no
+    /// neighbor continues it, because its gradient would grow past any float.
+    /// </summary>
+    private const float EdgeOnShare = 1e-6f;
+
+    /// <summary>The plane of a pixel, as depth_pyramid.glsl builds it from the distance target and the geometric
+    /// normals, or null for a pixel that sees the sky.</summary>
+    /// <param name="x">The pixel's column, inside the screen.</param>
+    /// <param name="y">The pixel's row, inside the screen.</param>
+    /// <param name="distances">The distance target: each pixel's distance to the eye in m, row by row from the top, 0
+    /// or less for sky.</param>
+    /// <param name="geometricNormals">Each pixel's unit geometric normal, camera-relative, row by row from the top.
+    /// </param>
+    /// <param name="camera">The camera of the frame, whose size is the screen's.</param>
+    public static PixelPlane? Of(
+        int x,
+        int y,
+        ReadOnlySpan<float> distances,
+        ReadOnlySpan<Vector3> geometricNormals,
+        in CameraView camera
+    )
+    {
+        float distanceToEye = distances[y * camera.Width + x];
+        if (distanceToEye <= 0)
+            return null;
+        var center = new Vector2(x + 0.5f, y + 0.5f);
+        Vector3 centerRay = camera.ViewRayThrough(center);
+        float centerInverseDepth = centerRay.Length() / distanceToEye;
+        // The plane holds the points p with n · p = planeDistance. On the view ray r through a screen position, whose
+        // forward part is 1, it lies at the inverse depth n · r / planeDistance, which is affine in the position.
+        Vector3 normal = geometricNormals[y * camera.Width + x];
+        float planeDistance = Vector3.Dot(normal, Vector3.Normalize(centerRay) * distanceToEye);
+        if (MathF.Abs(planeDistance) <= EdgeOnShare * distanceToEye)
+            return new(Center: center, CenterInverseDepth: centerInverseDepth, Gradient: Vector2.Zero, EdgeOn: true);
+        Vector2 gradient =
+            new Vector2(
+                Vector3.Dot(normal, camera.Right) * camera.TanHalfX * 2 / camera.Width,
+                -Vector3.Dot(normal, camera.Up) * camera.TanHalfY * 2 / camera.Height
+            ) / planeDistance;
+        return new(Center: center, CenterInverseDepth: centerInverseDepth, Gradient: gradient, EdgeOn: false);
+    }
+
+    /// <summary>Whether an inverse depth at a screen position lies within <see cref="CellBounds.ContinuationShare"/> of
+    /// the plane's there, in either direction.</summary>
+    public bool Holds(Vector2 position, float inverseDepth)
+    {
+        float planeInverseDepth = CenterInverseDepth + Vector2.Dot(Gradient, position - Center);
+        const float tolerance = 1 + CellBounds.ContinuationShare;
+        return inverseDepth <= planeInverseDepth * tolerance && inverseDepth * tolerance >= planeInverseDepth;
+    }
+
+    /// <summary>
+    /// Whether an edge neighbor's plane continues this one: the neighbor sees a surface, neither plane is edge-on, and
+    /// each plane holds the other pixel's center. Both directions, because a steep plane at a depth edge can pass the far
+    /// surface's center one pixel away by chance, and the far surface's plane never passes back through the near center.
+    /// </summary>
+    /// <param name="neighbor">The neighbor's plane, or null for a neighbor that sees the sky.</param>
+    public bool ContinuesInto(PixelPlane? neighbor) =>
+        neighbor is { } other
+        && !EdgeOn
+        && !other.EdgeOn
+        && Holds(other.Center, other.CenterInverseDepth)
+        && other.Holds(Center, CenterInverseDepth);
+}
+
+/// <summary>
 /// The surface of a pixel of level 0 that sees a surface (docs/plans/screen-space-reflections.md, "The pixel's
-/// surface"): its plane, through its center point along its geometric normal, as an inverse depth that is affine in the
-/// screen position, over the part of its square where the plane holds. Toward each edge neighbor the part reaches the
-/// pixel's edge where the neighbor continues the plane, and stops at the pixel's center line otherwise. Past the part,
-/// the surface keeps the plane's value at the part's edge. The pyramid's bounds and the trace's level-0 test both read
-/// it. The C# copy of PixelSurface in depth_pyramid.glsl.
+/// surface"): its <see cref="PixelPlane"/> over the part of its square where the plane holds. Toward each edge neighbor
+/// the part reaches the pixel's edge where the neighbor continues the plane, or lies beyond the screen, and stops at the
+/// pixel's center line otherwise. Past the part, the surface keeps the plane's value at the part's edge. The pyramid's
+/// bounds and the trace's level-0 test both read it. The C# copy of PixelSurface in depth_pyramid.glsl.
 /// </summary>
 /// <param name="Center">The pixel's center, in pixels from the screen's top left.</param>
 /// <param name="CenterInverseDepth">The inverse view depth at the center, in 1/m, from the distance target.</param>
@@ -60,13 +139,6 @@ internal readonly record struct PixelSurface(
     Vector2 High
 )
 {
-    /// <summary>
-    /// The share of a pixel's distance below which its plane counts as edge-on: the plane holds the pixel's view ray to
-    /// within a millionth of a radian. Such a pixel keeps its center's inverse depth over its whole square, because no
-    /// neighbor could continue the plane, and its gradient would grow past any float.
-    /// </summary>
-    private const float EdgeOnShare = 1e-6f;
-
     /// <summary>The bounds of the surface over the pixel's square: its nearest and its farthest inverse depth. The
     /// surface is affine over its part and constant past it, so the part's corners hold both.</summary>
     public CellBounds Bounds
@@ -99,74 +171,61 @@ internal readonly record struct PixelSurface(
     /// <param name="y">The pixel's row, inside the screen.</param>
     /// <param name="distances">The distance target: each pixel's distance to the eye in m, row by row from the top, 0
     /// or less for sky.</param>
-    /// <param name="geometricNormal">The pixel's unit geometric normal, camera-relative.</param>
+    /// <param name="geometricNormals">Each pixel's unit geometric normal, camera-relative, row by row from the top.
+    /// </param>
     /// <param name="camera">The camera of the frame, whose size is the screen's.</param>
     public static PixelSurface? Of(
         int x,
         int y,
         ReadOnlySpan<float> distances,
-        Vector3 geometricNormal,
+        ReadOnlySpan<Vector3> geometricNormals,
         in CameraView camera
     )
     {
-        float distanceToEye = distances[y * camera.Width + x];
-        if (distanceToEye <= 0)
+        if (PixelPlane.Of(x: x, y: y, distances: distances, geometricNormals: geometricNormals, camera: camera)
+            is not { } plane)
             return null;
-        var center = new Vector2(x + 0.5f, y + 0.5f);
-        Vector3 centerRay = camera.ViewRayThrough(center);
-        float centerInverseDepth = centerRay.Length() / distanceToEye;
-        // The plane holds the points p with n · p = planeDistance. On the view ray r through a screen position, whose
-        // forward part is 1, it lies at the inverse depth n · r / planeDistance, which is affine in the position.
-        float planeDistance = Vector3.Dot(geometricNormal, Vector3.Normalize(centerRay) * distanceToEye);
-        if (MathF.Abs(planeDistance) <= EdgeOnShare * distanceToEye)
-            return new(Center: center, CenterInverseDepth: centerInverseDepth, Gradient: Vector2.Zero, Low: center, High: center);
-        Vector2 gradient =
-            new Vector2(
-                Vector3.Dot(geometricNormal, camera.Right) * camera.TanHalfX * 2 / camera.Width,
-                -Vector3.Dot(geometricNormal, camera.Up) * camera.TanHalfY * 2 / camera.Height
-            ) / planeDistance;
-        var surface = new PixelSurface(
+        // Whether the plane continues toward the left, upper, right and lower neighbor.
+        Span<bool> continues = stackalloc bool[4];
+        ReadOnlySpan<(int X, int Y)> neighbors = [(x - 1, y), (x, y - 1), (x + 1, y), (x, y + 1)];
+        for (int side = 0; side < 4; side++)
+            continues[side] = Continues(
+                plane: plane,
+                neighbor: neighbors[side],
+                distances: distances,
+                geometricNormals: geometricNormals,
+                camera: camera
+            );
+        Vector2 center = plane.Center;
+        return new(
             Center: center,
-            CenterInverseDepth: centerInverseDepth,
-            Gradient: gradient,
-            Low: center,
-            High: center
+            CenterInverseDepth: plane.CenterInverseDepth,
+            Gradient: plane.Gradient,
+            Low: new(continues[0] ? x : center.X, continues[1] ? y : center.Y),
+            High: new(continues[2] ? x + 1 : center.X, continues[3] ? y + 1 : center.Y)
         );
-        return surface with
-        {
-            Low = new(
-                surface.Continues((x - 1, y), distances, camera) ? x : center.X,
-                surface.Continues((x, y - 1), distances, camera) ? y : center.Y
-            ),
-            High = new(
-                surface.Continues((x + 1, y), distances, camera) ? x + 1 : center.X,
-                surface.Continues((x, y + 1), distances, camera) ? y + 1 : center.Y
-            ),
-        };
     }
 
     /// <summary>The surface's inverse depth on the view ray through a screen position, in 1/m.</summary>
     public float InverseDepthAt(Vector2 position) =>
         CenterInverseDepth + Vector2.Dot(Gradient, Vector2.Clamp(position, Low, High) - Center);
 
-    /// <summary>
-    /// Whether an edge neighbor continues the plane: it lies beyond the screen, where no depth edge lies, or it
-    /// sees a surface whose center's inverse depth lies within <see cref="CellBounds.ContinuationShare"/> of the
-    /// plane's there, in either direction.
-    /// </summary>
-    private bool Continues((int X, int Y) neighbor, ReadOnlySpan<float> distances, in CameraView camera)
+    /// <summary>Whether an edge neighbor continues the plane: it lies beyond the screen, where no depth edge lies, or
+    /// its plane continues the pixel's (<see cref="PixelPlane.ContinuesInto"/>).</summary>
+    private static bool Continues(
+        PixelPlane plane,
+        (int X, int Y) neighbor,
+        ReadOnlySpan<float> distances,
+        ReadOnlySpan<Vector3> geometricNormals,
+        in CameraView camera
+    )
     {
         (int x, int y) = neighbor;
         if (x < 0 || y < 0 || x >= camera.Width || y >= camera.Height)
             return true;
-        float distanceToEye = distances[y * camera.Width + x];
-        if (distanceToEye <= 0)
-            return false;
-        var neighborCenter = new Vector2(x + 0.5f, y + 0.5f);
-        float inverseDepth = camera.ViewRayThrough(neighborCenter).Length() / distanceToEye;
-        float planeInverseDepth = CenterInverseDepth + Vector2.Dot(Gradient, neighborCenter - Center);
-        const float tolerance = 1 + CellBounds.ContinuationShare;
-        return inverseDepth <= planeInverseDepth * tolerance && inverseDepth * tolerance >= planeInverseDepth;
+        return plane.ContinuesInto(
+            PixelPlane.Of(x: x, y: y, distances: distances, geometricNormals: geometricNormals, camera: camera)
+        );
     }
 }
 
@@ -279,7 +338,7 @@ internal sealed class DepthPyramid
                 x: x,
                 y: y,
                 distances: distances,
-                geometricNormal: geometricNormals[y * camera.Width + x],
+                geometricNormals: geometricNormals,
                 camera: camera
             );
         return new(surfaces, camera.Width, camera.Height);

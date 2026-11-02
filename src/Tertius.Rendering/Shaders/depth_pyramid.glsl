@@ -13,21 +13,75 @@
 // κ: a surface at view depth z fills the depths from z to z (1 + κ) behind it, along its view ray. The reflections'
 // trace and the bounce light's near steps read it, so both see one model of what is solid (CellBounds.ThicknessShare).
 const float ThicknessShare = 0.1;
-// The share by which the center of a pixel's edge neighbor may stand off the pixel's plane, in inverse depth, and still
-// continue it (CellBounds.ContinuationShare). Far below κ: at κ, the plane of a curved mesh's pixel reaches edges where
-// the neighbor's surface stands off it by several percent, and rays slip through the step between the two surfaces,
-// which shows as dotted lines on the reflections of curved meshes.
+// The share by which the center of a pixel's edge neighbor may stand off the pixel's plane, in inverse depth, and the
+// pixel's center off the neighbor's plane, where the neighbor continues the plane (CellBounds.ContinuationShare). Far
+// below κ: at κ, the plane of a curved mesh's pixel reaches edges where the neighbor's surface stands off it by several
+// percent, and rays slip through the step between the two surfaces, which shows as dotted lines on the reflections of
+// curved meshes.
 const float ContinuationShare = 0.01;
 // The share of a pixel's distance below which its plane counts as edge-on: the plane holds the pixel's view ray to within
-// a millionth of a radian. Such a pixel keeps its center's inverse depth over its square, because no neighbor could
-// continue the plane, and its gradient would grow past any float (PixelSurface.EdgeOnShare).
+// a millionth of a radian. Such a pixel keeps its center's inverse depth over its square, and no neighbor continues it,
+// because its gradient would grow past any float (PixelPlane.EdgeOnShare).
 const float EdgeOnShare = 1e-6;
 // Far above any surface's inverse depth, which is at most 1 / 0.05 m. Not infinity: fast math may assume none.
 const float EmptyFar = 1e30;
 
+// The plane of a pixel of level 0 that sees a surface: through its center point along its geometric normal, as an
+// inverse depth that is affine in the screen position. An edge-on plane, which holds the pixel's view ray to within
+// EdgeOnShare, keeps its center's inverse depth, with no gradient.
+struct PixelPlane
+{
+    vec2 center;     // the pixel's center, in pixels
+    float centerW;   // the inverse depth at the center, in 1/m, from the distance target
+    vec2 gradient;   // the plane's change of inverse depth per pixel, across and down, in 1/m
+    bool edgeOn;     // whether the plane is edge-on
+};
+
+// The plane of a pixel inside the image, or false for a pixel that sees the sky.
+bool pixelPlane(ivec2 pixel, out PixelPlane plane)
+{
+    plane = PixelPlane(vec2(0.0), 0.0, vec2(0.0), false);
+    float distanceToEye = texelFetch(gbufferDistance, pixel, 0).r;
+    if (distanceToEye <= 0.0)
+        return false;
+    plane.center = vec2(pixel) + 0.5;
+    vec3 centerRay = viewRayThrough(plane.center);
+    plane.centerW = length(centerRay) / distanceToEye;
+    // The plane holds the points p with n · p = planeDistance. On the view ray r through a screen position, whose
+    // forward part is 1, it lies at the inverse depth n · r / planeDistance, which is affine in the position.
+    vec3 n = octDecode(texelFetch(gbufferNormal, pixel, 0).ba);
+    float planeDistance = dot(n, normalize(centerRay) * distanceToEye);
+    plane.edgeOn = abs(planeDistance) <= EdgeOnShare * distanceToEye;
+    if (!plane.edgeOn)
+        plane.gradient = vec2(dot(n, frame.cameraRight.xyz) * 2.0 * frame.viewport.z,
+            -dot(n, frame.cameraUp.xyz) * 2.0 * frame.viewport.w) / planeDistance;
+    return true;
+}
+
+// Whether the inverse depth w at a screen position lies within ContinuationShare of the plane's there, in either
+// direction.
+bool planeHolds(PixelPlane plane, vec2 position, float w)
+{
+    float planeW = plane.centerW + dot(plane.gradient, position - plane.center);
+    const float tolerance = 1.0 + ContinuationShare;
+    return w <= planeW * tolerance && w * tolerance >= planeW;
+}
+
+// Whether an edge neighbor continues a pixel's plane: it lies beyond the image, where no depth edge lies, or it sees a
+// surface, neither plane is edge-on, and each plane holds the other pixel's center. Both directions, because a steep
+// plane at a depth edge can pass the far surface's center one pixel away by chance, and the far surface's plane never
+// passes back through the near center. The test keeps every texelFetch inside its image.
+bool continuesPlane(PixelPlane plane, ivec2 neighbor)
+{
+    if (any(lessThan(neighbor, ivec2(0))) || any(greaterThanEqual(neighbor, textureSize(gbufferDistance, 0))))
+        return true;
+    PixelPlane other;
+    return pixelPlane(neighbor, other) && !plane.edgeOn && !other.edgeOn
+        && planeHolds(plane, other.center, other.centerW) && planeHolds(other, plane.center, plane.centerW);
+}
+
 // The surface of a pixel of level 0 that sees a surface (docs/plans/screen-space-reflections.md, "The pixel's surface"):
-// its plane, through its center point along its geometric normal, as an inverse depth that is affine in the screen
-// position, over the part of its square from low to high. Toward each edge neighbor the part reaches the pixel's edge
+// its plane over the part of its square from low to high. Toward each edge neighbor the part reaches the pixel's edge
 // where the neighbor continues the plane, and stops at the pixel's center line otherwise. Past the part, the surface
 // keeps the plane's value at the part's edge. The pyramid's bounds and the trace's level-0 test both read it.
 struct PixelSurface
@@ -39,47 +93,18 @@ struct PixelSurface
     vec2 high;       // its opposite corner
 };
 
-// Whether an edge neighbor continues the surface's plane: it lies beyond the image, where no depth edge lies, or it sees
-// a surface whose center's inverse depth lies within ContinuationShare of the plane's there, in either direction. The
-// test keeps every texelFetch inside its image.
-bool continuesPlane(PixelSurface surface, ivec2 neighbor)
-{
-    if (any(lessThan(neighbor, ivec2(0))) || any(greaterThanEqual(neighbor, textureSize(gbufferDistance, 0))))
-        return true;
-    float distanceToEye = texelFetch(gbufferDistance, neighbor, 0).r;
-    if (distanceToEye <= 0.0)
-        return false;
-    vec2 neighborCenter = vec2(neighbor) + 0.5;
-    float w = length(viewRayThrough(neighborCenter)) / distanceToEye;
-    float planeW = surface.centerW + dot(surface.gradient, neighborCenter - surface.center);
-    const float tolerance = 1.0 + ContinuationShare;
-    return w <= planeW * tolerance && w * tolerance >= planeW;
-}
-
 // The surface of a pixel inside the image, or false for a pixel that sees the sky.
 bool pixelSurface(ivec2 pixel, out PixelSurface surface)
 {
     surface = PixelSurface(vec2(0.0), 0.0, vec2(0.0), vec2(0.0), vec2(0.0));
-    float distanceToEye = texelFetch(gbufferDistance, pixel, 0).r;
-    if (distanceToEye <= 0.0)
+    PixelPlane plane;
+    if (!pixelPlane(pixel, plane))
         return false;
-    surface.center = vec2(pixel) + 0.5;
-    vec3 centerRay = viewRayThrough(surface.center);
-    surface.centerW = length(centerRay) / distanceToEye;
-    surface.low = surface.center;
-    surface.high = surface.center;
-    // The plane holds the points p with n · p = planeDistance. On the view ray r through a screen position, whose
-    // forward part is 1, it lies at the inverse depth n · r / planeDistance, which is affine in the position.
-    vec3 n = octDecode(texelFetch(gbufferNormal, pixel, 0).ba);
-    float planeDistance = dot(n, normalize(centerRay) * distanceToEye);
-    if (abs(planeDistance) <= EdgeOnShare * distanceToEye)
-        return true;
-    surface.gradient = vec2(dot(n, frame.cameraRight.xyz) * 2.0 * frame.viewport.z,
-        -dot(n, frame.cameraUp.xyz) * 2.0 * frame.viewport.w) / planeDistance;
-    surface.low = vec2(continuesPlane(surface, pixel + ivec2(-1, 0)) ? float(pixel.x) : surface.center.x,
-        continuesPlane(surface, pixel + ivec2(0, -1)) ? float(pixel.y) : surface.center.y);
-    surface.high = vec2(continuesPlane(surface, pixel + ivec2(1, 0)) ? float(pixel.x + 1) : surface.center.x,
-        continuesPlane(surface, pixel + ivec2(0, 1)) ? float(pixel.y + 1) : surface.center.y);
+    surface = PixelSurface(plane.center, plane.centerW, plane.gradient, plane.center, plane.center);
+    surface.low = vec2(continuesPlane(plane, pixel + ivec2(-1, 0)) ? float(pixel.x) : plane.center.x,
+        continuesPlane(plane, pixel + ivec2(0, -1)) ? float(pixel.y) : plane.center.y);
+    surface.high = vec2(continuesPlane(plane, pixel + ivec2(1, 0)) ? float(pixel.x + 1) : plane.center.x,
+        continuesPlane(plane, pixel + ivec2(0, 1)) ? float(pixel.y + 1) : plane.center.y);
     return true;
 }
 

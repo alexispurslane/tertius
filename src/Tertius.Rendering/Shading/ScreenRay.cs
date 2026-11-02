@@ -177,7 +177,8 @@ internal readonly record struct ScreenRay(
                     EntryShare: met.EntryShare,
                     Steps: steps + 1
                 );
-            if (MetCellSlab(pyramid: pyramid, level: level, cell: cell, inW: inW, exit: exit) is not { } slab)
+            // At level 0 the pixel's surface decided: the ray crosses the pixel. Above it, the cell's slab decides.
+            if (level == 0 || MetCellSlab(pyramid: pyramid, level: level, cell: cell, inW: inW, exit: exit) is not { } slab)
             {
                 // Never back: an entry solved inside a cell can round past the cell's exit. Then the next descent finds
                 // the entry at s, keeps it on an edge, and the nudge moves the walk on.
@@ -199,14 +200,12 @@ internal readonly record struct ScreenRay(
     }
 
     /// <summary>
-    /// The slab of a cell above level 0 when the ray's inverse depths over the cell, from <paramref name="inW"/> to
-    /// w(<paramref name="exit"/>), meet it; null when they miss it, and at level 0, where the pixel's surface decides
+    /// The slab of a cell of a level above 0 when the ray's inverse depths over the cell, from <paramref name="inW"/> to
+    /// w(<paramref name="exit"/>), meet it, or null when they miss it. At level 0 the pixel's surface decides instead
     /// (<see cref="MeetPixel"/>).
     /// </summary>
     private (float Low, float High)? MetCellSlab(DepthPyramid pyramid, int level, Vector2 cell, float inW, float exit)
     {
-        if (level == 0)
-            return null;
         (float low, float high) = pyramid.Bounds(level, (int)cell.X, (int)cell.Y).Slab(CellBounds.ThicknessShare);
         float outW = InverseDepthAt(exit);
         return MathF.Max(MathF.Min(inW, outW), low) <= MathF.Min(MathF.Max(inW, outW), high) ? (low, high) : null;
@@ -216,7 +215,10 @@ internal readonly record struct ScreenRay(
     /// The trace's test at level 0, as meetsPixelSurface in reflection.glsl: whether the stretch of the image inside a
     /// pixel, from <paramref name="s"/> to <paramref name="exit"/>, meets the slab of thickness κ behind the pixel's
     /// surface (docs/plans/screen-space-reflections.md, "The trace through the pyramid"). The ray and the slab are each
-    /// read at both ends of the stretch, and taken as affine between them.
+    /// read at both ends of the stretch, and taken as affine between them. Where the surface's part stops at a center
+    /// line, the surface bends there, so a hit is always real, but a ray can pass the bend inside the slab and still
+    /// miss: at most half a pixel's gradient in inverse depth off the surface, and only beside a depth edge or a curve
+    /// beyond <see cref="CellBounds.ContinuationShare"/>.
     /// </summary>
     /// <param name="pyramid">The depth pyramid of the frame.</param>
     /// <param name="pixel">The pixel, its top-left corner in pixels.</param>
