@@ -637,19 +637,7 @@ public sealed class LocalShadowRenderTests
 
             // In the reference the floor casts nothing, so its lit pixels cannot have acne; with self-shadowing they must
             // come out the same.
-            int lit = 0,
-                differing = 0;
-            for (int y = 0; y < Height; y++)
-            for (int x = 0; x < Width; x++)
-            {
-                float expected = reference.Luma(x, y);
-                if (expected < 0.1f)
-                    continue;
-                lit++;
-                if (MathF.Abs(image.Luma(x, y) - expected) > 2.5f / 255f)
-                    differing++;
-            }
-
+            (int lit, int differing) = CountChangedLitPixels(reference: reference, image: image);
             lit.Should().BeGreaterThan(Width * Height / 20, "the spot light lights a large patch of the floor");
             differing.Should().BeLessThanOrEqualTo(lit / 1000, "a lit floor that casts shadows must not shadow itself");
         }
@@ -657,6 +645,28 @@ public sealed class LocalShadowRenderTests
         {
             Gpu.DisposeAndAssertClean(renderer);
         }
+    }
+
+    /// <summary>
+    /// The pixels whose luma in <paramref name="reference"/> is at least 0.1, and how many of them differ in
+    /// <paramref name="image"/> by more than 2.5 levels of 255.
+    /// </summary>
+    private static (int Lit, int Differing) CountChangedLitPixels(Capture reference, Capture image)
+    {
+        int lit = 0,
+            differing = 0;
+        for (int y = 0; y < Height; y++)
+        for (int x = 0; x < Width; x++)
+        {
+            float expected = reference.Luma(x, y);
+            if (expected < 0.1f)
+                continue;
+            lit++;
+            if (MathF.Abs(image.Luma(x, y) - expected) > 2.5f / 255f)
+                differing++;
+        }
+
+        return (lit, differing);
     }
 
     /// <summary>

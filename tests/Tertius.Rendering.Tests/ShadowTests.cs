@@ -853,30 +853,21 @@ public sealed class ShadowTests
             )
             {
                 Quaternion camera = Gpu.PitchDown(pitch);
-                Capture reference = Gpu.RenderAndCapture(
-                    renderer: renderer,
-                    snapshot: AcneScene(
-                        kit: kit,
-                        sun: sun,
-                        camera: camera,
-                        heightAboveGround: heightAboveGround,
-                        groundCasts: false,
-                        turn: turn
-                    ),
-                    name: $"acne-{sunElevationDegrees:F0}-{turnDegrees:F0}-{name}-reference"
-                );
-                Capture image = Gpu.RenderAndCapture(
-                    renderer: renderer,
-                    snapshot: AcneScene(
-                        kit: kit,
-                        sun: sun,
-                        camera: camera,
-                        heightAboveGround: heightAboveGround,
-                        groundCasts: true,
-                        turn: turn
-                    ),
-                    name: $"acne-{sunElevationDegrees:F0}-{turnDegrees:F0}-{name}"
-                );
+                Capture Render(bool groundCasts, string suffix) =>
+                    Gpu.RenderAndCapture(
+                        renderer: renderer,
+                        snapshot: AcneScene(
+                            kit: kit,
+                            sun: sun,
+                            camera: camera,
+                            heightAboveGround: heightAboveGround,
+                            groundCasts: groundCasts,
+                            turn: turn
+                        ),
+                        name: $"acne-{sunElevationDegrees:F0}-{turnDegrees:F0}-{name}{suffix}"
+                    );
+                Capture reference = Render(groundCasts: false, suffix: "-reference");
+                Capture image = Render(groundCasts: true, suffix: "");
                 renderer.LastFrameStats.ShadowCascades.Should().Be(4);
                 AssertLitGroundUnchanged(reference, image, name);
                 // And the lit ground is smooth: small variance in strips across the screen at several distances.
