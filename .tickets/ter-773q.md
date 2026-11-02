@@ -1,6 +1,6 @@
 ---
 id: ter-773q
-status: in_progress
+status: closed
 deps: []
 links: [ter-hxca, ter-lbyp]
 created: 2026-11-02T04:50:04Z
@@ -88,3 +88,7 @@ Triage:
 New test: WorkerThreadsTests.ANegativeWorkerCountGivesTheDefaultCount. joltc maps a numThreads of zero or less to -1, and Jolt then sizes its workers from the hardware. So a negative WorkerThreads must not reach Jolt. The test was red on N01 first. The other decisions (an explicit count holds, the default follows the runtime's count, at least one worker) already had tests at both levels: WorkerThreadsFor and the thread count of the process.
 
 Checked build and the full Checked tests: 9841 total, 9827 passed, 0 failed, 14 skipped.
+
+**2026-11-02T09:48:53Z**
+
+2026-11-02: merged into main as 2b20c0dab. tools/test-all.sh passed on the staged merge in Checked and Release, 0 failed.
