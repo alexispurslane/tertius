@@ -2,7 +2,7 @@
 id: ter-b1j3
 status: in_progress
 deps: []
-links: [ter-s6zr]
+links: [ter-s6zr, ter-m24j]
 created: 2026-11-02T18:24:50Z
 type: task
 priority: 2
