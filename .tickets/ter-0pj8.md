@@ -1,6 +1,6 @@
 ---
 id: ter-0pj8
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-11-02T12:51:56Z
@@ -14,3 +14,9 @@ tags: [rendering, reflections, environment-map]
 
 Ticket 1 of ter-jw7g's design (docs/plans/environment-map-distances.md, 'Ticket 1' and 'The search'). MapSearch.Hit and IInverseDistanceField: the march of 8 samples, the 3 regula falsi steps, the cone's level and the reach, against analytic test fields (the sky, a plane, a box before a wall, a pole before a wall, a far planet, a sphere room). Owns src/Tertius.Rendering/Shading/MapSearch.cs and tests/Tertius.Rendering.Tests/MapSearchTests.cs. Acceptance: tests 1 to 12 of the design pass in Checked and Release, each red first; Samples, SecantSteps and ConeWidthPerAlpha are named once.
 
+
+## Notes
+
+**2026-11-02T12:54:15Z**
+
+2026-11-02: launched as workflow run 06debe04-2619-49f9-a711-de3c1095d8dc, version 869b0b07-3413-4b06-8707-a88a91bf6e91 (build, review, fix), branch ter-0pj8-map-search, base 6c40880fa.
