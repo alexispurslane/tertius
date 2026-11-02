@@ -39,13 +39,12 @@ internal sealed class OcclusionSectorsPass(
         barriers.Image(images.DepthAndNormal, ImageUse.StorageCompute);
         barriers.Image(images.Edges, ImageUse.StorageCompute, discard: true);
         barriers.Image(images.TermA, ImageUse.StorageCompute, discard: true);
-        // The map code of each texel names its map, whose specular levels the blocked directions read, and the exposure
-        // turns the map's light into the estimate's pre-exposed light.
+        // The map code of each texel names its map, whose specular levels every piece reads. S is a ratio of those reads,
+        // so the pass reads no exposure.
         if (context.Environment is { } map)
         {
             barriers.Image(targets.BaseColor, ImageUse.SampledCompute);
             barriers.Image(map.Specular, ImageUse.SampledCompute);
-            barriers.Buffer(context.Exposure.Buffer, BufferUse.ComputeRead);
         }
         barriers.Flush(context.Vk, context.CommandBuffer);
         pipeline.Dispatch(context, images.HalfExtent);

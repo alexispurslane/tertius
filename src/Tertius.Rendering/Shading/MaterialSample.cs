@@ -97,11 +97,12 @@ internal readonly record struct MaterialSample(Double3 BaseColor, double Metalli
         );
         AmbientTerms occluded = terms.Occluded(
             occlusion: occlusion,
+            // The hemisphere holds no direction, so an open direction takes its mean light: S = V in every channel.
+            openShare: new Double3(1, 1, 1) * occlusion,
             bounce: bounce,
             diffuseColor: DiffuseColor,
             nDotV: ViewCosine(normal, toView),
-            lobe: Lobe,
-            environmentMapOn: false
+            lobe: Lobe
         );
         return occluded.Diffuse + occluded.Specular;
     }

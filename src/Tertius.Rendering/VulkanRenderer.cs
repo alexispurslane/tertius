@@ -949,7 +949,15 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// The estimate target of the last frame, RGBA per pixel, row by row from the top: rgb the bounce, pre-exposed, a the
     /// occlusion V from 0 to 1. A test hook: it waits for the device to be idle and submits its own copy.
     /// </summary>
-    internal float[] ReadEstimate() => ReadLevel(image: targets.Estimate, layer: 0, mip: 0).Values;
+    internal float[] ReadEstimate() =>
+        EstimatePacking.BounceAndOcclusion(ReadLevel(image: targets.Estimate, layer: 0, mip: 0).Values);
+
+    /// <summary>
+    /// The open share S of the estimate target of the last frame, RGB per pixel, row by row from the top: from 0 to 1 in
+    /// each channel, 1 − the blocked share that the target holds. A test hook, like <see cref="ReadEstimate"/>.
+    /// </summary>
+    internal float[] ReadEstimateOpenShare() =>
+        EstimatePacking.OpenShare(ReadLevel(image: targets.Estimate, layer: 0, mip: 0).Values);
 
     /// <summary>
     /// The distance target of the last frame, in m from the eye and 0 for sky, row by row from the top. A test hook: it
@@ -1007,8 +1015,19 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// pre-exposed, a the occlusion. A test hook: it waits for the device to be idle and submits its own copy.
     /// </summary>
     /// <exception cref="InvalidOperationException">The screen-space light is off.</exception>
-    internal (float[] Rgba, int Width, int Height) ReadOcclusionTerm() =>
-        ReadLevel(image: OcclusionImagesOrThrow().TermA, layer: 0, mip: 0);
+    internal (float[] Rgba, int Width, int Height) ReadOcclusionTerm()
+    {
+        (float[] halves, int width, int height) = ReadLevel(image: OcclusionImagesOrThrow().TermA, layer: 0, mip: 0);
+        return (EstimatePacking.BounceAndOcclusion(halves), width, height);
+    }
+
+    /// <summary>
+    /// The open share S of occlusion term A of the last frame at half resolution, RGB per texel, row by row from the top,
+    /// as <see cref="ReadEstimateOpenShare"/> gives it. A test hook, like <see cref="ReadOcclusionTerm"/>.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The screen-space light is off.</exception>
+    internal float[] ReadOcclusionTermOpenShare() =>
+        EstimatePacking.OpenShare(ReadLevel(image: OcclusionImagesOrThrow().TermA, layer: 0, mip: 0).Values);
 
     /// <summary>
     /// The view depth image of the last frame at half resolution, in m, row by row from the top. A test hook: it waits for
@@ -1368,6 +1387,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             // Each word comes back as the bits of a float, which its hook takes apart.
             Format.R32G32Uint => (2, StoredChannel.Float),
             Format.R16G16B16A16SNorm => (4, StoredChannel.Snorm16),
+            EstimatePacking.Format => (EstimatePacking.HalvesPerTexel, StoredChannel.Half),
             Format.R8G8B8A8Uint => (4, StoredChannel.Uint8),
             _ => throw new ArgumentException(
                 $"{image.Name} has the format {image.Format}, which no hook reads.",

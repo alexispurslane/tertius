@@ -1,7 +1,7 @@
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The joint bilateral upsample of the estimate, the bounce and the occlusion, from half to full resolution: bilinear
+/// The joint bilateral upsample of the estimate, the bounce, the occlusion and the open share, from half to full resolution: bilinear
 /// weights cut by the distance of each texel from the pixel's tangent plane (docs/plans/ambient-occlusion.md, "The
 /// upsample", and docs/plans/screen-space-illumination.md, "The denoise and the upsample").
 /// </summary>
@@ -19,8 +19,12 @@ public sealed class OcclusionUpsampleTests
     // The color of the bounce per unit of occlusion: each channel differs, so a test sees every channel move.
     private static readonly Double3 BounceColor = new(0.5, 1.5, 3);
 
-    /// <summary>The estimate of a texel with the occlusion <paramref name="occlusion"/> and a bounce in proportion to it.</summary>
-    private static AmbientEstimate Lit(double occlusion) => new(Bounce: BounceColor * occlusion, Occlusion: occlusion);
+    // The open share per unit of occlusion: each channel differs, and every channel stays within 1 up to an occlusion of 1.
+    private static readonly Double3 ShareColor = new(1, 0.5, 0.25);
+
+    /// <summary>The estimate of a texel with the occlusion <paramref name="occlusion"/> and a bounce and an open share in proportion to it.</summary>
+    private static AmbientEstimate Lit(double occlusion) =>
+        new(Bounce: BounceColor * occlusion, Occlusion: occlusion, OpenShare: ShareColor * occlusion);
 
     private static void ShouldBeNear(AmbientEstimate actual, AmbientEstimate expected, double tolerance)
     {
@@ -28,6 +32,9 @@ public sealed class OcclusionUpsampleTests
         actual.Bounce.X.Should().BeApproximately(expected.Bounce.X, tolerance);
         actual.Bounce.Y.Should().BeApproximately(expected.Bounce.Y, tolerance);
         actual.Bounce.Z.Should().BeApproximately(expected.Bounce.Z, tolerance);
+        actual.OpenShare.X.Should().BeApproximately(expected.OpenShare.X, tolerance);
+        actual.OpenShare.Y.Should().BeApproximately(expected.OpenShare.Y, tolerance);
+        actual.OpenShare.Z.Should().BeApproximately(expected.OpenShare.Z, tolerance);
     }
 
     /// <summary>The estimate of the full-resolution <paramref name="pixel"/> at <see cref="Pixel"/>, over <paramref name="texels"/>.</summary>
@@ -153,7 +160,7 @@ public sealed class OcclusionUpsampleTests
     }
 
     [Fact]
-    public void AnOcclusionAboveOneIsClampedToOne()
+    public void AnOcclusionAndAnOpenShareAboveOneAreClampedToOne()
     {
         Dictionary<(int X, int Y), UpsampleTexel> texels = new()
         {
@@ -163,30 +170,57 @@ public sealed class OcclusionUpsampleTests
         EstimateOf(pixel: (X: 6, Y: 10), texels: texels)
             .Should()
             .Be(
-                new AmbientEstimate(Bounce: BounceColor * 1.2, Occlusion: 1),
-                "the upsample clamps the occlusion that the blurs' rounding moves past its range, and only the occlusion"
+                new AmbientEstimate(Bounce: BounceColor * 1.2, Occlusion: 1, OpenShare: new(1, 0.6, 0.3)),
+                "the upsample clamps the shares that the rounding moves past their range, and only the shares"
             );
     }
 
     [Fact]
-    public void TheBounceTakesTheWeightsOfTheOcclusion()
+    public void EachChannelOfTheOpenShareIsClampedToZeroAndOneOnItsOwn()
     {
-        // A quarter of a texel width off the plane keeps three quarters of the bilinear weight. The bounces are not in
-        // proportion to the occlusions, so the bounce must take the same weights on its own.
-        Double3 nearBounce = new(0.25, 2, 0.5);
-        Double3 offBounce = new(4, 0.125, 1);
+        // The sectors pass's division can round 1 − S past 1 in one channel, so S lies below 0 there, and the blurs'
+        // sums can round S past 1 in another.
         Dictionary<(int X, int Y), UpsampleTexel> texels = new()
         {
-            [(X: 3, Y: 5)] = new(Position: Pixel, Estimate: new(Bounce: nearBounce, Occlusion: 0.4)),
+            [(X: 3, Y: 5)] = new(
+                Position: Pixel,
+                Estimate: new(Bounce: BounceColor, Occlusion: 0.5, OpenShare: new(0.25, -0.125, 1.125))
+            ),
+        };
+
+        EstimateOf(pixel: (X: 6, Y: 10), texels: texels)
+            .OpenShare.Should()
+            .Be(new Double3(0.25, 0, 1), "the ambient pass takes S as a share of the map's light, from 0 to 1");
+    }
+
+    [Fact]
+    public void TheBounceAndTheOpenShareTakeTheWeightsOfTheOcclusion()
+    {
+        // A quarter of a texel width off the plane keeps three quarters of the bilinear weight. The bounces and the open
+        // shares are not in proportion to the occlusions, so each must take the same weights on its own.
+        Double3 nearBounce = new(0.25, 2, 0.5);
+        Double3 offBounce = new(4, 0.125, 1);
+        Double3 nearShare = new(0.5, 0.125, 1);
+        Double3 offShare = new(0.25, 1, 0.75);
+        Dictionary<(int X, int Y), UpsampleTexel> texels = new()
+        {
+            [(X: 3, Y: 5)] = new(
+                Position: Pixel,
+                Estimate: new(Bounce: nearBounce, Occlusion: 0.4, OpenShare: nearShare)
+            ),
             [(X: 4, Y: 5)] = new(
                 Position: Pixel + new Double3(TexelWidth, TexelWidth / 4, 0),
-                Estimate: new(Bounce: offBounce, Occlusion: 0.8)
+                Estimate: new(Bounce: offBounce, Occlusion: 0.8, OpenShare: offShare)
             ),
         };
 
         ShouldBeNear(
             EstimateOf(pixel: (X: 7, Y: 10), texels: texels),
-            new AmbientEstimate(Bounce: (nearBounce + offBounce * 0.75) / 1.75, Occlusion: (0.4 + 0.75 * 0.8) / 1.75),
+            new AmbientEstimate(
+                Bounce: (nearBounce + offBounce * 0.75) / 1.75,
+                Occlusion: (0.4 + 0.75 * 0.8) / 1.75,
+                OpenShare: (nearShare + offShare * 0.75) / 1.75
+            ),
             1e-12
         );
     }

@@ -49,6 +49,9 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
 
     private static readonly Vector3 PlatformSize = new(0.6f, 0.5f, 0.6f);
 
+    /// <summary>The lamp of the map's speck: behind and above the camera, out of its view.</summary>
+    private static readonly Vector3 LampCenter = new(0.5f, 1, 3);
+
     /// <summary>The middle of the platform's top.</summary>
     private static readonly Vector3 OnThePlatform = new(-0.7f, FloorHeight + 0.05f, -2.6f);
 
@@ -122,7 +125,11 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
             renderer.Graph.Skipped.UnionWith(["occlusion denoise", "occlusion upsample"]);
             renderer.Render(CornerWithBoxes(renderer), 1f);
             (float[] term, int halfWidth, int halfHeight) = renderer.ReadOcclusionTerm();
-            var gpu = new SectorPassOutput(Term: term, HalfWidth: halfWidth);
+            var gpu = new SectorPassOutput(
+                Term: term,
+                OpenShare: renderer.ReadOcclusionTermOpenShare(),
+                HalfWidth: halfWidth
+            );
             var images = new CornerImages(
                 ViewDepth: renderer.ReadOcclusionViewDepth().Depths,
                 HalfSize: (Width: halfWidth, Height: halfHeight),
@@ -163,17 +170,48 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
 
     /// <summary>
     /// The sector pass under the environment map, which the faces draw from the camera: the sunlit corner and the dim
-    /// sky, so the map's light differs from direction to direction. Its term A holds G − M, and M takes the map's light
-    /// along each blocked part of the near steps and of the receiver's own surface: on the platform, whose normal map
-    /// tilts its shading hemisphere below its top, that part is not empty. The C# copy reads the specular map that the
+    /// sky, so the map's light differs from direction to direction. Its term A holds G, the blockers' light alone, and S,
+    /// the open pieces' share of the map's light along every piece: the blocked parts of the near steps and of the
+    /// receiver's own surface, and the pieces that they leave open. On the platform, whose normal map tilts its shading
+    /// hemisphere below its top, the own surface's part is not empty. The C# copy reads the specular map that the
     /// renderer read back. A GPU read is a trilinear blend of at most eight texels of the two levels around its level of
     /// detail, so it lies between the least and the greatest texel within a texel of its place on those levels
-    /// (<see cref="SpecularMap.Range"/>); M by those reads bounds the GPU's M, before the rounding of the shader's
-    /// single floats and of term A's half floats. A sector next to a tie may flip on the GPU and change G or M by at most
-    /// the brightest light of the direct image or of the map.
+    /// (<see cref="SpecularMap.Range"/>); S by the least open and the most blocked reads, and the reverse, bounds the
+    /// GPU's S, before the rounding of the shader's single floats and of term A's half floats. A sector next to a tie
+    /// may flip on the GPU and change G by at most the brightest light of the direct image, and S by that light over
+    /// the mean read.
     /// </summary>
     [Fact]
-    public void UnderTheMapTheSectorPassSubtractsTheMapsLightAlongTheBlockedDirectionsAsTheCSharpCopyDoes()
+    public void UnderTheMapTheSectorPassTakesTheOpenPiecesShareOfTheMapsLightAsTheCSharpCopyDoes() =>
+        SectorPassUnderTheMapShouldMatchTheCSharpCopy(CornerWithBoxes);
+
+    /// <summary>
+    /// The sector pass of <see cref="UnderTheMapTheSectorPassTakesTheOpenPiecesShareOfTheMapsLightAsTheCSharpCopyDoes"/>,
+    /// with a small bright lamp behind and above the camera, which the back wall's open directions face. The lamp's glow
+    /// makes the map's light change fast with the direction, so an open piece read along other angles than the C# copy's
+    /// takes S out of its range: boundaries off by π/4, from one step of their bisection, move S at the corner from 0.54
+    /// to 0.75 (sectors.glsl, boundaryAngle).
+    /// </summary>
+    [Fact]
+    public void UnderAMapWithASmallBrightLampTheSectorPassReadsEachOpenPieceAlongTheAnglesThatTheCSharpCopyReads() =>
+        SectorPassUnderTheMapShouldMatchTheCSharpCopy(renderer =>
+        {
+            RenderSnapshot scene = CornerWithBoxes(renderer);
+            AddSlab(
+                snapshot: scene,
+                box: UnitBox(renderer),
+                material: Glow(renderer, new Vector3(40, 40, 40)),
+                center: LampCenter,
+                size: new(0.3f, 0.3f, 0.3f)
+            );
+            return scene;
+        });
+
+    /// <summary>
+    /// Pins the sector pass under the environment map in the scene that <paramref name="sceneOf"/> builds to the C#
+    /// copy, as <see cref="UnderTheMapTheSectorPassTakesTheOpenPiecesShareOfTheMapsLightAsTheCSharpCopyDoes"/> says.
+    /// </summary>
+    private void SectorPassUnderTheMapShouldMatchTheCSharpCopy(Func<VulkanRenderer, RenderSnapshot> sceneOf)
     {
         VisibilityBitmaskLight setting = VisibilityBitmaskLight.Default;
         VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: setting, environmentMap: SceneEnvironmentMap.Default);
@@ -182,9 +220,13 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
             // The term that the sector pass leaves, before the blur overwrites it.
             renderer.Graph.Skipped.UnionWith(["occlusion denoise", "occlusion upsample"]);
             // The faces draw the map in the first frame, and the sector pass reads it after them.
-            renderer.Render(CornerWithBoxes(renderer), 1f);
+            renderer.Render(sceneOf(renderer), 1f);
             (float[] term, int halfWidth, int halfHeight) = renderer.ReadOcclusionTerm();
-            var gpu = new SectorPassOutput(Term: term, HalfWidth: halfWidth);
+            var gpu = new SectorPassOutput(
+                Term: term,
+                OpenShare: renderer.ReadOcclusionTermOpenShare(),
+                HalfWidth: halfWidth
+            );
             var images = new CornerImages(
                 ViewDepth: renderer.ReadOcclusionViewDepth().Depths,
                 HalfSize: (Width: halfWidth, Height: halfHeight),
@@ -251,7 +293,11 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
             );
             renderer.Render(scene, 1f);
             (float[] term, int halfWidth, int halfHeight) = renderer.ReadOcclusionTerm();
-            var gpu = new SectorPassOutput(Term: term, HalfWidth: halfWidth);
+            var gpu = new SectorPassOutput(
+                Term: term,
+                OpenShare: renderer.ReadOcclusionTermOpenShare(),
+                HalfWidth: halfWidth
+            );
             byte[] shading = renderer.ReadShading();
             var images = new HairCardImages(
                 ViewDepth: renderer.ReadOcclusionViewDepth().Depths,
@@ -436,20 +482,18 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
     )
     {
         NearTexel expected = bounds.First;
-        double totalWeight = AmbientEstimate.TotalWeight(expected.Slices);
-        double flippedShare = 0;
-        for (int slice = 0; slice < expected.Slices.Length; slice++)
-            flippedShare +=
-                expected.Ties[slice].Count * expected.Slices[slice].Sectors.Weight / (SliceSectors.Count * totalWeight);
-
+        double flippedShare = FlippedShare(expected);
         int i = (texel.Y * gpu.HalfWidth + texel.X) * 4;
         var bounce = new Double3(gpu.Term[i], gpu.Term[i + 1], gpu.Term[i + 2]);
+        int j = (texel.Y * gpu.HalfWidth + texel.X) * 3;
+        var openShare = new Double3(gpu.OpenShare[j], gpu.OpenShare[j + 1], gpu.OpenShare[j + 2]);
         AmbientEstimate estimate = expected.Estimate;
         Double3 other = bounds.Second.Estimate.Bounce;
         output.WriteLine(
-            $"{point}: GPU ({bounce}, {gpu.Term[i + 3]:0.000000}), C# ({estimate.Bounce} to {other}, "
+            $"{point}: GPU ({bounce}, {gpu.Term[i + 3]:0.000000}, S {openShare}), C# ({estimate.Bounce} to {other}, "
                 + $"{estimate.Occlusion:0.000000})"
         );
+        OpenShareShouldLieWithin(openShare, OpenShareRange(bounds, flippedShare, brightest), point);
         ((double)gpu.Term[i + 3])
             .Should()
             .BeApproximately(estimate.Occlusion, flippedShare + HalfFloatError(estimate.Occlusion), "V at {0}", point);
@@ -470,11 +514,96 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
                 .BeInRange(
                     low - tolerance,
                     high + tolerance,
-                    "the net bounce at {0}: each blocker gives its light to the sectors that it newly blocks if it "
-                        + "faces, less the map's light along them",
+                    "the bounce at {0}: each blocker gives its light to the sectors that it newly blocks if it faces",
                     point
                 );
         }
+    }
+
+    /// <summary>
+    /// The share of the cosine weight in the sectors next to a tie of <paramref name="texel"/>, which single floats can
+    /// move to the other side of the tie.
+    /// </summary>
+    private static double FlippedShare(NearTexel texel)
+    {
+        double totalWeight = AmbientEstimate.TotalWeight(texel.Slices);
+        double flippedShare = 0;
+        for (int slice = 0; slice < texel.Slices.Length; slice++)
+            flippedShare +=
+                texel.Ties[slice].Count * texel.Slices[slice].Sectors.Weight / (SliceSectors.Count * totalWeight);
+        return flippedShare;
+    }
+
+    /// <summary>Asserts that each channel of the sector pass's S, <paramref name="openShare"/>, lies within <paramref name="range"/>.</summary>
+    private static void OpenShareShouldLieWithin(
+        Double3 openShare,
+        (Double3 Least, Double3 Most, Double3 Tolerance) range,
+        Vector3 point
+    )
+    {
+        foreach (
+            (double actual, double least, double most, double tolerance) in (ReadOnlySpan<(
+                double Actual,
+                double Least,
+                double Most,
+                double Tolerance
+            )>)
+                [
+                    (openShare.X, range.Least.X, range.Most.X, range.Tolerance.X),
+                    (openShare.Y, range.Least.Y, range.Most.Y, range.Tolerance.Y),
+                    (openShare.Z, range.Least.Z, range.Most.Z, range.Tolerance.Z),
+                ]
+        )
+            actual
+                .Should()
+                .BeInRange(
+                    least - tolerance - HalfFloatError(1),
+                    most + tolerance + HalfFloatError(1),
+                    "S at {0}: the open pieces' share of the map's light, or V's share where the map holds none",
+                    point
+                );
+    }
+
+    /// <summary>
+    /// The least and the most S per channel that the reads of the two estimates of <paramref name="bounds"/> allow: the
+    /// least open and the most blocked map light, and the reverse. A channel in which neither holds map light takes V's
+    /// share. A sector next to a tie moves its light, at most <paramref name="brightest"/>, between the two sums: the
+    /// tolerance is the share of the flipped sectors times that light over the mean read.
+    /// </summary>
+    private static (Double3 Least, Double3 Most, Double3 Tolerance) OpenShareRange(
+        (NearTexel First, NearTexel Second) bounds,
+        double flippedShare,
+        double brightest
+    )
+    {
+        double scale = SliceSectors.Count * AmbientEstimate.TotalWeight(bounds.First.Slices);
+        Double3 fallback = bounds.First.Estimate.OpenShare;
+        (Double3 open0, Double3 open1) = (bounds.First.OpenMapLight, bounds.Second.OpenMapLight);
+        (Double3 blocked0, Double3 blocked1) = (bounds.First.BlockedMapLight, bounds.Second.BlockedMapLight);
+        (double Least, double Most, double Tolerance) Channel(Func<Double3, double> of)
+        {
+            double leastOpen = Math.Min(of(open0), of(open1));
+            double mostOpen = Math.Max(of(open0), of(open1));
+            double leastBlocked = Math.Min(of(blocked0), of(blocked1));
+            double mostBlocked = Math.Max(of(blocked0), of(blocked1));
+            if (mostOpen + mostBlocked <= 0)
+                return (Least: of(fallback), Most: of(fallback), Tolerance: flippedShare);
+            if (leastOpen + leastBlocked <= 0)
+                return (Least: 0, Most: 1, Tolerance: 0);
+            return (
+                Least: leastOpen / (leastOpen + mostBlocked),
+                Most: mostOpen / (mostOpen + leastBlocked),
+                Tolerance: flippedShare * brightest * scale / (leastOpen + leastBlocked)
+            );
+        }
+        (double Least, double Most, double Tolerance) x = Channel(v => v.X);
+        (double Least, double Most, double Tolerance) y = Channel(v => v.Y);
+        (double Least, double Most, double Tolerance) z = Channel(v => v.Z);
+        return (
+            Least: new(x.Least, y.Least, z.Least),
+            Most: new(x.Most, y.Most, z.Most),
+            Tolerance: new(x.Tolerance, y.Tolerance, z.Tolerance)
+        );
     }
 
     /// <summary>The rounding of a value of about <paramref name="value"/> into term A's half floats, and of the GPU's single floats.</summary>
@@ -516,7 +645,11 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
     private static AmbientEstimate EstimateAt(float[] estimate, Vector2 pixel)
     {
         int i = ((int)pixel.Y * Width + (int)pixel.X) * 4;
-        return new(Bounce: new(estimate[i], estimate[i + 1], estimate[i + 2]), Occlusion: estimate[i + 3]);
+        return new(
+            Bounce: new(estimate[i], estimate[i + 1], estimate[i + 2]),
+            Occlusion: estimate[i + 3],
+            OpenShare: new Double3(1, 1, 1) * estimate[i + 3]
+        );
     }
 
     private static float LargestChannel(Vector3 color) => MathF.Max(color.X, MathF.Max(color.Y, color.Z));
@@ -698,8 +831,11 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
         return ties;
     }
 
-    /// <summary>The sector pass's term A, as the renderer read it back, for a half image <paramref name="HalfWidth"/> texels wide.</summary>
-    private sealed record SectorPassOutput(float[] Term, int HalfWidth);
+    /// <summary>
+    /// The sector pass's term A, as the renderer read it back, for a half image <paramref name="HalfWidth"/> texels wide:
+    /// the bounce and V in RGBA, and S in RGB.
+    /// </summary>
+    private sealed record SectorPassOutput(float[] Term, float[] OpenShare, int HalfWidth);
 
     /// <summary>
     /// The C# copy's near slices of a texel, the sectors of each slice below the texel's own surface, and in each slice
@@ -709,6 +845,14 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
     private sealed record NearTexel(NearSlice[] Slices, SectorMask[] OwnSurface, SectorMask[] Ties)
     {
         public AmbientEstimate Estimate => AmbientEstimate.OfSlices(Slices);
+
+        /// <summary>The map's light along the open sectors, each slice's by its weight.</summary>
+        public Double3 OpenMapLight =>
+            Slices.Aggregate(Double3.Zero, (sum, s) => sum + s.OpenMapLight * s.Sectors.Weight);
+
+        /// <summary>The map's light along the blocked sectors, each slice's by its weight.</summary>
+        public Double3 BlockedMapLight =>
+            Slices.Aggregate(Double3.Zero, (sum, s) => sum + s.BlockedMapLight * s.Sectors.Weight);
     }
 
     /// <summary>

@@ -484,11 +484,11 @@ public sealed class MaterialSampleTests
         );
         AmbientTerms occluded = terms.Occluded(
             occlusion: 0.35,
+            openShare: new(0.35, 0.35, 0.35),
             bounce: Double3.Zero,
             diffuseColor: plastic.DiffuseColor,
             nDotV: 0.7,
-            lobe: plastic.Lobe,
-            environmentMapOn: false
+            lobe: plastic.Lobe
         );
 
         Double3 ambient = plastic.ReflectedHemisphere(

@@ -126,6 +126,42 @@ public sealed class SliceSectorsTests
     }
 
     [Fact]
+    public void ABoundaryBetweenTwoSectorsLiesAtTheAngleWhoseMeasureFractionIsItsPlaceAmongTheSectors()
+    {
+        foreach (double normalAngle in NormalAngles)
+        {
+            SliceSectors sectors = Tilted(normalAngle);
+            for (int boundary = 1; boundary < SliceSectors.Count; boundary++)
+            {
+                double angle = sectors.BoundaryAngle(boundary);
+
+                // The bisection stops within 2^-9 π rad of the angle, and m rises at most 1 / T ≤ 1 per rad.
+                sectors
+                    .MeasureFraction(angle)
+                    .Should()
+                    .BeApproximately(
+                        (double)boundary / SliceSectors.Count,
+                        7e-3,
+                        $"boundary {boundary}, γ = {normalAngle}"
+                    );
+            }
+        }
+    }
+
+    [Fact]
+    public void TheFirstAndTheLastBoundaryAreTheEdgesOfTheHemisphere()
+    {
+        foreach (double normalAngle in NormalAngles)
+        {
+            SliceSectors sectors = Tilted(normalAngle);
+            double gamma = sectors.Slice.NormalAngle;
+
+            sectors.BoundaryAngle(0).Should().Be(gamma - Math.PI / 2, $"γ = {normalAngle}");
+            sectors.BoundaryAngle(SliceSectors.Count).Should().Be(gamma + Math.PI / 2, $"γ = {normalAngle}");
+        }
+    }
+
+    [Fact]
     public void TheMeasureFractionIsClampedOutsideTheHemisphere()
     {
         foreach (double normalAngle in NormalAngles)

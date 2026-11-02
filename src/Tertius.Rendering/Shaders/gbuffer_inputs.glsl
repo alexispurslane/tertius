@@ -20,8 +20,8 @@ layout(set = 2, binding = 3) uniform texture2D gbufferEmissive;        // RGBA16
 layout(set = 2, binding = 4) uniform texture2D gbufferDistance;        // R32F: distance to the eye, 0 for sky
 layout(set = 2, binding = 5) uniform texture2DArray shadowCascades;   // D32: one layer per cascade of each set, reversed depth
 layout(set = 2, binding = 6) uniform samplerShadow shadowSampler;      // linear GREATER_OR_EQUAL comparison (PCF)
-layout(set = 2, binding = 7) uniform texture2D gbufferEstimate;        // RGBA16F: rgb the net bounce G − M,
-                                                                       // pre-exposed, a the occlusion V
+layout(set = 2, binding = 7) uniform utexture2D gbufferEstimate;       // RGBA32UI: the estimate, as packEstimate
+                                                                       // packs it (estimate.glsl)
 layout(set = 2, binding = 8) uniform texture2DArray shadowAtlas;      // D32: one tile per layer, reversed depth;
                                                                        // partially bound, empty without the atlas
 layout(set = 2, binding = 9) uniform texture2D gbufferDirect;          // RGBA16F: the direct light, pre-exposed, 0 for

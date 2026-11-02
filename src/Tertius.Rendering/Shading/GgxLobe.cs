@@ -11,6 +11,14 @@ internal readonly record struct GgxLobe
     /// </summary>
     public const double AlphaPerWidth = 0.12108;
 
+    /// <summary>
+    /// The lower bound on the roughness of a read for a part: the lobe for a part 2.07 rad wide. A sharper read lets a
+    /// small bright part of the map show in some texels and not in their neighbors, a speck (decision 42). The price is
+    /// light from beyond a narrow part: the bound's lobe puts 11 % of its weight beyond either end of a part 0.95 rad
+    /// wide, and 24 % beyond a part 0.5 rad wide.
+    /// </summary>
+    public const double MinPieceRoughness = 0.5;
+
     /// <summary>Clamps <paramref name="roughness"/> to the range from <see cref="MinRoughness"/> to 1.</summary>
     public GgxLobe(double roughness)
     {
@@ -27,10 +35,14 @@ internal readonly record struct GgxLobe
 
     /// <summary>
     /// The roughness of the specular map's lobe that blurs a read over a part of the sky <paramref name="width"/> rad
-    /// wide: at most 5 % of the lobe's weight lies beyond either end of the part
-    /// (docs/plans/screen-space-illumination.md, decision 41). roughnessForWidth in environment.glsl is the GPU copy.
+    /// wide: max(√(<see cref="AlphaPerWidth"/> · width), <see cref="MinPieceRoughness"/>)
+    /// (docs/plans/screen-space-illumination.md, decisions 41 and 42). Only a part wider than 2.07 rad keeps 95 % of the
+    /// lobe's weight on itself. A narrower part takes the bound's lobe, which puts up to 11 % of its weight beyond either
+    /// end of a part 0.95 rad wide and 24 % beyond a part 0.5 rad wide. roughnessForWidth in environment.glsl is the GPU
+    /// copy.
     /// </summary>
-    public static double RoughnessForWidth(double width) => Math.Sqrt(AlphaPerWidth * width);
+    public static double RoughnessForWidth(double width) =>
+        Math.Max(Math.Sqrt(AlphaPerWidth * width), MinPieceRoughness);
 
     /// <summary>The GGX distribution D of the microfacet normals, per steradian, at the cosine of h to n.</summary>
     public double Distribution(double nDotH)

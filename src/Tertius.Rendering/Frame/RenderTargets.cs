@@ -49,7 +49,7 @@ internal sealed class RenderTargets : IDisposable
     public const Format DepthFormat = Format.D32Sfloat;
     public const Format HdrFormat = Format.R16G16B16A16Sfloat;
     public const Format DirectFormat = Format.R16G16B16A16Sfloat;
-    public const Format EstimateFormat = Format.R16G16B16A16Sfloat;
+    public const Format EstimateFormat = EstimatePacking.Format;
     public const Format DiffuseFormat = Format.R16G16B16A16Sfloat;
 
     /// <summary>The binding of the estimate target in the G-buffer set (Shaders/gbuffer_inputs.glsl).</summary>
@@ -361,8 +361,8 @@ internal sealed class RenderTargets : IDisposable
         );
 
     /// <summary>
-    /// Clears the estimate target to (0, 0, 0, 1), no bounce and full visibility, if this is the first frame since its
-    /// creation, and does nothing otherwise.
+    /// Clears the estimate target to the open estimate, no bounce, full visibility and an open share of 1, if this is the
+    /// first frame since its creation, and does nothing otherwise.
     /// </summary>
     public void RecordEstimateClear(Vk vk, CommandBuffer commandBuffer, BarrierBatch barriers)
     {
@@ -370,7 +370,7 @@ internal sealed class RenderTargets : IDisposable
             return;
         barriers.Image(Estimate, ImageUse.TransferDestination, discard: true);
         barriers.Flush(vk, commandBuffer);
-        var openEstimate = new ClearColorValue(float32_0: 0, float32_1: 0, float32_2: 0, float32_3: 1);
+        ClearColorValue openEstimate = EstimatePacking.OpenTexel;
         var whole = new ImageSubresourceRange(
             aspectMask: ImageAspectFlags.ColorBit,
             baseMipLevel: 0,

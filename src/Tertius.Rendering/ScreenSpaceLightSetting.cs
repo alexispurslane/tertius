@@ -13,7 +13,11 @@ public readonly record struct NoScreenSpaceLight;
 /// <param name="StepsPerSide">How many depth samples each slice takes on each side within the radius, 1 to 16.</param>
 public readonly record struct VisibilityBitmaskLight(float RadiusMeters, int Slices, int StepsPerSide)
 {
-    /// <summary>The renderer's default: 1 m, 3 slices and 3 steps on each side, until captures pick them.</summary>
+    /// <summary>
+    /// The renderer's default: 1 m, 3 slices and 3 steps on each side. With the denoise's 6 blurs, 3 slices leave noise
+    /// within 10 % of a 16-slice reference, and no scallops on the cabin's ceiling panel, for less than 4 slices with 4
+    /// blurs cost (docs/plans/screen-space-illumination.md, decision 43).
+    /// </summary>
     public static VisibilityBitmaskLight Default => new(RadiusMeters: 1, Slices: 3, StepsPerSide: 3);
 }
 

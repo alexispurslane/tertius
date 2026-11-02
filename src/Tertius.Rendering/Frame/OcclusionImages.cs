@@ -12,7 +12,7 @@ internal sealed class OcclusionImages : IDisposable
 {
     public const Format ViewDepthFormat = Format.R32Sfloat;
     public const Format EdgesFormat = Format.R8Unorm;
-    public const Format TermFormat = Format.R16G16B16A16Sfloat;
+    public const Format TermFormat = EstimatePacking.Format;
     public const Format SourceFormat = Format.R16G16B16A16Sfloat;
     public const Format DepthAndNormalFormat = Format.R32G32Uint;
 

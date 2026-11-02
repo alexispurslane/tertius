@@ -312,12 +312,26 @@ public sealed class SectorSearchTests
         Within(0.625)
             .Should()
             .Be(
-                new NearSlice(Sectors: Facing, Blocked: SectorMask.None, Light: Double3.Zero, MapLight: Double3.Zero),
+                new NearSlice(
+                    Sectors: Facing,
+                    Blocked: SectorMask.None,
+                    Light: Double3.Zero,
+                    BlockedMapLight: Double3.Zero,
+                    OpenMapLight: Double3.Zero
+                ),
                 "the edge at the radius is hard"
             );
         Within(0.5)
             .Should()
-            .Be(new NearSlice(Sectors: Facing, Blocked: SectorMask.None, Light: Double3.Zero, MapLight: Double3.Zero));
+            .Be(
+                new NearSlice(
+                    Sectors: Facing,
+                    Blocked: SectorMask.None,
+                    Light: Double3.Zero,
+                    BlockedMapLight: Double3.Zero,
+                    OpenMapLight: Double3.Zero
+                )
+            );
         Within(0.626).Blocked.Count.Should().BePositive();
     }
 
@@ -338,11 +352,11 @@ public sealed class SectorSearchTests
         var estimate = AmbientEstimate.OfSlices([Near(Facing, ThicknessShare, wall)]);
         AmbientTerms occluded = source.Occluded(
             occlusion: estimate.Occlusion,
+            openShare: estimate.OpenShare,
             bounce: estimate.Bounce,
             diffuseColor: new(0.7, 0.4, 0.2),
             nDotV: 0.7,
-            lobe: lobe,
-            environmentMapOn: false
+            lobe: lobe
         );
 
         estimate
@@ -741,7 +755,7 @@ public sealed class SectorSearchTests
     }
 
     [Fact]
-    public void InAUniformMapASlicesMapLightIsItsBlockedCountTimesTheMapsLight()
+    public void InAUniformMapASlicesMapLightAlongEachPartIsItsCountTimesTheMapsLight()
     {
         // A normal map tilts the shading normal, so the receiver's own surface blocks sectors too.
         Double3 mapRadiance = new(0.4, 0.7, 1.3);
@@ -757,28 +771,77 @@ public sealed class SectorSearchTests
         );
 
         near.Blocked.Count.Should().BeGreaterThan(near.Sectors.BelowPlane(TowardTheEye).Count, "the test needs a step");
-        (near.MapLight - mapRadiance * near.Blocked.Count)
+        (near.BlockedMapLight - mapRadiance * near.Blocked.Count)
             .Length.Should()
-            .BeLessThan(1e-12, "each blocked sector takes away the map's light along it once, the own surface's too");
+            .BeLessThan(1e-12, "each blocked sector holds the map's light along it once, the own surface's too");
+        (near.OpenMapLight - mapRadiance * near.Blocked.Open.Count)
+            .Length.Should()
+            .BeLessThan(1e-12, "each open sector holds the map's light along it once");
     }
 
     [Fact]
-    public void ASliceThatBlocksNothingReadsNoMapLight()
+    public void ASliceThatBlocksNothingReadsTheMapOnceAlongItsNormalWithALobeAsWideAsTheHemisphere()
     {
-        var reads = new List<Double3>();
+        SliceSectors sectors = Tilted(0.4);
+        var reads = new List<(Double3 Direction, double Width)>();
 
         NearSlice near = Near(
-            Facing,
+            sectors,
             ThicknessShare,
-            mapLight: (direction, _) =>
+            mapLight: (direction, width) =>
             {
-                reads.Add(direction);
+                reads.Add((direction, width));
                 return Red;
             }
         );
 
-        reads.Should().BeEmpty("every sector is open, so the map's irradiance stands as it is");
-        near.MapLight.Should().Be(Double3.Zero);
+        reads.Should().ContainSingle("every sector is open, so the open sectors form one unbroken piece");
+        AngleInSlice(sectors, reads[0].Direction).Should().BeApproximately(0.4, 1e-12, "the middle of the hemisphere");
+        reads[0].Width.Should().BeApproximately(Math.PI, 1e-12);
+        near.BlockedMapLight.Should().Be(Double3.Zero);
+        near.OpenMapLight.Should().Be(Red * SliceSectors.Count);
+    }
+
+    [Fact]
+    public void EachUnbrokenPieceOfTheOpenSectorsReadsTheMapAlongTheMiddleOfTheAnglesOfItsBoundaries()
+    {
+        // The pole's slab covers the directions from about 52° to 62°, so the open sectors fall in two pieces: below the
+        // pole, and above it up to the edge of the hemisphere.
+        NearStep pole = FacingStep(position: new(0.7, 0, 1.45), light: Red);
+        SectorMask poleSectors = Covered(Facing, pole, ThicknessShare);
+        int poleFirst = BitOperations.TrailingZeroCount(poleSectors.Bits);
+        int poleEnd = SliceSectors.Count - BitOperations.LeadingZeroCount(poleSectors.Bits);
+        poleEnd.Should().BeLessThan(SliceSectors.Count, "the test needs open sectors above the pole");
+        var reads = new List<(Double3 Direction, double Width)>();
+
+        Near(
+            Facing,
+            ThicknessShare,
+            mapLight: (direction, width) =>
+            {
+                reads.Add((direction, width));
+                return Red;
+            },
+            pole
+        );
+
+        reads.Should().HaveCount(3, "the pole reads once, and each of the two open pieces once");
+        foreach (
+            ((Double3 direction, double width), int first, int end) in (ReadOnlySpan<(
+                (Double3 Direction, double Width) Read,
+                int First,
+                int End
+            )>)
+                [(reads[1], 0, poleFirst), (reads[2], poleEnd, SliceSectors.Count)]
+        )
+        {
+            double low = Facing.BoundaryAngle(first);
+            double high = Facing.BoundaryAngle(end);
+            AngleInSlice(Facing, direction)
+                .Should()
+                .BeApproximately((low + high) / 2, 1e-12, "a read stands at the middle of its piece's angles");
+            width.Should().BeApproximately(high - low, 1e-12, "its lobe is as wide as its piece");
+        }
     }
 
     [Fact]
@@ -803,7 +866,9 @@ public sealed class SectorSearchTests
             farther
         );
 
-        reads.Should().HaveCount(2, "each step that blocks a sector reads the map once");
+        reads
+            .Should()
+            .HaveCount(3, "each step that blocks a sector reads the map once, then the one open piece below them");
         double measure = Facing.MeasureFraction(AngleInSlice(Facing, reads[1]));
         int first = BitOperations.TrailingZeroCount(fresh.Bits);
         int end = SliceSectors.Count - BitOperations.LeadingZeroCount(fresh.Bits);
@@ -814,6 +879,43 @@ public sealed class SectorSearchTests
                 (double)end / SliceSectors.Count,
                 "the farther step stands for the sectors that it newly blocks, not for its whole run"
             );
+    }
+
+    [Fact]
+    public void AStepReadsTheMapAlongTheMiddleOfItsSlabsAnglesWithALobeAsWideAsItsSlab()
+    {
+        // A blocked part takes its run's slab angles, and only an open piece takes the angles of its sectors'
+        // boundaries (docs/plans/screen-space-illumination.md, decision 42, "Two rules").
+        NearStep step = FacingStep(position: new(0.3, 0, 1.6), light: Green);
+        (double front, double back) = SectorSearch.StepAngles(
+            center: Center,
+            toEye: TowardTheEye,
+            position: step.Position,
+            side: step.Side,
+            thicknessShare: ThicknessShare
+        );
+        (double low, double high) = (Math.Min(front, back), Math.Max(front, back));
+        double boundaryWidth = Facing.PieceAngles(Covered(Facing, step, ThicknessShare)).Width;
+        Math.Abs(boundaryWidth - (high - low))
+            .Should()
+            .BeGreaterThan(1e-3, "the test needs a slab whose ends lie away from its sectors' boundaries");
+        var reads = new List<(Double3 Direction, double Width)>();
+
+        Near(
+            Facing,
+            ThicknessShare,
+            mapLight: (direction, width) =>
+            {
+                reads.Add((direction, width));
+                return Red;
+            },
+            step
+        );
+
+        AngleInSlice(Facing, reads[0].Direction)
+            .Should()
+            .BeApproximately((low + high) / 2, 1e-12, "the step's read stands at the middle of its slab");
+        reads[0].Width.Should().BeApproximately(high - low, 1e-12, "its lobe is as wide as its slab");
     }
 
     [Fact]
@@ -847,7 +949,12 @@ public sealed class SectorSearchTests
             wall
         );
 
-        reads.Should().HaveCount(3, "the pole reads once, and the wall once for each piece that it newly blocks");
+        reads
+            .Should()
+            .HaveCount(
+                4,
+                "the pole reads once, the wall once for each piece that it newly blocks, then the open piece below them"
+            );
         foreach (
             (Double3 read, SectorMask piece) in (ReadOnlySpan<(Double3 Read, SectorMask Piece)>)
                 [(reads[1], below), (reads[2], above)]
@@ -884,7 +991,7 @@ public sealed class SectorSearchTests
             }
         );
 
-        reads.Should().ContainSingle();
+        reads.Should().HaveCount(2, "the own surface reads first, then the one open piece above it");
         AngleInSlice(sectors, reads[0].Direction).Should().BeApproximately(Math.PI / 2 + 0.25, 1e-12);
         reads[0].Width.Should().BeApproximately(0.5, 1e-12);
     }
@@ -912,9 +1019,9 @@ public sealed class SectorSearchTests
 
         plane.Blocked.Should().Be(sectors.BelowPlane(TowardTheEye), "an ordinary receiver's plane blocks below it");
         plane.Blocked.Count.Should().BePositive("the test needs a plane that cuts the hemisphere");
-        plane.MapLight.Should().Be(mapRadiance * plane.Blocked.Count, "the plane's run reads the map along it");
+        plane.BlockedMapLight.Should().Be(mapRadiance * plane.Blocked.Count, "the plane's run reads the map along it");
         hair.Blocked.Should().Be(SectorMask.None, "a hair receiver's own surface is its fibers, which block nothing");
-        hair.MapLight.Should().Be(Double3.Zero, "its fibers read no map light along its own surface");
+        hair.BlockedMapLight.Should().Be(Double3.Zero, "its fibers read no map light along its own surface");
     }
 
     [Fact]

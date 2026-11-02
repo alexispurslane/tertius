@@ -118,6 +118,54 @@ public sealed class AmbientOcclusionRenderTests(ITestOutputHelper output)
             .BeLessThanOrEqualTo(1, "the wall lies 10 m behind the box, beyond the radius, and each face is open");
     }
 
+    /// <summary>
+    /// A slab 0.6 m square and 0.2 m thick 2 m ahead of the eye, as the box of
+    /// <see cref="NoDarkHaloAppearsBesideANearSilhouette"/>, with a wall 0.1 m behind its back: the slab blocks part of
+    /// the sky of the wall's points around it, so the wall beside the silhouette holds V below 1, and the slab's
+    /// front face is open. The denoise weighs each neighbor by the edge toward that neighbor (XeGTAO's edges), so no blur
+    /// takes the wall's estimate across the silhouette onto the face, on its left side or its right.
+    /// </summary>
+    [Fact]
+    public void NoDarkHaloAppearsOnANearFaceInFrontOfAWallThatItDarkens()
+    {
+        const float half = 0.3f;
+        (Capture on, Capture off) = OnAndOff(
+            renderer =>
+            {
+                RenderSnapshot snapshot = UnderWhiteAmbientLight(Quaternion.Identity);
+                MeshId box = UnitBox(renderer);
+                MaterialId matte = Matte(renderer);
+                AddSlab(
+                    snapshot: snapshot,
+                    box: box,
+                    material: matte,
+                    center: new(0, 0, -2.1f),
+                    size: new(2 * half, 2 * half, 0.2f)
+                );
+                AddSlab(snapshot: snapshot, box: box, material: matte, center: new(0, 0, -2.8f), size: new(40, 40, 1));
+                return snapshot;
+            },
+            "occlusion-silhouette-before-a-wall"
+        );
+
+        Vector2 topLeft = Gpu.Project(point: new(-half, half, -2), width: Width, height: Height);
+        Vector2 bottomRight = Gpu.Project(point: new(half, -half, -2), width: Width, height: Height);
+        int middle = (int)((topLeft.Y + bottomRight.Y) / 2);
+        int wall = LargestDifference(on, off, Block(centerX: (int)topLeft.X - 6, centerY: middle, halfSize: 2));
+        // The face's pixels from 2 to 6 px inside its left and its right edge: within the blurs' reach of the wall.
+        int face = LargestDifference(
+            on,
+            off,
+            [
+                .. Block(centerX: (int)topLeft.X + 4, centerY: middle, halfSize: 2),
+                .. Block(centerX: (int)bottomRight.X - 5, centerY: middle, halfSize: 2),
+            ]
+        );
+        output.WriteLine($"largest difference on the wall beside the silhouette {wall}, on the face {face} of 255");
+        wall.Should().BeGreaterThan(4, "the test needs a wall that the box darkens beside the silhouette");
+        face.Should().BeLessThanOrEqualTo(1, "the face is open, and the wall's estimate stays on its side of the edge");
+    }
+
     [Theory]
     [InlineData(0.15)]
     [InlineData(0.3)]
@@ -143,11 +191,19 @@ public sealed class AmbientOcclusionRenderTests(ITestOutputHelper output)
             .BeApproximately(expected, 0.03, "the near sectors estimate the share that the wall and its slab hide");
     }
 
+    /// <summary>
+    /// The floor's V within <paramref name="tolerance"/> of the wall's share, 0.03 at 0.3 m and 0.6 m. At 0.15 m, 2
+    /// half-resolution texels from the crease, the tolerance is 0.05, because the denoise's 6 blurs reach 6 texels and
+    /// the crease cuts them on the wall's side: the blurs pull V toward the open floor's. The user accepted that spread for
+    /// the default of 3 slices and 6 blurs (docs/plans/screen-space-illumination.md, decision 43, 2026-11-01). Measured
+    /// pull at 0.172 m: +0.016 at 2 blurs, +0.025 at 4, +0.032 at 6. The tolerance keeps the 0.014 that 0.03 left above
+    /// the pull of 2 blurs, for the slices' error, over the pull of 6: 0.032 + 0.014 = 0.046, rounded up to 0.05.
+    /// </summary>
     [Theory]
-    [InlineData(0.15)]
-    [InlineData(0.3)]
-    [InlineData(0.6)]
-    public void AFloorBesideATallWallLosesOnlyTheShareThatTheWallHidesWithinTheRadius(double distance)
+    [InlineData(0.15, 0.05)]
+    [InlineData(0.3, 0.03)]
+    [InlineData(0.6, 0.03)]
+    public void AFloorBesideATallWallLosesOnlyTheShareThatTheWallHidesWithinTheRadius(double distance, double tolerance)
     {
         (double measured, double rowDistance) = FloorBesideAWall(
             wallCenter: TallWallCenter,
@@ -161,7 +217,7 @@ public sealed class AmbientOcclusionRenderTests(ITestOutputHelper output)
             .Should()
             .BeApproximately(
                 expected,
-                0.03,
+                tolerance,
                 "the near sectors find the wall within the radius, and beyond it an open sector takes the ambient light"
             );
     }

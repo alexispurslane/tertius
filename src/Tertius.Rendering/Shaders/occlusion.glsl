@@ -10,13 +10,16 @@
 #include "frame.glsl"
 #include "gbuffer_inputs.glsl"
 #include "octahedral.glsl"
+#include "estimate.glsl"
 
 layout(set = 3, binding = 0, r32f) uniform image2D viewDepth;          // half: view depth in m, SkyDepth for sky
 layout(set = 3, binding = 1, r8) uniform image2D occlusionEdges;       // half: XeGTAO's packed edges
-layout(set = 3, binding = 2, rgba16f) uniform image2D occlusionTermA;   // half: rgb the net bounce G − M, pre-exposed, a V
-layout(set = 3, binding = 3, rgba16f) uniform image2D estimateTarget;   // full: the same
-layout(set = 3, binding = 4, rgba16f) uniform image2D denoiseSource;
-layout(set = 3, binding = 5, rgba16f) uniform image2D denoiseDestination;
+// The estimate as packEstimate packs it (estimate.glsl): term A at half resolution, the estimate target at full, and the
+// denoise's source and destination, term A and term B in turn.
+layout(set = 3, binding = 2, rgba32ui) uniform uimage2D occlusionTermA;
+layout(set = 3, binding = 3, rgba32ui) uniform uimage2D estimateTarget;
+layout(set = 3, binding = 4, rgba32ui) uniform uimage2D denoiseSource;
+layout(set = 3, binding = 5, rgba32ui) uniform uimage2D denoiseDestination;
 layout(set = 3, binding = 6, rgba16f) uniform image2D occlusionSource;  // half: the bounce source at pixel 2t
 // half: x the bits of the texel's view depth, y the octahedral world geometric normal at pixel 2t, the normals target's ba
 // as packSnorm2x16 packs it (OcclusionImages.DepthAndNormal)
