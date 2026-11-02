@@ -1,6 +1,6 @@
 ---
 id: ter-8fz2
-status: open
+status: in_progress
 deps: [ter-k96l]
 links: []
 created: 2026-11-01T18:27:21Z
@@ -18,3 +18,9 @@ User decision, 2026-11-01, after ter-xgra. The map's diffuse light D is stored a
 
 D comes from the irradiance cube, and the spherical harmonics are gone or kept only where the ticket states a reason. On deck-late with the screen-space light off, D lies within a stated tolerance of the brute-force D (p-bruteD.patch) on the cabin's base face and the floor band. A render test pins that a surface under a map with one small bright light gets the cube's irradiance within that tolerance. The cost is measured with interleaved runs and a control. The convolution keeps the map's compute pipelines within 4 storage images per stage. ARCHITECTURE.md, environment-map.md and Known limit 2 of screen-space-illumination.md match the code.
 
+
+## Notes
+
+**2026-11-02T01:42:48Z**
+
+2026-11-01: workflow run b457f30e-cf46-416c-acc0-42c40618667f (version 869b0b07), branch ter-8fz2-irradiance-cube from c2e6399e5. Settled by the orchestrator inside the user's decision: one store for D (the irradiance cube), the harmonics go, and the lit puffs' mean and the impostors' signature of the light come from the cube's coarsest level. A reader that cannot use the cube comes back as a fork.
