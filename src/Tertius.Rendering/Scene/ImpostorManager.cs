@@ -656,7 +656,7 @@ internal sealed partial class ImpostorManager : IInstanceProcessor
     /// </summary>
     private readonly record struct HemisphereSignature(Vector3 Sky, Vector3 Ground, Vector3 Up);
 
-    /// <summary>The map's irradiance from its latest reading, zero before the first.</summary>
+    /// <summary>The last level of the map's irradiance cube from its latest reading, zero before the first.</summary>
     private readonly record struct MapSignature(Irradiance Irradiance);
 
     /// <summary>
@@ -666,12 +666,12 @@ internal sealed partial class ImpostorManager : IInstanceProcessor
     [GeneratedUnion(typeof(HemisphereSignature), typeof(MapSignature))]
     private readonly partial struct AmbientSignature
     {
-        /// <summary>The ambient light in all: the lengths of the two colors, or of the nine coefficients.</summary>
+        /// <summary>The ambient light in all: the lengths of the two colors, or of the irradiance's texels.</summary>
         public float Total =>
             this switch
             {
                 HemisphereSignature { Sky: var sky, Ground: var ground } => sky.Length() + ground.Length(),
-                MapSignature(var irradiance) => CoefficientLengths(irradiance),
+                MapSignature(var irradiance) => TexelLengths(irradiance),
                 null => 0f,
             };
 
@@ -685,22 +685,22 @@ internal sealed partial class ImpostorManager : IInstanceProcessor
                 (HemisphereSignature x, HemisphereSignature y) => (x.Sky - y.Sky).Length()
                     + (x.Ground - y.Ground).Length()
                     + (x.Up - y.Up).Length(),
-                (MapSignature(var x), MapSignature(var y)) => CoefficientChanges(x, y),
+                (MapSignature(var x), MapSignature(var y)) => TexelChanges(x, y),
                 _ => a.Total + b.Total,
             };
 
-        private static float CoefficientLengths(in Irradiance irradiance)
+        private static float TexelLengths(in Irradiance irradiance)
         {
             float total = 0;
-            for (int index = 0; index < Irradiance.Coefficients; index++)
+            for (int index = 0; index < Irradiance.Texels; index++)
                 total += irradiance[index].Length();
             return total;
         }
 
-        private static float CoefficientChanges(in Irradiance a, in Irradiance b)
+        private static float TexelChanges(in Irradiance a, in Irradiance b)
         {
             float difference = 0;
-            for (int index = 0; index < Irradiance.Coefficients; index++)
+            for (int index = 0; index < Irradiance.Texels; index++)
                 difference += (a[index] - b[index]).Length();
             return difference;
         }

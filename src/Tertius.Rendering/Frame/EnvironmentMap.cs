@@ -1,4 +1,3 @@
-using System.Numerics;
 using Silk.NET.Vulkan;
 
 namespace Tertius.Rendering;
@@ -11,25 +10,27 @@ internal enum EnvironmentImage
 
     /// <summary>The specular maps: the GGX-prefiltered levels.</summary>
     Specular,
+
+    /// <summary>The irradiance cubes: D(n), the maps' ambient diffuse radiance, and its mips.</summary>
+    Irradiance,
 }
 
 /// <summary>
 /// The scene environment maps, one for each served frame of the camera's chain (docs/plans/environment-map.md, "Images and
 /// buffers", and docs/plans/environment-maps-per-frame.md, "Images, buffers, growth and descriptors"): the radiance maps
-/// that the face pass draws, the specular maps and the irradiance that the prefilter derives from them, one irradiance
-/// readback buffer per frame slot, and the CPU state of which faces a frame draws. Map i, root first, is cube i of each
-/// cube array, layers 6i to 6i + 5, and coefficients 9i to 9i + 8 of the irradiance. One set of maps serves every frame in
-/// flight.
+/// that the face pass draws, the specular maps and the irradiance cubes that the prefilter derives from them, one readback
+/// buffer per frame slot for the cubes' last level, and the CPU state of which faces a frame draws. Map i, root first, is
+/// cube i of each cube array, layers 6i to 6i + 5. One set of maps serves every frame in flight.
 /// </summary>
 /// <remarks>
 /// <list type="bullet">
 /// <item>Each face of map i holds the frame that last drew it, in the axes of map i's frame, for the served chain of
 /// <see cref="DrawnFor"/>.</item>
-/// <item>Map i's mips, specular levels and irradiance are a pure function of its six faces' level 0, rebuilt in every drawn
-/// frame that draws one of its faces.</item>
+/// <item>Map i's mips, specular levels and irradiance cube are a pure function of its six faces' level 0, rebuilt in every
+/// drawn frame that draws one of its faces.</item>
 /// <item>The images hold <see cref="Capacity"/> maps, at least the served maps of every frame since the last growth.</item>
-/// <item>A slot's readback buffer holds the irradiance of the served maps of the slot's last submitted frame, once its
-/// fence signals.</item>
+/// <item>A slot's readback buffer holds the last level of the irradiance cubes of the served maps of the slot's last
+/// submitted frame, once its fence signals.</item>
 /// <item><see cref="DrawnFor"/> and each slot's count of maps change only in <see cref="Drew"/>, after a frame's
 /// submission, so a frame that throws before it leaves them as they were.</item>
 /// </list>
@@ -39,11 +40,11 @@ internal sealed unsafe class EnvironmentMap : IDisposable
     public const Format RadianceFormat = Format.R16G16B16A16Sfloat;
     public const Format FaceDepthFormat = Format.D32Sfloat;
 
-    /// <summary>The irradiance of one map: one vec4 per coefficient, xyz E_lm and w 0.</summary>
-    private const ulong MapIrradianceBytes = Rendering.Irradiance.Coefficients * 16;
+    /// <summary>The last level of one map's irradiance cube: <see cref="Irradiance.Texels"/> RGBA16F texels.</summary>
+    private const ulong MapReadbackBytes = Rendering.Irradiance.Texels * 4 * sizeof(ushort);
 
-    /// <summary>The irradiance buffer and each readback buffer: room for every map that the renderer serves (decision 22).</summary>
-    private const ulong IrradianceBytes = EnvironmentChain.MaxMaps * MapIrradianceBytes;
+    /// <summary>Each readback buffer: room for every map that the renderer serves (decision 22).</summary>
+    private const ulong ReadbackBytes = EnvironmentChain.MaxMaps * MapReadbackBytes;
 
     private readonly VulkanDevice device;
     private readonly DeviceAllocator allocator;
@@ -52,7 +53,7 @@ internal sealed unsafe class EnvironmentMap : IDisposable
     private readonly DescriptorSet[] downsampleSets;
     private readonly GpuBuffer[] readbacks;
 
-    /// <summary>The served maps of each slot's last submitted frame, whose irradiance its readback buffer holds.</summary>
+    /// <summary>The served maps of each slot's last submitted frame, whose cubes' last level its readback buffer holds.</summary>
     private readonly int[] readbackMaps;
 
     private readonly IrradianceReading?[] readings = new IrradianceReading?[EnvironmentChain.MaxMaps];
@@ -83,17 +84,7 @@ internal sealed unsafe class EnvironmentMap : IDisposable
         try
         {
             FaceDepth = CreateFaceDepth(device: device, allocator: allocator, setting: setting);
-            Irradiance = CreateBuffers(device: device, allocator: allocator, readbacks: readbacks);
-            IrradiancePartials = GpuBuffer.Create(
-                device: device,
-                allocator: allocator,
-                size: (ulong)(
-                    Rendering.Irradiance.Blocks(setting.FaceSize) * Rendering.Irradiance.PartialFloats * sizeof(float)
-                ),
-                usage: BufferUsageFlags.StorageBufferBit,
-                memoryUsage: MemoryUsage.GpuOnly,
-                name: "environment irradiance partial sums"
-            );
+            CreateReadbacks(device: device, allocator: allocator, readbacks: readbacks);
             images = new MapImages(device: device, allocator: allocator, setting: setting, levels: Levels, maps: 1);
             // The pool frees the sets when the descriptor layouts are disposed.
             PrefilterSet = layouts.AllocateEnvironmentPrefilterSet();
@@ -101,13 +92,7 @@ internal sealed unsafe class EnvironmentMap : IDisposable
                 specularDispatchSets[dispatch] = layouts.AllocateEnvironmentLevelsSet();
             for (int dispatch = 0; dispatch < downsampleSets.Length; dispatch++)
                 downsampleSets[dispatch] = layouts.AllocateEnvironmentLevelsSet();
-            layouts.WriteBuffer(set: PrefilterSet, binding: 2, type: DescriptorType.StorageBuffer, buffer: Irradiance);
-            layouts.WriteBuffer(
-                set: PrefilterSet,
-                binding: 3,
-                type: DescriptorType.StorageBuffer,
-                buffer: IrradiancePartials
-            );
+            IrradianceSet = layouts.AllocateEnvironmentLevelsSet();
             WriteImageSets();
         }
         catch
@@ -126,8 +111,8 @@ internal sealed unsafe class EnvironmentMap : IDisposable
     public int Capacity => images.Capacity;
 
     /// <summary>
-    /// Counts the growths of the images, which make <see cref="Specular"/> anew. A frame slot rewrites its binding of the
-    /// specular maps when its count differs.
+    /// Counts the growths of the images, which make <see cref="Specular"/> and <see cref="Irradiance"/> anew. A frame slot
+    /// rewrites its bindings of them when its count differs.
     /// </summary>
     public int ImagesVersion { get; private set; }
 
@@ -140,18 +125,15 @@ internal sealed unsafe class EnvironmentMap : IDisposable
     /// <summary>The specular maps: an RGBA16F cube array whose level k holds the lobe of roughness k / (L − 1), one cube per map.</summary>
     public GpuImage Specular => images.Specular;
 
+    /// <summary>
+    /// The irradiance cubes: an RGBA16F cube array of <see cref="IrradianceCube.Levels"/> levels, one cube per map, at
+    /// binding 14 of every frame set. Level 0 holds D at each texel's direction, alpha the open-sky share that a Lambert
+    /// surface sees, and each later level the mean of its children over their solid angles.
+    /// </summary>
+    public GpuImage Irradiance => images.Irradiance;
+
     /// <summary>The depth target of a face: D32, reversed, cleared for each depth range. The faces draw one after another.</summary>
     public GpuImage FaceDepth { get; }
-
-    /// <summary>The irradiance: nine vec4 per map, coefficient i of map m in vec4 9m + i, at binding 14 of every frame set.</summary>
-    public GpuBuffer Irradiance { get; }
-
-    /// <summary>
-    /// The partial sums of one map's irradiance projection: <see cref="Irradiance.PartialFloats"/> floats for
-    /// each block of <see cref="Irradiance.BlockRows"/> rows of a face, which the prefilter sums into the map's
-    /// coefficients of <see cref="Irradiance"/>. The maps take turns with it.
-    /// </summary>
-    public GpuBuffer IrradiancePartials { get; }
 
     /// <summary>Set 0 of <see cref="DescriptorLayouts.EnvironmentPrefilterLayout"/>, written again at each growth.</summary>
     public DescriptorSet PrefilterSet { get; }
@@ -177,12 +159,18 @@ internal sealed unsafe class EnvironmentMap : IDisposable
     /// </summary>
     public DescriptorSet DownsampleSet(int dispatch) => downsampleSets[dispatch];
 
+    /// <summary>
+    /// The levels set of the irradiance cubes, every layer, written again at each growth: binding b holds level b. The
+    /// convolution writes binding 0, and the downsample reads binding 0 and writes the others.
+    /// </summary>
+    public DescriptorSet IrradianceSet { get; }
+
     /// <summary>The 2D view of level 0 of <paramref name="face"/> of map <paramref name="map"/>, the face pass's color attachment.</summary>
     public ImageView FaceView(int map, CubeFace face) => images.FaceViews[CubeFaces.Count * map + (int)face];
 
     /// <summary>
-    /// The irradiance of the first <paramref name="maps"/> maps from the last frame whose GPU work finished, each null
-    /// before a frame that served it finished.
+    /// The last level of the irradiance cubes of the first <paramref name="maps"/> maps from the last frame whose GPU work
+    /// finished, each null before a frame that served it finished.
     /// </summary>
     public ReadOnlyMemory<IrradianceReading?> ReadingsOf(int maps) => readings.AsMemory(0, maps);
 
@@ -227,20 +215,30 @@ internal sealed unsafe class EnvironmentMap : IDisposable
     }
 
     /// <summary>
-    /// Copies the irradiance of the first <paramref name="maps"/> maps, which this frame's prefilter left in the buffer,
-    /// into the readback buffer of <paramref name="slot"/>, right after the prefilter, so that a reading is the irradiance
-    /// that this frame's passes use. <see cref="Drew"/> records the count once the frame is submitted.
+    /// Copies the last level of the irradiance cubes of the first <paramref name="maps"/> maps, which this frame's
+    /// prefilter left in the <see cref="ImageLayout.TransferSrcOptimal"/> layout, into the readback buffer of
+    /// <paramref name="slot"/>, right after the prefilter, so that a reading is the irradiance that this frame's passes
+    /// use. <see cref="Drew"/> records the count once the frame is submitted.
     /// </summary>
     public void RecordReadback(CommandBuffer commandBuffer, BarrierBatch barriers, int slot, int maps)
     {
         GpuBuffer readback = readbacks[slot];
-        barriers.Buffer(Irradiance, BufferUse.TransferSource);
         barriers.Buffer(readback, BufferUse.TransferDestination);
         barriers.Flush(device.Vk, commandBuffer);
-        var region = new BufferCopy(srcOffset: 0, dstOffset: 0, size: (ulong)maps * MapIrradianceBytes);
-        device.Vk.CmdCopyBuffer(
+        var region = new BufferImageCopy
+        {
+            ImageSubresource = new(
+                aspectMask: ImageAspectFlags.ColorBit,
+                mipLevel: IrradianceCube.Levels - 1,
+                baseArrayLayer: 0,
+                layerCount: (uint)(CubeFaces.Count * maps)
+            ),
+            ImageExtent = new(IrradianceCube.CoarsestSize, IrradianceCube.CoarsestSize, 1),
+        };
+        device.Vk.CmdCopyImageToBuffer(
             commandBuffer: commandBuffer,
-            srcBuffer: Irradiance.Handle,
+            srcImage: Irradiance.Handle,
+            srcImageLayout: ImageLayout.TransferSrcOptimal,
             dstBuffer: readback.Handle,
             regionCount: 1,
             pRegions: &region
@@ -252,38 +250,29 @@ internal sealed unsafe class EnvironmentMap : IDisposable
 
     /// <summary>
     /// Reads the irradiance of the maps that <paramref name="frame"/>, the last frame that <paramref name="slot"/>
-    /// submitted, served, once its fence has signaled. A slot that has drawn no frame leaves the readings as they are, and so does a
-    /// frame for the maps past the ones that it served.
+    /// submitted, served, once its fence has signaled. A slot that has drawn no frame leaves the readings as they are, and
+    /// so does a frame for the maps past the ones that it served.
     /// </summary>
     public void Collect(int slot, long frame)
     {
         if (frame < 0)
             return;
-        ReadOnlySpan<Vector4> coefficients = readbacks[slot]
-            .AsSpan<Vector4>(EnvironmentChain.MaxMaps * Rendering.Irradiance.Coefficients);
+        ReadOnlySpan<Half> texels = readbacks[slot]
+            .AsSpan<Half>(EnvironmentChain.MaxMaps * Rendering.Irradiance.Halves);
         for (int map = 0; map < readbackMaps[slot]; map++)
             readings[map] = new(
                 Frame: frame,
-                Irradiance: IrradianceOf(
-                    coefficients.Slice(map * Rendering.Irradiance.Coefficients, Rendering.Irradiance.Coefficients)
+                Irradiance: Rendering.Irradiance.Of(
+                    texels.Slice(map * Rendering.Irradiance.Halves, Rendering.Irradiance.Halves)
                 )
             );
-    }
-
-    /// <summary>The irradiance in nine vec4 as the irradiance buffer lays them out, xyz E_lm.</summary>
-    internal static Irradiance IrradianceOf(ReadOnlySpan<Vector4> coefficients)
-    {
-        Span<Vector3> values = stackalloc Vector3[Rendering.Irradiance.Coefficients];
-        for (int i = 0; i < values.Length; i++)
-            values[i] = new(coefficients[i].X, coefficients[i].Y, coefficients[i].Z);
-        return new(values);
     }
 
     /// <summary>
     /// Makes the images hold <paramref name="maps"/> maps (decision 23): waits for the device, as a resize does, makes the
     /// cube arrays and their views anew, then disposes the old ones, points the map's own sets at the new ones, and empties
     /// <see cref="DrawnFor"/>, because the new images hold no face. A growth that throws leaves the old images whole. Each
-    /// frame slot rewrites its binding of the specular maps by <see cref="ImagesVersion"/>.
+    /// frame slot rewrites its bindings of the specular maps and the irradiance cubes by <see cref="ImagesVersion"/>.
     /// </summary>
     private void Grow(int maps)
     {
@@ -313,33 +302,25 @@ internal sealed unsafe class EnvironmentMap : IDisposable
         );
 
     /// <summary>
-    /// Fills <paramref name="readbacks"/> with one readback buffer per frame slot, then makes the irradiance buffer. The
-    /// map's own disposal frees the buffers made before a failure.
+    /// Fills <paramref name="readbacks"/> with one readback buffer per frame slot. The map's own disposal frees the buffers
+    /// made before a failure.
     /// </summary>
-    private static GpuBuffer CreateBuffers(VulkanDevice device, DeviceAllocator allocator, GpuBuffer[] readbacks)
+    private static void CreateReadbacks(VulkanDevice device, DeviceAllocator allocator, GpuBuffer[] readbacks)
     {
         for (int slot = 0; slot < readbacks.Length; slot++)
             readbacks[slot] = GpuBuffer.Create(
                 device: device,
                 allocator: allocator,
-                size: IrradianceBytes,
+                size: ReadbackBytes,
                 usage: BufferUsageFlags.TransferDstBit,
                 memoryUsage: MemoryUsage.Readback,
                 name: $"frame {slot} irradiance readback"
             );
-        return GpuBuffer.Create(
-            device: device,
-            allocator: allocator,
-            size: IrradianceBytes,
-            usage: BufferUsageFlags.StorageBufferBit | BufferUsageFlags.TransferSrcBit,
-            memoryUsage: MemoryUsage.GpuOnly,
-            name: "environment irradiance"
-        );
     }
 
     /// <summary>
-    /// Points the sets at the current images: the radiance maps in the prefilter set, and the level views of both cube
-    /// arrays in the levels sets of their dispatches.
+    /// Points the sets at the current images: the radiance maps in the prefilter set, the level views of the radiance and
+    /// specular maps in the levels sets of their dispatches, and those of the irradiance cubes in theirs.
     /// </summary>
     private void WriteImageSets()
     {
@@ -356,6 +337,8 @@ internal sealed unsafe class EnvironmentMap : IDisposable
             (int source, int count) = PrefilterLevels.LevelsOfDownsample(dispatch: dispatch, levels: radianceLevels);
             WriteLevelsSet(set: downsampleSets[dispatch], views: images.RadianceLevelViews.AsSpan(source, count + 1));
         }
+
+        WriteLevelsSet(set: IrradianceSet, views: images.IrradianceLevelViews);
     }
 
     /// <summary>
@@ -377,8 +360,6 @@ internal sealed unsafe class EnvironmentMap : IDisposable
         images?.Dispose();
         foreach (GpuBuffer? readback in readbacks)
             readback?.Dispose();
-        Irradiance?.Dispose();
-        IrradiancePartials?.Dispose();
         FaceDepth?.Dispose();
     }
 
@@ -407,6 +388,7 @@ internal sealed unsafe class EnvironmentMap : IDisposable
             FaceViews = new ImageView[layers];
             LevelViews = new ImageView[levels];
             RadianceLevelViews = new ImageView[radianceLevels];
+            IrradianceLevelViews = new ImageView[IrradianceCube.Levels];
             try
             {
                 // Storage for its mips, and transfer source for the test hook that reads a level back.
@@ -436,12 +418,26 @@ internal sealed unsafe class EnvironmentMap : IDisposable
                     arrayLayers: layers,
                     cubeArray: true
                 );
+                // Storage for the convolution and its mips, transfer source for the readback of its last level.
+                Irradiance = GpuImage.Create(
+                    device: device,
+                    allocator: allocator,
+                    extent: new(IrradianceCube.FaceSize, IrradianceCube.FaceSize),
+                    format: RadianceFormat,
+                    usage: ImageUsageFlags.StorageBit | ImageUsageFlags.SampledBit | ImageUsageFlags.TransferSrcBit,
+                    mipLevels: IrradianceCube.Levels,
+                    name: "environment irradiance",
+                    arrayLayers: layers,
+                    cubeArray: true
+                );
                 for (int layer = 0; layer < FaceViews.Length; layer++)
                     FaceViews[layer] = Radiance.CreateLayerView((uint)layer);
                 for (int level = 0; level < LevelViews.Length; level++)
                     LevelViews[level] = Specular.CreateLevelView((uint)level);
                 for (int level = 0; level < RadianceLevelViews.Length; level++)
                     RadianceLevelViews[level] = Radiance.CreateLevelView((uint)level);
+                for (int level = 0; level < IrradianceLevelViews.Length; level++)
+                    IrradianceLevelViews[level] = Irradiance.CreateLevelView((uint)level);
             }
             catch
             {
@@ -455,6 +451,7 @@ internal sealed unsafe class EnvironmentMap : IDisposable
 
         public GpuImage Radiance { get; }
         public GpuImage Specular { get; }
+        public GpuImage Irradiance { get; }
 
         /// <summary>The 2D view of level 0 of each layer of <see cref="Radiance"/>, in layer order.</summary>
         public ImageView[] FaceViews { get; }
@@ -465,11 +462,16 @@ internal sealed unsafe class EnvironmentMap : IDisposable
         /// <summary>The view of each level of <see cref="Radiance"/>, every layer.</summary>
         public ImageView[] RadianceLevelViews { get; }
 
+        /// <summary>The view of each level of <see cref="Irradiance"/>, every layer.</summary>
+        public ImageView[] IrradianceLevelViews { get; }
+
         public void Dispose()
         {
             DestroyViews(LevelViews);
             DestroyViews(RadianceLevelViews);
+            DestroyViews(IrradianceLevelViews);
             DestroyViews(FaceViews);
+            Irradiance?.Dispose();
             Specular?.Dispose();
             Radiance?.Dispose();
         }

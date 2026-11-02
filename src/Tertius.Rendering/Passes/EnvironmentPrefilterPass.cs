@@ -4,22 +4,20 @@ using Silk.NET.Vulkan;
 namespace Tertius.Rendering;
 
 /// <summary>
-/// Derives each map's mips, specular levels and irradiance from level 0 of its six faces, for each map that this frame drew
-/// a face of (stage <see cref="FrameGraph.Stage.EnvironmentPrefilter"/>, docs/plans/environment-map.md, "The prefilter",
-/// and docs/plans/environment-maps-per-frame.md, "The prefilter of each map"), then copies the irradiance of the served
-/// maps into the frame slot's readback buffer. Compute dispatches on the graphics queue.
+/// Derives each map's mips, specular levels and irradiance cube from level 0 of its six faces, for each map that this frame
+/// drew a face of (stage <see cref="FrameGraph.Stage.EnvironmentPrefilter"/>, docs/plans/environment-map.md, "The
+/// prefilter", and docs/plans/environment-maps-per-frame.md, "The prefilter of each map"), then copies the last level of
+/// the served maps' irradiance cubes into the frame slot's readback buffer. Compute dispatches on the graphics queue.
 /// </summary>
 /// <remarks>
 /// It reads only level 0 of a map's layers, never its own earlier output, so all it writes of a map is a pure function of
-/// the map's six stored faces. A map is prefiltered whole when one of its faces is drawn, because a rough lobe crosses into
-/// the neighbors of the face that changed. A map with no drawn face keeps its levels and its coefficients (decision 12). The
-/// maps go in index order, each writing only its own layers and coefficients (decision 25), with a barrier between two maps
-/// (see <see cref="AfterWrites"/>): first every drawn map's mips,
-/// then every drawn map's specular levels and irradiance, because a level view spans every map's layers and so holds one
-/// layout for all of them while it is bound. The maps take turns with the buffer of the irradiance's partial sums. After
-/// the pass the specular
-/// maps are in <see cref="ImageUse.SampledFragment"/> and the irradiance buffer in <see cref="BufferUse.ShaderRead"/>, the
-/// states that their readers expect.
+/// the map's six stored faces. A map is prefiltered whole when one of its faces is drawn, because a rough lobe and the
+/// cosine of the irradiance cross into the neighbors of the face that changed. A map with no drawn face keeps its levels
+/// and its cube (decision 12). The maps go in index order, each writing only its own layers (decision 25), with a barrier
+/// between two maps (see <see cref="AfterWrites"/>): first every drawn map's mips, then every drawn map's specular levels
+/// and irradiance cube, because a level view spans every map's layers and so holds one layout for all of them while it is
+/// bound. After the pass the specular maps are in <see cref="ImageUse.SampledFragment"/> and the irradiance cubes in
+/// <see cref="ImageUse.SampledVertexFragment"/>, the states that their readers expect.
 /// </remarks>
 internal sealed unsafe class EnvironmentPrefilterPass : RenderPass
 {
@@ -32,7 +30,6 @@ internal sealed unsafe class EnvironmentPrefilterPass : RenderPass
     private readonly Pipeline downsample;
     private readonly Pipeline prefilter;
     private readonly Pipeline irradiance;
-    private readonly Pipeline irradianceSum;
 
     /// <summary>The byte offset of <see cref="EnvironmentPrefilterPushConstants.Map"/>, 76.</summary>
     private static readonly uint MapOffset = (uint)
@@ -53,7 +50,6 @@ internal sealed unsafe class EnvironmentPrefilterPass : RenderPass
             downsample = Create(name: "environment downsample", shader: "environment_downsample.comp");
             prefilter = Create(name: "environment prefilter", shader: "environment_prefilter.comp");
             irradiance = Create(name: "environment irradiance", shader: "environment_irradiance.comp");
-            irradianceSum = Create(name: "environment irradiance sum", shader: "environment_irradiance_sum.comp");
         }
         catch
         {
@@ -79,9 +75,6 @@ internal sealed unsafe class EnvironmentPrefilterPass : RenderPass
         BarrierBatch barriers = context.Barriers;
         PreparedScene scene = context.Scene;
         BindSets(vk: vk, commandBuffer: commandBuffer, firstSet: 0, sets: [map.PrefilterSet]);
-        barriers.Buffer(map.Irradiance, BufferUse.ComputeWrite);
-        barriers.Buffer(map.IrradiancePartials, BufferUse.ComputeWrite);
-        barriers.Flush(vk, commandBuffer);
         Span<bool> drawn = stackalloc bool[map.Capacity];
         bool anyDrawn = false;
         foreach (EnvironmentFaceDraw face in scene.EnvironmentFaces)
@@ -96,18 +89,72 @@ internal sealed unsafe class EnvironmentPrefilterPass : RenderPass
             RecordLevels(vk: vk, commandBuffer: commandBuffer, barriers: barriers, drawn: drawn);
         }
 
-        // Every layer of both images is read-only again: the prefiltered maps' just now, the others since their last one.
+        // Every layer of the radiance and specular maps is read-only again: the prefiltered maps' just now, the others
+        // since their last one.
         map.Radiance.State = ResourceUses.Describe(ImageUse.SampledCompute);
         map.Specular.State = ResourceUses.Describe(ImageUse.SampledFragment);
         // Right after the irradiance, so a reading is the irradiance that this frame's passes use.
+        RecordReadback(context: context, anyDrawn: anyDrawn);
+    }
+
+    /// <summary>
+    /// Copies the last level of the served maps' irradiance cubes into the frame slot's readback buffer, then leaves every
+    /// level of the cubes read-only for this frame's readers. When the frame drew a face, every level is in
+    /// <see cref="ImageLayout.General"/> after its writes. Otherwise every level is read-only since the frame that last
+    /// wrote it.
+    /// </summary>
+    private void RecordReadback(FrameContext context, bool anyDrawn)
+    {
+        GpuImage cube = map.Irradiance;
+        BarrierBatch barriers = context.Barriers;
+        ResourceState sampled = ResourceUses.Describe(ImageUse.SampledVertexFragment);
+        const uint last = IrradianceCube.Levels - 1;
+        (ImageLayout layout, PipelineStageFlags2 after, AccessFlags2 written) = anyDrawn
+            ? (ImageLayout.General, PipelineStageFlags2.ComputeShaderBit, AccessFlags2.ShaderStorageWriteBit)
+            : (ImageLayout.ShaderReadOnlyOptimal, cube.State.Stages, AccessFlags2.None);
+        barriers.ImageLevels(
+            image: cube,
+            baseMip: last,
+            mipCount: 1,
+            oldLayout: layout,
+            newLayout: ImageLayout.TransferSrcOptimal,
+            srcStages: after,
+            srcAccess: written,
+            dstStages: PipelineStageFlags2.AllTransferBit,
+            dstAccess: AccessFlags2.TransferReadBit
+        );
+        if (anyDrawn)
+            barriers.ImageLevels(
+                image: cube,
+                baseMip: 0,
+                mipCount: last,
+                oldLayout: ImageLayout.General,
+                newLayout: sampled.Layout,
+                srcStages: PipelineStageFlags2.ComputeShaderBit,
+                srcAccess: AccessFlags2.ShaderStorageWriteBit,
+                dstStages: sampled.Stages,
+                dstAccess: sampled.Access
+            );
         map.RecordReadback(
-            commandBuffer: commandBuffer,
+            commandBuffer: context.CommandBuffer,
             barriers: barriers,
             slot: context.Frame.Index,
-            maps: scene.MapCount
+            maps: context.Scene.MapCount
         );
-        barriers.Buffer(map.Irradiance, BufferUse.ShaderRead);
-        barriers.Flush(vk, commandBuffer);
+        // A copy only reads, so the layout's change waits for it with no access to make visible.
+        barriers.ImageLevels(
+            image: cube,
+            baseMip: last,
+            mipCount: 1,
+            oldLayout: ImageLayout.TransferSrcOptimal,
+            newLayout: sampled.Layout,
+            srcStages: PipelineStageFlags2.AllTransferBit,
+            srcAccess: AccessFlags2.None,
+            dstStages: sampled.Stages,
+            dstAccess: sampled.Access
+        );
+        barriers.Flush(context.Vk, context.CommandBuffer);
+        cube.State = sampled;
     }
 
     /// <summary>
@@ -219,38 +266,44 @@ internal sealed unsafe class EnvironmentPrefilterPass : RenderPass
     }
 
     /// <summary>
-    /// Writes each drawn map's specular levels, which sample its radiance mips, then its irradiance, in map index order. As
-    /// for the mips, every layer of the specular maps is in <see cref="ImageLayout.General"/> while the prefilter runs, the
-    /// maps that are not drawn keep their texels, and every layer ends read-only for this frame's readers.
+    /// Writes each drawn map's specular levels and irradiance cube, which sample its radiance mips, in map index order. As
+    /// for the mips, every layer of the specular maps and the cubes is in <see cref="ImageLayout.General"/> while the
+    /// prefilter runs, and the maps that are not drawn keep their texels. Every layer of the specular maps ends read-only
+    /// for this frame's readers, and the cubes stay in <see cref="ImageLayout.General"/> for <see cref="RecordReadback"/>.
     /// </summary>
     private void RecordLevels(Vk vk, CommandBuffer commandBuffer, BarrierBatch barriers, ReadOnlySpan<bool> drawn)
     {
         GpuImage specular = map.Specular;
-        PipelineStageFlags2 lastUse = specular.State.Stages;
         // A drawn map's texels of every level are all written anew, after the readers of the frame before.
-        for (int index = 0; index < drawn.Length; index++)
-            ToGeneral(
-                barriers: barriers,
-                image: specular,
-                baseMip: 0,
-                mipCount: (uint)map.Levels,
-                oldLayout: drawn[index] ? ImageLayout.Undefined : ImageLayout.ShaderReadOnlyOptimal,
-                after: lastUse,
-                layers: new LayerRange(FirstLayer(index), CubeFaces.Count)
-            );
+        foreach (
+            (GpuImage image, uint levels) in (ReadOnlySpan<(GpuImage Image, uint Levels)>)
+                [(specular, (uint)map.Levels), (map.Irradiance, IrradianceCube.Levels)]
+        )
+        {
+            PipelineStageFlags2 lastUse = image.State.Stages;
+            for (int index = 0; index < drawn.Length; index++)
+                ToGeneral(
+                    barriers: barriers,
+                    image: image,
+                    baseMip: 0,
+                    mipCount: levels,
+                    oldLayout: drawn[index] ? ImageLayout.Undefined : ImageLayout.ShaderReadOnlyOptimal,
+                    after: lastUse,
+                    layers: new LayerRange(FirstLayer(index), CubeFaces.Count)
+                );
+        }
         barriers.Flush(vk, commandBuffer);
         int lastDrawn = drawn.LastIndexOf(true);
         for (int index = 0; index < drawn.Length; index++)
             if (drawn[index])
             {
                 RecordMap(vk: vk, commandBuffer: commandBuffer, barriers: barriers, index: index);
-                // After the last map, the specular map's read-only barrier and the readback's barrier order the writes.
+                // After the last map, the specular map's read-only barrier and the readback's barriers order the writes.
                 if (index == lastDrawn)
                     break;
-                // The next map writes through the same level views and the same buffer bindings.
+                // The next map writes through the same level views.
                 AfterWrites(barriers: barriers, image: specular, baseMip: 0, mipCount: (uint)map.Levels);
-                barriers.Buffer(map.Irradiance, BufferUse.ComputeWrite);
-                barriers.Buffer(map.IrradiancePartials, BufferUse.ComputeWrite);
+                AfterWrites(barriers: barriers, image: map.Irradiance, baseMip: 0, mipCount: IrradianceCube.Levels);
                 barriers.Flush(vk, commandBuffer);
             }
         ResourceState sampled = ResourceUses.Describe(ImageUse.SampledFragment);
@@ -268,29 +321,44 @@ internal sealed unsafe class EnvironmentPrefilterPass : RenderPass
     }
 
     /// <summary>
-    /// Writes map <paramref name="index"/>'s specular levels and the partial sums of its irradiance, then sums them into
-    /// its irradiance coefficients.
+    /// Writes map <paramref name="index"/>'s irradiance cube, level 0 by the convolution and the others by the downsample,
+    /// and its specular levels.
     /// </summary>
     private void RecordMap(Vk vk, CommandBuffer commandBuffer, BarrierBatch barriers, int index)
     {
-        // The irradiance's blocks and the specular levels write different resources and read only the radiance map, so
-        // they need no barrier between them, and they can run at once.
+        // The convolution and the specular levels write different images and read only the radiance map, so they need no
+        // barrier between them, and they can run at once.
         vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Compute, irradiance);
+        BindSets(vk: vk, commandBuffer: commandBuffer, firstSet: 1, sets: [map.IrradianceSet]);
         PushMap(vk: vk, commandBuffer: commandBuffer, index: index);
         vk.CmdDispatch(
             commandBuffer: commandBuffer,
-            groupCountX: (uint)Irradiance.Blocks(map.Setting.FaceSize),
+            groupCountX: IrradianceCube.Workgroups,
             groupCountY: 1,
             groupCountZ: 1
         );
         vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Compute, prefilter);
         for (int dispatch = 0; dispatch < PrefilterLevels.Dispatches(map.Levels); dispatch++)
             DispatchLevels(vk: vk, commandBuffer: commandBuffer, dispatch: dispatch, index: index);
-        barriers.Buffer(map.IrradiancePartials, BufferUse.ComputeRead);
+        // The downsample reads level 0 that the convolution wrote, and makes levels 1 to 3 in one run.
+        AfterWrites(barriers: barriers, image: map.Irradiance, baseMip: 0, mipCount: 1);
         barriers.Flush(vk, commandBuffer);
-        vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Compute, irradianceSum);
-        PushMap(vk: vk, commandBuffer: commandBuffer, index: index);
-        vk.CmdDispatch(commandBuffer: commandBuffer, groupCountX: 1, groupCountY: 1, groupCountZ: 1);
+        vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Compute, downsample);
+        BindSets(vk: vk, commandBuffer: commandBuffer, firstSet: 1, sets: [map.IrradianceSet]);
+        var push = new EnvironmentDownsamplePushConstants
+        {
+            LevelSize = IrradianceCube.FaceSize / 2,
+            LevelCount = IrradianceCube.Levels - 1,
+            Map = (uint)index,
+        };
+        Push(
+            vk: vk,
+            commandBuffer: commandBuffer,
+            push: &push,
+            offset: 0,
+            size: (uint)sizeof(EnvironmentDownsamplePushConstants)
+        );
+        Dispatch(vk: vk, commandBuffer: commandBuffer, size: push.LevelSize);
     }
 
     /// <summary>
@@ -326,7 +394,6 @@ internal sealed unsafe class EnvironmentPrefilterPass : RenderPass
         device.Vk.DestroyPipeline(device.Device, downsample, null);
         device.Vk.DestroyPipeline(device.Device, prefilter, null);
         device.Vk.DestroyPipeline(device.Device, irradiance, null);
-        device.Vk.DestroyPipeline(device.Device, irradianceSum, null);
     }
 
     /// <summary>
@@ -413,7 +480,7 @@ internal sealed unsafe class EnvironmentPrefilterPass : RenderPass
 
     /// <summary>
     /// Pushes only <see cref="EnvironmentPrefilterPushConstants.Map"/>, as <paramref name="index"/>: the one push constant
-    /// that the irradiance's two shaders read.
+    /// that the convolution of the irradiance cube reads.
     /// </summary>
     private void PushMap(Vk vk, CommandBuffer commandBuffer, int index)
     {

@@ -253,6 +253,148 @@ public sealed class EnvironmentLightingTests
         }
     }
 
+    /// <summary>
+    /// The tolerance on the map's diffuse light D, as a share of its largest D, the light toward its one small bright
+    /// light (docs/plans/environment-map.md, "The irradiance").
+    /// </summary>
+    private const double DiffuseTolerance = 0.03;
+
+    /// <summary>
+    /// The exact D of a map from its level 0, the red channel: what the brute-force
+    /// D of many cosine-weighted reads of the map converges to. Each texel's direction and solid angle are computed once.
+    /// </summary>
+    private sealed class ExactDiffuse
+    {
+        private readonly Vector3[] directions;
+        private readonly double[] weightedRed;
+        private readonly double[] solidAngles;
+
+        public ExactDiffuse(Half[] faces, int faceSize)
+        {
+            int texels = CubeFaces.Count * faceSize * faceSize;
+            directions = new Vector3[texels];
+            weightedRed = new double[texels];
+            solidAngles = new double[texels];
+            for (int texel = 0; texel < texels; texel++)
+            {
+                int layer = texel / (faceSize * faceSize);
+                int x = texel % faceSize;
+                int y = texel / faceSize % faceSize;
+                directions[texel] = CubeFaces.Direction((CubeFace)layer, (x + 0.5f) / faceSize, (y + 0.5f) / faceSize);
+                solidAngles[texel] = CubeFaces.TexelSolidAngle(x, y, faceSize);
+                weightedRed[texel] = (double)faces[4 * texel] * solidAngles[texel];
+            }
+        }
+
+        /// <summary>The cosine-weighted mean of the texels' red over the hemisphere of the unit <paramref name="normal"/>.</summary>
+        public double At(Vector3 normal)
+        {
+            double sum = 0;
+            double weight = 0;
+            for (int texel = 0; texel < directions.Length; texel++)
+            {
+                double cosine = Vector3.Dot(normal, directions[texel]);
+                if (cosine <= 0)
+                    continue;
+                sum += weightedRed[texel] * cosine;
+                weight += solidAngles[texel] * cosine;
+            }
+
+            return sum / weight;
+        }
+    }
+
+    [Fact]
+    public void UnderOneSmallBrightLightAMatteSurfaceGetsTheMapsExactDiffuseLightWithinTheTolerance()
+    {
+        const int width = 640,
+            height = 360;
+        var sphereCenter = new Vector3(0, 0, -3);
+        // A glowing ball of 0.5 m at 10.3 m, 2.8° in radius, beside the camera's view in the plane z = 0, so that a
+        // matte sphere ahead shows the normals toward it, across from it and at right angles to it.
+        var lightCenter = new Vector3(10, 2.5f, 0);
+        VulkanRenderer renderer = Gpu.Headless(
+            width: width,
+            height: height,
+            environmentMap: SceneEnvironmentMap.Default
+        );
+        try
+        {
+            MeshId sphere = Sphere(renderer);
+            MaterialId glow = BrdfTesting.Glow(renderer, new(400));
+            float[] Lit(Vector4 baseColor)
+            {
+                RenderSnapshot snapshot = Dark();
+                AddSphere(snapshot: snapshot, mesh: sphere, material: glow, position: lightCenter, radius: 0.5f);
+                AddSphere(
+                    snapshot: snapshot,
+                    mesh: sphere,
+                    material: renderer.CreateMaterial(MaterialDesc.Color(baseColor, roughness: 1)),
+                    position: sphereCenter,
+                    radius: 1
+                );
+                renderer.Render(snapshot, 1f);
+                renderer.Render(snapshot, 1f);
+                return renderer.ReadHdr();
+            }
+
+            // The diffuse term is the base color times D, and the specular term does not depend on the base color of a
+            // non-metal. So white less black is D, under the fixed exposure of 0 stops.
+            float[] white = Lit(Vector4.One);
+            float[] black = Lit(new(x: 0, y: 0, z: 0, w: 1));
+            var faces = new List<Half>();
+            for (int layer = 0; layer < CubeFaces.Count; layer++)
+                faces.AddRange(
+                    renderer.ReadEnvironmentFace(
+                        map: 0,
+                        face: (CubeFace)layer,
+                        level: 0,
+                        image: EnvironmentImage.Radiance
+                    )
+                );
+            var exact = new ExactDiffuse([.. faces], SceneEnvironmentMap.Default.FaceSize);
+            double peak = exact.At(Vector3.Normalize(lightCenter));
+
+            float tanY = MathF.Tan(Gpu.Fov / 2);
+            float tanX = tanY * width / height;
+            int tested = 0;
+            for (int y = 0; y < height; y += 3)
+            for (int x = 0; x < width; x += 3)
+            {
+                // The ray through the pixel's center, and the sphere's normal where it meets it.
+                var ray = Vector3.Normalize(
+                    new((2 * (x + 0.5f) / width - 1) * tanX, (1 - 2 * (y + 0.5f) / height) * tanY, -1)
+                );
+                float along = Vector3.Dot(ray, sphereCenter);
+                float offCenter = (along * ray - sphereCenter).LengthSquared();
+                if (offCenter > 0.9f)
+                    continue;
+                var normal = Vector3.Normalize((along - MathF.Sqrt(1 - offCenter)) * ray - sphereCenter);
+                int pixel = 4 * (y * width + x);
+                double measured = white[pixel] - black[pixel];
+                double expected = exact.At(normal);
+                Math.Abs(measured - expected)
+                    .Should()
+                    .BeLessThanOrEqualTo(
+                        DiffuseTolerance * peak,
+                        "D at the normal {0}, {1:F1}° from the light, is {2}, against the exact {3} of a peak of {4}",
+                        normal,
+                        MathF.Acos(Vector3.Dot(normal, Vector3.Normalize(lightCenter))) * 180 / MathF.PI,
+                        measured,
+                        expected,
+                        peak
+                    );
+                tested++;
+            }
+
+            tested.Should().BeGreaterThan(1000, "the sphere spans about 110 px in radius");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
     [Fact]
     public void WithTheMapOnTheHemisphereLightsNothing()
     {
@@ -529,6 +671,66 @@ public sealed class EnvironmentLightingTests
                         x,
                         y
                     );
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void ALitPuffFollowsAChangeOfTheMapsLight()
+    {
+        VulkanRenderer renderer = Renderer(SmallMap);
+        try
+        {
+            var albedo = new Vector3(0.8f, 0.6f, 0.4f);
+            MeshId panel = DomePanel(renderer);
+            var look = new PuffLook(
+                Life: 2f,
+                StartRadius: 0.5f,
+                EndRadius: 0.5f,
+                TemperatureRatio: 0.5f,
+                Shading: PuffShading.Lit(albedo)
+            );
+            var center = new Vector3(0, 0, -6);
+            RenderSnapshot Scene(MaterialId dome, PuffLook puff)
+            {
+                RenderSnapshot snapshot = Dark();
+                AddDome(snapshot, panel, dome);
+                snapshot.PuffLooks.Add(puff);
+                snapshot.Puffs.Add(
+                    new()
+                    {
+                        Position = center,
+                        PreviousPosition = center,
+                        Age = 0f,
+                        Look = 0,
+                    }
+                );
+                return snapshot;
+            }
+
+            MaterialId bright = BrdfTesting.Glow(renderer, new(0.6f, 0.8f, 1));
+            MaterialId dim = BrdfTesting.Glow(renderer, new(0.15f, 0.2f, 0.25f));
+            Vector3 underBright = Shown(renderer, Scene(bright, look), "environment-puff-bright").Color(Center);
+            Vector3 underDim = Shown(renderer, Scene(dim, look), "environment-puff-dim").Color(Center);
+            Vector3 dimMean = renderer.ReadEnvironmentIrradiance(map: 0).MeanRadiance;
+            Vector3 glow = Shown(
+                    renderer,
+                    Scene(dim, look with { Shading = PuffShading.Glow(albedo * dimMean) }),
+                    "environment-puff-dim-glow"
+                )
+                .Color(Center);
+
+            BrdfTesting
+                .LargestChannelDifference(underBright, underDim)
+                .Should()
+                .BeGreaterThan(10f / 255, "a quarter of the dome's light dims the puff");
+            BrdfTesting
+                .LargestChannelDifference(underDim, glow)
+                .Should()
+                .BeLessThanOrEqualTo(Tolerance, "the puff scatters the dim map's mean radiance {0}", dimMean);
         }
         finally
         {

@@ -764,19 +764,19 @@ public sealed class ImpostorManagerTests
     // a capture goes stale when the light changes by 2 / 100 of a total of about 5 to 9.
 
     /// <summary>
-    /// A reading of a map whose irradiance holds <paramref name="band0"/> in every channel of its first coefficient and
-    /// <paramref name="band2"/> in its fifth, the first of band 2.
+    /// A reading of a map whose irradiance holds <paramref name="light"/> in every channel of the first texel of its last
+    /// level and <paramref name="other"/> in the fifth, the first of the second face.
     /// </summary>
-    private static EnvironmentDraw MapReading(float band0, Vector3 band2 = default) =>
-        new WithMap(Faces: new[] { FaceMask.None }, Irradiance: new IrradianceReading?[] { Reading(band0, band2) });
+    private static EnvironmentDraw MapReading(float light, Vector3 other = default) =>
+        new WithMap(Faces: new[] { FaceMask.None }, Irradiance: new IrradianceReading?[] { Reading(light, other) });
 
     /// <summary>A reading as <see cref="MapReading"/> describes it.</summary>
-    private static IrradianceReading Reading(float band0, Vector3 band2 = default)
+    private static IrradianceReading Reading(float light, Vector3 other = default)
     {
-        var coefficients = new Vector3[Irradiance.Coefficients];
-        coefficients[0] = new(band0);
-        coefficients[4] = band2;
-        return new(Frame: 0, Irradiance: new(coefficients));
+        var texels = new Vector3[Irradiance.Texels];
+        texels[0] = new(light);
+        texels[4] = other;
+        return new(Frame: 0, Irradiance: new(texels));
     }
 
     [Theory]
@@ -830,9 +830,9 @@ public sealed class ImpostorManagerTests
         CapturesUnder(MapReading(2f)).Should().Be(1, "the first sight of an impostor is captured");
         CapturesUnder(MapReading(2.05f)).Should().Be(0, "0.09 of 8.3 is below 2 / h");
         CapturesUnder(MapReading(2.4f)).Should().Be(1, "0.69 of 9 is above 2 / h");
-        CapturesUnder(MapReading(2.4f, band2: new(0.5f, 0, 0)))
+        CapturesUnder(MapReading(2.4f, other: new(0.5f, 0, 0)))
             .Should()
-            .Be(1, "every coefficient counts, and 0.5 of 9.5 is above 2 / h");
+            .Be(1, "every texel counts, and 0.5 of 9.5 is above 2 / h");
     }
 
     [Fact]

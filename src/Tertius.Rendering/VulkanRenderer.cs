@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Numerics;
 using System.Runtime.InteropServices;
 using Silk.NET.Core.Contexts;
 using Silk.NET.Maths;
@@ -1292,10 +1291,11 @@ public sealed unsafe class VulkanRenderer : IRenderer
         {
             EnvironmentImage.Radiance => environment.Radiance,
             EnvironmentImage.Specular => environment.Specular,
+            EnvironmentImage.Irradiance => environment.Irradiance,
         };
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)level, cube.MipLevels);
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)map, (uint)environment.Capacity);
-        int size = Math.Max(1, environment.Setting.FaceSize >> level);
+        int size = Math.Max(1, (int)cube.Extent.Width >> level);
         int count = size * size * 4;
         using var buffer = GpuBuffer.Create(
             device: device,
@@ -1320,26 +1320,22 @@ public sealed unsafe class VulkanRenderer : IRenderer
     }
 
     /// <summary>
-    /// The irradiance of map <paramref name="map"/> that the prefilter last wrote. A test hook: it waits for the device to
-    /// be idle and submits its own copy.
+    /// The last level of map <paramref name="map"/>'s irradiance cube that the prefilter last wrote. A test hook: it waits
+    /// for the device to be idle and submits its own copies.
     /// </summary>
     internal Irradiance ReadEnvironmentIrradiance(int map)
     {
-        EnvironmentMap environment =
-            environmentMap ?? throw new InvalidOperationException("The environment map is off.");
-        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)map, (uint)environment.Capacity);
-        GpuBuffer irradiance = environment.Irradiance;
-        using var buffer = GpuBuffer.Create(
-            device: device,
-            allocator: Allocator,
-            size: irradiance.Size,
-            usage: BufferUsageFlags.TransferDstBit,
-            memoryUsage: MemoryUsage.Readback,
-            name: "irradiance readback"
-        );
-        SubmitAndWait(commandBuffer => CopyBuffer(commandBuffer: commandBuffer, source: irradiance, buffer: buffer));
-        var coefficients = new ReadOnlySpan<Vector4>(buffer.Mapped, EnvironmentChain.MaxMaps * Irradiance.Coefficients);
-        return EnvironmentMap.IrradianceOf(coefficients.Slice(map * Irradiance.Coefficients, Irradiance.Coefficients));
+        var texels = new List<Half>(Irradiance.Halves);
+        for (int layer = 0; layer < CubeFaces.Count; layer++)
+            texels.AddRange(
+                ReadEnvironmentFace(
+                    map: map,
+                    face: (CubeFace)layer,
+                    level: IrradianceCube.Levels - 1,
+                    image: EnvironmentImage.Irradiance
+                )
+            );
+        return Irradiance.Of([.. texels]);
     }
 
     /// <summary>

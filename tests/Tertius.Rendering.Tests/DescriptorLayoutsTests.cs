@@ -11,7 +11,7 @@ public sealed class DescriptorLayoutsTests
         DescriptorLayouts
             .StorageBufferProblem(maxPerStageStorageBuffers: 4)
             .Should()
-            .Contain("9 storage buffers", "the frame set's vertex and fragment stages see nine storage buffers");
+            .Contain("8 storage buffers", "the frame set's vertex and fragment stages see eight storage buffers");
 
     [Fact]
     public void ADeviceWithAStorageBufferInAStageForEachOfTheFrameSetsCanBindIt() =>

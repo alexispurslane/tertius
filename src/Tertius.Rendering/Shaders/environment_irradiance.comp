@@ -1,76 +1,107 @@
 #version 460
 #extension GL_GOOGLE_include_directive : require
 #include "cube_faces.glsl"
-#include "spherical_harmonics.glsl"
 
-// The partial sums of the environment map's irradiance (EnvironmentPrefilterPass.cs, docs/plans/environment-map.md, "The
-// irradiance"): the projection of one block of level 0 of one map onto the nine Y_lm, in the map's own axes. A block is BlockRows rows
-// of one face, and workgroup b sums block b, so the blocks run on many GPU cores at once. Invocation j sums the block's
-// texels j, j + 64, ... in row and column order, and a tree in shared memory adds the 64 partial sums in a fixed order,
-// so one map always gives the same bits on one GPU. environment_irradiance_sum.comp adds the blocks.
+// Level 0 of one map's irradiance cube (EnvironmentPrefilterPass.cs, docs/plans/environment-map.md, "The irradiance"):
+// D(n) at the center of each texel, the mean of the radiance map's level of SourceFaceSize texels over the hemisphere of n,
+// each source texel weighted by its solid angle times max(n·ω, 0), in all four channels. IrradianceCube.Convolve is the C#
+// copy. The dispatch convolves map m: it reads cube m of the radiance map and writes layers 6m to 6m + 5 of the cube.
+//
+// Lanes invocations share a texel of the cube, so a workgroup holds 64 / Lanes texels that follow each other in layer, row
+// and column order. The workgroup walks the source in rounds of 64 texels: each invocation puts one source texel into
+// shared memory, its direction, its solid angle and its light, and lane j of each cube texel then sums the round's texels
+// j, j + Lanes, ... in order. The texel adds its lanes' sums in lane order, so one map always gives the same bits on one
+// GPU.
 
 const uint Invocations = 64u;
-const uint BlockRows = 8u;   // Irradiance.BlockRows
-const uint Sums = 27u;       // nine coefficients of three colors, Irradiance.PartialFloats
+const uint Lanes = 4u;              // IrradianceCube.Lanes
+const uint SourceFaceSize = 32u;    // IrradianceCube.SourceFaceSize
 
 layout(local_size_x = 64) in;
 
 layout(set = 0, binding = 0) uniform textureCubeArray radianceMap;
 layout(set = 0, binding = 1) uniform sampler environmentSampler;
-// Sums floats per block, coefficient-major: block b holds red, green and blue of E_00 first.
-layout(set = 0, binding = 3, std430) writeonly buffer IrradiancePartialsBlock { float partialSums[]; };
+// Level 0 of the irradiance cubes, six layers per map, in binding 0 of the cube's levels set
+// (DescriptorLayouts.EnvironmentLevelsSet). The downsample writes the other levels from it.
+layout(set = 1, binding = 0, rgba16f) uniform writeonly image2DArray irradianceLevel0;
 
 // EnvironmentPrefilterPushConstants in GpuTypes.cs, of which this shader reads only the map.
 layout(push_constant, std430) uniform PrefilterPush
 {
-    layout(offset = 76) uint map;  // m: the dispatch reads cube m
+    layout(offset = 76) uint map;  // m: the dispatch reads cube m and writes layers 6m to 6m + 5
 } prefilter;
 
-// 27 floats per invocation, 6,912 B, under the specification's least limit of 16,384 B.
-shared float partials[Sums * Invocations];
+// One round of the source: xyz the unit direction ω of a texel's center, w its solid angle, and its light.
+shared vec4 sourceDirections[Invocations];
+shared vec4 sourceLight[Invocations];
+// Each invocation's weighted sum of its lane's source texels, and the sum of those weights.
+shared vec4 laneSums[Invocations];
+shared float laneWeights[Invocations];
 
 void main()
 {
-    uint j = gl_LocalInvocationIndex;
-    uint size = uint(textureSize(samplerCubeArray(radianceMap, environmentSampler), 0).x);
-    uint blockTexels = BlockRows * size;
-    uint first = gl_WorkGroupID.x * blockTexels;
-    float sums[Sums];
-    for (uint c = 0u; c < Sums; c++)
-        sums[c] = 0.0;
-    for (uint t = first + j; t < first + blockTexels; t += Invocations)
-    {
-        uint layer = t / (size * size);
-        uint inLayer = t - layer * size * size;
-        uvec2 texel = uvec2(inLayer % size, inLayer / size);
-        vec3 ray = faceRay(layer, (vec2(texel) + 0.5) / float(size));
-        // The exact ray through a texel center reads that texel alone.
-        vec3 radiance = textureLod(
-            samplerCubeArray(radianceMap, environmentSampler), vec4(ray, float(prefilter.map)), 0.0).rgb;
-        radiance *= texelSolidAngle(texel, size);
-        float y[9];
-        shBasis(normalize(ray), y);
-        for (uint i = 0u; i < 9u; i++)
-        {
-            sums[3u * i] += radiance.r * y[i];
-            sums[3u * i + 1u] += radiance.g * y[i];
-            sums[3u * i + 2u] += radiance.b * y[i];
-        }
-    }
-    for (uint c = 0u; c < Sums; c++)
-        partials[c * Invocations + j] = sums[c];
+    uint index = gl_LocalInvocationIndex;
+    uint lane = index % Lanes;
+    uint size = uint(imageSize(irradianceLevel0).x);
+    uint texel = gl_WorkGroupID.x * (Invocations / Lanes) + index / Lanes;
+    uint layer = texel / (size * size);
+    uint inLayer = texel - layer * size * size;
+    uvec2 xy = uvec2(inLayer % size, inLayer / size);
+    vec3 n = normalize(faceRay(layer, (vec2(xy) + 0.5) / float(size)));
 
-    for (uint stride = Invocations / 2u; stride > 0u; stride /= 2u)
+    // The source: the level of SourceFaceSize texels, or level 0 of a smaller map. Both are powers of two, so the level
+    // is the difference of their logarithms, and each face holds a multiple of 64 texels.
+    uint mapSize = uint(textureSize(samplerCubeArray(radianceMap, environmentSampler), 0).x);
+    uint sourceSize = min(mapSize, SourceFaceSize);
+    float sourceLevel = float(findMSB(mapSize) - findMSB(sourceSize));
+    uint faceTexels = sourceSize * sourceSize;
+
+    vec4 sum = vec4(0.0);
+    float weight = 0.0;
+    for (uint first = 0u; first < 6u * faceTexels; first += Invocations)
     {
+        uint source = first + index;
+        uint sourceLayer = source / faceTexels;
+        uint inSourceLayer = source - sourceLayer * faceTexels;
+        uvec2 sourceXy = uvec2(inSourceLayer % sourceSize, inSourceLayer / sourceSize);
+        vec3 ray = faceRay(sourceLayer, (vec2(sourceXy) + 0.5) / float(sourceSize));
+        sourceDirections[index] = vec4(normalize(ray), texelSolidAngle(sourceXy, sourceSize));
+        // The exact ray through a texel center at an integer level reads that texel alone. The layer coordinate float(m)
+        // is an integer, which Vulkan rounds to itself.
+        sourceLight[index] = textureLod(
+            samplerCubeArray(radianceMap, environmentSampler), vec4(ray, float(prefilter.map)), sourceLevel);
         memoryBarrierShared();
         barrier();
-        if (j < stride)
-            for (uint c = 0u; c < Sums; c++)
-                partials[c * Invocations + j] += partials[c * Invocations + j + stride];
+        for (uint i = lane; i < Invocations; i += Lanes)
+        {
+            vec4 direction = sourceDirections[i];
+            float cosine = dot(n, direction.xyz);
+            if (cosine > 0.0)
+            {
+                float w = cosine * direction.w;
+                sum += sourceLight[i] * w;
+                weight += w;
+            }
+        }
+        // The next round overwrites the table only after every lane has read it.
+        memoryBarrierShared();
+        barrier();
     }
+    laneSums[index] = sum;
+    laneWeights[index] = weight;
     memoryBarrierShared();
     barrier();
 
-    if (j < Sums)
-        partialSums[gl_WorkGroupID.x * Sums + j] = partials[j * Invocations];
+    if (lane == 0u)
+    {
+        vec4 total = vec4(0.0);
+        float totalWeight = 0.0;
+        for (uint j = 0u; j < Lanes; j++)
+        {
+            total += laneSums[index + j];
+            totalWeight += laneWeights[index + j];
+        }
+        // The source texel whose center lies nearest n has n·ω > 0, so the total weight is positive.
+        imageStore(irradianceLevel0, ivec3(xy, 6u * prefilter.map + layer), total / totalWeight);
+    }
 }
