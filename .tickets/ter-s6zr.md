@@ -1,8 +1,8 @@
 ---
 id: ter-s6zr
 status: in_progress
-deps: [ter-0pj8, ter-55xu]
-links: [ter-bytc]
+deps: [ter-0pj8, ter-55xu, ter-nw4a]
+links: [ter-bytc, ter-b1j3]
 created: 2026-11-02T12:51:56Z
 type: feature
 priority: 2
@@ -32,3 +32,7 @@ Ticket 3 of ter-jw7g's design (docs/plans/environment-map-distances.md, 'Ticket 
 **2026-11-02T17:16:48Z**
 
 2026-11-02: the probe launched as workflow run efa3cac1-dd4f-40cd-bc78-443f263f4140, version 869b0b07-3413-4b06-8707-a88a91bf6e91, on branch ter-s6zr-corrected-read at ec384e78 (brief /tmp/briefs/s6zr-probe.txt). Candidates: S (the solid rule, control), K (SSR's slab, today's read after a pass behind), L (the slab, the read of the last place seen in front), R (a limit on the near read's sharpness), and a fix of the skin line if none removes it.
+
+**2026-11-02T18:37:19Z**
+
+2026-11-02, the user's choice after the probe (run efa3cac1, head f2c6511ed, sheets in captures/s6zr/sheets/probe): hold the corrected read for one cone model. No one-ray candidate removes the ghosts, the door's overshoot (S 110, R0 92, M 93, reference 65.5) or the pillar's foot; only many rays (M, 32 rays, +195 ms) remove them. All three come from one ray per lobe, the same cause as SSR's artifacts 3 and 5. Next: if ter-nw4a's cone coverage (the share of the cone's footprint on each surface) works for SSR, a design gives the map's search the same model, so that one lobe model serves both readers; then this branch continues with that design and Q2 (the near-entry hit, probes/q2.patch), and merges. If cone coverage fails, the user chooses again between merging S + Q2 and keeping today's read. Rejected for now: merge S + Q2 at once (+1.1 to +2.0 ms per frame, with the ghosts and the foot). Settled by the orchestrator inside the merge design: no R0. The probe's side finding, the dark lamp glow in the faces, is ticket ter-b1j3. ter-s6zr now depends on ter-nw4a; ter-g6af and ter-pn1w wait.
