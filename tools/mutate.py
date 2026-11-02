@@ -16,7 +16,8 @@ The list is a JSON array. Each mutant has these fields:
     note         optional: the change in a few words, for the table
 
 Before the first change, the script checks the whole list and refuses to start on any error: every file exists, git
-tracks it and it has no uncommitted change, the original starts on its line, and the ids are unique. Then it builds and
+tracks it, it has no uncommitted change and it belongs to a project (a folder above it has a .csproj), the original
+starts on its line, and the ids are unique. Then it builds and
 runs each distinct pair of project and classes once without a mutant. A baseline that fails or runs zero tests stops the
 run, because a failing baseline makes every mutant look killed.
 
@@ -25,7 +26,8 @@ wrote a new assembly of the mutated file's project into the test project's outpu
 embedded SPIR-V), run only its classes in Checked with --no-build under a timeout of 120 s, then restore the exact
 original bytes and touch the file. The restore also runs on a failure, an exception, Ctrl-C, SIGTERM and SIGHUP. After
 the last mutant, the script builds each test project once more, so that its output matches the source again, and
-checks that git shows every mutated file unchanged.
+checks that git shows every mutated file unchanged. A file of analyzers/ works the same way, with its test project
+tests/Tertius.Unions.Tests or tests/Tertius.Style.Tests.
 
 Results: killed (a test failed, or the test host crashed), timeout (counts as killed, listed apart), survived,
 build-failed (the mutant does not compile, so it is not a valid mutant) and no-tests (the filter ran zero tests: an
@@ -47,23 +49,12 @@ from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import mutation_table  # noqa: E402
+from processes import Stopped, run_logged, stop_on_signals  # noqa: E402
 
 CONFIGURATION = 'Checked'
 TEST_TIMEOUT = 120  # seconds; CLAUDE.md, Testing
 REQUIRED = {'id': str, 'file': str, 'line': int, 'original': str, 'replacement': str, 'project': str}
 OPTIONAL = {'note': str}
-
-
-class Stopped(BaseException):
-    """A SIGTERM or SIGHUP arrived. A BaseException, so that no `except Exception` swallows it on its way out."""
-
-
-def stop_on_signals():
-    """Turns SIGTERM and SIGHUP into Stopped, so that every `finally` and context manager restores its file."""
-    def handler(signum, frame):
-        raise Stopped(signum)
-    signal.signal(signal.SIGTERM, handler)
-    signal.signal(signal.SIGHUP, handler)
 
 
 # Reading and checking the list.
@@ -165,6 +156,9 @@ def validate(mutants, root, tracked, dirty):
         elif rel in dirty:
             errors.append(f'{m["id"]}: {rel} has an uncommitted change; commit it or restore it first '
                           '(a run that was killed with SIGKILL leaves its mutant in the file)')
+        elif project_of(root, rel) is None:
+            errors.append(f'{m["id"]}: {rel} belongs to no project, because no folder above it has a .csproj, so no '
+                          'test build holds its mutant')
         else:
             found = len(_starts_on_line(path.read_bytes(), m['line'], m['original']))
             if found == 0:
@@ -204,22 +198,30 @@ def applied(path, line, original, replacement):
         path.write_bytes(mutated)
         yield
     finally:
-        # A second Ctrl-C during the restore must not leave a half-written file.
-        with _signals_blocked():
-            path.write_bytes(data)
-            os.utime(path)
+        _restore(path, data)
+
+
+def _restore(path, data):
+    """Writes data to path and touches it, whatever signal arrives. A signal blocked during the write runs its handler
+    when the block ends, and a signal can also arrive before the block starts. Either way the restore runs again, and
+    the first signal goes on after the file holds data."""
+    caught = None
+    while True:
+        try:
+            with _signals_blocked():
+                path.write_bytes(data)
+                os.utime(path)
+            break
+        except (KeyboardInterrupt, Stopped) as e:
+            caught = caught or e
+    if caught:
+        raise caught
 
 
 # Classifying a test run.
 
 _SUMMARY = re.compile(r'^  (total|failed): (\d+)$', re.M)
 _FAILED = re.compile(r'^failed (.*) \([^()]*\)\s*$', re.M)
-
-
-def _short_test_name(name):
-    """Class.Method, with the arguments of a theory case, without the namespace."""
-    head, paren, rest = name.partition('(')
-    return '.'.join(head.split('.')[-2:]) + paren + rest
 
 
 def classify(code, timed_out, output):
@@ -233,7 +235,7 @@ def classify(code, timed_out, output):
     if code == 8 or counts.get('total') == 0:
         return 'no-tests', []
     if counts.get('failed'):
-        names = [_short_test_name(n) for n in _FAILED.findall(output)]
+        names = [mutation_table.short_test_name(n) for n in _FAILED.findall(output)]
         return 'killed', names[:mutation_table.KILLERS] or [f'(exit code {code})']
     if 'total' not in counts:
         # A crash before the summary is a kill, for example a validation layer that aborts the host. Exit code 0
@@ -255,26 +257,6 @@ def filter_arguments(classes):
 
 # Running the commands.
 
-def run_logged(command, root, log_path, timeout=None):
-    """Runs command in its own process group with its output in log_path. Returns the exit code, whether the timeout
-    stopped it, its output and its seconds. On a timeout, an exception or a signal, it kills the whole group, so that
-    no test host keeps running with the mutant."""
-    start = time.monotonic()
-    with open(log_path, 'w') as log:
-        process = subprocess.Popen(command, cwd=root, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
-        timed_out = False
-        try:
-            process.wait(timeout=timeout)
-        except subprocess.TimeoutExpired:
-            timed_out = True
-        finally:
-            if process.returncode is None:
-                with contextlib.suppress(ProcessLookupError):
-                    os.killpg(process.pid, signal.SIGKILL)
-                process.wait()
-    return process.returncode, timed_out, Path(log_path).read_text(errors='replace'), time.monotonic() - start
-
-
 def _build(root, project, log_path):
     csproj = Path(project) / f'{Path(project).name}.csproj'
     return run_logged(['dotnet', 'build', str(csproj), '-c', CONFIGURATION], root, log_path)[0] == 0
@@ -286,14 +268,24 @@ def _test(root, project, classes, log_path):
     return classify(code, timed_out, output)
 
 
-def _assembly(root, file, project):
-    """The paths of the assembly that holds file, in the Checked output of the test project: the assembly of the
-    nearest folder above file with a .csproj."""
-    folder = (Path(root) / file).parent
-    while not list(folder.glob('*.csproj')):
+def project_of(root, file):
+    """The name of the project whose assembly holds file (relative to root): the .csproj of the nearest folder above
+    file, up to root. None if no folder up to root has one."""
+    root = Path(root).resolve()
+    folder = (root / file).resolve().parent
+    while folder.is_relative_to(root):
+        projects = sorted(folder.glob('*.csproj'))
+        if projects:
+            return projects[0].stem
+        if folder == root:
+            break
         folder = folder.parent
-    name = list(folder.glob('*.csproj'))[0].stem
-    return list((Path(root) / project / 'bin' / CONFIGURATION).glob(f'*/{name}.dll'))
+    return None
+
+
+def _assembly(root, file, project):
+    """The paths of the assembly of file's project in the Checked output of the test project."""
+    return list((Path(root) / project / 'bin' / CONFIGURATION).glob(f'*/{project_of(root, file)}.dll'))
 
 
 def _git_lines(root, *args):

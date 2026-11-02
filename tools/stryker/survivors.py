@@ -46,16 +46,24 @@ def in_spans(spans, path, source, mutant):
     return _inside(spans, path, *_span_of(_offsets(source), mutant))
 
 
-def _short_test_name(name):
-    head, paren, rest = name.partition('(')
-    return '.'.join(head.split('.')[-2:]) + paren + rest
+def place_id(module, rel, kind, line):
+    """The id of a row for a line rather than a mutant: <module>-<path in the project folder>-<kind><line>, for example
+    Core-Unions/Result.cs-L88. The path keeps the ids of two files apart."""
+    return f'{module}-{rel.split("/", 2)[-1]}-{kind}{line}'
+
+
+def _filtered(mutant):
+    """True for a mutant that a Stryker filter removed before any test ran, such as a Block removal mutant over a block
+    with other mutants ('Removed by block already covered filter'). An ignore comment gives other reasons."""
+    return mutant['status'] == 'Ignored' and mutant.get('statusReason', '').startswith('Removed by ')
 
 
 def rows(report, spans, module, root):
     """The rows of the shared table for the mutants of report inside spans (every mutant if spans is None). The ids are
-    <module>-<Stryker's id>, and <module>-L<line> for a no-mutant line. root is the repository root, which the report's
-    absolute paths start with. Ignored mutants give no row: a Stryker ignore comment holds their triage."""
-    tests = {t['id']: _short_test_name(t['name']) for f in report.get('testFiles', {}).values() for t in f['tests']}
+    <module>-<Stryker's id>, and place_id with kind L for a no-mutant line. root is the repository root, which the
+    report's absolute paths start with. Ignored mutants give no row: an ignore comment holds the triage of some, and a
+    Stryker filter removed the others before any test ran (unmutated_lines lists the lines that this leaves bare)."""
+    tests = {t['id']: mutation_table.short_test_name(t['name']) for f in report.get('testFiles', {}).values() for t in f['tests']}
     out, unbuilt = [], []
     for path, f in sorted(report['files'].items()):
         rel = os.path.relpath(path, root)
@@ -81,7 +89,7 @@ def rows(report, spans, module, root):
                         'result': RESULTS[m['status']], 'killed_by': killers[:mutation_table.KILLERS],
                         'seconds': None, 'mutator': m['mutatorName'], 'covered_by': len(m.get('coveredBy') or [])})
         for line in sorted({n for r, n in unbuilt if r == rel} - compiled_lines):
-            out.append({'id': f'{module}-L{line}', 'file': rel, 'line': line,
+            out.append({'id': place_id(module, rel, 'L', line), 'file': rel, 'line': line,
                         'change': 'every Stryker mutant failed to compile', 'result': 'no-mutant', 'killed_by': [],
                         'seconds': None})
     return out
@@ -97,16 +105,18 @@ def _has_behavior(text):
 
 
 def unmutated_lines(report, spans, root):
-    """The (file, line) pairs of the lines inside spans that can hold behavior (_has_behavior) and on which Stryker made
-    no mutant of any status. Stryker 5.0.0 has no mutator for some changes, such as an enum value
-    in an assignment or the result of a switch arm, so the agent judges each line for the tools/mutate.py list. A line
-    with an ignored mutant is not listed, because its ignore comment holds its triage."""
+    """The (file, line) pairs of the lines inside spans that can hold behavior (_has_behavior) and on which no Stryker
+    mutant starts, apart from mutants that a Stryker filter removed. Stryker 5.0.0 has no mutator for some changes, such
+    as an enum value in an assignment or the result of a switch arm, so the agent judges each line for the
+    tools/mutate.py list. A mutant counts only for the line where it starts: a Block removal mutant that ran over a
+    whole method shows only that the method does something. A line whose mutant an ignore comment disabled is not
+    listed, because the comment holds its triage. A line whose mutants failed to compile is a no-mutant row instead."""
     out = []
     for path, f in sorted(report['files'].items()):
         rel = os.path.relpath(path, root)
         starts = _offsets(f['source'])
-        mutated = {n for m in f['mutants'] if in_spans(spans, path, f['source'], m)
-                   for n in range(m['location']['start']['line'], m['location']['end']['line'] + 1)}
+        mutated = {m['location']['start']['line'] for m in f['mutants']
+                   if not _filtered(m) and in_spans(spans, path, f['source'], m)}
         for n, text in enumerate(f['source'].splitlines(), 1):
             if n not in mutated and _has_behavior(text) and _inside(spans, path, starts[n - 1], starts[n]):
                 out.append((rel, n))

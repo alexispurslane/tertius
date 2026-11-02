@@ -2,7 +2,7 @@
 # By default it mutates only the lines that this branch changed. With --files it mutates whole files instead.
 #   python3 tools/stryker/config.py --project Core --tests Core Simulation Physics --out /tmp/stryker/Core
 #   python3 tools/stryker/config.py --project Core --tests Core --files Frames/FrameTree.cs --out /tmp/stryker/FrameTree
-# Then run tools/stryker/run.sh with the same project and folder. tools/stryker/changed.py does both for every module
+# Then run tools/stryker/run.py with the same project and folder. tools/stryker/changed.py does both for every module
 # that a branch changed: that is the official run (tools/README.md, "Mutation testing").
 import argparse, json, os, subprocess, sys
 

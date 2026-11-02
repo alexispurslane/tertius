@@ -7,8 +7,8 @@ def repo_root():
     return subprocess.check_output(['git', 'rev-parse', '--show-toplevel'], text=True).strip()
 
 
-def parse_diff(diff):
-    """Reads a `git diff -U0` text. Returns two maps for the .cs files that the diff keeps:
+def parse_diff(diff, suffixes=('.cs',)):
+    """Reads a `git diff -U0` text. Returns two maps for the files that end in one of suffixes:
     - changed: each file (relative to the root) to the set of its added or changed line numbers (1-based);
     - removed: each file to the (line, count) of each hunk that removes more lines than it adds, where line is the
       first new line of the hunk, or the line after the deletion for a hunk that only deletes.
@@ -17,7 +17,7 @@ def parse_diff(diff):
     current = None
     for line in diff.splitlines():
         if line.startswith('+++ '):
-            current = None if line.endswith('/dev/null') or not line.endswith('.cs') else line[6:]
+            current = None if line.endswith('/dev/null') or not line.endswith(suffixes) else line[6:]
         elif line.startswith('@@') and current:
             m = re.match(r'@@ -\d+(?:,(\d+))? \+(\d+)(?:,(\d+))? @@', line)
             old, start, count = int(m.group(1) or 1), int(m.group(2)), int(m.group(3) or 1)
@@ -40,9 +40,9 @@ def changed_lines(root, base, pathspecs, head='HEAD'):
     return parse_diff(_diff(root, base, pathspecs, head))[0]
 
 
-def changed_and_removed(root, base, pathspecs, head='HEAD'):
-    """The two maps of parse_diff for the branch from `base` to `head`."""
-    return parse_diff(_diff(root, base, pathspecs, head))
+def changed_and_removed(root, base, pathspecs, head='HEAD', suffixes=('.cs',)):
+    """The two maps of parse_diff for the files with suffixes on the branch from `base` to `head`."""
+    return parse_diff(_diff(root, base, pathspecs, head), suffixes)
 
 
 def runs(numbers):

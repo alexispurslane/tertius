@@ -51,3 +51,25 @@ Stryker against ter-9xl7's hand table (M1 to M10, all killed by hand): Stryker m
 Replay of ter-rjts (71e6428b's table) with tools/mutate on this branch, whose src and tests equal the base: 15 mutants: 10 C# and GLSL mutants killed as in the table (C01, C03, C06, C08, S01, S02, S09, S10, S25, S28) and 5 survivors as in the table (C09, C10, S07, S27, S33). The GLSL kills S01, S02, S09, S10, S25 and S28 show that a shader mutant reaches the test run. C10 first gave build-failed, because the list's replacement did not compile; with `_ = range;` it survived as in the table. Mutants took 5 to 52 s; the three runs took 763 s with 7 baselines.
 
 Also found: a finished Stryker run leaves its mutated module assembly in the test projects' bin (Tertius.Core.dll fbacac against the build's 578dba). changed.py now rebuilds the test projects after each module's run; after cal-7, every copy matched the build again.
+
+**2026-11-02T07:53:37Z**
+
+Fix stage of the review (2026-11-02). Each finding and its resolution:
+
+1. survivors.unmutated_lines counted an Ignored mutant that a Stryker filter removed, over every line it spans. Now a mutant counts only for its first line, and a mutant whose reason starts with "Removed by " counts for no line. A mutant that an ignore comment disabled still counts. On ter-9xl7's Result.cs, the list now has 12 lines, with 64 and 74.
+2. Analyzer lines had no route. CLAUDE.md and tools/README.md send them to tools/mutate.py, with tests/Tertius.Unions.Tests or tests/Tertius.Style.Tests. tools/mutate killed A01 (analyzers/Tertius.Style/InheritanceDepth.cs:31, `<=` to `<`) in 23 s (/tmp/hxca/analyzer-1).
+3. The lock and the process settings now live in tools/stryker/run.py, the only script that starts Stryker. It takes the lock, starts Stryker at nice 20 with DOTNET_PROCESSOR_COUNT from the configuration's concurrency, and builds the test projects again. run_module refuses to start without the lock of this process. A lock folder without an owner file for 60 s stops the run with the rm command. run.sh is gone, and the README recipe is one command.
+4. The hand list is now the complement of MODULES: every changed C#, shader stage or shader include file under src/ and analyzers/ outside the C# of Core, Simulation and Physics, with its removed places. A dry run on 7d71ce8c6 lists its GLSL lines.
+5. applied() retries the restore when a signal arrives as the restore starts, and raises the first signal after the file holds its bytes.
+6. A timeout now counts as a kill only if the 1-minute load stayed at or below 17.5 per core (cal-4 repeated cal-7's timeouts at 173.4 on 10 cores). The share stays at 25%, because cal-7's quiet run had 3 real hangs of 20 (15%), and a lower share would reject that valid run.
+7. No-mutant and removed rows have the path in the id: Core-Unions/Result.cs-L88.
+8. mutate.project_of stops at the repository root, and validate() reports a file that belongs to no project.
+9. tools/processes.py holds run_logged, Stopped and stop_on_signals, and mutation_table.short_test_name formats the killed-by names.
+10. The triage has three answers: a test, an equivalent reason, or a judgment call (the test-hardening skill).
+11. A build of the worktree during an official run: the docs state the rule, and run.py checks it. Correction of the earlier note: Stryker.NET 5.0.0 does not leave its mutated assembly. It keeps the plain copy as Tertius.Core.dll.stryker-unchanged and copies it back about 1 s before its Time Elapsed line. So run.py checks each copy for Stryker's helper class MutantControl in every 15-s sample between the "Injected the mutated assembly file into" line and the Time Elapsed line, and a plain copy in two samples in a row makes the run not valid. Probes with Unions.Tests only and 2-s samples: a quiet run had 6 samples in that time with no plain copy; a run with `dotnet build tests/Tertius.Unions.Tests -c Checked` at the injection had 6 samples with the plain copy and printed NOT VALID.
+
+Gaps of the review:
+- A real SIGINT during the dotnet test step of A01 (Python with the default SIGINT handler) killed the test process group, restored the file, rebuilt the project and exited with 1 (/tmp/hxca/analyzer-int).
+- The thread bound is now saved: run.py writes processes.log, and the evidence line gives the CPU of all test hosts of one sample together. Stryker starts one host per test project at once but runs one at a time.
+- The final code ran end to end. cal-9 (official, `changed.py 'fde41c1a2^1' /tmp/hxca/cal-9 --head fde41c1a2`): valid, 2,155 s wall, coverage capture 2,056 s (95%), 9 compile tries of one schemata build, 1 initial test run of 4,593 tests in 24 s, 0 Dubious tests, 3 mutants with a mean of 4.3 tests, 1-minute load mean 5.4 and max 12.5, test hosts at nice 20 and together at most 276% and on mean 114% of one core. The table equals cal-6: 3 killed, 3 no-mutant. The lock was gone after the run.
+- cal-8 first stopped in Stryker's initial test run, because DeterminismTests.TheRunOnEightWorkersReallyRunsGameplayOnSeveralThreads failed (it passed in cal-6, cal-7 and the next try). Filed ter-hn3d. The lock was released after that failure.

@@ -74,7 +74,9 @@ If either configuration covers a line, the line counts as covered. Debug covers 
 The user decided on 2026-11-01 (tickets ter-u63a and ter-hxca) how a ticket's hardening tests its tests with mutants. A mutant is a small, deliberate change to the code, which a good test fails on. The mutation step of a ticket makes one table of mutants with one result each. Two tools make its rows, and both print the same table:
 
 - `tools/stryker/changed.py`, the official Stryker run, mutates the C# lines that the branch changed in Core, Simulation and Physics. Their tests run on the CPU only.
-- `tools/mutate.py` runs a list of mutants that the agent writes. The list holds every changed line of Rendering (C# and GLSL), Host and Demo, whose tests run on the GPU. It also holds the lines that the Stryker run cannot mutate: its no-mutant rows, its removed rows, and the lines that it lists without any Stryker mutant.
+- `tools/mutate.py` runs a list of mutants that the agent writes. The list holds every other changed code line: Rendering (C# and GLSL), Host and Demo, whose tests run on the GPU, and the analyzers in `analyzers/`. It also holds the lines that the Stryker run cannot mutate: its no-mutant rows, its removed rows, and the lines that it lists without any Stryker mutant.
+
+`changed.py` prints the changed code outside its run, so that no changed line falls between the two tools. For an analyzer mutant, the test project is `tests/Tertius.Unions.Tests` for `analyzers/Tertius.Unions` and `tests/Tertius.Style.Tests` for `analyzers/Tertius.Style`.
 
 ### The shared table
 
@@ -103,10 +105,13 @@ The killed-by column names at most three failed tests. The last column gives the
 
 ### The triage rule
 
-Give each survived or no-coverage mutant one of two answers, as the `test-hardening` skill says:
+Give each survived or no-coverage mutant one of three answers, as the `test-hardening` skill says:
 
 1. Write a test that kills it. The test must fail on the mutant first. With `tools/mutate.py`, run the mutant again with `--only <id>` and see `killed`. With Stryker, run the official command again.
 2. Write a one-sentence reason why the mutant is equivalent: no test can tell it from the original code. For a Stryker mutant, put the reason in a Stryker ignore comment above the line, for example `// Stryker disable once Equality: the guard and its negation give the same value at the bound`. For a listed mutant, put the reason in the ticket note.
+3. Write a judgment call: a one-sentence reason why the behavior is not worth a test, or why no test can reach it. An example is ter-rjts's C09, a range check that no device reaches. Put the reason where an equivalent reason goes. A judgment call is not a claim that the mutant is equivalent, so say that it is a judgment call.
+
+Never leave a survivor without one of the three answers.
 
 ### Listed mutants: tools/mutate.py
 
@@ -135,7 +140,7 @@ nix develop --command python3 -I tools/mutate.py /tmp/<ticket>-mutants.json /tmp
 
 The script works in this order:
 
-1. It reads the whole list and refuses to start on any error. Every file must exist, git must track it, and the file must have no uncommitted change. The original text must start on its line, and the ids must be unique. The exit code is 2.
+1. It reads the whole list and refuses to start on any error. Every file must exist, git must track it, and the file must have no uncommitted change. The file must belong to a project: a folder above it must have a `.csproj`. The original text must start on its line, and the ids must be unique. The exit code is 2.
 2. It builds each distinct pair of test project and classes once, and runs it without a mutant. If a baseline fails or runs zero tests, the run stops before any change, because a failing baseline makes every mutant look killed.
 3. For each mutant, it applies the mutant and builds only its test project in Checked, with a plain incremental build. It makes sure that the build wrote a new assembly of the mutated file's project into the test project's output. Then it runs only the mutant's classes in Checked with `--no-build`, under a timeout of 120 s. At last it restores the exact original bytes and touches the file, so that the next build compiles it again. The restore also runs on a failure, an exception, Ctrl-C, SIGTERM and SIGHUP.
 4. After the last mutant, it builds each test project once more, so that the output holds no mutant. It makes sure that git shows every mutated file unchanged, and it prints the table.
@@ -159,7 +164,9 @@ Run it in the dev shell on the branch, with the base branch and a folder for the
 nix develop --command python3 -I tools/stryker/changed.py main /tmp/<ticket>-stryker
 ```
 
-For each of Core, Simulation and Physics with changed lines, the script writes `<out>/<module>/stryker-config.json` with `tools/stryker/config.py`. Then it runs `tools/stryker/run.sh` on it, one module after another. A module's test projects are its own and every other test project whose references reach it, also through `tests/Tertius.Testing`. The script never uses `tests/Tertius.Rendering.Tests` or `tests/Tertius.Host.Tests`, because their GPU tests are slow and depend on the load. The script lists the changed lines of Rendering, Host and Demo for the `tools/mutate.py` list.
+For each of Core, Simulation and Physics with changed lines, the script writes `<out>/<module>/stryker-config.json` with `tools/stryker/config.py`. Then it runs Stryker on it with `tools/stryker/run.py`, one module after another. A module's test projects are its own and every other test project whose references reach it, also through `tests/Tertius.Testing`. The script never uses `tests/Tertius.Rendering.Tests` or `tests/Tertius.Host.Tests`, because their GPU tests are slow and depend on the load.
+
+Before the runs, the script lists every other changed code file for the `tools/mutate.py` list, with its changed lines and the places of its removed lines. A code file is C#, a shader stage (`.vert`, `.frag`, `.comp`) or a shader include (`.glsl`, `.hlsl`) under `src/` or `analyzers/`. So the list holds Rendering, Host, Demo, the analyzers, and any new module that the official run does not name.
 
 The official settings are in `tools/stryker/config.py`:
 
@@ -173,17 +180,35 @@ The official settings are in `tools/stryker/config.py`:
 | `timeout-ratio`, `additional-timeout` | 2, 300000 ms | A mutant's limit is 2 x its tests' initial time + 300 s. The per-test coverage capture uses 1.5 x a test's initial time + 300 s. |
 | `break-on-initial-test-failure` | true | A test that fails without a mutant stops the run. |
 | timeout share | at most 25% | Above it, the run is not valid. Quiet runs gave 0 of 3 timeouts (Core) and 3 of 20 (Simulation). The same 3 Simulation mutants also timed out at a 1-minute load of 173, so they make a test hang, and a hang is a kill. ter-u63a's trial, which the load broke, gave 65 of 76. |
+| timeout load | at most 17.5 per core | A timeout counts as a kill only at a 1-minute load of at most 17.5 times the cores. The 3 Simulation hangs repeated at a maximum load of 30.5 and of 173.4 on this 10-core machine. Above that, the calibration has no evidence that a timeout is a hang. |
 
-The run is not valid in two cases. The script then prints NOT VALID with the fix, and its exit code is 1:
+The run is not valid in four cases. The script then prints NOT VALID with the fix, and its exit code is 1:
 
 - More than 25% of the mutants that ran ended in a timeout. Run it again on a quieter machine. If `tools/stryker/compare.py` then shows the same timeouts, the mutants make a test hang, and the share needs a new calibration.
+- A mutant ended in a timeout, and the 1-minute load of the module's run passed 17.5 times the cores. Run it again on a quieter machine.
 - Stryker marked a test Dubious. Its coverage capture failed, so every mutant also runs that test, and the run is not scoped. Run it again on a quieter machine.
+- A build replaced Stryker's mutated assembly in a test project's output during the run. The mutants after that build ran the plain code, and they can show Survived. Run it again, and build or test no Checked test project of this worktree while it runs.
 
-Under the table, the script lists the changed lines on which Stryker made no mutant at all, because Stryker 5.0.0 has no mutator for them. Examples are an enum value in an assignment, such as `holds = Holds.Value;`, and the result of a switch arm. The list keeps only the lines that can hold behavior: lines with an assignment, an arrow, a `return`, a `throw`, a `yield` or a call statement. Judge each line, and put a mutant in the `tools/mutate.py` list for each line whose behavior a test must check. On ter-9xl7's `Result.cs`, the list named 10 lines, among them the 4 lines of the hand mutants that Stryker missed.
+Do not build or test the Checked test projects of the run in the same worktree while an official run goes on. This includes `dotnet test -c Checked`, `tools/mutate.py` with one of those test projects (also `tests/Tertius.Unions.Tests` for an analyzer line), `tools/test-all.sh` and the pre-commit hook. Stryker copies its mutated module assembly into the output of the test projects before its coverage capture, and such a build replaces it. Stryker restores the plain copy about 1 s before it ends. `run.py` reads each copy in every sample between the two: a copy without Stryker's helper class `MutantControl` in two samples in a row makes the run not valid. A run in another worktree or on another machine does not interfere.
 
-After each module's run, the script builds its test projects again in Checked. Stryker leaves its mutated assembly of the module in their output, and a later `dotnet test --no-build` runs it. Under the table, the script prints the evidence of each module's log. It gives the compile tries of the one schemata build, the initial test run and its count of tests, the time of the per-test coverage capture, the Dubious tests, and the mean count of tests that each mutant ran. `<out>/results.json` holds the rows, the evidence, the settings and the load samples.
+Under the table, the script lists the changed lines on which no Stryker mutant starts, because Stryker 5.0.0 has no mutator for them. Examples are an enum value in an assignment, such as `holds = Holds.Value;`, and the result of a switch arm. The list keeps only the lines that can hold behavior: lines with an assignment, an arrow, a `return`, a `throw`, a `yield` or a call statement. Judge each line, and put a mutant in the `tools/mutate.py` list for each line whose behavior a test must check. Two rules decide which mutants count:
 
-The run takes the machine-wide lock `/tmp/tertius-stryker.lock`, a folder. Two Stryker runs at once compete for the CPU, and their tests time out. The script makes the folder before the first Stryker run, and waits while another run holds it. It removes the folder after the last run, also on a failure, an exception, Ctrl-C, SIGTERM or SIGHUP, and it never removes a lock that another process holds. If the process that holds the lock is gone, the script stops and prints the command that removes it.
+- A mutant counts only for the line where it starts. A Block removal mutant over a whole method shows only that the method does something, not that a test covers each of its lines.
+- A mutant that a Stryker filter removed counts for no line, because no test ran it. Its status is Ignored, with a reason such as `Removed by block already covered filter`. A mutant that an ignore comment disabled counts for its line, because the comment holds its triage.
+
+On ter-9xl7's `Result.cs`, the list names 12 lines. Among them are the 4 lines of the hand mutants that Stryker missed, and lines 64 and 74, whose only mutants a filter removed.
+
+A no-mutant row has the id `<module>-<path in the project>-L<line>`, for example `Core-Unions/Result.cs-L88`, and a removed row has `R` in place of `L`. The path keeps the ids of two files apart.
+
+After each module's run, `run.py` builds its test projects again in Checked. Stryker restores the plain module assembly in their output when it ends normally. A run that stops early, for example on a signal, leaves its mutated assembly there, and a later `dotnet test --no-build` runs it. Under the table, the script prints the evidence of each module's log. It gives the compile tries of the one schemata build, and the initial test run with its count of tests. It also gives the time of the per-test coverage capture, the Dubious tests, and the mean count of tests that each mutant ran. It also gives the 1-minute load and the test hosts, from the samples of `run.py`: their nice value, and the CPU of all hosts of one sample together. Stryker starts one host per test project at once, but it runs one of them at a time. So their CPU together shows the thread bound, and their count does not. `<module>/processes.log` holds each sample of Stryker's processes. `<out>/results.json` holds the rows, the evidence, the settings and the load samples.
+
+`tools/stryker/run.py` is the only script that starts Stryker. It takes the machine-wide lock `/tmp/tertius-stryker.lock`, a folder, because two Stryker runs at once compete for the CPU and their tests time out. `changed.py` holds the lock over all its modules. The lock works in this way:
+
+- `os.mkdir` makes the folder for one process only. The folder holds the file `owner` with the pid, the folder and the start time of the run.
+- A second run waits while another run holds the lock, and prints a message every 5 minutes.
+- The run removes the folder after its last module, also on a failure, an exception, Ctrl-C, SIGTERM or SIGHUP. It never removes a lock that another process holds.
+- The run stops if the process that holds the lock is gone, or if the folder has had no `owner` file for 60 s. It prints the command that removes the lock.
+- `run.py` refuses to start Stryker if this process does not hold the lock.
 
 With `--head <commit>`, the script measures a merged range, for example the commits of a closed ticket from its base. The files of the range must be the same in the working tree as at `<commit>`, and the script refuses otherwise. `--concurrency` (1 to 4) and `--additional-timeout` are for a calibration only, and the script marks such a run as not official.
 
@@ -203,15 +228,16 @@ The capture runs every test of the test projects alone, one at a time. So its ti
 Ticket ter-fz34 looks at rented Linux machines for these runs. The official run needs these things there:
 
 - A checkout of the commit to measure. The script reads only committed changes: it diffs from the merge base to `--head`, and it refuses a changed file that differs in the working tree.
-- The dev shell. `changed.py` and `run.sh` refuse to start without `TERTIUS_VULKAN_DIR`, although the CPU test projects use no GPU.
+- The dev shell. `changed.py` and `run.py` refuse to start without `TERTIUS_VULKAN_DIR`, although the CPU test projects use no GPU.
 - One run at a time on that machine. The lock is a folder in `/tmp`, so it keeps apart only the runs of one machine.
-- Nothing more for the priority and the thread bound. On Linux, `nice -n 20` gives 19, the lowest priority there, and `DOTNET_PROCESSOR_COUNT` works the same way.
+- Nothing more for the priority and the thread bound. On Linux, `nice -n 20` gives 19, the lowest priority there, and `DOTNET_PROCESSOR_COUNT` works the same way. The process samples use `ps -A -o pid=,pgid=,ni=,pcpu=,command=`, which Linux and macOS both read.
+- No other build of the test projects in that checkout while the run goes on.
 
 Copy the output folder back. It holds `results.json`, each module's reports and its logs.
 
 ### Stryker on one module by hand
 
-The official command uses these three scripts. Call them yourself to mutate whole files, or to try other test projects:
+The official command uses these three scripts. Call them yourself to mutate whole files, or to try other test projects. A run by hand is not an official run, and its rows do not go into a ticket's table.
 
 1. Write a configuration for one source project. Name the test projects that exercise it:
 
@@ -221,10 +247,10 @@ The official command uses these three scripts. Call them yourself to mutate whol
 
    By default, the configuration mutates only the lines that this branch changed, with the official settings. To mutate whole files, add `--files` with paths relative to the project folder, for example `--files Frames/FrameTree.cs`.
 
-2. Take the lock, and run Stryker on that project at nice 20 with 4 xunit threads, as the official run does. `run.sh` does not take the lock itself. If `mkdir` fails, another run holds the lock: wait and try again. Then build the test projects again, because Stryker leaves its mutated assembly in their output.
+2. Run Stryker on that project. `run.py` takes the lock, runs Stryker at nice 20 with the xunit threads of the configuration's concurrency, and builds the test projects again afterwards:
 
    ```bash
-   mkdir /tmp/tertius-stryker.lock && { nix develop --command nice -n 20 env DOTNET_PROCESSOR_COUNT=4 bash tools/stryker/run.sh Core /tmp/tertius-stryker/Core; rmdir /tmp/tertius-stryker.lock; }
+   nix develop --command python3 -I tools/stryker/run.py Core /tmp/tertius-stryker/Core
    ```
 
 3. Print the shared table of the mutants in the spans:
@@ -241,7 +267,7 @@ These cost time on the vertical slice and on ter-hxca, so the scripts handle the
 - Stryker.NET matches a `mutate` pattern against the full path. A pattern without the `**/` prefix matches no file, and the run then has no mutants.
 - In a pattern such as `**/Frames/FrameTree.cs{402..1704}`, the numbers are character offsets in the file, not line numbers.
 - Stryker.NET leaves a mutant that does not compile out of the score. A method with a pattern variable in a condition, such as `x is { } box && ...`, often makes every mutant in the method fail to compile (error CS0165). On the vertical slice, the Core score was 100% of 155 mutants, but 52 more mutants never ran. Hand mutations of their lines found three gaps. The official run lists such lines as no-mutant rows.
-- The progress bar shows only on a terminal. The `-L` flag writes the log to `out/logs`, so that you can follow a run in the background.
+- The progress bar shows only on a terminal. `run.py` passes the `-L` flag, which writes the log to `out/logs`, so that you can follow a run in the background.
 - The MTP runner captures per-test coverage one test at a time, in a test host that it reuses. Each test gets a limit of 1.5 x its initial time + `additional-timeout`, at least 30 s. A test whose class fixture does the work, such as `DeterminismTests`, has an initial time near 0, but it took 80 to 90 s alone under the capture. With the default `additional-timeout` of 10 s, Stryker marked such tests Dubious.
 - After such a timeout, Stryker 5.0.0 kills the test host and starts a new one. Then it waits 10 s for the coverage relay of the killed host on every later test of that runner, and it marks each of them Dubious. One slow test can make hundreds of Dubious tests, and every mutant then runs them all.
 - Stryker.NET 5.0.0 under the MTP runner reports killed mutants as Survived at a concurrency above 1 ([issue #3832](https://github.com/stryker-mutator/stryker-net/issues/3832), open on 2026-11-01). The count of kills changes from run to run on unchanged code, but Killed + Survived stays the same. The reporter measured kill rates of 70.59% at concurrency 1, 38.45% at 2 and 27.10% at 4, against 70.80% on 4.16.0. `coverage-analysis` off does not help. So the official run uses concurrency 1, and a survivor of a run at a higher concurrency proves nothing.
@@ -252,10 +278,11 @@ These cost time on the vertical slice and on ter-hxca, so the scripts handle the
   ```
 
   An equal score is not enough, because other mutants can change places. Raise `CONCURRENCY` in `tools/stryker/config.py` only if the script finds no difference, with exit code 0. Use spans with at least 20 mutants and some survivors, for example ter-2y6i's Simulation spans: `changed.py '84d4a894b^1' <out> --head 84d4a894b --exclude World.NumericFrames.cs`.
-- Stryker.NET starts each test host as `dotnet <tests>.dll --server`, with no place for an xunit option such as `--max-threads`. So `changed.py` bounds the xunit threads through `DOTNET_PROCESSOR_COUNT`, which every host inherits. xunit's default thread count reads it. ter-hxca's calibration saw one host at nice 20 with that variable, at about 400% CPU during the mutants.
+- Stryker.NET starts each test host as `dotnet <tests>.dll --server`, with no place for an xunit option such as `--max-threads`. So `run.py` bounds the xunit threads through `DOTNET_PROCESSOR_COUNT`, which every host inherits. xunit's default thread count reads it: a plain `dotnet test` with the variable at 4 printed `[4 threads]`, against 10 without it. ter-hxca's calibration saw one host at nice 20 with that variable, at about 400% CPU during the mutants. Each run's `processes.log` records the nice value and the CPU share of every test host.
+- Stryker.NET 5.0.0 copies its mutated module assembly over the module assembly in the output of each test project (log: `Injected the mutated assembly file into`). It keeps the plain one as `<name>.dll.stryker-unchanged`, and it copies that back about 1 s before its `Time Elapsed` line. The backup file stays after the run. A run that stops early leaves the mutated assembly in place, so `run.py` builds the test projects again. A build during the run replaces the mutated assembly, and the later mutants then run the plain code. `run.py` finds this from the missing helper class `MutantControl` while the mutants run.
 - The bound holds for xunit, but not for the native threads of Jolt. `new JobSystemThreadPool()` in `src/Tertius.Physics/JoltPhysicsBackend.cs` sizes its workers from the hardware, so a Physics or Simulation host reached about 700% CPU for some seconds. Ticket ter-773q makes the job system follow the runtime's processor count. Until then, nice 20 keeps these threads behind the work of other agents.
 
-Run Stryker only under the lock `/tmp/tertius-stryker.lock`. Any agent, also a subagent, can run the official command, because it takes the lock itself. The user lifted the ban on Stryker in subagents on 2026-11-01, once a run was efficient. ter-hxca's official calibration at concurrency 1 showed all three conditions. Its log has one schemata build with 9 compile tries, and each failed try removed the mutants that broke it. It has one initial test run of 4,593 tests in 26 s and no Dubious test. Each mutant ran a mean of 4.3 of the 4,593 tests.
+Stryker runs only through `tools/stryker/run.py`, under the lock `/tmp/tertius-stryker.lock`. Any agent, also a subagent, can run the official command, because `run.py` takes the lock itself. The user lifted the ban on Stryker in subagents on 2026-11-01, once a run was efficient. ter-hxca's official calibration at concurrency 1 showed all three conditions. Its log has one schemata build with 9 compile tries, and each failed try removed the mutants that broke it. It has one initial test run of 4,593 tests in 26 s and no Dubious test. Each mutant ran a mean of 4.3 of the 4,593 tests.
 
 ## Duplicate code
 

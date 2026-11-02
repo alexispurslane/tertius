@@ -29,6 +29,13 @@ def short_change(original, replacement):
     return f'{cut(original)} -> {cut(replacement)}'
 
 
+def short_test_name(name):
+    """The name of a test for the killed-by column: Class.Method, with the arguments of a theory case, without the
+    namespace."""
+    head, paren, rest = name.partition('(')
+    return '.'.join(head.split('.')[-2:]) + paren + rest
+
+
 def _cell(text):
     return str(text).replace('|', '\\|')
 

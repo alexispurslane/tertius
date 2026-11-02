@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""Tool code. The tests of the pure parts of tools/mutate.py and tools/mutation_table.py: reading and checking the list
-of mutants, applying and restoring a mutant, classifying a test run, and the shared table.
+"""Tool code. The tests of the pure parts of tools/mutate.py, tools/mutation_table.py and tools/processes.py: reading
+and checking the list of mutants, finding the project of a file, applying and restoring a mutant also on a signal,
+classifying a test run, and the shared table.
 
     nix develop --command python3 -I tools/test_mutate.py
 
@@ -30,6 +31,7 @@ def _load(name, file):
 
 mutate = _load("mutate", "mutate.py")
 table = _load("mutation_table", "mutation_table.py")
+processes = _load("processes", "processes.py")
 
 
 def _mutant(**fields):
@@ -48,14 +50,15 @@ def _mutant(**fields):
 
 
 class _Repo:
-    """A folder that looks like the repository to validate: src/A/Thing.cs with three lines and a test project folder
-    tests/A.Tests with its .csproj. The git state comes in as two sets, so the tests need no git."""
+    """A folder that looks like the repository to validate: src/A/Thing.cs with three lines in the project src/A/A.csproj,
+    and a test project folder tests/A.Tests with its .csproj. The git state comes in as two sets, so the tests need no git."""
 
     def __init__(self):
         self.dir = tempfile.TemporaryDirectory()
         self.root = Path(self.dir.name)
         (self.root / "src/A").mkdir(parents=True)
         (self.root / "src/A/Thing.cs").write_text("int F(int x)\n    => x + 1;\n// x + 1 once more\n")
+        (self.root / "src/A/A.csproj").write_text("<Project />\n")
         (self.root / "tests/A.Tests").mkdir(parents=True)
         (self.root / "tests/A.Tests/A.Tests.csproj").write_text("<Project />\n")
         self.tracked = {"src/A/Thing.cs", "tests/A.Tests/A.Tests.csproj"}
@@ -176,6 +179,29 @@ class CheckingTheListAgainstTheRepository(unittest.TestCase):
         errors = self.repo.errors(self._parsed(_mutant(line=1), _mutant(id="C02", file="src/A/Missing.cs")))
         self.assertEqual(len(errors), 2, errors)
 
+    def test_a_file_that_belongs_to_no_project_is_an_error_because_no_test_build_holds_its_mutant(self):
+        (self.repo.root / "global.json").write_text('{"sdk": {"version": "10.0.100"}}\n')
+        self.repo.tracked.add("global.json")
+        errors = self.repo.errors(self._parsed(_mutant(file="global.json", line=1, original="10.0", replacement="9.0")))
+        self.assertTrue(any("no project" in e for e in errors), errors)
+
+
+class FindingTheProjectOfAFile(unittest.TestCase):
+    """project_of: the project whose assembly holds a mutated file, the nearest folder above it with a .csproj."""
+
+    def setUp(self):
+        self.repo = _Repo()
+        self.addCleanup(self.repo.close)
+        (self.repo.root / "src/A/Shaders").mkdir()
+        (self.repo.root / "src/A/Shaders/blur.comp").write_text("void main() {}\n")
+
+    def test_a_file_in_a_subfolder_belongs_to_the_project_of_the_nearest_folder_above_it(self):
+        self.assertEqual(mutate.project_of(self.repo.root, "src/A/Shaders/blur.comp"), "A")
+
+    def test_a_file_above_every_project_belongs_to_none_and_the_search_stops_at_the_repository_root(self):
+        (self.repo.root / "global.json").write_text("{}\n")
+        self.assertIsNone(mutate.project_of(self.repo.root, "global.json"))
+
 
 class ApplyingAndRestoring(unittest.TestCase):
     """locate and applied: a mutant replaces the original text at its line, and the file gets its exact bytes back."""
@@ -219,12 +245,32 @@ class ApplyingAndRestoring(unittest.TestCase):
         self.assertGreater(self.path.stat().st_mtime_ns, mutated)
         self.assertGreater(self.path.stat().st_mtime_ns, output.stat().st_mtime_ns)
 
+    def test_a_signal_as_the_restore_starts_still_restores_the_file_and_then_ends_the_block(self):
+        # A signal that arrives after the finally block starts and before the signals are blocked runs its handler
+        # there. The fake raises KeyboardInterrupt at that place, once.
+        real, raised = mutate._signals_blocked, []
+
+        def signal_at_the_restore():
+            if not raised:
+                raised.append(True)
+                raise KeyboardInterrupt
+            return real()
+
+        mutate._signals_blocked = signal_at_the_restore
+        self.addCleanup(setattr, mutate, "_signals_blocked", real)
+        with self.assertRaises(KeyboardInterrupt):
+            with mutate.applied(self.path, 2, "x + 1", "x - 1"):
+                pass
+        self.assertEqual(self.path.read_bytes(), self.original)
+
     def test_a_sigterm_inside_the_block_restores_the_file_before_the_process_ends(self):
         script = (
             "import importlib.util, os, signal, sys, time\n"
             f"spec = importlib.util.spec_from_file_location('mutate', {str(TOOLS / 'mutate.py')!r})\n"
             "mutate = importlib.util.module_from_spec(spec); spec.loader.exec_module(mutate)\n"
-            "mutate.stop_on_signals()\n"
+            f"spec = importlib.util.spec_from_file_location('processes', {str(TOOLS / 'processes.py')!r})\n"
+            "processes = importlib.util.module_from_spec(spec); spec.loader.exec_module(processes)\n"
+            "processes.stop_on_signals()\n"
             "with mutate.applied(sys.argv[1], 2, 'x + 1', 'x - 1'):\n"
             "    print('applied', flush=True)\n"
             "    time.sleep(30)\n"
@@ -310,6 +356,10 @@ class TheSharedTable(unittest.TestCase):
                "killed_by": ["T.A", "T.B"], "seconds": 12.34}
         row.update(fields)
         return row
+
+    def test_a_test_name_in_the_killed_by_column_is_its_class_and_method_with_the_arguments_of_a_theory_case(self):
+        self.assertEqual(table.short_test_name("Tertius.Core.Tests.RTests.Two(x: 1, name: \"a.b\")"),
+                         'RTests.Two(x: 1, name: "a.b")')
 
     def test_a_row_shows_the_place_the_change_the_result_the_killers_and_the_seconds(self):
         lines = table.format_rows([self._row()])
