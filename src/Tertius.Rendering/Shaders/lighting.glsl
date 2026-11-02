@@ -5,7 +5,7 @@
 // visibility term and Schlick's Fresnel term, with Filament's multiple-scattering energy compensation from the DFG table:
 //   f = c_diff / π + D · Vis · F · c,   c_diff = b (1 − m),   F0 = (1 − m) · 0.16 ρ² + m · b
 // Each light of the one light list adds f · E · (N·L), where E is its irradiance (docs/plans/local-light-shadows.md, "The
-// shaders"). A hair pixel takes each light's response of a fiber instead (hair.glsl), from either side of its card, and
+// shaders"), and its specular part sees the light as a sphere of its radius (docs/plans/pbr-brdf.md, "Sized lights"). A hair pixel takes each light's response of a fiber instead (hair.glsl), from either side of its card, and
 // its ambient light at its fiber normal, its shading normal (docs/plans/skin-and-hair.md, "The hair model"). A skin pixel
 // shades as the standard model, with metallic 0. The ambient light comes from one ambient source,
 // the scene environment map while it is on and the hemisphere while it is off, which gives a diffuse and a specular

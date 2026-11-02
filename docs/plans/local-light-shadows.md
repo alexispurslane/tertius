@@ -95,7 +95,7 @@ The user made the decisions marked (User). This design settled the others by the
 44. A scene gives a star the whole power of the star, 3.828 × 10²⁶ W for the Sun, so that 1 AU gives the solar constant, 1,361 W/m². A lamp gets the radiant power of its light, about 2.5 W for a household bulb of 800 lumens. The emission of a star's sphere comes from its light, by `PointLightData.SurfaceRadiance` = color × P / (4π² R²), so the two cannot disagree. A scene that puts its "sun" frame near moves the star to 1 AU in the same direction. (kept)
 45. No clustered or tiled light list. Each shading pass loops over every kept light, as today. The cost part measures it (see "Cost"), and a ticket follows only if a measurement shows a need.
 46. The atlas is G-buffer set binding 8, after SSAO's 7, and the tile views are frame set binding 15, after the environment map's 12 to 14. Both are partially bound, so with `NoLocalShadows` they stay empty, as the environment map's bindings do when it is off.
-47. A sized light's highlight, the widened GGX lobe of Karis 2013 for a sphere light, is not part of this epic. Each light now has its radius, which the PBR design waited for (pbr-brdf.md, "Compared with a design from scratch"). The lobe is a change of the BRDF with its own tests, so it becomes a ticket.
+47. A sized light's highlight, the widened GGX lobe of Karis 2013 for a sphere light, is not part of this epic. Each light now has its radius, which the PBR design waited for (pbr-brdf.md, "Compared with a design from scratch"). The lobe is a change of the BRDF with its own tests, so it becomes a ticket. (built, `ter-gf0t`, 2026-11-02) The specular part of every light takes Karis's representative point (his page 15, equation 11) and the normalization (α / α′)² (page 16, equation 14), with sin ϕ = min(R / d, 1). The widened α′ = min(α + sin ϕ / (2 √(v·h)), 1) keeps Karis's sum but replaces his constant 1/3 (equation 10) by the cone of the half vectors, so a mirror shows the light at its own radiance and the lobe never adds light. The diffuse part and a light of radius 0 stay as they were. pbr-brdf.md, "Sized lights", gives the formulas and the measures.
 
 ## How the lights work today
 
@@ -595,7 +595,7 @@ Built from scratch around "a light is a property of an entity, in physical units
 | A clustered or tiled light list, so a pixel loops only over the lights that reach it | Every shading pass loops over every kept light | Decision 45. The cost part measures it. |
 | Shadow tiles of several sizes by importance, or virtual shadow maps | One tile size | Decision 29. No packing, no measured need. |
 | One rule for picking a cascade in every view | The main view picks by view depth, the faces by the finest box (environment map) | A change of the main view's shadows is a change of look outside this epic. |
-| A sphere light's highlight, the lobe widened by the light's angle | Lights shade as points, and the clamp bounds a pinpoint highlight | Decision 47: a ticket for the BRDF |
+| A sphere light's highlight, the lobe widened by the light's angle | Built by `ter-gf0t` after this epic (decision 47) | pbr-brdf.md, "Sized lights" |
 | Light from a planet onto a ship | The environment map carries one bounce of it into the ambient light | Out of scope here |
 | A hemisphere derived from the lights and the sky | The hemisphere stays a world setting, used only with the map off | (kept) The map replaces it by default. |
 | Photometric units with a physical camera (EV100) | Radiometric watts with one band, and the automatic exposure in stops | (User) SI units of radiant energy, and the exposure design of `ter-zzyr` |
@@ -844,7 +844,7 @@ Memory, by arithmetic:
 | [asset-pipeline.md](asset-pipeline.md) | Decision 11 and "Lights": the power from glTF's candela (P = 4π · cd / 683 for a point light, and the cone's solid angle for a spot light), no cutoff and no range, the `castsShadow` property stays, and "The sun is a value of the scene" becomes "a star is an entity". |
 | [editor.md](editor.md) | The overlay "light ranges" becomes "light reaches". |
 | [particles.md](particles.md), "Lit puffs" | Every light, not the sun and the lamps. |
-| [pbr-brdf.md](pbr-brdf.md), "Compared with a design from scratch" | The radius exists, and the sized light's lobe is the ticket of decision 47. |
+| [pbr-brdf.md](pbr-brdf.md), "Compared with a design from scratch" | The radius exists, and the sized light's lobe is the ticket of decision 47 (built by `ter-gf0t`, "Sized lights"). |
 | [blue-danube-demo.md](blue-danube-demo.md) | `SunFrame` is no longer a view setting. |
 | [rendering-upgrade.md](rendering-upgrade.md), docs/plans/README.md | The row's title: shadows of every light. |
 

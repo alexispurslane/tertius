@@ -111,7 +111,27 @@ The sun and each point and spot light add f(l, v) · E · (n·l) where n·l > 0.
 - The sun: `frame.sunRadiance` times the sun's visibility, the far shadows times the cascades (`sunReaches`).
 - A point or spot light: its radiance times the distance attenuation and the cone (`lightReaches`).
 
-The rule of the geometric normal stays: where the vertex normal faces away from the sun, the sun adds nothing, whatever the normal map says. The BRDF still treats each light as a point. Every light now has the radius of its sphere (the lights plan, `ter-bpvl`), and the widened lobe that shows a sized light's disc on a smooth surface is the ticket of its decision 47, `ter-gf0t` (see "Compared with a design from scratch").
+The rule of the geometric normal stays: where the vertex normal faces away from the sun, the sun adds nothing, whatever the normal map says. Every light has the radius of its sphere (the lights plan, `ter-bpvl`), and the specular part shades it as a sphere (see "Sized lights", `ter-gf0t`).
+
+### Sized lights
+
+A light of radius R at distance d from the shaded point subtends the angular radius ϕ with sin ϕ = min(R / d, 1) (`lightSineAt` in `lighting.glsl`, the same sine whose arcsine the far shadows take). The specular part treats the light as a sphere with Karis's representative point and the normalization of the widened lobe (Karis 2013, "Real Shading in Unreal Engine 4", SIGGRAPH course notes, pages 15 and 16). The diffuse part stays the point light's, because a sphere above the horizon gives the irradiance of a point at its center (Karis, page 15). `specularResponse` in `lighting.glsl` is the one place, so every caller of `directLight` takes it: the direct pass, the transparent pass, the impostor capture and the environment faces. The lit puffs scatter evenly and have no lobe. A hair fiber shades every light as a point.
+
+1. The representative point (Karis, page 15, equation 11). With L the unit direction to the light's center and r the mirror direction of the view, both in units of d: c = (L·r) r − L, the closest point p = L + c · min(sin ϕ / |c|, 1), and l = p / |p|. The notes print c as L − (L·r) r, which points away from the ray, so the closest point needs the opposite sign, as Unreal Engine 4's code has it. D, Vis and F then take l in place of L, and the lobe is multiplied by n·l.
+2. The normalization (Karis, page 16, equation 14): D is multiplied by (α / α′)².
+3. The widened α′ = min(α + sin ϕ / (2 √(v·h)), 1), with v·h at the half vector of l and a floor of 10⁻⁴. Karis's equation 10 (page 14) adds sin ϕ / 3 to α. The form here keeps his sum and replaces the constant: the half vectors of a disc of angular radius ϕ span 1 / (4 v·h) of its solid angle (Walter and others 2007), so they fill a cone of radius sin ϕ / (2 √(v·h)). With that radius, a mirror shows exactly the light's own surface radiance inside the disc, at every angle of view.
+
+Why not the paper's constant. The reflected light of the specular part over every view direction, over the point light's, from a quadrature on a polar grid about the mirror direction (captures/gf0t/analysis/energy.py and energy.txt). The grid covers α from the floor to 0.6, sin ϕ from the Sun's 0.0047 to 0.3, and the light's center 0 to 1.3 rad from the normal:
+
+| α′ | Roughness 0 (the floor), light head-on | Every case of the grid |
+|---|---|---|
+| α + sin ϕ / 3 (Karis, equation 10) | 1.32 to 2.26 | 0.87 to 8.1 |
+| α + sin ϕ / 2 | 0.89 to 1.02 | 0.76 to 3.7 |
+| α + sin ϕ / (2 √(v·h)) (built) | 0.89 to 0.99 | 0.73 to 1.0 |
+
+The built form never adds light. It loses at most 15 % for a light up to sin ϕ = 0.1, and up to 27 % for a light 17° wide on a rough surface. Karis's notes say that their energy conservation "isn't perfect". The paper's constant comes from the D modification of page 14, which widens the lobe of the half vectors by the light's cone without the factor of v·h.
+
+What the user sees: a mirror shows a lamp's bulb and the Sun as discs of their angular size, at the light's own radiance, with the floored lobe's soft edge, and no longer as a pinpoint that the clamp bounds. On the demo's paint (roughness 0.38) the change is a small reshaping of each lamp's highlight. A light of radius 0 takes the point light's path with the same operations, so its image does not change.
 
 ### The roughness floor
 
@@ -436,6 +456,8 @@ internal readonly record struct GgxLobe
     public double Visibility(double nDotL, double nDotV);        // Vis
     public Double3 SampleHalfVector(double u1, double u2);       // tangent space, +Z the normal
     public Double3 DominantDirection(Double3 normal, Double3 mirror);   // d, unit
+    public double SphereNormalization(double lightSine, double vDotH);  // (α / α′)², "Sized lights"
+    public static Double3 SphereLightDirection(Double3 toLight, Double3 mirror, double lightSine);   // l, unit
 }
 
 /// <summary>A material at one point, after its maps, as the BRDF reads it.</summary>
@@ -567,7 +589,7 @@ A deferred renderer built from scratch around this BRDF would have the same mate
 |---|---|---|
 | Environment maps or probes, prefiltered along the lobe, and irradiance for the diffuse part | The two colors of the hemisphere ambient light, with the lobe-sky table in place of the prefiltered map | Probes and image-based lighting are out of the epic's scope. The table is the same split sum over the environment that the scenes define. |
 | The fourth channel of the material target holds a material value, such as occlusion or a shading model | It holds s_l, a value of the environment | Only the G-buffer pass knows the instance's up. The normal's share sits in the emissive alpha for the same reason. |
-| Lights with a size: a smooth surface shows the sun's disc and a lamp's bulb, and the radiance stays bounded | Points and a direction, so a very smooth surface shows a pinpoint, and the clamp bounds the stored value | The lights plan gave each light an emitter radius (`ter-bpvl`). A widened lobe for a sized light fits into `brdf`, and it is the ticket of the plan's decision 47, `ter-gf0t`. The demo's smoothest material has r = 0.18, whose lobe is wider than the sun. |
+| Lights with a size: a smooth surface shows the sun's disc and a lamp's bulb, and the radiance stays bounded | The same, since `ter-gf0t`: Karis's representative point and widened lobe ("Sized lights"), with the half vectors' cone in place of his constant | Built. |
 | Glass that blends its diffuse part by opacity and keeps its specular part (Filament's transparent mode) | Alpha blending fades the whole color, the specular part too, as today | It is the blend of the transparent pass, not the BRDF. A change brightens both glasses' highlights about fivefold and undoes the canopy's tuning. It belongs to a later decision about glass. (2026-10-25: decided and built, see ARCHITECTURE.md, "Transparent objects".) |
 | A DFG table baked offline as an asset | Computed at start by the C# copy | (User) No asset pipeline exists yet, and the C# copy is the reference that the tests pin. |
 | Specular anti-aliasing on normal maps | None in the renderer | The asset pipeline widens the roughness of bumpy mips (Toksvig), and the demo has no normal maps. The anti-aliasing plan keeps it optional. |
@@ -618,9 +640,15 @@ In `tests/Tertius.Rendering.Tests`. Integrals that check the code use an indepen
 - `SamplingBetweenTexelsIsBilinearAndClampsBeyondTheEnds`.
 - `TwoComputationsGiveTheSameBits`.
 
+`SphereLightLobeTests` (`ter-gf0t`, "Sized lights"):
+
+- `ASizedLightReflectsBetween85And100PercentOfTheLightOfAPointLight`: the reflected light over every view direction, on a polar grid about the mirror direction, for roughness 0 to 0.8, sin ϕ from the Sun's to 0.1, and the light 0 to 1.2 rad from the normal.
+- `AMirrorShowsASizedLightNoBrighterThanTheLightsOwnSurface`: on a mirror, the specular part never exceeds 1.01 times E / (π sin² ϕ), with no clamp.
+- `AMirrorShowsALargeLightAtNearlyItsOwnSurfaceRadianceInsideItsDisc`: at the disc's center, 0.9 to 1 times the light's surface radiance.
+
 ### The GPU test that pins the shaders to the C# copy
 
-`BrdfShaderTests.TheShadersShadeEachMaterialAsTheCSharpBrdfDoes`, a theory over opaque and transparent:
+`BrdfShaderTests.TheShadersShadeEachMaterialAsTheCSharpBrdfDoes`, a theory over opaque and transparent, with the Sun's angular radius and with a sun 0.2 rad wide, whose widened lobe changes every square:
 
 - A grid of flat squares faces the camera at tilts of 0°, 45° and 70°, each with its own material: non-metals and metals at roughnesses from 0.2 to 0.8. The sun lights them, and the hemisphere ambient light has distinct sky and ground colors and the up +Y. No instance casts a shadow, so the sun's visibility is 1.
 - The test computes each square's light at its center with `MaterialSample.Reflected` and `ReflectedHemisphere`, with v, n and both shares from the scene's geometry.
@@ -640,6 +668,11 @@ In `tests/Tertius.Rendering.Tests`. Integrals that check the code use an indepen
 - `ARoughSurfacesHighlightHasTheLongTailOfGgx`: a red non-metal ground of roughness 0.6 in sunlight, with no ambient light, so its green is the lobe alone. At the pixel where the C# lobe falls to a twentieth of its peak, about 46° between h and n, the green lies between emissive squares at 0.8 and 1.2 times the C# value. The Blinn-Phong lobe of the same highlight gives less than a fifth of it there. Nearer the peak the two lobes differ less, and GGX at this roughness never falls below 1.7 % of its peak.
 - `AMetalLitOnlyByTheAmbientLightIsNotBlack`: a metal sphere of roughness 0.2 under a red sky and a blue ground, with no sun. Its top is red and its bottom blue, and its top matches an emissive square of the C# `ReflectedHemisphere` within 2 of 255, which a non-metal's diffuse light does not.
 - `ASmoothMetalReflectsTheSunWithTheLobeOfTheRoughnessFloor`: a white metal square of roughness 0, facing the camera, under a dim sun 0.6 rad above the view axis. The half vector leans 0.3 rad from the normal, where D scales with the fourth power of the floor. The pixel lies between emissive squares at 0.8 and 1.2 times the C# value. Nearer the peak, the rounding of 32-bit floats and the tilt of the flat normal map swamp D.
+In `SphereLightRenderTests` (`ter-gf0t`):
+
+- `AMirrorShowsTheDiscOfASizedLightAtTheLightsAngularSize`: a black glossy mirror faces the camera, with the Sun behind the camera or a lamp of radius 0.15 m between them. On the center row, the disc's half-maximum radius is the angular radius of the light's image plus the floored lobe's half maximum, 1.29 α, scaled by the light's distance from the mirror over its image's. The tolerance is a pixel plus 0.11 α, the shift of the edge by the center's 10 % float error.
+- `ALightOfRadiusZeroShadesExactlyAsThePointLightDidBeforeTheWidenedLobe`: spheres from mirror to rough, a glass sphere and a floor under a star, a lamp and a spot light of radius 0 match the reference image of the code before the change at a FLIP tolerance of 0.
+
 - `AHighlightBrighterThanTheHdrTargetHoldsShowsWhite`: a smooth white metal square at the mirror image of a point light of intensity 1,000, 0.3 m away. The C# value is over 65,504, and the pixel is white, not NaN.
 
 In `HemisphereTests`, a theory over opaque, transparent and impostor:
