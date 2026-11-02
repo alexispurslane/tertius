@@ -1,6 +1,6 @@
 ---
 id: ter-cvyx
-status: in_progress
+status: closed
 deps: []
 links: [ter-eqtb, ter-pywg]
 created: 2026-11-02T17:32:29Z
@@ -144,3 +144,7 @@ New tests in ScreenRayTests, each red on its mutant first by the table:
 Defect found (not fixed, src unchanged): ter-pywg. A slab entry exactly on an edge between two pixels inside a cell puts the walk in the later pixel, while the march meets the earlier pixel at the end of its stretch. Reproduction in the ticket: the march gives (3, 4, 0), the trace leaves the segment after 6 steps. The test is not committed, because it is red on this branch.
 
 Checked: dotnet build Tertius.slnx -c Checked, then dotnet test --solution Tertius.slnx -c Checked: 9,972 passed, 0 failed (Rendering 2,384, 1 skipped).
+
+**2026-11-02T21:19:18Z**
+
+Merged into main in c2645b0ac (orchestrator, 2026-11-02), after the hardening (8ce43c71c). tools/test-all.sh on the merge passed every module in Checked and Release. The hardening's defect, an exact tie of a slab entry with a pixel's edge inside a cell, is ter-pywg, which now blocks the epic ter-b2da. Closed.
