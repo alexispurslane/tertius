@@ -24,3 +24,7 @@ Ticket 1 of ter-jw7g's design (docs/plans/environment-map-distances.md, 'Ticket 
 **2026-11-02T13:39:51Z**
 
 2026-11-02: run 06debe04 built MapSearch (72a011cd9, 17 tests green) and stopped at a fork: the march starts at t = 1/8, so a hit nearer than about |x|/7 is lost, against the design's decision C and 'The cone at each sample'. The orchestrator settled it inside the chosen design: one more sample at t0 = 1/64 before the uniform march (the nearest place where a level-0 texel at W = 128 can see a separate surface). It changes no hit that the uniform march finds and adds the bracket [t0, 1/8]. Reads per pixel: 12. Rejected: quadratic spacing (coarse far end) and a test at t = 0 (a real root on the shaded point's own surface). Continuation: workflow run 81bbe30d-fbbe-4df5-862e-8dd96173cd40, same worktree.
+
+**2026-11-02T14:23:54Z**
+
+2026-11-02: run 81bbe30d ended ready for integration (HEAD 2afdcb200): the near sample, the review's six findings fixed, new ticket ter-bytc for the two definitions of the lobe's cone. Hardening runs as a delegated task (ter-0pj8-harden-2026-11-02-a), with the rename of the test parameter gap to distanceToWall that the user asked for (the floor and the wall meet; it is the floor point's distance from the wall's base).
