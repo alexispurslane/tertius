@@ -18,8 +18,8 @@ public sealed class EnvironmentMapPlumbingTests
         using var plumbing = new Plumbing();
 
         plumbing
-            .Layouts.StorageImagesOf(plumbing.Layouts.EnvironmentPrefilterLayout)
-            .Should()
+            .Layouts.DescriptorsOf(plumbing.Layouts.EnvironmentPrefilterLayout)
+            .StorageImages.Compute.Should()
             .BeLessThanOrEqualTo(
                 StorageImagesOfEveryDevice,
                 "the layout is made at every start, and the specification guarantees only 4 per stage"
@@ -221,9 +221,7 @@ public sealed class EnvironmentMapPlumbingTests
         plumbing
             .Allocator.LiveAllocations.Should()
             .Be(live, "the old images stay, and the growth releases the new image that it made");
-        map.FaceViews(map: 0, face: CubeFace.PositiveX)
-            .Radiance.Handle.Should()
-            .NotBe(0, "the old radiance maps keep their views");
+        map.DrawnCubes[0].FaceView(layer: 0).Handle.Should().NotBe(0, "the old radiance maps keep their views");
         map.DrawnFor.ToArray().Should().Equal(Served(1), "the old maps keep their drawn faces");
     }
 

@@ -90,6 +90,7 @@ internal sealed unsafe class EnvironmentMap : IDisposable
     private readonly FaceMask[] facesOfMaps = new FaceMask[EnvironmentChain.MaxMaps];
     private int drawnForLength;
     private MapImages images;
+    private DrawnCube[] drawnCubes = [];
 
     /// <exception cref="NotSupportedException">The device cannot draw, filter or store <see cref="DistanceFormat"/>.</exception>
     public EnvironmentMap(
@@ -131,6 +132,7 @@ internal sealed unsafe class EnvironmentMap : IDisposable
 
             IrradianceSet = layouts.AllocateEnvironmentLevelsSet();
             WriteImageSets();
+            drawnCubes = DrawnCubesOf(images);
         }
         catch
         {
@@ -197,36 +199,16 @@ internal sealed unsafe class EnvironmentMap : IDisposable
     public DescriptorSet SpecularDispatchSet(int dispatch) => specularDispatchSets[dispatch];
 
     /// <summary>
-    /// The levels set of dispatch <paramref name="dispatch"/> of the radiance maps' downsample, every layer, written again
-    /// at each growth: binding 0 holds the level that it reads, and binding b ≥ 1 level source + b of
-    /// <see cref="PrefilterLevels.LevelsOfDownsample"/>. A binding past the dispatch's last level holds that last level
-    /// again, a valid view that the dispatch never writes.
-    /// </summary>
-    public DescriptorSet DownsampleSet(int dispatch) => downsampleSets[dispatch];
-
-    /// <summary>
-    /// The levels set of dispatch <paramref name="dispatch"/> of the distance cubes' downsample, which makes the same levels
-    /// as <see cref="DownsampleSet"/> of the same dispatch, every layer, written again at each growth: binding 0 holds the
-    /// level that it reads, and binding b ≥ 1 level source + b. A binding past the dispatch's last level holds that last
-    /// level again, a valid view that the dispatch never writes.
-    /// </summary>
-    public DescriptorSet DistanceDownsampleSet(int dispatch) => distanceDownsampleSets[dispatch];
-
-    /// <summary>
     /// The levels set of the irradiance cubes, every layer, written again at each growth: binding b holds level b. The
     /// convolution writes binding 0, and the downsample reads binding 0 and writes the others.
     /// </summary>
     public DescriptorSet IrradianceSet { get; }
 
     /// <summary>
-    /// The 2D views of level 0 of <paramref name="face"/> of map <paramref name="map"/> in the radiance maps and the distance
-    /// cubes: the face pass's two color attachments.
+    /// The cube arrays that the face pass draws and the downsample levels, in the order of the face shaders' color outputs:
+    /// the radiance maps, then the distance cubes. Made anew at each growth.
     /// </summary>
-    public (ImageView Radiance, ImageView Distance) FaceViews(int map, CubeFace face)
-    {
-        int layer = CubeFaces.Count * map + (int)face;
-        return (images.FaceViews[layer], images.DistanceFaceViews[layer]);
-    }
+    public ReadOnlySpan<DrawnCube> DrawnCubes => drawnCubes;
 
     /// <summary>
     /// The last level of the irradiance cubes of the first <paramref name="maps"/> maps from the last frame whose GPU work
@@ -396,6 +378,7 @@ internal sealed unsafe class EnvironmentMap : IDisposable
         images.Dispose();
         images = grown;
         WriteImageSets();
+        drawnCubes = DrawnCubesOf(images);
         drawnForLength = 0;
         ImagesVersion++;
     }
@@ -432,6 +415,26 @@ internal sealed unsafe class EnvironmentMap : IDisposable
                 name: $"frame {slot} irradiance readback"
             );
     }
+
+    /// <summary>
+    /// The drawn cubes of <paramref name="images"/>. The prefilter is the only reader of the radiance maps, and the shading
+    /// passes read the distance cubes in the fragment and compute stages.
+    /// </summary>
+    private DrawnCube[] DrawnCubesOf(MapImages images) =>
+        [
+            new(
+                image: images.Radiance,
+                readers: ImageUse.SampledCompute,
+                faceViews: images.FaceViews,
+                downsampleSets: downsampleSets
+            ),
+            new(
+                image: images.Distance,
+                readers: ImageUse.SampledFragmentCompute,
+                faceViews: images.DistanceFaceViews,
+                downsampleSets: distanceDownsampleSets
+            ),
+        ];
 
     /// <summary>
     /// Points the sets at the current images: the radiance maps in the prefilter set, the level views of the radiance maps,
@@ -514,7 +517,7 @@ internal sealed unsafe class EnvironmentMap : IDisposable
             IrradianceLevelViews = new ImageView[IrradianceCube.Levels];
             try
             {
-                Radiance = DrawnCubes(
+                Radiance = CreateDrawn(
                     device: device,
                     allocator: allocator,
                     extent: extent,
@@ -522,7 +525,7 @@ internal sealed unsafe class EnvironmentMap : IDisposable
                     layers: layers,
                     name: "environment radiance"
                 );
-                Distance = DrawnCubes(
+                Distance = CreateDrawn(
                     device: device,
                     allocator: allocator,
                     extent: extent,
@@ -575,7 +578,7 @@ internal sealed unsafe class EnvironmentMap : IDisposable
         /// chain of its face size: a color attachment, sampled, storage for its mips, and a transfer source for the test
         /// hook that reads a level back.
         /// </summary>
-        private static GpuImage DrawnCubes(
+        private static GpuImage CreateDrawn(
             VulkanDevice device,
             DeviceAllocator allocator,
             Extent2D extent,
@@ -678,4 +681,38 @@ internal sealed unsafe class EnvironmentMap : IDisposable
             Array.Clear(views);
         }
     }
+}
+
+/// <summary>
+/// One cube array of the environment maps that the face pass draws as a color attachment and the downsample levels
+/// (docs/plans/environment-map-distances.md, "The flow of a frame"): its image, the views and sets that the two passes bind,
+/// and the use of its readers.
+/// </summary>
+internal sealed class DrawnCube(GpuImage image, ImageUse readers, ImageView[] faceViews, DescriptorSet[] downsampleSets)
+{
+    /// <summary>The cube array, with the radiance maps' face size and levels, one cube per map.</summary>
+    public GpuImage Image => image;
+
+    /// <summary>
+    /// The use of the image's readers, from the end of a frame's prefilter until the next frame's face pass discards a
+    /// face: the state that both passes leave the image in (<see cref="ReturnToReaders"/>), and the use whose stages each
+    /// discard waits for.
+    /// </summary>
+    public ImageUse Readers => readers;
+
+    /// <summary>The 2D view of level 0 of layer <paramref name="layer"/>: the face pass's color attachment for that face.</summary>
+    public ImageView FaceView(int layer) => faceViews[layer];
+
+    /// <summary>
+    /// The levels set of downsample dispatch <paramref name="dispatch"/>, every layer, written again at each growth: binding
+    /// 0 holds the level that it reads, and binding b ≥ 1 level source + b of <see cref="PrefilterLevels.LevelsOfDownsample"/>.
+    /// A binding past the dispatch's last level holds that last level again, a valid view that the dispatch never writes.
+    /// </summary>
+    public DescriptorSet DownsampleSet(int dispatch) => downsampleSets[dispatch];
+
+    /// <summary>
+    /// Records that every layer of the image is in the layout of <see cref="Readers"/>, last used by at most its stages and
+    /// accesses, which the next barrier of the image waits for.
+    /// </summary>
+    public void ReturnToReaders() => image.State = ResourceUses.Describe(readers);
 }

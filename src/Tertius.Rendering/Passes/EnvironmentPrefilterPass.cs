@@ -100,8 +100,8 @@ internal sealed unsafe class EnvironmentPrefilterPass : RenderPass
 
         // Every layer of the radiance maps, the distance cubes and the specular maps is read-only again: the prefiltered
         // maps' just now, the others since their last one.
-        map.Radiance.State = ResourceUses.Describe(ImageUse.SampledCompute);
-        map.Distance.State = ResourceUses.Describe(ImageUse.SampledFragmentCompute);
+        foreach (DrawnCube cube in map.DrawnCubes)
+            cube.ReturnToReaders();
         map.Specular.State = ResourceUses.Describe(ImageUse.SampledFragment);
         // Right after the irradiance, so a reading is the irradiance that this frame's passes use.
         map.RecordReadback(
@@ -116,7 +116,7 @@ internal sealed unsafe class EnvironmentPrefilterPass : RenderPass
     /// Rebuilds levels 1 and up of the radiance maps and of the distance cubes of each drawn map from its level 0, in runs
     /// of up to three levels, each run from the last level of the run before
     /// (<see cref="PrefilterLevels.LevelsOfDownsample"/>), in map index order within a run. A level view spans every map's
-    /// layers, and a storage image's layout must hold for every layer of its view, so every layer of both images is in
+    /// layers, and a storage image's layout must hold for every layer of its view, so every layer of each drawn cube is in
     /// <see cref="ImageLayout.General"/> while the downsample runs. The maps that are not drawn keep their texels through
     /// the transitions. The radiance maps' levels end read-only for the prefilter's samples, and the distance cubes' for
     /// this frame's shading passes.
@@ -137,14 +137,11 @@ internal sealed unsafe class EnvironmentPrefilterPass : RenderPass
                 lastRun: dispatch == runs - 1
             );
         // The levels' first barrier makes these levels read-only, which orders the last run's writes.
-        foreach (
-            (GpuImage image, ImageUse readers) in (ReadOnlySpan<(GpuImage Image, ImageUse Readers)>)
-                [(map.Radiance, ImageUse.SampledCompute), (map.Distance, ImageUse.SampledFragmentCompute)]
-        )
+        foreach (DrawnCube cube in map.DrawnCubes)
         {
-            ResourceState read = ResourceUses.Describe(readers);
+            ResourceState read = ResourceUses.Describe(cube.Readers);
             barriers.ImageLevels(
-                image: image,
+                image: cube.Image,
                 baseMip: 0,
                 mipCount: levels,
                 oldLayout: ImageLayout.General,
@@ -165,8 +162,9 @@ internal sealed unsafe class EnvironmentPrefilterPass : RenderPass
     /// </summary>
     private void MipsToGeneral(BarrierBatch barriers, ReadOnlySpan<bool> drawn, uint levels)
     {
-        foreach (GpuImage image in (ReadOnlySpan<GpuImage>)[map.Radiance, map.Distance])
+        foreach (DrawnCube cube in map.DrawnCubes)
         {
+            GpuImage image = cube.Image;
             PipelineStageFlags2 lastUse = image.State.Stages;
             ToGeneral(
                 barriers: barriers,
@@ -223,30 +221,37 @@ internal sealed unsafe class EnvironmentPrefilterPass : RenderPass
                     offset: 0,
                     size: (uint)sizeof(EnvironmentDownsamplePushConstants)
                 );
-                // Both images take the same levels of the same map, and the push constants stay through a change of
+                // Every drawn cube takes the same levels of the same map, and the push constants stay through a change of
                 // pipeline with the same layout.
-                DispatchRun(
-                    vk: vk,
-                    commandBuffer: commandBuffer,
-                    pipeline: downsample,
-                    levelsSet: map.DownsampleSet(dispatch),
-                    size: push.LevelSize
-                );
-                DispatchRun(
-                    vk: vk,
-                    commandBuffer: commandBuffer,
-                    pipeline: distanceDownsample,
-                    levelsSet: map.DistanceDownsampleSet(dispatch),
-                    size: push.LevelSize
-                );
+                foreach (DrawnCube cube in map.DrawnCubes)
+                    DispatchRun(
+                        vk: vk,
+                        commandBuffer: commandBuffer,
+                        pipeline: DownsampleOf(cube.Image.Format),
+                        levelsSet: cube.DownsampleSet(dispatch),
+                        size: push.LevelSize
+                    );
                 if (lastRun && index == lastDrawn)
                     break;
                 // The next run reads the last level of this one, and the next map writes through the same views.
-                foreach (GpuImage image in (ReadOnlySpan<GpuImage>)[map.Radiance, map.Distance])
-                    AfterWrites(barriers: barriers, image: image, baseMip: (uint)(source + 1), mipCount: (uint)count);
+                foreach (DrawnCube cube in map.DrawnCubes)
+                    AfterWrites(
+                        barriers: barriers,
+                        image: cube.Image,
+                        baseMip: (uint)(source + 1),
+                        mipCount: (uint)count
+                    );
                 barriers.Flush(vk, commandBuffer);
             }
     }
+
+    /// <summary>
+    /// The downsample whose storage images have <paramref name="format"/>: <see cref="EnvironmentMap.DistanceFormat"/> or
+    /// <see cref="EnvironmentMap.RadianceFormat"/>, which the irradiance cubes share. Both include one body,
+    /// environment_downsample.glsl, so each level is the same solid-angle mean of its children.
+    /// </summary>
+    private Pipeline DownsampleOf(Format format) =>
+        format == EnvironmentMap.DistanceFormat ? distanceDownsample : downsample;
 
     /// <summary>
     /// Binds <paramref name="pipeline"/>, a downsample, with <paramref name="levelsSet"/> as set 1, and dispatches one run
@@ -339,7 +344,7 @@ internal sealed unsafe class EnvironmentPrefilterPass : RenderPass
         // The downsample reads level 0 that the convolution wrote, and makes levels 1 to 3 in one run.
         AfterWrites(barriers: barriers, image: map.Irradiance, baseMip: 0, mipCount: 1);
         barriers.Flush(vk, commandBuffer);
-        vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Compute, downsample);
+        vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Compute, DownsampleOf(map.Irradiance.Format));
         BindSets(vk: vk, commandBuffer: commandBuffer, firstSet: 1, sets: [map.IrradianceSet]);
         var push = new EnvironmentDownsamplePushConstants
         {

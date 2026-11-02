@@ -71,23 +71,32 @@ public sealed class EnvironmentPrefilterTests
     private static VulkanRenderer Renderer(int faceSize) =>
         Gpu.Headless(width: 160, height: 90, environmentMap: SceneEnvironmentMap.Default with { FaceSize = faceSize });
 
-    /// <summary>Every level of map <paramref name="map"/>'s radiance map, then each face in layer order, RGBA, rows from the top.</summary>
-    private static Half[][][] RadianceMips(VulkanRenderer renderer, int faceSize, int map = 0)
+    /// <summary>
+    /// Every level of map <paramref name="map"/>'s cube in <paramref name="image"/>, the radiance map or the distance cube,
+    /// then each face in layer order, rows from the top: RGBA for the radiance map, one inverse distance for the distance
+    /// cube.
+    /// </summary>
+    private static Half[][][] DrawnLevels(
+        VulkanRenderer renderer,
+        int faceSize,
+        EnvironmentImage image = EnvironmentImage.Radiance,
+        int map = 0
+    )
     {
-        var mips = new Half[PrefilterLevels.RadianceLevels(faceSize)][][];
-        for (int level = 0; level < mips.Length; level++)
+        var levels = new Half[PrefilterLevels.RadianceLevels(faceSize)][][];
+        for (int level = 0; level < levels.Length; level++)
         {
-            mips[level] = new Half[CubeFaces.Count][];
+            levels[level] = new Half[CubeFaces.Count][];
             for (int layer = 0; layer < CubeFaces.Count; layer++)
-                mips[level][layer] = renderer.ReadEnvironmentFace(
+                levels[level][layer] = renderer.ReadEnvironmentFace(
                     map: map,
                     face: (CubeFace)layer,
                     level: level,
-                    image: EnvironmentImage.Radiance
+                    image: image
                 );
         }
 
-        return mips;
+        return levels;
     }
 
     /// <summary>The mean of the four children of texel (x, y) of a face of <paramref name="size"/>, by their solid angles.</summary>
@@ -106,25 +115,6 @@ public sealed class EnvironmentPrefilterTests
         }
 
         return light / (float)solidAngle;
-    }
-
-    /// <summary>Every level of map <paramref name="map"/>'s distance cube, then each face in layer order, one inverse distance per texel, rows from the top.</summary>
-    private static Half[][][] DistanceLevels(VulkanRenderer renderer, int faceSize, int map)
-    {
-        var levels = new Half[PrefilterLevels.RadianceLevels(faceSize)][][];
-        for (int level = 0; level < levels.Length; level++)
-        {
-            levels[level] = new Half[CubeFaces.Count][];
-            for (int layer = 0; layer < CubeFaces.Count; layer++)
-                levels[level][layer] = renderer.ReadEnvironmentFace(
-                    map: map,
-                    face: (CubeFace)layer,
-                    level: level,
-                    image: EnvironmentImage.Distance
-                );
-        }
-
-        return levels;
     }
 
     /// <summary>
@@ -196,7 +186,7 @@ public sealed class EnvironmentPrefilterTests
         {
             renderer.Render(Colorful(renderer, TestChains.CamerasFrame), 1f);
 
-            var reference = new PrefilterReference(RadianceMips(renderer, faceSize), faceSize);
+            var reference = new PrefilterReference(DrawnLevels(renderer: renderer, faceSize: faceSize), faceSize);
             // Level 0 is the mirror level, which TheMirrorLevelIsTheRadianceMap holds.
             float[] worstOfLevel = new float[levels];
             for (int level = 1; level < levels; level++)
@@ -251,7 +241,7 @@ public sealed class EnvironmentPrefilterTests
         {
             renderer.Render(Colorful(renderer, TestChains.CamerasFrame), 1f);
 
-            Half[][][] mips = RadianceMips(renderer, faceSize);
+            Half[][][] mips = DrawnLevels(renderer: renderer, faceSize: faceSize);
             float[] worstOfLevel = new float[mips.Length];
             for (int level = 1; level < mips.Length; level++)
             {
@@ -296,7 +286,12 @@ public sealed class EnvironmentPrefilterTests
             float[] nearest = new float[worstOfMap.Length];
             for (int map = 0; map < worstOfMap.Length; map++)
             {
-                Half[][][] levels = DistanceLevels(renderer: renderer, faceSize: faceSize, map: map);
+                Half[][][] levels = DrawnLevels(
+                    renderer: renderer,
+                    faceSize: faceSize,
+                    image: EnvironmentImage.Distance,
+                    map: map
+                );
                 nearest[map] = levels[0].SelectMany(face => face).Max(distance => (float)distance);
                 for (int level = 1; level < levels.Length; level++)
                 {
@@ -628,7 +623,7 @@ public sealed class EnvironmentPrefilterTests
                     differing++;
             differing.Should().Be(0, "the mirror level reads the radiance map texel for texel");
 
-            var reference = new PrefilterReference(RadianceMips(renderer, faceSize), faceSize);
+            var reference = new PrefilterReference(DrawnLevels(renderer: renderer, faceSize: faceSize), faceSize);
             for (int level = 1; level < PrefilterLevels.LevelsPerDispatch; level++)
             {
                 int size = faceSize >> level;
@@ -1040,7 +1035,7 @@ public sealed class EnvironmentPrefilterTests
             float[] worstOfMap = new float[3];
             for (int map = 0; map < worstOfMap.Length; map++)
             {
-                Half[][][] mips = RadianceMips(renderer, faceSize, map);
+                Half[][][] mips = DrawnLevels(renderer: renderer, faceSize: faceSize, map: map);
                 for (int level = 1; level < mips.Length; level++)
                 {
                     int size = faceSize >> level;
@@ -1090,7 +1085,10 @@ public sealed class EnvironmentPrefilterTests
             float[] worstOfMap = new float[3];
             for (int map = 0; map < worstOfMap.Length; map++)
             {
-                var reference = new PrefilterReference(RadianceMips(renderer, faceSize, map), faceSize);
+                var reference = new PrefilterReference(
+                    DrawnLevels(renderer: renderer, faceSize: faceSize, map: map),
+                    faceSize
+                );
                 for (int level = 1; level < levels; level++)
                 {
                     int size = faceSize >> level;

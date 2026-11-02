@@ -1287,17 +1287,16 @@ public sealed unsafe class VulkanRenderer : IRenderer
     {
         EnvironmentMap environment =
             environmentMap ?? throw new InvalidOperationException("The environment map is off.");
-        GpuImage cube = image switch
+        (GpuImage cube, int channels) = image switch
         {
-            EnvironmentImage.Radiance => environment.Radiance,
-            EnvironmentImage.Specular => environment.Specular,
-            EnvironmentImage.Irradiance => environment.Irradiance,
-            EnvironmentImage.Distance => environment.Distance,
+            EnvironmentImage.Radiance => (Cube: environment.Radiance, Channels: 4),
+            EnvironmentImage.Specular => (Cube: environment.Specular, Channels: 4),
+            EnvironmentImage.Irradiance => (Cube: environment.Irradiance, Channels: 4),
+            EnvironmentImage.Distance => (Cube: environment.Distance, Channels: 1),
         };
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)level, cube.MipLevels);
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)map, (uint)environment.Capacity);
         int size = Math.Max(1, (int)cube.Extent.Width >> level);
-        int channels = cube.Format == EnvironmentMap.DistanceFormat ? 1 : 4;
         int count = size * size * channels;
         using var buffer = GpuBuffer.Create(
             device: device,

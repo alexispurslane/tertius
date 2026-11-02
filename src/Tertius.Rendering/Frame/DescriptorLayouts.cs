@@ -79,7 +79,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
 
     /// <summary>
     /// The storage buffers of the deform set: the region's window, the deform vertices, the deltas, the pose rows and the
-    /// job table. At most <see cref="FrameSetStorageBuffers"/>, which every device that the renderer accepts offers a stage.
+    /// job table. At most <see cref="FrameSetStorageBuffers"/>, which every device that the renderer accepts offers a stage,
+    /// because the scene layout needs that many.
     /// </summary>
     public const uint DeformSetStorageBuffers = 5;
 
@@ -111,13 +112,11 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
 
     /// <param name="glowLevels">The bloom levels, 0 without bloom: the pool holds one glow source set more than that.</param>
     /// <exception cref="NotSupportedException">
-    /// The device's stages see fewer storage buffers than the frame set holds, or fewer sampled images than a stage of a
-    /// layout sees.
+    /// A stage of a pipeline layout sees more storage buffers, storage images or sampled images than the device lets one
+    /// stage see (<see cref="LimitedDescriptors.Problem"/>).
     /// </exception>
     public DescriptorLayouts(VulkanDevice device, int framesInFlight, int glowLevels)
     {
-        if (StorageBufferProblem(device.Properties.Limits.MaxPerStageDescriptorStorageBuffers) is { } storageBuffers)
-            throw new NotSupportedException($"{storageBuffers} ({device.DeviceName})");
         this.device = device;
         LinearClampSampler = CreateLevelZeroSampler(Filter.Linear, "linear clamp sampler");
         PointSampler = CreateLevelZeroSampler(Filter.Nearest, "point sampler");
@@ -154,15 +153,6 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         ) = CreateComputeLayouts();
 
         (pool, texturePool) = CreatePools(framesInFlight: (uint)framesInFlight, glowSourceSets: (uint)glowLevels + 1);
-        uint sampledImages = layoutDescriptors.Values.Max(counts => counts.SampledImages.Most);
-        if (
-            SampledImageProblem(device.Properties.Limits.MaxPerStageDescriptorSampledImages, sampledImages) is
-            { } sampled
-        )
-        {
-            Dispose();
-            throw new NotSupportedException($"{sampled} ({device.DeviceName})");
-        }
     }
 
     public DescriptorSetLayout FrameSet { get; }
@@ -340,42 +330,10 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     public PipelineLayout DeformLayout { get; }
 
     /// <summary>
-    /// The storage image descriptors in all the sets of <paramref name="layout"/>: at least what one stage of it reads, the
-    /// count that the device limits of docs/plans/environment-map.md, "Portable Vulkan", bound.
+    /// The storage buffers, storage images and sampled images that each shader stage of <paramref name="layout"/> sees,
+    /// outside the sets that are updated after bind: the counts that the device's per-stage limits bound.
     /// </summary>
-    public uint StorageImagesOf(PipelineLayout layout) => layoutDescriptors[layout.Handle].StorageImages;
-
-    /// <summary>
-    /// The storage buffer descriptors in all the sets of <paramref name="layout"/>: at least what one stage of it reads, the
-    /// count that maxPerStageDescriptorStorageBuffers bounds.
-    /// </summary>
-    public uint StorageBuffersOf(PipelineLayout layout) => layoutDescriptors[layout.Handle].StorageBuffers;
-
-    /// <summary>
-    /// The sampled images that one shader stage of <paramref name="layout"/> sees at most, outside the sets that are
-    /// updated after bind: the count that maxPerStageDescriptorSampledImages bounds.
-    /// </summary>
-    public uint SampledImagesOf(PipelineLayout layout) => layoutDescriptors[layout.Handle].SampledImages.Most;
-
-    /// <summary>
-    /// Why a device that lets one shader stage see at most <paramref name="maxPerStageSampledImages"/> sampled images
-    /// cannot bind a layout of which one stage sees <paramref name="sampledImages"/>, or null when it can. Vulkan guarantees
-    /// only 16 (ARCHITECTURE.md, "Portable Vulkan").
-    /// </summary>
-    internal static string? SampledImageProblem(uint maxPerStageSampledImages, uint sampledImages) =>
-        maxPerStageSampledImages < sampledImages
-            ? $"A shader stage of a pipeline layout sees {sampledImages} sampled images, above the device's maxPerStageDescriptorSampledImages of {maxPerStageSampledImages}."
-            : null;
-
-    /// <summary>
-    /// Why a device that binds at most <paramref name="maxPerStageStorageBuffers"/> storage buffers in one shader stage
-    /// cannot bind the frame set, or null when it can: its vertex and fragment stages see
-    /// <see cref="FrameSetStorageBuffers"/>, and Vulkan guarantees only 4.
-    /// </summary>
-    internal static string? StorageBufferProblem(uint maxPerStageStorageBuffers) =>
-        maxPerStageStorageBuffers < FrameSetStorageBuffers
-            ? $"The frame set binds {FrameSetStorageBuffers} storage buffers in the vertex and fragment stages, above the device's maxPerStageDescriptorStorageBuffers of {maxPerStageStorageBuffers}."
-            : null;
+    public LimitedDescriptors DescriptorsOf(PipelineLayout layout) => layoutDescriptors[layout.Handle];
 
     public DescriptorSet AllocateFrameSet() => Allocate(pool, FrameSet, null);
 
@@ -764,8 +722,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             push: new(ShaderStageFlags.ComputeBit, 0, (uint)Unsafe.SizeOf<ReflectionPushConstants>()),
             name: "reflection layout"
         );
-        // The deform set alone, so its compute stage sees five storage buffers, within the nine that StorageBufferProblem
-        // already requires of every device.
+        // The deform set alone, so its compute stage sees five storage buffers, within the eight that the scene layout
+        // already needs of every device.
         PipelineLayout deform = CreatePipelineLayout(
             sets: [DeformSet],
             push: new(ShaderStageFlags.ComputeBit, 0, (uint)Unsafe.SizeOf<DeformPushConstants>()),
@@ -1249,6 +1207,15 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         string name
     )
     {
+        var counts = default(LimitedDescriptors);
+        foreach (DescriptorSetLayout set in sets)
+            counts = counts.Plus(setDescriptors[set.Handle]);
+        // Before the layout exists: a layout above a per-stage limit breaks the valid usage of vkCreatePipelineLayout.
+        if (counts.Problem(device.Properties.Limits) is { } problem)
+        {
+            Dispose();
+            throw new NotSupportedException($"The {name}: {problem} ({device.DeviceName})");
+        }
         PipelineLayout layout;
         PushConstantRange range = push ?? default;
         fixed (DescriptorSetLayout* setLayouts = sets)
@@ -1271,9 +1238,6 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
                 .Check("vkCreatePipelineLayout");
         }
         device.SetName(ObjectType.PipelineLayout, layout.Handle, name);
-        var counts = default(LimitedDescriptors);
-        foreach (DescriptorSetLayout set in sets)
-            counts = counts.Plus(setDescriptors[set.Handle]);
         layoutDescriptors[layout.Handle] = counts;
         return layout;
     }
@@ -1329,41 +1293,11 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         vk.DestroyDescriptorPool(device.Device, pool, null);
         vk.DestroyDescriptorPool(device.Device, texturePool, null);
 
-        vk.DestroyPipelineLayout(device.Device, SceneLayout, null);
-        vk.DestroyPipelineLayout(device.Device, ImpostorLayout, null);
-        vk.DestroyPipelineLayout(device.Device, AmbientScatterLayout, null);
-        vk.DestroyPipelineLayout(device.Device, PostLayout, null);
-        vk.DestroyPipelineLayout(device.Device, OverlayLayout, null);
-        vk.DestroyPipelineLayout(device.Device, BloomLayout, null);
-        vk.DestroyPipelineLayout(device.Device, ExposureLayout, null);
-        vk.DestroyPipelineLayout(device.Device, EnvironmentPrefilterLayout, null);
-        vk.DestroyPipelineLayout(device.Device, OcclusionLayout, null);
-        vk.DestroyPipelineLayout(device.Device, SmaaLayout, null);
-        vk.DestroyPipelineLayout(device.Device, PyramidLayout, null);
-        vk.DestroyPipelineLayout(device.Device, DepthTailLayout, null);
-        vk.DestroyPipelineLayout(device.Device, ReflectionLayout, null);
-        vk.DestroyPipelineLayout(device.Device, DeformLayout, null);
-        vk.DestroyPipelineLayout(device.Device, ScatterLayout, null);
-        vk.DestroyPipelineLayout(device.Device, ShadowBoundsLayout, null);
-
-        vk.DestroyDescriptorSetLayout(device.Device, FrameSet, null);
-        vk.DestroyDescriptorSetLayout(device.Device, TextureSet, null);
-        vk.DestroyDescriptorSetLayout(device.Device, GBufferSet, null);
-        vk.DestroyDescriptorSetLayout(device.Device, PostSet, null);
-        vk.DestroyDescriptorSetLayout(device.Device, GlowSourceSet, null);
-        vk.DestroyDescriptorSetLayout(device.Device, AtlasSet, null);
-        vk.DestroyDescriptorSetLayout(device.Device, MeterSet, null);
-        vk.DestroyDescriptorSetLayout(device.Device, ExposureSet, null);
-        vk.DestroyDescriptorSetLayout(device.Device, EnvironmentPrefilterSet, null);
-        vk.DestroyDescriptorSetLayout(device.Device, EnvironmentLevelsSet, null);
-        vk.DestroyDescriptorSetLayout(device.Device, OcclusionSet, null);
-        vk.DestroyDescriptorSetLayout(device.Device, SmaaSet, null);
-        vk.DestroyDescriptorSetLayout(device.Device, PyramidLevelSet, null);
-        vk.DestroyDescriptorSetLayout(device.Device, DepthTailSet, null);
-        vk.DestroyDescriptorSetLayout(device.Device, ReflectionSet, null);
-        vk.DestroyDescriptorSetLayout(device.Device, DeformSet, null);
-        vk.DestroyDescriptorSetLayout(device.Device, ScatterSet, null);
-        vk.DestroyDescriptorSetLayout(device.Device, ShadowBoundsSet, null);
+        // The tables hold every layout that this object made, also while a refused device stops the constructor.
+        foreach (ulong layout in layoutDescriptors.Keys)
+            vk.DestroyPipelineLayout(device.Device, new PipelineLayout(layout), null);
+        foreach (ulong set in setDescriptors.Keys)
+            vk.DestroyDescriptorSetLayout(device.Device, new DescriptorSetLayout(set), null);
 
         vk.DestroySampler(device.Device, ShadowSampler, null);
         vk.DestroySampler(device.Device, AtlasSampler, null);
@@ -1374,48 +1308,71 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
 }
 
 /// <summary>
-/// The descriptors of a set layout or a pipeline layout that device limits bound: its storage images and storage buffers,
-/// and the sampled images that each shader stage sees outside the sets that are updated after bind.
+/// The descriptors of a set layout or a pipeline layout that the device's per-stage limits bound: the storage buffers,
+/// storage images and sampled images that each shader stage sees, outside the sets that are updated after bind.
 /// </summary>
 internal readonly record struct LimitedDescriptors(
-    uint StorageImages,
-    uint StorageBuffers,
-    SampledImagesPerStage SampledImages
+    PerStageCounts StorageBuffers,
+    PerStageCounts StorageImages,
+    PerStageCounts SampledImages
 )
 {
     /// <summary>
-    /// These descriptors and those of <paramref name="binding"/>. The sampled images of a set that is
+    /// These descriptors and those of <paramref name="binding"/>. The descriptors of a set that is
     /// <paramref name="updatedAfterBind"/> count against the update-after-bind limits instead, so they do not count here.
     /// </summary>
     public LimitedDescriptors With(in DescriptorSetLayoutBinding binding, bool updatedAfterBind) =>
-        binding.DescriptorType switch
-        {
-            DescriptorType.StorageImage => this with { StorageImages = StorageImages + binding.DescriptorCount },
-            DescriptorType.StorageBuffer => this with { StorageBuffers = StorageBuffers + binding.DescriptorCount },
-            DescriptorType.SampledImage or DescriptorType.CombinedImageSampler when !updatedAfterBind => this with
+        updatedAfterBind
+            ? this
+            : binding.DescriptorType switch
             {
-                SampledImages = SampledImages.Plus(binding.StageFlags, binding.DescriptorCount),
-            },
-            _ => this,
-        };
+                DescriptorType.StorageBuffer => this with
+                {
+                    StorageBuffers = StorageBuffers.Plus(binding.StageFlags, binding.DescriptorCount),
+                },
+                DescriptorType.StorageImage => this with
+                {
+                    StorageImages = StorageImages.Plus(binding.StageFlags, binding.DescriptorCount),
+                },
+                DescriptorType.SampledImage or DescriptorType.CombinedImageSampler => this with
+                {
+                    SampledImages = SampledImages.Plus(binding.StageFlags, binding.DescriptorCount),
+                },
+                _ => this,
+            };
 
-    /// <summary>These descriptors and <paramref name="other"/>.</summary>
+    /// <summary>These descriptors and <paramref name="other"/>, stage by stage.</summary>
     public LimitedDescriptors Plus(LimitedDescriptors other) =>
         new(
-            StorageImages: StorageImages + other.StorageImages,
-            StorageBuffers: StorageBuffers + other.StorageBuffers,
+            StorageBuffers: StorageBuffers.Plus(other.StorageBuffers),
+            StorageImages: StorageImages.Plus(other.StorageImages),
             SampledImages: SampledImages.Plus(other.SampledImages)
         );
+
+    /// <summary>
+    /// Why a device with <paramref name="limits"/> cannot make a pipeline layout with these descriptors, or null when it
+    /// can: one stage sees more of a type than the device's maxPerStageDescriptor limit of that type. Vulkan guarantees
+    /// only 4 storage buffers, 4 storage images and 16 sampled images (ARCHITECTURE.md, "Required device features").
+    /// </summary>
+    public string? Problem(in PhysicalDeviceLimits limits) =>
+        Above(StorageBuffers.Most, limits.MaxPerStageDescriptorStorageBuffers, "storage buffers")
+        ?? Above(StorageImages.Most, limits.MaxPerStageDescriptorStorageImages, "storage images")
+        ?? Above(SampledImages.Most, limits.MaxPerStageDescriptorSampledImages, "sampled images");
+
+    private static string? Above(uint count, uint limit, string descriptors) =>
+        count > limit
+            ? $"a shader stage sees {count} {descriptors}, above the device's limit of {limit} {descriptors} in a stage."
+            : null;
 }
 
-/// <summary>The sampled images that the vertex, fragment and compute stages each see.</summary>
-internal readonly record struct SampledImagesPerStage(uint Vertex, uint Fragment, uint Compute)
+/// <summary>The descriptors of one type that the vertex, fragment and compute stages each see.</summary>
+internal readonly record struct PerStageCounts(uint Vertex, uint Fragment, uint Compute)
 {
     /// <summary>The most that one stage sees.</summary>
     public uint Most => Math.Max(Vertex, Math.Max(Fragment, Compute));
 
     /// <summary>These and <paramref name="count"/> more for each of <paramref name="stages"/>.</summary>
-    public SampledImagesPerStage Plus(ShaderStageFlags stages, uint count) =>
+    public PerStageCounts Plus(ShaderStageFlags stages, uint count) =>
         new(
             Vertex: Vertex + ((stages & ShaderStageFlags.VertexBit) != 0 ? count : 0),
             Fragment: Fragment + ((stages & ShaderStageFlags.FragmentBit) != 0 ? count : 0),
@@ -1423,6 +1380,6 @@ internal readonly record struct SampledImagesPerStage(uint Vertex, uint Fragment
         );
 
     /// <summary>These and <paramref name="other"/>, stage by stage.</summary>
-    public SampledImagesPerStage Plus(SampledImagesPerStage other) =>
+    public PerStageCounts Plus(PerStageCounts other) =>
         new(Vertex: Vertex + other.Vertex, Fragment: Fragment + other.Fragment, Compute: Compute + other.Compute);
 }

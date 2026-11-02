@@ -40,13 +40,17 @@ internal sealed unsafe class EnvironmentFacePass : RenderPass
     {
         this.device = device;
         this.map = map;
+        // One color output per drawn cube, in the order of the face shaders' outputs.
+        var colorFormats = new Format[map.DrawnCubes.Length];
+        for (int output = 0; output < colorFormats.Length; output++)
+            colorFormats[output] = map.DrawnCubes[output].Image.Format;
         sky = new GraphicsPipelineDesc
         {
             Name = "environment sky",
             VertexShader = "fullscreen.vert",
             FragmentShader = "environment_sky.frag",
             Layout = layouts.SceneLayout,
-            ColorFormats = [EnvironmentMap.RadianceFormat, EnvironmentMap.DistanceFormat],
+            ColorFormats = colorFormats,
             DepthFormat = EnvironmentMap.FaceDepthFormat,
             CullMode = CullModeFlags.None,
         }.Create(device, shaders);
@@ -56,7 +60,7 @@ internal sealed unsafe class EnvironmentFacePass : RenderPass
             VertexShader = "mesh.vert",
             FragmentShader = "environment_face.frag",
             Layout = layouts.SceneLayout,
-            ColorFormats = [EnvironmentMap.RadianceFormat, EnvironmentMap.DistanceFormat],
+            ColorFormats = colorFormats,
             DepthFormat = EnvironmentMap.FaceDepthFormat,
             VertexInput = VertexInput.Mesh,
             DepthTest = true,
@@ -115,11 +119,10 @@ internal sealed unsafe class EnvironmentFacePass : RenderPass
 
         for (int i = 0; i < faces.Count; i++)
             RecordFace(context: context, draw: faces[i], bindState: i == 0);
-        // Level 0 of every drawn face ended read-only for the prefilter, and the rest of the map stayed so since the last
-        // frame's prefilter. The last frame's prefilter is the only reader of the radiance map. The distance cube's other
-        // layers keep the readers of the last frame, the shading passes in the fragment and compute stages.
-        map.Radiance.State = ResourceUses.Describe(ImageUse.SampledCompute);
-        map.Distance.State = ResourceUses.Describe(ImageUse.SampledFragmentCompute);
+        // Level 0 of every drawn face ended read-only for the prefilter, within its readers' use, and the rest of each
+        // image stayed in that use since the last frame's prefilter.
+        foreach (DrawnCube cube in map.DrawnCubes)
+            cube.ReturnToReaders();
     }
 
     public override void Dispose()
@@ -130,7 +133,7 @@ internal sealed unsafe class EnvironmentFacePass : RenderPass
     }
 
     /// <summary>
-    /// Records one face: the sky and the three depth ranges into level 0 of its layer of both images, which ends
+    /// Records one face: the sky and the three depth ranges into level 0 of its layer of each drawn cube, which ends
     /// read-only. With <paramref name="bindState"/>, it first binds the sets, the viewport and the geometry, which later
     /// faces keep.
     /// </summary>
@@ -147,7 +150,7 @@ internal sealed unsafe class EnvironmentFacePass : RenderPass
                 AfterRange(context.Barriers, layer);
             context.Barriers.Image(map.FaceDepth, ImageUse.DepthAttachment, discard: true);
             context.Barriers.Flush(vk, commandBuffer);
-            BeginRange(context: context, draw: draw, range: range);
+            BeginRange(context: context, layer: layer, range: range);
             if (first)
             {
                 if (bindState)
@@ -174,20 +177,20 @@ internal sealed unsafe class EnvironmentFacePass : RenderPass
     }
 
     /// <summary>
-    /// Discards the old content of level 0 of one face in both images, for the color attachments. The face is drawn anew,
-    /// after the last frame's readers of each image finished reading it: their recorded stages, which change only after
-    /// the last face.
+    /// Discards the old content of level 0 of one face in each drawn cube, for the color attachments. The face is drawn
+    /// anew, after the last frame's readers of each image finished reading it: their recorded stages, which change only
+    /// after the last face.
     /// </summary>
     private void DiscardFace(BarrierBatch barriers, uint layer)
     {
-        foreach (GpuImage image in (ReadOnlySpan<GpuImage>)[map.Radiance, map.Distance])
+        foreach (DrawnCube cube in map.DrawnCubes)
             barriers.ImageLevels(
-                image: image,
+                image: cube.Image,
                 baseMip: 0,
                 mipCount: 1,
                 oldLayout: ImageLayout.Undefined,
                 newLayout: ImageLayout.ColorAttachmentOptimal,
-                srcStages: image.State.Stages,
+                srcStages: cube.Image.State.Stages,
                 srcAccess: AccessFlags2.None,
                 dstStages: PipelineStageFlags2.ColorAttachmentOutputBit,
                 dstAccess: AccessFlags2.ColorAttachmentReadBit | AccessFlags2.ColorAttachmentWriteBit,
@@ -197,13 +200,14 @@ internal sealed unsafe class EnvironmentFacePass : RenderPass
     }
 
     /// <summary>
-    /// Makes one range's color writes to both images visible to the next range, which loads and writes the same texels.
+    /// Makes one range's color writes to each drawn cube visible to the next range, which loads and writes the same
+    /// texels.
     /// </summary>
     private void AfterRange(BarrierBatch barriers, uint layer)
     {
-        foreach (GpuImage image in (ReadOnlySpan<GpuImage>)[map.Radiance, map.Distance])
+        foreach (DrawnCube cube in map.DrawnCubes)
             barriers.ImageLevels(
-                image: image,
+                image: cube.Image,
                 baseMip: 0,
                 mipCount: 1,
                 oldLayout: ImageLayout.ColorAttachmentOptimal,
@@ -218,16 +222,16 @@ internal sealed unsafe class EnvironmentFacePass : RenderPass
     }
 
     /// <summary>
-    /// Begins the rendering of one range of one face: level 0 of its layer in both images, loaded after the far range,
-    /// which the sky covers, and the face depth cleared to the range's far boundary.
+    /// Begins the rendering of one range of one face: level 0 of its layer in each drawn cube, loaded after the far
+    /// range, which the sky covers, and the face depth cleared to the range's far boundary.
     /// </summary>
-    private void BeginRange(FrameContext context, in EnvironmentFaceDraw draw, int range)
+    private void BeginRange(FrameContext context, uint layer, int range)
     {
-        (ImageView radiance, ImageView distance) = map.FaceViews(draw.Map, draw.Face);
+        ReadOnlySpan<DrawnCube> cubes = map.DrawnCubes;
         AttachmentLoadOp load = range == DepthRanges.Far ? AttachmentLoadOp.DontCare : AttachmentLoadOp.Load;
-        RenderingAttachmentInfo* colors = stackalloc RenderingAttachmentInfo[2];
-        colors[0] = ColorAttachment(radiance, load);
-        colors[1] = ColorAttachment(distance, load);
+        RenderingAttachmentInfo* colors = stackalloc RenderingAttachmentInfo[cubes.Length];
+        for (int output = 0; output < cubes.Length; output++)
+            colors[output] = ColorAttachment(cubes[output].FaceView((int)layer), load);
         var depth = new RenderingAttachmentInfo
         {
             SType = StructureType.RenderingAttachmentInfo,
@@ -242,7 +246,7 @@ internal sealed unsafe class EnvironmentFacePass : RenderPass
             SType = StructureType.RenderingInfo,
             RenderArea = new(new Offset2D(0, 0), FaceExtent),
             LayerCount = 1,
-            ColorAttachmentCount = 2,
+            ColorAttachmentCount = (uint)cubes.Length,
             PColorAttachments = colors,
             PDepthAttachment = &depth,
         };
@@ -296,12 +300,14 @@ internal sealed unsafe class EnvironmentFacePass : RenderPass
         vk.CmdDraw(commandBuffer: commandBuffer, vertexCount: 3, instanceCount: 1, firstVertex: 0, firstInstance: 0);
     }
 
-    /// <summary>Makes level 0 of one face of both images read-only for the prefilter, after the last range's color writes.</summary>
+    /// <summary>
+    /// Makes level 0 of one face of each drawn cube read-only for the prefilter, after the last range's color writes.
+    /// </summary>
     private void ToPrefilter(BarrierBatch barriers, uint layer)
     {
-        foreach (GpuImage image in (ReadOnlySpan<GpuImage>)[map.Radiance, map.Distance])
+        foreach (DrawnCube cube in map.DrawnCubes)
             barriers.ImageLevels(
-                image: image,
+                image: cube.Image,
                 baseMip: 0,
                 mipCount: 1,
                 oldLayout: ImageLayout.ColorAttachmentOptimal,

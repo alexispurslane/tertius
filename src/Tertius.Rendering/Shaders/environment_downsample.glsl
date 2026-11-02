@@ -9,16 +9,17 @@
 // and the irradiance cubes (environment_downsample.comp), r16f for the distance cubes
 // (environment_distance_downsample.comp). An r16f image loads as (w, 0, 0, 1) and stores its first channel, so the same
 // math makes the mean of w.
+//
+// One invocation per texel of level k + 1 of one map, over (W_k+1, W_k+1, 6): face z of map m is layer 6m + z. A
+// workgroup's 8 by 8 texels of level k + 1 are the children of 4 by 4 texels of level k + 2, and those of 2 by 2 texels
+// of level k + 3. So the workgroup makes those too, from the texels that it wrote, and the chain takes one dispatch and
+// one barrier for every three levels. It reads them back from the images, not from registers or shared memory, so a
+// level is the mean of the level above as stored, in halves rounded as the device rounds them, whichever dispatch made
+// that level.
 #ifndef TERTIUS_ENVIRONMENT_DOWNSAMPLE_GLSL
 #define TERTIUS_ENVIRONMENT_DOWNSAMPLE_GLSL
 
 #include "cube_faces.glsl"
-//
-// One invocation per texel of level k + 1 of one map, over (W_k+1, W_k+1, 6): face z of map m is layer 6m + z. A workgroup's 8 by 8 texels of level k + 1 are the
-// children of 4 by 4 texels of level k + 2, and those of 2 by 2 texels of level k + 3. So the workgroup makes those too,
-// from the texels that it wrote, and the chain takes one dispatch and one barrier for every three levels. It reads them
-// back from the images, not from registers or shared memory, so a level is the mean of the level above as stored, in
-// halves rounded as the device rounds them, whichever dispatch made that level.
 
 layout(local_size_x = 8, local_size_y = 8) in;
 
