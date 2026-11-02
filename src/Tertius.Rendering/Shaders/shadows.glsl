@@ -8,35 +8,31 @@
 // Filtering: 4 × 4 hardware-PCF taps one texel apart. Each tap is a bilinear 2 × 2 comparison, so together they
 // cover 5 × 5 texels with a smooth tent-like weight. The tiles compute the same filter from 9 gathers (tileShadow).
 //
-// Bias, in three parts that each scale with the cascade's texel size:
-//  - The shadow pass adds a slope-scaled depth bias to the casters, which covers the difference between a tap's
-//    position and the centers of the texels its bilinear footprint compares against.
-//  - Receiver-plane depth: where the receiver's own plane rises toward the light, a tap compares against the plane's
-//    depth at the tap's position rather than the pixel's, so the wide kernel does not shadow a surface with itself.
-//    The plane comes from the geometric normal; its slope is limited where the surface is almost parallel to the
-//    light. The correction is one-sided: where the plane falls away from the light, the pixel's own depth is kept,
-//    because a surface farther from the light than the receiver cannot shadow it. Extrapolating the plane downhill
-//    would let the kernel find a wall standing on the receiver's plane and creep shadow onto its lit side.
-//  - A normal offset of one texel, scaled by sin(angle to the light), plus half a texel of constant depth bias.
+// Bias, the same model for the cascades and the tiles (docs/plans/local-light-shadows.md, decision 33), in parts that
+// each scale with the texel size:
+//  - The shadow passes add a slope-scaled depth bias to the casters, ShadowBias.SlopeBias. Every tap compares against
+//    the receiver's own depth, and the filter compares texels up to 2.5 texels from the lookup along each texel axis,
+//    so the bias covers the receiver's slope over that reach along an axis. On a slope diagonal to the texel grid the
+//    corner texels lie up to 2.5 texels off along both axes, and Vulkan lets the slope be the larger of the two axes'
+//    slopes, so their comparisons can fall a little short: at most about 2% of the light at extreme grazing angles
+//    (ARCHITECTURE.md, "Shadow bias"). No tap compares against the receiver's plane extrapolated toward the light: at a
+//    grazing light, that plane passes under a wall that stands on the receiver, and the taps saw the light past the
+//    wall (ter-kn1d).
+//  - A normal offset of one texel, scaled by sin(angle to the light), frame.shadowParams.y, which the batcher writes in
+//    every frame for the cascades and the tiles alike, plus half a texel of constant depth bias for the cascades.
 #ifndef TERTIUS_SHADOWS_GLSL
 #define TERTIUS_SHADOWS_GLSL
 
 #include "cube_faces.glsl"
 
-// The lit fraction of one cascade of one cascade set at a world position.
-float sampleCascade(uint set, uint cascade, vec3 position, vec3 geometricNormal, float NdotL)
+// The lit fraction of one cascade of one cascade set at a world position, with geometricNormal and sinTheta as in
+// cascadeShadow.
+float sampleCascade(uint set, uint cascade, vec3 position, vec3 geometricNormal, float sinTheta)
 {
     float texel = frame.shadowTexel[cascade];
-    float sinTheta = sqrt(max(1.0 - NdotL * NdotL, 0.0));
     vec3 lookup = position + geometricNormal * (frame.shadowParams.y * texel * sinTheta);
     vec4 clip = frame.cascadeSets[set].viewProj[cascade] * vec4(lookup, 1.0);
     vec2 uv = clip.xy * 0.5 + 0.5;
-
-    // The receiver's plane: depth changes by −n.xy / n.z per unit of lateral distance in light space, which is
-    // axisX.w times that in [0, 1] depth per unit of uv.
-    vec4 axisX = frame.cascadeSets[set].axisX;
-    vec3 lightNormal = vec3(dot(geometricNormal, axisX.xyz), dot(geometricNormal, frame.cascadeSets[set].axisY.xyz), NdotL);
-    vec2 slope = -lightNormal.xy / max(lightNormal.z, frame.shadowParams.w) * axisX.w;
     float reference = clip.z + frame.shadowParams.z;
     float invSize = frame.shadowParams.x;
     // ShadowMap.Layer: the layers of a set follow those of the sets before it.
@@ -48,7 +44,7 @@ float sampleCascade(uint set, uint cascade, vec3 position, vec3 geometricNormal,
         for (int x = 0; x < 4; x++)
         {
             vec2 offset = vec2(float(x) - 1.5, float(y) - 1.5) * invSize;
-            vec4 coordinate = vec4(uv + offset, layer, reference + max(dot(slope, offset), 0.0));
+            vec4 coordinate = vec4(uv + offset, layer, reference);
             // Explicit zero gradients (mip 0): the calling code branches per pixel, where implicit derivatives are undefined.
             lit += textureGrad(sampler2DArrayShadow(shadowCascades, shadowSampler), coordinate, vec2(0.0), vec2(0.0));
         }
@@ -70,9 +66,9 @@ float beyondShadowMaps(vec3 position)
 }
 
 // The fraction of a light that its cascade set lets through at a world position. geometricNormal is the interpolated
-// vertex normal; NdotL is its cosine with the direction toward the light and must be at least 0, with 0 for a hair card
-// edge-on to the light.
-float cascadeShadow(uint set, vec3 position, vec3 geometricNormal, float NdotL)
+// vertex normal, which faces the light, and sinTheta the sine of its angle with the direction toward the light: 1 for a
+// hair card edge-on to the light.
+float cascadeShadow(uint set, vec3 position, vec3 geometricNormal, float sinTheta)
 {
     uint count = frame.counts.z;
     if (count == 0u)
@@ -85,12 +81,12 @@ float cascadeShadow(uint set, vec3 position, vec3 geometricNormal, float NdotL)
     if (cascade == count)
         return 1.0;
 
-    float lit = sampleCascade(set, cascade, position, geometricNormal, NdotL);
+    float lit = sampleCascade(set, cascade, position, geometricNormal, sinTheta);
     float blendStart = frame.shadowBlendStart[cascade];
     if (depth > blendStart)
     {
         float t = (depth - blendStart) / (frame.shadowSplits[cascade] - blendStart);
-        float next = cascade + 1u < count ? sampleCascade(set, cascade + 1u, position, geometricNormal, NdotL) : 1.0;
+        float next = cascade + 1u < count ? sampleCascade(set, cascade + 1u, position, geometricNormal, sinTheta) : 1.0;
         lit = mix(lit, next, smoothstep(0.0, 1.0, t));
     }
     return lit;
@@ -101,9 +97,9 @@ float cascadeShadow(uint set, vec3 position, vec3 geometricNormal, float NdotL)
 // only for points in the main view's frustum: a point behind the camera has a negative depth, and cascade 0 does not hold
 // it once it lies more than a few meters back. Each set has its own boxes, along its own light.
 
-// How far from a box's edge, in texels, a held point lies at least: the 4 × 4 taps reach 2 texels from the lookup point,
-// and the normal offset moves the lookup up to 1 texel.
-const float ShadowHoldingMarginTexels = 3.0;
+// How far the 4 × 4 taps reach from the lookup, in texels: they compare the 5 × 5 texels around the lookup's texel, up
+// to 2 texels from it. The C# twin is ShadowBias.FilterClearanceTexels.
+const float FilterClearanceTexels = 2.0;
 
 // A position in the clip space of a cascade box: xy in [−1, 1] across the box, z in [0, 1] along the light.
 vec3 cascadeClip(uint set, uint cascade, vec3 position)
@@ -112,9 +108,10 @@ vec3 cascadeClip(uint set, uint cascade, vec3 position)
 }
 
 // How far across a cascade box a clip position lies: 0 at the box's center, 1 at the margin of the filter, more beyond.
+// The margin keeps a held point the filter's reach plus the normal offset (frame.shadowParams.y) from the box's edge.
 float acrossBox(vec3 clip)
 {
-    float margin = 2.0 * ShadowHoldingMarginTexels * frame.shadowParams.x;
+    float margin = 2.0 * (FilterClearanceTexels + frame.shadowParams.y) * frame.shadowParams.x;
     return max(abs(clip.x), abs(clip.y)) / (1.0 - margin);
 }
 
@@ -156,10 +153,9 @@ float beyondShadowMapsHolding(uint set, vec3 position)
 }
 
 // The fraction of a light that its cascade set lets through at a world position, from the finest cascade whose box holds
-// it. In the coarsest box's outer tenth the map shadow fades out by the weight of beyondShadowMapsHolding. NdotL is the
-// cosine of geometricNormal with the direction toward the light and must be at least 0, with 0 for a hair card edge-on to
-// the light.
-float cascadeShadowHolding(uint set, vec3 position, vec3 geometricNormal, float NdotL)
+// it. In the coarsest box's outer tenth the map shadow fades out by the weight of beyondShadowMapsHolding.
+// geometricNormal and sinTheta are as in cascadeShadow.
+float cascadeShadowHolding(uint set, vec3 position, vec3 geometricNormal, float sinTheta)
 {
     uint count = frame.counts.z;
     if (count == 0u)
@@ -167,7 +163,7 @@ float cascadeShadowHolding(uint set, vec3 position, vec3 geometricNormal, float 
     uint cascade = holdingCascade(set, position);
     if (cascade == count)
         return 1.0;
-    float lit = sampleCascade(set, cascade, position, geometricNormal, NdotL);
+    float lit = sampleCascade(set, cascade, position, geometricNormal, sinTheta);
     return cascade + 1u == count ? mix(lit, 1.0, coarsestBoxFade(set, position)) : lit;
 }
 
@@ -225,25 +221,18 @@ float farShadowVisibility(vec3 position, vec3 L, float angularRadius, uvec3 rang
     return visibility;
 }
 
-// How far tileShadow moves its lookup along the geometric normal, in texels of the tile at the receiver's distance, times
-// sin(angle to the light): ShadowPass.NormalOffsetTexels, as for the cascades.
-const float TileNormalOffsetTexels = 1.0;
-
 // The share of a near light that its atlas tiles let through at a world position (docs/plans/local-light-shadows.md,
 // "Sampling"): the one tile of a spot light, or the tile of the cube face of a point light that holds the direction from
 // the light to the position. The filter of the cascades' 4 × 4 PCF taps, computed from gathers, with the normal offset at
-// the receiver's distance and the tile pass's slope-scaled bias, and no receiver-plane term, because a tile's depth is
-// not linear across it. Texels past the tile clamp to its edge. The tile's bounds skip the gathers where every
-// comparison agrees. L is the unit direction toward the light and d its distance;
-// geometricNormal is the interpolated vertex normal, and NdotL its cosine with L, which must be at least 0, with 0 for a
-// hair card edge-on to the light.
-float tileShadow(GpuLight light, vec3 position, vec3 L, float d, vec3 geometricNormal, float NdotL)
+// the receiver's distance and the casters' slope-scaled bias, as the cascades take them. Texels past the tile clamp to
+// its edge. The tile's bounds skip the gathers where every comparison agrees. L is the unit direction toward the light
+// and d its distance; geometricNormal and sinTheta are as in cascadeShadow.
+float tileShadow(GpuLight light, vec3 position, vec3 L, float d, vec3 geometricNormal, float sinTheta)
 {
     // A point light's six views follow the cube faces in layer order (ShadowTiles.AddViews).
     uint view = light.shadow.y + (light.shadow.z > 1u ? cubeFaceOf(-L) : 0u);
     GpuShadowTile tile = shadowTiles[view];
-    float sinTheta = sqrt(max(1.0 - NdotL * NdotL, 0.0));
-    vec3 lookup = position + geometricNormal * (TileNormalOffsetTexels * tile.texelPerMeter * d * sinTheta);
+    vec3 lookup = position + geometricNormal * (frame.shadowParams.y * tile.texelPerMeter * d * sinTheta);
     vec4 clip = tile.viewProj * vec4(lookup, 1.0);
     // The near plane floors the divisor, which is the lookup's depth along the view axis: a lookup nearer the light than
     // the near plane gets the depth 1, nearest the light, which no clamped caster passes, so the floor changes no result.

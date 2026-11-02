@@ -141,6 +141,25 @@ internal static class Gpu
     /// <summary>A camera turned down by <paramref name="pitch"/> radians from looking along −Z.</summary>
     public static Quaternion PitchDown(float pitch) => Quaternion.CreateFromAxisAngle(Vector3.UnitX, -pitch);
 
+    /// <summary>
+    /// The world side of a texel of the sun's first cascade for a view of <paramref name="width"/> by
+    /// <paramref name="height"/> pixels at <see cref="Fov"/>: the texel that <see cref="ShadowCascades.Fit"/> gives the
+    /// slice from the near plane to the first split.
+    /// </summary>
+    public static float FirstCascadeTexel(int width, int height)
+    {
+        float tanHalfY = MathF.Tan(Fov / 2);
+        float radius = ShadowCascades
+            .BoundingSphere(
+                near: DepthRanges.NearPlane,
+                far: ShadowCascades.Split(0),
+                tanHalfX: tanHalfY * width / height,
+                tanHalfY: tanHalfY
+            )
+            .Radius;
+        return 2 * radius / (ShadowMap.DefaultSize - 2 * ShadowCascades.MarginTexels);
+    }
+
     /// <summary>View depth (distance along the view axis) of a camera-relative point.</summary>
     public static float ViewDepth(Vector3 point, Quaternion cameraRotation) =>
         Vector3.Dot(point, Vector3.Transform(-Vector3.UnitZ, cameraRotation));

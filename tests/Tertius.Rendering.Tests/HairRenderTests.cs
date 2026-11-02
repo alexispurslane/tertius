@@ -692,46 +692,22 @@ public sealed class HairRenderTests
         }
     }
 
-    /// <summary>
-    /// The world side of a texel of the sun's first cascade, which holds every card of these tests: the texel that
-    /// <see cref="ShadowCascades.Fit"/> gives this camera's slice from the near plane to the first split.
-    /// </summary>
-    private static float FirstCascadeTexel()
-    {
-        float tanHalfY = MathF.Tan(Gpu.Fov / 2);
-        float radius = ShadowCascades
-            .BoundingSphere(
-                near: DepthRanges.NearPlane,
-                far: ShadowCascades.Split(0),
-                tanHalfX: tanHalfY * Width / Height,
-                tanHalfY: tanHalfY
-            )
-            .Radius;
-        return 2 * radius / (ShadowMap.DefaultSize - 2 * ShadowCascades.MarginTexels);
-    }
-
     /// <remarks>
     /// The arithmetic, in texels of the first cascade (5.85 cm: a sphere of radius 59.6 m over 2,040 texels) and in
     /// depth along the light. The shadow lookups take the card's normal turned toward the sun, at cosine 0.93 with
     /// it: seen from the sun, the card's plane rises tan θ = 0.39 per texel along û = (−0.58, 0.81) of the light's
-    /// axes. A tap of the 4 × 4 kernel lies up to 1.5 texels off along each axis, so the receiver-plane term,
-    /// max(dot(slope, offset), 0), reaches 1.5 · (0.58 + 0.81) · 0.39 = 0.81 with that cosine, and 7.6 with the
-    /// floor 0.1 in its place (sampleCascade in shadows.glsl).
-    /// The caster stands parallel to the card, <c>GapTexels</c> in front of the lookup point, which the normal offset
-    /// moves sin θ = 0.36 texel off the card toward it. With the cosine 0.93, a tap's reference follows the card's
-    /// plane uphill and keeps the pixel's own depth downhill, so every tap sees the caster when the gap is above the
-    /// downhill drop, 0.81, the spread of a tap's 2 × 2 footprint, 0.54, the constant bias, 0.5, and the caster's slope
-    /// bias, at most 1.5 · 0.39 = 0.58: 2.4 in all. With the floor, a tap's reference rises above the plane by 3.2
-    /// texels per texel of dot(û, offset), so the 4 taps with dot(û, offset) of 0.93 to 2.1 pass over the caster: the
-    /// card takes about a quarter of the sun, 12 times the tolerance. With the cosine 0.93, it shows 0.
-    /// The most uphill tap passes over the caster when its floored term less the plane's true rise, 7.6 − 0.81, less
-    /// the footprint, 0.54, plus the constant bias, 0.5, is above the gap: 6.7 against 3. Both premises keep half a
-    /// texel spare, four times the depth step of the 16-bit fallback map.
+    /// axes. The caster stands parallel to the card, <c>GapTexels</c> in front of the lookup point, which the normal
+    /// offset moves sin θ = 0.36 texel off the card toward it. Every tap of the 4 × 4 kernel compares against the lookup
+    /// point's own depth (sampleCascade in shadows.glsl). A tap lies up to 1.5 texels off along each axis, so at the most
+    /// downhill tap the caster's plane comes 1.5 · (0.58 + 0.81) · 0.39 = 0.81 nearer that depth. Every tap sees the
+    /// caster when the gap is above that drop, the spread of a tap's 2 × 2 footprint, 0.54, the constant bias, 0.5, and
+    /// the caster's slope bias, at most 2.5 · 0.39 = 0.98: 2.8 in all. The premise keeps half a texel spare, four times
+    /// the depth step of the 16-bit fallback map.
     /// </remarks>
     [Fact]
     public void AHairCardLitFromBehindKeepsTheShadowOfACasterCloseBehindIt()
     {
-        const float GapTexels = 3,
+        const float GapTexels = 3.5f,
             SpareTexels = 0.5f;
         var toSun = Vector3.Normalize(new(0.2f, 0.3f, -0.93f));
         Vector3 towardSun = -Vector3.UnitZ;
@@ -739,17 +715,12 @@ public sealed class HairRenderTests
             sine = MathF.Sqrt(1 - cosine * cosine);
         var light = LightBasis.FromDirection(toSun);
         float across = MathF.Abs(Vector3.Dot(towardSun, light.X)) + MathF.Abs(Vector3.Dot(towardSun, light.Y));
-        float Reach(float receiverCosine) =>
-            1.5f * across / MathF.Max(receiverCosine, ShadowPass.MinimumReceiverCosine);
-        float trueNeed =
-            Reach(cosine) + across / cosine + ShadowPass.ConstantBiasTexels + ShadowPass.SlopeBias * sine / cosine;
-        float flooredRise = Reach(-cosine) - Reach(cosine) - across / cosine + ShadowPass.ConstantBiasTexels;
-        trueNeed
-            .Should()
-            .BeLessThan(GapTexels - SpareTexels, "every tap sees the caster with the cosine turned to the sun");
-        flooredRise
-            .Should()
-            .BeGreaterThan(GapTexels + SpareTexels, "the floored cosine lifts the most uphill tap over the caster");
+        float need =
+            1.5f * across / cosine
+            + across / cosine
+            + ShadowBias.ConstantBiasTexels
+            + ShadowBias.SlopeBias * sine / cosine;
+        need.Should().BeLessThan(GapTexels - SpareTexels, "every tap sees the caster");
         CardCenter.Z.Should().BeGreaterThan(-ShadowCascades.BlendStart(0), "the card lies in the first cascade alone");
 
         VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
@@ -757,8 +728,8 @@ public sealed class HairRenderTests
         {
             MeshId plane = renderer.CreateMesh(Primitives.Plane(1));
             RenderSnapshot snapshot = SunOnly(toSun);
-            float texel = FirstCascadeTexel();
-            float gap = texel * (GapTexels * cosine + ShadowPass.NormalOffsetTexels * sine);
+            float texel = Gpu.FirstCascadeTexel(width: Width, height: Height);
+            float gap = texel * (GapTexels * cosine + ShadowBias.NormalOffsetTexels * sine);
             RenderInstance caster = Card(
                 plane: plane,
                 material: Standard(renderer),

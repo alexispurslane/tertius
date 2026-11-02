@@ -2065,14 +2065,14 @@ public sealed class BatcherTests
     [Fact]
     public void TheFrameConstantsMatchTheShadersFrameBlock()
     {
-        Unsafe.SizeOf<GpuFrameConstants>().Should().Be(2320);
+        Unsafe.SizeOf<GpuFrameConstants>().Should().Be(2192);
         ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.Counts))).Should().Be(304);
         ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.RootRotation))).Should().Be(384);
         ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.CascadeSets))).Should().Be(400);
-        ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.MapAxes))).Should().Be(1552);
+        ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.MapAxes))).Should().Be(1424);
         ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.Atmosphere)))
             .Should()
-            .Be(2224, "the atmosphere follows the 42 map axes");
+            .Be(2096, "the atmosphere follows the 42 map axes");
         Unsafe.SizeOf<GpuAtmosphere>().Should().Be(96, "std140 lays out six vec4s in 96 bytes");
     }
 
@@ -2107,7 +2107,7 @@ public sealed class BatcherTests
         Unsafe
             .SizeOf<GpuCascadeSet>()
             .Should()
-            .Be(288, "std140 lays out an array of structs at a multiple of 16 bytes");
+            .Be(256, "std140 lays out an array of structs at a multiple of 16 bytes");
         Unsafe.SizeOf<GpuPuff>().Should().Be(48);
         ((int)Marshal.OffsetOf<GpuPuff>(nameof(GpuPuff.Map))).Should().Be(32);
         Unsafe.SizeOf<GpuShadowTile>().Should().Be(80, "std430 rounds a struct with a mat4 up to 16 bytes");

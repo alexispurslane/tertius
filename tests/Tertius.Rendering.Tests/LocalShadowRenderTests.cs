@@ -581,27 +581,46 @@ public sealed class LocalShadowRenderTests
         return result;
     }
 
+    /// <summary>
+    /// A floor that casts shadows does not shadow itself where a spot light <paramref name="distance"/> m from it lights
+    /// it. Seen from a tilted spot light, the floor slopes along the tile's y axis, one axis of the texel grid. With the
+    /// whole scene turned by 45 degrees about the spot light's axis, the slope runs diagonally across the grid, where
+    /// the slope-scaled bias covers the least and the normal offset of a texel is needed too. The offset is a texel of
+    /// the tile at the receiver's distance, so a far lamp, whose texels are wide, needs as many texels as a near one.
+    /// The lamp's intensity grows with the square of its distance, so that the floor stays as bright.
+    /// </summary>
     [Theory]
-    [InlineData(0f)]
-    [InlineData(30f)]
-    [InlineData(60f)]
-    public void ALitFloorUnderASpotLightHasNoAcne(float angleDegrees)
+    [InlineData(0f, 4f, 0f)]
+    [InlineData(30f, 4f, 0f)]
+    [InlineData(60f, 4f, 0f)]
+    [InlineData(60f, 4f, 45f)]
+    [InlineData(60f, 12f, 45f)]
+    public void ALitFloorUnderASpotLightHasNoAcne(float angleDegrees, float distance, float turnDegrees)
     {
         VulkanRenderer renderer = Renderer();
         try
         {
             var kit = Kit.Create(renderer);
             float angle = angleDegrees * MathF.PI / 180;
-            var center = new Vector3(0, -1.5f, -6);
-            Vector3 spot = center + 4 * new Vector3(MathF.Sin(angle), MathF.Cos(angle), 0);
-            Quaternion camera = LookAt(target: center, upHint: Vector3.UnitY);
+            var toSpot = new Vector3(MathF.Sin(angle), MathF.Cos(angle), 0);
+            var turn = Quaternion.CreateFromAxisAngle(toSpot, turnDegrees * MathF.PI / 180);
+            var center = Vector3.Transform(new(0, -1.5f, -6), turn);
+            Vector3 spot = center + distance * toSpot;
+            Quaternion camera = LookAt(target: center, upHint: Vector3.Transform(Vector3.UnitY, turn));
             RenderSnapshot Scene(bool floorCasts)
             {
                 RenderSnapshot snapshot = Dark(camera);
-                snapshot.Lights.Add(ShadowingSpot(position: spot, direction: Vector3.Normalize(center - spot)));
+                snapshot.Lights.Add(
+                    ShadowingSpot(
+                        position: spot,
+                        direction: Vector3.Normalize(center - spot),
+                        intensity: LampIntensity * distance * distance / 16
+                    )
+                );
                 snapshot.Instances.Add(
-                    kit.Floor(
+                    kit.Panel(
                         center: center,
+                        normal: Vector3.Transform(Vector3.UnitY, turn),
                         halfSize: 8,
                         flags: floorCasts ? RenderFlags.CastsShadow : RenderFlags.None
                     )
@@ -618,19 +637,7 @@ public sealed class LocalShadowRenderTests
 
             // In the reference the floor casts nothing, so its lit pixels cannot have acne; with self-shadowing they must
             // come out the same.
-            int lit = 0,
-                differing = 0;
-            for (int y = 0; y < Height; y++)
-            for (int x = 0; x < Width; x++)
-            {
-                float expected = reference.Luma(x, y);
-                if (expected < 0.1f)
-                    continue;
-                lit++;
-                if (MathF.Abs(image.Luma(x, y) - expected) > 2.5f / 255f)
-                    differing++;
-            }
-
+            (int lit, int differing) = CountChangedLitPixels(reference: reference, image: image);
             lit.Should().BeGreaterThan(Width * Height / 20, "the spot light lights a large patch of the floor");
             differing.Should().BeLessThanOrEqualTo(lit / 1000, "a lit floor that casts shadows must not shadow itself");
         }
@@ -638,6 +645,28 @@ public sealed class LocalShadowRenderTests
         {
             Gpu.DisposeAndAssertClean(renderer);
         }
+    }
+
+    /// <summary>
+    /// The pixels whose luma in <paramref name="reference"/> is at least 0.1, and how many of them differ in
+    /// <paramref name="image"/> by more than 2.5 levels of 255.
+    /// </summary>
+    private static (int Lit, int Differing) CountChangedLitPixels(Capture reference, Capture image)
+    {
+        int lit = 0,
+            differing = 0;
+        for (int y = 0; y < Height; y++)
+        for (int x = 0; x < Width; x++)
+        {
+            float expected = reference.Luma(x, y);
+            if (expected < 0.1f)
+                continue;
+            lit++;
+            if (MathF.Abs(image.Luma(x, y) - expected) > 2.5f / 255f)
+                differing++;
+        }
+
+        return (lit, differing);
     }
 
     /// <summary>
@@ -691,6 +720,65 @@ public sealed class LocalShadowRenderTests
             (shadowed[green] / lit[green])
                 .Should()
                 .BeLessThan(0.05f, "the caster hides the floor one texel behind its base from the spot light");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>
+    /// A sheet that only casts hovers 0.3 texels of the tile above the floor, straight under a spot light 4 m above it.
+    /// The tiles take no constant depth bias, and the normal offset scales with sin(angle to the light), which is 0 on
+    /// a floor that faces the light, so the sheet shadows the floor below it however close it hovers. Half a texel of
+    /// constant bias, or a texel of offset toward the light, would light that floor.
+    /// </summary>
+    [Fact]
+    public void AFloorJustBelowAThinCasterStraightUnderASpotLightIsInItsShadow()
+    {
+        VulkanRenderer renderer = Renderer();
+        try
+        {
+            var kit = Kit.Create(renderer);
+            var center = new Vector3(0, -2, -1);
+            Vector3 spot = center + new Vector3(0, 4, 0);
+            Quaternion camera = LookAt(target: center, upHint: -Vector3.UnitZ);
+            // A texel of the default tile, 4 m from the light, as TheShadowsEdgeIsSoftOverTheFilter computes it.
+            float texel = 2 * MathF.Tan(0.6f) / (LocalShadowAtlas.Default.TileSize - 2 * ShadowTiles.MarginTexels) * 4;
+            RenderSnapshot Scene(bool withSheet)
+            {
+                RenderSnapshot snapshot = Dark(camera);
+                snapshot.Lights.Add(ShadowingSpot(position: spot, direction: -Vector3.UnitY));
+                snapshot.Instances.Add(kit.Floor(center: center, halfSize: 8));
+                if (withSheet)
+                    snapshot.Instances.Add(
+                        kit.Floor(center: center + new Vector3(0, 0.3f * texel, 0), halfSize: 0.5f) with
+                        {
+                            Flags = RenderFlags.CastsShadow,
+                        }
+                    );
+                return snapshot;
+            }
+
+            renderer.Render(Scene(withSheet: false), 1f);
+            float[] lit = renderer.ReadHdr();
+            renderer.Render(Scene(withSheet: true), 1f);
+            float[] shadowed = renderer.ReadHdr();
+
+            foreach (Vector3 offset in (Vector3[])[new(0, 0, 0), new(0.2f, 0, 0), new(-0.15f, 0, 0.15f)])
+            {
+                Vector2 pixel = Gpu.Project(
+                    point: center + offset,
+                    cameraRotation: camera,
+                    width: Width,
+                    height: Height
+                );
+                int green = ((int)pixel.Y * Width + (int)pixel.X) * 4 + 1;
+                lit[green].Should().BeGreaterThan(0, "the spot light lights the floor there without the sheet");
+                (shadowed[green] / lit[green])
+                    .Should()
+                    .BeLessThan(0.05f, "the sheet hides the spot light from the floor 0.3 texels below it");
+            }
         }
         finally
         {

@@ -108,10 +108,13 @@ internal static class ShadowCascades
     public const float BlendFraction = 0.1f;
 
     /// <summary>
-    /// Texels kept free around the bounding sphere on every side: half a texel of snapping, the 4 × 4 PCF footprint
-    /// (2 texels) and the normal offset (1 texel) stay inside the map.
+    /// Texels kept free around the bounding sphere on every side, rounded up to whole texels: half a texel of snapping,
+    /// the filter's reach (<see cref="ShadowBias.FilterClearanceTexels"/>) and the normal offset
+    /// (<see cref="ShadowBias.NormalOffsetTexels"/>) stay inside the map. 4 for today's bias model.
     /// </summary>
-    public const int MarginTexels = 4;
+    public const int MarginTexels = (int)MarginReachTexels + ((int)MarginReachTexels < MarginReachTexels ? 1 : 0);
+
+    private const float MarginReachTexels = 0.5f + ShadowBias.FilterClearanceTexels + ShadowBias.NormalOffsetTexels;
 
     private static readonly float[] Splits = ComputeSplits();
 

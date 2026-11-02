@@ -381,6 +381,50 @@ public sealed class LitPuffRenderTests
     }
 
     [Fact]
+    public void ALitPuffJustBelowAThinCasterTakesItsShadow()
+    {
+        // A sheet that only casts hovers 1.2 texels of the first cascade above the puff's center, under a high sun. A
+        // puff samples the maps with L as its normal, so the normal offset, which scales with sin(angle to the light),
+        // does not move its lookup, and the sheet shadows it past the constant bias of half a texel. An offset of a full
+        // texel toward the sun would carry the lookup over the sheet.
+        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
+        try
+        {
+            MeshId plane = renderer.CreateMesh(Primitives.Plane(1f));
+            MaterialId gray = renderer.CreateMaterial(
+                MaterialDesc.Color(new(x: 0.4f, y: 0.4f, z: 0.4f, w: 1), roughness: 0.65f)
+            );
+            RenderSnapshot snapshot = Gpu.Snapshot(new(0.03f, 1f, 0.02f), starIrradiance: 6f);
+            var puff = new Vector3(0, 0, -8);
+            float gap = 1.2f * Gpu.FirstCascadeTexel(width: Width, height: Height);
+            snapshot.Instances.Add(
+                Gpu.Instance(
+                    mesh: plane,
+                    material: gray,
+                    position: puff + new Vector3(0, gap, 0),
+                    scale: Vector3.One,
+                    chainDepth: TestChains.CamerasFrame
+                ) with
+                {
+                    Flags = RenderFlags.CastsShadow,
+                }
+            );
+            AddLitPuff(snapshot, puff);
+
+            ShouldMatchGlowPuffs(
+                renderer: renderer,
+                snapshot: snapshot,
+                expected: [Albedo * MeanAmbient(snapshot)],
+                name: "lit-puff-thin-caster"
+            );
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
     public void ALitPuffInTheFarShadowOfABigCasterTakesOnlyTheAmbientLight()
     {
         // A caster of radius 500 m, 3 km from the puff toward the sun, is beyond the shadow maps: only its far shadow, the

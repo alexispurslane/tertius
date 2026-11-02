@@ -713,25 +713,28 @@ public sealed class ShadowTests
 
     /// <summary>
     /// The scene of the acne test: wide ground <paramref name="heightAboveGround"/> below the camera, which casts only
-    /// when <paramref name="groundCasts"/> is set, and a box that always casts, so that the cascades are drawn.
+    /// when <paramref name="groundCasts"/> is set, and a box that always casts, so that the cascades are drawn. The
+    /// whole scene, the camera included, is turned by <paramref name="turn"/> about the camera.
     /// </summary>
     private static RenderSnapshot AcneScene(
         Kit kit,
         Vector3 sun,
         Quaternion camera,
         float heightAboveGround,
-        bool groundCasts
+        bool groundCasts,
+        Quaternion turn
     )
     {
         RenderSnapshot snapshot = Gpu.Snapshot(sun);
-        snapshot.Camera.Rotation = camera;
-        snapshot.Camera.PreviousRotation = camera;
+        snapshot.Camera.Rotation = Quaternion.Concatenate(camera, turn);
+        snapshot.Camera.PreviousRotation = snapshot.Camera.Rotation;
         snapshot.Instances.Add(
             Gpu.Instance(
                 mesh: kit.Plane,
                 material: kit.Ground,
-                position: new(0, -heightAboveGround, -1_000f),
+                position: Vector3.Transform(new(0, -heightAboveGround, -1_000f), turn),
                 scale: new(1_500f, 1, 1_500f),
+                rotation: turn,
                 flags: groundCasts ? Caster : RenderFlags.None,
                 chainDepth: TestChains.CamerasFrame
             )
@@ -741,8 +744,9 @@ public sealed class ShadowTests
             Gpu.Instance(
                 mesh: kit.Box,
                 material: kit.White,
-                position: new(-40f, -heightAboveGround + 1f, -30f),
+                position: Vector3.Transform(new(-40f, -heightAboveGround + 1f, -30f), turn),
                 scale: new(2f),
+                rotation: turn,
                 flags: Caster,
                 chainDepth: TestChains.CamerasFrame
             )
@@ -808,10 +812,19 @@ public sealed class ShadowTests
         }
     }
 
+    /// <summary>
+    /// Ground that casts shadows does not shadow itself where the sun lights it. Seen from the sun, flat ground slopes
+    /// along the light's y axis, one axis of the texel grid. With the whole scene turned by 45 degrees about the sun,
+    /// the slope runs diagonally across the grid, where the filter's corner texels lie farthest uphill and the
+    /// slope-scaled bias, which Vulkan takes from the steeper texel axis, covers the least: there the caster bias of
+    /// 2.5 and the normal offset are both needed (ter-kn1d).
+    /// </summary>
     [Theory]
-    [InlineData(20f)]
-    [InlineData(8f)]
-    public void LitGroundHasNoAcne(float sunElevationDegrees)
+    [InlineData(20f, 0f)]
+    [InlineData(8f, 0f)]
+    [InlineData(20f, 45f)]
+    [InlineData(8f, 45f)]
+    public void LitGroundHasNoAcne(float sunElevationDegrees, float turnDegrees)
     {
         const int width = 960,
             height = 540;
@@ -826,6 +839,7 @@ public sealed class ShadowTests
                 MathF.Sin(elevation),
                 -MathF.Cos(azimuth) * MathF.Cos(elevation)
             );
+            var turn = Quaternion.CreateFromAxisAngle(sun, turnDegrees * MathF.PI / 180f);
 
             // A low and a high view cover every cascade. In the reference the ground casts no shadow, so its lit
             // pixels cannot have acne; with self-shadowing they must come out the same.
@@ -839,32 +853,226 @@ public sealed class ShadowTests
             )
             {
                 Quaternion camera = Gpu.PitchDown(pitch);
-                Capture reference = Gpu.RenderAndCapture(
-                    renderer: renderer,
-                    snapshot: AcneScene(
-                        kit: kit,
-                        sun: sun,
-                        camera: camera,
-                        heightAboveGround: heightAboveGround,
-                        groundCasts: false
-                    ),
-                    name: $"acne-{sunElevationDegrees:F0}-{name}-reference"
-                );
-                Capture image = Gpu.RenderAndCapture(
-                    renderer: renderer,
-                    snapshot: AcneScene(
-                        kit: kit,
-                        sun: sun,
-                        camera: camera,
-                        heightAboveGround: heightAboveGround,
-                        groundCasts: true
-                    ),
-                    name: $"acne-{sunElevationDegrees:F0}-{name}"
-                );
+                Capture Render(bool groundCasts, string suffix) =>
+                    Gpu.RenderAndCapture(
+                        renderer: renderer,
+                        snapshot: AcneScene(
+                            kit: kit,
+                            sun: sun,
+                            camera: camera,
+                            heightAboveGround: heightAboveGround,
+                            groundCasts: groundCasts,
+                            turn: turn
+                        ),
+                        name: $"acne-{sunElevationDegrees:F0}-{turnDegrees:F0}-{name}{suffix}"
+                    );
+                Capture reference = Render(groundCasts: false, suffix: "-reference");
+                Capture image = Render(groundCasts: true, suffix: "");
                 renderer.LastFrameStats.ShadowCascades.Should().Be(4);
                 AssertLitGroundUnchanged(reference, image, name);
                 // And the lit ground is smooth: small variance in strips across the screen at several distances.
                 AssertLitGroundSmooth(image, name);
+            }
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>The floor of <see cref="WallOnFloorScene"/>, 2 m below the camera.</summary>
+    private const float WallFloorY = -2f;
+
+    /// <summary>Where the near face of the wall of <see cref="WallOnFloorScene"/> stands along z, 1 m in front of the camera.</summary>
+    private const float WallFace = -1f;
+
+    /// <summary>
+    /// The scene of the wall on the floor, lit by <paramref name="sun"/> alone, with no ambient light, and seen through
+    /// <paramref name="camera"/>. The floor is a slab 1 m thick, as the wheel's floor is, and ends at the wall's far
+    /// face. With <paramref name="wall"/> the wall stands on it and both cast; without it, nothing casts, so the sun
+    /// lights the whole floor.
+    /// </summary>
+    /// <remarks>
+    /// The slab matters at a grazing sun. The filter reaches 2.5 texels from the lookup, and the normal offset lifts the
+    /// lookup only 1 texel, so the lowest taps look below the floor's top. A floor of no thickness that ends at the wall
+    /// lets those taps see the sun under its edge; the slab's end face stops them, as the wheel's floor does.
+    /// </remarks>
+    private static RenderSnapshot WallOnFloorScene(Kit kit, Vector3 sun, Quaternion camera, bool wall)
+    {
+        const float thickness = 0.3f,
+            wallHeight = 5f,
+            floorThickness = 1f,
+            floorFar = WallFace - thickness,
+            floorNear = 10f;
+        RenderSnapshot snapshot = Gpu.Snapshot(sun);
+        snapshot.Ambient.Intensity = 0;
+        snapshot.Camera.Rotation = camera;
+        snapshot.Camera.PreviousRotation = camera;
+        snapshot.Instances.Add(
+            Gpu.Instance(
+                mesh: kit.Box,
+                material: kit.Ground,
+                position: new(0, WallFloorY - floorThickness / 2, (floorFar + floorNear) / 2),
+                scale: new(20f, floorThickness, floorNear - floorFar),
+                flags: wall ? Caster : RenderFlags.None,
+                chainDepth: TestChains.CamerasFrame
+            )
+        );
+        if (wall)
+            snapshot.Instances.Add(
+                Gpu.Instance(
+                    mesh: kit.Box,
+                    material: kit.White,
+                    position: new(0, WallFloorY + wallHeight / 2, WallFace - thickness / 2),
+                    scale: new(20f, wallHeight, thickness),
+                    flags: Caster,
+                    chainDepth: TestChains.CamerasFrame
+                )
+            );
+        return snapshot;
+    }
+
+    /// <summary>
+    /// A wall like the wheel's side walls, 0.3 m thick and 5 m tall, stands on a floor that ends at its far face, with
+    /// the sun behind it. The sun grazes the floor at the cosines of demo-exit's spinward room: 0.134 at the floor's crease
+    /// after the sun crossed the floor's plane, and 0.025 at the ceiling's crease before (ter-kn1d). The wall's shadow
+    /// covers the floor up to its base. A tap of the filter that compared against the floor's plane extrapolated toward the
+    /// light, under the wall, saw past the wall and lit a sliver along the base.
+    /// </summary>
+    [Theory]
+    [InlineData(0.134f)]
+    [InlineData(0.025f)]
+    public void AShadowReachesTheBaseOfAWallOnAFloorThatTheSunGrazes(float sunCosine)
+    {
+        const int width = 960,
+            height = 540;
+        VulkanRenderer renderer = Gpu.Headless(width: width, height: height);
+        try
+        {
+            var kit = Kit.Create(renderer);
+            Quaternion camera = Gpu.PitchDown(55f * MathF.PI / 180f);
+            var sun = new Vector3(0, sunCosine, -MathF.Sqrt(1 - sunCosine * sunCosine));
+            RenderSnapshot Scene(bool wall) => WallOnFloorScene(kit: kit, sun: sun, camera: camera, wall: wall);
+
+            renderer.Render(Scene(wall: false), 1f);
+            float[] lit = renderer.ReadHdr();
+            renderer.Render(Scene(wall: true), 1f);
+            float[] shadowed = renderer.ReadHdr();
+
+            // The share of the sun that reaches the floor at each sample, beside the wall's base and out to 0.4 m from it.
+            var shares = new List<string>();
+            float worst = 0;
+            foreach (float x in (float[])[-0.8f, -0.3f, 0.2f, 0.7f])
+            foreach (float distance in (float[])[0.02f, 0.05f, 0.1f, 0.15f, 0.2f, 0.25f, 0.4f])
+            {
+                Vector2 pixel = Gpu.Project(
+                    point: new(x, WallFloorY, WallFace + distance),
+                    cameraRotation: camera,
+                    width: width,
+                    height: height
+                );
+                int green = ((int)pixel.Y * width + (int)pixel.X) * 4 + 1;
+                lit[green].Should().BeGreaterThan(0, "the sun lights the floor there without the wall");
+                float share = shadowed[green] / lit[green];
+                shares.Add($"{share:F3} at {distance} m, x = {x}");
+                worst = MathF.Max(worst, share);
+            }
+
+            worst
+                .Should()
+                .BeLessThan(
+                    0.05f,
+                    "the wall hides the sun from the floor up to its base ({0})",
+                    string.Join("; ", shares)
+                );
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>
+    /// The scene of the sheet over the ground, seen through <paramref name="camera"/>: ground around
+    /// <paramref name="center"/> that does not cast, under a sun 2 degrees from straight above, with no ambient light.
+    /// A sheet that only casts hovers <paramref name="gap"/> above <paramref name="center"/>; without
+    /// <paramref name="sheet"/> it lies far off the view, so the cascades are drawn in both scenes.
+    /// </summary>
+    private static RenderSnapshot SheetOverGroundScene(
+        Kit kit,
+        Quaternion camera,
+        Vector3 center,
+        float gap,
+        bool sheet
+    )
+    {
+        RenderSnapshot snapshot = Gpu.Snapshot(Vector3.Normalize(new(0.03f, 1f, 0.02f)));
+        snapshot.Ambient.Intensity = 0;
+        snapshot.Camera.Rotation = camera;
+        snapshot.Camera.PreviousRotation = camera;
+        snapshot.Instances.Add(
+            Gpu.Instance(
+                mesh: kit.Plane,
+                material: kit.Ground,
+                position: center,
+                scale: new(10f, 1, 10f),
+                chainDepth: TestChains.CamerasFrame
+            )
+        );
+        snapshot.Instances.Add(
+            Gpu.Instance(
+                mesh: kit.Plane,
+                material: kit.White,
+                position: sheet ? center + new Vector3(0, gap, 0) : new(-40f, 0, -30f),
+                scale: Vector3.One,
+                chainDepth: TestChains.CamerasFrame
+            ) with
+            {
+                Flags = RenderFlags.CastsShadow,
+            }
+        );
+        return snapshot;
+    }
+
+    /// <summary>
+    /// A sheet that only casts hovers 1.2 texels of the first cascade above the ground, under a sun 2 degrees from
+    /// straight above (<see cref="SheetOverGroundScene"/>). The normal offset scales with sin(angle to the light), so a lookup on ground that faces the sun
+    /// stays on the ground, and the sheet shadows it past the constant bias of half a texel. A full texel of offset
+    /// toward the sun would carry the lookup over the sheet.
+    /// </summary>
+    [Fact]
+    public void GroundJustBelowAThinCasterUnderAHighSunIsInItsShadow()
+    {
+        const int width = 960,
+            height = 540;
+        VulkanRenderer renderer = Gpu.Headless(width: width, height: height);
+        try
+        {
+            var kit = Kit.Create(renderer);
+            Quaternion camera = Gpu.PitchDown(60f * MathF.PI / 180f);
+            var center = new Vector3(0, -2, -2 / MathF.Tan(60f * MathF.PI / 180f));
+            float gap = 1.2f * Gpu.FirstCascadeTexel(width: width, height: height);
+            RenderSnapshot Scene(bool sheet) =>
+                SheetOverGroundScene(kit: kit, camera: camera, center: center, gap: gap, sheet: sheet);
+
+            renderer.Render(Scene(sheet: false), 1f);
+            float[] lit = renderer.ReadHdr();
+            renderer.Render(Scene(sheet: true), 1f);
+            float[] shadowed = renderer.ReadHdr();
+
+            foreach (Vector3 offset in (Vector3[])[new(0, 0, 0), new(0.2f, 0, 0), new(-0.2f, 0, 0.15f)])
+            {
+                Vector2 pixel = Gpu.Project(
+                    point: center + offset,
+                    cameraRotation: camera,
+                    width: width,
+                    height: height
+                );
+                int green = ((int)pixel.Y * width + (int)pixel.X) * 4 + 1;
+                lit[green].Should().BeGreaterThan(0, "the sun lights the ground there without the sheet");
+                (shadowed[green] / lit[green])
+                    .Should()
+                    .BeLessThan(0.05f, "the sheet hides the sun from the ground {0} m below it", gap);
             }
         }
         finally
@@ -983,8 +1191,8 @@ public sealed class ShadowTests
     /// </summary>
     private static void AssertSunlitSideUnchanged(VulkanRenderer renderer, Kit kit)
     {
-        // A receiver-plane bias that also extrapolated downhill would let the kernel find the wall there and darken
-        // several meters of it.
+        // No bias or filter part may darken lit ground in front of a sunlit face, here in the coarse last cascade too,
+        // where a texel spans meters.
         Quaternion high = Gpu.PitchDown(25f * MathF.PI / 180f);
         const float leftWall = -8f;
         (Capture side, Capture sideReference) = RenderSeams(

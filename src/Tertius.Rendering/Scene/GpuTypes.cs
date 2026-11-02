@@ -424,7 +424,10 @@ internal struct GpuFrameConstants
     /// <summary>The world size of one shadow map texel in each cascade, the same for every set.</summary>
     public Vector4 ShadowTexel;
 
-    /// <summary>x: 1 / map size; y: normal offset in texels; z: constant depth bias; w: smallest cosine for the receiver-plane slope.</summary>
+    /// <summary>
+    /// x: 1 / map size; y: normal offset in texels, written in every frame for the cascades and the tiles; z: constant
+    /// depth bias; w: unused.
+    /// </summary>
     public Vector4 ShadowParams;
 
     /// <summary>The root frame's axes in world axes, interpolated, as a quaternion (x, y, z, w). The star field is fixed to them.</summary>
@@ -476,21 +479,12 @@ internal struct GpuAtmosphere
     public readonly bool HasHaze => Haze.W != 0;
 }
 
-/// <summary>One cascade set in the frame block (std140). 288 bytes.</summary>
+/// <summary>One cascade set in the frame block (std140). 256 bytes.</summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct GpuCascadeSet
 {
     /// <summary>World to shadow clip space per cascade, row-vector form like the range matrices.</summary>
     public ShadowMatrices ViewProj;
-
-    /// <summary>
-    /// xyz: the light-space x axis in world space (the z axis points toward the light). w: the cascade boxes' lateral
-    /// half-extent over their depth half-range, which turns a light-space slope into depth per uv.
-    /// </summary>
-    public Vector4 AxisX;
-
-    /// <summary>xyz: the light-space y axis in world space.</summary>
-    public Vector4 AxisY;
 }
 
 /// <summary>The cascade sets of the frame block, laid out as a std140 <c>GpuCascadeSet[4]</c>.</summary>

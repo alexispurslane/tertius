@@ -75,13 +75,13 @@ The user made the decisions marked (User). This design settled the others by the
 24. Lights rank for shadows by their irradiance at the eye, far lights for cascade sets and near lights for tiles. Ties keep the order of the snapshot, the slot order of the entity table, which every run shares. (changed for near lights) The approved text ranked near lights by projected size on screen, irradiance and distance. With a reach derived from the power, the reach sphere of nearly every lamp holds the camera, so its projected size is the whole screen for all of them and ranks nothing. The irradiance at the eye folds in the power and the distance, and one measure serves both kinds. (changed for near lights by ter-4xw0) A near light that holds tiles ranks for tiles as if its light were twice as strong (settled fork 2).
 25. A far light that casts shadows gets a slot when its irradiance at the eye is at least `FarShadows.Share` of the brightest far light's, shadowed or not, and no slot otherwise. Of those, the first `RendererOptions.CascadedLights` get a `CascadeSet`, 1 by default and at most 4, and the others `FarShadowsOnly`. (kept) The approved text left the share to measure. It is 1/256: a far light dimmer than that changes a surface that the brightest lights by under a quarter of an 8-bit step, so its shadow cannot show there, and a cascade set or an occluder list for it would cost for nothing. The brightest counts whether it casts shadows or not, because it lights the same surfaces either way. See "Known limits" for the place where it can.
 26. Each far light with a slot has its own occluder range, pruned by today's rules against its own angular radius. The split between casters in the maps and casters beyond them exists only for a `CascadeSet`. (kept)
-27. The four cascades of each set live in the frame's uniform block, as an array of `ShadowCascades.MaxSets` entries of `GpuCascadeSet`. `MaxSets` is `RendererOptions.MaxCascadedLights`, 4, the one home of the most cascade sets, so `CheckOptions` cannot accept a `CascadedLights` that the array cannot hold. (changed) The approved text moved them to a buffer. At most four sets of 288 bytes fit the block, the CPU writes them per frame like the rest of it, and no binding is added. The splits, blend starts, texel sizes and bias parameters stay single values, because every set has the same map size and the same camera.
+27. The four cascades of each set live in the frame's uniform block, as an array of `ShadowCascades.MaxSets` entries of `GpuCascadeSet`. `MaxSets` is `RendererOptions.MaxCascadedLights`, 4, the one home of the most cascade sets, so `CheckOptions` cannot accept a `CascadedLights` that the array cannot hold. (changed) The approved text moved them to a buffer. At most four sets of 288 bytes fit the block (256 bytes since ter-kn1d removed the light-space axes that only the receiver-plane term read), the CPU writes them per frame like the rest of it, and no binding is added. The splits, blend starts, texel sizes and bias parameters stay single values, because every set has the same map size and the same camera.
 28. The cascade sets share one 2D array image of 4 × `CascadedLights` layers, `ShadowMap`, as today's four cascades share one.
 29. The atlas is a 2D array image with one tile per layer, as the impostor atlas is. A tile renders through its own layer view, as a cascade does. PCF taps that leave a tile clamp to its edge and never read a neighbor. No packing is needed, because every tile has one size. Tiles of several sizes by importance wait for a measurement that shows a need.
 30. `LocalShadowAtlas.Default` has 64 tiles of 512² texels in D32, 64 MB, the memory of the sun's cascades today. 64 layers are within the least `maxImageArrayLayers` that Vulkan guarantees, 256. A 512 texel cube face at 5 m from a lamp has texels of about 2 cm.
 31. A point light's six tiles follow the cube faces of the environment map, `CubeFace` and `CubeFaces.Basis` in Vulkan's layer order, one convention for every cube in the renderer. Each tile widens its 90° by `MarginTexels` = 4 texels on every side, as each cascade keeps 4 texels free, so the PCF footprint and the normal offset stay inside the tile at the seams.
 32. A spot light whose outer half-angle is above `ShadowTiles.WidestCone`, 60°, takes six tiles, as a point light does. A perspective tile needs tan θ_o, which grows without bound toward 90° and does not exist beyond it. At 60° the texels at the edge are 4 times the size of those at the center.
-33. A tile uses a reversed-Z perspective projection with an infinite far plane from the light, near plane max(R, 5 cm), and depth clamping, so a caster nearer than the near plane pancakes onto it, as casters in front of a cascade box do. The tile pass adds the cascades' slope-scaled bias. The lookup moves along the geometric normal by one texel at the receiver's distance times sin(angle to the light). A tile has no receiver-plane term, because its depth is not linear across the tile. (amended in Part 6) The tile pass has its own slope-scaled bias, `LocalShadowPass.SlopeBias` = 2.5, not the cascades' 1.5 (`ShadowPass.SlopeBias`). Measured on a lit floor that casts shadows under a spot light: with 1.5, acne showed on 705 pixels at a light angle of 30° and on 46 pixels at 60°; with 2.5, on none. A receiver-plane term is not the alternative: a tile's depth is not linear across the tile, and its screen derivatives are undefined inside the light loop, which is non-uniform control flow. `ALitFloorUnderASpotLightHasNoAcne` at 0°, 30° and 60° bounds the bias from below, and `AShadowMeetsTheBaseOfAThinCasterOnTheFloor` bounds the bias and the normal offset from above: a shadow still meets the base of a wall 4 cm thick at 30° and of a plate 5 cm thick at 60°, which a bias of 4 or a normal offset of 3 texels breaks.
+33. A tile uses a reversed-Z perspective projection with an infinite far plane from the light, near plane max(R, 5 cm), and depth clamping, so a caster nearer than the near plane pancakes onto it, as casters in front of a cascade box do. The tile pass adds the cascades' slope-scaled bias. The lookup moves along the geometric normal by one texel at the receiver's distance times sin(angle to the light). A tile has no receiver-plane term, because its depth is not linear across the tile. (amended in Part 6) The tile pass has its own slope-scaled bias, 2.5, not the cascades' 1.5 of that time. Measured on a lit floor that casts shadows under a spot light: with 1.5, acne showed on 705 pixels at a light angle of 30° and on 46 pixels at 60°; with 2.5, on none. A receiver-plane term is not the alternative: a tile's depth is not linear across the tile, and its screen derivatives are undefined inside the light loop, which is non-uniform control flow. `ALitFloorUnderASpotLightHasNoAcne` at 0°, 30° and 60° bounds the bias from below, and `AShadowMeetsTheBaseOfAThinCasterOnTheFloor` bounds the bias and the normal offset from above: a shadow still meets the base of a wall 4 cm thick at 30° and of a plate 5 cm thick at 60°, which a bias of 4 or a normal offset of 3 texels breaks. (amended by ter-kn1d, 2026-11-01, the user's decision) The cascades take the tiles' bias model: one constant, `ShadowBias.SlopeBias` = 2.5, for both shadow passes, and no receiver-plane term in the cascades either. Every tap of the filter compares against the receiver's own depth. The cascades' old term compared each tap against the receiver's plane extrapolated toward the light, with its slope floored at a receiver cosine of 0.1. At a grazing light, that plane passed under a wall that stands on the receiver, so a row of taps saw the light past the wall: a sliver of sun at the base of every such wall. In demo-exit's spinward room it lit the creases of the near wall, and as the station turned the sun across the floor's plane, the room's ambient light turned over between the ceiling and the floor. `ShadowTests.AShadowReachesTheBaseOfAWallOnAFloorThatTheSunGrazes` holds the shadow at the base of a 0.3 m wall on a floor slab at the room's sun cosines, 0.134 and 0.025, and `LitGroundHasNoAcne` at 8° and 20° keeps the bias above acne. The user rejected two other designs: the receiver plane with rejection of taps that are not the receiver's own surface, which keeps two bias mechanisms, and a floor of 0.3 on the receiver cosine, which leaves the turnover. The normal offset is one value for both too: `ShadowBias.NormalOffsetTexels`, which the batcher writes into `shadowParams.y` in every frame, so the tiles read it in a frame without cascades. `ShadowBias` holds the model's constants, and the maps' margins (`ShadowCascades.MarginTexels` and the faces' holding margin) derive from its filter reach and normal offset.
 34. A tile record is stale when its layer passed to another light, the camera's frame changed (`RenderSnapshot.OriginFrameId`), a caster entered or left the tile, the light's aim turned, or a caster moved, turned or scaled against the light by a quarter of the smallest texel where it shows, at its nearest point, or more, and by more than float rounding of its pose (see "The cache"). Positions near the camera are camera-relative floats, so their low bits change as the camera moves. A bitwise key misses every frame, and the impostor captures already compare by an error against a threshold.
 35. A light keeps its layers while it stays within the budget, and a light new to the budget takes the lowest free layers. (changed by ter-4xw0) The set of lights with tiles is a function of the frame's ranking and of the holders, the lights whose entities hold layers in the records of the last submitted frame (settled fork 2). The records are the one store: the ranking reads the holders and their tiers of that frame from them, and the mapping to layers keeps them for the cache.
 36. The batcher prepares the frame's casters once, interpolated, as `ShadowCaster`s. The cascade sets, the far shadows and the tiles read them. Today `ShadowPass` and `CollectFarShadows` each interpolate every caster.
@@ -273,8 +273,9 @@ const uint ShadowMapsHolding = 2u;    // the finest cascade whose box holds the 
 // the unit direction toward the light, zero when the position is at the light's center, and d its distance.
 vec3 lightIrradiance(GpuLight light, vec3 position, out vec3 L, out float d);
 
-// The share of `light` that its shadow slot lets through at `position`. geometricNdotL is positive.
-float lightVisibility(GpuLight light, vec3 position, vec3 L, float d, vec3 geometricNormal, float geometricNdotL,
+// The share of `light` that its shadow slot lets through at `position`. sinTheta is the sine of the angle between
+// geometricNormal and L.
+float lightVisibility(GpuLight light, vec3 position, vec3 L, float d, vec3 geometricNormal, float sinTheta,
     uint shadowMaps);
 
 // Every light of the list reflected toward V, in the order of the list, so the sum rounds the same way on every run.
@@ -299,7 +300,8 @@ vec3 directLight(ShadingInput s, SurfaceLobes lobes, vec3 position, vec3 V, uint
         float geometricNdotL = dot(s.geometricNormal, L);
         if (irradiance == vec3(0.0) || dot(s.normal, L) <= 0.0 || geometricNdotL <= 0.0)
             continue;
-        float visibility = lightVisibility(light, position, L, d, s.geometricNormal, geometricNdotL, shadowMaps);
+        float sinTheta = sqrt(max(1.0 - geometricNdotL * geometricNdotL, 0.0));
+        float visibility = lightVisibility(light, position, L, d, s.geometricNormal, sinTheta, shadowMaps);
         if (visibility > 0.0)
             color += brdf(s, lobes, V, L) * irradiance * visibility;
     }
@@ -319,15 +321,17 @@ vec3 directLight(ShadingInput s, SurfaceLobes lobes, vec3 position, vec3 V, uint
 `shadows.glsl` gets the light's set or tiles as a parameter:
 
 ```glsl
-float cascadeShadow(uint set, vec3 position, vec3 geometricNormal, float NdotL);          // was sunShadow
-float cascadeShadowHolding(uint set, vec3 position, vec3 geometricNormal, float NdotL);   // was sunShadowHolding
+float cascadeShadow(uint set, vec3 position, vec3 geometricNormal, float sinTheta);       // was sunShadow
+float cascadeShadowHolding(uint set, vec3 position, vec3 geometricNormal, float sinTheta); // was sunShadowHolding
 float beyondShadowMapsHolding(uint set, vec3 position);                                   // the boxes differ per set
 float beyondShadowMaps(vec3 position);                                                     // unchanged: one set of splits
 float farShadowVisibility(vec3 position, vec3 L, float angularRadius, uvec4 occluders, float beyondMaps);   // was sunVisibility
-float tileShadow(GpuLight light, vec3 position, vec3 L, float d, vec3 geometricNormal, float NdotL);
+float tileShadow(GpuLight light, vec3 position, vec3 L, float d, vec3 geometricNormal, float sinTheta);
 ```
 
-`tileShadow` picks the tile: the one tile of a spot light, or, for a point light, the cube face that holds the direction from the light to the position (`cubeFaceOf` in `cube_faces.glsl`, the GLSL twin of `CubeFaces.Locate`). It moves the lookup along the geometric normal by `NormalOffsetTexels` × the tile's texel size at distance d × sin(angle to the light), projects it with the tile's matrix, and takes the cascades' 4 × 4 hardware PCF taps with zero gradients in the tile's layer.
+(changed by ter-kn1d) The shadow functions and `lightVisibility` take sinTheta, the sine of the angle between the geometric normal and the light, in place of NdotL, and the listings above show it. The lookups use only that sine, which is the same for both signs of the cosine, so a hair card lit from behind turns only its normal toward the light.
+
+`tileShadow` picks the tile: the one tile of a spot light, or, for a point light, the cube face that holds the direction from the light to the position (`cubeFaceOf` in `cube_faces.glsl`, the GLSL twin of `CubeFaces.Locate`). It moves the lookup along the geometric normal by `NormalOffsetTexels` (`shadowParams.y` since ter-kn1d) × the tile's texel size at distance d × sin(angle to the light), projects it with the tile's matrix, and takes the cascades' 4 × 4 hardware PCF taps with zero gradients in the tile's layer.
 
 `frame.glsl`:
 
@@ -345,9 +349,7 @@ struct GpuLight
 struct GpuCascadeSet
 {
     mat4 viewProj[4];         // shadow clip space from world space per cascade; xy in [-1, 1], z reversed (1 nearest the light)
-    vec4 axisX;               // xyz light-space x axis, w lateral half-extent / depth half-range of the boxes
-    vec4 axisY;               // xyz light-space y axis
-};
+};                            // ter-kn1d removed axisX and axisY, which only the receiver-plane term read
 
 struct GpuShadowTile
 {
@@ -457,7 +459,7 @@ The records describe only submitted frames, by main's rule for the environment m
 
 ### Sampling
 
-See "The shaders": `tileShadow`, 4 × 4 hardware PCF taps one texel apart over 5 × 5 texels, the normal offset at the receiver's distance, the tile pass's slope-scaled bias, and no receiver-plane term (decision 33).
+See "The shaders": `tileShadow`, 4 × 4 hardware PCF taps one texel apart over 5 × 5 texels, the normal offset at the receiver's distance, the casters' slope-scaled bias `ShadowBias.SlopeBias`, and no receiver-plane term, as the cascades (decision 33).
 
 ### The setting
 

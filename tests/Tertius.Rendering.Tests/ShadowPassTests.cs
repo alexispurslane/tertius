@@ -81,8 +81,6 @@ public sealed class ShadowPassTests
         for (int set = 0; set < 2; set++)
         {
             GpuCascadeSet gpu = scene.Constants.CascadeSets[set];
-            new Vector3(gpu.AxisX.X, gpu.AxisX.Y, gpu.AxisX.Z).Should().Be(scene.CascadeBases[set].X);
-            new Vector3(gpu.AxisY.X, gpu.AxisY.Y, gpu.AxisY.Z).Should().Be(scene.CascadeBases[set].Y);
             for (int cascade = 0; cascade < ShadowCascades.Count; cascade++)
                 gpu.ViewProj[cascade].Should().Be(scene.CascadeSets[set][cascade].ViewProjection);
         }

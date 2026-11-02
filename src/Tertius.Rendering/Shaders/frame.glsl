@@ -127,9 +127,7 @@ const uint NoAirSun = 0xFFFFFFFFu;
 struct GpuCascadeSet
 {
     mat4 viewProj[4];         // shadow clip space from world space per cascade; xy in [-1, 1], z reversed (1 nearest the light)
-    vec4 axisX;               // xyz light-space x axis, w lateral half-extent / depth half-range of the boxes
-    vec4 axisY;               // xyz light-space y axis
-};                            // std140: 288 bytes
+};                            // std140: 256 bytes
 
 struct GpuShadowTile
 {
@@ -185,7 +183,7 @@ layout(set = 0, binding = 0, std140) uniform FrameBlock
     vec4 shadowSplits;        // view depth where each cascade ends
     vec4 shadowBlendStart;    // view depth where each cascade starts to blend into the next (the last fades out)
     vec4 shadowTexel;         // world size of one shadow texel per cascade
-    vec4 shadowParams;        // x 1 / map size, y normal offset in texels, z constant depth bias, w smallest receiver cosine
+    vec4 shadowParams;        // x 1 / map size, y normal offset in texels (every frame), z constant depth bias, w unused
     vec4 rootRotation;        // the root frame's axes in world axes, as a quaternion (xyz, w)
     GpuCascadeSet cascadeSets[4];   // ShadowCascades.MaxSets; set i belongs to the light whose slot names it
     vec4 mapAxes[42];         // R_i: the axes of map i's frame in world axes, a unit quaternion (xyz, w), root first
