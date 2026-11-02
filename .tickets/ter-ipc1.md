@@ -28,3 +28,7 @@ One function per language decides where a depth sample's plane holds, and both r
 **2026-11-02T18:02:21Z**
 
 2026-11-02: launched as workflow run bebaa068-a164-4d94-a183-f53f31faa869, version 869b0b07-3413-4b06-8707-a88a91bf6e91, branch ter-ipc1-one-plane-rule, base 6c71a2943 (brief /tmp/briefs/ipc1.txt): a probe of the ticket's two designs that ends at a fork for the user.
+
+**2026-11-02T19:39:11Z**
+
+2026-11-02, the user's choice after the probe (run bebaa068, sheets in captures/ipc1/sheets): design 1, one rule for both readers, the continuation test of ter-eqtb's bounded planes. No visible change, every reflection byte for byte, +0.42 to +0.64 ms on the occlusion sectors pass before optimization. Rejected: design 2 (it undoes the user's choice A for ter-eqtb: the sky streak, rim seams, capsule dots, 9 tests red) and keeping the two rules. Settled by the orchestrator: try a per-texel continuation mask written by the occlusion depth pass, kept only for the same images at less cost; a step past its part stands on the clamped surface, not on P(t). Continuation launched as workflow run de392476-35cd-4b27-95d5-7ed4d6e020ee on this branch (brief /tmp/briefs/ipc1-cont.txt).
