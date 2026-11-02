@@ -62,7 +62,7 @@ public sealed class SphereLightLobeTests
         Double3 toLight = TowardLight(lightAngle);
         Double3 mirror = Mirror(Double3.UnitZ, toLight);
         Double3 across = Double3.Cross(mirror, Double3.UnitY).Normalized();
-        Double3 up = Double3.Cross(mirror, across);
+        var up = Double3.Cross(mirror, across);
         double sum = 0;
         for (int ring = 0; ring < rings; ring++)
         {
@@ -132,10 +132,11 @@ public sealed class SphereLightLobeTests
             double phi = spoke / 36.0 * 2 * Math.PI;
             Double3 center = Mirror(Double3.UnitZ, toLight);
             Double3 across = Double3.Cross(center, Double3.UnitY).Normalized();
-            Double3 up = Double3.Cross(center, across);
+            var up = Double3.Cross(center, across);
             Double3 toView = Math.Cos(theta) * center + Math.Sin(theta) * (Math.Cos(phi) * across + Math.Sin(phi) * up);
             double nDotV = Math.Max(toView.Z, 1e-4);
-            double compensation = 1 / BrdfTables.Shared.SampleDfg(nDotV: nDotV, roughness: mirror.Lobe.Roughness).LobeAlbedo;
+            double compensation =
+                1 / BrdfTables.Shared.SampleDfg(nDotV: nDotV, roughness: mirror.Lobe.Roughness).LobeAlbedo;
             DirectTerms terms = mirror.ReflectedTerms(
                 normal: Double3.UnitZ,
                 toView: toView,

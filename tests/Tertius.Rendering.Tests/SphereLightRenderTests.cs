@@ -17,6 +17,13 @@ public sealed class SphereLightRenderTests
     /// <summary>The mirror faces the camera from this distance, in m, centered on the view axis.</summary>
     private const float MirrorDistance = 3;
 
+    /// <summary>The radius of the test lamp, in m, and its distance from the camera toward the mirror.</summary>
+    private const double LampRadius = 0.15,
+        LampDistance = 1;
+
+    /// <summary>The test lamp's radiant intensity, in W/sr.</summary>
+    private const float LampIntensity = 0.8f;
+
     /// <summary>
     /// The half-maximum angle of the floored GGX lobe beyond the disc, in rad of the reflected ray, per α: D falls to half
     /// its peak where tan² θ_h = α² (√2 − 1), and the reflected ray turns by 2 θ_h.
@@ -30,74 +37,89 @@ public sealed class SphereLightRenderTests
     /// </summary>
     public static TheoryData<string> SizedLights => ["sun", "lamp"];
 
-    [Theory]
-    [MemberData(nameof(SizedLights))]
-    public void AMirrorShowsTheDiscOfASizedLightAtTheLightsAngularSize(string light)
+    /// <summary>
+    /// The sun: the test star on the axis behind the camera, so the mirror shows it at its own angular radius. A dim star
+    /// and a mirror that reflects 4 % keep the disc below the tone curve's shoulder. The star stays above the cutoff
+    /// irradiance, π / 8192 W/m² at 0 stops, below which the batcher leaves a light out. The lamp: a sphere of
+    /// <see cref="LampRadius"/> at <see cref="LampDistance"/> from the camera, 2 m before the mirror. The camera sees its
+    /// image in the mirror 5 m away, asin(0.15 / 5) = 0.030 rad wide in radius.
+    /// </summary>
+    private static RenderSnapshot SizedLightOnTheAxis(bool sun, float fov)
     {
-        // The sun: the test star on the axis behind the camera, so the mirror shows it at its own angular radius. A dim
-        // star and a mirror that reflects 4 % keep the disc below the tone curve's shoulder. The star stays above the
-        // cutoff irradiance, π / 8192 W/m² at 0 stops, below which the batcher leaves a light out.
-        // The lamp: a sphere of 0.15 m at 1 m from the camera, 2 m before the mirror. The camera sees its image in the
-        // mirror 5 m away, asin(0.15 / 5) = 0.030 rad wide in radius.
-        bool sun = light == "sun";
-        float fov = sun ? 0.03f : 0.25f;
-        const double lampRadius = 0.15,
-            lampDistance = 1;
-        double lightToMirror = sun ? Gpu.StarDistance : MirrorDistance - lampDistance;
-        double imageDistance = sun ? Gpu.StarDistance : MirrorDistance + lightToMirror;
-        double lightSine = sun ? Math.Sin(Gpu.StarAngularRadius) : lampRadius / lightToMirror;
-        double imageAngularRadius = sun ? Gpu.StarAngularRadius : Math.Asin(lampRadius / imageDistance);
-
         RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitZ, starIrradiance: sun ? 2e-3f : 0);
         snapshot.Camera.VerticalFov = fov;
         snapshot.Ambient.Intensity = 0;
-        const float lampIntensity = 0.8f;
+        var lamp = new Vector3(0, 0, -(float)LampDistance);
         if (!sun)
             snapshot.Lights.Add(
                 new PointRenderLight(
                     EntityIndex: Gpu.LampEntity,
-                    Position: new(0, 0, -(float)lampDistance),
-                    PreviousPosition: new(0, 0, -(float)lampDistance),
+                    Position: lamp,
+                    PreviousPosition: lamp,
                     Color: Vector3.One,
-                    Power: 4 * MathF.PI * lampIntensity,
-                    Radius: (float)lampRadius,
+                    Power: 4 * MathF.PI * LampIntensity,
+                    Radius: (float)LampRadius,
                     CastsShadow: false,
                     ChainDepth: TestChains.CamerasFrame
                 )
             );
+        return snapshot;
+    }
+
+    /// <summary>Adds the black glossy mirror to <paramref name="snapshot"/>, renders it, and captures the image.</summary>
+    private static Capture RenderMirror(VulkanRenderer renderer, RenderSnapshot snapshot, string name)
+    {
+        MeshId square = renderer.CreateMesh(Primitives.Plane(0.6f));
+        MaterialId material = renderer.CreateMaterial(
+            new(BaseColor: new(x: 0, y: 0, z: 0, w: 1), Roughness: 0, Reflectance: 0.5f)
+        );
+        snapshot.Instances.Add(
+            Gpu.Instance(
+                mesh: square,
+                material: material,
+                position: new(0, 0, -MirrorDistance),
+                scale: Vector3.One,
+                rotation: Quaternion.CreateFromAxisAngle(Vector3.UnitX, MathF.PI / 2),
+                radius: 0.85f,
+                chainDepth: TestChains.CamerasFrame
+            )
+        );
+        return Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: name);
+    }
+
+    /// <summary>
+    /// The C# light per unit irradiance at the disc's center, where the camera looks straight at the mirror and the
+    /// light, whose angular radius has the sine <paramref name="lightSine"/>, stands on the same axis.
+    /// </summary>
+    private static Double3 DiscCenter(double lightSine) =>
+        new MaterialSample(BaseColor: Double3.Zero, Metallic: 0, Roughness: 0, Reflectance: 0.5).Reflected(
+            normal: Double3.UnitZ,
+            toView: Double3.UnitZ,
+            toLight: Double3.UnitZ,
+            tables: BrdfTables.Shared,
+            lightSine: lightSine
+        );
+
+    [Theory]
+    [MemberData(nameof(SizedLights))]
+    public void AMirrorShowsTheDiscOfASizedLightAtTheLightsAngularSize(string light)
+    {
+        bool sun = light == "sun";
+        float fov = sun ? 0.03f : 0.25f;
+        double lightToMirror = sun ? Gpu.StarDistance : MirrorDistance - LampDistance;
+        double imageDistance = sun ? Gpu.StarDistance : MirrorDistance + lightToMirror;
+        double lightSine = sun ? Math.Sin(Gpu.StarAngularRadius) : LampRadius / lightToMirror;
+        double imageAngularRadius = sun ? Gpu.StarAngularRadius : Math.Asin(LampRadius / imageDistance);
+        RenderSnapshot snapshot = SizedLightOnTheAxis(sun, fov);
         Double3 irradiance = sun
             ? Gpu.StarIrradianceRgb(snapshot)
-            : new Double3(1, 1, 1) * (lampIntensity / (lightToMirror * lightToMirror));
-        var mirror = new MaterialSample(BaseColor: Double3.Zero, Metallic: 0, Roughness: 0, Reflectance: 0.5);
-        // The disc's center: the camera looks straight at the mirror, and the light stands on the same axis.
-        Double3 plateau =
-            mirror.Reflected(
-                normal: Double3.UnitZ,
-                toView: Double3.UnitZ,
-                toLight: Double3.UnitZ,
-                tables: BrdfTables.Shared,
-                lightSine: lightSine
-            ) * irradiance;
+            : new Double3(1, 1, 1) * (LampIntensity / (lightToMirror * lightToMirror));
+        Double3 plateau = DiscCenter(lightSine) * irradiance;
 
         VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
         try
         {
-            MeshId square = renderer.CreateMesh(Primitives.Plane(0.6f));
-            MaterialId material = renderer.CreateMaterial(
-                new(BaseColor: new(x: 0, y: 0, z: 0, w: 1), Roughness: 0, Reflectance: 0.5f)
-            );
-            snapshot.Instances.Add(
-                Gpu.Instance(
-                    mesh: square,
-                    material: material,
-                    position: new(0, 0, -MirrorDistance),
-                    scale: Vector3.One,
-                    rotation: Quaternion.CreateFromAxisAngle(Vector3.UnitX, MathF.PI / 2),
-                    radius: 0.85f,
-                    chainDepth: TestChains.CamerasFrame
-                )
-            );
-            Capture image = Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: "sphere-light-" + light);
+            Capture image = RenderMirror(renderer: renderer, snapshot: snapshot, name: "sphere-light-" + light);
             // The disc's center within 10 % of the C# radiance: at the floor's α, 32-bit floats round n·h near 1 by
             // a few percent of 1 − (n·h)², which moves D by as much (as in BrdfRenderTests).
             Vector3[] shown = Displayed(
@@ -106,8 +128,8 @@ public sealed class SphereLightRenderTests
                 "sphere-light-" + light + "-glow"
             );
 
-            Vector3 center = image.Color(Width / 2, Height / 2);
-            center
+            image
+                .Color(Width / 2, Height / 2)
                 .X.Should()
                 .BeInRange(
                     shown[1].X,
@@ -122,15 +144,13 @@ public sealed class SphereLightRenderTests
             // mirror over the distance of its image.
             double alpha = new GgxLobe(0).Alpha;
             double imageScale = lightToMirror / imageDistance;
-            double expected = imageAngularRadius + HalfMaximumPerAlpha * alpha * imageScale;
             // A pixel, and the center's 10 %: it moves the threshold from half the shown peak to between 0.45 and
             // 0.56 of it, which moves the edge by up to 0.11 α.
-            double tolerance = fov / Height + 0.11 * alpha * imageScale;
             radius
                 .Should()
                 .BeApproximately(
-                    expected,
-                    tolerance,
+                    imageAngularRadius + HalfMaximumPerAlpha * alpha * imageScale,
+                    fov / Height + 0.11 * alpha * imageScale,
                     "the mirror shows the {0}'s disc of angular radius {1} rad, widened by the floored lobe's half "
                         + "maximum",
                     light,
@@ -143,88 +163,106 @@ public sealed class SphereLightRenderTests
         }
     }
 
-    [Fact]
-    public void ALightOfRadiusZeroShadesExactlyAsThePointLightDidBeforeTheWidenedLobe()
+    /// <summary>
+    /// A star, a lamp and a spot light, each of radius 0, and the camera's usual ambient light: the lights of the
+    /// reference image of the point lights.
+    /// </summary>
+    private static RenderSnapshot PointLights()
     {
-        // The reference image is the render of the code before the widened lobe (ter-gf0t). A tolerance of 0 fails on
-        // any changed 8-bit value. Spheres from mirror to rough, of a metal and a non-metal, a glass sphere of the
-        // transparent pass and a smooth floor, under a star, a lamp and a spot light, each of radius 0.
-        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
-        try
-        {
-            RenderSnapshot snapshot = Gpu.Snapshot(new(0.4f, 0.6f, 0.7f), starIrradiance: 1.5f);
-            Gpu.Star(snapshot: snapshot, angularRadius: 0);
-            snapshot.Lights.Add(
-                Gpu.Lamp(
-                    position: new(-0.6f, 0.9f, -3.2f),
-                    color: new(1f, 0.85f, 0.7f),
-                    intensity: 2,
-                    chainDepth: TestChains.CamerasFrame
-                )
-            );
-            snapshot.Lights.Add(
-                Gpu.Spot(
-                    position: new(1.2f, 1.6f, -3),
-                    direction: Vector3.Normalize(new(-0.3f, -1, -0.4f)),
-                    color: new(0.7f, 0.85f, 1f),
-                    intensity: 3,
-                    innerConeAngle: 0.5f,
-                    outerConeAngle: 0.9f,
-                    chainDepth: TestChains.CamerasFrame
-                )
-            );
-            MeshId sphere = renderer.CreateMesh(Primitives.Sphere(0.18f));
-            float[] roughnesses = [0, 0.1f, 0.2f, 0.38f, 0.6f, 1];
-            for (int row = 0; row < 2; row++)
-            for (int column = 0; column < roughnesses.Length; column++)
-            {
-                bool metal = row == 0;
-                MaterialId material = renderer.CreateMaterial(
-                    new(
-                        BaseColor: metal ? new(x: 0.95f, y: 0.75f, z: 0.4f, w: 1) : new(x: 0.7f, y: 0.2f, z: 0.15f, w: 1),
-                        Roughness: roughnesses[column],
-                        Model: new StandardShading(Metallic: metal ? 1 : 0)
-                    )
-                );
-                snapshot.Instances.Add(
-                    Gpu.Instance(
-                        mesh: sphere,
-                        material: material,
-                        position: new((column - 2.5f) * 0.45f, 0.25f - row * 0.45f, -4),
-                        scale: Vector3.One,
-                        radius: 0.18f,
-                        chainDepth: TestChains.CamerasFrame
-                    )
-                );
-            }
+        RenderSnapshot snapshot = Gpu.Snapshot(new(0.4f, 0.6f, 0.7f), starIrradiance: 1.5f);
+        Gpu.Star(snapshot: snapshot, angularRadius: 0);
+        snapshot.Lights.Add(
+            Gpu.Lamp(
+                position: new(-0.6f, 0.9f, -3.2f),
+                color: new(1f, 0.85f, 0.7f),
+                intensity: 2,
+                chainDepth: TestChains.CamerasFrame
+            )
+        );
+        snapshot.Lights.Add(
+            Gpu.Spot(
+                position: new(1.2f, 1.6f, -3),
+                direction: Vector3.Normalize(new(-0.3f, -1, -0.4f)),
+                color: new(0.7f, 0.85f, 1f),
+                intensity: 3,
+                innerConeAngle: 0.5f,
+                outerConeAngle: 0.9f,
+                chainDepth: TestChains.CamerasFrame
+            )
+        );
+        return snapshot;
+    }
 
-            MaterialId glass = renderer.CreateMaterial(
-                new(BaseColor: new(x: 0.9f, y: 0.95f, z: 1f, w: 0.3f), Roughness: 0.05f, Alpha: new GlassAlpha())
+    /// <summary>
+    /// Spheres from mirror to rough, a row of a metal over a row of a non-metal, a glass sphere of the transparent pass
+    /// and a smooth floor.
+    /// </summary>
+    private static void AddSpheresOnAFloor(VulkanRenderer renderer, RenderSnapshot snapshot)
+    {
+        MeshId sphere = renderer.CreateMesh(Primitives.Sphere(0.18f));
+        float[] roughnesses = [0, 0.1f, 0.2f, 0.38f, 0.6f, 1];
+        for (int row = 0; row < 2; row++)
+        for (int column = 0; column < roughnesses.Length; column++)
+        {
+            bool metal = row == 0;
+            MaterialId material = renderer.CreateMaterial(
+                new(
+                    BaseColor: metal ? new(x: 0.95f, y: 0.75f, z: 0.4f, w: 1) : new(x: 0.7f, y: 0.2f, z: 0.15f, w: 1),
+                    Roughness: roughnesses[column],
+                    Model: new StandardShading(Metallic: metal ? 1 : 0)
+                )
             );
             snapshot.Instances.Add(
                 Gpu.Instance(
                     mesh: sphere,
-                    material: glass,
-                    position: new(1.5f, -0.35f, -3.4f),
+                    material: material,
+                    position: new((column - 2.5f) * 0.45f, 0.25f - row * 0.45f, -4),
                     scale: Vector3.One,
                     radius: 0.18f,
                     chainDepth: TestChains.CamerasFrame
                 )
             );
-            MeshId floor = renderer.CreateMesh(Primitives.Plane(4));
-            MaterialId tile = renderer.CreateMaterial(
-                MaterialDesc.Color(new(x: 0.3f, y: 0.32f, z: 0.35f, w: 1), roughness: 0.1f)
-            );
-            snapshot.Instances.Add(
-                Gpu.Instance(
-                    mesh: floor,
-                    material: tile,
-                    position: new(0, -0.8f, -4),
-                    scale: Vector3.One,
-                    radius: 5.7f,
-                    chainDepth: TestChains.CamerasFrame
-                )
-            );
+        }
+
+        MaterialId glass = renderer.CreateMaterial(
+            new(BaseColor: new(x: 0.9f, y: 0.95f, z: 1f, w: 0.3f), Roughness: 0.05f, Alpha: new GlassAlpha())
+        );
+        snapshot.Instances.Add(
+            Gpu.Instance(
+                mesh: sphere,
+                material: glass,
+                position: new(1.5f, -0.35f, -3.4f),
+                scale: Vector3.One,
+                radius: 0.18f,
+                chainDepth: TestChains.CamerasFrame
+            )
+        );
+        MeshId floor = renderer.CreateMesh(Primitives.Plane(4));
+        MaterialId tile = renderer.CreateMaterial(
+            MaterialDesc.Color(new(x: 0.3f, y: 0.32f, z: 0.35f, w: 1), roughness: 0.1f)
+        );
+        snapshot.Instances.Add(
+            Gpu.Instance(
+                mesh: floor,
+                material: tile,
+                position: new(0, -0.8f, -4),
+                scale: Vector3.One,
+                radius: 5.7f,
+                chainDepth: TestChains.CamerasFrame
+            )
+        );
+    }
+
+    [Fact]
+    public void ALightOfRadiusZeroShadesExactlyAsThePointLightDidBeforeTheWidenedLobe()
+    {
+        // The reference image is the render of the code before the widened lobe (ter-gf0t). A tolerance of 0 fails on
+        // any changed 8-bit value.
+        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
+        try
+        {
+            RenderSnapshot snapshot = PointLights();
+            AddSpheresOnAFloor(renderer, snapshot);
 
             ReferenceImages.Verify(
                 renderer: renderer,

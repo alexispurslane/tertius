@@ -60,28 +60,16 @@ internal readonly record struct MaterialSample(Double3 BaseColor, double Metalli
         if (nDotL <= 0)
             return default;
         double lobeAlbedo = tables.SampleDfg(nDotV: ViewCosine(normal, toView), roughness: Lobe.Roughness).LobeAlbedo;
-        Double3 diffuse = DiffuseColor / Math.PI * nDotL;
-        if (lightSine == 0)
-        {
-            Double3 lobe =
-                SingleScatteringLobe(normal: normal, toView: toView, toLight: toLight) * EnergyCompensation(lobeAlbedo);
-            return new(Diffuse: diffuse, Specular: lobe * nDotL);
-        }
-
-        Double3 toPoint = GgxLobe.SphereLightDirection(
-            toLight: toLight,
-            mirror: 2 * Double3.Dot(normal, toView) * normal - toView,
-            lightSine: lightSine
+        return new(
+            Diffuse: DiffuseColor / Math.PI * nDotL,
+            Specular: SpecularResponse(
+                normal: normal,
+                toView: toView,
+                toLight: toLight,
+                lightSine: lightSine,
+                compensation: EnergyCompensation(lobeAlbedo)
+            )
         );
-        double nDotPoint = Double3.Dot(normal, toPoint);
-        if (nDotPoint <= 0)
-            return new(Diffuse: diffuse, Specular: Double3.Zero);
-        double vDotH = Double3.Dot(toView, (toView + toPoint).Normalized());
-        Double3 sphereLobe =
-            SingleScatteringLobe(normal: normal, toView: toView, toLight: toPoint)
-            * Lobe.SphereNormalization(lightSine: lightSine, vDotH: vDotH)
-            * EnergyCompensation(lobeAlbedo);
-        return new(Diffuse: diffuse, Specular: sphereLobe * nDotPoint);
     }
 
     /// <summary>
@@ -170,6 +158,38 @@ internal readonly record struct MaterialSample(Double3 BaseColor, double Metalli
     /// <summary>μ, the cosine of the view direction to the normal, with its floor.</summary>
     private static double ViewCosine(Double3 normal, Double3 toView) =>
         Math.Clamp(Double3.Dot(normal, toView), MinViewCosine, 1);
+
+    /// <summary>
+    /// The C# copy of specularResponse: D · Vis · F · c · (n·l) toward the representative point l of a sphere light, with
+    /// D normalized, or toward <paramref name="toLight"/> for a light of radius 0.
+    /// </summary>
+    private Double3 SpecularResponse(
+        Double3 normal,
+        Double3 toView,
+        Double3 toLight,
+        double lightSine,
+        Double3 compensation
+    )
+    {
+        bool sized = lightSine > 0;
+        Double3 toPoint = sized
+            ? GgxLobe.SphereLightDirection(
+                toLight: toLight,
+                mirror: 2 * Double3.Dot(normal, toView) * normal - toView,
+                lightSine: lightSine
+            )
+            : toLight;
+        double nDotPoint = Double3.Dot(normal, toPoint);
+        if (nDotPoint <= 0)
+            return Double3.Zero;
+        Double3 lobe = SingleScatteringLobe(normal: normal, toView: toView, toLight: toPoint);
+        if (sized)
+            lobe *= Lobe.SphereNormalization(
+                lightSine: lightSine,
+                vDotH: Double3.Dot(toView, (toView + toPoint).Normalized())
+            );
+        return lobe * compensation * nDotPoint;
+    }
 
     /// <summary>D · Vis · F, the GGX lobe with single scattering, per steradian.</summary>
     private Double3 SingleScatteringLobe(Double3 normal, Double3 toView, Double3 toLight)
