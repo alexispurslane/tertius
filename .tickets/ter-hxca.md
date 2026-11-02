@@ -32,3 +32,7 @@ The one model: a ticket's mutation step makes one table of mutants with one resu
 **2026-11-02T00:01:47Z**
 
 2026-11-01: run 7fcc4fb2 was stopped a few minutes into its build (cleanup complete, the worktree clean at d636add2) to add the user's condition: the ban on Stryker in subagents goes once the official run proves Stryker's own speed tricks, one compile through the mutant schemata, one initial test run, and each mutant scoped to the tests that cover it, with no Dubious tests. Continuation run ae26bb05-064e-4b63-b662-08ef1de51808 (version 869b0b07) on the same worktree, base and branch. Brief: /tmp/briefs/hxca2.txt.
+
+**2026-11-02T02:05:37Z**
+
+2026-11-01 21:06, orchestrator: during calibration cal-4 (Simulation, concurrency 3, all three test projects), the 1-minute load reached 173 on this 10-core machine, and the user saw 142. Six test hosts ran at once, each with xunit's default parallel threads. The orchestrator set nice 20 on the Stryker run and its test hosts (pids 84186, 84260, 84264, 84265 and their children), so cal-4's wall times are not a quiet-machine measurement. For the review and the fix: the official run format must bound the threads, not only the Stryker concurrency, for example xunit maxParallelThreads per test host times the concurrency at most about 4, and must start Stryker at a low priority (nice), so that a run never starves the builders and the GPU captures.
