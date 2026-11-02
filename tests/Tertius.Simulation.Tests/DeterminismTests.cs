@@ -30,7 +30,7 @@ public sealed class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelp
     private static readonly Topic Chat = Topics.Get("tests.determinism.chat");
 
     /// <summary>A seeded entity that moves, talks in every delivery mode, spawns, destroys and subscribes.</summary>
-    private sealed class Chatter(ConcurrentDictionary<int, byte> threads) : IComponent
+    private sealed class Chatter(GameplayThreads threads) : IComponent
     {
         private static readonly EventMask WantsMask = EventMask
             .Of<Tick>()
@@ -61,7 +61,7 @@ public sealed class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelp
 
         public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
         {
-            threads.TryAdd(Environment.CurrentManagedThreadId, 0);
+            threads.RecordCurrentThread();
 
             // Fold every event, in inbox order, into the hash: any change in routing order changes the result.
             for (int i = 0; i < events.Count; i++)
@@ -157,6 +157,55 @@ public sealed class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelp
         }
     }
 
+    /// <summary>
+    /// The threads that ran gameplay in one run. In a run on several workers, it also holds the thread that calls Tick, in
+    /// the first entity that this thread runs, until another thread runs an entity. Without the hold, a thread pool whose
+    /// threads all run other test classes leaves every chunk to the calling thread: a run on eight workers takes about
+    /// 100 ms, so a pool that frees no thread for that long gives one thread although the world can use several. The hold
+    /// waits at most <see cref="HoldLimit"/>, so a world that runs every chunk on the calling thread fails the test
+    /// instead of hanging it.
+    /// </summary>
+    /// <param name="holdTickThread">Whether the thread that calls Tick waits for another thread: true on several workers.</param>
+    private sealed class GameplayThreads(bool holdTickThread)
+    {
+        /// <summary>
+        /// How long the thread that calls Tick waits for another thread to run an entity. A busy pool frees a thread within
+        /// seconds, when a test class ends or when the pool adds a thread for the work items that wait.
+        /// </summary>
+        private static readonly TimeSpan HoldLimit = TimeSpan.FromSeconds(30);
+
+        private readonly ConcurrentDictionary<int, byte> threads = new();
+
+        /// <summary>The thread that makes the run, and so calls Tick.</summary>
+        private readonly int tickThread = Environment.CurrentManagedThreadId;
+
+        /// <summary>Whether a thread other than <see cref="tickThread"/> ran an entity. Written by the workers.</summary>
+        private bool anotherThreadRan;
+
+        /// <summary>Whether the thread that calls Tick waited once. Only that thread reads and writes it.</summary>
+        private bool held;
+
+        /// <summary>How many different threads ran gameplay.</summary>
+        public int Count => threads.Count;
+
+        /// <summary>Records that the current thread runs an entity, and holds the thread that calls Tick the first time.</summary>
+        public void RecordCurrentThread()
+        {
+            int thread = Environment.CurrentManagedThreadId;
+            threads.TryAdd(thread, 0);
+            if (thread != tickThread)
+            {
+                Volatile.Write(ref anotherThreadRan, true);
+                return;
+            }
+
+            if (!holdTickThread || held)
+                return;
+            held = true;
+            SpinWait.SpinUntil(() => Volatile.Read(ref anotherThreadRan), HoldLimit);
+        }
+    }
+
     /// <summary>What a run ended in. Two runs of the same inputs must give equal results.</summary>
     /// <param name="Hash">A hash of every live entity's handle, pose, velocities, frame and component state, the render snapshot, and the number of errors.</param>
     /// <param name="Stats">The counters of the last tick.</param>
@@ -179,11 +228,12 @@ public sealed class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelp
 
     /// <summary>
     /// Runs the workload on <paramref name="maxDop"/> workers and returns what it ended in, and how many different threads
-    /// ran gameplay. The world runs on real Jolt, in the wrapper that records every step output.
+    /// ran gameplay. On several workers, the calling thread waits in its first entity until another thread runs one (
+    /// <see cref="GameplayThreads"/>). The world runs on real Jolt, in the wrapper that records every step output.
     /// </summary>
     private static (RunResult Result, int GameplayThreads) Run(int maxDop, int seed = Seed, int ticks = Ticks)
     {
-        var threads = new ConcurrentDictionary<int, byte>();
+        var threads = new GameplayThreads(holdTickThread: maxDop > 1);
         // Debug checks are off: the invariant tests run them over a workload that churns more. Here they would only slow the four runs.
         using World world = WorldTesting.NewWorldWithFaults(
             faults: out FaultInjectingBackend faults,
@@ -353,7 +403,8 @@ public sealed class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelp
     [Fact]
     public void TheRunOnEightWorkersReallyRunsGameplayOnSeveralThreads()
     {
-        // Equal hashes would prove nothing if every chunk ran on the one thread that called Tick.
+        // Equal hashes would prove nothing if every chunk ran on the one thread that called Tick. That thread waits in its first
+        // entity until another thread runs one (GameplayThreads), so a busy thread pool delays this run but does not fail it.
         if (Environment.ProcessorCount == 1)
             return;
 
