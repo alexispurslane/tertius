@@ -1,6 +1,6 @@
 ---
 id: ter-eqtb
-status: closed
+status: open
 deps: [ter-rjts, ter-y8z0, ter-f3g2, ter-8bda]
 links: [ter-f3g2]
 created: 2026-11-01T15:28:45Z
@@ -31,3 +31,7 @@ The user's decision of 2026-11-01, after ter-f3g2's probe: SSR's roughness limit
 **2026-11-02T09:31:46Z**
 
 2026-11-02: closed without a change, as the note of 2026-11-02T02:28:35Z decided for this case. ter-8bda (merged as 6a96ae2db) set the SSR limit to 0.37. Its captures show each view of artifact 1 (the floor film, chute-top, the deck and unbelt) byte-identical to the same view with reflections off, and its probe marks no pixel that starts a ray in 363 frames of the films, deck-late and demo-surface (captures/8bda/ in the main checkout). So no reflection stair steps remain in the demo. Steps can still appear on surfaces below roughness 0.37, such as the mirrors of mirror-balls at grazing angles. No shipped scene shows them there, so no ticket opens for them now.
+
+**2026-11-02T11:47:51Z**
+
+2026-11-02: reopened at the user's word. The stair steps come from the level-0 hit test, which still runs on every surface below the SSR limit of 0.37. The demo has no such surface now, but any smooth surface (a mirror, polished metal, a smooth floor) can show them, so the fault stays. Scope from now: artifact 1 on surfaces below the limit. The builder first finds or builds a review view that shows the steps on such a surface (for example mirror-balls, the reflections scene, or a smooth floor in a test scene), then measures the candidates there (planeext, plane0, planeq, grazefade), and the user chooses with images. Its launch waits for the user's answer on epic ter-b2da's open question (the reflected brightness that the 0.37 limit loses), because a change of the limit changes which surfaces this ticket covers.
