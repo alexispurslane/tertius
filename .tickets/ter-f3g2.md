@@ -1,6 +1,6 @@
 ---
 id: ter-f3g2
-status: in_progress
+status: closed
 deps: [ter-y8z0]
 links: [ter-eqtb, ter-rnjk]
 created: 2026-11-02T00:33:34Z
@@ -134,3 +134,7 @@ Summary for the user's choice (builder, 2026-11-01). The probe changes no defaul
 **2026-11-02T02:28:35Z**
 
 The user's decision of 2026-11-01, after ter-f3g2's probe: SSR's roughness limit goes to 0.37 now, inside epic ter-b2da; below it, today's method (one ray with a cone) stays; stochastic SSR (ter-rnjk) is not built; ter-gf0t moves into the epic to give back part of the lamp glow on rough surfaces that lose SSR. Reason: the probe showed that stochastic SSR helps only between roughness 0.37 and 0.6, which the 0.37 limit removes from SSR anyway, at +3 to +6 ms measured and with grain that never settles, while the limit saves 1.65 to 2.0 ms and matches the 64-ray reference on the deck paint.
+
+**2026-11-02T02:31:24Z**
+
+2026-11-01, orchestrator: the review (run 9f91a243, verdict changes-required, 3 medium and 4 low findings) checked the probe's numbers against analysis/ and timing/ and found them consistent, with these corrections, which do not change the user's decision. (1) Cost: the floor window's rounds vary by 0.5 to 0.8 ms, so the round-by-round paired differences from base are the better measure: D (the 0.37 limit) saves 1.28 to 1.79 ms, median 1.45 ms, close to ter-y8z0's 1.38 ms (not the note's 1.65 ms); P1 costs +6.14 to +6.67 ms, median +6.33 ms. timing.sh reads the load before capb.sh waits for the GPU lock. (2) The +2 ms estimate belongs to the 8-neighbor setting d2n8s, whose image is noisier than P1 (deck 207 against 176, brake-run teeth 819 against 539, floor steps 303 against 229); no sheet showed it. (3) P2's noise is well above the default's in several boxes (terminal door 288 against 67, floor wedge 194 against 79), so 'about the default's noise' holds only for two boxes. (4) Under a moving camera, the fixed noise stays on the screen while surfaces move under it, which no capture tested. (5) A later build of design 2 would have to change the hit image's meaning in the C# copy (ReflectionUpsample.cs), ReadReflectionHitDepths and the reflection tests, and share the Hilbert R2 noise and one trace function with the existing code instead of copying them. (6) Auto exposure differs between variants by up to 0.03 stops, so box differences near 1 level partly come from the exposure. The orchestrator stopped the fix stage after the review, because the user had already chosen the 0.37 limit and no stochastic SSR, so these corrections are recorded here instead of a fix. Merged into main (ticket notes only; the probe's captures and patches are in captures/f3g2/ of the main checkout, which git ignores).
