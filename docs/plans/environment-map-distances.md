@@ -371,7 +371,7 @@ The rules:
 
 Each pixel reads the distance cube at most N + K + 1 = 12 times, and the specular map once.
 
-The near sample was settled on 2026-11-02, after ticket 1 found a gap in the first form of the steps. That form started the march at t = 1/8, whose point lies |x| / 7 from the shaded point. So it lost every hit nearer than that: a floor point 4.35 m from the eye found no wall 0.1, 0.3 or 0.5 m ahead. Decision C and "The cone at each sample" need that hit, the base of a wall beside a floor. Two other forms were rejected:
+The near sample was settled on 2026-11-02, after ticket 1 found a gap in the first form of the steps. That form started the march at t = 1/8, whose point lies |x| / 7 from the shaded point. So it lost every hit nearer than that: a floor point 4.35 m from the eye found no wall whose base lay 0.1, 0.3 or 0.5 m from it along the floor. Decision C and "The cone at each sample" need that hit, the base of a wall beside a floor. Two other forms were rejected:
 
 - 8 samples with a quadratic spacing: the far end then coarsens to one step from 3.3 |x| to infinity.
 - A test of c at t = 0: c(0) is 0 up to rounding, a real root on the shaded point's own surface. So a bracket from it finds the shaded point itself.
@@ -675,7 +675,7 @@ The tests follow tests/STYLE.md: one behavior per test, named as a statement in 
 11. `ASurfaceAtTheNearPlaneHoldsAnInverseDistanceThatAHalfFloatHolds`: 20,000 km⁻¹, below 65,504.
 12. `ASurfaceBeyondTheHalfFloatsNormalRangeLosesUnderAHundredthOfATexelOfParallax`.
 
-Ticket 1 added two tests for the near sample on 2026-11-02. In `ARoughFloorsRayFindsTheBaseOfAWallNearerThanTheFirstEvenSample`, a floor point 4.35 m from the eye finds a wall 0.1, 0.3 or 0.5 m ahead, within 10⁻⁹ rad of the ray's meeting with the wall. In `ARayThatGoesBehindANearBarBeforeItsFirstEvenSampleStopsBeforeThatSample`, a bar hides the ray's point at t = 1/8 from the eye, and the hit lies between the near sample and t = 1/8, not on the far wall that the even samples alone find. Test 10 counts the near sample among a sky ray's reads.
+Ticket 1 added two tests for the near sample on 2026-11-02. In `ARoughFloorsRayFindsTheBaseOfAWallNearerThanTheFirstEvenSample`, a floor point 4.35 m from the eye finds a wall whose base lies 0.1, 0.3 or 0.5 m from it along the floor, within 10⁻⁹ rad of the ray's meeting with the wall. In `ARayThatGoesBehindANearBarBeforeItsFirstEvenSampleStopsBeforeThatSample`, a bar hides the ray's point at t = 1/8 from the eye, and the hit lies between the near sample and t = 1/8, not on the far wall that the even samples alone find. Test 10 counts the near sample among a sky ray's reads.
 
 ### The distance cube, on the GPU
 

@@ -88,6 +88,55 @@ public sealed class MapSearchTests
     }
 
     [Fact]
+    public void TheRefinementTakesEverySecantStepAfterTheFirstLandsOnAFlatWall()
+    {
+        // A wall 1 km ahead: the ray goes behind it only between t = 7/8 and t = 1, the march's last bracket.
+        var scene = new Scene(new Plane(Normal: new(0, 0, -1), Offset: 1000));
+
+        MapSearch.Hit(
+            field: ref scene,
+            position: new(0, -1.5, -4),
+            direction: new Double3(0, 0.5, -1).Normalized(),
+            alpha: MirrorAlpha,
+            faceSize: FaceSize
+        );
+
+        scene
+            .Reads.Should()
+            .HaveCount(
+                MapSearch.Samples + 1 + MapSearch.SecantSteps,
+                "every pixel's search has one bound of reads, with no early stop on a small clearance"
+            );
+    }
+
+    [Fact]
+    public void ARayThatMeetsARoundSurfaceFindsItWithinAHundredthOfATexel()
+    {
+        // A ball 2 m in radius whose clearance along the ray curves, so that a secant place can land behind the ball.
+        var ball = new Sphere(Center: new(0, 1, -8), Radius: 2);
+        var scene = new Scene(ball, new Plane(Normal: new(0, 0, -1), Offset: 30));
+        var position = new Double3(0, -1.5, -4);
+        Double3 direction = new Double3(0, 0.375, -1).Normalized();
+
+        MapHit hit = MapSearch.Hit(
+            field: ref scene,
+            position: position,
+            direction: direction,
+            alpha: MirrorAlpha,
+            faceSize: FaceSize
+        );
+
+        Double3 fromCenter = position - ball.Center;
+        double along = Double3.Dot(fromCenter, direction);
+        double rayLength = -along - Math.Sqrt(along * along - (fromCenter.LengthSquared - ball.Radius * ball.Radius));
+        Double3 meeting = position + rayLength * direction;
+        hit.Found.Should().BeTrue();
+        Angle(hit.Direction, meeting)
+            .Should()
+            .BeLessThan(0.01 * 2.0 / FaceSize, "the refinement narrows the bracket from whichever end the sample lies at");
+    }
+
+    [Fact]
     public void ARayFindsTheBoxBeforeTheWallBehindIt()
     {
         var box = new Box(Min: new(-1, -1.7, -6), Max: new(1, -0.7, -5));
@@ -115,12 +164,13 @@ public sealed class MapSearchTests
     [InlineData(0.1)]
     [InlineData(0.3)]
     [InlineData(0.5)]
-    public void ARoughFloorsRayFindsTheBaseOfAWallNearerThanTheFirstEvenSample(double gap)
+    public void ARoughFloorsRayFindsTheBaseOfAWallNearerThanTheFirstEvenSample(double distanceToWall)
     {
-        // A floor point 4.35 m from the eye, and a wall gap m beyond it: the ray meets the wall nearer than |x| / 7, the
-        // ray's length at the first even sample, t = 1/8.
+        // A floor point 4.35 m from the eye, and a wall that meets the floor. distanceToWall is the floor point's
+        // distance in m from the wall's base, along the floor. The ray meets the wall nearer than |x| / 7, the ray's
+        // length at the first even sample, t = 1/8.
         var onTheFloor = new Double3(0, -1.5, -4.08);
-        var wall = new Plane(Normal: new(0, 0, -1), Offset: -onTheFloor.Z + gap);
+        var wall = new Plane(Normal: new(0, 0, -1), Offset: -onTheFloor.Z + distanceToWall);
         var scene = new Scene(new Plane(Normal: new(0, -1, 0), Offset: 1.5), wall);
         Double3 mirrored = new Double3(0, 1.5, -4.08).Normalized();
 
@@ -133,7 +183,7 @@ public sealed class MapSearchTests
         );
 
         hit.Found.Should().BeTrue("decision C: a rough floor beside a wall reflects the wall's base");
-        Double3 meeting = onTheFloor + gap / -mirrored.Z * mirrored;
+        Double3 meeting = onTheFloor + distanceToWall / -mirrored.Z * mirrored;
         Angle(hit.Direction, meeting).Should().BeLessThan(1e-9, "the clearance is linear in the sweep on a plane");
     }
 
@@ -377,6 +427,51 @@ public sealed class MapSearchTests
                 Math.Log2(MapSearch.ConeWidthPerAlpha * alpha * FaceSize / 2),
                 1e-9,
                 "at the ray's end the eye sees the lobe's own width"
+            );
+    }
+
+    [Fact]
+    public void AVeryRoughLobeReadsNoLevelBeyondTheLastOfTheChain()
+    {
+        Scene sky = Scene.Sky;
+
+        MapSearch.Hit(
+            field: ref sky,
+            position: new(0, -1.5, -4),
+            direction: new Double3(0, 1.5, -4).Normalized(),
+            alpha: 1,
+            faceSize: FaceSize
+        );
+
+        double lastLevel = Math.Log2(FaceSize);
+        sky.Reads.Should().OnlyContain(read => read.Level <= lastLevel, "the chain ends at 1 × 1, level log₂ W");
+        sky.Reads[^1].Level.Should().Be(lastLevel, "the lobe at the ray's end is wider than a whole face");
+    }
+
+    [Fact]
+    public void AtTheRaysEndTheReadsTexelSpansTheFullWidthOfTheGgxLobeAtHalfItsPeak()
+    {
+        const double alpha = 0.04;
+        Scene sky = Scene.Sky;
+
+        MapSearch.Hit(
+            field: ref sky,
+            position: new(0, -1.5, -4),
+            direction: new Double3(0, 1.5, -4).Normalized(),
+            alpha: alpha,
+            faceSize: FaceSize
+        );
+
+        // GGX D(θ) ∝ 1 / ((α² − 1) cos² θ + 1)² falls to half its peak where sin² θ = α² (√2 − 1) / (1 − α²). The
+        // reflected direction turns by twice the half vector's angle, on both sides of the central ray.
+        double halfVector = Math.Asin(alpha * Math.Sqrt((Math.Sqrt(2) - 1) / (1 - alpha * alpha)));
+        double fullWidth = 4 * halfVector;
+        sky.Reads[^1]
+            .Level.Should()
+            .BeApproximately(
+                Math.Log2(fullWidth * FaceSize / 2),
+                0.01,
+                "at a reach of 1 the read's texel, 2 / W rad at a face's center, spans the lobe's full width"
             );
     }
 

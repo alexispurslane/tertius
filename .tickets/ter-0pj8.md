@@ -34,7 +34,7 @@ How I read the design where it was unclear:
 - The search does not refuse a position at the eye. No shaded point lies nearer than the near plane.
 - MapSearch.InverseDistance is the C# twin of the face shader's w (ticket ter-55xu's test 13 can use it): 1000 / max(D, DepthRanges.NearPlane).
 
-A disagreement inside the design, reported as a fork: a hit nearer the shaded point than the first march sample is never found. The first sample is at t = 1/8, and front first discards it when it lies behind. Every later sample also lies behind the wall, so the search finds no hit and reads today's direction. Example: a floor point 4.35 m from the eye finds no wall nearer than about 0.55 m along its ray (a probe found no hit at gaps of 0.1, 0.3 and 0.5 m, and a hit at 0.7 m). The design's decision C ("A rough floor 10 cm from a wall: the wall's base sharp") and "The cone at each sample" ("a floor beside a wall finds the wall's base") say otherwise. Nothing gets worse than today, because a miss reads today's image. The code follows "The steps" exactly.
+A disagreement inside the design, reported as a fork: a hit nearer the shaded point than the first march sample is never found. The first sample is at t = 1/8, and front first discards it when it lies behind. Every later sample also lies behind the wall, so the search finds no hit and reads today's direction. Example: a floor point 4.35 m from the eye finds no wall nearer than about 0.55 m along its ray (a probe found no hit for floor points 0.1, 0.3 and 0.5 m from the wall's base, and a hit at 0.7 m). The design's decision C ("A rough floor 10 cm from a wall: the wall's base sharp") and "The cone at each sample" ("a floor beside a wall finds the wall's base") say otherwise. Nothing gets worse than today, because a miss reads today's image. The code follows "The steps" exactly.
 
 ARCHITECTURE.md: no change. "Doc changes" names no change for ticket 1, and no engine code reads MapSearch yet.
 
@@ -45,7 +45,7 @@ ARCHITECTURE.md: no change. "Doc changes" names no change for ticket 1, and no e
 Why 1/64: the ray's point at t0 lies |x| / 63 from the shaded point, which the eye sees at most about 1/63 rad from x, about one level-0 texel at W = 128. A nearer hit falls in the shaded point's own texel. The near sample changes the result only where it lies in front and t = 1/8 lies behind: there the first crossing in [t0, 1/8] is the hit, in place of the even samples' later hit or their miss (corrected after the review, see the next note). Everywhere else the result is the even samples' result, bit for bit.
 
 Tests (20 now, green in Checked):
-- New: ARoughFloorsRayFindsTheBaseOfAWallNearerThanTheFirstEvenSample, a theory over walls 0.1, 0.3 and 0.5 m beyond a floor point 4.35 m from the eye, with α = 0.36. It asserts a hit within 10⁻⁹ rad of the ray's meeting with the wall, because the clearance is linear on a plane. Red first on all three gaps: "Expected boolean to be True ... but found False".
+- New: ARoughFloorsRayFindsTheBaseOfAWallNearerThanTheFirstEvenSample, a theory over floor points 0.1, 0.3 and 0.5 m from the wall's base, each 4.35 m from the eye, with α = 0.36. It asserts a hit within 10⁻⁹ rad of the ray's meeting with the wall, because the clearance is linear on a plane. Red first on all three distances: "Expected boolean to be True ... but found False".
 - Changed: TheConeReadsLevelZeroNearTheShadedPointAndCoarserLevelsFartherAlongTheRay now counts Samples + 1 reads for a sky ray, the near sample and every even one. Red first: 8 reads where 9 were expected. Its bounds did not change.
 - Test 5, ARayThatStartsBehindAStoredSurfaceCountsOnlyTheCrossingsAfterItComesOutInFront, already covers a near sample behind: the point 5/63 m along its ray lies behind the panel. A comment now says so. No other test changed.
 
@@ -62,3 +62,60 @@ Design doc: "The steps" (pseudocode, the start, no sample at t = 0, the march, t
 - The design doc also qualifies 'The start' near a face's corner (up to about 3 texels there) and says in 'The measurement plan' that t0 stays at 1/64 for every N.
 - Follow-up ter-bytc: the specular lobe's cone has two owners with different widths, ReflectionCone and MapSearch.
 - Tests: 23 in MapSearchTests (the theories count each case).
+
+**2026-11-02T14:42:56Z**
+
+2026-11-02, test sub-agent, the hardening.
+
+Rename (the user's request): in ARoughFloorsRayFindsTheBaseOfAWallNearerThanTheFirstEvenSample the parameter gap is now distanceToWall, the floor point's distance from the wall's base along the floor. The floor and the wall meet. The design doc and the notes above say the same. Behavior did not change.
+
+Coverage of the changed lines (MapSearchTests in Debug and Release, the only tests that reach MapSearch): 44/44 lines and 16/16 branches of src/Tertius.Rendering/Shading/MapSearch.cs. Coverlet counts no branch in Math.Max, so the 2⁻¹⁰ floor of the reach's division is line-covered but never decides a result (mutant C23).
+
+Mutants: 30 in /tmp/ter-0pj8-mutants.json, class MapSearchTests, run with tools/mutate.py. The first run had 3 build failures (C15 and C16 left an empty else, C28 left lastLevel unread), now rewritten to compile. Four new tests killed C12, C15, C28 and C29, each red on its mutant first with --only. The table is the last full run:
+
+| id | place | change | result | killed by | s |
+|---|---|---|---|---|---:|
+| C01 | src/Tertius.Rendering/Shading/MapSearch.cs:90 | march: c >= 0 -> c > 0 | killed | MapSearchTests.ASurfaceBeyondTheHalfFloatsNormalRangeLosesUnderAHundredthOfATexelOfParallax, MapSearchTests.ARayThatMeetsNoSurfaceIsReadAtItsOwnRoughness, MapSearchTests.TheConeReadsLevelZeroNearTheShadedPointAndCoarserLevelsFartherAlongTheRay | 4.1 |
+| C02 | src/Tertius.Rendering/Shading/MapSearch.cs:94 | no front first: a behind sample brackets from t = 0 | killed | MapSearchTests.ARayThatStartsBehindAStoredSurfaceCountsOnlyTheCrossingsAfterItComesOutInFront | 4.0 |
+| C03 | src/Tertius.Rendering/Shading/MapSearch.cs:84 | march: the last bracket, not the first | killed | MapSearchTests.ARayThatGoesBehindANearBarBeforeItsFirstEvenSampleStopsBeforeThatSample, MapSearchTests.ARayFindsTheBoxBeforeTheWallBehindIt, MapSearchTests.AFlatWallIsFoundExactlyByTheFirstSecantStep | 4.0 |
+| C04 | src/Tertius.Rendering/Shading/MapSearch.cs:46 | NearSample 1/64 -> 1/32 | killed | MapSearchTests.ARoughFloorsRayFindsTheBaseOfAWallNearerThanTheFirstEvenSample(distanceToWall: 0.10000000000000001) | 6.3 |
+| C05 | src/Tertius.Rendering/Shading/MapSearch.cs:46 | NearSample 1/64 -> 1/128 | survived |  | 6.3 |
+| C06 | src/Tertius.Rendering/Shading/MapSearch.cs:46 | NearSample 1/64 -> 0 | killed | MapSearchTests.ARayThatGoesBehindANearBarBeforeItsFirstEvenSampleStopsBeforeThatSample, MapSearchTests.ARoughFloorsRayFindsTheBaseOfAWallNearerThanTheFirstEvenSample(distanceToWall: 0.29999999999999999), MapSearchTests.ARoughFloorsRayFindsTheBaseOfAWallNearerThanTheFirstEvenSample(distanceToWall: 0.5) | 6.0 |
+| C07 | src/Tertius.Rendering/Shading/MapSearch.cs:87 | no near sample: k = 0 repeats t = 1/8 | killed | MapSearchTests.ARayThatGoesBehindANearBarBeforeItsFirstEvenSampleStopsBeforeThatSample, MapSearchTests.ARoughFloorsRayFindsTheBaseOfAWallNearerThanTheFirstEvenSample(distanceToWall: 0.29999999999999999), MapSearchTests.ARoughFloorsRayFindsTheBaseOfAWallNearerThanTheFirstEvenSample(distanceToWall: 0.5) | 6.4 |
+| C08 | src/Tertius.Rendering/Shading/MapSearch.cs:85 | march: no sample at t = 1 | killed | MapSearchTests.ASurfaceBeyondTheHalfFloatsNormalRangeLosesUnderAHundredthOfATexelOfParallax, MapSearchTests.TheRefinementTakesEverySecantStepAfterTheFirstLandsOnAFlatWall, MapSearchTests.ARayTowardAFarPlanetMovesOnlyByThePlanetsParallax | 4.0 |
+| C09 | src/Tertius.Rendering/Shading/MapSearch.cs:39 | Samples 8 -> 4 | killed | MapSearchTests.ARayThatGoesBehindANearBarBeforeItsFirstEvenSampleStopsBeforeThatSample, MapSearchTests.ARayThatMeetsARoundSurfaceFindsItWithinAHundredthOfATexel | 5.9 |
+| C10 | src/Tertius.Rendering/Shading/MapSearch.cs:49 | SecantSteps 3 -> 0 | killed | MapSearchTests.AFlatWallIsFoundExactlyByTheFirstSecantStep, MapSearchTests.ARayThatMeetsARoundSurfaceFindsItWithinAHundredthOfATexel, MapSearchTests.ARoughFloorsRayFindsTheBaseOfAWallNearerThanTheFirstEvenSample(distanceToWall: 0.29999999999999999) | 5.9 |
+| C11 | src/Tertius.Rendering/Shading/MapSearch.cs:49 | SecantSteps 3 -> 1 | killed | MapSearchTests.ARayThatPassesBehindANearPoleMeetsThePole | 6.0 |
+| C12 | src/Tertius.Rendering/Shading/MapSearch.cs:108 | refinement: one step more | killed | MapSearchTests.TheRefinementTakesEverySecantStepAfterTheFirstLandsOnAFlatWall | 6.0 |
+| C13 | src/Tertius.Rendering/Shading/MapSearch.cs:112 | refinement: c >= 0 -> c > 0 | survived |  | 3.7 |
+| C14 | src/Tertius.Rendering/Shading/MapSearch.cs:113 | refinement: a front sample moves the back end | killed | MapSearchTests.ARayThatGoesBehindANearBarBeforeItsFirstEvenSampleStopsBeforeThatSample, MapSearchTests.ARayThatPassesBehindANearPoleMeetsThePole, MapSearchTests.ARoughFloorsRayFindsTheBaseOfAWallNearerThanTheFirstEvenSample(distanceToWall: 0.29999999999999999) | 3.7 |
+| C15 | src/Tertius.Rendering/Shading/MapSearch.cs:115 | refinement: the back end never moves | killed | MapSearchTests.ARayThatMeetsARoundSurfaceFindsItWithinAHundredthOfATexel | 3.8 |
+| C16 | src/Tertius.Rendering/Shading/MapSearch.cs:113 | refinement: the front end never moves | killed | MapSearchTests.ARayThatPassesBehindANearPoleMeetsThePole, MapSearchTests.ARoughFloorsRayFindsTheBaseOfAWallNearerThanTheFirstEvenSample(distanceToWall: 0.29999999999999999), MapSearchTests.ARoughFloorsRayFindsTheBaseOfAWallNearerThanTheFirstEvenSample(distanceToWall: 0.5) | 3.7 |
+| C17 | src/Tertius.Rendering/Shading/MapSearch.cs:117 | last place: the front end, not the secant place | killed | MapSearchTests.ARayTowardAFarPlanetMovesOnlyByThePlanetsParallax, MapSearchTests.ARayThatMeetsARoundSurfaceFindsItWithinAHundredthOfATexel, MapSearchTests.ARayThatPassesBehindANearPoleMeetsThePole | 3.7 |
+| C19 | src/Tertius.Rendering/Shading/MapSearch.cs:131 | secant place -> bisection | killed | MapSearchTests.ASurfaceBeyondTheHalfFloatsNormalRangeLosesUnderAHundredthOfATexelOfParallax, MapSearchTests.AFlatWallIsFoundExactlyByTheFirstSecantStep, MapSearchTests.ARayTowardAFarPlanetMovesOnlyByThePlanetsParallax | 3.9 |
+| C20 | src/Tertius.Rendering/Shading/MapSearch.cs:171 | clearance without (1 - t), with 1 | killed | MapSearchTests.ASurfaceBeyondTheHalfFloatsNormalRangeLosesUnderAHundredthOfATexelOfParallax, MapSearchTests.ARayFindsTheBoxBeforeTheWallBehindIt, MapSearchTests.AHitFartherFromTheShadedPointThanFromTheEyeIsReadNoRougherThanOne | 3.8 |
+| C21 | src/Tertius.Rendering/Shading/MapSearch.cs:171 | clearance without \|L\| | killed | MapSearchTests.AFlatWallIsFoundExactlyByTheFirstSecantStep, MapSearchTests.ARayThatStartsBehindAStoredSurfaceCountsOnlyTheCrossingsAfterItComesOutInFront, MapSearchTests.AHitNearTheShadedPointIsReadSharperThanAHitFarAway | 3.8 |
+| C23 | src/Tertius.Rendering/Shading/MapSearch.cs:120 | reach without the 2^-10 floor | survived |  | 3.6 |
+| C24 | src/Tertius.Rendering/Shading/MapSearch.cs:120 | reach 1 / \|L\| in place of t / \|L\| | killed | MapSearchTests.AHitNearTheShadedPointIsReadSharperThanAHitFarAway, MapSearchTests.TheReachOfAHitIsItsDistanceFromTheShadedPointOverItsDistanceFromTheEye, MapSearchTests.AMirrorThatFacesTheEyeReflectsWhatLiesBehindTheCamera | 3.8 |
+| C25 | src/Tertius.Rendering/Shading/MapSearch.cs:165 | no short-lookup guard | killed | MapSearchTests.ARayThroughTheEyeTakesNoReadThere | 3.9 |
+| C26 | src/Tertius.Rendering/Shading/MapSearch.cs:166 | short lookup counts as behind | killed | MapSearchTests.ARayUnderAnOpenSkyReadsTheMapAlongItsOwnDirection(x: 0, y: 0, z: -5, alongX: 0, alongY: 0, alongZ: 1), MapSearchTests.AMirrorThatFacesTheEyeReflectsWhatLiesBehindTheCamera | 3.7 |
+| C27 | src/Tertius.Rendering/Shading/MapSearch.cs:170 | cone level without the max with 1 | killed | MapSearchTests.TheConeReadsLevelZeroNearTheShadedPointAndCoarserLevelsFartherAlongTheRay | 3.8 |
+| C28 | src/Tertius.Rendering/Shading/MapSearch.cs:170 | cone level: the min with log2 W + 1 | killed | MapSearchTests.AVeryRoughLobeReadsNoLevelBeyondTheLastOfTheChain | 3.7 |
+| C29 | src/Tertius.Rendering/Shading/MapSearch.cs:55 | ConeWidthPerAlpha 2.57 -> 1.285 | killed | MapSearchTests.AVeryRoughLobeReadsNoLevelBeyondTheLastOfTheChain, MapSearchTests.AtTheRaysEndTheReadsTexelSpansTheFullWidthOfTheGgxLobeAtHalfItsPeak | 5.8 |
+| C31 | src/Tertius.Rendering/Shading/MapSearch.cs:28 | read roughness r rho, not r sqrt(rho) | killed | MapSearchTests.AHitNearTheShadedPointIsReadSharperThanAHitFarAway | 5.7 |
+| C32 | src/Tertius.Rendering/Shading/MapSearch.cs:28 | read roughness without the min with 1 | killed | MapSearchTests.AHitFartherFromTheShadedPointThanFromTheEyeIsReadNoRougherThanOne | 3.8 |
+| C33 | src/Tertius.Rendering/Shading/MapSearch.cs:69 | InverseDistance without the near plane | killed | MapSearchTests.ASurfaceNearerThanTheNearPlaneHoldsTheNearPlanesInverseDistance | 3.6 |
+30 rows: killed 27, timeout 0, survived 3, no-coverage 0, build-failed 0, no-tests 0, no-mutant 0, removed 0
+
+Triage of the survivors:
+- C05, NearSample 1/64 -> 1/128, judgment call. An analytic field has no texels, and the reason for 1/64 is the texel argument. A Python model of point-sampled level-0 texels at W = 128 (/tmp/ter-0pj8-port/texel.py, floor and wall, 256 floor points across one texel, the wall's base 0.3 m away) finds the wall's base for 216/256 floor points with 1/64 and 176/256 with 1/128. Every miss is a near sample inside the shaded point's own texel that reads behind the floor. A test would encode a tuned threshold between two rates, so ticket 3's measurement on the GPU owns t0. Note for the orchestrator: with 1/64, about 16 % of floor points in that model still lose the wall's base, as today's read.
+- C13, the refinement's c >= 0 -> c > 0, equivalent. A secant sample with c exactly 0 puts the next secant place at its own t from either end of the bracket, so the hit moves by at most one rounding of t.
+- C23, the reach without the 2⁻¹⁰ floor, judgment call. |L(t*)| < 2⁻¹⁰ needs t* within 2⁻¹¹ of 1/2, because |L(t)| ≥ |1 − 2t|. There ρ* exceeds 500 with or without the floor, and ReadRoughness, the only reader of Reach, gives 1 for every r ≥ GgxLobe.MinRoughness = 0.045 either way. The floor only keeps an exact hit at the eye finite.
+
+New tests (MapSearchTests: 27 now):
+- TheRefinementTakesEverySecantStepAfterTheFirstLandsOnAFlatWall: a wall 1 km ahead brackets in [7/8, 1], and the search reads Samples + 1 + SecantSteps times. It locks in the one bound of reads with no early stop. Kills C12.
+- ARayThatMeetsARoundSurfaceFindsItWithinAHundredthOfATexel: a ball 2 m in radius, where a secant place lands behind the ball. Kills C15, whose hit lies 0.16 texel off, against 2 · 10⁻⁵ texel.
+- AVeryRoughLobeReadsNoLevelBeyondTheLastOfTheChain: α = 1 reads no level above log₂ W. Kills C28.
+- AtTheRaysEndTheReadsTexelSpansTheFullWidthOfTheGgxLobeAtHalfItsPeak: the last read's level against GGX's own half-maximum angle, not the constant. Kills C29.
+
+Decisions that existing tests already lock in: the sky gives d bit for bit with reach 1 (ARayUnderAnOpenSkyReadsTheMapAlongItsOwnDirection), the near bracket's hit replaces a later hit (ARayThatGoesBehindANearBarBeforeItsFirstEvenSampleStopsBeforeThatSample), a ray that starts behind searches from where it comes out (ARayThatStartsBehindAStoredSurfaceCountsOnlyTheCrossingsAfterItComesOutInFront), and one secant step finds a plane exactly (AFlatWallIsFoundExactlyByTheFirstSecantStep).
