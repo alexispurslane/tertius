@@ -42,7 +42,7 @@ namespace Tertius.Rendering;
 /// skin pixels, which the direct and ambient passes write into the diffuse image, summed along the rows and then the
 /// columns, and the difference added to the lit image at skin pixels.</item>
 /// <item>The radiance pyramid (<see cref="RadiancePyramidPass"/>), under <see cref="ConeTracedReflections"/>: the lit
-/// image times the surface coverage, and its 13-tap downsamples.</item>
+/// image without the glow of an entity that holds a light, times the surface coverage, and its 13-tap downsamples.</item>
 /// <item>The reflections (<see cref="ReflectionPass"/>), under <see cref="ConeTracedReflections"/>: by default one ray per
 /// block of 2 × 2 pixels through the depth pyramid into the half-resolution trace, and its upsample, which adds each
 /// pixel's reflection to the lit image; at full resolution, one ray per pixel, whose hit adds it.</item>
@@ -983,6 +983,9 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// made the G-buffer pass's writes visible to. A test hook.
     /// </summary>
     internal ResourceState ShadingTargetState => targets.Shading.State;
+
+    /// <summary>The emissive target's state after the last frame, as <see cref="ShadingTargetState"/> gives the shading target's. A test hook.</summary>
+    internal ResourceState EmissiveTargetState => targets.Emissive.State;
 
     /// <summary>
     /// The HDR image of the last frame, RGBA per pixel, row by row from the top: pre-exposed radiance. A test hook: it

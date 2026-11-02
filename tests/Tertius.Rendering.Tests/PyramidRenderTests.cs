@@ -1,4 +1,5 @@
 using System.Numerics;
+using Silk.NET.Vulkan;
 using Tertius.Testing;
 
 namespace Tertius.Rendering.Tests;
@@ -267,6 +268,32 @@ public sealed class PyramidRenderTests
                             "value {0} holds no glow of the lamp",
                             value
                         );
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void RadianceLevelZeroReadsTheGlowAndTheLightMarkAfterTheirWritesAreVisibleToItsComputeShader()
+    {
+        // Level 0 reads the emissive and shading targets in a compute shader, so its barrier must make the G-buffer pass's
+        // writes visible to that stage (Vulkan spec, memory dependencies). The direct and ambient passes make them visible
+        // to fragment shaders only. The steps of the reflections declare the G-buffer for compute too, so they are left
+        // out here, and the targets keep the state that the pyramid left them in.
+        VulkanRenderer renderer = Gpu.Headless(reflections: ConeTracedReflections.Default);
+        try
+        {
+            renderer.Graph.Skipped.UnionWith(["reflection trace", "reflections"]);
+            renderer.Render(Scene(renderer), 1f);
+
+            renderer
+                .EmissiveTargetState.Stages.Should()
+                .HaveFlag(PipelineStageFlags2.ComputeShaderBit, "level 0 reads the glow");
+            renderer
+                .ShadingTargetState.Stages.Should()
+                .HaveFlag(PipelineStageFlags2.ComputeShaderBit, "level 0 reads the light mark");
         }
         finally
         {
