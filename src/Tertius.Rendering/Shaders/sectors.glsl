@@ -161,45 +161,51 @@ SectorRun ownSurfaceRun(SliceGeometry g, vec3 geometricNormal)
                                       : runBetween(g, planeAngle + GtaoHalfPi, g.normalAngle + GtaoHalfPi);
 }
 
-// The least and the greatest view depth of the texels around a step's exact place: its texel t, at tDepth, and t's two
-// neighbors toward the place, along the row and along the column. The place lies within half a texel of t on each axis,
-// so their triangle holds it. towardPlace is the place minus t, in half-resolution texels (SectorSearch.DepthsAround).
-vec2 depthsAround(ivec2 t, float tDepth, vec2 towardPlace)
+// The plane of a half-resolution texel t that sees a surface, in the texel grid, from the depth pass's copy of its view
+// depth and geometric normal: through P(t) along the normal, centered at t (SectorSearch.TexelPlane).
+PixelPlane texelPlane(ivec2 t, uvec2 depthAndNormal)
 {
-    ivec2 across = ivec2(sign(towardPlace));
-    float alongRow = viewDepthAt(t + ivec2(across.x, 0));
-    float alongColumn = viewDepthAt(t + ivec2(0, across.y));
-    return vec2(min(tDepth, min(alongRow, alongColumn)), max(tDepth, max(alongRow, alongColumn)));
+    float z = depthOf(depthAndNormal);
+    vec3 n = geometricNormalOf(depthAndNormal);
+    vec3 position = gtaoViewPosition(pixelScreenPosition(2 * t), z);
+    // A texel spans two pixels, 2 / W of the screen: the view ray's x changes by 4 t_x / W per texel, and its y by
+    // −4 t_y / H.
+    vec2 tangents = cameraTangents();
+    return samplePlane(vec2(t), 1.0 / z, dot(n, position), length(position),
+        vec2(n.x * 4.0 * tangents.x / float(fullSize().x), -n.y * 4.0 * tangents.y / float(fullSize().y)));
+}
+
+// Whether an edge neighbor continues a texel's plane: it lies beyond the image, where no depth edge lies, or it sees a
+// surface and planesContinue. Sky does not. The test keeps every imageLoad inside its image.
+bool texelContinues(PixelPlane plane, ivec2 neighbor)
+{
+    if (!insideHalf(neighbor))
+        return true;
+    uvec2 depthAndNormal = depthAndNormalAt(neighbor);
+    return depthOf(depthAndNormal) < SkyDepth && planesContinue(plane, texelPlane(neighbor, depthAndNormal));
 }
 
 // s_f: a step's surface point on its slice, where the view ray through its exact place, exactRay (z = 1), meets the
-// plane of its texel's surface, through texelPosition at right angles to texelNormal (SectorSearch.SurfacePoint). False
-// where the ray meets the plane only behind the eye or never: the surface does not reach the slice there, and the step
-// blocks nothing. At a view depth outside the depths around the exact place, widened by the depths' precision,
-// 1 − CenterBias, the plane does not reach the place, as beside a convex edge, and the step stands at texelPosition,
-// the real point that it read. Also false at a view depth of farthestDepth or more, which lies beyond the radius. The
-// tests by products before the quotient keep the depth finite.
-bool stepSurfacePoint(vec3 exactRay, vec3 texelPosition, vec3 texelNormal, vec2 depthsAround, float farthestDepth,
+// surface of its texel t (sampleSurface, the pixels' rule, SectorSearch.TexelSurface): t's plane over the part of its
+// square that reaches toward each neighbor that continues it, and the plane's value at the part's edge past it.
+// towardPlace is the place minus t, in texels, at most ½ on each axis, so only the two neighbors toward the place
+// matter. The surface's inverse depth is positive everywhere on t's square: the part reaches only toward a neighbor
+// whose center lies within 1 % of the plane. False at a view depth of farthestDepth or more, which lies beyond the
+// radius.
+bool stepSurfacePoint(ivec2 t, uvec2 depthAndNormal, vec2 towardPlace, vec3 exactRay, float farthestDepth,
                       out vec3 point)
 {
-    float planeOffset = dot(texelNormal, texelPosition);
-    float rayAlongNormal = dot(texelNormal, exactRay);
-    bool inFront = planeOffset * rayAlongNormal > 0.0;
-    // The depth is |planeOffset| / |rayAlongNormal| where the two share a sign.
-    float depthTimesRay = abs(planeOffset);
-    float rayLength = abs(rayAlongNormal);
-    bool betweenAround = depthTimesRay >= rayLength * depthsAround.x * CenterBias
-                         && depthTimesRay <= rayLength * depthsAround.y / CenterBias;
-    if (!inFront)
+    point = vec3(0.0);
+    PixelPlane plane = texelPlane(t, depthAndNormal);
+    ivec2 across = ivec2(sign(towardPlace));
+    bool alongRow = texelContinues(plane, t + ivec2(across.x, 0));
+    bool alongColumn = texelContinues(plane, t + ivec2(0, across.y));
+    PixelSurface surface = sampleSurface(plane, bvec4(across.x < 0 && alongRow, across.y < 0 && alongColumn,
+        across.x > 0 && alongRow, across.y > 0 && alongColumn));
+    float w = surfaceW(surface, vec2(t) + towardPlace);
+    if (!(w * farthestDepth > 1.0))
         return false;
-    if (!betweenAround)
-    {
-        point = texelPosition;
-        return true;
-    }
-    if (!(depthTimesRay < rayLength * farthestDepth))
-        return false;
-    point = exactRay * (planeOffset / rayAlongNormal);
+    point = exactRay / w;
     return true;
 }
 

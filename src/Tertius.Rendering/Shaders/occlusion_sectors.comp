@@ -128,18 +128,15 @@ void main()
                 // Only a hair receiver reads the step's card, a read of the full-resolution shading target.
                 if (hair && cardAt(2 * t) == receiverCard)
                     continue;
-                vec3 texelPoint = gtaoViewPosition(pixelScreenPosition(2 * t), sampleDepth);
                 vec3 sampleNormal = geometricNormalOf(depthAndNormal);
                 // A half-resolution texel spans two pixels, 2 / W of the screen.
                 vec2 exactPlace = centerPlace + side * exactOffset * 2.0 / vec2(fullSize());
-                vec2 around = depthsAround(t, sampleDepth, side * (exactOffset - vec2(offset)));
                 vec3 samplePosition;
-                bool onSlice = stepSurfacePoint(gtaoViewPosition(exactPlace, 1.0),
-                                                texelPoint,
-                                                sampleNormal, around, setup.center.z + occlusion.radiusMeters,
-                                                samplePosition);
+                bool nearEnough = stepSurfacePoint(t, depthAndNormal, side * (exactOffset - vec2(offset)),
+                                                   gtaoViewPosition(exactPlace, 1.0),
+                                                   setup.center.z + occlusion.radiusMeters, samplePosition);
                 // GTAO's hard edge: a step blocks only within the radius.
-                if (!onSlice || !(length(samplePosition - setup.center) < occlusion.radiusMeters))
+                if (!nearEnough || !(length(samplePosition - setup.center) < occlusion.radiusMeters))
                     continue;
                 SectorRun run = stepRun(g, setup.center, samplePosition, side);
                 uint fresh = runSectors(run) & ~blocked;

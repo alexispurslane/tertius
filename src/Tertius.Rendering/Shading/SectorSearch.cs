@@ -1,3 +1,5 @@
+using System.Numerics;
+
 namespace Tertius.Rendering;
 
 /// <summary>The side of a slice on which a step lies, as the sign of its angles: plus on ô's side of V̂.</summary>
@@ -8,7 +10,8 @@ internal enum SliceSide
 }
 
 /// <summary>One near step as the search sees it, in view space.</summary>
-/// <param name="Position">s_f, the step's surface point on its slice, <see cref="SectorSearch.SurfacePoint"/>.</param>
+/// <param name="Position">s_f, the step's surface point on its slice, where its exact ray meets its texel's surface.
+/// </param>
 /// <param name="GeometricNormal">The unit geometric normal at the step texel's representative pixel.</param>
 /// <param name="DirectLight">The direct image at that pixel, pre-exposed.</param>
 /// <param name="Side">σ, the side of the slice on which the step lies.</param>
@@ -119,60 +122,9 @@ internal static class SectorSearch
         );
 
     /// <summary>
-    /// s_f: where the view ray through a step's exact place, <paramref name="exactRay"/>, meets the plane of its texel's
-    /// surface. Null where it meets the plane behind the eye or never. At a view depth outside
-    /// <paramref name="depthsAround"/>, widened by 1 − <see cref="HorizonSearch.CenterBias"/>, the plane does not reach
-    /// the place, and the step stands at <paramref name="texelPosition"/>, the real point that it read.
-    /// </summary>
-    /// <param name="exactRay">The view ray, whose z is 1, through the step's exact place on the slice line.</param>
-    /// <param name="texelPosition">P(t), the view position of the step texel's representative pixel.</param>
-    /// <param name="texelNormal">The unit view-space geometric normal at that pixel.</param>
-    /// <param name="depthsAround">The least and the greatest view depth of the texels around the exact place, <see cref="DepthsAround"/>.</param>
-    public static Double3? SurfacePoint(
-        Double3 exactRay,
-        Double3 texelPosition,
-        Double3 texelNormal,
-        (double Least, double Greatest) depthsAround
-    )
-    {
-        // The quotient is the meeting point's view depth: one that is not positive lies behind the eye or nowhere.
-        double planeOffset = Double3.Dot(texelNormal, texelPosition);
-        double rayAlongNormal = Double3.Dot(texelNormal, exactRay);
-        if (!(planeOffset * rayAlongNormal > 0))
-            return null;
-        double depth = planeOffset / rayAlongNormal;
-        bool betweenAround =
-            depth >= depthsAround.Least * HorizonSearch.CenterBias
-            && depth <= depthsAround.Greatest / HorizonSearch.CenterBias;
-        return betweenAround ? exactRay * depth : texelPosition;
-    }
-
-    /// <summary>
-    /// The least and the greatest view depth of the texels around a step's exact place: its texel and that texel's two
-    /// neighbors toward the place, along the row and along the column, whose triangle holds the place.
-    /// </summary>
-    /// <param name="texelDepth">The view depth of the step's texel.</param>
-    /// <param name="towardPlace">The exact place minus the step's texel, in half-resolution texels: at most ½ on each axis.</param>
-    /// <param name="depthAt">The view depth of a texel, <see cref="HorizonSearch.SkyDepth"/> for sky.</param>
-    public static (double Least, double Greatest) DepthsAround(
-        (int X, int Y) texel,
-        double texelDepth,
-        (double X, double Y) towardPlace,
-        Func<(int X, int Y), double> depthAt
-    )
-    {
-        double alongRow = depthAt((X: texel.X + Math.Sign(towardPlace.X), texel.Y));
-        double alongColumn = depthAt((texel.X, Y: texel.Y + Math.Sign(towardPlace.Y)));
-        return (
-            Least: Math.Min(texelDepth, Math.Min(alongRow, alongColumn)),
-            Greatest: Math.Max(texelDepth, Math.Max(alongRow, alongColumn))
-        );
-    }
-
-    /// <summary>
     /// GTAO's near steps of one slice, nearest first and plus side first, as occlusion_sectors.comp's loop builds them:
-    /// each reads the texel nearest its exact place and stands at its surface point on the slice. A step outside the
-    /// image, on sky, or whose surface does not reach the slice is left out.
+    /// each reads the texel nearest its exact place and stands at its surface point on the slice, s_f, where the view
+    /// ray through its exact place meets its texel's surface. A step outside the image or on sky is left out.
     /// </summary>
     /// <param name="texel">The receiver's half-resolution texel.</param>
     /// <param name="rayThrough">The view ray, whose z is 1, through a place in half-resolution texels, at whole numbers a representative pixel.</param>
@@ -192,10 +144,6 @@ internal static class SectorSearch
     )
     {
         var steps = new List<NearStep>();
-        // A texel outside the image reads the border texel, as the shader's viewDepthAt does.
-        double DepthAt((int X, int Y) t) =>
-            texelAt((X: Math.Clamp(t.X, 0, halfSize.Width - 1), Y: Math.Clamp(t.Y, 0, halfSize.Height - 1)))?.Position.Z
-            ?? HorizonSearch.SkyDepth;
         for (int step = 0; HorizonSearch.NearRangeHoldsSteps(radiusInTexels) && step < stepsPerSide; step++)
         {
             (double X, double Y) exact = HorizonSearch.ExactStepOffset(
@@ -219,19 +167,21 @@ internal static class SectorSearch
                     continue;
                 if (ownSurface.LeavesOut(read))
                     continue;
-                Double3? surfacePoint = SurfacePoint(
-                    exactRay: rayThrough((X: texel.X + sign * exact.X, Y: texel.Y + sign * exact.Y)),
-                    texelPosition: read.Position,
-                    texelNormal: read.GeometricNormal,
-                    depthsAround: DepthsAround(
-                        texel: stepTexel,
-                        texelDepth: read.Position.Z,
-                        towardPlace: (X: sign * (exact.X - nearest.X), Y: sign * (exact.Y - nearest.Y)),
-                        depthAt: DepthAt
-                    )
+                (double X, double Y) towardPlace = (X: sign * (exact.X - nearest.X), Y: sign * (exact.Y - nearest.Y));
+                PixelSurface surface = TexelSurface(
+                    texel: stepTexel,
+                    read: read,
+                    towardPlace: towardPlace,
+                    rayThrough: rayThrough,
+                    texelAt: texelAt,
+                    halfSize: halfSize
                 );
-                if (surfacePoint is not { } position)
-                    continue;
+                // The surface's inverse depth is positive at every place of the texel's square: the part reaches only
+                // toward a neighbor whose center lies within 1 % of the plane, and the surface is constant past it.
+                float inverseDepth = surface.InverseDepthAt(
+                    new((float)(stepTexel.X + towardPlace.X), (float)(stepTexel.Y + towardPlace.Y))
+                );
+                Double3 position = rayThrough((X: texel.X + sign * exact.X, Y: texel.Y + sign * exact.Y)) / inverseDepth;
                 steps.Add(
                     new(
                         Position: position,
@@ -243,6 +193,62 @@ internal static class SectorSearch
             }
         }
         return steps;
+    }
+
+    /// <summary>
+    /// The surface of a step's texel in the texel grid (<see cref="PixelSurface.Over"/>, the pixels' rule): its plane over
+    /// the part of its square that reaches toward each of the two neighbors toward the step's exact place that continue it
+    /// (<see cref="PixelPlane.ContinuesInto"/>). A neighbor beyond the image continues the plane, and sky does not. The
+    /// place lies within half a texel of the texel on each axis, so the other two neighbors do not matter.
+    /// </summary>
+    /// <param name="towardPlace">The exact place minus the texel, in texels: at most ½ on each axis.</param>
+    private static PixelSurface TexelSurface(
+        (int X, int Y) texel,
+        StepTexel read,
+        (double X, double Y) towardPlace,
+        Func<(double X, double Y), Double3> rayThrough,
+        Func<(int X, int Y), StepTexel?> texelAt,
+        (int Width, int Height) halfSize
+    )
+    {
+        PixelPlane plane = TexelPlane(texel: texel, read: read, rayThrough: rayThrough);
+        int acrossX = Math.Sign(towardPlace.X);
+        int acrossY = Math.Sign(towardPlace.Y);
+        bool Continues((int X, int Y) neighbor) =>
+            !Inside(neighbor, halfSize)
+            || texelAt(neighbor) is { } other
+                && plane.ContinuesInto(TexelPlane(texel: neighbor, read: other, rayThrough: rayThrough));
+        bool alongRow = Continues((texel.X + acrossX, texel.Y));
+        bool alongColumn = Continues((texel.X, texel.Y + acrossY));
+        return PixelSurface.Over(
+            plane: plane,
+            left: acrossX < 0 && alongRow,
+            up: acrossY < 0 && alongColumn,
+            right: acrossX > 0 && alongRow,
+            down: acrossY > 0 && alongColumn
+        );
+    }
+
+    /// <summary>The plane of a half-resolution texel in the texel grid, in floats as the shader's texelPlane builds it:
+    /// through P(t) along the texel's geometric normal, centered at the texel.</summary>
+    private static PixelPlane TexelPlane(
+        (int X, int Y) texel,
+        StepTexel read,
+        Func<(double X, double Y), Double3> rayThrough
+    )
+    {
+        Double3 ray = rayThrough((texel.X, texel.Y));
+        Double3 normal = read.GeometricNormal;
+        return PixelPlane.OfSample(
+            center: new(texel.X, texel.Y),
+            centerInverseDepth: (float)(1 / read.Position.Z),
+            planeDistance: (float)Double3.Dot(normal, read.Position),
+            pointDistance: (float)read.Position.Length,
+            normalAlongGrid: new(
+                (float)Double3.Dot(normal, rayThrough((texel.X + 1, texel.Y)) - ray),
+                (float)Double3.Dot(normal, rayThrough((texel.X, texel.Y + 1)) - ray)
+            )
+        );
     }
 
     /// <summary>Whether <paramref name="texel"/> lies inside a half-resolution image of <paramref name="halfSize"/>.</summary>
