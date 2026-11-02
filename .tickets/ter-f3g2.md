@@ -2,7 +2,7 @@
 id: ter-f3g2
 status: in_progress
 deps: [ter-y8z0]
-links: [ter-eqtb]
+links: [ter-eqtb, ter-rnjk]
 created: 2026-11-02T00:33:34Z
 type: task
 parent: ter-b2da
@@ -24,3 +24,7 @@ The user's main concern after ter-y8z0 (2026-11-01): the blockiness of the scree
 **2026-11-02T00:54:34Z**
 
 The user's decision (2026-11-01): FSR waits for the reflections. So this probe, the design choice that follows it and the build of the chosen design stay in epic ter-b2da, and ter-htg7 merges FSR after them.
+
+**2026-11-02T01:00:44Z**
+
+The user's choice (2026-11-01): design 2, frame-pure stochastic SSR (GGX rays drawn by a fixed noise per pixel, a resolve that reuses the hits of neighbors weighted by BRDF over pdf, a blur; nothing kept between frames). It reopens decisions 3 and 12 of docs/plans/screen-space-reflections.md ('no noise') in the way that the screen-space light already accepts a fixed noise; decision 8 of rendering-performance.md holds. This probe still runs: its prototype, settings, measures against the normalized lobe reference and cost set the build ticket's starting point. If the probe shows that design 2 at roughness 0.38 looks like MaxRoughness 0.37 for much more cost, the orchestrator brings that back to the user before the build.
