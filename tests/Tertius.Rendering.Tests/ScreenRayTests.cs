@@ -1081,5 +1081,51 @@ public sealed class ScreenRayTests
             hits.Should().BeGreaterThan(20_000, "most random rays meet a surface of the scene");
             different.Should().BeEmpty();
         }
+
+        [Fact]
+        public void OnRaysOfBinaryFractionsWhoseEntriesAndCrossingsTieWithPixelEdgesTheTraceFindsThePixelThatTheMarchFinds()
+        {
+            // Every number is a binary fraction of few bits: starts on quarter pixels, steps of powers of two pixels,
+            // and inverse depths on sixteenths, as are the surfaces facing the eye. So the image crosses pixel corners,
+            // and slab entries fall exactly on pixel edges and corners, inside cells and on their edges, which random
+            // rays of a camera never do (ticket ter-pywg). There a descent stands in the pixel that the image leaves
+            // and a crossing in the pixel that it enters, as the march's pixels do. The segment's end lies 1/1024 off
+            // the grid, because a slab entry exactly at the end is the open tie of ticket ter-16vv.
+            var random = new Random(20_261_102);
+            float[] steps = [-8, -4, -2, -1, 0, 1, 2, 4, 8];
+            int hits = 0;
+            var disagreements = new List<string>();
+
+            for (int index = 0; index < 200_000; index++)
+            {
+                float[] inverseDepths = new float[16 * 16];
+                for (int pixel = 0; pixel < inverseDepths.Length; pixel++)
+                    inverseDepths[pixel] = random.Next(4) == 0 ? random.Next(8, 25) / 16f : 0;
+                var pyramid = DepthPyramid.FromInverseDepths(inverseDepths, width: 16, height: 16);
+                var step = new Vector2(steps[random.Next(steps.Length)], steps[random.Next(steps.Length)]);
+                if (step == Vector2.Zero)
+                    continue;
+                var ray = new ScreenRay(
+                    Start: new(random.Next(-16, 80) / 4f, random.Next(-16, 80) / 4f),
+                    Step: step,
+                    StartInverseDepth: random.Next(8, 25) / 16f,
+                    StepInverseDepth: random.Next(-4, 5) / 16f,
+                    End: random.Next(1, 17) / 4f + 1 / 1024f,
+                    EndsAt: SegmentEnd.ScreenEdge
+                );
+
+                // A walk over the 16 x 16 grid takes far fewer steps, so a walk that stalls at a tie runs out of them.
+                RayTrace traced = ray.Trace(pyramid, maxSteps: 1_000);
+                (int X, int Y, float EntryShare)? marched = March(ray, pyramid);
+
+                if (marched is not null)
+                    hits++;
+                if (!Agrees(traced, marched))
+                    disagreements.Add($"ray {index} {ray}: trace {traced}, march {marched}");
+            }
+
+            hits.Should().BeGreaterThan(10_000, "many rays meet a surface on the grid");
+            disagreements.Should().BeEmpty();
+        }
     }
 }
