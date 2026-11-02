@@ -24,3 +24,7 @@ Asked by the user on 2026-11-02 about the floor film's stair steps in ter-eqtb's
 **2026-11-02T18:12:56Z**
 
 2026-11-02: launched as workflow run 5934b07c-bded-4c5d-8a9b-42e1c6c64310, version 869b0b07-3413-4b06-8707-a88a91bf6e91, branch ter-nw4a-reflected-outline, base 8b2a942a3 (brief /tmp/briefs/nw4a.txt): a probe that finds the cause with traced rays, answers whether SSR has a deeper fault, and measures two designs (A: an outline as soft as the cone's footprint at the hit; B: the edge's place inside the pixel) for the user's choice.
+
+**2026-11-02T19:45:32Z**
+
+2026-11-02, the user's choice after the probe (run 5934b07c, head 3de2147e1, sheets in captures/nw4a/sheets, copied to the main checkout): design A, footprint coverage from the neighbors' rays. Cause as traced: no new mechanism; ter-eqtb's remainder on a far floor seen almost edge-on (no row passes the 1 % test) meets artifacts 3 and 5 (one ray decides the lobe), and the grazing view magnifies each far row 25 to 30 times. Steps do not shrink with roughness (30 to 31 rows at 0.2 and 0.3). A: step edges per 1000 px 7.81 to 0.28 at 0.6 and 4.96 to 0.05 at 0.2; +0.10 ms on the step view, about 0 elsewhere; the build must fix the tear on curved receivers; artifact 5's bright region stays. Rejected: B (closed creases and silhouettes inside the pixel), and A with B.
