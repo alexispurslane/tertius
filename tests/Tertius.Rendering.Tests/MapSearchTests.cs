@@ -133,7 +133,10 @@ public sealed class MapSearchTests
         hit.Found.Should().BeTrue();
         Angle(hit.Direction, meeting)
             .Should()
-            .BeLessThan(0.01 * 2.0 / FaceSize, "the refinement narrows the bracket from whichever end the sample lies at");
+            .BeLessThan(
+                0.01 * 2.0 / FaceSize,
+                "the refinement narrows the bracket from whichever end the sample lies at"
+            );
     }
 
     [Fact]
