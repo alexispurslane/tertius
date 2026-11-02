@@ -11,7 +11,8 @@
 #include "screen.glsl"
 
 // κ: a surface at view depth z fills the depths from z to z (1 + κ) behind it, along its view ray. The reflections'
-// trace and the bounce light's near steps read it, so both see one model of what is solid (CellBounds.ThicknessShare).
+// trace and the bounce light's near steps read it, so both see one thickness of what is solid. Where a depth sample's
+// plane holds still differs between them (ticket ter-ipc1, CellBounds.ThicknessShare).
 const float ThicknessShare = 0.1;
 // The share by which the center of a pixel's edge neighbor may stand off the pixel's plane, in inverse depth, and the
 // pixel's center off the neighbor's plane, where the neighbor continues the plane (CellBounds.ContinuationShare). Far

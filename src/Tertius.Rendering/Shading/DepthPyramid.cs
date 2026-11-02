@@ -11,7 +11,8 @@ internal readonly record struct CellBounds(float Near, float Far)
 {
     /// <summary>
     /// κ: a surface at view depth z fills the depths from z to z (1 + κ) behind it, along its view ray. The reflections'
-    /// trace and the bounce light's near steps read it, so both see one model of what is solid.
+    /// trace and the bounce light's near steps read it, so both see one thickness of what is solid. Where a depth
+    /// sample's plane holds still differs between them (ticket ter-ipc1).
     /// </summary>
     public const float ThicknessShare = 0.1f;
 
