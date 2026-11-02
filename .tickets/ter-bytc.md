@@ -2,7 +2,7 @@
 id: ter-bytc
 status: open
 deps: []
-links: []
+links: [ter-s6zr]
 created: 2026-11-02T14:10:07Z
 type: task
 priority: 3

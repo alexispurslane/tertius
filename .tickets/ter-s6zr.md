@@ -1,8 +1,8 @@
 ---
 id: ter-s6zr
 status: in_progress
-deps: [ter-0pj8, ter-55xu, ter-bytc]
-links: []
+deps: [ter-0pj8, ter-55xu]
+links: [ter-bytc]
 created: 2026-11-02T12:51:56Z
 type: feature
 priority: 2
