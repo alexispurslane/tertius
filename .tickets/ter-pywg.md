@@ -1,6 +1,6 @@
 ---
 id: ter-pywg
-status: open
+status: in_progress
 deps: []
 links: [ter-cvyx]
 created: 2026-11-02T21:02:10Z
@@ -22,3 +22,9 @@ The case needs an exact tie: the entry's parameter equals the edge's parameter, 
 
 The mutants C03 (exit <= s to exit < s) and C04 (entry > s to entry >= s) of ScreenRay.PixelShift, and their GLSL twins S03 and S04 of pixelAt, survive ter-cvyx's hardening for this reason. By a reading of the code (not run), C04 puts the walk on the reproduction in the pixel that the image leaves at s, which is the pixel that the march hits. To decide: whether a slab entry on a pixel's edge belongs to the pixel that the image leaves there (then the descent's pixel differs from the crossing's pixel at the same s), or the level-0 test counts a stretch's end point as a meeting only in the next pixel. Either way C# and GLSL change together, and the reproduction becomes a test.
 
+
+## Notes
+
+**2026-11-02T21:20:57Z**
+
+2026-11-02: launched as workflow run b43d0824-8319-4069-b629-4f144ba81080, version 869b0b07-3413-4b06-8707-a88a91bf6e91, branch ter-pywg-edge-tie, base ea24deae6 (brief /tmp/briefs/pywg.txt). Settled by the orchestrator: a slab entry on a pixel's edge belongs to the pixel that the image leaves there, the earlier pixel in the march's order, so the level-0 test keeps its closed stretch and the march does not change.
