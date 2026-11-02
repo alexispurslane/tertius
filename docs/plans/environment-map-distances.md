@@ -730,7 +730,7 @@ Its options:
 
 ## Open questions
 
-These are forks: each changes what the user gets, and no decision, constraint or existing document settles it. The design is complete under the recommended option of each, and each other option is an addition that keeps the recommended one's code.
+These were forks: each changes what the user gets, and no decision, constraint or existing document settled it. The user answered both on 2026-11-02. Question 1: option 2, each face keeps its eye, built by ticket 5 after option 1 ships. Question 2: option A, the specular occlusion multiplies the whole corrected term.
 
 ### 1. Does each face keep the eye that drew it?
 
@@ -741,7 +741,7 @@ The faces of a map are drawn one per frame, in turn. So a face can be up to ⌈6
 | 1. The current eye is every face's origin (Recommended first) | Exact in stills, whose metering draw refreshes every face, and while the eye rests in the map's frame. Take a film that walks at 1.4 m/s through the terminal, in a chain of three maps. A reflection there lags the eye's travel by up to 0.4 m, and it jumps back at the next draw of its face. A shuttle at 100 m/s past the terminal, in the cabin's chain of four, puts the terminal's reflections off by up to 38 m. Today's direction-only read has errors of that size too. | Nothing more than this design |
 | 2. Each face keeps its eye | The stored surfaces stay fixed in the map's frame while the eye moves, so reflections hold still in a film and at speed | `RenderChainFrame` gains the frame's origin relative to the eye, a seam change in `Tertius.Core`. `EnvironmentMap` keeps the eye of each face, in its map's frame, stored in `Drew`. The frame constants carry each face's offset from the current eye, 252 `vec4`, 4 KB. The search adds the offset of the face that holds each sample: M(t) = \|x\| L(t) − (1 − t) o_f replaces \|x\| L(t). Ticket 5. |
 
-Option 1 is option 2 with every offset 0, so option 2 keeps option 1's code. By the user's rule of the quick fix first, option 1 ships first, and ticket 5 waits for this answer.
+Option 1 is option 2 with every offset 0, so option 2 keeps option 1's code. By the user's rule of the quick fix first, option 1 ships first. The user chose option 2 on 2026-11-02, so ticket 5 follows ticket 3.
 
 ### 2. Does the specular occlusion still darken a hit?
 
@@ -752,7 +752,7 @@ The specular occlusion V_s estimates the share of the lobe that nearby geometry 
 | A. V_s multiplies the whole corrected term (Recommended) | One rule, no new edge. A hit on near geometry is darkened twice in creases, where V_s is small: once because the hit reads the dark crease, once by V_s | Nothing |
 | B. V_s multiplies only a read with no hit | The model of SSR's hits and of the 64-ray reference, whose hits take no V_s | A hard step in the reflection where a neighboring pixel's ray finds no hit, as large as 1 − V_s. Small on open floors, large in creases |
 
-Ticket 3 builds the answer. It is one line in `occludedAmbient` or `environmentAmbient`, and the box table of ticket 4 shows its effect.
+The user chose A on 2026-11-02. Ticket 3 builds it: one line in `occludedAmbient` or `environmentAmbient`, and the box table of ticket 4 shows its effect.
 
 ## Doc changes
 
@@ -774,7 +774,7 @@ flowchart LR
     T2["2. The distance cube"] --> T3
     G["ter-gf0t, the widened lobe"] --> T3
     T3 --> T4["4. Captures and cost"]
-    T3 --> T5["5. Each face keeps its eye (only under open question 1, option 2)"]
+    T3 --> T5["5. Each face keeps its eye"]
 ```
 
 ### Ticket 1: the map's ray search in C#
@@ -803,7 +803,7 @@ flowchart LR
 
 ### Ticket 3: the corrected read, every reader of the ambient specular term reads the map where its ray ends
 
-- Type: feature. Parent: `ter-b2da`. Dependencies: ticket 1, ticket 2, and `ter-gf0t`, because both change `lighting.glsl`. It takes the user's answer to open question 2.
+- Type: feature. Parent: `ter-b2da`. Dependencies: ticket 1, ticket 2, and `ter-gf0t`, because both change `lighting.glsl`. It builds the user's answer to open question 2: option A.
 - Owns:
   - In `src/Tertius.Rendering/Shaders/`: `environment.glsl`, `lighting.glsl`, `gbuffer_surface.glsl`, `ambient_pass.glsl`, `direct_pass.glsl` and `reflection_pixel.glsl`.
   - In the same folder: `transparent.frag`, `fringe.frag`, `impostor_capture.frag`, and the signature of `directRadiance` in `environment_face.frag`.
@@ -825,7 +825,7 @@ flowchart LR
 
 ### Ticket 5: each face keeps the eye that drew it
 
-- Only under open question 1, option 2. Type: feature. Parent: `ter-b2da`. Dependencies: ticket 3.
+- The user chose open question 1, option 2, on 2026-11-02. Type: feature. Parent: `ter-b2da`. Dependencies: ticket 3.
 - Owns:
   - `src/Tertius.Core/Seams/RenderSeam.cs`: `RenderChainFrame` gains `Origin` and `PreviousOrigin`.
   - The snapshot builder's `BuildChain`.
