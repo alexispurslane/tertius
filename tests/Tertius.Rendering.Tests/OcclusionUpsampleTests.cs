@@ -176,6 +176,24 @@ public sealed class OcclusionUpsampleTests
     }
 
     [Fact]
+    public void EachChannelOfTheOpenShareIsClampedToZeroAndOneOnItsOwn()
+    {
+        // The sectors pass's division can round 1 − S past 1 in one channel, so S lies below 0 there, and the blurs'
+        // sums can round S past 1 in another.
+        Dictionary<(int X, int Y), UpsampleTexel> texels = new()
+        {
+            [(X: 3, Y: 5)] = new(
+                Position: Pixel,
+                Estimate: new(Bounce: BounceColor, Occlusion: 0.5, OpenShare: new(0.25, -0.125, 1.125))
+            ),
+        };
+
+        EstimateOf(pixel: (X: 6, Y: 10), texels: texels)
+            .OpenShare.Should()
+            .Be(new Double3(0.25, 0, 1), "the ambient pass takes S as a share of the map's light, from 0 to 1");
+    }
+
+    [Fact]
     public void TheBounceAndTheOpenShareTakeTheWeightsOfTheOcclusion()
     {
         // A quarter of a texel width off the plane keeps three quarters of the bilinear weight. The bounces and the open

@@ -49,6 +49,9 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
 
     private static readonly Vector3 PlatformSize = new(0.6f, 0.5f, 0.6f);
 
+    /// <summary>The lamp of the map's speck: behind and above the camera, out of its view.</summary>
+    private static readonly Vector3 LampCenter = new(0.5f, 1, 3);
+
     /// <summary>The middle of the platform's top.</summary>
     private static readonly Vector3 OnThePlatform = new(-0.7f, FloorHeight + 0.05f, -2.6f);
 
@@ -179,7 +182,36 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
     /// the mean read.
     /// </summary>
     [Fact]
-    public void UnderTheMapTheSectorPassTakesTheOpenPiecesShareOfTheMapsLightAsTheCSharpCopyDoes()
+    public void UnderTheMapTheSectorPassTakesTheOpenPiecesShareOfTheMapsLightAsTheCSharpCopyDoes() =>
+        SectorPassUnderTheMapShouldMatchTheCSharpCopy(CornerWithBoxes);
+
+    /// <summary>
+    /// The sector pass of <see cref="UnderTheMapTheSectorPassTakesTheOpenPiecesShareOfTheMapsLightAsTheCSharpCopyDoes"/>,
+    /// with a small bright lamp behind and above the camera, which the back wall's open directions face. The lamp's glow
+    /// makes the map's light change fast with the direction, so an open piece read along other angles than the C# copy's
+    /// takes S out of its range: boundaries off by π/4, from one step of their bisection, move S at the corner from 0.54
+    /// to 0.75 (sectors.glsl, boundaryAngle).
+    /// </summary>
+    [Fact]
+    public void UnderAMapWithASmallBrightLampTheSectorPassReadsEachOpenPieceAlongTheAnglesThatTheCSharpCopyReads() =>
+        SectorPassUnderTheMapShouldMatchTheCSharpCopy(renderer =>
+        {
+            RenderSnapshot scene = CornerWithBoxes(renderer);
+            AddSlab(
+                snapshot: scene,
+                box: UnitBox(renderer),
+                material: Glow(renderer, new Vector3(40, 40, 40)),
+                center: LampCenter,
+                size: new(0.3f, 0.3f, 0.3f)
+            );
+            return scene;
+        });
+
+    /// <summary>
+    /// Pins the sector pass under the environment map in the scene that <paramref name="sceneOf"/> builds to the C#
+    /// copy, as <see cref="UnderTheMapTheSectorPassTakesTheOpenPiecesShareOfTheMapsLightAsTheCSharpCopyDoes"/> says.
+    /// </summary>
+    private void SectorPassUnderTheMapShouldMatchTheCSharpCopy(Func<VulkanRenderer, RenderSnapshot> sceneOf)
     {
         VisibilityBitmaskLight setting = VisibilityBitmaskLight.Default;
         VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: setting, environmentMap: SceneEnvironmentMap.Default);
@@ -188,7 +220,7 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
             // The term that the sector pass leaves, before the blur overwrites it.
             renderer.Graph.Skipped.UnionWith(["occlusion denoise", "occlusion upsample"]);
             // The faces draw the map in the first frame, and the sector pass reads it after them.
-            renderer.Render(CornerWithBoxes(renderer), 1f);
+            renderer.Render(sceneOf(renderer), 1f);
             (float[] term, int halfWidth, int halfHeight) = renderer.ReadOcclusionTerm();
             var gpu = new SectorPassOutput(
                 Term: term,

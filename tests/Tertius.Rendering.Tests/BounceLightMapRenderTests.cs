@@ -116,6 +116,66 @@ public sealed class BounceLightMapRenderTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// The near wall glows warm, and the far wall 41 m right of the eye glows cool, so the map's light along the blocked
+    /// directions and along the open ones differ in color, and the open share S differs from channel to channel: about
+    /// 0.6 in red, 0.8 in green and 1 in blue beside the near wall. Each channel of a floor point beside the near wall
+    /// takes the open share of its own color, and gets the light of a point away from the wall in each channel, with
+    /// the tolerance of <see cref="AFloorPointBesideAGlowingWallThatTheMapAlsoHoldsGetsTheWallsLightOnce"/>. A share of
+    /// another channel would give red or green about a fifth too much or too little, and blue about two fifths too little.
+    /// </summary>
+    [Fact]
+    public void BesideAWarmWallUnderACoolFarGlowEachChannelOfAFloorPointTakesTheOpenShareOfItsOwnColor()
+    {
+        float[] hdr = Rendered(VisibilityBitmaskLight.Default, AddWarmWallAndCoolFarGlow);
+
+        Vector3 beside = MeanColor(hdr, BesideTheWall);
+        Vector3 away = MeanColor(hdr, AwayFromTheWall);
+        output.WriteLine($"floor beside the warm wall {beside}, away from it {away}");
+        beside
+            .X.Should()
+            .BeApproximately(away.X, (float)OnceTolerance * away.X, "red: the light of each direction counts once");
+        beside
+            .Y.Should()
+            .BeApproximately(away.Y, (float)OnceTolerance * away.Y, "green: the light of each direction counts once");
+        beside
+            .Z.Should()
+            .BeApproximately(away.Z, (float)OnceTolerance * away.Z, "blue: the light of each direction counts once");
+    }
+
+    /// <summary>
+    /// Beside the warm near wall under the cool far glow of
+    /// <see cref="BesideAWarmWallUnderACoolFarGlowEachChannelOfAFloorPointTakesTheOpenShareOfItsOwnColor"/>, S is least in
+    /// red and most in blue, in term A as the sectors pass leaves it and in the estimate target after the blurs and the
+    /// upsample, as the test hooks read them. Each pass packs the estimate as it unpacks it, so a swap of two channels in
+    /// packEstimate or in unpackEstimate alone cancels over the chain's eight packs and eight unpacks, and shows only
+    /// where the hooks read a texel that an odd count of them moved: term A, one pack, and the estimate target, seven
+    /// unpacks.
+    /// </summary>
+    [Fact]
+    public void BesideAWarmWallUnderACoolFarGlowTheOpenShareIsLeastInRedAndMostInBlueInTermAAndInTheEstimateTarget()
+    {
+        float[] termA = SectorPassOpenShare(AddWarmWallAndCoolFarGlow);
+        float[] target = RenderedWithEstimate(VisibilityBitmaskLight.Default, AddWarmWallAndCoolFarGlow).OpenShare;
+        // The occlusion images take half the output's size, rounded up.
+        const int halfWidth = (Width + 1) / 2;
+
+        foreach (Vector3 point in BesideTheWall)
+        {
+            (int X, int Y) pixel = Pixel(point);
+            int i = 3 * (pixel.Y / 2 * halfWidth + pixel.X / 2);
+            int j = 3 * (pixel.Y * Width + pixel.X);
+            output.WriteLine(
+                $"{point}: S in term A ({termA[i]}, {termA[i + 1]}, {termA[i + 2]}), in the estimate target "
+                    + $"({target[j]}, {target[j + 1]}, {target[j + 2]})"
+            );
+            termA[i].Should().BeLessThan(termA[i + 1], "term A: the blocked warm wall holds more red than green");
+            termA[i + 1].Should().BeLessThan(termA[i + 2], "term A: the open cool glow holds more blue than green");
+            target[j].Should().BeLessThan(target[j + 1], "the estimate target: red's share is the least");
+            target[j + 1].Should().BeLessThan(target[j + 2], "the estimate target: blue's share is the most");
+        }
+    }
+
+    /// <summary>
     /// A floor point beyond the radius of every blocker has every sector open: the estimate holds no bounce, and its
     /// open share S is exactly 1, because the map's light along its blocked sectors is exactly 0 and the images store
     /// 1 − S, whose zeros the blurs and the upsample keep. So its diffuse light is the map's irradiance at its normal,
@@ -348,6 +408,25 @@ public sealed class BounceLightMapRenderTests(ITestOutputHelper output)
         );
     }
 
+    /// <summary>The near wall, glowing warm, and the far wall 41 m right of the eye, facing −X, glowing cool.</summary>
+    private static void AddWarmWallAndCoolFarGlow(VulkanRenderer renderer, RenderSnapshot snapshot)
+    {
+        AddWall(
+            snapshot: snapshot,
+            renderer: renderer,
+            material: BrdfTesting.Glow(renderer, new Vector3(1, 0.3f, 0.05f)),
+            x: WallX,
+            faceToward: 1
+        );
+        AddWall(
+            snapshot: snapshot,
+            renderer: renderer,
+            material: BrdfTesting.Glow(renderer, new Vector3(0.05f, 0.3f, 1)),
+            x: 40,
+            faceToward: -1
+        );
+    }
+
     /// <summary>
     /// The HDR image of a white floor with no specular lobe under the map, with the walls that <paramref name="addWalls"/>
     /// adds, rendered by a renderer of <paramref name="setting"/>.
@@ -396,6 +475,38 @@ public sealed class BounceLightMapRenderTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// The open share S of term A, RGB per texel at half resolution, as the sectors pass leaves it under the map, before
+    /// the blurs, with the walls that <paramref name="addWalls"/> adds.
+    /// </summary>
+    private static float[] SectorPassOpenShare(Action<VulkanRenderer, RenderSnapshot> addWalls)
+    {
+        VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: VisibilityBitmaskLight.Default, environmentMap: SmallMap);
+        try
+        {
+            renderer.Graph.Skipped.UnionWith(["occlusion denoise", "occlusion upsample"]);
+            RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, starIrradiance: 0);
+            snapshot.Ambient.Intensity = 0;
+            Look(snapshot, View);
+            AddSlab(
+                snapshot: snapshot,
+                box: UnitBox(renderer),
+                material: renderer.CreateMaterial(
+                    new(BaseColor: new(x: 1, y: 1, z: 1, w: 1), Roughness: 1, Reflectance: 0)
+                ),
+                center: new(0, FloorHeight - 0.5f, 0),
+                size: new(800, 1, 800)
+            );
+            addWalls(renderer, snapshot);
+            renderer.Render(snapshot, 1f);
+            return renderer.ReadOcclusionTermOpenShare();
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>
     /// Adds a wall 400 m high and 800 m long whose face stands at <paramref name="x"/>, facing +X for
     /// <paramref name="faceToward"/> 1 and −X for −1.
     /// </summary>
@@ -421,6 +532,10 @@ public sealed class BounceLightMapRenderTests(ITestOutputHelper output)
             Vector3 color = ReflectionTesting.At(hdr, Pixel(point));
             return (color.X + color.Y + color.Z) / 3.0;
         });
+
+    /// <summary>The mean over <paramref name="points"/> of the color of their pixels in <paramref name="hdr"/>.</summary>
+    private static Vector3 MeanColor(float[] hdr, Vector3[] points) =>
+        points.Aggregate(Vector3.Zero, (sum, point) => sum + ReflectionTesting.At(hdr, Pixel(point))) / points.Length;
 
     private static (int X, int Y) Pixel(Vector3 point)
     {

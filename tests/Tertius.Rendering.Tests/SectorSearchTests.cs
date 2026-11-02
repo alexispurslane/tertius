@@ -882,6 +882,43 @@ public sealed class SectorSearchTests
     }
 
     [Fact]
+    public void AStepReadsTheMapAlongTheMiddleOfItsSlabsAnglesWithALobeAsWideAsItsSlab()
+    {
+        // A blocked part takes its run's slab angles, and only an open piece takes the angles of its sectors'
+        // boundaries (docs/plans/screen-space-illumination.md, decision 42, "Two rules").
+        NearStep step = FacingStep(position: new(0.3, 0, 1.6), light: Green);
+        (double front, double back) = SectorSearch.StepAngles(
+            center: Center,
+            toEye: TowardTheEye,
+            position: step.Position,
+            side: step.Side,
+            thicknessShare: ThicknessShare
+        );
+        (double low, double high) = (Math.Min(front, back), Math.Max(front, back));
+        double boundaryWidth = Facing.PieceAngles(Covered(Facing, step, ThicknessShare)).Width;
+        Math.Abs(boundaryWidth - (high - low))
+            .Should()
+            .BeGreaterThan(1e-3, "the test needs a slab whose ends lie away from its sectors' boundaries");
+        var reads = new List<(Double3 Direction, double Width)>();
+
+        Near(
+            Facing,
+            ThicknessShare,
+            mapLight: (direction, width) =>
+            {
+                reads.Add((direction, width));
+                return Red;
+            },
+            step
+        );
+
+        AngleInSlice(Facing, reads[0].Direction)
+            .Should()
+            .BeApproximately((low + high) / 2, 1e-12, "the step's read stands at the middle of its slab");
+        reads[0].Width.Should().BeApproximately(high - low, 1e-12, "its lobe is as wide as its slab");
+    }
+
+    [Fact]
     public void AStepWhoseNewlyBlockedSectorsLieOnBothSidesOfANearerPoleReadsTheMapOnceForEachUnbrokenPiece()
     {
         // The pole's slab covers the directions from about 52° to 62°, the wall's from 45° to the edge at 90°, so the
