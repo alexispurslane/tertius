@@ -130,28 +130,59 @@ public sealed class SphereLightRenderTests
         return irradiance * (window * window);
     }
 
+    /// <summary>
+    /// A sized light seen in the tilted mirror (<see cref="SizedLightInTheMirror"/>): its snapshot, the view's
+    /// height <see cref="Fov"/> in rad and its <see cref="FocalLength"/> in pixels, the light's distance from the
+    /// mirror and its image's from the camera in m, the image's angular radius in rad, and the C# radiance of the disc's
+    /// center, with the window of the light's reach.
+    /// </summary>
+    private sealed record MirrorDisc(
+        RenderSnapshot Snapshot,
+        float Fov,
+        double LightToMirror,
+        double ImageDistance,
+        double ImageAngularRadius,
+        Double3 Plateau
+    )
+    {
+        public double FocalLength => Height / 2.0 / Math.Tan(Fov / 2);
+
+        /// <summary>The "sun" or the "lamp" of <see cref="SizedLights"/> in the mirror tilted by <paramref name="tilt"/> rad.</summary>
+        public static MirrorDisc Of(string light, float tilt)
+        {
+            bool sun = light == "sun";
+            float fov = sun ? 0.03f : 0.25f;
+            double lightToMirror = sun ? Gpu.StarDistance : MirrorDistance - LampDistance;
+            double imageDistance = sun ? Gpu.StarDistance : MirrorDistance + lightToMirror;
+            double lightSine = sun ? Gpu.StarSine : LampRadius / lightToMirror;
+            RenderSnapshot snapshot = SizedLightInTheMirror(sun: sun, fov: fov, tilt: tilt);
+            Double3 irradiance = sun
+                ? Gpu.StarIrradianceRgb(snapshot)
+                : new Double3(1, 1, 1) * (LampIntensity / (lightToMirror * lightToMirror));
+            return new(
+                Snapshot: snapshot,
+                Fov: fov,
+                LightToMirror: lightToMirror,
+                ImageDistance: imageDistance,
+                ImageAngularRadius: sun ? Gpu.StarAngularRadius : Math.Asin(LampRadius / imageDistance),
+                Plateau: DiscCenter(lightSine: lightSine, tilt: tilt) * InReach(irradiance)
+            );
+        }
+    }
+
     [Theory]
     [MemberData(nameof(SizedLights))]
     public void AMirrorShowsTheDiscOfASizedLightAtTheLightsAngularSize(string light)
     {
-        bool sun = light == "sun";
-        float fov = sun ? 0.03f : 0.25f;
-        double lightToMirror = sun ? Gpu.StarDistance : MirrorDistance - LampDistance;
-        double imageDistance = sun ? Gpu.StarDistance : MirrorDistance + lightToMirror;
-        double lightSine = sun ? Gpu.StarSine : LampRadius / lightToMirror;
-        double imageAngularRadius = sun ? Gpu.StarAngularRadius : Math.Asin(LampRadius / imageDistance);
-        RenderSnapshot snapshot = SizedLightInTheMirror(sun: sun, fov: fov, tilt: 0);
-        Double3 irradiance = sun
-            ? Gpu.StarIrradianceRgb(snapshot)
-            : new Double3(1, 1, 1) * (LampIntensity / (lightToMirror * lightToMirror));
-        Double3 plateau = DiscCenter(lightSine: lightSine, tilt: 0) * InReach(irradiance);
+        MirrorDisc disc = MirrorDisc.Of(light: light, tilt: 0);
+        Double3 plateau = disc.Plateau;
 
         VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
         try
         {
             Capture image = RenderMirror(
                 renderer: renderer,
-                snapshot: snapshot,
+                snapshot: disc.Snapshot,
                 tilt: 0,
                 name: "sphere-light-" + light
             );
@@ -171,25 +202,24 @@ public sealed class SphereLightRenderTests
                     "the disc's center shows the C# lobe's radiance {0}, below the tone curve's shoulder",
                     plateau.X
                 );
-            double focalLength = Height / 2.0 / Math.Tan(fov / 2);
-            double radius = Math.Atan(HalfMaximumRadius(image, threshold: shown[0].X) / focalLength);
+            double radius = Math.Atan(HalfMaximumRadius(image, threshold: shown[0].X) / disc.FocalLength);
             // Outside the disc, the lobe of the roughness floor falls from the disc's edge as it falls from a point
             // light's peak. Seen from the camera, the turn of the reflected ray scales by the light's distance from the
             // mirror over the distance of its image.
             double alpha = new GgxLobe(0).Alpha;
-            double imageScale = lightToMirror / imageDistance;
+            double imageScale = disc.LightToMirror / disc.ImageDistance;
             // A pixel, and the center's 1 %: it moves the threshold from half the shown peak to between 0.495 and
             // 0.505 of it, where the lobe falls by 0.91 of its peak per α of tan θ_h, which moves the edge by up to
             // 0.011 α of the reflected ray.
             radius
                 .Should()
                 .BeApproximately(
-                    imageAngularRadius + HalfMaximumPerAlpha * alpha * imageScale,
-                    fov / Height + 0.011 * alpha * imageScale,
+                    disc.ImageAngularRadius + HalfMaximumPerAlpha * alpha * imageScale,
+                    disc.Fov / Height + 0.011 * alpha * imageScale,
                     "the mirror shows the {0}'s disc of angular radius {1} rad, widened by the floored lobe's half "
                         + "maximum",
                     light,
-                    imageAngularRadius
+                    disc.ImageAngularRadius
                 );
         }
         finally
@@ -202,24 +232,15 @@ public sealed class SphereLightRenderTests
     [MemberData(nameof(SizedLights))]
     public void AMirrorShowsTheInsideOfASizedLightsDiscWithinOnePercentOfOneRadiance(string light)
     {
-        bool sun = light == "sun";
-        float fov = sun ? 0.03f : 0.25f;
-        double lightToMirror = sun ? Gpu.StarDistance : MirrorDistance - LampDistance;
-        double imageDistance = sun ? Gpu.StarDistance : MirrorDistance + lightToMirror;
-        double lightSine = sun ? Gpu.StarSine : LampRadius / lightToMirror;
-        double imageAngularRadius = sun ? Gpu.StarAngularRadius : Math.Asin(LampRadius / imageDistance);
-        RenderSnapshot snapshot = SizedLightInTheMirror(sun: sun, fov: fov, tilt: ObliqueTilt);
-        Double3 irradiance = sun
-            ? Gpu.StarIrradianceRgb(snapshot)
-            : new Double3(1, 1, 1) * (LampIntensity / (lightToMirror * lightToMirror));
-        Double3 plateau = DiscCenter(lightSine: lightSine, tilt: ObliqueTilt) * InReach(irradiance);
+        MirrorDisc disc = MirrorDisc.Of(light: light, tilt: ObliqueTilt);
+        Double3 plateau = disc.Plateau;
 
         VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
         try
         {
             Capture image = RenderMirror(
                 renderer: renderer,
-                snapshot: snapshot,
+                snapshot: disc.Snapshot,
                 tilt: ObliqueTilt,
                 name: "sphere-light-flat-" + light
             );
@@ -234,20 +255,9 @@ public sealed class SphereLightRenderTests
             // from one pixel to the next: a speckle. A mirror that faces the camera gets n·h = 1 exactly and hides it,
             // so this mirror stands at 30°. Across that inside, the view, the light's distance and its sine change the
             // radiance by less than 0.3 %.
-            double focalLength = Height / 2.0 / Math.Tan(fov / 2);
-            int inside = (int)(0.6 * Math.Tan(imageAngularRadius) * focalLength);
-            var outside = new List<(int X, int Y, float Red)>();
-            for (int y = -inside; y <= inside; y++)
-            for (int x = -inside; x <= inside; x++)
-            {
-                if (x * x + y * y > inside * inside)
-                    continue;
-                float red = image.Color(Width / 2 + x, Height / 2 + y).X;
-                if (red < shown[0].X || red > shown[1].X)
-                    outside.Add((X: x, Y: y, Red: red));
-            }
+            int inside = (int)(0.6 * Math.Tan(disc.ImageAngularRadius) * disc.FocalLength);
 
-            outside
+            RedsOutside(image: image, radius: inside, low: shown[0].X, high: shown[1].X)
                 .Should()
                 .BeEmpty(
                     "the inside of the {0}'s disc shows the C# radiance {1} within 1 %, shown from {2} to {3}, at "
@@ -373,6 +383,26 @@ public sealed class SphereLightRenderTests
         {
             Gpu.DisposeAndAssertClean(renderer);
         }
+    }
+
+    /// <summary>
+    /// The pixels within <paramref name="radius"/> pixels of the image's center whose red channel lies outside
+    /// [<paramref name="low"/>, <paramref name="high"/>], each with its offset from the center and its red.
+    /// </summary>
+    private static List<(int X, int Y, float Red)> RedsOutside(Capture image, int radius, float low, float high)
+    {
+        var outside = new List<(int X, int Y, float Red)>();
+        for (int y = -radius; y <= radius; y++)
+        for (int x = -radius; x <= radius; x++)
+        {
+            if (x * x + y * y > radius * radius)
+                continue;
+            float red = image.Color(Width / 2 + x, Height / 2 + y).X;
+            if (red < low || red > high)
+                outside.Add((X: x, Y: y, Red: red));
+        }
+
+        return outside;
     }
 
     /// <summary>

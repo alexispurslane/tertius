@@ -55,6 +55,34 @@ public sealed class BrdfRenderTests
         );
 
     /// <summary>
+    /// The C# light that <paramref name="material"/> sends toward <paramref name="toView"/> per unit irradiance of the
+    /// test star along <paramref name="toSun"/>, which the GPU shades as a sphere light of the star's angular radius.
+    /// </summary>
+    private static Double3 SunLit(MaterialSample material, Double3 normal, Double3 toView, Double3 toSun) =>
+        material.Reflected(
+            normal: normal,
+            toView: toView,
+            toLight: toSun,
+            tables: BrdfTables.Shared,
+            lightSine: Gpu.StarSine
+        );
+
+    /// <summary>
+    /// The C# light that a sphere of radius 1 m and <paramref name="material"/> at <paramref name="center"/> sends to
+    /// the eye from the point that <paramref name="pixel"/> sees, per unit irradiance of the test star behind the camera.
+    /// </summary>
+    private static Double3 SunLitOnASphere(MaterialSample material, Double3 center, Vector2 pixel)
+    {
+        Double3 point = OnSphere(Ray(pixel, Width, Height), center, 1);
+        return SunLit(
+            material: material,
+            normal: (point - center).Normalized(),
+            toView: -point.Normalized(),
+            toSun: Double3.UnitZ
+        );
+    }
+
+    /// <summary>
     /// The C# light that a smooth white metal facing the camera at <paramref name="point"/> reflects toward the eye from a
     /// point light of 1,000 W/sr at <paramref name="lightPosition"/>, whose reach is set by the exposure FixedExposure(0).
     /// </summary>
@@ -113,24 +141,10 @@ public sealed class BrdfRenderTests
         var gold = new MaterialSample(BaseColor: new(1, 0.71, 0.29), Metallic: 1, Roughness: 0.2, Reflectance: 0.5);
         // The highlight: the front of the sphere, where the sun behind the camera and the view meet the normal.
         Vector2 highlight = Pixel(center + Double3.UnitZ);
-        Double3 front = OnSphere(Ray(highlight, Width, Height), center, 1);
-        Double3 peak = gold.Reflected(
-            normal: (front - center).Normalized(),
-            toView: -front.Normalized(),
-            toLight: Double3.UnitZ,
-            tables: BrdfTables.Shared,
-            lightSine: Gpu.StarSine
-        );
+        Double3 peak = SunLitOnASphere(gold, center, highlight);
         // 60° from the highlight the sun meets the surface at n·l = 0.5, where a non-metal shows its diffuse light.
         Vector2 aside = Pixel(center + new Double3(Math.Sin(Math.PI / 3), 0, Math.Cos(Math.PI / 3)));
-        Double3 side = OnSphere(Ray(aside, Width, Height), center, 1);
-        Double3 sideLight = gold.Reflected(
-            normal: (side - center).Normalized(),
-            toView: -side.Normalized(),
-            toLight: Double3.UnitZ,
-            tables: BrdfTables.Shared,
-            lightSine: Gpu.StarSine
-        );
+        Double3 sideLight = SunLitOnASphere(gold, center, aside);
         sideLight.X.Should().BeLessThan(1e-4 * peak.X, "the C# lobe 60° from its peak is under a ten-thousandth of it");
 
         // A dim sun keeps the highlight below 1 before the tone curve, which turns any bright color white. A bright one
@@ -194,14 +208,7 @@ public sealed class BrdfRenderTests
                 Reflectance: 0.5
             );
             Double3 reflected =
-                diffuse
-                + lobe.Reflected(
-                    normal: Double3.UnitZ,
-                    toView: toView,
-                    toLight: Double3.UnitZ,
-                    tables: BrdfTables.Shared,
-                    lightSine: Gpu.StarSine
-                );
+                diffuse + SunLit(material: lobe, normal: Double3.UnitZ, toView: toView, toSun: Double3.UnitZ);
             return (reflected * sunIrradiance).ToVector3();
         }
 
@@ -232,16 +239,12 @@ public sealed class BrdfRenderTests
         }
     }
 
-    [Fact]
-    public void ARoughSurfacesHighlightHasTheLongTailOfGgx()
+    /// <summary>
+    /// The pixel of the center column, below the horizon, whose point of the ground 1 m below the eye has D at a
+    /// twentieth of the peak of <paramref name="lobe"/> under the sun along <paramref name="toSun"/>, and that point.
+    /// </summary>
+    private static (Vector2 Pixel, Double3 Point) WhereTheLobeFallsToATwentieth(Double3 toSun, GgxLobe lobe)
     {
-        // The sun stands behind the camera, 65° up. Along the center column, the angle between the half vector and the
-        // ground's normal is 90° − (65° + the view's depression) / 2, so the lobe's twentieth lies in view.
-        var toSun = new Double3(0, Math.Sin(65 * Math.PI / 180), Math.Cos(65 * Math.PI / 180));
-        const double roughness = 0.6;
-        var lobe = new GgxLobe(roughness);
-        // A black non-metal: the tone curve mixes the channels, so a red base color would leak into the green.
-        var black = new MaterialSample(BaseColor: Double3.Zero, Metallic: 0, Roughness: roughness, Reflectance: 0.5);
         Vector2 pixel = Vector2.Zero;
         Double3 point = Double3.Zero;
         double nearest = double.MaxValue;
@@ -255,6 +258,20 @@ public sealed class BrdfRenderTests
                 (nearest, pixel, point) = (share, candidate, onGround);
         }
 
+        return (Pixel: pixel, Point: point);
+    }
+
+    [Fact]
+    public void ARoughSurfacesHighlightHasTheLongTailOfGgx()
+    {
+        // The sun stands behind the camera, 65° up. Along the center column, the angle between the half vector and the
+        // ground's normal is 90° − (65° + the view's depression) / 2, so the lobe's twentieth lies in view.
+        var toSun = new Double3(0, Math.Sin(65 * Math.PI / 180), Math.Cos(65 * Math.PI / 180));
+        const double roughness = 0.6;
+        var lobe = new GgxLobe(roughness);
+        // A black non-metal: the tone curve mixes the channels, so a red base color would leak into the green.
+        var black = new MaterialSample(BaseColor: Double3.Zero, Metallic: 0, Roughness: roughness, Reflectance: 0.5);
+        (Vector2 pixel, Double3 point) = WhereTheLobeFallsToATwentieth(toSun, lobe);
         Double3 toView = -point.Normalized();
         Double3 halfVector = (toSun + toView).Normalized();
         double blinnPhongExponent = 2 / (lobe.Alpha * lobe.Alpha) - 2;
@@ -265,13 +282,8 @@ public sealed class BrdfRenderTests
         // A bright sun lifts the tail above the toe of the tone curve.
         RenderSnapshot snapshot = SunOnly(toSun.ToVector3(), 40);
         Double3 tail =
-            black.Reflected(
-                normal: Double3.UnitY,
-                toView: toView,
-                toLight: toSun,
-                tables: BrdfTables.Shared,
-                lightSine: Gpu.StarSine
-            ) * Gpu.StarIrradianceRgb(snapshot);
+            SunLit(material: black, normal: Double3.UnitY, toView: toView, toSun: toSun)
+            * Gpu.StarIrradianceRgb(snapshot);
 
         VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
         try
@@ -372,13 +384,7 @@ public sealed class BrdfRenderTests
         // mirror image of the sun's disc, is SphereLightRenderTests' subject.
         var toSun = new Double3(0, Math.Sin(0.6), Math.Cos(0.6));
         var mirror = new MaterialSample(BaseColor: new(1, 1, 1), Metallic: 1, Roughness: 0, Reflectance: 0.5);
-        Double3 reflected = mirror.Reflected(
-            normal: Double3.UnitZ,
-            toView: -point.Normalized(),
-            toLight: toSun,
-            tables: BrdfTables.Shared,
-            lightSine: Gpu.StarSine
-        );
+        Double3 reflected = SunLit(material: mirror, normal: Double3.UnitZ, toView: -point.Normalized(), toSun: toSun);
         // A dim sun keeps the light below 1 before the tone curve, which turns any bright color white.
         RenderSnapshot snapshot = SunOnly(toSun.ToVector3(), (float)(0.8 / reflected.X));
         Double3 shine = reflected * Gpu.StarIrradianceRgb(snapshot);
