@@ -1,6 +1,6 @@
 ---
 id: ter-k96l
-status: in_progress
+status: closed
 deps: [ter-xgra]
 links: [ter-5aak]
 created: 2026-11-01T01:19:16Z
@@ -156,3 +156,7 @@ Part 13, the second review's findings (fixer, 2026-11-01). (1) ARCHITECTURE.md's
 **2026-11-02T01:24:58Z**
 
 Hardening (test agent, 2026-11-01), commit 78b1d096. Coverage of the changed lines in src against c6fdb3a0, Debug and Release together: 120 of 120 lines and 24 of 26 branches. The two partial branches are the contracts of SliceSectors.BoundaryAngle and PieceAngles, whose false side is a bug and which Release compiles out (102 of 102 lines and 22 of 22 branches there). 101 hand mutations, in C# and in the shaders, each built incrementally in Debug and run on its covering classes under timeout 120. 79 died on the tests that existed. 7 died only on 6 new tests: a per-channel clamp of S in OcclusionUpsample, a step's read at its slab's angles in SectorSearch, a warm near wall under a cool far glow (each channel counts its light once, and S is least in red and most in blue in term A and in the estimate target), the UnderTheMap sector comparison with a small bright lamp in the map, and a slab before a wall that it darkens with no halo on the slab's face. One finding of the S-order test: a swap of two channels in packEstimate or in unpackEstimate alone cancels over the chain's eight packs and eight unpacks, so only the test hooks see it. 15 mutants survive. 2 are equivalent: S in materialAt, which the direct pass never reads, and a dropped StorageImageBit in EstimateFeatures, which Vulkan requires of RGBA32UI. 13 are judgment calls. The GPU's piece angles and the open sum's slice weight move S by less than the trilinear bound of the GPU comparison, and the C# tests pin the same lines exactly. The upsample's clamps take back only an ulp. The lobe bound in environment.glsl survives every GPU scene, because the narrow pieces read where the map is smooth and no test runs one GLSL function. GgxLobeTests pin the C# bound. The blur count: the grain test's ratio to 16 slices is 1.03 at 6 blurs, 1.087 at 5 and 1.094 at 4, all under its bound of 1.1, so it does not hold decision 43's choice of 6, which rests on the cabin's ceiling panel. 2 blurs fail it. The last-dispatch mark changes only a blur's center weight. The commit message holds the table. Checked: 9,780 passed, 14 skipped, 0 failed. Release: 9,767 passed, 14 skipped, 0 failed.
+
+**2026-11-02T01:35:39Z**
+
+Merged into main on 2026-11-01 (orchestrator) after the hardening pass (78b1d096 and ff9fdb4c: changed src lines 120/120, 101 hand mutations, 86 killed, 2 equivalent, 13 judgment calls). The merge with ter-kn1d had two conflicts in ARCHITECTURE.md, the ambient pass's paragraph (ter-rjts's withAmbientFootprint kept with this ticket's S) and the bounce's float-range row (this ticket's G in [0, 32,256]). tools/test-all.sh passed on the merge in Checked and Release, every module with 0 failed. Open after this ticket: ter-8hk9 (skip the open reads where nothing blocks), ter-5aak (the bias of the 3-slice ratio) and ter-8fz2.
