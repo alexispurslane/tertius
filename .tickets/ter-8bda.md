@@ -45,3 +45,18 @@ Builder, 2026-11-02, branch ter-8bda-ssr-limit-037 from fa0fb484. The default Co
 **2026-11-02T09:03:37Z**
 
 Fix stage after the review, 2026-11-02. (1) The test helpers inherited the production limit, so tests that are not about the limit depended on it. ReflectionTesting.UnfadedReflectionsAt(resolution) is the default with a maximum roughness of 1 of the tests' own (fade 1 up to 0.5, 0.996 at 128/255). The cone test, the half-trace texel test, ARougherFloorBlursTheReflection, AReflectionIsSharpWhereTheObjectTouchesTheFloorAndBlursAwayFromIt, TwoRendersGiveTheSameBits (all on floors of 0.2 to 0.5) and the full references of the 0.18 and 0.28 limit tests take it. The rough half of MirrorBesideRoughFloor went from 179/255 to 1, so it reflects nothing under any valid maximum. Check: with the default set to 0.25 for one run, the old test files fail ARougherFloorBlursTheReflection (Full, Half) beside the four limit tests (6 failures, logs/fix-focused-025-old.log). The new files fail only the four limit tests 0.18 and 0.28 at Full and Half (logs/fix-focused-025-new.log). At 0.37, all 84 ReflectionRenderTests and ReflectionShaderTests pass. (2) The plan's CPU test list named TheDefaultTracesUpToARoughnessOf0Point6In64Steps twice. It now names TheRendererReflectsByDefaultIn256Steps once, the fade theory's own maximum of 0.8, and the unfaded setting of the GPU tests. (3) ter-olhk, this ticket's notes, the plan and ARCHITECTURE.md gave the cut of the four passes' summed time as the frame saving. They now give both measures: the pass sum (2.01 and 1.43 ms cut, 1.79 and 2.02 ms left for a skip) and the median frame span (−1.70 ms on the deck window, −0.61 ms on the floor window). ter-olhk's acceptance names both. (4) The cone test's comment now says a fade of 1 and 0.996, not 'in full'.
+
+**2026-11-02T09:22:34Z**
+
+Hardening (orchestrator, 2026-11-02). The only changed src line is ReflectionSetting.cs:29, the default MaxRoughness 0.37f. tools/mutate.py ran four listed mutants of it on the Rendering tests (ReflectionRenderTests, ReflectionSettingTests):
+
+| id | place | change | result | killed by | s |
+|---|---|---|---|---|---:|
+| C01 | src/Tertius.Rendering/ReflectionSetting.cs:29 | default limit back to 0.6 | killed | AFloorOfThePaintsRoughnessKeepsOnlyTheAmbientSpecularTerm (Half, Full), AFloorOfRoughness028ShowsHalfItsReflection (Full) | 35.6 |
+| C02 | src/Tertius.Rendering/ReflectionSetting.cs:29 | 0.39, just above the paint's 0.3804 | killed | AFloorOfThePaintsRoughnessKeepsOnlyTheAmbientSpecularTerm (Half, Full), AFloorOfRoughness028ShowsHalfItsReflection (Full) | 29.7 |
+| C03 | src/Tertius.Rendering/ReflectionSetting.cs:29 | 0.36 | killed | AFloorOfRoughness018ReflectsInFull (Half, Full), AFloorOfRoughness028ShowsHalfItsReflection (Full) | 29.2 |
+| C04 | src/Tertius.Rendering/ReflectionSetting.cs:29 | 0.3, so 0.18 fades | killed | AFloorOfRoughness018ReflectsInFull (Half, Full), AFloorOfRoughness028ShowsHalfItsReflection (Full) | 29.4 |
+
+4 rows: killed 4, timeout 0, survived 0, no-coverage 0, build-failed 0, no-tests 0, no-mutant 0, removed 0. Wall time 182 s, logs in /tmp/ter-8bda-mutate.
+
+Coverage: the full coverage run was not made. The branch changes one src line, and four killed mutants of that line show that tests run it, which is a stronger result than coverage. The test changes need no coverage.
