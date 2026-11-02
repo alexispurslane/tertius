@@ -23,11 +23,16 @@ float flooredRoughness(float roughness)
     return clamp(roughness, MinRoughness, 1.0);
 }
 
-// D: the GGX distribution of the microfacet normals, per steradian.
-float ggxDistribution(float NdotH, float alpha)
+// D: the GGX distribution of the microfacet normals, per steradian, at the unit half vector H of the unit normal N.
+// The denominator (n·h)² (α² − 1) + 1 is |n × h|² + (n·h)² α², as Filament's D_GGX computes it: near n·h = 1, a 32-bit
+// 1 − (n·h)² cancels to a few float steps of n·h, which move D by several percent at the floor's α² = 4.1e-6, and the
+// cross product keeps its precision. GgxLobe.Distribution, in doubles, is the C# copy.
+float ggxDistribution(vec3 N, vec3 H, float alpha)
 {
+    vec3 NcrossH = cross(N, H);
+    float NdotH = dot(N, H);
     float alphaSq = alpha * alpha;
-    float denominator = NdotH * NdotH * (alphaSq - 1.0) + 1.0;
+    float denominator = dot(NcrossH, NcrossH) + NdotH * NdotH * alphaSq;
     return alphaSq / (PI * denominator * denominator);
 }
 

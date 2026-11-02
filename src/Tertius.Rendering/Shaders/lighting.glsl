@@ -5,8 +5,9 @@
 // visibility term and Schlick's Fresnel term, with Filament's multiple-scattering energy compensation from the DFG table:
 //   f = c_diff / π + D · Vis · F · c,   c_diff = b (1 − m),   F0 = (1 − m) · 0.16 ρ² + m · b
 // Each light of the one light list adds f · E · (N·L), where E is its irradiance (docs/plans/local-light-shadows.md, "The
-// shaders"), and its specular part sees the light as a sphere of its radius (docs/plans/pbr-brdf.md, "Sized lights"). A hair pixel takes each light's response of a fiber instead (hair.glsl), from either side of its card, and
-// its ambient light at its fiber normal, its shading normal (docs/plans/skin-and-hair.md, "The hair model"). A skin pixel
+// shaders"), and its specular part sees the light as a sphere of its radius (docs/plans/pbr-brdf.md, "Sized lights").
+// A hair pixel takes each light's response of a fiber instead (hair.glsl), from either side of its card, and its
+// ambient light at its fiber normal, its shading normal (docs/plans/skin-and-hair.md, "The hair model"). A skin pixel
 // shades as the standard model, with metallic 0. The ambient light comes from one ambient source,
 // the scene environment map while it is on and the hemisphere while it is off, which gives a diffuse and a specular
 // term (docs/plans/environment-map.md, "The one source of the ambient light"). The estimate of the light around each
@@ -121,7 +122,7 @@ vec3 specularResponse(SurfaceLobes lobes, vec3 N, vec3 V, vec3 L, float lightSin
         return vec3(0.0);
     vec3 H = halfVectorOf(l, V, N);
     float VdotH = dot(V, H);
-    float distribution = ggxDistribution(dot(N, H), lobes.alpha);
+    float distribution = ggxDistribution(N, H, lobes.alpha);
     if (sized)
         distribution *= sphereNormalization(lobes.alpha, lightSine, VdotH);
     float visibility = smithVisibility(NdotL, lobes.NdotV, lobes.alpha);

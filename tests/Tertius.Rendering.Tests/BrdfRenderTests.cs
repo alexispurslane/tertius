@@ -70,7 +70,8 @@ public sealed class BrdfRenderTests
             normal: Double3.UnitZ,
             toView: -point.Normalized(),
             toLight: toLight,
-            tables: BrdfTables.Shared
+            tables: BrdfTables.Shared,
+            lightSine: 0
         );
         return reflected.X * 1000 * window / distanceSquared;
     }
@@ -117,7 +118,8 @@ public sealed class BrdfRenderTests
             normal: (front - center).Normalized(),
             toView: -front.Normalized(),
             toLight: Double3.UnitZ,
-            tables: BrdfTables.Shared
+            tables: BrdfTables.Shared,
+            lightSine: Gpu.StarSine
         );
         // 60° from the highlight the sun meets the surface at n·l = 0.5, where a non-metal shows its diffuse light.
         Vector2 aside = Pixel(center + new Double3(Math.Sin(Math.PI / 3), 0, Math.Cos(Math.PI / 3)));
@@ -126,7 +128,8 @@ public sealed class BrdfRenderTests
             normal: (side - center).Normalized(),
             toView: -side.Normalized(),
             toLight: Double3.UnitZ,
-            tables: BrdfTables.Shared
+            tables: BrdfTables.Shared,
+            lightSine: Gpu.StarSine
         );
         sideLight.X.Should().BeLessThan(1e-4 * peak.X, "the C# lobe 60° from its peak is under a ten-thousandth of it");
 
@@ -196,7 +199,8 @@ public sealed class BrdfRenderTests
                     normal: Double3.UnitZ,
                     toView: toView,
                     toLight: Double3.UnitZ,
-                    tables: BrdfTables.Shared
+                    tables: BrdfTables.Shared,
+                    lightSine: Gpu.StarSine
                 );
             return (reflected * sunIrradiance).ToVector3();
         }
@@ -261,8 +265,13 @@ public sealed class BrdfRenderTests
         // A bright sun lifts the tail above the toe of the tone curve.
         RenderSnapshot snapshot = SunOnly(toSun.ToVector3(), 40);
         Double3 tail =
-            black.Reflected(normal: Double3.UnitY, toView: toView, toLight: toSun, tables: BrdfTables.Shared)
-            * Gpu.StarIrradianceRgb(snapshot);
+            black.Reflected(
+                normal: Double3.UnitY,
+                toView: toView,
+                toLight: toSun,
+                tables: BrdfTables.Shared,
+                lightSine: Gpu.StarSine
+            ) * Gpu.StarIrradianceRgb(snapshot);
 
         VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
         try
@@ -359,8 +368,8 @@ public sealed class BrdfRenderTests
         Vector2 pixel = Pixel(center);
         Double3 point = OnPlane(Ray(pixel, Width, Height), center, Double3.UnitZ);
         // The sun stands 0.6 rad above the view axis, so the half vector leans θ = 0.3 rad from the normal. There D is
-        // about α² / (π θ⁴) times the sized sun's normalization (α / α′)², which scales with the floor. Near the peak,
-        // the rounding of 32-bit floats swamps D. Here it moves it a few percent.
+        // about α² / (π θ⁴) times the sized sun's normalization (α / α′)², which scales with the floor. The peak, the
+        // mirror image of the sun's disc, is SphereLightRenderTests' subject.
         var toSun = new Double3(0, Math.Sin(0.6), Math.Cos(0.6));
         var mirror = new MaterialSample(BaseColor: new(1, 1, 1), Metallic: 1, Roughness: 0, Reflectance: 0.5);
         Double3 reflected = mirror.Reflected(
@@ -368,7 +377,7 @@ public sealed class BrdfRenderTests
             toView: -point.Normalized(),
             toLight: toSun,
             tables: BrdfTables.Shared,
-            lightSine: Math.Sin(Gpu.StarAngularRadius)
+            lightSine: Gpu.StarSine
         );
         // A dim sun keeps the light below 1 before the tone curve, which turns any bright color white.
         RenderSnapshot snapshot = SunOnly(toSun.ToVector3(), (float)(0.8 / reflected.X));

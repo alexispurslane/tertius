@@ -89,7 +89,7 @@ vec4 levelSample(uint i, float alpha, float texelAngle)
     vec3 h = vec3(cos(azimuth) * sinTheta, sin(azimuth) * sinTheta, cosTheta);
     // l = 2 (n·h) h − n, with n = (0, 0, 1).
     vec3 l = 2.0 * cosTheta * h - vec3(0.0, 0.0, 1.0);
-    float pdf = ggxDistribution(cosTheta, alpha) * 0.25;
+    float pdf = ggxDistribution(vec3(0.0, 0.0, 1.0), h, alpha) * 0.25;
     float sampleSolidAngle = 1.0 / (float(prefilter.samples) * pdf);
     float lod = max(0.5 * log2(sampleSolidAngle / texelAngle) + 1.0, 0.0);
     return vec4(l, lod);

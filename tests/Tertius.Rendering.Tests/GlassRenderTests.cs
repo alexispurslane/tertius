@@ -183,13 +183,15 @@ public sealed class GlassRenderTests
             normal: NormalOf(0),
             toView: ToView,
             toLight: starDirection,
-            tables: BrdfTables.Shared
+            tables: BrdfTables.Shared,
+            lightSine: Gpu.StarSine
         );
         Double3 specular = (white with { BaseColor = Double3.Zero }).Reflected(
             normal: NormalOf(0),
             toView: ToView,
             toLight: starDirection,
-            tables: BrdfTables.Shared
+            tables: BrdfTables.Shared,
+            lightSine: Gpu.StarSine
         );
         RenderSnapshot snapshot = Unlit(starDirection, starIrradiance: 1);
         Double3 irradiance = Gpu.StarIrradianceRgb(snapshot);

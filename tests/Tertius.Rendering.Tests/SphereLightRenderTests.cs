@@ -6,7 +6,8 @@ namespace Tertius.Rendering.Tests;
 
 /// <summary>
 /// The highlight of a sized light on the GPU (docs/plans/pbr-brdf.md, "Sized lights"): a mirror shows the light's disc
-/// at the light's angular size, and a light of radius 0 shades exactly as the point light did before the widened lobe.
+/// at the light's angular size and at one radiance across its inside, and a light of radius 0 shades as the point light
+/// did before the widened lobe.
 /// </summary>
 [Collection(GpuCollection.Name)]
 public sealed class SphereLightRenderTests
@@ -30,26 +31,39 @@ public sealed class SphereLightRenderTests
     /// </summary>
     private static readonly double HalfMaximumPerAlpha = 2 * Math.Sqrt(Math.Sqrt(2) - 1);
 
+    /// <summary>The tilt of the mirror, in rad, in the test of the disc's inside: 30°.</summary>
+    private const float ObliqueTilt = MathF.PI / 6;
+
     /// <summary>
-    /// A black glossy mirror of roughness 0 and F0 = 0.04 faces the camera on the view axis, and a sized light stands on
-    /// the axis behind the camera or between the camera and the mirror, so the mirror's image of the light's disc is
-    /// centered on the screen. A narrow view makes the disc many pixels wide.
+    /// A black glossy mirror of roughness 0 and F0 = 0.04 stands on the view axis, and a sized light stands on the axis
+    /// that the mirror reflects the view axis into, so the mirror's image of the light's disc is centered on the
+    /// screen. A narrow view makes the disc many pixels wide.
     /// </summary>
     public static TheoryData<string> SizedLights => ["sun", "lamp"];
 
     /// <summary>
-    /// The sun: the test star on the axis behind the camera, so the mirror shows it at its own angular radius. A dim star
-    /// and a mirror that reflects 4 % keep the disc below the tone curve's shoulder. The star stays above the cutoff
-    /// irradiance, π / 8192 W/m² at 0 stops, below which the batcher leaves a light out. The lamp: a sphere of
-    /// <see cref="LampRadius"/> at <see cref="LampDistance"/> from the camera, 2 m before the mirror. The camera sees its
-    /// image in the mirror 5 m away, asin(0.15 / 5) = 0.030 rad wide in radius.
+    /// The unit normal of the mirror tilted by <paramref name="tilt"/> rad from facing the camera, down toward −Y:
+    /// (0, −sin t, cos t), the plane's +Y turned by π / 2 + t about X.
     /// </summary>
-    private static RenderSnapshot SizedLightOnTheAxis(bool sun, float fov)
+    private static Quaternion MirrorRotation(float tilt) =>
+        Quaternion.CreateFromAxisAngle(Vector3.UnitX, MathF.PI / 2 + tilt);
+
+    /// <summary>
+    /// The light on the axis that the mirror tilted by <paramref name="tilt"/> reflects the view axis into, r = (0,
+    /// −sin 2t, cos 2t): toward +Z, behind the camera, for a mirror that faces it. The sun: the test star along r, so
+    /// the mirror shows it at its own angular radius. A dim star and a mirror that reflects 4 % keep the disc below the
+    /// tone curve's shoulder. The star stays above the cutoff irradiance, π / 8192 W/m² at 0 stops, below which the
+    /// batcher leaves a light out. The lamp: a sphere of <see cref="LampRadius"/>, 2 m from the mirror along r, which
+    /// is <see cref="LampDistance"/> from the camera for a mirror that faces it. The camera sees its image in the
+    /// mirror 5 m away, asin(0.15 / 5) = 0.030 rad wide in radius.
+    /// </summary>
+    private static RenderSnapshot SizedLightInTheMirror(bool sun, float fov, float tilt)
     {
-        RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitZ, starIrradiance: sun ? 2e-3f : 0);
+        var reflectedAxis = new Vector3(0, -MathF.Sin(2 * tilt), MathF.Cos(2 * tilt));
+        RenderSnapshot snapshot = Gpu.Snapshot(reflectedAxis, starIrradiance: sun ? 2e-3f : 0);
         snapshot.Camera.VerticalFov = fov;
         snapshot.Ambient.Intensity = 0;
-        var lamp = new Vector3(0, 0, -(float)LampDistance);
+        Vector3 lamp = new Vector3(0, 0, -MirrorDistance) + (MirrorDistance - (float)LampDistance) * reflectedAxis;
         if (!sun)
             snapshot.Lights.Add(
                 new PointRenderLight(
@@ -66,8 +80,11 @@ public sealed class SphereLightRenderTests
         return snapshot;
     }
 
-    /// <summary>Adds the black glossy mirror to <paramref name="snapshot"/>, renders it, and captures the image.</summary>
-    private static Capture RenderMirror(VulkanRenderer renderer, RenderSnapshot snapshot, string name)
+    /// <summary>
+    /// Adds the black glossy mirror, tilted by <paramref name="tilt"/> rad (<see cref="MirrorRotation"/>), to
+    /// <paramref name="snapshot"/>, renders it, and captures the image.
+    /// </summary>
+    private static Capture RenderMirror(VulkanRenderer renderer, RenderSnapshot snapshot, float tilt, string name)
     {
         MeshId square = renderer.CreateMesh(Primitives.Plane(0.6f));
         MaterialId material = renderer.CreateMaterial(
@@ -79,7 +96,7 @@ public sealed class SphereLightRenderTests
                 material: material,
                 position: new(0, 0, -MirrorDistance),
                 scale: Vector3.One,
-                rotation: Quaternion.CreateFromAxisAngle(Vector3.UnitX, MathF.PI / 2),
+                rotation: MirrorRotation(tilt),
                 radius: 0.85f,
                 chainDepth: TestChains.CamerasFrame
             )
@@ -88,17 +105,30 @@ public sealed class SphereLightRenderTests
     }
 
     /// <summary>
-    /// The C# light per unit irradiance at the disc's center, where the camera looks straight at the mirror and the
-    /// light, whose angular radius has the sine <paramref name="lightSine"/>, stands on the same axis.
+    /// The C# light per unit irradiance at the disc's center, where the camera looks at the mirror tilted by
+    /// <paramref name="tilt"/> rad, and the light, whose angular radius has the sine <paramref name="lightSine"/>,
+    /// stands on the reflected axis: in the mirror's axes, the view and the light are t from the normal on either side
+    /// of it.
     /// </summary>
-    private static Double3 DiscCenter(double lightSine) =>
+    private static Double3 DiscCenter(double lightSine, double tilt) =>
         new MaterialSample(BaseColor: Double3.Zero, Metallic: 0, Roughness: 0, Reflectance: 0.5).Reflected(
             normal: Double3.UnitZ,
-            toView: Double3.UnitZ,
-            toLight: Double3.UnitZ,
+            toView: new(0, Math.Sin(tilt), Math.Cos(tilt)),
+            toLight: new(0, -Math.Sin(tilt), Math.Cos(tilt)),
             tables: BrdfTables.Shared,
             lightSine: lightSine
         );
+
+    /// <summary>
+    /// <paramref name="irradiance"/> faded by the window of the light's reach, (1 − (d / reach)⁴)², with (d / reach)²
+    /// the cutoff irradiance at 0 stops over the brightest channel (LightUnits.Reach). The dim test star loses 7 %.
+    /// </summary>
+    private static Double3 InReach(Double3 irradiance)
+    {
+        double ratio = LightUnits.CutoffIrradiance(0) / Math.Max(irradiance.X, Math.Max(irradiance.Y, irradiance.Z));
+        double window = 1 - ratio * ratio;
+        return irradiance * (window * window);
+    }
 
     [Theory]
     [MemberData(nameof(SizedLights))]
@@ -108,23 +138,27 @@ public sealed class SphereLightRenderTests
         float fov = sun ? 0.03f : 0.25f;
         double lightToMirror = sun ? Gpu.StarDistance : MirrorDistance - LampDistance;
         double imageDistance = sun ? Gpu.StarDistance : MirrorDistance + lightToMirror;
-        double lightSine = sun ? Math.Sin(Gpu.StarAngularRadius) : LampRadius / lightToMirror;
+        double lightSine = sun ? Gpu.StarSine : LampRadius / lightToMirror;
         double imageAngularRadius = sun ? Gpu.StarAngularRadius : Math.Asin(LampRadius / imageDistance);
-        RenderSnapshot snapshot = SizedLightOnTheAxis(sun, fov);
+        RenderSnapshot snapshot = SizedLightInTheMirror(sun: sun, fov: fov, tilt: 0);
         Double3 irradiance = sun
             ? Gpu.StarIrradianceRgb(snapshot)
             : new Double3(1, 1, 1) * (LampIntensity / (lightToMirror * lightToMirror));
-        Double3 plateau = DiscCenter(lightSine) * irradiance;
+        Double3 plateau = DiscCenter(lightSine: lightSine, tilt: 0) * InReach(irradiance);
 
         VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
         try
         {
-            Capture image = RenderMirror(renderer: renderer, snapshot: snapshot, name: "sphere-light-" + light);
-            // The disc's center within 10 % of the C# radiance: at the floor's α, 32-bit floats round n·h near 1 by
-            // a few percent of 1 − (n·h)², which moves D by as much (as in BrdfRenderTests).
+            Capture image = RenderMirror(
+                renderer: renderer,
+                snapshot: snapshot,
+                tilt: 0,
+                name: "sphere-light-" + light
+            );
+            // The disc's center within 1 % of the C# radiance.
             Vector3[] shown = Displayed(
                 renderer,
-                [(plateau * 0.5).ToVector3(), (plateau * 0.9).ToVector3(), (plateau * 1.1).ToVector3()],
+                [(plateau * 0.5).ToVector3(), (plateau * 0.99).ToVector3(), (plateau * 1.01).ToVector3()],
                 "sphere-light-" + light + "-glow"
             );
 
@@ -144,17 +178,84 @@ public sealed class SphereLightRenderTests
             // mirror over the distance of its image.
             double alpha = new GgxLobe(0).Alpha;
             double imageScale = lightToMirror / imageDistance;
-            // A pixel, and the center's 10 %: it moves the threshold from half the shown peak to between 0.45 and
-            // 0.56 of it, which moves the edge by up to 0.11 α.
+            // A pixel, and the center's 1 %: it moves the threshold from half the shown peak to between 0.495 and
+            // 0.505 of it, where the lobe falls by 0.91 of its peak per α of tan θ_h, which moves the edge by up to
+            // 0.011 α of the reflected ray.
             radius
                 .Should()
                 .BeApproximately(
                     imageAngularRadius + HalfMaximumPerAlpha * alpha * imageScale,
-                    fov / Height + 0.11 * alpha * imageScale,
+                    fov / Height + 0.011 * alpha * imageScale,
                     "the mirror shows the {0}'s disc of angular radius {1} rad, widened by the floored lobe's half "
                         + "maximum",
                     light,
                     imageAngularRadius
+                );
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Theory]
+    [MemberData(nameof(SizedLights))]
+    public void AMirrorShowsTheInsideOfASizedLightsDiscWithinOnePercentOfOneRadiance(string light)
+    {
+        bool sun = light == "sun";
+        float fov = sun ? 0.03f : 0.25f;
+        double lightToMirror = sun ? Gpu.StarDistance : MirrorDistance - LampDistance;
+        double imageDistance = sun ? Gpu.StarDistance : MirrorDistance + lightToMirror;
+        double lightSine = sun ? Gpu.StarSine : LampRadius / lightToMirror;
+        double imageAngularRadius = sun ? Gpu.StarAngularRadius : Math.Asin(LampRadius / imageDistance);
+        RenderSnapshot snapshot = SizedLightInTheMirror(sun: sun, fov: fov, tilt: ObliqueTilt);
+        Double3 irradiance = sun
+            ? Gpu.StarIrradianceRgb(snapshot)
+            : new Double3(1, 1, 1) * (LampIntensity / (lightToMirror * lightToMirror));
+        Double3 plateau = DiscCenter(lightSine: lightSine, tilt: ObliqueTilt) * InReach(irradiance);
+
+        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
+        try
+        {
+            Capture image = RenderMirror(
+                renderer: renderer,
+                snapshot: snapshot,
+                tilt: ObliqueTilt,
+                name: "sphere-light-flat-" + light
+            );
+            Vector3[] shown = Displayed(
+                renderer,
+                [(plateau * 0.99).ToVector3(), (plateau * 1.01).ToVector3()],
+                "sphere-light-flat-" + light + "-glow"
+            );
+
+            // Every pixel within 60 % of the disc's radius sees h = n. Where a 32-bit n·h falls a float step or two
+            // below 1, the form 1 − (n·h)² of D's denominator moves D by several percent at the floor's α² = 4.1e-6,
+            // from one pixel to the next: a speckle. A mirror that faces the camera gets n·h = 1 exactly and hides it,
+            // so this mirror stands at 30°. Across that inside, the view, the light's distance and its sine change the
+            // radiance by less than 0.3 %.
+            double focalLength = Height / 2.0 / Math.Tan(fov / 2);
+            int inside = (int)(0.6 * Math.Tan(imageAngularRadius) * focalLength);
+            var outside = new List<(int X, int Y, float Red)>();
+            for (int y = -inside; y <= inside; y++)
+            for (int x = -inside; x <= inside; x++)
+            {
+                if (x * x + y * y > inside * inside)
+                    continue;
+                float red = image.Color(Width / 2 + x, Height / 2 + y).X;
+                if (red < shown[0].X || red > shown[1].X)
+                    outside.Add((X: x, Y: y, Red: red));
+            }
+
+            outside
+                .Should()
+                .BeEmpty(
+                    "the inside of the {0}'s disc shows the C# radiance {1} within 1 %, shown from {2} to {3}, at "
+                        + "every one of its pixels",
+                    light,
+                    plateau.X,
+                    shown[0].X,
+                    shown[1].X
                 );
         }
         finally
@@ -254,22 +355,19 @@ public sealed class SphereLightRenderTests
     }
 
     [Fact]
-    public void ALightOfRadiusZeroShadesExactlyAsThePointLightDidBeforeTheWidenedLobe()
+    public void ALightOfRadiusZeroShadesAsThePointLightDidBeforeTheWidenedLobe()
     {
-        // The reference image is the render of the code before the widened lobe (ter-gf0t). A tolerance of 0 fails on
-        // any changed 8-bit value.
+        // The reference image is the render of the code before the widened lobe (ter-gf0t), made on MoltenVK. The
+        // `sized` branch of specularResponse keeps a light of radius 0 on the point light's operations by construction.
+        // The default tolerance of 0.1 fails on any visible change but lets one 8-bit level pass: the Vulkan spec lets
+        // a conforming driver round a division, inversesqrt or pow differently.
         VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
         try
         {
             RenderSnapshot snapshot = PointLights();
             AddSpheresOnAFloor(renderer, snapshot);
 
-            ReferenceImages.Verify(
-                renderer: renderer,
-                snapshot: snapshot,
-                name: "sphere-light-radius-zero",
-                tolerance: 0
-            );
+            ReferenceImages.Verify(renderer: renderer, snapshot: snapshot, name: "sphere-light-radius-zero");
         }
         finally
         {
@@ -295,7 +393,8 @@ public sealed class SphereLightRenderTests
         return (rightEdge - leftEdge) / 2;
     }
 
-    /// <summary>Where between two neighboring pixels, from 0 to 1, a value falls from <paramref name="inside"/> to <paramref name="threshold"/>.</summary>
+    /// <summary>Where between two neighboring pixels, from 0 to 1, a value falls from <paramref name="inside"/> to
+    /// <paramref name="threshold"/>.</summary>
     private static double Crossing(float inside, float outside, float threshold) =>
         inside > outside ? Math.Clamp((inside - threshold) / (inside - outside), 0, 1) : 0;
 }

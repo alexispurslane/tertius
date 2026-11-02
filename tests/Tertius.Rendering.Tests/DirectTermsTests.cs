@@ -30,7 +30,8 @@ public sealed class DirectTermsTests
             normal: Double3.UnitZ,
             toView: ToView,
             toLight: ToLight,
-            tables: BrdfTables.Shared
+            tables: BrdfTables.Shared,
+            lightSine: 0
         );
         Double3 lobe =
             Plastic.SingleScatteringBrdf(normal: Double3.UnitZ, toView: ToView, toLight: ToLight)
@@ -53,7 +54,8 @@ public sealed class DirectTermsTests
             normal: Double3.UnitZ,
             toView: ToView,
             toLight: ToLight,
-            tables: BrdfTables.Shared
+            tables: BrdfTables.Shared,
+            lightSine: 0
         );
 
         ShouldBeNear(
@@ -71,7 +73,8 @@ public sealed class DirectTermsTests
             normal: Double3.UnitZ,
             toView: ToView,
             toLight: -ToLight,
-            tables: BrdfTables.Shared
+            tables: BrdfTables.Shared,
+            lightSine: 0
         );
 
         terms.Should().Be(default(DirectTerms));

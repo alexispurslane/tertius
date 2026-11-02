@@ -1311,7 +1311,8 @@ public sealed class HairRenderTests
                 normal: normal,
                 toView: -Ray(Ahead, Width, Height),
                 toLight: toSun,
-                tables: BrdfTables.Shared
+                tables: BrdfTables.Shared,
+                lightSine: Gpu.StarSine
             );
 
             ShouldBeNear(

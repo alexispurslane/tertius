@@ -131,7 +131,9 @@ Why not the paper's constant. The reflected light of the specular part over ever
 
 The built form never adds light. It loses at most 15 % for a light up to sin ϕ = 0.1, and up to 27 % for a light 17° wide on a rough surface. Karis's notes say that their energy conservation "isn't perfect". The paper's constant comes from the D modification of page 14, which widens the lobe of the half vectors by the light's cone without the factor of v·h.
 
-What the user sees: a mirror shows a lamp's bulb and the Sun as discs of their angular size, at the light's own radiance, with the floored lobe's soft edge, and no longer as a pinpoint that the clamp bounds. On the demo's paint (roughness 0.38) the change is a small reshaping of each lamp's highlight. A light of radius 0 takes the point light's path with the same operations, so its image does not change.
+D's denominator, (n·h)² (α² − 1) + 1, is computed as |n × h|² + (n·h)² α², as Filament's `D_GGX` does. The two are equal for unit vectors. Inside a mirror's disc every pixel has h = n. There a single float n·h lies on 1 or a float step or two below it, and the form 1 − (n·h)² turns each step into a change of D by several percent at the floor's α² = 4.1 · 10⁻⁶: a speckle across the disc. The cross product keeps its precision near h = n, so the disc is flat. The prefilter of the environment map takes the same `ggxDistribution`.
+
+What the user sees: a mirror shows a lamp's bulb and the Sun as discs of their angular size, at the light's own radiance, with the floored lobe's soft edge, and no longer as a pinpoint that the clamp bounds. On the demo's paint (roughness 0.38) the change is a small reshaping of each lamp's highlight. A light of radius 0 takes the point light's path with the same operations, so its image does not change beyond the rounding that the Vulkan spec lets a driver choose.
 
 ### The roughness floor
 
@@ -384,7 +386,7 @@ const float MinRoughness = 0.045;   // GgxLobe.MinRoughness
 const float MinNdotV = 1e-4;
 
 float flooredRoughness(float roughness);                       // clamp(roughness, MinRoughness, 1)
-float ggxDistribution(float NdotH, float alpha);               // D
+float ggxDistribution(vec3 N, vec3 H, float alpha);           // D, with |n × h|² for 1 − (n·h)²
 float smithVisibility(float NdotL, float NdotV, float alpha);  // Vis = G₂ / (4 NdotL NdotV), height-correlated
 vec3 schlickFresnel(vec3 f0, float VdotH);                     // F
 vec3 specularDominantDirection(vec3 N, vec3 R, float alpha);   // d, unit
@@ -469,7 +471,8 @@ internal readonly record struct MaterialSample(Double3 BaseColor, double Metalli
 
     public Double3 Fresnel(double vDotH);
     public Double3 SingleScatteringBrdf(Double3 normal, Double3 toView, Double3 toLight);           // f_ss, per steradian
-    public Double3 Reflected(Double3 normal, Double3 toView, Double3 toLight, BrdfTables tables);    // f · max(n·l, 0)
+    public Double3 Reflected(
+        Double3 normal, Double3 toView, Double3 toLight, BrdfTables tables, double lightSine);      // f · max(n·l, 0), "Sized lights"
     public Double3 ReflectedHemisphere(
         Double3 normal, Double3 toView, Double3 sky, Double3 ground,
         double normalSkyShare, double lobeSkyShare, BrdfTables tables);                             // the ambient formula
@@ -667,11 +670,12 @@ In `tests/Tertius.Rendering.Tests`. Integrals that check the code use an indepen
 - `ANonMetalsHighlightIsWhiteWithAnF0NearFourPercent`: a red non-metal square, base color (1, 0, 0) and reflectance 0.5, head-on to the camera and the sun. Green and blue are equal, so the highlight is white. Its green lies between the greens of two emissive squares whose emission is the C# head-on highlight for F0 = 0.036 and for F0 = 0.044.
 - `ARoughSurfacesHighlightHasTheLongTailOfGgx`: a red non-metal ground of roughness 0.6 in sunlight, with no ambient light, so its green is the lobe alone. At the pixel where the C# lobe falls to a twentieth of its peak, about 46° between h and n, the green lies between emissive squares at 0.8 and 1.2 times the C# value. The Blinn-Phong lobe of the same highlight gives less than a fifth of it there. Nearer the peak the two lobes differ less, and GGX at this roughness never falls below 1.7 % of its peak.
 - `AMetalLitOnlyByTheAmbientLightIsNotBlack`: a metal sphere of roughness 0.2 under a red sky and a blue ground, with no sun. Its top is red and its bottom blue, and its top matches an emissive square of the C# `ReflectedHemisphere` within 2 of 255, which a non-metal's diffuse light does not.
-- `ASmoothMetalReflectsTheSunWithTheLobeOfTheRoughnessFloor`: a white metal square of roughness 0, facing the camera, under a dim sun 0.6 rad above the view axis. The half vector leans 0.3 rad from the normal, where D scales with the fourth power of the floor. The pixel lies between emissive squares at 0.8 and 1.2 times the C# value. Nearer the peak, the rounding of 32-bit floats and the tilt of the flat normal map swamp D.
+- `ASmoothMetalReflectsTheSunWithTheLobeOfTheRoughnessFloor`: a white metal square of roughness 0, facing the camera, under a dim sun 0.6 rad above the view axis. The half vector leans 0.3 rad from the normal, where D scales with the fourth power of the floor. The pixel lies between emissive squares at 0.8 and 1.2 times the C# value. Nearer the peak, the tilt of the flat normal map swamps D, and the mirror shows the sun's disc, which `SphereLightRenderTests` pins.
 In `SphereLightRenderTests` (`ter-gf0t`):
 
-- `AMirrorShowsTheDiscOfASizedLightAtTheLightsAngularSize`: a black glossy mirror faces the camera, with the Sun behind the camera or a lamp of radius 0.15 m between them. On the center row, the disc's half-maximum radius is the angular radius of the light's image plus the floored lobe's half maximum, 1.29 α, scaled by the light's distance from the mirror over its image's. The tolerance is a pixel plus 0.11 α, the shift of the edge by the center's 10 % float error.
-- `ALightOfRadiusZeroShadesExactlyAsThePointLightDidBeforeTheWidenedLobe`: spheres from mirror to rough, a glass sphere and a floor under a star, a lamp and a spot light of radius 0 match the reference image of the code before the change at a FLIP tolerance of 0.
+- `AMirrorShowsTheDiscOfASizedLightAtTheLightsAngularSize`: a black glossy mirror faces the camera, with the Sun behind the camera or a lamp of radius 0.15 m between them. The disc's center lies within 1 % of the C# radiance, with the window of the light's reach, which takes 7 % from the dim test star. On the center row, the disc's half-maximum radius is the angular radius of the light's image plus the floored lobe's half maximum, 1.29 α, scaled by the light's distance from the mirror over its image's. The tolerance is a pixel plus 0.011 α, the shift of the edge by the center's 1 %.
+- `AMirrorShowsTheInsideOfASizedLightsDiscWithinOnePercentOfOneRadiance`: the same mirror tilted 30°, with the light on the reflected axis. Every pixel within 60 % of the disc's radius lies within 1 % of the C# radiance. With D's denominator as 1 − (n·h)², it fails for both lights: a mirror that faces the camera gets n·h = 1 exactly, and the tilted one does not.
+- `ALightOfRadiusZeroShadesAsThePointLightDidBeforeTheWidenedLobe`: spheres from mirror to rough, a glass sphere and a floor under a star, a lamp and a spot light of radius 0 match the reference image of the code before the change, made on MoltenVK, at the default FLIP tolerance of 0.1. It fails on any visible change, and lets one 8-bit level pass, because the Vulkan spec lets a conforming driver round a division, `inversesqrt` or `pow` differently.
 
 - `AHighlightBrighterThanTheHdrTargetHoldsShowsWhite`: a smooth white metal square at the mirror image of a point light of intensity 1,000, 0.3 m away. The C# value is over 65,504, and the pixel is white, not NaN.
 

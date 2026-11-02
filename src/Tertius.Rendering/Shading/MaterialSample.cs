@@ -29,8 +29,8 @@ internal readonly record struct MaterialSample(Double3 BaseColor, double Metalli
     /// f · max(n·l, 0): the share of the irradiance from <paramref name="toLight"/> that the point sends toward
     /// <paramref name="toView"/>, per steradian, with the energy compensation.
     /// </summary>
-    /// <param name="lightSine">sin ϕ of the light's angular radius ϕ at the point, R / d, from 0 to 1: 0 by default.</param>
-    public Double3 Reflected(Double3 normal, Double3 toView, Double3 toLight, BrdfTables tables, double lightSine = 0)
+    /// <param name="lightSine">sin ϕ of the light's angular radius at the point, R / d: 0 for a point light.</param>
+    public Double3 Reflected(Double3 normal, Double3 toView, Double3 toLight, BrdfTables tables, double lightSine)
     {
         DirectTerms terms = ReflectedTerms(
             normal: normal,
@@ -47,13 +47,13 @@ internal readonly record struct MaterialSample(Double3 BaseColor, double Metalli
     /// center, and the compensated lobe times n·l toward the representative point of a sphere light, normalized
     /// (docs/plans/pbr-brdf.md, "Sized lights"). A light of radius 0 is a point light.
     /// </summary>
-    /// <param name="lightSine">sin ϕ of the light's angular radius ϕ at the point, R / d, from 0 to 1: 0 by default.</param>
+    /// <param name="lightSine">sin ϕ of the light's angular radius at the point, R / d: 0 for a point light.</param>
     public DirectTerms ReflectedTerms(
         Double3 normal,
         Double3 toView,
         Double3 toLight,
         BrdfTables tables,
-        double lightSine = 0
+        double lightSine
     )
     {
         double nDotL = Double3.Dot(normal, toLight);

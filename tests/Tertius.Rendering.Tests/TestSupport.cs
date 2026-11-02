@@ -204,6 +204,12 @@ internal static class Gpu
     public const float StarAngularRadius = 0.00467f;
 
     /// <summary>
+    /// sin ϕ of the test star's angular radius ϕ: the lightSine of MaterialSample.Reflected at a point that the test
+    /// star lights, which the GPU shades as a sphere light of that size.
+    /// </summary>
+    public static readonly double StarSine = Math.Sin(StarAngularRadius);
+
+    /// <summary>
     /// The entity of the test star, which no test instance holds: a glow of an instance's entity bounces only when no
     /// light carries that entity (docs/plans/screen-space-illumination.md, "The bounce source").
     /// </summary>
