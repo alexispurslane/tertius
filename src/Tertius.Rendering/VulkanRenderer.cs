@@ -1280,23 +1280,24 @@ public sealed unsafe class VulkanRenderer : IRenderer
 
     /// <summary>
     /// Reads mip <paramref name="level"/> of one face of map <paramref name="map"/> of the environment maps'
-    /// <paramref name="image"/> back to the CPU: RGBA halves, row by row from the top. A test hook: it waits for the device
-    /// to be idle and submits its own copy.
+    /// <paramref name="image"/> back to the CPU: row by row from the top, RGBA halves, or one half per texel of the
+    /// distance cubes. A test hook: it waits for the device to be idle and submits its own copy.
     /// </summary>
     internal Half[] ReadEnvironmentFace(int map, CubeFace face, int level, EnvironmentImage image)
     {
         EnvironmentMap environment =
             environmentMap ?? throw new InvalidOperationException("The environment map is off.");
-        GpuImage cube = image switch
+        (GpuImage cube, int channels) = image switch
         {
-            EnvironmentImage.Radiance => environment.Radiance,
-            EnvironmentImage.Specular => environment.Specular,
-            EnvironmentImage.Irradiance => environment.Irradiance,
+            EnvironmentImage.Radiance => (Cube: environment.Radiance, Channels: 4),
+            EnvironmentImage.Specular => (Cube: environment.Specular, Channels: 4),
+            EnvironmentImage.Irradiance => (Cube: environment.Irradiance, Channels: 4),
+            EnvironmentImage.Distance => (Cube: environment.Distance, Channels: 1),
         };
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)level, cube.MipLevels);
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)map, (uint)environment.Capacity);
         int size = Math.Max(1, (int)cube.Extent.Width >> level);
-        int count = size * size * 4;
+        int count = size * size * channels;
         using var buffer = GpuBuffer.Create(
             device: device,
             allocator: Allocator,

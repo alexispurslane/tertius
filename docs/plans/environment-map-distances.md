@@ -606,7 +606,8 @@ With F = 1, a frame draws one face and makes one map's levels, as before.
 - `R16_SFLOAT`: the specification requires a filtered sampled image and a color attachment. It requires a storage image on a device with `shaderStorageImageExtendedFormats`, which `VulkanDevice` requires. A shader that declares `r16f` needs SPIR-V's `StorageImageExtendedFormats` capability, which that feature enables. `EnvironmentMap` refuses a device whose format properties lack any of the three uses, as `OcclusionImages` does for its formats.
 - The face pass's two color attachments lie within the specification's least `maxColorAttachments`, 4.
 - Each dispatch of the downsample binds four storage images, the specification's least.
-- Binding 16 adds one sampled image to the frame set. Ticket 2 counts the sampled images per stage of every pipeline that uses the frame set. It makes sure that the sets that are not updated after bind stay within the specification's least `maxPerStageDescriptorSampledImages`, 16.
+- Binding 16 adds one sampled image to the frame set. Ticket 2 counts the sampled images per stage of every pipeline that uses the frame set. The design meant the sets that are not updated after bind to stay within the specification's least `maxPerStageDescriptorSampledImages`, 16. That could not hold:
+  - Ticket 2 found that the impostor layout's fragment stage already saw 17 sampled images at the base, the G-buffer set's eleven and the atlas set's two among them. With binding 16 it sees 18, and the scene layout's fragment stage 16. So the renderer now requires a `maxPerStageDescriptorSampledImages` of 18 and refuses a device below it (ARCHITECTURE.md, "Required device features"). Mesa's RADV, ANV and lavapipe report more than a million.
 - No value relies on a clamp to turn NaN into a number:
   - The face clamps its distance with `max` before the division.
   - The level clamps its argument with `max` before `log2`.

@@ -444,7 +444,13 @@ public sealed class EnvironmentMapsPerFrameTests
     /// A snapshot whose chain is the frames <paramref name="chain"/>, camera first and the root, id 0, last, inside a dome of
     /// <paramref name="dome"/> in the root.
     /// </summary>
-    private static RenderSnapshot DomeScene(MeshId plane, MaterialId dome, params long[] chain)
+    private static RenderSnapshot DomeScene(MeshId plane, MaterialId dome, params long[] chain) =>
+        DomeSceneAt(plane: plane, dome: dome, distance: 20, chain: chain);
+
+    /// <summary>
+    /// A dome <paramref name="distance"/> m around the eye, in the camera's frame of <paramref name="chain"/>.
+    /// </summary>
+    private static RenderSnapshot DomeSceneAt(MeshId plane, MaterialId dome, float distance, long[] chain)
     {
         RenderSnapshot snapshot = EnvironmentScenes.Dark();
         snapshot.Chain.Clear();
@@ -454,7 +460,7 @@ public sealed class EnvironmentMapsPerFrameTests
             snapshot: snapshot,
             plane: plane,
             material: dome,
-            distance: 20,
+            distance: distance,
             chainDepth: (ushort)(chain.Length - 1)
         );
         return snapshot;
@@ -592,6 +598,63 @@ public sealed class EnvironmentMapsPerFrameTests
 
             SpecularLevels(renderer, map: 0).Should().NotEqual(rootBefore, "map 0's new face changes its levels");
             SpecularLevels(renderer, map: 2).Should().Equal(cameraBefore, "no face of map 2 was drawn");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>
+    /// Every level of every face of map <paramref name="map"/>'s distance cube, in layer and level order.
+    /// </summary>
+    private static Half[] DistanceLevels(VulkanRenderer renderer, int map)
+    {
+        var all = new List<Half>();
+        int levels = PrefilterLevels.RadianceLevels(EnvironmentScenes.FaceSize);
+        for (int layer = 0; layer < CubeFaces.Count; layer++)
+        for (int level = 0; level < levels; level++)
+            all.AddRange(
+                renderer.ReadEnvironmentFace(
+                    map: map,
+                    face: (CubeFace)layer,
+                    level: level,
+                    image: EnvironmentImage.Distance
+                )
+            );
+        return [.. all];
+    }
+
+    /// <summary>
+    /// A map with no drawn face keeps every level of its distance cube, as it keeps its radiance (decision 12): its
+    /// levels are a pure function of its own faces' level 0 (docs/plans/environment-map-distances.md, "The level
+    /// chain").
+    /// </summary>
+    [Fact]
+    public void AMapWithNoDrawnFaceKeepsItsDistanceCubeBitForBit()
+    {
+        VulkanRenderer renderer = Renderer();
+        try
+        {
+            MeshId plane = renderer.CreateMesh(Primitives.Plane(1f));
+            MaterialId dome = EnvironmentScenes.Emissive(renderer, new(1, 0, 0));
+            EnvironmentScenes.Still(
+                renderer,
+                DomeSceneAt(plane: plane, dome: dome, distance: 20, chain: [2, 1, 0]),
+                time: 0
+            );
+            Half[] rootBefore = DistanceLevels(renderer, map: 0);
+            Half[] cameraBefore = DistanceLevels(renderer, map: 2);
+
+            // Frame 1 draws face −X of map 0 alone, in a dome half as far.
+            EnvironmentScenes.Still(
+                renderer,
+                DomeSceneAt(plane: plane, dome: dome, distance: 10, chain: [2, 1, 0]),
+                time: Step
+            );
+
+            DistanceLevels(renderer, map: 0).Should().NotEqual(rootBefore, "map 0's new face sees the nearer dome");
+            DistanceLevels(renderer, map: 2).Should().Equal(cameraBefore, "no face of map 2 was drawn");
         }
         finally
         {

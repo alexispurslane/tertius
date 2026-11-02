@@ -1,0 +1,7 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+
+// The mips of the distance cubes, one channel of inverse distance (environment_downsample.glsl). An r16f storage image
+// needs the device feature shaderStorageImageExtendedFormats, which VulkanDevice requires.
+#define DOWNSAMPLE_FORMAT r16f
+#include "environment_downsample.glsl"
