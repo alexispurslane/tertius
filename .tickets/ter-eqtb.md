@@ -96,3 +96,48 @@ Report screenshots: sheets/shot-gold0-candidates.png, sheets/shot-gold0-vizclass
 **2026-11-02T13:37:01Z**
 
 2026-11-02: the fix runs as workflow run 2e8dca1e-7eb6-40a9-ae00-4f23d523217d, version 869b0b07-3413-4b06-8707-a88a91bf6e91 (build, review, fix), in the same worktree and branch ter-eqtb-smooth-steps, base b4f84fe5b.
+
+**2026-11-02T15:04:48Z**
+
+2026-11-02, the fix's build (workflow run 2e8dca1e, branch ter-eqtb-smooth-steps). Choice A is built as production code: each level-0 pixel is its bounded plane, and the pyramid's bounds and the trace's level-0 test read the one surface (`pixelSurface` in depth_pyramid.glsl, `PixelSurface.Of` in C#). Commits 2fccf95d8 and 00ee1db51. The depth pyramid pass now also reads the normals target, and gains its barrier (the probe lacked it and failed validation, VUID-vkCmdDispatch-imageLayout-00344).
+
+Tests, each watched red first:
+- (a) `AMirrorBallReflectsAGlowingFloorThatTheEyeSeesAtAGrazingAngleWithNoBands` (GPU, full resolution): red on the base, 3,621 of 4,096 judged pixels outside 10 % of W · L.
+- (b) `AMirrorBallReflectsBallsOnAFloorThatTheEyeSeesAtAGrazingAngleWithNoDottedLines` (GPU): red on the base, and red again with the continuation share at 0.1, the slab's κ.
+- (c) `AMirrorFloorThatTheEyeSeesAtAGrazingAngleReflectsTheOutlineOfABallAgainstTheSkyWithNoStreak` (GPU, full and half resolution): red with an unbounded plane, a streak of 0.36 · W · G.
+- (d) `EachDepthPyramidCellHoldsTheBoundsOfThePixelsUnderIt` now compares the GPU pyramid with `DepthPyramid.Of` of the distance and normals: red while the C# copy changed before the shader (near bound 0.0298 against 0.0288).
+- (e) `APixelThatFacesTheEyeBoundsOnlyItsCentersInverseDepth` (C#), and the existing face-on GPU tests stay unchanged and green.
+- C# unit tests of the surface: the corners of a floor pixel, the stop at the sky, the screen's edge, the 1 % tolerance (0.8 % continues, 1.2 % does not), a level above 0, and `ARayThatComesDownOntoAFloorSeenAtAGrazingAngleHitsItsFrontWhereItCrossesIt` (q was 0.3 on the base).
+- Full runs on the commit of these docs: Checked 9,908 passed, 0 failed, 14 skipped. Release 9,895 passed, 0 failed, 14 skipped.
+
+Captures (captures/eqtb/fix/g, 1920 × 1080, Release, headless; analysis/A-vs-base.txt, A06-vs-base06.txt). 27 of 37 review views are byte-identical to the base: all nine films, deck-late and demo-surface, where no pixel starts a ray at 0.37. The views that change, all on smooth curved meshes or their reflections:
+
+| View | Pixels more than 4 levels off | Largest difference | Why |
+|---|---|---|---|
+| pbr-spheres low | 0.108 % | 91 | the step view: the bands on gold-0 and gold-1 are gone |
+| pbr-spheres front | 0.006 % | 91 | the same gold spheres, seen closer |
+| reflections front | 0.028 % | 106 | the reflected floor's far edge on the gold spheres |
+| reflections low | 0.001 % | 44 | the same |
+| mirror-balls balls | 0.010 % | 105 | the reflected neighbors' outlines move by one pixel on the rims |
+| hair-rugs rugs | 0.092 % | 13 | the glossy rugs' reflections of the hair |
+| hair-rugs low, mirror-balls belly and plate, reflections edge | 0 | 1 | rounding |
+
+At the old limit 0.6 (p-maxr06.patch), all 18 film views change, for example the floor film 0.369 % and largest 42, chute-top 0.388 %, brake-run 0.225 %, unbelt 0.115 %. The floor film's bands are gone.
+
+Cost (timing/runs.txt, analysis/timing.py): 21 interleaved rounds of base, base2 (a byte copy, the control) and A, with the surface image in rounds 8 to 21, under the GPU lock. The summed mean of the four reflection passes, median of the paired differences from the base:
+
+| View | Base | Control | A | Surface image | 1-minute load |
+|---|---|---|---|---|---|
+| pbr-spheres low, the step view (14 rounds) | 1.74 ms | −0.01 | +0.46 (+0.02 to +0.76) | +0.27 | 7 to 21 |
+| deck window | 1.73 ms | +0.00 | +0.18 (+0.10 to +0.44) | +0.24 | 5 to 53 |
+| floor window | 1.96 ms | −0.01 | +0.19 (+0.03 to +0.44) | +0.26 | 6 to 26 |
+
+The depth pyramid pass costs 0.16 to 0.18 ms more in every frame with reflections on: its first level reads the normals and four neighbors of each pixel. The frame span on the step view goes from 8.05 to 8.64 ms. The surface image (p-image.patch: the first pyramid pass writes each pixel's surface, and the trace reads it) gives pixel-identical images on its 10 review views and saves 0.18 ms against A on the step view, but costs 0.05 to 0.06 ms more on the deck and the floor. So it is not kept.
+
+Sheets (captures/eqtb/fix/sheets, before | after): shot-step-view.png, the bands on gold-0 and gold-1 are gone. shot-ball-rims.png, the mirror balls' rims, with only one-pixel outline moves and no dots. shot-floor06.png, the floor film at 0.6, the bands gone and the stepped outline left.
+
+What remains: a pixel at a depth edge keeps one depth over the half of its square past its center line, so a short stepped outline stays where a reflected surface ends at a depth edge. On the floor film at 0.6 it shows from y 540 to 600, with short light bars at x 620 and 770. Faint horizontal lines remain at the far edge of gold-0's reflected floor, as in the probe.
+
+Settled choices: a neighbor beyond the screen continues the plane. A plane within 10⁻⁶ of the view ray is edge-on and flat. The level-0 test uses the ray's carried inverse depth at s, for precision near a vanishing point, and measures q at the pixel's entry edge. A hit that enters through the slab's back lies where the ray crosses the back. Test (a) is a mirror ball that reflects a floor that the eye sees at a grazing angle. Tertius.Core gives Tertius.Rendering.Tests its internals, for `OctahedralNormal.Decode`. The merge of main (a1e6c90cd) was committed with --no-verify, because it only resolved the ticket's notes.
+
+Next: ter-olhk's skip of a frame with no reflecting pixel would also save this depth pyramid cost, because only the reflections read the pyramid.
