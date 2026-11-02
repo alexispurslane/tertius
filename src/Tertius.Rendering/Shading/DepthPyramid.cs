@@ -135,15 +135,20 @@ internal readonly record struct PixelPlane(Vector2 Center, float CenterInverseDe
     }
 
     /// <summary>
-    /// Whether an edge neighbor's plane continues this one: the neighbor sees a surface, neither plane is edge-on, and
+    /// Whether an edge neighbor continues this plane. A neighbor beyond the image continues it, as no depth edge lies
+    /// there, and one that sees the sky does not. One that sees a surface continues it where neither plane is edge-on and
     /// each plane holds the other sample's center. Both directions, because a steep plane at a depth edge can pass the far
     /// surface's center one sample away by chance, and the far surface's plane never passes back through the near center.
     /// The one rule of where a depth sample's plane holds: the pixels of the depth pyramid and the near steps of the
-    /// bounce light both call it, each with planes in its own grid.
+    /// bounce light both call it, each with planes in its own grid. neighborContinues in depth_pyramid.glsl is the GLSL
+    /// copy.
     /// </summary>
-    /// <param name="neighbor">The neighbor's plane, or null for a neighbor that sees the sky.</param>
-    public bool ContinuesInto(PixelPlane? neighbor) =>
-        neighbor is { } other
+    /// <param name="insideImage">Whether the neighbor lies inside the image of the sample's grid.</param>
+    /// <param name="neighbor">The plane of a neighbor inside the image, or null for one that sees the sky. Not read for
+    /// a neighbor beyond the image, so a caller reads no sample there.</param>
+    public bool ContinuesInto(bool insideImage, PixelPlane? neighbor) =>
+        !insideImage
+        || neighbor is { } other
         && !EdgeOn
         && !other.EdgeOn
         && Holds(other.Center, other.CenterInverseDepth)
@@ -255,8 +260,8 @@ internal readonly record struct PixelSurface(
     public float InverseDepthAt(Vector2 position) =>
         CenterInverseDepth + Vector2.Dot(Gradient, Vector2.Clamp(position, Low, High) - Center);
 
-    /// <summary>Whether an edge neighbor continues the plane: it lies beyond the screen, where no depth edge lies, or
-    /// its plane continues the pixel's (<see cref="PixelPlane.ContinuesInto"/>).</summary>
+    /// <summary>Whether an edge neighbor continues the pixel's plane (<see cref="PixelPlane.ContinuesInto"/>). Reads
+    /// the neighbor's pixel only inside the screen.</summary>
     private static bool Continues(
         PixelPlane plane,
         (int X, int Y) neighbor,
@@ -266,10 +271,12 @@ internal readonly record struct PixelSurface(
     )
     {
         (int x, int y) = neighbor;
-        if (x < 0 || y < 0 || x >= camera.Width || y >= camera.Height)
-            return true;
+        bool inside = x >= 0 && y >= 0 && x < camera.Width && y < camera.Height;
         return plane.ContinuesInto(
-            PixelPlane.Of(x: x, y: y, distances: distances, geometricNormals: geometricNormals, camera: camera)
+            insideImage: inside,
+            neighbor: inside
+                ? PixelPlane.Of(x: x, y: y, distances: distances, geometricNormals: geometricNormals, camera: camera)
+                : null
         );
     }
 }

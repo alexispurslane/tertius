@@ -75,8 +75,6 @@ void main()
     GtaoTexel setup = gtaoTexelSetup(texel, z, radiusInTexels);
     int slices = int(occlusion.slices);
     int stepsPerSide = int(occlusion.stepsPerSide);
-    // The screen place of the texel's representative pixel, where every slice line passes.
-    vec2 centerPlace = pixelScreenPosition(2 * texel);
     // Only a lit texel names its map. An unlit one, an impostor's, takes no ambient light, and its estimate holds the
     // blockers' light alone.
     float mapCode = environmentMapOn ? texelFetch(gbufferBaseColor, 2 * texel, 0).a : 0.0;
@@ -129,11 +127,8 @@ void main()
                 if (hair && cardAt(2 * t) == receiverCard)
                     continue;
                 vec3 sampleNormal = geometricNormalOf(depthAndNormal);
-                // A half-resolution texel spans two pixels, 2 / W of the screen.
-                vec2 exactPlace = centerPlace + side * exactOffset * 2.0 / vec2(fullSize());
                 vec3 samplePosition;
-                bool nearEnough = stepSurfacePoint(t, depthAndNormal, side * (exactOffset - vec2(offset)),
-                                                   gtaoViewPosition(exactPlace, 1.0),
+                bool nearEnough = stepSurfacePoint(t, depthAndNormal, vec2(texel) + side * exactOffset,
                                                    setup.center.z + occlusion.radiusMeters, samplePosition);
                 // GTAO's hard edge: a step blocks only within the radius.
                 if (!nearEnough || !(length(samplePosition - setup.center) < occlusion.radiusMeters))

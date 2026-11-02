@@ -30,6 +30,13 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
     /// <summary>The share of the light within which the GPU's single floats and its decoded normals match the C# copy.</summary>
     private const double FloatError = 1e-4;
 
+    /// <summary>
+    /// The share of a texel's inverse depth within which the GPU and the C# copy can decide a continuation differently:
+    /// each builds the plane with its own rounding, a few units in the last place, and the rule cuts hard at
+    /// <see cref="CellBounds.ContinuationShare"/>. A hundred times the rounding, as the pyramid's tests take it.
+    /// </summary>
+    private const float UndecidedShare = 1e-4f;
+
     /// <summary>The low box beside the open floor, 0.2 m tall, whose front face the floor beside it sees from behind.</summary>
     private static readonly Vector3 LowBoxCenter = new(0.5f, FloorHeight + 0.1f, -3);
 
@@ -184,6 +191,91 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
     [Fact]
     public void UnderTheMapTheSectorPassTakesTheOpenPiecesShareOfTheMapsLightAsTheCSharpCopyDoes() =>
         SectorPassUnderTheMapShouldMatchTheCSharpCopy(CornerWithBoxes);
+
+    [Fact]
+    public void TheDepthPassFlagsTheEdgeNeighborsThatContinueEachTexelsPlaneByTheSharedRule()
+    {
+        // The near steps read the flags in place of their neighbors, so each texel's four bits must be the answers of
+        // PixelPlane.ContinuesInto for the copies that the steps read. The floor ends under the sky, and the low box
+        // stands on it, so the flags meet neighbors beyond the image, neighbors that see the sky, depth edges and
+        // continuing planes.
+        VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: VisibilityBitmaskLight.Default);
+        try
+        {
+            renderer.Render(FloorWithTheLowBoxUnderTheSky(renderer), 1f);
+            (float[] depths, float[] normals, int width, int height) = renderer.ReadOcclusionDepthAndNormal();
+            byte[] flags = renderer.ReadOcclusionContinuation().Flags;
+
+            // The edge neighbors in the order of the flags' bits: left, up, right, down.
+            (int X, int Y)[] sides = [(-1, 0), (0, -1), (1, 0), (0, 1)];
+            (int beyond, int sky, int continues, int breaks) = (0, 0, 0, 0);
+            var mismatches = new List<string>();
+            for (int y = 0; y < height; y++)
+            for (int x = 0; x < width; x++)
+            {
+                int index = y * width + x;
+                if (PlaneAt((x, y)) is not { } plane)
+                {
+                    if (flags[index] != 0)
+                        mismatches.Add($"({x}, {y}) sees the sky and holds the flags {flags[index]}");
+                    continue;
+                }
+                for (int side = 0; side < 4; side++)
+                {
+                    (int X, int Y) neighbor = (x + sides[side].X, y + sides[side].Y);
+                    bool inside = neighbor.X >= 0 && neighbor.Y >= 0 && neighbor.X < width && neighbor.Y < height;
+                    PixelPlane? other = inside ? PlaneAt(neighbor) : null;
+                    if (
+                        other is { } seen
+                        && (
+                            ScreenTesting.NearTheCut(plane, seen, UndecidedShare)
+                            || ScreenTesting.NearTheCut(seen, plane, UndecidedShare)
+                        )
+                    )
+                        continue;
+                    bool expected = plane.ContinuesInto(insideImage: inside, neighbor: other);
+                    bool flagged = ((flags[index] >> side) & 1) != 0;
+                    if (flagged != expected)
+                        mismatches.Add($"({x}, {y}) toward {sides[side]}: the GPU {flagged}, the C# copy {expected}");
+                    if (!inside)
+                        beyond++;
+                    else if (other is null)
+                        sky++;
+                    else if (expected)
+                        continues++;
+                    else
+                        breaks++;
+                }
+            }
+            output.WriteLine(
+                $"{beyond} neighbors beyond the image, {sky} that see the sky, {continues} that continue and {breaks} that do not"
+            );
+
+            mismatches.Should().BeEmpty("the depth pass answers the shared rule for the copies that the steps read");
+            beyond.Should().BeGreaterThan(100, "the floor reaches the image's sides and bottom");
+            sky.Should().BeGreaterThan(100, "the floor's far edge and its sides meet the sky");
+            breaks.Should().BeGreaterThan(50, "the box's outline and its edges are depth edges");
+            continues.Should().BeGreaterThan(10_000, "the floor's planes continue each other");
+
+            PixelPlane? PlaneAt((int X, int Y) texel)
+            {
+                int index = texel.Y * width + texel.X;
+                if (depths[index] >= (float)HorizonSearch.SkyDepth)
+                    return null;
+                var read = new StepTexel(
+                    Position: ViewPosition(texel, depths[index]),
+                    GeometricNormal: ToView(OctahedralNormal.Decode(new(normals[2 * index], normals[2 * index + 1]))),
+                    DirectLight: Double3.Zero,
+                    Card: null
+                );
+                return SectorSearch.TexelPlane(texel: texel, read: read, rayThrough: place => ViewPosition(place, 1));
+            }
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
 
     /// <summary>
     /// The sector pass of <see cref="UnderTheMapTheSectorPassTakesTheOpenPiecesShareOfTheMapsLightAsTheCSharpCopyDoes"/>,
@@ -397,6 +489,27 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
         MeshId box = UnitBox(renderer);
         AddSlab(snapshot: scene, box: box, material: matte, center: LowBoxCenter, size: LowBoxSize);
         AddSlab(snapshot: scene, box: box, material: TiltedMatte(renderer), center: PlatformCenter, size: PlatformSize);
+        return scene;
+    }
+
+    /// <summary>
+    /// The corner's floor alone, which ends 10 m ahead under the sky, with the low box on it, under the corner's light and
+    /// seen through <see cref="CornerView"/>.
+    /// </summary>
+    private static RenderSnapshot FloorWithTheLowBoxUnderTheSky(VulkanRenderer renderer)
+    {
+        MaterialId matte = Matte(renderer);
+        RenderSnapshot scene = LitCorner();
+        Look(scene, CornerView);
+        MeshId box = UnitBox(renderer);
+        AddSlab(
+            snapshot: scene,
+            box: box,
+            material: matte,
+            center: new(0, FloorHeight - 0.5f, BackWallZ + 5),
+            size: new(20, 1, 20)
+        );
+        AddSlab(snapshot: scene, box: box, material: matte, center: LowBoxCenter, size: LowBoxSize);
         return scene;
     }
 

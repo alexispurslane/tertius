@@ -152,6 +152,8 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
                     )
             );
 
+            float leastOpen = floor.Min(i => term[i * 4 + 3]);
+            output.WriteLine($"the least open share of a floor texel is {leastOpen:0.000}");
             floor.Length.Should().BeGreaterThan(20_000, "the floor fills the lower half of the 320 × 180 texels");
             // Toward the sky a texel's surface stops at its center line and keeps the plane's depth past it, half a
             // texel above the floor, which can block a receiver within the radius of the floor's outline.
@@ -161,6 +163,10 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
                     i => WithinTheRadiusOfTheSky(depths, i),
                     "a flat floor's own steps block nothing above it (decisions 12 and 39)"
                 );
+            // The least open share was 0.834 when ter-ipc1 built the rule.
+            leastOpen
+                .Should()
+                .BeGreaterThan(0.8f, "the outline's last row stands at most half a texel above the floor, so it blocks little");
             bouncing.Should().BeEmpty("a flat floor bounces none of its own light on itself");
         }
         finally

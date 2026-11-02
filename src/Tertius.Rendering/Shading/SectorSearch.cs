@@ -196,9 +196,8 @@ internal static class SectorSearch
     /// <summary>
     /// The surface of a half-resolution texel that sees a surface, in the texel grid (<see cref="PixelSurface.Over"/>, the
     /// pixels' rule): its plane over the part of its square that reaches toward each edge neighbor that continues it
-    /// (<see cref="PixelPlane.ContinuesInto"/>). A neighbor beyond the image continues the plane, and sky does not.
-    /// texel_surface.glsl's texelSurface is the GLSL copy, which reads the four answers from the depth pass's
-    /// continuation flags.
+    /// (<see cref="PixelPlane.ContinuesInto"/>). texel_surface.glsl's texelSurface is the GLSL copy, which reads the four
+    /// answers from the depth pass's continuation flags.
     /// </summary>
     private static PixelSurface TexelSurface(
         (int X, int Y) texel,
@@ -212,9 +211,13 @@ internal static class SectorSearch
         bool Continues(int acrossX, int acrossY)
         {
             (int X, int Y) neighbor = (texel.X + acrossX, texel.Y + acrossY);
-            return !Inside(neighbor, halfSize)
-                || texelAt(neighbor) is { } other
-                    && plane.ContinuesInto(TexelPlane(texel: neighbor, read: other, rayThrough: rayThrough));
+            bool inside = Inside(neighbor, halfSize);
+            return plane.ContinuesInto(
+                insideImage: inside,
+                neighbor: inside && texelAt(neighbor) is { } other
+                    ? TexelPlane(texel: neighbor, read: other, rayThrough: rayThrough)
+                    : null
+            );
         }
         return PixelSurface.Over(
             plane: plane,
@@ -227,7 +230,7 @@ internal static class SectorSearch
 
     /// <summary>The plane of a half-resolution texel in the texel grid, in floats as the shader's texelPlane builds it:
     /// through P(t) along the texel's geometric normal, centered at the texel.</summary>
-    private static PixelPlane TexelPlane(
+    internal static PixelPlane TexelPlane(
         (int X, int Y) texel,
         StepTexel read,
         Func<(double X, double Y), Double3> rayThrough

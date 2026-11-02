@@ -77,25 +77,28 @@ bool planeHolds(PixelPlane plane, vec2 position, float w)
     return w <= planeW * tolerance && w * tolerance >= planeW;
 }
 
-// Whether the plane of an edge neighbor that sees a surface continues a sample's plane: neither plane is edge-on, and
-// each plane holds the other sample's center. Both directions, because a steep plane at a depth edge can pass the far
-// surface's center one sample away by chance, and the far surface's plane never passes back through the near center.
-// The one rule of where a depth sample's plane holds (PixelPlane.ContinuesInto): the pixels of level 0 and the bounce
-// light's near steps both call it, each with planes in its own grid.
-bool planesContinue(PixelPlane plane, PixelPlane other)
+// Whether an edge neighbor continues a depth sample's plane. A neighbor beyond the image continues it, as no depth edge
+// lies there, and one that sees the sky does not. One that sees a surface, whose plane is other, continues it where
+// neither plane is edge-on and each plane holds the other sample's center. Both directions, because a steep plane at a
+// depth edge can pass the far surface's center one sample away by chance, and the far surface's plane never passes back
+// through the near center. The one rule of where a depth sample's plane holds (PixelPlane.ContinuesInto): the pixels of
+// level 0 and the bounce light's near steps both call it, each with planes in its own grid. other is read only for a
+// neighbor inside the image that sees a surface, so a caller reads no sample beyond the image.
+bool neighborContinues(PixelPlane plane, bool insideImage, bool seesSurface, PixelPlane other)
 {
-    return !plane.edgeOn && !other.edgeOn
+    if (!insideImage)
+        return true;
+    return seesSurface && !plane.edgeOn && !other.edgeOn
         && planeHolds(plane, other.center, other.centerW) && planeHolds(other, plane.center, plane.centerW);
 }
 
-// Whether an edge neighbor continues a pixel's plane: it lies beyond the image, where no depth edge lies, or it sees a
-// surface and planesContinue. The test keeps every texelFetch inside its image.
+// Whether an edge neighbor continues a pixel's plane (neighborContinues). Every texelFetch stays inside its image.
 bool continuesPlane(PixelPlane plane, ivec2 neighbor)
 {
-    if (any(lessThan(neighbor, ivec2(0))) || any(greaterThanEqual(neighbor, textureSize(gbufferDistance, 0))))
-        return true;
-    PixelPlane other;
-    return pixelPlane(neighbor, other) && planesContinue(plane, other);
+    bool inside = all(greaterThanEqual(neighbor, ivec2(0))) && all(lessThan(neighbor, textureSize(gbufferDistance, 0)));
+    PixelPlane other = PixelPlane(vec2(0.0), 0.0, vec2(0.0), false);
+    bool seesSurface = inside && pixelPlane(neighbor, other);
+    return neighborContinues(plane, inside, seesSurface, other);
 }
 
 // The surface of a depth sample that sees a surface (docs/plans/screen-space-reflections.md, "The pixel's surface"):

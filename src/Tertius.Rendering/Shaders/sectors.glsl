@@ -161,20 +161,21 @@ SectorRun ownSurfaceRun(SliceGeometry g, vec3 geometricNormal)
                                       : runBetween(g, planeAngle + GtaoHalfPi, g.normalAngle + GtaoHalfPi);
 }
 
-// s_f: a step's surface point on its slice, where the view ray through its exact place, exactRay (z = 1), meets the
-// surface of its texel t (texelSurface, the pixels' rule, SectorSearch.TexelSurface): t's plane over the part of its
-// square that reaches toward each neighbor that continues it, and the plane's value at the part's edge past it, read
-// with the depth pass's continuation flags of t. towardPlace is the place minus t, in texels, at most ½ on each axis.
-// The surface's inverse depth is positive everywhere on t's square: the part reaches only toward a neighbor whose
-// center lies within 1 % of the plane. False at a view depth of farthestDepth or more, which lies beyond the radius.
-bool stepSurfacePoint(ivec2 t, uvec2 depthAndNormal, vec2 towardPlace, vec3 exactRay, float farthestDepth,
-                      out vec3 point)
+// s_f: a step's surface point on its slice, where the view ray through its exact place meets the surface of its texel t
+// (texelSurface, the pixels' rule, SectorSearch.TexelSurface): t's plane over the part of its square that reaches toward
+// each neighbor that continues it, and the plane's value at the part's edge past it, read with the depth pass's
+// continuation flags of t. place is the exact place in the texel grid, within half a texel of t on each axis, where whole
+// numbers are a texel's representative pixel. The surface's inverse depth is positive everywhere on t's square: the part
+// reaches only toward a neighbor whose center lies within 1 % of the plane. False at a view depth of farthestDepth or
+// more, which lies beyond the radius.
+bool stepSurfacePoint(ivec2 t, uvec2 depthAndNormal, vec2 place, float farthestDepth, out vec3 point)
 {
     point = vec3(0.0);
-    float w = surfaceW(texelSurface(t, depthAndNormal, continuationAt(t)), vec2(t) + towardPlace);
+    float w = surfaceW(texelSurface(t, depthAndNormal, continuationAt(t)), place);
     if (!(w * farthestDepth > 1.0))
         return false;
-    point = exactRay / w;
+    // A texel spans two pixels, and its representative pixel's center lies half a pixel past its place.
+    point = gtaoViewPosition((2.0 * place + 0.5) / vec2(fullSize()), 1.0) / w;
     return true;
 }
 

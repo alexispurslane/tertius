@@ -1,6 +1,6 @@
 // The surface of a half-resolution texel, which the bounce light's near steps read (docs/plans/screen-space-illumination.md,
 // "A near step"): its plane in the texel grid, over the part of its square that reaches toward each edge neighbor that
-// continues it, by the pixels' rule of depth_pyramid.glsl (planesContinue, sampleSurface). The occlusion depth pass
+// continues it, by the pixels' rule of depth_pyramid.glsl (neighborContinues, sampleSurface). The occlusion depth pass
 // writes each texel's copy of its depth and normal and its continuation flags once per frame, and the steps read them.
 // SectorSearch.TexelSurface is the C# copy. Change both together.
 #ifndef TERTIUS_TEXEL_SURFACE_GLSL
@@ -41,10 +41,9 @@ PixelPlane texelPlane(ivec2 t, uvec2 depthAndNormal)
 }
 
 // The continuation flags of a texel t that sees a surface, from its copy: bit k is set where edge neighbor k of
-// EdgeNeighbors continues t's plane. A neighbor beyond the image continues it, as no depth edge lies there, and one that
-// sees a surface continues it where planesContinue. Sky does not. Each neighbor's copy comes from the G-buffer, the very
-// bits that the depth pass stores for it, so the flags are those of the copies that the steps read. Every texelFetch
-// stays inside its image: a neighbor inside the half image has its representative pixel inside the full one.
+// EdgeNeighbors continues t's plane (neighborContinues). Each neighbor's copy comes from the G-buffer, the very bits that
+// the depth pass stores for it, so the flags are those of the copies that the steps read. Every texelFetch stays inside
+// its image: a neighbor inside the half image has its representative pixel inside the full one.
 uint continuationFlags(ivec2 t, uvec2 depthAndNormal)
 {
     PixelPlane plane = texelPlane(t, depthAndNormal);
@@ -52,13 +51,17 @@ uint continuationFlags(ivec2 t, uvec2 depthAndNormal)
     for (int side = 0; side < 4; side++)
     {
         ivec2 neighbor = t + EdgeNeighbors[side];
-        bool continues = true;
-        if (insideHalf(neighbor))
+        bool inside = insideHalf(neighbor);
+        bool seesSurface = false;
+        PixelPlane other = PixelPlane(vec2(0.0), 0.0, vec2(0.0), false);
+        if (inside)
         {
-            uvec2 other = texelDepthAndNormal(neighbor);
-            continues = depthOf(other) < SkyDepth && planesContinue(plane, texelPlane(neighbor, other));
+            uvec2 copy = texelDepthAndNormal(neighbor);
+            seesSurface = depthOf(copy) < SkyDepth;
+            if (seesSurface)
+                other = texelPlane(neighbor, copy);
         }
-        if (continues)
+        if (neighborContinues(plane, inside, seesSurface, other))
             flags |= 1u << side;
     }
     return flags;

@@ -1072,6 +1072,21 @@ public sealed unsafe class VulkanRenderer : IRenderer
     }
 
     /// <summary>
+    /// The depth pass's continuation flags of the last frame at half resolution, one byte per texel, row by row from the
+    /// top, as <see cref="OcclusionImages.Continuation"/> says. A test hook, like <see cref="ReadOcclusionViewDepth"/>.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The screen-space light is off.</exception>
+    internal (byte[] Flags, int Width, int Height) ReadOcclusionContinuation()
+    {
+        (float[] values, int width, int height) = ReadLevel(
+            image: OcclusionImagesOrThrow().Continuation,
+            layer: 0,
+            mip: 0
+        );
+        return ([.. values.Select(value => (byte)value)], width, height);
+    }
+
+    /// <summary>
     /// Level 1 to L of the last frame's depth pyramid: the near and the far bound of each texel of its mip, padding
     /// included, row by row from the top. A test hook: it waits for the device to be idle and submits its own copy.
     /// </summary>
@@ -1386,6 +1401,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             Format.R16G16B16A16SNorm => (4, StoredChannel.Snorm16),
             EstimatePacking.Format => (EstimatePacking.HalvesPerTexel, StoredChannel.Half),
             Format.R8G8B8A8Uint => (4, StoredChannel.Uint8),
+            Format.R8Uint => (1, StoredChannel.Uint8),
             _ => throw new ArgumentException(
                 $"{image.Name} has the format {image.Format}, which no hook reads.",
                 nameof(image)

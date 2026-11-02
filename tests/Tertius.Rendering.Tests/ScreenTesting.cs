@@ -110,4 +110,16 @@ internal static class ScreenTesting
         (float[] distances, Vector3[] normals) = Surfaces(camera, scene);
         return DepthPyramid.Of(camera: camera, distances: distances, geometricNormals: normals);
     }
+
+    /// <summary>Whether <paramref name="plane"/>'s test of <paramref name="other"/>'s center lies within the share
+    /// <paramref name="share"/> of either side of its cut (<see cref="PixelPlane.ContinuesInto"/>): there the GPU's
+    /// rounding and the C# copy's can decide the continuation differently.</summary>
+    public static bool NearTheCut(PixelPlane plane, PixelPlane other, float share)
+    {
+        float planeInverseDepth = plane.CenterInverseDepth + Vector2.Dot(plane.Gradient, other.Center - plane.Center);
+        const float tolerance = 1 + CellBounds.ContinuationShare;
+        float aboveTheCut = (planeInverseDepth * tolerance - other.CenterInverseDepth) / other.CenterInverseDepth;
+        float belowTheCut = (other.CenterInverseDepth * tolerance - planeInverseDepth) / planeInverseDepth;
+        return MathF.Abs(aboveTheCut) < share || MathF.Abs(belowTheCut) < share;
+    }
 }
