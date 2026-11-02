@@ -262,23 +262,30 @@ The walk stands in a pixel P, and the cell of each level is the one that holds P
 ```
 cell    = floor(P / 2^k)
 s_exit  = min(s at the cell's far edge on x, s at its far edge on y, s_end)
-crossed = 1 on each axis whose far edge gives s_exit before s_end, 0 on the other       both at a corner
+crossed = 1 on each axis whose far edge gives min(s at the far edge on x, on y), 0 on the other   both at a corner
 (n, f)  = bounds(k, cell)                       for k ≥ 1; the empty bounds for a cell outside its level
 high    = n;   low = f / (1 + κ)                            the slab
 w_in    = w(s) after a crossing, the slab bound after a descent;   w_out = w(s_exit)
 overlap = max(min(w_in, w_out), low) ≤ min(max(w_in, w_out), high)
 ```
 
-- The walk keeps the pixel, not only s, because a position on a cell's edge rounds to either side of it. The pixel moves only in three ways (`PixelIn`, `pixelIn`):
+- The walk keeps the pixel, not only s, because a position near a pixel's edge rounds to either side of it. P is always the march's pixel at s: on each axis, the pixel whose near edge the image reaches at s or before, and whose far edge it reaches after s. The parameters of those edges are the quotients (e − S₀) / ΔS on each axis that the march compares. The pixel moves only in three ways (`PixelAt`, `pixelAt`):
 
   ```
-  pixel_in(k, cell, x) = clamp(floor(x), cell · 2^k, cell · 2^k + 2^k − 1)     the cell's pixel that holds x, or the nearest
-  after a miss:                    P = pixel_in(k, cell + sign(ΔS) · crossed, S(s))
-  after a descent to s_entry > s:  P = pixel_in(k, cell, S(s_entry))
+  pixel_at(k, cell, s) = clamp(floor(S(s)) + sign(ΔS) · shift, cell · 2^k, cell · 2^k + 2^k − 1)
+    shift = 1 on an axis where the pixel's far edge gives s or less, −1 where its near edge gives more than s, else 0
+  after a miss:                    P = pixel_at(k, cell + sign(ΔS) · crossed, s)
+  after a descent to s_entry > s:  P = pixel_at(k, cell, s_entry)
   after a descent to s_entry = s:  P stays
   ```
 
-  So a crossing moves into the cell across exactly the edges that the image leaves through, and every pixel that the image crosses lies on the walk, however near its corner the image crosses it. The trace before ticket `ter-cvyx` chose the cell from S(s) moved 0.01 px ahead on both axes. Near a corner, that skipped a pixel that the image crosses for less than 0.01 px, while a descent with a solved entry inside the same pixel still found it. So the answer depended on how the walk reached the pixel: on 2,000,000 random rays, the trace and the pixel-by-pixel march disagreed on 55 before bounded planes, all of this kind, and on 50 of 92 after them. An entry at s keeps P, because s can stand on the edge that the walk just crossed, where floor(S(s)) can round back into the cell behind. The clamp keeps every other pixel inside its cell where the rounding of a position on the cell's edge would take it out.
+  So a crossing moves into the cell across exactly the edges that the image leaves through. On the other axis, and on both after a descent, the walk takes the march's pixel, also where S(s) rounds across a pixel's corner. The rounding of S(s) is far below a pixel, so floor(S(s)) lies at most one pixel off on each axis, and one shift corrects it. The clamp keeps P in the cell that the walk moved into. An entry at s keeps P, which is already the march's pixel at s.
+
+  So the walk tests at level 0 only pixels that the march visits, in the march's order. It skips the pixels of a missed cell, and the pixels before a solved slab entry. The cell's bounds hold every surface of those pixels, so in exact arithmetic none of them can hit. In floats, the coarse slab test and the solved entry each carry their own rounding. After ticket `ter-cvyx`, a search found no disagreement with the march in 2,000,000 random rays at 128 × 96 and 4,000,000 at 1920 × 1440.
+
+  The two pixel rules before ticket `ter-cvyx`:
+  - The trace chose the cell from S(s) moved 0.01 px ahead on both axes. Near a corner, that skipped a pixel that the image crosses for less than 0.01 px, while a descent with a solved entry inside the same pixel still found it. So the answer depended on how the walk reached the pixel: on 2,000,000 random rays, the trace and the pixel-by-pixel march disagreed on 55 before bounded planes, all of this kind, and on 50 of 92 after them.
+  - The ticket's first fix took P = floor(S(s)), clamped into the cell. At a crossing of a coarse cell's edge within a rounding of a pixel's corner, the floor of the other axis could pass the corner and skip a sliver pixel that the march enters. The rounding there is about 10⁻⁴ px at 1920 px across. No random ray found it, but a ray built by hand does (`ACoarseCrossingWithinARoundingOfAPixelsCornerStandsInThePixelThatTheMarchEnters`).
 - No overlap: no surface of the cell, with its thickness, meets the ray inside the cell. The ray crosses the cell: s = max(s, s_exit), P moves into the cell across, and the level rises by one, up to L, for a longer step next time. s never moves back: an entry solved inside a cell can round past that cell's exit, and P still moves on across the edges that the image leaves through.
 - A cell outside its level, which a ray reaches when its origin lies up to about two pixels beside the screen or when a crossing leaves the screen, has the empty bounds: no surface lies beyond the screen's edges. The cap of the level at L matters only for such a ray, which crosses top-level cells beside the screen.
 - An overlap at a level above 0: the ray can meet a surface inside the cell. The trace moves s to where the ray enters the slab, and looks at the finer level:
@@ -290,7 +297,7 @@ overlap = max(min(w_in, w_out), low) ≤ min(max(w_in, w_out), high)
   s = clamp(s_entry, s, s_exit);  w_in = clamp(w_in, low, high);  P as above;  level − 1
   ```
 
-- At level 0 the pixel's surface decides, not its bounds (`meetsPixelSurface` in `reflection.glsl`, `ScreenRay.MeetPixel`). The test reads the pixel's surface S_p and the ray at both ends of the stretch inside the pixel, from s_pixel to s_exit, and takes both as affine between them. s_pixel is where the image enters the pixel, the later of its crossings of the pixel's two near edges:
+- At level 0 the pixel's surface decides, not its bounds (`meetsPixelSurface` in `reflection.glsl`, `ScreenRay.MeetPixel`). The test reads the pixel's surface S_p and the ray at both ends of the stretch inside the pixel, from s_pixel to s_exit, and takes both as affine between them. s_pixel is where the image enters the pixel, the later of its crossings of the pixel's two near edges. s_exit is where it leaves the pixel, the earlier of its crossings of the two far edges, or s_end. Both come from the pixel alone, by the quotients of the walk, so the test takes only the pixel (`MeetPixel(pyramid, pixel)`, `meetsPixelSurface(ray, inverse, pixel, ...)`): no caller can give it a stretch that depends on the path.
 
   ```
   front_in  = w(s_pixel) − S_p(S(s_pixel)),  front_out = w(s_exit) − S_p(S(s_exit))           in front of the slab's front where > 0
@@ -1465,9 +1472,10 @@ The tests follow tests/STYLE.md: one behavior per test, named as a statement. No
 - `ARayAwayFromTheEyeWhoseVanishingPointIsOnTheScreenEndsThere`.
 - `ARayFromANearFloorHitsAPlanetAtItsVanishingPoint`: a floor 2 m away and a planet surface 10⁷ m away that covers the vanishing point. The hit is the vanishing point's pixel with an entry share of 0.
 - `RandomRays.TheHierarchicalTraceFindsThePixelThatAPixelByPixelMarchFinds`: over 1,000,000 rays from a fixed seed in a scene of floor, walls, boxes and sky, against a march in the test that applies the level-0 test at every pixel that the image crosses, in order. The march leaves each pixel across the edges that the image leaves it through, so it skips no pixel near a corner. Every ray gives the same pixel and an entry share within 10⁻³, or a miss in both, and every hit position lies inside its pixel. Ticket `ter-cvyx` raised it from 10,000 rays. A temporary search found no disagreement in 30,000,000 rays of six seeds.
-- `ARayThatADescentBringsInsideAPixelWhoseSurfaceBendsFindsThePixelThatTheMarchFinds`: three random rays, kept as float bits, whose descent solves an entry inside a pixel whose surface stops at a center line. The trace once hit there and the march missed.
+- `ARayThatADescentBringsInsideAPixelWhoseSurfaceBendsFindsThePixelThatTheMarchFinds`: three random rays, kept as float bits, whose descent solves an entry inside a pixel whose surface stops at a center line. The trace once hit there and the march missed. Each case first asserts its premise: the named pixel's surface stops at a center line, and the ray misses that pixel from its entry edge. The rule for where a pixel's surface holds decides both, so a change of that rule fails the premise, not silently the case.
 - `ARayThatCrossesAPixelOnlyNearItsCornerFindsThePixelThatTheMarchFinds`: three random rays, kept as float bits, that cross a pixel for less than 0.01 px near its corner and meet its slab there. The trace once skipped that pixel.
 - `ATraceMeetsAPixelThatTheImageCrossesOnlyNearItsCorner`: the image crosses one pixel of a 16 × 16 sky for 0.04 px across and 0.004 px down, and that pixel holds the only surface.
+- `ACoarseCrossingWithinARoundingOfAPixelsCornerStandsInThePixelThatTheMarchEnters`: on a 16 × 16 sky, the image leaves a level-1 cell across x = 8 at s = 0.23438850 and crosses y = 9 at s = 0.23438855, so the march enters pixel (8, 8) for 5 · 10⁻⁷ px. S(s) at the crossing rounds to y = 9. Pixel (8, 8) holds the only surface, and the trace must meet it.
 - `ASlabEntryThatRoundsOntoItsCellsFarEdgeFindsThePixelThatTheMarchFinds`: five rays out of 2,000,000, kept as float bits, whose slab entry, solved inside a cell, rounds onto that cell's far edge.
 - `OverEmptySpaceATraceTakesFewerStepsThanThePixelsItCrosses`: a ray across a 1,024 px screen of sky takes fewer than 40 steps.
 - `ATraceThatUsesAllItsStepsMisses`.
@@ -1542,8 +1550,7 @@ Each builder breaks the line that each new test protects, watches the test fail,
 - Drop `/ (1.0 + ThicknessShare)`.
 - Return an `entryShare` of 0 always.
 - Take `entryShare` from `inW` instead of the pixel's entry edge.
-- Drop the crossing nudge.
-- Nudge a slab entry solved inside a cell.
+- Ticket `ter-cvyx`, in the walk's pixel: take floor(S(s)) without the shift of `pixelAt`; drop the clamp of `pixelAt`; compare with `<` instead of `<=` in `crossed`; move P after a descent to s_entry = s; start the level-0 stretch at s instead of s_pixel. Before that ticket the list held "Drop the crossing nudge" and "Nudge a slab entry solved inside a cell", whose code the ticket removed.
 - Return a cell outside its level from `texelFetch` instead of the empty bounds.
 - Use the mirror direction for d.
 - Take `coneLevel` from the diameter.

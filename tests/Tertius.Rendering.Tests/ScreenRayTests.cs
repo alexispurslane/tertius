@@ -426,11 +426,43 @@ public sealed class ScreenRayTests
     }
 
     [Theory]
-    [InlineData("down a wall past the center line of a pixel at its foot", 1039106928, -1081158339, -1069663375, 1033011138, 1039679252, -1082297440)]
-    [InlineData("up the far wall from the floor past a box's lid", 1067501317, -1078055479, -1078357746, -1097718059, 1043023646, -1083075256)]
-    [InlineData("behind the side wall into a pixel at its top edge", 1098735909, 1073871882, -1042550488, -1089682477, -1095925616, 1061384136)]
+    [InlineData(
+        "down a wall past the center line of a pixel at its foot",
+        68,
+        34,
+        1039106928,
+        -1081158339,
+        -1069663375,
+        1033011138,
+        1039679252,
+        -1082297440
+    )]
+    [InlineData(
+        "up the far wall from the floor past a box's lid",
+        68,
+        34,
+        1067501317,
+        -1078055479,
+        -1078357746,
+        -1097718059,
+        1043023646,
+        -1083075256
+    )]
+    [InlineData(
+        "behind the side wall into a pixel at its top edge",
+        108,
+        25,
+        1098735909,
+        1073871882,
+        -1042550488,
+        -1089682477,
+        -1095925616,
+        1061384136
+    )]
     public void ARayThatADescentBringsInsideAPixelWhoseSurfaceBendsFindsThePixelThatTheMarchFinds(
         string path,
+        int bentX,
+        int bentY,
         int originX,
         int originY,
         int originZ,
@@ -439,22 +471,57 @@ public sealed class ScreenRayTests
         int directionZ
     )
     {
-        // Three of 2,000,000 random rays, as float bits. In each, a descent solves a slab entry inside a pixel whose
-        // surface stops at a center line and bends there. The march tests the pixel from its entry edge, so the trace
-        // must test it from there too: the answer must not depend on how the walk reached the pixel.
+        // Three of 2,000,000 random rays, as float bits. In each, a descent solves a slab entry inside the pixel
+        // (bentX, bentY), whose surface stops at a center line and bends there, past the bend, where the ray meets the
+        // slab. The march tests the pixel from its entry edge, where the ray misses it, so the trace must test it from
+        // there too: the answer must not depend on how the walk reached the pixel.
         (CameraView camera, DepthPyramid pyramid) = BoxesInARoom();
         ScreenRay ray = RayOfBits(camera, [originX, originY, originZ, directionX, directionY, directionZ]);
+        // The premise, which the rule for where a pixel's surface holds decides: if it changes, find new rays.
+        PixelSurface bent = pyramid.Surface(bentX, bentY)!.Value;
+        (bent.Low != new Vector2(bentX, bentY) || bent.High != new Vector2(bentX + 1, bentY + 1))
+            .Should()
+            .BeTrue($"the surface of ({bentX}, {bentY}) stops at a center line, not {bent}");
+        ray.MeetPixel(pyramid: pyramid, pixel: new(bentX, bentY))
+            .Should()
+            .BeNull($"the ray {path} misses ({bentX}, {bentY}) from its entry edge");
 
         RayTrace traced = ray.Trace(pyramid, MaxSteps);
         (int X, int Y, float EntryShare)? marched = March(ray, pyramid);
 
-        Agrees(traced, marched).Should().BeTrue($"the ray {path} has one answer, not the trace's {traced} and the march's {marched}");
+        Agrees(traced, marched)
+            .Should()
+            .BeTrue($"the ray {path} has one answer, not the trace's {traced} and the march's {marched}");
     }
 
     [Theory]
-    [InlineData("toward the left edge, past the corner of a pixel of the side wall", -1054883520, 1070202566, -1050215002, -1101102170, 1064257883, -1097859609)]
-    [InlineData("toward the right edge, past the corner of a floor pixel", 1071094427, -1078035163, -1075312343, 1059093916, -1089261262, -1090087463)]
-    [InlineData("along the floor, past the corner of a pixel of a box's side", -1061499650, -1078080019, -1047942772, 1051612254, -1095328627, 1063171790)]
+    [InlineData(
+        "toward the left edge, past the corner of a pixel of the side wall",
+        -1054883520,
+        1070202566,
+        -1050215002,
+        -1101102170,
+        1064257883,
+        -1097859609
+    )]
+    [InlineData(
+        "toward the right edge, past the corner of a floor pixel",
+        1071094427,
+        -1078035163,
+        -1075312343,
+        1059093916,
+        -1089261262,
+        -1090087463
+    )]
+    [InlineData(
+        "along the floor, past the corner of a pixel of a box's side",
+        -1061499650,
+        -1078080019,
+        -1047942772,
+        1051612254,
+        -1095328627,
+        1063171790
+    )]
     public void ARayThatCrossesAPixelOnlyNearItsCornerFindsThePixelThatTheMarchFinds(
         string path,
         int originX,
@@ -473,7 +540,9 @@ public sealed class ScreenRayTests
         RayTrace traced = ray.Trace(pyramid, MaxSteps);
         (int X, int Y, float EntryShare)? marched = March(ray, pyramid);
 
-        Agrees(traced, marched).Should().BeTrue($"the ray {path} has one answer, not the trace's {traced} and the march's {marched}");
+        Agrees(traced, marched)
+            .Should()
+            .BeTrue($"the ray {path} has one answer, not the trace's {traced} and the march's {marched}");
     }
 
     [Fact]
@@ -497,6 +566,31 @@ public sealed class ScreenRayTests
 
         trace.TryGetValue(out RayHit hit).Should().BeTrue($"the image crosses the pixel with the surface, not {trace}");
         hit.Pixel.Should().Be((9, 9));
+    }
+
+    [Fact]
+    public void ACoarseCrossingWithinARoundingOfAPixelsCornerStandsInThePixelThatTheMarchEnters()
+    {
+        // The image leaves the level-1 cell (3, 4) across x = 8 at s = 0.23438850, and crosses y = 9 at s = 0.23438855,
+        // so the march enters pixel (8, 8) for 5e-7 px. The position at the crossing, 8.483798 + 2.2023344 · s, rounds
+        // to y = 9. Only pixel (8, 8) sees a surface, at the ray's own inverse depth.
+        float[] inverseDepths = new float[16 * 16];
+        inverseDepths[8 * 16 + 8] = 0.5f;
+        DepthPyramid pyramid = DepthPyramid.FromInverseDepths(inverseDepths, width: 16, height: 16);
+        var ray = new ScreenRay(
+            Start: new(5.656115f, 8.483798f),
+            Step: new(10, 2.2023344f),
+            StartInverseDepth: 0.5f,
+            StepInverseDepth: 0,
+            End: 0.6f,
+            EndsAt: SegmentEnd.ScreenEdge
+        );
+
+        RayTrace trace = ray.Trace(pyramid, MaxSteps);
+
+        March(ray, pyramid).Should().Be((8, 8, 0f), "the march enters the pixel with the surface");
+        trace.TryGetValue(out RayHit hit).Should().BeTrue($"the walk stands in the march's pixel, not {trace}");
+        hit.Pixel.Should().Be((8, 8));
     }
 
     /// <summary>The scene of the random rays: a floor, a far wall, a side wall and four boxes.</summary>
@@ -568,7 +662,7 @@ public sealed class ScreenRayTests
         {
             pixel += travel * crossed;
             (float exit, Vector2 crossedAtExit) = PixelExit(ray, pixel, travel);
-            if (ray.MeetPixel(pyramid: pyramid, pixel: pixel, exit: exit) is { } met)
+            if (ray.MeetPixel(pyramid: pyramid, pixel: pixel) is { } met)
                 return ((int)pixel.X, (int)pixel.Y, met.EntryShare);
             s = exit;
             crossed = crossedAtExit;

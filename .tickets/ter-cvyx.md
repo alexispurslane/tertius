@@ -55,3 +55,24 @@ Cost (timing/runs.txt, summary.txt): interleaved rounds in a rotated order of ma
 So the cost lies within the control's spread on every window, below the bound of 0.05 ms.
 
 Docs: docs/plans/screen-space-reflections.md, "4. The trace through the pyramid" (the pixel walk, the stretch from the entry edge, the bend's paragraph, the precision note), its constants table (no crossing nudge), its test list, and a line that marks "The shaders" and "The C# copy" as the design's first draft. ARCHITECTURE.md's SSR paragraph on the trace.
+
+**2026-11-02T19:56:24Z**
+
+2026-11-02, the review's fix stage. The review passed all three parts and raised four low findings. All four are fixed.
+
+1. The walk's pixel at a coarse crossing or a descent (correctness). The first fix took P = floor(S(s)) clamped into the cell. On the axis that a coarse crossing does not cross, and on both axes after a descent, that floor can pass a pixel's corner by a rounding while the march's comparison of edge parameters enters the sliver pixel. Reproduced by hand on a 16 × 16 sky: Start (5.656115, 8.483798), Step (10, 2.2023344), constant w 0.5, one surface at (8, 8). The image leaves the level-1 cell (3, 4) across x = 8 at s = 0.23438850 and crosses y = 9 at s = 0.23438855, so the march enters (8, 8). S(s).y rounds to 9.0, so the trace stood in (8, 9), descended there, and left the segment after 8 steps. The test ACoarseCrossingWithinARoundingOfAPixelsCornerStandsInThePixelThatTheMarchEnters was red for that reason. The fix: PixelAt and pixelAt start from floor(S(s)) and shift each axis by one pixel where the pixel's far edge gives s or less, or its near edge more than s, by the quotients that CellExit and the march compare (EdgeParameters, edgeParameters). Then they clamp into the cell. Random rays do not reach this case: the code under review and the fix both give 0 disagreements of 2,000,000 rays at 128 × 96 and 2,000,000 at 1920 × 1440 (seed 7). After the fix, 2,000,000 more at 1920 × 1440 with seed 1 also gave 0.
+2. The level-0 test's exit (design). MeetPixel(pyramid, pixel) and meetsPixelSurface(ray, inverse, pixel, travel, ...) now derive the exit from the pixel with CellExit at level 0, so no caller passes a value that depends on the path. In GLSL, pixelEntry now uses the ray's reciprocals as cellExit does, so a pixel's entry parameter is the same number as its neighbor's exit. Before, it divided.
+3. The kind-1 regression's premise (fulfillment). Each case of ARayThatADescentBringsInsideAPixelWhoseSurfaceBendsFindsThePixelThatTheMarchFinds names its pixel ((68, 34), (68, 34), (108, 25)) and first asserts that the pixel's surface stops at a center line and that the ray misses the pixel from its entry edge. FromInverseDepths makes only flat pixels that face the eye, so a synthetic bent pixel needs a new pyramid constructor. The premise check costs none.
+4. The docs (fulfillment). The plan's hand mutations no longer name the removed nudge mutants and list this ticket's mutants. crossed reads "the earlier of the two parameters". The walk's paragraph states what holds in floats and what holds only in exact arithmetic. "Every pixel that the image crosses lies on the walk, however near its corner" is gone from both docs and both code comments.
+
+Images (captures/cvyx/g/after2 and after2-06, Release, headless, 1920 × 1080): every view of pbr-spheres, mirror-balls, reflections and the films at the old limit 0.6 is byte-identical to the reviewed build's images. The build embeds the new trace shader: its SPIR-V module lies in after2's Tertius.Rendering.dll and not in after's. So the sheets of the first fix stay valid.
+
+Cost (captures/cvyx/timing2/runs.txt, summary.txt): interleaved rounds in a rotated order of main, main2 (the byte-copy control) and after2, each under the GPU lock, the four reflection passes' summed mean. No xctrace run.
+
+| Window | Rounds | main | Control | ter-cvyx after the fix | Against the mean of main and main2, 95 % bootstrap | 1-minute load |
+|---|---|---|---|---|---|---|
+| step view, pbr-spheres low | 20 | 2.58 ms | -0.045 | +0.003 | -0.009 (-0.034 to +0.034) | 5.2 to 11.0 |
+| deck window | 8 | 2.08 ms | +0.000 | +0.015 | +0.010 (-0.028 to +0.054) | 7.5 to 11.5 |
+| floor window | 8 | 2.35 ms | +0.046 | +0.028 | -0.007 (-0.029 to +0.064) | 5.2 to 9.9 |
+
+The cost lies within the control's spread on every window, and on the step view its interval lies inside the bound of 0.05 ms.

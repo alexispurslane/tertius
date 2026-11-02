@@ -110,25 +110,40 @@ float exactPowerOfTwo(int power)
     return uintBitsToFloat(uint(127 + power) << 23);
 }
 
+// The parameters where the image reaches the line x = edge.x and the line y = edge.y, or still on an axis where the
+// image stands still (ScreenRay.EdgeParameters). The walk and the level-0 test take every pixel's edges from here.
+vec2 edgeParameters(ScreenRay ray, RayReciprocals inverse, vec2 edge, float still)
+{
+    vec2 offset = edge - ray.start;
+    return vec2(parameterAt(offset.x, ray.step.x, inverse.step.x, still),
+        parameterAt(offset.y, ray.step.y, inverse.step.y, still));
+}
+
 // The parameter where the image leaves a cell of a level, on its far edge across or down, or the segment's end. side is
-// the cell's side in pixels, and farSide max(travel, 0). crossed is 1 on each axis whose far edge the image leaves
-// through, 0 on the other.
+// the cell's side in pixels, and farSide max(travel, 0). crossed is 1 on each axis whose far edge gives the earlier of
+// the two parameters, 0 on the other, both at a corner.
 float cellExit(ScreenRay ray, RayReciprocals inverse, vec2 cell, float side, vec2 farSide, out vec2 crossed)
 {
-    vec2 edge = (cell + farSide) * side;
-    float exitX = parameterAt(edge.x - ray.start.x, ray.step.x, inverse.step.x, NoEnd);
-    float exitY = parameterAt(edge.y - ray.start.y, ray.step.y, inverse.step.y, NoEnd);
-    float exit = min(exitX, exitY);
-    crossed = vec2(lessThanEqual(vec2(exitX, exitY), vec2(exit)));
+    vec2 exits = edgeParameters(ray, inverse, (cell + farSide) * side, NoEnd);
+    float exit = min(exits.x, exits.y);
+    crossed = vec2(lessThanEqual(exits, vec2(exit)));
     return min(exit, ray.end);
 }
 
-// The pixel of a cell of side pixels that holds a position, or the cell's pixel nearest to it: a position on the cell's
-// edge can round outside the cell (ScreenRay.PixelIn). side ≥ 1, so the clamp's minimum never passes its maximum.
-vec2 pixelIn(vec2 cell, float side, vec2 position)
+// The march's pixel at s, in a cell of side pixels (ScreenRay.PixelAt): on each axis, the pixel whose near edge the
+// image reaches at s or before and whose far edge it reaches after s, by the parameters that the walk's crossings
+// compare. So a position that rounds across a pixel's corner does not move the walk off the march's pixels. The
+// position's rounding is far below a pixel, so its floor lies at most one pixel off on each axis. Clamped into the
+// cell, which holds that pixel whenever s lies in the cell. side ≥ 1, so the clamp's minimum never passes its maximum.
+vec2 pixelAt(ScreenRay ray, RayReciprocals inverse, vec2 cell, float side, vec2 travel, float s)
 {
+    vec2 pixel = floor(ray.start + ray.step * s);
+    vec2 entry = edgeParameters(ray, inverse, pixel + max(-travel, 0.0), -NoEnd);
+    vec2 exit = edgeParameters(ray, inverse, pixel + max(travel, 0.0), NoEnd);
+    // One pixel on where the image reaches the far edge at s or before, one back where it reaches the near edge after.
+    pixel += travel * (vec2(lessThanEqual(exit, vec2(s))) - vec2(greaterThan(entry, vec2(s))));
     vec2 first = cell * side;
-    return clamp(floor(position), first, first + (side - 1.0));
+    return clamp(pixel, first, first + (side - 1.0));
 }
 
 // Whether a cell at side pixels per cell lies beyond the screen, tested in pixels with no size query: such a cell holds
@@ -145,12 +160,10 @@ vec2 tracedCellBounds(texture2D pyramid, uint level, vec2 cell, float side)
 }
 
 // The parameter where the image enters a pixel: the later of its crossings of the pixel's near edges.
-float pixelEntry(ScreenRay ray, vec2 pixel, vec2 travel)
+float pixelEntry(ScreenRay ray, RayReciprocals inverse, vec2 pixel, vec2 travel)
 {
-    vec2 edge = pixel + max(-travel, 0.0);
-    float entryX = parameterAt(edge.x - ray.start.x, ray.step.x, -NoEnd);
-    float entryY = parameterAt(edge.y - ray.start.y, ray.step.y, -NoEnd);
-    return max(entryX, entryY);
+    vec2 entry = edgeParameters(ray, inverse, pixel + max(-travel, 0.0), -NoEnd);
+    return max(entry.x, entry.y);
 }
 
 // q: 0 when the ray stands in front of the slab [low, high] where it enters the pixel, 1 behind it, and between inside.
@@ -176,15 +189,16 @@ float slabEntry(ScreenRay ray, RayReciprocals inverse, float s, float inW, float
 }
 
 // The trace's test at level 0 (ScreenRay.MeetPixel): whether the stretch of the image inside a pixel, from where it
-// enters the pixel to exit, meets the slab of thickness κ behind the pixel's surface. The ray and the slab are each read
-// at both ends of the stretch, and taken as affine between them. The stretch always starts at the pixel's entry edge,
-// never at a slab entry that a descent solved inside the pixel, so the answer does not depend on how the walk reached
-// the pixel. Where the surface's part stops at a center line, the surface bends there, so a hit is always real, but a
-// ray can pass the bend inside the slab and still miss: at most half a pixel's gradient in inverse depth off the
-// surface, and only beside a depth edge or a curve beyond ContinuationShare ("The trace through the pyramid"). On a
-// hit, gives where the ray enters the slab, clamped into the pixel, and q from the pixel's edge where the image enters
-// it.
-bool meetsPixelSurface(ScreenRay ray, vec2 pixel, vec2 travel, float exit, out vec2 hit, out float entryShare)
+// enters the pixel to where it leaves it or the segment ends, meets the slab of thickness κ behind the pixel's surface.
+// The ray and the slab are each read at both ends of the stretch, and taken as affine between them. The pixel alone
+// gives the stretch, never a slab entry that a descent solved inside the pixel, so the answer does not depend on how
+// the walk reached the pixel. Where the surface's part stops at a center line, the surface bends there, so a hit is
+// always real, but a ray can pass the bend inside the slab and still miss: at most half a pixel's gradient in inverse
+// depth off the surface, and only beside a depth edge or a curve beyond ContinuationShare ("The trace through the
+// pyramid"). On a hit, gives where the ray enters the slab, clamped into the pixel, and q from the pixel's edge where
+// the image enters it.
+bool meetsPixelSurface(
+    ScreenRay ray, RayReciprocals inverse, vec2 pixel, vec2 travel, out vec2 hit, out float entryShare)
 {
     hit = vec2(0.0);
     entryShare = 0.0;
@@ -192,7 +206,9 @@ bool meetsPixelSurface(ScreenRay ray, vec2 pixel, vec2 travel, float exit, out v
     if (beyondTheScreen(pixel, 1.0) || !pixelSurface(ivec2(pixel), surface))
         return false;
     const float thickness = 1.0 + ThicknessShare;
-    float edge = pixelEntry(ray, pixel, travel);
+    float edge = pixelEntry(ray, inverse, pixel, travel);
+    vec2 leftThrough;
+    float exit = cellExit(ray, inverse, pixel, 1.0, max(travel, 0.0), leftThrough);
     // The ray's inverse depth where the image enters the pixel, never at a solved s, which keeps a far surface's thin
     // slab exact ("Precision and determinism").
     float inW = ray.startW + ray.stepW * edge;
@@ -223,8 +239,8 @@ bool traceRay(texture2D pyramid, ScreenRay ray, uint maxSteps, out vec2 hit, out
     RayReciprocals inverse = reciprocalsOf(ray);
     vec2 travel = sign(ray.step);
     vec2 farSide = max(travel, 0.0);
-    // The pixel that the walk stands in. The cell of each level is the one that holds it, so a cell is never chosen
-    // from a position that rounds across an edge, and every pixel that the image crosses lies on the walk.
+    // The pixel that the walk stands in: the march's pixel at s. The cell of each level is the one that holds it, so
+    // the walk tests no pixel that the march does not visit, and skips only pixels before a slab entry.
     vec2 pixel = floor(ray.start);
     vec2 crossed;
     float s = cellExit(ray, inverse, pixel, 1.0, farSide, crossed);
@@ -239,7 +255,7 @@ bool traceRay(texture2D pyramid, ScreenRay ray, uint maxSteps, out vec2 hit, out
         float side = exactPowerOfTwo(int(level));
         vec2 cell = floor(pixel * exactPowerOfTwo(-int(level)));
         float exit = cellExit(ray, inverse, cell, side, farSide, crossed);
-        if (level == 0u && meetsPixelSurface(ray, cell, travel, exit, hit, entryShare))
+        if (level == 0u && meetsPixelSurface(ray, inverse, cell, travel, hit, entryShare))
         {
             hitPixel = ivec2(cell);
             return true;
@@ -260,7 +276,7 @@ bool traceRay(texture2D pyramid, ScreenRay ray, uint maxSteps, out vec2 hit, out
         float next = meetsSlab ? entry : crossing;
         // After a miss, the pixel of the cell across; after a descent to an entry past s, the cell's pixel that holds
         // it. An entry at s keeps the pixel, which s can stand on the edge of.
-        vec2 nextPixel = pixelIn(meetsSlab ? cell : cell + travel * crossed, side, ray.start + ray.step * next);
+        vec2 nextPixel = pixelAt(ray, inverse, meetsSlab ? cell : cell + travel * crossed, side, travel, next);
         pixel = !meetsSlab || entry > s ? nextPixel : pixel;
         // After a descent, the slab bound that s was solved for; min and max keep it defined where the cell is missed.
         inW = meetsSlab ? min(max(inW, low), high) : ray.startW + ray.stepW * crossing;
