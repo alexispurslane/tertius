@@ -1,6 +1,6 @@
 ---
 id: ter-8bda
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-11-02T01:13:12Z
@@ -60,3 +60,7 @@ Hardening (orchestrator, 2026-11-02). The only changed src line is ReflectionSet
 4 rows: killed 4, timeout 0, survived 0, no-coverage 0, build-failed 0, no-tests 0, no-mutant 0, removed 0. Wall time 182 s, logs in /tmp/ter-8bda-mutate.
 
 Coverage: the full coverage run was not made. The branch changes one src line, and four killed mutants of that line show that tests run it, which is a stronger result than coverage. The test changes need no coverage.
+
+**2026-11-02T09:31:46Z**
+
+2026-11-02: merged into main as 6a96ae2db. tools/test-all.sh passed on the staged merge in Checked and Release, 0 failed. The evidence is in captures/8bda/ of the main checkout.

@@ -1,6 +1,6 @@
 ---
 id: ter-eqtb
-status: open
+status: closed
 deps: [ter-rjts, ter-y8z0, ter-f3g2, ter-8bda]
 links: [ter-f3g2]
 created: 2026-11-01T15:28:45Z
@@ -27,3 +27,7 @@ The deck film shows the same kind of fault: the floor's reflection of the greenh
 **2026-11-02T02:28:35Z**
 
 The user's decision of 2026-11-01, after ter-f3g2's probe: SSR's roughness limit goes to 0.37 now, inside epic ter-b2da; below it, today's method (one ray with a cone) stays; stochastic SSR (ter-rnjk) is not built; ter-gf0t moves into the epic to give back part of the lamp glow on rough surfaces that lose SSR. Reason: the probe showed that stochastic SSR helps only between roughness 0.37 and 0.6, which the 0.37 limit removes from SSR anyway, at +3 to +6 ms measured and with grain that never settles, while the limit saves 1.65 to 2.0 ms and matches the 64-ray reference on the deck paint. With the limit at 0.37, the demo's paint (roughness 0.38) has no SSR, so artifact 1 leaves the paint. After ter-8bda merges, the orchestrator captures the views of artifact 1 again (the floor film, chute-top, deck, unbelt) and keeps this ticket only for the views where the steps remain; if none remain, it closes.
+
+**2026-11-02T09:31:46Z**
+
+2026-11-02: closed without a change, as the note of 2026-11-02T02:28:35Z decided for this case. ter-8bda (merged as 6a96ae2db) set the SSR limit to 0.37. Its captures show each view of artifact 1 (the floor film, chute-top, the deck and unbelt) byte-identical to the same view with reflections off, and its probe marks no pixel that starts a ray in 363 frames of the films, deck-late and demo-surface (captures/8bda/ in the main checkout). So no reflection stair steps remain in the demo. Steps can still appear on surfaces below roughness 0.37, such as the mirrors of mirror-balls at grazing angles. No shipped scene shows them there, so no ticket opens for them now.
