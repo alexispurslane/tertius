@@ -217,9 +217,9 @@ public sealed class ReflectionShaderTests
             nameof(MirrorWallBehindACube) => MirrorWallBehindACube,
             _ => MirrorsBeforeTiles,
         };
-        // A maximum roughness of 1 of its own: the glowing cube (roughness 0.5) starts rays too, and most of the hits
-        // of MirrorWallBehindACube are its rays that meet the mirror wall. Under the default's maximum it starts none.
-        VulkanRenderer renderer = Headless(ReflectionsAt(TraceResolution.Half) with { MaxRoughness = 1 });
+        // Unfaded, so that the glowing cube (roughness 0.5) starts rays too: most of the hits of MirrorWallBehindACube
+        // are its rays that meet the mirror wall. Under the default's maximum it starts none.
+        VulkanRenderer renderer = Headless(UnfadedReflectionsAt(TraceResolution.Half));
         try
         {
             renderer.Render(build(renderer), 1f);
@@ -674,10 +674,10 @@ public sealed class ReflectionShaderTests
     private readonly record struct ConeRead(Vector3 Expected, float Level, Vector3 Weight);
 
     /// <summary>
-    /// The setting of the cone test: <see cref="ReflectionTesting.Reflections"/> with a maximum roughness of 1 of its
-    /// own, so that floors of 0.3 and 0.5 reflect in full, and the image shows the whole read of the cone at both.
+    /// The setting of the cone test, unfaded at the full-resolution trace: the floors of 0.3 and 0.5 reflect at a
+    /// roughness fade of 1 and 0.996, so that the image shows nearly the whole read of the cone at both.
     /// </summary>
-    private static ConeTracedReflections ConeReflections => Reflections with { MaxRoughness = 1 };
+    private static ConeTracedReflections ConeReflections => UnfadedReflectionsAt(TraceResolution.Full);
 
     /// <summary>The images of one frame that the cone test reads back, with the radiance pyramid's levels.</summary>
     private sealed record ConeFrame(

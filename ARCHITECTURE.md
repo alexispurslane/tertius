@@ -2395,7 +2395,7 @@ The review split the cost on 2026-10-26 with two scratch builds (not committed),
 
 - Ticket `ter-y8z0`'s reference, 64 GGX rays per pixel with a normalized sum, shows that at roughness 0.38 the screen adds almost nothing over the environment map on the deck: +0.1 levels of 255 in the box of the blocky reflection.
 - The one ray of today's trace showed blocks and stair steps on the paint (ticket `ter-y8z0`'s artifacts 1 and 3). Ticket `ter-f3g2`'s probe of stochastic rays with a fixed noise helped only between roughness 0.37 and 0.6, at 3 to 6 ms more, with a grain that never settles. So below the limit the one ray with its cone stays.
-- The limit saves about 2 ms on the deck and 1.4 to 1.7 ms on the floor (the table below, and ticket `ter-f3g2`'s −2.0 and −1.65 ms).
+- The limit cuts the four reflection passes' summed time by about 2 ms on the deck and 1.4 to 1.7 ms on the floor (the table below, and ticket `ter-f3g2`'s −2.0 and −1.65 ms). The frame span falls by less: 1.70 ms on the deck and 0.61 ms on the floor.
 
 A probe that marks every pixel that starts a ray marks none in 363 frames of `demo-exit`'s nine films (every 12th tick), none in its late deck view and none in the seven views of `demo-surface`. Each of those views is byte-identical to the same view with `--reflections off`. The review scenes keep their reflections below the limit. In `reflections`, the strip of roughness 0.3 reflects at 38 % of the full weight, and the strip of 0.45 keeps the ambient specular term. In `pbr-spheres`, the spheres of 0.05 and 0.2 still reflect, and the spheres from 0.4 and the floor do not.
 
@@ -2406,7 +2406,7 @@ The cost, by the renderer's timer at 1920 × 1080 in Release: the median over 7 
 | Deck | 3.80 | 3.79 | 1.79 | −2.01 | 0.79 | 0.54 | 0.05 | 0.41 |
 | Floor | 3.45 | 3.44 | 2.02 | −1.43 | 0.94 | 0.56 | 0.05 | 0.47 |
 
-The last four columns are the medians of each pass at 0.37. On this Mac a pass's time can hold part of the next pass's work, so only their sum holds. The frame span falls from 14.17 to 12.47 ms on the deck and from 13.17 to 12.56 ms on the floor. The passes still run in a frame where no pixel reflects, and the pyramids take about 1.3 to 1.5 ms of it. A ray from any pixel can hit any other pixel, so only a skip of the whole frame is sound. Ticket `ter-olhk` holds that skip.
+The last four columns are the medians of each pass at 0.37. On this Mac a pass's time can hold part of the next pass's work, so only their sum holds. The frame span falls from 14.17 to 12.47 ms on the deck (−1.70 ms) and from 13.17 to 12.56 ms on the floor (−0.61 ms). So a cut of the pass sum is an upper bound of the frame's saving, not the saving. The passes still run in a frame where no pixel reflects, and the pyramids take about 1.3 to 1.5 ms of it. A ray from any pixel can hit any other pixel, so only a skip of the whole frame is sound. Ticket `ter-olhk` holds that skip.
 
 ### Exposure
 

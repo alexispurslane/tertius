@@ -62,7 +62,7 @@ public sealed class ReflectionRenderTests
             .. roughnesses.Select(roughness =>
             {
                 float[] hdr = RenderHdr(
-                    ReflectionsAt(resolution),
+                    UnfadedReflectionsAt(resolution),
                     renderer => BoxAbove(renderer, Mirror(roughness))
                 ).Hdr;
                 return RiseWidth(Row(hdr, center.Y), outside: edge - 70, plateau: center.X);
@@ -279,7 +279,7 @@ public sealed class ReflectionRenderTests
         static RenderSnapshot Scene(VulkanRenderer renderer) => BoxAbove(renderer, Mirror(46 / 255f));
 
         float[] shown = RenderHdr(ReflectionsAt(resolution), Scene).Hdr;
-        float[] full = RenderHdr(ReflectionsAt(resolution) with { MaxRoughness = 1 }, Scene).Hdr;
+        float[] full = RenderHdr(UnfadedReflectionsAt(resolution), Scene).Hdr;
 
         ShouldMatch(shown, full, "the roughness fade is 1 up to half the maximum");
     }
@@ -292,7 +292,7 @@ public sealed class ReflectionRenderTests
         static RenderSnapshot Scene(VulkanRenderer renderer) => BoxAbove(renderer, Mirror(71 / 255f));
 
         float[] shown = RenderHdr(ReflectionsAt(resolution), Scene).Hdr;
-        float[] full = RenderHdr(ReflectionsAt(resolution) with { MaxRoughness = 1 }, Scene).Hdr;
+        float[] full = RenderHdr(UnfadedReflectionsAt(resolution), Scene).Hdr;
         float[] without = RenderHdr(new NoReflections(), Scene).Hdr;
 
         ShareOf(shown: shown, full: full, without: without)
@@ -489,7 +489,7 @@ public sealed class ReflectionRenderTests
             return snapshot;
         }
 
-        float[] hdr = RenderHdr(ReflectionsAt(resolution), Scene).Hdr;
+        float[] hdr = RenderHdr(UnfadedReflectionsAt(resolution), Scene).Hdr;
 
         int edge = PixelOf(new(-1.5f, 0, -7.7f)).X;
         int center = Width / 2;
@@ -693,8 +693,14 @@ public sealed class ReflectionRenderTests
     [MemberData(nameof(Resolutions))]
     public void TwoRendersGiveTheSameBits(TraceResolution resolution)
     {
-        float[] first = RenderHdr(ReflectionsAt(resolution), renderer => BoxAbove(renderer, Mirror(51 / 255f))).Hdr;
-        float[] second = RenderHdr(ReflectionsAt(resolution), renderer => BoxAbove(renderer, Mirror(51 / 255f))).Hdr;
+        float[] first = RenderHdr(
+            UnfadedReflectionsAt(resolution),
+            renderer => BoxAbove(renderer, Mirror(51 / 255f))
+        ).Hdr;
+        float[] second = RenderHdr(
+            UnfadedReflectionsAt(resolution),
+            renderer => BoxAbove(renderer, Mirror(51 / 255f))
+        ).Hdr;
 
         second.Should().Equal(first, "the trace has no noise and no history");
     }
@@ -1149,8 +1155,8 @@ public sealed class ReflectionRenderTests
     }
 
     /// <summary>
-    /// The floor's left half a mirror and its right half rougher than the maximum, both at one height, before a bright
-    /// wall.
+    /// The floor's left half a mirror and its right half of roughness 1, at or above every valid maximum, both at one
+    /// height, before a bright wall.
     /// </summary>
     private static RenderSnapshot MirrorBesideRoughFloor(VulkanRenderer renderer)
     {
@@ -1158,7 +1164,7 @@ public sealed class ReflectionRenderTests
         MeshId plane = renderer.CreateMesh(Primitives.Plane(1));
         foreach (
             (float center, MaterialDesc material) in ((float Center, MaterialDesc Material)[])
-                [(Center: -15, Material: Mirror()), (Center: 15, Material: Mirror(179 / 255f))]
+                [(Center: -15, Material: Mirror()), (Center: 15, Material: Mirror(1))]
         )
             snapshot.Instances.Add(
                 Gpu.Instance(
