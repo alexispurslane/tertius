@@ -20,3 +20,7 @@ Ticket 2 of ter-jw7g's design (docs/plans/environment-map-distances.md, 'Ticket 
 **2026-11-02T12:54:15Z**
 
 2026-11-02: launched as workflow run 43935f37-7349-43d9-bbba-f81c2831249d, version 869b0b07-3413-4b06-8707-a88a91bf6e91 (build, review, fix), branch ter-55xu-distance-cube, base 6c40880fa.
+
+**2026-11-02T14:34:35Z**
+
+2026-11-02: run 43935f37 ended ready for integration (HEAD 8646cdc2e): the distance cube, the review's five findings fixed (one owner of the drawn cubes, one per-stage descriptor check before vkCreatePipelineLayout), captures byte for byte the base's, validation clean. Settled choices for the user: the renderer requires 18 sampled images per stage (lavapipe 1,015,808, RADV 8,388,606, ANV at least 33,554,432 in Mesa 26.2.4) and now checks 10 storage images per stage at every start (new ticket ter-hadv removes the two later checks). Hardening runs as a delegated task (ter-55xu-harden-2026-11-02-a).
