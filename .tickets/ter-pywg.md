@@ -1,6 +1,6 @@
 ---
 id: ter-pywg
-status: in_progress
+status: closed
 deps: []
 links: [ter-cvyx, ter-16vv]
 created: 2026-11-02T21:02:10Z
