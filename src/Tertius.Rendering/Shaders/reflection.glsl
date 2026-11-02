@@ -121,14 +121,17 @@ float cellExit(ScreenRay ray, RayReciprocals inverse, vec2 cell, float side, vec
     return min(min(exitX, exitY), ray.end);
 }
 
-// cellBounds for a cell at side pixels per cell, tested in pixels with no size query: a cell whose first pixel lies
-// beyond the screen holds no surface, as one outside its level does and as the depth image's padding does.
+// Whether a cell at side pixels per cell lies beyond the screen, tested in pixels with no size query: such a cell holds
+// no surface, as one outside its level does and as the depth image's padding does.
+bool beyondTheScreen(vec2 cell, float side)
+{
+    return any(lessThan(cell, vec2(0.0))) || any(greaterThanEqual(cell * side, frame.viewport.xy));
+}
+
+// The bounds of a cell of a level above 0, or the empty bounds for a cell beyond the screen.
 vec2 tracedCellBounds(texture2D pyramid, uint level, vec2 cell, float side)
 {
-    if (any(lessThan(cell, vec2(0.0))) || any(greaterThanEqual(cell * side, frame.viewport.xy)))
-        return vec2(0.0, EmptyFar);
-    ivec2 texel = ivec2(cell);
-    return level == 0u ? pixelBounds(texel) : texelFetch(pyramid, texel, int(level) - 1).rg;
+    return beyondTheScreen(cell, side) ? vec2(0.0, EmptyFar) : texelFetch(pyramid, ivec2(cell), int(level) - 1).rg;
 }
 
 // The parameter where the image enters a pixel: the later of its crossings of the pixel's near edges.
@@ -162,6 +165,43 @@ float slabEntry(ScreenRay ray, RayReciprocals inverse, float s, float inW, float
     return inside ? s : solved;
 }
 
+// The trace's test at level 0 (ScreenRay.MeetPixel): whether the stretch of the image inside a pixel, from s to exit,
+// meets the slab of thickness κ behind the pixel's surface. The ray and the slab are each read at both ends of the
+// stretch, and taken as affine between them. inW is the ray's inverse depth at s: w(s) after a crossing, the slab bound
+// that s was solved for after a descent ("Precision and determinism"). On a hit, gives where the ray enters the slab,
+// clamped into the pixel, and q from the pixel's edge where the image enters it.
+bool meetsPixelSurface(ScreenRay ray, vec2 pixel, vec2 travel, float s, float inW, float exit, out vec2 hit,
+    out float entryShare)
+{
+    hit = vec2(0.0);
+    entryShare = 0.0;
+    PixelSurface surface;
+    if (beyondTheScreen(pixel, 1.0) || !pixelSurface(ivec2(pixel), surface))
+        return false;
+    const float thickness = 1.0 + ThicknessShare;
+    float surfaceIn = surfaceW(surface, ray.start + ray.step * s);
+    float surfaceOut = surfaceW(surface, ray.start + ray.step * exit);
+    float outW = ray.startW + ray.stepW * exit;
+    // How far the ray stands in front of the slab's front, and of its back, at both ends of the stretch.
+    float frontIn = inW - surfaceIn;
+    float frontOut = outW - surfaceOut;
+    float backIn = inW - surfaceIn / thickness;
+    float backOut = outW - surfaceOut / thickness;
+    if ((frontIn > 0.0 && frontOut > 0.0) || (backIn < 0.0 && backOut < 0.0))
+        return false;
+    // The divisors are never 0 where the select keeps them: a stretch that starts in front of the front meets it, so
+    // frontOut ≤ 0 < frontIn, and the same holds behind the back.
+    float crossed = frontIn > 0.0 ? frontIn / (frontIn > 0.0 ? frontIn - frontOut : 1.0)
+        : backIn < 0.0 ? backIn / (backIn < 0.0 ? backIn - backOut : 1.0) : 0.0;
+    hit = clamp(ray.start + ray.step * (s + (exit - s) * crossed), pixel, pixel + 1.0);
+    // From the inverse depth where the image enters the pixel, never at a solved s, which keeps a far surface's thin
+    // slab exact ("Precision and determinism").
+    float edge = pixelEntry(ray, pixel, travel);
+    float surfaceAtEdge = surfaceW(surface, ray.start + ray.step * edge);
+    entryShare = entryShareOf(ray.startW + ray.stepW * edge, surfaceAtEdge / thickness, surfaceAtEdge);
+    return true;
+}
+
 // Walks the ray's image through the depth pyramid (Uludag 2014, with min-max cells and the slab of McGuire and Mara
 // 2014). On a hit, gives the hit's position in pixels, its pixel and the entry share q.
 bool traceRay(texture2D pyramid, ScreenRay ray, uint maxSteps, out vec2 hit, out ivec2 hitPixel, out float entryShare)
@@ -185,7 +225,13 @@ bool traceRay(texture2D pyramid, ScreenRay ray, uint maxSteps, out vec2 hit, out
         float side = exactPowerOfTwo(int(level));
         vec2 cell = floor((ray.start + ray.step * s + nudge) * exactPowerOfTwo(-int(level)));
         float exit = cellExit(ray, inverse, cell, side, farSide);
-        vec2 bounds = tracedCellBounds(pyramid, level, cell, side);
+        if (level == 0u && meetsPixelSurface(ray, cell, travel, s, inW, exit, hit, entryShare))
+        {
+            hitPixel = ivec2(cell);
+            return true;
+        }
+        // At level 0 the pixel's surface decided: the ray crosses the pixel. Above, the cell's slab decides.
+        vec2 bounds = level == 0u ? vec2(0.0, EmptyFar) : tracedCellBounds(pyramid, level, cell, side);
         float high = bounds.x;
         float low = bounds.y * (1.0 / (1.0 + ThicknessShare));
         float outW = ray.startW + ray.stepW * exit;
@@ -194,15 +240,6 @@ bool traceRay(texture2D pyramid, ScreenRay ray, uint maxSteps, out vec2 hit, out
         // min and max, not clamp: exit can lie a rounding below s, and clamp is undefined when its minimum passes its
         // maximum.
         float entry = min(max(slabEntry(ray, inverse, s, inW, low, high), s), exit);
-        if (meetsSlab && level == 0u)
-        {
-            hit = clamp(ray.start + ray.step * entry, cell, cell + 1.0);
-            hitPixel = ivec2(cell);
-            // From the inverse depth where the image enters the pixel, never at a solved s, which keeps a far
-            // surface's thin slab exact ("Precision and determinism").
-            entryShare = entryShareOf(ray.startW + ray.stepW * pixelEntry(ray, cell, travel), low, high);
-            return true;
-        }
         // A miss crosses the cell and never goes back: an entry solved inside a cell can round past the cell's exit.
         // The next descent then finds the entry at s, keeps s on an edge, and the nudge moves the walk on.
         float crossing = max(s, exit);

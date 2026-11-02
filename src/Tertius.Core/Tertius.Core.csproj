@@ -23,5 +23,7 @@
     <InternalsVisibleTo Include="Tertius.Host" />
     <!-- The renderer's strand code folds a strand with OctahedralNormal, the C# twin of the shaders' octEncode. -->
     <InternalsVisibleTo Include="Tertius.Rendering" />
+    <!-- The C# copy of the depth pyramid reads the geometric normals of the G-buffer, which a GPU test decodes. -->
+    <InternalsVisibleTo Include="Tertius.Rendering.Tests" />
   </ItemGroup>
 </Project>

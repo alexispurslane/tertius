@@ -74,6 +74,52 @@ public sealed class ScreenRayTests
     }
 
     [Fact]
+    public void ARayThatComesDownOntoAFloorSeenAtAGrazingAngleHitsItsFrontWhereItCrossesIt()
+    {
+        // The eye stands 0.15 m above the floor, so the floor's pixels each span a long stretch of depth, and the rays
+        // come down onto it from points 0.3 to 0.9 m above it, 4 to 8 m ahead, at 3° to 30° below the horizon.
+        CameraView camera = ScreenTesting.Camera(width: Width, height: Height);
+        const float floorHeight = -0.15f;
+        SceneRectangle[] floor = [new(new(0, floorHeight, 0), new(1_000, 0, 0), new(0, 0, 1_000))];
+        DepthPyramid pyramid = ScreenTesting.Pyramid(camera, floor);
+        var wrong = new List<string>();
+        int hits = 0;
+
+        foreach (float x in new[] { -1f, -0.3f, 0.4f, 1.1f })
+        foreach (float height in new[] { 0.3f, 0.6f, 0.9f })
+        foreach (float z in new[] { -4f, -5f, -6f, -7f, -8f })
+        foreach (float down in new[] { 3f, 8f, 15f, 30f })
+        foreach (float around in new[] { -60f, -25f, 0f, 25f, 60f })
+        {
+            var origin = new Vector3(x, floorHeight + height, z);
+            float pitch = -down * MathF.PI / 180;
+            float yaw = around * MathF.PI / 180;
+            // Toward the eye's side of the scene, where the floor lies on the screen below the origin.
+            var direction = new Vector3(
+                MathF.Cos(pitch) * MathF.Sin(yaw),
+                MathF.Sin(pitch),
+                MathF.Cos(pitch) * MathF.Cos(yaw)
+            );
+            Vector3 crossing = origin + direction * ((floorHeight - origin.Y) / direction.Y);
+            if (crossing.Z > -0.5f || ray(origin, direction).Trace(pyramid, MaxSteps) is not RayHit hit)
+                continue;
+            hits++;
+            Vector2 expected = camera.PixelOf(crossing);
+            if (hit.EntryShare > 1e-3f || Vector2.Distance(hit.Position, expected) > 1)
+                wrong.Add($"from {origin} along {direction}: {hit}, the floor crossed at {expected}");
+        }
+
+        hits.Should().BeGreaterThan(400, "most rays cross the floor on the screen");
+        wrong
+            .Should()
+            .BeEmpty(
+                "a ray that comes down onto a floor meets the front of its plane, where it crosses it, with no entry share"
+            );
+
+        ScreenRay ray(Vector3 origin, Vector3 direction) => RayOf(origin, direction, camera);
+    }
+
+    [Fact]
     public void ARayHitsTheFrontOfAWallInThePixelWhereItMeetsIt()
     {
         CameraView camera = ScreenTesting.Camera(width: Width, height: Height);
@@ -444,9 +490,8 @@ public sealed class ScreenRayTests
     }
 
     /// <summary>
-    /// The oracle of the hierarchical trace: the slab rule of the trace at every pixel of the segment in order, from
-    /// the exit of the origin pixel, with no level above 0. The entry share reads the inverse depth where the image
-    /// enters the pixel.
+    /// The oracle of the hierarchical trace: the trace's level-0 test at every pixel of the segment in order, from the
+    /// exit of the origin pixel, with no level above 0.
     /// </summary>
     private static (int X, int Y, float EntryShare)? March(ScreenRay ray, DepthPyramid pyramid)
     {
@@ -457,14 +502,9 @@ public sealed class ScreenRayTests
             pixels.Should().BeLessThan(1_000_000, "the march moves on at every pixel");
             Vector2 pixel = Floor(ray.Start + ray.Step * s + travel * ScreenRay.CrossingNudge);
             float exit = PixelExit(ray, pixel, travel);
-            (float low, float high) = pyramid.Bounds(0, (int)pixel.X, (int)pixel.Y).Slab(CellBounds.ThicknessShare);
             float inW = ray.StartInverseDepth + ray.StepInverseDepth * s;
-            float outW = ray.StartInverseDepth + ray.StepInverseDepth * exit;
-            if (MathF.Max(MathF.Min(inW, outW), low) <= MathF.Min(MathF.Max(inW, outW), high))
-            {
-                float edgeW = ray.StartInverseDepth + ray.StepInverseDepth * PixelEntry(ray, pixel, travel);
-                return ((int)pixel.X, (int)pixel.Y, MarchedEntryShare(edgeW, low, high));
-            }
+            if (ray.MeetPixel(pyramid: pyramid, pixel: pixel, s: s, inW: inW, exit: exit) is { } met)
+                return ((int)pixel.X, (int)pixel.Y, met.EntryShare);
             s = exit;
         }
         return null;
@@ -476,24 +516,6 @@ public sealed class ScreenRayTests
         float exitX = travel.X != 0 ? (edge.X - ray.Start.X) / ray.Step.X : float.MaxValue;
         float exitY = travel.Y != 0 ? (edge.Y - ray.Start.Y) / ray.Step.Y : float.MaxValue;
         return MathF.Min(MathF.Min(exitX, exitY), ray.End);
-    }
-
-    /// <summary>Where the image enters the pixel: the later of its crossings of the pixel's near edges.</summary>
-    private static float PixelEntry(ScreenRay ray, Vector2 pixel, Vector2 travel)
-    {
-        Vector2 edge = pixel + Vector2.Max(-travel, Vector2.Zero);
-        float entryX = travel.X != 0 ? (edge.X - ray.Start.X) / ray.Step.X : float.MinValue;
-        float entryY = travel.Y != 0 ? (edge.Y - ray.Start.Y) / ray.Step.Y : float.MinValue;
-        return MathF.Max(entryX, entryY);
-    }
-
-    private static float MarchedEntryShare(float inW, float low, float high)
-    {
-        if (inW > high)
-            return 0;
-        if (inW < low)
-            return 1;
-        return (high - inW) / (high - low);
     }
 
     private static Vector2 Floor(Vector2 position) => new(MathF.Floor(position.X), MathF.Floor(position.Y));

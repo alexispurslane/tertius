@@ -181,21 +181,19 @@ internal static class ReflectionTesting
             .ToVector3();
     }
 
-    /// <summary>The C# depth pyramid of the last frame: the inverse depth of each pixel from the distance target.</summary>
+    /// <summary>The C# depth pyramid of the last frame, from its distance target and the geometric normals of its
+    /// normals target.</summary>
     public static DepthPyramid PyramidOf(VulkanRenderer renderer)
     {
-        CameraView camera = renderer.LastScene.Camera;
-        float[] distance = renderer.ReadDistance();
-        float[] inverseDepths = new float[distance.Length];
-        for (int y = 0; y < camera.Height; y++)
-        for (int x = 0; x < camera.Width; x++)
-        {
-            int pixel = y * camera.Width + x;
-            float ray = camera.ViewRayThrough(new(x + 0.5f, y + 0.5f)).Length();
-            inverseDepths[pixel] = distance[pixel] > 0 ? ray / distance[pixel] : 0;
-        }
-
-        return DepthPyramid.FromInverseDepths(inverseDepths, camera.Width, camera.Height);
+        float[] normals = renderer.ReadNormals();
+        var geometricNormals = new Vector3[normals.Length / 4];
+        for (int pixel = 0; pixel < geometricNormals.Length; pixel++)
+            geometricNormals[pixel] = OctahedralNormal.Decode(new(normals[4 * pixel + 2], normals[4 * pixel + 3]));
+        return DepthPyramid.Of(
+            camera: renderer.LastScene.Camera,
+            distances: renderer.ReadDistance(),
+            geometricNormals: geometricNormals
+        );
     }
 
     /// <summary>

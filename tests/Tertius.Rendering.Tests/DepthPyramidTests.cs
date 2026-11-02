@@ -1,11 +1,19 @@
+using System.Numerics;
+
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The C# copy of the depth pyramid: its level count and sizes, and the min-max bounds of inverse depth of its cells
-/// (docs/plans/screen-space-reflections.md, "The depth pyramid").
+/// The C# copy of the depth pyramid: its level count and sizes, the surface of each pixel of level 0, and the min-max
+/// bounds of inverse depth of its cells (docs/plans/screen-space-reflections.md, "The depth pyramid" and "The pixel's
+/// surface").
 /// </summary>
 public sealed class DepthPyramidTests
 {
+    /// <summary>A floor 1.5 m below the eye that reaches 1 km in every direction.</summary>
+    private static readonly SceneRectangle[] Floor = [new(new(0, -1.5f, 0), new(1_000, 0, 0), new(0, 0, 1_000))];
+
+    /// <summary>A camera of 64 × 48 pixels that looks 0.3 rad below the horizon, so the floor fills its lower part.</summary>
+    private static CameraView FloorCamera => ScreenTesting.Camera(width: 64, height: 48, pitchDown: 0.3f);
     [Fact]
     public void TheTopLevelOfA1920By1080ScreenIsEleven() => DepthPyramid.LevelCount(1920, 1080).Should().Be(11);
 
@@ -123,4 +131,92 @@ public sealed class DepthPyramidTests
         (1 / high).Should().BeApproximately(5, 1e-5f);
         (1 / low).Should().BeApproximately(5.5f, 1e-5f, "a surface 5 m away fills the depths to 5.5 m");
     }
+
+    [Fact]
+    public void AFloorPixelWhoseNeighborsContinueItsPlaneBoundsThePlaneAtTheCornersOfItsSquare()
+    {
+        CameraView camera = FloorCamera;
+
+        CellBounds bounds = ScreenTesting.Pyramid(camera, Floor).Bounds(0, 32, 40);
+
+        float[] corners = [.. Corners(32, 40).Select(corner => FloorInverseDepth(camera, corner))];
+        bounds.Near.Should().BeApproximately(corners.Max(), 1e-5f * corners.Max(), "the plane is nearest at a lower corner");
+        bounds.Far.Should().BeApproximately(corners.Min(), 1e-5f * corners.Min(), "and farthest at an upper corner");
+    }
+
+    [Fact]
+    public void TowardTheSkyAPixelsPlaneStopsAtItsCenterLine()
+    {
+        CameraView camera = FloorCamera;
+        // The floor ends 20 m ahead, and the sky lies beyond its far edge.
+        SceneRectangle[] floor = [new(new(0, -1.5f, -10), new(1_000, 0, 0), new(0, 0, 10))];
+        DepthPyramid pyramid = ScreenTesting.Pyramid(camera, floor);
+        int edge = Enumerable.Range(0, camera.Height).First(y => pyramid.Surface(32, y) is not null);
+
+        CellBounds bounds = pyramid.Bounds(0, 32, edge);
+
+        pyramid.Surface(32, edge - 1).Should().BeNull("the row above the floor's far edge sees the sky");
+        float centerLine = FloorInverseDepth(camera, new(32, edge + 0.5f));
+        bounds.Far.Should().BeApproximately(centerLine, 1e-5f * centerLine, "past its center line the surface keeps the plane's value there");
+    }
+
+    [Fact]
+    public void AtTheScreensEdgeAPixelsPlaneReachesThePixelsEdge()
+    {
+        CameraView camera = FloorCamera;
+
+        CellBounds bounds = ScreenTesting.Pyramid(camera, Floor).Bounds(0, 32, camera.Height - 1);
+
+        float bottomEdge = FloorInverseDepth(camera, new(32, camera.Height));
+        bounds.Near.Should().BeApproximately(bottomEdge, 1e-5f * bottomEdge, "no depth edge lies beyond the screen");
+    }
+
+    [Theory]
+    [InlineData(0.008f, true)]
+    [InlineData(-0.008f, true)]
+    [InlineData(0.012f, false)]
+    [InlineData(-0.012f, false)]
+    public void ANeighborWithinOnePercentOfThePlaneInInverseDepthContinuesIt(float offPlane, bool continues)
+    {
+        CameraView camera = FloorCamera;
+        (float[] distances, Vector3[] normals) = ScreenTesting.Surfaces(camera, Floor);
+        // The neighbor above stands off the floor's plane by the share offPlane of its inverse depth.
+        distances[39 * camera.Width + 32] /= 1 + offPlane;
+
+        CellBounds bounds = DepthPyramid.Of(camera, distances, normals).Bounds(0, 32, 40);
+
+        float reach = FloorInverseDepth(camera, new(32, continues ? 40 : 40.5f));
+        bounds.Far.Should().BeApproximately(reach, 1e-5f * reach, "the plane reaches the pixel's top edge only toward a neighbor that continues it");
+    }
+
+    [Fact]
+    public void APixelThatFacesTheEyeBoundsOnlyItsCentersInverseDepth()
+    {
+        CameraView camera = ScreenTesting.Camera(width: 64, height: 48);
+        SceneRectangle[] wall = [new(new(0, 0, -10), new(20, 0, 0), new(0, 20, 0))];
+
+        CellBounds bounds = ScreenTesting.Pyramid(camera, wall).Bounds(0, 20, 30);
+
+        bounds.Should().Be(CellBounds.OfSurface(0.1f), "a plane that faces the eye has one inverse depth over the pixel");
+    }
+
+    [Fact]
+    public void ALevelAboveZeroBoundsTheSurfacesOfItsPixels()
+    {
+        CameraView camera = FloorCamera;
+
+        CellBounds cell = ScreenTesting.Pyramid(camera, Floor).Bounds(1, 16, 20);
+
+        float near = FloorInverseDepth(camera, new(32, 42));
+        float far = FloorInverseDepth(camera, new(32, 40));
+        cell.Near.Should().BeApproximately(near, 1e-5f * near, "the cell's pixels' planes reach its bottom edge");
+        cell.Far.Should().BeApproximately(far, 1e-5f * far, "and its top edge");
+    }
+
+    /// <summary>The four corners of a pixel's square, in pixels.</summary>
+    private static Vector2[] Corners(int x, int y) => [new(x, y), new(x + 1, y), new(x, y + 1), new(x + 1, y + 1)];
+
+    /// <summary>The inverse view depth of the floor 1.5 m below the eye on the view ray through a screen position.</summary>
+    private static float FloorInverseDepth(in CameraView camera, Vector2 position) =>
+        (float)(1 / ScreenTesting.DepthAlong(camera.ViewRayThrough(position), Floor)!.Value);
 }
