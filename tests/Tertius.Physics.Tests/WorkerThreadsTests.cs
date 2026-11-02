@@ -24,6 +24,13 @@ public sealed class WorkerThreadsTests
             .Be(1, "a job system without workers would run every job on the physics thread");
 
     [Fact]
+    public void ANegativeWorkerCountGivesTheDefaultCount() =>
+        new JoltBackendOptions { WorkerThreads = -1 }
+            .WorkerThreadsFor(processorCount: 4)
+            .Should()
+            .Be(3, "Jolt sizes its workers from the hardware when it gets a count of zero or less");
+
+    [Fact]
     public void AnExplicitWorkerCountHoldsWhateverTheProcessorCount() =>
         new JoltBackendOptions { WorkerThreads = 6 }
             .WorkerThreadsFor(processorCount: 4)
