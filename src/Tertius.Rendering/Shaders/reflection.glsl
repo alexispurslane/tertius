@@ -136,10 +136,10 @@ float cellExit(ScreenRay ray, RayReciprocals inverse, vec2 cell, float side, vec
     return min(exit, ray.end);
 }
 
-// The march's pixel at s, in a cell of side pixels (ScreenRay.PixelAt): on each axis, the pixel whose near edge the
-// image reaches at s or before and whose far edge it reaches after s, by the parameters that the walk's crossings
-// compare. So a position that rounds across a pixel's corner does not move the walk off the march's pixels. The
-// position's rounding is far below a pixel, so its floor lies at most one pixel off on each axis. Clamped into the
+// The pixel that the image enters at s, in a cell of side pixels (ScreenRay.PixelAt): on each axis, the pixel whose
+// near edge the image reaches at s or before and whose far edge it reaches after s, by the parameters that the walk's
+// crossings compare. So a position that rounds across a pixel's corner does not move the walk off the march's pixels.
+// The position's rounding is far below a pixel, so its floor lies at most one pixel off on each axis. Clamped into the
 // cell, which holds that pixel whenever s lies in the cell. side ≥ 1, so the clamp's minimum never passes its maximum.
 vec2 pixelAt(ScreenRay ray, RayReciprocals inverse, vec2 cell, float side, vec2 travel, float s)
 {
@@ -245,8 +245,9 @@ bool traceRay(texture2D pyramid, ScreenRay ray, uint maxSteps, out vec2 hit, out
     RayReciprocals inverse = reciprocalsOf(ray);
     vec2 travel = sign(ray.step);
     vec2 farSide = max(travel, 0.0);
-    // The pixel that the walk stands in: the march's pixel at s. The cell of each level is the one that holds it, so
-    // the walk tests no pixel that the march does not visit, and skips only pixels before a slab entry.
+    // The pixel that the walk stands in: a pixel of the march whose stretch holds s, the one that the image enters at
+    // s after a crossing and the one that it leaves at s after a descent. The cell of each level is the one that holds
+    // it, so the walk tests no pixel that the march does not visit, and skips only pixels before a slab entry.
     vec2 pixel = floor(ray.start);
     vec2 crossed;
     float s = cellExit(ray, inverse, pixel, 1.0, farSide, crossed);

@@ -685,6 +685,10 @@ public sealed class ScreenRayTests
     [InlineData("across to the left", 23.5f, 4.5f, -8, 0, 12, 4)]
     [InlineData("down", 4.5f, -7.5f, 0, 8, 4, 3)]
     [InlineData("up", 4.5f, 23.5f, 0, -8, 4, 12)]
+    [InlineData("down and to the right", -7.5f, -7.5f, 8, 8, 3, 3)]
+    [InlineData("up and to the left", 23.5f, 23.5f, -8, -8, 12, 12)]
+    [InlineData("up and to the right", -7.5f, 23.5f, 8, -8, 3, 12)]
+    [InlineData("down and to the left", 23.5f, -7.5f, -8, 8, 12, 3)]
     public void ASlabEntryOnAPixelsEdgeInsideACellMeetsThePixelThatTheImageLeavesThere(
         string path,
         float startX,
@@ -695,10 +699,12 @@ public sealed class ScreenRayTests
         int surfaceY
     )
     {
-        // The image comes onto the screen from beyond it and enters the level-4 cell, the whole screen, at s = 0.9375.
-        // The ray's inverse depth falls to the surface's 0.5 at s = 1.4375, where the image leaves the surface's pixel
-        // across an edge inside every cell above level 0, so the march meets the pixel at the end of its stretch. The
-        // descent solves its slab entry exactly on that edge. Every number is a binary fraction, so the tie is exact.
+        // The walk climbs over the empty cells beyond the screen and crosses onto it at s = 0.9375, into the level-3
+        // cell that holds the surface's pixel. There it descends to the slab entry: the ray's inverse depth falls
+        // to the surface's 0.5 at s = 1.4375, where the image leaves the surface's pixel across an edge, or through a
+        // corner on a diagonal. That edge lies inside the level-3 cell and bounds the level-2 and level-1 cells of the
+        // surface's pixel, so the march meets the pixel at the end of its stretch, and the walk meets stretches of no
+        // length in those finer cells. Every number is a binary fraction, so the tie is exact.
         float[] inverseDepths = new float[16 * 16];
         inverseDepths[surfaceY * 16 + surfaceX] = 0.5f;
         var pyramid = DepthPyramid.FromInverseDepths(inverseDepths, width: 16, height: 16);
@@ -738,10 +744,10 @@ public sealed class ScreenRayTests
         int touchedY
     )
     {
-        // The walk climbs over empty cells and leaves the level-3 cell of pixels 0 to 7 across the line 8 at s = 0.9375.
-        // There the image passes exactly through a pixel corner inside the cell's edge, so the march leaves the cell
-        // diagonally into the entered pixel, and the touched pixel beside it meets the image only at that corner. Both
-        // see a surface at the ray's own inverse depth, which a stretch of no length still meets.
+        // The walk climbs over empty cells and leaves the level-2 cell of pixels 4 to 7 across the line 8 at
+        // s = 0.9375. There the image passes exactly through a pixel corner inside the cell's edge, so the march leaves
+        // the cell diagonally into the entered pixel, and the touched pixel beside it meets the image only at that
+        // corner. Both see a surface at the ray's own inverse depth, which a stretch of no length still meets.
         float[] inverseDepths = new float[16 * 16];
         inverseDepths[enteredY * 16 + enteredX] = 0.5f;
         inverseDepths[touchedY * 16 + touchedX] = 0.5f;
@@ -754,6 +760,11 @@ public sealed class ScreenRayTests
             End: 1.9f,
             EndsAt: SegmentEnd.ScreenEdge
         );
+
+        // The premise that tells the two pixels apart: a walk that stood in the touched pixel would hit it there.
+        ray.MeetPixel(pyramid: pyramid, pixel: new(touchedX, touchedY))
+            .Should()
+            .NotBeNull($"the image {path} meets ({touchedX}, {touchedY}) at its corner, a stretch of no length");
 
         RayTrace trace = ray.Trace(pyramid, MaxSteps);
 

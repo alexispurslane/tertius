@@ -153,8 +153,10 @@ internal readonly record struct ScreenRay(
     public RayTrace Trace(DepthPyramid pyramid, int maxSteps)
     {
         var travel = new Vector2(MathF.Sign(Step.X), MathF.Sign(Step.Y));
-        // The pixel that the walk stands in: the march's pixel at s. The cell of each level is the one that holds it,
-        // so the walk tests no pixel that the march does not visit, and skips only pixels before a slab entry.
+        // The pixel that the walk stands in: a pixel of the march whose stretch holds s, the one that the image enters
+        // at s after a crossing and the one that it leaves at s after a descent. The cell of each level is the one
+        // that holds it, so the walk tests no pixel that the march does not visit, and skips only pixels before a slab
+        // entry.
         Vector2 pixel = Floor(Start);
         (float s, Vector2 crossed) = CellExit(level: 0, cell: pixel, travel: travel);
         pixel += travel * crossed;
@@ -306,11 +308,11 @@ internal readonly record struct ScreenRay(
     }
 
     /// <summary>
-    /// The march's pixel at s, in a cell of a level: on each axis, the pixel whose near edge the image reaches at s or
-    /// before and whose far edge it reaches after s, by the quotients of <see cref="EdgeParameters"/> that the march's
-    /// steps compare. So a position that rounds across a pixel's corner does not move the walk off the march's pixels.
-    /// The position's rounding is far below a pixel, so floor(position) lies at most one pixel off on each axis.
-    /// Clamped into the cell, which holds that pixel whenever s lies in the cell.
+    /// The pixel that the image enters at s, in a cell of a level: on each axis, the pixel whose near edge the image
+    /// reaches at s or before and whose far edge it reaches after s, by the quotients of <see cref="EdgeParameters"/>
+    /// that the march's steps compare. So a position that rounds across a pixel's corner does not move the walk off the
+    /// march's pixels. The position's rounding is far below a pixel, so floor(position) lies at most one pixel off on
+    /// each axis. Clamped into the cell, which holds that pixel whenever s lies in the cell.
     /// </summary>
     private Vector2 PixelAt(int level, Vector2 cell, float s, Vector2 travel)
     {
@@ -323,8 +325,8 @@ internal readonly record struct ScreenRay(
     }
 
     /// <summary>On one axis, 1 when the image reaches a pixel's far edge at s or before, −1 when it reaches its near
-    /// edge after s, and 0 when s lies between: how many pixels on in the direction of travel the march's pixel lies.
-    /// </summary>
+    /// edge after s, and 0 when s lies between: how many pixels on in the direction of travel the pixel that the image
+    /// enters at s lies.</summary>
     private static float PixelShift(float entry, float exit, float s)
     {
         if (exit <= s)
