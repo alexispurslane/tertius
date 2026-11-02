@@ -1,0 +1,464 @@
+namespace Tertius.Rendering.Tests;
+
+/// <summary>
+/// <see cref="MapSearch"/>: where a reflected ray first goes behind the stored surfaces of a map, against analytic
+/// scenes, and the inverse distance that a half float stores (docs/plans/environment-map-distances.md, "The search, on
+/// the CPU"). The eye is the origin, and every position is in m.
+/// </summary>
+public sealed class MapSearchTests
+{
+    /// <summary>The face size of the default map, whose level-0 texel spans 2 / W rad at a face's center.</summary>
+    private const int FaceSize = 128;
+
+    /// <summary>α of the roughness floor: a mirror, whose reads all take level 0.</summary>
+    private static readonly double MirrorAlpha = new GgxLobe(0).Alpha;
+
+    [Fact]
+    public void ARayUnderAnOpenSkyReadsTheMapAlongItsOwnDirection()
+    {
+        (Double3 Position, Double3 Direction)[] rays =
+        [
+            (new(0, -1.5, -4), new Double3(0, 1.5, -4).Normalized()),
+            (new(0, 0, -5), Double3.UnitZ),
+            (new(3, 1, 2), new Double3(-1, 0.2, 0.4).Normalized()),
+        ];
+        foreach ((Double3 position, Double3 direction) in rays)
+        {
+            Scene sky = Scene.Sky;
+
+            MapHit hit = MapSearch.Hit(
+                field: ref sky,
+                position: position,
+                direction: direction,
+                alpha: 0.25,
+                faceSize: FaceSize
+            );
+
+            hit.Found.Should().BeFalse("no sample lies behind a sky whose every w is 0");
+            hit.Direction.Should().Be(direction, "the read without a hit is today's read, bit for bit");
+            hit.Reach.Should().Be(1);
+        }
+    }
+
+    [Fact]
+    public void ARayTowardAFarPlanetMovesOnlyByThePlanetsParallax()
+    {
+        const double planetDistance = 1e7;
+        const double planetRadius = 6.4e6;
+        var position = new Double3(0, -6, -8);
+        var direction = new Double3(0, 0, -1);
+        var planet = new Scene(new Sphere(Center: new(0, 0, -(planetDistance + planetRadius)), Radius: planetRadius));
+
+        MapHit hit = MapSearch.Hit(
+            field: ref planet,
+            position: position,
+            direction: direction,
+            alpha: MirrorAlpha,
+            faceSize: FaceSize
+        );
+
+        double sine = Double3.Cross(position.Normalized(), direction).Length;
+        double parallax = position.Length * sine / planetDistance;
+        Angle(hit.Direction, direction).Should().BeApproximately(parallax, 0.01 * parallax);
+    }
+
+    [Fact]
+    public void AFlatWallIsFoundExactlyByTheFirstSecantStep()
+    {
+        var wall = new Plane(Normal: Double3.UnitX, Offset: 4);
+        var position = new Double3(1, -1.5, -6);
+        Double3 direction = new Double3(1, 0.3, 0.2).Normalized();
+        var scene = new Scene(wall);
+
+        MapSearch.Hit(
+            field: ref scene,
+            position: position,
+            direction: direction,
+            alpha: MirrorAlpha,
+            faceSize: FaceSize
+        );
+
+        scene.Reads.Should().HaveCountGreaterThan(MapSearch.SecantSteps, "the march and the refinement read the wall");
+        Double3 meeting = position + (wall.Offset - position.X) / direction.X * direction;
+        // The refinement always takes SecantSteps reads after the march, so this is the first secant step's read.
+        Double3 firstSecantRead = scene.Reads[^MapSearch.SecantSteps].Direction;
+        Angle(firstSecantRead, meeting).Should().BeLessThan(1e-5, "the clearance is linear in the sweep on a plane");
+    }
+
+    [Fact]
+    public void ARayFindsTheBoxBeforeTheWallBehindIt()
+    {
+        var box = new Box(Min: new(-1, -1.7, -6), Max: new(1, -0.7, -5));
+        var scene = new Scene(
+            new Plane(Normal: new(0, -1, 0), Offset: 1.7),
+            new Plane(Normal: new(0, 0, -1), Offset: 10),
+            box
+        );
+        var onTheFloor = new Double3(0, -1.7, -4);
+        Double3 mirrored = new Double3(0, 1.7, -4).Normalized();
+
+        MapHit hit = MapSearch.Hit(
+            field: ref scene,
+            position: onTheFloor,
+            direction: mirrored,
+            alpha: MirrorAlpha,
+            faceSize: FaceSize
+        );
+
+        hit.Found.Should().BeTrue();
+        scene.Nearest(hit.Direction)!.Value.Surface.Should().BeSameAs(box);
+    }
+
+    [Fact]
+    public void ARayThatStartsBehindAStoredSurfaceCountsOnlyTheCrossingsAfterItComesOutInFront()
+    {
+        var panel = new Box(Min: new(-0.5, -0.5, -2.1), Max: new(0.5, 0.5, -2));
+        var sideWall = new Plane(Normal: Double3.UnitX, Offset: 3);
+        var scene = new Scene(panel, sideWall, new Plane(Normal: new(0, 0, -1), Offset: 5));
+        var hidden = new Double3(0, 0, -5);
+        Double3 direction = new Double3(1, 0, 0.3).Normalized();
+        scene.Nearest(hidden)!.Value.Surface.Should().BeSameAs(panel, "the shaded point lies behind the panel");
+
+        MapHit hit = MapSearch.Hit(
+            field: ref scene,
+            position: hidden,
+            direction: direction,
+            alpha: MirrorAlpha,
+            faceSize: FaceSize
+        );
+
+        hit.Found.Should().BeTrue();
+        scene
+            .Nearest(hit.Direction)!
+            .Value.Surface.Should()
+            .BeSameAs(sideWall, "the ray goes behind the panel before it comes out in front, and that does not count");
+    }
+
+    [Fact]
+    public void AMirrorThatFacesTheEyeReflectsWhatLiesBehindTheCamera()
+    {
+        // A room 8 m around the eye, and a mirror 5 m ahead that faces the eye: the ray goes back through the eye.
+        var scene = new Scene(new Sphere(Center: Double3.Zero, Radius: 8), new Plane(Normal: new(0, 0, -1), Offset: 5));
+
+        MapHit hit = MapSearch.Hit(
+            field: ref scene,
+            position: new(0, 0, -5),
+            direction: Double3.UnitZ,
+            alpha: MirrorAlpha,
+            faceSize: FaceSize
+        );
+
+        hit.Found.Should().BeTrue();
+        Angle(hit.Direction, Double3.UnitZ).Should().BeLessThan(1e-9, "the room's wall behind the camera");
+        hit.Reach.Should().BeApproximately(13.0 / 8, 1e-9, "13 m of ray to a wall 8 m from the eye");
+    }
+
+    [Fact]
+    public void ARayThroughTheEyeTakesNoReadThere()
+    {
+        var scene = new Scene(new Sphere(Center: Double3.Zero, Radius: 8), new Plane(Normal: new(0, 0, -1), Offset: 5));
+
+        MapSearch.Hit(
+            field: ref scene,
+            position: new(0, 0, -5),
+            direction: Double3.UnitZ,
+            alpha: MirrorAlpha,
+            faceSize: FaceSize
+        );
+
+        scene
+            .Reads.Should()
+            .OnlyContain(
+                read => read.Direction.Length >= 1.0 / 1024,
+                "a cube read along a zero vector is undefined, and the eye's neighborhood lies in front of every surface"
+            );
+    }
+
+    [Fact]
+    public void ARayThatPassesBehindANearPoleMeetsThePole()
+    {
+        // The pole's front spans |x| ≤ 0.3 m at 3 m, and the ray passes 0.4 m behind its back, parallel to the far wall.
+        const double poleHalfAngle = 0.1;
+        var scene = new Scene(
+            new Box(Min: new(-0.3, -10, -3.2), Max: new(0.3, 10, -3)),
+            new Plane(Normal: new(0, 0, -1), Offset: 30)
+        );
+
+        MapHit hit = MapSearch.Hit(
+            field: ref scene,
+            position: new(-1.5, 0, -3.6),
+            direction: Double3.UnitX,
+            alpha: MirrorAlpha,
+            faceSize: FaceSize
+        );
+
+        hit.Found.Should().BeTrue("the space behind the pole counts as solid");
+        double beyondThePole = Math.Atan(Math.Abs(hit.Direction.X / hit.Direction.Z)) - Math.Atan(poleHalfAngle);
+        beyondThePole.Should().BeLessThan(2.0 / FaceSize, "the hit lies within a level-0 texel of the pole's edge");
+    }
+
+    [Fact]
+    public void TheReachOfAHitIsItsDistanceFromTheShadedPointOverItsDistanceFromTheEye()
+    {
+        var position = new Double3(1, -1.2, -4);
+        Double3 direction = new Double3(0.3, 0.5, -1).Normalized();
+        var scene = new Scene(new Plane(Normal: new(0, 0, -1), Offset: 9));
+
+        MapHit hit = MapSearch.Hit(
+            field: ref scene,
+            position: position,
+            direction: direction,
+            alpha: MirrorAlpha,
+            faceSize: FaceSize
+        );
+
+        double rayLength = (9 + position.Z) / -direction.Z;
+        Double3 meeting = position + rayLength * direction;
+        hit.Reach.Should().BeApproximately(rayLength / meeting.Length, 1e-9);
+    }
+
+    [Fact]
+    public void AHitNearTheShadedPointIsReadSharperThanAHitFarAway()
+    {
+        const double roughness = 0.6;
+        var position = new Double3(0, -1.5, -4);
+        Double3 direction = new Double3(0, 0.5, -1).Normalized();
+        var nearWall = new Scene(new Plane(Normal: new(0, 0, -1), Offset: 4.9));
+        var farWall = new Scene(new Plane(Normal: new(0, 0, -1), Offset: 24));
+
+        MapHit near = MapSearch.Hit(
+            field: ref nearWall,
+            position: position,
+            direction: direction,
+            alpha: roughness * roughness,
+            faceSize: FaceSize
+        );
+        MapHit far = MapSearch.Hit(
+            field: ref farWall,
+            position: position,
+            direction: direction,
+            alpha: roughness * roughness,
+            faceSize: FaceSize
+        );
+
+        double rayLength = 0.9 / -direction.Z;
+        double reach = rayLength / (position + rayLength * direction).Length;
+        near.ReadRoughness(roughness).Should().BeApproximately(roughness * Math.Sqrt(reach), 1e-9);
+        near.ReadRoughness(roughness).Should().BeLessThan(far.ReadRoughness(roughness));
+    }
+
+    [Fact]
+    public void ARayThatMeetsNoSurfaceIsReadAtItsOwnRoughness()
+    {
+        Scene sky = Scene.Sky;
+
+        MapHit hit = MapSearch.Hit(
+            field: ref sky,
+            position: new(0, -1.5, -4),
+            direction: Double3.UnitY,
+            alpha: 0.37 * 0.37,
+            faceSize: FaceSize
+        );
+
+        hit.ReadRoughness(0.37).Should().Be(0.37, "the read without a hit is today's read");
+    }
+
+    [Fact]
+    public void AHitFartherFromTheShadedPointThanFromTheEyeIsReadNoRougherThanOne()
+    {
+        var scene = new Scene(new Sphere(Center: Double3.Zero, Radius: 8), new Plane(Normal: new(0, 0, -1), Offset: 5));
+
+        MapHit hit = MapSearch.Hit(
+            field: ref scene,
+            position: new(0, 0, -5),
+            direction: Double3.UnitZ,
+            alpha: 0.81,
+            faceSize: FaceSize
+        );
+
+        hit.ReadRoughness(0.9).Should().Be(1, "0.9 √(13 / 8) lies above the specular map's roughest level");
+    }
+
+    [Fact]
+    public void TheConeReadsLevelZeroNearTheShadedPointAndCoarserLevelsFartherAlongTheRay()
+    {
+        const double alpha = 0.04;
+        Scene sky = Scene.Sky;
+
+        MapSearch.Hit(
+            field: ref sky,
+            position: new(0, -1.5, -4),
+            direction: new Double3(0, 1.5, -4).Normalized(),
+            alpha: alpha,
+            faceSize: FaceSize
+        );
+
+        double[] levels = [.. sky.Reads.Select(read => read.Level)];
+        levels.Should().HaveCount(MapSearch.Samples, "a ray that meets nothing takes every march sample");
+        levels[0].Should().Be(0, "the cone's cross-section at the first sample is narrower than a level-0 texel");
+        levels.Should().BeInAscendingOrder();
+        levels[^1]
+            .Should()
+            .BeApproximately(
+                Math.Log2(MapSearch.ConeWidthPerAlpha * alpha * FaceSize / 2),
+                1e-9,
+                "at the ray's end the eye sees the lobe's own width"
+            );
+    }
+
+    [Fact]
+    public void TheInverseDistanceOfASurfaceIsAThousandMetersOverItsDistance() =>
+        MapSearch.InverseDistance(4).Should().Be(250);
+
+    [Fact]
+    public void ASurfaceAtTheNearPlaneHoldsAnInverseDistanceThatAHalfFloatHolds()
+    {
+        double nearest = MapSearch.InverseDistance(DepthRanges.NearPlane);
+
+        nearest.Should().BeApproximately(20_000, 1e-3);
+        nearest.Should().BeLessThan((double)Half.MaxValue);
+        ((double)(Half)nearest)
+            .Should()
+            .BeApproximately(nearest, nearest * Math.Pow(2, -11), "a normal half float rounds to 2⁻¹¹ of its value");
+    }
+
+    [Fact]
+    public void ASurfaceNearerThanTheNearPlaneHoldsTheNearPlanesInverseDistance() =>
+        MapSearch.InverseDistance(0.01).Should().Be(MapSearch.InverseDistance(DepthRanges.NearPlane));
+
+    [Fact]
+    public void ASurfaceBeyondTheHalfFloatsNormalRangeLosesUnderAHundredthOfATexelOfParallax()
+    {
+        // 16,500 km ahead: just beyond 16,400 km, where w falls below the half float's smallest normal value.
+        var surface = new Scene(new Plane(Normal: new(0, 0, -1), Offset: 1.65e7));
+        var position = new Double3(2_000, 0, 0);
+        var direction = new Double3(0, 0, -1);
+        Half.IsSubnormal((Half)surface.At(direction, level: 0)).Should().BeTrue();
+        var kept = new HalfStored(surface, flushesSubnormals: false);
+        var flushed = new HalfStored(surface, flushesSubnormals: true);
+
+        MapHit keptHit = MapSearch.Hit(
+            field: ref kept,
+            position: position,
+            direction: direction,
+            alpha: MirrorAlpha,
+            faceSize: FaceSize
+        );
+        MapHit flushedHit = MapSearch.Hit(
+            field: ref flushed,
+            position: position,
+            direction: direction,
+            alpha: MirrorAlpha,
+            faceSize: FaceSize
+        );
+
+        keptHit.Found.Should().BeTrue("a device that keeps the subnormal finds the surface");
+        Angle(keptHit.Direction, flushedHit.Direction).Should().BeLessThan(0.01 * 2.0 / FaceSize);
+    }
+
+    /// <summary>The angle between two directions, which need not be unit, in rad.</summary>
+    private static double Angle(Double3 a, Double3 b) => Math.Atan2(Double3.Cross(a, b).Length, Double3.Dot(a, b));
+
+    /// <summary>A surface of an analytic scene.</summary>
+    private interface ISurface
+    {
+        /// <summary>The distance in m from the eye to the surface along the unit direction, or null where it misses.</summary>
+        double? DistanceAlong(Double3 unit);
+    }
+
+    /// <summary>The plane of the points p with p · Normal = Offset, where Offset &gt; 0 m: a wall, a floor or a mirror.</summary>
+    private sealed record Plane(Double3 Normal, double Offset) : ISurface
+    {
+        public double? DistanceAlong(Double3 unit)
+        {
+            double cosine = Double3.Dot(unit, Normal);
+            return cosine > 0 ? Offset / cosine : null;
+        }
+    }
+
+    /// <summary>A box along the axes from Min to Max, which the eye sees from outside.</summary>
+    private sealed record Box(Double3 Min, Double3 Max) : ISurface
+    {
+        public double? DistanceAlong(Double3 unit)
+        {
+            double entry = 0;
+            double exit = double.PositiveInfinity;
+            (double Lower, double Upper, double Along)[] slabs =
+            [
+                (Min.X, Max.X, unit.X),
+                (Min.Y, Max.Y, unit.Y),
+                (Min.Z, Max.Z, unit.Z),
+            ];
+            foreach ((double lower, double upper, double along) in slabs)
+            {
+                if (along == 0)
+                {
+                    if (lower > 0 || upper < 0)
+                        return null;
+                    continue;
+                }
+                entry = Math.Max(entry, Math.Min(lower / along, upper / along));
+                exit = Math.Min(exit, Math.Max(lower / along, upper / along));
+            }
+            return entry <= exit ? entry : null;
+        }
+    }
+
+    /// <summary>A sphere, which the eye sees from outside, as a planet, or from inside, as a room.</summary>
+    private sealed record Sphere(Double3 Center, double Radius) : ISurface
+    {
+        public double? DistanceAlong(Double3 unit)
+        {
+            double along = Double3.Dot(unit, Center);
+            double discriminant = along * along - (Center.LengthSquared - Radius * Radius);
+            if (discriminant < 0)
+                return null;
+            double root = Math.Sqrt(discriminant);
+            if (along - root > 0)
+                return along - root;
+            return along + root > 0 ? along + root : null;
+        }
+    }
+
+    /// <summary>
+    /// An analytic map: the inverse distance of the nearest of its surfaces, 0 where none lies, at every level. It records
+    /// each read in <see cref="Reads"/>.
+    /// </summary>
+    private readonly struct Scene(params ISurface[] surfaces) : IInverseDistanceField
+    {
+        /// <summary>A map of open sky: every w is 0.</summary>
+        public static Scene Sky => new([]);
+
+        public List<(Double3 Direction, double Level)> Reads { get; } = [];
+
+        public double At(Double3 direction, double level)
+        {
+            Reads.Add((direction, level));
+            return Nearest(direction) is { Distance: var distance } ? MapSearch.InverseDistance(distance) : 0;
+        }
+
+        /// <summary>The surface that the eye sees along a direction, which need not be unit, and its distance in m.</summary>
+        public (ISurface Surface, double Distance)? Nearest(Double3 direction)
+        {
+            Double3 unit = direction.Normalized();
+            (ISurface Surface, double Distance)? nearest = null;
+            foreach (ISurface surface in surfaces)
+                if (
+                    surface.DistanceAlong(unit) is { } distance
+                    && !(nearest is { Distance: var held } && held <= distance)
+                )
+                    nearest = (surface, distance);
+            return nearest;
+        }
+    }
+
+    /// <summary>A scene as the distance cube stores it: each w rounded to a half float, its subnormals flushed to 0 or kept.</summary>
+    private readonly struct HalfStored(Scene scene, bool flushesSubnormals) : IInverseDistanceField
+    {
+        public double At(Double3 direction, double level)
+        {
+            var stored = (Half)scene.At(direction, level);
+            return flushesSubnormals && Half.IsSubnormal(stored) ? 0 : (double)stored;
+        }
+    }
+}
