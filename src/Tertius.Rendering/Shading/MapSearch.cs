@@ -39,11 +39,9 @@ internal static class MapSearch
     public const int Samples = 8;
 
     /// <summary>
-    /// t₀, the sweep of the march's first sample, before the even ones. Its point lies |x| / 63 from the shaded point, and
-    /// the eye sees it at most about 1/63 rad from x: about one level-0 texel, 2 / W rad, at the default W = 128. A nearer
-    /// hit falls in the shaded point's own texel, where the map cannot tell it from the shaded point's own surface. The
-    /// sample changes no hit of the even samples: in front, it is only an earlier front end, and behind, front first
-    /// ignores it. So it adds only the bracket from t₀ to 1 / N, the hit nearer than the first even sample.
+    /// t₀, the sweep of the march's first sample, before the even ones. Its point lies about one level-0 texel from x
+    /// at W = 128, the nearest place where the map can see a separate surface (docs/plans/environment-map-distances.md,
+    /// "The steps").
     /// </summary>
     public const double NearSample = 1.0 / 64;
 

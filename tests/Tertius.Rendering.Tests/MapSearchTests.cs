@@ -13,31 +13,33 @@ public sealed class MapSearchTests
     /// <summary>α of the roughness floor: a mirror, whose reads all take level 0.</summary>
     private static readonly double MirrorAlpha = new GgxLobe(0).Alpha;
 
-    [Fact]
-    public void ARayUnderAnOpenSkyReadsTheMapAlongItsOwnDirection()
+    [Theory]
+    [InlineData(0, -1.5, -4, 0, 1.5, -4)]
+    [InlineData(0, 0, -5, 0, 0, 1)]
+    [InlineData(3, 1, 2, -1, 0.2, 0.4)]
+    public void ARayUnderAnOpenSkyReadsTheMapAlongItsOwnDirection(
+        double x,
+        double y,
+        double z,
+        double alongX,
+        double alongY,
+        double alongZ
+    )
     {
-        (Double3 Position, Double3 Direction)[] rays =
-        [
-            (new(0, -1.5, -4), new Double3(0, 1.5, -4).Normalized()),
-            (new(0, 0, -5), Double3.UnitZ),
-            (new(3, 1, 2), new Double3(-1, 0.2, 0.4).Normalized()),
-        ];
-        foreach ((Double3 position, Double3 direction) in rays)
-        {
-            Scene sky = Scene.Sky;
+        Scene sky = Scene.Sky;
+        Double3 direction = new Double3(alongX, alongY, alongZ).Normalized();
 
-            MapHit hit = MapSearch.Hit(
-                field: ref sky,
-                position: position,
-                direction: direction,
-                alpha: 0.25,
-                faceSize: FaceSize
-            );
+        MapHit hit = MapSearch.Hit(
+            field: ref sky,
+            position: new(x, y, z),
+            direction: direction,
+            alpha: 0.25,
+            faceSize: FaceSize
+        );
 
-            hit.Found.Should().BeFalse("no sample lies behind a sky whose every w is 0");
-            hit.Direction.Should().Be(direction, "the read without a hit is today's read, bit for bit");
-            hit.Reach.Should().Be(1);
-        }
+        hit.Found.Should().BeFalse("no sample lies behind a sky whose every w is 0");
+        hit.Direction.Should().Be(direction, "the read without a hit is today's read, bit for bit");
+        hit.Reach.Should().Be(1);
     }
 
     [Fact]
@@ -136,6 +138,47 @@ public sealed class MapSearchTests
     }
 
     [Fact]
+    public void ARayThatGoesBehindANearBarBeforeItsFirstEvenSampleStopsBeforeThatSample()
+    {
+        // A bar floats between the eye and a floor point 4.35 m away. The ray's point at the near sample lies in front,
+        // and its point at the first even sample, t = 1/8, lies behind the bar. The even samples alone come out in front
+        // after the bar and find the far wall.
+        var bar = new Box(Min: new(-1, -0.9, -3), Max: new(1, -0.78, -2.9));
+        var scene = new Scene(
+            new Plane(Normal: new(0, -1, 0), Offset: 1.5),
+            new Plane(Normal: new(0, 0, -1), Offset: 9),
+            bar
+        );
+        var onTheFloor = new Double3(0, -1.5, -4.08);
+        Double3 mirrored = new Double3(0, 1.5, -4.08).Normalized();
+        Double3 nearPoint = onTheFloor + onTheFloor.Length / 63 * mirrored;
+        Double3 firstEvenPoint = onTheFloor + onTheFloor.Length / 7 * mirrored;
+        scene.Nearest(nearPoint)!.Value.Surface.Should().NotBeSameAs(bar, "the eye sees the near sample's point");
+        scene
+            .Nearest(firstEvenPoint)!
+            .Value.Surface.Should()
+            .BeSameAs(bar, "the bar hides the first even sample's point");
+
+        MapHit hit = MapSearch.Hit(
+            field: ref scene,
+            position: onTheFloor,
+            direction: mirrored,
+            alpha: MirrorAlpha,
+            faceSize: FaceSize
+        );
+
+        hit.Found.Should().BeTrue();
+        // The lookup vectors lie in one plane, so the two angles add up to the arc only for a hit between its ends.
+        (Angle(hit.Direction, nearPoint) + Angle(hit.Direction, firstEvenPoint))
+            .Should()
+            .BeApproximately(
+                Angle(nearPoint, firstEvenPoint),
+                1e-12,
+                "decision 16: the first crossing is the hit, and it lies between the two samples"
+            );
+    }
+
+    [Fact]
     public void ARayThatStartsBehindAStoredSurfaceCountsOnlyTheCrossingsAfterItComesOutInFront()
     {
         var panel = new Box(Min: new(-0.5, -0.5, -2.1), Max: new(0.5, 0.5, -2));
@@ -221,7 +264,9 @@ public sealed class MapSearchTests
 
         hit.Found.Should().BeTrue("the space behind the pole counts as solid");
         double beyondThePole = Math.Atan(Math.Abs(hit.Direction.X / hit.Direction.Z)) - Math.Atan(poleHalfAngle);
-        beyondThePole.Should().BeLessThan(2.0 / FaceSize, "the hit lies within a level-0 texel of the pole's edge");
+        Math.Abs(beyondThePole)
+            .Should()
+            .BeLessThan(2.0 / FaceSize, "the hit lies within a level-0 texel of the pole's edge");
     }
 
     [Fact]

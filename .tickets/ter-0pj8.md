@@ -12,7 +12,7 @@ tags: [rendering, reflections, environment-map]
 ---
 # The map's ray search in C#: MapSearch.Hit against an inverse distance field
 
-Ticket 1 of ter-jw7g's design (docs/plans/environment-map-distances.md, 'Ticket 1' and 'The search'). MapSearch.Hit and IInverseDistanceField: the march of 8 samples, the 3 regula falsi steps, the cone's level and the reach, against analytic test fields (the sky, a plane, a box before a wall, a pole before a wall, a far planet, a sphere room). Owns src/Tertius.Rendering/Shading/MapSearch.cs and tests/Tertius.Rendering.Tests/MapSearchTests.cs. Acceptance: tests 1 to 12 of the design pass in Checked and Release, each red first; Samples, SecantSteps and ConeWidthPerAlpha are named once.
+Ticket 1 of ter-jw7g's design (docs/plans/environment-map-distances.md, 'Ticket 1' and 'The search'). MapSearch.Hit and IInverseDistanceField: the march of a near sample and 8 even samples, the 3 regula falsi steps, the cone's level and the reach, against analytic test fields (the sky, a plane, a box before a wall, a pole before a wall, a far planet, a sphere room). Owns src/Tertius.Rendering/Shading/MapSearch.cs and tests/Tertius.Rendering.Tests/MapSearchTests.cs. Acceptance: tests 1 to 12 of the design pass in Checked and Release, each red first; Samples, NearSample, SecantSteps and ConeWidthPerAlpha are named once.
 
 
 ## Notes
@@ -42,7 +42,7 @@ ARCHITECTURE.md: no change. "Doc changes" names no change for ticket 1, and no e
 
 2026-11-02, builder, the near sample (the orchestrator's answer to the fork above): MapSearch.Hit takes one more sample before the even ones, at t0 = MapSearch.NearSample = 1/64, then the 8 even samples t = k / 8 with the same rules. Front first, the first bracket and the 3 regula falsi steps are unchanged. Each pixel reads the field at most N + K + 1 = 12 times.
 
-Why 1/64: the ray's point at t0 lies |x| / 63 from the shaded point, which the eye sees at most about 1/63 rad from x, about one level-0 texel at W = 128. A nearer hit falls in the shaded point's own texel. The near sample changes no hit of the even samples: in front, it is an earlier front end that a later front sample replaces, and behind, front first ignores it. It adds only the bracket [t0, 1/8].
+Why 1/64: the ray's point at t0 lies |x| / 63 from the shaded point, which the eye sees at most about 1/63 rad from x, about one level-0 texel at W = 128. A nearer hit falls in the shaded point's own texel. The near sample changes the result only where it lies in front and t = 1/8 lies behind: there the first crossing in [t0, 1/8] is the hit, in place of the even samples' later hit or their miss (corrected after the review, see the next note). Everywhere else the result is the even samples' result, bit for bit.
 
 Tests (20 now, green in Checked):
 - New: ARoughFloorsRayFindsTheBaseOfAWallNearerThanTheFirstEvenSample, a theory over walls 0.1, 0.3 and 0.5 m beyond a floor point 4.35 m from the eye, with α = 0.36. It asserts a hit within 10⁻⁹ rad of the ray's meeting with the wall, because the clearance is linear on a plane. Red first on all three gaps: "Expected boolean to be True ... but found False".
@@ -50,3 +50,15 @@ Tests (20 now, green in Checked):
 - Test 5, ARayThatStartsBehindAStoredSurfaceCountsOnlyTheCrossingsAfterItComesOutInFront, already covers a near sample behind: the point 5/63 m along its ray lies behind the panel. A comment now says so. No other test changed.
 
 Design doc: "The steps" (pseudocode, the start, no sample at t = 0, the march, the near sample's effect, the settled date and the two rejected forms), decision 15, decision A's table, "Cost" (12 reads), the tests list, "Known limits" (a hit nearer than |x| / 63 is lost), the C# sketch and ticket 3's work line for mapHit.
+
+**2026-11-02T14:10:25Z**
+
+2026-11-02, fixer, the review of the whole diff from 6c40880fa:
+- The claim that the near sample changes no hit of the even samples was false. It replaces a later even hit where the near sample lies in front and t = 1/8 lies behind. Corrected in the NearSample comment, in 'The steps' of the design doc and in the note above. New test ARayThatGoesBehindANearBarBeforeItsFirstEvenSampleStopsBeforeThatSample: a bar hides the ray's point at t = 1/8, and the hit lies between the near sample and t = 1/8 (decision 16), not on the far wall that the even samples alone find. It passed when written, because the near sample was already in the code. A Python port of the search outside the repo (/tmp/0pj8-fix) shows its red reason: without the near sample the hit lies on the far wall, about 17 level-0 texels beyond the bar's edge and outside the arc.
+- The bar test first asserted a hit within one level-0 texel of the bar's edge and failed: 0.031 rad, about 2 texels short, on the floor's side. Pure regula falsi converges slowly at a jump of the clearance when the front end's clearance is small, here c(t0) about 1/64. The port gives up to about 3 texels short in [t0, 1/8] and up to about 1.3 texels in [1/8, 1/4]. The code follows 'The steps', so 'Known limits' now records this. An Illinois step (halve the kept end's clearance) cut it to about 1 to 2.4 texels in the port. That changes decision 15, so it is not done here.
+- The NearSample comment is now 33 words and points to 'The steps'.
+- ARayThatPassesBehindANearPoleMeetsThePole now bounds the hit's distance from the pole's edge on both sides.
+- ARayUnderAnOpenSkyReadsTheMapAlongItsOwnDirection is a theory over its three rays, one search for each.
+- The design doc also qualifies 'The start' near a face's corner (up to about 3 texels there) and says in 'The measurement plan' that t0 stays at 1/64 for every N.
+- Follow-up ter-bytc: the specular lobe's cone has two owners with different widths, ReflectionCone and MapSearch.
+- Tests: 23 in MapSearchTests (the theories count each case).

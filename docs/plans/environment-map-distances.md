@@ -358,10 +358,10 @@ where
 
 The rules:
 
-- The start: the first sample is the near sample, t0 = 1/64. The ray's point at t0 lies |x| / 63 from the shaded point. The eye sees it at most about 1/63 rad from x, about one level-0 texel (2 / W rad) at the default W = 128. A nearer hit falls in the shaded point's own texel, where the map cannot tell the hit from the shaded point's own surface. So t0 is the nearest place where the map can see a separate surface.
+- The start: the first sample is the near sample, t0 = 1/64. The ray's point at t0 lies |x| / 63 from the shaded point. The eye sees it at most about 1/63 rad from x, about one level-0 texel (2 / W rad, the texel's angle at a face's center) at the default W = 128. A nearer hit falls in the shaded point's own texel, where the map cannot tell the hit from the shaded point's own surface. So t0 is the nearest place where the map can see a separate surface. Near a face's corner, a texel spans less angle, so there the near sample lies up to about 3 texels from x.
 - No sample at t = 0: there the shaded point lies on its own stored surface, and c is 0 up to rounding. A bracket from t = 0 would find the shaded point itself.
 - The march: the near sample, then 8 samples uniform in the sweep, t = k / 8, as the 2008 search steps uniformly along the segment between x̂ and d.
-- The near sample changes no hit that the even samples find. If it lies in front, it is only an earlier front end, and a later front sample replaces it. If it lies behind, front first ignores it, as for a ray that starts behind. Its only effect is the bracket [t0, 1/8] where t = 1/8 already lies behind a near surface. The clearance stays linear in the sweep on a plane, so one secant step still finds a plane exactly.
+- The near sample changes the result only where it lies in front and t = 1/N lies behind. There the first crossing lies in [t0, 1/N], and by decision 16 it is the hit, in place of the even samples' later hit or their miss. Everywhere else the result is the even samples' result, bit for bit: if the near sample lies behind, front first ignores it, and if t = 1/N also lies in front, that sample replaces it as the front end. The clearance stays linear in the sweep on a plane, so one secant step still finds a plane exactly.
 - Front first (decision 20): a sample behind the stored surfaces counts only after a sample in front. A ray that starts behind them searches from the place where it comes out in front.
 - The bracket: the first pair of a front sample and the next sample behind. A sample with c = 0 counts as in front. So the sky at t = 1, whose c is exactly 0, is never a crossing.
 - The refinement: 3 regula falsi steps, then one last secant interpolation without a read.
@@ -653,7 +653,7 @@ Ticket 4 follows docs/plans/rendering-performance.md, "Measuring the cost of a f
 2. Run `ter-f3g2`'s 120-frame windows, `time-deck` and `time-floor`, at 1920 × 1080. Run 7 interleaved rounds in a rotated order of base, control and branch. Run each under the GPU lock (`/tmp/tertius-gpu-measure.lock`), and record the 1-minute load at each start.
 3. Report the median frame span and each pass's mean for the three builds. The control's distance from the base is the noise.
 4. Take three interleaved traces, base, branch, base, with `tools/gpu-trace.sh --no-counters` over the deck window. They give the ambient pass's own time and the prefilter's. On this Mac, only a trace gives a pass's own time.
-5. Repeat steps 2 and 3 for the march's settings N ∈ {4, 6, 8, 12} and K ∈ {2, 3}. Measure the box table of "Tests" for each, so that the report shows cost against quality. A change of the defaults comes with both numbers.
+5. Repeat steps 2 and 3 for the march's settings N ∈ {4, 6, 8, 12} and K ∈ {2, 3}. The near sample stays at t0 = 1/64 for every N, so each pixel reads at most N + K + 1 times, and at N = 4 the near bracket spans [1/64, 1/4]. Measure the box table of "Tests" for each, so that the report shows cost against quality. A change of the defaults comes with both numbers.
 6. Run all of `demo-exit.json` twice on the branch for the face pass's and the prefilter's medians and p95, against the values in ARCHITECTURE.md, "Cost".
 
 ## Tests
@@ -675,7 +675,7 @@ The tests follow tests/STYLE.md: one behavior per test, named as a statement in 
 11. `ASurfaceAtTheNearPlaneHoldsAnInverseDistanceThatAHalfFloatHolds`: 20,000 km⁻¹, below 65,504.
 12. `ASurfaceBeyondTheHalfFloatsNormalRangeLosesUnderAHundredthOfATexelOfParallax`.
 
-Ticket 1 added `ARoughFloorsRayFindsTheBaseOfAWallNearerThanTheFirstEvenSample` for the near sample on 2026-11-02: a floor point 4.35 m from the eye finds a wall 0.1, 0.3 or 0.5 m ahead, within 10⁻⁹ rad of the ray's meeting with the wall. Test 10 counts the near sample among a sky ray's reads.
+Ticket 1 added two tests for the near sample on 2026-11-02. In `ARoughFloorsRayFindsTheBaseOfAWallNearerThanTheFirstEvenSample`, a floor point 4.35 m from the eye finds a wall 0.1, 0.3 or 0.5 m ahead, within 10⁻⁹ rad of the ray's meeting with the wall. In `ARayThatGoesBehindANearBarBeforeItsFirstEvenSampleStopsBeforeThatSample`, a bar hides the ray's point at t = 1/8 from the eye, and the hit lies between the near sample and t = 1/8, not on the far wall that the even samples alone find. Test 10 counts the near sample among a sky ray's reads.
 
 ### The distance cube, on the GPU
 
@@ -716,6 +716,7 @@ Ticket 4 renders the views of the box table at 1920 × 1080 in Release, with `te
 - The hit's light is the light that the stored surface sends toward the eye, not toward the shaded point. A glossy surface at the hit shows its highlights as the eye sees them, as the 2005 paper assumes.
 - A thin object between two march samples can be missed near the shaded point, where the reads are sharp. As the camera moves, its reflection can then appear and vanish.
 - A hit nearer the shaded point than the near sample, |x| / 63 along the ray, is lost. The eye sees it within about one level-0 texel of the shaded point at the default W = 128, about 8 texels at W = 1024. At W = 16 the near sample lies within an eighth of a texel, in the shaded point's own texel.
+- At a hard depth edge, such as a near object's silhouette at level 0, the clearance jumps, and the 3 regula falsi steps converge slowly from a front end whose clearance is small. The hit then stops short of the edge, on the side of the front end. In ticket 1's analytic scenes of a bar that hides part of a mirror ray from a floor, the hit lay up to about 3 level-0 texels short in the bracket [t0, 1/8], where c(t0) is about 1/64, and up to about 1.3 texels short in [1/8, 1/4]. The chain's levels and the bilinear skin make the edge a ramp, which shortens this for rough lobes.
 - The bilinear filter at level 0 gives a depth edge one texel of intermediate distance, which a ray can hit.
 - Under decision 26, the map's origin is the current eye. A face drawn while the eye stood elsewhere in the map's frame places its surfaces off by the eye's travel since then: up to ⌈6M / F⌉ − 1 frames of travel. Open question 1 asks whether each face keeps its own eye.
 - The diffuse term, the occlusion sectors' open share and the lit puffs keep the eye's view.
