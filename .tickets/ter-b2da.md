@@ -1,7 +1,7 @@
 ---
 id: ter-b2da
 status: open
-deps: []
+deps: [ter-jw7g]
 links: []
 created: 2026-11-01T16:01:19Z
 type: epic
