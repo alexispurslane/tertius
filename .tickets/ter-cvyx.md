@@ -2,7 +2,7 @@
 id: ter-cvyx
 status: open
 deps: []
-links: [ter-eqtb]
+links: [ter-eqtb, ter-pywg]
 created: 2026-11-02T17:32:29Z
 type: bug
 priority: 2
@@ -76,3 +76,67 @@ Cost (captures/cvyx/timing2/runs.txt, summary.txt): interleaved rounds in a rota
 | floor window | 8 | 2.35 ms | +0.046 | +0.028 | -0.007 (-0.029 to +0.064) | 5.2 to 9.9 |
 
 The cost lies within the control's spread on every window, and on the step view its interval lies inside the bound of 0.05 ms.
+
+**2026-11-02T21:07:01Z**
+
+2026-11-02, the hardening (on 163d4a741, no change to src).
+
+Coverage of the changed lines in src (tools/coverage/run.sh's command for Tertius.Rendering.Tests only, Debug and Release, then changed-lines.py --base 6c71a2943): 34/34 lines and 20/20 branches of ScreenRay.cs. Nothing uncovered. GLSL has no line coverage: the mutants below test it.
+
+Mutants (tools/mutate.py, /tmp/ter-cvyx-mutants.json, 31 rows). C# rows run *.ScreenRayTests* (with the nested RandomRays), GLSL rows run ReflectionShaderTests, ReflectionRenderTests and GrazingReflectionRenderTests. Six C# rows first failed to build (the analyzers reject a value that the mutant no longer reads, and unreachable code), so they were rewritten to compile with the same behavior (for example "* 0") and run again. C02, C08 and C14 were run again with --only after the new tests and gave killed. The table merges the three runs, the last result of each row:
+
+| id | place | change | result | killed by | s |
+|---|---|---|---|---|---:|
+| C01 | src/Tertius.Rendering/Shading/ScreenRay.cs:319 | PixelAt: no shift, floor(S(s)) alone | killed | ScreenRayTests.ACoarseCrossingWithinARoundingOfAPixelsCornerStandsInThePixelThatTheMarchEnters, ScreenRayTests.ASlabEntryWithinARoundingOfAPixelsCornerStandsInThePixelThatTheMarchEnters | 8.0 |
+| C02 | src/Tertius.Rendering/Shading/ScreenRay.cs:321 | PixelAt: no clamp into the cell | killed | ScreenRayTests.ASlabEntryOnItsCellsExitStaysInTheCellAndMeetsThePixelThatTheImageLeavesThere | 7.1 |
+| C03 | src/Tertius.Rendering/Shading/ScreenRay.cs:329 | PixelShift: exit <= s -> exit < s | survived |  | 7.3 |
+| C04 | src/Tertius.Rendering/Shading/ScreenRay.cs:331 | PixelShift: entry > s -> entry >= s | survived |  | 7.5 |
+| C07 | src/Tertius.Rendering/Shading/ScreenRay.cs:317 | PixelAt: near edge on the far side (travel's sign) | timeout |  | 122.4 |
+| C08 | src/Tertius.Rendering/Shading/ScreenRay.cs:354 | CellExit: a corner crosses only x, never diagonally | killed | ScreenRayTests.ARayThroughPixelCornersStepsDiagonallyAndNeverStandsInAPixelThatItTouchesOnlyAtACorner | 6.8 |
+| C10 | src/Tertius.Rendering/Shading/ScreenRay.cs:196 | Trace: a descent to an entry at s also moves the pixel | survived |  | 7.3 |
+| C11 | src/Tertius.Rendering/Shading/ScreenRay.cs:196 | Trace: a descent never moves the pixel | killed | ScreenRayTests.ARayThatADescentBringsInsideAPixelWhoseSurfaceBendsFindsThePixelThatTheMarchFinds, ScreenRayTests.EveryFloorPixelWhoseVanishingPointAPlanetCoversHitsThePlanet | 6.6 |
+| C12 | src/Tertius.Rendering/Shading/ScreenRay.cs:188 | Trace: a miss clamps into the old cell | timeout |  | 122.7 |
+| C13 | src/Tertius.Rendering/Shading/ScreenRay.cs:188 | Trace: a crossing takes floor(S(s)) on the uncrossed axis, no shift | killed | ScreenRayTests.ACoarseCrossingWithinARoundingOfAPixelsCornerStandsInThePixelThatTheMarchEnters | 6.6 |
+| C14 | src/Tertius.Rendering/Shading/ScreenRay.cs:197 | Trace: a descent takes floor(S(entry)), no shift | killed | ScreenRayTests.ASlabEntryWithinARoundingOfAPixelsCornerStandsInThePixelThatTheMarchEnters | 7.7 |
+| C15 | src/Tertius.Rendering/Shading/ScreenRay.cs:160 | Trace: the walk starts in the origin's pixel | killed | ScreenRayTests.ARayThatADescentBringsInsideAPixelWhoseSurfaceBendsFindsThePixelThatTheMarchFinds, ScreenRayTests.ARayRisingFromAFlatFloorDoesNotHitTheFloor, ScreenRayTests.ARayThatCrossesAPixelOnlyNearItsCornerFindsThePixelThatTheMarchFinds | 22.3 |
+| C16 | src/Tertius.Rendering/Shading/ScreenRay.cs:169 | Trace: the cell from the position at s, not the walk pixel | timeout |  | 123.8 |
+| C17 | src/Tertius.Rendering/Shading/ScreenRay.cs:240 | MeetPixel: the exit of the level-1 cell, not the pixel's | killed | ScreenRayTests.ARayThatComesDownOntoAFloorSeenAtAGrazingAngleHitsItsFrontWhereItCrossesIt, ScreenRayTests.ARayThatADescentBringsInsideAPixelWhoseSurfaceBendsFindsThePixelThatTheMarchFinds | 6.5 |
+| C19 | src/Tertius.Rendering/Shading/ScreenRay.cs:171 | Trace: the level-0 stretch from the walk's s and inW, not the pixel's entry edge (the old rule) | killed | ScreenRayTests.ARayThatADescentBringsInsideAPixelWhoseSurfaceBendsFindsThePixelThatTheMarchFinds, ScreenRayTests+RandomRays.TheTracesHitIsWhatItsPixelAloneGivesHoweverTheWalkReachedThePixel | 9.3 |
+| S01 | src/Tertius.Rendering/Shaders/reflection.glsl:144 | pixelAt: no shift, floor(S(s)) alone | survived |  | 54.9 |
+| S02 | src/Tertius.Rendering/Shaders/reflection.glsl:146 | pixelAt: no clamp into the cell | survived |  | 47.7 |
+| S03 | src/Tertius.Rendering/Shaders/reflection.glsl:144 | pixelAt: exit <= s -> < | survived |  | 48.7 |
+| S04 | src/Tertius.Rendering/Shaders/reflection.glsl:144 | pixelAt: entry > s -> >= | survived |  | 50.3 |
+| S05 | src/Tertius.Rendering/Shaders/reflection.glsl:129 | cellExit: a corner crosses only x, never diagonally | survived |  | 72.0 |
+| S06 | src/Tertius.Rendering/Shaders/reflection.glsl:280 | traceRay: a descent to an entry at s also moves the pixel | survived |  | 55.0 |
+| S07 | src/Tertius.Rendering/Shaders/reflection.glsl:280 | traceRay: a descent never moves the pixel | killed | ReflectionRenderTests.AFarPlanetShowsInANearMirror | 48.7 |
+| S08 | src/Tertius.Rendering/Shaders/reflection.glsl:279 | traceRay: a miss clamps into the old cell | killed | GrazingReflectionRenderTests.AMirrorBallReflectsAGlowingFloorThatTheEyeSeesAtAGrazingAngleWithNoBands, ReflectionShaderTests.EachTexelOfTheHalfResolutionTraceHoldsTheRayOfItsRepresentativePixel, ReflectionShaderTests.EachTexelOfTheHalfTraceHoldsNoRayOrAMissOfZerosOrAHitAtItsDepthWhoseCoverageAHalfFloatHoldsAsANormal | 45.7 |
+| S09 | src/Tertius.Rendering/Shaders/reflection.glsl:256 | traceRay: the cell from the position at s, not the walk pixel | killed | GrazingReflectionRenderTests.AMirrorBallReflectsBallsOnAFloorThatTheEyeSeesAtAGrazingAngleWithNoDottedLines, GrazingReflectionRenderTests.AMirrorBallReflectsAGlowingFloorThatTheEyeSeesAtAGrazingAngleWithNoBands, ReflectionShaderTests.EachTexelOfTheHalfResolutionTraceHoldsTheRayOfItsRepresentativePixel | 48.4 |
+| S10 | src/Tertius.Rendering/Shaders/reflection.glsl:247 | traceRay: the walk starts in the origin's pixel | killed | GrazingReflectionRenderTests.AMirrorBallReflectsAGlowingFloorThatTheEyeSeesAtAGrazingAngleWithNoBands | 48.7 |
+| S12 | src/Tertius.Rendering/Shaders/reflection.glsl:165 | pixelEntry: a division, not the reciprocals | survived |  | 49.4 |
+| S13 | src/Tertius.Rendering/Shaders/reflection.glsl:211 | meetsPixelSurface: the exit of the level-1 cell, not the pixel's | survived |  | 48.1 |
+| S14 | src/Tertius.Rendering/Shaders/reflection.glsl:141 | pixelAt: near edge on the far side (travel's sign) | killed | GrazingReflectionRenderTests.AMirrorBallReflectsBallsOnAFloorThatTheEyeSeesAtAGrazingAngleWithNoDottedLines, GrazingReflectionRenderTests.AMirrorBallReflectsAGlowingFloorThatTheEyeSeesAtAGrazingAngleWithNoBands, ReflectionShaderTests.EachTexelOfTheHalfResolutionTraceHoldsTheRayOfItsRepresentativePixel | 126.7 |
+| S15 | src/Tertius.Rendering/Shaders/reflection.glsl:200 | traceRay: the level-0 stretch from the walk's s and inW, not the pixel's entry edge (the old rule) | survived |  | 67.7 |
+| S16 | src/Tertius.Rendering/Shaders/reflection.glsl:206 | meetsPixelSurface: no beyondTheScreen guard | survived |  | 77.5 |
+| S17 | src/Tertius.Rendering/Shaders/reflection.glsl:159 | tracedCellBounds: no beyondTheScreen guard | survived |  | 54.6 |
+31 rows: killed 14, timeout 3, survived 14, no-coverage 0, build-failed 0, no-tests 0, no-mutant 0, removed 0
+
+The three timeouts (C07, C12, C16) are walks that stop moving, so RandomRays runs each ray to its 1,000,000 steps. The baseline of the same class takes 3.5 s.
+
+Triage of the 14 survivors:
+- C03, C04, S03, S04 (the shift's boundaries, exit <= s and entry > s): judgment call, pending ter-pywg. They change only an exact tie of s with a pixel's edge, where they put the walk in the pixel that the image leaves at s. The one tie that tells them apart is the defect ter-pywg (below). By a reading of the code (not run), C04 puts the walk there in the pixel that the march hits, and the code under test does not. So no test that agrees with the march can kill them now. The fix of ter-pywg decides the boundary and brings its test.
+- C10, S06 (a descent to an entry at s also moves the pixel): equivalent. The walk's pixel always comes from PixelAt at the current s (the start pixel only at level 0, where no descent happens), and s changes only together with the pixel or to an entry at or below s. PixelAt at the same s gives the same pixel before the clamp, and the clamp into the child cell that holds the kept pixel gives the kept pixel back on each axis. So the decision "an entry at s keeps the pixel" has no behavior to lock in: it saves one PixelAt.
+- S01, S02, S05 (pixelAt without the shift, without the clamp; the corner tie in cellExit): judgment call. Their C# twins C01, C02 and C08 are killed by ACoarseCrossingWithinARoundingOfAPixelsCornerStandsInThePixelThatTheMarchEnters, ASlabEntryWithinARoundingOfAPixelsCornerStandsInThePixelThatTheMarchEnters, ASlabEntryOnItsCellsExitStaysInTheCellAndMeetsThePixelThatTheImageLeavesThere and ARayThroughPixelCornersStepsDiagonallyAndNeverStandsInAPixelThatItTouchesOnlyAtACorner. Each case needs a ray within a rounding of a pixel's corner or edge, and no GPU harness runs a chosen ray through traceRay or compares hit pixels ray by ray: ReflectionShaderTests compares the colors of tile insides with a reach of 2 pixels, which a one-pixel slip at a corner does not change. A GPU harness for hand-built rays costs a new compute entry point and a readback of hit pixels, more than these rows are worth while the C# copy carries the cases.
+- S12 (pixelEntry by a division, not the reciprocals): judgment call. The quotient and the product with the reciprocal differ by at most a rounding, which moves a pixel's entry off its neighbor's exit only for a ray within a rounding of an edge. No GPU harness traces such a ray, and the C# copy divides everywhere, so it has no twin.
+- S13 (meetsPixelSurface's exit from the level-1 cell): judgment call. Its C# twin C17 is killed by ARayThatComesDownOntoAFloorSeenAtAGrazingAngleHitsItsFrontWhereItCrossesIt and the kind-1 regressions. On the GPU tests' scenes the longer stretch moves a hit by less than the tile reach.
+- S15 (the level-0 stretch from the walk's s and inW, the rule before ter-cvyx): judgment call. Its C# twin C19 is killed by the three kind-1 regressions and by the new TheTracesHitIsWhatItsPixelAloneGivesHoweverTheWalkReachedThePixel. The kind-1 rays are C# rays in a C# scene, about 1 in 50,000 random rays, which no GPU frame of the tests reproduces.
+- S16, S17 (no beyondTheScreen guard before a texelFetch in meetsPixelSurface and tracedCellBounds): judgment call. Without the guard, texelFetch reads outside the image, which the Vulkan spec leaves undefined without robustImageAccess. On this device the read gives no surface, so every test passes and no test can tell. The guard is there for the spec (CLAUDE.md: write to the Vulkan spec), and review keeps it.
+
+New tests in ScreenRayTests, each red on its mutant first by the table:
+- ASlabEntryWithinARoundingOfAPixelsCornerStandsInThePixelThatTheMarchEnters: the coarse-crossing ray of the review's finding 1, with an inverse depth that falls to the surface inside the 5e-8 sliver of pixel (8, 8). The descent's position rounds to y = 9. Kills C01 and C14.
+- ASlabEntryOnItsCellsExitStaysInTheCellAndMeetsThePixelThatTheImageLeavesThere: exact binary fractions, the slab entry on a level-3 cell's exit. Kills C02.
+- ARayThroughPixelCornersStepsDiagonallyAndNeverStandsInAPixelThatItTouchesOnlyAtACorner: 45° through exact corners, with surfaces on every pixel beside the diagonal. Kills C08.
+- RandomRays.TheTracesHitIsWhatItsPixelAloneGivesHoweverTheWalkReachedThePixel: 100,000 random rays (seed 20261102), the hit's position and q equal MeetPixel of its pixel. Kills C19.
+
+Defect found (not fixed, src unchanged): ter-pywg. A slab entry exactly on an edge between two pixels inside a cell puts the walk in the later pixel, while the march meets the earlier pixel at the end of its stretch. Reproduction in the ticket: the march gives (3, 4, 0), the trace leaves the segment after 6 steps. The test is not committed, because it is red on this branch.
+
+Checked: dotnet build Tertius.slnx -c Checked, then dotnet test --solution Tertius.slnx -c Checked: 9,972 passed, 0 failed (Rendering 2,384, 1 skipped).
