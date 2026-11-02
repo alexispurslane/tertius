@@ -167,7 +167,6 @@ internal static class SectorSearch
                     continue;
                 if (ownSurface.LeavesOut(read))
                     continue;
-                (double X, double Y) towardPlace = (X: sign * (exact.X - nearest.X), Y: sign * (exact.Y - nearest.Y));
                 PixelSurface surface = TexelSurface(
                     texel: stepTexel,
                     read: read,
@@ -175,11 +174,11 @@ internal static class SectorSearch
                     texelAt: texelAt,
                     halfSize: halfSize
                 );
-                // The surface's inverse depth is positive at every place of the texel's square: the part reaches only
-                // toward a neighbor whose center lies within 1 % of the plane, and the surface is constant past it.
-                float inverseDepth = surface.InverseDepthAt(
-                    new((float)(stepTexel.X + towardPlace.X), (float)(stepTexel.Y + towardPlace.Y))
-                );
+                // The exact place in the texel grid, within half a texel of the step's texel on each axis. The surface's
+                // inverse depth is positive everywhere on the texel's square: the part reaches only toward a neighbor
+                // whose center lies within 1 % of the plane, and the surface is constant past it.
+                Vector2 place = new((float)(texel.X + sign * exact.X), (float)(texel.Y + sign * exact.Y));
+                float inverseDepth = surface.InverseDepthAt(place);
                 Double3 position = rayThrough((X: texel.X + sign * exact.X, Y: texel.Y + sign * exact.Y)) / inverseDepth;
                 steps.Add(
                     new(

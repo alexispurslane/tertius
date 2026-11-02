@@ -219,11 +219,10 @@ blocked = run(0, floor(32 · m(γ_g − π/2) + ½))  |  run(floor(32 · m(γ_g 
 
 for each step:
 t   = round(x)                                   the texel nearest the exact place, whose depth, plane and light the step reads
-s_f = r(x) · dot(n_g(2t), P(t)) / dot(n_g(2t), r(x))     the step's surface point on the slice, view space
-d   = {z(t), z(t + (sgn(x − t)_x, 0)), z(t + (0, sgn(x − t)_y))}     the depths around the exact place
+S_t(y) = w(t) + g(t) · (clamp(y, low(t), high(t)) − t)     the texel's surface: its plane in the texel grid, as an inverse depth
+s_f = r(x) / S_t(x)                              the step's surface point on the slice, view space
 s_b = s_f · (1 + κ)                              the back of its slab: the same view ray, at the view depth z (1 + κ)
-s_f = P(t) in its place when the view depth of s_f lies outside [b · min d, max d / b]
-skip the step when t lies outside the image or on sky, when the quotient of s_f is not positive, or when |s_f − c| ≥ R
+skip the step when t lies outside the image or on sky, or when |s_f − c| ≥ R
 θ_f = σ · acos(clamp(dot(normalize(s_f − c), V̂), −1, 1))
 θ_b = σ · acos(clamp(dot(normalize(s_b − c), V̂), −1, 1))
 sectors = run(floor(32 · m(min(θ_f, θ_b)) + ½),  floor(32 · m(max(θ_f, θ_b)) + ½))
@@ -237,10 +236,9 @@ where
 - `x` = the step's exact place on the slice line, in half-resolution texels: the center texel plus σ times the offset of `gtaoExactStepOffset`, before any snap.
 - `r(x)` = the view ray, whose z is 1, through the exact place.
 - `P(t)` = the view position of texel t's representative pixel at its view depth, `gtaoTexelPosition`.
-- `s_f` = where the view ray through the exact place meets the plane of the texel's surface, `stepSurfacePoint`. It lies on the slice, since every view ray through a place on the slice line lies in the slice plane. A quotient that is not positive means the ray meets that plane only behind the eye or never: the surface does not reach the slice there, and the step blocks nothing, as a step on sky.
-- `z(t)` = the view depth of a half-resolution texel, `viewDepthAt`: `SkyDepth` for sky, and the border texel's for a texel outside the image.
-- `d` = the depths around the exact place, `depthsAround`: those of t and of t's two neighbors toward x, along the row and along the column. `sgn` is −1, 0 or 1, so on an axis where x and t agree the neighbor is t itself.
-- `b` = `CenterBias`, 0.99999: the depths' own precision widens the range by 10⁻⁵ of a depth on each side.
+- `S_t` = the surface of texel t, `texelSurface` in `texel_surface.glsl`: the reflections' rule for a pixel's surface, in the texel grid (docs/plans/screen-space-reflections.md, "The pixel's surface"). `w(t)` = 1 / z(t), and `g(t)` = (4 t_x n_x / W, −4 t_y n_y / H) / dot(n_g(2t), P(t)), with n = n_g(2t), 0 for an edge-on plane (`texelPlane`). `low(t)` and `high(t)` = t ∓ ½ on each axis toward a neighbor that continues the plane, and t toward one that does not: the depth pass's continuation flags of t (`continuationFlags`). A neighbor continues the plane where it lies beyond the image, or where it sees a surface and each plane holds the other texel's center within 1 % in inverse depth (`planesContinue`). Sky does not.
+- `s_f` = where the view ray through the exact place meets the texel's surface, `stepSurfacePoint`. It lies on the slice, since every view ray through a place on the slice line lies in the slice plane. S_t is positive everywhere on t's square, because the part reaches only toward a neighbor whose center lies within 1 % of the plane.
+- `z(t)` = the view depth of a half-resolution texel, from the depth pass's copy: `SkyDepth` for sky.
 - `σ` = the side of the step. A step on the plus side lies on ô's side of V̂, so its angles are positive.
 - `run(a, b)` = the bits from a to b − 1, none when b ≤ a.
 - `blocked` = the slice's sector mask: before its first step, the sectors whose centers lie below the receiver's geometric plane (decision 39).
@@ -254,7 +252,14 @@ where
 
 Why the surface point lies on the slice (`ter-rxjr`). GTAO's step reads the texel nearest its exact place, and XeGTAO measures that texel's own point, P(t). P(t) lies off the slice plane by up to half a texel's diagonal on the screen, and θ is the angle of its full direction from V̂. On a floor seen at a grazing angle, one texel row spans several texel widths of floor in depth. So a texel one row nearer the eye than the slice line holds a floor point whose direction lies well inside the hemisphere, though the floor's own line in the slice is the hemisphere's edge. The slab of that step then blocks a run of sectors at the edge of the slice, and CenterBias lifts the center a little above the floor, so the step faces the center and gives it the floor's own light. On a sunlit flat floor at 640 × 360, 4,293 of 26,000 floor texels blocked sectors, and the bounce reached 1.2 % of the floor's direct light. A projection of P(t) onto the slice plane at right angles does not remove it: the projection of a floor point leaves the floor, and the largest bounce that remained fell only from 1.15 × 10⁻³ to 0.89 × 10⁻³. The step's surface point on the slice, the meeting of the exact ray and the texel's plane, lies on the floor for every floor step, so a floor step's angle is the floor's own edge, up to the lift of CenterBias, and it blocks nothing above the floor. A curved surface keeps the texel's tangent plane over at most half a texel's diagonal. The step reads the normal of its texel for every step, before the radius, not only for a step that blocks.
 
-Why the surface point lies between the depths around its exact place (`ter-y1s7`). The plane of the texel's surface is the surface only near the texel. At a convex edge, the texel t can lie on a side face S that the eye sees nearly edge-on, while the exact place lies over the front face F. The exact ray then crosses S's plane in front of F, so s_f floats in the air before F, and its slab blocks sectors above F that nothing blocks. A box whose front face is the plane z = 5 m and whose side face, the plane x = 0.5 m, the eye sees about 6° off its view rays, under a level camera at 640 × 360 and the default setting: 31 of 8,460 texels of F blocked 1 to 6 of the 32 sectors of a slice, up to about 51° above F's plane and up to 0.182 m from the edge, on the CPU and on the GPU alike. The depth image tells where the plane holds: a plane's 1 / z is an affine function of the screen position, so its depth at any point of a triangle of texels lies between its depths at the triangle's corners. The exact place lies within half a texel of t on each axis, so it lies inside the triangle of t and its two neighbors toward it, along the row and along the column. Where one surface's plane covers the three texels, s_f lies between their depths; where it does not, as before F, s_f lies outside them, and the step stands at P(t), the real point that it read, XeGTAO's point. So a step stands on its slice where the depth image supports its texel's plane, and otherwise at the nearest real surface sample that it read. P(t) never floats in the air: beside the convex edge it lies on S, behind F's plane, and blocks nothing above F. Its only fault is ter-rxjr's, a point off the slice by up to half a texel's diagonal, which a floor never meets, since a floor's plane holds at every step. A step that blocked nothing in place of P(t) failed a texel whose normal disagrees with its depth: an impostor writes its quad's facing as its geometric normal while its depth has the real shape (`impostor.frag`), so most of its steps fell outside the depths around them, and the floor beside an impostor of a box rose to 0.11 above the V beside the box itself (`TheGroundBesideAnImpostorDarkensAsBesideItsGeometry`, at most 0.05). With P(t), it stays within 0.02. The impostor's normal is a ticket of its own. The triangle is the fewest reads that keep every plane: two texels hold the exact place only on the segment between them, which the slice line rarely crosses, and the four texels of a bilinear footprint need one read more for the same guarantee. t's own depth is read already, so the rule costs two depth reads per step. The range is widened by the depths' precision, the 10⁻⁵ of `CenterBias`. Without it, a wall square to the view has one depth at all three texels, and the rounding of its decoded normal puts s_f about 10⁻⁷ of the depth in front of the wall or beyond it, so about half its steps would stand at P(t), off their slice, at random. With the camera, a floor and such a wall turned together by 63° about the vertical, the blocked sectors of all the masks were 191,274 straight and 191,314 turned without the widening, and 191,273 turned with it. Had a rejected step blocked nothing, the loss was larger: 170,093 of 186,022 at 20°. Sky counts with its depth, `SkyDepth`, so the plane of a surface beside the sky is kept up to half a texel toward it (see "Known limits"). The faces-away blocker of `TheSectorPassGathersWhatTheCSharpCopyGathers`, the low box's top extended over its front face, was this defect: the test now takes the floor behind the plane of the box's front face, whose genuine steps on that face face away from it.
+Where the texel's plane holds (`ter-y1s7`, then `ter-ipc1`). The plane of the texel's surface is the surface only near the texel. At a convex edge, the texel t can lie on a side face S that the eye sees nearly edge-on, while the exact place lies over the front face F. The exact ray then crosses S's plane in front of F, so a point on S's plane floats in the air before F, and its slab blocks sectors above F that nothing blocks. A box whose front face is the plane z = 5 m and whose side face, the plane x = 0.5 m, the eye sees about 6° off its view rays, under a level camera at 640 × 360 and the default setting: 31 of 8,460 texels of F blocked 1 to 6 of the 32 sectors of a slice, up to about 51° above F's plane and up to 0.182 m from the edge.
+
+- `ter-y1s7` kept the plane where its depth at the exact place lay between the depths of t and its two neighbors toward the place, widened by `CenterBias`, and otherwise stood the step at P(t), off its slice by up to half a texel's diagonal. Sky counted as 10¹⁸ m, so a plane beside the sky reached up to half a texel toward it.
+- `ter-ipc1` (the user's choice of 2026-11-02) replaced that rule with the reflections' rule, so one rule decides where a depth sample's plane holds, for a pixel and for a texel. The plane reaches toward a neighbor only where the two planes continue each other, and past its part the surface keeps the plane's value at the part's edge. The step stays on its exact ray in every case, so ter-rxjr's fault, a point off the slice, is gone too.
+- Beside the convex edge, S's plane does not continue into F's texel, so the step on S stands at S's center-line value, behind F's plane, and blocks nothing above F (`ConvexEdgeSectorsTests`).
+- An impostor writes its quad's facing as its geometric normal while its depth has the real shape (`impostor.frag`). Its neighbors' planes rarely continue each other, so its steps stand at their texels' center-line values, near the real depth, and the floor beside an impostor of a box stays within 0.05 of the V beside the box itself (`TheGroundBesideAnImpostorDarkensAsBesideItsGeometry`).
+- Toward the sky, or toward a neighbor whose plane does not continue its own, a step stands at its texel's center-line value. At a floor's outline against the sky, the last floor row stands up to half a texel above the floor and can block a few sectors of a receiver within the radius. On the sunlit floor of `BounceLightRenderTests` before the denoise, 136 of 26,000 floor texels near the outline block sectors, down to an open share of 0.88 at most (`AFlatFloorAloneBlocksNothingAwayFromItsOutlineAgainstTheSkyAndBouncesNothingOnItself`). The denoised images of the captured views change in at most 0.003 % of their pixels.
+- The occlusion depth pass tests the four neighbors of each texel once per frame and stores the answers as four bits (`OcclusionImages.Continuation`, R8_UINT). A step reads its texel's byte in place of two neighbors' copies and planes. `SectorSearch.TexelSurface`, the C# copy, tests the neighbors directly.
 
 The receiver's own surface comes first, so a step gives no light to a direction below it. The two sides of a step index run in XeGTAO's order, plus side first. A step adds light only to the sectors that no nearer step has blocked, so the nearest blocker of each direction owns it. The back point lies on the step's own view ray, so it stays on the step's side of V̂. As z grows along that ray, the direction from c turns away from the eye, so the run reaches from the surface's angle toward the edge of the hemisphere on that side.
 
@@ -431,40 +436,17 @@ SectorRun ownSurfaceRun(SliceGeometry g, vec3 geometricNormal)
                                       : runBetween(g, planeAngle + GtaoHalfPi, g.normalAngle + GtaoHalfPi);
 }
 
-// The least and the greatest view depth of the texels around a step's exact place: its texel t, at tDepth, and t's two
-// neighbors toward the place, along the row and along the column, whose triangle holds the place (ter-y1s7).
-vec2 depthsAround(ivec2 t, float tDepth, vec2 towardPlace)
-{
-    ivec2 across = ivec2(sign(towardPlace));
-    float alongRow = viewDepthAt(t + ivec2(across.x, 0));
-    float alongColumn = viewDepthAt(t + ivec2(0, across.y));
-    return vec2(min(tDepth, min(alongRow, alongColumn)), max(tDepth, max(alongRow, alongColumn)));
-}
-
-// s_f: where the view ray through a step's exact place meets the plane of its texel's surface (ter-rxjr). False where
-// the ray meets the plane only behind the eye, never, or at a view depth of farthestDepth or more. texelPosition, P(t),
-// at a view depth outside the depths around the exact place widened by 1 − CenterBias (ter-y1s7).
-bool stepSurfacePoint(vec3 exactRay, vec3 texelPosition, vec3 texelNormal, vec2 depthsAround, float farthestDepth,
+// s_f: where the view ray through a step's exact place meets the surface of its texel t (ter-rxjr, ter-ipc1): t's plane
+// over the part of its square that reaches toward each neighbor that continues it, read with the depth pass's
+// continuation flags of t (texel_surface.glsl). False at a view depth of farthestDepth or more.
+bool stepSurfacePoint(ivec2 t, uvec2 depthAndNormal, vec2 towardPlace, vec3 exactRay, float farthestDepth,
                       out vec3 point)
 {
-    float planeOffset = dot(texelNormal, texelPosition);
-    float rayAlongNormal = dot(texelNormal, exactRay);
-    bool inFront = planeOffset * rayAlongNormal > 0.0;
-    float depthTimesRay = abs(planeOffset);
-    float rayLength = abs(rayAlongNormal);
-    bool betweenAround = depthTimesRay >= rayLength * depthsAround.x * CenterBias
-                         && depthTimesRay <= rayLength * depthsAround.y / CenterBias;
-    if (!inFront)
+    point = vec3(0.0);
+    float w = surfaceW(texelSurface(t, depthAndNormal, continuationAt(t)), vec2(t) + towardPlace);
+    if (!(w * farthestDepth > 1.0))
         return false;
-    // The plane does not reach the place: the step stands at the real point that it read, P(t).
-    if (!betweenAround)
-    {
-        point = texelPosition;
-        return true;
-    }
-    if (!(depthTimesRay < rayLength * farthestDepth))
-        return false;
-    point = exactRay * (planeOffset / rayAlongNormal);
+    point = exactRay / w;
     return true;
 }
 
@@ -816,9 +798,10 @@ The host's `--screen-space-light off|<meters>` gives `NoScreenSpaceLight` or `Vi
 | The copy of the bounce source (decision 25, "The bounce source") | R16G16B16A16_SFLOAT | Half | 4,147,200 B | Storage, transfer source | `OcclusionImages.Source` | The same |
 | The copy of the geometric normal (decision 25) | R16G16_SNORM, octahedral | Half | 2,073,600 B | Storage, transfer source | `OcclusionImages.GeometricNormal` | The same |
 | The edges image | R8_UNORM | Half | 518,400 B | Storage | `OcclusionImages` | The same |
+| The continuation flags (`ter-ipc1`) | R8_UINT | Half | 518,400 B | Storage | `OcclusionImages` | New |
 | Term A, term B | R16G16B16A16_SFLOAT | Half | 4,147,200 B each | Storage | `OcclusionImages` | The same |
 
-The masks live in registers only, one word per slice in the sectors pass, so no buffer holds them. Under `VisibilityBitmaskLight` the bounce takes 50.3 MB with the two copies of decision 25. Before decision 40, the sector masks buffer took 6.2 MB more, and the depth pyramid 11.2 MB more when the reflections were off. GTAO took 6.74 MB. Under `NoScreenSpaceLight` the direct image and the estimate target take 33.2 MB, where the occlusion target took 2.07 MB (fork 3). `RenderTargets` checks R16G16B16A16_SFLOAT for color attachment, sampling, storage and transfer, which the spec's table of required formats guarantees. `OcclusionImages` keeps its check of storage for R32_SFLOAT and R8_UNORM, and checks R16G16B16A16_SFLOAT and R16G16_SNORM for the copies.
+The masks live in registers only, one word per slice in the sectors pass, so no buffer holds them. Under `VisibilityBitmaskLight` the bounce takes 50.3 MB with the two copies of decision 25, and 50.8 MB with the continuation flags of `ter-ipc1`. Before decision 40, the sector masks buffer took 6.2 MB more, and the depth pyramid 11.2 MB more when the reflections were off. GTAO took 6.74 MB. Under `NoScreenSpaceLight` the direct image and the estimate target take 33.2 MB, where the occlusion target took 2.07 MB (fork 3). `RenderTargets` checks R16G16B16A16_SFLOAT for color attachment, sampling, storage and transfer, which the spec's table of required formats guarantees. `OcclusionImages` keeps its check of storage for R32_SFLOAT and R8_UNORM, and checks R16G16B16A16_SFLOAT and R16G16_SNORM for the copies.
 
 ## The frame
 
@@ -942,7 +925,8 @@ The design keeps to the Vulkan specification and to what NVIDIA, RADV, ANV and l
 | R32G32B32A32_UINT as a storage image, a sampled image and a transfer source and destination, for terms A and B and the estimate target (`ter-k96l`) | The spec's table of required formats. `rgba32ui` is a base format qualifier, and `packHalf2x16` and `unpackHalf2x16` are core GLSL |
 | R8_UNORM and R32_SFLOAT storage images | As GTAO today: `shaderStorageImageExtendedFormats` for `r8`, which the renderer requires already |
 | 4 bound sets | The spec's least `maxBoundDescriptorSets` is 4 |
-| 9 storage images per compute stage, in set 3 | The spec's least `maxPerStageDescriptorStorageImages` is 4, so the count is a limit to check, as GTAO's 6 were. NVIDIA, RADV, ANV and lavapipe allow far more, and MoltenVK runs the layout. The two copies of decision 25 added 2, the diffuse image of "The bounce source" 1, and the sector masks buffer and the depth pyramid went with decision 40 |
+| 10 storage images per compute stage, in set 3 | The spec's least `maxPerStageDescriptorStorageImages` is 4, so the count is a limit to check, as GTAO's 6 were. NVIDIA, RADV, ANV and lavapipe allow far more, and MoltenVK runs the layout. The two copies of decision 25 added 2, the diffuse image of "The bounce source" 1, and the continuation flags of `ter-ipc1` 1. The sector masks buffer and the depth pyramid went with decision 40. The reflections' depth tail binds 10 already, so the count adds no requirement |
+| R8_UINT storage image, the continuation flags (`ter-ipc1`) | The spec's table of mandatory formats requires storage use of R8_UINT on a device with `shaderStorageImageExtendedFormats`, which the renderer requires already. `OcclusionImages` refuses a device on which it is not a storage image |
 | Derivatives in the ambient pass | Core in fragment shaders |
 | No new device feature | |
 
@@ -951,8 +935,9 @@ No value relies on `clamp`, `min` or `max` to turn a NaN into a number, which SP
 | Site | The input that breaks it | Verdict |
 |---|---|---|
 | `sliceAngle`'s `acos` | A dot product that rounding puts past ±1 | Fixed: clamped to [−1, 1] |
-| `stepSurfacePoint`'s quotient | A view ray along the texel's plane, or one that meets it behind the eye or far beyond R | Fixed: the quotient is taken only when its two terms share a sign, the depth lies within the depths around the exact place widened by b (`ter-y1s7`), and it lies below z_c + R, each tested by products, so it is positive and finite. Outside the depths around, the point is P(t), a finite point of a texel that is not sky. A point at that depth or beyond lies R or more from c, so the test skips only steps that the hard edge skips. Sky's 10¹⁸ m divided by b and times \|dot(n, r)\| stays far below the float range |
-| `depthsAround`'s `sign`, its conversion to `ivec2`, and its `min` and `max` | A NaN or an infinite place; a NaN depth; a neighbor outside the image | Safe: the exact place and t are finite, so `sign` gives −1, 0 or 1. The depths come from the view depth image, finite and never NaN, sky at 10¹⁸ m. `viewDepthAt` reads the border texel for a texel outside the image |
+| `stepSurfacePoint`'s quotient r(x) / S_t(x) | A surface whose inverse depth is 0 or negative at the exact place, or far beyond R | Fixed: S_t is positive on t's square, because w(t) is positive and the part reaches only toward a neighbor whose center lies within 1 % of the plane. An edge-on plane has g = 0. The quotient is taken only below z_c + R, tested by a product, so it is finite. A point at that depth or beyond lies R or more from c, so the test skips only steps that the hard edge skips (`ter-ipc1`) |
+| `samplePlane`'s gradient n · Δr / dot(n, P) | A plane through the eye, where dot(n, P) is 0 | Fixed: the plane is edge-on where \|dot(n, P)\| ≤ 10⁻⁶ \|P\|, and keeps g = 0 without the division |
+| `continuationFlags`' neighbors and `texelDepthAndNormal`'s `texelFetch` | A neighbor outside the image | Safe: a neighbor outside the half image counts as continuing and reads nothing. A neighbor inside it has its representative pixel 2t inside the full image |
 | `sliceAngle`'s `normalize` | A step at the center | Safe: a step lies at least 1.3 texels away on another view ray, so s − c and s (1 + κ) − c are at least about one texel width long, far above the smallest normal float |
 | `measureFraction`'s division by T | T = 0 | Safe: T = cos γ + γ sin γ is at least 1 for γ in [−π/2, π/2] |
 | `sectorBoundary`'s conversion to `uint` | A value outside 0 to 32 | Safe: m lies in [0, 1] after its clamp, so 32 m + ½ lies in [½, 32.5] |
@@ -997,6 +982,7 @@ flowchart TD
 | The direct image | The direct pass | Stage `DirectLight`, every frame | The depth pass (at 2t, for its copy), the ambient pass (at the pixel), the test hook `ReadDirect` | The same frame | `RenderTargets.Direct`, G-buffer binding 9 | The HDR image: one pass writes it, later passes of the frame read it |
 | The view depth image, the edges image | As GTAO | As GTAO | As GTAO | The same frame | `OcclusionImages` | Unchanged |
 | The copies of the bounce source and the geometric normal (decision 25) | The depth pass, from the diffuse, the emissive and the shading target and from the normals target at 2t | Stage `AmbientOcclusion`, every frame | The sectors pass (at t), the test hooks `ReadOcclusionSource` and `ReadOcclusionGeometricNormal` | The same frame | `OcclusionImages.Source`, `GeometricNormal`, occlusion set bindings 6 and 7 | The view depth image: the depth pass derives it from a full-resolution target of the same frame |
+| The continuation flags (`ter-ipc1`) | The depth pass, from the distance and the normals targets at 2t and at its four neighbors' representative pixels | Stage `AmbientOcclusion`, every frame | The sectors pass (at each step's texel) | The same frame | `OcclusionImages.Continuation`, occlusion set binding 9 | The copies: a cache of the continuation test on them, which the depth pass rebuilds in every frame |
 | Term A | The sectors pass (the estimate), the denoise's even dispatches, the second, the fourth and so on | Stage `AmbientOcclusion` | The denoise's odd dispatches, the first, the third and so on, the upsample, the test hooks `ReadOcclusionTerm` and `ReadOcclusionTermOpenShare` | The same frame | `OcclusionImages.TermA` | GTAO's term A, which held the estimate before and after the blur |
 | Term B | The denoise's odd dispatches, the first, the third and so on | The same | The denoise's even dispatches | The same | `OcclusionImages.TermB` | GTAO's |
 | The estimate target | `RecordEstimateClear` (first frame after a creation, `EstimatePacking.OpenTexel`), the upsample (every frame under `VisibilityBitmaskLight`) | Before the graph, then stage `AmbientOcclusion` | The ambient pass, SSR's trace through `estimatedAt`, the test hooks `ReadEstimate` and `ReadEstimateOpenShare` | The same frame | `RenderTargets.Estimate`, G-buffer binding 7 | The occlusion target, which it replaces |
@@ -1090,7 +1076,7 @@ This design has the same parts, with these differences:
 - Light passes between two steps within R: a wall that lies between the floor's last step and the wall's first, at a low elevation, blocks no sector there. More steps close the gap. The captures choose the steps.
 - κ z is one thickness for everything: a thin pole 20 m away is 2 m thick, and a thick wall 0.5 m away is 5 cm thick, so light leaks behind it there.
 - A blocker that faces away from the receiver gives no light, even when its back is lit.
-- Sky counts with its depth, 10¹⁸ m, among the depths around a step's exact place, so the plane of a surface beside the sky is kept up to half a texel toward it. A face that the eye sees nearly edge-on can so reach up to half a texel of screen past its silhouette against the sky, which is a long way in depth.
+- Toward the sky a texel's surface stops at its center line and keeps the plane's value past it (`ter-ipc1`). At a floor's outline against the sky, the last row so stands up to half a texel above the floor, and it can block a few sectors of a receiver within the radius of the outline.
 - A glossy blocker bounces no highlight, toward the receiver or toward the eye: only its diffuse light bounces (decision 16, "The bounce source").
 - A glow bounces only where its entity holds no light ("The bounce source"). A light whose glowing body is a separate entity bounces twice, through its light and through that body's glow: the scene puts the glow and the light on one entity.
 - Glass and puffs neither block nor bounce.
@@ -1127,9 +1113,8 @@ In `tests/Tertius.Rendering.Tests`. An integral that checks the code uses an ind
 - `AtInfiniteThicknessTheOpenSectorsAreTheSectorsBetweenTheHorizons`: against `HorizonSlice.Visibility` of the same steps, to within one sector.
 - `AThinSlabLetsTheSkyThroughBehindIt`: a pole in front of the slice's sky leaves the sectors past its slab open.
 - `AStepAtTheRadiusOrBeyondItBlocksNothing`.
-- `AStepsSurfacePointIsWhereItsExactRayMeetsItsTexelsPlane`, and `AStepWhosePlaneItsExactRayMeetsOnlyBehindTheEyeOrNeverHasNoSurfacePoint` (`ter-rxjr`).
-- `AStepWhosePlaneMeetsItsExactRayOutsideTheDepthsAroundItsExactPlaceStandsAtItsTexelsOwnPoint`, in front of them and beyond them, and `AStepOnAWallSquareToTheViewKeepsItsSurfacePointThroughTheRoundingOfItsNormal`, the widening by b, which keeps s_f on its exact ray (`ter-y1s7`).
-- `OnATiltedPlaneEveryStepOfEverySliceKeepsItsSurfacePointOnThePlane`: a plane whose depth changes along rows and columns keeps all 6 steps of each of 16 slices on the plane and on the slice line, not at P(t), so the three texels around each exact place hold it. `AStepBetweenTheLastRowOfAFloorAndTheSkyKeepsItsSurfacePointBeyondThatRow`: sky counts with `SkyDepth`. `AStepAtTheImagesCornerReadsNoTexelOutsideTheImage`: a neighbor outside the image reads the border texel (`ter-y1s7`).
+- `OnATiltedPlaneEveryStepOfEverySliceKeepsItsSurfacePointOnThePlane`: a plane whose depth changes along rows and columns keeps all 6 steps of each of 16 slices on the plane, to within the float plane's 10⁻⁵ m, and on the slice line, not at P(t) (`ter-rxjr`, `ter-y1s7`).
+- `ANearStepTowardAnEdgeNeighborWhosePlaneDoesNotContinueItsTexelsStopsAtTheTexelsCenterLine`: planks one texel wide before a far wall. `AStepBetweenTheLastRowOfAFloorAndTheSkyStopsAtThatRowsCenterLine`: no step stands beyond the last row's depth, and on the last row a step stands up to half a texel above the floor. `ANearStepStandsOnTheSurfaceThatThePixelOfItsGridHas`: a step and `PixelSurface` agree to 10⁻⁴ on a scene with depth edges, sky and the screen's edges, so the two readers share one rule. `AStepAtTheImagesCornerReadsNoTexelOutsideTheImage`: a neighbor outside the image continues the plane and is not read (`ter-ipc1`).
 - `TheStepsOfASliceComeNearestFirstAndPlusSideFirst`, and `AStepWhoseTexelLiesOutsideTheImageIsLeftOut`: `SectorSearch.SliceSteps`, the C# copy of the step loop of `occlusion_sectors.comp`.
 - `ABlockerThatFacesAwayBlocksWithoutLight`.
 - `TheReceiversOwnSurfaceBlocksTheSectorsBelowItBeforeAnyStep`, and `AStepOnTheReceiversOwnPlaneGivesNoLightToTheSectorsBelowIt` (decision 39).
@@ -1140,7 +1125,7 @@ In `tests/Tertius.Rendering.Tests`. An integral that checks the code uses an ind
 
 `FlatFloorSectorsTests`: `AFlatFloorBlocksOnlyTheSectorsBelowItselfAndBouncesNothingOnItself`, every texel of an endless floor under a level camera at 640 × 360 through the C# copy, whose step loop is `SectorSearch.SliceSteps` (`ter-rxjr`).
 
-`ConvexEdgeSectorsTests`: `AReceiverOnAFaceBesideAGrazingConvexEdgeBlocksOnlyTheSectorsBelowItsFace`, every texel of the front face F of the box of "A near step", whose side face the eye sees about 6° off its view rays, through the C# copy: 31 of 8,460 texels blocked sectors above F before the depths around the exact place, and none after (`ter-y1s7`). `AmbientOcclusionRenderTests.TheGroundBesideAnImpostorDarkensAsBesideItsGeometry` pins the step at P(t) on the GPU.
+`ConvexEdgeSectorsTests`: `AReceiverOnAFaceBesideAGrazingConvexEdgeBlocksOnlyTheSectorsBelowItsFace`, every texel of the front face F of the box of "A near step", whose side face the eye sees about 6° off its view rays, through the C# copy: 31 of 8,460 texels blocked sectors above F before the depths around the exact place, and none after (`ter-y1s7`), and none under the continuation test (`ter-ipc1`). `AmbientOcclusionRenderTests.TheGroundBesideAnImpostorDarkensAsBesideItsGeometry` pins the step beside an impostor on the GPU.
 
 `HorizonSearchTests`: `AStepsExactPlaceLiesOnItsSliceLineBeforeTheSnap`.
 
@@ -1186,8 +1171,8 @@ Before decision 40, `AmbientEstimateTests` also pinned the far outcomes, and `Fa
 - `InAFurnaceACreaseGetsTheLightOfTheOpenFloor`: a white matte floor and two walls that meet, the walls emissive at the ambient light's radiance with a black base color, the floor reflecting. The floor pixel 0.1 m from both walls differs from the open floor pixel 3 m away by at most 3 of 255. This test pins the one estimate: a power on V fails it.
 - `AWallBeyondTheRadiusGivesTheFloorNoBounceAndLeavesItOpen`: a lit red wall 2.9 to 3.1 m from the floor's measured pixels, beyond R = 0.5 m. The estimate's rgb is 0 there, and V is at least 0.999 (decision 40).
 - `ALitWallOffTheScreenGivesTheFloorNoBounce`: the red wall just past the screen's edge: V is at least 0.98 at the floor, as on an open floor, and the estimate's rgb is 0.
-- `AFlatFloorAloneBlocksNothingAndBouncesNothingOnItself`: the sunlit floor of that test without the wall, with the denoise and the upsample skipped: no floor texel blocks a sector, which term A's V of 1 shows, and term A's rgb is 0 at every floor texel (`ter-rxjr`).
-- `AFaceBesideAGrazingConvexEdgeBlocksNothingAndGetsNoBounce`: the box of `ConvexEdgeSectorsTests` under the sun, the denoise and the upsample skipped: no texel of its front face blocks a sector, by term A's V, and term A's rgb is 0 there. Before the depths around the exact place, 31 of 8,460 texels blocked (`ter-y1s7`).
+- `AFlatFloorAloneBlocksNothingAwayFromItsOutlineAgainstTheSkyAndBouncesNothingOnItself`: the sunlit floor of that test without the wall, with the denoise and the upsample skipped: no floor texel farther than the radius and a texel from the sky blocks a sector, which term A's V of 1 shows, and term A's rgb is 0 at every floor texel (`ter-rxjr`). Near the outline, the last row's surface stands up to half a texel above the floor, and 136 of 26,000 texels block (`ter-ipc1`).
+- `AFaceBesideAGrazingConvexEdgeBlocksNothingAndGetsNoBounce`: the box of `ConvexEdgeSectorsTests` under the sun, the denoise and the upsample skipped: no texel of its front face blocks a sector, by term A's V, and term A's rgb is 0 there. Before the depths around the exact place, 31 of 8,460 texels blocked (`ter-y1s7`). The continuation test of `ter-ipc1` keeps it at none.
 - `AWallSquareToTheViewBlocksAsMuchWhicheverWayTheCameraFaces`: a floor and a wall square to the view 3 m ahead, once along −Z and once with the camera and the scene turned together by 63° about the vertical. The blocked shares of term A, Σ(1 − V), agree within 10⁻⁴ (`ter-y1s7`). When the test read the masks, they were 191,274 and 191,273 blocked sectors, and 191,314 without the widening by b.
 - `TheSectorPassGathersWhatTheCSharpCopyGathers`: at four texels of the corner, a texel of the floor 5 cm beside a low box, behind the plane of the box's front face, which faces away from it, and a texel of a platform whose normal map tilts its shading hemisphere below its top, the GPU's estimate, read with `ReadOcclusionTerm` after a frame whose denoise and upsample a test hook skips, against `SectorSearch` fed the read-back view depth, the scene's normals and the direct image. The estimate matches within the half floats of term A, 10⁻⁴ of the brightest direct light, and the share of the sectors that such a tie flips.
 - `UnderTheMapTheSectorPassTakesTheOpenPiecesShareOfTheMapsLightAsTheCSharpCopyDoes` (decision 42, named `UnderTheMapTheSectorPassSubtractsTheMapsLightAlongTheBlockedDirectionsAsTheCSharpCopyDoes` before `ter-k96l`): the same scene and texels under the environment map, whose faces hold the sunlit corner and the dim sky. `SectorSearch` reads the specular map that `ReadEnvironmentFace` read back. A GPU read blends at most eight texels of the two levels around its level of detail, so the C# copy bounds it by the least and the greatest texel within a texel of its place on those levels, across a face's edge too. The GPU's S lies between the least and the most S that those reads allow in each channel, and its bounce within the tolerance above. The platform's own surface reads the map, so a read left out there fails the test.
@@ -1245,6 +1230,8 @@ The table gives the memory traffic per frame at 1080p and the default setting, b
 | Occlusion denoise | 0.16 ms | 2 × 39.9 MB: 9 terms of 8 B and 5 edges per texel and dispatch | 2 × 4.1 MB | 0.5 to 0.6 ms | 0.14 ms |
 | Occlusion upsample | 0.78 ms | 124.4 MB: 60 B per pixel, where 4 terms of 2 B were 8 | 16.6 MB, where 1 B per pixel was 2.07 MB | 1.4 to 1.5 ms | 0.33 ms |
 | Ambient light | None | 91.3 MB: the G-buffer, the direct image and the estimate target | 16.6 MB | 0.3 to 0.7 ms | 0.67 ms |
+
+The one rule of `ter-ipc1` (see "Where the texel's plane holds") first read the copies and built the planes of two neighbors per step: +0.36 to +0.65 ms on the sectors pass. The continuation flags take that back. In 20 interleaved rounds per window at 1920 × 1080 in Release, against a byte copy of the base build as a control, with the 1-minute load from 6 to 31, the median difference from the base was −0.03 to +0.01 ms on the sectors pass and +0.06 to +0.11 ms on the depth pass, so +0.03 to +0.09 ms on the two together. The flags read one byte per step, 9.3 MB a frame at 1080p for 18 steps a texel, where the two depths of `ter-y1s7` read 74.6 MB.
 
 The two depths around each step's exact place (`ter-y1s7`) cost no time that the GPU timers could tell from the noise. On `demo-surface.json` at 1280 × 720 in Release on the M1 Max, two runs of 7 frames per build, with the 1-minute load from 7.9 to 11.1, the sectors pass took a mean of 2.304 and 2.054 ms (median 2.225 and 2.087 ms) before, and 2.304 and 2.310 ms (median 2.247 and 2.197 ms) after: the difference lies within the 0.25 ms between two runs of one build. These are the renderer's timer, which on MoltenVK can move work between the sectors pass and its neighbours (see "GPU timers"), so they say only that the change is small.
 
