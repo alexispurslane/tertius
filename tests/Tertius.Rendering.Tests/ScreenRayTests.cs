@@ -191,6 +191,28 @@ public sealed class ScreenRayTests
     }
 
     [Fact]
+    public void ARayThatEntersTheSlabOfATurnedWallFromBehindHitsWhereItCrossesTheSlabsBack()
+    {
+        // The wall turns away from the eye toward the right, so a coarse cell's farthest depth lies past the depth of the
+        // pixel where the ray enters: the walk comes down to that pixel behind its slab, and the ray crosses the slab's
+        // back inside the pixel, 0.6 px past the pixel's edge where the image enters it. The back is the wall's plane
+        // scaled by 1 + κ about the eye.
+        CameraView camera = ScreenTesting.Camera(width: Width, height: Height);
+        SceneRectangle[] wall = [new(new(0, 0, -6), new(4, 0, -2), new(0, 10, 0))];
+        Vector3 back = new Vector3(0.96f, 0.3f, -6.48f) * (1 + CellBounds.ThicknessShare);
+        var origin = new Vector3(3, back.Y, -12);
+
+        RayTrace trace = RayOf(origin, Vector3.Normalize(back - origin), camera)
+            .Trace(ScreenTesting.Pyramid(camera, wall), MaxSteps);
+
+        trace.TryGetValue(out RayHit hit).Should().BeTrue($"the ray enters the slab, not {trace}");
+        hit.EntryShare.Should().Be(1, "the ray comes from behind the wall");
+        Vector2 crossing = camera.PixelOf(back);
+        hit.Position.X.Should().BeApproximately(crossing.X, 1e-2f, "the ray enters the slab where it crosses its back");
+        hit.Position.Y.Should().BeApproximately(crossing.Y, 1e-2f);
+    }
+
+    [Fact]
     public void ARayThatEntersASlabHalfwayInHasAnEntryShareOfOneHalf()
     {
         CameraView camera = ScreenTesting.Camera(width: Width, height: Height);

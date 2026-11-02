@@ -2,7 +2,7 @@
 id: ter-eqtb
 status: in_progress
 deps: [ter-rjts, ter-y8z0, ter-f3g2, ter-8bda]
-links: [ter-f3g2]
+links: [ter-f3g2, ter-cvyx]
 created: 2026-11-01T15:28:45Z
 type: bug
 parent: ter-b2da

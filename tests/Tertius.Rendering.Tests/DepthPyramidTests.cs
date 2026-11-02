@@ -232,6 +232,52 @@ public sealed class DepthPyramidTests
         cell.Far.Should().BeApproximately(far, 1e-5f * far, "and its top edge");
     }
 
+    [Fact]
+    public void AnEdgeOnPixelKeepsItsCentersInverseDepthOverItsWholeSquare()
+    {
+        // The screen's middle pixel sees the wall, but its geometric normal stands at a right angle to its view ray. Its
+        // plane then holds that ray, and the plane's inverse depth would change without bound across the pixel.
+        CameraView camera = ScreenTesting.Camera(width: 65, height: 49);
+        SceneRectangle[] wall = [new(new(0, 0, -10), new(20, 0, 0), new(0, 20, 0))];
+        (float[] distances, Vector3[] normals) = ScreenTesting.Surfaces(camera, wall);
+        normals[24 * camera.Width + 32] = Vector3.UnitY;
+
+        CellBounds bounds = DepthPyramid.Of(camera, distances, normals).Bounds(0, 32, 24);
+
+        bounds.Should().Be(CellBounds.OfSurface(0.1f), "an edge-on plane keeps its center's inverse depth, with no gradient");
+    }
+
+    [Fact]
+    public void APlaneStopsAtItsCenterLineTowardAnEdgeOnNeighbor()
+    {
+        // A wall that leans back, so that its inverse depth falls by about 0.24 % per row upward, well within 1 %. The
+        // screen's middle pixel sees it with a normal at a right angle to its view ray: an edge-on plane, whose center
+        // lies on the plane of the pixel below, and whose one inverse depth holds that pixel's center within 1 %.
+        CameraView camera = ScreenTesting.Camera(width: 65, height: 49);
+        SceneRectangle[] wall = [new(new(0, 0, -10), new(20, 0, 0), new(0, 20, -2))];
+        (float[] distances, Vector3[] normals) = ScreenTesting.Surfaces(camera, wall);
+        normals[24 * camera.Width + 32] = Vector3.UnitY;
+
+        CellBounds bounds = DepthPyramid.Of(camera, distances, normals).Bounds(0, 32, 25);
+
+        float centerLine = (float)(1 / ScreenTesting.DepthAlong(camera.ViewRayThrough(new(32.5f, 25.5f)), wall)!.Value);
+        bounds.Far.Should().BeApproximately(centerLine, 1e-5f * centerLine, "no plane continues into an edge-on neighbor");
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void APyramidOfAFrameRefusesOneDistanceOrOneNormalTooFew(bool fewerDistances)
+    {
+        CameraView camera = FloorCamera;
+        (float[] distances, Vector3[] normals) = ScreenTesting.Surfaces(camera, Floor);
+
+        Action build = () =>
+            DepthPyramid.Of(camera, fewerDistances ? distances[1..] : distances, fewerDistances ? normals : normals[1..]);
+
+        build.Should().Throw<ArgumentException>("the pyramid needs one distance and one normal for each pixel");
+    }
+
     /// <summary>The four corners of a pixel's square, in pixels.</summary>
     private static Vector2[] Corners(int x, int y) => [new(x, y), new(x + 1, y), new(x, y + 1), new(x + 1, y + 1)];
 
