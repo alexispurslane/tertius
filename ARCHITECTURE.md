@@ -77,6 +77,8 @@ Jolt steps by a float, the float nearest the tick. It differs from the tick: at 
 | Simulation | Runs the ticks and their sync points, and a scripted run's steps. In the window, it paces the ticks by the wall clock. |
 | Render | Draws the latest render snapshot and interpolates between the last two. |
 
+Jolt's job threads are `JoltBackendOptions.WorkerThreads` in number. The default is one per processor that the runtime reports, minus one, and at least one (`JoltBackendOptions.WorkerThreadsFor`). The runtime takes that count from `DOTNET_PROCESSOR_COUNT` when it is set, so the variable bounds Jolt's threads as it bounds the .NET thread pool. On a machine of 10 cores without the variable, the window's backend runs 9 workers. A headless run sets 1 (`JoltBackendOptions.Unpaced`). A step ends in the same bits with any number of workers, because Jolt's determinism depends on the order of the API calls and on the binary, not on its job system. `WorkerThreadsTests` steps a heap of 100 cubes with 1, 3 and 9 workers and compares the hashes.
+
 The Main, Simulation and Render threads exist only in the window. A headless run has none of them. Its calling thread runs the ticks, the steps of the script and the captures (see "Host and scripted runs").
 
 One tick has three parts. First, one thread prepares the tick. Then, during the parallel part, gameplay and physics run at the same time. Both read only state that is fixed for the tick: the front snapshot of tick N-1 and the frame tree. Last, during the sync part, one thread merges the results.

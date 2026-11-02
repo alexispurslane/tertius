@@ -88,11 +88,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
         this.options = options ?? new JoltBackendOptions();
         log = this.options.Log ?? (static message => Trace.TraceWarning(message));
         JoltRuntime.EnsureInitialized();
-        jobs = NativeOwnership.Owned(
-            this.options.WorkerThreads > 0
-                ? new(new() { numThreads = this.options.WorkerThreads })
-                : new JobSystemThreadPool()
-        );
+        WorkerThreads = this.options.WorkerThreadsFor(Environment.ProcessorCount);
+        jobs = NativeOwnership.Owned(new JobSystemThreadPool(new() { numThreads = WorkerThreads }));
     }
 
     /// <summary>
@@ -100,6 +97,12 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// Another backend has its own gate and can step at the same time on another thread.
     /// </summary>
     internal Lock Gate { get; } = new();
+
+    /// <summary>
+    /// The number of worker threads that the backend's Jolt job system runs, which the constructor passed to Jolt (see
+    /// <see cref="JoltBackendOptions.WorkerThreads"/>).
+    /// </summary>
+    internal int WorkerThreads { get; }
 
     // ---- Diagnostics for tests ----
 
