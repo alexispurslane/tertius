@@ -30,7 +30,7 @@ public sealed class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelp
     private static readonly Topic Chat = Topics.Get("tests.determinism.chat");
 
     /// <summary>A seeded entity that moves, talks in every delivery mode, spawns, destroys and subscribes.</summary>
-    private sealed class Chatter(ConcurrentDictionary<int, byte> threads) : IComponent
+    private sealed class Chatter(GameplayThreads threads) : IComponent
     {
         private static readonly EventMask WantsMask = EventMask
             .Of<Tick>()
@@ -61,9 +61,30 @@ public sealed class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelp
 
         public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
         {
-            threads.TryAdd(Environment.CurrentManagedThreadId, 0);
+            threads.RecordThreadAndHoldTickThread();
+            FoldIntoHash(ref events);
+            if (!events.Of<Tick>().Any())
+                return;
 
-            // Fold every event, in inbox order, into the hash: any change in routing order changes the result.
+            Wander(self);
+            self.Snapshot.QueryRadius(
+                frame: self.Frame,
+                center: self.PoseInOwnFrame().Position,
+                radius: 30,
+                results: neighbors
+            );
+            neighbors.Remove(self.Entity);
+            int value = (int)(Rng & 0xFFFF);
+            Talk(self, ref outbox, value);
+            SpawnChild(self, ref outbox, value);
+            Churn(self, ref outbox);
+        }
+
+        /// <summary>
+        /// Folds every event, in inbox order, into the hash: any change in routing order changes the result.
+        /// </summary>
+        private void FoldIntoHash(scoped ref EventList events)
+        {
             for (int i = 0; i < events.Count; i++)
             {
                 ref Event e = ref events[i];
@@ -72,10 +93,11 @@ public sealed class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelp
                 Hash = WorldHash.MixPayload(Hash, e);
                 Received++;
             }
+        }
 
-            if (!events.Of<Tick>().Any())
-                return;
-
+        /// <summary>Pushes the body at random, or moves an entity without a body by up to half a meter.</summary>
+        private void Wander(Self self)
+        {
             if (self.Body.Exists)
                 self.Body.AddForce(new((float)(Next() - 0.5), 0, (float)(Next() - 0.5)));
             else
@@ -85,15 +107,13 @@ public sealed class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelp
                         Position = self.PoseInOwnFrame().Position + new Double3(Next() - 0.5, 0, Next() - 0.5),
                     }
                 );
+        }
 
-            self.Snapshot.QueryRadius(
-                frame: self.Frame,
-                center: self.PoseInOwnFrame().Position,
-                radius: 30,
-                results: neighbors
-            );
-            neighbors.Remove(self.Entity);
-            int value = (int)(Rng & 0xFFFF);
+        /// <summary>
+        /// Now and then sends a ping in each delivery mode: to a neighbor, to the chat, to the frame, to everyone, and later.
+        /// </summary>
+        private void Talk(Self self, scoped ref Outbox outbox, int value)
+        {
             if (neighbors.Count > 0 && Next() < 0.3)
                 outbox.Send(neighbors[(int)(Next() * neighbors.Count)], new Ping { Value = value });
             if (Next() < 0.03)
@@ -107,27 +127,34 @@ public sealed class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelp
                 Target target = neighbors.Count > 0 ? neighbors[(int)(Next() * neighbors.Count)] : self.Entity;
                 outbox.SendAfter(ticks: 1 + (int)(Next() * 5), target: target, payload: new Ping { Value = value + 4 });
             }
+        }
 
-            if (Children < 2 && Next() < 0.012)
-            {
-                Children++;
-                bool withBody = Next() < 0.3;
-                Entity child = self.Spawn(
-                    new()
-                    {
-                        Frame = self.Frame,
-                        Pose = self.PoseInOwnFrame(),
-                        Body = withBody ? TestWorld.Ball : null,
-                        Components =
-                            Next() < 0.5
-                                ? [new Chatter(threads) { Rng = Rng ^ 0x9E3779B97F4A7C15UL }, new Shield()]
-                                : [new Chatter(threads) { Rng = Rng ^ 0xD1B54A32D192ED03UL }],
-                        Subscriptions = Next() < 0.5 ? [Chat] : [],
-                    }
-                );
-                outbox.Send(child, new Ping { Value = value + 5 });
-            }
+        /// <summary>Now and then, up to twice, spawns a child Chatter and pings it.</summary>
+        private void SpawnChild(Self self, scoped ref Outbox outbox, int value)
+        {
+            if (Children >= 2 || Next() >= 0.012)
+                return;
+            Children++;
+            bool withBody = Next() < 0.3;
+            Entity child = self.Spawn(
+                new()
+                {
+                    Frame = self.Frame,
+                    Pose = self.PoseInOwnFrame(),
+                    Body = withBody ? TestWorld.Ball : null,
+                    Components =
+                        Next() < 0.5
+                            ? [new Chatter(threads) { Rng = Rng ^ 0x9E3779B97F4A7C15UL }, new Shield()]
+                            : [new Chatter(threads) { Rng = Rng ^ 0xD1B54A32D192ED03UL }],
+                    Subscriptions = Next() < 0.5 ? [Chat] : [],
+                }
+            );
+            outbox.Send(child, new Ping { Value = value + 5 });
+        }
 
+        /// <summary>Now and then destroys a neighbor or itself, and subscribes to the chat or leaves it.</summary>
+        private void Churn(Self self, scoped ref Outbox outbox)
+        {
             if (neighbors.Count > 0 && Next() < 0.004)
                 outbox.Send(neighbors[(int)(Next() * neighbors.Count)], new Destroy());
             if (Next() < 0.004)
@@ -157,6 +184,47 @@ public sealed class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelp
         }
     }
 
+    /// <summary>
+    /// The threads that ran gameplay in one run. On several workers, it holds the thread that calls Tick in its first
+    /// entity until another thread runs one, for at most <see cref="HoldLimit"/>. Without the hold, a thread pool that is
+    /// busy with other test classes can leave every chunk to the calling thread.
+    /// </summary>
+    /// <param name="holdTickThread">Whether the thread that calls Tick waits for another thread: on several workers.</param>
+    private sealed class GameplayThreads(bool holdTickThread)
+    {
+        /// <summary>
+        /// How long the thread that calls Tick waits for another thread to run an entity. A busy pool frees a thread within
+        /// seconds, when a test class ends or when the pool adds a thread for the work items that wait.
+        /// </summary>
+        private static readonly TimeSpan HoldLimit = TimeSpan.FromSeconds(30);
+
+        private readonly ConcurrentDictionary<int, byte> threads = new();
+
+        /// <summary>The thread that makes the run, and so calls Tick.</summary>
+        private readonly int tickThread = Environment.CurrentManagedThreadId;
+
+        /// <summary>Whether the thread that calls Tick waited once. Only that thread reads and writes it.</summary>
+        private bool held;
+
+        /// <summary>How many different threads ran gameplay.</summary>
+        public int Count => threads.Count;
+
+        /// <summary>
+        /// Records that the current thread runs an entity. The first time the thread that calls Tick runs one, it blocks
+        /// until another thread has run one, for at most <see cref="HoldLimit"/>.
+        /// </summary>
+        public void RecordThreadAndHoldTickThread()
+        {
+            int thread = Environment.CurrentManagedThreadId;
+            threads.TryAdd(thread, 0);
+            if (!holdTickThread || thread != tickThread || held)
+                return;
+            held = true;
+            // The tick thread is in the set, so a second thread in it is another thread that ran an entity.
+            SpinWait.SpinUntil(() => threads.Count > 1, HoldLimit);
+        }
+    }
+
     /// <summary>What a run ended in. Two runs of the same inputs must give equal results.</summary>
     /// <param name="Hash">A hash of every live entity's handle, pose, velocities, frame and component state, the render snapshot, and the number of errors.</param>
     /// <param name="Stats">The counters of the last tick.</param>
@@ -179,11 +247,12 @@ public sealed class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelp
 
     /// <summary>
     /// Runs the workload on <paramref name="maxDop"/> workers and returns what it ended in, and how many different threads
-    /// ran gameplay. The world runs on real Jolt, in the wrapper that records every step output.
+    /// ran gameplay (<see cref="GameplayThreads"/>, which holds the calling thread on several workers). The world runs on
+    /// real Jolt, in the wrapper that records every step output.
     /// </summary>
     private static (RunResult Result, int GameplayThreads) Run(int maxDop, int seed = Seed, int ticks = Ticks)
     {
-        var threads = new ConcurrentDictionary<int, byte>();
+        var threads = new GameplayThreads(holdTickThread: maxDop > 1);
         // Debug checks are off: the invariant tests run them over a workload that churns more. Here they would only slow the four runs.
         using World world = WorldTesting.NewWorldWithFaults(
             faults: out FaultInjectingBackend faults,
@@ -195,6 +264,42 @@ public sealed class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelp
                 options.SpawnPoolSize = 16;
             }
         );
+        WorkloadFrames frames = SpawnFrames(world);
+        var random = new Random(seed);
+        SpawnScatter(world: world, threads: threads, random: random, frames: frames);
+        SpawnCollisionCourses(world: world, threads: threads, random: random, frames: frames);
+        world.Camera = world.Spawn(new() { Frame = frames.West, Render = new RenderData() });
+
+        (long messages, int fallingFrameTicks, int restingFrameTicks) = TickAndCount(world, ticks);
+        int handOffs = faults.Outputs.Sum(output => output.HandOffs.Count);
+        int contacts = faults.Outputs.Sum(output => output.Contacts.Count);
+        return (
+            new(
+                Hash: HashOf(world),
+                Stats: world.Stats,
+                Messages: messages,
+                HandOffs: handOffs,
+                Contacts: contacts,
+                Errors: world.Errors.Count,
+                FallingFrameTicks: fallingFrameTicks,
+                RestingFrameTicks: restingFrameTicks
+            ),
+            threads.Count
+        );
+    }
+
+    /// <summary>The three frames of the workload.</summary>
+    /// <param name="West">The static frame in the west.</param>
+    /// <param name="East">The frame on a Kepler orbit in the east.</param>
+    /// <param name="Root">The root frame, whose point gravity pulls the bodies in it.</param>
+    private readonly record struct WorkloadFrames(FrameHandle West, FrameHandle East, FrameHandle Root);
+
+    /// <summary>
+    /// Spawns the three frames of the workload: a static frame in the west, a frame on a Kepler orbit in the east, and the
+    /// root, whose point gravity pulls the bodies in it.
+    /// </summary>
+    private static WorkloadFrames SpawnFrames(World world)
+    {
         // The Kepler frame below takes its G·M from the point gravity of the root, which also pulls the bodies in the root.
         FrameHandle root = world.CreateRootFrame(new(FrameBounds.Sphere(1e12f), GravityField.Point(1e8)));
         FrameHandle west = world.SpawnStaticFrame(root, TestWorld.At(-1000), radius: 200);
@@ -206,15 +311,26 @@ public sealed class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelp
                 )
             )
         );
+        return new(West: west, East: east, Root: root);
+    }
 
-        var random = new Random(seed);
+    /// <summary>
+    /// Spawns 160 entities with a Chatter at random places in the three frames, a quarter of them with a body.
+    /// </summary>
+    private static void SpawnScatter(
+        World world,
+        GameplayThreads threads,
+        Random random,
+        WorkloadFrames frames
+    )
+    {
         for (int i = 0; i < 160; i++)
         {
             FrameHandle frame = (i % 3) switch
             {
-                0 => west,
-                1 => east,
-                _ => root,
+                0 => frames.West,
+                1 => frames.East,
+                _ => frames.Root,
             };
             bool hasBody = i % 4 == 0;
             // Every other body is shot along +X at 120 to 160 m/s, so that it leaves the bubble of its frame, which has a radius
@@ -222,7 +338,7 @@ public sealed class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelp
             // 0.5 s it thrusts (NumericFrameOptions.ThrustOnset), and its group falls in a numeric frame while the group's common
             // speed is above the 50 m/s from which a group that thrusts falls.
             double speed = hasBody && i % 8 == 0 ? 120 + random.NextDouble() * 40 : random.NextDouble();
-            double distance = frame == root ? RootGroupDistance : 0;
+            double distance = frame == frames.Root ? RootGroupDistance : 0;
             world.Spawn(
                 new()
                 {
@@ -241,12 +357,22 @@ public sealed class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelp
                 }
             );
         }
+    }
 
-        // In each frame, two balls on a collision course 45 m beside the scatter, so that Jolt sends contacts whatever the
-        // random scatter does. They close at 8 m/s from 10 m apart, so they touch after about 1.1 s.
-        foreach (FrameHandle frame in new[] { west, east, root })
+    /// <summary>
+    /// In each frame, spawns two balls on a collision course 45 m beside the scatter, so that Jolt sends contacts whatever
+    /// the random scatter does. They close at 8 m/s from 10 m apart, so they touch after about 1.1 s.
+    /// </summary>
+    private static void SpawnCollisionCourses(
+        World world,
+        GameplayThreads threads,
+        Random random,
+        WorkloadFrames frames
+    )
+    {
+        foreach (FrameHandle frame in new[] { frames.West, frames.East, frames.Root })
         {
-            double distance = frame == root ? RootGroupDistance : 0;
+            double distance = frame == frames.Root ? RootGroupDistance : 0;
             foreach (int side in new[] { -1, 1 })
                 world.Spawn(
                     new()
@@ -259,9 +385,14 @@ public sealed class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelp
                     }
                 );
         }
+    }
 
-        world.Camera = world.Spawn(new() { Frame = west, Render = new RenderData() });
-
+    /// <summary>
+    /// Ticks the world <paramref name="ticks"/> times. Returns the messages routed over the ticks, and the falling and the
+    /// resting numeric frames that lived after each tick, summed over the ticks.
+    /// </summary>
+    private static (long Messages, int FallingFrameTicks, int RestingFrameTicks) TickAndCount(World world, int ticks)
+    {
         long messages = 0;
         int fallingFrameTicks = 0,
             restingFrameTicks = 0;
@@ -276,7 +407,12 @@ public sealed class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelp
             restingFrameTicks += frames.Count(frame => world.Frames.Numeric(frame) == NumericMode.Resting);
         }
 
-        ulong hash = WorldHash.Of(
+        return (messages, fallingFrameTicks, restingFrameTicks);
+    }
+
+    /// <summary>The world hash, with the state of every Chatter and Shield.</summary>
+    private static ulong HashOf(World world) =>
+        WorldHash.Of(
             world,
             static (soFar, component) =>
                 component switch
@@ -289,22 +425,6 @@ public sealed class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelp
                     _ => soFar,
                 }
         );
-        int handOffs = faults.Outputs.Sum(output => output.HandOffs.Count);
-        int contacts = faults.Outputs.Sum(output => output.Contacts.Count);
-        return (
-            new(
-                Hash: hash,
-                Stats: world.Stats,
-                Messages: messages,
-                HandOffs: handOffs,
-                Contacts: contacts,
-                Errors: world.Errors.Count,
-                FallingFrameTicks: fallingFrameTicks,
-                RestingFrameTicks: restingFrameTicks
-            ),
-            threads.Count
-        );
-    }
 
     /// <summary>The four runs, made once for the whole class: two on one worker and two on eight, alternating.</summary>
     public sealed class Runs
@@ -353,10 +473,8 @@ public sealed class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelp
     [Fact]
     public void TheRunOnEightWorkersReallyRunsGameplayOnSeveralThreads()
     {
-        // Equal hashes would prove nothing if every chunk ran on the one thread that called Tick.
-        if (Environment.ProcessorCount == 1)
-            return;
-
+        // Equal hashes would prove nothing if every chunk ran on the one thread that called Tick. GameplayThreads holds that
+        // thread, so a busy thread pool delays this run but does not fail it.
         runs.EightWorkersGameplayThreads.Should().BeGreaterThan(1);
     }
 
