@@ -302,6 +302,70 @@ public sealed class PyramidRenderTests
     }
 
     [Fact]
+    public void RadianceLevelZeroHoldsNoNegativeLightWhereTheSkinScatterDimsALampAtTheRadianceCap()
+    {
+        // A skin box whose entity holds a light, with a glow past MaxRadiance, so the G-buffer caps the glow at
+        // MaxRadiance and the lit image is the glow alone. The sun lights the face toward +X and leaves the other dark, so
+        // the scatter's sum of the lit face's diffuse light near the edge is less than that light, and the scatter takes
+        // the difference from the lit image after its cap. There the lit image is below the glow, and the light without
+        // the glow is below 0, which level 0 holds as 0: a cone that met it would take light out of a reflection.
+        VulkanRenderer renderer = Gpu.Headless(
+            exposure: new FixedExposure(0),
+            reflections: ConeTracedReflections.Default,
+            subsurface: SeparableSubsurface.Default
+        );
+        try
+        {
+            var center = new Vector3(0, 0, -0.4f);
+            RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitX, starIrradiance: 20_000);
+            snapshot.Ambient.Intensity = 0;
+            snapshot.Instances.Add(
+                Gpu.Instance(
+                    mesh: renderer.CreateMesh(Primitives.Box(new(0.1f))),
+                    material: renderer.CreateMaterial(
+                        new MaterialDesc(BaseColor: Vector4.One, Roughness: 0.5f, Model: new SkinShading()) with
+                        {
+                            Emissive = new(100_000),
+                        }
+                    ),
+                    position: center,
+                    scale: Vector3.One,
+                    // A turn of 45° about +Y shows the face toward +X and +Z and the face toward −X and +Z.
+                    rotation: Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 4),
+                    radius: 0.2f,
+                    entity: Gpu.LampEntity,
+                    chainDepth: TestChains.CamerasFrame
+                )
+            );
+            // Inside the box, the light reaches none of its outer faces.
+            snapshot.Lights.Add(
+                Gpu.Lamp(position: center, color: Vector3.One, intensity: 1, chainDepth: TestChains.CamerasFrame)
+            );
+            renderer.Render(snapshot, 1f);
+            float[] lit = renderer.ReadHdr();
+            float[] distance = renderer.ReadDistance();
+            (float[] radiance, _, _) = renderer.ReadRadiancePyramidLevel(0);
+
+            Enumerable
+                .Range(0, distance.Length)
+                .Where(pixel => distance[pixel] > 0)
+                .Select(pixel => lit[4 * pixel])
+                .Should()
+                .Contain(
+                    red => red < ShaderInput.MaxRadiance - 16,
+                    "the scatter dims the lit face near the edge below the capped glow"
+                );
+            for (int value = 0; value < radiance.Length; value++)
+                if (value % 4 != 3)
+                    radiance[value].Should().BeGreaterThanOrEqualTo(0, "value {0} holds no negative light", value);
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
     public void EachRadianceLevelIsTheThirteenTapDownsampleOfTheLevelBelow()
     {
         VulkanRenderer renderer = Gpu.Headless(reflections: ConeTracedReflections.Default);

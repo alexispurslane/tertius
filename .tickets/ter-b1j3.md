@@ -90,3 +90,41 @@ Fix stage, 2026-11-02, after the review of 8fe770972.
 5. Gaps of the review. The max(…, 0) branch: L holds G plus light, so the branch acts only on rounding, and no test scene can make it act on purpose. It has no test, a judgment call. A lamp drawn as an impostor billboard: impostor.frag writes the mark 0, because the atlas holds the captured light and the glow as one sum, so SSR keeps such a lamp's glow and counts it twice. No fix inside this ticket can split the sum. The docs record the exception, and ticket ter-coy0 decides whether it needs a fix, with a measurement.
 
 No reference image changed. The fix changes barriers only, so no pass reads a different value. The pyramid's flush already held the HDR image's barrier, and the G-buffer's entries move from the trace's flush to it, so the number of barrier calls stays the same. I did not measure the cost again.
+
+**2026-11-02T20:41:50Z**
+
+Hardening, 2026-11-02, on 2e3da2157 (base d7ace33aa).
+
+Coverage of the changed C# lines (tools/coverage/run.sh has no module option, so its own dotnet test command ran for tests/Tertius.Rendering.Tests alone, in Debug and Release; every changed C# line is in Tertius.Rendering): changed lines covered 3/3 = 100.0 %, changed branches covered 2/2 = 100.0 % (RadiancePyramidPass.cs 2/2 lines, 2/2 branches; VulkanRenderer.cs 1/1). No line needs a reason.
+
+Mutants (tools/mutate.py, list /tmp/ter-b1j3-mutants.json, logs /tmp/ter-b1j3-mutate; S03 again with --only after its test, /tmp/ter-b1j3-mutate-s03). S11 is outside the diff: it checks that the new irradiance test can fail.
+| id | place | change | result | killed by | s |
+|---|---|---|---|---|---:|
+| S01 | src/Tertius.Rendering/Shaders/radiance_pyramid_first.comp:33 | level 0 keeps the lamp's glow (no subtraction) | killed | LampReflectionRenderTests.AGlossyFloorShowsABulbWhoseGlowIsItsLightsSphereOnce(13), (51), LampReflectionRenderTests.TheScreensReflectionOfALampPanelIsTheMapsDarkPanel | 15.9 |
+| S02 | src/Tertius.Rendering/Shaders/radiance_pyramid_first.comp:30 | subtracts the glow sent, not its complement | killed | LampReflectionRenderTests.AGlossyFloorReflectsAGlowThatNoLightHoldsAsTheMapDoes, LampReflectionRenderTests.AGlossyFloorShowsABulbWhoseGlowIsItsLightsSphereOnce(13), (51) | 17.9 |
+| S03 | src/Tertius.Rendering/Shaders/radiance_pyramid_first.comp:33 | max(L - G, 0) -> L - G | survived, then killed | PyramidRenderTests.RadianceLevelZeroHoldsNoNegativeLightWhereTheSkinScatterDimsALampAtTheRadianceCap | 17.6 |
+| S04 | src/Tertius.Rendering/Shaders/radiance_pyramid_first.comp:30 | light mark from shading .r | killed | LampReflectionRenderTests.AGlossyFloorShowsABulbWhoseGlowIsItsLightsSphereOnce(13), (51), LampReflectionRenderTests.TheScreensReflectionOfALampPanelIsTheMapsDarkPanel | 17.4 |
+| S05 | src/Tertius.Rendering/Shaders/radiance_pyramid_first.comp:30 | light mark from shading .g | killed | LampReflectionRenderTests.AGlossyFloorShowsABulbWhoseGlowIsItsLightsSphereOnce(13), (51), LampReflectionRenderTests.TheScreensReflectionOfALampPanelIsTheMapsDarkPanel | 17.3 |
+| S06 | src/Tertius.Rendering/Shaders/frame.glsl:49 | glowSent's test inverted | killed | LampReflectionRenderTests.ALampsGlowAddsNoLightToAMatteFloorThroughTheMapsIrradiance, LampReflectionRenderTests.AGlossyFloorReflectsAGlowThatNoLightHoldsAsTheMapDoes, LampReflectionRenderTests.AGlossyFloorShowsABulbWhoseGlowIsItsLightsSphereOnce(13) | 37.6 |
+| S07 | src/Tertius.Rendering/Shaders/radiance_pyramid_first.comp:33 | coverage select > -> >= | killed | PyramidRenderTests.RadianceLevelZeroIsTheLitImageTimesTheSurfaceCoverage | 44.7 |
+| S08 | src/Tertius.Rendering/Shaders/radiance_pyramid_first.comp:30 | level 0 leaves out every glow, light or not | killed | LampReflectionRenderTests.AGlossyFloorReflectsAGlowThatNoLightHoldsAsTheMapDoes, PyramidRenderTests.RadianceLevelZeroIsTheLitImageTimesTheSurfaceCoverage | 17.8 |
+| S09 | src/Tertius.Rendering/Shaders/radiance_pyramid_first.comp:33 | L - G -> L + G | killed | LampReflectionRenderTests.AGlossyFloorShowsABulbWhoseGlowIsItsLightsSphereOnce(13), (51), LampReflectionRenderTests.TheScreensReflectionOfALampPanelIsTheMapsDarkPanel | 15.8 |
+| S10 | src/Tertius.Rendering/Shaders/radiance_pyramid_first.comp:29 | glow read one pixel to the right | killed | LampReflectionRenderTests.AGlossyFloorShowsABulbWhoseGlowIsItsLightsSphereOnce(51), PyramidRenderTests.RadianceLevelZeroLeavesOutTheGlowOfAnEntityThatHoldsALight | 15.8 |
+| C01 | src/Tertius.Rendering/Passes/RadiancePyramidPass.cs:32 | G-buffer declaration removed | killed | PyramidRenderTests.RadianceLevelZeroReadsTheGlowAndTheLightMarkAfterTheirWritesAreVisibleToItsComputeShader | 16.7 |
+| C02 | src/Tertius.Rendering/Passes/RadiancePyramidPass.cs:33 | G-buffer declared SampledFragment | killed | PyramidRenderTests.RadianceLevelZeroReadsTheGlowAndTheLightMarkAfterTheirWritesAreVisibleToItsComputeShader | 18.5 |
+| C03 | src/Tertius.Rendering/Passes/RadiancePyramidPass.cs:32 | only the distance declared (before the fix) | killed | PyramidRenderTests.RadianceLevelZeroReadsTheGlowAndTheLightMarkAfterTheirWritesAreVisibleToItsComputeShader | 19.7 |
+| C04 | src/Tertius.Rendering/VulkanRenderer.cs:988 | test hook reads the shading target | survived |  | 18.1 |
+| S11 | src/Tertius.Rendering/Shaders/environment_face.frag:38 | faces keep every glow (lock-in check, outside the diff) | killed | LampReflectionRenderTests.ALampsGlowAddsNoLightToAMatteFloorThroughTheMapsIrradiance | 9.6 |
+First run: 15 rows: killed 13, timeout 0, survived 2, no-coverage 0, build-failed 0, no-tests 0, no-mutant 0, removed 0 (wall time 350 s). After the triage: killed 14, survived 1 (C04, judgment call).
+
+Triage:
+- S03, killed by a new test. The fixer's argument holds for the direct and ambient passes: they write min(exposed(direct) + G, MaxRadiance) in half floats, G is already a half value, so L >= G. It fails at skin pixels: the scatter adds S - D to the lit image after its cap, and D, the diffuse image, holds up to 2 * MaxRadiance. At a skin pixel of an entity that holds a light, whose glow reached the cap, with a sharp edge of light, S < D gives L - G far below 0. The mutant's level 0 holds -1200 there. The max is right. The shader comment of radiance_pyramid_first.comp (lines 24 to 28) calls the skin scatter's difference rounding, which is wrong at the cap: for the orchestrator to fix, src not changed here.
+- C04, judgment call: the mutant points the test hook EmissiveTargetState at the shading target, which changes no product behavior; it only weakens the state test, and the hook has no behavior of its own to test.
+
+New tests (each red on a mutant above):
+- LampReflectionRenderTests.AGlossyFloorShowsABulbWhoseGlowIsItsLightsSphereOnce is now a theory over the probe's roughness values 13, 51 and 97 / 255 (0.05, 0.2, 0.38). At 0.38 the reflections do not run (maximum 0.37), so that case locks in the map's count only.
+- LampReflectionRenderTests.AGlossyFloorReflectsAGlowThatNoLightHoldsAsTheMapDoes: the probe's strip, 2 m x 10 m, with no light; the screen's reflection is the map's within 10 %.
+- LampReflectionRenderTests.ALampsGlowAddsNoLightToAMatteFloorThroughTheMapsIrradiance: a matte white floor under the strip that holds a light is as bright with the glow as without it, within 1 % + 0.001.
+- PyramidRenderTests.RadianceLevelZeroHoldsNoNegativeLightWhereTheSkinScatterDimsALampAtTheRadianceCap: a skin box at the cap, lit on one face; every value of level 0 is 0 or more.
+
+Checks: nix develop --command dotnet build Tertius.slnx -c Checked (0 warnings, 0 errors); dotnet test --solution Tertius.slnx -c Checked: 9,983 total, 9,969 passed, 0 failed, 14 skipped. The Release tests did not run in this pass.
