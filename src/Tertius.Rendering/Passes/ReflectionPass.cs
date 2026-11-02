@@ -180,7 +180,7 @@ internal sealed unsafe class ReflectionPass : RenderPass
         if (context.Environment is { } map)
         {
             barriers.Image(map.Specular, ImageUse.SampledCompute);
-            barriers.Buffer(map.Irradiance, BufferUse.ComputeRead);
+            barriers.Image(map.Irradiance, ImageUse.SampledCompute);
         }
     }
 

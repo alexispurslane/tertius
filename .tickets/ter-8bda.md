@@ -1,6 +1,6 @@
 ---
 id: ter-8bda
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-11-02T01:13:12Z
@@ -20,6 +20,14 @@ The user's decision of 2026-11-01: after epic ter-b2da, which keeps the deck flo
 **2026-11-02T02:28:35Z**
 
 The user's decision of 2026-11-01, after ter-f3g2's probe: SSR's roughness limit goes to 0.37 now, inside epic ter-b2da; below it, today's method (one ray with a cone) stays; stochastic SSR (ter-rnjk) is not built; ter-gf0t moves into the epic to give back part of the lamp glow on rough surfaces that lose SSR. Reason: the probe showed that stochastic SSR helps only between roughness 0.37 and 0.6, which the 0.37 limit removes from SSR anyway, at +3 to +6 ms measured and with grain that never settles, while the limit saves 1.65 to 2.0 ms and matches the 64-ray reference on the deck paint. So this ticket runs now, inside ter-b2da, and no longer waits for the epic's end.
+
+**2026-11-02T02:29:57Z**
+
+2026-11-01: workflow run 80f4ee26-ed98-4bdd-bc43-987b2c8a88e9 (version 869b0b07), branch ter-8bda-ssr-limit-037 from fa0fb4848. The pyramid skip is a measurement only in this ticket; a build, if worth it, goes to epic ter-pq5y.
+
+**2026-11-02T07:59:55Z**
+
+2026-11-02: run 80f4ee26 waited about 5 hours on a permission prompt (an rm inside a compound bash -c script). The orchestrator stopped it and made sure that its cleanup was complete. The worktree keeps its uncommitted work (MaxRoughness 0.37 and the test changes). Continuation: workflow run f661bb1e-70e4-4061-8c33-919217c49ba6 (version 869b0b07), same branch ter-8bda-ssr-limit-037 and worktree, base fa0fb4848. Its brief adds two rules: GNU sed, and every rm as a command of its own.
 
 **2026-11-02T08:37:55Z**
 

@@ -26,7 +26,7 @@ internal sealed unsafe class FrameResources : IDisposable
     // The frame's job table, before the copy into the job buffer.
     private GpuDeformJob[] gpuDeformJobs = new GpuDeformJob[16];
 
-    /// <summary>The <see cref="EnvironmentMap.ImagesVersion"/> that binding 12 points at, or −1 before it is written.</summary>
+    /// <summary>The <see cref="EnvironmentMap.ImagesVersion"/> that bindings 12 and 14 point at, or −1 before they are written.</summary>
     private int environmentVersion = -1;
 
     /// <summary>The vertex buffer whose deform region binding 0 of the deform set points at, or null before it is written.</summary>
@@ -87,15 +87,6 @@ internal sealed unsafe class FrameResources : IDisposable
         WritePoses(Poses);
         WriteDeformJobs(DeformJobs);
         WriteFrameSet(textures: textures, tables: tables, exposure: exposure);
-        // The irradiance buffer lives as long as the renderer, so its binding is written once. The specular maps grow, so
-        // UpdateSharedDescriptors writes their binding. With the map off both stay empty: they are partially bound.
-        if (environment is not null)
-            layouts.WriteBuffer(
-                set: FrameSet,
-                binding: 14,
-                type: DescriptorType.StorageBuffer,
-                buffer: environment.Irradiance
-            );
     }
 
     public int Index { get; }
@@ -313,6 +304,7 @@ internal sealed unsafe class FrameResources : IDisposable
         if (environment is not null && environmentVersion != environment.ImagesVersion)
         {
             layouts.WriteImage(set: FrameSet, binding: 12, arrayElement: 0, image: environment.Specular);
+            layouts.WriteImage(set: FrameSet, binding: 14, arrayElement: 0, image: environment.Irradiance);
             environmentVersion = environment.ImagesVersion;
         }
 

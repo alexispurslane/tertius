@@ -384,6 +384,62 @@ public sealed class EnvironmentMapsPerFrameTests
         }
     }
 
+    [Fact]
+    public void AMatteSurfaceReadsTheDiffuseLightOfItsMapInItsFramesAxes()
+    {
+        // The root's axes are a quarter turn about +Y from the camera's. A green square of the root glows behind the eye,
+        // on the camera's +Z and the root's +X. Two matte squares face the camera side by side: one in the root, which
+        // takes the root's map, and one in the camera's frame, which takes the camera frame's map in the camera's axes.
+        VulkanRenderer renderer = Renderer();
+        try
+        {
+            MeshId plane = renderer.CreateMesh(Primitives.Plane(1f));
+            RenderSnapshot snapshot = EnvironmentScenes.Dark();
+            TestChains.Of(
+                snapshot,
+                (1, Quaternion.Identity),
+                (0, Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 2))
+            );
+            snapshot.Instances.Add(
+                EnvironmentScenes.Square(
+                    plane: plane,
+                    material: EnvironmentScenes.Emissive(renderer, new Vector3(0, 0.5f, 0)),
+                    center: new(0, 0, 20),
+                    halfSize: 20,
+                    chainDepth: RoomScenes.Outside
+                )
+            );
+            MaterialId matte = EnvironmentScenes.Matte(renderer);
+            var inTheRoot = new Vector3(-1, 0, -6);
+            var inTheCamerasFrame = new Vector3(1, 0, -6);
+            snapshot.Instances.Add(
+                FacingTheCamera(plane: plane, material: matte, center: inTheRoot, chainDepth: RoomScenes.Outside)
+            );
+            snapshot.Instances.Add(
+                FacingTheCamera(plane: plane, material: matte, center: inTheCamerasFrame, chainDepth: RoomScenes.InRoom)
+            );
+
+            Capture shown = Shown(renderer, snapshot, "maps-matte-axes");
+            Vector3 root = shown.Color(Gpu.Project(point: inTheRoot, width: Width, height: Height));
+            Vector3 camera = shown.Color(Gpu.Project(point: inTheCamerasFrame, width: Width, height: Height));
+
+            camera.Y.Should().BeGreaterThan(0.05f, "the square behind the eye lights the matte surface: {0}", camera);
+            BrdfTesting
+                .LargestChannelDifference(root, camera)
+                .Should()
+                .BeLessThanOrEqualTo(
+                    Tolerance,
+                    "the root's map holds the square on its own +X, where its matte surface's normal points: {0} against {1}",
+                    root,
+                    camera
+                );
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
     /// <summary>
     /// A snapshot whose chain is the frames <paramref name="chain"/>, camera first and the root, id 0, last, inside a dome of
     /// <paramref name="dome"/> in the root.
@@ -540,6 +596,127 @@ public sealed class EnvironmentMapsPerFrameTests
         finally
         {
             Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>Every level of every face of map <paramref name="map"/>'s irradiance cube, in layer and level order.</summary>
+    private static Half[] IrradianceLevels(VulkanRenderer renderer, int map)
+    {
+        var all = new List<Half>();
+        for (int layer = 0; layer < CubeFaces.Count; layer++)
+        for (int level = 0; level < IrradianceCube.Levels; level++)
+            all.AddRange(
+                renderer.ReadEnvironmentFace(
+                    map: map,
+                    face: (CubeFace)layer,
+                    level: level,
+                    image: EnvironmentImage.Irradiance
+                )
+            );
+        return [.. all];
+    }
+
+    /// <summary>
+    /// A map with no drawn face keeps its irradiance cube (decision 12), and the convolution of a drawn map writes only its
+    /// own six layers: map 0's convolution leaves the cubes of maps 1 and 2, which lie in the layers after its own.
+    /// </summary>
+    [Fact]
+    public void AMapWithNoDrawnFaceKeepsItsIrradianceCubeBitForBit()
+    {
+        VulkanRenderer renderer = Renderer();
+        try
+        {
+            MeshId plane = renderer.CreateMesh(Primitives.Plane(1f));
+            EnvironmentScenes.Still(
+                renderer,
+                DomeScene(plane, EnvironmentScenes.Emissive(renderer, new(1, 0, 0)), 2, 1, 0),
+                time: 0
+            );
+            Half[] rootBefore = IrradianceLevels(renderer, map: 0);
+            Half[] middleBefore = IrradianceLevels(renderer, map: 1);
+            Half[] cameraBefore = IrradianceLevels(renderer, map: 2);
+
+            // Frame 1 draws face −X of map 0 alone, in a dome of another color.
+            EnvironmentScenes.Still(
+                renderer,
+                DomeScene(plane, EnvironmentScenes.Emissive(renderer, new(0, 1, 0)), 2, 1, 0),
+                time: Step
+            );
+
+            IrradianceLevels(renderer, map: 0).Should().NotEqual(rootBefore, "map 0's new face changes its cube");
+            IrradianceLevels(renderer, map: 1).Should().Equal(middleBefore, "no face of map 1 was drawn");
+            IrradianceLevels(renderer, map: 2).Should().Equal(cameraBefore, "no face of map 2 was drawn");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>
+    /// A matte surface inside a dome of green that a growth of the maps from two to three made, in the camera's frame, as
+    /// the frames that follow the growth show it. Every frame slot reads the new irradiance cubes.
+    /// </summary>
+    private static Vector3[] MatteAfterAGrowth(VulkanRenderer renderer, MeshId plane, bool grown)
+    {
+        MaterialId green = EnvironmentScenes.Emissive(renderer, new(0, 1, 0));
+        MaterialId matte = EnvironmentScenes.Matte(renderer);
+        var center = new Vector3(0, 0, -6);
+        RenderSnapshot Scene(MaterialId dome, params long[] chain)
+        {
+            RenderSnapshot snapshot = DomeScene(plane, dome, chain);
+            snapshot.Instances.Add(
+                FacingTheCamera(plane: plane, material: matte, center: center, chainDepth: TestChains.CamerasFrame)
+            );
+            return snapshot;
+        }
+
+        if (grown)
+            EnvironmentScenes.Still(renderer, Scene(EnvironmentScenes.Emissive(renderer, new(1, 0, 0)), 1, 0), time: 0);
+        EnvironmentScenes.Still(renderer, Scene(green, 2, 1, 0), time: Step);
+        // Two frames, one in each frame slot.
+        return
+        [
+            .. Enumerable
+                .Range(0, 2)
+                .Select(frame =>
+                    Gpu.RenderAndCapture(
+                            renderer: renderer,
+                            snapshot: Scene(green, 2, 1, 0),
+                            name: $"maps-matte-{(grown ? "grown" : "three")}-{frame}"
+                        )
+                        .Color(Gpu.Project(point: center, width: Width, height: Height))
+                ),
+        ];
+    }
+
+    [Fact]
+    public void AfterAGrowthOfTheMapsAMatteSurfaceTakesTheDiffuseLightOfTheNewMaps()
+    {
+        VulkanRenderer grown = Renderer();
+        VulkanRenderer three = Renderer();
+        try
+        {
+            Vector3[] afterTheGrowth = MatteAfterAGrowth(grown, grown.CreateMesh(Primitives.Plane(1f)), grown: true);
+            Vector3[] fromTheStart = MatteAfterAGrowth(three, three.CreateMesh(Primitives.Plane(1f)), grown: false);
+
+            fromTheStart[0].Y.Should().BeGreaterThan(0.2f, "the matte surface takes the green dome's light");
+            for (int frame = 0; frame < 2; frame++)
+                BrdfTesting
+                    .LargestChannelDifference(afterTheGrowth[frame], fromTheStart[frame])
+                    .Should()
+                    .BeLessThanOrEqualTo(
+                        Tolerance,
+                        "frame {0} after the growth shows {1}, as a renderer with three maps from its start shows {2}",
+                        frame,
+                        afterTheGrowth[frame],
+                        fromTheStart[frame]
+                    );
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(grown);
+            Gpu.DisposeAndAssertClean(three);
         }
     }
 

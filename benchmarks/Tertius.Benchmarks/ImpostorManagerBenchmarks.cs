@@ -11,6 +11,8 @@ namespace Tertius.Benchmarks;
 /// <see cref="ImpostorManager.EnterHeight"/>, so every visible instance is a candidate.</item>
 /// <item>The warm-up fills the atlas, so the measured frames run the decisions of every instance and capture nothing, as
 /// the stress test's frames do once the atlas is full.</item>
+/// <item>With <see cref="Map"/>, the ambient light is a map that draws no face this frame and whose irradiance reading
+/// holds a light, so each signature holds the reading's 24 texels in place of the hemisphere's colors.</item>
 /// </list>
 /// The median time is the figure to read, and the allocations must be 0.
 /// </summary>
@@ -35,11 +37,26 @@ public class ImpostorManagerBenchmarks
     [Params(false, true)]
     public bool Impostors;
 
+    [Params(false, true)]
+    public bool Map;
+
+    private EnvironmentDraw environment = new(new WithoutMap());
+
     [GlobalSetup]
     public void Setup()
     {
         if (Impostors)
             batcher.Processors.Add(new ImpostorManager(64));
+        if (Map)
+        {
+            var texels = new System.Numerics.Vector3[Irradiance.Texels];
+            for (int texel = 0; texel < texels.Length; texel++)
+                texels[texel] = new(0.1f * texel, 0.2f, 0.3f);
+            environment = new WithMap(
+                Faces: new[] { FaceMask.None },
+                Irradiance: new IrradianceReading?[] { new(Frame: 0, Irradiance: new(texels)) }
+            );
+        }
         // Grows the batcher's arrays and the scene's to the snapshot, so the measured calls allocate nothing.
         Prepare();
     }
@@ -47,7 +64,7 @@ public class ImpostorManagerBenchmarks
     [GlobalCleanup]
     public void Cleanup() =>
         Console.WriteLine(
-            $"ImpostorManager impostors={Impostors}: {scene.VisibleCount} visible, {scene.InstanceCount} drawn instances"
+            $"ImpostorManager impostors={Impostors} map={Map}: {scene.VisibleCount} visible, {scene.InstanceCount} drawn instances"
         );
 
     [Benchmark]
@@ -62,7 +79,7 @@ public class ImpostorManagerBenchmarks
             height: Height,
             meshes: SceneBatcherBenchmarks.Meshes,
             materials: Materials,
-            environment: new(new WithoutMap()),
+            environment: environment,
             region: DeformRegion.None,
             scene: scene
         );

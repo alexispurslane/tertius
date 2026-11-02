@@ -282,7 +282,7 @@ internal sealed class FrameGraph : IDisposable
         EnvironmentFaces,
 
         /// <summary>
-        /// The specular map and the irradiance, after the faces, because they derive from the faces of this frame, and
+        /// The specular map and the irradiance cube, after the faces, because they derive from the faces of this frame, and
         /// before every reader of the map, the impostor captures first.
         /// </summary>
         EnvironmentPrefilter,
