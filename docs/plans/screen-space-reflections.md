@@ -269,15 +269,18 @@ w_in    = w(s) after a crossing, the slab bound after a descent;   w_out = w(s_e
 overlap = max(min(w_in, w_out), low) ≤ min(max(w_in, w_out), high)
 ```
 
-- The walk keeps the pixel, not only s, because a position near a pixel's edge rounds to either side of it. P is always the march's pixel at s: on each axis, the pixel whose near edge the image reaches at s or before, and whose far edge it reaches after s. The parameters of those edges are the quotients (e − S₀) / ΔS on each axis that the march compares. The pixel moves only in three ways (`PixelAt`, `pixelAt`):
+- The walk keeps the pixel, not only s, because a position near a pixel's edge rounds to either side of it. P is always a pixel of the march whose stretch holds s: on each axis, the pixel whose near edge the image reaches at s or before, and whose far edge it reaches at s or after. The parameters of those edges are the quotients (e − S₀) / ΔS on each axis that the march compares. On an edge between two pixels, both stretches hold s. After a crossing, P is the pixel that the image enters there. After a descent, P is the pixel that the image leaves there, the earlier one in the march's order (ticket `ter-pywg`). The march tests a pixel over its stretch with both ends, so the earlier pixel's slab can meet the ray exactly at the entry. The pixel moves only in three ways (`PixelAt`, `pixelAt`):
 
   ```
   pixel_at(k, cell, s) = clamp(floor(S(s)) + sign(ΔS) · shift, cell · 2^k, cell · 2^k + 2^k − 1)
     shift = 1 on an axis where the pixel's far edge gives s or less, −1 where its near edge gives more than s, else 0
   after a miss:                    P = pixel_at(k, cell + sign(ΔS) · crossed, s)
-  after a descent to s_entry > s:  P = pixel_at(k, cell, s_entry)
+  after a descent to s_entry > s:  P = pixel_at(k, cell, below(s_entry))
   after a descent to s_entry = s:  P stays
+  below(x) = the largest float below x   (MathF.BitDecrement, floatBelow)
   ```
+
+  pixel_at gives the pixel that the image enters at s. No float lies between below(s_entry) and s_entry, so an edge parameter is at most below(s_entry) exactly when it is less than s_entry. So pixel_at at below(s_entry) gives the pixel that the image leaves at s_entry, also when s_entry lies on an edge. s_entry > s ≥ 0 there, so below(s_entry) is a number. In GLSL, the select drops the pixel of an entry at s.
 
   So a crossing moves into the cell across exactly the edges that the image leaves through. On the other axis, and on both after a descent, the walk takes the march's pixel, also where S(s) rounds across a pixel's corner. The rounding of S(s) is far below a pixel, so floor(S(s)) lies at most one pixel off on each axis, and one shift corrects it. The clamp keeps P in the cell that the walk moved into. An entry at s keeps P, which is already the march's pixel at s.
 
@@ -286,6 +289,7 @@ overlap = max(min(w_in, w_out), low) ≤ min(max(w_in, w_out), high)
   The two pixel rules before ticket `ter-cvyx`:
   - The trace chose the cell from S(s) moved 0.01 px ahead on both axes. Near a corner, that skipped a pixel that the image crosses for less than 0.01 px, while a descent with a solved entry inside the same pixel still found it. So the answer depended on how the walk reached the pixel: on 2,000,000 random rays, the trace and the pixel-by-pixel march disagreed on 55 before bounded planes, all of this kind, and on 50 of 92 after them.
   - The ticket's first fix took P = floor(S(s)), clamped into the cell. At a crossing of a coarse cell's edge within a rounding of a pixel's corner, the floor of the other axis could pass the corner and skip a sliver pixel that the march enters. The rounding there is about 10⁻⁴ px at 1920 px across. No random ray found it, but a ray built by hand does (`ACoarseCrossingWithinARoundingOfAPixelsCornerStandsInThePixelThatTheMarchEnters`).
+  - Until ticket `ter-pywg`, a descent took P = pixel_at(k, cell, s_entry), the pixel that the image enters at the entry. A slab entry exactly on an edge between two pixels inside the cell then put P in the later pixel, while the march meets the earlier pixel at the end of its stretch. The case needs an exact tie of the entry with the edge, which no random ray found (0 of 30,000,000), but rays of binary fractions do (`ASlabEntryOnAPixelsEdgeInsideACellMeetsThePixelThatTheImageLeavesThere`).
 - No overlap: no surface of the cell, with its thickness, meets the ray inside the cell. The ray crosses the cell: s = max(s, s_exit), P moves into the cell across, and the level rises by one, up to L, for a longer step next time. s never moves back: an entry solved inside a cell can round past that cell's exit, and P still moves on across the edges that the image leaves through.
 - A cell outside its level, which a ray reaches when its origin lies up to about two pixels beside the screen or when a crossing leaves the screen, has the empty bounds: no surface lies beyond the screen's edges. The cap of the level at L matters only for such a ray, which crosses top-level cells beside the screen.
 - An overlap at a level above 0: the ray can meet a surface inside the cell. The trace moves s to where the ray enters the slab, and looks at the finer level:
@@ -1487,6 +1491,8 @@ The tests follow tests/STYLE.md: one behavior per test, named as a statement. No
 - `ARayThatCrossesAPixelOnlyNearItsCornerFindsThePixelThatTheMarchFinds`: three random rays, kept as float bits, that cross a pixel for less than 0.01 px near its corner and meet its slab there. The trace once skipped that pixel.
 - `ATraceMeetsAPixelThatTheImageCrossesOnlyNearItsCorner`: the image crosses one pixel of a 16 × 16 sky for 0.04 px across and 0.004 px down, and that pixel holds the only surface.
 - `ACoarseCrossingWithinARoundingOfAPixelsCornerStandsInThePixelThatTheMarchEnters`: on a 16 × 16 sky, the image leaves a level-1 cell across x = 8 at s = 0.23438850 and crosses y = 9 at s = 0.23438855, so the march enters pixel (8, 8) for 5 · 10⁻⁷ px. S(s) at the crossing rounds to y = 9. Pixel (8, 8) holds the only surface, and the trace must meet it.
+- `ASlabEntryOnAPixelsEdgeInsideACellMeetsThePixelThatTheImageLeavesThere`: on a 16 × 16 sky, a ray of binary fractions from beyond the screen, across or down, in each direction of travel. Its inverse depth falls to the only surface at s = 1.4375, exactly where the image leaves the surface's pixel across an edge inside every cell above level 0. The march meets the pixel at the end of its stretch, and the descent stands in it.
+- `ACoarseCrossingThroughAPixelCornerOnTheCellsEdgeEntersThePixelThatTheMarchEnters`: on a 16 × 16 sky, the walk leaves a level-3 cell across its edge exactly through a pixel corner inside that edge, in each direction of travel on the other axis. The pixel that the image enters there and the pixel that it touches only at the corner both see a surface at the ray's inverse depth. The crossing stands in the entered pixel.
 - `ASlabEntryThatRoundsOntoItsCellsFarEdgeFindsThePixelThatTheMarchFinds`: five rays out of 2,000,000, kept as float bits, whose slab entry, solved inside a cell, rounds onto that cell's far edge.
 - `OverEmptySpaceATraceTakesFewerStepsThanThePixelsItCrosses`: a ray across a 1,024 px screen of sky takes fewer than 40 steps.
 - `ATraceThatUsesAllItsStepsMisses`.
@@ -1563,6 +1569,7 @@ Each builder breaks the line that each new test protects, watches the test fail,
 - Drop `/ (1.0 + ThicknessShare)`.
 - Return an `entryShare` of 0 always.
 - Take `entryShare` from `inW` instead of the pixel's entry edge.
+- Ticket `ter-pywg`, in the walk's pixel: take the pixel after a descent at s_entry instead of below(s_entry); compare with `<` instead of `<=` for the far edge in `pixelAt`, and with `>=` instead of `>` for the near edge.
 - Ticket `ter-cvyx`, in the walk's pixel: take floor(S(s)) without the shift of `pixelAt`; drop the clamp of `pixelAt`; compare with `<` instead of `<=` in `crossed`; move P after a descent to s_entry = s; start the level-0 stretch at s instead of s_pixel. Before that ticket the list held "Drop the crossing nudge" and "Nudge a slab entry solved inside a cell", whose code the ticket removed.
 - Return a cell outside its level from `texelFetch` instead of the empty bounds.
 - Use the mirror direction for d.

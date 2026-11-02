@@ -192,9 +192,10 @@ internal readonly record struct ScreenRay(
             // GLSL's clamp, which never throws: exit can lie a rounding below s.
             float entry = MathF.Min(MathF.Max(SlabEntry(s: s, inW: inW, low: slab.Low, high: slab.High), s), exit);
             // An entry at s keeps the pixel, which s can stand on the edge of. An entry past s lies in the cell's pixel
-            // that holds it.
+            // that the image leaves there, because the march tests a pixel's stretch up to its end, where the pixel's
+            // slab can reach the ray. That is the pixel at the float just below the entry: no edge lies between them.
             if (entry > s)
-                pixel = PixelAt(level: level, cell: cell, s: entry, travel: travel);
+                pixel = PixelAt(level: level, cell: cell, s: MathF.BitDecrement(entry), travel: travel);
             s = entry;
             inW = Math.Clamp(inW, slab.Low, slab.High);
             level--;

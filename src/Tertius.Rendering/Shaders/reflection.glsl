@@ -110,6 +110,12 @@ float exactPowerOfTwo(int power)
     return uintBitsToFloat(uint(127 + power) << 23);
 }
 
+// The largest float below a positive x (C#'s MathF.BitDecrement). Every float that lies below x lies at it or below.
+float floatBelow(float x)
+{
+    return uintBitsToFloat(floatBitsToUint(x) - 1u);
+}
+
 // The parameters where the image reaches the line x = edge.x and the line y = edge.y, or still on an axis where the
 // image stands still (ScreenRay.EdgeParameters). The walk and the level-0 test take every pixel's edges from here.
 vec2 edgeParameters(ScreenRay ray, RayReciprocals inverse, vec2 edge, float still)
@@ -274,9 +280,13 @@ bool traceRay(texture2D pyramid, ScreenRay ray, uint maxSteps, out vec2 hit, out
         // The walk still moves on, into the cell across the edges that the image leaves through.
         float crossing = max(s, exit);
         float next = meetsSlab ? entry : crossing;
-        // After a miss, the pixel of the cell across; after a descent to an entry past s, the cell's pixel that holds
-        // it. An entry at s keeps the pixel, which s can stand on the edge of.
-        vec2 nextPixel = pixelAt(ray, inverse, meetsSlab ? cell : cell + travel * crossed, side, travel, next);
+        // After a miss, the pixel of the cell across that the image enters. After a descent to an entry past s, the
+        // cell's pixel that the image leaves there, because the march tests a pixel's stretch up to its end, where the
+        // pixel's slab can reach the ray. That is the pixel at the float just below the entry: no edge lies between
+        // them. An entry at s keeps the pixel, which s can stand on the edge of, so the select drops the pixel of an
+        // entry at s = 0, whose float below holds no number.
+        float pixelS = meetsSlab ? floatBelow(entry) : crossing;
+        vec2 nextPixel = pixelAt(ray, inverse, meetsSlab ? cell : cell + travel * crossed, side, travel, pixelS);
         pixel = !meetsSlab || entry > s ? nextPixel : pixel;
         // After a descent, the slab bound that s was solved for; min and max keep it defined where the cell is missed.
         inW = meetsSlab ? min(max(inW, low), high) : ray.startW + ray.stepW * crossing;

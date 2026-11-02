@@ -680,6 +680,91 @@ public sealed class ScreenRayTests
         hit.Pixel.Should().Be((7, 4));
     }
 
+    [Theory]
+    [InlineData("across to the right", -7.5f, 4.5f, 8, 0, 3, 4)]
+    [InlineData("across to the left", 23.5f, 4.5f, -8, 0, 12, 4)]
+    [InlineData("down", 4.5f, -7.5f, 0, 8, 4, 3)]
+    [InlineData("up", 4.5f, 23.5f, 0, -8, 4, 12)]
+    public void ASlabEntryOnAPixelsEdgeInsideACellMeetsThePixelThatTheImageLeavesThere(
+        string path,
+        float startX,
+        float startY,
+        float stepX,
+        float stepY,
+        int surfaceX,
+        int surfaceY
+    )
+    {
+        // The image comes onto the screen from beyond it and enters the level-4 cell, the whole screen, at s = 0.9375.
+        // The ray's inverse depth falls to the surface's 0.5 at s = 1.4375, where the image leaves the surface's pixel
+        // across an edge inside every cell above level 0, so the march meets the pixel at the end of its stretch. The
+        // descent solves its slab entry exactly on that edge. Every number is a binary fraction, so the tie is exact.
+        float[] inverseDepths = new float[16 * 16];
+        inverseDepths[surfaceY * 16 + surfaceX] = 0.5f;
+        var pyramid = DepthPyramid.FromInverseDepths(inverseDepths, width: 16, height: 16);
+        var ray = new ScreenRay(
+            Start: new(startX, startY),
+            Step: new(stepX, stepY),
+            StartInverseDepth: 0.859375f,
+            StepInverseDepth: -0.25f,
+            End: 2.9f,
+            EndsAt: SegmentEnd.ScreenEdge
+        );
+
+        RayTrace trace = ray.Trace(pyramid, MaxSteps);
+
+        March(ray, pyramid).Should().Be((surfaceX, surfaceY, 0f), "the ray reaches the surface where the image leaves");
+        trace
+            .TryGetValue(out RayHit hit)
+            .Should()
+            .BeTrue($"the walk {path} descends into the pixel that the image leaves at the entry, not {trace}");
+        hit.Pixel.Should().Be((surfaceX, surfaceY));
+    }
+
+    [Theory]
+    [InlineData("across and up", 0.5f, 5.9375f, 8, -1, 8, 4, 8, 5)]
+    [InlineData("across and down", 0.5f, 4.0625f, 8, 1, 8, 5, 8, 4)]
+    [InlineData("down and to the left", 5.9375f, 0.5f, -1, 8, 4, 8, 5, 8)]
+    [InlineData("down and to the right", 4.0625f, 0.5f, 1, 8, 5, 8, 4, 8)]
+    public void ACoarseCrossingThroughAPixelCornerOnTheCellsEdgeEntersThePixelThatTheMarchEnters(
+        string path,
+        float startX,
+        float startY,
+        float stepX,
+        float stepY,
+        int enteredX,
+        int enteredY,
+        int touchedX,
+        int touchedY
+    )
+    {
+        // The walk climbs over empty cells and leaves the level-3 cell of pixels 0 to 7 across the line 8 at s = 0.9375.
+        // There the image passes exactly through a pixel corner inside the cell's edge, so the march leaves the cell
+        // diagonally into the entered pixel, and the touched pixel beside it meets the image only at that corner. Both
+        // see a surface at the ray's own inverse depth, which a stretch of no length still meets.
+        float[] inverseDepths = new float[16 * 16];
+        inverseDepths[enteredY * 16 + enteredX] = 0.5f;
+        inverseDepths[touchedY * 16 + touchedX] = 0.5f;
+        var pyramid = DepthPyramid.FromInverseDepths(inverseDepths, width: 16, height: 16);
+        var ray = new ScreenRay(
+            Start: new(startX, startY),
+            Step: new(stepX, stepY),
+            StartInverseDepth: 0.5f,
+            StepInverseDepth: 0,
+            End: 1.9f,
+            EndsAt: SegmentEnd.ScreenEdge
+        );
+
+        RayTrace trace = ray.Trace(pyramid, MaxSteps);
+
+        March(ray, pyramid).Should().Be((enteredX, enteredY, 0f), "the march leaves a pixel through its corner");
+        trace
+            .TryGetValue(out RayHit hit)
+            .Should()
+            .BeTrue($"the image {path} meets the entered pixel's surface, not {trace}");
+        hit.Pixel.Should().Be((enteredX, enteredY), "a crossing stands in the pixel that the image enters there");
+    }
+
     /// <summary>The scene of the random rays: a floor, a far wall, a side wall and four boxes.</summary>
     private static readonly SceneRectangle[] RoomScene =
     [
