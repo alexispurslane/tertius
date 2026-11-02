@@ -7,8 +7,8 @@ public sealed record JoltBackendOptions
     /// The options of a run that steps as fast as it can, with no window to pace it: a headless script run, the script
     /// generator, the readout log and the tests. It has one Jolt worker, because Jolt wakes every worker in every step,
     /// and a scene of the demo's size gains nothing from more. Jolt's results do not depend on the number of its
-    /// workers. On 2026-10-21 the Blue Danube script, 306,558 ticks, took 62 s in Release with Jolt's default and 27 s
-    /// with one worker, and both wrote the same script.
+    /// workers. On 2026-10-21 the Blue Danube script, 306,558 ticks, took 62 s in Release with the default of 9 workers on
+    /// a machine of 10 cores, and 27 s with one worker, and both wrote the same script.
     /// </summary>
     public static JoltBackendOptions Unpaced => new() { WorkerThreads = 1 };
 
@@ -29,8 +29,21 @@ public sealed record JoltBackendOptions
     /// <summary>The most contact constraints that one frame's solver can hold per step, until the frame's system grows.</summary>
     public int MaxContactConstraintsPerFrame { get; init; } = 4096;
 
-    /// <summary>Jolt worker threads. Zero or less uses Jolt's default: one per core, minus one.</summary>
+    /// <summary>
+    /// Jolt worker threads. Zero or less gives one per processor that the runtime reports, minus one, and at least one (see
+    /// <see cref="WorkerThreadsFor"/>). The runtime takes its count from <c>DOTNET_PROCESSOR_COUNT</c> when it is set, and
+    /// else from the processors that the process may use. So the variable sets the number of these threads, as it sets the
+    /// processor count of the .NET thread pool and the thread count of xunit.
+    /// </summary>
     public int WorkerThreads { get; init; }
+
+    /// <summary>
+    /// The number of Jolt worker threads of a backend with these options, in a runtime that reports
+    /// <paramref name="processorCount"/> processors (<see cref="Environment.ProcessorCount"/>): <see cref="WorkerThreads"/>
+    /// when it is positive, else <paramref name="processorCount"/> minus one, and at least one.
+    /// </summary>
+    internal int WorkerThreadsFor(int processorCount) =>
+        WorkerThreads > 0 ? WorkerThreads : Math.Max(1, processorCount - 1);
 
     /// <summary>
     /// How far bodies may sink into each other before Jolt pushes them apart, in meters. A resting body sinks about

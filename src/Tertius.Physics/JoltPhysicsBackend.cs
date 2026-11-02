@@ -89,9 +89,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
         log = this.options.Log ?? (static message => Trace.TraceWarning(message));
         JoltRuntime.EnsureInitialized();
         jobs = NativeOwnership.Owned(
-            this.options.WorkerThreads > 0
-                ? new(new() { numThreads = this.options.WorkerThreads })
-                : new JobSystemThreadPool()
+            new JobSystemThreadPool(new() { numThreads = this.options.WorkerThreadsFor(Environment.ProcessorCount) })
         );
     }
 
