@@ -1,6 +1,6 @@
 ---
 id: ter-kn1d
-status: in_progress
+status: closed
 deps: []
 links: [ter-trz2, ter-fu8n]
 created: 2026-11-01T18:54:33Z
@@ -169,3 +169,7 @@ The new tests.
 - ShadowCascadeTests.EveryCascadeBoxKeepsTheTapsOfAnOffsetLookupInsideTheMapForEverySnap: over 16 anchors, every box keeps FilterClearanceTexels + NormalOffsetTexels free around its slice's sphere after the snap. MarginTexels 3 leaves 2.505 texels.
 - Gpu.FirstCascadeTexel moved from HairRenderTests into the shared test support, because three tests use it.
 No reference image changed, and no test exposed a bug.
+
+**2026-11-02T00:20:56Z**
+
+Merged into main on 2026-11-01 (orchestrator) after the hardening pass (d476d78c and 2bdfc1a6: changed C# lines 8/8 covered, 22 hand mutations, 18 killed and 4 judgment calls e, h4, l1 and l2). tools/test-all.sh passed on the merge in Checked and Release, every module with 0 failed. Open after this ticket: ter-trz2 (the ceiling cracks and the sun streaks on the spinward ceiling) and ter-fu8n (the thin wall's shadow under the slope bias).
