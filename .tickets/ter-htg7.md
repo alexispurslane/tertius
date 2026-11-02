@@ -22,3 +22,9 @@ The merge: merge main into the branch first (the correctness tickets will confli
 
 The refactor and improvements: (1) 0.87 against 0.9: check whether a render size rounded to a multiple of 8 gives 0.87 its expected saving (1670x940 are not multiples of 8); (2) the long methods that the branch grew: the VulkanRenderer constructor (61 lines), DrawFrame (62), CreatePools (64) and ScriptCommand's RendererOverrides.ApplyTo (complexity 11); (3) the hook's long-tuple-unpacking findings in DescriptorLayouts (graphics layouts with 8 values, compute layouts with 6); (4) the surviving hand mutation, the RCAS input clamp in fsr1_rcas.frag, which a lavapipe test could cover; (5) coverage and mutation testing, which the experiment skipped. Ask the user before turning FSR at 0.77 on by default in the demo: the user said 'if it saves 1 or more ms, seems worth it to me', but the default is the user's call.
 
+
+## Notes
+
+**2026-11-02T00:54:34Z**
+
+The user's decisions (2026-11-01): (1) FSR waits for the reflection work, so this ticket starts after the whole epic ter-b2da, including ter-eqtb and the redesign of blocky SSR (ter-f3g2 and its build ticket). (2) The demo uses FSR at scale 0.77 by default, with sharpness 1 stop; the renderer's own default stays native. Set the demo's default in this ticket, measure it again on the new main, and send screenshots. The bloom's wider glow at 0.77 is ter-ch7z, which follows this ticket.

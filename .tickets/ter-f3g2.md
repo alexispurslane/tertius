@@ -5,6 +5,7 @@ deps: [ter-y8z0]
 links: [ter-eqtb]
 created: 2026-11-02T00:33:34Z
 type: task
+parent: ter-b2da
 priority: 1
 assignee: Alexis Purslane
 tags: [rendering, reflections]
@@ -19,3 +20,7 @@ The user's main concern after ter-y8z0 (2026-11-01): the blockiness of the scree
 **2026-11-02T00:51:05Z**
 
 2026-11-01: workflow run 9f91a243-94ad-40db-98ed-dd28a3636b8f (version 869b0b07), branch ter-f3g2-soft-rough-reflections from eeac4083. A probe ticket: a timed prototype of design 2 (GGX rays by a fixed noise, a resolve that reuses neighbors' hits weighted by BRDF over pdf, a blur), captured on every view of artifacts 1, 2, 3 and 5 and on the mirrors, against ter-y8z0's normalized lobe reference and MaxRoughness 0.37.
+
+**2026-11-02T00:54:34Z**
+
+The user's decision (2026-11-01): FSR waits for the reflections. So this probe, the design choice that follows it and the build of the chosen design stay in epic ter-b2da, and ter-htg7 merges FSR after them.
