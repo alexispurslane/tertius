@@ -625,6 +625,86 @@ public sealed class SectorSearchTests
     }
 
     [Fact]
+    public void ANearStepReachesTowardTheNeighborThatContinuesItsTexelsPlaneAndStopsTowardTheOtherThatDoesNot()
+    {
+        // Planks two texels wide, on the columns that leave a remainder of 0 or 1 when divided by 3, on a plane through
+        // (0, 0, 5) that recedes to the right and up, and a wall 50 m ahead that faces the eye on the columns between
+        // them. A plank's texel has one neighbor along its row that continues its plane and one that does not, so each
+        // side of the texel takes its own answer.
+        Double3 normal = new Double3(0.4, 0.3, -1).Normalized();
+        double planeOffset = Double3.Dot(normal, new(0, 0, 5));
+        static bool OnAPlank(int column) => column % 3 != 2;
+        double InverseDepthAt((double X, double Y) place) =>
+            OnAPlank((int)Math.Round(place.X))
+                ? Double3.Dot(normal, WallRayThrough(place)) / planeOffset
+                : 1.0 / 50;
+        StepTexel? PlanksAt((int X, int Y) texel) =>
+            new StepTexel(
+                Position: WallRayThrough((texel.X, texel.Y)) / InverseDepthAt((texel.X, texel.Y)),
+                GeometricNormal: OnAPlank(texel.X) ? normal : TowardTheEye,
+                DirectLight: Red,
+                Card: null
+            );
+
+        var steps = new List<NearStep>();
+        for (int slice = 0; slice < 16; slice++)
+            steps.AddRange(
+                SectorSearch.SliceSteps(
+                    texel: (X: 160, Y: 90),
+                    slice: slice,
+                    sliceAngle: slice * Math.PI / 8 + 0.1,
+                    stepsPerSide: 3,
+                    stepNoise: 0.37f,
+                    radiusInTexels: 20,
+                    halfSize: (Width: 320, Height: 180),
+                    rayThrough: WallRayThrough,
+                    texelAt: PlanksAt,
+                    ownSurface: new OwnPlane(normal)
+                )
+            );
+
+        // The step's exact place, from its point on its exact ray, and the place where its texel's surface holds: the
+        // place itself on the side of the plank's other texel, and the texel's center column on the side of the wall.
+        static (double X, double Y) PlaceOf(NearStep step) =>
+            (X: 160 + 160 * step.Position.X / step.Position.Z, Y: 90 - 160 * step.Position.Y / step.Position.Z);
+        static double HoldsAt(double x)
+        {
+            int column = (int)Math.Round(x);
+            bool towardThePlank = x < column ? column % 3 == 1 : column % 3 == 0;
+            return OnAPlank(column) && !towardThePlank ? column : x;
+        }
+        foreach (int remainder in new[] { 0, 1 })
+        foreach (bool right in new[] { false, true })
+            steps
+                .Any(step =>
+                {
+                    double x = PlaceOf(step).X;
+                    return Math.Round(x) % 3 == remainder && (right ? x - Math.Round(x) > 0.1 : Math.Round(x) - x > 0.1);
+                })
+                .Should()
+                .BeTrue(
+                    "the test needs a step on each side of each texel of a plank, off its center column: remainder {0}, right {1}",
+                    remainder,
+                    right
+                );
+        steps
+            .Should()
+            .AllSatisfy(step =>
+            {
+                (double x, double y) = PlaceOf(step);
+                double expected = InverseDepthAt((X: HoldsAt(x), Y: y));
+                (1 / step.Position.Z)
+                    .Should()
+                    .BeApproximately(
+                        expected,
+                        1e-5 * expected,
+                        "toward the plank's other texel the plane reaches the place, and toward the wall it keeps its "
+                            + "value at the center column"
+                    );
+            });
+    }
+
+    [Fact]
     public void ANearStepStandsOnTheSurfaceThatThePixelOfItsGridHas()
     {
         // A box on a floor that ends 20 m ahead, before the sky: depth edges, the sky, the screen's edges and planes that
