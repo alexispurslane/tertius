@@ -24,3 +24,7 @@ Ticket 3 of ter-jw7g's design (docs/plans/environment-map-distances.md, 'Ticket 
 **2026-11-02T15:21:43Z**
 
 2026-11-02: launched as workflow run 81862872-c55e-40a2-b270-d8bd69b9db11, version 869b0b07-3413-4b06-8707-a88a91bf6e91 (build, review, fix), branch ter-s6zr-corrected-read, base f9c571f74. It also builds ter-bytc (one cone, SSR's width).
+
+**2026-11-02T17:15:22Z**
+
+2026-11-02, the user's choice after the build (run 81862872, head ec384e78) stopped at the acceptance fork: probe, then merge. The corrected read missed the acceptance captures: the terminal door 109.7 against the reference's 65.5 (bound 44 to 87), ghosts of near objects on far walls from the solid rule (decision B: the terminal's pillar and kiosk, deck-late's glass building), a bright line at deck-late's floor-wall seam from the level-0 skin, a too-sharp reflection of the pillar's foot from the near read, and +1.7 ms per frame on the deck (ambient pass +2.7 ms). The user was told that changing the march's settings cannot remove the ghosts. Rejected: merge as built and fix later. A continuation on this branch probes candidate rules for the space behind a stored surface (the solid rule as the control, SSR's slab with today's read after a pass behind, the slab that reads the last surface seen in front) and a limit on the near read's sharpness, and the user chooses from sheets. ter-g6af and ter-pn1w wait for the merge.
