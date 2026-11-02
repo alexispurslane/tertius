@@ -44,3 +44,7 @@ Ticket 3 of ter-jw7g's design (docs/plans/environment-map-distances.md, 'Ticket 
 **2026-11-02T19:47:06Z**
 
 2026-11-02: the brief of the moment-form probe is /tmp/briefs/s6zr-moments.txt. It launches when a builder slot frees (four workflows run now: ter-nw4a, ter-ipc1, ter-b1j3, ter-cvyx).
+
+**2026-11-02T20:59:21Z**
+
+2026-11-02: the moment probe launched as workflow run e7fd2065-e609-4bb1-bd3d-48a09b901e3e, version 869b0b07-3413-4b06-8707-a88a91bf6e91, on branch ter-s6zr-corrected-read (brief /tmp/briefs/s6zr-moments-launch.txt). It merges main first (ter-b1j3 is in main since 9fda8f414), so lobenorm counts each lamp once (ref1), then probes the moment form with RG16F and RG32F against S + Q2 and M, and ends at a fork.
