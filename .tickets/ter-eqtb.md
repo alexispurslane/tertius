@@ -2,7 +2,7 @@
 id: ter-eqtb
 status: open
 deps: [ter-rjts, ter-y8z0]
-links: []
+links: [ter-f3g2]
 created: 2026-11-01T15:28:45Z
 type: bug
 parent: ter-b2da
