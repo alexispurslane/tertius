@@ -1,7 +1,7 @@
 ---
 id: ter-ikm1
 status: open
-deps: [ter-cvyx]
+deps: [ter-cvyx, ter-pywg, ter-nw4a, ter-s6zr]
 links: []
 created: 2026-11-02T21:32:41Z
 type: chore

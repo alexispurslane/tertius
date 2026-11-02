@@ -1,6 +1,6 @@
 ---
 id: ter-ipc1
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-11-02T16:37:04Z

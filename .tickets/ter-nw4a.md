@@ -32,3 +32,7 @@ Asked by the user on 2026-11-02 about the floor film's stair steps in ter-eqtb's
 **2026-11-02T19:47:06Z**
 
 2026-11-02: the build of design A launched as workflow run 67504b63-8e98-4971-9e1c-945c289508ee on this branch (brief /tmp/briefs/nw4a-cont.txt). Settled by the orchestrator: store t in the hit image if a free channel or an exact encoding allows it; fix the tear on curved receivers; below one texel the pixel keeps today's path; remove the upsample's own rays at outlines where the footprint passes one texel, if that keeps the images.
+
+**2026-11-02T22:55:09Z**
+
+2026-11-02, the user's choices after the fix stage (run 67504b63, head e4af3ce28) stopped at the fork of the taps' cost: nearest taps (rejected: bilinear taps, +3.37 ms on reflections low, +0.46 ms on the step view, +0.15 ms on frames with no blending pixel), and a cost pass in this ticket before the merge (rejected: merge now and cut the cost later). The user was told that nearest taps start at +1.75 / +0.20 / +0.03 ms and that the cost after the pass is unknown. ter-7d82 keeps the blocks as follow-up work. The ball of 0.2 still shows its neighbor's reflection sharply near the rim: ter-cklj (an elliptical footprint) is filed in the epic, not as a blocker. Continuation launched: workflow run ba772b3f-6bd8-41f3-b372-651053f130d1 (version 869b0b07), brief /tmp/briefs/nw4a-cost.txt.
