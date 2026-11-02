@@ -118,9 +118,11 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     public DescriptorLayouts(VulkanDevice device, int framesInFlight, int glowLevels)
     {
         this.device = device;
+
         LinearClampSampler = CreateLevelZeroSampler(Filter.Linear, "linear clamp sampler");
         PointSampler = CreateLevelZeroSampler(Filter.Nearest, "point sampler");
         EnvironmentSampler = CreateTrilinearClampSampler("environment sampler");
+
         FrameSet = CreateFrameSetLayout(LinearClampSampler, EnvironmentSampler);
         TextureSet = CreateTextureSetLayout();
         ShadowSampler = CreateShadowSampler();
@@ -129,6 +131,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         GlowSourceSet = CreateImagesLayout(images: 1, sampler: LinearClampSampler, name: "glow source set");
         AtlasSampler = CreateTrilinearClampSampler("impostor atlas sampler");
         AtlasSet = CreateImagesLayout(images: 2, sampler: AtlasSampler, name: "impostor atlas set");
+
         (MeterSet, ExposureSet) = CreateExposureSetLayouts();
         (EnvironmentPrefilterSet, EnvironmentLevelsSet) = CreateEnvironmentSetLayouts(EnvironmentSampler);
         OcclusionSet = CreateOcclusionSetLayout();
@@ -687,56 +690,40 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         PipelineLayout ShadowBounds
     ) CreateComputeLayouts()
     {
-        PipelineLayout exposure = CreatePipelineLayout(
+        PipelineLayout exposure = ComputeLayout<ExposureAdaptPushConstants>(
             sets: [MeterSet, ExposureSet],
-            push: new(ShaderStageFlags.ComputeBit, 0, (uint)Unsafe.SizeOf<ExposureAdaptPushConstants>()),
             name: "exposure layout"
         );
-        PipelineLayout environmentPrefilter = CreatePipelineLayout(
+        PipelineLayout environmentPrefilter = ComputeLayout<EnvironmentPrefilterPushConstants>(
             sets: [EnvironmentPrefilterSet, EnvironmentLevelsSet],
-            push: new(ShaderStageFlags.ComputeBit, 0, (uint)Unsafe.SizeOf<EnvironmentPrefilterPushConstants>()),
             name: "environment prefilter layout"
         );
-        PipelineLayout occlusion = CreatePipelineLayout(
+        PipelineLayout occlusion = ComputeLayout<OcclusionPushConstants>(
             sets: [FrameSet, TextureSet, GBufferSet, OcclusionSet],
-            push: new(ShaderStageFlags.ComputeBit, 0, (uint)Unsafe.SizeOf<OcclusionPushConstants>()),
             name: "occlusion layout"
         );
-        var tailPush = new PushConstantRange(
-            ShaderStageFlags.ComputeBit,
-            0,
-            (uint)Unsafe.SizeOf<DepthTailPushConstants>()
-        );
-        PipelineLayout pyramid = CreatePipelineLayout(
+        PipelineLayout pyramid = ComputeLayout<DepthTailPushConstants>(
             sets: [FrameSet, TextureSet, GBufferSet, PyramidLevelSet],
-            push: tailPush,
             name: "pyramid layout"
         );
-        PipelineLayout depthTail = CreatePipelineLayout(
+        PipelineLayout depthTail = ComputeLayout<DepthTailPushConstants>(
             sets: [FrameSet, TextureSet, GBufferSet, DepthTailSet],
-            push: tailPush,
             name: "depth tail layout"
         );
-        PipelineLayout reflection = CreatePipelineLayout(
+        PipelineLayout reflection = ComputeLayout<ReflectionPushConstants>(
             sets: [FrameSet, TextureSet, GBufferSet, ReflectionSet],
-            push: new(ShaderStageFlags.ComputeBit, 0, (uint)Unsafe.SizeOf<ReflectionPushConstants>()),
             name: "reflection layout"
         );
         // The deform set alone, so its compute stage sees five storage buffers, within the eight that the scene layout
         // already needs of every device.
-        PipelineLayout deform = CreatePipelineLayout(
-            sets: [DeformSet],
-            push: new(ShaderStageFlags.ComputeBit, 0, (uint)Unsafe.SizeOf<DeformPushConstants>()),
-            name: "deform layout"
-        );
+        PipelineLayout deform = ComputeLayout<DeformPushConstants>(sets: [DeformSet], name: "deform layout");
         PipelineLayout scatter = CreatePipelineLayout(
             sets: [FrameSet, TextureSet, GBufferSet, ScatterSet],
             push: null,
             name: "scatter layout"
         );
-        PipelineLayout shadowBounds = CreatePipelineLayout(
+        PipelineLayout shadowBounds = ComputeLayout<ShadowBoundsPushConstants>(
             sets: [ShadowBoundsSet],
-            push: new(ShaderStageFlags.ComputeBit, 0, (uint)Unsafe.SizeOf<ShadowBoundsPushConstants>()),
             name: "shadow bounds layout"
         );
         return (
@@ -751,6 +738,15 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             shadowBounds
         );
     }
+
+    /// <summary>A layout of <paramref name="sets"/> whose one push constant range is a <typeparamref name="TPush"/> for the compute stage.</summary>
+    private PipelineLayout ComputeLayout<TPush>(ReadOnlySpan<DescriptorSetLayout> sets, string name)
+        where TPush : unmanaged =>
+        CreatePipelineLayout(
+            sets: sets,
+            push: new(ShaderStageFlags.ComputeBit, 0, (uint)Unsafe.SizeOf<TPush>()),
+            name: name
+        );
 
     /// <summary>The shared pool, which holds <paramref name="glowSourceSets"/> glow source sets, and the pool of the texture sets.</summary>
     private (DescriptorPool Shared, DescriptorPool Textures) CreatePools(uint framesInFlight, uint glowSourceSets)
