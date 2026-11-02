@@ -24,3 +24,7 @@ The user's decision of 2026-11-01, after ter-f3g2's probe: SSR's roughness limit
 **2026-11-02T02:29:57Z**
 
 2026-11-01: workflow run 80f4ee26-ed98-4bdd-bc43-987b2c8a88e9 (version 869b0b07), branch ter-8bda-ssr-limit-037 from fa0fb4848. The pyramid skip is a measurement only in this ticket; a build, if worth it, goes to epic ter-pq5y.
+
+**2026-11-02T07:59:55Z**
+
+2026-11-02: run 80f4ee26 waited about 5 hours on a permission prompt (an rm inside a compound bash -c script). The orchestrator stopped it and made sure that its cleanup was complete. The worktree keeps its uncommitted work (MaxRoughness 0.37 and the test changes). Continuation: workflow run f661bb1e-70e4-4061-8c33-919217c49ba6 (version 869b0b07), same branch ter-8bda-ssr-limit-037 and worktree, base fa0fb4848. Its brief adds two rules: GNU sed, and every rm as a command of its own.
