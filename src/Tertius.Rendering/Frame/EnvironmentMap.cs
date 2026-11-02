@@ -230,6 +230,8 @@ internal sealed unsafe class EnvironmentMap : IDisposable
         ResourceState sampled = ResourceUses.Describe(ImageUse.SampledVertexFragment);
         AccessFlags2 written = before.Access & ResourceUses.WriteMask;
         const uint last = IrradianceCube.Levels - 1;
+
+        // The copy reads the last level, and this frame's readers read the others.
         barriers.ImageLevels(
             image: cube,
             baseMip: last,
@@ -254,24 +256,7 @@ internal sealed unsafe class EnvironmentMap : IDisposable
         );
         barriers.Buffer(readback, BufferUse.TransferDestination);
         barriers.Flush(device.Vk, commandBuffer);
-        var region = new BufferImageCopy
-        {
-            ImageSubresource = new(
-                aspectMask: ImageAspectFlags.ColorBit,
-                mipLevel: last,
-                baseArrayLayer: 0,
-                layerCount: (uint)(CubeFaces.Count * maps)
-            ),
-            ImageExtent = new(IrradianceCube.CoarsestSize, IrradianceCube.CoarsestSize, 1),
-        };
-        device.Vk.CmdCopyImageToBuffer(
-            commandBuffer: commandBuffer,
-            srcImage: cube.Handle,
-            srcImageLayout: ImageLayout.TransferSrcOptimal,
-            dstBuffer: readback.Handle,
-            regionCount: 1,
-            pRegions: &region
-        );
+        RecordCopy(commandBuffer: commandBuffer, readback: readback, maps: maps);
 
         barriers.Buffer(readback, BufferUse.HostRead);
         // A copy only reads, so the layout's change waits for it with no access to make visible.
@@ -288,6 +273,33 @@ internal sealed unsafe class EnvironmentMap : IDisposable
         );
         barriers.Flush(device.Vk, commandBuffer);
         cube.State = sampled;
+    }
+
+    /// <summary>
+    /// Copies the last level of the first <paramref name="maps"/> maps' irradiance cubes, in the
+    /// <see cref="ImageLayout.TransferSrcOptimal"/> layout, into <paramref name="readback"/>, tightly packed in layer, row
+    /// and column order, as <see cref="Collect"/> reads it.
+    /// </summary>
+    private void RecordCopy(CommandBuffer commandBuffer, GpuBuffer readback, int maps)
+    {
+        var region = new BufferImageCopy
+        {
+            ImageSubresource = new(
+                aspectMask: ImageAspectFlags.ColorBit,
+                mipLevel: IrradianceCube.Levels - 1,
+                baseArrayLayer: 0,
+                layerCount: (uint)(CubeFaces.Count * maps)
+            ),
+            ImageExtent = new(IrradianceCube.CoarsestSize, IrradianceCube.CoarsestSize, 1),
+        };
+        device.Vk.CmdCopyImageToBuffer(
+            commandBuffer: commandBuffer,
+            srcImage: Irradiance.Handle,
+            srcImageLayout: ImageLayout.TransferSrcOptimal,
+            dstBuffer: readback.Handle,
+            regionCount: 1,
+            pRegions: &region
+        );
     }
 
     /// <summary>
