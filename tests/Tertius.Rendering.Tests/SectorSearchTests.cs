@@ -582,36 +582,18 @@ public sealed class SectorSearchTests
                 Card: null
             );
 
-        var steps = new List<NearStep>();
-        for (int slice = 0; slice < 16; slice++)
-            steps.AddRange(
-                SectorSearch.SliceSteps(
-                    texel: (X: 160, Y: 90),
-                    slice: slice,
-                    sliceAngle: slice * Math.PI / 8 + 0.1,
-                    stepsPerSide: 3,
-                    stepNoise: 0.37f,
-                    radiusInTexels: 20,
-                    halfSize: (Width: 320, Height: 180),
-                    rayThrough: WallRayThrough,
-                    texelAt: PlanksAt,
-                    ownSurface: new OwnPlane(normal)
-                )
-            );
+        List<NearStep> steps = StepsOfSixteenSlicesFromTheMiddle(PlanksAt, normal);
 
-        // The step's exact place, from its point on its exact ray, and the texel nearest it, which the step read.
-        static (double X, double Y) PlaceOf(NearStep step) =>
-            (X: 160 + 160 * step.Position.X / step.Position.Z, Y: 90 - 160 * step.Position.Y / step.Position.Z);
         static bool OffAPlanksCenterColumn(double x) => Math.Round(x) % 2 == 0 && Math.Abs(x - Math.Round(x)) > 0.1;
         steps
-            .Any(step => OffAPlanksCenterColumn(PlaceOf(step).X))
+            .Any(step => OffAPlanksCenterColumn(ExactPlaceOf(step).X))
             .Should()
             .BeTrue("the test needs a step on a plank whose exact place lies off the plank's center column");
         steps
             .Should()
             .AllSatisfy(step =>
             {
-                (double x, double y) = PlaceOf(step);
+                (double x, double y) = ExactPlaceOf(step);
                 double centerLine = InverseDepthAt((X: Math.Round(x), Y: y));
                 (1 / step.Position.Z)
                     .Should()
@@ -646,6 +628,48 @@ public sealed class SectorSearchTests
                 Card: null
             );
 
+        List<NearStep> steps = StepsOfSixteenSlicesFromTheMiddle(PlanksAt, normal);
+
+        // Where the step's texel's surface holds: at the place itself on the side of the plank's other texel, and at the
+        // texel's center column on the side of the wall.
+        static double HoldsAt(double x)
+        {
+            int column = (int)Math.Round(x);
+            bool towardThePlank = x < column ? column % 3 == 1 : column % 3 == 0;
+            return OnAPlank(column) && !towardThePlank ? column : x;
+        }
+        static bool OffTheCenterColumn(double x, int remainder, int side) =>
+            Math.Round(x) % 3 == remainder && side * (x - Math.Round(x)) > 0.1;
+        foreach (int remainder in new[] { 0, 1 })
+        foreach (int side in new[] { -1, 1 })
+            steps
+                .Any(step => OffTheCenterColumn(ExactPlaceOf(step).X, remainder, side))
+                .Should()
+                .BeTrue("the test needs a step off the center column of plank texel {0}, on side {1}", remainder, side);
+        steps
+            .Should()
+            .AllSatisfy(step =>
+            {
+                (double x, double y) = ExactPlaceOf(step);
+                double expected = InverseDepthAt((X: HoldsAt(x), Y: y));
+                (1 / step.Position.Z)
+                    .Should()
+                    .BeApproximately(
+                        expected,
+                        1e-5 * expected,
+                        "toward the plank's other texel the plane reaches the place, and toward the wall it keeps its "
+                            + "value at the center column"
+                    );
+            });
+    }
+
+    /// <summary>The near steps of 16 slices from the middle texel of a 320 × 180 image of the wall's rays, 3 per side,
+    /// with a radius of 20 texels.</summary>
+    private static List<NearStep> StepsOfSixteenSlicesFromTheMiddle(
+        Func<(int X, int Y), StepTexel?> texelAt,
+        Double3 ownNormal
+    )
+    {
         var steps = new List<NearStep>();
         for (int slice = 0; slice < 16; slice++)
             steps.AddRange(
@@ -658,51 +682,17 @@ public sealed class SectorSearchTests
                     radiusInTexels: 20,
                     halfSize: (Width: 320, Height: 180),
                     rayThrough: WallRayThrough,
-                    texelAt: PlanksAt,
-                    ownSurface: new OwnPlane(normal)
+                    texelAt: texelAt,
+                    ownSurface: new OwnPlane(ownNormal)
                 )
             );
-
-        // The step's exact place, from its point on its exact ray, and the place where its texel's surface holds: the
-        // place itself on the side of the plank's other texel, and the texel's center column on the side of the wall.
-        static (double X, double Y) PlaceOf(NearStep step) =>
-            (X: 160 + 160 * step.Position.X / step.Position.Z, Y: 90 - 160 * step.Position.Y / step.Position.Z);
-        static double HoldsAt(double x)
-        {
-            int column = (int)Math.Round(x);
-            bool towardThePlank = x < column ? column % 3 == 1 : column % 3 == 0;
-            return OnAPlank(column) && !towardThePlank ? column : x;
-        }
-        foreach (int remainder in new[] { 0, 1 })
-        foreach (bool right in new[] { false, true })
-            steps
-                .Any(step =>
-                {
-                    double x = PlaceOf(step).X;
-                    return Math.Round(x) % 3 == remainder && (right ? x - Math.Round(x) > 0.1 : Math.Round(x) - x > 0.1);
-                })
-                .Should()
-                .BeTrue(
-                    "the test needs a step on each side of each texel of a plank, off its center column: remainder {0}, right {1}",
-                    remainder,
-                    right
-                );
-        steps
-            .Should()
-            .AllSatisfy(step =>
-            {
-                (double x, double y) = PlaceOf(step);
-                double expected = InverseDepthAt((X: HoldsAt(x), Y: y));
-                (1 / step.Position.Z)
-                    .Should()
-                    .BeApproximately(
-                        expected,
-                        1e-5 * expected,
-                        "toward the plank's other texel the plane reaches the place, and toward the wall it keeps its "
-                            + "value at the center column"
-                    );
-            });
+        return steps;
     }
+
+    /// <summary>A step's exact place in the texel grid of <see cref="WallRayThrough"/>, from its point on its exact ray.
+    /// </summary>
+    private static (double X, double Y) ExactPlaceOf(NearStep step) =>
+        (X: 160 + 160 * step.Position.X / step.Position.Z, Y: 90 - 160 * step.Position.Y / step.Position.Z);
 
     [Fact]
     public void ANearStepStandsOnTheSurfaceThatThePixelOfItsGridHas()
