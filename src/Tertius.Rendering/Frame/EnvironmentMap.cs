@@ -406,44 +406,64 @@ internal sealed unsafe class EnvironmentMap : IDisposable
                     arrayLayers: layers,
                     cubeArray: true
                 );
-                // Transfer source for the test hook too.
-                Specular = GpuImage.Create(
+                Specular = WrittenCubes(
                     device: device,
                     allocator: allocator,
                     extent: extent,
-                    format: RadianceFormat,
-                    usage: ImageUsageFlags.StorageBit | ImageUsageFlags.SampledBit | ImageUsageFlags.TransferSrcBit,
-                    mipLevels: (uint)levels,
-                    name: "environment specular",
-                    arrayLayers: layers,
-                    cubeArray: true
+                    levels: levels,
+                    layers: layers,
+                    name: "environment specular"
                 );
-                // Storage for the convolution and its mips, transfer source for the readback of its last level.
-                Irradiance = GpuImage.Create(
+                Irradiance = WrittenCubes(
                     device: device,
                     allocator: allocator,
                     extent: new(IrradianceCube.FaceSize, IrradianceCube.FaceSize),
-                    format: RadianceFormat,
-                    usage: ImageUsageFlags.StorageBit | ImageUsageFlags.SampledBit | ImageUsageFlags.TransferSrcBit,
-                    mipLevels: IrradianceCube.Levels,
-                    name: "environment irradiance",
-                    arrayLayers: layers,
-                    cubeArray: true
+                    levels: IrradianceCube.Levels,
+                    layers: layers,
+                    name: "environment irradiance"
                 );
                 for (int layer = 0; layer < FaceViews.Length; layer++)
                     FaceViews[layer] = Radiance.CreateLayerView((uint)layer);
-                for (int level = 0; level < LevelViews.Length; level++)
-                    LevelViews[level] = Specular.CreateLevelView((uint)level);
-                for (int level = 0; level < RadianceLevelViews.Length; level++)
-                    RadianceLevelViews[level] = Radiance.CreateLevelView((uint)level);
-                for (int level = 0; level < IrradianceLevelViews.Length; level++)
-                    IrradianceLevelViews[level] = Irradiance.CreateLevelView((uint)level);
+                CreateLevelViews(Specular, LevelViews);
+                CreateLevelViews(Radiance, RadianceLevelViews);
+                CreateLevelViews(Irradiance, IrradianceLevelViews);
             }
             catch
             {
                 Dispose();
                 throw;
             }
+        }
+
+        /// <summary>
+        /// A cube array that compute shaders write level by level and the readers sample: storage and sampled, and a
+        /// transfer source for the test hook that reads a level back and for the irradiance's readback.
+        /// </summary>
+        private static GpuImage WrittenCubes(
+            VulkanDevice device,
+            DeviceAllocator allocator,
+            Extent2D extent,
+            int levels,
+            uint layers,
+            string name
+        ) =>
+            GpuImage.Create(
+                device: device,
+                allocator: allocator,
+                extent: extent,
+                format: RadianceFormat,
+                usage: ImageUsageFlags.StorageBit | ImageUsageFlags.SampledBit | ImageUsageFlags.TransferSrcBit,
+                mipLevels: (uint)levels,
+                name: name,
+                arrayLayers: layers,
+                cubeArray: true
+            );
+
+        /// <summary>Fills <paramref name="views"/> with a view of each level of <paramref name="image"/>, from 0.</summary>
+        private static void CreateLevelViews(GpuImage image, ImageView[] views)
+        {
+            for (int level = 0; level < views.Length; level++)
+                views[level] = image.CreateLevelView((uint)level);
         }
 
         /// <summary>The maps that the cube arrays hold.</summary>

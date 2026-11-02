@@ -286,6 +286,22 @@ public sealed class EnvironmentLightingTests
             }
         }
 
+        /// <summary>The exact D of the renderer's map 0, from the six faces of its radiance's level 0.</summary>
+        public static ExactDiffuse OfMap(VulkanRenderer renderer, int faceSize)
+        {
+            var faces = new List<Half>();
+            for (int layer = 0; layer < CubeFaces.Count; layer++)
+                faces.AddRange(
+                    renderer.ReadEnvironmentFace(
+                        map: 0,
+                        face: (CubeFace)layer,
+                        level: 0,
+                        image: EnvironmentImage.Radiance
+                    )
+                );
+            return new([.. faces], faceSize);
+        }
+
         /// <summary>The cosine-weighted mean of the texels' red over the hemisphere of the unit <paramref name="normal"/>.</summary>
         public double At(Vector3 normal)
         {
@@ -301,6 +317,29 @@ public sealed class EnvironmentLightingTests
             }
 
             return sum / weight;
+        }
+    }
+
+    /// <summary>
+    /// Every third pixel's red index in an RGBA image of <paramref name="width"/> × <paramref name="height"/> from
+    /// <see cref="Gpu.Fov"/>, where the pixel's central ray meets the unit sphere at <paramref name="sphereCenter"/> away
+    /// from its rim, with the sphere's unit normal there.
+    /// </summary>
+    private static IEnumerable<(int Pixel, Vector3 Normal)> SphereNormals(int width, int height, Vector3 sphereCenter)
+    {
+        float tanY = MathF.Tan(Gpu.Fov / 2);
+        float tanX = tanY * width / height;
+        for (int y = 0; y < height; y += 3)
+        for (int x = 0; x < width; x += 3)
+        {
+            var ray = Vector3.Normalize(
+                new((2 * (x + 0.5f) / width - 1) * tanX, (1 - 2 * (y + 0.5f) / height) * tanY, -1)
+            );
+            float along = Vector3.Dot(ray, sphereCenter);
+            float offCenter = (along * ray - sphereCenter).LengthSquared();
+            if (offCenter > 0.9f)
+                continue;
+            yield return (4 * (y * width + x), Vector3.Normalize((along - MathF.Sqrt(1 - offCenter)) * ray - sphereCenter));
         }
     }
 
@@ -342,35 +381,12 @@ public sealed class EnvironmentLightingTests
             // non-metal. So white less black is D, under the fixed exposure of 0 stops.
             float[] white = Lit(Vector4.One);
             float[] black = Lit(new(x: 0, y: 0, z: 0, w: 1));
-            var faces = new List<Half>();
-            for (int layer = 0; layer < CubeFaces.Count; layer++)
-                faces.AddRange(
-                    renderer.ReadEnvironmentFace(
-                        map: 0,
-                        face: (CubeFace)layer,
-                        level: 0,
-                        image: EnvironmentImage.Radiance
-                    )
-                );
-            var exact = new ExactDiffuse([.. faces], SceneEnvironmentMap.Default.FaceSize);
+            var exact = ExactDiffuse.OfMap(renderer, SceneEnvironmentMap.Default.FaceSize);
             double peak = exact.At(Vector3.Normalize(lightCenter));
 
-            float tanY = MathF.Tan(Gpu.Fov / 2);
-            float tanX = tanY * width / height;
             int tested = 0;
-            for (int y = 0; y < height; y += 3)
-            for (int x = 0; x < width; x += 3)
+            foreach ((int pixel, Vector3 normal) in SphereNormals(width, height, sphereCenter))
             {
-                // The ray through the pixel's center, and the sphere's normal where it meets it.
-                var ray = Vector3.Normalize(
-                    new((2 * (x + 0.5f) / width - 1) * tanX, (1 - 2 * (y + 0.5f) / height) * tanY, -1)
-                );
-                float along = Vector3.Dot(ray, sphereCenter);
-                float offCenter = (along * ray - sphereCenter).LengthSquared();
-                if (offCenter > 0.9f)
-                    continue;
-                var normal = Vector3.Normalize((along - MathF.Sqrt(1 - offCenter)) * ray - sphereCenter);
-                int pixel = 4 * (y * width + x);
                 double measured = white[pixel] - black[pixel];
                 double expected = exact.At(normal);
                 Math.Abs(measured - expected)
