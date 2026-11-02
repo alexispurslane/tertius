@@ -108,8 +108,31 @@ vec3 halfVectorOf(vec3 L, vec3 V, vec3 fallback)
 
 #include "hair.glsl"
 
-// f · max(N·L, 0) in its two parts: c_diff / π · (N·L), and D · Vis · F · c · (N·L).
-DirectTerms surfaceResponse(ShadingInput s, SurfaceLobes lobes, vec3 V, vec3 L)
+// D · Vis · F · c · (N·l) of a light whose angular radius has the sine lightSine (docs/plans/pbr-brdf.md, "Sized
+// lights"): l is the representative point of the sphere (sphereLightDirection), and D takes the widened lobe's
+// normalization (sphereNormalization). A light of radius 0 is a point light: l = L, with the same operations as before
+// the sized lights, so its image does not change.
+vec3 specularResponse(SurfaceLobes lobes, vec3 N, vec3 V, vec3 L, float lightSine)
+{
+    bool sized = lightSine > 0.0;
+    vec3 l = sized ? sphereLightDirection(L, reflect(-V, N), lightSine) : L;
+    float NdotL = dot(N, l);
+    if (NdotL <= 0.0)
+        return vec3(0.0);
+    vec3 H = halfVectorOf(l, V, N);
+    float VdotH = dot(V, H);
+    float distribution = ggxDistribution(dot(N, H), lobes.alpha);
+    if (sized)
+        distribution *= sphereNormalization(lobes.alpha, lightSine, VdotH);
+    float visibility = smithVisibility(NdotL, lobes.NdotV, lobes.alpha);
+    vec3 lobe = schlickFresnel(lobes.f0, VdotH) * (distribution * visibility) * lobes.energyCompensation;
+    return lobe * NdotL;
+}
+
+// f · max(N·L, 0) in its two parts: c_diff / π · (N·L) toward the light's center, and the specular response of the
+// sphere light. A sphere above the horizon gives the irradiance of a point at its center (Karis 2013, p. 15), so only
+// the specular part sees the light's size.
+DirectTerms surfaceResponse(ShadingInput s, SurfaceLobes lobes, vec3 V, vec3 L, float lightSine)
 {
     vec3 N = s.normal;
     float NdotL = dot(N, L);
@@ -120,20 +143,17 @@ DirectTerms surfaceResponse(ShadingInput s, SurfaceLobes lobes, vec3 V, vec3 L)
         terms.specular = vec3(0.0);
         return terms;
     }
-    vec3 H = halfVectorOf(L, V, N);
-    float distribution = ggxDistribution(dot(N, H), lobes.alpha);
-    float visibility = smithVisibility(NdotL, lobes.NdotV, lobes.alpha);
-    vec3 lobe = schlickFresnel(lobes.f0, dot(V, H)) * (distribution * visibility) * lobes.energyCompensation;
     terms.diffuse = lobes.diffuseColor / PI * NdotL;
-    terms.specular = lobe * NdotL;
+    terms.specular = specularResponse(lobes, N, V, L, lightSine);
     return terms;
 }
 
 // The radiance toward V per unit irradiance from direction L: a fiber's if `fiber`, else a surface's. `fiber` must be
-// whether s shades as hair, which directLight alone decides and modelLight passes on (see directLight).
-DirectTerms respond(bool fiber, ShadingInput s, SurfaceLobes lobes, vec3 V, vec3 L)
+// whether s shades as hair, which directLight alone decides and modelLight passes on (see directLight). lightSine is
+// the sine of the light's angular radius (lightSineAt); a fiber shades every light as a point.
+DirectTerms respond(bool fiber, ShadingInput s, SurfaceLobes lobes, vec3 V, vec3 L, float lightSine)
 {
-    return fiber ? hairResponse(s, lobes, V, L) : surfaceResponse(s, lobes, V, L);
+    return fiber ? hairResponse(s, lobes, V, L) : surfaceResponse(s, lobes, V, L, lightSine);
 }
 
 // Whether a light from L reaches the point at all, before its shadows: a fiber takes light from every side, a surface
@@ -181,6 +201,13 @@ vec3 lightIrradiance(uint index, bool tinted, vec3 position, out vec3 L, out flo
     return min(irradiance, vec3(IrradianceLimit));
 }
 
+// sin ϕ of the angular radius ϕ of `light` at distance d from its center: R / d, at most 1 inside its sphere. The floor
+// of d keeps the division finite at the center. 0 for a light of radius 0.
+float lightSineAt(GpuLight light, float d)
+{
+    return min(light.spotRadius.y / max(d, 1e-6), 1.0);
+}
+
 // The share of `light` that its shadow slot lets through at `position`, by the rule of shadowMaps. L is the unit
 // direction toward the light and d its distance. geometricNormal is the surface that the shadow maps see, turned toward
 // the light, and sinTheta the sine of its angle with L: 1 for a hair card edge-on to the light.
@@ -193,8 +220,8 @@ float lightVisibility(GpuLight light, vec3 position, vec3 L, float d, vec3 geome
         return 1.0;
     if (slot == AtlasTilesSlot)
         return shadowMaps == ShadowMapsNone ? 1.0 : tileShadow(light, position, L, d, geometricNormal, sinTheta);
-    // asin(min(R / d, 1)), the exact angle of a sphere, also inside it; the floor of d keeps the division finite.
-    float angularRadius = asin(min(light.spotRadius.y / max(d, 1e-6), 1.0));
+    // The exact angle of a sphere, also inside it.
+    float angularRadius = asin(lightSineAt(light, d));
     if (slot == FarShadowsOnlySlot || shadowMaps == ShadowMapsNone)
         return farShadowVisibility(position, L, angularRadius, light.occluders, 1.0);
     uint set = light.shadow.y;
@@ -337,7 +364,7 @@ DirectTerms modelLight(
         float visibility = lightVisibility(light, position, L, d, shadowNormal, sinTheta, shadowMaps);
         if (visibility > 0.0)
         {
-            DirectTerms terms = respond(fiber, s, lobes, V, L);
+            DirectTerms terms = respond(fiber, s, lobes, V, L, lightSineAt(light, d));
             vec3 weight = irradiance * visibility;
             sum.diffuse += terms.diffuse * weight;
             sum.specular += terms.specular * weight;

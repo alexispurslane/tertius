@@ -359,15 +359,16 @@ public sealed class BrdfRenderTests
         Vector2 pixel = Pixel(center);
         Double3 point = OnPlane(Ray(pixel, Width, Height), center, Double3.UnitZ);
         // The sun stands 0.6 rad above the view axis, so the half vector leans θ = 0.3 rad from the normal. There D is
-        // about α² / (π θ⁴), which scales with the floor's fourth power. Near the peak, the rounding of 32-bit floats
-        // swamps D. Here it moves it a few percent.
+        // about α² / (π θ⁴) times the sized sun's normalization (α / α′)², which scales with the floor. Near the peak,
+        // the rounding of 32-bit floats swamps D. Here it moves it a few percent.
         var toSun = new Double3(0, Math.Sin(0.6), Math.Cos(0.6));
         var mirror = new MaterialSample(BaseColor: new(1, 1, 1), Metallic: 1, Roughness: 0, Reflectance: 0.5);
         Double3 reflected = mirror.Reflected(
             normal: Double3.UnitZ,
             toView: -point.Normalized(),
             toLight: toSun,
-            tables: BrdfTables.Shared
+            tables: BrdfTables.Shared,
+            lightSine: Math.Sin(Gpu.StarAngularRadius)
         );
         // A dim sun keeps the light below 1 before the tone curve, which turns any bright color white.
         RenderSnapshot snapshot = SunOnly(toSun.ToVector3(), (float)(0.8 / reflected.X));

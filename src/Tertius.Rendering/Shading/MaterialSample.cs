@@ -29,25 +29,59 @@ internal readonly record struct MaterialSample(Double3 BaseColor, double Metalli
     /// f · max(n·l, 0): the share of the irradiance from <paramref name="toLight"/> that the point sends toward
     /// <paramref name="toView"/>, per steradian, with the energy compensation.
     /// </summary>
-    public Double3 Reflected(Double3 normal, Double3 toView, Double3 toLight, BrdfTables tables)
+    /// <param name="lightSine">sin ϕ of the light's angular radius ϕ at the point, R / d, from 0 to 1: 0 by default.</param>
+    public Double3 Reflected(Double3 normal, Double3 toView, Double3 toLight, BrdfTables tables, double lightSine = 0)
     {
-        DirectTerms terms = ReflectedTerms(normal: normal, toView: toView, toLight: toLight, tables: tables);
+        DirectTerms terms = ReflectedTerms(
+            normal: normal,
+            toView: toView,
+            toLight: toLight,
+            tables: tables,
+            lightSine: lightSine
+        );
         return terms.Diffuse + terms.Specular;
     }
 
     /// <summary>
-    /// <see cref="Reflected"/> in its two parts, the C# copy of surfaceResponse: c_diff / π · (n·l), and the compensated
-    /// lobe times n·l.
+    /// <see cref="Reflected"/> in its two parts, the C# copy of surfaceResponse: c_diff / π · (n·l) toward the light's
+    /// center, and the compensated lobe times n·l toward the representative point of a sphere light, normalized
+    /// (docs/plans/pbr-brdf.md, "Sized lights"). A light of radius 0 is a point light.
     /// </summary>
-    public DirectTerms ReflectedTerms(Double3 normal, Double3 toView, Double3 toLight, BrdfTables tables)
+    /// <param name="lightSine">sin ϕ of the light's angular radius ϕ at the point, R / d, from 0 to 1: 0 by default.</param>
+    public DirectTerms ReflectedTerms(
+        Double3 normal,
+        Double3 toView,
+        Double3 toLight,
+        BrdfTables tables,
+        double lightSine = 0
+    )
     {
         double nDotL = Double3.Dot(normal, toLight);
         if (nDotL <= 0)
             return default;
         double lobeAlbedo = tables.SampleDfg(nDotV: ViewCosine(normal, toView), roughness: Lobe.Roughness).LobeAlbedo;
-        Double3 lobe =
-            SingleScatteringLobe(normal: normal, toView: toView, toLight: toLight) * EnergyCompensation(lobeAlbedo);
-        return new(Diffuse: DiffuseColor / Math.PI * nDotL, Specular: lobe * nDotL);
+        Double3 diffuse = DiffuseColor / Math.PI * nDotL;
+        if (lightSine == 0)
+        {
+            Double3 lobe =
+                SingleScatteringLobe(normal: normal, toView: toView, toLight: toLight) * EnergyCompensation(lobeAlbedo);
+            return new(Diffuse: diffuse, Specular: lobe * nDotL);
+        }
+
+        Double3 toPoint = GgxLobe.SphereLightDirection(
+            toLight: toLight,
+            mirror: 2 * Double3.Dot(normal, toView) * normal - toView,
+            lightSine: lightSine
+        );
+        double nDotPoint = Double3.Dot(normal, toPoint);
+        if (nDotPoint <= 0)
+            return new(Diffuse: diffuse, Specular: Double3.Zero);
+        double vDotH = Double3.Dot(toView, (toView + toPoint).Normalized());
+        Double3 sphereLobe =
+            SingleScatteringLobe(normal: normal, toView: toView, toLight: toPoint)
+            * Lobe.SphereNormalization(lightSine: lightSine, vDotH: vDotH)
+            * EnergyCompensation(lobeAlbedo);
+        return new(Diffuse: diffuse, Specular: sphereLobe * nDotPoint);
     }
 
     /// <summary>
