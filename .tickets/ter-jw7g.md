@@ -1,6 +1,6 @@
 ---
 id: ter-jw7g
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-11-02T11:59:25Z
@@ -20,3 +20,7 @@ The user's decision of 2026-11-02, after ter-gf0t: open a design ticket for the 
 **2026-11-02T12:02:24Z**
 
 2026-11-02, the user's choice between two designs: design A, the map knows its distances. Each map stores each texel's distance from the eye (a distance cube per map), and a surface reads the map at the place where its reflected ray ends (a few secant steps against the distances, after Szirmay-Kalos and others, 'Approximate Ray-Tracing on the GPU with Distance Impostors', Eurographics 2005), not by its reflected direction alone. It covers on screen and off screen, every roughness, and SSR's fallback where a ray leaves the screen. Known miss: things that the eye cannot see. Rejected: design B, a coarse screen-space ray for roughness 0.37 to 0.6 (only on screen, a cut at the screen's edge, the risk of the old hard edges). Next: one designer records the design in docs/plans/, then the implementation tickets.
+
+**2026-11-02T12:04:28Z**
+
+2026-11-02: the design stage runs as a delegated task (designer, Opus at xhigh, in its own worktree): docs/plans/environment-map-distances.md, its open questions, and the order of the work as tickets.

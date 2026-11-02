@@ -1,6 +1,6 @@
 ---
 id: ter-eqtb
-status: open
+status: in_progress
 deps: [ter-rjts, ter-y8z0, ter-f3g2, ter-8bda]
 links: [ter-f3g2]
 created: 2026-11-01T15:28:45Z
@@ -35,3 +35,7 @@ The user's decision of 2026-11-01, after ter-f3g2's probe: SSR's roughness limit
 **2026-11-02T11:47:51Z**
 
 2026-11-02: reopened at the user's word. The stair steps come from the level-0 hit test, which still runs on every surface below the SSR limit of 0.37. The demo has no such surface now, but any smooth surface (a mirror, polished metal, a smooth floor) can show them, so the fault stays. Scope from now: artifact 1 on surfaces below the limit. The builder first finds or builds a review view that shows the steps on such a surface (for example mirror-balls, the reflections scene, or a smooth floor in a test scene), then measures the candidates there (planeext, plane0, planeq, grazefade), and the user chooses with images. Its launch waits for the user's answer on epic ter-b2da's open question (the reflected brightness that the 0.37 limit loses), because a change of the limit changes which surfaces this ticket covers.
+
+**2026-11-02T12:04:28Z**
+
+2026-11-02: workflow run b8fc00c8-1229-4ecd-916a-c6a58818fd1c (version 869b0b07), branch ter-eqtb-smooth-steps from f93c19e50. The run finds a view with steps on a surface below 0.37, measures the candidates (A planeext with a bounded depth edge, A2 plane0, B planeq, C grazefade) and ends at a fork for the user's choice.
