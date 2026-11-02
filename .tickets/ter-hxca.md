@@ -1,6 +1,6 @@
 ---
 id: ter-hxca
-status: in_progress
+status: closed
 deps: []
 links: [ter-u63a, ter-773q]
 created: 2026-11-01T23:57:17Z
@@ -89,3 +89,7 @@ Gaps of the review:
 - The thread bound is now saved: run.py writes processes.log, and the evidence line gives the CPU of all test hosts of one sample together. Stryker starts one host per test project at once but runs one at a time.
 - The final code ran end to end. cal-9 (official, `changed.py 'fde41c1a2^1' /tmp/hxca/cal-9 --head fde41c1a2`): valid, 2,155 s wall, coverage capture 2,056 s (95%), 9 compile tries of one schemata build, 1 initial test run of 4,593 tests in 24 s, 0 Dubious tests, 3 mutants with a mean of 4.3 tests, 1-minute load mean 5.4 and max 12.5, test hosts at nice 20 and together at most 276% and on mean 114% of one core. The table equals cal-6: 3 killed, 3 no-mutant. The lock was gone after the run.
 - cal-8 first stopped in Stryker's initial test run, because DeterminismTests.TheRunOnEightWorkersReallyRunsGameplayOnSeveralThreads failed (it passed in cal-6, cal-7 and the next try). Filed ter-hn3d. The lock was released after that failure.
+
+**2026-11-02T07:55:17Z**
+
+Merged into main on 2026-11-02 (orchestrator) from run 12e83b59 (build, review with 3 medium and 8 low findings, fix at 2e82c6d44; cal-9 is a valid official run of the final code). The merge changes only tools/, CLAUDE.md and .tickets/, so the full suites of the ter-8fz2 merge (564907678) still hold; tools/test_mutate.py (50) and tools/test_stryker.py (75) pass on the merge. Hand mutations and coverage of the tools were not required (brief). Two choices that the orchestrator settled inside the user's decision, under the rule to settle small forks and report them: (1) 'one compile' means one schemata build; Stryker's 9 or 10 compile tries are its rollback rounds within that build (8 s in all) and do not grow with the mutant count, so the ban on Stryker in subagents is lifted, with the lock in tools/stryker/run.py; (2) the timeout share is at most 25 %, and a timeout counts as a kill only at a 1-minute load of at most 17.5 per core, because quiet runs show 3 real hangs in 20 mutants. Both are reported to the user. Follow-up tickets from this work: ter-773q (Jolt's worker threads ignore the thread bound) and ter-hn3d (a determinism test that failed once in Stryker's initial run under nice 20).
