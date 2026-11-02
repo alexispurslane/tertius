@@ -90,7 +90,7 @@ Settled by this design:
 12. The distance cube is `R16_SFLOAT`, W × W, 6 × capacity layers, with the radiance map's levels. See "The distance store".
 13. Each level of the distance cube is the solid-angle mean of its four children. That is the rule of the radiance map's mips, and the same shader makes it. See "The level chain".
 14. The face pass writes w as a second color attachment, and the sky writes 0. See "How the capture writes it".
-15. The search is a march of 8 samples in the sweep, then 3 regula falsi steps in the first bracket. Regula falsi is the secant method that keeps a bracket. See "The search".
+15. The search is a march of a near sample and 8 even samples in the sweep, then 3 regula falsi steps in the first bracket. Regula falsi is the secant method that keeps a bracket. See "The search".
 16. The space behind a stored surface counts as solid: the first crossing from in front to behind is the hit. See "Designed twice", decision B.
 17. Each read of the distance cube takes the level whose texel spans the cone's cross-section at that sample, as the eye sees it. See "The cone at each sample".
 18. The corrected read takes the roughness min(r √ρ*, 1), where ρ* is the reach of the hit. So the lobe's footprint at the hit chooses the blur, as SSR's cone does. See "A rough lobe".
@@ -339,8 +339,7 @@ This form follows two sources. The search of Umenhoffer, Patow and Szirmay-Kalos
 ### The steps
 
 ```
-for k = 1 to N:                               N = 8 march samples
-    t = k / N
+for t in t0, 1/N, 2/N, ..., N/N:              t0 = 1/64 the near sample, N = 8 even samples
     c = c(t)
     if c >= 0:  front = (t, c), seenFront = true
     else if seenFront:  bracket = [front, (t, c)], stop the march
@@ -359,16 +358,23 @@ where
 
 The rules:
 
-- The start: the first sample is t = 1/8. The search takes no sample at t = 0. There the shaded point lies on its own stored surface, and c is 0 up to rounding.
-- The march: 8 samples, uniform in the sweep, as the 2008 search steps uniformly along the segment between x̂ and d.
+- The start: the first sample is the near sample, t0 = 1/64. The ray's point at t0 lies |x| / 63 from the shaded point. The eye sees it at most about 1/63 rad from x, about one level-0 texel (2 / W rad, the texel's angle at a face's center) at the default W = 128. A nearer hit falls in the shaded point's own texel, where the map cannot tell the hit from the shaded point's own surface. So t0 is the nearest place where the map can see a separate surface. Near a face's corner, a texel spans less angle, so there the near sample lies up to about 3 texels from x.
+- No sample at t = 0: there the shaded point lies on its own stored surface, and c is 0 up to rounding. A bracket from t = 0 would find the shaded point itself.
+- The march: the near sample, then 8 samples uniform in the sweep, t = k / 8, as the 2008 search steps uniformly along the segment between x̂ and d.
+- The near sample changes the result only where it lies in front and t = 1/N lies behind. There the first crossing lies in [t0, 1/N], and by decision 16 it is the hit, in place of the even samples' later hit or their miss. Everywhere else the result is the even samples' result, bit for bit: if the near sample lies behind, front first ignores it, and if t = 1/N also lies in front, that sample replaces it as the front end. The clearance stays linear in the sweep on a plane, so one secant step still finds a plane exactly.
 - Front first (decision 20): a sample behind the stored surfaces counts only after a sample in front. A ray that starts behind them searches from the place where it comes out in front.
 - The bracket: the first pair of a front sample and the next sample behind. A sample with c = 0 counts as in front. So the sky at t = 1, whose c is exactly 0, is never a crossing.
 - The refinement: 3 regula falsi steps, then one last secant interpolation without a read.
-- The stop: the march stops at its first bracket, because later samples cannot change the first crossing. The refinement always takes K steps and never stops early on a small clearance. So each pixel takes at most N + K reads, and the bound does not depend on the scene.
+- The stop: the march stops at its first bracket, because later samples cannot change the first crossing. The refinement always takes K steps and never stops early on a small clearance. So each pixel takes at most N + K + 1 reads, and the bound does not depend on the scene.
 - A sample whose lookup vector is shorter than 2⁻¹⁰ counts as in front, with no read. The ray then passes through the eye's neighborhood, which lies in front of every stored surface. This happens on a mirror that faces the eye, at t = 1/2, where L(t) is 0.
 - The result: the hit's direction L(t*), in the map's axes, not unit, and its reach ρ* = t* / |L(t*)|.
 
-Each pixel reads the distance cube at most N + K = 11 times, and the specular map once.
+Each pixel reads the distance cube at most N + K + 1 = 12 times, and the specular map once.
+
+The near sample was settled on 2026-11-02, after ticket 1 found a gap in the first form of the steps. That form started the march at t = 1/8, whose point lies |x| / 7 from the shaded point. So it lost every hit nearer than that: a floor point 4.35 m from the eye found no wall whose base lay 0.1, 0.3 or 0.5 m from it along the floor. Decision C and "The cone at each sample" need that hit, the base of a wall beside a floor. Two other forms were rejected:
+
+- 8 samples with a quadratic spacing: the far end then coarsens to one step from 3.3 |x| to infinity.
+- A test of c at t = 0: c(0) is 0 up to rounding, a real root on the shaded point's own surface. So a bracket from it finds the shaded point itself.
 
 ### The cone at each sample
 
@@ -423,7 +429,7 @@ Decision A, the search's structure:
 | Design | How | Finds | Reads |
 |---|---|---|---|
 | 1. The 2005 secant from infinity | The first guess is the surface that the eye sees along d, taken as a plane across the ray. Secant steps follow between the last undershoot and overshoot, with the point at infinity as the first overshoot. | A crossing, not always the first: with a box on a floor in front of a wall, a step can land beyond the box's hidden region and converge on the wall | About 4 |
-| 2. A march, then regula falsi (chosen) | 8 samples in the sweep find the first bracket, and 3 regula falsi steps refine it. Umenhoffer, Patow and Szirmay-Kalos 2008 put a linear search before the secant search in the same way. | The first crossing that spans a march step | 11 |
+| 2. A march, then regula falsi (chosen) | A near sample and 8 even samples in the sweep find the first bracket, and 3 regula falsi steps refine it. Umenhoffer, Patow and Szirmay-Kalos 2008 put a linear search before the secant search in the same way. | The first crossing that spans a march step | 12 |
 
 Reason for 2: under design 1, the reflection of a near object vanishes in some pixels and not in their neighbors. A rough blur does not hide such a hole. Design 2 keeps the 2005 paper's test and its secant steps, and adds the march that its authors added in 2008. The march's samples and the secant steps are constants that ticket 4 measures (see "Cost").
 
@@ -527,6 +533,7 @@ The C# twin, in `src/Tertius.Rendering/Shading/MapSearch.cs`:
 internal static class MapSearch
 {
     public const int Samples = 8;
+    public const double NearSample = 1.0 / 64;
     public const int SecantSteps = 3;
     public const float ConeWidthPerAlpha = 2.57f;
 
@@ -631,7 +638,7 @@ The cabin's chain of four maps at W = 128 adds 1 MB.
 
 ### Per pixel
 
-Every reader of the ambient specular term runs one search per invocation. The search takes at most N + K = 11 trilinear reads of the distance cube. It adds one turn of a vector into the map's axes. Each step adds about 20 arithmetic operations. Today's read of the specular map stays one read. The search runs in:
+Every reader of the ambient specular term runs one search per invocation. The search takes at most N + K + 1 = 12 trilinear reads of the distance cube. It adds one turn of a vector into the map's axes. Each step adds about 20 arithmetic operations. Today's read of the specular map stays one read. The search runs in:
 
 - the ambient pass, at every lit pixel,
 - the transparent and fringe passes, at every fragment,
@@ -646,7 +653,7 @@ Ticket 4 follows docs/plans/rendering-performance.md, "Measuring the cost of a f
 2. Run `ter-f3g2`'s 120-frame windows, `time-deck` and `time-floor`, at 1920 × 1080. Run 7 interleaved rounds in a rotated order of base, control and branch. Run each under the GPU lock (`/tmp/tertius-gpu-measure.lock`), and record the 1-minute load at each start.
 3. Report the median frame span and each pass's mean for the three builds. The control's distance from the base is the noise.
 4. Take three interleaved traces, base, branch, base, with `tools/gpu-trace.sh --no-counters` over the deck window. They give the ambient pass's own time and the prefilter's. On this Mac, only a trace gives a pass's own time.
-5. Repeat steps 2 and 3 for the march's settings N ∈ {4, 6, 8, 12} and K ∈ {2, 3}. Measure the box table of "Tests" for each, so that the report shows cost against quality. A change of the defaults comes with both numbers.
+5. Repeat steps 2 and 3 for the march's settings N ∈ {4, 6, 8, 12} and K ∈ {2, 3}. The near sample stays at t0 = 1/64 for every N, so each pixel reads at most N + K + 1 times, and at N = 4 the near bracket spans [1/64, 1/4]. Measure the box table of "Tests" for each, so that the report shows cost against quality. A change of the defaults comes with both numbers.
 6. Run all of `demo-exit.json` twice on the branch for the face pass's and the prefilter's medians and p95, against the values in ARCHITECTURE.md, "Cost".
 
 ## Tests
@@ -667,6 +674,8 @@ The tests follow tests/STYLE.md: one behavior per test, named as a statement in 
 10. `TheConeReadsLevelZeroNearTheShadedPointAndCoarserLevelsFartherAlongTheRay`.
 11. `ASurfaceAtTheNearPlaneHoldsAnInverseDistanceThatAHalfFloatHolds`: 20,000 km⁻¹, below 65,504.
 12. `ASurfaceBeyondTheHalfFloatsNormalRangeLosesUnderAHundredthOfATexelOfParallax`.
+
+Ticket 1 added two tests for the near sample on 2026-11-02. In `ARoughFloorsRayFindsTheBaseOfAWallNearerThanTheFirstEvenSample`, a floor point 4.35 m from the eye finds a wall whose base lies 0.1, 0.3 or 0.5 m from it along the floor, within 10⁻⁹ rad of the ray's meeting with the wall. In `ARayThatGoesBehindANearBarBeforeItsFirstEvenSampleStopsBeforeThatSample`, a bar hides the ray's point at t = 1/8 from the eye, and the hit lies between the near sample and t = 1/8, not on the far wall that the even samples alone find. Test 10 counts the near sample among a sky ray's reads.
 
 ### The distance cube, on the GPU
 
@@ -706,6 +715,9 @@ Ticket 4 renders the views of the box table at 1920 × 1080 in Release, with `te
 - One ray stands for a lobe. A rough lobe that spans surfaces at different distances takes the distance of its central ray's hit, smoothed by the cone's level.
 - The hit's light is the light that the stored surface sends toward the eye, not toward the shaded point. A glossy surface at the hit shows its highlights as the eye sees them, as the 2005 paper assumes.
 - A thin object between two march samples can be missed near the shaded point, where the reads are sharp. As the camera moves, its reflection can then appear and vanish.
+- A hit nearer the shaded point than the near sample, |x| / 63 along the ray, is lost. The eye sees it within about one level-0 texel of the shaded point at the default W = 128, about 8 texels at W = 1024. At W = 16 the near sample lies within an eighth of a texel, in the shaded point's own texel.
+- The near sample can also fall inside the shaded point's own level-0 texel, where it reads as behind the shaded point's own surface, and front first then drops it. Ticket 1's hardening modeled the texels at W = 128 (each read at its texel's center): over 256 floor points across one texel, with a wall's base 0.3 m away, t0 = 1/64 found the base for 216 points and t0 = 1/128 for 176. The others read today's image. Ticket 4 measures t0 on the GPU, where filtered reads replace the model's texel centers.
+- At a hard depth edge, such as a near object's silhouette at level 0, the clearance jumps, and the 3 regula falsi steps converge slowly from a front end whose clearance is small. The hit then stops short of the edge, on the side of the front end. In ticket 1's analytic scenes of a bar that hides part of a mirror ray from a floor, the hit lay up to about 3 level-0 texels short in the bracket [t0, 1/8], where c(t0) is about 1/64, and up to about 1.3 texels short in [1/8, 1/4]. The chain's levels and the bilinear skin make the edge a ramp, which shortens this for rough lobes.
 - The bilinear filter at level 0 gives a depth edge one texel of intermediate distance, which a ray can hit.
 - Under decision 26, the map's origin is the current eye. A face drawn while the eye stood elsewhere in the map's frame places its surfaces off by the eye's travel since then: up to ⌈6M / F⌉ − 1 frames of travel. Open question 1 asks whether each face keeps its own eye.
 - The diffuse term, the occlusion sectors' open share and the lit puffs keep the eye's view.
@@ -782,7 +794,7 @@ flowchart LR
 - Type: task. Parent: `ter-b2da`. Dependencies: none.
 - Owns: `src/Tertius.Rendering/Shading/MapSearch.cs` (new), `tests/Tertius.Rendering.Tests/MapSearchTests.cs` (new).
 - Work: `MapSearch.Hit` and `IInverseDistanceField`, with the march, the regula falsi steps, the cone's level and the reach, by "The search". Analytic test fields: the sky, a plane, a box before a wall, a pole before a wall, a far planet, and a sphere room.
-- Acceptance: tests 1 to 12 pass in Checked and Release, each seen red first for the right reason. The constants `Samples`, `SecantSteps` and `ConeWidthPerAlpha` are named once. Coverage and mutation testing by the hardening rules (Stryker does not run on Rendering, so `tools/mutate.py` with a list).
+- Acceptance: tests 1 to 12 pass in Checked and Release, each seen red first for the right reason. The constants `Samples`, `NearSample`, `SecantSteps` and `ConeWidthPerAlpha` are named once. Coverage and mutation testing by the hardening rules (Stryker does not run on Rendering, so `tools/mutate.py` with a list).
 
 ### Ticket 2: the distance cube, each map's inverse distances and their levels
 
@@ -810,7 +822,7 @@ flowchart LR
   - The GPU tests 16 to 21 and the test build `TERTIUS_MAP_DIRECTION_ONLY`.
   - ARCHITECTURE.md's "Reading the map", "Known limits" and "Screen-space reflections".
 - Work:
-  - `mapHit`, the corrected `environmentSpecular` and `environmentLobeInMapAxes`.
+  - `mapHit`, the corrected `environmentSpecular` and `environmentLobeInMapAxes`. `mapHit` follows "The steps" as `MapSearch.Hit` does: the near sample t0 = 1/64 first, then the 8 even samples, at most 12 reads.
   - `ShadingInput.position`, and the removal of the position parameters.
   - The ambient pass's V from the view ray through the pixel's center, and `precise`.
   - The doc changes of environment-map.md and screen-space-reflections.md.
