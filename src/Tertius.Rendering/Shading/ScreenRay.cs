@@ -190,13 +190,21 @@ internal readonly record struct ScreenRay(
             }
             // GLSL's clamp, which never throws: exit can lie a rounding below s.
             float entry = MathF.Min(MathF.Max(SlabEntry(s: s, inW: inW, low: slab.Low, high: slab.High), s), exit);
-            bool entryInsideCell = entry > s && entry < exit;
-            onEdge = !entryInsideCell && (onEdge || entry >= exit);
+            onEdge = OnEdgeAfterDescent(entry: entry, s: s, exit: exit, onEdge: onEdge);
             s = entry;
             inW = Math.Clamp(inW, slab.Low, slab.High);
             level--;
         }
         return s >= End ? new RayLeftTheSegment(EndsAt, maxSteps) : new RayOutOfSteps(maxSteps);
+    }
+
+    /// <summary>Whether the walk stands on a cell's edge after a descent to <paramref name="entry"/>: not when the entry
+    /// lies strictly inside the cell, and otherwise when it stood on one at <paramref name="s"/> or the entry lies on
+    /// the cell's exit.</summary>
+    private static bool OnEdgeAfterDescent(float entry, float s, float exit, bool onEdge)
+    {
+        bool entryInsideCell = entry > s && entry < exit;
+        return !entryInsideCell && (onEdge || entry >= exit);
     }
 
     /// <summary>
