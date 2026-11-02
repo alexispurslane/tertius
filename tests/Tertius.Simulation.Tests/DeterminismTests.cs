@@ -317,12 +317,7 @@ public sealed class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelp
     /// <summary>
     /// Spawns 160 entities with a Chatter at random places in the three frames, a quarter of them with a body.
     /// </summary>
-    private static void SpawnScatter(
-        World world,
-        GameplayThreads threads,
-        Random random,
-        WorkloadFrames frames
-    )
+    private static void SpawnScatter(World world, GameplayThreads threads, Random random, WorkloadFrames frames)
     {
         for (int i = 0; i < 160; i++)
         {
@@ -471,12 +466,10 @@ public sealed class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelp
     }
 
     [Fact]
-    public void TheRunOnEightWorkersReallyRunsGameplayOnSeveralThreads()
-    {
+    public void TheRunOnEightWorkersReallyRunsGameplayOnSeveralThreads() =>
         // Equal hashes would prove nothing if every chunk ran on the one thread that called Tick. GameplayThreads holds that
         // thread, so a busy thread pool delays this run but does not fail it.
         runs.EightWorkersGameplayThreads.Should().BeGreaterThan(1);
-    }
 
     [Fact]
     public void ADifferentSeedEndsInADifferentWorld()
