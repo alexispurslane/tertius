@@ -40,3 +40,7 @@ Ticket 3 of ter-jw7g's design (docs/plans/environment-map-distances.md, 'Ticket 
 **2026-11-02T19:45:32Z**
 
 2026-11-02, the user's choice after ter-nw4a's probe: ter-nw4a's design A (the neighbors' rays inside the footprint) does not carry over to the map's search, so the next step is a probe of the moment form on this branch: the distance cube stores the mean and the mean square of w per texel (RG16F or RG32F), and a Chebyshev bound gives the share of the cone in front of the ray point, as variance shadow maps do. Rejected for now: merge S + Q2, and keep today's read.
+
+**2026-11-02T19:47:06Z**
+
+2026-11-02: the brief of the moment-form probe is /tmp/briefs/s6zr-moments.txt. It launches when a builder slot frees (four workflows run now: ter-nw4a, ter-ipc1, ter-b1j3, ter-cvyx).

@@ -28,3 +28,7 @@ Asked by the user on 2026-11-02 about the floor film's stair steps in ter-eqtb's
 **2026-11-02T19:45:32Z**
 
 2026-11-02, the user's choice after the probe (run 5934b07c, head 3de2147e1, sheets in captures/nw4a/sheets, copied to the main checkout): design A, footprint coverage from the neighbors' rays. Cause as traced: no new mechanism; ter-eqtb's remainder on a far floor seen almost edge-on (no row passes the 1 % test) meets artifacts 3 and 5 (one ray decides the lobe), and the grazing view magnifies each far row 25 to 30 times. Steps do not shrink with roughness (30 to 31 rows at 0.2 and 0.3). A: step edges per 1000 px 7.81 to 0.28 at 0.6 and 4.96 to 0.05 at 0.2; +0.10 ms on the step view, about 0 elsewhere; the build must fix the tear on curved receivers; artifact 5's bright region stays. Rejected: B (closed creases and silhouettes inside the pixel), and A with B.
+
+**2026-11-02T19:47:06Z**
+
+2026-11-02: the build of design A launched as workflow run 67504b63-8e98-4971-9e1c-945c289508ee on this branch (brief /tmp/briefs/nw4a-cont.txt). Settled by the orchestrator: store t in the hit image if a free channel or an exact encoding allows it; fix the tear on curved receivers; below one texel the pixel keeps today's path; remove the upsample's own rays at outlines where the footprint passes one texel, if that keeps the images.
