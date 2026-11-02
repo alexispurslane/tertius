@@ -257,42 +257,51 @@ stateDiagram-v2
     Miss --> [*]
 ```
 
-For each step, at level k and parameter s:
+The walk stands in a pixel P, and the cell of each level is the one that holds P. It starts in the pixel that the image enters at the exit of the origin pixel. For each step, at level k and parameter s:
 
 ```
-cell    = floor((S(s) + ε · sign(ΔS)) / 2^k)    when s stands on an edge   ε = 0.01 px, so it belongs to the cell ahead
-cell    = floor(S(s) / 2^k)                     when s is a slab entry solved strictly inside a cell
+cell    = floor(P / 2^k)
 s_exit  = min(s at the cell's far edge on x, s at its far edge on y, s_end)
+crossed = 1 on each axis whose far edge gives s_exit before s_end, 0 on the other       both at a corner
 (n, f)  = bounds(k, cell)                       for k ≥ 1; the empty bounds for a cell outside its level
 high    = n;   low = f / (1 + κ)                            the slab
 w_in    = w(s) after a crossing, the slab bound after a descent;   w_out = w(s_exit)
 overlap = max(min(w_in, w_out), low) ≤ min(max(w_in, w_out), high)
 ```
 
-- The nudge ε is for a position on a cell's edge only: the start at the exit of the origin pixel, every crossing, and a descent that leaves s where it was or moves it to s_exit. A slab entry that a descent solves strictly between s and s_exit lies inside a cell, and takes no nudge. With the nudge, an entry within ε of a far edge would go to the cell ahead, and the trace would skip the sliver of the cell where the ray meets its slab: in a test of 10,000 random rays, 27 such grazing contacts moved the hit to a surface up to 8 px further along the ray. Without it, the trace finds the pixel that a pixel-by-pixel march finds.
-- No overlap: no surface of the cell, with its thickness, meets the ray inside the cell. The ray crosses the cell: s = max(s, s_exit), and the level rises by one, up to L, for a longer step next time. s never moves back: an entry solved inside a cell can round past that cell's exit, and the next descent then finds the entry at s, keeps s on an edge, and the nudge moves the walk on.
-- A cell outside its level, which a ray reaches when its origin lies up to about two pixels beside the screen or when the nudge pushes it past an edge, has the empty bounds: no surface lies beyond the screen's edges. The cap of the level at L matters only for such a ray, which crosses top-level cells beside the screen.
+- The walk keeps the pixel, not only s, because a position on a cell's edge rounds to either side of it. The pixel moves only in three ways (`PixelIn`, `pixelIn`):
+
+  ```
+  pixel_in(k, cell, x) = clamp(floor(x), cell · 2^k, cell · 2^k + 2^k − 1)     the cell's pixel that holds x, or the nearest
+  after a miss:                    P = pixel_in(k, cell + sign(ΔS) · crossed, S(s))
+  after a descent to s_entry > s:  P = pixel_in(k, cell, S(s_entry))
+  after a descent to s_entry = s:  P stays
+  ```
+
+  So a crossing moves into the cell across exactly the edges that the image leaves through, and every pixel that the image crosses lies on the walk, however near its corner the image crosses it. The trace before ticket `ter-cvyx` chose the cell from S(s) moved 0.01 px ahead on both axes. Near a corner, that skipped a pixel that the image crosses for less than 0.01 px, while a descent with a solved entry inside the same pixel still found it. So the answer depended on how the walk reached the pixel: on 2,000,000 random rays, the trace and the pixel-by-pixel march disagreed on 55 before bounded planes, all of this kind, and on 50 of 92 after them. An entry at s keeps P, because s can stand on the edge that the walk just crossed, where floor(S(s)) can round back into the cell behind. The clamp keeps every other pixel inside its cell where the rounding of a position on the cell's edge would take it out.
+- No overlap: no surface of the cell, with its thickness, meets the ray inside the cell. The ray crosses the cell: s = max(s, s_exit), P moves into the cell across, and the level rises by one, up to L, for a longer step next time. s never moves back: an entry solved inside a cell can round past that cell's exit, and P still moves on across the edges that the image leaves through.
+- A cell outside its level, which a ray reaches when its origin lies up to about two pixels beside the screen or when a crossing leaves the screen, has the empty bounds: no surface lies beyond the screen's edges. The cap of the level at L matters only for such a ray, which crosses top-level cells beside the screen.
 - An overlap at a level above 0: the ray can meet a surface inside the cell. The trace moves s to where the ray enters the slab, and looks at the finer level:
 
   ```
   s_entry = s                          when low ≤ w_in ≤ high: the ray is already inside the slab
   s_entry = (high − w₀) / Δw           when w_in > high: the ray is in front and comes toward the slab's front
   s_entry = (low − w₀) / Δw            when w_in < low: the ray is behind and comes toward the slab's back
-  s = clamp(s_entry, s, s_exit);  w_in = clamp(w_in, low, high);  level − 1
+  s = clamp(s_entry, s, s_exit);  w_in = clamp(w_in, low, high);  P as above;  level − 1
   ```
 
-- At level 0 the pixel's surface decides, not its bounds (`meetsPixelSurface` in `reflection.glsl`, `ScreenRay.MeetPixel`). The test reads the pixel's surface S_p and the ray at both ends of the stretch inside the pixel, from s to s_exit, and takes both as affine between them:
+- At level 0 the pixel's surface decides, not its bounds (`meetsPixelSurface` in `reflection.glsl`, `ScreenRay.MeetPixel`). The test reads the pixel's surface S_p and the ray at both ends of the stretch inside the pixel, from s_pixel to s_exit, and takes both as affine between them. s_pixel is where the image enters the pixel, the later of its crossings of the pixel's two near edges:
 
   ```
-  front_in  = w_in − S_p(S(s)),       front_out = w(s_exit) − S_p(S(s_exit))           in front of the slab's front where > 0
-  back_in   = w_in − S_p(S(s)) / (1 + κ),   back_out = w(s_exit) − S_p(S(s_exit)) / (1 + κ)   behind its back where < 0
+  front_in  = w(s_pixel) − S_p(S(s_pixel)),  front_out = w(s_exit) − S_p(S(s_exit))           in front of the slab's front where > 0
+  back_in   = w(s_pixel) − S_p(S(s_pixel)) / (1 + κ),  back_out = w(s_exit) − S_p(S(s_exit)) / (1 + κ)   behind its back where < 0
   hit       = not (front_in > 0 and front_out > 0) and not (back_in < 0 and back_out < 0)
   ```
 
-  On a hit, the ray enters the slab through its front where front crosses 0, through its back where back crosses 0, or at s when it starts inside. The hit position is that point, clamped into the pixel. A miss crosses the pixel, as a missed cell does. A ray that comes down onto a floor meets the plane's front where it crosses it. With one depth per pixel, such a ray at a grazing angle entered the next pixel's slab from behind, with weights 1 − q that rose and fell in bands from row to row (ticket `ter-y8z0`'s artifact 1).
+  On a hit, the ray enters the slab through its front where front crosses 0, through its back where back crosses 0, or at s_pixel when it starts inside. The hit position is that point, clamped into the pixel. A miss crosses the pixel, as a missed cell does. A ray that comes down onto a floor meets the plane's front where it crosses it. With one depth per pixel, such a ray at a grazing angle entered the next pixel's slab from behind, with weights 1 − q that rose and fell in bands from row to row (ticket `ter-y8z0`'s artifact 1).
 
-  Where the surface's part stops at a center line, S_p bends there, and the stretch is up to three affine pieces. A hit is still real: the ray's offset from the front, or from the back, changes sign between the two ends, so the ray crosses that face. A miss can be wrong. A ray in front of the front at both ends can pass behind it at a bend where S_p bulges toward the eye, and a ray behind the back at both ends can pass inside it at a bend where S_p bulges away. The ray then slips through a sliver at most |g_x| / 2 + |g_y| / 2 deep in inverse depth, inside the half of the pixel next to a stop. Stops lie only at depth edges and where a curve bends more than τ, so the error stays at outlines, at the size of the flat half that the stop already keeps. Splitting the stretch at the center lines removes it for two more reads of the surface per level-0 step. It is not made, because no capture shows it.
-- The entry share comes from where the ray stands at the pixel's edge, w_edge = w(s_pixel), where s_pixel is the later of the ray's crossings of the pixel's two near edges, against the surface there. After a descent, s is a solved slab entry, not the pixel's edge, so w_in does not serve (see "Precision and determinism"):
+  The stretch always starts at the pixel's entry edge, also after a descent that solved s inside the pixel, so the test's answer does not depend on how the walk reached the pixel. Where the surface's part stops at a center line, S_p bends there, and the stretch is up to three affine pieces. A hit is still real: the ray's offset from the front, or from the back, changes sign between the two ends, so the ray crosses that face. A miss can be wrong. A ray in front of the front at both ends can pass behind it at a bend where S_p bulges toward the eye, and a ray behind the back at both ends can pass inside it at a bend where S_p bulges away. The ray then slips through a sliver at most |g_x| / 2 + |g_y| / 2 deep in inverse depth, inside the half of the pixel next to a stop. Stops lie only at depth edges and where a curve bends more than τ, so the error stays at outlines, at the size of the flat half that the stop already keeps. Splitting the stretch at the center lines removes it for two more reads of the surface per level-0 step. It is not made, because no capture shows it. Because the stretch starts at the pixel's entry edge, the trace makes the same error as the march at the same pixels. Before ticket `ter-cvyx`, a stretch started at a descent's solved s, so the bend made the trace hit where the march missed (42 of 92 disagreements on 2,000,000 random rays): the answer depended on the path.
+- The entry share comes from where the ray stands at the pixel's edge, w_edge = w(s_pixel), against the surface there: the start of the stretch above. After a descent, s is a solved slab entry, not the pixel's edge, so w_in does not serve (see "Precision and determinism"):
 
   ```
   high = S_p(S(s_pixel)),  low = high / (1 + κ)
@@ -417,7 +426,7 @@ The clamp is `MaxRadiance`, 32,256, the surfaces' share of the HDR image (ARCHIT
 
 ### Precision and determinism
 
-- The ray's inverse depth w(s) = w₀ + s Δw carries an absolute error of about |Δw| · 6 · 10⁻⁸. A far object's slab is narrower than that when seen from a near origin: a planet 10⁷ m away has a slab 9 · 10⁻⁹ /m thick, against an error of 3 · 10⁻⁸ /m for a floor 2 m away. The trace still hits it right: a ray toward the planet reaches such a small w only within a pixel of its vanishing point, and at every other pixel its w is far above the planet's slab. In the pixel of the vanishing point, w spans from 0 to about 5 · 10⁻⁴, which overlaps the slab, and the ray stands in front of the planet at the pixel's edge, so q = 0. So a mirror shows the far planet that lies at the vanishing point of its ray, which is what a ray to infinity sees. The entry share depends on w only at the pixel's edges, never on a solved s, for this reason. For the same reason the overlap test never recomputes w at a solved s: after a descent, the ray's inverse depth at s is the slab bound that s was solved for (w_in clamped to the slab), and only a crossing recomputes w(s). Near the vanishing point the rounding of w₀ + s Δw at a solved entry is larger than the planet's slab, so a recomputed w_in can fall behind the slab of the finer cell, which the descent's own bound says it cannot be. Part 5's GPU test of the far planet missed in that way at 20° above the horizon, and a C# sweep of 3,613 floor rays found the same miss in the C# copy before the change.
+- The ray's inverse depth w(s) = w₀ + s Δw carries an absolute error of about |Δw| · 6 · 10⁻⁸. A far object's slab is narrower than that when seen from a near origin: a planet 10⁷ m away has a slab 9 · 10⁻⁹ /m thick, against an error of 3 · 10⁻⁸ /m for a floor 2 m away. The trace still hits it right: a ray toward the planet reaches such a small w only within a pixel of its vanishing point, and at every other pixel its w is far above the planet's slab. In the pixel of the vanishing point, w spans from 0 to about 5 · 10⁻⁴, which overlaps the slab, and the ray stands in front of the planet at the pixel's edge, so q = 0. So a mirror shows the far planet that lies at the vanishing point of its ray, which is what a ray to infinity sees. The level-0 test and the entry share depend on w only at the pixel's edges, never on a solved s, for this reason. For the same reason the overlap test never recomputes w at a solved s: after a descent, the ray's inverse depth at s is the slab bound that s was solved for (w_in clamped to the slab), and only a crossing recomputes w(s). Near the vanishing point the rounding of w₀ + s Δw at a solved entry is larger than the planet's slab, so a recomputed w_in can fall behind the slab of the finer cell, which the descent's own bound says it cannot be. Part 5's GPU test of the far planet missed in that way at 20° above the horizon, and a C# sweep of 3,613 floor rays found the same miss in the C# copy before the change.
 - Each invocation reads only images that no invocation of its dispatch writes, and writes only its own pixel of the HDR image. The trace has no noise and no history. So the same frame gives the same bits on every run on one GPU.
 
 ## The ambient specular term
@@ -708,7 +717,6 @@ Each constant has its C# twin, as `brdf.glsl`'s constants have.
 | Uludag's share ξ | 0.244 | `ReflectionCone.UludagShare` | Used only through the next |
 | Cone tangent per α | √((1 − ξ) / ξ) = 1.7602 | `ReflectionCone.TangentPerAlpha` | `ConeTangentPerAlpha` |
 | Edge fade band | 0.1 of the shorter side | `CameraView.EdgeFadeShare` | `EdgeFadeShare` |
-| Crossing nudge ε | 0.01 px | `ScreenRay.CrossingNudge` | `CrossingNudge` |
 | Origin offset | 2 pixel footprints | `ScreenRay.OriginOffsetPixels` | `OriginOffsetPixels` |
 | Surface fade cosine | 0.05 | `ScreenRay.SurfaceFadeCosine` | `SurfaceFadeCosine` |
 | Empty far bound | 10^30 /m | `CellBounds.EmptyFar` | `EmptyFar` |
@@ -870,7 +878,7 @@ All workgroups are 8 × 8 invocations.
 
 ## The shaders
 
-The GLSL port of the method, with the names that the parts share.
+The GLSL port of the method, with the names that the parts share. This is the design's first draft. The shaders in `src/Tertius.Rendering/Shaders` hold the current form, which "The method" above describes: for example the pixel's surface and the trace that stands in a pixel.
 
 ### screen.glsl (new)
 
@@ -1268,7 +1276,7 @@ ShadingInput surfaceAt(ivec2 pixel)
 
 ## The C# copy
 
-In `src/Tertius.Rendering`, in 32-bit floats as the GPU computes, so that the precision tests mean what the shader does. Functions belong to the type of their data (STYLE.md).
+This is the design's first draft, as "The shaders" is. In `src/Tertius.Rendering`, in 32-bit floats as the GPU computes, so that the precision tests mean what the shader does. Functions belong to the type of their data (STYLE.md).
 
 ```csharp
 // CameraView (Scene/PreparedScene.cs) gains:
@@ -1456,7 +1464,10 @@ The tests follow tests/STYLE.md: one behavior per test, named as a statement. No
 - `ARayTowardTheEyeEndsAtTheNearPlane`.
 - `ARayAwayFromTheEyeWhoseVanishingPointIsOnTheScreenEndsThere`.
 - `ARayFromANearFloorHitsAPlanetAtItsVanishingPoint`: a floor 2 m away and a planet surface 10⁷ m away that covers the vanishing point. The hit is the vanishing point's pixel with an entry share of 0.
-- `TheHierarchicalTraceFindsThePixelThatAPixelByPixelMarchFinds`: over 10,000 rays from a fixed seed in a scene of floor, walls, boxes and sky, against a march in the test that applies the same slab rule at every pixel of the segment. Every ray gives the same pixel and an entry share within 10⁻³, or a miss in both, and every hit position lies inside its pixel.
+- `RandomRays.TheHierarchicalTraceFindsThePixelThatAPixelByPixelMarchFinds`: over 1,000,000 rays from a fixed seed in a scene of floor, walls, boxes and sky, against a march in the test that applies the level-0 test at every pixel that the image crosses, in order. The march leaves each pixel across the edges that the image leaves it through, so it skips no pixel near a corner. Every ray gives the same pixel and an entry share within 10⁻³, or a miss in both, and every hit position lies inside its pixel. Ticket `ter-cvyx` raised it from 10,000 rays. A temporary search found no disagreement in 30,000,000 rays of six seeds.
+- `ARayThatADescentBringsInsideAPixelWhoseSurfaceBendsFindsThePixelThatTheMarchFinds`: three random rays, kept as float bits, whose descent solves an entry inside a pixel whose surface stops at a center line. The trace once hit there and the march missed.
+- `ARayThatCrossesAPixelOnlyNearItsCornerFindsThePixelThatTheMarchFinds`: three random rays, kept as float bits, that cross a pixel for less than 0.01 px near its corner and meet its slab there. The trace once skipped that pixel.
+- `ATraceMeetsAPixelThatTheImageCrossesOnlyNearItsCorner`: the image crosses one pixel of a 16 × 16 sky for 0.04 px across and 0.004 px down, and that pixel holds the only surface.
 - `ASlabEntryThatRoundsOntoItsCellsFarEdgeFindsThePixelThatTheMarchFinds`: five rays out of 2,000,000, kept as float bits, whose slab entry, solved inside a cell, rounds onto that cell's far edge.
 - `OverEmptySpaceATraceTakesFewerStepsThanThePixelsItCrosses`: a ray across a 1,024 px screen of sky takes fewer than 40 steps.
 - `ATraceThatUsesAllItsStepsMisses`.

@@ -238,12 +238,14 @@ internal readonly record struct ScreenRay(
         const float thickness = 1 + CellBounds.ThicknessShare;
         var travel = new Vector2(MathF.Sign(Step.X), MathF.Sign(Step.Y));
         float edge = PixelEntry(pixel, travel);
+
         // The ray's inverse depth where the image enters the pixel, never at a solved s: that keeps a far surface's thin
         // slab exact (docs/plans/screen-space-reflections.md, "Precision and determinism").
         float inW = InverseDepthAt(edge);
         float outW = InverseDepthAt(exit);
         float surfaceIn = surface.InverseDepthAt(Start + Step * edge);
         float surfaceOut = surface.InverseDepthAt(Start + Step * exit);
+
         // How far the ray stands in front of the slab's front, and of its back, at both ends of the stretch.
         float frontIn = inW - surfaceIn;
         float frontOut = outW - surfaceOut;
