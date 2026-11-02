@@ -250,13 +250,14 @@ public sealed class ReflectionRenderTests
 
     [Theory]
     [MemberData(nameof(Resolutions))]
-    public void AFloorRougherThanTheMaximumKeepsTheAmbientSpecularTerm(TraceResolution resolution)
+    public void AFloorOfThePaintsRoughnessKeepsOnlyTheAmbientSpecularTerm(TraceResolution resolution)
     {
-        // About 0.7, above the maximum of 0.6; the box is rough too, so that no pixel of the frame reflects.
+        // About 0.38, the roughness of the demo's paint, just above the default's maximum; the box is rough too, so
+        // that no pixel of the frame reflects.
         static RenderSnapshot Scene(VulkanRenderer renderer)
         {
             RenderSnapshot snapshot = Gray(0.2f);
-            snapshot.Instances.Add(Floor(renderer, Mirror(179 / 255f)));
+            snapshot.Instances.Add(Floor(renderer, Mirror(97 / 255f)));
             MaterialId glow = renderer.CreateMaterial(
                 new(BaseColor: new(x: 0, y: 0, z: 0, w: 1), Roughness: 1, Reflectance: 0, Emissive: new(Bright))
             );
@@ -267,7 +268,36 @@ public sealed class ReflectionRenderTests
         float[] with = RenderHdr(ReflectionsAt(resolution), Scene).Hdr;
         float[] without = RenderHdr(new NoReflections(), Scene).Hdr;
 
-        ShouldMatch(with, without, "above the maximum roughness SSR has faded out");
+        ShouldMatch(with, without, "at the paint's roughness SSR has faded out");
+    }
+
+    [Theory]
+    [MemberData(nameof(Resolutions))]
+    public void AFloorOfRoughness018ReflectsInFull(TraceResolution resolution)
+    {
+        // About 0.18, just below half the default's maximum. A maximum of 1 reflects every roughness up to 0.5 in full.
+        static RenderSnapshot Scene(VulkanRenderer renderer) => BoxAbove(renderer, Mirror(46 / 255f));
+
+        float[] shown = RenderHdr(ReflectionsAt(resolution), Scene).Hdr;
+        float[] full = RenderHdr(ReflectionsAt(resolution) with { MaxRoughness = 1 }, Scene).Hdr;
+
+        ShouldMatch(shown, full, "the roughness fade is 1 up to half the maximum");
+    }
+
+    [Theory]
+    [MemberData(nameof(Resolutions))]
+    public void AFloorOfRoughness028ShowsHalfItsReflection(TraceResolution resolution)
+    {
+        // About 0.28, halfway between half the default's maximum and the maximum, where the fade is 0.495.
+        static RenderSnapshot Scene(VulkanRenderer renderer) => BoxAbove(renderer, Mirror(71 / 255f));
+
+        float[] shown = RenderHdr(ReflectionsAt(resolution), Scene).Hdr;
+        float[] full = RenderHdr(ReflectionsAt(resolution) with { MaxRoughness = 1 }, Scene).Hdr;
+        float[] without = RenderHdr(new NoReflections(), Scene).Hdr;
+
+        ShareOf(shown: shown, full: full, without: without)
+            .Should()
+            .BeApproximately(0.495f, 0.01f, "the fade falls linearly from 1 at half the maximum to 0 at it");
     }
 
     [Theory]
@@ -1589,6 +1619,25 @@ public sealed class ReflectionRenderTests
                 .Where(i => MathF.Abs(actual[i] - expected[i]) > MathF.Abs(expected[i]) / 1024),
         ];
         differing.Should().BeEmpty("{0}; the first is value {1}", because, differing.FirstOrDefault());
+    }
+
+    /// <summary>
+    /// The share of the full reflection that <paramref name="shown"/> adds: the least-squares scale s of
+    /// shown − without ≈ s · (full − without) over every value of the images.
+    /// </summary>
+    private static float ShareOf(float[] shown, float[] full, float[] without)
+    {
+        double product = 0,
+            square = 0;
+        for (int i = 0; i < shown.Length; i++)
+        {
+            double reflection = full[i] - without[i];
+            product += (shown[i] - without[i]) * reflection;
+            square += reflection * reflection;
+        }
+
+        square.Should().BePositive("the full reflection adds light");
+        return (float)(product / square);
     }
 
     /// <summary>

@@ -11,11 +11,13 @@ public sealed class ReflectionSettingTests
     public void TheDefaultValueIsNoReflections() =>
         (default(ReflectionSetting) is NoReflections).Should().BeTrue("the zero case is the look from before SSR");
 
+    // The default's maximum roughness has its own GPU tests, of the floors that it reflects in full, in part and not at
+    // all (ReflectionRenderTests).
     [Fact]
-    public void TheDefaultTracesUpToARoughnessOf0Point6In256Steps() =>
-        (new RendererOptions().Reflections is ConeTracedReflections { MaxRoughness: 0.6f, MaxSteps: 256 })
+    public void TheRendererReflectsByDefaultIn256Steps() =>
+        (new RendererOptions().Reflections is ConeTracedReflections { MaxSteps: 256 })
             .Should()
-            .BeTrue("the renderer reflects by default, with Unreal Engine 4's maximum roughness");
+            .BeTrue("the renderer reflects by default, in the steps that a grazing hair ray needs");
 
     [Fact]
     public void BothResolutionsAreAccepted()
@@ -120,17 +122,18 @@ public sealed class ReflectionSettingTests
             .ThrowExactly<ArgumentOutOfRangeException>()
             .WithMessage("*16384 px a side*");
 
+    // A maximum of 0.8 of its own, so that the fade's shape holds for any maximum, not only for the default's.
     [Theory]
     [InlineData(0.045f, 1f)]
-    [InlineData(0.3f, 1f)]
-    [InlineData(0.45f, 0.5f)]
-    [InlineData(0.6f, 0f)]
+    [InlineData(0.4f, 1f)]
+    [InlineData(0.6f, 0.5f)]
+    [InlineData(0.8f, 0f)]
     [InlineData(0.9f, 0f)]
     public void TheRoughnessFadeIsFullUpToHalfTheMaximumAndZeroAtIt(float roughness, float fade) =>
-        ConeTracedReflections
-            .Default.RoughnessFade(roughness)
+        (ConeTracedReflections.Default with { MaxRoughness = 0.8f })
+            .RoughnessFade(roughness)
             .Should()
-            .BeApproximately(fade, 1e-6f, "the fade falls linearly from half the maximum of 0.6 to the maximum");
+            .BeApproximately(fade, 1e-6f, "the fade falls linearly from half the maximum of 0.8 to the maximum");
 
     [Fact]
     public void TheTracesPushConstantsCarryTheMaximumRoughnessAndTheSteps()
