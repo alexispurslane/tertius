@@ -7,6 +7,7 @@
 
 const float MinRoughness = 0.045;   // GgxLobe.MinRoughness
 const float MinNdotV = 1e-4;        // MaterialSample's floor on μ
+const float MinHalfCosine = 1e-4;   // GgxLobe.MinHalfCosine, the floor of v·h in sphereNormalization
 
 const float DfgSize = 32.0;         // BrdfTables.DfgSize
 const float LobeSkyWidth = 64.0;    // BrdfTables.LobeSkyWidth
@@ -22,11 +23,16 @@ float flooredRoughness(float roughness)
     return clamp(roughness, MinRoughness, 1.0);
 }
 
-// D: the GGX distribution of the microfacet normals, per steradian.
-float ggxDistribution(float NdotH, float alpha)
+// D: the GGX distribution of the microfacet normals, per steradian, at the unit half vector H of the unit normal N.
+// The denominator (n·h)² (α² − 1) + 1 is |n × h|² + (n·h)² α², as Filament's D_GGX computes it: near n·h = 1, a 32-bit
+// 1 − (n·h)² cancels to a few float steps of n·h, which move D by several percent at the floor's α² = 4.1e-6, and the
+// cross product keeps its precision. GgxLobe.Distribution, in doubles, is the C# copy.
+float ggxDistribution(vec3 N, vec3 H, float alpha)
 {
+    vec3 NcrossH = cross(N, H);
+    float NdotH = dot(N, H);
     float alphaSq = alpha * alpha;
-    float denominator = NdotH * NdotH * (alphaSq - 1.0) + 1.0;
+    float denominator = dot(NcrossH, NcrossH) + NdotH * NdotH * alphaSq;
     return alphaSq / (PI * denominator * denominator);
 }
 
@@ -43,6 +49,33 @@ float smithVisibility(float NdotL, float NdotV, float alpha)
 vec3 schlickFresnel(vec3 f0, float VdotH)
 {
     return f0 + (1.0 - f0) * pow(1.0 - clamp(VdotH, 0.0, 1.0), 5.0);
+}
+
+// GgxLobe.SphereLightDirection: the unit direction toward the representative point of a sphere light, its point nearest
+// the mirror ray R (Karis 2013, "Real Shading in Unreal Engine 4", p. 15, equation 11). L is the unit direction toward
+// the light's center, and lightSine the sine of its angular radius, R / d: the vectors are in units of d. The notes print
+// centerToRay as L − (L·R) R, which points away from the ray; the closest point needs (L·R) R − L. L if the closest point
+// is the shading point itself.
+vec3 sphereLightDirection(vec3 L, vec3 R, float lightSine)
+{
+    vec3 centerToRay = dot(L, R) * R - L;
+    float centerToRaySq = dot(centerToRay, centerToRay);
+    // A ray through the sphere has its closest point on itself, saturate's 1. The test also keeps inversesqrt from 0.
+    vec3 closest = centerToRaySq <= lightSine * lightSine
+        ? L + centerToRay
+        : L + centerToRay * (lightSine * inversesqrt(centerToRaySq));
+    return normalizedOr(closest, L);
+}
+
+// GgxLobe.SphereNormalization: (α / α′)², the normalization of the lobe that a sphere light widens (Karis 2013, p. 16,
+// equation 14), with α′ = min(α + sin ϕ / (2 √(v·h)), 1) (docs/plans/pbr-brdf.md, "Sized lights"). Karis's equation 10
+// adds sin ϕ / 3. The half vectors of the light's disc span 1 / (4 v·h) of its solid angle, so a mirror shows the light's
+// own radiance when the radius of their cone, sin ϕ / (2 √(v·h)), widens α.
+float sphereNormalization(float alpha, float lightSine, float VdotH)
+{
+    float widened = min(alpha + lightSine * 0.5 * inversesqrt(max(VdotH, MinHalfCosine)), 1.0);
+    float share = alpha / widened;
+    return share * share;
 }
 
 // d: the direction between the mirror direction R and the normal N where the lobe gathers most of its light. Seen

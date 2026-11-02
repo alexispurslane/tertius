@@ -79,14 +79,19 @@ public sealed class LightUnitsRenderTests
         return (pixel, OnPlane(Ray(pixel, Width, Height), Center, Double3.UnitZ));
     }
 
-    /// <summary>The light that the square sends to the eye from <paramref name="point"/> under the irradiance <paramref name="irradiance"/> from <paramref name="toLight"/>.</summary>
-    private static Vector3 Lit(Double3 point, Double3 toLight, Double3 irradiance) =>
+    /// <summary>
+    /// The light that the square sends to the eye from <paramref name="point"/> under the irradiance
+    /// <paramref name="irradiance"/> from <paramref name="toLight"/>, of a light whose angular radius has the sine
+    /// <paramref name="lightSine"/> there: 0 for a lamp of radius 0.
+    /// </summary>
+    private static Vector3 Lit(Double3 point, Double3 toLight, Double3 irradiance, double lightSine) =>
         (
             White.Reflected(
                 normal: Double3.UnitZ,
                 toView: -point.Normalized(),
                 toLight: toLight.Normalized(),
-                tables: BrdfTables.Shared
+                tables: BrdfTables.Shared,
+                lightSine: lightSine
             ) * irradiance
         ).ToVector3();
 
@@ -161,7 +166,7 @@ public sealed class LightUnitsRenderTests
                 renderer: renderer,
                 snapshot: snapshot,
                 pixel: pixel,
-                expected: Lit(point: point, toLight: lamp - point, irradiance: Gray(irradiance)),
+                expected: Lit(point: point, toLight: lamp - point, irradiance: Gray(irradiance), lightSine: 0),
                 name: "light-units-point"
             );
         }
@@ -207,7 +212,8 @@ public sealed class LightUnitsRenderTests
                 expected: Lit(
                     point: point,
                     toLight: lamp - point,
-                    irradiance: Gray(LampIrradiance(intensity, (lamp - point).Length))
+                    irradiance: Gray(LampIrradiance(intensity, (lamp - point).Length)),
+                    lightSine: 0
                 ),
                 name: "light-units-spot"
             );
@@ -280,7 +286,8 @@ public sealed class LightUnitsRenderTests
             Vector3 expected = Lit(
                 point: point,
                 toLight: lamp - point,
-                irradiance: Gray(LampIrradiance(intensity, (lamp - point).Length))
+                irradiance: Gray(LampIrradiance(intensity, (lamp - point).Length)),
+                lightSine: 0
             );
 
             // The exposure is 0 stops, so the HDR image holds the radiance itself.
@@ -312,7 +319,12 @@ public sealed class LightUnitsRenderTests
                 renderer: renderer,
                 snapshot: snapshot,
                 pixel: pixel,
-                expected: Lit(point: point, toLight: toStar, irradiance: Gpu.StarIrradianceRgb(snapshot)),
+                expected: Lit(
+                    point: point,
+                    toLight: toStar,
+                    irradiance: Gpu.StarIrradianceRgb(snapshot),
+                    lightSine: Gpu.StarSine
+                ),
                 name: "light-units-star"
             );
         }
@@ -364,7 +376,7 @@ public sealed class LightUnitsRenderTests
                 renderer: renderer,
                 snapshot: snapshot,
                 pixel: pixel,
-                expected: Lit(point: point, toLight: toFirst, irradiance: Gray(1)),
+                expected: Lit(point: point, toLight: toFirst, irradiance: Gray(1), lightSine: Gpu.StarSine),
                 name: "light-units-far-shadows-only"
             );
             stats.CascadeSets.Should().Be(1);
@@ -420,8 +432,8 @@ public sealed class LightUnitsRenderTests
             Vector3[] expected = Displayed(
                 renderer,
                 [
-                    Lit(point: left, toLight: toLeft, irradiance: Gray(0.6)),
-                    Lit(point: right, toLight: toRight, irradiance: Gray(1)),
+                    Lit(point: left, toLight: toLeft, irradiance: Gray(0.6), lightSine: Gpu.StarSine),
+                    Lit(point: right, toLight: toRight, irradiance: Gray(1), lightSine: Gpu.StarSine),
                 ],
                 "light-units-two-sets-expected"
             );
@@ -479,7 +491,7 @@ public sealed class LightUnitsRenderTests
                 renderer: renderer,
                 snapshot: snapshot,
                 pixel: pixel,
-                expected: Lit(point: point, toLight: toDim, irradiance: Gray(0.5)),
+                expected: Lit(point: point, toLight: toDim, irradiance: Gray(0.5), lightSine: Gpu.StarSine),
                 name: "light-units-dim-star"
             );
             stats.CascadeSets.Should().Be(1, "only the bright star has a cascade set, though the budget is two");

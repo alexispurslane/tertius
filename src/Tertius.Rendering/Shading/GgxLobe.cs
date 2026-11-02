@@ -11,6 +11,9 @@ internal readonly record struct GgxLobe
     /// </summary>
     public const double AlphaPerWidth = 0.12108;
 
+    /// <summary>The floor of v·h in <see cref="SphereNormalization"/>, as MinNdotV floors μ: v·h is 0 only where v = −l.</summary>
+    public const double MinHalfCosine = 1e-4;
+
     /// <summary>
     /// The lower bound on the roughness of a read for a part: the lobe for a part 2.07 rad wide. A sharper read lets a
     /// small bright part of the map show in some texels and not in their neighbors, a speck (decision 42). The price is
@@ -59,6 +62,42 @@ internal readonly record struct GgxLobe
         double lightPart = nDotL * Math.Sqrt(nDotV * nDotV * (1 - alphaSquared) + alphaSquared);
         double viewPart = nDotV * Math.Sqrt(nDotL * nDotL * (1 - alphaSquared) + alphaSquared);
         return 0.5 / (lightPart + viewPart);
+    }
+
+    /// <summary>
+    /// (α / α′)², the normalization of the lobe that a sphere light widens (Karis 2013, p. 16, equation 14), with
+    /// α′ = min(α + sin ϕ / (2 √(v·h)), 1) (docs/plans/pbr-brdf.md, "Sized lights"). 1 for a light of radius 0.
+    /// sphereNormalization in brdf.glsl is the GPU copy.
+    /// </summary>
+    /// <param name="lightSine">sin ϕ of the light's angular radius ϕ at the point, R / d, from 0 to 1.</param>
+    /// <param name="vDotH">The cosine of the view direction to the half vector of the representative point.</param>
+    public double SphereNormalization(double lightSine, double vDotH)
+    {
+        double widened = Math.Min(Alpha + lightSine / (2 * Math.Sqrt(Math.Max(vDotH, MinHalfCosine))), 1);
+        double share = Alpha / widened;
+        return share * share;
+    }
+
+    /// <summary>
+    /// The unit direction toward Karis's representative point of a sphere light: the point of the sphere nearest the
+    /// mirror ray (Karis 2013, p. 15, equation 11). <paramref name="toLight"/> if the ray meets no direction.
+    /// sphereLightDirection in brdf.glsl is the GPU copy.
+    /// </summary>
+    /// <param name="toLight">The unit direction toward the light's center.</param>
+    /// <param name="mirror">The unit mirror direction of the view about the normal.</param>
+    /// <param name="lightSine">sin ϕ of the light's angular radius ϕ at the point, R / d, from 0 to 1.</param>
+    public static Double3 SphereLightDirection(Double3 toLight, Double3 mirror, double lightSine)
+    {
+        // In units of the distance d: the center at toLight, the radius sin ϕ. The notes print L − (L·r) r, which points
+        // away from the ray. The closest point needs the way from the center toward the ray.
+        Double3 centerToRay = Double3.Dot(toLight, mirror) * mirror - toLight;
+        double centerToRaySquared = centerToRay.LengthSquared;
+        // A ray through the sphere has its closest point on itself: saturate's 1.
+        Double3 closest =
+            centerToRaySquared <= lightSine * lightSine
+                ? toLight + centerToRay
+                : toLight + centerToRay * (lightSine / Math.Sqrt(centerToRaySquared));
+        return closest.LengthSquared >= ShaderInput.SmallestNormal ? closest.Normalized() : toLight;
     }
 
     /// <summary>
