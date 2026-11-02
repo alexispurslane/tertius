@@ -1,11 +1,12 @@
 #version 460
 // The occlusion depth pass (docs/plans/ambient-occlusion.md, "The occlusion depth pass"): the view depth of each
-// half-resolution texel, from the distance of its representative pixel, and copies of that pixel's bounce source and
+// half-resolution texel, from the distance of its representative pixel, copies of that pixel's bounce source and
 // geometric normal, which the near steps read densely (docs/plans/screen-space-illumination.md, decision 25 and "The
-// bounce source"). Engine glue after the shape of vaGTAO.hlsl.
+// bounce source"), and the continuation flags of the texel's plane, which each near step on the texel reads in place of
+// its neighbors (texel_surface.glsl). Engine glue after the shape of vaGTAO.hlsl.
 // XeGTAO's copyright and permission notice are in gtao.glsl.
 #extension GL_GOOGLE_include_directive : require
-#include "gtao.glsl"
+#include "texel_surface.glsl"
 #include "exposure.glsl"
 
 layout(local_size_x = 8, local_size_y = 8) in;
@@ -16,10 +17,8 @@ void main()
     if (!insideHalf(texel))
         return;
     ivec2 pixel = 2 * texel;
-    float distanceToEye = texelFetch(gbufferDistance, pixel, 0).r;
-    vec3 ray = gtaoViewPosition(pixelScreenPosition(pixel), 1.0);
-    // The distance target holds 0 for sky. SkyDepth puts sky beyond every radius, where an infinite depth gives NaN.
-    float z = distanceToEye > 0.0 ? distanceToEye / length(ray) : SkyDepth;
+    uvec2 depthAndNormal = texelDepthAndNormal(texel);
+    float z = depthOf(depthAndNormal);
     imageStore(viewDepth, texel, vec4(z));
     // The light that leaves the pixel alike in every direction: its diffuse light, at most MaxRadiance, and the glow that it
     // sends (glowSent, frame.glsl). The G-buffer pass pre-exposed the glow. Sky and impostors hold no diffuse light, and an
@@ -28,5 +27,7 @@ void main()
     vec3 source = min(imageLoad(diffuseImage, pixel).rgb + glow, vec3(MaxRadiance));
     imageStore(occlusionSource, texel, vec4(source, 0.0));
     // The depth again beside the normal, so that a near step reads both in one load.
-    storeDepthAndNormal(texel, z, texelFetch(gbufferNormal, pixel, 0).ba);
+    storeDepthAndNormal(texel, depthAndNormal);
+    // Sky has no plane, and no step reads its flags.
+    storeContinuation(texel, z < SkyDepth ? continuationFlags(texel, depthAndNormal) : 0u);
 }

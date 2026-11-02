@@ -37,6 +37,7 @@ internal sealed class OcclusionSectorsPass(
         barriers.Image(targets.Shading, ImageUse.SampledCompute);
         barriers.Image(images.Source, ImageUse.StorageCompute);
         barriers.Image(images.DepthAndNormal, ImageUse.StorageCompute);
+        barriers.Image(images.Continuation, ImageUse.StorageCompute);
         barriers.Image(images.Edges, ImageUse.StorageCompute, discard: true);
         barriers.Image(images.TermA, ImageUse.StorageCompute, discard: true);
         // The map code of each texel names its map, whose specular levels every piece reads. S is a ratio of those reads,

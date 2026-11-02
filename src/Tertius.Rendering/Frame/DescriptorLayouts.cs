@@ -266,8 +266,9 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// <summary>
     /// Set 3 of <see cref="OcclusionLayout"/>: the view depth, the edges, term A and the estimate target (bindings 0 to
     /// 3), the source and the destination term of a denoise dispatch (bindings 4 and 5), the depth pass's copies of
-    /// the bounce source and the geometric normal (bindings 6 and 7), and the targets' diffuse image (binding 8), as
-    /// storage images (docs/plans/screen-space-illumination.md, "Push constants and sets").
+    /// the bounce source and the geometric normal (bindings 6 and 7), the targets' diffuse image (binding 8), and the
+    /// depth pass's continuation flags of each texel's plane (binding 9), as storage images
+    /// (docs/plans/screen-space-illumination.md, "Push constants and sets").
     /// </summary>
     public DescriptorSetLayout OcclusionSet { get; }
 

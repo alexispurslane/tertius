@@ -5,7 +5,7 @@
 #define TERTIUS_SECTORS_GLSL
 
 #include "gtao.glsl"
-#include "depth_pyramid.glsl"
+#include "texel_surface.glsl"
 
 const uint SectorCount = 32u;
 // The steps of boundaryAngle's bisection, SliceSectors.BoundarySteps.
@@ -161,45 +161,21 @@ SectorRun ownSurfaceRun(SliceGeometry g, vec3 geometricNormal)
                                       : runBetween(g, planeAngle + GtaoHalfPi, g.normalAngle + GtaoHalfPi);
 }
 
-// The least and the greatest view depth of the texels around a step's exact place: its texel t, at tDepth, and t's two
-// neighbors toward the place, along the row and along the column. The place lies within half a texel of t on each axis,
-// so their triangle holds it. towardPlace is the place minus t, in half-resolution texels (SectorSearch.DepthsAround).
-vec2 depthsAround(ivec2 t, float tDepth, vec2 towardPlace)
+// s_f: a step's surface point on its slice, where the view ray through its exact place meets the surface of its texel t
+// (texelSurface, the pixels' rule, SectorSearch.TexelSurface): t's plane over the part of its square that reaches toward
+// each neighbor that continues it, and the plane's value at the part's edge past it, read with the depth pass's
+// continuation flags of t. place is the exact place in the texel grid, within half a texel of t on each axis, where whole
+// numbers are a texel's representative pixel. The surface's inverse depth is positive everywhere on t's square: the part
+// reaches only toward a neighbor whose center lies within 1 % of the plane. False at a view depth of farthestDepth or
+// more, which lies beyond the radius.
+bool stepSurfacePoint(ivec2 t, uvec2 depthAndNormal, vec2 place, float farthestDepth, out vec3 point)
 {
-    ivec2 across = ivec2(sign(towardPlace));
-    float alongRow = viewDepthAt(t + ivec2(across.x, 0));
-    float alongColumn = viewDepthAt(t + ivec2(0, across.y));
-    return vec2(min(tDepth, min(alongRow, alongColumn)), max(tDepth, max(alongRow, alongColumn)));
-}
-
-// s_f: a step's surface point on its slice, where the view ray through its exact place, exactRay (z = 1), meets the
-// plane of its texel's surface, through texelPosition at right angles to texelNormal (SectorSearch.SurfacePoint). False
-// where the ray meets the plane only behind the eye or never: the surface does not reach the slice there, and the step
-// blocks nothing. At a view depth outside the depths around the exact place, widened by the depths' precision,
-// 1 − CenterBias, the plane does not reach the place, as beside a convex edge, and the step stands at texelPosition,
-// the real point that it read. Also false at a view depth of farthestDepth or more, which lies beyond the radius. The
-// tests by products before the quotient keep the depth finite.
-bool stepSurfacePoint(vec3 exactRay, vec3 texelPosition, vec3 texelNormal, vec2 depthsAround, float farthestDepth,
-                      out vec3 point)
-{
-    float planeOffset = dot(texelNormal, texelPosition);
-    float rayAlongNormal = dot(texelNormal, exactRay);
-    bool inFront = planeOffset * rayAlongNormal > 0.0;
-    // The depth is |planeOffset| / |rayAlongNormal| where the two share a sign.
-    float depthTimesRay = abs(planeOffset);
-    float rayLength = abs(rayAlongNormal);
-    bool betweenAround = depthTimesRay >= rayLength * depthsAround.x * CenterBias
-                         && depthTimesRay <= rayLength * depthsAround.y / CenterBias;
-    if (!inFront)
+    point = vec3(0.0);
+    float w = surfaceW(texelSurface(t, depthAndNormal, continuationAt(t)), place);
+    if (!(w * farthestDepth > 1.0))
         return false;
-    if (!betweenAround)
-    {
-        point = texelPosition;
-        return true;
-    }
-    if (!(depthTimesRay < rayLength * farthestDepth))
-        return false;
-    point = exactRay * (planeOffset / rayAlongNormal);
+    // A texel spans two pixels, and its representative pixel's center lies half a pixel past its place.
+    point = gtaoViewPosition((2.0 * place + 0.5) / vec2(fullSize()), 1.0) / w;
     return true;
 }
 

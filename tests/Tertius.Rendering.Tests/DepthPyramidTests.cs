@@ -226,6 +226,22 @@ public sealed class DepthPyramidTests
     }
 
     [Fact]
+    public void ANeighborBeyondTheImageContinuesASamplesPlane()
+    {
+        PixelPlane plane = FloorPlane(32, 40);
+
+        plane.ContinuesInto(insideImage: false, neighbor: null).Should().BeTrue("no depth edge lies beyond the image");
+    }
+
+    [Fact]
+    public void ANeighborThatSeesTheSkyDoesNotContinueASamplesPlane()
+    {
+        PixelPlane plane = FloorPlane(32, 40);
+
+        plane.ContinuesInto(insideImage: true, neighbor: null).Should().BeFalse("the sky lies beyond every surface");
+    }
+
+    [Fact]
     public void APixelThatFacesTheEyeBoundsOnlyItsCentersInverseDepth()
     {
         CameraView camera = ScreenTesting.Camera(width: 64, height: 48);
@@ -307,6 +323,15 @@ public sealed class DepthPyramidTests
 
     /// <summary>The four corners of a pixel's square, in pixels.</summary>
     private static Vector2[] Corners(int x, int y) => [new(x, y), new(x + 1, y), new(x, y + 1), new(x + 1, y + 1)];
+
+    /// <summary>The plane of the floor pixel (<paramref name="x"/>, <paramref name="y"/>) under <see cref="FloorCamera"/>.
+    /// </summary>
+    private static PixelPlane FloorPlane(int x, int y)
+    {
+        CameraView camera = FloorCamera;
+        (float[] distances, Vector3[] normals) = ScreenTesting.Surfaces(camera, Floor);
+        return PixelPlane.Of(x: x, y: y, distances: distances, geometricNormals: normals, camera: camera)!.Value;
+    }
 
     /// <summary>The inverse view depth of the floor 1.5 m below the eye on the view ray through a screen position.</summary>
     private static float FloorInverseDepth(in CameraView camera, Vector2 position) =>

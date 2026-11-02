@@ -678,7 +678,7 @@ public sealed class PyramidRenderTests
                     neighbor.X >= 0 && neighbor.Y >= 0 && neighbor.X < camera.Width && neighbor.Y < camera.Height;
                 if (!inside || plane(neighbor.X, neighbor.Y) is not { } other)
                     continue;
-                if (NearTheCut(own, other) || NearTheCut(other, own))
+                if (ScreenTesting.NearTheCut(own, other, UndecidedShare) || ScreenTesting.NearTheCut(other, own, UndecidedShare))
                     slack[y * camera.Width + x] = (MathF.Abs(own.Gradient.X) + MathF.Abs(own.Gradient.Y)) / 2;
             }
         }
@@ -686,17 +686,6 @@ public sealed class PyramidRenderTests
 
         PixelPlane? plane(int x, int y) =>
             PixelPlane.Of(x: x, y: y, distances: distances, geometricNormals: normals, camera: camera);
-    }
-
-    /// <summary>Whether the plane's test of the other pixel's center lies within <see cref="UndecidedShare"/> of either
-    /// side of its cut.</summary>
-    private static bool NearTheCut(PixelPlane plane, PixelPlane other)
-    {
-        float planeInverseDepth = plane.CenterInverseDepth + Vector2.Dot(plane.Gradient, other.Center - plane.Center);
-        const float tolerance = 1 + CellBounds.ContinuationShare;
-        float aboveTheCut = (planeInverseDepth * tolerance - other.CenterInverseDepth) / other.CenterInverseDepth;
-        float belowTheCut = (other.CenterInverseDepth * tolerance - planeInverseDepth) / planeInverseDepth;
-        return MathF.Abs(aboveTheCut) < UndecidedShare || MathF.Abs(belowTheCut) < UndecidedShare;
     }
 
     /// <summary>

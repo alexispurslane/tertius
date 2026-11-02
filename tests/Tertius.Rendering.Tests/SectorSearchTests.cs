@@ -475,90 +475,6 @@ public sealed class SectorSearchTests
     }
 
     [Fact]
-    public void AStepsSurfacePointIsWhereItsExactRayMeetsItsTexelsPlane()
-    {
-        // The texel's point lies on a floor 1 m below the eye. The exact ray, off the texel's own ray, meets the floor
-        // at a view depth of 1 / 0.3.
-        Double3 exactRay = new(0.05, -0.3, 1);
-
-        Double3? point = SectorSearch.SurfacePoint(
-            exactRay: exactRay,
-            texelPosition: new(0.1, -1, 3),
-            texelNormal: Double3.UnitY,
-            depthsAround: (Least: 3, Greatest: 4)
-        );
-
-        point.Should().NotBeNull();
-        point!.Value.Y.Should().BeApproximately(-1, 1e-12, "the point lies on the texel's plane");
-        (point.Value - exactRay * point.Value.Z)
-            .Length.Should()
-            .BeLessThan(1e-12, "the point lies on the exact ray, so on the slice");
-        point.Value.Z.Should().BeApproximately(1 / 0.3, 1e-12);
-    }
-
-    [Theory]
-    [InlineData(0.1)]
-    [InlineData(0)]
-    public void AStepWhosePlaneItsExactRayMeetsOnlyBehindTheEyeOrNeverHasNoSurfacePoint(double rise)
-    {
-        // The exact ray rises above the floor, or runs along it: the floor does not reach the slice there.
-        Double3? point = SectorSearch.SurfacePoint(
-            exactRay: new(0, rise, 1),
-            texelPosition: new(0, -1, 3),
-            texelNormal: Double3.UnitY,
-            depthsAround: (Least: 1, Greatest: HorizonSearch.SkyDepth)
-        );
-
-        point.Should().BeNull("the step stands for no surface on its slice, as a step on sky");
-    }
-
-    [Theory]
-    [InlineData(3.4, 4)]
-    [InlineData(3, 3.3)]
-    public void AStepWhosePlaneMeetsItsExactRayOutsideTheDepthsAroundItsExactPlaceStandsAtItsTexelsOwnPoint(
-        double least,
-        double greatest
-    )
-    {
-        // The exact ray meets the texel's floor at a view depth of 1 / 0.3, in front of or beyond every texel around
-        // its exact place, as beside a convex edge, where the texel's plane does not reach the place.
-        Double3? point = SectorSearch.SurfacePoint(
-            exactRay: new(0.05, -0.3, 1),
-            texelPosition: new(0.1, -1, 3),
-            texelNormal: Double3.UnitY,
-            depthsAround: (Least: least, Greatest: greatest)
-        );
-
-        point.Should().Be(new Double3(0.1, -1, 3), "the step stands at the real point that it read, P(t)");
-    }
-
-    [Theory]
-    [InlineData(1e-4)]
-    [InlineData(-1e-4)]
-    public void AStepOnAWallSquareToTheViewKeepsItsSurfacePointThroughTheRoundingOfItsNormal(double tilt)
-    {
-        // Every texel around the exact place reads the wall 5 m ahead. The texel's normal, off by a rounding's tilt,
-        // puts the meeting point about 4 × 10⁻⁷ of the depth in front of the wall or beyond it.
-        Double3 normal = new Double3(tilt, 0, -1).Normalized();
-
-        Double3? point = SectorSearch.SurfacePoint(
-            exactRay: new(0.0045, 0, 1),
-            texelPosition: new(0.0025, 0, 5),
-            texelNormal: normal,
-            depthsAround: (Least: 5, Greatest: 5)
-        );
-
-        point.Should().NotBeNull();
-        point!.Value.Z.Should().NotBe(5, "the test needs a point that the rounding moved off the wall");
-        (point.Value - new Double3(0.0045, 0, 1) * point.Value.Z)
-            .Length.Should()
-            .BeLessThan(
-                1e-12,
-                "the depths' own precision widens the depths around the exact place, so s_f stays on the slice"
-            );
-    }
-
-    [Fact]
     public void AStepAtTheImagesCornerReadsNoTexelOutsideTheImage()
     {
         // From the corner texel, the slices put exact places up to half a texel past the image's edges, where a
@@ -593,15 +509,15 @@ public sealed class SectorSearchTests
         read.Should()
             .OnlyContain(
                 texel => texel.X >= 0 && texel.Y >= 0 && texel.X < 320 && texel.Y < 180,
-                "a texel outside the image reads the border texel, as the shader's viewDepthAt does"
+                "a neighbor beyond the image continues the plane, so the step reads no texel there"
             );
     }
 
     [Fact]
-    public void AStepBetweenTheLastRowOfAFloorAndTheSkyKeepsItsSurfacePointBeyondThatRow()
+    public void AStepBetweenTheLastRowOfAFloorAndTheSkyStopsAtThatRowsCenterLine()
     {
         // A floor 1 m below the eye fills the rows below row 90, whose ray runs level, and the sky the rest. Row 91,
-        // the last floor row, lies 160 m ahead. Sky counts as beyond every depth around an exact place.
+        // the last floor row, lies 160 m ahead. The sky does not continue the floor's plane.
         static StepTexel? FloorAt((int X, int Y) texel)
         {
             Double3 ray = WallRayThrough((texel.X, texel.Y));
@@ -628,10 +544,234 @@ public sealed class SectorSearchTests
                 )
             );
 
-        steps.Should().AllSatisfy(step => step.Position.Y.Should().BeApproximately(-1, 1e-9));
         steps
             .Should()
-            .Contain(step => step.Position.Z > 160, "the floor's plane reaches past its last row toward the sky");
+            .AllSatisfy(
+                step => step.Position.Z.Should().BeLessThanOrEqualTo(160 * (1 + 1e-6)),
+                "no step stands beyond the last row's depth"
+            );
+        steps
+            .Should()
+            .AllSatisfy(
+                step => step.Position.Y.Should().BeInRange(-1 - 1e-5, -0.5 + 1e-5),
+                "a step stands on the floor, or at most half a texel above it on the last row"
+            );
+        steps
+            .Should()
+            .Contain(
+                step => step.Position.Y > -0.99,
+                "past the last row's center line its surface keeps the plane's depth there, on the step's exact ray"
+            );
+    }
+
+    [Fact]
+    public void ANearStepTowardAnEdgeNeighborWhosePlaneDoesNotContinueItsTexelsStopsAtTheTexelsCenterLine()
+    {
+        // Planks one texel wide on the even columns, on a plane through (0, 0, 5) that recedes to the right and up, and
+        // a wall 50 m ahead that faces the eye on the odd columns between them. Along a row no neighbor continues a
+        // texel's plane, and along a column every neighbor does.
+        Double3 normal = new Double3(0.4, 0.3, -1).Normalized();
+        double planeOffset = Double3.Dot(normal, new(0, 0, 5));
+        double InverseDepthAt((double X, double Y) place) =>
+            (int)Math.Round(place.X) % 2 == 0 ? Double3.Dot(normal, WallRayThrough(place)) / planeOffset : 1.0 / 50;
+        StepTexel? PlanksAt((int X, int Y) texel) =>
+            new StepTexel(
+                Position: WallRayThrough((texel.X, texel.Y)) / InverseDepthAt((texel.X, texel.Y)),
+                GeometricNormal: texel.X % 2 == 0 ? normal : TowardTheEye,
+                DirectLight: Red,
+                Card: null
+            );
+
+        List<NearStep> steps = StepsOfSixteenSlicesFromTheMiddle(PlanksAt, normal);
+
+        static bool OffAPlanksCenterColumn(double x) => Math.Round(x) % 2 == 0 && Math.Abs(x - Math.Round(x)) > 0.1;
+        steps
+            .Any(step => OffAPlanksCenterColumn(ExactPlaceOf(step).X))
+            .Should()
+            .BeTrue("the test needs a step on a plank whose exact place lies off the plank's center column");
+        steps
+            .Should()
+            .AllSatisfy(step =>
+            {
+                (double x, double y) = ExactPlaceOf(step);
+                double centerLine = InverseDepthAt((X: Math.Round(x), Y: y));
+                (1 / step.Position.Z)
+                    .Should()
+                    .BeApproximately(
+                        centerLine,
+                        1e-5 * centerLine,
+                        "along the row the surface keeps its plane's value at the center column, and along the column "
+                            + "its plane reaches the place"
+                    );
+            });
+    }
+
+    [Fact]
+    public void ANearStepReachesTowardTheNeighborThatContinuesItsTexelsPlaneAndStopsTowardTheOtherThatDoesNot()
+    {
+        // Planks two texels wide, on the columns that leave a remainder of 0 or 1 when divided by 3, on a plane through
+        // (0, 0, 5) that recedes to the right and up, and a wall 50 m ahead that faces the eye on the columns between
+        // them. A plank's texel has one neighbor along its row that continues its plane and one that does not, so each
+        // side of the texel takes its own answer.
+        Double3 normal = new Double3(0.4, 0.3, -1).Normalized();
+        double planeOffset = Double3.Dot(normal, new(0, 0, 5));
+        static bool OnAPlank(int column) => column % 3 != 2;
+        double InverseDepthAt((double X, double Y) place) =>
+            OnAPlank((int)Math.Round(place.X))
+                ? Double3.Dot(normal, WallRayThrough(place)) / planeOffset
+                : 1.0 / 50;
+        StepTexel? PlanksAt((int X, int Y) texel) =>
+            new StepTexel(
+                Position: WallRayThrough((texel.X, texel.Y)) / InverseDepthAt((texel.X, texel.Y)),
+                GeometricNormal: OnAPlank(texel.X) ? normal : TowardTheEye,
+                DirectLight: Red,
+                Card: null
+            );
+
+        List<NearStep> steps = StepsOfSixteenSlicesFromTheMiddle(PlanksAt, normal);
+
+        // Where the step's texel's surface holds: at the place itself on the side of the plank's other texel, and at the
+        // texel's center column on the side of the wall.
+        static double HoldsAt(double x)
+        {
+            int column = (int)Math.Round(x);
+            bool towardThePlank = x < column ? column % 3 == 1 : column % 3 == 0;
+            return OnAPlank(column) && !towardThePlank ? column : x;
+        }
+        static bool OffTheCenterColumn(double x, int remainder, int side) =>
+            Math.Round(x) % 3 == remainder && side * (x - Math.Round(x)) > 0.1;
+        foreach (int remainder in new[] { 0, 1 })
+        foreach (int side in new[] { -1, 1 })
+            steps
+                .Any(step => OffTheCenterColumn(ExactPlaceOf(step).X, remainder, side))
+                .Should()
+                .BeTrue("the test needs a step off the center column of plank texel {0}, on side {1}", remainder, side);
+        steps
+            .Should()
+            .AllSatisfy(step =>
+            {
+                (double x, double y) = ExactPlaceOf(step);
+                double expected = InverseDepthAt((X: HoldsAt(x), Y: y));
+                (1 / step.Position.Z)
+                    .Should()
+                    .BeApproximately(
+                        expected,
+                        1e-5 * expected,
+                        "toward the plank's other texel the plane reaches the place, and toward the wall it keeps its "
+                            + "value at the center column"
+                    );
+            });
+    }
+
+    /// <summary>The near steps of 16 slices from the middle texel of a 320 × 180 image of the wall's rays, 3 per side,
+    /// with a radius of 20 texels.</summary>
+    private static List<NearStep> StepsOfSixteenSlicesFromTheMiddle(
+        Func<(int X, int Y), StepTexel?> texelAt,
+        Double3 ownNormal
+    )
+    {
+        var steps = new List<NearStep>();
+        for (int slice = 0; slice < 16; slice++)
+            steps.AddRange(
+                SectorSearch.SliceSteps(
+                    texel: (X: 160, Y: 90),
+                    slice: slice,
+                    sliceAngle: slice * Math.PI / 8 + 0.1,
+                    stepsPerSide: 3,
+                    stepNoise: 0.37f,
+                    radiusInTexels: 20,
+                    halfSize: (Width: 320, Height: 180),
+                    rayThrough: WallRayThrough,
+                    texelAt: texelAt,
+                    ownSurface: new OwnPlane(ownNormal)
+                )
+            );
+        return steps;
+    }
+
+    /// <summary>A step's exact place in the texel grid of <see cref="WallRayThrough"/>, from its point on its exact ray.
+    /// </summary>
+    private static (double X, double Y) ExactPlaceOf(NearStep step) =>
+        (X: 160 + 160 * step.Position.X / step.Position.Z, Y: 90 - 160 * step.Position.Y / step.Position.Z);
+
+    [Fact]
+    public void ANearStepStandsOnTheSurfaceThatThePixelOfItsGridHas()
+    {
+        // A box on a floor that ends 20 m ahead, before the sky: depth edges, the sky, the screen's edges and planes that
+        // continue.
+        CameraView camera = ScreenTesting.Camera(width: 64, height: 48, pitchDown: 0.3f);
+        SceneRectangle[] scene =
+        [
+            new(new(0, -1.5f, -10), new(1_000, 0, 0), new(0, 0, 10)),
+            .. ScreenTesting.Box(new(0.5f, -1, -6), new(0.5f, 0.5f, 0.5f)),
+        ];
+        (float[] distances, Vector3[] normals) = ScreenTesting.Surfaces(camera, scene);
+        DepthPyramid pyramid = DepthPyramid.Of(camera: camera, distances: distances, geometricNormals: normals);
+
+        var differences = new List<double>();
+        foreach (NearStep step in StepsThatReadAGBuffer(camera, distances, normals))
+        {
+            // The step's exact place, in pixels, from its point on its exact ray.
+            Vector2 place = camera.PixelOf(
+                (float)step.Position.X * camera.Right
+                    + (float)step.Position.Y * camera.Up
+                    + (float)step.Position.Z * camera.Forward
+            );
+            PixelSurface pixel = pyramid.Surface((int)MathF.Floor(place.X), (int)MathF.Floor(place.Y))!.Value;
+            differences.Add(Math.Abs(1 / step.Position.Z / pixel.InverseDepthAt(place) - 1));
+        }
+
+        differences.Should().HaveCountGreaterThan(1_000, "the test needs steps all over the scene");
+        differences
+            .Should()
+            .AllSatisfy(
+                difference => difference.Should().BeLessThan(1e-4),
+                "a step and a pixel decide by one rule where a depth sample's plane holds"
+            );
+    }
+
+    /// <summary>
+    /// The near steps of 8 slices from every third texel that sees a surface, when the half-resolution image is the
+    /// G-buffer of <paramref name="camera"/>: each texel is a pixel of the depth pyramid's level 0, one grid unit wide.
+    /// </summary>
+    private static List<NearStep> StepsThatReadAGBuffer(CameraView camera, float[] distances, Vector3[] normals)
+    {
+        Double3 ToView(Vector3 world) =>
+            new(Vector3.Dot(world, camera.Right), Vector3.Dot(world, camera.Up), Vector3.Dot(world, camera.Forward));
+        Double3 RayThrough((double X, double Y) place) =>
+            ToView(camera.ViewRayThrough(new((float)place.X + 0.5f, (float)place.Y + 0.5f)));
+        StepTexel? TexelAt((int X, int Y) texel)
+        {
+            float distance = distances[texel.Y * camera.Width + texel.X];
+            return distance > 0
+                ? new StepTexel(
+                    Position: RayThrough((texel.X, texel.Y)).Normalized() * distance,
+                    GeometricNormal: ToView(normals[texel.Y * camera.Width + texel.X]),
+                    DirectLight: Red,
+                    Card: null
+                )
+                : null;
+        }
+
+        var steps = new List<NearStep>();
+        for (int y = 0; y < camera.Height; y += 3)
+        for (int x = 0; x < camera.Width; x += 3)
+        for (int slice = 0; TexelAt((x, y)) is { } receiver && slice < 8; slice++)
+            steps.AddRange(
+                SectorSearch.SliceSteps(
+                    texel: (x, y),
+                    slice: slice,
+                    sliceAngle: slice * Math.PI / 4 + 0.1,
+                    stepsPerSide: 3,
+                    stepNoise: 0.37f,
+                    radiusInTexels: 8,
+                    halfSize: (Width: camera.Width, Height: camera.Height),
+                    rayThrough: RayThrough,
+                    texelAt: TexelAt,
+                    ownSurface: new OwnPlane(receiver.GeometricNormal)
+                )
+            );
+        return steps;
     }
 
     [Fact]
@@ -679,10 +819,11 @@ public sealed class SectorSearchTests
                     offLine => offLine.Should().BeApproximately(0, 1e-9),
                     "each step's point lies on the slice, not at P(t)"
                 );
+            // The step builds its texel's plane in floats, as the shader does: 10⁻⁷ of the plane's offset of 4.5 m.
             steps
                 .Select(step => Double3.Dot(normal, step.Position) - planeOffset)
                 .Should()
-                .AllSatisfy(offPlane => offPlane.Should().BeApproximately(0, 1e-12));
+                .AllSatisfy(offPlane => offPlane.Should().BeApproximately(0, 1e-5));
         }
     }
 

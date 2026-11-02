@@ -15,9 +15,10 @@ internal sealed class OcclusionImages : IDisposable
     public const Format TermFormat = EstimatePacking.Format;
     public const Format SourceFormat = Format.R16G16B16A16Sfloat;
     public const Format DepthAndNormalFormat = Format.R32G32Uint;
+    public const Format ContinuationFormat = Format.R8Uint;
 
     /// <summary>The storage images of the occlusion set, which the four passes bind in one compute stage.</summary>
-    public const int StorageImages = 9;
+    public const int StorageImages = 10;
 
     private readonly VulkanDevice device;
     private readonly DeviceAllocator allocator;
@@ -74,6 +75,14 @@ internal sealed class OcclusionImages : IDisposable
     /// </summary>
     public GpuImage DepthAndNormal { get; private set; }
 
+    /// <summary>
+    /// The continuation flags of each texel's plane, which the depth pass writes for the near steps: bits 0 to 3 are set
+    /// where the left, upper, right and lower neighbor continues the plane, by the pixels' rule
+    /// (<see cref="PixelPlane.ContinuesInto"/>). A step reads its texel's flags in place of its neighbors' copies. 0 for
+    /// sky.
+    /// </summary>
+    public GpuImage Continuation { get; private set; }
+
     /// <summary>XeGTAO's packed depth edges, which the denoise reads.</summary>
     public GpuImage Edges { get; private set; }
 
@@ -104,6 +113,7 @@ internal sealed class OcclusionImages : IDisposable
         nameof(ViewDepth),
         nameof(Source),
         nameof(DepthAndNormal),
+        nameof(Continuation),
         nameof(Edges),
         nameof(TermA),
         nameof(TermB)
@@ -114,6 +124,7 @@ internal sealed class OcclusionImages : IDisposable
         ViewDepth = CreateImage(format: ViewDepthFormat, name: "occlusion view depth");
         Source = CreateImage(format: SourceFormat, name: "occlusion source");
         DepthAndNormal = CreateImage(format: DepthAndNormalFormat, name: "occlusion depth and normal");
+        Continuation = CreateImage(format: ContinuationFormat, name: "occlusion continuation");
         Edges = CreateImage(format: EdgesFormat, name: "occlusion edges");
         TermA = CreateImage(format: TermFormat, name: "occlusion term A");
         TermB = CreateImage(format: TermFormat, name: "occlusion term B");
@@ -142,6 +153,7 @@ internal sealed class OcclusionImages : IDisposable
                     nameof(targets)
                 )
         );
+        layouts.WriteStorageImage(set: set, binding: 9, image: Continuation);
     }
 
     private GpuImage CreateImage(Format format, string name) =>
@@ -161,7 +173,14 @@ internal sealed class OcclusionImages : IDisposable
         if (StorageImageProblem(device.Properties.Limits.MaxPerStageDescriptorStorageImages) is { } storageImages)
             throw new NotSupportedException($"{storageImages} ({device.DeviceName})");
         foreach (
-            Format format in (Format[])[ViewDepthFormat, SourceFormat, DepthAndNormalFormat, EdgesFormat, TermFormat]
+            Format format in (Format[])[
+                ViewDepthFormat,
+                SourceFormat,
+                DepthAndNormalFormat,
+                ContinuationFormat,
+                EdgesFormat,
+                TermFormat,
+            ]
         )
             if ((device.FormatProperties(format).OptimalTilingFeatures & FormatFeatureFlags.StorageImageBit) == 0)
                 throw new NotSupportedException($"{format} cannot be a storage image on {device.DeviceName}.");
@@ -172,6 +191,7 @@ internal sealed class OcclusionImages : IDisposable
         ViewDepth.Dispose();
         Source.Dispose();
         DepthAndNormal.Dispose();
+        Continuation.Dispose();
         Edges.Dispose();
         TermA.Dispose();
         TermB.Dispose();

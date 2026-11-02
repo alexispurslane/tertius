@@ -129,7 +129,7 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void AFlatFloorAloneBlocksNothingAndBouncesNothingOnItself()
+    public void AFlatFloorAloneBlocksNothingAwayFromItsOutlineAgainstTheSkyAndBouncesNothingOnItself()
     {
         VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: VisibilityBitmaskLight.Default);
         try
@@ -152,8 +152,21 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
                     )
             );
 
+            float leastOpen = floor.Min(i => term[i * 4 + 3]);
+            output.WriteLine($"the least open share of a floor texel is {leastOpen:0.000}");
             floor.Length.Should().BeGreaterThan(20_000, "the floor fills the lower half of the 320 × 180 texels");
-            blocking.Should().BeEmpty("a flat floor's own steps block nothing above it (decisions 12 and 39)");
+            // Toward the sky a texel's surface stops at its center line and keeps the plane's depth past it, half a
+            // texel above the floor, which can block a receiver within the radius of the floor's outline.
+            blocking
+                .Should()
+                .OnlyContain(
+                    i => WithinTheRadiusOfTheSky(depths, i),
+                    "a flat floor's own steps block nothing above it (decisions 12 and 39)"
+                );
+            // The least open share was 0.834 when ter-ipc1 built the rule.
+            leastOpen
+                .Should()
+                .BeGreaterThan(0.8f, "the outline's last row stands at most half a texel above the floor, so it blocks little");
             bouncing.Should().BeEmpty("a flat floor bounces none of its own light on itself");
         }
         finally
@@ -967,6 +980,23 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
     /// more than the half floats' step. One sector of one slice of 3 takes about 1/96 of the share.
     /// </summary>
     private static bool BlocksASector(float[] term, int index) => term[index * 4 + 3] < 1 - 1e-3f;
+
+    /// <summary>
+    /// Whether a texel of the half-resolution view depths lies within the default radius, and a texel more, of a sky
+    /// texel, counted in texels at its own view depth.
+    /// </summary>
+    private static bool WithinTheRadiusOfTheSky(float[] depths, int index)
+    {
+        (int x, int y) = (index % HalfWidth, index / HalfWidth);
+        float texelWidth = 4 * MathF.Tan(Gpu.Fov / 2) * Width / Height * depths[index] / Width;
+        int reach = (int)MathF.Ceiling(VisibilityBitmaskLight.Default.RadiusMeters / texelWidth) + 1;
+        int halfHeight = depths.Length / HalfWidth;
+        for (int v = Math.Max(0, y - reach); v <= Math.Min(halfHeight - 1, y + reach); v++)
+        for (int u = Math.Max(0, x - reach); u <= Math.Min(HalfWidth - 1, x + reach); u++)
+            if (depths[v * HalfWidth + u] >= (float)HorizonSearch.SkyDepth)
+                return true;
+        return false;
+    }
 
     /// <summary>The pixels of the box's bottom face, 0.1 m and more inside its edges.</summary>
     private static IEnumerable<Vector2> UndersidePixels() =>

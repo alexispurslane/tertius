@@ -42,11 +42,14 @@ internal sealed class OcclusionDepthPass(
                 ?? throw new UnreachableException("The targets of the screen-space light hold the diffuse image."),
             ImageUse.StorageCompute
         );
+
         // Discarded, and still after the last frame's upsample read it.
         barriers.Image(images.ViewDepth, ImageUse.StorageCompute, discard: true);
         // Discarded, and after the last frame's sectors pass read them.
         barriers.Image(images.Source, ImageUse.StorageCompute, discard: true);
         barriers.Image(images.DepthAndNormal, ImageUse.StorageCompute, discard: true);
+        barriers.Image(images.Continuation, ImageUse.StorageCompute, discard: true);
+
         barriers.Flush(context.Vk, context.CommandBuffer);
         pipeline.Dispatch(context, images.HalfExtent);
     }
