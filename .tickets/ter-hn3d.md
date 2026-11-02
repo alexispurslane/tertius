@@ -1,6 +1,6 @@
 ---
 id: ter-hn3d
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-11-02T06:37:40Z
@@ -48,3 +48,7 @@ Measurement on the final code, with the busy-pool model at nice 20, DOTNET_PROCE
 |---|---:|---:|---|---|
 | Base 207f9672b | 20 | 20 | 152 to 167 ms | 1 |
 | Final | 200 | 0 | 5.8 to 7.3 s | 3 (16 runs), 4 (75), 5 (106), 6 (3) |
+
+**2026-11-02T10:37:31Z**
+
+2026-11-02: merged into main as 49f41b688. tools/test-all.sh passed on the staged merge in Checked and Release, 0 failed. Hardening: the branch changes no src line (only DeterminismTests.cs and this ticket), so no coverage or mutation of src applies. The builder's hand mutant of World.RunGameplay (Parallel.For made sequential) fails the test at DOTNET_PROCESSOR_COUNT 1 and 4. The first official Stryker run on Simulation after this merge is the first test of the fix in the place where it failed.
