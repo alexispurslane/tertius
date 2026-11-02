@@ -94,67 +94,12 @@ internal sealed unsafe class EnvironmentPrefilterPass : RenderPass
         map.Radiance.State = ResourceUses.Describe(ImageUse.SampledCompute);
         map.Specular.State = ResourceUses.Describe(ImageUse.SampledFragment);
         // Right after the irradiance, so a reading is the irradiance that this frame's passes use.
-        RecordReadback(context: context, anyDrawn: anyDrawn);
-    }
-
-    /// <summary>
-    /// Copies the last level of the served maps' irradiance cubes into the frame slot's readback buffer, then leaves every
-    /// level of the cubes read-only for this frame's readers. When the frame drew a face, every level is in
-    /// <see cref="ImageLayout.General"/> after its writes. Otherwise every level is read-only since the frame that last
-    /// wrote it.
-    /// </summary>
-    private void RecordReadback(FrameContext context, bool anyDrawn)
-    {
-        GpuImage cube = map.Irradiance;
-        BarrierBatch barriers = context.Barriers;
-        ResourceState sampled = ResourceUses.Describe(ImageUse.SampledVertexFragment);
-        const uint last = IrradianceCube.Levels - 1;
-        (ImageLayout layout, PipelineStageFlags2 after, AccessFlags2 written) = anyDrawn
-            ? (ImageLayout.General, PipelineStageFlags2.ComputeShaderBit, AccessFlags2.ShaderStorageWriteBit)
-            : (ImageLayout.ShaderReadOnlyOptimal, cube.State.Stages, AccessFlags2.None);
-        barriers.ImageLevels(
-            image: cube,
-            baseMip: last,
-            mipCount: 1,
-            oldLayout: layout,
-            newLayout: ImageLayout.TransferSrcOptimal,
-            srcStages: after,
-            srcAccess: written,
-            dstStages: PipelineStageFlags2.AllTransferBit,
-            dstAccess: AccessFlags2.TransferReadBit
-        );
-        if (anyDrawn)
-            barriers.ImageLevels(
-                image: cube,
-                baseMip: 0,
-                mipCount: last,
-                oldLayout: ImageLayout.General,
-                newLayout: sampled.Layout,
-                srcStages: PipelineStageFlags2.ComputeShaderBit,
-                srcAccess: AccessFlags2.ShaderStorageWriteBit,
-                dstStages: sampled.Stages,
-                dstAccess: sampled.Access
-            );
         map.RecordReadback(
-            commandBuffer: context.CommandBuffer,
+            commandBuffer: commandBuffer,
             barriers: barriers,
             slot: context.Frame.Index,
-            maps: context.Scene.MapCount
+            maps: scene.MapCount
         );
-        // A copy only reads, so the layout's change waits for it with no access to make visible.
-        barriers.ImageLevels(
-            image: cube,
-            baseMip: last,
-            mipCount: 1,
-            oldLayout: ImageLayout.TransferSrcOptimal,
-            newLayout: sampled.Layout,
-            srcStages: PipelineStageFlags2.AllTransferBit,
-            srcAccess: AccessFlags2.None,
-            dstStages: sampled.Stages,
-            dstAccess: sampled.Access
-        );
-        barriers.Flush(context.Vk, context.CommandBuffer);
-        cube.State = sampled;
     }
 
     /// <summary>
@@ -269,7 +214,8 @@ internal sealed unsafe class EnvironmentPrefilterPass : RenderPass
     /// Writes each drawn map's specular levels and irradiance cube, which sample its radiance mips, in map index order. As
     /// for the mips, every layer of the specular maps and the cubes is in <see cref="ImageLayout.General"/> while the
     /// prefilter runs, and the maps that are not drawn keep their texels. Every layer of the specular maps ends read-only
-    /// for this frame's readers, and the cubes stay in <see cref="ImageLayout.General"/> for <see cref="RecordReadback"/>.
+    /// for this frame's readers, and the cubes stay in <see cref="ImageLayout.General"/>, which their recorded state
+    /// says, for <see cref="EnvironmentMap.RecordReadback"/>.
     /// </summary>
     private void RecordLevels(Vk vk, CommandBuffer commandBuffer, BarrierBatch barriers, ReadOnlySpan<bool> drawn)
     {
@@ -318,6 +264,7 @@ internal sealed unsafe class EnvironmentPrefilterPass : RenderPass
             dstStages: sampled.Stages,
             dstAccess: sampled.Access
         );
+        map.Irradiance.State = ResourceUses.Describe(ImageUse.StorageCompute);
     }
 
     /// <summary>

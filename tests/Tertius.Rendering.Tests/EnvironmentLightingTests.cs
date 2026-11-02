@@ -347,9 +347,16 @@ public sealed class EnvironmentLightingTests
     /// D on a matte unit sphere at <paramref name="sphereCenter"/> under a glowing ball of 0.5 m at
     /// <paramref name="lightCenter"/>, per HDR value: a white sphere's image less a black one's. The diffuse term is the base
     /// color times D, and the specular term does not depend on the base color of a non-metal, so the difference is D under
-    /// the fixed exposure of 0 stops.
+    /// the fixed exposure of 0 stops. The exact D comes from the map of the white render, whose D the difference holds. The
+    /// map draws the sphere black in both renders, because a face lights its surfaces only by the lights of the list
+    /// (docs/plans/environment-map.md, decision 17) and the glowing ball is emission: the two maps' exact D measured the
+    /// same to within 0.001 % of the peak. So the two renders' specular terms are the same too.
     /// </summary>
-    private static float[] MatteSphereDiffuse(VulkanRenderer renderer, Vector3 lightCenter, Vector3 sphereCenter)
+    private static (float[] Diffuse, ExactDiffuse Exact) MatteSphereDiffuse(
+        VulkanRenderer renderer,
+        Vector3 lightCenter,
+        Vector3 sphereCenter
+    )
     {
         MeshId sphere = Sphere(renderer);
         MaterialId glow = BrdfTesting.Glow(renderer, new(400));
@@ -370,10 +377,11 @@ public sealed class EnvironmentLightingTests
         }
 
         float[] white = Lit(Vector4.One);
+        var exact = ExactDiffuse.OfMap(renderer, SceneEnvironmentMap.Default.FaceSize);
         float[] black = Lit(new(x: 0, y: 0, z: 0, w: 1));
         for (int i = 0; i < white.Length; i++)
             white[i] -= black[i];
-        return white;
+        return (white, exact);
     }
 
     [Fact]
@@ -392,8 +400,7 @@ public sealed class EnvironmentLightingTests
         );
         try
         {
-            float[] diffuse = MatteSphereDiffuse(renderer, lightCenter, sphereCenter);
-            var exact = ExactDiffuse.OfMap(renderer, SceneEnvironmentMap.Default.FaceSize);
+            (float[] diffuse, ExactDiffuse exact) = MatteSphereDiffuse(renderer, lightCenter, sphereCenter);
             double peak = exact.At(Vector3.Normalize(lightCenter));
 
             int tested = 0;

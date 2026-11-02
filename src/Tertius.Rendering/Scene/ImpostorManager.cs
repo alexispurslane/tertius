@@ -666,7 +666,10 @@ internal sealed partial class ImpostorManager : IInstanceProcessor
     [GeneratedUnion(typeof(HemisphereSignature), typeof(MapSignature))]
     private readonly partial struct AmbientSignature
     {
-        /// <summary>The ambient light in all: the lengths of the two colors, or of the irradiance's texels.</summary>
+        /// <summary>
+        /// The ambient light in all: the lengths of the two colors, or the map's light in the direct light's unit (see
+        /// <see cref="TexelIrradiance"/>).
+        /// </summary>
         public float Total =>
             this switch
             {
@@ -689,12 +692,19 @@ internal sealed partial class ImpostorManager : IInstanceProcessor
                 _ => a.Total + b.Total,
             };
 
+        /// <summary>
+        /// The weight of one texel's length, π / 24: the map's light counts as the irradiance that it sends to a surface,
+        /// π times the mean texel's D, the unit of <see cref="LightSignature.Light"/>. A uniform map of radiance L then
+        /// weighs π · |L| against the direct light, as its light weighs against the direct light on a surface.
+        /// </summary>
+        private const float TexelIrradiance = MathF.PI / Irradiance.Texels;
+
         private static float TexelLengths(in Irradiance irradiance)
         {
             float total = 0;
             for (int index = 0; index < Irradiance.Texels; index++)
                 total += irradiance[index].Length();
-            return total;
+            return TexelIrradiance * total;
         }
 
         private static float TexelChanges(in Irradiance a, in Irradiance b)
@@ -702,7 +712,7 @@ internal sealed partial class ImpostorManager : IInstanceProcessor
             float difference = 0;
             for (int index = 0; index < Irradiance.Texels; index++)
                 difference += (a[index] - b[index]).Length();
-            return difference;
+            return TexelIrradiance * difference;
         }
     }
 

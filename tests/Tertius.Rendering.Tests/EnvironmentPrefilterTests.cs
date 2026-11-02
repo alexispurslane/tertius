@@ -847,9 +847,9 @@ public sealed class EnvironmentPrefilterTests
     /// The prefilter records no barrier that the next one covers. For M drawn maps at 128 texels, whose mips take three
     /// runs, the first frame's barriers are: one into the storage layout for the mips; one after each map's run but the
     /// last drawn map's last run, whose writes the levels' barrier orders as it makes the mips read-only; that one; one
-    /// before each map's sum; one between two maps of the levels, none after the last, whose writes the specular map's
-    /// read-only barrier and the readback's barrier order; and the readback's two. So 5M + 2 in all. In the first frame
-    /// the buffers have no earlier use, so the pass's first barrier is empty and records nothing.
+    /// before each map's downsample of its irradiance cube; one between two maps of the levels, none after the last, whose
+    /// writes the specular map's read-only barrier and the readback's barrier order; and the readback's two, before and
+    /// after its copy. So 5M + 2 in all.
     /// </summary>
     [Theory]
     [InlineData(1)]

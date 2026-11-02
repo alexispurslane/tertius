@@ -94,33 +94,57 @@ public sealed class IrradianceCubeTests
     }
 
     /// <summary>
-    /// The exact D at the unit <paramref name="normal"/>: the sum of every texel of level 0 times its solid angle and the
-    /// clamped cosine, over the sum of the weights, in doubles. The red channel.
+    /// The exact D of level 0 of a map, the red channel: at a unit normal, the sum of
+    /// every texel times its solid angle and the clamped cosine, over the sum of the weights, in doubles. Each texel's
+    /// direction and solid angle are computed once.
     /// </summary>
-    private static double ExactRed(Half[] map, int faceSize, Vector3 normal)
+    private sealed class ExactRed
     {
-        double sum = 0;
-        double weight = 0;
-        for (int layer = 0; layer < CubeFaces.Count; layer++)
-        for (int y = 0; y < faceSize; y++)
-        for (int x = 0; x < faceSize; x++)
+        private readonly Vector3[] directions;
+        private readonly double[] solidAngles;
+        private readonly double[] weightedRed;
+
+        public ExactRed(Half[] map, int faceSize)
         {
-            Vector3 direction = CubeFaces.Direction((CubeFace)layer, (x + 0.5f) / faceSize, (y + 0.5f) / faceSize);
-            double cosine = Vector3.Dot(normal, direction);
-            if (cosine <= 0)
-                continue;
-            double w = cosine * CubeFaces.TexelSolidAngle(x, y, faceSize);
-            sum += (double)map[((layer * faceSize + y) * faceSize + x) * 4] * w;
-            weight += w;
+            int texels = CubeFaces.Count * faceSize * faceSize;
+            directions = new Vector3[texels];
+            solidAngles = new double[texels];
+            weightedRed = new double[texels];
+            for (int texel = 0; texel < texels; texel++)
+            {
+                int layer = texel / (faceSize * faceSize);
+                int x = texel % faceSize;
+                int y = texel / faceSize % faceSize;
+                directions[texel] = CubeFaces.Direction((CubeFace)layer, (x + 0.5f) / faceSize, (y + 0.5f) / faceSize);
+                solidAngles[texel] = CubeFaces.TexelSolidAngle(x, y, faceSize);
+                weightedRed[texel] = (double)map[4 * texel] * solidAngles[texel];
+            }
         }
 
-        return sum / weight;
+        public double At(Vector3 normal)
+        {
+            double sum = 0;
+            double weight = 0;
+            for (int texel = 0; texel < directions.Length; texel++)
+            {
+                double cosine = Vector3.Dot(normal, directions[texel]);
+                if (cosine <= 0)
+                    continue;
+                sum += weightedRed[texel] * cosine;
+                weight += solidAngles[texel] * cosine;
+            }
+
+            return sum / weight;
+        }
     }
 
-    /// <summary>A small light: radiance that sends an irradiance of 1 from a disc 2° in radius around <paramref name="center"/>.</summary>
-    private static Func<Vector3, Vector3> SmallLight(Vector3 center)
+    /// <summary>
+    /// A small light: radiance that sends an irradiance of 1 from a disc <paramref name="degrees"/> in radius around
+    /// <paramref name="center"/>.
+    /// </summary>
+    private static Func<Vector3, Vector3> SmallLight(Vector3 center, double degrees = 2)
     {
-        double cosRadius = Math.Cos(2 * Math.PI / 180);
+        double cosRadius = Math.Cos(degrees * Math.PI / 180);
         float radiance = (float)(1 / (2 * Math.PI * (1 - cosRadius)));
         return direction => Vector3.Dot(direction, center) >= cosRadius ? new(radiance) : Vector3.Zero;
     }
@@ -134,20 +158,135 @@ public sealed class IrradianceCubeTests
             );
     }
 
+    /// <summary>
+    /// Level 0 of the irradiance cube of <paramref name="source"/>, a level of <paramref name="sourceSize"/> texels:
+    /// <see cref="IrradianceCube.FaceSize"/> texels a side, each D at its center's direction, layer then row then column.
+    /// </summary>
+    private static Vector3[] Cube(Half[] source, int sourceSize)
+    {
+        const int size = IrradianceCube.FaceSize;
+        var cube = new Vector3[CubeFaces.Count * size * size];
+        for (int layer = 0; layer < CubeFaces.Count; layer++)
+        for (int y = 0; y < size; y++)
+        for (int x = 0; x < size; x++)
+            cube[(layer * size + y) * size + x] = IrradianceCube
+                .Convolve(source, sourceSize, CubeFaces.Direction((CubeFace)layer, (x + 0.5f) / size, (y + 0.5f) / size))
+                .AsVector3();
+        return cube;
+    }
+
+    /// <summary>
+    /// D at the unit <paramref name="normal"/> as a reader's bilinear read of <paramref name="cube"/> gives it. A texel of
+    /// the read's 2 × 2 that lies past its face's edge comes from the face that the texel's center direction reaches, as
+    /// Vulkan's cube edge handling takes it from the neighboring face.
+    /// </summary>
+    private static Vector3 Read(Vector3[] cube, Vector3 normal)
+    {
+        const int size = IrradianceCube.FaceSize;
+        (CubeFace face, float s, float t) = CubeFaces.Locate(normal);
+        float u = s * size - 0.5f;
+        float v = t * size - 0.5f;
+        int x0 = (int)MathF.Floor(u);
+        int y0 = (int)MathF.Floor(v);
+
+        Vector3 Texel(int x, int y)
+        {
+            if (x is >= 0 and < size && y is >= 0 and < size)
+                return cube[((int)face * size + y) * size + x];
+            (CubeFace other, float os, float ot) = CubeFaces.Locate(
+                CubeFaces.Direction(face, (x + 0.5f) / size, (y + 0.5f) / size)
+            );
+            int ox = Math.Clamp((int)(os * size), 0, size - 1);
+            int oy = Math.Clamp((int)(ot * size), 0, size - 1);
+            return cube[((int)other * size + oy) * size + ox];
+        }
+
+        return Vector3.Lerp(
+            Vector3.Lerp(Texel(x0, y0), Texel(x0 + 1, y0), u - x0),
+            Vector3.Lerp(Texel(x0, y0 + 1), Texel(x0 + 1, y0 + 1), u - x0),
+            v - y0
+        );
+    }
+
+    /// <summary>
+    /// The normals at which the tests compare D under a light toward <paramref name="light"/>: 24 around each ring at 0°,
+    /// 5°, 10° and on to 180° from it, the worst ring at right angles among them.
+    /// </summary>
+    private static IEnumerable<Vector3> RingsAround(Vector3 light)
+    {
+        var aside = Vector3.Normalize(Vector3.Cross(light, MathF.Abs(light.X) < 0.9f ? Vector3.UnitX : Vector3.UnitY));
+        Vector3 third = Vector3.Cross(light, aside);
+        for (int degrees = 0; degrees <= 180; degrees += 5)
+        {
+            float polar = degrees * MathF.PI / 180;
+            for (int step = 0; step < 24; step++)
+            {
+                float azimuth = step * MathF.PI / 12;
+                yield return Vector3.Normalize(
+                    MathF.Cos(polar) * light
+                        + MathF.Sin(polar) * (MathF.Cos(azimuth) * aside + MathF.Sin(azimuth) * third)
+                );
+            }
+        }
+    }
+
+    /// <summary>
+    /// The worst error of the cube's bilinear read, as a share of the largest D, at <see cref="RingsAround"/> each of 10
+    /// small lights of <paramref name="degrees"/> in random directions, each alone on a black map of
+    /// <see cref="MapSize"/>, with the cube convolved from the map's level of <paramref name="sourceSize"/> texels.
+    /// </summary>
+    private static double WorstReadError(int sourceSize, double degrees)
+    {
+        var random = new Random(5);
+        double worst = 0;
+        for (int light = 0; light < 10; light++)
+        {
+            var center = Vector3.Normalize(
+                new(random.NextSingle() * 2 - 1, random.NextSingle() * 2 - 1, random.NextSingle() * 2 - 1)
+            );
+            Half[] map = Map(MapSize, SmallLight(center, degrees));
+            Vector3[] cube = Cube(LevelOf(map, sourceSize), sourceSize);
+            var exact = new ExactRed(map, MapSize);
+            double peak = exact.At(center);
+            foreach (Vector3 normal in RingsAround(center))
+                worst = Math.Max(worst, Math.Abs(Read(cube, normal).X - exact.At(normal)) / peak);
+        }
+
+        return worst;
+    }
+
+    [Fact]
+    public void UnderASmallBrightLightInAnyOfTenDirectionsTheCubesReadIsWithinTheToleranceAtEveryNormal() =>
+        WorstReadError(IrradianceCube.SourceFaceSize, degrees: 2)
+            .Should()
+            .BeLessThanOrEqualTo(Tolerance, "the cube of 16 over a source of 32 holds a light of 2° (measured 2.07 %)");
+
+    /// <summary>
+    /// A map of 16 texels a side, the smallest setting, has no level of 32, so the cube convolves its level 0 of 16, whose
+    /// texels span about 5.6°. Under a light of 2° that misses the tolerance: Known limit 2 of
+    /// docs/plans/screen-space-illumination.md states the measured 3.53 %, and this test keeps it within 4 %.
+    /// </summary>
+    [Fact]
+    public void OnAMapOf16TexelsASmallBrightLightStaysWithinTheKnownLimit() =>
+        WorstReadError(sourceSize: 16, degrees: 2)
+            .Should()
+            .BeLessThanOrEqualTo(0.04, "a source of 16 texels holds a light of 2° within 4 % (measured 3.53 %)");
+
     [Fact]
     public void UnderOneSmallBrightLightDIsWithinTheToleranceOfTheExactSumTowardAcrossAndAtRightAnglesToIt()
     {
         Half[] map = Map(MapSize, SmallLight(TowardTheLight));
         Half[] source = LevelOf(map, IrradianceCube.SourceFaceSize);
         var aside = Vector3.Normalize(Vector3.Cross(TowardTheLight, Vector3.UnitX));
-        double peak = ExactRed(map, MapSize, TowardTheLight);
+        var exact = new ExactRed(map, MapSize);
+        double peak = exact.At(TowardTheLight);
 
         foreach (
             Vector3 normal in (ReadOnlySpan<Vector3>)
                 [TowardTheLight, -TowardTheLight, aside, Vector3.Cross(TowardTheLight, aside)]
         )
         {
-            double expected = ExactRed(map, MapSize, normal);
+            double expected = exact.At(normal);
             double convolved = IrradianceCube.Convolve(source, IrradianceCube.SourceFaceSize, normal).X;
             Math.Abs(convolved - expected)
                 .Should()

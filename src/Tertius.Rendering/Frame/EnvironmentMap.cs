@@ -215,21 +215,50 @@ internal sealed unsafe class EnvironmentMap : IDisposable
     }
 
     /// <summary>
-    /// Copies the last level of the irradiance cubes of the first <paramref name="maps"/> maps, which this frame's
-    /// prefilter left in the <see cref="ImageLayout.TransferSrcOptimal"/> layout, into the readback buffer of
-    /// <paramref name="slot"/>, right after the prefilter, so that a reading is the irradiance that this frame's passes
-    /// use. <see cref="Drew"/> records the count once the frame is submitted.
+    /// Leaves every level of the irradiance cubes read-only for this frame's readers, in
+    /// <see cref="ImageUse.SampledVertexFragment"/>, and copies the last level of the first <paramref name="maps"/> maps'
+    /// cubes into the readback buffer of <paramref name="slot"/>, right after the prefilter, so that a reading is the
+    /// irradiance that this frame's passes use. It starts from the cubes' recorded state: the storage writes of this
+    /// frame's prefilter, or the reads of an earlier frame. <see cref="Drew"/> records the count once the frame is
+    /// submitted.
     /// </summary>
     public void RecordReadback(CommandBuffer commandBuffer, BarrierBatch barriers, int slot, int maps)
     {
+        GpuImage cube = Irradiance;
         GpuBuffer readback = readbacks[slot];
+        ResourceState before = cube.State;
+        ResourceState sampled = ResourceUses.Describe(ImageUse.SampledVertexFragment);
+        AccessFlags2 written = before.Access & ResourceUses.WriteMask;
+        const uint last = IrradianceCube.Levels - 1;
+        barriers.ImageLevels(
+            image: cube,
+            baseMip: last,
+            mipCount: 1,
+            oldLayout: before.Layout,
+            newLayout: ImageLayout.TransferSrcOptimal,
+            srcStages: before.Stages,
+            srcAccess: written,
+            dstStages: PipelineStageFlags2.AllTransferBit,
+            dstAccess: AccessFlags2.TransferReadBit
+        );
+        barriers.ImageLevels(
+            image: cube,
+            baseMip: 0,
+            mipCount: last,
+            oldLayout: before.Layout,
+            newLayout: sampled.Layout,
+            srcStages: before.Stages,
+            srcAccess: written,
+            dstStages: sampled.Stages,
+            dstAccess: sampled.Access
+        );
         barriers.Buffer(readback, BufferUse.TransferDestination);
         barriers.Flush(device.Vk, commandBuffer);
         var region = new BufferImageCopy
         {
             ImageSubresource = new(
                 aspectMask: ImageAspectFlags.ColorBit,
-                mipLevel: IrradianceCube.Levels - 1,
+                mipLevel: last,
                 baseArrayLayer: 0,
                 layerCount: (uint)(CubeFaces.Count * maps)
             ),
@@ -237,15 +266,28 @@ internal sealed unsafe class EnvironmentMap : IDisposable
         };
         device.Vk.CmdCopyImageToBuffer(
             commandBuffer: commandBuffer,
-            srcImage: Irradiance.Handle,
+            srcImage: cube.Handle,
             srcImageLayout: ImageLayout.TransferSrcOptimal,
             dstBuffer: readback.Handle,
             regionCount: 1,
             pRegions: &region
         );
 
-        // Left in the batch: the next flush records it, before the frame's fence.
         barriers.Buffer(readback, BufferUse.HostRead);
+        // A copy only reads, so the layout's change waits for it with no access to make visible.
+        barriers.ImageLevels(
+            image: cube,
+            baseMip: last,
+            mipCount: 1,
+            oldLayout: ImageLayout.TransferSrcOptimal,
+            newLayout: sampled.Layout,
+            srcStages: PipelineStageFlags2.AllTransferBit,
+            srcAccess: AccessFlags2.None,
+            dstStages: sampled.Stages,
+            dstAccess: sampled.Access
+        );
+        barriers.Flush(device.Vk, commandBuffer);
+        cube.State = sampled;
     }
 
     /// <summary>
