@@ -26,6 +26,38 @@ public sealed class EnvironmentMapPlumbingTests
             );
     }
 
+    /// <summary>The uses of R16_SFLOAT that the distance cubes need: drawn, filtered and written by the downsample.</summary>
+    private const FormatFeatureFlags DistanceUses =
+        FormatFeatureFlags.ColorAttachmentBit
+        | FormatFeatureFlags.SampledImageBit
+        | FormatFeatureFlags.SampledImageFilterLinearBit
+        | FormatFeatureFlags.StorageImageBit;
+
+    [Fact]
+    public void ADeviceWhoseHalfFloatCannotBeAStorageImageCannotHoldTheDistanceCubes() =>
+        EnvironmentMap
+            .DistanceFormatProblem(DistanceUses & ~FormatFeatureFlags.StorageImageBit)
+            .Should()
+            .Contain("StorageImageBit", "the downsample writes the distance cubes' levels as storage images");
+
+    [Fact]
+    public void ADeviceWhoseHalfFloatCannotBeFilteredCannotHoldTheDistanceCubes() =>
+        EnvironmentMap
+            .DistanceFormatProblem(DistanceUses & ~FormatFeatureFlags.SampledImageFilterLinearBit)
+            .Should()
+            .Contain("SampledImageFilterLinearBit", "the search reads filtered inverse distances");
+
+    [Fact]
+    public void ADeviceWhoseHalfFloatCannotBeAColorAttachmentCannotHoldTheDistanceCubes() =>
+        EnvironmentMap
+            .DistanceFormatProblem(DistanceUses & ~FormatFeatureFlags.ColorAttachmentBit)
+            .Should()
+            .Contain("ColorAttachmentBit", "the face pass draws the distance cubes' level 0");
+
+    [Fact]
+    public void ADeviceWhoseHalfFloatHasEveryUseCanHoldTheDistanceCubes() =>
+        EnvironmentMap.DistanceFormatProblem(DistanceUses).Should().BeNull();
+
     [Fact]
     public void AMapThatCannotGetItsDescriptorSetsReleasesTheImagesAndBuffersItMade()
     {
@@ -178,7 +210,7 @@ public sealed class EnvironmentMapPlumbingTests
         map.FacesFor(frame: 0, served: Served(1), longStep: false);
         map.Drew(served: Served(1), slot: 0);
         int live = plumbing.Allocator.LiveAllocations;
-        // The new radiance maps fit, and the new specular maps do not.
+        // The new radiance maps fit, and the new distance cubes do not.
         plumbing.Allocator.AllocationsBeforeFailure = 1;
 
         Action grow = () => map.FacesFor(frame: 1, served: Served(3), longStep: false);
@@ -189,8 +221,8 @@ public sealed class EnvironmentMapPlumbingTests
         plumbing
             .Allocator.LiveAllocations.Should()
             .Be(live, "the old images stay, and the growth releases the new image that it made");
-        map.FaceView(map: 0, face: CubeFace.PositiveX)
-            .Handle.Should()
+        map.FaceViews(map: 0, face: CubeFace.PositiveX)
+            .Radiance.Handle.Should()
             .NotBe(0, "the old radiance maps keep their views");
         map.DrawnFor.ToArray().Should().Equal(Served(1), "the old maps keep their drawn faces");
     }

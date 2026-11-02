@@ -10,7 +10,8 @@
 // (EnvironmentFacePass.cs). It is impostor_capture.frag without the ambient light (docs/plans/environment-map.md, "How a
 // face is lit"): every light, a cascade set by the finest cascade whose box holds the point, and the emission of an
 // entity that holds no light, in plain radiance, seen through the atmosphere's haze. The map is the light that arrives at
-// the camera's eye, so V points toward the eye at the origin.
+// the camera's eye, so V points toward the eye at the origin. Beside the light, the fragment writes its inverse distance
+// from the eye to the distance cube (docs/plans/environment-map-distances.md, "How the capture writes it").
 
 layout(location = 0) in vec3 inPosition;
 layout(location = 1) in vec3 inNormal;
@@ -19,7 +20,10 @@ layout(location = 3) in vec2 inTexCoord;
 layout(location = 4) flat in uvec4 inInstanceWords;  // x: the material. z: GpuInstance.holdsLight. A face reads no
                                                      // instance map and no card code (see mesh.vert)
 
-layout(location = 0) out vec4 outColor;   // RGBA16F: plain radiance, and an open-sky share of 0
+layout(location = 0) out vec4 outColor;              // RGBA16F: plain radiance, and an open-sky share of 0
+layout(location = 1) out float outInverseDistance;   // R16F: 1000 m over the distance from the eye, in km⁻¹
+
+const float NearPlane = 0.05;   // DepthRanges.NearPlane, in m
 
 void main()
 {
@@ -38,4 +42,8 @@ void main()
     // The face sees the surface through the same haze as the main view, from the same eye (docs/plans/atmosphere.md,
     // "The haze"). Both parts are at most MaxRadiance, and so is their convex sum.
     outColor = vec4(throughAir(radiance, vec3(1.0), inPosition, frame.atmosphere.haze.rgb), 0.0);
+    // The radial distance along the texel's direction, not the depth along the face's axis, so that both sides of a seam
+    // between two faces mean the same. Every fragment lies at least NearPlane along its face's axis, so the max only keeps
+    // a division by 0 out, and w is at most 20,000 km⁻¹, which a half float holds.
+    outInverseDistance = 1000.0 / max(length(inPosition), NearPlane);
 }

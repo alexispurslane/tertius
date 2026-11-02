@@ -128,6 +128,13 @@ internal static class EnvironmentScenes
     public static Half[] Face(VulkanRenderer renderer, CubeFace face) =>
         renderer.ReadEnvironmentFace(map: 0, face: face, level: 0, image: EnvironmentImage.Radiance);
 
+    /// <summary>
+    /// Level <paramref name="level"/> of a face of map 0's distance cube: one inverse distance per texel, in km⁻¹, rows from
+    /// the top.
+    /// </summary>
+    public static Half[] Distances(VulkanRenderer renderer, CubeFace face, int level = 0) =>
+        renderer.ReadEnvironmentFace(map: 0, face: face, level: level, image: EnvironmentImage.Distance);
+
     /// <summary>The RGBA of texel (<paramref name="x"/>, <paramref name="y"/>) of a face of <paramref name="size"/> texels.</summary>
     public static Vector4 Texel(Half[] face, int size, int x, int y)
     {
@@ -291,6 +298,77 @@ public sealed class EnvironmentFaceTests
                 EnvironmentScenes.ColorOf(4),
                 "a nearer range draws over a farther one"
             );
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>
+    /// A face stores 1000 m over the distance from the eye to the surface in each texel, along the texel's own direction:
+    /// the radial distance, not the depth along the face's axis (docs/plans/environment-map-distances.md, "The distance
+    /// store"). A wall 4 m ahead fills face +X, a square 100 km up, in the middle range, covers the center of face +Y, and
+    /// face −X sees only the sky.
+    /// </summary>
+    [Fact]
+    public void AFaceStoresTheInverseDistanceOfTheSurfaceInEachTexel()
+    {
+        VulkanRenderer renderer = EnvironmentScenes.Renderer();
+        try
+        {
+            MeshId plane = renderer.CreateMesh(Primitives.Plane(1f));
+            MaterialId matte = EnvironmentScenes.Matte(renderer);
+            RenderSnapshot snapshot = EnvironmentScenes.Dark();
+            snapshot.Instances.Add(
+                EnvironmentScenes.Square(
+                    plane: plane,
+                    material: matte,
+                    center: new(4, 0, 0),
+                    halfSize: 5,
+                    chainDepth: TestChains.CamerasFrame
+                )
+            );
+            snapshot.Instances.Add(
+                EnvironmentScenes.Square(
+                    plane: plane,
+                    material: matte,
+                    center: new(0, 100e3f, 0),
+                    halfSize: 20e3f,
+                    chainDepth: TestChains.CamerasFrame
+                )
+            );
+
+            renderer.Render(snapshot, 1f);
+
+            Half[] wall = EnvironmentScenes.Distances(renderer, CubeFace.PositiveX);
+            float worst = 0;
+            for (int y = 0; y < Size; y++)
+            for (int x = 0; x < Size; x++)
+            {
+                Vector3 direction = CubeFaces.Direction(CubeFace.PositiveX, (x + 0.5f) / Size, (y + 0.5f) / Size);
+                // The wall is the plane x = 4 m, which the texel's direction meets 4 m / direction.X away.
+                float expected = 1000f * direction.X / 4f;
+                worst = MathF.Max(worst, MathF.Abs((float)wall[y * Size + x] - expected) / expected);
+            }
+
+            int center = Size / 2 * Size + Size / 2;
+            ((float)wall[center])
+                .Should()
+                .BeApproximately(250f, 0.5f, "the wall is 4 m ahead at the face's center, 1000 m over 4 m");
+            // One rounding to a half float, within one unit in the last place, 2⁻¹⁰ of the value at most: Vulkan lets a
+            // device round toward zero.
+            worst
+                .Should()
+                .BeLessThan(1e-3f, "each texel holds 1000 m over its own radial distance, within a half float");
+            Vector3 up = CubeFaces.Direction(CubeFace.PositiveY, (Size / 2 + 0.5f) / Size, (Size / 2 + 0.5f) / Size);
+            ((float)EnvironmentScenes.Distances(renderer, CubeFace.PositiveY)[center])
+                .Should()
+                .BeApproximately(1000f * up.Y / 100e3f, 1e-5f, "the middle range stores its surface too");
+            EnvironmentScenes
+                .Distances(renderer, CubeFace.NegativeX)
+                .Should()
+                .OnlyContain(distance => (float)distance == 0f, "the sky is infinitely far, an inverse distance of 0");
         }
         finally
         {

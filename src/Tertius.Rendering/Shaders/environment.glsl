@@ -30,6 +30,12 @@ layout(set = 0, binding = 13) uniform sampler environmentSampler;
 // side, alpha the open-sky share that a Lambert surface sees, and each later level the mean of its children over their
 // solid angles, down to 2 texels on a side. Sampled with environmentSampler. Partially bound: empty with the map off.
 layout(set = 0, binding = 14) uniform textureCubeArray environmentIrradianceMap;
+// R16F, a cube array whose cube i is map i's distance cube (docs/plans/environment-map-distances.md, "The distance store"):
+// level 0 holds w = 1000 m over the distance from the eye to the surface that the radiance map's texel shows, along the
+// texel's direction, in km⁻¹, and 0 for the sky. Each later level holds the mean of its children over their solid angles,
+// down to 1 texel on a side, as the radiance map's mips do. Sampled with environmentSampler. Partially bound: empty with
+// the map off.
+layout(set = 0, binding = 16) uniform textureCubeArray environmentDistanceMap;
 
 // A world direction in the axes of map `map`: the inverse of R_i, frame.mapAxes[map], by the quaternion sandwich with the
 // conjugate. The batcher keeps R_i a unit quaternion, so the turn keeps a unit vector unit, and the identity turns v to

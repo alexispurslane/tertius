@@ -90,11 +90,11 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     public const uint PyramidLevelSets = 2 * DepthPyramid.MaxLevels + 1;
 
     /// <summary>
-    /// The levels sets of the largest map: one per dispatch of its downsample and of its specular map, and one for its
-    /// irradiance cube.
+    /// The levels sets of the largest map: one per dispatch of the downsample of its radiance map and of its distance cube,
+    /// one per dispatch of its specular map, and one for its irradiance cube.
     /// </summary>
     private static readonly uint EnvironmentLevelsSets = (uint)(
-        PrefilterLevels.DownsampleDispatches(PrefilterLevels.RadianceLevels(EnvironmentMapSetting.MaxFaceSize))
+        2 * PrefilterLevels.DownsampleDispatches(PrefilterLevels.RadianceLevels(EnvironmentMapSetting.MaxFaceSize))
         + PrefilterLevels.Dispatches(PrefilterLevels.Count(EnvironmentMapSetting.MaxFaceSize))
         + 1
     );
@@ -103,14 +103,17 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     private readonly DescriptorPool pool;
     private readonly DescriptorPool texturePool;
 
-    /// <summary>The storage descriptors of each set layout that this object made, by handle.</summary>
-    private readonly Dictionary<ulong, StorageDescriptors> setStorage = [];
+    /// <summary>The descriptors that device limits bound in each set layout that this object made, by handle.</summary>
+    private readonly Dictionary<ulong, LimitedDescriptors> setDescriptors = [];
 
-    /// <summary>The storage descriptors of each pipeline layout that this object made, by handle.</summary>
-    private readonly Dictionary<ulong, StorageDescriptors> layoutStorage = [];
+    /// <summary>The descriptors that device limits bound in each pipeline layout that this object made, by handle.</summary>
+    private readonly Dictionary<ulong, LimitedDescriptors> layoutDescriptors = [];
 
     /// <param name="glowLevels">The bloom levels, 0 without bloom: the pool holds one glow source set more than that.</param>
-    /// <exception cref="NotSupportedException">The device's stages see fewer storage buffers than the frame set holds.</exception>
+    /// <exception cref="NotSupportedException">
+    /// The device's stages see fewer storage buffers than the frame set holds, or fewer sampled images than a stage of a
+    /// layout sees.
+    /// </exception>
     public DescriptorLayouts(VulkanDevice device, int framesInFlight, int glowLevels)
     {
         if (StorageBufferProblem(device.Properties.Limits.MaxPerStageDescriptorStorageBuffers) is { } storageBuffers)
@@ -151,6 +154,15 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         ) = CreateComputeLayouts();
 
         (pool, texturePool) = CreatePools(framesInFlight: (uint)framesInFlight, glowSourceSets: (uint)glowLevels + 1);
+        uint sampledImages = layoutDescriptors.Values.Max(counts => counts.SampledImages.Most);
+        if (
+            SampledImageProblem(device.Properties.Limits.MaxPerStageDescriptorSampledImages, sampledImages) is
+            { } sampled
+        )
+        {
+            Dispose();
+            throw new NotSupportedException($"{sampled} ({device.DeviceName})");
+        }
     }
 
     public DescriptorSetLayout FrameSet { get; }
@@ -331,13 +343,29 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// The storage image descriptors in all the sets of <paramref name="layout"/>: at least what one stage of it reads, the
     /// count that the device limits of docs/plans/environment-map.md, "Portable Vulkan", bound.
     /// </summary>
-    public uint StorageImagesOf(PipelineLayout layout) => layoutStorage[layout.Handle].Images;
+    public uint StorageImagesOf(PipelineLayout layout) => layoutDescriptors[layout.Handle].StorageImages;
 
     /// <summary>
     /// The storage buffer descriptors in all the sets of <paramref name="layout"/>: at least what one stage of it reads, the
     /// count that maxPerStageDescriptorStorageBuffers bounds.
     /// </summary>
-    public uint StorageBuffersOf(PipelineLayout layout) => layoutStorage[layout.Handle].Buffers;
+    public uint StorageBuffersOf(PipelineLayout layout) => layoutDescriptors[layout.Handle].StorageBuffers;
+
+    /// <summary>
+    /// The sampled images that one shader stage of <paramref name="layout"/> sees at most, outside the sets that are
+    /// updated after bind: the count that maxPerStageDescriptorSampledImages bounds.
+    /// </summary>
+    public uint SampledImagesOf(PipelineLayout layout) => layoutDescriptors[layout.Handle].SampledImages.Most;
+
+    /// <summary>
+    /// Why a device that lets one shader stage see at most <paramref name="maxPerStageSampledImages"/> sampled images
+    /// cannot bind a layout of which one stage sees <paramref name="sampledImages"/>, or null when it can. Vulkan guarantees
+    /// only 16 (ARCHITECTURE.md, "Portable Vulkan").
+    /// </summary>
+    internal static string? SampledImageProblem(uint maxPerStageSampledImages, uint sampledImages) =>
+        maxPerStageSampledImages < sampledImages
+            ? $"A shader stage of a pipeline layout sees {sampledImages} sampled images, above the device's maxPerStageDescriptorSampledImages of {maxPerStageSampledImages}."
+            : null;
 
     /// <summary>
     /// Why a device that binds at most <paramref name="maxPerStageStorageBuffers"/> storage buffers in one shader stage
@@ -780,10 +808,10 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             // Three per frame set (the material sampler and the immutable linear clamp and environment samplers), the
             // immutable samplers of the G-buffer, atlas, post, reflection and prefilter sets, and one per glow source set.
             new(DescriptorType.Sampler, 3 * frames + 5 + glowSourceSets),
-            // 21 for the G-buffer, post and atlas sets, four per frame set for the tables, the specular map and the
-            // irradiance cube, one per glow source set, two for the meter set, one per pyramid level set, one for the depth
-            // tail set, two for the reflection set, one for the prefilter set and one for the shadow bounds set.
-            new(DescriptorType.SampledImage, 21 + 4 * frames + glowSourceSets + 2 + PyramidLevelSets + 1 + 2 + 1 + 1),
+            // 21 for the G-buffer, post and atlas sets, five per frame set for the tables, the specular map, the irradiance
+            // cube and the distance cube, one per glow source set, two for the meter set, one per pyramid level set, one for
+            // the depth tail set, two for the reflection set, one for the prefilter set and one for the shadow bounds set.
+            new(DescriptorType.SampledImage, 21 + 5 * frames + glowSourceSets + 2 + PyramidLevelSets + 1 + 2 + 1 + 1),
             // Those of each of the two occlusion sets, one per pyramid level set, the depth tail set's mips, three for the
             // reflection set, four per environment levels set, three for the scatter set and one for the shadow bounds set.
             new(
@@ -1018,9 +1046,10 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
 
     /// <summary>
     /// The layout of set 0, whose binding 10 holds <paramref name="linearClamp"/> and binding 13
-    /// <paramref name="environment"/> as their immutable samplers. Bindings 12 and 14 are partially bound: they stay
-    /// empty with the map off, as the bindless array's unused slots do (docs/plans/environment-map.md, decision 29).
-    /// Binding 15, the tile views, is partially bound too: it stays empty without the local shadow atlas.
+    /// <paramref name="environment"/> as their immutable samplers. Bindings 12, 14 and 16 are partially bound: they stay
+    /// empty with the map off, as the bindless array's unused slots do (docs/plans/environment-map.md, decision 29, and
+    /// docs/plans/environment-map-distances.md, decision 29). Binding 15, the tile views, is partially bound too: it stays
+    /// empty without the local shadow atlas.
     /// </summary>
     private DescriptorSetLayout CreateFrameSetLayout(Sampler linearClamp, Sampler environment)
     {
@@ -1077,10 +1106,13 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
                 descriptorCount: 1,
                 stageFlags: graphics
             ),
+            // The distance cubes, which the shading passes search in the fragment and compute stages.
+            new(binding: 16, descriptorType: DescriptorType.SampledImage, descriptorCount: 1, stageFlags: shading),
         ];
         Span<DescriptorBindingFlags> flags = stackalloc DescriptorBindingFlags[frame.Length];
         flags[12] = DescriptorBindingFlags.PartiallyBoundBit;
         flags[14] = DescriptorBindingFlags.PartiallyBoundBit;
+        flags[16] = DescriptorBindingFlags.PartiallyBoundBit;
         flags[(int)ShadowAtlas.TileViewsBinding] = DescriptorBindingFlags.PartiallyBoundBit;
         return CreateLayout(bindings: frame, name: "frame set", bindingFlags: flags);
     }
@@ -1208,10 +1240,11 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
                 )
                 .Check("vkCreateDescriptorSetLayout");
             device.SetName(ObjectType.DescriptorSetLayout, layout.Handle, name);
-            var storage = default(StorageDescriptors);
+            bool updatedAfterBind = (flags & DescriptorSetLayoutCreateFlags.UpdateAfterBindPoolBit) != 0;
+            var counts = default(LimitedDescriptors);
             foreach (DescriptorSetLayoutBinding binding in bindings)
-                storage = storage.With(binding);
-            setStorage[layout.Handle] = storage;
+                counts = counts.With(binding: binding, updatedAfterBind: updatedAfterBind);
+            setDescriptors[layout.Handle] = counts;
             return layout;
         }
     }
@@ -1245,10 +1278,10 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
                 .Check("vkCreatePipelineLayout");
         }
         device.SetName(ObjectType.PipelineLayout, layout.Handle, name);
-        var storage = default(StorageDescriptors);
+        var counts = default(LimitedDescriptors);
         foreach (DescriptorSetLayout set in sets)
-            storage = storage.Plus(setStorage[set.Handle]);
-        layoutStorage[layout.Handle] = storage;
+            counts = counts.Plus(setDescriptors[set.Handle]);
+        layoutDescriptors[layout.Handle] = counts;
         return layout;
     }
 
@@ -1347,18 +1380,56 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     }
 }
 
-/// <summary>The storage image and storage buffer descriptors of a set layout or a pipeline layout.</summary>
-internal readonly record struct StorageDescriptors(uint Images, uint Buffers)
+/// <summary>
+/// The descriptors of a set layout or a pipeline layout that device limits bound: its storage images and storage buffers,
+/// and the sampled images that each shader stage sees outside the sets that are updated after bind.
+/// </summary>
+internal readonly record struct LimitedDescriptors(
+    uint StorageImages,
+    uint StorageBuffers,
+    SampledImagesPerStage SampledImages
+)
 {
-    /// <summary>These descriptors and those of <paramref name="binding"/>.</summary>
-    public StorageDescriptors With(in DescriptorSetLayoutBinding binding) =>
+    /// <summary>
+    /// These descriptors and those of <paramref name="binding"/>. The sampled images of a set that is
+    /// <paramref name="updatedAfterBind"/> count against the update-after-bind limits instead, so they do not count here.
+    /// </summary>
+    public LimitedDescriptors With(in DescriptorSetLayoutBinding binding, bool updatedAfterBind) =>
         binding.DescriptorType switch
         {
-            DescriptorType.StorageImage => this with { Images = Images + binding.DescriptorCount },
-            DescriptorType.StorageBuffer => this with { Buffers = Buffers + binding.DescriptorCount },
+            DescriptorType.StorageImage => this with { StorageImages = StorageImages + binding.DescriptorCount },
+            DescriptorType.StorageBuffer => this with { StorageBuffers = StorageBuffers + binding.DescriptorCount },
+            DescriptorType.SampledImage or DescriptorType.CombinedImageSampler when !updatedAfterBind => this with
+            {
+                SampledImages = SampledImages.Plus(binding.StageFlags, binding.DescriptorCount),
+            },
             _ => this,
         };
 
     /// <summary>These descriptors and <paramref name="other"/>.</summary>
-    public StorageDescriptors Plus(StorageDescriptors other) => new(Images + other.Images, Buffers + other.Buffers);
+    public LimitedDescriptors Plus(LimitedDescriptors other) =>
+        new(
+            StorageImages: StorageImages + other.StorageImages,
+            StorageBuffers: StorageBuffers + other.StorageBuffers,
+            SampledImages: SampledImages.Plus(other.SampledImages)
+        );
+}
+
+/// <summary>The sampled images that the vertex, fragment and compute stages each see.</summary>
+internal readonly record struct SampledImagesPerStage(uint Vertex, uint Fragment, uint Compute)
+{
+    /// <summary>The most that one stage sees.</summary>
+    public uint Most => Math.Max(Vertex, Math.Max(Fragment, Compute));
+
+    /// <summary>These and <paramref name="count"/> more for each of <paramref name="stages"/>.</summary>
+    public SampledImagesPerStage Plus(ShaderStageFlags stages, uint count) =>
+        new(
+            Vertex: Vertex + ((stages & ShaderStageFlags.VertexBit) != 0 ? count : 0),
+            Fragment: Fragment + ((stages & ShaderStageFlags.FragmentBit) != 0 ? count : 0),
+            Compute: Compute + ((stages & ShaderStageFlags.ComputeBit) != 0 ? count : 0)
+        );
+
+    /// <summary>These and <paramref name="other"/>, stage by stage.</summary>
+    public SampledImagesPerStage Plus(SampledImagesPerStage other) =>
+        new(Vertex: Vertex + other.Vertex, Fragment: Fragment + other.Fragment, Compute: Compute + other.Compute);
 }

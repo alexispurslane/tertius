@@ -26,7 +26,7 @@ internal sealed unsafe class FrameResources : IDisposable
     // The frame's job table, before the copy into the job buffer.
     private GpuDeformJob[] gpuDeformJobs = new GpuDeformJob[16];
 
-    /// <summary>The <see cref="EnvironmentMap.ImagesVersion"/> that bindings 12 and 14 point at, or −1 before they are written.</summary>
+    /// <summary>The <see cref="EnvironmentMap.ImagesVersion"/> that bindings 12, 14 and 16 point at, or −1 before they are written.</summary>
     private int environmentVersion = -1;
 
     /// <summary>The vertex buffer whose deform region binding 0 of the deform set points at, or null before it is written.</summary>
@@ -289,8 +289,8 @@ internal sealed unsafe class FrameResources : IDisposable
     }
 
     /// <summary>
-    /// Points this frame's sets at the current material buffer, the current specular maps, the deform region and the
-    /// deform store, and writes textures added since its last frame. A growth of the maps waited for the device, so no
+    /// Points this frame's sets at the current material buffer, the current images of the environment maps, the deform
+    /// region and the deform store, and writes textures added since its last frame. A growth of the maps waited for the device, so no
     /// submitted frame still uses the set.
     /// </summary>
     public void UpdateSharedDescriptors(
@@ -305,6 +305,7 @@ internal sealed unsafe class FrameResources : IDisposable
         {
             layouts.WriteImage(set: FrameSet, binding: 12, arrayElement: 0, image: environment.Specular);
             layouts.WriteImage(set: FrameSet, binding: 14, arrayElement: 0, image: environment.Irradiance);
+            layouts.WriteImage(set: FrameSet, binding: 16, arrayElement: 0, image: environment.Distance);
             environmentVersion = environment.ImagesVersion;
         }
 

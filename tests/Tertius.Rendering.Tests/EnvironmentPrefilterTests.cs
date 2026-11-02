@@ -108,6 +108,44 @@ public sealed class EnvironmentPrefilterTests
         return light / (float)solidAngle;
     }
 
+    /// <summary>Every level of map <paramref name="map"/>'s distance cube, then each face in layer order, one inverse distance per texel, rows from the top.</summary>
+    private static Half[][][] DistanceLevels(VulkanRenderer renderer, int faceSize, int map)
+    {
+        var levels = new Half[PrefilterLevels.RadianceLevels(faceSize)][][];
+        for (int level = 0; level < levels.Length; level++)
+        {
+            levels[level] = new Half[CubeFaces.Count][];
+            for (int layer = 0; layer < CubeFaces.Count; layer++)
+                levels[level][layer] = renderer.ReadEnvironmentFace(
+                    map: map,
+                    face: (CubeFace)layer,
+                    level: level,
+                    image: EnvironmentImage.Distance
+                );
+        }
+
+        return levels;
+    }
+
+    /// <summary>
+    /// The mean of the four children of texel (x, y) of a face of <paramref name="size"/> in the distance cube, by their
+    /// solid angles: the rule of <see cref="ChildrenMean"/>, for one channel.
+    /// </summary>
+    private static double DistanceChildrenMean(Half[] children, int size, int x, int y)
+    {
+        double sum = 0;
+        double solidAngle = 0;
+        for (int dy = 0; dy < 2; dy++)
+        for (int dx = 0; dx < 2; dx++)
+        {
+            double childAngle = CubeFaces.TexelSolidAngle(2 * x + dx, 2 * y + dy, 2 * size);
+            sum += (float)children[(2 * y + dy) * 2 * size + 2 * x + dx] * childAngle;
+            solidAngle += childAngle;
+        }
+
+        return sum / solidAngle;
+    }
+
     /// <summary>
     /// The light of one level of the specular map, Σ radiance × solid angle over every texel, by luminance, and its
     /// light-weighted mean angle from <paramref name="axis"/>, in rad.
@@ -231,6 +269,139 @@ public sealed class EnvironmentPrefilterTests
 
             // Within 0.1 % of a texel's light: the halves of the stored levels.
             worstOfLevel[1..].Should().OnlyContain(worst => worst < 1e-3f, "each mip texel is its children's mean");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>
+    /// Every texel of every level of the distance cube is the mean of its four children's inverse distances, by their exact
+    /// solid angles: the rule of the radiance map's mips (docs/plans/environment-map-distances.md, "The level chain"). Each
+    /// of three maps holds the scene in its own axes, so each makes its levels from its own faces. At 32 texels the chain
+    /// takes two dispatches and at 128 three.
+    /// </summary>
+    [Theory]
+    [InlineData(Size)]
+    [InlineData(128)]
+    public void EachLevelOfTheDistanceCubeIsTheSolidAngleMeanOfItsChildren(int faceSize)
+    {
+        VulkanRenderer renderer = Renderer(faceSize);
+        try
+        {
+            renderer.Render(ColorfulInThreeFrames(renderer), 1f);
+
+            float[] worstOfMap = new float[3];
+            float[] nearest = new float[worstOfMap.Length];
+            for (int map = 0; map < worstOfMap.Length; map++)
+            {
+                Half[][][] levels = DistanceLevels(renderer: renderer, faceSize: faceSize, map: map);
+                nearest[map] = levels[0].SelectMany(face => face).Max(distance => (float)distance);
+                for (int level = 1; level < levels.Length; level++)
+                {
+                    int size = faceSize >> level;
+                    for (int layer = 0; layer < CubeFaces.Count; layer++)
+                    for (int y = 0; y < size; y++)
+                    for (int x = 0; x < size; x++)
+                    {
+                        double expected = DistanceChildrenMean(
+                            children: levels[level - 1][layer],
+                            size: size,
+                            x: x,
+                            y: y
+                        );
+                        double read = (float)levels[level][layer][y * size + x];
+                        worstOfMap[map] = MathF.Max(
+                            worstOfMap[map],
+                            (float)(Math.Abs(read - expected) / (1 + expected))
+                        );
+                    }
+                }
+            }
+
+            nearest.Should().OnlyContain(w => w > 50f, "each map's faces hold the squares about 10 m away");
+            // Within 0.1 % of a texel's inverse distance: the halves of the stored levels.
+            worstOfMap.Should().OnlyContain(worst => worst < 1e-3f, "each texel is its children's mean");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>
+    /// A texel of level 1 whose two upper children see a wall 4 m away and whose two lower children see the sky holds the
+    /// mean of their inverse distances, half the wall's, because the sky's is 0 (docs/plans/environment-map-distances.md,
+    /// "The level chain", design A). The wall's lower edge lies on the line between rows 14 and 15 of face +X.
+    /// </summary>
+    [Fact]
+    public void ATexelHalfWallAndHalfSkyHoldsHalfTheWallsInverseDistance()
+    {
+        VulkanRenderer renderer = EnvironmentScenes.Renderer();
+        try
+        {
+            MeshId plane = renderer.CreateMesh(Primitives.Plane(1f));
+            RenderSnapshot snapshot = EnvironmentScenes.Dark();
+            // Row r of face +X looks up by 1 − (2r + 1) / 32 of the distance ahead, so the line between rows 14 and 15
+            // lies 1 / 16 of 4 m up: the wall spans y = 0.25 m to 12.25 m and z = −6 m to 6 m on the plane x = 4 m.
+            const float halfSize = 6;
+            snapshot.Instances.Add(
+                EnvironmentScenes.Facing(
+                    plane: plane,
+                    material: EnvironmentScenes.Matte(renderer),
+                    center: new(4, 0.25f + halfSize, 0),
+                    normal: -Vector3.UnitX,
+                    halfSize: halfSize,
+                    chainDepth: TestChains.CamerasFrame
+                )
+            );
+
+            renderer.Render(snapshot, 1f);
+
+            Half[] level1 = EnvironmentScenes.Distances(renderer, CubeFace.PositiveX, level: 1);
+            const int size = Size / 2;
+            const int row = 7;
+            float worst = 0;
+            double worstShare = 0;
+            for (int x = 0; x < size; x++)
+            {
+                double wall = 0;
+                double wallAngle = 0;
+                double solidAngle = 0;
+                for (int dy = 0; dy < 2; dy++)
+                for (int dx = 0; dx < 2; dx++)
+                {
+                    (int childX, int childY) = (2 * x + dx, 2 * row + dy);
+                    double childAngle = CubeFaces.TexelSolidAngle(childX, childY, Size);
+                    Vector3 direction = CubeFaces.Direction(
+                        CubeFace.PositiveX,
+                        (childX + 0.5f) / Size,
+                        (childY + 0.5f) / Size
+                    );
+                    // The upper child, row 14, sees the wall, 4 m / direction.X away, and the lower one the sky.
+                    if (dy == 0)
+                    {
+                        wall += 1000.0 * direction.X / 4 * childAngle;
+                        wallAngle += childAngle;
+                    }
+
+                    solidAngle += childAngle;
+                }
+
+                double expected = wall / solidAngle;
+                float read = (float)level1[row * size + x];
+                worst = MathF.Max(worst, (float)(Math.Abs(read - expected) / expected));
+                double wallMean = wall / wallAngle;
+                worstShare = Math.Max(worstShare, Math.Abs(read / wallMean - 0.5));
+            }
+
+            // Two roundings to a half float, the face's and the level's, each within one unit in the last place, 2⁻¹⁰ of
+            // the value at most: Vulkan lets a device round toward zero.
+            worst
+                .Should()
+                .BeLessThan(2e-3f, "each texel is the solid-angle mean of two wall children and two of sky");
+            worstShare.Should().BeLessThan(0.01, "the wall's half of the texel holds about half its solid angle");
         }
         finally
         {

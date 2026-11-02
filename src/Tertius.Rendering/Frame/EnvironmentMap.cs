@@ -13,12 +13,16 @@ internal enum EnvironmentImage
 
     /// <summary>The irradiance cubes: D(n), the maps' ambient diffuse radiance, and its mips.</summary>
     Irradiance,
+
+    /// <summary>The distance cubes: each texel's inverse distance from the eye, in km⁻¹, and its mips, one channel.</summary>
+    Distance,
 }
 
 /// <summary>
 /// The scene environment maps, one for each served frame of the camera's chain (docs/plans/environment-map.md, "Images and
 /// buffers", and docs/plans/environment-maps-per-frame.md, "Images, buffers, growth and descriptors"): the radiance maps
-/// that the face pass draws, the specular maps and the irradiance cubes that the prefilter derives from them, one readback
+/// and the distance cubes that the face pass draws (docs/plans/environment-map-distances.md, "The distance store"), the
+/// specular maps and the irradiance cubes that the prefilter derives from the radiance maps, one readback
 /// buffer per frame slot for the cubes' last level, and the CPU state of which faces a frame draws. Map i, root first, is
 /// cube i of each cube array, layers 6i to 6i + 5. One set of maps serves every frame in flight.
 /// </summary>
@@ -28,6 +32,8 @@ internal enum EnvironmentImage
 /// <see cref="DrawnFor"/>.</item>
 /// <item>Map i's mips, specular levels and irradiance cube are a pure function of its six faces' level 0, rebuilt in every
 /// drawn frame that draws one of its faces.</item>
+/// <item>Each face's distance level 0 holds the same draw as its radiance level 0.</item>
+/// <item>Map i's distance levels 1 and up are a pure function of its six faces' distance level 0.</item>
 /// <item>The images hold <see cref="Capacity"/> maps, at least the served maps of every frame since the last growth.</item>
 /// <item>A slot's readback buffer holds the last level of the irradiance cubes of the served maps of the slot's last
 /// submitted frame, once its fence signals.</item>
@@ -40,6 +46,28 @@ internal sealed unsafe class EnvironmentMap : IDisposable
     public const Format RadianceFormat = Format.R16G16B16A16Sfloat;
     public const Format FaceDepthFormat = Format.D32Sfloat;
 
+    /// <summary>
+    /// The format of the distance cubes: one half float, which Vulkan requires as a filtered sampled image and a color
+    /// attachment, and as a storage image under shaderStorageImageExtendedFormats.
+    /// </summary>
+    public const Format DistanceFormat = Format.R16Sfloat;
+
+    /// <summary>
+    /// Why a device whose optimal tiling of <see cref="DistanceFormat"/> offers <paramref name="features"/> cannot hold the
+    /// distance cubes, or null when it can: the face pass draws level 0, the readers filter it, and the downsample writes
+    /// the other levels as storage images.
+    /// </summary>
+    internal static string? DistanceFormatProblem(FormatFeatureFlags features)
+    {
+        const FormatFeatureFlags needed =
+            FormatFeatureFlags.ColorAttachmentBit
+            | FormatFeatureFlags.SampledImageBit
+            | FormatFeatureFlags.SampledImageFilterLinearBit
+            | FormatFeatureFlags.StorageImageBit;
+        FormatFeatureFlags missing = needed & ~features;
+        return missing == 0 ? null : $"{DistanceFormat} lacks {missing} in optimal tiling.";
+    }
+
     /// <summary>The last level of one map's irradiance cube: <see cref="Irradiance.Texels"/> RGBA16F texels.</summary>
     private const ulong MapReadbackBytes = Rendering.Irradiance.Texels * 4 * sizeof(ushort);
 
@@ -51,6 +79,7 @@ internal sealed unsafe class EnvironmentMap : IDisposable
     private readonly DescriptorLayouts layouts;
     private readonly DescriptorSet[] specularDispatchSets;
     private readonly DescriptorSet[] downsampleSets;
+    private readonly DescriptorSet[] distanceDownsampleSets;
     private readonly GpuBuffer[] readbacks;
 
     /// <summary>The served maps of each slot's last submitted frame, whose cubes' last level its readback buffer holds.</summary>
@@ -62,6 +91,7 @@ internal sealed unsafe class EnvironmentMap : IDisposable
     private int drawnForLength;
     private MapImages images;
 
+    /// <exception cref="NotSupportedException">The device cannot draw, filter or store <see cref="DistanceFormat"/>.</exception>
     public EnvironmentMap(
         VulkanDevice device,
         DeviceAllocator allocator,
@@ -70,6 +100,8 @@ internal sealed unsafe class EnvironmentMap : IDisposable
         int framesInFlight
     )
     {
+        if (DistanceFormatProblem(device.FormatProperties(DistanceFormat).OptimalTilingFeatures) is { } format)
+            throw new NotSupportedException($"{format} ({device.DeviceName})");
         this.device = device;
         this.allocator = allocator;
         this.layouts = layouts;
@@ -79,6 +111,7 @@ internal sealed unsafe class EnvironmentMap : IDisposable
         downsampleSets = new DescriptorSet[
             PrefilterLevels.DownsampleDispatches(PrefilterLevels.RadianceLevels(setting.FaceSize))
         ];
+        distanceDownsampleSets = new DescriptorSet[downsampleSets.Length];
         readbacks = new GpuBuffer[framesInFlight];
         readbackMaps = new int[framesInFlight];
         try
@@ -91,7 +124,11 @@ internal sealed unsafe class EnvironmentMap : IDisposable
             for (int dispatch = 0; dispatch < specularDispatchSets.Length; dispatch++)
                 specularDispatchSets[dispatch] = layouts.AllocateEnvironmentLevelsSet();
             for (int dispatch = 0; dispatch < downsampleSets.Length; dispatch++)
+            {
                 downsampleSets[dispatch] = layouts.AllocateEnvironmentLevelsSet();
+                distanceDownsampleSets[dispatch] = layouts.AllocateEnvironmentLevelsSet();
+            }
+
             IrradianceSet = layouts.AllocateEnvironmentLevelsSet();
             WriteImageSets();
         }
@@ -111,8 +148,8 @@ internal sealed unsafe class EnvironmentMap : IDisposable
     public int Capacity => images.Capacity;
 
     /// <summary>
-    /// Counts the growths of the images, which make <see cref="Specular"/> and <see cref="Irradiance"/> anew. A frame slot
-    /// rewrites its bindings of them when its count differs.
+    /// Counts the growths of the images, which make <see cref="Specular"/>, <see cref="Irradiance"/> and
+    /// <see cref="Distance"/> anew. A frame slot rewrites its bindings of them when its count differs.
     /// </summary>
     public int ImagesVersion { get; private set; }
 
@@ -121,6 +158,14 @@ internal sealed unsafe class EnvironmentMap : IDisposable
     /// per map.
     /// </summary>
     public GpuImage Radiance => images.Radiance;
+
+    /// <summary>
+    /// The distance cubes (docs/plans/environment-map-distances.md, "The distance store"): an R16F cube array with the
+    /// radiance maps' face size and levels, one cube per map. Level 0 holds w = 1000 m over the distance from the eye to the
+    /// surface that the radiance map's texel shows, along the texel's direction, in km⁻¹, and 0 for the sky. Each later
+    /// level holds the mean of its children over their solid angles, as the radiance maps' mips do.
+    /// </summary>
+    public GpuImage Distance => images.Distance;
 
     /// <summary>The specular maps: an RGBA16F cube array whose level k holds the lobe of roughness k / (L − 1), one cube per map.</summary>
     public GpuImage Specular => images.Specular;
@@ -160,13 +205,28 @@ internal sealed unsafe class EnvironmentMap : IDisposable
     public DescriptorSet DownsampleSet(int dispatch) => downsampleSets[dispatch];
 
     /// <summary>
+    /// The levels set of dispatch <paramref name="dispatch"/> of the distance cubes' downsample, which makes the same levels
+    /// as <see cref="DownsampleSet"/> of the same dispatch, every layer, written again at each growth: binding 0 holds the
+    /// level that it reads, and binding b ≥ 1 level source + b. A binding past the dispatch's last level holds that last
+    /// level again, a valid view that the dispatch never writes.
+    /// </summary>
+    public DescriptorSet DistanceDownsampleSet(int dispatch) => distanceDownsampleSets[dispatch];
+
+    /// <summary>
     /// The levels set of the irradiance cubes, every layer, written again at each growth: binding b holds level b. The
     /// convolution writes binding 0, and the downsample reads binding 0 and writes the others.
     /// </summary>
     public DescriptorSet IrradianceSet { get; }
 
-    /// <summary>The 2D view of level 0 of <paramref name="face"/> of map <paramref name="map"/>, the face pass's color attachment.</summary>
-    public ImageView FaceView(int map, CubeFace face) => images.FaceViews[CubeFaces.Count * map + (int)face];
+    /// <summary>
+    /// The 2D views of level 0 of <paramref name="face"/> of map <paramref name="map"/> in the radiance maps and the distance
+    /// cubes: the face pass's two color attachments.
+    /// </summary>
+    public (ImageView Radiance, ImageView Distance) FaceViews(int map, CubeFace face)
+    {
+        int layer = CubeFaces.Count * map + (int)face;
+        return (images.FaceViews[layer], images.DistanceFaceViews[layer]);
+    }
 
     /// <summary>
     /// The last level of the irradiance cubes of the first <paramref name="maps"/> maps from the last frame whose GPU work
@@ -326,7 +386,8 @@ internal sealed unsafe class EnvironmentMap : IDisposable
     /// Makes the images hold <paramref name="maps"/> maps (decision 23): waits for the device, as a resize does, makes the
     /// cube arrays and their views anew, then disposes the old ones, points the map's own sets at the new ones, and empties
     /// <see cref="DrawnFor"/>, because the new images hold no face. A growth that throws leaves the old images whole. Each
-    /// frame slot rewrites its bindings of the specular maps and the irradiance cubes by <see cref="ImagesVersion"/>.
+    /// frame slot rewrites its bindings of the specular maps, the irradiance cubes and the distance cubes by
+    /// <see cref="ImagesVersion"/>.
     /// </summary>
     private void Grow(int maps)
     {
@@ -373,8 +434,9 @@ internal sealed unsafe class EnvironmentMap : IDisposable
     }
 
     /// <summary>
-    /// Points the sets at the current images: the radiance maps in the prefilter set, the level views of the radiance and
-    /// specular maps in the levels sets of their dispatches, and those of the irradiance cubes in theirs.
+    /// Points the sets at the current images: the radiance maps in the prefilter set, the level views of the radiance maps,
+    /// the distance cubes and the specular maps in the levels sets of their dispatches, and those of the irradiance cubes in
+    /// theirs.
     /// </summary>
     private void WriteImageSets()
     {
@@ -390,6 +452,10 @@ internal sealed unsafe class EnvironmentMap : IDisposable
         {
             (int source, int count) = PrefilterLevels.LevelsOfDownsample(dispatch: dispatch, levels: radianceLevels);
             WriteLevelsSet(set: downsampleSets[dispatch], views: images.RadianceLevelViews.AsSpan(source, count + 1));
+            WriteLevelsSet(
+                set: distanceDownsampleSets[dispatch],
+                views: images.DistanceLevelViews.AsSpan(source, count + 1)
+            );
         }
 
         WriteLevelsSet(set: IrradianceSet, views: images.IrradianceLevelViews);
@@ -440,8 +506,10 @@ internal sealed unsafe class EnvironmentMap : IDisposable
             uint layers = (uint)(CubeFaces.Count * maps);
             int radianceLevels = PrefilterLevels.RadianceLevels(setting.FaceSize);
             FaceViews = new ImageView[layers];
+            DistanceFaceViews = new ImageView[layers];
             LevelViews = new ImageView[levels];
             RadianceLevelViews = new ImageView[radianceLevels];
+            DistanceLevelViews = new ImageView[radianceLevels];
             IrradianceLevelViews = new ImageView[IrradianceCube.Levels];
             try
             {
@@ -457,6 +525,21 @@ internal sealed unsafe class EnvironmentMap : IDisposable
                         | ImageUsageFlags.TransferSrcBit,
                     mipLevels: (uint)radianceLevels,
                     name: "environment radiance",
+                    arrayLayers: layers,
+                    cubeArray: true
+                );
+                // The same uses as the radiance maps: the face pass draws level 0, the downsample writes the others.
+                Distance = GpuImage.Create(
+                    device: device,
+                    allocator: allocator,
+                    extent: extent,
+                    format: DistanceFormat,
+                    usage: ImageUsageFlags.ColorAttachmentBit
+                        | ImageUsageFlags.SampledBit
+                        | ImageUsageFlags.StorageBit
+                        | ImageUsageFlags.TransferSrcBit,
+                    mipLevels: (uint)radianceLevels,
+                    name: "environment distance",
                     arrayLayers: layers,
                     cubeArray: true
                 );
@@ -477,9 +560,13 @@ internal sealed unsafe class EnvironmentMap : IDisposable
                     name: "environment irradiance"
                 );
                 for (int layer = 0; layer < FaceViews.Length; layer++)
+                {
                     FaceViews[layer] = Radiance.CreateLayerView((uint)layer);
+                    DistanceFaceViews[layer] = Distance.CreateLayerView((uint)layer);
+                }
                 CreateLevelViews(Specular, LevelViews);
                 CreateLevelViews(Radiance, RadianceLevelViews);
+                CreateLevelViews(Distance, DistanceLevelViews);
                 CreateLevelViews(Irradiance, IrradianceLevelViews);
             }
             catch
@@ -524,17 +611,24 @@ internal sealed unsafe class EnvironmentMap : IDisposable
         public int Capacity { get; }
 
         public GpuImage Radiance { get; }
+        public GpuImage Distance { get; }
         public GpuImage Specular { get; }
         public GpuImage Irradiance { get; }
 
         /// <summary>The 2D view of level 0 of each layer of <see cref="Radiance"/>, in layer order.</summary>
         public ImageView[] FaceViews { get; }
 
+        /// <summary>The 2D view of level 0 of each layer of <see cref="Distance"/>, in layer order.</summary>
+        public ImageView[] DistanceFaceViews { get; }
+
         /// <summary>The view of each level of <see cref="Specular"/>, every layer.</summary>
         public ImageView[] LevelViews { get; }
 
         /// <summary>The view of each level of <see cref="Radiance"/>, every layer.</summary>
         public ImageView[] RadianceLevelViews { get; }
+
+        /// <summary>The view of each level of <see cref="Distance"/>, every layer.</summary>
+        public ImageView[] DistanceLevelViews { get; }
 
         /// <summary>The view of each level of <see cref="Irradiance"/>, every layer.</summary>
         public ImageView[] IrradianceLevelViews { get; }
@@ -543,10 +637,13 @@ internal sealed unsafe class EnvironmentMap : IDisposable
         {
             DestroyViews(LevelViews);
             DestroyViews(RadianceLevelViews);
+            DestroyViews(DistanceLevelViews);
             DestroyViews(IrradianceLevelViews);
             DestroyViews(FaceViews);
+            DestroyViews(DistanceFaceViews);
             Irradiance?.Dispose();
             Specular?.Dispose();
+            Distance?.Dispose();
             Radiance?.Dispose();
         }
 
