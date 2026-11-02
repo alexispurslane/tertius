@@ -343,6 +343,39 @@ public sealed class EnvironmentLightingTests
         }
     }
 
+    /// <summary>
+    /// D on a matte unit sphere at <paramref name="sphereCenter"/> under a glowing ball of 0.5 m at
+    /// <paramref name="lightCenter"/>, per HDR value: a white sphere's image less a black one's. The diffuse term is the base
+    /// color times D, and the specular term does not depend on the base color of a non-metal, so the difference is D under
+    /// the fixed exposure of 0 stops.
+    /// </summary>
+    private static float[] MatteSphereDiffuse(VulkanRenderer renderer, Vector3 lightCenter, Vector3 sphereCenter)
+    {
+        MeshId sphere = Sphere(renderer);
+        MaterialId glow = BrdfTesting.Glow(renderer, new(400));
+        float[] Lit(Vector4 baseColor)
+        {
+            RenderSnapshot snapshot = Dark();
+            AddSphere(snapshot: snapshot, mesh: sphere, material: glow, position: lightCenter, radius: 0.5f);
+            AddSphere(
+                snapshot: snapshot,
+                mesh: sphere,
+                material: renderer.CreateMaterial(MaterialDesc.Color(baseColor, roughness: 1)),
+                position: sphereCenter,
+                radius: 1
+            );
+            renderer.Render(snapshot, 1f);
+            renderer.Render(snapshot, 1f);
+            return renderer.ReadHdr();
+        }
+
+        float[] white = Lit(Vector4.One);
+        float[] black = Lit(new(x: 0, y: 0, z: 0, w: 1));
+        for (int i = 0; i < white.Length; i++)
+            white[i] -= black[i];
+        return white;
+    }
+
     [Fact]
     public void UnderOneSmallBrightLightAMatteSurfaceGetsTheMapsExactDiffuseLightWithinTheTolerance()
     {
@@ -359,35 +392,14 @@ public sealed class EnvironmentLightingTests
         );
         try
         {
-            MeshId sphere = Sphere(renderer);
-            MaterialId glow = BrdfTesting.Glow(renderer, new(400));
-            float[] Lit(Vector4 baseColor)
-            {
-                RenderSnapshot snapshot = Dark();
-                AddSphere(snapshot: snapshot, mesh: sphere, material: glow, position: lightCenter, radius: 0.5f);
-                AddSphere(
-                    snapshot: snapshot,
-                    mesh: sphere,
-                    material: renderer.CreateMaterial(MaterialDesc.Color(baseColor, roughness: 1)),
-                    position: sphereCenter,
-                    radius: 1
-                );
-                renderer.Render(snapshot, 1f);
-                renderer.Render(snapshot, 1f);
-                return renderer.ReadHdr();
-            }
-
-            // The diffuse term is the base color times D, and the specular term does not depend on the base color of a
-            // non-metal. So white less black is D, under the fixed exposure of 0 stops.
-            float[] white = Lit(Vector4.One);
-            float[] black = Lit(new(x: 0, y: 0, z: 0, w: 1));
+            float[] diffuse = MatteSphereDiffuse(renderer, lightCenter, sphereCenter);
             var exact = ExactDiffuse.OfMap(renderer, SceneEnvironmentMap.Default.FaceSize);
             double peak = exact.At(Vector3.Normalize(lightCenter));
 
             int tested = 0;
             foreach ((int pixel, Vector3 normal) in SphereNormals(width, height, sphereCenter))
             {
-                double measured = white[pixel] - black[pixel];
+                double measured = diffuse[pixel];
                 double expected = exact.At(normal);
                 Math.Abs(measured - expected)
                     .Should()
