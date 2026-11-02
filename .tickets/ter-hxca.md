@@ -28,3 +28,7 @@ The one model: a ticket's mutation step makes one table of mutants with one resu
 **2026-11-01T23:59:57Z**
 
 2026-11-01: workflow run 7fcc4fb2-fde1-468c-b565-adf99b9497ea (version 869b0b07), branch ter-hxca-mutation-runners from d636add2. Settled by the orchestrator before the launch: the mutant list is JSON; Stryker's test projects are the module's own plus those that reference it, never Tertius.Rendering.Tests; NoCoverage counts as survived and a timeout as killed, each listed apart; a machine-wide lock /tmp/tertius-stryker.lock; the concurrency, the timeout and the share of timeouts that makes a run invalid come from a measured calibration. Brief: /tmp/briefs/hxca.txt.
+
+**2026-11-02T00:01:47Z**
+
+2026-11-01: run 7fcc4fb2 was stopped a few minutes into its build (cleanup complete, the worktree clean at d636add2) to add the user's condition: the ban on Stryker in subagents goes once the official run proves Stryker's own speed tricks, one compile through the mutant schemata, one initial test run, and each mutant scoped to the tests that cover it, with no Dubious tests. Continuation run ae26bb05-064e-4b63-b662-08ef1de51808 (version 869b0b07) on the same worktree, base and branch. Brief: /tmp/briefs/hxca2.txt.
