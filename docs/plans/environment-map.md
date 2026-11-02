@@ -27,7 +27,7 @@ Today the ambient light is the hemisphere of two colors, `World.Ambient`. Chrome
 | The specular map | The cube image of the GGX-prefiltered levels. Its level k holds the light along the lobe of roughness k / (L − 1). |
 | L | The number of levels of the specular map: log2(W / 4) + 1, so 6 at W = 128 (128 to 4 texels). |
 | The open-sky share | The share of a texel's directions through which the sky shows past every opaque surface: 1 where the sky pass shows, 0 where a surface covers it. The alpha of both cube images holds it. |
-| The irradiance | Nine RGB coefficients of real spherical harmonics up to band 2, already convolved with the clamped cosine: E(n) is the light that a surface with normal n receives. |
+| The irradiance cube | One RGBA16F cube per map, 16 texels a side, 4 levels. Level 0 holds D(n) at each texel's direction n: the cosine-weighted mean of the map's radiance over the hemisphere of n, the diffuse light that a matte surface with normal n receives. |
 | D(n) | The ambient diffuse radiance: E(n) / π with the map on, the mix of the hemisphere's colors by the normal's sky share with it off. A Lambert surface sends c_diff · D(n). |
 | S(d, r) | The ambient specular radiance. With the map on, it is the specular map's light at direction d and roughness r, plus the reflected stars times the open-sky share there. With the map off, it is the mix of the hemisphere's colors by the lobe's sky share. |
 | T_d, T_s | The ambient diffuse term c_diff · D(n) and the ambient specular term E(μ, r) · c(μ, r) · S(d, r), before occlusion: the two fields of `AmbientTerms` in [ambient-occlusion.md](ambient-occlusion.md). |
@@ -75,7 +75,7 @@ Settled by this design:
 21. A face draws no impostor billboard and culls no small object. The impostor manager decides for the main view's visible objects only. Rasterization point-samples a texel's center, so an object smaller than a texel keeps its light in the map on average, as a small object does on screen. A cull for cost waits for a measurement that shows a need.
 22. Frame n draws the faces (n · F + k) mod 6 for k from 0 to F − 1, where F is `FacesPerFrame`, in layer order. It is a pure function of the frame number, so no stored cursor has to be reset by a refresh, a film draws the same faces on every run, and every face is at most ⌈6 / F⌉ − 1 frames old. An order that follows the camera's view changes with the view and needs a rule for ties.
 23. A refresh happens when the map's frame differs from the camera's frame, and on a long step. The map starts with no frame, so the first drawn frame refreshes. A change of the camera's frame changes the axes of camera-relative world space, so every old face is wrong, not only old. See "Which faces a frame draws".
-24. The diffuse irradiance is a set of spherical harmonics up to band 2, not a small irradiance cube. See "The irradiance".
+24. The diffuse light D is an irradiance cube of 16 texels a side per map, which the prefilter convolves each frame from the radiance map's level of 32 texels a side. Every reader of D reads the cube at its own normal. (`ter-8fz2`, user, 2026-11-01. It replaces a set of spherical harmonics up to band 2, whose ringing under a small bright light made the cabin's base face on `deck-late` 31 % to 44 % too dark.) See "The irradiance".
 25. Level k of the specular map holds roughness k / (L − 1), linear in perceptual roughness, as Filament maps its levels ("lod_α = α^(1/2) = perceptualRoughness"). The reader samples at the level r · (L − 1), with r the floored roughness.
 26. The prefilter takes 64 Hammersley samples per texel with filtered importance sampling (Křivánek and Colbert 2008, GPU Gems 3, chapter 20). They found 40 samples visually acceptable for smooth surfaces. 64 is the next power of two, which the Hammersley set prefers.
 27. The map stores plain radiance, as the impostor atlas does. See "Exposure".
@@ -295,44 +295,49 @@ The work at W = 128: levels 1 to 5 hold 6 × (64² + 32² + 16² + 8² + 4²) = 
 
 ### The irradiance
 
-The irradiance is the projection of the radiance map's level 0 onto the nine real spherical harmonics Y_lm up to band 2, multiplied by the clamped cosine's coefficients (Ramamoorthi and Hanrahan 2001, "An Efficient Representation for Irradiance Environment Maps"):
+D, the map's diffuse light, lives in the irradiance cube: one RGBA16F cube per map, `IrradianceCube.FaceSize` (16) texels a side (decision 24). Level 0 holds D at each texel's direction. The prefilter convolves it from the radiance map's level whose faces hold `IrradianceCube.SourceFaceSize` (32) texels, level log2(W / 32), or from level 0 of a smaller map (`IrradianceCube.SourceLevel`):
 
 ```
-L_lm = Σ over every texel of the six faces:  radiance(texel).rgb · Y_lm(direction(texel)) · Ω(texel)
-E_lm = Â_l · L_lm,      Â_0 = π,  Â_1 = 2π/3,  Â_2 = π/4
-E(n) = max(Σ_lm E_lm · Y_lm(n), 0)
-D(n) = E(n) / π
-mean radiance = E_00 · Y_00 / π
+D(n) = Σ_t L(t) · max(n · ω_t, 0) · Ω(t)  /  Σ_t max(n · ω_t, 0) · Ω(t)
+mean radiance = the mean of the 24 texels of the cube's last level
 ```
 
 where
 
-- `Ω(texel)` = the exact solid angle of a texel of a cube face: A(x₀, y₀) − A(x₀, y₁) − A(x₁, y₀) + A(x₁, y₁), with A(x, y) = atan2(x · y, √(x² + y² + 1)) and the texel's corners x₀, x₁, y₀, y₁ in [−1, 1] (Driscoll 2012, "Cubemap Texel Solid Angle"). The texels of one face add up to 4π / 6 exactly. The C# copy evaluates this formula in double. The shaders evaluate the same value as two spherical triangles, each by Van Oosterom and Strackee 1983, tan(Ω / 2) = |A · (B × C)| / (|A| |B| |C| + (A · B) |C| + (A · C) |B| + (B · C) |A|), whose triple product is exact and whose divisor has only positive terms. In float, the difference of four nearly equal values A loses most of its bits toward a face's corner: up to 12 % at W = 1024 with a correctly rounded atan, against 2 · 10⁻⁷ for the triangles.
-- `Y_lm` = the real basis in world axes, in this order. Band 0: 0.282095. Band 1: 0.488603 y, 0.488603 z, 0.488603 x. Band 2: 1.092548 xy, 1.092548 yz, 0.315392 (3z² − 1), 1.092548 xz, 0.546274 (x² − y²).
-- `E_lm` = what the irradiance buffer stores, coefficient i in `vec4` i, with w 0. The open-sky share is not projected, and the stars stay out of the irradiance (decision 32).
-- `D(n)` = the ambient diffuse radiance: a Lambert surface sends c_diff · D(n), as it sends c_diff times the hemisphere's mix today.
-- `mean radiance` = the mean of the map's radiance over every direction, without the stars, which the lit puffs need.
+- `n` = the unit direction of a cube texel's center.
+- `t` = a texel of the six faces of the source level. `L(t)` = its radiance and open-sky share, RGBA. `ω_t` = the unit direction of its center.
+- `Ω(t)` = the exact solid angle of a texel of a cube face: A(x₀, y₀) − A(x₀, y₁) − A(x₁, y₀) + A(x₁, y₁), with A(x, y) = atan2(x · y, √(x² + y² + 1)) and the texel's corners x₀, x₁, y₀, y₁ in [−1, 1] (Driscoll 2012, "Cubemap Texel Solid Angle"). The texels of one face add up to 4π / 6 exactly. The C# copy evaluates this formula in double. The shaders evaluate the same value as two spherical triangles, each by Van Oosterom and Strackee 1983, tan(Ω / 2) = |A · (B × C)| / (|A| |B| |C| + (A · B) |C| + (A · C) |B| + (B · C) |A|), whose triple product is exact and whose divisor has only positive terms. In float, the difference of four nearly equal values A loses most of its bits toward a face's corner: up to 12 % at W = 1024 with a correctly rounded atan, against 2 · 10⁻⁷ for the triangles.
+- `D(n)` = the ambient diffuse radiance: a Lambert surface sends c_diff · D(n), as it sends c_diff times the hemisphere's mix with the map off. The sum is divided by the sum of its weights, so a uniform map gives exactly its own radiance. The alpha holds the open-sky share that a matte surface sees, which no reader uses yet. The stars stay out of D (decision 32).
+- `mean radiance` = the mean of the map's radiance over every direction, without the stars, which the lit puffs need. It equals the mean of D over every direction, because a surface that faces each way in turn sees each direction of the map with the same total weight. Levels 1 to 3 of the cube hold the solid-angle means of their children, down to 2 texels a side. So each of the 24 texels of the last level holds the mean of D over a quarter of a face, and the 24 quarters span equal solid angles.
 
-One check of the formula, which a CPU test and a GPU test use: under a sky of radiance 1 above the horizon and a black ground, L_00 = √π, L_1(y) = (√3 / 2) √π, and the band-2 terms vanish. So E(n) = π (1 + n_y) / 2 exactly, and D(n) = (1 + n_y) / 2: the hemisphere's diffuse light with a white sky and a black ground.
+A reader samples level 0 bilinearly at its normal in the map's axes. Vulkan filters a cube across its faces. The lit puffs' mean reads the last level at the center of each face, where the face's four texels meet with equal weights, and averages the six reads.
 
-Why spherical harmonics and not an irradiance cube of 16 texels:
+The sizes come from measurement on the CPU (`IrradianceCube.Convolve` against the exact convolution of a map's level 0). The table gives the worst error of D over every normal, as a share of the largest D, for one small light on a black map, over 10 random directions of the light:
 
-- Nine `vec4` values in a 144-byte buffer: every reader evaluates them with no texture and no sampler, in the vertex stage of the lit puffs too, and the lit puffs' mean is the first coefficient alone.
-- The CPU reads 144 bytes back for the impostors' signature of the light (see "Impostors").
-- The average error is about 1 % for real environments (Ramamoorthi and Hanrahan).
-- The cost is ringing around one small bright source. For light from one direction alone, band 2 gives 6 % too much toward it, a dip to −4 % at 122° from it, which the clamp holds at 0, and 6 % on the far side, where the true value is 0.
+| Cube face, texels | Source face, texels | Light of 0.5° | 1° | 2° | 4° |
+|---|---|---|---|---|---|
+| 16 | 16 | 4.90 % | 4.67 % | 3.04 % | 1.93 % |
+| 16, the choice | 32 | 4.05 % | 3.06 % | 2.23 % | 1.55 % |
+| 32 | 32 | 2.98 % | 1.87 % | 1.01 % | 0.56 % |
 
-The projection takes two dispatches. The first, `environment_irradiance.comp`, has one workgroup of 64 invocations per block of `Irradiance.BlockRows` (8) rows of one face, 6W / 8 blocks: 96 at W = 128. Invocation j of block b sums the block's texels j, j + 64 and so on, in row and column order, a tree of shared memory adds the 64 sums, and the workgroup writes the block's 27 floats into the buffer of partial sums. The second, `environment_irradiance_sum.comp`, is one workgroup of 128 invocations, the largest workgroup that the Vulkan specification guarantees. Invocation j sums the blocks j, j + 128 and so on, a tree adds the 128 sums, and the first nine invocations write the nine E_lm. The sum's shared memory holds 27 floats per invocation, 13,824 B, under the specification's least limit of 16,384 B, so it stores each coefficient as three floats, not as a `vec4`. Every sum runs in a fixed order, so the irradiance is the same bits on every run on one GPU. The blocks only read the radiance map, so their dispatch runs beside the specular levels with no barrier between them. A barrier then separates the blocks from their sum.
+A cube of 8 over a source of 32 gives 5.0 % under the light of 2°, and a source of 8 gives 8.2 %. The tolerance is 3 % of the largest D under a light of 2° (ticket `ter-8fz2`), which the tests hold. A cube of 32 texels a side costs four times the texels for an error that the tolerance does not need. Under a white sky and a black ground, the exact D(n) is (1 + n_y) / 2, the hemisphere's diffuse light, and the cube of 16 over 32 keeps it within 0.38 %. On `deck-late` with the screen-space light off, the cabin's base face and the floor band lie within 0.1 % per channel of a brute-force D of 16,384 cosine-weighted reads of level 0. The error of the cube comes from its bilinear read and from the source's texels, so it grows near a light that spans less than a source texel, about 2.8°: the ring of normals at right angles to a light of 0.5° is the worst case.
 
-One workgroup once summed all 98,304 texels at W = 128 on one GPU core, 768 per invocation, which took about 0.86 ms of the prefilter's 1.27 ms. Summing the blocks in the workgroup that finishes last, with an atomic count, would save the second dispatch and its barrier, and gives the same bits. On the development Mac it made the prefilter slower, 0.461 ms against 0.43 ms, so the map does not do it.
+Why a cube and not spherical harmonics up to band 2, the first design:
+
+- The harmonics ring around one small bright source. For light from one direction alone, band 2 gives 6 % too much toward it, a dip to −4 % at 122° from it, and 6 % on the far side, where the true value is 0. In the demo the error was far larger than "a few percent": on `deck-late` the harmonics made the cabin's base face 31 % to 44 % too dark per channel, and lit the crates' faces in the throw slice with light from behind them.
+- The cube is a pure function of the six faces, as the harmonics were, and holds the same light as the specular map, which the reflections and the screen-space light read. So D and S come from the same map to within the cube's error.
+- The harmonics' read needed a loop over the maps of a subgroup and the device's ballot operations (`ter-51gq`). A cube read needs neither.
+- The price: 16 KB of image per map in place of 144 B, a texture read per pixel in place of nine coefficients, and 0.12 ms more prefilter on the development Mac.
+
+`environment_irradiance.comp` convolves one map's level 0 in `IrradianceCube.Workgroups`, 192, workgroups of 64 invocations. `IrradianceCube.Lanes`, 8, invocations share a cube texel. The workgroup walks the source in rounds of 64 texels: each invocation puts one source texel's direction, solid angle and light into shared memory, and lane j of each cube texel then sums the round's texels j, j + 8 and so on in order. Lane 0 adds its texel's lane sums in lane order, so the cube is the same bits on every run on one GPU. The convolution only reads the radiance map, so its dispatch runs beside the specular levels with no barrier between them. After a barrier, one dispatch of `environment_downsample.comp`, the mips' shader, makes levels 1 to 3 from level 0 through the cube's levels set. The lanes come from measurement: 4, 8, 16, 32 and 64 lanes took 0.530, 0.460, 0.481, 0.68 and 0.98 ms of prefilter. Each workgroup reads the whole source, so more workgroups fill more cores but read the source more often.
 
 ### When they run
 
 | Order in the frame | Work | Reads | Writes |
 |---|---|---|---|
 | After the shadow maps | The face pass: the sky and the three ranges of each face that the frame draws | This frame's cascades, light list and face commands | The radiance map: level 0 of the drawn faces |
-| Next | The prefilter pass: the radiance map's mips, levels 0 to L − 1, then the irradiance, then the copy of the irradiance into the slot's readback buffer | The radiance map, all six faces | The radiance map's levels 1 and up, the specular map, the irradiance buffer, the readback buffer |
-| Then | The impostor captures, the G-buffer pass, the lighting pass, the transparent pass, and SSR when it exists | The specular map and the irradiance | |
+| Next | The prefilter pass: the radiance map's mips, levels 0 to L − 1, then the irradiance cube, then the copy of the cube's last level into the slot's readback buffer | The radiance map, all six faces | The radiance map's levels 1 and up, the specular map, the irradiance cube, the readback buffer |
+| Then | The impostor captures, the G-buffer pass, the lighting pass, the transparent pass, and SSR when it exists | The specular map and the irradiance cube | |
 
 ## Reading the map
 
@@ -344,7 +349,7 @@ The ambient light keeps its formula of [pbr-brdf.md](pbr-brdf.md), split as [amb
 T_d = c_diff · D(n)
 T_s = E(μ, r) · c(μ, r) · S(d, r)
 
-map on:   D(n)    = max(Σ E_lm Y_lm(n), 0) / π
+map on:   D(n)    = the color of textureLod(irradiance cube, n, 0)
           S(d, r) = C(d, r) + a(d, r) · stars(d, r, f)
           C, a    = the color and the alpha of textureLod(specular map, d, r · (L − 1))
 map off:  D(n)    = mix(ground, sky, s_n)
@@ -554,9 +559,9 @@ The sky pixels show `skyRadiance(direction) + starRadiance(direction)`. Until th
 
 ### Impostors
 
-A capture bakes the light that reaches the object, the map's ambient light included. `ImpostorManager` recaptures when that light changes (ARCHITECTURE.md, "Impostors"). Today its signature counts both hemisphere colors and the up. The map lives on the GPU, so the CPU knows it only from a readback: the prefilter pass copies the irradiance into the slot's readback buffer, and `Render` collects it after the slot's fence into `EnvironmentMap.Latest`, an `IrradianceReading`, as the exposure branch collects its reading. Frame n then knows the irradiance of frame n − `FramesInFlight`.
+A capture bakes the light that reaches the object, the map's ambient light included. `ImpostorManager` recaptures when that light changes (ARCHITECTURE.md, "Impostors"). Today its signature counts both hemisphere colors and the up. The map lives on the GPU, so the CPU knows it only from a readback: the prefilter pass copies the last level of the irradiance cube, 24 texels of 8 B, into the slot's readback buffer, and `Render` collects it after the slot's fence into `EnvironmentMap.Latest`, an `IrradianceReading`, as the exposure branch collects its reading. Frame n then knows the irradiance of frame n − `FramesInFlight`.
 
-The signature's ambient part becomes a union, `AmbientSignature`: `HemisphereSignature(Sky, Ground, Up)` with the map off, and `MapSignature(Irradiance)` with it on. Its change is the sum of the absolute changes of the nine coefficients, as a share of the larger total, the rule of the other parts. A change of the map is then seen `FramesInFlight` frames late, and the object recaptures by the 2 / h rule. Before the first reading, the signature holds zero coefficients, so the first reading recaptures every impostor captured before it. The capture's specular part also comes from the map, which the irradiance does not describe. An impostor is under 200 px, so a changed reflection on it waits for another recapture.
+The signature's ambient part becomes a union, `AmbientSignature`: `HemisphereSignature(Sky, Ground, Up)` with the map off, and `MapSignature(Irradiance)` with it on. Its change is the sum of the lengths of the changes of the 24 texels, as a share of the larger total, the sum of the texels' lengths: the rule of the other parts. Each texel is the mean of D over a quarter of a face, so a light that moves around the object changes the texels that face it, as the harmonics' band 1 did. A change of the map is then seen `FramesInFlight` frames late, and the object recaptures by the 2 / h rule. Before the first reading, the signature holds zero texels, so the first reading recaptures every impostor captured before it. The capture's specular part also comes from the map, which the irradiance cube's last level does not describe. An impostor is under 200 px, so a changed reflection on it waits for another recapture.
 
 ## Exposure
 
@@ -673,9 +678,9 @@ A face count of 6 makes the map draw every face from the frame that reads it, so
 | The specular level views | One 2D-array view of 6 layers per level | | | The prefilter's storage images, four to a levels set | |
 | The radiance level views | One 2D-array view of 6 layers per level | | | The mips' storage images, four to a levels set | The mips' storage images |
 | The face depth | D32, W × W | 64 KB | Depth attachment | The face pass, cleared per range | The face pass |
-| The irradiance buffer | 9 `vec4`, 144 B, `GpuOnly`. xyz: E_lm. w: 0. | 144 B | Storage, transfer source | The prefilter pass | The impostor capture, the lighting and transparent passes, the lit puffs, SSR, the readback copy |
-| The partial sums of the irradiance | 27 floats per block of 8 rows of a face, 6W / 8 blocks, `GpuOnly` | 10 KB | Storage | The blocks of the irradiance | The sum of the irradiance |
-| A readback buffer per frame slot | 144 B, `Readback` | 144 B each | Transfer destination | The copy at the end of the prefilter pass | `EnvironmentMap.Collect`, after the slot's fence |
+| The irradiance cube | RGBA16F cube, 16 × 16, 6 layers, 4 levels down to 2 × 2. RGB: D. A: the open-sky share, weighted as D. | 16 KB | Storage, sampled, transfer source (for the readback), cube-compatible | The prefilter pass: the convolution writes level 0, and the downsample levels 1 to 3 | The impostor capture, the lighting and transparent passes, the lit puffs, SSR, the readback copy |
+| The irradiance level views | One 2D-array view of 6 layers per level | | | The convolution's and the downsample's storage images, in one levels set | The downsample's storage image |
+| A readback buffer per frame slot | 24 RGBA16F texels, the cube's last level, 192 B, `Readback` | 192 B each | Transfer destination | The copy at the end of the prefilter pass | `EnvironmentMap.Collect`, after the slot's fence |
 
 The images take about 2.1 MB at W = 128 and about 134 MB at W = 1024.
 
@@ -690,9 +695,9 @@ The map uses only what the Vulkan specification guarantees, or what the renderer
 | A cube-compatible image of 6 layers, one cube view, a 2D view of each layer and a 2D-array view of each level | Core Vulkan. One cube, no cube array, so `imageCubeArray` is not needed. Vulkan filters every cube map across its faces, with no switch. |
 | `FaceSize` up to 1024 | The specification's least `maxImageDimensionCube` is 4096. `CheckOptions` still reads the device's limit. |
 | Partially bound descriptors in the frame set | `descriptorBindingPartiallyBound`, which the bindless texture set already requires |
-| Four storage images in one compute pipeline, and two bound descriptor sets | The specification's least `maxPerStageDescriptorStorageImages` is 4, its least `maxDescriptorSetStorageImages` 24, and its least `maxBoundDescriptorSets` 4. Each dispatch of the mips and of the specular map has a levels set of its own, four storage images that are bindings of their own, written at creation and rewritten at each growth, and no set holds an array of levels. The layout is made at every start, with the map on or off. A test counts its storage images. |
-| A workgroup of 128 invocations and 13,824 B of shared memory for the sum of the irradiance, and workgroups of 64 for the rest | The specification's least `maxComputeWorkGroupInvocations` and `maxComputeWorkGroupSize[0]` are 128, and its least `maxComputeSharedMemorySize` is 16,384 B. The prefilter's workgroup holds 2,304 B of shared memory, and a block of the irradiance 6,912 B. |
-| At most 65,535 workgroups along each dimension of a dispatch | The specification's least `maxComputeWorkGroupCount` is 65,535 along each dimension, and ANV and lavapipe report it. The first dispatch of the specular map needs 172,032 workgroups at W = 1024, so it spreads them over rows of at most 65,535 (`ComputeLimits.Grid`). The mips need at most 64 × 64 × 6 and the irradiance's blocks 768. A test checks every dispatch of the specular map at the smallest, the default and the largest face size. |
+| Four storage images in one compute pipeline, and two bound descriptor sets | The specification's least `maxPerStageDescriptorStorageImages` is 4, its least `maxDescriptorSetStorageImages` 24, and its least `maxBoundDescriptorSets` 4. Each dispatch of the mips and of the specular map has a levels set of its own, and the irradiance cube has one, four storage images that are bindings of their own, written at creation and rewritten at each growth, and no set holds an array of levels. The layout is made at every start, with the map on or off. A test counts its storage images. |
+| Workgroups of 64 invocations, with at most 3,328 B of shared memory | The specification's least `maxComputeWorkGroupInvocations` and `maxComputeWorkGroupSize[0]` are 128, and its least `maxComputeSharedMemorySize` is 16,384 B. The prefilter's workgroup holds 2,304 B of shared memory, and the irradiance convolution's 3,328 B. |
+| At most 65,535 workgroups along each dimension of a dispatch | The specification's least `maxComputeWorkGroupCount` is 65,535 along each dimension, and ANV and lavapipe report it. The first dispatch of the specular map needs 172,032 workgroups at W = 1024, so it spreads them over rows of at most 65,535 (`ComputeLimits.Grid`). The mips need at most 64 × 64 × 6 and the irradiance convolution 192. A test checks every dispatch of the specular map at the smallest, the default and the largest face size. |
 | A workgroup that reads back the storage image texels that it wrote | Core Vulkan: the images are declared `coherent`, and `memoryBarrierImage` with `barrier` makes one invocation's writes visible to the others of its workgroup. Each image is declared `rgba16f`, so a read needs no `shaderStorageImageReadWithoutFormat`. |
 | Specialization constants, `dFdx` and `dFdy` in fragment shaders, storage buffers read in the vertex stage | Core Vulkan. Reading a storage buffer in the vertex stage needs no `vertexPipelineStoresAndAtomics`, which only writes need. |
 
@@ -700,6 +705,7 @@ No pass of the map blends into a half-float target, so no result depends on a bl
 
 - `directRadiance` caps the face shader's light at `MaxRadiance`, 32,256, with `min` of a finite sum, as the lighting pass does, so a face never writes infinity. Its inputs are finite for the same reasons as the lighting pass's.
 - The prefilter's first Hammersley point is (0, 0), whose half vector is n, so l = n and the weight sum is at least 1. Its division never divides by 0.
+- The irradiance convolution divides by the sum of its weights. The source texel whose center lies nearest a cube texel's direction lies far less than 90° from it, so its cosine weight, and with it the sum, is positive.
 - The reflected stars compute k(w) only where t < 1. There a ≥ 0.25, where the closed form is finite and loses under 10⁻⁵ to cancellation. Where t = 1, the shader adds M alone and never multiplies an unused k by 0.
 - The width w is at least p > 0, so a = c² / w² and the star Gaussians are finite.
 - The lighting pass clamps the pixel of the fetches before its sky test to the image. Their values feed the derivatives of d, and in an image of odd size a helper invocation of a 2 × 2 quad lies past the last column or row, where a fetch is undefined without `robustImageAccess`.
@@ -711,14 +717,12 @@ The descriptors:
 |---|---|---|---|---|---|
 | 0, the frame set | 12 | Sampled image, cube, partially bound | Fragment, compute | The specular map, all levels | Once by `FrameResources`, when the map is on |
 | 0 | 13 | Sampler, immutable | Fragment, compute | `DescriptorLayouts.EnvironmentSampler`: linear, linear between levels, clamp to edge, every level | At layout creation |
-| 0 | 14 | Storage buffer, partially bound | Vertex, fragment, compute | The irradiance buffer | Once by `FrameResources`, when the map is on |
+| 0 | 14 | Sampled image, cube, partially bound | Vertex, fragment, compute | The irradiance cube, all levels | Once by `FrameResources`, when the map is on |
 | 0 of `EnvironmentPrefilterLayout`, the prefilter set | 0 | Sampled image, cube | Compute | The radiance map, all levels | Once by `EnvironmentMap` |
 | The prefilter set | 1 | Sampler, immutable | Compute | `EnvironmentSampler` | At layout creation |
-| The prefilter set | 2 | Storage buffer | Compute | The irradiance buffer | Once by `EnvironmentMap` |
-| The prefilter set | 3 | Storage buffer | Compute | The partial sums of the irradiance | Once by `EnvironmentMap` |
-| 1 of `EnvironmentPrefilterLayout`, a levels set (`EnvironmentLevelsSet`) | 0 to 3 | Storage image, one each | Compute | One level view in each binding, which spans the six layers of every map: for a dispatch of `environment_downsample.comp`, the level that it reads in binding 0 and its run in bindings 1 to 3, and for a dispatch of `environment_prefilter.comp`, its run in bindings 0 to 3. A binding past the run's last level holds that level again, and nothing writes it. | By `EnvironmentMap`, at creation and at each growth |
+| 1 of `EnvironmentPrefilterLayout`, a levels set (`EnvironmentLevelsSet`) | 0 to 3 | Storage image, one each | Compute | One level view in each binding, which spans the six layers of every map: for a dispatch of `environment_downsample.comp`, the level that it reads in binding 0 and its run in bindings 1 to 3, and for a dispatch of `environment_prefilter.comp`, its run in bindings 0 to 3. The irradiance cube's set holds its four levels: the convolution writes binding 0, and the downsample reads it and writes bindings 1 to 3. A binding past the run's last level holds that level again, and nothing writes it. | By `EnvironmentMap`, at creation and at each growth |
 
-The descriptor pool holds the levels sets of the largest map, 4 + 3 at W = 1024. The frame set lives in set 0 for the reason of the BRDF tables: the impostor capture binds only sets 0 and 1. The exposure branch's binding 11 comes before these. The face pass binds sets 0 to 2 of `SceneLayout`, because it samples the cascades in set 2. It does not read set 2's G-buffer bindings, which hold the targets of the frame before at that point.
+The descriptor pool holds the levels sets of the largest map, 4 + 3 + 1 at W = 1024. The frame set lives in set 0 for the reason of the BRDF tables: the impostor capture binds only sets 0 and 1. The exposure branch's binding 11 comes before these. The face pass binds sets 0 to 2 of `SceneLayout`, because it samples the cascades in set 2. It does not read set 2's G-buffer bindings, which hold the targets of the frame before at that point.
 
 Push constants:
 
@@ -726,8 +730,8 @@ Push constants:
 |---|---|---|---|
 | Environment face (`mesh.vert`, `environment_face.frag`) | `DrawPushConstants`, as every mesh pass | 80 B | `viewProj`: the face's view-projection of the range. `eye`: 0 |
 | Environment sky (`fullscreen.vert`, `environment_sky.frag`) | `SkyFacePushConstants`, inside the scene layout's 80-byte range | 48 B | `Forward`, `Right`, `Up`: the face's basis as `Vector4`. `Forward.w` holds 1 / W, which turns the fragment's pixel coordinate into the face's st. The w of the others is 0 |
-| Prefilter (`environment_prefilter.comp`) and irradiance (`environment_irradiance.comp`, `environment_irradiance_sum.comp`) | `EnvironmentPrefilterPushConstants` | 80 B | `Levels`: for each level of the run, in binding order, an `EnvironmentPrefilterLevel` of `FirstGroup`, `LevelSize` (W_k), `Roughness` (r_k) and `Lanes`. Then `Samples`, `LevelCount` and `GroupCount`, the workgroups of the run's levels, past which the workgroups of the grid's last row return. Then `Map` at byte 76, the map whose layers and coefficients the dispatch writes. The irradiance shaders read only `Map`, and the pass pushes only its 4 bytes before them. |
-| Mips (`environment_downsample.comp`) | `EnvironmentDownsamplePushConstants`, inside the prefilter's range | 12 B | `LevelSize`, the size of the run's first level, `LevelCount`, the levels of the run, and `Map`, the map whose layers the dispatch reads and writes |
+| Prefilter (`environment_prefilter.comp`) and irradiance (`environment_irradiance.comp`) | `EnvironmentPrefilterPushConstants` | 80 B | `Levels`: for each level of the run, in binding order, an `EnvironmentPrefilterLevel` of `FirstGroup`, `LevelSize` (W_k), `Roughness` (r_k) and `Lanes`. Then `Samples`, `LevelCount` and `GroupCount`, the workgroups of the run's levels, past which the workgroups of the grid's last row return. Then `Map` at byte 76, the map whose layers the dispatch writes. The convolution reads only `Map`, and the pass pushes only its 4 bytes before it. |
+| Mips (`environment_downsample.comp`) | `EnvironmentDownsamplePushConstants`, inside the prefilter's range | 12 B | `LevelSize`, the size of the run's first level, `LevelCount`, the levels of the run, and `Map`, the map whose layers the dispatch reads and writes. The irradiance cube's run is 8 and 3 |
 
 ### Every reader and writer
 
@@ -828,19 +832,19 @@ Each barrier goes through `BarrierBatch`, which keeps each image's and buffer's 
 | Radiance map, the last level of a run of the mips | Storage write | Storage read, `General` | Write to read | The next run reads it |
 | Radiance map, every layer and level | `General` | `SampledCompute` | Write to read | The prefilter reads the whole map |
 | Specular map, every level | `SampledFragment` of the frame before (`SampledCompute` too, once SSR exists) | `StorageCompute`, discarding | Read to write | The prefilter rewrites every texel, and must not overwrite a level that an earlier frame still reads |
-| Irradiance buffer | `ShaderRead` of the frame before | `ComputeWrite` | Read to write | The same |
-| Partial sums of the irradiance | `ComputeRead` of the frame before | `ComputeWrite` | Read to write | The blocks rewrite every sum after the sum of the frame before read them |
-| Partial sums of the irradiance | `ComputeWrite` | `ComputeRead` | Write to read | The sum of the blocks reads them |
-| Irradiance buffer | `ComputeWrite` | `TransferSource` | Write to read | The readback copy |
+| Irradiance cube, every level | `SampledVertexFragment` of the frame before (`SampledCompute` too, for the reflections' fallback) | `General`, storage write, discarding | Read to write | The convolution and its downsample rewrite every texel |
+| Irradiance cube, level 0 | Storage write | Storage read, `General` | Write to read | The downsample reads it |
+| Irradiance cube, the last level | Storage write, or its readers in a frame that draws no face | `TransferSource` | Write to read | The readback copy |
+| Irradiance cube, levels 0 to 2 | Storage write | `SampledVertexFragment` | Write to read | The readers |
 | The slot's readback buffer | The copy | `HostRead` | Write to host read | The CPU reads it after the slot's fence |
-| Irradiance buffer | `TransferSource` | `ShaderRead` | Read to read | A chain to the vertex and fragment stages of the readers |
+| Irradiance cube, the last level | `TransferSource` | `SampledVertexFragment` | Read to read | The lit puffs' mean and the other readers |
 | Specular map | `StorageCompute` | `SampledFragment` | Write to read | The impostor capture, the lighting and the transparent pass read it |
 
 `ImageUse` gains `StorageCompute`: layout `General`, stage compute, access shader storage write. The exposure branch brings `SampledCompute`, `ComputeRead` and `ComputeWrite`.
 
 GPU timers: `FrameGraph.Record` times every pass, so the two passes report as `environment faces` and `environment prefilter` in `RenderStats.GpuTimings` and `gpu-timings.json` with no work of their own. A refresh frame's face pass takes about six times the time of a frame that draws one face.
 
-Resize: nothing. The map's images do not depend on the output's size, and the frame set's bindings 12 to 14 are written once.
+Resize: nothing. The map's images do not depend on the output's size, and the frame set's bindings 12 to 14 are written once, and again after a growth.
 
 With `NoEnvironmentMap`: no `EnvironmentMap`, no images, no sets, no passes, no readback. The shading pipelines are made with `environmentMapOn` false, which keeps today's hemisphere code. Bindings 12 to 14 stay empty. `FacesFor` never runs, the batcher prepares no face and keeps the main view's lights only, and the impostor signature takes the hemisphere case. The frame is the frame from before the map, pixel for pixel, and the six reference images show it.
 
@@ -885,16 +889,16 @@ internal enum EnvironmentImage { Radiance, Specular }
 - `ASampleOfLowerDensityReadsACoarserLevel`.
 - `TheLevelOfASampleNeverFallsBelowZero`.
 
-`IrradianceTests` (Part 1):
+`IrradianceCubeTests` and `IrradianceTests` (`ter-8fz2`, which replaced Part 1's tests of the harmonics):
 
-- `TheBasisIsOrthonormalOverTheSphere`: by a midpoint quadrature, not by the cube.
-- `AUniformMapProjectsOntoTheFirstCoefficientAlone`, and `ItsIrradianceIsPiTimesItsRadianceInEveryDirection`.
-- `AWhiteUpperHalfGivesTheHemispheresDiffuseLightExactly`: D(n) = (1 + n_y) / 2 within 10⁻⁴, from a cube of W = 32 whose horizon falls between two rows.
-- `TheProjectionOfAKnownCubeRecoversTheCoefficientsThatFilledIt`: a cube filled with a sum of basis functions gives back their weights within 10⁻³.
-- `LightFromOneDirectionPeaksTowardItAndTheClampKeepsItsDipAtZero`.
-- `TheMeanRadianceOfAUniformMapIsItsRadiance`.
-- `TwoProjectionsOfOneCubeGiveTheSameBits`.
-- `TheChangeBetweenTwoIrradiancesIsAShareOfTheLargerTotal`, and `NoChangeIsZero`.
+- `UnderOneSmallBrightLightDIsWithinTheToleranceOfTheExactSumTowardAcrossAndAtRightAnglesToIt`: a light of 2° on a black map, the cube against the exact convolution of level 0, within 3 % of the largest D.
+- `UnderARadianceOfOneAboveTheHorizonAndABlackGroundDIsOnePlusNyOverTwo`.
+- `AUniformMapGivesAUniformDEqualToItsRadiance`.
+- `TheOpenSkyShareOfDIsTheCosineWeightedShareOfTheHemisphere`.
+- `SourceLevel`: the level of 32 texels a side, or level 0 of a smaller map.
+- `TheMeanRadianceIsTheMeanOfTheTexelsBecauseEachSpansTheSameSolidAngle`, and `AUniformCubeHasItsOwnLightAsTheMeanRadiance`.
+- `TheReadbackIsReadAsRgbaTexelsInOrderWithTheAlphaLeftOut`, and the refusals of another count of texels or halves.
+- In `ImpostorManagerTests`, the map signature's change is the sum of the texels' changes as a share of the larger total.
 
 `StarFieldTests` (Part 1):
 
@@ -967,9 +971,10 @@ internal enum EnvironmentImage { Radiance, Specular }
 - `AUniformMapStaysUniformAtEveryLevel`: the weights add up to one.
 - `ABrightSpotSpreadsWiderAtEachRougherLevelAndKeepsItsLightWhereverItLies`: for a spot at the center of a face, halfway out along its diagonal and toward a corner of the cube, the spot's width grows level by level, and its light, the sum of radiance times solid angle, stays within 5 %.
 - `OnTheLargestMapAMipTexelWeightsItsChildrenByTheirExactSolidAnglesUpToTheCorner`: at W = 1024, a strip of emission 0.6 texels wide lights the second column from the right of face +Z, from its middle row down past its corner. Each texel of level 1 along it holds its lit children's share of its solid angle, by `CubeFaces.TexelSolidAngle`, within 10⁻³.
-- `TheIrradianceIsTheProjectionOfTheMapsTexels`: the reading equals `Irradiance.Project` of the read-back level 0 within 10⁻⁴ of the total. This pins the shader to the C# copy.
+- `TheIrradianceCubeIsTheConvolutionOfTheMapsLevelOf32Texels`, and `AtEveryFaceSizeTheIrradianceCubeIsTheConvolutionOfItsSourceLevel` at W = 16 and 1024: the read-back level 0 of the cube equals `IrradianceCube.Convolve` of the read-back source level. This pins the shader to the C# copy. `EachFramesIrradianceCubeIsTheConvolutionOfThatFramesMap` and `EachMapsIrradianceCubeIsTheConvolutionOfItsOwnFaces` pin the map and the frame.
+- `TheReadingHoldsTheMeanOfDOverEachQuarterOfEachFace`: each texel of the reading is the solid-angle mean of level 0 over its quarter of a face.
 - `TheOpenSkyShareIsPrefilteredWithTheSameLobeAsTheColor`: an emissive wall of radiance 1 covers part of the map, and the rest is open sky. Color and share then add up to 1 in every texel of level 0, so they add up to 1 within 10⁻³ in every texel of every level.
-- `UnderAWhiteSkyAndABlackGroundTheIrradianceIsTheHemispheres`: an emissive dome of radiance 1 above the camera's horizon and a black floor below give E(n) = π (1 + n_y) / 2 within 1 % at ±X, ±Y and ±Z.
+- `UnderAWhiteSkyAndABlackGroundTheIrradianceCubeHoldsTheHemispheresDiffuseLight`: an emissive dome of radiance 1 above the camera's horizon and a black floor below give D(n) = (1 + n_y) / 2.
 
 ### GPU tests of the readers and the acceptance criteria
 
@@ -977,12 +982,13 @@ internal enum EnvironmentImage { Radiance, Specular }
 
 - `AMirrorSphereReflectsABrightObjectBehindTheCamera` (User): a red emissive square behind the camera and a white metal sphere of roughness 0 ahead. The sphere's center, which reflects straight back, is red. With the map off it is the hemisphere's gray.
 - `ARoughSphereShowsItBlurred` (User): the same at roughness 0.6. The red at the center is dimmer than on the mirror, and red covers a wider part of the sphere.
-- `UnderAWhiteSkyAndABlackGroundAMatteSphereLooksAsUnderTheHemisphere`: the dome scene with the map on, against the map off with a sky of 1, a ground of 0 and the up +Y, within 2 of 255. The C# check of the same identity is in `IrradianceTests`.
+- `UnderAWhiteSkyAndABlackGroundAMatteSphereLooksAsUnderTheHemisphere`: the dome scene with the map on, against the map off with a sky of 1, a ground of 0 and the up +Y, within 2 of 255. The C# check of the same identity is in `IrradianceCubeTests`.
+- `UnderOneSmallBrightLightAMatteSurfaceGetsTheMapsExactDiffuseLightWithinTheTolerance` (`ter-8fz2`): a glowing ball 2.8° in radius beside a matte sphere. At every third pixel of the sphere, D, the HDR difference of a white and a black sphere, lies within 3 % of the largest D of the exact convolution of the read-back level 0.
 - `WithTheMapOnTheHemisphereLightsNothing`: a bright red `World.Ambient` and a black map leave a matte sphere black.
 - `GlassReflectsTheMap`: a pane in front of a black wall reflects an emissive object behind the camera.
 - `AnImpostorShowsWhatItsGeometryShowsUnderTheMap`: the billboard's center matches the geometry's within 2 of 255, as `ImpostorTests` compares them.
 - `AnImpostorIsRecapturedWhenTheMapsLightChanges`: the dome's emission changes. Within `FramesInFlight` + 2 frames, the impostor's status shows a new capture, and its color follows.
-- `ALitPuffTakesTheMapsMeanRadiance`: a lit puff matches a glow puff whose radiance is the albedo times the mean from `Irradiance.MeanRadiance` of the reading, as `LitPuffRenderTests` compares them.
+- `ALitPuffTakesTheMapsMeanRadiance`: a lit puff matches a glow puff whose radiance is the albedo times the mean from `Irradiance.MeanRadiance` of the reading, as `LitPuffRenderTests` compares them. `ALitPuffFollowsAChangeOfTheMapsLight` (`ter-8fz2`) changes the map's light and finds the puff's light changed with it.
 - `ANewRendererHasTheMapOn`: a renderer made with default options times the passes `environment faces` and `environment prefilter`.
 - `AMirrorReflectsAStarSharpAndSteadyWhileTheCamerasFrameTurns` (User): a flat white metal mirror of roughness 0 faces the camera, under open sky. The test first renders the sky behind the camera, takes its brightest pixel as the star, and turns the snapshot's root rotation so that the mirror's center reflects it. In the mirror, that star's blob is under 8 pixels wide at half its peak, and its peak is within 20 % of b · (p / w)² · E · c from `StarField`. Then the snapshot's root rotation turns by a fifth of a pixel per frame for 20 frames. The sum of the blob's pixels stays within 2 % of its mean, and its center moves by the same angle as the star in the sky.
 - `AWallInFrontOfTheSkyHidesTheStarsInTheMirror` (User): the same mirror and star, then a black wall that no light reaches, behind the camera, across the reflected direction. After a refresh, the blob's pixels are within 1 of 255 of the mirror without the star.
@@ -1037,7 +1043,7 @@ Part 6 measured the prefilter at 1.23 to 1.27 ms on `demo-exit.json`, not 0.1 to
 
 ## Compared with a design from scratch
 
-A renderer built from scratch around one map at the camera captures the faces with a forward pass, time-slice them, prefilter with the split sum, and keep the irradiance as spherical harmonics, as this design does. These are the differences:
+A renderer built from scratch around one map at the camera captures the faces with a forward pass, time-slice them, prefilter with the split sum, and keep the irradiance as a small irradiance cube, as this design does since `ter-8fz2`. These are the differences:
 
 | From scratch | This design | Why it stays |
 |---|---|---|
@@ -1099,12 +1105,14 @@ Each item is left out because nothing needs it yet. The orchestrator files the t
 |---|---|---|
 | Local maps per room, placed by the scene, with influence boxes and parallax correction (User, decision 12) | The cabin's map lights the cabin, and the camera's map lights the rest | Built in another form by `ter-uy7y`: one map per semantic frame on the camera's chain, at the eye and with no box ([environment-maps-per-frame.md](environment-maps-per-frame.md)) |
 | A larger block for the reflected stars, 5 × 5 × 5 cells | Single stars until about roughness 0.12 on a flat mirror, at 4.6 times the cost per smooth pixel | When a capture shows chrome between roughness 0.06 and 0.12 that misses its stars |
-| The stars' light in the diffuse term, through the irradiance buffer's w components | About 6 · 10⁻⁴ of diffuse light in open space | When an image shows the difference, which decision 32 expects never |
+| The stars' light in the diffuse term, through the irradiance cube | About 6 · 10⁻⁴ of diffuse light in open space | When an image shows the difference, which decision 32 expects never |
 | A star field defined by each star's light, the same at every resolution, with one evaluation for the sky and the reflections | Stars whose light does not fall with the resolution | When the star field gets its own ticket. It re-approves the reference images. |
 | A snapshot field that marks a camera cut | A refresh on a cut in a window | When a window shows the 83 ms of old faces after a cut |
 | A cull of small objects in the faces | Less work in the face pass | When Part 6 measures the face pass as too slow |
 
 ## Order of the work
+
+Parts 1, 4 and 5 below record the first design, whose diffuse light was a set of spherical harmonics. `ter-8fz2` replaced them with the irradiance cube (see "The irradiance"), and the code no longer holds `spherical_harmonics.glsl`, `environment_irradiance_sum.comp` or the harmonics' C#.
 
 The work splits into six parts. Each part owns its files, so builders of the same wave can run in one worktree. Each names its interfaces exactly, so a part can write against another's types before they exist. A part that others build against first writes its exact interface with wrong values, so the solution builds, and then turns its tests green, as Part 1 of the PBR doc did.
 
