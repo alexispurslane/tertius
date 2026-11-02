@@ -14,7 +14,7 @@
 // GPU.
 
 const uint Invocations = 64u;
-const uint Lanes = 4u;              // IrradianceCube.Lanes
+const uint Lanes = 8u;             // IrradianceCube.Lanes
 const uint SourceFaceSize = 32u;    // IrradianceCube.SourceFaceSize
 
 layout(local_size_x = 64) in;

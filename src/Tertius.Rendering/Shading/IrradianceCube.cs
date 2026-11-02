@@ -28,12 +28,13 @@ internal static class IrradianceCube
     public const int CoarsestSize = FaceSize >> (Levels - 1);
 
     /// <summary>
-    /// The invocations of environment_irradiance.comp that share a texel of level 0, each summing a quarter of the source.
-    /// The GLSL copy is Lanes in that shader.
+    /// The invocations of environment_irradiance.comp that share a texel of level 0, each summing an eighth of the
+    /// source. Eight measured fastest on the M1 Max: the prefilter took 0.460 ms, against 0.530 ms at 4 lanes, 0.481 ms
+    /// at 16 and 0.68 ms at 32. The GLSL copy is Lanes in that shader.
     /// </summary>
-    public const int Lanes = 4;
+    public const int Lanes = 8;
 
-    /// <summary>The workgroups of 64 invocations that convolve one map's level 0, <see cref="Lanes"/> per texel: 96.</summary>
+    /// <summary>The workgroups of 64 invocations that convolve one map's level 0, <see cref="Lanes"/> per texel: 192.</summary>
     public const int Workgroups = CubeFaces.Count * FaceSize * FaceSize * Lanes / 64;
 
     /// <summary>The level of a radiance map of <paramref name="mapFaceSize"/> texels, a power of two, that the cube convolves.</summary>
