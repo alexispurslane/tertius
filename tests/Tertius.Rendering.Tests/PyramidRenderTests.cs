@@ -1,4 +1,5 @@
 using System.Numerics;
+using Silk.NET.Vulkan;
 using Tertius.Testing;
 
 namespace Tertius.Rendering.Tests;
@@ -221,6 +222,142 @@ public sealed class PyramidRenderTests
                         );
                 radiance[4 * pixel + 3].Should().Be(coverage, "the alpha of pixel {0} is its surface coverage", pixel);
             }
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void RadianceLevelZeroLeavesOutTheGlowOfAnEntityThatHoldsALight()
+    {
+        // The lamp box holds the scene's light, so its glow is that light's face, which the light's lobe already reflects
+        // (docs/plans/screen-space-reflections.md, "A lamp's glow"). Level 0 holds the lit image without the glow: the
+        // image of the same scene whose lamp box glows not at all.
+        float[] dark;
+        VulkanRenderer without = Gpu.Headless(reflections: new NoReflections());
+        try
+        {
+            without.Render(Scene(renderer: without, lampEntity: Gpu.LampEntity, lampGlow: Vector3.Zero), 1f);
+            dark = without.ReadHdr();
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(without);
+        }
+
+        VulkanRenderer renderer = Gpu.Headless(reflections: ConeTracedReflections.Default);
+        try
+        {
+            renderer.Render(Scene(renderer: renderer, lampEntity: Gpu.LampEntity, lampGlow: new(20, 18, 14)), 1f);
+            float[] lit = renderer.ReadHdr();
+            float[] distance = renderer.ReadDistance();
+            (float[] radiance, _, _) = renderer.ReadRadiancePyramidLevel(0);
+
+            lit.Should().Contain(value => value >= 14, "the lamp box glows in the lit image");
+            for (int value = 0; value < radiance.Length; value++)
+                if (value % 4 != 3)
+                    // The lit image stores the glow's sum with the light in half floats, whose step below 64 is at most
+                    // 1 / 32, and the direct and the ambient pass round it once each. A glow left in adds 14 or more.
+                    radiance[value]
+                        .Should()
+                        .BeApproximately(
+                            distance[value / 4] > 0 ? dark[value] : 0,
+                            1 / 16f,
+                            "value {0} holds no glow of the lamp",
+                            value
+                        );
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void RadianceLevelZeroReadsTheGlowAndTheLightMarkAfterTheirWritesAreVisibleToItsComputeShader()
+    {
+        // Level 0 reads the emissive and shading targets in a compute shader, so its barrier must make the G-buffer pass's
+        // writes visible to that stage (Vulkan spec, memory dependencies). The direct and ambient passes make them visible
+        // to fragment shaders only. The steps of the reflections declare the G-buffer for compute too, so they are left
+        // out here, and the targets keep the state that the pyramid left them in.
+        VulkanRenderer renderer = Gpu.Headless(reflections: ConeTracedReflections.Default);
+        try
+        {
+            renderer.Graph.Skipped.UnionWith(["reflection trace", "reflections"]);
+            renderer.Render(Scene(renderer), 1f);
+
+            renderer
+                .EmissiveTargetState.Stages.Should()
+                .HaveFlag(PipelineStageFlags2.ComputeShaderBit, "level 0 reads the glow");
+            renderer
+                .ShadingTargetState.Stages.Should()
+                .HaveFlag(PipelineStageFlags2.ComputeShaderBit, "level 0 reads the light mark");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void RadianceLevelZeroHoldsNoNegativeLightWhereTheSkinScatterDimsALampAtTheRadianceCap()
+    {
+        // A skin box whose entity holds a light, with a glow past MaxRadiance, so the G-buffer caps the glow at
+        // MaxRadiance and the lit image is the glow alone. The sun lights the face toward +X and leaves the other dark, so
+        // the scatter's sum of the lit face's diffuse light near the edge is less than that light, and the scatter takes
+        // the difference from the lit image after its cap. There the lit image is below the glow, and the light without
+        // the glow is below 0, which level 0 holds as 0: a cone that met it would take light out of a reflection.
+        VulkanRenderer renderer = Gpu.Headless(
+            exposure: new FixedExposure(0),
+            reflections: ConeTracedReflections.Default,
+            subsurface: SeparableSubsurface.Default
+        );
+        try
+        {
+            var center = new Vector3(0, 0, -0.4f);
+            RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitX, starIrradiance: 20_000);
+            snapshot.Ambient.Intensity = 0;
+            snapshot.Instances.Add(
+                Gpu.Instance(
+                    mesh: renderer.CreateMesh(Primitives.Box(new(0.1f))),
+                    material: renderer.CreateMaterial(
+                        new MaterialDesc(BaseColor: Vector4.One, Roughness: 0.5f, Model: new SkinShading()) with
+                        {
+                            Emissive = new(100_000),
+                        }
+                    ),
+                    position: center,
+                    scale: Vector3.One,
+                    // A turn of 45° about +Y shows the face toward +X and +Z and the face toward −X and +Z.
+                    rotation: Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 4),
+                    radius: 0.2f,
+                    entity: Gpu.LampEntity,
+                    chainDepth: TestChains.CamerasFrame
+                )
+            );
+            // Inside the box, the light reaches none of its outer faces.
+            snapshot.Lights.Add(
+                Gpu.Lamp(position: center, color: Vector3.One, intensity: 1, chainDepth: TestChains.CamerasFrame)
+            );
+            renderer.Render(snapshot, 1f);
+            float[] lit = renderer.ReadHdr();
+            float[] distance = renderer.ReadDistance();
+            (float[] radiance, _, _) = renderer.ReadRadiancePyramidLevel(0);
+
+            Enumerable
+                .Range(0, distance.Length)
+                .Where(pixel => distance[pixel] > 0)
+                .Select(pixel => lit[4 * pixel])
+                .Should()
+                .Contain(
+                    red => red < ShaderInput.MaxRadiance - 16,
+                    "the scatter dims the lit face near the edge below the capped glow"
+                );
+            for (int value = 0; value < radiance.Length; value++)
+                if (value % 4 != 3)
+                    radiance[value].Should().BeGreaterThanOrEqualTo(0, "value {0} holds no negative light", value);
         }
         finally
         {
@@ -629,7 +766,15 @@ public sealed class PyramidRenderTests
     /// A white floor 1.5 m below the eye, a red box, a blue box and a lamp on it, the sun, and sky above the floor's far
     /// edge, seen 12° below the horizontal.
     /// </summary>
-    private static RenderSnapshot Scene(VulkanRenderer renderer)
+    private static RenderSnapshot Scene(VulkanRenderer renderer) =>
+        Scene(renderer: renderer, lampEntity: 0, lampGlow: new(20, 18, 14));
+
+    /// <summary>
+    /// The scene of the pyramids' tests, with a lamp box of entity <paramref name="lampEntity"/> that glows with
+    /// <paramref name="lampGlow"/>. The scene's light carries <see cref="Gpu.LampEntity"/>, so the box holds that light
+    /// when <paramref name="lampEntity"/> is that entity.
+    /// </summary>
+    private static RenderSnapshot Scene(VulkanRenderer renderer, uint lampEntity, Vector3 lampGlow)
     {
         RenderSnapshot snapshot = Gpu.Snapshot(new(0.4f, 0.8f, 0.3f));
         snapshot.Camera.Rotation = Gpu.PitchDown(MathF.PI / 15);
@@ -647,14 +792,23 @@ public sealed class PyramidRenderTests
         MaterialId lamp = renderer.CreateMaterial(
             MaterialDesc.Color(new(x: 1, y: 1, z: 1, w: 1), roughness: 0.5f) with
             {
-                Emissive = new(20, 18, 14),
+                Emissive = lampGlow,
             }
         );
         snapshot.Instances.Add(Block(box: box, material: floor, center: new(0, -2, -20), size: new(20, 1, 36)));
         snapshot.Instances.Add(Block(box: box, material: red, center: new(-1.5f, -1, -6), size: new(1, 1, 1)));
         snapshot.Instances.Add(Block(box: box, material: blue, center: new(2, -0.5f, -9), size: new(1.2f, 2, 1.2f)));
+        var lampSize = new Vector3(0.3f, 0.5f, 0.3f);
         snapshot.Instances.Add(
-            Block(box: box, material: lamp, center: new(0.3f, -1.25f, -4), size: new(0.3f, 0.5f, 0.3f))
+            Gpu.Instance(
+                mesh: box,
+                material: lamp,
+                position: new(0.3f, -1.25f, -4),
+                scale: lampSize,
+                radius: lampSize.Length() / 2,
+                entity: lampEntity,
+                chainDepth: TestChains.CamerasFrame
+            )
         );
         snapshot.Lights.Add(
             Gpu.Lamp(
