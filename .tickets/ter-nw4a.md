@@ -1,6 +1,6 @@
 ---
 id: ter-nw4a
-status: open
+status: in_progress
 deps: []
 links: [ter-eqtb]
 parent: ter-b2da
@@ -20,3 +20,7 @@ Asked by the user on 2026-11-02 about the floor film's stair steps in ter-eqtb's
 **2026-11-02T18:11:44Z**
 
 2026-11-02, the user's decision: this ticket belongs to the correctness epic ter-b2da and blocks the performance work behind it. The user's reasons: the steps look horrendous, they point to deeper issues with SSR, and the fix can change the cost, so it must come before performance work. Priority 1.
+
+**2026-11-02T18:12:56Z**
+
+2026-11-02: launched as workflow run 5934b07c-bded-4c5d-8a9b-42e1c6c64310, version 869b0b07-3413-4b06-8707-a88a91bf6e91, branch ter-nw4a-reflected-outline, base 8b2a942a3 (brief /tmp/briefs/nw4a.txt): a probe that finds the cause with traced rays, answers whether SSR has a deeper fault, and measures two designs (A: an outline as soft as the cone's footprint at the hit; B: the edge's place inside the pixel) for the user's choice.
