@@ -217,7 +217,9 @@ public sealed class ReflectionShaderTests
             nameof(MirrorWallBehindACube) => MirrorWallBehindACube,
             _ => MirrorsBeforeTiles,
         };
-        VulkanRenderer renderer = Headless(ReflectionsAt(TraceResolution.Half));
+        // Unfaded, so that the glowing cube (roughness 0.5) starts rays too: most of the hits of MirrorWallBehindACube
+        // are its rays that meet the mirror wall. Under the default's maximum it starts none.
+        VulkanRenderer renderer = Headless(UnfadedReflectionsAt(TraceResolution.Half));
         try
         {
             renderer.Render(build(renderer), 1f);
@@ -252,7 +254,7 @@ public sealed class ReflectionShaderTests
                     RayOf(first),
                     depths[first]
                 );
-            hits.Should().BeGreaterThan(100, "the mirrors reflect the glowing surfaces");
+            hits.Should().BeGreaterThan(100, "the mirrors reflect the glowing surfaces, and the cube the wall");
         }
         finally
         {
@@ -432,7 +434,7 @@ public sealed class ReflectionShaderTests
     [InlineData(128 / 255f)]
     public void TheGpuConeReadsTheLevelThatTheCSharpConeGives(float roughness)
     {
-        VulkanRenderer renderer = Headless(Reflections);
+        VulkanRenderer renderer = Headless(ConeReflections);
         try
         {
             renderer.Render(CheckeredWall(renderer, roughness), 1f);
@@ -671,6 +673,12 @@ public sealed class ReflectionShaderTests
     /// </summary>
     private readonly record struct ConeRead(Vector3 Expected, float Level, Vector3 Weight);
 
+    /// <summary>
+    /// The setting of the cone test, unfaded at the full-resolution trace: the floors of 0.3 and 0.5 reflect at a
+    /// roughness fade of 1 and 0.996, so that the image shows nearly the whole read of the cone at both.
+    /// </summary>
+    private static ConeTracedReflections ConeReflections => UnfadedReflectionsAt(TraceResolution.Full);
+
     /// <summary>The images of one frame that the cone test reads back, with the radiance pyramid's levels.</summary>
     private sealed record ConeFrame(
         float[] Reflected,
@@ -707,7 +715,7 @@ public sealed class ReflectionShaderTests
                 pixel: pixel,
                 normal: FlatMapNormal,
                 roughness: roughness,
-                maxSteps: Reflections.MaxSteps
+                maxSteps: ConeReflections.MaxSteps
             );
             if (trace is not RayHit hit)
                 return null;
@@ -726,7 +734,8 @@ public sealed class ReflectionShaderTests
                     topLevel: TopLevel
                 );
             Vector4 traced = Trilinear(Levels, hit.Position / new Vector2(Width, Height), level);
-            float fade = Reflections.RoughnessFade(roughness) * Camera.EdgeFade(hit.Position) * (1 - hit.EntryShare);
+            float fade =
+                ConeReflections.RoughnessFade(roughness) * Camera.EdgeFade(hit.Position) * (1 - hit.EntryShare);
             Vector3 weight = SpecularWeight(Mirror(roughness), Camera, pixel);
             // Level 0 of the pyramid is the lit floor before the trace, with its ambient specular term W · gray, of
             // which the trace replaces the share that the cone's coverage resolves.

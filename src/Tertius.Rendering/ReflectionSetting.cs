@@ -20,12 +20,13 @@ public readonly record struct ConeTracedReflections(float MaxRoughness, int MaxS
     public const int MaxStepsLimit = 1024;
 
     /// <summary>
-    /// The renderer's default: reflections up to a roughness of 0.6, Unreal Engine 4's default, in 256 steps, which a
-    /// grazing hair ray needs (ticket ter-r5hb), traced at half resolution, which brings the reflections' passes to their
-    /// share of the frame (ticket ter-ff6y).
+    /// The renderer's default: reflections up to a roughness of 0.37, so that the demo's paint (0.38) keeps only the
+    /// environment map's reflection, which a 64-ray reference of the lobe matches there (ticket ter-8bda), in 256
+    /// steps, which a grazing hair ray needs (ticket ter-r5hb), traced at half resolution, which brings the
+    /// reflections' passes to their share of the frame (ticket ter-ff6y).
     /// </summary>
     public static ConeTracedReflections Default =>
-        new(MaxRoughness: 0.6f, MaxSteps: 256, Resolution: TraceResolution.Half);
+        new(MaxRoughness: 0.37f, MaxSteps: 256, Resolution: TraceResolution.Half);
 
     /// <summary>The weight of the reflection of a surface of this floored roughness: 1 up to half the maximum, 0 at it.</summary>
     internal float RoughnessFade(float roughness) => Math.Clamp(2 - 2 * roughness / MaxRoughness, 0, 1);

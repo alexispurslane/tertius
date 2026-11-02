@@ -45,6 +45,18 @@ internal static class ReflectionTesting
             Resolution = resolution,
         };
 
+    /// <summary>
+    /// The renderer's default traced at <paramref name="resolution"/>, with a maximum roughness of 1 of the tests' own:
+    /// the roughness fade is 1 up to a roughness of 0.5, and 0.996 at 128 / 255. The tests of the trace, the cone and the
+    /// blur on rough floors take it, so that what they measure does not depend on the default's maximum, and the tests
+    /// of that maximum take it as the reference of a surface that reflects in full.
+    /// </summary>
+    public static ConeTracedReflections UnfadedReflectionsAt(TraceResolution resolution) =>
+        ReflectionsAt(resolution) with
+        {
+            MaxRoughness = 1,
+        };
+
     /// <summary>A white metal floor of <paramref name="roughness"/>: a mirror at 0, which the BRDF floors to 0.045.</summary>
     public static MaterialDesc Mirror(float roughness = 0) =>
         new(BaseColor: Vector4.One, Roughness: roughness, Model: new StandardShading(Metallic: 1));

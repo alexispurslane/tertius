@@ -81,7 +81,7 @@ The user made the decisions marked (User). This design settled the others by the
 28. SSAO's specular occlusion multiplies the ambient specular term, never the traced radiance. See "How SSR meets SSAO".
 29. Two new stages: `DepthPyramid` after `GBuffer`, and `Reflections` after `Lighting`. Three passes: "depth pyramid", "radiance pyramid" and "reflections". At half resolution, the default since ticket `ter-ff6y`, a fourth pass "reflection trace" runs before "reflections", which then upsamples it. So the GPU timings show each part, and SSGI can use the depth pyramid without the reflections.
 30. The HDR image gets the storage usage only while reflections are on. Then a frame without reflections is the frame from before, image for image.
-31. The defaults: `MaxRoughness` 0.6, Unreal Engine 4's default, which the user chose from the captures of Part 6 (open fork 2), with the profile ticket `ter-ff6y` for its cost; and `MaxSteps` 256. Part 6 checked 64, 128 and 256 steps against 512 in the review captures. At 64 steps the edge view's glossy box face shows horizontal streaks, where rays run out of steps and their neighbors hit. At 128 the streaks are gone. The user wanted the fewest steps whose difference does not show to the naked eye (2026-10-25), and that was 128 on the review scenes of Part 6. Grazing hair rays need up to 256 steps, and at 128 a share of them miss, which shows a ragged, speckled edge on `hair-rugs` (`ter-a9hh`). So `ter-r5hb` raised the default to 256 (2026-10-31), with the hair cut of skin-and-hair.md's decision 35 removed: 0.14 ms per frame on `demo-exit`'s deck. At 256 steps the review scenes of Part 6 match 1024 steps exactly, so nothing that looked clean at 128 changes. See "Cost", "Results of Part 6".
+31. The defaults: `MaxRoughness` 0.37, and `MaxSteps` 256. The user first chose 0.6, Unreal Engine 4's default, from the captures of Part 6 (open fork 2), with the profile ticket `ter-ff6y` for its cost. The user lowered it to 0.37 on 2026-11-01 (ticket `ter-8bda`), after the diagnosis and the probe of epic `ter-b2da`. With the roughness fade, 0.37 reflects in full up to a roughness of 0.185 and not at all from 0.37, so the demo's paint (0.38) keeps only the environment map's prefiltered reflection. The reasons: ticket `ter-y8z0`'s reference of 64 GGX rays per pixel with a normalized sum shows that at roughness 0.38 the screen adds almost nothing over the environment map on the deck (+0.1 levels of 255 in the box of the blocky reflection). The one ray of decision 3 showed blocks and stair steps there (`ter-y8z0`'s artifacts 1 and 3). Ticket `ter-f3g2`'s probe of stochastic rays with a fixed noise helped only between 0.37 and 0.6, at 3 to 6 ms more and with a grain that never settles, so stochastic SSR (`ter-rnjk`) is not built, and below the limit the one ray with its cone stays. The limit cuts the reflection passes' summed time by 2.0 ms on the demo's deck and by 1.4 to 1.7 ms on its floor, and the frame span by 1.70 and 0.61 ms ("Results of the limit of 0.37"). Part 6 checked 64, 128 and 256 steps against 512 in the review captures. At 64 steps the edge view's glossy box face shows horizontal streaks, where rays run out of steps and their neighbors hit. At 128 the streaks are gone. The user wanted the fewest steps whose difference does not show to the naked eye (2026-10-25), and that was 128 on the review scenes of Part 6. Grazing hair rays need up to 256 steps, and at 128 a share of them miss, which shows a ragged, speckled edge on `hair-rugs` (`ter-a9hh`). So `ter-r5hb` raised the default to 256 (2026-10-31), with the hair cut of skin-and-hair.md's decision 35 removed: 0.14 ms per frame on `demo-exit`'s deck. At 256 steps the review scenes of Part 6 match 1024 steps exactly, so nothing that looked clean at 128 changes. See "Cost", "Results of Part 6".
 32. The validation: `MaxRoughness` above the roughness floor 0.045 and at most 1, and `MaxSteps` from 1 to 1,024. Below the floor no surface reflects, and that setting is `NoReflections`, as bloom refuses a strength of 0.
 33. A review scene, `reflections`, and the headless flag `--reflections on|off`, as the PBR ticket added `pbr-spheres` and bloom added `--bloom`. The demo's surfaces have the roughness 0.38 and no metal, so no other scene shows the acceptance criteria.
 34. An impostor pixel starts no ray, because its light is baked into the atlas and the G-buffer holds no material for it. It is a valid hit.
@@ -97,7 +97,7 @@ The user made the decisions marked (User). This design settled the others by the
 - Karis 2013, "Real Shading in Unreal Engine 4": the split sum, which weights the light along the lobe by the DFG table.
 - Walter, Marschner, Li and Torrance 2007: the GGX sampling of half vectors, whose inverse gives the share of half vectors inside a cone.
 - Jimenez 2014, "Next Generation Post Processing in Call of Duty: Advanced Warfare", SIGGRAPH: the 13-tap downsample.
-- Unreal Engine 4's screen-space reflections: the default maximum roughness 0.6, and the fade from half the maximum.
+- Unreal Engine 4's screen-space reflections: the default maximum roughness 0.6, this design's default until `ter-8bda`, and the fade from half the maximum.
 
 ## The method
 
@@ -528,8 +528,8 @@ public readonly record struct ConeTracedReflections(float MaxRoughness, int MaxS
     /// <summary>The most steps a ray takes, far past any measured need; it bounds the worst frame.</summary>
     public const int MaxStepsLimit = 1024;
 
-    /// <summary>The renderer's default: reflections up to a roughness of 0.6, Unreal Engine 4's default, in 256 steps.</summary>
-    public static ConeTracedReflections Default => new(MaxRoughness: 0.6f, MaxSteps: 256);
+    /// <summary>The renderer's default: reflections up to a roughness of 0.37 (decision 31), in 256 steps.</summary>
+    public static ConeTracedReflections Default => new(MaxRoughness: 0.37f, MaxSteps: 256);
 
     /// <summary>The weight of the reflection of a surface of this floored roughness: 1 up to half the maximum, 0 at it.</summary>
     internal float RoughnessFade(float roughness) => Math.Clamp(2 - 2 * roughness / MaxRoughness, 0, 1);
@@ -576,9 +576,9 @@ public ReflectionSetting Reflections { get; set; } = ConeTracedReflections.Defau
 
 | Field | Unit | Valid range | Default | Validated by |
 |---|---|---|---|---|
-| `MaxRoughness` | Perceptual roughness, the floored r | Finite, above 0.045, at most 1 | 0.6 (open fork 2) | `Problem`, which `VulkanRenderer.CheckOptions` throws as `ArgumentOutOfRangeException` |
+| `MaxRoughness` | Perceptual roughness, the floored r | Finite, above 0.045, at most 1 | 0.37 (decision 31) | `Problem`, which `VulkanRenderer.CheckOptions` throws as `ArgumentOutOfRangeException` |
 | `MaxSteps` | Examined cells per ray | 1 to 1,024 | 256 (decision 31) | The same |
-| The union | | `NoReflections` or `ConeTracedReflections` | `ConeTracedReflections.Default`, (0.6, 256) | None needed: its default value is `NoReflections`, a valid case |
+| The union | | `NoReflections` or `ConeTracedReflections` | `ConeTracedReflections.Default`, (0.37, 256) | None needed: its default value is `NoReflections`, a valid case |
 | The screen under `ConeTracedReflections` | px per side | At most 16,384 (`ReflectionTargets.MaxSide`) | | `CheckOptions` for an explicit `Width` and `Height`, and `RenderTargets` at creation and on each resize, as `ArgumentOutOfRangeException` (see "Descriptor sets") |
 
 `new ConeTracedReflections()` gives zeros, which only `CheckOptions` refuses, as for the other settings.
@@ -712,8 +712,8 @@ The kinds of pixel:
 | Pixel | Starts a ray | What SSR does at the pixel | What the pixel gives as a hit, or inside a cone |
 |---|---|---|---|
 | A smooth metal floor in the near range | Yes | Traces along d, which is the mirror direction. A hit adds f · (W · C − a · k · T_s), with W near the metal's color, so the floor shows the object tinted by the metal. The cone level is near 0 close to the contact and rises with the ray's length. | Its own lit radiance, with its ambient specular term, not its reflection |
-| A rough dielectric, up to `MaxRoughness` | Yes, with the roughness fade | A wide cone: at r = 0.38, λ is 6 to 8 for rays of a few meters, so it shows a blurred image of what is around it. W is about 0.04 head on and up to about 0.3 at grazing views, so the change is faint except at grazing views. | Its lit radiance |
-| A surface at or above `MaxRoughness` | No | Keeps the ambient specular term | Its lit radiance |
+| A rough dielectric, up to `MaxRoughness` | Yes, with the roughness fade | A wide cone: at r = 0.38, under a maximum above it, λ is 6 to 8 for rays of a few meters, so it shows a blurred image of what is around it. W is about 0.04 head on and up to about 0.3 at grazing views, so the change is faint except at grazing views. | Its lit radiance |
+| A surface at or above `MaxRoughness`, such as the demo's paint (0.38) under the default of 0.37 | No | Keeps the ambient specular term | Its lit radiance |
 | A hair pixel whose d has a cosine of 0 or less with its card's normal | No: a normal map tilts the strand off the card, so d can point below the card (docs/plans/skin-and-hair.md, decision 35) | Keeps the ambient specular term, the environment map's while the map is on. The surface fade blends it into the screen's reflection of its neighbors. | Its lit radiance |
 | An impostor billboard | No: base color alpha 0. Its light, ambient specular term included, is baked into the atlas. | Unchanged | Its baked radiance, a surface of the distance target |
 | Sky | No: D = 0 | Unchanged: the star field | Never hit, because its cells are empty. Inside a footprint it has coverage 0, so that share keeps the ambient specular term. |
@@ -1420,14 +1420,13 @@ The tests follow tests/STYLE.md: one behavior per test, named as a statement. No
 `ReflectionSettingTests`:
 
 - `TheDefaultValueIsNoReflections`.
-- `TheDefaultTracesUpToARoughnessOf0Point6In64Steps`.
+- `TheRendererReflectsByDefaultIn256Steps`: the renderer's default options trace reflections in 256 steps. The test does not name the default maximum roughness. The GPU tests of the reflections (Part 5) pin that maximum by its behavior at roughness 0.18, 0.28 and 0.38. (`ter-8bda`; before it, `TheDefaultTracesUpToARoughnessOf0Point6In64Steps`.)
 - `TheDefaultAndTheLimitsOfEveryFieldAreAccepted`.
 - `AMaximumRoughnessAtOrBelowTheFloorAboveOneOrNotFiniteIsRefused`: a theory of `Problem`.
 - `StepsOutsideOneTo1024AreRefused`: a theory of `Problem`.
 - `TheRendererRefusesAConeTracedReflectionsOfZerosBeforeItMakesADevice`.
 - `TheRendererRefusesReflectionsOnAScreenWithASideAbove16384PxBeforeItMakesADevice`: a theory.
-- `TheDefaultTracesUpToARoughnessOf0Point6In64Steps`.
-- `TheRoughnessFadeIsFullUpToHalfTheMaximumAndZeroAtIt`.
+- `TheRoughnessFadeIsFullUpToHalfTheMaximumAndZeroAtIt`: a theory under a maximum of 0.8 of its own, so that the shape of the fade holds for any maximum, not only for the default's. (`ter-8bda`)
 
 ### GPU tests of the pyramids (Part 4)
 
@@ -1442,28 +1441,34 @@ The tests follow tests/STYLE.md: one behavior per test, named as a statement. No
 
 ### GPU tests of the reflections (Part 5)
 
-`ReflectionRenderTests`. The scenes use a floor of base color white, metallic 1 for a mirror, under a black ambient light and no sun unless a test says otherwise, so the floor shows only what the trace adds:
+`ReflectionRenderTests`. The scenes use a floor of base color white, metallic 1 for a mirror, under a black ambient light and no sun unless a test says otherwise, so the floor shows only what the trace adds.
+
+Most tests take the renderer's default setting. A test of the trace, the cone or the blur on a floor rougher than 0.1 takes the unfaded setting, `ReflectionTesting.UnfadedReflectionsAt`, instead. That setting is the default with a maximum roughness of 1, so the fade is 1 up to a roughness of 0.5. Then such a test measures the same reflection under any default maximum. Only the tests of the default maximum name the default's fade (`ter-8bda`). The rough half of the scene `MirrorBesideRoughFloor` has a roughness of 1, so that it reflects nothing under any valid maximum.
+
+The tests:
 
 - `ABrightObjectAboveAMirrorFloorShowsInTheFloor`: an emissive box of radiance L above the floor. The floor pixel at the box's mirror image holds W · L, with W from the C# `MaterialSample` at that pixel's view, within 2 %. (User's first test)
-- `ARougherFloorBlursTheReflection`: the same box over floors of roughness 0.1, 0.2 and 0.3. The width from 10 % to 90 % of the reflected edge grows with the roughness, and at 0.3 lies within a factor of 2 of the cone's diameter at that edge from the C# `ReflectionCone`. (User's second test)
+- `ARougherFloorBlursTheReflection`: the same box over floors of roughness 0.1, 0.2 and 0.3, under the unfaded setting. The width from 10 % to 90 % of the reflected edge grows with the roughness, and at 0.3 lies within a factor of 2 of the cone's diameter at that edge from the C# `ReflectionCone`. (User's second test)
 - `TheReflectionFadesAtTheScreenEdgeWithNoHardEdge`: a long bright bar whose reflection runs off the side of the screen. Along the reflection, no two neighbor pixels differ by more than 3 % of the reflection's peak, and the outermost pixel holds what the scene shows with `NoReflections`, within 1 of 255. (User's third test)
 - `AHitReplacesTheAmbientSpecularTermUnderTheSameWeight`: a dielectric floor of roughness 0.1 under a gray ambient light reflects a large emissive wall of radiance L. Away from the wall's edges and the screen's edges, f = 1 and a = 1, so the floor holds its value with `NoReflections` minus T_s plus W · L, with W and T_s from the C# BRDF, within 1 %.
 - `AFloorWithNothingAboveItShowsTheAmbientSpecularTerm`: an empty mirror floor under a gray ambient light, with `ConeTracedReflections` and with `NoReflections`, gives the same HDR values within half-float rounding. No ray hits its own floor, and every miss leaves the term as it is.
-- `AFloorRougherThanTheMaximumKeepsTheAmbientSpecularTerm`: roughness 0.7 under a maximum of 0.6.
+- `AFloorOfThePaintsRoughnessKeepsOnlyTheAmbientSpecularTerm`: a floor of roughness 0.38, the demo's paint, under the default maximum of 0.37, matches the image with `NoReflections` within 1/1024 of each value. (`ter-8bda`; before it, roughness 0.7 under a maximum of 0.6.)
+- `AFloorOfRoughness018ReflectsInFull`: a floor of roughness 0.18, just below half the default maximum, matches the same floor under a maximum of 1, which reflects every roughness up to 0.5 in full. (`ter-8bda`)
+- `AFloorOfRoughness028ShowsHalfItsReflection`: a floor of roughness 0.28 adds 0.495 of the reflection that it adds under a maximum of 1, within 0.01, as the least-squares scale of the two differences from `NoReflections`. (`ter-8bda`)
 - `AMetalFloorReflectsInItsOwnColor`: a gold floor under a white emissive box: the reflection's red is above its green, and its green above its blue.
 - `ARayThatPassesFarBehindAnObjectShowsWhatLiesBehindIt`: a red emissive plate near the eye that covers the path of the ray of a far floor pixel in screen space, and a green wall behind it. The floor pixel is green.
-- `AReflectionIsSharpWhereTheObjectTouchesTheFloorAndBlursAwayFromIt`: a tall bar on a floor of roughness 0.2. The reflected edge is narrower near the contact than at the bar's top.
+- `AReflectionIsSharpWhereTheObjectTouchesTheFloorAndBlursAwayFromIt`: a tall bar on a floor of roughness 0.2, under the unfaded setting. The reflected edge is narrower near the contact than at the bar's top.
 - `GlassAndPuffsDoNotShowInReflections`: a pane and a glow puff above a mirror floor, placed so that their reflections and not themselves fall on the measured pixels. The pixels hold what the scene without the pane and the puff holds.
 - `AnImpostorKeepsItsBakedLightAndShowsInReflections`: with impostors on, a glossy object's billboard holds the same values with and without reflections, and its image shows in a mirror floor.
 - `AFarPlanetShowsInANearMirror`: a mirror floor whose rays reach a planet in the far range. The pixels show the planet.
-- `TwoRendersGiveTheSameBits`: two renderers draw the same snapshot, and `ReadHdr` gives the same bits.
+- `TwoRendersGiveTheSameBits`: two renderers draw the same snapshot of a floor of roughness 0.2 under the unfaded setting, and `ReadHdr` gives the same bits.
 - Added by Part 5, for the hand mutations that the list above let survive: `AMirrorGivesNoWeightToASurfaceThatItsRayMeetsFromBehind` (a mirror wall whose rays come back toward the eye and enter a box's slab from behind), `ARayThatPointsIntoItsOwnSurfaceAddsNothing` (a normal map that leans every mirror ray into the floor), `AReflectionOnAFloorAtTheCapStaysAtTheCap`, and `TheTraceRunsAfterTheRadiancePyramidAndBeforeTheTransparentPass`. `AHitReplacesTheAmbientSpecularTermUnderTheSameWeight` runs at 0 and 2 stops, so that it sees the pre-exposure of T_s, and `ARayThatPassesFarBehindAnObjectShowsWhatLiesBehindIt` puts the plate 6 m ahead, between the ray's origin and its hit. The edge fade test renders at 1280 × 720: at 640 × 360 the band is 36 px, and the smoothstep's steepest step is 4.2 % of the peak, above the 3 % of the test.
 - `ScreenRayTests.EveryFloorPixelWhoseVanishingPointAPlanetCoversHitsThePlanet` (Part 5): 3,613 floor rays toward a planet 10⁷ m away, which pins the carried slab bound of "Precision and determinism".
 
 `ReflectionShaderTests` pins the shader to the C# copy. Its floors take a normal map of the flat texel (128, 128, 255), whose lean of about 0.3° (`ter-v0yz`) the C# trace takes too, so that both start from the normal the G-buffer holds:
 
 - `TheGpuTraceReflectsThePixelThatTheCSharpTraceHits`: a mirror floor of the roughness floor below a wall of 16 × 8 emissive tiles, each of its own color. For a grid of floor pixels, the test traces the C# `ScreenRay` over `DepthPyramid.FromInverseDepths` of the frame's distance, with the `CameraView` of the test's camera. Where the C# trace hits with f = 1, the floor's HDR value equals W times the `NoReflections` frame's value at the C# hit pixel, within 2 %. A wrong cell, axis or sign hits another tile.
-- `TheGpuConeReadsTheLevelThatTheCSharpConeGives`: floors of roughness 0.3 and 0.5 reflecting a wall checkered at the period of one level of the pyramid, under a gray ambient light. Each floor pixel matches its lit value plus the C# delta from a trilinear sample of the read-back pyramid at `ReflectionCone.Level`, with its coverage, within 3 % of the bright squares' reflection. The checks make the read depend on the level and on the height of the hit, which the dominant direction decides.
+- `TheGpuConeReadsTheLevelThatTheCSharpConeGives`: floors of roughness 0.3 and 0.5 reflecting a wall checkered at the period of one level of the pyramid, under a gray ambient light. The test takes the unfaded setting, so its fade is 1 and 0.996 at the two floors (`ter-8bda`). Each floor pixel matches its lit value plus the C# delta from a trilinear sample of the read-back pyramid at `ReflectionCone.Level`, with its coverage, within 3 % of the bright squares' reflection. The checks make the read depend on the level and on the height of the hit, which the dominant direction decides.
 - `TheGpuUpsampleMixesTheTexelsRaysUnderTheWeightsOfTheCSharpUpsampleOrTracesTheOwnRayThatItChooses` (ticket `ter-ff6y`, extended by `ter-cuf9`): at half resolution, the tiled wall's mirror floor with a white mirror sphere, a ramp in a crease of 20° with the floor and a slab 3 cm high, about one texel width. For every pixel to which the upsample adds light, the color that it adds matches, within 0.01 in each channel's share, the color of the C# `ReflectionUpsample.Ray` over the read-back trace image, distance and G-buffer normals (`ReadNormals`). The sphere's rim, the crease and the step give more than 200 pixels whose texels disagree, so a normal power of 1, a texel width of 4 pixel footprints or uneven bilinear weights each fail it. Since ticket `ter-cuf9`, a pixel for which the C# upsample, over the read-back hit depths too, chooses its own ray matches a full-resolution render of the scene within 10⁻³ of its value instead, and more than 100 pixels do (434 on this Mac), where a reflection passes from the wall to the sky or from one surface to another.
 - `EachTexelOfTheHalfResolutionTraceHoldsTheViewDepthOfItsRaysHit` (ticket `ter-cuf9`): every texel of the tiled wall's mirror floor whose ray hits holds 9.5 m, the view depth of the wall's front, within 10⁻³ of it, where the distances of the hit pixels from the eye grow toward the wall's sides and top.
 - `AtHalfResolutionTheReflectedOutlineOfABoxBeforeAFartherWallMatchesTheFullResolutionTrace` (ticket `ter-cuf9`): a red box 12 m ahead before a green wall 15 m ahead, on a mirror floor. Within 3 pixels of the box's two reflected side edges, on every row of the floor from 9.5 m to 11.5 m ahead, the half-resolution image matches the full-resolution image within 5 % of the radiance. Before the ticket, a pixel there differed by 1.69.
@@ -1503,7 +1508,7 @@ Each builder breaks the line that each new test protects, watches the test fail,
 
 To measure in Part 6, by the recipe of [rendering-upgrade.md](rendering-upgrade.md), "Measuring the cost of a feature": `scripts/demo-exit.json` at 1920 × 1080 in Release, the branch against its base, each build twice, one run at a time, with the 1-minute load of the machine in the report.
 
-- The three new passes: mean, median and p95. Expected: the depth pyramid near 0.1 ms (it reads 8.3 MB of distance and writes 5.5 MB of levels into its padded image in 11 dispatches), the radiance pyramid near 0.2 ms (16.6 MB of the HDR image and 8.3 MB of distance read, 22.1 MB written), the reflections 1 to 3 ms. The profile ticket `ter-ff6y` brought the three passes to 3.27 ms in the mean of two traces (3.29 and 3.25 ms) at the default half-resolution trace, 0.27 ms above 3 ms, and the user decided on 2026-10-26 that this overshoot gets no more work: the frame span of `demo-exit` is 9.76 ms, under the budget of 12 ms, and the coda's part for the whole frame (`ter-3g1g`) shares out the budget ("Results of the profile"). (User) The demo's painted surfaces have a roughness of 0.38, under the default maximum of 0.6, so nearly every surface pixel traces a ray. If the reflections take more than 3 ms, the report says so, beside the fork on the default maximum.
+- The three new passes: mean, median and p95. Expected: the depth pyramid near 0.1 ms (it reads 8.3 MB of distance and writes 5.5 MB of levels into its padded image in 11 dispatches), the radiance pyramid near 0.2 ms (16.6 MB of the HDR image and 8.3 MB of distance read, 22.1 MB written), the reflections 1 to 3 ms. The profile ticket `ter-ff6y` brought the three passes to 3.27 ms in the mean of two traces (3.29 and 3.25 ms) at the default half-resolution trace, 0.27 ms above 3 ms, and the user decided on 2026-10-26 that this overshoot gets no more work: the frame span of `demo-exit` is 9.76 ms, under the budget of 12 ms, and the coda's part for the whole frame (`ter-3g1g`) shares out the budget ("Results of the profile"). (User) The demo's painted surfaces have a roughness of 0.38, under the default maximum of 0.6 of that time, so nearly every surface pixel traces a ray. Since `ter-8bda` they lie above the default maximum of 0.37, and no pixel of the demo traces ("Results of the limit of 0.37"). If the reflections take more than 3 ms, the report says so, beside the fork on the default maximum.
 - The lighting, transparent and tone map passes: expected within the spread between runs. The HDR image's storage usage can cost them time on some GPUs, and the report says whether it does.
 - A second branch run with `--reflections off` against the base: no new pass, and every pass within the spread, which checks "When the switch is off".
 - The trace's cost against the share of pixels that trace: one run of `demo-exit.json` with the default maximum set to 0.3 in a scratch commit, not committed, so the user can weigh fork 2 by its cost.
@@ -1532,6 +1537,15 @@ Measured on 2026-10-25 and 2026-10-26 on the same Mac and script. ARCHITECTURE.m
 - `scripts/reflections.json`, whose floors and boxes are mirrors: at the default the three passes take about 2.2 ms in the traces, and at full resolution the reflections take 2.2 and 2.6 ms, both below demo-exit's deck. Every trace pass is ALU-bound at a compute occupancy of 26 to 34 %; the headless trace gives no register count (ARCHITECTURE.md, "The profile of the mirror scene").
 - Two changes that kept every pixel within 1 level without anti-aliasing are left out: one workgroup for the radiance pyramid's small mips (0.06 ms less) and a downsample of the radiance pyramid through shared memory (0.05 ms less). Their filters weigh the texels a little differently from the sampler, and SMAA turns that into differences of 9 levels on three edge pixels of `demo-surface`'s apron, above the rule of 2 levels for a change that keeps the image.
 
+### Results of the limit of 0.37 (ticket `ter-8bda`)
+
+Measured on 2026-11-02 at 1920 × 1080 on the same Mac, in Release. ARCHITECTURE.md, "Screen-space reflections", "The limit of 0.37", holds the table with the load of the machine, and the ticket's notes hold the method and every capture.
+
+- Which pixels trace: a probe marks every pixel that starts a ray. At 0.37 it marks none in 363 frames of `demo-exit`'s nine films (every 12th tick), none in its late deck view and none in the seven views of `demo-surface`. At 0.6 it marks every one of the 363 frames, about 95 to 100 % of the screen in the mean of each film. On `mirror-balls` it marks 6.4 %, 0.5 % and 15.9 % of the three views at 0.37.
+- The image: every view of those scripts at 0.37 is byte-identical to the same view with `--reflections off`. The reflections of the deck's greenhouse, the stair steps of the floor film and the chute's slide, and the floor's reflection of the spheres in `pbr-spheres` are gone. Against ticket `ter-f3g2`'s gallery of the same setting, every difference comes from the screen-space light of ticket `ter-k96l`, the one change of `src` between the two bases.
+- The cost: the four passes' summed mean fell by 2.01 ms on the deck window (3.80 to 1.79 ms) and by 1.43 ms on the floor window (3.45 to 2.02 ms). Seven interleaved rounds with a control, a byte copy of the base, which differs from the base by at most 0.01 ms. Ticket `ter-f3g2` measured −2.0 and −1.65 ms. The median frame span fell by less: by 1.70 ms on the deck (14.17 to 12.47 ms) and by 0.61 ms on the floor (13.17 to 12.56 ms). So a cut of the pass sum is an upper bound of the frame's saving.
+- The passes still run where no pixel reflects, and the pyramids take about 1.3 to 1.5 ms of them. A ray from any pixel can hit any other pixel, so only a skip of the whole frame is sound. Ticket `ter-olhk` (epic `ter-pq5y`) holds that skip, with both measures: the pass sum that it removes and the frame span that this ticket saw fall. The user put artifacts before performance until epic `ter-b2da` ends, so this ticket only measured it.
+
 ## Doc changes
 
 | Doc | Change |
@@ -1541,7 +1555,7 @@ Measured on 2026-10-25 and 2026-10-26 on the same Mac and script. ARCHITECTURE.m
 | ARCHITECTURE.md, "Shading" | The ambient specular term, `ambientTerms` as the one place where the shaders read the ambient light, `specularWeight`, and `surfaceAt`. The sentence "Later screen-space reflections fade their off-screen rays to this specular part" becomes a link to the new section. |
 | ARCHITECTURE.md, "Depth ranges" | The depth pyramid serves all three ranges in inverse depth. |
 | ARCHITECTURE.md, "GPU timings" | The three pass names. |
-| ARCHITECTURE.md, "Switches" | A row for `Reflections`: `ConeTracedReflections(0.6, 128)` by default (256 steps since `ter-r5hb`), `NoReflections` for tests, its cost and memory. |
+| ARCHITECTURE.md, "Switches" | A row for `Reflections`: `ConeTracedReflections(0.6, 128)` by default (256 steps since `ter-r5hb`, a maximum of 0.37 since `ter-8bda`), `NoReflections` for tests, its cost and memory. |
 | ARCHITECTURE.md, "Snapshot tests" | The reference scenes render with reflections off. |
 | ARCHITECTURE.md, "Host and scripted runs" | `--reflections on\|off`, and its refusals. |
 | docs/plans/rendering-upgrade.md | The row of `ter-jxv9` links this doc. |
@@ -1593,7 +1607,7 @@ If that branch merges without one of them, Part 4 adds it as the exposure doc sp
 ### Part 3: the review scene
 
 - Files: new `src/Tertius.Demo/DemoScenes.Reflections.cs` and `scripts/reflections.json`. Changed `src/Tertius.Demo/DemoScenes.cs` (the scene's name in the list).
-- The scene `reflections`: a floor of six strips, 2 m wide and 12 m long, side by side: dielectrics of roughness 0 (the floor), 0.1, 0.2, 0.3 and 0.45, and a gold metal (base color (1, 0.71, 0.29)) of roughness 0.1. On it, a red box, a white emissive bar 2 m tall, a blue sphere, and a lamp. Under a gray ambient light and the sun. Three views: `low-camera`, 0.3 m above the floor and looking along the strips, `front-camera`, 3 m up and looking down at 30°, and `edge-camera`, placed so that the bar's reflection runs off the bottom of the screen. Its doc comment lists them, as `PbrSpheres` does.
+- The scene `reflections`: a floor of six strips, 2 m wide and 12 m long, side by side: dielectrics of roughness 0 (the floor), 0.1, 0.2, 0.3 and 0.45, and a gold metal (base color (1, 0.71, 0.29)) of roughness 0.1. Under the default maximum of 0.37 (decision 31), the strip of 0.3 reflects at 38 % of the full weight, and the strip of 0.45 keeps the ambient specular term. On it, a red box, a white emissive bar 2 m tall, a blue sphere, and a lamp. Under a gray ambient light and the sun. Three views: `low-camera`, 0.3 m above the floor and looking along the strips, `front-camera`, 3 m up and looking down at 30°, and `edge-camera`, placed so that the bar's reflection runs off the bottom of the screen. Its doc comment lists them, as `PbrSpheres` does.
 - The script captures each view, and films 200 frames of `front-camera` for the GPU timings.
 - The lean demo process (project memory): one builder, its own look at the frames, one review-and-fix agent. Until Part 5 merges, the strips show only the ambient specular term.
 
@@ -1688,7 +1702,7 @@ Why A is recommended: it is the simpler mechanism, its result follows from one f
 
 ### 2. The default maximum roughness
 
-Settled by the user on 2026-10-25: option A, 0.6, from the captures of Part 6. The profile ticket `ter-ff6y` takes its cost ("Results of Part 6"). The fork as it was asked:
+Settled by the user on 2026-10-25: option A, 0.6, from the captures of Part 6. The profile ticket `ter-ff6y` takes its cost ("Results of Part 6"). Changed by the user on 2026-11-01: 0.37, a limit just below the paint, so that the demo looks as option B describes (ticket `ter-8bda`, decision 31 for the reasons). The fork as it was asked:
 
 The demo paints every part with a roughness of 0.38, and has no metal. So the default decides whether the demo's ordinary surfaces show SSR.
 
