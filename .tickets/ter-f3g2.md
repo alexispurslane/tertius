@@ -28,3 +28,7 @@ The user's decision (2026-11-01): FSR waits for the reflections. So this probe, 
 **2026-11-02T01:00:44Z**
 
 The user's choice (2026-11-01): design 2, frame-pure stochastic SSR (GGX rays drawn by a fixed noise per pixel, a resolve that reuses the hits of neighbors weighted by BRDF over pdf, a blur; nothing kept between frames). It reopens decisions 3 and 12 of docs/plans/screen-space-reflections.md ('no noise') in the way that the screen-space light already accepts a fixed noise; decision 8 of rendering-performance.md holds. This probe still runs: its prototype, settings, measures against the normalized lobe reference and cost set the build ticket's starting point. If the probe shows that design 2 at roughness 0.38 looks like MaxRoughness 0.37 for much more cost, the orchestrator brings that back to the user before the build.
+
+**2026-11-02T02:28:35Z**
+
+The user's decision of 2026-11-01, after ter-f3g2's probe: SSR's roughness limit goes to 0.37 now, inside epic ter-b2da; below it, today's method (one ray with a cone) stays; stochastic SSR (ter-rnjk) is not built; ter-gf0t moves into the epic to give back part of the lamp glow on rough surfaces that lose SSR. Reason: the probe showed that stochastic SSR helps only between roughness 0.37 and 0.6, which the 0.37 limit removes from SSR anyway, at +3 to +6 ms measured and with grain that never settles, while the limit saves 1.65 to 2.0 ms and matches the 64-ray reference on the deck paint.

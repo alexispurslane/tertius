@@ -1,7 +1,7 @@
 ---
 id: ter-eqtb
 status: open
-deps: [ter-rjts, ter-y8z0, ter-f3g2, ter-rnjk]
+deps: [ter-rjts, ter-y8z0, ter-f3g2, ter-8bda]
 links: [ter-f3g2]
 created: 2026-11-01T15:28:45Z
 type: bug
@@ -23,3 +23,7 @@ Scope narrowed on 2026-11-01 after ter-y8z0 (see its notes): this ticket fixes a
 **2026-11-01T15:49:07Z**
 
 The deck film shows the same kind of fault: the floor's reflection of the greenhouse breaks into blocky fragments (captures/mfyv-candidates/c4-gather/exit-films/deck.png in the main checkout, ter-mfyv's final build at 1920 x 1080; ter-mfyv did not touch the reflections).
+
+**2026-11-02T02:28:35Z**
+
+The user's decision of 2026-11-01, after ter-f3g2's probe: SSR's roughness limit goes to 0.37 now, inside epic ter-b2da; below it, today's method (one ray with a cone) stays; stochastic SSR (ter-rnjk) is not built; ter-gf0t moves into the epic to give back part of the lamp glow on rough surfaces that lose SSR. Reason: the probe showed that stochastic SSR helps only between roughness 0.37 and 0.6, which the 0.37 limit removes from SSR anyway, at +3 to +6 ms measured and with grain that never settles, while the limit saves 1.65 to 2.0 ms and matches the 64-ray reference on the deck paint. With the limit at 0.37, the demo's paint (roughness 0.38) has no SSR, so artifact 1 leaves the paint. After ter-8bda merges, the orchestrator captures the views of artifact 1 again (the floor film, chute-top, deck, unbelt) and keeps this ticket only for the views where the steps remain; if none remain, it closes.

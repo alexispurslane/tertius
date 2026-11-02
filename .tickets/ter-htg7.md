@@ -28,3 +28,7 @@ The refactor and improvements: (1) 0.87 against 0.9: check whether a render size
 **2026-11-02T00:54:34Z**
 
 The user's decisions (2026-11-01): (1) FSR waits for the reflection work, so this ticket starts after the whole epic ter-b2da, including ter-eqtb and the redesign of blocky SSR (ter-f3g2 and its build ticket). (2) The demo uses FSR at scale 0.77 by default, with sharpness 1 stop; the renderer's own default stays native. Set the demo's default in this ticket, measure it again on the new main, and send screenshots. The bloom's wider glow at 0.77 is ter-ch7z, which follows this ticket.
+
+**2026-11-02T02:28:35Z**
+
+2026-11-01: epic ter-b2da now also holds ter-8bda (the 0.37 limit) and ter-gf0t (the sized light's highlight), and no longer ter-rnjk (not built, the user's decision). FSR still merges after the epic.
