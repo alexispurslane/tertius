@@ -24,3 +24,7 @@ D comes from the irradiance cube, and the spherical harmonics are gone or kept o
 **2026-11-02T01:42:48Z**
 
 2026-11-01: workflow run b457f30e-cf46-416c-acc0-42c40618667f (version 869b0b07), branch ter-8fz2-irradiance-cube from c2e6399e5. Settled by the orchestrator inside the user's decision: one store for D (the irradiance cube), the harmonics go, and the lit puffs' mean and the impostors' signature of the light come from the cube's coarsest level. A reader that cannot use the cube comes back as a fork.
+
+**2026-11-02T05:20:00Z**
+
+2026-11-02, orchestrator: workflow run b457f30e succeeded (build, review with 1 medium and 6 low findings, fix at 669b7dd86). Hardening started as a delegated task in the ticket's worktree: coverage of the changed lines and 20 to 30 hand mutations, C# and GLSL, under the GPU lock. tools/mutate (ter-hxca) is not merged yet, so the hand procedure of CLAUDE.md applies.
