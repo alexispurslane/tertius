@@ -737,16 +737,6 @@ public sealed class EnvironmentLightingTests
                 position: Vector3.Normalize(Vector3.One) * 10,
                 radius: 0.5f
             );
-            snapshot.Instances.Add(
-                Gpu.Instance(
-                    mesh: renderer.CreateMesh(Primitives.Plane(4f)),
-                    material: BrdfTesting.Glow(renderer, Vector3.Zero),
-                    position: new(0, 0, -10),
-                    scale: Vector3.One,
-                    rotation: FacingPlusZ,
-                    chainDepth: TestChains.CamerasFrame
-                )
-            );
             var look = new PuffLook(
                 Life: 2f,
                 StartRadius: 0.5f,
