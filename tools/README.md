@@ -1,6 +1,6 @@
 # Tools
 
-These helpers run every test project in one command, start JetBrains Rider inside the dev shell, run code coverage and Stryker.NET mutation testing on the lines that a branch changed, report duplicated code, measure the sloppiness of the code, build the docs site, trace the GPU passes of a demo run, build scripted models in Blender, and clean up the code. The git hooks in `.githooks/` call some of them. For the rules on which helper to run, read the Testing section of CLAUDE.md. The scripts are tool code: they never ship, so they skip polish.
+These helpers run every test project in one command, start JetBrains Rider inside the dev shell, run code coverage and mutation testing (Stryker.NET and listed mutants) on the lines that a branch changed, report duplicated code, measure the sloppiness of the code, build the docs site, trace the GPU passes of a demo run, build scripted models in Blender, and clean up the code. The git hooks in `.githooks/` call some of them. For the rules on which helper to run, read the Testing section of CLAUDE.md. The scripts are tool code: they never ship, so they skip polish.
 
 Run every command in the dev shell, from the repository root. The build copies the Jolt library and the Vulkan loader next to each output, so the tests need no `DYLD_*` variable. Outside the dev shell, the GPU tests cannot find `libvulkan`, and the scripts stop with a message. Write the output to a folder outside the repository, for example `/tmp/tertius-coverage`.
 
@@ -69,7 +69,125 @@ The build copies the Jolt library and the Vulkan loader next to each output, fro
 
 If either configuration covers a line, the line counts as covered. Debug covers the contracts, and Release covers the code behind `#if !DEBUG`. The script lists the files with the most uncovered lines first, with the uncovered lines and the lines whose branches are only partly covered.
 
-## Mutation testing with Stryker.NET
+## Mutation testing
+
+The user decided on 2026-11-01 (tickets ter-u63a and ter-hxca) how a ticket's hardening tests its tests with mutants. A mutant is a small, deliberate change to the code, which a good test fails on. The mutation step of a ticket makes one table of mutants with one result each. Two tools make its rows, and both print the same table:
+
+- `tools/stryker/changed.py`, the official Stryker run, mutates the C# lines that the branch changed in Core, Simulation and Physics. Their tests run on the CPU only.
+- `tools/mutate.py` runs a list of mutants that the agent writes. The list holds every changed line of Rendering (C# and GLSL), Host and Demo, whose tests run on the GPU. It also holds the lines that the Stryker run cannot mutate: its no-mutant and removed rows.
+
+### The shared table
+
+The table has one Markdown row per mutant, then one summary line with the count of every result:
+
+```
+| id | place | change | result | killed by | s |
+|---|---|---|---|---|---:|
+| S09 | src/Tertius.Rendering/Shaders/reflection_own_rays.glsl:31 | entry packing y << 15 | killed | ReflectionRenderTests.AtHalfRes..., ReflectionShaderTests.TheOwnRay... | 41.2 |
+| Core-4489 | src/Tertius.Core/Unions/Result.cs:44 | holds != Holds.Nothing -> holds == Holds.Nothing | killed | ResultTests.TheDefaultResultHoldsNeitherCase | - |
+16 rows: killed 10, timeout 0, survived 5, no-coverage 0, build-failed 1, no-tests 0, no-mutant 0, removed 0
+```
+
+The killed-by column names at most three failed tests. The last column gives the seconds of the mutant's build and test run in `tools/mutate.py`. Stryker reports no time per mutant, so its rows show `-`. The results:
+
+| Result | Meaning | Triage |
+|---|---|---|
+| killed | A test failed, or the test host crashed. | None. |
+| timeout | The tests ran past the time limit. This counts as killed, but the table lists it apart, because a timeout under load can hide a survivor. | None, unless the official run is not valid. |
+| survived | Every test passed with the mutant. | A test or a reason. |
+| no-coverage | Stryker: no test ran the mutant. This counts as survived (the user's rule from ter-u63a). | A test or a reason. |
+| build-failed | `tools/mutate.py`: the mutant does not compile, so it is not a valid mutant. | Write a mutant that compiles, or drop it. |
+| no-tests | `tools/mutate.py`: the test filter ran zero tests. This is an error in the list. | Fix the class names. |
+| no-mutant | Stryker: a changed line where every Stryker mutant failed to compile. | Put the line in the `tools/mutate.py` list. |
+| removed | Stryker: the branch removed lines here. | If the removed lines did something, put back their behavior as a mutant in the list. |
+
+### The triage rule
+
+Give each survived or no-coverage mutant one of two answers, as the `test-hardening` skill says:
+
+1. Write a test that kills it. The test must fail on the mutant first. With `tools/mutate.py`, run the mutant again with `--only <id>` and see `killed`. With Stryker, run the official command again.
+2. Write a one-sentence reason why the mutant is equivalent: no test can tell it from the original code. For a Stryker mutant, put the reason in a Stryker ignore comment above the line, for example `// Stryker disable once Equality: the guard and its negation give the same value at the bound`. For a listed mutant, put the reason in the ticket note.
+
+### Listed mutants: tools/mutate.py
+
+Write the list as a JSON array outside the repository, for example `/tmp/<ticket>-mutants.json`:
+
+```json
+[
+ {"id": "S09", "file": "src/Tertius.Rendering/Shaders/reflection_own_rays.glsl", "line": 31,
+  "original": "uint(pixel.y) << 16", "replacement": "uint(pixel.y) << 15",
+  "project": "tests/Tertius.Rendering.Tests", "class": ["ReflectionRenderTests", "ReflectionShaderTests"],
+  "note": "entry packing y << 15"}
+]
+```
+
+- `id` is a unique name, for example C01 for C# and S01 for a shader.
+- `file` is relative to the repository root. `line` is the 1-based line where the original text starts.
+- `original` is the exact text to replace. It must start exactly once on that line, and it can span lines. `replacement` takes its place. An empty replacement deletes the original.
+- `project` is the test project folder. `class` is the test class that covers the mutant, or a list of them. A bare class name matches that class in any namespace. A qualified name or a pattern with `*` goes to `--filter-class` unchanged.
+- `note` is optional: the change in a few words, for the table.
+
+Run the list in the dev shell. The second argument is a folder for the logs:
+
+```bash
+nix develop --command python3 -I tools/mutate.py /tmp/<ticket>-mutants.json /tmp/<ticket>-mutate
+```
+
+The script works in this order:
+
+1. It reads the whole list and refuses to start on any error. Every file must exist, git must track it, and the file must have no uncommitted change. The original text must start on its line, and the ids must be unique. The exit code is 2.
+2. It builds each distinct pair of test project and classes once, and runs it without a mutant. If a baseline fails or runs zero tests, the run stops before any change, because a failing baseline makes every mutant look killed.
+3. For each mutant, it applies the mutant and builds only its test project in Checked, with a plain incremental build. It makes sure that the build wrote a new assembly of the mutated file's project into the test project's output. Then it runs only the mutant's classes in Checked with `--no-build`, under a timeout of 120 s. At last it restores the exact original bytes and touches the file, so that the next build compiles it again. The restore also runs on a failure, an exception, Ctrl-C, SIGTERM and SIGHUP.
+4. After the last mutant, it builds each test project once more, so that the output holds no mutant. It makes sure that git shows every mutated file unchanged, and it prints the table.
+
+A GLSL mutant reaches the tests through the build: the target `CompileGlslShaders` in `src/Tertius.Rendering/Tertius.Rendering.csproj` compiles a stage again when the stage or an include is newer than its `.spv`. The build then embeds the new SPIR-V in `Tertius.Rendering.dll`. Step 3 makes sure that this new assembly reached the test project's output.
+
+The options:
+
+- `--only C01,S03` runs only these ids.
+- `--keep-going` goes on after a no-tests result. Without it, the run stops there, because the list has an error.
+
+The folder gets `results.json` (every row, with its original, replacement and classes) and, for each mutant, `<id>.build.log` and `<id>.test.log`. The exit code is 0 when every mutant ran, and 1 when the run stopped early or git shows a mutated file changed. If a run dies by SIGKILL, its mutant stays in the file, and the next run refuses the file until you restore it with `git restore <file>`.
+
+A mutant of the Rendering GPU tests takes about 40 s: about 10 s of build and 30 s of tests. On ter-hxca's replay of 15 ter-rjts mutants, the three runs took 763 s in all, including 7 baselines.
+
+### The official Stryker run: tools/stryker/changed.py
+
+Run it in the dev shell on the branch, with the base branch and a folder for the output:
+
+```bash
+nix develop --command python3 -I tools/stryker/changed.py main /tmp/<ticket>-stryker
+```
+
+For each of Core, Simulation and Physics with changed lines, the script writes `<out>/<module>/stryker-config.json` with `tools/stryker/config.py`. Then it runs `tools/stryker/run.sh` on it, one module after another. A module's test projects are its own and every other test project whose references reach it, also through `tests/Tertius.Testing`. The script never uses `tests/Tertius.Rendering.Tests` or `tests/Tertius.Host.Tests`, because their GPU tests are slow and depend on the load. The script lists the changed lines of Rendering, Host and Demo for the `tools/mutate.py` list.
+
+The official settings are in `tools/stryker/config.py`:
+
+| Setting | Value | Why |
+|---|---|---|
+| `coverage-analysis` | `perTest` | Each mutant runs only the tests that reach it. |
+| `configuration` | `Checked` | The same build as `tools/mutate.py` and the pre-commit hook. |
+| `concurrency` | 3 | Three test hosts at once. Each host also runs its test classes in parallel. |
+| `timeout-ratio`, `additional-timeout` | 2, 300000 ms | A mutant's limit is 2 x its tests' initial time + 300 s. The per-test coverage capture uses 1.5 x a test's initial time + 300 s. |
+| `break-on-initial-test-failure` | true | A test that fails without a mutant stops the run. |
+| timeout share | at most 5% | Above it, the run is not valid. |
+
+The run is not valid in two cases. The script then prints NOT VALID with the fix, and its exit code is 1:
+
+- More than 5% of the mutants that ran ended in a timeout. Run it again on a quieter machine, or calibrate a larger `additional-timeout`.
+- Stryker marked a test Dubious. Its coverage capture failed, so every mutant also runs that test, and the run is not scoped. Run it again on a quieter machine.
+
+Under the table, the script prints the evidence of each module's log. It gives the compile tries of the one schemata build, the initial test run and its count of tests, the time of the per-test coverage capture, the Dubious tests, and the mean count of tests that each mutant ran. `<out>/results.json` holds the rows, the evidence, the settings and the load samples.
+
+The run takes the machine-wide lock `/tmp/tertius-stryker.lock`, a folder. Two Stryker runs at once compete for the CPU, and their tests time out. The script makes the folder before the first Stryker run, and waits while another run holds it. It removes the folder after the last run, also on a failure, an exception, Ctrl-C, SIGTERM or SIGHUP, and it never removes a lock that another process holds. If the process that holds the lock is gone, the script stops and prints the command that removes it.
+
+With `--head <commit>`, the script measures a merged range, for example the commits of a closed ticket from its base. The files of the range must be the same in the working tree as at `<commit>`, and the script refuses otherwise. `--concurrency` and `--additional-timeout` are for a calibration only, and the script marks such a run as not official.
+
+A run of Core takes about 18 minutes, even for a small change. On ter-hxca's calibration, the build of the test projects took 23 s, the initial test run 30 s and the schemata build 10 s. The per-test coverage capture of 4,593 tests took 16.5 minutes, and the 3 mutants took seconds.
+
+### Stryker on one module by hand
+
+The official command uses these three scripts. Call them yourself to mutate whole files, or to try other test projects:
 
 1. Write a configuration for one source project. Name the test projects that exercise it:
 
@@ -77,36 +195,33 @@ If either configuration covers a line, the line counts as covered. Debug covers 
    nix develop --command bash -c 'python3 tools/stryker/config.py --project Core --tests Core Simulation Physics --out /tmp/tertius-stryker/Core'
    ```
 
-   By default, the configuration mutates only the lines that this branch changed. To mutate whole files, add `--files` with paths relative to the project folder, for example `--files Frames/FrameTree.cs`.
+   By default, the configuration mutates only the lines that this branch changed, with the official settings. To mutate whole files, add `--files` with paths relative to the project folder, for example `--files Frames/FrameTree.cs`.
 
-2. Run Stryker on that project:
-
-   ```bash
-   nix develop --command bash -c 'bash tools/stryker/run.sh Core /tmp/tertius-stryker/Core'
-   ```
-
-3. List the mutants that no test caught, and the mutants in the spans that did not compile:
+2. Take the lock, and run Stryker on that project. `run.sh` does not take the lock itself. If `mkdir` fails, another run holds the lock: wait and try again.
 
    ```bash
-   nix develop --command bash -c 'python3 tools/stryker/survivors.py /tmp/tertius-stryker/Core/out/reports/mutation-report.json --config /tmp/tertius-stryker/Core/stryker-config.json'
+   mkdir /tmp/tertius-stryker.lock && { nix develop --command bash -c 'bash tools/stryker/run.sh Core /tmp/tertius-stryker/Core'; rmdir /tmp/tertius-stryker.lock; }
    ```
 
-Triage each mutant in the list as the `test-hardening` skill says: kill it with a test, or mark it equivalent with a one-sentence reason in a Stryker ignore comment.
+3. Print the shared table of the mutants in the spans:
 
-Break each line with a mutant that did not compile by hand. Run the tests that cover the line. Then restore the line. Some of those mutants are invalid, for example `*` to `/` on a quaternion type that has no `/`. Skip those.
+   ```bash
+   nix develop --command bash -c 'python3 tools/stryker/survivors.py /tmp/tertius-stryker/Core/out/reports/mutation-report.json --config /tmp/tertius-stryker/Core/stryker-config.json --module Core'
+   ```
 
 ## Stryker.NET pitfalls
 
-These cost time on the vertical slice, so the scripts handle them:
+These cost time on the vertical slice and on ter-hxca, so the scripts handle them:
 
 - Stryker.NET 5.0.0 reads `coverage-analysis` only from a configuration file, not from the command line. Without `perTest`, every mutant runs every test.
 - Stryker.NET matches a `mutate` pattern against the full path. A pattern without the `**/` prefix matches no file, and the run then has no mutants.
 - In a pattern such as `**/Frames/FrameTree.cs{402..1704}`, the numbers are character offsets in the file, not line numbers.
-- Stryker.NET leaves a mutant that does not compile out of the score. A method with a pattern variable in a condition, such as `x is { } box && ...`, often makes every mutant in the method fail to compile (error CS0165). On the vertical slice, the Core score was 100% of 155 mutants, but 52 more mutants never ran. Hand mutations of their lines found three gaps.
+- Stryker.NET leaves a mutant that does not compile out of the score. A method with a pattern variable in a condition, such as `x is { } box && ...`, often makes every mutant in the method fail to compile (error CS0165). On the vertical slice, the Core score was 100% of 155 mutants, but 52 more mutants never ran. Hand mutations of their lines found three gaps. The official run lists such lines as no-mutant rows.
 - The progress bar shows only on a terminal. The `-L` flag writes the log to `out/logs`, so that you can follow a run in the background.
+- The MTP runner captures per-test coverage one test at a time, in a test host that it reuses. Each test gets a limit of 1.5 x its initial time + `additional-timeout`, at least 30 s. A test whose class fixture does the work, such as `DeterminismTests`, has an initial time near 0, but it took 80 to 90 s alone under the capture. With the default `additional-timeout` of 10 s, Stryker marked such tests Dubious.
+- After such a timeout, Stryker 5.0.0 kills the test host and starts a new one. Then it waits 10 s for the coverage relay of the killed host on every later test of that runner, and it marks each of them Dubious. One slow test can make hundreds of Dubious tests, and every mutant then runs them all.
 
-Do not run two Stryker runs at once, and do not run Stryker in subagents. Two runs compete for the CPU, and their tests time out.
-
+Run Stryker only under the lock `/tmp/tertius-stryker.lock`. Any agent, also a subagent, can run the official command, because it takes the lock itself. The user lifted the ban on Stryker in subagents on 2026-11-01, once a run was efficient. ter-hxca's calibration showed one schemata build, one initial test run, no Dubious test, and each mutant scoped to the tests that cover it.
 ## Duplicate code
 
 `tools/duplicates.sh` reports duplicated C# code with jscpd. jscpd 5 is a Rust program, and `native/jscpd.nix` builds it from crates.io for the dev shell. A scan of `src/` takes less than a second. The report never fails, so it is a guide for refactoring and not a gate.

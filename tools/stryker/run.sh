@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Tool code. Runs Stryker.NET on one source project with the configuration file that tools/stryker/config.py wrote.
-# Run it inside the dev shell. Run one Stryker at a time: two runs compete for the CPU and both time out.
+# Run it inside the dev shell, under the lock /tmp/tertius-stryker.lock: two runs compete for the CPU and both time
+# out. tools/stryker/changed.py, the official run, takes the lock and calls this script (tools/README.md).
 #   nix develop --command bash -c 'bash tools/stryker/run.sh Core /tmp/stryker/Core'
 # The log goes to <out>/out/logs, because the progress bar shows only on a terminal.
 # The JSON report goes to <out>/out/reports/mutation-report.json. Read it with tools/stryker/survivors.py.
