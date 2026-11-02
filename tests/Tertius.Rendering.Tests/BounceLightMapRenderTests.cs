@@ -480,7 +480,10 @@ public sealed class BounceLightMapRenderTests(ITestOutputHelper output)
     /// </summary>
     private static float[] SectorPassOpenShare(Action<VulkanRenderer, RenderSnapshot> addWalls)
     {
-        VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: VisibilityBitmaskLight.Default, environmentMap: SmallMap);
+        VulkanRenderer renderer = Gpu.Headless(
+            screenSpaceLight: VisibilityBitmaskLight.Default,
+            environmentMap: SmallMap
+        );
         try
         {
             renderer.Graph.Skipped.UnionWith(["occlusion denoise", "occlusion upsample"]);
