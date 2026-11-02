@@ -27,3 +27,7 @@ Fix, in the test only: GameplayThreads in DeterminismTests records the threads t
 After the fix, the same busy-pool model passed 200 of 200 runs. The run on eight workers took at most 8.1 s and used 3 to 8 threads.
 
 Hand mutation: World.RunGameplay's Parallel.For replaced by `for (int c = 0; c < count; c++) runChunk(c);`. The thread test failed after 62 s (the 30 s hold in each of the two runs on eight workers) with "found 1", and the other DeterminismTests passed. World.Tick.cs was restored and touched.
+
+**2026-11-02T09:37:15Z**
+
+The commit report named Run (122 lines) and Chatter.Handle (80 lines), which the fix touched. Both are now split into named steps (SpawnFrames, SpawnScatter, SpawnCollisionCourses, TickAndCount, HashOf; FoldIntoHash, Wander, Talk, SpawnChild, Churn) with the same order of random draws: the one-worker run ends in the same RunResult before and after (Hash 12162390961502245046, Messages 24147, HandOffs 25, Contacts 53). On the final code, the hand mutation failed the thread test again after 62 s, and the busy-pool model passed 10 of 10 runs.
