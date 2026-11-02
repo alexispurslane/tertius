@@ -48,3 +48,39 @@ Determinism evidence. The island test showed that the old heap of 100 cubes in 4
 The count that reaches Jolt. JoltThreadCountTests (a collection without parallelization) counts the threads of the process before and after it builds a backend, with a margin of one thread. An explicit count of 2 starts 2 or 3 threads, and a default backend starts WorkerThreadsFor(Environment.ProcessorCount). With the old call new JobSystemThreadPool() in place, both failed under DOTNET_PROCESSOR_COUNT=4 with 9 threads. Both passed 30 runs in a row, 10 each with the variable at 4, at 1 and unset. The managed copy JoltPhysicsBackend.WorkerThreads is gone, because no test reads it now.
 
 CPU after the review fixes, DOTNET_PROCESSOR_COUNT=4, load 9 to 10: Physics pcpu peak 494, mean 227, rate peak 527, mean 314 (14 samples). Simulation pcpu peak 362, mean 252, rate peak 389, mean 324 (3 samples). The start-up peak of the Physics host is unchanged. ter-lbyp holds it.
+
+**2026-11-02T09:42:53Z**
+
+Hardening (2026-11-02).
+
+Coverage of the changed lines (tools/coverage, Debug and Release): lines 2/2, branches 2/2. All test projects passed in both configurations.
+
+Mutants. The official Stryker run (changed.py main) ran on Physics. Its test projects were Core, Physics and Simulation, with the new test ANegativeWorkerCountGivesTheDefaultCount in the working tree. The listed mutants ran with tools/mutate.py under DOTNET_PROCESSOR_COUNT=4, because on this machine the runtime's count and the hardware's count are both 10, and a mutant that falls back to Jolt's hardware count then gives the same number.
+
+| id | place | change | result | killed by | s |
+|---|---|---|---|---|---:|
+| Physics-769 | src/Tertius.Physics/JoltBackendOptions.cs:46 | WorkerThreads > 0 ? ... -> (true?WorkerThreads :...) | killed | JoltThreadCountTests.ADefaultBackendStartsOneJoltThreadPerProcessorOfTheRuntimeMinusOne, WorkerThreadsTests.ANegativeWorkerCountGivesTheDefaultCount, WorkerThreadsTests.ADefaultBackendOnOneProcessorRunsOneWorker | - |
+| Physics-770 | src/Tertius.Physics/JoltBackendOptions.cs:46 | WorkerThreads > 0 ? ... -> (false?WorkerThreads :...) | killed | JoltThreadCountTests.ADefaultBackendStartsOneJoltThreadPerProcessorOfTheRuntimeMinusOne, WorkerThreadsTests.AnExplicitWorkerCountHoldsWhateverTheProcessorCount | - |
+| Physics-771 | src/Tertius.Physics/JoltBackendOptions.cs:46 | WorkerThreads > 0 -> WorkerThreads < 0 | killed | JoltThreadCountTests.ADefaultBackendStartsOneJoltThreadPerProcessorOfTheRuntimeMinusOne, WorkerThreadsTests.AnExplicitWorkerCountHoldsWhateverTheProcessorCount, WorkerThreadsTests.ANegativeWorkerCountGivesTheDefaultCount | - |
+| Physics-772 | src/Tertius.Physics/JoltBackendOptions.cs:46 | WorkerThreads > 0 -> WorkerThreads >= 0 | killed | JoltThreadCountTests.ADefaultBackendStartsOneJoltThreadPerProcessorOfTheRuntimeMinusOne, WorkerThreadsTests.ADefaultBackendOnOneProcessorRunsOneWorker, WorkerThreadsTests.ADefaultBackendRunsOneWorkerPerProcessorMinusOne | - |
+| Physics-773 | src/Tertius.Physics/JoltBackendOptions.cs:46 | Math.Max -> Math.Min | killed | WorkerThreadsTests.ANegativeWorkerCountGivesTheDefaultCount, WorkerThreadsTests.ADefaultBackendOnOneProcessorRunsOneWorker, WorkerThreadsTests.ADefaultBackendRunsOneWorkerPerProcessorMinusOne | - |
+| Physics-774 | src/Tertius.Physics/JoltBackendOptions.cs:46 | processorCount - 1 -> processorCount + 1 | killed | WorkerThreadsTests.ANegativeWorkerCountGivesTheDefaultCount, WorkerThreadsTests.ADefaultBackendOnOneProcessorRunsOneWorker, WorkerThreadsTests.ADefaultBackendRunsOneWorkerPerProcessorMinusOne | - |
+| Physics-JoltPhysicsBackend.cs-R92 | src/Tertius.Physics/JoltPhysicsBackend.cs:92 | the branch removed 2 lines here | removed | | - |
+| L01 | src/Tertius.Physics/JoltPhysicsBackend.cs:92 | the removed lines back: default -> Jolt's hardware count | killed | JoltThreadCountTests.ADefaultBackendStartsOneJoltThreadPerProcessorOfTheRuntimeMinusOne | 5.7 |
+| L02 | src/Tertius.Physics/JoltPhysicsBackend.cs:92 | no numThreads in the configuration | killed | JoltThreadCountTests.ABackendWithAnExplicitWorkerCountStartsThatManyJoltThreads, JoltThreadCountTests.ADefaultBackendStartsOneJoltThreadPerProcessorOfTheRuntimeMinusOne | 4.5 |
+| L03 | src/Tertius.Physics/JoltPhysicsBackend.cs:92 | WorkerThreadsFor(...) -> WorkerThreads | killed | JoltThreadCountTests.ADefaultBackendStartsOneJoltThreadPerProcessorOfTheRuntimeMinusOne | 4.3 |
+| L04 | src/Tertius.Physics/JoltPhysicsBackend.cs:92 | ProcessorCount -> ProcessorCount + 1 | survived | | 3.8 |
+| N01 | src/Tertius.Physics/JoltBackendOptions.cs:46 | > 0 -> != 0 (negative count to Jolt) | killed | WorkerThreadsTests.ANegativeWorkerCountGivesTheDefaultCount | 3.9 |
+12 rows: killed 10, timeout 0, survived 1, no-coverage 0, build-failed 0, no-tests 0, no-mutant 0, removed 1
+
+Stryker evidence: 1070 s wall; schemata build 10 compile tries (9 failed, each removing the mutants that broke it); 1 initial test run of 4542 tests in 42 s; per-test coverage capture 630 s; 0 Dubious tests; 6 mutants ran a mean of 1123.0 of 4542 tests, 0 ran all tests; 1-minute load mean 15.7, max 46.6; 3 test host processes at most, at nice 20, together at most 320% and on mean 98% of one core. No timeouts, so the load limit does not apply, and the run did not print NOT VALID.
+
+Triage:
+- R92 (removed): L01 puts back the removed lines, and JoltThreadCountTests kills it.
+- JoltPhysicsBackend.cs:92 (no Stryker mutant): L01 to L04 cover the line.
+- JoltBackendOptions.cs:45 (no Stryker mutant): judgment call. The line holds only the signature of WorkerThreadsFor, and its body on line 46 holds all six Stryker mutants.
+- L04 survived: judgment call. JoltThreadCountTests allows one thread more than the expected count, because the runtime can start a thread while the test counts, so a count one too high at the call site passes it. A tighter count makes the test depend on the runtime's own threads, and an off-by-one in this one argument is not a likely slip. The arithmetic of the count is in WorkerThreadsFor, and its unit tests pin it exactly.
+
+New test: WorkerThreadsTests.ANegativeWorkerCountGivesTheDefaultCount. joltc maps a numThreads of zero or less to -1, and Jolt then sizes its workers from the hardware. So a negative WorkerThreads must not reach Jolt. The test was red on N01 first. The other decisions (an explicit count holds, the default follows the runtime's count, at least one worker) already had tests at both levels: WorkerThreadsFor and the thread count of the process.
+
+Checked build and the full Checked tests: 9841 total, 9827 passed, 0 failed, 14 skipped.
