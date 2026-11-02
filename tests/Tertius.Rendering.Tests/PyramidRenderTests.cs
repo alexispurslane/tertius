@@ -8,6 +8,7 @@ namespace Tertius.Rendering.Tests;
 /// pyramids"): the depth pyramid against its C# copy, the padding of its image, the radiance pyramid against the lit
 /// image and the 13-tap filter, a resize, the passes that the setting adds, and no depth pyramid for the screen-space light
 /// alone. The scene is a floor, two boxes and a lamp under the sky, at 640 × 360, whose odd levels exercise the sizes that round up.
+/// A second scene puts a panel before a wall, for the bounds at a depth edge.
 /// </summary>
 [Collection(GpuCollection.Name)]
 public sealed class PyramidRenderTests
@@ -38,33 +39,85 @@ public sealed class PyramidRenderTests
         {
             renderer.Render(Scene(renderer), 1f);
             DepthPyramid expected = ReflectionTesting.PyramidOf(renderer);
+            float[] slack = UndecidedSlack(renderer);
             (float[] bounds, int mipWidth, _) = renderer.ReadDepthPyramidLevel(level);
 
             (int levelWidth, int levelHeight) = DepthPyramid.LevelSize(Width, Height, level);
+            int compared = 0;
             for (int y = 0; y < levelHeight; y++)
             for (int x = 0; x < levelWidth; x++)
             {
                 CellBounds cell = expected.Bounds(level, x, y);
+                (bool nearUndecided, bool farUndecided) = Undecided(
+                    expected: expected,
+                    slack: slack,
+                    level: level,
+                    cell: (x, y)
+                );
                 int index = 2 * (y * mipWidth + x);
-                bounds[index]
-                    .Should()
-                    .BeApproximately(
-                        cell.Near,
-                        cell.Near * InverseDepthTolerance,
-                        "the near bound of cell ({0}, {1})",
-                        x,
-                        y
-                    );
-                bounds[index + 1]
-                    .Should()
-                    .BeApproximately(
-                        cell.Far,
-                        cell.Far * InverseDepthTolerance,
-                        "the far bound of cell ({0}, {1})",
-                        x,
-                        y
-                    );
+                if (!nearUndecided)
+                {
+                    bounds[index]
+                        .Should()
+                        .BeApproximately(
+                            cell.Near,
+                            cell.Near * InverseDepthTolerance,
+                            "the near bound of cell ({0}, {1})",
+                            x,
+                            y
+                        );
+                    compared++;
+                }
+                if (!farUndecided)
+                {
+                    bounds[index + 1]
+                        .Should()
+                        .BeApproximately(
+                            cell.Far,
+                            cell.Far * InverseDepthTolerance,
+                            "the far bound of cell ({0}, {1})",
+                            x,
+                            y
+                        );
+                    compared++;
+                }
             }
+
+            compared.Should().BeGreaterThan(levelWidth * levelHeight, "few bounds rest on an undecided pixel");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void ACellAtADepthEdgeBoundsTheNearSurfaceOnlyToTheCenterLineOfItsLastRowWhereItsPlanePassesTheFarSurface()
+    {
+        // The panel's plane, seen from below at a grazing angle, runs steeply in depth: one pixel below the panel's far
+        // edge it lies within 1 % of the wall behind. Only the wall's plane, which never passes back through the panel's
+        // last row, tells the depth edge (the light bars of ter-eqtb's floor film at a roughness limit of 0.6).
+        VulkanRenderer renderer = Gpu.Headless(reflections: ConeTracedReflections.Default);
+        try
+        {
+            renderer.Render(PanelBeforeAWall(renderer), 1f);
+            float[] distance = renderer.ReadDistance();
+            CameraView camera = renderer.LastScene.Camera;
+            (float[] bounds, int mipWidth, _) = renderer.ReadDepthPyramidLevel(1);
+
+            distance[PanelLastRow * Width + Width / 2].Should().BeLessThan(PanelFarEdge, "the panel's last row sees it");
+            distance[(PanelLastRow + 1) * Width + Width / 2].Should().BeGreaterThan(PanelFarEdge, "the next row sees the wall");
+            // The cells of level 1 whose lower row is the panel's last row, under the middle of the panel.
+            float centerLine = camera.ViewRayThrough(new(Width / 2, PanelLastRow + 0.5f)).Y / PanelHeight;
+            for (int x = 100; x < 220; x++)
+                bounds[2 * ((PanelLastRow / 2) * mipWidth + x) + 1]
+                    .Should()
+                    .BeGreaterThanOrEqualTo(
+                        centerLine * (1 - 1e-5f),
+                        "the panel's plane stops at its last row's center line toward the wall, in cell ({0}, {1})",
+                        x,
+                        PanelLastRow / 2
+                    );
         }
         finally
         {
@@ -284,6 +337,7 @@ public sealed class PyramidRenderTests
             renderer.Resize(newWidth, newHeight);
             renderer.Render(snapshot, 1f);
             DepthPyramid expected = ReflectionTesting.PyramidOf(renderer);
+            float[] slack = UndecidedSlack(renderer);
             (float[] bounds, int mipWidth, _) = renderer.ReadDepthPyramidLevel(1);
             (_, int radianceWidth, int radianceHeight) = renderer.ReadRadiancePyramidLevel(0);
 
@@ -292,15 +346,16 @@ public sealed class PyramidRenderTests
             (int levelWidth, int levelHeight) = DepthPyramid.LevelSize(newWidth, newHeight, 1);
             for (int y = 0; y < levelHeight; y++)
             for (int x = 0; x < levelWidth; x++)
-                bounds[2 * (y * mipWidth + x)]
-                    .Should()
-                    .BeApproximately(
-                        expected.Bounds(1, x, y).Near,
-                        expected.Bounds(1, x, y).Near * InverseDepthTolerance,
-                        "cell ({0}, {1}) of level 1 after the resize",
-                        x,
-                        y
-                    );
+                if (!Undecided(expected: expected, slack: slack, level: 1, cell: (x, y)).Near)
+                    bounds[2 * (y * mipWidth + x)]
+                        .Should()
+                        .BeApproximately(
+                            expected.Bounds(1, x, y).Near,
+                            expected.Bounds(1, x, y).Near * InverseDepthTolerance,
+                            "cell ({0}, {1}) of level 1 after the resize",
+                            x,
+                            y
+                        );
         }
         finally
         {
@@ -445,6 +500,120 @@ public sealed class PyramidRenderTests
         {
             Gpu.DisposeAndAssertClean(renderer);
         }
+    }
+
+    /// <summary>
+    /// The share of a pixel's inverse depth within which the GPU and its C# copy can decide a continuation differently.
+    /// Each computes a plane's inverse depth at a neighbor's center with its own rounding, a few units in the last place
+    /// (<see cref="InverseDepthTolerance"/>), and cuts hard at <see cref="CellBounds.ContinuationShare"/>. So a neighbor
+    /// whose center stands within rounding of the cut can continue the plane on one side and not on the other, and move
+    /// the pixel's bound by half a pixel's change of inverse depth: the scene of these tests has one neighbor 8.6 · 10⁻⁶
+    /// from the cut and seven within 10⁻⁴. A hundred times the rounding.
+    /// </summary>
+    private const float UndecidedShare = 1e-4f;
+
+    /// <summary>
+    /// For each pixel, row by row from the top, how far its bounds can move in 1/m where the GPU decides a continuation
+    /// into an edge neighbor the other way: half its plane's change of inverse depth across and down, where the
+    /// continuation's test passes within <see cref="UndecidedShare"/> of its cut; 0 elsewhere.
+    /// </summary>
+    private static float[] UndecidedSlack(VulkanRenderer renderer)
+    {
+        CameraView camera = renderer.LastScene.Camera;
+        float[] distances = renderer.ReadDistance();
+        float[] packed = renderer.ReadNormals();
+        var normals = new Vector3[packed.Length / 4];
+        for (int pixel = 0; pixel < normals.Length; pixel++)
+            normals[pixel] = OctahedralNormal.Decode(new(packed[4 * pixel + 2], packed[4 * pixel + 3]));
+        float[] slack = new float[camera.Width * camera.Height];
+        for (int y = 0; y < camera.Height; y++)
+        for (int x = 0; x < camera.Width; x++)
+        {
+            if (plane(x, y) is not { } own)
+                continue;
+            foreach ((int X, int Y) neighbor in new[] { (x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1) })
+            {
+                bool inside = neighbor.X >= 0 && neighbor.Y >= 0 && neighbor.X < camera.Width && neighbor.Y < camera.Height;
+                if (!inside || plane(neighbor.X, neighbor.Y) is not { } other)
+                    continue;
+                if (NearTheCut(own, other) || NearTheCut(other, own))
+                    slack[y * camera.Width + x] = (MathF.Abs(own.Gradient.X) + MathF.Abs(own.Gradient.Y)) / 2;
+            }
+        }
+        return slack;
+
+        PixelPlane? plane(int x, int y) =>
+            PixelPlane.Of(x: x, y: y, distances: distances, geometricNormals: normals, camera: camera);
+    }
+
+    /// <summary>Whether the plane's test of the other pixel's center lies within <see cref="UndecidedShare"/> of either
+    /// side of its cut.</summary>
+    private static bool NearTheCut(PixelPlane plane, PixelPlane other)
+    {
+        float planeInverseDepth = plane.CenterInverseDepth + Vector2.Dot(plane.Gradient, other.Center - plane.Center);
+        const float tolerance = 1 + CellBounds.ContinuationShare;
+        float aboveTheCut = (planeInverseDepth * tolerance - other.CenterInverseDepth) / other.CenterInverseDepth;
+        float belowTheCut = (other.CenterInverseDepth * tolerance - planeInverseDepth) / planeInverseDepth;
+        return MathF.Abs(aboveTheCut) < UndecidedShare || MathF.Abs(belowTheCut) < UndecidedShare;
+    }
+
+    /// <summary>
+    /// Whether a cell's near bound and its far bound can rest on an undecided pixel under it: one whose bound, moved by
+    /// its <see cref="UndecidedSlack"/>, reaches the cell's bound. Only there may the GPU's bound differ from the C# copy's.
+    /// </summary>
+    private static (bool Near, bool Far) Undecided(DepthPyramid expected, float[] slack, int level, (int X, int Y) cell)
+    {
+        CellBounds bounds = expected.Bounds(level, cell.X, cell.Y);
+        (bool near, bool far) = (false, false);
+        for (int y = cell.Y << level; y < Math.Min((cell.Y + 1) << level, expected.Height); y++)
+        for (int x = cell.X << level; x < Math.Min((cell.X + 1) << level, expected.Width); x++)
+        {
+            float pixelSlack = slack[y * expected.Width + x];
+            if (pixelSlack == 0)
+                continue;
+            CellBounds pixel = expected.Bounds(0, x, y);
+            near |= pixel.Near + pixelSlack >= bounds.Near * (1 - InverseDepthTolerance);
+            far |= pixel.Far - pixelSlack <= bounds.Far * (1 + InverseDepthTolerance);
+        }
+        return (near, far);
+    }
+
+    /// <summary>The height of the bottom of the panel of <see cref="PanelBeforeAWall"/> above the eye, in m.</summary>
+    private const float PanelHeight = 0.5f;
+
+    /// <summary>The last screen row that sees the panel of <see cref="PanelBeforeAWall"/>: odd, so that it is the lower
+    /// row of its cell of level 1, and the wall's first row lies in the next cell.</summary>
+    private const int PanelLastRow = 149;
+
+    /// <summary>The tangent of the elevation of one screen row, under <see cref="Gpu.Fov"/> at <see cref="Height"/>.
+    /// </summary>
+    private static float RowTangent => 2 * MathF.Tan(Gpu.Fov / 2) / Height;
+
+    /// <summary>The distance ahead of the panel's far edge, in m: where its bottom ends on the boundary between
+    /// <see cref="PanelLastRow"/> and the next row.</summary>
+    private static float PanelFarEdge => PanelHeight / ((Height / 2 - PanelLastRow - 1) * RowTangent);
+
+    /// <summary>
+    /// A gray panel 6 m wide whose bottom lies <see cref="PanelHeight"/> above the eye, from 2 m ahead to
+    /// <see cref="PanelFarEdge"/>, before a gray wall that faces the eye under the sky. The wall stands where the panel's
+    /// plane meets the view ray through the center of the row below <see cref="PanelLastRow"/>, and 0.5 % farther.
+    /// </summary>
+    private static RenderSnapshot PanelBeforeAWall(VulkanRenderer renderer)
+    {
+        RenderSnapshot snapshot = Gpu.Snapshot(new(0.4f, 0.8f, 0.3f));
+        MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
+        MaterialId gray = renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.5f, y: 0.5f, z: 0.5f, w: 1), roughness: 0.5f));
+        float wall = 1.005f * PanelHeight / ((Height / 2 - PanelLastRow - 1.5f) * RowTangent);
+        snapshot.Instances.Add(
+            Block(
+                box: box,
+                material: gray,
+                center: new(0, PanelHeight + 0.05f, -(2 + PanelFarEdge) / 2),
+                size: new(6, 0.1f, PanelFarEdge - 2)
+            )
+        );
+        snapshot.Instances.Add(Block(box: box, material: gray, center: new(0, 0, -wall - 0.1f), size: new(14, 8, 0.2f)));
+        return snapshot;
     }
 
     /// <summary>

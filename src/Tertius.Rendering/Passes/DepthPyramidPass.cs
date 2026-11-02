@@ -4,8 +4,8 @@ namespace Tertius.Rendering;
 
 /// <summary>
 /// The depth pyramid pass, under <see cref="ConeTracedReflections"/> (docs/plans/screen-space-reflections.md, "The depth
-/// pyramid"): levels 1 to L of the min-max inverse depth, from the distance target, one dispatch per level below the
-/// tail and one for the tail.
+/// pyramid"): levels 1 to L of the min-max inverse depth, from the surfaces of the pixels, which the distance target and
+/// the normals target's geometric normals give, one dispatch per level below the tail and one for the tail.
 /// </summary>
 internal sealed class DepthPyramidPass(
     VulkanDevice device,
@@ -28,6 +28,7 @@ internal sealed class DepthPyramidPass(
     public override void Record(FrameContext context)
     {
         context.Barriers.Image(context.Targets.Distance, ImageUse.SampledCompute);
+        context.Barriers.Image(context.Targets.Normal, ImageUse.SampledCompute);
         context.BindSceneSets(PipelineBindPoint.Compute, layouts.PyramidLayout);
         // Mip m holds level m + 1, so the dispatches write the mips below the tail's first.
         int tailStart = DepthPyramidTail.FirstMip(targets.DepthImage);

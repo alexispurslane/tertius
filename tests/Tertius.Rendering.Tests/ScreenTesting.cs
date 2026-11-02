@@ -52,9 +52,15 @@ internal static class ScreenTesting
 
     /// <summary>The view depth of the nearest rectangle along a view ray whose component along forward is 1, or null
     /// when the ray meets none beyond the near plane.</summary>
-    public static double? DepthAlong(Vector3 viewRay, ReadOnlySpan<SceneRectangle> scene)
+    public static double? DepthAlong(Vector3 viewRay, ReadOnlySpan<SceneRectangle> scene) =>
+        NearestAlong(viewRay, scene)?.Depth;
+
+    /// <summary>The nearest rectangle along a view ray whose component along forward is 1: its view depth, and its unit
+    /// normal turned toward the eye, as the G-buffer turns a geometric normal; or null when the ray meets none beyond
+    /// the near plane.</summary>
+    public static (double Depth, Vector3 Normal)? NearestAlong(Vector3 viewRay, ReadOnlySpan<SceneRectangle> scene)
     {
-        double? nearest = null;
+        (double Depth, Vector3 Normal)? nearest = null;
         foreach (SceneRectangle rectangle in scene)
         {
             var normal = Vector3.Cross(rectangle.HalfSide, rectangle.HalfOtherSide);
@@ -63,33 +69,42 @@ internal static class ScreenTesting
                 continue;
             // The ray's forward component is 1, so its parameter at the plane is the view depth.
             double depth = Vector3.Dot(rectangle.Center, normal) / along;
-            if (depth <= DepthRanges.NearPlane || depth >= nearest)
+            if (depth <= DepthRanges.NearPlane || depth >= nearest?.Depth)
                 continue;
             Vector3 offset = viewRay * (float)depth - rectangle.Center;
             bool inside =
                 MathF.Abs(Vector3.Dot(offset, rectangle.HalfSide)) <= rectangle.HalfSide.LengthSquared()
                 && MathF.Abs(Vector3.Dot(offset, rectangle.HalfOtherSide)) <= rectangle.HalfOtherSide.LengthSquared();
             if (inside)
-                nearest = depth;
+                nearest = (depth, Vector3.Normalize(along < 0 ? normal : -normal));
         }
         return nearest;
     }
 
-    /// <summary>The inverse view depth of each pixel's center, row by row from the top, 0 for sky.</summary>
-    public static float[] InverseDepths(in CameraView camera, ReadOnlySpan<SceneRectangle> scene)
+    /// <summary>
+    /// What the G-buffer of a synthetic scene holds: each pixel's distance to the eye in m, 0 for sky, and its unit
+    /// geometric normal turned toward the eye, the zero vector for sky, row by row from the top.
+    /// </summary>
+    public static (float[] Distances, Vector3[] Normals) Surfaces(in CameraView camera, ReadOnlySpan<SceneRectangle> scene)
     {
-        float[] inverseDepths = new float[camera.Width * camera.Height];
+        float[] distances = new float[camera.Width * camera.Height];
+        var normals = new Vector3[camera.Width * camera.Height];
         for (int y = 0; y < camera.Height; y++)
         for (int x = 0; x < camera.Width; x++)
         {
             Vector3 viewRay = camera.ViewRayThrough(new(x + 0.5f, y + 0.5f));
-            if (DepthAlong(viewRay, scene) is { } depth)
-                inverseDepths[y * camera.Width + x] = (float)(1 / depth);
+            if (NearestAlong(viewRay, scene) is not { } nearest)
+                continue;
+            distances[y * camera.Width + x] = (float)nearest.Depth * viewRay.Length();
+            normals[y * camera.Width + x] = nearest.Normal;
         }
-        return inverseDepths;
+        return (distances, normals);
     }
 
     /// <summary>The depth pyramid of a synthetic scene seen by <paramref name="camera"/>.</summary>
-    public static DepthPyramid Pyramid(in CameraView camera, ReadOnlySpan<SceneRectangle> scene) =>
-        DepthPyramid.FromInverseDepths(InverseDepths(camera, scene), camera.Width, camera.Height);
+    public static DepthPyramid Pyramid(in CameraView camera, ReadOnlySpan<SceneRectangle> scene)
+    {
+        (float[] distances, Vector3[] normals) = Surfaces(camera, scene);
+        return DepthPyramid.Of(camera: camera, distances: distances, geometricNormals: normals);
+    }
 }

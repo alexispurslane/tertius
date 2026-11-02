@@ -66,7 +66,7 @@ The user made the decisions marked (User). This design settled the others by the
 13. The depth pyramid holds inverse depth w = 1/z, not the distance. Along the image of a straight ray, w is an affine function of the screen position, and z and D are not (McGuire and Mara 2014). So the trace can test a whole cell against a ray exactly, with no march inside it. A 32-bit float keeps the same relative precision at 5 cm and at 10,000 km, so one pyramid serves all three depth ranges. Sky and infinity are both w = 0.
 14. Level 0 of the depth pyramid is the distance target, read through one function that converts D to w. The pyramid image holds only levels 1 and up. A copy of level 0 is a second store of the distance.
 15. A cell's bounds cover its surface pixels only, and a cell with no surface has the empty bounds (0, 10^30). Sky is not a surface: a ray never hits it, and it ends at the segment's end. The empty bound is a large finite number, not infinity, because a shader compiler's fast math may assume that no value is infinite, on any Vulkan driver and on MoltenVK alike. A cell outside its level, beside the screen, has the empty bounds too.
-16. The thickness is a share of the view depth: a surface at depth z fills z to z (1 + κ), with κ = 0.1. In inverse depth the slab is [w / (1 + κ), w], so one constant serves every range: 0.5 m behind a crate 5 m away, 50 m behind a ship 500 m away. The captures of Part 6 check the value.
+16. The thickness is a share of the view depth: a surface at depth z fills z to z (1 + κ), with κ = 0.1. In inverse depth the slab is [w / (1 + κ), w], so one constant serves every range: 0.5 m behind a crate 5 m away, 50 m behind a ship 500 m away. The captures of Part 6 check the value. The surface that the slab lies behind is each pixel's bounded plane, not one depth over the pixel's square (ticket `ter-eqtb`, the user's choice A of 2026-11-02): see "The pixel's surface". (User) The pyramid's bounds and the trace's test at level 0 read that one surface, so a pixel has one model of its depth extent at every level (ticket `ter-y8z0`'s review finding F6). The user rejected two other candidates, because their bands stay: a plane at level 0 under flat bounds above, and q measured against the hit pixel's plane only. The user also rejected a fade by the hit surface's facing to the eye, because it is a mask that removes the reflection of every surface that the eye sees at a grazing angle.
 17. The ray follows the specular dominant direction d of Lagarde and de Rousiers 2014, not the mirror direction. The ambient specular term gathers along d: the lobe's sky share reads d today, and an environment map samples along d. So a hit and a miss read the same direction of the lobe, and the fade between them changes no direction. For a smooth surface, d is the mirror direction.
 18. The origin moves off the surface along the geometric normal by 2 z θ_px, two pixel footprints, and at most z / 2. A ray that starts on the surface hits its own neighbor pixels by rounding. The geometric normal is the surface that the depth sees. The cap (the portable float audit, 2026-10-25) keeps the origin at least half as deep as the surface, because θ_px passes 1/2 in a window a few pixels tall or at a field of view near a half turn, where two footprints along the normal of a surface that faces the eye reach the eye's plane.
 19. The cone's half angle comes from Uludag's rule, translated to GGX: tan θ_c = α √((1 − ξ) / ξ) with ξ = 0.244, about 1.7602 α. The cone level is log₂ of the cone's radius at the hit, in pixels (Uludag 2014). See "The cone".
@@ -125,12 +125,11 @@ flowchart TD
 
 ### 1. The depth pyramid
 
-Level 0 is the distance target. The bounds of pixel p are
+Level 0 is the distance target with the geometric normals. The bounds of pixel p are
 
 ```
-w(p) = |r(p)| / D(p)                    when D(p) > 0
-bounds(p) = (w(p), w(p))                a surface
-bounds(p) = (0, 10^30)                  sky: the empty bounds
+bounds(p) = (max S_p, min S_p) over the pixel's square    a surface: S_p is its surface ("The pixel's surface")
+bounds(p) = (0, 10^30)                                    sky: the empty bounds
 ```
 
 Level k ≥ 1 merges the up to four cells of level k − 1 under each cell:
@@ -145,7 +144,43 @@ size_k = ⌈size_{k−1} / 2⌉ per axis      so cell (i, j) of level k covers e
 - The image's mip m holds level m + 1, RG32F: R is w_near and G is w_far.
 - At 1920 × 1080, level 1 is 960 × 540 and level 11 is 1 × 1. The image is padded to 1024 × 1024, so that each mip holds its level (see "Images").
 
-The pass dispatches once per level, each level reading the one before. `depth_pyramid_first.comp` reads the distance target for level 1, and `depth_pyramid_down.comp` reads level k − 1 for each later level.
+The pass dispatches once per level, each level reading the one before. `depth_pyramid_first.comp` reads the distance target and the normals target for level 1, and `depth_pyramid_down.comp` reads level k − 1 for each later level.
+
+### The pixel's surface
+
+Each pixel p that sees a surface is its plane: the plane through its center point along its geometric normal n. Along a view ray r(x) through the screen position x, whose forward part is 1, the plane lies at the inverse depth n · r(x) / (n · P_c), which is affine in x. So the plane is a center value and a gradient (ticket `ter-eqtb`, the user's choice A of 2026-11-02):
+
+```
+c        = p + (½, ½)                               the pixel's center, in pixels
+w_c      = |r(c)| / D(p)                            the center's inverse depth, from the distance target
+g        = (n · R · 2 / W,  −n · U · 2 / H) / (n · P_c)    the plane's change of inverse depth per pixel
+plane(x) = w_c + g · (x − c)
+```
+
+where R and U are the camera's right and up axes times the tangents of the half angles, W × H is the screen in pixels, and P_c is the center point, D(p) along the unit view ray through c.
+
+The plane holds over a part of the pixel's square, from low to high. Toward each of the four edge neighbors q, the part reaches the pixel's edge where q continues the plane, and stops at the center line otherwise. Continuation is a test in both directions: each plane holds the other pixel's center.
+
+```
+holds(plane, x, w) = w ≤ plane(x) · (1 + τ) and w · (1 + τ) ≥ plane(x)                       τ = 0.01
+continues(q)       = q lies beyond the screen,
+                     or D(q) > 0, neither plane is edge-on, holds(plane_p, c_q, w_c(q)) and holds(plane_q, c, w_c)
+S_p(x)             = plane(clamp(x, low, high))
+```
+
+- Past the part, the surface keeps the plane's value at the part's edge. So the plane never reaches depths where no surface is, beyond a depth edge, a silhouette or the sky. Ticket `ter-y8z0`'s unbounded planes reached them, and floor rays that passed beside an outline hit them as streaks.
+- A neighbor beyond the screen continues the plane, because the screen's edge is not a depth edge.
+- The test runs in both directions, because a steep plane at a depth edge can pass the far surface's center one pixel away by chance. On `demo-exit`'s floor film at a maximum roughness of 0.6, the last row of a curved wall seen at a grazing angle had a plane that changed by 0.0103 m⁻¹ per pixel at 0.0500 m⁻¹. One row down it passed the far wall's center within 1 % in the few columns where the two values crossed. The surface then reached across the depth edge there, and floor rays that should leave the screen hit it: short light bars at x 620 and 770. The far wall's plane never passes back through the near center, so the test in both directions finds the edge (`ACellAtADepthEdgeBoundsTheNearSurfaceOnlyToTheCenterLineOfItsLastRowWhereItsPlanePassesTheFarSurface`, `APlaneThatPassesTheCenterOfAFarNeighborByChanceStopsAtItsCenterLineTowardIt`).
+- The continuation share τ = 0.01 (`CellBounds.ContinuationShare`, `ContinuationShare`) is far below κ. At τ = κ, the plane of a curved mesh's pixel reaches edges where the neighbor's surface stands several percent off it, and rays slip through the step between the two surfaces. That showed as dotted lines on the reflections of curved meshes: the gold spheres of `pbr-spheres` low and the rims of `mirror-balls`. At 0.01 they are gone (`AMirrorBallReflectsBallsOnAFloorThatTheEyeSeesAtAGrazingAngleWithNoDottedLines`).
+- A plane within a millionth of a radian of the view ray is edge-on: |n · P_c| ≤ 10⁻⁶ D(p). Such a pixel keeps w_c over its whole square, with g = 0, because g would grow past any float. No neighbor continues an edge-on plane, and an edge-on plane continues no neighbor.
+- A pixel that faces the eye's forward axis has g = 0, and so keeps the one depth of the model before.
+- The surface is affine over its part and constant past it, so the corners of the part hold its bounds.
+
+One function, `pixelSurface` in `depth_pyramid.glsl`, builds the surface from `pixelPlane`, and `PixelSurface.Of` and `PixelPlane.Of` are its C# copy. `pixelBounds` bounds it for level 1, and so for every coarser level, and the trace's test at level 0 reads it (see "4. The trace through the pyramid"). A level-0 hit therefore always lies inside the bounds of every cell above it.
+
+The bounce light's near steps share κ with the trace, but they have a second rule for where a depth sample's plane holds. A near step reads one half-resolution texel and extends that texel's geometric-normal plane to the step's exact place on its slice (`stepSurfacePoint` in `sectors.glsl`, `SectorSearch.SurfacePoint`). It does so only where the plane's depth there lies between the depths of the texel and its two neighbors toward the place, widened by `CenterBias` (`depthsAround`). Otherwise the step stands at the texel's own point. Sky counts as `SkyDepth` there, so a texel's plane can reach up to half a texel toward the sky. The reflections' rule is the continuation test above, which stops a plane at the center line toward the sky. The two rules differ because their readers differ: a full-resolution pixel must bound the cells of the pyramid over its whole square, and a near step reads a half-resolution texel at one sub-texel place. They agree on a plane that continues across its neighbors and differ at silhouettes. Ticket `ter-ipc1` designs one rule for where a depth sample's plane holds, for both readers.
+
+What the bound leaves: a pixel at a depth edge keeps one depth on the half of its square past its center line. So a short stepped outline remains where a reflected surface ends at a depth edge, for example at the top of demo-exit's floor film at the old limit 0.6, from y 540 to 600. The light bars that the test in one direction left there are gone.
 
 ### 2. The ray
 
@@ -217,7 +252,7 @@ stateDiagram-v2
     Up --> Examine: s = the cell's exit, level + 1 (at most L)
     Examine --> Down: they overlap, level > 0
     Down --> Examine: s = where the ray enters the slab, level − 1
-    Examine --> Hit: they overlap, level 0
+    Examine --> Hit: level 0, the stretch inside the pixel meets the slab behind the pixel's surface
     Hit --> [*]
     Miss --> [*]
 ```
@@ -228,7 +263,7 @@ For each step, at level k and parameter s:
 cell    = floor((S(s) + ε · sign(ΔS)) / 2^k)    when s stands on an edge   ε = 0.01 px, so it belongs to the cell ahead
 cell    = floor(S(s) / 2^k)                     when s is a slab entry solved strictly inside a cell
 s_exit  = min(s at the cell's far edge on x, s at its far edge on y, s_end)
-(n, f)  = bounds(k, cell)                       the empty bounds for a cell outside its level
+(n, f)  = bounds(k, cell)                       for k ≥ 1; the empty bounds for a cell outside its level
 high    = n;   low = f / (1 + κ)                            the slab
 w_in    = w(s) after a crossing, the slab bound after a descent;   w_out = w(s_exit)
 overlap = max(min(w_in, w_out), low) ≤ min(max(w_in, w_out), high)
@@ -246,15 +281,25 @@ overlap = max(min(w_in, w_out), low) ≤ min(max(w_in, w_out), high)
   s = clamp(s_entry, s, s_exit);  w_in = clamp(w_in, low, high);  level − 1
   ```
 
-- An overlap at level 0 is a hit in that pixel. The entry share comes from where the ray stands at the pixel's edge, w_edge = w(s_pixel), where s_pixel is the later of the ray's crossings of the pixel's two near edges. After a descent, s is a solved slab entry, not the pixel's edge, so w_in does not serve (see "Precision and determinism"):
+- At level 0 the pixel's surface decides, not its bounds (`meetsPixelSurface` in `reflection.glsl`, `ScreenRay.MeetPixel`). The test reads the pixel's surface S_p and the ray at both ends of the stretch inside the pixel, from s to s_exit, and takes both as affine between them:
 
   ```
+  front_in  = w_in − S_p(S(s)),       front_out = w(s_exit) − S_p(S(s_exit))           in front of the slab's front where > 0
+  back_in   = w_in − S_p(S(s)) / (1 + κ),   back_out = w(s_exit) − S_p(S(s_exit)) / (1 + κ)   behind its back where < 0
+  hit       = not (front_in > 0 and front_out > 0) and not (back_in < 0 and back_out < 0)
+  ```
+
+  On a hit, the ray enters the slab through its front where front crosses 0, through its back where back crosses 0, or at s when it starts inside. The hit position is that point, clamped into the pixel. A miss crosses the pixel, as a missed cell does. A ray that comes down onto a floor meets the plane's front where it crosses it. With one depth per pixel, such a ray at a grazing angle entered the next pixel's slab from behind, with weights 1 − q that rose and fell in bands from row to row (ticket `ter-y8z0`'s artifact 1).
+
+  Where the surface's part stops at a center line, S_p bends there, and the stretch is up to three affine pieces. A hit is still real: the ray's offset from the front, or from the back, changes sign between the two ends, so the ray crosses that face. A miss can be wrong. A ray in front of the front at both ends can pass behind it at a bend where S_p bulges toward the eye, and a ray behind the back at both ends can pass inside it at a bend where S_p bulges away. The ray then slips through a sliver at most |g_x| / 2 + |g_y| / 2 deep in inverse depth, inside the half of the pixel next to a stop. Stops lie only at depth edges and where a curve bends more than τ, so the error stays at outlines, at the size of the flat half that the stop already keeps. Splitting the stretch at the center lines removes it for two more reads of the surface per level-0 step. It is not made, because no capture shows it.
+- The entry share comes from where the ray stands at the pixel's edge, w_edge = w(s_pixel), where s_pixel is the later of the ray's crossings of the pixel's two near edges, against the surface there. After a descent, s is a solved slab entry, not the pixel's edge, so w_in does not serve (see "Precision and determinism"):
+
+  ```
+  high = S_p(S(s_pixel)),  low = high / (1 + κ)
   q = 0                                    when w_edge > high: the ray enters through the front of the surface
   q = (high − w_edge) / (high − low)       when it is inside the slab at the pixel's edge
   q = 1                                    when w_edge < low: the ray enters from behind, so it meets the back of the object
   ```
-
-  The hit position is S(s_entry), clamped into the pixel.
 
 - The steps count every examined cell. When `MaxSteps` steps end with no decision, the ray misses.
 
@@ -657,7 +702,9 @@ Each constant has its C# twin, as `brdf.glsl`'s constants have.
 
 | Constant | Value | C# | GLSL |
 |---|---|---|---|
-| Thickness share κ | 0.1 | `ScreenRay.ThicknessShare` | `ThicknessShare` |
+| Thickness share κ | 0.1 | `CellBounds.ThicknessShare` | `ThicknessShare` |
+| Continuation share τ | 0.01 | `CellBounds.ContinuationShare` | `ContinuationShare` |
+| Edge-on share | 10⁻⁶ of the distance | `PixelSurface.EdgeOnShare` | `EdgeOnShare` |
 | Uludag's share ξ | 0.244 | `ReflectionCone.UludagShare` | Used only through the next |
 | Cone tangent per α | √((1 − ξ) / ξ) = 1.7602 | `ReflectionCone.TangentPerAlpha` | `ConeTangentPerAlpha` |
 | Edge fade band | 0.1 of the shorter side | `CameraView.EdgeFadeShare` | `EdgeFadeShare` |
@@ -794,6 +841,7 @@ All workgroups are 8 × 8 invocations.
 | Image or buffer | From | To | Kind | Reason |
 |---|---|---|---|---|
 | Distance target | G-buffer pass (color attachment write) | Depth pyramid (`SampledCompute`) | Write to read | The pyramid reads the finished distance. |
+| Normal target | G-buffer pass (color attachment write) | Depth pyramid (`SampledCompute`) | Write to read | The first level reads the geometric normals for each pixel's plane. |
 | Distance target | Depth pyramid (compute read) | Lighting pass (`SampledFragment`) | Read to read | A chain to the fragment stage. |
 | Depth pyramid image | The last frame's trace (compute read) | Level 1 (`StorageCompute`) | Read to write | The build must not overwrite a pyramid that the last frame's trace still reads. A barrier orders against earlier submissions on the queue. |
 | Depth pyramid image | Level k − 1 (compute write) | Level k (`StorageCompute`) | Write to write | Level k reads level k − 1. |
@@ -1432,7 +1480,7 @@ The tests follow tests/STYLE.md: one behavior per test, named as a statement. No
 
 `PyramidRenderTests`, with a scene of a floor, boxes, a lamp and sky:
 
-- `EachDepthPyramidCellHoldsTheBoundsOfThePixelsUnderIt`: levels 1, 3 and L from `ReadDepthPyramidLevel` equal `DepthPyramid.FromInverseDepths` of the inverse depths that the test computes from `ReadDistance` and `CameraView.ViewRayThrough`, within 2 · 10⁻⁷ relative.
+- `EachDepthPyramidCellHoldsTheBoundsOfThePixelsUnderIt`: levels 1, 3 and L from `ReadDepthPyramidLevel` equal `DepthPyramid.Of` of the surfaces that the test builds from `ReadDistance`, the geometric normals of `ReadNormals` and the frame's camera, within 10⁻⁶ relative.
 - `ACellOfOnlySkyHoldsTheEmptyBounds`.
 - `RadianceLevelZeroIsTheLitImageTimesTheSurfaceCoverage`: against `ReadHdr` and `ReadDistance` of a frame drawn without reflections, so the HDR image is the lit image plus the transparent pass, which the scene does not use.
 - `EachRadianceLevelIsTheThirteenTapDownsampleOfTheLevelBelow`: level 2 against the test's own 13-tap of level 1, within half-float rounding.
@@ -1467,7 +1515,7 @@ The tests:
 
 `ReflectionShaderTests` pins the shader to the C# copy. Its floors take a normal map of the flat texel (128, 128, 255), whose lean of about 0.3° (`ter-v0yz`) the C# trace takes too, so that both start from the normal the G-buffer holds:
 
-- `TheGpuTraceReflectsThePixelThatTheCSharpTraceHits`: a mirror floor of the roughness floor below a wall of 16 × 8 emissive tiles, each of its own color. For a grid of floor pixels, the test traces the C# `ScreenRay` over `DepthPyramid.FromInverseDepths` of the frame's distance, with the `CameraView` of the test's camera. Where the C# trace hits with f = 1, the floor's HDR value equals W times the `NoReflections` frame's value at the C# hit pixel, within 2 %. A wrong cell, axis or sign hits another tile.
+- `TheGpuTraceReflectsThePixelThatTheCSharpTraceHits`: a mirror floor of the roughness floor below a wall of 16 × 8 emissive tiles, each of its own color. For a grid of floor pixels, the test traces the C# `ScreenRay` over `DepthPyramid.Of` of the frame's distance and geometric normals, with the `CameraView` of the test's camera. Where the C# trace hits with f = 1, the floor's HDR value equals W times the `NoReflections` frame's value at the C# hit pixel, within 2 %. A wrong cell, axis or sign hits another tile.
 - `TheGpuConeReadsTheLevelThatTheCSharpConeGives`: floors of roughness 0.3 and 0.5 reflecting a wall checkered at the period of one level of the pyramid, under a gray ambient light. The test takes the unfaded setting, so its fade is 1 and 0.996 at the two floors (`ter-8bda`). Each floor pixel matches its lit value plus the C# delta from a trilinear sample of the read-back pyramid at `ReflectionCone.Level`, with its coverage, within 3 % of the bright squares' reflection. The checks make the read depend on the level and on the height of the hit, which the dominant direction decides.
 - `TheGpuUpsampleMixesTheTexelsRaysUnderTheWeightsOfTheCSharpUpsampleOrTracesTheOwnRayThatItChooses` (ticket `ter-ff6y`, extended by `ter-cuf9`): at half resolution, the tiled wall's mirror floor with a white mirror sphere, a ramp in a crease of 20° with the floor and a slab 3 cm high, about one texel width. For every pixel to which the upsample adds light, the color that it adds matches, within 0.01 in each channel's share, the color of the C# `ReflectionUpsample.Ray` over the read-back trace image, distance and G-buffer normals (`ReadNormals`). The sphere's rim, the crease and the step give more than 200 pixels whose texels disagree, so a normal power of 1, a texel width of 4 pixel footprints or uneven bilinear weights each fail it. Since ticket `ter-cuf9`, a pixel for which the C# upsample, over the read-back hit depths too, chooses its own ray matches a full-resolution render of the scene within 10⁻³ of its value instead, and more than 100 pixels do (434 on this Mac), where a reflection passes from the wall to the sky or from one surface to another.
 - `EachTexelOfTheHalfResolutionTraceHoldsTheViewDepthOfItsRaysHit` (ticket `ter-cuf9`): every texel of the tiled wall's mirror floor whose ray hits holds 9.5 m, the view depth of the wall's front, within 10⁻³ of it, where the distances of the hit pixels from the eye grow toward the wall's sides and top.
