@@ -1,8 +1,8 @@
 ---
 id: ter-773q
-status: open
+status: in_progress
 deps: []
-links: [ter-hxca]
+links: [ter-hxca, ter-lbyp]
 created: 2026-11-02T04:50:04Z
 type: task
 priority: 3
@@ -38,3 +38,13 @@ CPU of the test hosts with DOTNET_PROCESSOR_COUNT=4, sampled every second with p
 - Simulation, before: pcpu peak 181, mean 130. After: pcpu peak 340, mean 231. The run lasts 9 s, so it gives 4 to 9 samples.
 - Physics without the variable, after: pcpu peak 436, rate peak 615.
 The load of the machine was between 7 and 50 from other agents, so the means vary. The change does not move these hosts, because no Physics or Simulation test steps a default backend: WorldTesting uses JoltBackendOptions.Unpaced (1 worker), and a few tests set 2 or 4. The steady part of a Physics run sits at about 400% (6 to 9 busy threads in ps -M). The short peak of about 570% comes in the first 2 s, from about 38 threads at about 10% each.
+
+**2026-11-02T08:49:24Z**
+
+Review fixes (2026-11-02).
+
+Determinism evidence. The island test showed that the old heap of 100 cubes in 4 layers of 5 by 5 was 25 separate columns: its largest awake island held 4 contacts, the floor contact and 3 between layers, because cubes 2 cm apart in a layer never touch. So it never reached Jolt's large island splitter (above 128 constraints), and the note above was wrong about 260 contacts. The heap is now a stepped pyramid of 91 cubes (layers of 6 by 6 down to 1 by 1, each layer half a cube in), so each cube lands on four cubes below. WorkerThreadsTests.HeapIsland counts the real touches of the largest group of connected cubes while all 91 are awake: 258, a lower bound on the island's constraints. AHeapEndsInTheSameBitsWithOneTwoOrTheDefaultNumberOfWorkers compares 1 worker, 2 workers and a default backend: 9 workers on this machine, 3 under DOTNET_PROCESSOR_COUNT=4. It no longer starts a fixed 9.
+
+The count that reaches Jolt. JoltThreadCountTests (a collection without parallelization) counts the threads of the process before and after it builds a backend, with a margin of one thread. An explicit count of 2 starts 2 or 3 threads, and a default backend starts WorkerThreadsFor(Environment.ProcessorCount). With the old call new JobSystemThreadPool() in place, both failed under DOTNET_PROCESSOR_COUNT=4 with 9 threads. Both passed 30 runs in a row, 10 each with the variable at 4, at 1 and unset. The managed copy JoltPhysicsBackend.WorkerThreads is gone, because no test reads it now.
+
+CPU after the review fixes, DOTNET_PROCESSOR_COUNT=4, load 9 to 10: Physics pcpu peak 494, mean 227, rate peak 527, mean 314 (14 samples). Simulation pcpu peak 362, mean 252, rate peak 389, mean 324 (3 samples). The start-up peak of the Physics host is unchanged. ter-lbyp holds it.

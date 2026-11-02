@@ -32,8 +32,8 @@ public sealed record JoltBackendOptions
     /// <summary>
     /// Jolt worker threads. Zero or less gives one per processor that the runtime reports, minus one, and at least one (see
     /// <see cref="WorkerThreadsFor"/>). The runtime takes its count from <c>DOTNET_PROCESSOR_COUNT</c> when it is set, and
-    /// else from the processors that the process may use, so the variable bounds these threads as it bounds the .NET thread
-    /// pool and xunit.
+    /// else from the processors that the process may use. So the variable sets the number of these threads, as it sets the
+    /// processor count of the .NET thread pool and the thread count of xunit.
     /// </summary>
     public int WorkerThreads { get; init; }
 

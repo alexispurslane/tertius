@@ -2,7 +2,7 @@
 id: ter-hxca
 status: closed
 deps: []
-links: [ter-u63a, ter-773q]
+links: [ter-u63a, ter-773q, ter-lbyp]
 created: 2026-11-01T23:57:17Z
 type: task
 priority: 1

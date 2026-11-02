@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Tertius.Simulation;
 using static Tertius.Testing.WorldTesting;
 
@@ -24,53 +25,103 @@ public sealed class WorkerThreadsTests
 
     [Fact]
     public void AnExplicitWorkerCountHoldsWhateverTheProcessorCount() =>
-        new JoltBackendOptions { WorkerThreads = 6 }.WorkerThreadsFor(processorCount: 4).Should().Be(6);
-
-    [Fact]
-    public void ADefaultBackendTakesItsWorkerCountFromTheProcessorCountOfTheRuntime()
-    {
-        using var backend = new JoltPhysicsBackend();
-
-        backend
-            .WorkerThreads.Should()
-            .Be(
-                new JoltBackendOptions().WorkerThreadsFor(Environment.ProcessorCount),
-                "DOTNET_PROCESSOR_COUNT sets Environment.ProcessorCount, and the hardware does not"
-            );
-    }
-
-    [Fact]
-    public void ABackendWithAnExplicitWorkerCountGivesJoltThatCount()
-    {
-        using var backend = new JoltPhysicsBackend(new() { WorkerThreads = 2 });
-
-        backend.WorkerThreads.Should().Be(2);
-    }
+        new JoltBackendOptions { WorkerThreads = 6 }
+            .WorkerThreadsFor(processorCount: 4)
+            .Should()
+            .Be(6);
 
     /// <summary>
     /// The evidence that a change of the default count changes no result: Jolt's documentation makes its determinism
     /// depend on the order of the API calls and on the binary, not on the job system, and its own determinism tests compare
-    /// 0 workers with 15. This heap is large enough that Jolt splits its island into batches for the workers.
+    /// 0 workers with 15. The default backend runs 9 workers on a machine of 10 cores, and 3 under
+    /// <c>DOTNET_PROCESSOR_COUNT=4</c>, so the test never starts more workers than the host may use.
+    /// <see cref="HeapIsland"/> shows that Jolt splits this heap's island into batches for the workers.
     /// </summary>
     [Fact]
-    public void AHeapEndsInTheSameBitsWithOneThreeOrNineWorkers()
+    public void AHeapEndsInTheSameBitsWithOneTwoOrTheDefaultNumberOfWorkers()
     {
-        ulong one = HeapRun(workers: 1);
+        ulong one = HeapHash(new() { WorkerThreads = 1 });
 
-        HeapRun(workers: 3).Should().Be(one, "3 is the default count of a host with DOTNET_PROCESSOR_COUNT=4");
-        HeapRun(workers: 9).Should().Be(one, "9 is the default count on a machine of 10 cores");
+        HeapHash(new() { WorkerThreads = 2 }).Should().Be(one);
+        HeapHash(new()).Should().Be(one, "the default count is the runtime's processor count minus one");
     }
 
-    /// <summary>
-    /// The hash of a world after three seconds on a backend with <paramref name="workers"/> Jolt workers: 100 cubes of 1 m
-    /// in 4 layers of 5 by 5, 2 cm apart, turned a little and dropped from uneven heights onto a floor and onto each other.
-    /// The block that they land in is one island of about 260 contacts: 25 on the floor, 75 between the layers and 160
-    /// between neighbors in a layer. That is more than 128, the size above which Jolt's large island splitter hands batches
-    /// of an island's constraints to the workers.
-    /// </summary>
-    private static ulong HeapRun(int workers)
+    private static ulong HeapHash(JoltBackendOptions options)
     {
-        using var world = new World(
+        using World world = Heap(new JoltPhysicsBackend(options), out _);
+        return WorldHash.Of(world);
+    }
+
+    /// <summary>The island of the heap (tests/STYLE.md, "Long tests").</summary>
+    public sealed class HeapIsland
+    {
+        /// <summary>
+        /// The premise of the determinism test: Jolt's large island splitter hands batches of an island's constraints to
+        /// the workers only when the island holds more than <c>LargeIslandSplitter::cLargeIslandTreshold</c>, 128
+        /// constraints (Jolt/Physics/LargeIslandSplitter.h). This test counts the contacts that touch the largest group
+        /// of connected cubes at the end of a step in which every cube is awake. Each such contact is one of Jolt's contact
+        /// constraints. Jolt also holds a constraint for a pair within its speculative contact distance that does not
+        /// touch yet, so the count is a lower bound on the island's constraints.
+        /// </summary>
+        [Fact]
+        public void TheAwakeHeapIsOneIslandOfMoreContactsThanJoltSplitsForItsWorkers()
+        {
+            var faults = new FaultInjectingBackend(new JoltPhysicsBackend(new() { WorkerThreads = 1 }));
+            // The world disposes the backend, and the outputs that the wrapper recorded stay.
+            Heap(faults, out Entity floor).Dispose();
+
+            var touching = new HashSet<(Entity A, Entity B)>();
+            int largest = 0;
+            foreach (PhysicsStepOutput output in faults.Outputs)
+            {
+                foreach (ContactStarted contact in output.Contacts)
+                    touching.Add((contact.A, contact.B));
+                foreach (ContactEnded ended in output.ContactsEnded)
+                    touching.Remove((ended.A, ended.B));
+                if (output.Bodies.Count == HeapCubes)
+                    largest = Math.Max(largest, LargestIslandContacts(touching, floor));
+            }
+
+            largest.Should().BeGreaterThan(128);
+        }
+
+        // The contacts of the largest group of cubes that touch each other, directly or through other cubes. The floor is
+        // static, so it joins no two cubes into one island, but its contacts with the group's cubes count.
+        private static int LargestIslandContacts(HashSet<(Entity A, Entity B)> touching, Entity floor)
+        {
+            var parent = new Dictionary<Entity, Entity>();
+            foreach ((Entity a, Entity b) in touching)
+                if (a != floor && b != floor)
+                    parent[Root(parent, a)] = Root(parent, b);
+
+            var contacts = new Dictionary<Entity, int>();
+            foreach ((Entity a, Entity b) in touching)
+            {
+                Entity root = Root(parent, a == floor ? b : a);
+                contacts[root] = contacts.GetValueOrDefault(root) + 1;
+            }
+            return contacts.Count == 0 ? 0 : contacts.Values.Max();
+        }
+
+        private static Entity Root(Dictionary<Entity, Entity> parent, Entity cube)
+        {
+            while (parent.TryGetValue(cube, out Entity up) && up != cube)
+                cube = up;
+            return cube;
+        }
+    }
+
+    /// <summary>The number of cubes in the heap: layers of 6 by 6, 5 by 5 and so on up to 1 by 1.</summary>
+    private const int HeapCubes = 91;
+
+    /// <summary>
+    /// A world after three seconds on <paramref name="physics"/>: a stepped pyramid of <see cref="HeapCubes"/> cubes of
+    /// 1 m, 2 cm apart in each layer. Each layer sits half a cube in from the layer below, so each of its cubes lands on
+    /// the corners of four cubes below. The cubes are turned a little and dropped from uneven heights.
+    /// </summary>
+    private static World Heap(IPhysicsBackend physics, out Entity floor)
+    {
+        var world = new World(
             new()
             {
                 MaxDegreeOfParallelism = 1,
@@ -78,17 +129,20 @@ public sealed class WorkerThreadsTests
                 DebugChecks = false,
                 DisposePhysics = true,
             },
-            new JoltPhysicsBackend(new() { WorkerThreads = workers })
+            physics
         );
         FrameHandle ground = Ground(world, 9.81f);
-        Floor(world, ground);
-        for (int i = 0; i < 100; i++)
+        floor = Floor(world, ground);
+        int i = 0;
+        for (int layer = 0; layer < 6; layer++)
+        for (int x = 0; x < 6 - layer; x++)
+        for (int z = 0; z < 6 - layer; z++, i++)
             world.Spawn(
                 new()
                 {
                     Frame = ground,
                     Pose = new(
-                        new(i % 5 * 1.02, 0.6 + i / 25 * 1.1 + i % 7 * 0.01, i / 5 % 5 * 1.02),
+                        new((x + layer * 0.5) * 1.02, 0.6 + layer * 1.1 + i % 7 * 0.01, (z + layer * 0.5) * 1.02),
                         DQuaternion.FromAxisAngle(Double3.UnitY, i % 5 * 0.005)
                     ),
                     Body = Cube(),
@@ -96,6 +150,55 @@ public sealed class WorkerThreadsTests
             );
         for (int tick = 0; tick < 180; tick++)
             world.Tick();
-        return WorldHash.Of(world);
+        return world;
+    }
+}
+
+/// <summary>
+/// Runs the tests of <see cref="JoltThreadCountTests"/> alone, because they count the threads of the whole process.
+/// </summary>
+[CollectionDefinition(nameof(JoltThreadCountTests), DisableParallelization = true)]
+public sealed class JoltThreadCountCollection;
+
+/// <summary>
+/// The number of native threads that a backend's Jolt job system starts. A backend passes its count to Jolt, so that Jolt
+/// never sizes its workers from the hardware. Each test counts the threads of the process before and after it builds a
+/// backend, and allows one more thread for the runtime, which can start a thread of its own in the meantime.
+/// </summary>
+[Collection(nameof(JoltThreadCountTests))]
+public sealed class JoltThreadCountTests
+{
+    [Fact]
+    public void ABackendWithAnExplicitWorkerCountStartsThatManyJoltThreads() =>
+        ThreadsStartedBy(new() { WorkerThreads = 2 }).Should().BeInRange(2, 3);
+
+    [Fact]
+    public void ADefaultBackendStartsOneJoltThreadPerProcessorOfTheRuntimeMinusOne()
+    {
+        int expected = new JoltBackendOptions().WorkerThreadsFor(Environment.ProcessorCount);
+
+        ThreadsStartedBy(new())
+            .Should()
+            .BeInRange(
+                expected,
+                expected + 1,
+                "DOTNET_PROCESSOR_COUNT sets Environment.ProcessorCount, and the hardware does not"
+            );
+    }
+
+    // The threads of the process that a backend with these options adds while it lives. The first backend of the process
+    // also initializes Jolt, so a backend built and disposed first keeps that out of the count.
+    private static int ThreadsStartedBy(JoltBackendOptions options)
+    {
+        new JoltPhysicsBackend(new() { WorkerThreads = 1 }).Dispose();
+        int before = ProcessThreads();
+        using var backend = new JoltPhysicsBackend(options);
+        return ProcessThreads() - before;
+    }
+
+    private static int ProcessThreads()
+    {
+        using var process = Process.GetCurrentProcess();
+        return process.Threads.Count;
     }
 }
