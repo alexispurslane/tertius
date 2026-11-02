@@ -1,6 +1,6 @@
 ---
 id: ter-f3g2
-status: open
+status: in_progress
 deps: [ter-y8z0]
 links: [ter-eqtb]
 created: 2026-11-02T00:33:34Z
