@@ -30,7 +30,7 @@ Today a glossy surface reflects only the lights and the ambient specular term. T
 | The ray | The reflected ray of one pixel: its origin O and its unit direction d, in the camera-relative world axes of the shaders. |
 | The ray's image | The ray projected on the screen: a straight segment S(s) = S₀ + s · ΔS in pixels, with the inverse depth w(s) = w₀ + s · Δw, for s from 0 to the segment's end s_end. |
 | Entry share, q | Where the ray enters the slab of the pixel that it hits: 0 at the front of the slab, 1 at its back. |
-| The radiance pyramid | One RGBA16F image with levels 0 to L. Level 0 holds the lit image times the surface coverage in RGB, and the coverage in A. Each next level is a filtered half-size copy of the one before. |
+| The radiance pyramid | One RGBA16F image with levels 0 to L. Level 0 holds the lit image without the glow of an entity that holds a light, times the surface coverage in RGB, and the coverage in A. Each next level is a filtered half-size copy of the one before. |
 | Surface coverage, m | 1 for a pixel with D > 0, 0 for sky. |
 | The cone | The cone around the ray that stands for the specular lobe and the gap to the next ray. Its half angle θ_c has tan θ_c = max(1.7602 α, f · s). |
 | Cone level, λ | The level of the radiance pyramid that the cone's footprint at the hit selects. |
@@ -313,15 +313,24 @@ The trace starts at level 0 at the exit of the origin pixel. Uludag starts at le
 ### 5. The radiance pyramid
 
 ```
-level 0:  R(p) = (L(p) · m(p), m(p))                        L the HDR image, m the surface coverage
+level 0:  R(p) = (max(L(p) − G(p), 0) · m(p), m(p))        L the HDR image, G a lamp's glow, m the surface coverage
 level k:  R_k(q) = jimenez13(R_{k−1}) at the center of texel q              k from 1 to the top mip, Vulkan's mip sizes
 ```
 
+- G(p) is the pre-exposed emission of the pixel where its entity holds a light, and 0 elsewhere (see "A lamp's glow").
 - L is the lit image after the lighting pass: pre-exposed radiance with the ambient specular term of every surface, before the transparent pass and before any reflection. So the reflected surfaces carry their own ambient light, and a reflection shows no reflection of a reflection. A metal object in a mirror is therefore not black: its ambient specular term is in its pixels.
 - jimenez13 is the filter of `bloom_down.frag`: 13 bilinear taps of the level below at offsets of 0, ±1 and ±2 texels, five boxes of four taps, the inner box weighted 0.5 and the four corner boxes 0.125 each (Jimenez 2014). It applies to the four channels alike. Premultiplied, a texel of sky adds nothing to the color and nothing to the coverage, so the color of level k over its coverage is the mean radiance of its surface pixels.
 - The levels are the image's mips, so their sizes halve and round down, from the screen's size to 1 × 1: mips 0 to 10 at 1080p. The center of texel q lies on the source texel corner 2q + 1 where the source has an even size, as in `bloom_down.frag`. The taps clamp to the edge.
 
 `radiance_pyramid_first.comp` writes level 0, and `radiance_pyramid_down.comp` writes each later level with one dispatch per level.
+
+#### A lamp's glow
+
+An entity sends its power once (user, 2026-10-27). An entity that holds a light sends its power through that light, and its glowing surface is the face of that light, not a second source. The light's specular lobe, widened to the light's sphere (`ter-gf0t`), already shows the lamp in every glossy surface. So a ray that meets the glow of such an entity reads the lamp dark, as the environment map shows it (environment-map.md, decision 18) and as the bounce source leaves it out (screen-space-illumination.md, "The bounce source"). `radiance_pyramid_first.comp` subtracts the glow that the pixel does not send, `emission − glowSent(emission, mark)`, from the lit image. The mark is the G-buffer's copy of `GpuInstance.HoldsLight`, and `glowSent` in `frame.glsl` is the one rule of all three readers. The glow of an entity that holds no light, such as a screen, stays in the pyramid, and the floor reflects it.
+
+Ticket `ter-b1j3` (2026-11-02) made this change. Before it, a glossy floor showed a lamp twice where a ray hit its glow: once by the light's lobe and once by the ray. A bulb whose glow is its light's own sphere at the light's surface radiance, as the demo's glow lamps are, showed in a floor of roughness 0.05 at 3.46, against 1.54 for its light's lobe alone, its radiance counted once. Rays that miss read the map, which already left the glow out, so the floor's image of a lamp changed between the screen and the map. The demo's floors and walls are paint of roughness 0.38, above the maximum roughness of 0.37, so no demo view of `ter-b1j3`'s gallery changed by more than 7 levels of 255. The 64-ray reference of `ter-f3g2` (lobenorm) traces the same pyramid under a maximum of 0.6, so it counted the cabin lamps twice on the paint: it was 17.3 levels brighter than the image with the rule on brake-run's teeth, and that difference was most of what the ticket took for a missing lamp glow.
+
+The cost: a lamp whose glowing surface is larger than its light's sphere, such as a cabin panel 1.2 m square with a light of 5 cm radius, shows in a mirror floor as its light's disc on a dark panel. The light's sphere then gives the image's size, and a lamp that must show its panel in mirrors needs a light of the panel's size. The rule adds two texel reads per pixel to level 0, 0.04 ms at 1080p on the development Mac (`ter-b1j3`'s note has the runs).
 
 ### 6. The cone
 
@@ -766,7 +775,7 @@ The kinds of pixel:
 | Sky | No: D = 0 | Unchanged: the star field | Never hit, because its cells are empty. Inside a footprint it has coverage 0, so that share keeps the ambient specular term. |
 | A far planet | Yes, by the same rule | The same math at w near 10⁻⁷. Its rays mostly leave into space and miss. | Hit by a ray from a near surface in the pixel of the ray's vanishing point (see "Precision and determinism"). Its slab is 10⁶ m deep at 10⁷ m. |
 | A transparent object or a puff | No: it is not in the G-buffer | The opaque pixel behind it reflects. Then the transparent pass blends the glass or adds the puff over it. Glass keeps its own ambient specular term. | Not in the lit image yet, so not in any reflection (decision 2) |
-| A lamp | Yes, as any opaque surface, by its own material | As for its material | Its emission: lamps show in glossy floors |
+| A lamp | Yes, as any opaque surface, by its own material | As for its material | Its lit radiance without its glow, where its entity holds a light: the light's lobe shows the lamp in glossy floors ("A lamp's glow"). An entity that holds no light keeps its glow, so a screen shows in glossy floors. |
 
 The kinds of ray:
 
@@ -1483,6 +1492,7 @@ The tests follow tests/STYLE.md: one behavior per test, named as a statement. No
 - `EachDepthPyramidCellHoldsTheBoundsOfThePixelsUnderIt`: levels 1, 3 and L from `ReadDepthPyramidLevel` equal `DepthPyramid.Of` of the surfaces that the test builds from `ReadDistance`, the geometric normals of `ReadNormals` and the frame's camera, within 10⁻⁶ relative.
 - `ACellOfOnlySkyHoldsTheEmptyBounds`.
 - `RadianceLevelZeroIsTheLitImageTimesTheSurfaceCoverage`: against `ReadHdr` and `ReadDistance` of a frame drawn without reflections, so the HDR image is the lit image plus the transparent pass, which the scene does not use.
+- `RadianceLevelZeroLeavesOutTheGlowOfAnEntityThatHoldsALight`: the lamp box holds the scene's light. Level 0 equals the lit image of the same scene whose lamp box does not glow, within half-float rounding (`ter-b1j3`).
 - `EachRadianceLevelIsTheThirteenTapDownsampleOfTheLevelBelow`: level 2 against the test's own 13-tap of level 1, within half-float rounding.
 - `ThePyramidsFollowAResize`.
 - `NoReflectionsTimesNoPyramidOrReflectionPass`: the GPU timings name none of the three passes.
@@ -1511,6 +1521,7 @@ The tests:
 - `AFarPlanetShowsInANearMirror`: a mirror floor whose rays reach a planet in the far range. The pixels show the planet.
 - `TwoRendersGiveTheSameBits`: two renderers draw the same snapshot of a floor of roughness 0.2 under the unfaded setting, and `ReadHdr` gives the same bits.
 - Added by Part 5, for the hand mutations that the list above let survive: `AMirrorGivesNoWeightToASurfaceThatItsRayMeetsFromBehind` (a mirror wall whose rays come back toward the eye and enter a box's slab from behind), `ARayThatPointsIntoItsOwnSurfaceAddsNothing` (a normal map that leans every mirror ray into the floor), `AReflectionOnAFloorAtTheCapStaysAtTheCap`, and `TheTraceRunsAfterTheRadiancePyramidAndBeforeTheTransparentPass`. `AHitReplacesTheAmbientSpecularTermUnderTheSameWeight` runs at 0 and 2 stops, so that it sees the pre-exposure of T_s, and `ARayThatPassesFarBehindAnObjectShowsWhatLiesBehindIt` puts the plate 6 m ahead, between the ray's origin and its hit. The edge fade test renders at 1280 × 720: at 640 × 360 the band is 36 px, and the smoothstep's steepest step is 4.2 % of the peak, above the 3 % of the test.
+- `LampReflectionRenderTests` (`ter-b1j3`), a black floor of roughness 0.05 under a lamp whose glowing mesh and light carry one entity, with the map on: `AGlossyFloorShowsABulbWhoseGlowIsItsLightsSphereOnce` (the floor at the bulb's mirror image holds what it holds with the reflections off, within 3 %) and `TheScreensReflectionOfALampPanelIsTheMapsDarkPanel` (beside the light's disc, the panel's image is black with the reflections on and off).
 - `ScreenRayTests.EveryFloorPixelWhoseVanishingPointAPlanetCoversHitsThePlanet` (Part 5): 3,613 floor rays toward a planet 10⁷ m away, which pins the carried slab bound of "Precision and determinism".
 
 `ReflectionShaderTests` pins the shader to the C# copy. Its floors take a normal map of the flat texel (128, 128, 255), whose lean of about 0.3° (`ter-v0yz`) the C# trace takes too, so that both start from the normal the G-buffer holds:

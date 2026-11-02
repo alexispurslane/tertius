@@ -1,8 +1,10 @@
 #version 460
-// Level 0 of the radiance pyramid (docs/plans/screen-space-reflections.md, "The radiance pyramid"): the lit image times
-// the surface coverage, and the coverage, so that sky in a cone's footprint counts as a miss.
+// Level 0 of the radiance pyramid (docs/plans/screen-space-reflections.md, "The radiance pyramid"): the lit image without
+// the glow of an entity that holds a light, times the surface coverage, and the coverage, so that sky in a cone's
+// footprint counts as a miss.
 #extension GL_GOOGLE_include_directive : require
 #extension GL_EXT_samplerless_texture_functions : require
+#include "frame.glsl"
 #include "gbuffer_inputs.glsl"
 
 layout(local_size_x = 8, local_size_y = 8) in;
@@ -16,8 +18,15 @@ void main()
     if (any(greaterThanEqual(pixel, imageSize(destination))))
         return;
     float coverage = texelFetch(gbufferDistance, pixel, 0).r > 0.0 ? 1.0 : 0.0;
+    // A lamp's glow is its light's face, and the light's lobe already reflects the lamp in every surface, so a ray that
+    // meets the glow reads the lamp dark, as the map shows it (docs/plans/screen-space-reflections.md, "A lamp's glow").
+    // The glow that the pixel keeps is the one that it sends (glowSent, frame.glsl), the rule of the map and the bounce
+    // source. The G-buffer pass pre-exposed the glow, as the lit image is. Where the lit image reached MaxRadiance, its
+    // light without the glow is lower than the subtraction gives, and the max keeps the result at 0 or above.
+    vec3 emissive = texelFetch(gbufferEmissive, pixel, 0).rgb;
+    vec3 lampGlow = emissive - glowSent(emissive, lightMarkOfWord(texelFetch(gbufferShading, pixel, 0).b));
     // The select keeps sky's light out of the cones exactly. It guards against no infinity: the HDR image holds none,
     // because every writer caps its light at MaxRadiance, sky's star field too (ARCHITECTURE.md, "Portable Vulkan").
-    vec3 radiance = coverage > 0.0 ? texelFetch(source, pixel, 0).rgb : vec3(0.0);
+    vec3 radiance = coverage > 0.0 ? max(texelFetch(source, pixel, 0).rgb - lampGlow, vec3(0.0)) : vec3(0.0);
     imageStore(destination, pixel, vec4(radiance, coverage));
 }

@@ -229,6 +229,52 @@ public sealed class PyramidRenderTests
     }
 
     [Fact]
+    public void RadianceLevelZeroLeavesOutTheGlowOfAnEntityThatHoldsALight()
+    {
+        // The lamp box holds the scene's light, so its glow is that light's face, which the light's lobe already reflects
+        // (docs/plans/screen-space-reflections.md, "A lamp's glow"). Level 0 holds the lit image without the glow: the
+        // image of the same scene whose lamp box glows not at all.
+        float[] dark;
+        VulkanRenderer without = Gpu.Headless(reflections: new NoReflections());
+        try
+        {
+            without.Render(Scene(renderer: without, lampEntity: Gpu.LampEntity, lampGlow: Vector3.Zero), 1f);
+            dark = without.ReadHdr();
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(without);
+        }
+
+        VulkanRenderer renderer = Gpu.Headless(reflections: ConeTracedReflections.Default);
+        try
+        {
+            renderer.Render(Scene(renderer: renderer, lampEntity: Gpu.LampEntity, lampGlow: new(20, 18, 14)), 1f);
+            float[] lit = renderer.ReadHdr();
+            float[] distance = renderer.ReadDistance();
+            (float[] radiance, _, _) = renderer.ReadRadiancePyramidLevel(0);
+
+            lit.Should().Contain(value => value >= 14, "the lamp box glows in the lit image");
+            for (int value = 0; value < radiance.Length; value++)
+                if (value % 4 != 3)
+                    // The lit image stores the glow's sum with the light in half floats, whose step below 64 is at most
+                    // 1 / 32, and the direct and the ambient pass round it once each. A glow left in adds 14 or more.
+                    radiance[value]
+                        .Should()
+                        .BeApproximately(
+                            distance[value / 4] > 0 ? dark[value] : 0,
+                            1 / 16f,
+                            "value {0} holds no glow of the lamp",
+                            value
+                        );
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
     public void EachRadianceLevelIsTheThirteenTapDownsampleOfTheLevelBelow()
     {
         VulkanRenderer renderer = Gpu.Headless(reflections: ConeTracedReflections.Default);
@@ -629,7 +675,15 @@ public sealed class PyramidRenderTests
     /// A white floor 1.5 m below the eye, a red box, a blue box and a lamp on it, the sun, and sky above the floor's far
     /// edge, seen 12° below the horizontal.
     /// </summary>
-    private static RenderSnapshot Scene(VulkanRenderer renderer)
+    private static RenderSnapshot Scene(VulkanRenderer renderer) =>
+        Scene(renderer: renderer, lampEntity: 0, lampGlow: new(20, 18, 14));
+
+    /// <summary>
+    /// The scene of the pyramids' tests, with a lamp box of entity <paramref name="lampEntity"/> that glows with
+    /// <paramref name="lampGlow"/>. The scene's light carries <see cref="Gpu.LampEntity"/>, so the box holds that light
+    /// when <paramref name="lampEntity"/> is that entity.
+    /// </summary>
+    private static RenderSnapshot Scene(VulkanRenderer renderer, uint lampEntity, Vector3 lampGlow)
     {
         RenderSnapshot snapshot = Gpu.Snapshot(new(0.4f, 0.8f, 0.3f));
         snapshot.Camera.Rotation = Gpu.PitchDown(MathF.PI / 15);
@@ -647,14 +701,23 @@ public sealed class PyramidRenderTests
         MaterialId lamp = renderer.CreateMaterial(
             MaterialDesc.Color(new(x: 1, y: 1, z: 1, w: 1), roughness: 0.5f) with
             {
-                Emissive = new(20, 18, 14),
+                Emissive = lampGlow,
             }
         );
         snapshot.Instances.Add(Block(box: box, material: floor, center: new(0, -2, -20), size: new(20, 1, 36)));
         snapshot.Instances.Add(Block(box: box, material: red, center: new(-1.5f, -1, -6), size: new(1, 1, 1)));
         snapshot.Instances.Add(Block(box: box, material: blue, center: new(2, -0.5f, -9), size: new(1.2f, 2, 1.2f)));
+        var lampSize = new Vector3(0.3f, 0.5f, 0.3f);
         snapshot.Instances.Add(
-            Block(box: box, material: lamp, center: new(0.3f, -1.25f, -4), size: new(0.3f, 0.5f, 0.3f))
+            Gpu.Instance(
+                mesh: box,
+                material: lamp,
+                position: new(0.3f, -1.25f, -4),
+                scale: lampSize,
+                radius: lampSize.Length() / 2,
+                entity: lampEntity,
+                chainDepth: TestChains.CamerasFrame
+            )
         );
         snapshot.Lights.Add(
             Gpu.Lamp(

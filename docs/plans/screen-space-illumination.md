@@ -625,13 +625,15 @@ The light that a blocker bounces, its bounce source, is the light that leaves it
 - Only the diffuse part of the direct light bounces (decision 16). A highlight leaves toward the eye alone, so it does not light the floor beside it.
 - An entity sends its power once (user, 2026-10-27). An entity that holds a light sends its power through that light, and its glowing surface is the face of that light, not a second source. So a glow bounces only where its entity holds no light. A lamp's panel lights its surroundings through the lamp's light alone. A screen or a marker, which holds no light, still bounces its glow.
 
-The environment map follows the same rule with the same mark (user, 2026-10-31, `ter-ylzk`). `environment_face.frag` reads the mark from `mesh.vert` and adds a surface's glow only where its entity holds no light. So the map's SH irradiance, the ambient light of every open sector, carries no glow of a lamp. The lamp's panel also shows dark in the map's reflections, where SSR hands a reflected panel that leaves the screen over to the map. So does the Sun's sphere, which glows on the entity that holds the sunlight. The user accepted that cost and declined a second output of the faces that kept the panel in the reflections (environment-map.md, decision 18).
+The environment map follows the same rule with the same mark (user, 2026-10-31, `ter-ylzk`). `environment_face.frag` reads the mark from `mesh.vert` and adds a surface's glow only where its entity holds no light. So the map's SH irradiance, the ambient light of every open sector, carries no glow of a lamp. The lamp's panel also shows dark in the map's reflections, where SSR hands a reflected panel that leaves the screen over to the map. So does the Sun's sphere, which glows on the entity that holds the sunlight. The user accepted that cost and declined a second output of the faces that kept the panel in the reflections (environment-map.md, decision 18). The radiance pyramid of the reflections follows it too (`ter-b1j3`): its level 0 subtracts the glow that a pixel does not send, so a ray that meets a lamp's panel reads it dark, and the light's lobe alone reflects the lamp (screen-space-reflections.md, "A lamp's glow").
 
 ```mermaid
 flowchart LR
     B["SceneBatcher: the entities that the snapshot's lights carry"] --> GI["GpuInstance.holdsLight"]
     GI --> MV["mesh.vert, location 4 z"] --> GF["gbuffer.frag: the shading target's B"]
     MV --> EF["environment_face.frag: glow = (z = 0 ? emission : 0)"] --> EMAP[("The environment map: its irradiance and its reflections")]
+    GF --> RP["radiance_pyramid_first.comp: lit − (B = 0 ? 0 : emission)"] --> RPY[("Level 0 of the radiance pyramid: SSR's rays")]
+    EM --> RP
     DP["Direct pass: the diffuse part of DirectTerms"] --> DF[("The diffuse image: rgb diffuse, a the skin mask")]
     DF --> OD["occlusion depth: source = diffuse + (B = 0 ? emission : 0), capped at MaxRadiance"]
     GF --> OD

@@ -41,8 +41,9 @@ uint cardCode(uint card, uint placedIndex)
 
 // The glow that a surface sends to other surfaces as their light: its emission, or none where its entity holds a light. An
 // entity sends its power once (user, 2026-10-27): one that holds a light sends it through that light, and its glow is the
-// light's face, not a second source. The bounce source (occlusion_depth.comp) and the environment faces
-// (environment_face.frag) read the rule here. holdsLight is GpuInstance.holdsLight, or the G-buffer's copy of it.
+// light's face, not a second source. The bounce source (occlusion_depth.comp), the environment faces
+// (environment_face.frag) and the radiance pyramid of the reflections (radiance_pyramid_first.comp) read the rule here, so
+// that the light's lobe alone reflects such a lamp. holdsLight is GpuInstance.holdsLight, or the G-buffer's copy of it.
 vec3 glowSent(vec3 emissive, uint holdsLight)
 {
     return holdsLight == 0u ? emissive : vec3(0.0);
