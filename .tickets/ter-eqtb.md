@@ -1,6 +1,6 @@
 ---
 id: ter-eqtb
-status: in_progress
+status: closed
 deps: [ter-rjts, ter-y8z0, ter-f3g2, ter-8bda]
 links: [ter-f3g2, ter-cvyx]
 created: 2026-11-01T15:28:45Z
@@ -237,3 +237,7 @@ Flakiness at the 1 % cut: a temporary probe measured each edge-neighbor pair of 
 Finding, not fixed: ScreenRay.Trace and the march oracle disagree on 92 of 2,000,000 random rays with no mutant. The temporary search for C14 found it (seed 7, the scene of TheHierarchicalTraceFindsThePixelThatAPixelByPixelMarchFinds, which passes with its own seed). Ticket ter-cvyx holds the evidence and the two kinds of disagreement.
 
 Final runs on the committed tests (3d7e75c77): dotnet build Tertius.slnx -c Checked passed with no warning. dotnet test --solution Tertius.slnx -c Checked: 9,929 total, 9,915 passed, 0 failed, 14 skipped.
+
+**2026-11-02T17:57:55Z**
+
+2026-11-02: merged into main in 24fcd9347 after the hardening (coverage 153/157 changed lines, then 157/157 with new tests; 36 mutants, 27 killed, 9 triaged). tools/test-all.sh on the merge: every module green in Checked and Release. Follow-ups: ter-ipc1 (one rule for where a depth sample's plane holds, a design for the user), ter-cvyx (the trace and the pixel march disagree on about 1 ray in 21,700), ter-olhk (skip the reflection passes in frames where no pixel reflects, which removes the pyramid's added 0.36 to 0.39 ms there).
