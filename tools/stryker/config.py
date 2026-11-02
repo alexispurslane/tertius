@@ -10,10 +10,25 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from changed_lines import repo_root, changed_lines, runs  # noqa: E402
 
 # The official settings, from the calibration of ter-hxca (.tickets/ter-hxca.md, the calibration note).
-# Concurrency: the test hosts that run at once. Each host of these CPU tests runs its test classes in parallel too, so
-# a mutant on a hot path (over 1,000 covering tests) fills the cores with one host. At 3, the mutant phase of a
-# Simulation run drove the 1-minute load to 173 and gave timeouts to mutants that only remove a check.
-CONCURRENCY = 2
+# Concurrency: the test hosts that run at once. Stryker.NET 5.0.0 under its MTP runner reports killed mutants as
+# Survived at a concurrency above 1, and the count changes from run to run (issue #3832, tools/README.md, "Stryker.NET
+# pitfalls"). Raise it only when tools/stryker/compare.py shows the same result for every mutant against concurrency 1.
+CONCURRENCY = 1
+# The xunit threads of all test hosts together. Each host runs its test classes on one thread per processor, and with
+# three hosts of ten threads each the 1-minute load of this 10-core machine reached 173 while three agents built.
+MAX_TEST_THREADS = 4
+
+
+def test_threads(concurrency):
+    """The xunit threads of each test host at the concurrency, so that all hosts together use at most MAX_TEST_THREADS.
+    tools/stryker/changed.py passes it as DOTNET_PROCESSOR_COUNT, the processor count that xunit's default reads.
+    Raises ValueError above MAX_TEST_THREADS hosts, because each host needs one thread."""
+    if not 1 <= concurrency <= MAX_TEST_THREADS:
+        raise ValueError(f'the concurrency must be 1 to {MAX_TEST_THREADS}, so that the test hosts together use at '
+                         f'most {MAX_TEST_THREADS} xunit threads')
+    return MAX_TEST_THREADS // concurrency
+
+
 # Stryker stops a mutant's test run after TIMEOUT_RATIO x the covering tests' initial time + ADDITIONAL_TIMEOUT_MS.
 # The MTP runner also stops one test of the per-test coverage capture after 1.5 x its initial time +
 # ADDITIONAL_TIMEOUT_MS, at least 30 s, and marks it Dubious. A test whose class fixture does the work, such as

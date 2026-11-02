@@ -74,7 +74,7 @@ If either configuration covers a line, the line counts as covered. Debug covers 
 The user decided on 2026-11-01 (tickets ter-u63a and ter-hxca) how a ticket's hardening tests its tests with mutants. A mutant is a small, deliberate change to the code, which a good test fails on. The mutation step of a ticket makes one table of mutants with one result each. Two tools make its rows, and both print the same table:
 
 - `tools/stryker/changed.py`, the official Stryker run, mutates the C# lines that the branch changed in Core, Simulation and Physics. Their tests run on the CPU only.
-- `tools/mutate.py` runs a list of mutants that the agent writes. The list holds every changed line of Rendering (C# and GLSL), Host and Demo, whose tests run on the GPU. It also holds the lines that the Stryker run cannot mutate: its no-mutant and removed rows.
+- `tools/mutate.py` runs a list of mutants that the agent writes. The list holds every changed line of Rendering (C# and GLSL), Host and Demo, whose tests run on the GPU. It also holds the lines that the Stryker run cannot mutate: its no-mutant rows, its removed rows, and the lines that it lists without any Stryker mutant.
 
 ### The shared table
 
@@ -167,23 +167,47 @@ The official settings are in `tools/stryker/config.py`:
 |---|---|---|
 | `coverage-analysis` | `perTest` | Each mutant runs only the tests that reach it. |
 | `configuration` | `Checked` | The same build as `tools/mutate.py` and the pre-commit hook. |
-| `concurrency` | 3 | Three test hosts at once. Each host also runs its test classes in parallel. |
+| `concurrency` | 1 | One test host at a time. At a higher concurrency, Stryker.NET 5.0.0 reports killed mutants as Survived (issue #3832, "Stryker.NET pitfalls"). |
+| xunit threads | 4 per run | `changed.py` sets `DOTNET_PROCESSOR_COUNT` to 4 / concurrency for Stryker and its test hosts. xunit's default runs one test class per processor at once, so the hosts together run at most 4 threads. |
+| priority | nice 20 | `changed.py` starts Stryker at the lowest priority, and its test hosts inherit it. The builders and GPU captures of other agents go first. |
 | `timeout-ratio`, `additional-timeout` | 2, 300000 ms | A mutant's limit is 2 x its tests' initial time + 300 s. The per-test coverage capture uses 1.5 x a test's initial time + 300 s. |
 | `break-on-initial-test-failure` | true | A test that fails without a mutant stops the run. |
-| timeout share | at most 5% | Above it, the run is not valid. |
+| timeout share | at most 25% | Above it, the run is not valid. Quiet runs gave 0 of 3 timeouts (Core) and 3 of 20 (Simulation). The same 3 Simulation mutants also timed out at a 1-minute load of 173, so they make a test hang, and a hang is a kill. ter-u63a's trial, which the load broke, gave 65 of 76. |
 
 The run is not valid in two cases. The script then prints NOT VALID with the fix, and its exit code is 1:
 
-- More than 5% of the mutants that ran ended in a timeout. Run it again on a quieter machine, or calibrate a larger `additional-timeout`.
+- More than 25% of the mutants that ran ended in a timeout. Run it again on a quieter machine. If `tools/stryker/compare.py` then shows the same timeouts, the mutants make a test hang, and the share needs a new calibration.
 - Stryker marked a test Dubious. Its coverage capture failed, so every mutant also runs that test, and the run is not scoped. Run it again on a quieter machine.
 
-Under the table, the script prints the evidence of each module's log. It gives the compile tries of the one schemata build, the initial test run and its count of tests, the time of the per-test coverage capture, the Dubious tests, and the mean count of tests that each mutant ran. `<out>/results.json` holds the rows, the evidence, the settings and the load samples.
+Under the table, the script lists the changed lines on which Stryker made no mutant at all, because Stryker 5.0.0 has no mutator for them. Examples are an enum value in an assignment, such as `holds = Holds.Value;`, and the result of a switch arm. The list keeps only the lines that can hold behavior: lines with an assignment, an arrow, a `return`, a `throw`, a `yield` or a call statement. Judge each line, and put a mutant in the `tools/mutate.py` list for each line whose behavior a test must check. On ter-9xl7's `Result.cs`, the list named 10 lines, among them the 4 lines of the hand mutants that Stryker missed.
+
+After each module's run, the script builds its test projects again in Checked. Stryker leaves its mutated assembly of the module in their output, and a later `dotnet test --no-build` runs it. Under the table, the script prints the evidence of each module's log. It gives the compile tries of the one schemata build, the initial test run and its count of tests, the time of the per-test coverage capture, the Dubious tests, and the mean count of tests that each mutant ran. `<out>/results.json` holds the rows, the evidence, the settings and the load samples.
 
 The run takes the machine-wide lock `/tmp/tertius-stryker.lock`, a folder. Two Stryker runs at once compete for the CPU, and their tests time out. The script makes the folder before the first Stryker run, and waits while another run holds it. It removes the folder after the last run, also on a failure, an exception, Ctrl-C, SIGTERM or SIGHUP, and it never removes a lock that another process holds. If the process that holds the lock is gone, the script stops and prints the command that removes it.
 
-With `--head <commit>`, the script measures a merged range, for example the commits of a closed ticket from its base. The files of the range must be the same in the working tree as at `<commit>`, and the script refuses otherwise. `--concurrency` and `--additional-timeout` are for a calibration only, and the script marks such a run as not official.
+With `--head <commit>`, the script measures a merged range, for example the commits of a closed ticket from its base. The files of the range must be the same in the working tree as at `<commit>`, and the script refuses otherwise. `--concurrency` (1 to 4) and `--additional-timeout` are for a calibration only, and the script marks such a run as not official.
 
-A run of Core takes about 18 minutes, even for a small change. On ter-hxca's calibration, the build of the test projects took 23 s, the initial test run 30 s and the schemata build 10 s. The per-test coverage capture of 4,593 tests took 16.5 minutes, and the 3 mutants took seconds.
+A run of Core takes about 35 minutes, even for a small change. On ter-hxca's official calibration, a run on the 3 mutants of ter-9xl7's `Result.cs` took 2,107 s. The initial test run of 4,593 tests took 26 s. The per-test coverage capture took 2,017 s, 96% of the run, and the 3 mutants took seconds. At concurrency 3, the capture took 990 s of 1,092 s, because three test hosts shared the tests.
+
+A run of Simulation can take hours. On ter-2y6i's 20 mutants, the run took 8,656 s: 2,576 s of coverage capture and 5,951 s of mutants. Most mutants of these spans are on hot paths, with 1,250 to 2,463 covering tests each. Such a mutant makes some Physics and Simulation tests run until Stryker's limit, about 335 s and 300 s, so it takes about 10 minutes. At concurrency 3, the same run took 3,094 s.
+
+The capture runs every test of the test projects alone, one at a time. So its time does not depend on the size of the change, and it uses about one core. These changes can shorten the capture or the mutants:
+
+- A Stryker.NET release that fixes issue #3832 lets the concurrency rise, and the capture spreads over the test hosts.
+- Fewer test projects make the capture shorter. But the run then misses the kills of the tests in the projects that it leaves out.
+- Faster cores make each test shorter. More cores do not help at concurrency 1.
+- A smaller `additional-timeout` shortens each mutant that makes a test run to the limit. But the capture uses the same setting, and a test such as `DeterminismTests` needs 80 to 90 s alone there.
+
+### A run on another machine
+
+Ticket ter-fz34 looks at rented Linux machines for these runs. The official run needs these things there:
+
+- A checkout of the commit to measure. The script reads only committed changes: it diffs from the merge base to `--head`, and it refuses a changed file that differs in the working tree.
+- The dev shell. `changed.py` and `run.sh` refuse to start without `TERTIUS_VULKAN_DIR`, although the CPU test projects use no GPU.
+- One run at a time on that machine. The lock is a folder in `/tmp`, so it keeps apart only the runs of one machine.
+- Nothing more for the priority and the thread bound. On Linux, `nice -n 20` gives 19, the lowest priority there, and `DOTNET_PROCESSOR_COUNT` works the same way.
+
+Copy the output folder back. It holds `results.json`, each module's reports and its logs.
 
 ### Stryker on one module by hand
 
@@ -197,10 +221,10 @@ The official command uses these three scripts. Call them yourself to mutate whol
 
    By default, the configuration mutates only the lines that this branch changed, with the official settings. To mutate whole files, add `--files` with paths relative to the project folder, for example `--files Frames/FrameTree.cs`.
 
-2. Take the lock, and run Stryker on that project. `run.sh` does not take the lock itself. If `mkdir` fails, another run holds the lock: wait and try again.
+2. Take the lock, and run Stryker on that project at nice 20 with 4 xunit threads, as the official run does. `run.sh` does not take the lock itself. If `mkdir` fails, another run holds the lock: wait and try again. Then build the test projects again, because Stryker leaves its mutated assembly in their output.
 
    ```bash
-   mkdir /tmp/tertius-stryker.lock && { nix develop --command bash -c 'bash tools/stryker/run.sh Core /tmp/tertius-stryker/Core'; rmdir /tmp/tertius-stryker.lock; }
+   mkdir /tmp/tertius-stryker.lock && { nix develop --command nice -n 20 env DOTNET_PROCESSOR_COUNT=4 bash tools/stryker/run.sh Core /tmp/tertius-stryker/Core; rmdir /tmp/tertius-stryker.lock; }
    ```
 
 3. Print the shared table of the mutants in the spans:
@@ -220,8 +244,19 @@ These cost time on the vertical slice and on ter-hxca, so the scripts handle the
 - The progress bar shows only on a terminal. The `-L` flag writes the log to `out/logs`, so that you can follow a run in the background.
 - The MTP runner captures per-test coverage one test at a time, in a test host that it reuses. Each test gets a limit of 1.5 x its initial time + `additional-timeout`, at least 30 s. A test whose class fixture does the work, such as `DeterminismTests`, has an initial time near 0, but it took 80 to 90 s alone under the capture. With the default `additional-timeout` of 10 s, Stryker marked such tests Dubious.
 - After such a timeout, Stryker 5.0.0 kills the test host and starts a new one. Then it waits 10 s for the coverage relay of the killed host on every later test of that runner, and it marks each of them Dubious. One slow test can make hundreds of Dubious tests, and every mutant then runs them all.
+- Stryker.NET 5.0.0 under the MTP runner reports killed mutants as Survived at a concurrency above 1 ([issue #3832](https://github.com/stryker-mutator/stryker-net/issues/3832), open on 2026-11-01). The count of kills changes from run to run on unchanged code, but Killed + Survived stays the same. The reporter measured kill rates of 70.59% at concurrency 1, 38.45% at 2 and 27.10% at 4, against 70.80% on 4.16.0. `coverage-analysis` off does not help. So the official run uses concurrency 1, and a survivor of a run at a higher concurrency proves nothing.
+- To raise the concurrency when a fixed release comes, run the official command once at concurrency 1 and at least twice at the higher concurrency, on the same spans. The fault is nondeterministic, so one equal run is not enough. Then compare the runs mutant by mutant:
 
-Run Stryker only under the lock `/tmp/tertius-stryker.lock`. Any agent, also a subagent, can run the official command, because it takes the lock itself. The user lifted the ban on Stryker in subagents on 2026-11-01, once a run was efficient. ter-hxca's calibration showed one schemata build, one initial test run, no Dubious test, and each mutant scoped to the tests that cover it.
+  ```bash
+  python3 -I tools/stryker/compare.py /tmp/c1/results.json /tmp/c2-a/results.json /tmp/c2-b/results.json
+  ```
+
+  An equal score is not enough, because other mutants can change places. Raise `CONCURRENCY` in `tools/stryker/config.py` only if the script finds no difference, with exit code 0. Use spans with at least 20 mutants and some survivors, for example ter-2y6i's Simulation spans: `changed.py '84d4a894b^1' <out> --head 84d4a894b --exclude World.NumericFrames.cs`.
+- Stryker.NET starts each test host as `dotnet <tests>.dll --server`, with no place for an xunit option such as `--max-threads`. So `changed.py` bounds the xunit threads through `DOTNET_PROCESSOR_COUNT`, which every host inherits. xunit's default thread count reads it. ter-hxca's calibration saw one host at nice 20 with that variable, at about 400% CPU during the mutants.
+- The bound holds for xunit, but not for the native threads of Jolt. `new JobSystemThreadPool()` in `src/Tertius.Physics/JoltPhysicsBackend.cs` sizes its workers from the hardware, so a Physics or Simulation host reached about 700% CPU for some seconds. Ticket ter-773q makes the job system follow the runtime's processor count. Until then, nice 20 keeps these threads behind the work of other agents.
+
+Run Stryker only under the lock `/tmp/tertius-stryker.lock`. Any agent, also a subagent, can run the official command, because it takes the lock itself. The user lifted the ban on Stryker in subagents on 2026-11-01, once a run was efficient. ter-hxca's official calibration at concurrency 1 showed all three conditions. Its log has one schemata build with 9 compile tries, and each failed try removed the mutants that broke it. It has one initial test run of 4,593 tests in 26 s and no Dubious test. Each mutant ran a mean of 4.3 of the 4,593 tests.
+
 ## Duplicate code
 
 `tools/duplicates.sh` reports duplicated C# code with jscpd. jscpd 5 is a Rust program, and `native/jscpd.nix` builds it from crates.io for the dev shell. A scan of `src/` takes less than a second. The report never fails, so it is a guide for refactoring and not a gate.

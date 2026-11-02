@@ -37,10 +37,13 @@ def _span_of(starts, mutant):
     return starts[s['line'] - 1] + s['column'] - 1, starts[e['line'] - 1] + e['column'] - 1
 
 
+def _inside(spans, path, a, b):
+    return any(path.endswith('/' + rel) and x <= a and b <= y for rel, ranges in spans.items() for x, y in ranges)
+
+
 def in_spans(spans, path, source, mutant):
     """True if the mutant lies inside one of the spans of characters for its file."""
-    a, b = _span_of(_offsets(source), mutant)
-    return any(path.endswith('/' + rel) and x <= a and b <= y for rel, ranges in spans.items() for x, y in ranges)
+    return _inside(spans, path, *_span_of(_offsets(source), mutant))
 
 
 def _short_test_name(name):
@@ -84,6 +87,32 @@ def rows(report, spans, module, root):
     return out
 
 
+def _has_behavior(text):
+    """True for a line with an assignment, an arrow, a return, a throw, a yield or a call statement: a line that can
+    hold behavior. Declarations, signatures, constraints, attributes, comments and braces cannot."""
+    text = text.strip()
+    if text.startswith(('//', '/*', '*', '#', '[', 'using ', 'namespace ')):
+        return False
+    return '=' in text or bool(re.search(r'\b(return|throw|yield)\b', text)) or (text.endswith(';') and '(' in text)
+
+
+def unmutated_lines(report, spans, root):
+    """The (file, line) pairs of the lines inside spans that can hold behavior (_has_behavior) and on which Stryker made
+    no mutant of any status. Stryker 5.0.0 has no mutator for some changes, such as an enum value
+    in an assignment or the result of a switch arm, so the agent judges each line for the tools/mutate.py list. A line
+    with an ignored mutant is not listed, because its ignore comment holds its triage."""
+    out = []
+    for path, f in sorted(report['files'].items()):
+        rel = os.path.relpath(path, root)
+        starts = _offsets(f['source'])
+        mutated = {n for m in f['mutants'] if in_spans(spans, path, f['source'], m)
+                   for n in range(m['location']['start']['line'], m['location']['end']['line'] + 1)}
+        for n, text in enumerate(f['source'].splitlines(), 1):
+            if n not in mutated and _has_behavior(text) and _inside(spans, path, starts[n - 1], starts[n]):
+                out.append((rel, n))
+    return out
+
+
 def status_counts(report):
     return collections.Counter(m['status'] for f in report['files'].values() for m in f['mutants'])
 
@@ -108,3 +137,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+

@@ -6,15 +6,19 @@ tools/mutation_table.py over every module. Run it inside the dev shell, from any
     nix develop --command python3 -I tools/stryker/changed.py <base> <out-dir> [--head <commit>]
 
 For each module with changed lines, it writes <out-dir>/<module>/stryker-config.json with config.py and runs
-tools/stryker/run.sh on it, one module after another. A module's test projects are its own and every other test project
-whose references reach it, but never tests/Tertius.Rendering.Tests or tests/Tertius.Host.Tests: their GPU tests are slow
-and depend on the load, so their lines go to tools/mutate.py. So do the changed lines of Rendering, Host and Demo, which
-the script lists.
+tools/stryker/run.sh on it, one module after another, at nice 20 and with the xunit threads of config.test_threads
+(stryker_command). After each module's run, it builds the module's test projects again, because Stryker leaves its
+mutated assembly in their output. A module's test projects are its own and every other test project whose references
+reach it, but never tests/Tertius.Rendering.Tests or tests/Tertius.Host.Tests: their GPU tests are slow and depend on
+the load, so their lines go to tools/mutate.py. So do the changed lines of Rendering, Host and Demo, which the script
+lists.
 
 The table has one row for each Stryker mutant in the changed lines, one no-mutant row for each changed line where every
 Stryker mutant failed to compile, and one removed row for each place where the branch removed lines. The last two go to
-the agent's tools/mutate.py list. Under the table, the script prints the evidence of each module's log: the compile
-tries of the one schemata build, the initial test run, the Dubious tests, and the tests that each mutant ran.
+the agent's tools/mutate.py list. Under the table, the script lists the changed lines that can hold behavior but have no
+Stryker mutant at all, because Stryker has no mutator for them; the agent judges each one for the list. Then it prints
+the evidence of each module's log: the compile tries of the one schemata build, the initial test run, the Dubious
+tests, and the tests that each mutant ran.
 
 The run is not valid if more than MAX_TIMEOUT_SHARE of the mutants that ran ended in a timeout, or if Stryker marked a
 test Dubious. Then the script says so and names the fix, and its exit code is 1. It is also 1 if Stryker failed.
@@ -25,8 +29,9 @@ removes a lock that another process holds. If the process that holds it is gone,
 that removes the lock.
 
 --head <commit> measures a merged range, for example a ticket's commits from its base: the files must be the same in the
-working tree as at <commit>. --exclude leaves files out by name, for example one that changed since. --concurrency and --additional-timeout are for a calibration only; a run with them is not
-official.
+working tree as at <commit>. --exclude leaves files out by name, for example one that changed since. --concurrency (1 to
+4) and --additional-timeout are for a calibration only; a run with them is not official. tools/stryker/compare.py
+compares the per-mutant results of two runs.
 """
 
 import argparse
@@ -54,8 +59,10 @@ MODULES = ('Core', 'Simulation', 'Physics')
 # The modules whose changed lines go to the agent's tools/mutate.py list.
 HAND_LIST_MODULES = ('Rendering', 'Host', 'Demo')
 GPU_TEST_PROJECTS = {'Rendering', 'Host'}
-# The largest share of the mutants that ran that can end in a timeout, from the calibration (tools/stryker/config.py).
-MAX_TIMEOUT_SHARE = 0.05
+# The largest share of the mutants that ran that can end in a timeout, from ter-hxca's calibration. Quiet runs gave 0 of
+# 3 (Core) and 3 of 20 (Simulation): the same three mutants also timed out at a 1-minute load of 173, so they make a
+# test hang, and a hang is a kill. ter-u63a's trial, which the load broke, gave 65 of 76.
+MAX_TIMEOUT_SHARE = 0.25
 LOCK_PATH = Path('/tmp/tertius-stryker.lock')
 RAN = ('killed', 'timeout', 'survived', 'no-coverage')
 
@@ -136,6 +143,16 @@ def evidence(log, ids):
     return found
 
 
+def stryker_command(module, folder, concurrency):
+    """The command that runs tools/stryker/run.sh on module with the configuration in folder. It starts at nice 20, so
+    that the test hosts inherit the lowest priority, and with DOTNET_PROCESSOR_COUNT at config.test_threads, so that
+    the xunit threads of all hosts together stay within config.MAX_TEST_THREADS. Stryker starts each host as
+    `dotnet <tests>.dll --server`, with no place for an xunit option such as --max-threads, so the bound goes through
+    the environment that every host inherits."""
+    return ['nice', '-n', '20', 'env', f'DOTNET_PROCESSOR_COUNT={config.test_threads(concurrency)}',
+            'bash', str(HERE / 'run.sh'), module, str(folder)]
+
+
 def problems(rows, evidence, max_timeout_share=MAX_TIMEOUT_SHARE):
     """Why a module's run is not valid, each with its fix, from its rows and its log evidence. Empty for a valid run."""
     out = []
@@ -144,7 +161,8 @@ def problems(rows, evidence, max_timeout_share=MAX_TIMEOUT_SHARE):
     if ran and timeouts / len(ran) > max_timeout_share:
         out.append(f'{timeouts} of {len(ran)} mutants ended in a timeout, above the official share of '
                    f'{max_timeout_share:.0%}, so the run is not valid: a timeout under load hides a survivor. Run it '
-                   'again on a quieter machine, or calibrate a larger additional-timeout in tools/stryker/config.py.')
+                   'again on a quieter machine. If tools/stryker/compare.py then shows the same timeouts, the mutants '
+                   'make a test hang: calibrate a larger share in tools/stryker/changed.py.')
     if evidence['dubious']:
         out.append(f'Stryker marked {evidence["dubious"]} tests Dubious: their per-test coverage capture timed out, so '
                    'every mutant also ran them and the run is not scoped to the covering tests. Run it again on a '
@@ -237,6 +255,17 @@ class LoadSampler:
         return f'1-minute load mean {sum(self.samples) / len(self.samples):.1f}, max {max(self.samples):.1f}'
 
 
+def _rebuild(root, tests, folder):
+    """Builds each test project in Checked after a Stryker run. Stryker leaves its mutated assembly of the module in
+    their output, and a later `dotnet test --no-build` would run it. A plain incremental build copies the real one
+    back."""
+    for name in tests:
+        csproj = f'tests/Tertius.{name}.Tests/Tertius.{name}.Tests.csproj'
+        if mutate.run_logged(['dotnet', 'build', csproj, '-c', config.CONFIGURATION], root,
+                             folder / f'rebuild-{name}.build.log')[0] != 0:
+            _say(f'WARNING: the rebuild of {csproj} after the run failed, see {folder}/rebuild-{name}.build.log')
+
+
 def _evidence_text(module, found, rows, seconds):
     scopes = list(found['scopes'].values())
     counted = [s for s in scopes if s != 'all']
@@ -257,9 +286,13 @@ def main():
     parser.add_argument('out', help='the folder for the configuration, the reports, the logs and results.json')
     parser.add_argument('--head', default='HEAD', help='the last commit of the changes (default HEAD)')
     parser.add_argument('--exclude', nargs='*', default=[], help='file names to leave out, for example Program.cs')
-    parser.add_argument('--concurrency', type=int, default=config.CONCURRENCY, help='calibration only')
+    parser.add_argument('--concurrency', type=int, default=config.CONCURRENCY, help='calibration only, 1 to 4')
     parser.add_argument('--additional-timeout', type=int, default=config.ADDITIONAL_TIMEOUT_MS, help='calibration only')
     args = parser.parse_args()
+    try:
+        config.test_threads(args.concurrency)
+    except ValueError as e:
+        parser.error(str(e))
     if not os.environ.get('TERTIUS_VULKAN_DIR'):
         sys.exit('TERTIUS_VULKAN_DIR is empty. Run the script inside the dev shell: nix develop --command python3 -I '
                  'tools/stryker/changed.py ...')
@@ -285,7 +318,7 @@ def main():
         return
     official = (args.concurrency, args.additional_timeout) == (config.CONCURRENCY, config.ADDITIONAL_TIMEOUT_MS)
     mutate.stop_on_signals()
-    rows, notes, all_problems = [], [], []
+    rows, notes, all_problems, unmutated = [], [], [], []
     started = time.monotonic()
     with Lock(), LoadSampler() as load:
         for module, patterns in plans.items():
@@ -297,8 +330,11 @@ def main():
             _say(f'{module}: Stryker on {len(patterns)} spans with the tests of {", ".join(tests)}; log in '
                  f'{folder}/out/logs')
             folder.mkdir(parents=True, exist_ok=True)
-            code, _, _, seconds = mutate.run_logged(['bash', str(HERE / 'run.sh'), module, str(folder)], root,
-                                              folder / 'run.out')
+            try:
+                code, _, _, seconds = mutate.run_logged(stryker_command(module, folder, args.concurrency), root,
+                                                        folder / 'run.out')
+            finally:
+                _rebuild(root, tests, folder)
             report = folder / 'out/reports/mutation-report.json'
             if code != 0 or not report.is_file():
                 all_problems.append(f'{module}: Stryker failed with exit code {code}, see {folder}/run.out and '
@@ -307,6 +343,7 @@ def main():
             report = json.loads(report.read_text())
             spans = survivors.spans_of(json.loads((folder / 'stryker-config.json').read_text()))
             module_rows = survivors.rows(report, spans, module, root)
+            unmutated += survivors.unmutated_lines(report, spans, root)
             log = '\n'.join(p.read_text(errors='replace') for p in sorted((folder / 'out/logs').glob('log-*.txt')))
             ids = {r['id'].split('-', 1)[1] for r in module_rows if r['result'] in RAN}
             found = evidence(log, ids)
@@ -321,15 +358,23 @@ def main():
                              'change': f'the branch removed {count} lines here', 'result': 'removed',
                              'killed_by': [], 'seconds': None})
     mutation_table.print_table(rows)
+    if unmutated:
+        files = {}
+        for rel, line in unmutated:
+            files.setdefault(rel, []).append(line)
+        print('Changed code lines without any Stryker mutant, to judge for the tools/mutate.py list: '
+              + ', '.join(f'{rel}:{",".join(f"{a}-{b}" if a != b else str(a) for a, b in changed_lines.runs(lines))}'
+                          for rel, lines in files.items()))
     for note in notes:
         print(note)
-    settings = (f'concurrency {args.concurrency}, timeout-ratio {config.TIMEOUT_RATIO}, additional-timeout '
+    settings = (f'concurrency {args.concurrency} at nice 20 with {config.test_threads(args.concurrency)} xunit threads '
+                f'per test host, timeout-ratio {config.TIMEOUT_RATIO}, additional-timeout '
                 f'{args.additional_timeout} ms, timeout share at most {MAX_TIMEOUT_SHARE:.0%}')
     print(f'wall time {time.monotonic() - started:.0f} s; {load.text()}; {settings}'
           + ('' if official else ' (calibration settings: not an official run)'))
     (out / 'results.json').write_text(json.dumps(
-        {'rows': rows, 'evidence': notes, 'problems': all_problems, 'settings': settings, 'official': official,
-         'load': load.samples}, indent=1) + '\n')
+        {'rows': rows, 'unmutated': unmutated, 'evidence': notes, 'problems': all_problems, 'settings': settings,
+         'official': official, 'load': load.samples}, indent=1) + '\n')
     for p in all_problems:
         print(f'NOT VALID: {p}', file=sys.stderr)
     if all_problems:

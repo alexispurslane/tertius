@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Tool code. The tests of the pure parts of the official Stryker run: the diff reader of tools/changed_lines.py, the
-report reader of tools/stryker/survivors.py, and the test projects, the log evidence, the validity rule and the lock of
-tools/stryker/changed.py.
+report reader of tools/stryker/survivors.py, the test threads of tools/stryker/config.py, the test projects, the log
+evidence, the validity rule, the Stryker command and the lock of tools/stryker/changed.py, and the comparison of runs in
+tools/stryker/compare.py.
 
     nix develop --command python3 -I tools/test_stryker.py
 
@@ -32,6 +33,8 @@ def _load(name, file):
 changed_lines = _load("changed_lines", "changed_lines.py")
 survivors = _load("survivors", "stryker/survivors.py")
 changed = _load("changed", "stryker/changed.py")
+config = _load("config", "stryker/config.py")
+compare = _load("compare", "stryker/compare.py")
 
 
 class ReadingADiff(unittest.TestCase):
@@ -170,6 +173,55 @@ class ReadingAReport(unittest.TestCase):
         self.assertEqual([r["result"] for r in rows], ["survived"])
 
 
+class LinesWithoutAMutant(unittest.TestCase):
+    """unmutated_lines: the changed code lines on which Stryker made no mutant at all, for the agent to judge for the
+    tools/mutate.py list. Stryker 5.0.0 has no mutator for some changes, such as an enum value in an assignment."""
+
+    ROOT = "/repo"
+
+    def _lines(self, statuses, source=None, first=2, last=6):
+        report = _report(self.ROOT, statuses)
+        if source is not None:
+            report["files"]["/repo/src/Tertius.Core/R.cs"]["source"] = source
+        spans = {"R.cs": [(16 * (first - 1), 16 * last)]}
+        return survivors.unmutated_lines(report, spans, self.ROOT)
+
+    def test_a_changed_code_line_without_any_stryker_mutant_is_listed(self):
+        self.assertEqual(self._lines([(2, "Killed"), (4, "Survived")]),
+                         [("src/Tertius.Core/R.cs", 3), ("src/Tertius.Core/R.cs", 5), ("src/Tertius.Core/R.cs", 6)])
+
+    def test_a_line_outside_the_spans_is_not_listed(self):
+        self.assertNotIn(("src/Tertius.Core/R.cs", 7), self._lines([]))
+        self.assertNotIn(("src/Tertius.Core/R.cs", 1), self._lines([]))
+
+    def test_a_line_whose_only_mutant_is_ignored_is_not_listed_because_its_ignore_comment_holds_its_triage(self):
+        self.assertNotIn(("src/Tertius.Core/R.cs", 3), self._lines([(3, "Ignored")]))
+
+    def test_a_line_whose_mutants_failed_to_compile_is_not_listed_because_it_is_a_no_mutant_row(self):
+        self.assertNotIn(("src/Tertius.Core/R.cs", 3), self._lines([(3, "CompileError")]))
+
+    @staticmethod
+    def _source(*lines):
+        # Each line gets 16 characters, so that the spans of lines 2 to 6 stay the same.
+        return "".join(line.ljust(15)[:15] + "\n" for line in lines)
+
+    def test_declarations_signatures_and_constraints_without_behavior_are_not_listed(self):
+        source = self._source("int v1 = 1;", "using System;", "namespace N;", "[Union]", "int F(int x)", "where T : new()",
+                              "int v7 = 7;", "int v8 = 8;", "int v9 = 9;", "int v10 = 10;")
+        self.assertEqual(self._lines([], source), [])
+
+    def test_an_assignment_an_arrow_a_return_a_throw_and_a_call_statement_are_listed(self):
+        source = self._source("int v1 = 1;", "a = Holds.Value;", "A => a,", "return a;", "throw new E();", "Clear();",
+                              "int v7 = 7;", "int v8 = 8;", "int v9 = 9;", "int v10 = 10;")
+        self.assertEqual([line for _, line in self._lines([], source)], [2, 3, 4, 5, 6])
+
+    def test_blank_lines_comments_and_lines_of_only_braces_are_not_listed(self):
+        # Each line has 16 characters, so the spans of lines 2 to 6 stay the same.
+        source = ("int v1 = 1 + 1;\n" + " " * 15 + "\n" + "// a comment   \n" + "    {          \n"
+                  + "    });        \n" + "/// <summary>  \n" + "".join(f"int v{n} = {n} + 1;\n" for n in range(7, 11)))
+        self.assertEqual(self._lines([], source), [])
+
+
 LOG = """\
 2026-11-01T13:29:03.3306410-05:00  [INF] Number of tests found: 54 for project "/r/src/Tertius.Core/Tertius.Core.csproj". Initial test run started. (640e6501)
 2026-11-01T13:29:10.7659590-05:00  [DBG] Initial test run output: "". (13f68f50)
@@ -241,9 +293,82 @@ class ValidityOfARun(unittest.TestCase):
                           "timeout", "no-mutant", "removed")
         self.assertEqual(changed.problems(rows, self._evidence(), max_timeout_share=0.10), [])
 
+    def test_three_timeouts_of_twenty_from_mutants_that_hang_on_a_quiet_machine_leave_the_official_run_valid(self):
+        # ter-2y6i's Simulation spans: the same three mutants timed out at a 1-minute load of 9 and of 173.
+        rows = self._rows(*(["killed"] * 14 + ["survived"] * 3 + ["timeout"] * 3))
+        self.assertEqual(changed.problems(rows, self._evidence()), [])
+
+    def test_the_timeouts_of_a_run_that_load_broke_make_the_official_run_not_valid(self):
+        # ter-u63a's trial at a 1-minute load of about 233: 65 of 76 mutants timed out.
+        rows = self._rows(*(["killed"] * 11 + ["timeout"] * 65))
+        problems = changed.problems(rows, self._evidence())
+        self.assertEqual(len(problems), 1)
+        self.assertIn("compare.py", problems[0])
+
     def test_a_dubious_test_makes_the_run_not_valid_because_it_widens_every_mutant_to_that_test(self):
         problems = changed.problems(self._rows("killed"), self._evidence(dubious=3), max_timeout_share=0.10)
         self.assertTrue(any("Dubious" in p for p in problems), problems)
+
+
+class TheLoadOfARun(unittest.TestCase):
+    """test_threads and stryker_command: a run keeps its test threads within MAX_TEST_THREADS and runs at the lowest
+    priority, so that the builders and GPU captures of other agents go first."""
+
+    def test_the_test_hosts_of_a_run_together_use_at_most_four_threads_at_any_concurrency(self):
+        for concurrency in range(1, 5):
+            self.assertLessEqual(concurrency * config.test_threads(concurrency), 4, concurrency)
+
+    def test_every_test_host_keeps_at_least_one_thread(self):
+        self.assertEqual(config.test_threads(4), 1)
+
+    def test_a_concurrency_above_four_is_refused_because_its_hosts_would_pass_the_bound(self):
+        with self.assertRaises(ValueError):
+            config.test_threads(5)
+
+    def test_the_one_test_host_of_the_official_run_gets_all_four_threads(self):
+        self.assertEqual(config.test_threads(config.CONCURRENCY), 4)
+
+    def test_the_official_run_has_one_test_host_because_stryker_5_under_reports_kills_above_one(self):
+        self.assertEqual(config.CONCURRENCY, 1)
+
+    def test_stryker_starts_at_nice_20_with_the_processor_count_that_bounds_the_xunit_threads(self):
+        command = changed.stryker_command("Core", Path("/out/Core"), 2)
+        self.assertEqual(command[:5], ["nice", "-n", "20", "env", "DOTNET_PROCESSOR_COUNT=2"])
+        self.assertEqual(command[-3:-1], [str(TOOLS / "stryker/run.sh"), "Core"])
+        self.assertEqual(command[-1], "/out/Core")
+
+
+class ComparingRuns(unittest.TestCase):
+    """differences: the per-mutant outcomes of two runs on the same spans, the check that can raise the concurrency."""
+
+    @staticmethod
+    def _rows(*results):
+        return [{"id": f"Core-{n}", "file": "src/Tertius.Core/R.cs", "line": n, "change": "a -> b", "result": r}
+                for n, r in enumerate(results, 1)]
+
+    def test_runs_with_the_same_result_for_every_mutant_have_no_differences(self):
+        self.assertEqual(compare.differences(self._rows("killed", "survived"), self._rows("killed", "survived")), [])
+
+    def test_a_mutant_that_one_run_kills_and_the_other_reports_survived_is_a_difference(self):
+        found = compare.differences(self._rows("killed", "killed"), self._rows("killed", "survived"))
+        self.assertEqual(len(found), 1)
+        self.assertIn("Core-2", found[0])
+        self.assertIn("killed", found[0])
+        self.assertIn("survived", found[0])
+
+    def test_the_same_score_with_other_mutants_killed_is_still_a_difference(self):
+        found = compare.differences(self._rows("killed", "survived"), self._rows("survived", "killed"))
+        self.assertEqual(len(found), 2)
+
+    def test_a_mutant_that_only_one_run_has_is_a_difference(self):
+        found = compare.differences(self._rows("killed", "killed"), self._rows("killed"))
+        self.assertEqual(len(found), 1)
+        self.assertIn("Core-2", found[0])
+
+    def test_a_mutant_id_at_another_place_is_a_difference_because_the_spans_differ(self):
+        other = self._rows("killed")
+        other[0]["line"] = 9
+        self.assertEqual(len(compare.differences(self._rows("killed"), other)), 2)
 
 
 class TheLock(unittest.TestCase):

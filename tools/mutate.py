@@ -255,7 +255,7 @@ def filter_arguments(classes):
 
 # Running the commands.
 
-def _run(command, root, log_path, timeout=None):
+def run_logged(command, root, log_path, timeout=None):
     """Runs command in its own process group with its output in log_path. Returns the exit code, whether the timeout
     stopped it, its output and its seconds. On a timeout, an exception or a signal, it kills the whole group, so that
     no test host keeps running with the mutant."""
@@ -277,12 +277,12 @@ def _run(command, root, log_path, timeout=None):
 
 def _build(root, project, log_path):
     csproj = Path(project) / f'{Path(project).name}.csproj'
-    return _run(['dotnet', 'build', str(csproj), '-c', CONFIGURATION], root, log_path)[0] == 0
+    return run_logged(['dotnet', 'build', str(csproj), '-c', CONFIGURATION], root, log_path)[0] == 0
 
 
 def _test(root, project, classes, log_path):
     command = ['dotnet', 'test', '--project', project, '-c', CONFIGURATION, '--no-build', *filter_arguments(classes)]
-    code, timed_out, output, seconds = _run(command, root, log_path, TEST_TIMEOUT)
+    code, timed_out, output, seconds = run_logged(command, root, log_path, TEST_TIMEOUT)
     return classify(code, timed_out, output)
 
 
