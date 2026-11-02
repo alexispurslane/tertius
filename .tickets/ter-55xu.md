@@ -1,6 +1,6 @@
 ---
 id: ter-55xu
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-11-02T12:51:56Z
@@ -111,3 +111,7 @@ Triage of the first run's survivors and its build failure:
 - C33 (the pool's levels sets lack the distance downsample's 4): judgment call. The pool's sets have slack in every test, because a 160 x 90 screen uses few of the 29 pyramid level sets, which are sized for a 16,384 px side. Only the largest map and the largest screen together exhaust the pool, and no test device can draw that.
 
 New tests: ALayoutThatNeedsMoreSampledImagesInAStageThanTheDeviceAllowsIsRefusedBeforeItIsMade, ADeviceWhoseHalfFloatCannotBeSampledCannotHoldTheDistanceCubes, ASurfaceTenCentimetersFromTheEyeStoresItsTrueInverseDistance, AMapWithNoDrawnFaceKeepsItsDistanceCubeBitForBit (decision 12 for the distance cube, the invariant that map i's distance levels are a pure function of its own faces), and the per-texel count in AFaceStoresTheInverseDistanceOfTheSurfaceInEachTexel. The other three decisions already had tests: the radial distance (S02 killed by AFaceStoresTheInverseDistanceOfTheSurfaceInEachTexel), the sky's exact 0 (S05), and the solid-angle mean (S06). Final run: dotnet test --solution Tertius.slnx -c Checked, 9,926 tests, 9,912 passed, 14 skipped, 0 failed.
+
+**2026-11-02T15:18:57Z**
+
+2026-11-02: merged into main after the hardening (d6e566900: 310/314 changed lines, 72/75 branches; 34 mutants, every survivor killed by five new tests or triaged: S03 equivalent, C02, C12 and C33 judgment calls). tools/test-all.sh passed in Checked and Release on the merge. The design doc's 'Portable Vulkan' sentence now agrees with the 18 sampled images. Closed.
