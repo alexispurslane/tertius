@@ -1,6 +1,6 @@
 ---
 id: ter-jw7g
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-11-02T11:59:25Z
@@ -32,3 +32,7 @@ The user's decision of 2026-11-02, after ter-gf0t: open a design ticket for the 
 **2026-11-02T12:51:20Z**
 
 2026-11-02, the user's answers to the design's two open questions. Question 1: option 2, each face keeps the eye that drew it, built by ticket 5 after ticket 3 (option 1 ships first, inside ticket 3). Question 2: option A, the specular occlusion multiplies the whole corrected term, also a found hit. The design doc records both. Next: merge the design into main, create tickets 1 to 5 under ter-b2da, and launch tickets 1 and 2 in parallel.
+
+**2026-11-02T12:52:04Z**
+
+2026-11-02: the design merged into main (cc8d58311). Its five implementation tickets, all under ter-b2da: ter-0pj8 (1, MapSearch in C#), ter-55xu (2, the distance cube), ter-s6zr (3, the corrected read, after ter-0pj8 and ter-55xu), ter-g6af (4, captures and cost, after ter-s6zr), ter-pn1w (5, each face keeps its eye, after ter-s6zr). This design ticket closes, and the five carry the work.
