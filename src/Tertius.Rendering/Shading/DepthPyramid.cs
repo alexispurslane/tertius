@@ -149,10 +149,10 @@ internal readonly record struct PixelPlane(Vector2 Center, float CenterInverseDe
     public bool ContinuesInto(bool insideImage, PixelPlane? neighbor) =>
         !insideImage
         || neighbor is { } other
-        && !EdgeOn
-        && !other.EdgeOn
-        && Holds(other.Center, other.CenterInverseDepth)
-        && other.Holds(Center, CenterInverseDepth);
+            && !EdgeOn
+            && !other.EdgeOn
+            && Holds(other.Center, other.CenterInverseDepth)
+            && other.Holds(Center, CenterInverseDepth);
 }
 
 /// <summary>

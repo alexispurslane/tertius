@@ -179,7 +179,8 @@ internal static class SectorSearch
                 // whose center lies within 1 % of the plane, and the surface is constant past it.
                 Vector2 place = new((float)(texel.X + sign * exact.X), (float)(texel.Y + sign * exact.Y));
                 float inverseDepth = surface.InverseDepthAt(place);
-                Double3 position = rayThrough((X: texel.X + sign * exact.X, Y: texel.Y + sign * exact.Y)) / inverseDepth;
+                Double3 position =
+                    rayThrough((X: texel.X + sign * exact.X, Y: texel.Y + sign * exact.Y)) / inverseDepth;
                 steps.Add(
                     new(
                         Position: position,

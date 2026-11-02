@@ -617,9 +617,7 @@ public sealed class SectorSearchTests
         double planeOffset = Double3.Dot(normal, new(0, 0, 5));
         static bool OnAPlank(int column) => column % 3 != 2;
         double InverseDepthAt((double X, double Y) place) =>
-            OnAPlank((int)Math.Round(place.X))
-                ? Double3.Dot(normal, WallRayThrough(place)) / planeOffset
-                : 1.0 / 50;
+            OnAPlank((int)Math.Round(place.X)) ? Double3.Dot(normal, WallRayThrough(place)) / planeOffset : 1.0 / 50;
         StepTexel? PlanksAt((int X, int Y) texel) =>
             new StepTexel(
                 Position: WallRayThrough((texel.X, texel.Y)) / InverseDepthAt((texel.X, texel.Y)),
@@ -706,7 +704,7 @@ public sealed class SectorSearchTests
             .. ScreenTesting.Box(new(0.5f, -1, -6), new(0.5f, 0.5f, 0.5f)),
         ];
         (float[] distances, Vector3[] normals) = ScreenTesting.Surfaces(camera, scene);
-        DepthPyramid pyramid = DepthPyramid.Of(camera: camera, distances: distances, geometricNormals: normals);
+        var pyramid = DepthPyramid.Of(camera: camera, distances: distances, geometricNormals: normals);
 
         var differences = new List<double>();
         foreach (NearStep step in StepsThatReadAGBuffer(camera, distances, normals))
@@ -765,7 +763,7 @@ public sealed class SectorSearchTests
                     stepsPerSide: 3,
                     stepNoise: 0.37f,
                     radiusInTexels: 8,
-                    halfSize: (Width: camera.Width, Height: camera.Height),
+                    halfSize: (camera.Width, camera.Height),
                     rayThrough: RayThrough,
                     texelAt: TexelAt,
                     ownSurface: new OwnPlane(receiver.GeometricNormal)

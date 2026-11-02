@@ -985,8 +985,14 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
             if (other is null)
                 return comparison with { Sky = comparison.Sky + 1 };
             return expected
-                ? comparison with { Continues = comparison.Continues + 1 }
-                : comparison with { Breaks = comparison.Breaks + 1 };
+                ? comparison with
+                {
+                    Continues = comparison.Continues + 1,
+                }
+                : comparison with
+                {
+                    Breaks = comparison.Breaks + 1,
+                };
         }
 
         /// <summary>The C# copy's plane of a texel inside the image, from its copies, or null for sky.</summary>

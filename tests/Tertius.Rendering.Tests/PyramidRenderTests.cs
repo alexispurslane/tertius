@@ -678,7 +678,10 @@ public sealed class PyramidRenderTests
                     neighbor.X >= 0 && neighbor.Y >= 0 && neighbor.X < camera.Width && neighbor.Y < camera.Height;
                 if (!inside || plane(neighbor.X, neighbor.Y) is not { } other)
                     continue;
-                if (ScreenTesting.NearTheCut(own, other, UndecidedShare) || ScreenTesting.NearTheCut(other, own, UndecidedShare))
+                if (
+                    ScreenTesting.NearTheCut(own, other, UndecidedShare)
+                    || ScreenTesting.NearTheCut(other, own, UndecidedShare)
+                )
                     slack[y * camera.Width + x] = (MathF.Abs(own.Gradient.X) + MathF.Abs(own.Gradient.Y)) / 2;
             }
         }

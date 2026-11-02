@@ -166,7 +166,10 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
             // The least open share was 0.834 when ter-ipc1 built the rule.
             leastOpen
                 .Should()
-                .BeGreaterThan(0.8f, "the outline's last row stands at most half a texel above the floor, so it blocks little");
+                .BeGreaterThan(
+                    0.8f,
+                    "the outline's last row stands at most half a texel above the floor, so it blocks little"
+                );
             bouncing.Should().BeEmpty("a flat floor bounces none of its own light on itself");
         }
         finally

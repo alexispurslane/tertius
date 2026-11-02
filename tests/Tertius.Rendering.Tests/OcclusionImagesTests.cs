@@ -96,7 +96,10 @@ public sealed class OcclusionImagesTests
         OcclusionImages
             .StorageImageProblem(maxPerStageStorageImages: 4)
             .Should()
-            .Contain("10 storage images", "the occlusion set binds every image of the four passes in one compute stage");
+            .Contain(
+                "10 storage images",
+                "the occlusion set binds every image of the four passes in one compute stage"
+            );
 
     [Fact]
     public void ADeviceWithTenStorageImagesInAStageCanBindTheOcclusionSet() =>

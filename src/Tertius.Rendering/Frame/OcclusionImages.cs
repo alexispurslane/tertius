@@ -173,14 +173,8 @@ internal sealed class OcclusionImages : IDisposable
         if (StorageImageProblem(device.Properties.Limits.MaxPerStageDescriptorStorageImages) is { } storageImages)
             throw new NotSupportedException($"{storageImages} ({device.DeviceName})");
         foreach (
-            Format format in (Format[])[
-                ViewDepthFormat,
-                SourceFormat,
-                DepthAndNormalFormat,
-                ContinuationFormat,
-                EdgesFormat,
-                TermFormat,
-            ]
+            Format format in (Format[])
+                [ViewDepthFormat, SourceFormat, DepthAndNormalFormat, ContinuationFormat, EdgesFormat, TermFormat]
         )
             if ((device.FormatProperties(format).OptimalTilingFeatures & FormatFeatureFlags.StorageImageBit) == 0)
                 throw new NotSupportedException($"{format} cannot be a storage image on {device.DeviceName}.");
