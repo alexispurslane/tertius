@@ -1,6 +1,6 @@
 ---
 id: ter-773q
-status: open
+status: in_progress
 deps: []
 links: [ter-hxca]
 created: 2026-11-02T04:50:04Z
@@ -19,3 +19,9 @@ Proposed: when WorkerThreads is 0, pass numThreads = Environment.ProcessorCount 
 
 1. A test host with DOTNET_PROCESSOR_COUNT=4 that runs the Physics and Simulation tests stays near 400% CPU in ps. 2. The physics tests and the determinism tests pass. 3. tools/README.md, Stryker.NET pitfalls, drops the note about the Jolt threads.
 
+
+## Notes
+
+**2026-11-02T07:57:03Z**
+
+2026-11-02: workflow run 37399dd5-bb5c-45bc-beb4-7209425bcfa6 (version 869b0b07), branch ter-773q-jolt-thread-bound from 207f9672b. A dependence of the step's result on the thread count comes back as a fork.
