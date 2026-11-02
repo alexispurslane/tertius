@@ -1,6 +1,6 @@
 ---
 id: ter-b1j3
-status: in_progress
+status: closed
 deps: []
 links: [ter-s6zr, ter-m24j]
 created: 2026-11-02T18:24:50Z
@@ -132,3 +132,7 @@ New tests (each red on a mutant above):
 - PyramidRenderTests.RadianceLevelZeroHoldsNoNegativeLightWhereTheSkinScatterDimsALampAtTheRadianceCap: a skin box at the cap, lit on one face; every value of level 0 is 0 or more.
 
 Checks: nix develop --command dotnet build Tertius.slnx -c Checked (0 warnings, 0 errors); dotnet test --solution Tertius.slnx -c Checked: 9,983 total, 9,969 passed, 0 failed, 14 skipped. The Release tests did not run in this pass.
+
+**2026-11-02T20:56:09Z**
+
+Merged into main in 9fda8f414 (orchestrator, 2026-11-02). The merge also corrects the shader's comment on max(..., 0): the hardening showed that the skin scatter can take a lamp pixel at the cap far below 0 (about -1,200), not only by rounding. tools/test-all.sh on the merge: every module passed in Checked and Release, except one Release failure of JoltThreadCountTests, a known flake under load that passed when run alone; filed as ter-hery. Closed.
