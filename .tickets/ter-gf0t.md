@@ -1,6 +1,6 @@
 ---
 id: ter-gf0t
-status: in_progress
+status: closed
 deps: [ter-8bda]
 links: []
 created: 2026-10-26T18:21:30Z
@@ -140,3 +140,7 @@ Decisions locked in: the existing tests already test each one through behavior.
 - The disc's inside is flat on a mirror: AMirrorShowsTheInsideOfASizedLightsDiscWithinOnePercentOfOneRadiance, which kills S01, the old denominator.
 
 Full Checked run after the new tests: 9,886 passed, 14 skipped, 0 failed.
+
+**2026-11-02T12:21:16Z**
+
+2026-11-02: merged into main as 2da56c096. tools/test-all.sh passed on the staged merge in Checked and Release, 0 failed. The evidence is in captures/gf0t/ of the main checkout. The orchestrator bounded the docs' claim 'the lobe never adds light' to the grid up to alpha = 0.6, after the hardening measured up to +1.3 % at alpha = 1.
