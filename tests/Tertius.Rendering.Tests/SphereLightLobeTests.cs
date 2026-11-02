@@ -182,4 +182,52 @@ public sealed class SphereLightLobeTests
             .Should()
             .BeInRange(0.9, 1.0, "the disc shows the light's surface, less the floored lobe's spread");
     }
+
+    [Theory]
+    [InlineData(0.3, 0.0)]
+    [InlineData(0.3, 0.6)]
+    [InlineData(0.5, 0.0)]
+    [InlineData(0.5, 0.6)]
+    public void AFullyRoughLobeWidensNoFurtherSoALargeLightReflectsNearlyThePointLightsEnergy(
+        double lightSine,
+        double lightAngle
+    )
+    {
+        // At roughness 1, α′ stops at α = 1: GGX has no wider lobe, so the normalization (α / α′)² stays 1 and only the
+        // representative point moves. Its move gives 0.961 to 1.013 of the point light's energy over these cases. Without
+        // the stop, (α / α′)² would take about 24 % of it at sine 0.3 and 36 % at sine 0.5.
+        double point = SpecularExitance(roughness: 1, lightAngle: lightAngle, lightSine: 0);
+        double sized = SpecularExitance(roughness: 1, lightAngle: lightAngle, lightSine: lightSine);
+
+        (sized / point)
+            .Should()
+            .BeInRange(
+                0.95,
+                1.02,
+                "a fully rough surface reflects a large light with nearly the point light's energy (sine {0}, {1} rad from the "
+                    + "normal)",
+                lightSine,
+                lightAngle
+            );
+    }
+
+    [Fact]
+    public void WhereASizedLightsRepresentativePointSinksBelowTheHorizonItAddsNoSpecularLight()
+    {
+        // A light of sine 0.3 stands 1.4 rad from the normal, and the eye looks from its side at a grazing angle. The
+        // mirror ray points away from the light, so the point of the sphere nearest the ray's line lies 0.12 below the
+        // horizon, while the light's center stands 0.17 above it.
+        var gray = new MaterialSample(BaseColor: new(0.5, 0.5, 0.5), Metallic: 0, Roughness: 0.5, Reflectance: 0.5);
+        DirectTerms terms = gray.ReflectedTerms(
+            normal: Double3.UnitZ,
+            toView: new Double3(0.98, 0, 0.2).Normalized(),
+            toLight: TowardLight(1.4),
+            tables: BrdfTables.Shared,
+            lightSine: 0.3
+        );
+
+        terms
+            .Specular.Should()
+            .Be(Double3.Zero, "a representative point below the horizon gives no specular light, never a negative one");
+    }
 }

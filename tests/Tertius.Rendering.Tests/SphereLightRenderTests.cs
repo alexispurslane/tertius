@@ -7,7 +7,8 @@ namespace Tertius.Rendering.Tests;
 /// <summary>
 /// The highlight of a sized light on the GPU (docs/plans/pbr-brdf.md, "Sized lights"): a mirror shows the light's disc
 /// at the light's angular size and at one radiance across its inside, and a light of radius 0 shades as the point light
-/// did before the widened lobe.
+/// did before the widened lobe. At the edges of the model, the GPU shows the C# light: on a fully rough surface, inside
+/// a light's sphere, and where the representative point sinks below the horizon.
 /// </summary>
 [Collection(GpuCollection.Name)]
 public sealed class SphereLightRenderTests
@@ -80,16 +81,34 @@ public sealed class SphereLightRenderTests
         return snapshot;
     }
 
+    /// <summary>The black glossy material of the mirror: roughness 0 and F0 = 0.04.</summary>
+    private static readonly MaterialDesc BlackMirror = new(
+        BaseColor: new(x: 0, y: 0, z: 0, w: 1),
+        Roughness: 0,
+        Reflectance: 0.5f
+    );
+
     /// <summary>
     /// Adds the black glossy mirror, tilted by <paramref name="tilt"/> rad (<see cref="MirrorRotation"/>), to
     /// <paramref name="snapshot"/>, renders it, and captures the image.
     /// </summary>
-    private static Capture RenderMirror(VulkanRenderer renderer, RenderSnapshot snapshot, float tilt, string name)
+    private static Capture RenderMirror(VulkanRenderer renderer, RenderSnapshot snapshot, float tilt, string name) =>
+        RenderSquare(renderer: renderer, snapshot: snapshot, desc: BlackMirror, tilt: tilt, name: name);
+
+    /// <summary>
+    /// Adds a square of <paramref name="desc"/> where the mirror stands, tilted by <paramref name="tilt"/> rad
+    /// (<see cref="MirrorRotation"/>), to <paramref name="snapshot"/>, renders it, and captures the image.
+    /// </summary>
+    private static Capture RenderSquare(
+        VulkanRenderer renderer,
+        RenderSnapshot snapshot,
+        MaterialDesc desc,
+        float tilt,
+        string name
+    )
     {
         MeshId square = renderer.CreateMesh(Primitives.Plane(0.6f));
-        MaterialId material = renderer.CreateMaterial(
-            new(BaseColor: new(x: 0, y: 0, z: 0, w: 1), Roughness: 0, Reflectance: 0.5f)
-        );
+        MaterialId material = renderer.CreateMaterial(desc);
         snapshot.Instances.Add(
             Gpu.Instance(
                 mesh: square,
@@ -174,7 +193,7 @@ public sealed class SphereLightRenderTests
     [MemberData(nameof(SizedLights))]
     public void AMirrorShowsTheDiscOfASizedLightAtTheLightsAngularSize(string light)
     {
-        MirrorDisc disc = MirrorDisc.Of(light: light, tilt: 0);
+        var disc = MirrorDisc.Of(light: light, tilt: 0);
         Double3 plateau = disc.Plateau;
 
         VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
@@ -232,7 +251,7 @@ public sealed class SphereLightRenderTests
     [MemberData(nameof(SizedLights))]
     public void AMirrorShowsTheInsideOfASizedLightsDiscWithinOnePercentOfOneRadiance(string light)
     {
-        MirrorDisc disc = MirrorDisc.Of(light: light, tilt: ObliqueTilt);
+        var disc = MirrorDisc.Of(light: light, tilt: ObliqueTilt);
         Double3 plateau = disc.Plateau;
 
         VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
@@ -272,6 +291,169 @@ public sealed class SphereLightRenderTests
         {
             Gpu.DisposeAndAssertClean(renderer);
         }
+    }
+
+    /// <summary>
+    /// The square of <paramref name="desc"/>, tilted by <paramref name="tilt"/> rad, under the lights of
+    /// <paramref name="snapshot"/>: the red channel of the pixel at the image's center, which sees the square's center
+    /// straight along the view axis, and the reds that 98 % and 102 % of the C# radiance <paramref name="expected"/> show.
+    /// </summary>
+    private static (float Red, float Low, float High) CenterOfASquare(
+        RenderSnapshot snapshot,
+        MaterialDesc desc,
+        float tilt,
+        Double3 expected,
+        string name
+    )
+    {
+        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
+        try
+        {
+            Capture image = RenderSquare(renderer: renderer, snapshot: snapshot, desc: desc, tilt: tilt, name: name);
+            Vector3[] shown = Displayed(
+                renderer,
+                [(expected * 0.98).ToVector3(), (expected * 1.02).ToVector3()],
+                name + "-glow"
+            );
+            return (Red: image.Color(Width / 2, Height / 2).X, Low: shown[0].X, High: shown[1].X);
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void OnAFullyRoughSurfaceTheWidenedLobeStopsAtRoughnessOne()
+    {
+        // A black non-metal of roughness 1 faces the camera, and a sun of angular radius 0.5 rad stands 0.6 rad off the
+        // view axis. Its representative point lies 0.1 rad from the normal, where α + sin ϕ / (2 √(v·h)) reaches 1.24.
+        // The stop at 1 keeps (α / α′)² at 1, where 1.24 would take 35 % of the light. The representative point's
+        // n·l of 0.995, not the center's 0.825, gives Vis · (n·l) 10 % above the center's.
+        const float angularRadius = 0.5f;
+        var toSun = new Double3(0, Math.Sin(0.6), Math.Cos(0.6));
+        var rough = new MaterialDesc(BaseColor: new(x: 0, y: 0, z: 0, w: 1), Roughness: 1, Reflectance: 0.5f);
+        Double3 reflected = TestMaterials
+            .SampleOf(rough)
+            .Reflected(
+                normal: Double3.UnitZ,
+                toView: Double3.UnitZ,
+                toLight: toSun,
+                tables: BrdfTables.Shared,
+                lightSine: Math.Sin(angularRadius)
+            );
+        // A dim sun keeps the light below 1 before the tone curve.
+        RenderSnapshot snapshot = Gpu.Snapshot(toSun.ToVector3(), starIrradiance: (float)(0.4 / reflected.X));
+        Gpu.Star(snapshot: snapshot, angularRadius: angularRadius);
+        snapshot.Ambient.Intensity = 0;
+        Double3 expected = reflected * InReach(Gpu.StarIrradianceRgb(snapshot));
+
+        (float red, float low, float high) = CenterOfASquare(
+            snapshot: snapshot,
+            desc: rough,
+            tilt: 0,
+            expected: expected,
+            name: "sphere-light-rough"
+        );
+
+        red.Should()
+            .BeInRange(
+                low,
+                high,
+                "a fully rough surface shows the C# light {0} of the lobe of roughness 1 toward the representative point",
+                expected.X
+            );
+    }
+
+    [Fact]
+    public void ASurfaceInsideALightsSphereSeesTheLightWithTheSineOfOne()
+    {
+        // A lamp of radius 0.3 m stands 0.1 m in front of the mirror's center, so the center lies inside its sphere:
+        // sin ϕ = min(R / d, 1) = 1, where R / d = 3 would widen the lobe from α + 1/2 to the stop at 1 and take three
+        // quarters of the light. Inside its sphere a light gives I / R², and the window of its reach differs from 1 by
+        // under 1e-8 at 0.1 m.
+        const float radius = 0.3f,
+            gap = 0.1f,
+            intensity = 3;
+        Double3 reflected = TestMaterials
+            .SampleOf(BlackMirror)
+            .Reflected(
+                normal: Double3.UnitZ,
+                toView: Double3.UnitZ,
+                toLight: Double3.UnitZ,
+                tables: BrdfTables.Shared,
+                lightSine: 1
+            );
+        RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitZ, starIrradiance: 0);
+        snapshot.Ambient.Intensity = 0;
+        var lamp = new Vector3(0, 0, -MirrorDistance + gap);
+        snapshot.Lights.Add(
+            new PointRenderLight(
+                EntityIndex: Gpu.LampEntity,
+                Position: lamp,
+                PreviousPosition: lamp,
+                Color: Vector3.One,
+                Power: 4 * MathF.PI * intensity,
+                Radius: radius,
+                CastsShadow: false,
+                ChainDepth: TestChains.CamerasFrame
+            )
+        );
+        Double3 expected = reflected * (intensity / (radius * radius));
+
+        (float red, float low, float high) = CenterOfASquare(
+            snapshot: snapshot,
+            desc: BlackMirror,
+            tilt: 0,
+            expected: expected,
+            name: "sphere-light-inside"
+        );
+
+        red.Should().BeInRange(low, high, "the mirror inside the lamp shows the C# light {0} of sine 1", expected.X);
+    }
+
+    [Fact]
+    public void WhereASizedLightsRepresentativePointSinksBelowTheHorizonTheSurfaceShowsOnlyItsDiffuseLight()
+    {
+        // The square tilts 1.37 rad, so the eye sees its center 0.2 above its plane. A sun of sine 0.3 stands 1.4 rad
+        // from the square's normal, on the eye's side: the mirror ray points away from it, so the point of the sphere
+        // nearest the ray's line lies 0.12 below the horizon, while the sun's center stands 0.17 above it
+        // (SphereLightLobeTests). A lobe toward that point would take 14 % of the gray non-metal's diffuse light.
+        const float tilt = 1.37f;
+        var normal = new Double3(0, -Math.Sin(tilt), Math.Cos(tilt));
+        var toSun = new Double3(0, Math.Sin(1.4 - tilt), Math.Cos(1.4 - tilt));
+        var gray = new MaterialDesc(
+            BaseColor: new(x: 0.5f, y: 0.5f, z: 0.5f, w: 1),
+            Roughness: 0.5f,
+            Reflectance: 0.5f
+        );
+        Double3 reflected = TestMaterials
+            .SampleOf(gray)
+            .Reflected(
+                normal: normal,
+                toView: Double3.UnitZ,
+                toLight: toSun,
+                tables: BrdfTables.Shared,
+                lightSine: 0.3
+            );
+        // A dim sun keeps the light below 1 before the tone curve. The sun casts no shadow, which a light so low over the
+        // square's plane would test at its edge.
+        RenderSnapshot snapshot = Gpu.Snapshot(toSun.ToVector3(), starIrradiance: (float)(0.4 / reflected.X));
+        Gpu.Star(snapshot: snapshot, angularRadius: (float)Math.Asin(0.3));
+        snapshot.Lights[0] = Gpu.Star(snapshot) with { CastsShadow = false };
+        snapshot.Ambient.Intensity = 0;
+        Double3 expected = reflected * InReach(Gpu.StarIrradianceRgb(snapshot));
+
+        (float red, float low, float high) = CenterOfASquare(
+            snapshot: snapshot,
+            desc: gray,
+            tilt: tilt,
+            expected: expected,
+            name: "sphere-light-below-horizon"
+        );
+
+        red.Should()
+            .BeInRange(low, high, "the square shows its C# diffuse light {0} and no specular light", expected.X);
     }
 
     /// <summary>
