@@ -177,12 +177,7 @@ internal readonly record struct ScreenRay(
                     EntryShare: met.EntryShare,
                     Steps: steps + 1
                 );
-            // At level 0 the pixel's surface decided: the ray crosses the pixel. Above, the cell's slab decides.
-            (float low, float high) = pyramid.Bounds(level, (int)cell.X, (int)cell.Y).Slab(CellBounds.ThicknessShare);
-            float outW = InverseDepthAt(exit);
-            bool meetsSlab =
-                level > 0 && MathF.Max(MathF.Min(inW, outW), low) <= MathF.Min(MathF.Max(inW, outW), high);
-            if (!meetsSlab)
+            if (MetCellSlab(pyramid: pyramid, level: level, cell: cell, inW: inW, exit: exit) is not { } slab)
             {
                 // Never back: an entry solved inside a cell can round past the cell's exit. Then the next descent finds
                 // the entry at s, keeps it on an edge, and the nudge moves the walk on.
@@ -193,14 +188,28 @@ internal readonly record struct ScreenRay(
                 continue;
             }
             // GLSL's clamp, which never throws: exit can lie a rounding below s.
-            float entry = MathF.Min(MathF.Max(SlabEntry(s: s, inW: inW, low: low, high: high), s), exit);
+            float entry = MathF.Min(MathF.Max(SlabEntry(s: s, inW: inW, low: slab.Low, high: slab.High), s), exit);
             bool entryInsideCell = entry > s && entry < exit;
             onEdge = !entryInsideCell && (onEdge || entry >= exit);
             s = entry;
-            inW = Math.Clamp(inW, low, high);
+            inW = Math.Clamp(inW, slab.Low, slab.High);
             level--;
         }
         return s >= End ? new RayLeftTheSegment(EndsAt, maxSteps) : new RayOutOfSteps(maxSteps);
+    }
+
+    /// <summary>
+    /// The slab of a cell above level 0 when the ray's inverse depths over the cell, from <paramref name="inW"/> to
+    /// w(<paramref name="exit"/>), meet it; null when they miss it, and at level 0, where the pixel's surface decides
+    /// (<see cref="MeetPixel"/>).
+    /// </summary>
+    private (float Low, float High)? MetCellSlab(DepthPyramid pyramid, int level, Vector2 cell, float inW, float exit)
+    {
+        if (level == 0)
+            return null;
+        (float low, float high) = pyramid.Bounds(level, (int)cell.X, (int)cell.Y).Slab(CellBounds.ThicknessShare);
+        float outW = InverseDepthAt(exit);
+        return MathF.Max(MathF.Min(inW, outW), low) <= MathF.Min(MathF.Max(inW, outW), high) ? (low, high) : null;
     }
 
     /// <summary>
