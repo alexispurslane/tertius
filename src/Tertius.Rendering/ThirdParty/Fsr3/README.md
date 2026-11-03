@@ -32,7 +32,7 @@ Apart from those lines and the years of the notices, the 3.1.6 changes are in th
 
 ### How the shaders were compared
 
-The comparison of 2026-11-03 fetched both commits into the Nix store and diffed each pinned header with its counterpart, ignoring white space and the lines of the notices. Run it again with these commands from the dev shell:
+The comparison of 2026-11-03 fetched both commits into the Nix store. It diffed each pinned header with its counterpart and ignored white space and the lines of the notices. Run it again with these commands from the dev shell:
 
 ```bash
 nix flake prefetch github:GPUOpen-LibrariesAndSDKs/FidelityFX-SDK/f4c1da8e92f3fe563b5c28c44e6267ce6b6b8eb2
@@ -40,7 +40,7 @@ nix flake prefetch github:GPUOpen-LibrariesAndSDKs/FidelityFX-SDK/7539ae8b6568ad
 diff -w -I Copyright <pinned header> <counterpart>
 ```
 
-The NAR hashes are `sha256-P6rvt15dDwxZCUV7M4LFR45ByNDnFq8ohthLsbdbcOM=` for v2.0.0 and `sha256-S/PxlzZwhF6sjTKwunxST5ZwQpqlYPiIWV9nuR7ksGM=` for v2.4.0. In both releases, the counterpart of `gpu/fsr3upscaler/`, `gpu/fsr1/` and `gpu/spd/` is under `Kits/FidelityFX/upscalers/fsr3/include/`, and the counterpart of the `gpu/ffx_core*.h` and `gpu/ffx_common_types.h` headers is under `Kits/FidelityFX/api/internal/`.
+The NAR hashes are `sha256-P6rvt15dDwxZCUV7M4LFR45ByNDnFq8ohthLsbdbcOM=` for v2.0.0 and `sha256-S/PxlzZwhF6sjTKwunxST5ZwQpqlYPiIWV9nuR7ksGM=` for v2.4.0. In both releases, the counterpart of `gpu/fsr3upscaler/`, `gpu/fsr1/` and `gpu/spd/` is under `Kits/FidelityFX/upscalers/fsr3/include/`. The counterpart of the `gpu/ffx_core*.h` and `gpu/ffx_common_types.h` headers is under `Kits/FidelityFX/api/internal/`.
 
 | Pinned header | 3.1.5 (v2.0.0) | 3.1.6 (v2.4.0) |
 |---|---|---|
@@ -108,7 +108,7 @@ The images that the shaders filter with AMD's linear sampler are of formats whos
 
 ## The 16-bit and subgroup builds
 
-Ticket `ter-7m38` (2026-11-03) built three variants beside the build above, tested them and timed them. The engine keeps the build above for now, and no switch chooses a build at run time. Whether a variant replaces it depends on which median the ticket's rule means, and the user did not choose yet ("The timing" below).
+Ticket `ter-7m38` (2026-11-03) built three variants beside the build above, tested them and timed them. The engine keeps the build above, and no switch chooses a build at run time. The build with both changes was 0.085 ms faster by the paired run median. But it needs `shaderFloat16`, which AMD's Polaris GPUs and Vega M do not have under Linux. The user chose to keep the build above ("The decision" below).
 
 ### How the variants follow AMD
 
@@ -145,6 +145,16 @@ The sources are Mesa's main branch at `b381eaf859621ed7fdb3bfef00ac956e4cca209c`
 
 Each report has the driver ID `VK_DRIVER_ID_NVIDIA_PROPRIETARY`, `shaderFloat16` and `shaderInt16` true, `VK_SUBGROUP_FEATURE_QUAD_BIT` in `supportedOperations`, and `VK_SHADER_STAGE_COMPUTE_BIT` in `supportedStages`. vulkan.gpuinfo.org itself refused automated reads. The Apple M1 Max reports every requirement (`vulkaninfo`, MoltenVK 1.4.2).
 
+The orchestrator then read vulkan.gpuinfo.org's device lists for Linux and macOS through Playwright and Google Chrome on 2026-11-03. They show which GPUs of 2018 and later lose:
+
+| Requirement | NVIDIA's driver | AMD on Linux | Macs with MoltenVK |
+|---|---|---|---|
+| `shaderFloat16` | Turing and later, from driver 455.50 (late 2020) on. No report with an earlier driver has it | Vega and later. No report of Polaris (RX 470 to RX 590) or of Vega M has it, on RADV up to 25.1.5 or on AMDVLK | Every GPU with a current MoltenVK, Polaris Macs included |
+| `shaderInt16` | Every Turing report since driver 410 (2018) | Polaris, Vega and later, on current drivers | Every GPU |
+| Quad operations in the compute stage | Every report | Every report | Every GPU since about 2015 |
+
+On Linux, only mobile GPUs (PowerVR, Broadcom V3D, Adreno) and llvmpipe 14 lack the quad operations. The RX 590 came out in November 2018 and Vega M in 2018, both on AMD's Polaris architecture.
+
 ### Correctness
 
 Each variant ran every test of `Fsr3HostTests`, `Fsr3UpscalerTests` and `DeviceFeatureTests` in Release, under the validation layer with synchronization validation. Every FSR test passed with no message. The reference image of `TheSettledPatternAndTheFramesAfterAChangeOfTheSceneMatchTheirReferenceImage` gives these largest FLIP values, against the tolerance of 0.1:
@@ -163,7 +173,7 @@ The opt-in test `AnUpscaleFrom1280x720To1920x1080ReportsItsGpuTime` (`TERTIUS_FS
 - The builds differ only in `Tertius.Rendering.dll`. The control is a byte copy of the build above, so that the table shows the spread between two runs of the same code.
 - Each round runs each build once, in an order that rotates by one build per round.
 - Each run takes the GPU lock, `/tmp/tertius-gpu-measure.lock`, and releases it as soon as the run ends. Each run records `uptime` at its start.
-- The 1-minute load at the start of the runs was 3.4 at the least, 6.0 at the median and 30.5 at the most, because other agents built at the same time.
+- Other agents built at the same time. The 1-minute load at the start of the runs was 3.4 at the least, 6.0 at the median and 30.5 at the most.
 
 The tool `tools/fsr3-timing/` builds the variants, runs the rounds and computes the numbers below (`tools/README.md`, "FSR 3.1 timing"). The frame times of the 60 rounds lie in `/private/tmp/ter-7m38-timing`, which the machine clears.
 
@@ -177,10 +187,10 @@ The times of the frames of one build have several modes. For the build above, th
 | Subgroup | 2.788 | 2.546 | 3.375 | 2.702 |
 | Both | 2.776 | 2.521 | 3.348 | 2.684 |
 
-The two readings of "median minus the build above", each as the middle value and the 90 % interval of 2,000 resamples of the rounds, in ms:
+The table gives two readings of "median minus the build above", in ms. Each is the middle value and the 90 % interval of 2,000 resamples of the rounds:
 
 - The pooled frame median is the median of all 18,000 frames of a build. Each resample draws whole rounds with replacement and pools their frames.
-- The paired run median takes, in each round, the median of the build's run minus the median of the run of the build above in the same round. Then it takes the median of these 60 differences. Each resample draws the differences of whole rounds with replacement.
+- The paired run median first takes a difference in each round: the median of the build's run minus the median of the run of the build above. Then it takes the median of these 60 differences. Each resample draws the differences of whole rounds with replacement.
 
 | Build | Pooled frame median | Paired run median | Rounds in which the run median was lower |
 |---|---|---|---|
@@ -189,13 +199,17 @@ The two readings of "median minus the build above", each as the middle value and
 | Subgroup | −0.038, from −0.159 to +0.075 | −0.061, from −0.082 to −0.026 | 39 of 60 |
 | Both | −0.052, from −0.168 to +0.061 | −0.085, from −0.098 to −0.049 | 39 of 60 |
 
-By the pooled frame median, the control came out 0.057 ms faster than the build above, and its interval reaches 0.178 ms below it. No variant gains more than that, so no variant is measurably faster by this reading. The ticket fixed this reading after round 19 of 60, when the per-round differences of the run medians were already in its output.
+By the pooled frame median, the control came out 0.057 ms faster than the build above, and its interval reaches 0.178 ms below it. No variant gains more than that, so no variant is measurably faster by this reading. The ticket fixed this reading after round 19 of 60. At that time, the per-round differences of the run medians were already in its output.
 
-By the paired run median, the control lies within 0.038 ms of the build above. The subgroup build gains 0.061 ms and the build with both changes 0.085 ms, 3.1 % of the frame. The interval of each lies wholly below the control's. So by this reading, both builds are measurably faster, and the rule keeps the faster one, the build with both changes.
+By the paired run median, the control lies within 0.038 ms of the build above. The subgroup build gains 0.061 ms and the build with both changes 0.085 ms, 3.1 % of the frame. The interval of each lies wholly below the control's. So by this reading, both builds are measurably faster. The paired reading is the sound one. The builds of one round run back to back under almost the same load, so their difference cancels that load.
 
-At the 10th percentile, the fast frames, the build with both changes gains in both readings. By the pooled 10th percentile, it is 0.061 ms faster, from −0.070 to −0.022 ms, and the control's interval is from −0.043 to +0.038 ms, so the two intervals overlap from −0.043 to −0.022 ms. By the paired run 10th percentile, the build with both changes is 0.073 ms faster, from −0.076 to −0.067 ms, in 49 of 60 rounds, and the control is within 0.005 ms.
+At the 10th percentile, the fast frames, the build with both changes gains in both readings. By the pooled 10th percentile, it is 0.061 ms faster, from −0.070 to −0.022 ms. The control's interval is from −0.043 to +0.038 ms, so the two intervals overlap from −0.043 to −0.022 ms. By the paired run 10th percentile, the build with both changes is 0.073 ms faster, from −0.076 to −0.067 ms, in 49 of 60 rounds. The control is within 0.005 ms.
 
-The order of the builds in a round rotates by one build per round. So in 48 of 60 runs, each build follows the same build. An effect of one run on the next cannot be told apart from an effect of the build. The control and the build above follow different builds and differ by 0.002 ms at the paired run 10th percentile, so such an effect looks small here.
+The order of the builds in a round rotates by one build per round. So in 48 of 60 runs, each build follows the same build. An effect of one run on the next cannot be told apart from an effect of the build. The control and the build above follow different builds, and they differ by 0.002 ms at the paired run 10th percentile. So such an effect looks small here.
+
+### The decision
+
+The user chose on 2026-11-03 to keep the build above (ticket `ter-7m38`). The build with both changes saves about 0.08 ms per frame. It needs `shaderFloat16`, which AMD's Polaris GPUs (the RX 470 to RX 590) and Vega M do not have under Linux. With that build, the game cannot start on them. The engine therefore requires none of `shaderFloat16`, `shaderInt16` or the quad operations. AMD's 3.1.6 fix stays in the pin, although the build above does not compile its branch.
 
 ## Bindings
 
