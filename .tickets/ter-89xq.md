@@ -2,7 +2,7 @@
 id: ter-89xq
 status: in_progress
 deps: []
-links: []
+links: [ter-442t]
 created: 2026-11-03T01:57:54Z
 type: epic
 priority: 1
