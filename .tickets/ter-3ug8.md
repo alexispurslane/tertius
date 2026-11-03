@@ -27,3 +27,7 @@ Scope:
 **2026-11-03T23:06:51Z**
 
 2026-11-03: launched as workflow run 82edf212-3df2-48c8-a4ef-d6c4f087ec33, version 869b0b07-3413-4b06-8707-a88a91bf6e91 (Opus high builder, Opus xhigh reviewer), branch ter-3ug8-gpu-calibration from 2ca2a841e. The report goes to docs/research/temporal-renderer/gpu-calibration.md.
+
+**2026-11-03T23:21:57Z**
+
+2026-11-03: the source of the FSR comparison, checked after the user asked. AMD publishes per-GPU times only for FSR 2, in DX12 (github.com/GPUOpen-Effects/FidelityFX-FSR2, README, 'Performance'), not for FSR 3.1, whose page says only that 3.1's upscaler is slightly slower than 3.0's. FSR 2 at 1920 x 1080, Quality (1.5x, our 1280 x 720 input): RX Vega 56 1.0 ms, RX 590 1.3 ms, RX 5700 XT 0.6 ms, RX 6700 XT 0.5 ms. The page names no driver and no 16-bit or 32-bit build. On paper, Vega 56 (about 10.5 TFLOPS FP32, 410 GB/s) and RX 5700 XT (about 9.75 TFLOPS, 448 GB/s) match the M1 Max (about 10.4 TFLOPS, 400 GB/s), but paper rates do not make different architectures equal. So FSR's 2.8 ms here is about 2.8 times Vega 56 and 4.7 times RX 5700 XT, for a newer and slightly slower version of the upscaler. MetalFX on this GPU (step 3) is the closer reference.
