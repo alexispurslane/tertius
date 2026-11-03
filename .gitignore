@@ -32,3 +32,4 @@ __pycache__/
 # The temporary solution of the pre-commit hook (.githooks/pre-commit).
 /.pre-commit.slnx
 /.cleanup.slnx
+.DS_Store

@@ -1,6 +1,6 @@
 ---
 id: ter-ohqr
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-11-03T14:53:48Z
@@ -274,3 +274,7 @@ The mutation table of both tools:
 | K10 | src/Tertius.Simulation/Internal/Rendering/RenderSnapshotBuilder.cs:653 | spot light generation 0 | killed | RenderSnapshotKeyTests.ASpotLampInTheSlotOfADestroyedOneCarriesItsOwnGeneration | 4.0 |
 | K11 | src/Tertius.Simulation/Internal/Rendering/RenderSnapshotBuilder.cs:570 | previous scale = current | killed | RenderSnapshotKeyTests.ThePreviousScaleOfAGrowingObjectIsItsScaleAtThePreviousTick, RenderSnapshotKeyTests.AFrameOwnerThatGrowsCarriesItsScaleAtThePreviousTick | 4.1 |
 137 rows: killed 125, timeout 4, survived 6, no-coverage 0, build-failed 0, no-tests 0, no-mutant 2, removed 0
+
+**2026-11-03T22:35:40Z**
+
+2026-11-03: merged into main as 6c882413f, with the far-depth fix (182c34ddd) and the hardening (05550b51f). The merge combined ARCHITECTURE.md's table of required device features: FSR's rows from main, and the motion vectors' rows (10 storage buffers, 8 color attachments, 8 fragment outputs). tools/test-all.sh on the merge: Release passed in every module. Checked passed except one impostor test, which lost a race for its capture file with the Release process (ticket ter-ddk8), and it passed in a second full Checked run of Rendering.
