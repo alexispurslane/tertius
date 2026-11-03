@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Tool code (tools/README.md, "FSR 3.1 golden values"): compares the pinned FSR 3.1 source,
 # src/Tertius.Rendering/ThirdParty/Fsr3, with AMD's tag v1.1.4, which the dev shell gives as TERTIUS_FFX_SDK
-# (native/fidelityfx-sdk.nix). It passes when the only differences are those of pin.diff: the two declarations that
-# ThirdParty/Fsr3/README.md records. Run it in the dev shell:
+# (native/fidelityfx-sdk.nix). It passes when the only differences are those of pin.diff: the two declarations and the
+# line of AMD's 3.1.6 fix that ThirdParty/Fsr3/README.md records. Run it in the dev shell:
 #   nix develop --command bash tools/fsr3-golden/check-pin.sh
 set -euo pipefail
 
@@ -18,4 +18,4 @@ differences() {
 }
 
 diff -u "$here/pin.diff" <(differences)
-echo "The pin equals AMD's v1.1.4 apart from the declarations of pin.diff."
+echo "The pin equals AMD's v1.1.4 apart from the declarations and the fix of pin.diff."

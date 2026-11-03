@@ -416,13 +416,13 @@ nix develop --command bash tools/fsr3-golden/build.sh
 - `compat.h` gives the few Windows names that AMD's code uses. The build uses `-fshort-wchar`, because AMD's private context assumes the 2-byte `wchar_t` of Windows.
 - `Fsr3HostTests` hold the file as an embedded resource and compare the host with it. A value from the math library, such as the tangent of the field of view, can differ by one unit in the last place on another C library. So those values compare within one unit.
 
-`check-pin.sh` compares the pinned GLSL in `src/Tertius.Rendering/ThirdParty/Fsr3` with AMD's tag. It passes when the only differences are those in `pin.diff`, the two declarations that the folder's README records:
+`check-pin.sh` compares the pinned GLSL in `src/Tertius.Rendering/ThirdParty/Fsr3` with AMD's tag. It passes when the only differences are those in `pin.diff`, the two declarations and the port of AMD's 3.1.6 fix that the folder's README records:
 
 ```bash
 nix develop --command bash tools/fsr3-golden/check-pin.sh
 ```
 
-`Fsr3UpscalerTests.AnUpscaleFrom1280x720To1920x1080ReportsItsGpuTime` measures FSR's GPU time by timestamps around `Record`. It runs only with `TERTIUS_FSR_TIMING=1`, and it prints the median and the percentiles of 300 frames. Run it in Release under the GPU lock:
+`Fsr3UpscalerTests.AnUpscaleFrom1280x720To1920x1080ReportsItsGpuTime` measures FSR's GPU time by timestamps around `Record`. It runs only with `TERTIUS_FSR_TIMING=1`. It prints the median and the percentiles of 300 frames, and then the time of each frame in their order. Run it in Release under the GPU lock:
 
 ```bash
 nix develop --command dotnet build tests/Tertius.Rendering.Tests -c Release
@@ -430,6 +430,48 @@ mkdir /tmp/tertius-gpu-measure.lock
 TERTIUS_FSR_TIMING=1 nix develop --command dotnet test --project tests/Tertius.Rendering.Tests -c Release --no-build --filter-method "*ReportsItsGpuTime" --output detailed
 rmdir /tmp/tertius-gpu-measure.lock
 ```
+
+## FSR 3.1 timing
+
+`tools/fsr3-timing/` holds tool code that times builds of FSR's passes against each other (ticket `ter-7m38`, `src/Tertius.Rendering/ThirdParty/Fsr3/README.md`, "The 16-bit and subgroup builds"). It does not ship. The method runs each build once per round, in many rounds, so that the load of the machine falls on every build alike.
+
+1. If a build uses `FFX_HALF=1`, enable its two device features in `src/Tertius.Rendering/Vulkan/VulkanDevice.cs` for every build of the comparison. Add `ShaderFloat16 = true` to `EnabledVulkan12Features` and `ShaderInt16 = true` to `EnabledCoreFeatures`. The engine does not enable them, and the validation layer refuses a 16-bit module without them. Revert the change after the builds. Two fixtures of `DeviceFeatureTests` fail while it stands. The quad operations of the subgroup builds need no enabled feature.
+2. Build each variant into its own copy of the Release test build under `captures/fsr-builds`. The arguments are `FFX_HALF` in AMD's four 16-bit passes, subgroup operations in the pyramids, and the name of the copy:
+
+   ```bash
+   nix develop --command bash tools/fsr3-timing/build-variant.sh 0 0 base
+   nix develop --command bash tools/fsr3-timing/build-variant.sh 1 1 halfwave
+   ```
+
+3. Make the control, a byte copy of the engine's build. It shows the spread between two runs of the same code:
+
+   ```bash
+   cp -R captures/fsr-builds/base captures/fsr-builds/control
+   ```
+
+4. Run at least 5 rounds, more on a busy machine. Each run takes and releases the GPU lock, `/tmp/tertius-gpu-measure.lock`, and records `uptime` at its start. The order of the builds rotates by one build per round:
+
+   ```bash
+   mkdir -p /private/tmp/fsr-timing
+   for round in $(seq 0 59); do nix develop --command bash tools/fsr3-timing/time-round.sh $round /private/tmp/fsr-timing base control halfwave >> /private/tmp/fsr-timing/rounds.log; done
+   ```
+
+5. Compare the builds with the first build named as the reference:
+
+   ```bash
+   python3 -I tools/fsr3-timing/analyze.py /private/tmp/fsr-timing base control halfwave
+   ```
+
+`build-variant.sh` builds the test project, writes the variant's modules over the engine's in `obj`, and builds again. The modules are then newer than their sources, so the build embeds them without compiling them again. At the end, the script touches the csproj and builds again, so that `obj` and `bin` hold the engine's modules. The script prints the SPIR-V capabilities of each module.
+
+`analyze.py` prints two readings of "the build's median minus the reference's", each with the 90 % interval of 2,000 resamples of the rounds:
+
+- The pooled frame median is the median of all frames of a build. A resample pools the frames of the rounds that it draws.
+- The paired run median is the median over the rounds of the run median of the build minus the run median of the reference in the same round. A resample draws these per-round differences.
+
+It prints the same two readings of the 10th percentile, and the least, median and most 1-minute load at the run starts. The frame times of FSR on the M1 Max have several modes, so the two readings can disagree, as they did in `ter-7m38`.
+
+The rotation gives each build the same predecessor in most runs. So an effect of one run on the next mixes with the effect of the build. A Williams design, an order that gives each build every predecessor equally often, removes this. The tool does not use one yet.
 
 ## GPU trace
 

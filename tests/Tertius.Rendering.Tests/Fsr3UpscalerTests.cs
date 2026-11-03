@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Numerics;
 using Silk.NET.Vulkan;
 using Buffer = Silk.NET.Vulkan.Buffer;
@@ -5,10 +6,9 @@ using Buffer = Silk.NET.Vulkan.Buffer;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// <see cref="Fsr3Upscaler"/> on the GPU, over AMD's pinned shaders (docs/plans/temporal-renderer.md, "FSR 3.1"): an
-/// upscale of a known input under the validation layer with its synchronization checks, the history across frames,
-/// resets and exposure changes, the exposure step, the reactive mask generator, the refused inputs and the determinism of
-/// the result. Most tests record one frame per submission and wait for it.
+/// <see cref="Fsr3Upscaler"/> on the GPU, over AMD's pinned shaders (docs/plans/temporal-renderer.md, "FSR 3.1"): no
+/// message under synchronization validation, the history over frames, resets and exposure changes, a reference image,
+/// the exposure step, the reactive mask generator, refused inputs and determinism. Most tests wait for each frame.
 /// </summary>
 [Collection(GpuCollection.Name)]
 public sealed class Fsr3UpscalerTests
@@ -265,6 +265,28 @@ public sealed class Fsr3UpscalerTests
     }
 
     [Fact]
+    public void TheSettledPatternAndTheFramesAfterAChangeOfTheSceneMatchTheirReferenceImage()
+    {
+        using var bench = new Fsr3Bench(LargestRenderSize, OutputSize);
+        bench.FillPattern();
+        for (int index = 0; index < 10; index++)
+            bench.Upscale(index, reset: index == 0);
+        var frames = new List<Vector4[]> { bench.ReadOutput() };
+        bench.FillPattern(inverted: true);
+        for (int index = 10; index < 13; index++)
+        {
+            bench.Upscale(index, reset: false);
+            frames.Add(bench.ReadOutput());
+        }
+
+        // From the left: the tenth frame of the still pattern, then the first three frames of the inverted pattern.
+        ReferenceImages.Verify(
+            actual: Panels(frames, OutputSize),
+            referencePath: Path.Combine(ReferenceImages.Folder, "fsr3-pattern.png")
+        );
+    }
+
+    [Fact]
     public void AnExposureBufferThatTheGpuWritesJustBeforeTheUpscaleGivesItsRatioWithoutAHazard()
     {
         using var bench = new Fsr3Bench(LargestRenderSize, OutputSize);
@@ -368,13 +390,20 @@ public sealed class Fsr3UpscalerTests
         bench.FillPattern();
 
         // The first frames warm the caches and the driver's pipelines.
-        double[] times = [.. bench.TimedUpscales(count: 360).Skip(60).Order()];
+        double[] frames = [.. bench.TimedUpscales(count: 360).Skip(60)];
+        double[] times = [.. frames.Order()];
 
         double median = times[times.Length / 2];
-        TestContext.Current.TestOutputHelper!.WriteLine(
+        ITestOutputHelper output = TestContext.Current.TestOutputHelper!;
+        output.WriteLine(
             $"FSR 3.1 from 1280 x 720 to 1920 x 1080 on {bench.Device.DeviceName}: median {median:F3} ms, "
                 + $"10th percentile {times[times.Length / 10]:F3} ms, 90th percentile {times[times.Length * 9 / 10]:F3} ms "
                 + $"over {times.Length} frames"
+        );
+        // Every frame's time in the order of the frames, for tools/fsr3-timing/analyze.py.
+        output.WriteLine(
+            "frame times, ms: "
+                + string.Join(' ', frames.Select(time => time.ToString("F4", CultureInfo.InvariantCulture)))
         );
         median.Should().BePositive();
     }
@@ -388,6 +417,30 @@ public sealed class Fsr3UpscalerTests
                 + MathF.Abs(pair.First.Y - pair.Second.Y)
                 + MathF.Abs(pair.First.Z - pair.Second.Z)
             );
+
+    // The outputs side by side, left to right, two stops down and sRGB-encoded, so that the red squares at 3 stay below
+    // white and FLIP sees a change of the history in them.
+    private static Capture Panels(List<Vector4[]> outputs, Extent2D size)
+    {
+        static byte Encoded(float linear)
+        {
+            float c = Math.Clamp(linear / 4f, 0f, 1f);
+            float srgb = c <= 0.0031308f ? 12.92f * c : 1.055f * MathF.Pow(c, 1 / 2.4f) - 0.055f;
+            return (byte)MathF.Round(srgb * 255f);
+        }
+
+        int width = (int)size.Width;
+        int height = (int)size.Height;
+        return TestImages.Fill(
+            width: width * outputs.Count,
+            height: height,
+            color: (x, y) =>
+            {
+                Vector4 pixel = outputs[x / width][y * width + x % width];
+                return (Encoded(pixel.X), Encoded(pixel.Y), Encoded(pixel.Z));
+            }
+        );
+    }
 
     // FSR keeps its history in half floats. 1e-3 is two half-float steps at 0.5, four at 0.25 and eight at 0.125.
     private static void ShouldAllBeTheConstant(Vector4[] pixels)

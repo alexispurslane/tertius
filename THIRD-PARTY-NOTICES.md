@@ -68,7 +68,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ## AMD FidelityFX Super Resolution 3.1
 
 - Source: https://github.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK, tag `v1.1.4`, commit `c6efa6bf7f2027b3ec94f28578bb5965eabb9e55`, with the FSR 3.1.4 upscaler.
-- Used in: the FSR 3.1 upscaler. The build compiles AMD's GLSL passes and headers in `src/Tertius.Rendering/ThirdParty/Fsr3`, with two changed declarations that its README records. `Fsr3Upscaler` repeats AMD's host code, `ffx_fsr3upscaler.cpp`, in C#. The tool `tools/fsr3-golden/` builds AMD's host code from the same commit and does not ship.
+- Used in: the FSR 3.1 upscaler. The build compiles AMD's GLSL passes and headers in `src/Tertius.Rendering/ThirdParty/Fsr3`, with two changed declarations and one line of AMD's 3.1.6 fix, which its README records. `Fsr3Upscaler` repeats AMD's host code, `ffx_fsr3upscaler.cpp`, in C#. The tool `tools/fsr3-golden/` builds AMD's host code from the same commit and does not ship.
 - License: MIT. The license asks that the notice goes with every copy and every substantial portion of the software, and the compiled shaders and the C# copy of the host are such portions.
 
 ```
