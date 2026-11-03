@@ -131,6 +131,92 @@ public sealed class MotionVectorRenderTests
     }
 
     [Fact]
+    public void ACutoutBoxThatMovesGivesTheAnalyticMotion()
+    {
+        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
+        try
+        {
+            MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
+            // Opaque everywhere, but drawn by the G-buffer's cutout pipeline.
+            MaterialId cutout = renderer.CreateMaterial(
+                MaterialDesc.Color(Vector4.One, roughness: 0.5f) with
+                {
+                    Alpha = new CutoutAlpha(0.5f),
+                }
+            );
+            var step = new Vector3(0.3f, 0.1f, 0.8f);
+            renderer.Render(WithBox(box: box, white: cutout, position: new(0, 0, -6)), 1f);
+
+            renderer.Render(WithBox(box: box, white: cutout, position: new Vector3(0, 0, -6) + step), 1f);
+
+            ShouldMoveAsAnalytic(
+                renderer: renderer,
+                center: new Vector3(0, 0, -5.5f) + step,
+                previousOf: point => point - step,
+                what: "a cutout box that moved"
+            );
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void AnInstancePlacedAfterTheFirstThousandGivesItsMotion()
+    {
+        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
+        try
+        {
+            MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
+            MaterialId white = renderer.CreateMaterial(MaterialDesc.Color(Vector4.One, roughness: 0.5f));
+            var step = new Vector3(0.3f, 0.1f, 0.8f);
+            RenderSnapshot Crowd(Vector3 position)
+            {
+                // 1,100 boxes behind the camera come first, so the moving box's motion row lies past the frame's first
+                // 1,024, the motion buffer's first size.
+                RenderSnapshot snapshot = Gpu.Snapshot(new(0.3f, 1f, 0.4f));
+                for (uint i = 0; i < 1_100; i++)
+                    snapshot.Instances.Add(
+                        Gpu.Instance(
+                            mesh: box,
+                            material: white,
+                            position: new(i % 40 - 20f, i / 40 - 15f, 30),
+                            scale: Vector3.One,
+                            chainDepth: TestChains.CamerasFrame,
+                            entity: 10 + i
+                        )
+                    );
+                snapshot.Instances.Add(
+                    Gpu.Instance(
+                        mesh: box,
+                        material: white,
+                        position: position,
+                        scale: Vector3.One,
+                        chainDepth: TestChains.CamerasFrame,
+                        entity: 5_000
+                    )
+                );
+                return snapshot;
+            }
+            renderer.Render(Crowd(new(0, 0, -6)), 1f);
+
+            renderer.Render(Crowd(new Vector3(0, 0, -6) + step), 1f);
+
+            ShouldMoveAsAnalytic(
+                renderer: renderer,
+                center: new Vector3(0, 0, -5.5f) + step,
+                previousOf: point => point - step,
+                what: "the last of 1,101 boxes"
+            );
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
     public void AStillBoxSeenFromACameraThatStepsGivesTheMotionOfTheEyesStep()
     {
         VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
@@ -250,6 +336,202 @@ public sealed class MotionVectorRenderTests
         {
             Gpu.DisposeAndAssertClean(renderer);
         }
+    }
+
+    /// <summary>
+    /// The kept positions alternate by the parity of the drawn frames, so the third frame reads the second frame's buffer,
+    /// not the first frame's, which its own deform pass then overwrites.
+    /// </summary>
+    [Fact]
+    public void AThirdFrameOfADeformedMeshMovesFromTheSecondFramesPositions()
+    {
+        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
+        try
+        {
+            MeshData cylinder = Primitives.BendingCylinder(radius: 0.4f, length: 2);
+            Rig rig = cylinder.Rigging!.Rig;
+            MeshId mesh = renderer.CreateMesh(cylinder);
+            MaterialId white = renderer.CreateMaterial(MaterialDesc.Color(Vector4.One, roughness: 0.5f));
+            var stand = new Vector3(0, -1, -6);
+            var step = new Vector3(0.3f, 0, 0);
+            RigPose Shifted(Vector3 shift) =>
+                rig.Rest with
+                {
+                    Joints = rig.Rest.Joints.SetItem(0, rig.Rest.Joints[0] with { Position = shift }),
+                };
+            renderer.Render(PosedCylinder(mesh: mesh, material: white, stand: stand, pose: rig.Rest), 1f);
+            renderer.Render(PosedCylinder(mesh: mesh, material: white, stand: stand, pose: Shifted(step)), 1f);
+
+            renderer.Render(PosedCylinder(mesh: mesh, material: white, stand: stand, pose: Shifted(2 * step)), 1f);
+
+            ShouldMoveAsAnalytic(
+                renderer: renderer,
+                center: stand + 2 * step + new Vector3(0, 0.5f, 0.4f),
+                previousOf: point => point - step,
+                what: "a deformed copy in its third frame"
+            );
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void EachOfTwoDeformedMeshesMovesFromItsOwnLastPositions()
+    {
+        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
+        try
+        {
+            MeshData cylinder = Primitives.BendingCylinder(radius: 0.4f, length: 2);
+            Rig rig = cylinder.Rigging!.Rig;
+            MeshId mesh = renderer.CreateMesh(cylinder);
+            MaterialId white = renderer.CreateMaterial(MaterialDesc.Color(Vector4.One, roughness: 0.5f));
+            var left = new Vector3(-1.5f, -1, -6);
+            var right = new Vector3(1.5f, -1, -6);
+            var shift = new Vector3(0.3f, 0, 0);
+            RigPose shifted = rig.Rest with
+            {
+                Joints = rig.Rest.Joints.SetItem(0, rig.Rest.Joints[0] with { Position = shift }),
+            };
+            renderer.Render(
+                PosedCylinders(mesh: mesh, material: white, cylinders: [(left, rig.Rest), (right, rig.Rest)]),
+                1f
+            );
+
+            // Only the second copy, whose kept positions follow the first's, moves.
+            renderer.Render(
+                PosedCylinders(mesh: mesh, material: white, cylinders: [(left, rig.Rest), (right, shifted)]),
+                1f
+            );
+
+            ShouldMoveAsAnalytic(
+                renderer: renderer,
+                center: right + shift + new Vector3(0, 0.5f, 0.4f),
+                previousOf: point => point - shift,
+                what: "the second deformed copy"
+            );
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void ADeformedMeshWhoseCopyMovedInTheRegionMovesFromItsLastPositions()
+    {
+        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
+        try
+        {
+            MeshData cylinder = Primitives.BendingCylinder(radius: 0.4f, length: 2);
+            Rig rig = cylinder.Rigging!.Rig;
+            MeshId mesh = renderer.CreateMesh(cylinder);
+            MaterialId white = renderer.CreateMaterial(MaterialDesc.Color(Vector4.One, roughness: 0.5f));
+            var left = new Vector3(-1.5f, -1, -6);
+            var right = new Vector3(1.5f, -1, -6);
+            var shift = new Vector3(0.3f, 0, 0);
+            RigPose shifted = rig.Rest with
+            {
+                Joints = rig.Rest.Joints.SetItem(0, rig.Rest.Joints[0] with { Position = shift }),
+            };
+            renderer.Render(
+                PosedCylinders(mesh: mesh, material: white, cylinders: [(right, rig.Rest)], firstEntity: 3),
+                1f
+            );
+
+            // A new copy with a lower key takes the region's first place, so the right copy's frame mesh changes too.
+            renderer.Render(
+                PosedCylinders(mesh: mesh, material: white, cylinders: [(left, rig.Rest), (right, shifted)]),
+                1f
+            );
+
+            ShouldMoveAsAnalytic(
+                renderer: renderer,
+                center: right + shift + new Vector3(0, 0.5f, 0.4f),
+                previousOf: point => point - shift,
+                what: "a deformed copy whose place in the region moved"
+            );
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>
+    /// A frame whose deform region grows copies the last drawn frame's kept positions into the new buffers once: the
+    /// frame after it reads what the growing frame wrote.
+    /// </summary>
+    [Fact]
+    public void ADeformedMeshInTheFrameAfterTheRegionGrewMovesFromTheGrowingFramesPositions()
+    {
+        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
+        try
+        {
+            MeshData cylinder = Primitives.BendingCylinder(radius: 0.4f, length: 2);
+            Rig rig = cylinder.Rigging!.Rig;
+            MeshId mesh = renderer.CreateMesh(cylinder);
+            MaterialId white = renderer.CreateMaterial(MaterialDesc.Color(Vector4.One, roughness: 0.5f));
+            var stand = new Vector3(0, -1, -6);
+            var step = new Vector3(0.3f, 0, 0);
+            RigPose Shifted(Vector3 shift) =>
+                rig.Rest with
+                {
+                    Joints = rig.Rest.Joints.SetItem(0, rig.Rest.Joints[0] with { Position = shift }),
+                };
+            // Two more copies triple the vertices of the region, past its power of two.
+            (Vector3 Stand, RigPose Pose)[] Frame(Vector3 shift) =>
+                [(stand, Shifted(shift)), (new(-2.5f, -1, -6), rig.Rest), (new(2.5f, -1, -6), rig.Rest)];
+            renderer.Render(PosedCylinders(mesh: mesh, material: white, cylinders: [(stand, rig.Rest)]), 1f);
+            renderer.Render(PosedCylinders(mesh: mesh, material: white, cylinders: Frame(step)), 1f);
+
+            renderer.Render(PosedCylinders(mesh: mesh, material: white, cylinders: Frame(2 * step)), 1f);
+
+            ShouldMoveAsAnalytic(
+                renderer: renderer,
+                center: stand + 2 * step + new Vector3(0, 0.5f, 0.4f),
+                previousOf: point => point - step,
+                what: "a deformed copy after the region grew"
+            );
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>One posed cylinder per stand, each with its own pose, entities <paramref name="firstEntity"/> upward in order.</summary>
+    private static RenderSnapshot PosedCylinders(
+        MeshId mesh,
+        MaterialId material,
+        ReadOnlySpan<(Vector3 Stand, RigPose Pose)> cylinders,
+        uint firstEntity = 2
+    )
+    {
+        RenderSnapshot snapshot = Gpu.Snapshot(new(0.3f, 1f, 0.4f));
+        for (int i = 0; i < cylinders.Length; i++)
+        {
+            snapshot.Instances.Add(
+                Gpu.Instance(
+                    mesh: mesh,
+                    material: material,
+                    position: cylinders[i].Stand,
+                    scale: Vector3.One,
+                    chainDepth: TestChains.CamerasFrame,
+                    entity: firstEntity + (uint)i
+                )
+            );
+            RigPose pose = cylinders[i].Pose;
+            snapshot.AddRigPose(
+                instance: i,
+                joints: pose.Joints.AsSpan(),
+                previousJoints: pose.Joints.AsSpan(),
+                weights: pose.Weights.AsSpan(),
+                previousWeights: pose.Weights.AsSpan()
+            );
+        }
+        return snapshot;
     }
 
     private static RenderSnapshot PosedCylinder(MeshId mesh, MaterialId material, Vector3 stand, RigPose pose)
@@ -403,6 +685,56 @@ public sealed class MotionVectorRenderTests
                 center: center + step,
                 previousOf: point => point - step,
                 what: "a billboard whose object moved"
+            );
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void ABillboardMovesWithItsOwnObjectsCenterNotWithAnotherObjects()
+    {
+        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height, impostors: true);
+        try
+        {
+            MeshId sphere = renderer.CreateMesh(Primitives.Sphere(1f, 48, 24));
+            MaterialId white = renderer.CreateMaterial(MaterialDesc.Color(Vector4.One, roughness: 0.5f));
+            var still = new Vector3(-4, 0, -11);
+            var center = new Vector3(2, 0, -11);
+            var step = new Vector3(0.4f, 0.2f, 0);
+            RenderSnapshot Spheres(Vector3 moving)
+            {
+                // The still sphere's entity comes first, so the moving sphere's billboard reads the second motion row.
+                RenderSnapshot snapshot = Gpu.Snapshot(new(0.3f, 1f, 0.4f));
+                foreach (
+                    (Vector3 position, uint entity) in (ReadOnlySpan<(Vector3 Position, uint Entity)>)
+                        [(still, 4u), (moving, 5u)]
+                )
+                    snapshot.Instances.Add(
+                        Gpu.Instance(
+                            mesh: sphere,
+                            material: white,
+                            position: position,
+                            scale: Vector3.One,
+                            chainDepth: TestChains.CamerasFrame,
+                            entity: entity
+                        )
+                    );
+                return snapshot;
+            }
+            renderer.Render(Spheres(center), 1f);
+            renderer.Render(Spheres(center), 1f);
+
+            renderer.Render(Spheres(center + step), 1f);
+
+            renderer.LastFrameStats.Impostors.Should().Be(2, "the test needs both spheres drawn as billboards");
+            ShouldMoveAsAnalytic(
+                renderer: renderer,
+                center: center + step,
+                previousOf: point => point - step,
+                what: "the second billboard"
             );
         }
         finally

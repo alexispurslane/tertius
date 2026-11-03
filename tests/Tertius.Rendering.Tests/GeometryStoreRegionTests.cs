@@ -76,6 +76,36 @@ public sealed class GeometryStoreRegionTests
     }
 
     [Fact]
+    public void ASecondGrowthBeforeADrawnFrameRetiresTheEmptyBuffersOfTheFirstAndKeepsTheDrawnOnesAsTheSource()
+    {
+        using var plumbing = new Plumbing();
+        using var store = new GeometryStore(plumbing.Device, plumbing.Allocator);
+        using var kept = new KeptPositions(plumbing.Device, plumbing.Allocator);
+        Reserve(store: store, plumbing: plumbing, vertices: 1_000, kept: kept);
+        kept.Drew(plumbing.Releases, frame: 0);
+        // Frame 1 grows the region, then throws before its submission.
+        Reserve(store: store, plumbing: plumbing, vertices: 5_000, kept: kept, frame: 1);
+        int retiredBefore = plumbing.Releases.Count;
+
+        // Frame 1 again grows past the first growth.
+        Reserve(store: store, plumbing: plumbing, vertices: 50_000, kept: kept, frame: 1);
+        int retiredBySecondGrowth = plumbing.Releases.Count - retiredBefore;
+        kept.Drew(plumbing.Releases, frame: 1);
+
+        retiredBySecondGrowth
+            .Should()
+            .Be(3, "the vertex buffer and the first growth's kept buffers, the targets of a copy that never ran");
+        (plumbing.Releases.Count - retiredBefore)
+            .Should()
+            .Be(5, "the drawn frame retires frame 0's buffers, its copy's source");
+        kept.CopiesRecorded.Should().Be(4, "each try of frame 1 copies frame 0's two buffers");
+        plumbing
+            .Device.Log.Snapshot()
+            .Should()
+            .BeEmpty("each copy reads only the vertices that frame 0's buffers hold");
+    }
+
+    [Fact]
     public void AGrowthThatAFrameDrewIsNotCopiedAgain()
     {
         using var plumbing = new Plumbing();

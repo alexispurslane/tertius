@@ -107,19 +107,22 @@ public sealed class FrameHistoryTests
             .BeTrue("the count differs from the drawn frame's, though this snapshot cut nothing itself");
     }
 
-    [Fact]
-    public void ADrawAtAnotherOutputSizeResets()
+    [Theory]
+    [InlineData(1920, 1080)]
+    [InlineData(1920, 720)]
+    [InlineData(1280, 1080)]
+    public void ADrawAtAnotherOutputSizeResets(int width, int height)
     {
         var history = new FrameHistory();
         Draw(history: history, snapshot: Snapshot());
 
         FrameHistory.PendingFrame pending = history.Begin(
             snapshot: Snapshot(),
-            outputSize: new(1920, 1080),
-            renderSize: new(1920, 1080)
+            outputSize: new((uint)width, (uint)height),
+            renderSize: new((uint)width, (uint)height)
         );
 
-        pending.Reset.Should().BeTrue();
+        pending.Reset.Should().BeTrue("the output's width or height or both changed");
     }
 
     [Fact]
@@ -187,6 +190,26 @@ public sealed class FrameHistoryTests
         again.DrawIndex.Should().Be(1);
         again.DrawnFrames.Should().Be(1);
         again.Parity.Should().Be(thrownParity, "the next draw writes the images that the draw which threw wrote");
+    }
+
+    [Fact]
+    public void ACommitOfADrawWhoseBatchWroteNoCameraThrowsAndCommitsNothing()
+    {
+        var history = new FrameHistory();
+        Draw(history: history, snapshot: Snapshot(cuts: 1));
+        FrameHistory.PendingFrame pending = history.Begin(
+            snapshot: Snapshot(cuts: 2),
+            outputSize: Output,
+            renderSize: Output
+        );
+
+        FluentActions.Invoking(() => history.Drew(pending)).Should().Throw<InvalidOperationException>();
+
+        history.DrawnFrames.Should().Be(1);
+        history
+            .Begin(snapshot: Snapshot(cuts: 2), outputSize: Output, renderSize: Output)
+            .Reset.Should()
+            .BeTrue("the commit that threw kept the count of 1 cut");
     }
 
     [Fact]
