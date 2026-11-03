@@ -1,7 +1,7 @@
 ---
 id: ter-s7c6
 status: open
-deps: [ter-k63u, ter-gayt]
+deps: [ter-k63u, ter-gayt, ter-7m38]
 links: []
 created: 2026-11-03T14:53:48Z
 type: feature
