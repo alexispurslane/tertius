@@ -25,3 +25,19 @@ The design doc, docs/plans/temporal-renderer.md, follows the spike.
 **2026-11-03T03:45:25Z**
 
 2026-11-02: the spike ter-afyv is closed. By the user's rule, the renderer goes all in on design A: stochastic screen-space reflections and screen-space bounce light, each with a temporal history, environment maps for what the screen does not show, and no world ray trace (report: docs/research/metal-trace-spike.md). Before the design doc, three researchers (Codex GPT-6.1 SOL) prepare the design forks: the FSR 3.1 integration path, temporal screen-space reflections and bounce light, and a map of today's passes for the temporal design.
+
+**2026-11-03T12:22:22Z**
+
+The user's choices of 2026-11-03, after three research reports (docs/research/temporal-renderer/: fsr31-integration.md, signals.md, pass-map.md):
+
+- Bounce light: the shared screen tracer (design 2 in the chat). Diffuse rays and reflection rays go through one trace of the depth pyramid. The four occlusion passes (the visibility bitmask) are deleted. A miss reads the environment: its irradiance for a diffuse ray, its prefiltered map for a reflection ray. Above the reflection rays' roughness limit, rough reflections reuse the diffuse rays' hits. The orchestrator had recommended the temporal bitmask (design 1). The user chose design 2.
+- Frame generation (FSR 3.1 interpolation): not in this epic. It gets a ticket of its own.
+
+Settled by the orchestrator from the research, because it left one clear answer:
+- FSR 3.1 path: the engine's own C# host code over AMD's GLSL shaders from FidelityFX SDK v1.1.4 (upscaler 3.1.4), compiled with glslang. The host repeats AMD's calculations exactly. Compare the 3.1.5 and 3.1.6 fixes before pinning the revision. Keep AMD's MIT notices.
+- Portable baseline: 32-bit math and the variant without subgroup operations. Faster variants only after a comparison.
+- Known defect: AMD's GLSL declares rw_luma_history as rgba8, while AMD's host allocates it as RGBA16F. The first FSR ticket resolves it and runs under validation on MoltenVK and lavapipe.
+- Dynamic resolution: images at the largest render size, with the active part changing each frame. A camera cut resets the histories, and a size change does not.
+- Motion vectors: no jitter in the vectors, a stable key per object, the previous scale added, last frame's deformed vertices kept, and the previous camera expressed relative to this frame's camera.
+- Frame order: bloom and tone mapping move after FSR, at the output size.
+- The accumulator: one module, slow and fast histories per signal, the surface test once per frame, and the reflection's own checks of the hit distance and the reflected point.
