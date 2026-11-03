@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Numerics;
 using Silk.NET.Vulkan;
 using Buffer = Silk.NET.Vulkan.Buffer;
@@ -389,13 +390,20 @@ public sealed class Fsr3UpscalerTests
         bench.FillPattern();
 
         // The first frames warm the caches and the driver's pipelines.
-        double[] times = [.. bench.TimedUpscales(count: 360).Skip(60).Order()];
+        double[] frames = [.. bench.TimedUpscales(count: 360).Skip(60)];
+        double[] times = [.. frames.Order()];
 
         double median = times[times.Length / 2];
-        TestContext.Current.TestOutputHelper!.WriteLine(
+        ITestOutputHelper output = TestContext.Current.TestOutputHelper!;
+        output.WriteLine(
             $"FSR 3.1 from 1280 x 720 to 1920 x 1080 on {bench.Device.DeviceName}: median {median:F3} ms, "
                 + $"10th percentile {times[times.Length / 10]:F3} ms, 90th percentile {times[times.Length * 9 / 10]:F3} ms "
                 + $"over {times.Length} frames"
+        );
+        // Every frame's time in the order of the frames, for tools/fsr3-timing/analyze.py.
+        output.WriteLine(
+            "frame times, ms: "
+                + string.Join(' ', frames.Select(time => time.ToString("F4", CultureInfo.InvariantCulture)))
         );
         median.Should().BePositive();
     }

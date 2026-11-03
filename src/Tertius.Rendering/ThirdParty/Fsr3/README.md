@@ -108,7 +108,7 @@ The images that the shaders filter with AMD's linear sampler are of formats whos
 
 ## The 16-bit and subgroup builds
 
-Ticket `ter-7m38` (2026-11-03) built three variants beside the build above, tested them, timed them, and kept none of them. The engine keeps the build above, and no switch chooses a build at run time.
+Ticket `ter-7m38` (2026-11-03) built three variants beside the build above, tested them and timed them. The engine keeps the build above for now, and no switch chooses a build at run time. Whether a variant replaces it depends on which median the ticket's rule means, and the user did not choose yet ("The timing" below).
 
 ### How the variants follow AMD
 
@@ -131,13 +131,19 @@ Ticket `ter-7m38` (2026-11-03) built three variants beside the build above, test
 
 Support on the user's list of GPUs, from each driver's source:
 
-| Requirement | NVIDIA, Turing and later | RADV: Vega and RDNA | ANV: Gen9 and later | MoltenVK | lavapipe |
+| Requirement | NVIDIA's driver and NVK, Turing and later | RADV: Vega and RDNA | ANV: Gen9 and later | MoltenVK | lavapipe |
 |---|---|---|---|---|---|
-| `shaderFloat16` | NVK sets it for `sm >= 70`, and Turing is SM 7.5 | Set from `has_packed_math_16bit`, which is `gfx_level >= GFX9`: Vega and later | Set unless the debug switch `no_16bit` is on | Always set | Set from llvmpipe's fp16 cap: an x86 CPU with F16C, or any AArch64 CPU |
-| `shaderInt16` | Always set | Always set | Always set | Always set | Set from llvmpipe's int16 cap, which is always on |
-| Quad operations in the compute stage | Set, in every supported stage | Set | Set, in every stage | Set on the Apple4 and Mac2 GPU families | Set with LLVM 10 or later, and the stages include compute |
+| `shaderFloat16` | NVIDIA's driver reports it on Turing. NVK sets it for `sm >= 70`, and Turing is SM 7.5 | Set from `has_packed_math_16bit`, which is `gfx_level >= GFX9`: Vega and later | Set unless the debug switch `no_16bit` is on | Always set | Set from llvmpipe's fp16 cap: an x86 CPU with F16C, or any AArch64 CPU |
+| `shaderInt16` | NVIDIA's driver reports it on Turing. NVK always sets it | Always set | Always set | Always set | Set from llvmpipe's int16 cap, which is always on |
+| Quad operations in the compute stage | NVIDIA's driver reports them on Turing, with the compute stage. NVK sets them in every supported stage | Set | Set, in every stage | Set on the Apple4 and Mac2 GPU families | Set with LLVM 10 or later, and the stages include compute |
 
-The sources are Mesa's main branch at `b381eaf859621ed7fdb3bfef00ac956e4cca209c` (2026-11-03): `src/nouveau/vulkan/nvk_physical_device.c`, `src/amd/vulkan/radv_physical_device.c`, `src/amd/common/ac_gpu_info.c`, `src/intel/vulkan/anv_physical_device.c`, `src/gallium/frontends/lavapipe/lvp_device.c` and `src/gallium/auxiliary/gallivm/lp_bld_limits.h`. MoltenVK's are `MoltenVK/MoltenVK/GPUObjects/MVKDevice.mm` at `5189f8de86ec365860f63bf1da736815cfaea5cd`. NVK is Mesa's driver for NVIDIA GPUs. NVIDIA's own driver has no public source, and vulkan.gpuinfo.org refused automated reads, so its column is not checked for that driver. The Apple M1 Max reports every requirement (`vulkaninfo`, MoltenVK 1.4.2).
+The sources are Mesa's main branch at `b381eaf859621ed7fdb3bfef00ac956e4cca209c` (2026-11-03): `src/nouveau/vulkan/nvk_physical_device.c`, `src/amd/vulkan/radv_physical_device.c`, `src/amd/common/ac_gpu_info.c`, `src/intel/vulkan/anv_physical_device.c`, `src/gallium/frontends/lavapipe/lvp_device.c` and `src/gallium/auxiliary/gallivm/lp_bld_limits.h`. MoltenVK's are `MoltenVK/MoltenVK/GPUObjects/MVKDevice.mm` at `5189f8de86ec365860f63bf1da736815cfaea5cd`. NVK is Mesa's driver for NVIDIA GPUs. NVIDIA's own driver has no public source. Its answers come from three vulkan.gpuinfo.org reports of Turing GPUs on Linux, which the Khronos repository `KhronosGroup/Vulkan-Profiles` stores at commit `a33e51f81836dcc7d75986bebeceab2178433db2`, under `profiles/LunarG/`:
+
+- GeForce GTX 1650, driver 610.43.02, Ubuntu 24.04: `VP_LUNARG_desktop_baseline_2026/vp_gpuinfo_nvidia_geforce_gtx_1650_610_43_2_0_ubuntu_24_04.json`.
+- GeForce RTX 2060, driver 525.47.26, Ubuntu 23.04: `VP_LUNARG_desktop_max_2024/vp_gpuinfo_nvidia_geforce_rtx_2060_525_47_26_0_ubuntu_23_04.json`.
+- GeForce RTX 2070, driver 610.43.02, Arch Linux: `VP_LUNARG_desktop_max_2026/vp_gpuinfo_nvidia_geforce_rtx_2070_610_43_2_0_arch_unknown.json`.
+
+Each report has the driver ID `VK_DRIVER_ID_NVIDIA_PROPRIETARY`, `shaderFloat16` and `shaderInt16` true, `VK_SUBGROUP_FEATURE_QUAD_BIT` in `supportedOperations`, and `VK_SHADER_STAGE_COMPUTE_BIT` in `supportedStages`. vulkan.gpuinfo.org itself refused automated reads. The Apple M1 Max reports every requirement (`vulkaninfo`, MoltenVK 1.4.2).
 
 ### Correctness
 
@@ -159,19 +165,37 @@ The opt-in test `AnUpscaleFrom1280x720To1920x1080ReportsItsGpuTime` (`TERTIUS_FS
 - Each run takes the GPU lock, `/tmp/tertius-gpu-measure.lock`, and releases it as soon as the run ends. Each run records `uptime` at its start.
 - The 1-minute load at the start of the runs was 3.4 at the least, 6.0 at the median and 30.5 at the most, because other agents built at the same time.
 
-| Build | Median of all frames, ms | 10th percentile, ms | 90th percentile, ms | Median minus the build above over the resamples: middle value and 90 % interval, ms |
+The tool `tools/fsr3-timing/` builds the variants, runs the rounds and computes the numbers below (`tools/README.md`, "FSR 3.1 timing"). The frame times of the 60 rounds lie in `/private/tmp/ter-7m38-timing`, which the machine clears.
+
+The times of the frames of one build have several modes. For the build above, the peaks lie near 2.6, 3.0 and 3.45 ms. So one median of all frames depends on the share of frames in the slow modes, and this share changes from run to run. The ticket's rule, "the variant's median is lower than today's by more than the control's spread", therefore has two readings, and they give different results.
+
+| Build | Median of all frames, ms | 10th percentile, ms | 90th percentile, ms | Median of the 60 run medians, ms |
 |---|---|---|---|---|
-| The build above | 2.826 | 2.581 | 3.446 | |
-| Control, a byte copy | 2.769 | 2.580 | 3.440 | −0.047, from −0.178 to +0.066 |
-| 16-bit | 2.797 | 2.547 | 3.416 | −0.030, from −0.163 to +0.099 |
-| Subgroup | 2.788 | 2.546 | 3.375 | −0.038, from −0.159 to +0.075 |
-| Both | 2.776 | 2.521 | 3.348 | −0.052, from −0.168 to +0.061 |
+| The build above | 2.826 | 2.581 | 3.446 | 2.725 |
+| Control, a byte copy | 2.769 | 2.580 | 3.440 | 2.711 |
+| 16-bit | 2.797 | 2.547 | 3.416 | 2.744 |
+| Subgroup | 2.788 | 2.546 | 3.375 | 2.702 |
+| Both | 2.776 | 2.521 | 3.348 | 2.684 |
 
-The interval comes from 2,000 resamples of the 60 rounds. Each resample draws whole rounds with replacement and pools their frames.
+The two readings of "median minus the build above", each as the middle value and the 90 % interval of 2,000 resamples of the rounds, in ms:
 
-The rule of the ticket keeps a variant only if its median is lower than the build above by more than the control's spread. The control alone came out 0.057 ms faster than the build above, and its 90 % interval reaches 0.178 ms below it. Every variant gains less than either number, so no variant is measurably faster.
+- The pooled frame median is the median of all 18,000 frames of a build. Each resample draws whole rounds with replacement and pools their frames.
+- The paired run median takes, in each round, the median of the build's run minus the median of the run of the build above in the same round. Then it takes the median of these 60 differences. Each resample draws the differences of whole rounds with replacement.
 
-At the 10th percentile, the variant with both changes is 0.060 ms faster, and its interval, from −0.070 to −0.022 ms, lies outside the control's, from −0.043 to +0.039 ms. That is 2.3 % of the frame. The rule judges the median, so the 10th percentile decides nothing here.
+| Build | Pooled frame median | Paired run median | Rounds in which the run median was lower |
+|---|---|---|---|
+| Control, a byte copy | −0.047, from −0.178 to +0.066 | +0.024, from −0.006 to +0.038 | 25 of 60 |
+| 16-bit | −0.030, from −0.163 to +0.099 | −0.025, from −0.043 to +0.016 | 34 of 60 |
+| Subgroup | −0.038, from −0.159 to +0.075 | −0.061, from −0.082 to −0.026 | 39 of 60 |
+| Both | −0.052, from −0.168 to +0.061 | −0.085, from −0.098 to −0.049 | 39 of 60 |
+
+By the pooled frame median, the control came out 0.057 ms faster than the build above, and its interval reaches 0.178 ms below it. No variant gains more than that, so no variant is measurably faster by this reading. The ticket fixed this reading after round 19 of 60, when the per-round differences of the run medians were already in its output.
+
+By the paired run median, the control lies within 0.038 ms of the build above. The subgroup build gains 0.061 ms and the build with both changes 0.085 ms, 3.1 % of the frame. The interval of each lies wholly below the control's. So by this reading, both builds are measurably faster, and the rule keeps the faster one, the build with both changes.
+
+At the 10th percentile, the fast frames, the build with both changes gains in both readings. By the pooled 10th percentile, it is 0.061 ms faster, from −0.070 to −0.022 ms, and the control's interval is from −0.043 to +0.038 ms, so the two intervals overlap from −0.043 to −0.022 ms. By the paired run 10th percentile, the build with both changes is 0.073 ms faster, from −0.076 to −0.067 ms, in 49 of 60 rounds, and the control is within 0.005 ms.
+
+The order of the builds in a round rotates by one build per round. So in 48 of 60 runs, each build follows the same build. An effect of one run on the next cannot be told apart from an effect of the build. The control and the build above follow different builds and differ by 0.002 ms at the paired run 10th percentile, so such an effect looks small here.
 
 ## Bindings
 

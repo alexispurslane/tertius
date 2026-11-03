@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# Tool code (tools/README.md, "FSR 3.1 timing"): one round of the FSR timing. It runs the opt-in timing test once from
+# each copy under captures/fsr-builds, in an order that rotates by one build per round, each run under the GPU lock.
+# Run it from the worktree root, with the builds in the order of the first round:
+#   bash tools/fsr3-timing/time-round.sh <round> <out folder> base control half wave halfwave
+# It writes <round>-<build>.log and <round>-<build>.times to the out folder, and prints one line per run, which
+# analyze.py reads from rounds.log:
+#   bash tools/fsr3-timing/time-round.sh 0 /private/tmp/fsr-timing base control >> /private/tmp/fsr-timing/rounds.log
+set -uo pipefail
+
+round=${1:?round number}
+out=${2:?out folder}
+shift 2
+builds=("$@")
+n=${#builds[@]}
+lock=/tmp/tertius-gpu-measure.lock
+mkdir -p "$out"
+
+held=0
+trap '[ "$held" = 1 ] && rmdir "$lock"' EXIT
+for ((i = 0; i < n; i++)); do
+    build=${builds[$(((i + round) % n))]}
+    waited=0
+    until mkdir "$lock" 2> /dev/null; do
+        sleep 5
+        waited=$((waited + 5))
+    done
+    held=1
+    up=$(uptime)
+    TERTIUS_FSR_TIMING=1 "captures/fsr-builds/$build/Tertius.Rendering.Tests" -noColor -showLiveOutput \
+        -method Tertius.Rendering.Tests.Fsr3UpscalerTests.AnUpscaleFrom1280x720To1920x1080ReportsItsGpuTime \
+        > "$out/$round-$build.log" 2>&1
+    code=$?
+    rmdir "$lock"
+    held=0
+    summary=$(grep -o 'median [0-9.]* ms, 10th percentile [0-9.]* ms, 90th percentile [0-9.]* ms' "$out/$round-$build.log" | head -1)
+    grep -o 'frame times, ms: .*' "$out/$round-$build.log" | head -1 | sed 's/^frame times, ms: //' > "$out/$round-$build.times"
+    echo "round=$round order=$i build=$build exit=$code waited=${waited}s uptime=[$up] $summary"
+done

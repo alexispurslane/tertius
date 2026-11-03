@@ -66,3 +66,24 @@ The control alone came out 0.057 ms faster than today's build. Every variant gai
 6. The rule: the engine keeps ter-k63u's build. The csproj, VulkanDevice and DeviceFeatureTests did not change.
 
 Raw data: /private/tmp/ter-7m38-timing (rounds.log, and the frame times of each run), scripts in /private/tmp/ter-7m38-variants/scripts.
+
+**2026-11-03T19:46:34Z**
+
+2026-11-03, the fix stage after the review. Result: the decision is open. It depends on which median the rule means, and the user chooses. Until then the engine keeps ter-k63u's build, unchanged.
+
+1. Two readings of the same 60 rounds (tools/fsr3-timing/analyze.py on /private/tmp/ter-7m38-timing). Each cell is the build's value minus today's build, as the middle value and the 90 % interval of 2,000 resamples of the rounds, in ms.
+
+| Build | Pooled frame median | Paired run median | Rounds faster by run median | Paired run p10 |
+|---|---|---|---|---|
+| control (byte copy) | -0.047 (-0.178 to +0.066) | +0.024 (-0.006 to +0.038) | 25/60 | +0.002 (-0.000 to +0.005) |
+| (a) 16-bit | -0.030 (-0.163 to +0.099) | -0.025 (-0.043 to +0.016) | 34/60 | -0.031 (-0.035 to -0.026) |
+| (b) subgroup | -0.038 (-0.159 to +0.075) | -0.061 (-0.082 to -0.026) | 39/60 | -0.044 (-0.047 to -0.040) |
+| (c) both | -0.052 (-0.168 to +0.061) | -0.085 (-0.098 to -0.049) | 39/60 | -0.073 (-0.076 to -0.067) |
+
+Median of the 60 run medians: today 2.725, control 2.711, (a) 2.744, (b) 2.702, (c) 2.684 ms. By the pooled frame median, no variant is measurably faster, and FSR stays as it is. By the paired run median, (b) and (c) are measurably faster, and the rule keeps (c): FFX_HALF=1 in AMD's four 16-bit passes, no FFX_SPD_NO_WAVE_OPERATIONS, and VulkanDevice requires shaderFloat16, shaderInt16 and quad operations in the compute stage. The earlier note said that the pooled 10th percentile interval of (c) lies outside the control's. It does not: they overlap from -0.043 to -0.022 ms.
+
+2. NVIDIA's own driver: three vulkan.gpuinfo.org reports of Turing on Linux, stored in KhronosGroup/Vulkan-Profiles at a33e51f8 (GTX 1650 and RTX 2070 on 610.43.02, RTX 2060 on 525.47.26), report shaderFloat16, shaderInt16 and the quad operations with the compute stage, with VK_DRIVER_ID_NVIDIA_PROPRIETARY. So every requirement of (c) holds on every driver of the user's rule.
+
+3. The method is now tool code: tools/fsr3-timing (build-variant.sh, time-round.sh, analyze.py) and tools/README.md, "FSR 3.1 timing". The opt-in timing test prints every frame time. ter-cgif holds the Linux runs of the reference image and of the timing.
+
+4. ARCHITECTURE.md, decision 12, section 5 of docs/plans/temporal-renderer.md and the pin's README now give both readings instead of "no variant was faster".
