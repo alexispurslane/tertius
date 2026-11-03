@@ -1,4 +1,6 @@
+using System.ComponentModel;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using Tertius.Simulation;
 using static Tertius.Testing.WorldTesting;
 
@@ -168,13 +170,20 @@ public sealed class WorkerThreadsTests
 public sealed class JoltThreadCountCollection;
 
 /// <summary>
-/// The number of native threads that a backend's Jolt job system starts. A backend passes its count to Jolt, so that Jolt
-/// never sizes its workers from the hardware. Each test counts the threads of the process before and after it builds a
-/// backend, and allows one more thread for the runtime, which can start a thread of its own in the meantime.
+/// A backend's Jolt worker threads, which never follow the hardware, and their count by unique thread IDs, which a thread
+/// that ends does not lower. On macOS nothing marks a Jolt worker, so a count allows one thread more, which the runtime can
+/// start. Linux, untried, counts alike (ter-zrk6).
 /// </summary>
 [Collection(nameof(JoltThreadCountTests))]
 public sealed class JoltThreadCountTests
 {
+    /// <summary>
+    /// The flavor of <c>proc_pidinfo</c> that lists the kernel's unique 64-bit thread IDs. It is private to XNU
+    /// (bsd/sys/proc_info_private.h), and the SDK's sys/proc_info.h leaves it out. If macOS changes the value, the IDs
+    /// fail to load or come out wrong.
+    /// </summary>
+    private const int ProcPidListThreadIds = 28;
+
     [Fact]
     public void ABackendWithAnExplicitWorkerCountStartsThatManyJoltThreads() =>
         ThreadsStartedBy(new() { WorkerThreads = 2 }).Should().BeInRange(2, 3);
@@ -193,19 +202,88 @@ public sealed class JoltThreadCountTests
             );
     }
 
-    // The threads of the process that a backend with these options adds while it lives. The first backend of the process
-    // also initializes Jolt, so a backend built and disposed first keeps that out of the count.
+    [Fact]
+    public void AThreadThatEndsWhileABackendStartsLowersNoCount() =>
+        ThreadsStartedBetween(before: [1, 2, 3], after: [1, 2, 4, 5])
+            .Should()
+            .Be(2, "Jolt started threads 4 and 5, and thread 3 ended");
+
+    [Fact]
+    public void AThreadThatStartsAfterAnotherEndedHasAnIdOfItsOwn()
+    {
+        HashSet<ulong> first = IdsNewWhileAThreadRuns();
+        HashSet<ulong> second = IdsNewWhileAThreadRuns();
+
+        second.Should().NotBeEmpty("the second thread runs while the IDs are taken");
+        second.Should().NotIntersectWith(first, "an ID that came back would hide a new thread from the count");
+    }
+
+    // The threads of the process that a backend with these options adds while it lives: the IDs present after it starts
+    // and absent before, so that a thread that ends in the meantime, such as a worker of the disposed backend that the
+    // kernel still lists, lowers no count. The first backend of the process also initializes Jolt, so a backend built and
+    // disposed first keeps that out of the count.
     private static int ThreadsStartedBy(JoltBackendOptions options)
     {
         new JoltPhysicsBackend(new() { WorkerThreads = 1 }).Dispose();
-        int before = ProcessThreads();
+        HashSet<ulong> before = ThreadIds();
         using var backend = new JoltPhysicsBackend(options);
-        return ProcessThreads() - before;
+        return ThreadsStartedBetween(before, ThreadIds());
     }
 
-    private static int ProcessThreads()
+    private static int ThreadsStartedBetween(HashSet<ulong> before, HashSet<ulong> after) => after.Except(before).Count();
+
+    // The IDs that are present while a new thread runs and absent before it starts: the new thread's ID, and the ID of any
+    // thread that the runtime starts in the meantime.
+    private static HashSet<ulong> IdsNewWhileAThreadRuns()
     {
-        using var process = Process.GetCurrentProcess();
-        return process.Threads.Count;
+        using var running = new ManualResetEventSlim();
+        using var end = new ManualResetEventSlim();
+        var thread = new Thread(() =>
+        {
+            running.Set();
+            end.Wait();
+        });
+        HashSet<ulong> before = ThreadIds();
+        thread.Start();
+        running.Wait();
+        HashSet<ulong> during = ThreadIds();
+        end.Set();
+        thread.Join();
+        during.ExceptWith(before);
+        return during;
     }
+
+    // The IDs of the threads of the process. On macOS, ProcessThread.Id is not unique over time: a thread that starts can
+    // take the ID of a thread that just ended. So the kernel's 64-bit thread IDs take its place there. On Linux it is the
+    // kernel's thread ID, which the kernel gives out again only after it wraps around pid_max.
+    private static HashSet<ulong> ThreadIds()
+    {
+        if (OperatingSystem.IsMacOS())
+            return MacThreadIds();
+        using var process = Process.GetCurrentProcess();
+        return process.Threads.Cast<ProcessThread>().Select(thread => (ulong)thread.Id).ToHashSet();
+    }
+
+    private static HashSet<ulong> MacThreadIds()
+    {
+        // proc_pidinfo fills at most the buffer that it gets, so a full buffer can hide threads, and a larger one follows.
+        for (int capacity = 256; ; capacity *= 2)
+        {
+            var ids = new ulong[capacity];
+            int bytes = ProcPidInfo(
+                pid: Environment.ProcessId,
+                flavor: ProcPidListThreadIds,
+                arg: 0,
+                buffer: ids,
+                bufferSize: capacity * sizeof(ulong)
+            );
+            if (bytes <= 0)
+                throw new Win32Exception(Marshal.GetLastPInvokeError());
+            if (bytes < capacity * sizeof(ulong))
+                return ids[..(bytes / sizeof(ulong))].ToHashSet();
+        }
+    }
+
+    [DllImport("libproc.dylib", EntryPoint = "proc_pidinfo", SetLastError = true)]
+    private static extern int ProcPidInfo(int pid, int flavor, ulong arg, [Out] ulong[] buffer, int bufferSize);
 }
