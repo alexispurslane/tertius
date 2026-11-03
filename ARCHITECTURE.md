@@ -919,9 +919,9 @@ The surface test pass, `surface_test.comp`, runs right after the G-buffer, one i
 
 | Image | Format | Holds |
 |---|---|---|
-| Two surface histories, by the parity of the drawn frames | RGBA16F | The view depth in m, the geometric normal in octahedral code in world axes, and the roughness. 0 for sky |
+| Two surface histories, by the parity of the drawn frames | RGBA16F | x unused, then the geometric normal in octahedral code in world axes, and the roughness. 0 for sky |
+| Two device depths, by the same parity | R32F | FSR's reversed and infinite depth: `SurfaceTestPass.DeviceDepthNear`, the near plane of 5 cm, over the view depth. 0 for sky. FSR reads this frame's, and the next frame's surface test reads it as the last view depth |
 | The surface test image | R8_UINT | Bit i where tap i passes the surface test, bit 4 + i where it also passes the specular test |
-| The device depth | R32F | FSR's reversed and infinite depth: `SurfaceTestPass.DeviceDepthNear`, the near plane of 5 cm, over the view depth. 0 for sky |
 
 For a pixel that shows a surface, the pass rebuilds its point in the last frame from the motion target and takes the 2 × 2 texels of the last surface history around its last place. A tap passes the surface test when its point lies within 1 % of the view depth of the pixel's plane, and its normal within 25° of the pixel's. It also passes the specular test when its roughness differs by at most 0.1. `surfaceTaps` in `signals.glsl` holds the tap function, for the accumulators that come later. A frame that resets fails every tap. A sky pixel gets its motion from its ray alone: the ray turned by the root's turn since the last frame, through the last frame's camera, so the stars keep their place.
 
@@ -938,7 +938,9 @@ The cost, measured on demo-exit's deck window (`--start 399`, 120 frames) in Rel
 
 The motion target adds about 0.01 to 0.06 ms to the G-buffer, within the noise between the two base traces. The base G-buffer already takes more than the budget's 0.22 ms. The surface test takes about twice its budget. Seven interleaved rounds of the renderer's timer, with a byte copy of the base as the control, agree: the surface test took 0.17 to 0.20 ms at 1280 × 720 and 0.30 to 0.36 ms at 1920 × 1080, and the median paired change of the G-buffer from the base was −0.008 to +0.018 ms over the two windows and sizes, against −0.003 to +0.036 ms for the control.
 
-Known limits: a half float holds view depths up to 65,504 m, so a farther surface fails the test. A billboard's motion leaves out its object's turn. When the last frame drew an instance's static mesh, for example after the deform region overflowed, and this frame deforms it, the vertex's last position is its deformed position of this frame, so that one frame's motion leaves out the pose's change.
+The device depth is the one store of the view depth, because a half float holds at most 65,504 m and a planet's ground seen from orbit lies farther. A tap takes its last view depth as `DeviceDepthNear` over the last device depth, so a still surface at 10,000 km keeps its history (`SurfaceTestRenderTests`).
+
+Known limits: a billboard's motion leaves out its object's turn. When the last frame drew an instance's static mesh, for example after the deform region overflowed, and this frame deforms it, the vertex's last position is its deformed position of this frame, so that one frame's motion leaves out the pose's change.
 
 ### Tone mapping
 

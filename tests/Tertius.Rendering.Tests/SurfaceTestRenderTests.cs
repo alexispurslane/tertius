@@ -72,6 +72,46 @@ public sealed class SurfaceTestRenderTests
         }
     }
 
+    [Theory]
+    [InlineData(100_000f)]
+    [InlineData(10_000_000f)]
+    public void AStillSurfaceFarBeyondAHalfFloatsRangeFindsItsOwnSurfaceInTheLastFrame(float distance)
+    {
+        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
+        try
+        {
+            MeshId cube = renderer.CreateMesh(Primitives.Box(new(0.5f)));
+            MaterialId white = renderer.CreateMaterial(MaterialDesc.Color(Vector4.One, roughness: 0.5f));
+            // A planet's ground seen from orbit: a face that fills the view, past a half float's 65,504 m.
+            RenderSnapshot scene = Gpu.Snapshot(new(0.3f, 1f, 0.4f));
+            scene.Instances.Add(
+                Gpu.Instance(
+                    mesh: cube,
+                    material: white,
+                    position: new(0, 0, -distance),
+                    scale: new(3 * distance, 2 * distance, 1),
+                    chainDepth: TestChains.CamerasFrame,
+                    flags: RenderFlags.Celestial,
+                    radius: 2 * distance,
+                    entity: 1
+                )
+            );
+            renderer.Render(scene, 1f);
+
+            renderer.Render(scene, 1f);
+
+            byte[] bits = renderer.ReadSurfaceTest();
+            float[] eye = renderer.ReadDistance();
+            eye.Should().OnlyContain(value => value > 0, "the face fills the view");
+            for (int i = 0; i < bits.Length; i++)
+                (bits[i] & 1).Should().Be(1, "pixel {0} lies at its own last place, {1} m away", i, distance);
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
     [Fact]
     public void AFrameThatResetsFindsNoSurfaceInTheLastFrame()
     {
@@ -148,7 +188,7 @@ public sealed class SurfaceTestRenderTests
     }
 
     [Fact]
-    public void TheSurfaceHistoryHoldsEachPixelsViewDepthAndRoughness()
+    public void TheSurfaceHistoryHoldsEachPixelsNormalAndRoughness()
     {
         VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
         try
@@ -161,7 +201,9 @@ public sealed class SurfaceTestRenderTests
 
             float[] history = renderer.ReadSurfaceHistory();
             int center = 4 * (Height / 2 * Width + Width / 2);
-            history[center].Should().BeApproximately(5.5f, 5.5f / 1024, "the box's front face is 5.5 m ahead");
+            // The box's front face looks along +Z, whose octahedral code is (0, 0).
+            history[center + 1].Should().BeApproximately(0, 1f / 1024);
+            history[center + 2].Should().BeApproximately(0, 1f / 1024);
             // The specular target keeps the roughness in 8 bits, and the history as a half float.
             history[center + 3].Should().BeApproximately(0.3f, 0.5f / 255 + 1f / 2048);
         }

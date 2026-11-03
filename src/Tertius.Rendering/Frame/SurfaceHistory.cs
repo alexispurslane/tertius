@@ -5,13 +5,18 @@ namespace Tertius.Rendering;
 
 /// <summary>
 /// The images of the surface test (docs/plans/temporal-renderer.md, section 8, "The surface test" and "Images"): two
-/// surface histories, which alternate between frames by the parity of the drawn frames
-/// (<see cref="FrameHistory.PendingFrame.Parity"/>), the surface test image and FSR's device depth, all at the targets'
-/// size, and the two sets of the surface test, one per parity. Every image stays in the General layout but the last surface history, which the pass samples.
+/// surface histories and two device depths, which alternate between frames by the parity of the drawn frames
+/// (<see cref="FrameHistory.PendingFrame.Parity"/>), and the surface test image, all at the targets' size, and the two
+/// sets of the surface test, one per parity. The last frame's device depth is the one store of its view depths: a half
+/// float holds at most 65,504 m, but a planet's ground seen from orbit lies farther. Every image stays in the General
+/// layout but the last surface history and the last device depth, which the pass samples.
 /// </summary>
 internal sealed class SurfaceHistory : IDisposable
 {
-    /// <summary>The surface history: view depth in m, the geometric normal in octahedral code in world axes, and roughness.</summary>
+    /// <summary>
+    /// The surface history: x unused, because the device depth holds the view depth, then the geometric normal in
+    /// octahedral code in world axes, and roughness.
+    /// </summary>
     public const Format HistoryFormat = Format.R16G16B16A16Sfloat;
 
     /// <summary>The surface test image: bit i for tap i of the surface test, bit 4 + i of the specular test.</summary>
@@ -24,6 +29,7 @@ internal sealed class SurfaceHistory : IDisposable
     private readonly DeviceAllocator allocator;
     private readonly DescriptorLayouts layouts;
     private readonly GpuImage[] histories = new GpuImage[2];
+    private readonly GpuImage[] deviceDepths = new GpuImage[2];
 
     /// <exception cref="NotSupportedException">A format is not a storage image on the device.</exception>
     public SurfaceHistory(
@@ -44,12 +50,9 @@ internal sealed class SurfaceHistory : IDisposable
     /// <summary>The surface test image of the last frame.</summary>
     public GpuImage Test { get; private set; }
 
-    /// <summary>The device depth of the last frame.</summary>
-    public GpuImage DeviceDepth { get; private set; }
-
     /// <summary>
-    /// Set 3 of <see cref="DescriptorLayouts.SurfaceTestLayout"/> for each parity: the frame of parity q reads history
-    /// 1 − q and writes history q.
+    /// Set 3 of <see cref="DescriptorLayouts.SurfaceTestLayout"/> for each parity: the frame of parity q reads history and
+    /// device depth 1 − q and writes history and device depth q.
     /// </summary>
     public DescriptorSet[] Sets { get; }
 
@@ -58,6 +61,12 @@ internal sealed class SurfaceHistory : IDisposable
 
     /// <summary>The surface history that the frame of <paramref name="parity"/> reads: the one that the last drawn frame wrote.</summary>
     public GpuImage Last(int parity) => histories[1 - parity];
+
+    /// <summary>The device depth that the frame of <paramref name="parity"/> writes, and FSR reads.</summary>
+    public GpuImage WrittenDepth(int parity) => deviceDepths[parity];
+
+    /// <summary>The device depth that the frame of <paramref name="parity"/> reads: the one that the last drawn frame wrote.</summary>
+    public GpuImage LastDepth(int parity) => deviceDepths[1 - parity];
 
     /// <summary>
     /// Recreates the images at the targets' size and rewrites both sets. The device must be idle. A new size resets every
@@ -70,15 +79,16 @@ internal sealed class SurfaceHistory : IDisposable
         Create(targets);
     }
 
-    [MemberNotNull(nameof(Test), nameof(DeviceDepth))]
+    [MemberNotNull(nameof(Test))]
     private void Create(RenderTargets targets)
     {
         Extent2D extent = targets.Extent;
         histories[0] = CreateImage(extent: extent, format: HistoryFormat, name: "surface history 0", sampled: true);
         histories[1] = CreateImage(extent: extent, format: HistoryFormat, name: "surface history 1", sampled: true);
         Test = CreateImage(extent: extent, format: TestFormat, name: "surface test", sampled: false);
-        // Sampled, for FSR, which reads it.
-        DeviceDepth = CreateImage(extent: extent, format: DeviceDepthFormat, name: "device depth", sampled: true);
+        // Sampled, for the next frame's surface test and for FSR.
+        deviceDepths[0] = CreateImage(extent: extent, format: DeviceDepthFormat, name: "device depth 0", sampled: true);
+        deviceDepths[1] = CreateImage(extent: extent, format: DeviceDepthFormat, name: "device depth 1", sampled: true);
         for (int parity = 0; parity < Sets.Length; parity++)
         {
             DescriptorSet set = Sets[parity];
@@ -86,7 +96,8 @@ internal sealed class SurfaceHistory : IDisposable
             layouts.WriteStorageImage(set: set, binding: 1, image: targets.Motion);
             layouts.WriteStorageImage(set: set, binding: 2, image: Written(parity));
             layouts.WriteStorageImage(set: set, binding: 3, image: Test);
-            layouts.WriteStorageImage(set: set, binding: 4, image: DeviceDepth);
+            layouts.WriteStorageImage(set: set, binding: 4, image: WrittenDepth(parity));
+            layouts.WriteImage(set: set, binding: 5, arrayElement: 0, image: LastDepth(parity));
         }
     }
 
@@ -115,8 +126,9 @@ internal sealed class SurfaceHistory : IDisposable
     {
         foreach (GpuImage history in histories)
             history.Dispose();
+        foreach (GpuImage depth in deviceDepths)
+            depth.Dispose();
         Test.Dispose();
-        DeviceDepth.Dispose();
     }
 
     // The pool of the layouts frees the sets.

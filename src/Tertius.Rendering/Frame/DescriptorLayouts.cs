@@ -60,9 +60,9 @@ namespace Tertius.Rendering;
 /// buffer, the deform vertices, the morph deltas, the frame's pose rows and its job table, five storage buffers for the
 /// compute stage (docs/plans/skinning-and-morphs.md, "The pass"), and this frame's kept positions (binding 5). One per
 /// frame in flight.</description></item>
-/// <item><term>surface test</term><description>set 3 of <see cref="SurfaceTestLayout"/>: the last surface history as a
-/// sampled image, and the motion target, this frame's surface history, the surface test image and the device depth as
-/// storage images (docs/plans/temporal-renderer.md, "The surface test"). Two, one per parity of the drawn frames,
+/// <item><term>surface test</term><description>set 3 of <see cref="SurfaceTestLayout"/>: the last surface history and
+/// the last device depth as sampled images, and the motion target, this frame's surface history, the surface test image
+/// and this frame's device depth as storage images (docs/plans/temporal-renderer.md, "The surface test"). Two, one per parity of the drawn frames,
 /// rewritten on resize.</description></item>
 /// </list>
 /// Every pass that draws meshes or reads the G-buffer uses <see cref="SceneLayout"/>, so sets 0 and 1 stay bound
@@ -358,9 +358,9 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     public PipelineLayout DeformLayout { get; }
 
     /// <summary>
-    /// Set 3 of <see cref="SurfaceTestLayout"/>: the last surface history (binding 0, sampled), and as storage images the
-    /// motion target (binding 1), this frame's surface history (binding 2), the surface test image (binding 3) and the
-    /// device depth (binding 4) (Shaders/surface_test.comp).
+    /// Set 3 of <see cref="SurfaceTestLayout"/>: the last surface history (binding 0, sampled), as storage images the
+    /// motion target (binding 1), this frame's surface history (binding 2), the surface test image (binding 3) and this
+    /// frame's device depth (binding 4), and the last device depth (binding 5, sampled) (Shaders/surface_test.comp).
     /// </summary>
     public DescriptorSetLayout SurfaceTestSet { get; }
 
@@ -806,10 +806,10 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             // 21 for the G-buffer, post and atlas sets, five per frame set for the tables, the specular map, the irradiance
             // cube and the distance cube, one per glow source set, two for the meter set, one per pyramid level set, one for
             // the depth tail set, two for the reflection set, one for the prefilter set, one for the shadow bounds set and
-            // one for each surface test set.
+            // two for each surface test set.
             new(
                 DescriptorType.SampledImage,
-                21 + 5 * frames + glowSourceSets + 2 + PyramidLevelSets + 1 + 2 + 1 + 1 + SurfaceTestSets
+                21 + 5 * frames + glowSourceSets + 2 + PyramidLevelSets + 1 + 2 + 1 + 1 + 2 * SurfaceTestSets
             ),
             // Those of each of the two occlusion sets, one per pyramid level set, the depth tail set's mips, three for the
             // reflection set, four per environment levels set, three for the scatter set, one for the shadow bounds set and
@@ -1009,7 +1009,10 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         return CreateLayout(bindings: bounds, name: "shadow bounds set");
     }
 
-    /// <summary>The layout of the surface test set: the last surface history as a sampled image and four storage images, for the compute stage.</summary>
+    /// <summary>
+    /// The layout of the surface test set: the last surface history and the last device depth as sampled images and four
+    /// storage images, for the compute stage.
+    /// </summary>
     private DescriptorSetLayout CreateSurfaceTestSetLayout()
     {
         Span<DescriptorSetLayoutBinding> surface =
@@ -1019,6 +1022,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             StorageImage(binding: 2),
             StorageImage(binding: 3),
             StorageImage(binding: 4),
+            Image(binding: 5, stages: ShaderStageFlags.ComputeBit),
         ];
         return CreateLayout(bindings: surface, name: "surface test set");
     }

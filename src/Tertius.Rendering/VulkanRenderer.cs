@@ -1055,11 +1055,12 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// FSR's device depth of the last frame, row by row from the top: <see cref="SurfaceTestPass.DeviceDepthNear"/> over
     /// the view depth, 0 for sky. A test hook.
     /// </summary>
-    internal float[] ReadDeviceDepth() => ReadLevel(image: surfaceHistory.DeviceDepth, layer: 0, mip: 0).Values;
+    internal float[] ReadDeviceDepth() =>
+        ReadLevel(image: surfaceHistory.WrittenDepth(context.History.Parity), layer: 0, mip: 0).Values;
 
     /// <summary>
-    /// The surface history that the last frame wrote, RGBA per pixel, row by row from the top: the view depth in m, the
-    /// geometric normal in octahedral code, and the roughness, all 0 for sky. A test hook.
+    /// The surface history that the last frame wrote, RGBA per pixel, row by row from the top: x unused, the geometric
+    /// normal in octahedral code, and the roughness, all 0 for sky. A test hook.
     /// </summary>
     internal float[] ReadSurfaceHistory() =>
         ReadLevel(image: surfaceHistory.Written(context.History.Parity), layer: 0, mip: 0).Values;
