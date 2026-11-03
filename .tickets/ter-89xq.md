@@ -19,3 +19,9 @@ Settled in chat on 2026-11-02:
 
 The design doc, docs/plans/temporal-renderer.md, follows the spike.
 
+
+## Notes
+
+**2026-11-03T03:45:25Z**
+
+2026-11-02: the spike ter-afyv is closed. By the user's rule, the renderer goes all in on design A: stochastic screen-space reflections and screen-space bounce light, each with a temporal history, environment maps for what the screen does not show, and no world ray trace (report: docs/research/metal-trace-spike.md). Before the design doc, three researchers (Codex GPT-6.1 SOL) prepare the design forks: the FSR 3.1 integration path, temporal screen-space reflections and bounce light, and a map of today's passes for the temporal design.
