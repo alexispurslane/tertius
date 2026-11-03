@@ -1548,12 +1548,14 @@ Under `ResampledLights`, the default, the direct pass shades one light per pixel
 - The exact lights' indices in the light list.
 - The remap of the last drawn frame's light indices into this frame's, by the lights' keys, their entity's slot and generation.
 
+A reservoir holds a light's index in the light list in 16 bits, and `LightTable.NoLight`, 65,535, means no light. So only a light whose index in the list lies below 65,535 can be sampled. `Fill` ensures that the shares add to 1 and that every exact light holds a cascade set, and `AssertInvariants` checks the table's invariants on demand.
+
 The table goes to binding 19 of the frame set as `uvec4` texels (`LightTableBlock` in `restir.glsl`). A reservoir is one RG32UI texel: x holds the chosen light in its low 16 bits and M, the count of candidates that it stands for, in its high 16 bits, and y holds the bits of the weight W. `LightReservoirs` owns two reservoir images at the render size. The light candidates pass writes R0, and the direct pass writes R1, which the next frame's candidates read. They take 16 bytes per pixel, about 33 MB at 1920 × 1080.
 
 1. The light candidates pass ("light candidates", `light_candidates.frag`) draws 4 candidates from the alias table (`Candidates`), each weighted by its target p̂ over its share. p̂ is the luminance of the light's unshadowed light at the pixel, or 0 where the bounds of its shadow tile show the pixel fully shadowed. The pass then reuses R1 at the pixel's previous place, the passing texel of the surface test with the largest bilinear weight, with its light remapped and with M at most 20 times the candidates. Last, the visibility reuse tests the chosen light's shadows: a shadowed choice keeps its M and gets W = 0.
 2. The direct pass combines R0 at the pixel with 2 neighbors (`SpatialNeighbors`) on a disk of 16 pixels at a render width of 1,280, turned by a random number, where `sameSurface` holds. It shades the chosen light times W, with its shadows, plus every exact light, and it writes R1 with W = 0 where the chosen light is shadowed.
 
-The combine is Bitterli's biased one: W = Σ w / (M · p̂(y)), with no visibility test of a neighbor's light at this pixel. A reservoir whose choice is shadowed still adds its M. Each pixel, draw and pass takes its own random numbers, pcg3d of the pixel and the draw index (`randomStream`), so a run gives the same image every time. The frame's draw index comes from `FrameHistory`, so the numbers start again after each reset.
+The combine is Bitterli's biased one: W = Σ w / (M · p̂(y)), with no visibility test of a neighbor's light at this pixel. A reservoir holds a choice exactly where W > 0 (`holdsChoice`), and its light means something only there. A reservoir without a choice, whose candidates all had a target of 0 or whose choice a visibility test emptied, still adds its M in all three reuses, the temporal one, the pixel's own and the neighbors' (`addReservoir`). Only a reservoir whose light is gone from the list starts empty. A W that is not finite makes no choice, so no reuse carries it on. Each pixel, draw and pass takes its own random numbers, pcg3d of the pixel and the draw index (`randomStream`), so a run gives the same image every time. The frame's draw index comes from `FrameHistory`, so the numbers start again after each reset.
 
 The bias and the noise, measured against `EveryLight` at 1280 × 720 after a still's 32 warm-up draws (`DirectLightBiasMeasurement`, Release, Apple M1 Max, 2026-11-03):
 
@@ -1563,6 +1565,14 @@ The bias and the noise, measured against `EveryLight` at 1280 × 720 after a sti
 | demo-exit, the deck at frame 120 | 866,367 | −0.107 | 0.104 | 0.264 |
 | `cabin-light`, the cabin | 465,276 | −0.004 | 0.079 | 0.074 |
 
+The same measure with `SpatialNeighbors` = 0, after the review's fixes of `ter-nmbm` (the M of a reservoir without a choice, 2026-11-03). With 2 neighbors those fixes measured the table above again, to the third decimal.
+
+| View | Bias | History error | Sample error |
+|---|---:|---:|---:|
+| `lamp-hall-64`, the hall | −0.031 | 0.379 | 0.471 |
+| demo-exit, the deck at frame 120 | −0.015 | 0.214 | 0.290 |
+| `cabin-light`, the cabin | −0.004 | 0.038 | 0.030 |
+
 where
 
 - Pixels = the pixels whose exact accumulated light is above 10⁻³ of its mean. The other columns count only these.
@@ -1570,18 +1580,31 @@ where
 - History error = the mean over the pixels of the relative error of the accumulated light.
 - Sample error = the mean of the relative error of the shown draw's samples, the noise that the history averages.
 
-The deck's bias comes from the spatial reuse: with `SpatialNeighbors` = 0, the deck's still measured −0.006. The combine carries a neighbor's choice, whose visibility the neighbor tested, to a pixel with other shadows. So the thin shadows of the glasshouse's frame on the deck's floor lose most of their contrast. The hall's pillar shadows on its floor lose most of theirs too, though the hall's summed bias is small, and its floor shows grain. Ticket `ter-t8z7` holds the design of a combine that tests the chosen light's visibility at the neighbors. `DirectLightBiasTests` bounds the hall's bias at 320 × 180 by 0.05, and its history error by 0.20. `ResampledLightsRenderTests` hold one light to its exact light, a box lit by its lamps under a star with a cascade set to the bound of 0.05, and a lamp's shadow under the temporal reuse alone.
+The deck's bias comes from the spatial reuse: with `SpatialNeighbors` = 0, the deck's still measured −0.015. The combine carries a neighbor's choice, whose visibility the neighbor tested, to a pixel with other shadows. So the thin shadows of the glasshouse's frame on the deck's floor lose most of their contrast. The hall's pillar shadows on its floor lose most of theirs too, though the hall's summed bias is small, and its floor shows grain. Without the spatial reuse, the deck's shadows come back, but the history error doubles on the deck and triples in the hall: their floors show a coarse grain after the still's 32 warm-up draws. The temporal reuse keeps a pixel's choice for many frames, because its M of up to 80 outweighs the 4 new candidates, so the history averages few independent samples. Ticket `ter-t8z7` holds the design of a combine that tests the chosen light's visibility at the neighbors. `DirectLightBiasTests` bounds the hall's bias at 320 × 180 by 0.05, and its history error by 0.20. `ResampledLightsRenderTests` hold one light to its exact light, a light with a cascade set to its exact light beside one sampled lamp, a box lit by its lamps under a star with a cascade set to a bias of 0.05 and a sample error of 0.40 (it measured 0.308, and 0.797 with the star sampled), a lamp's shadow under the temporal reuse alone, and the M of a reservoir without a choice in the next frame.
 
-The cost, measured in Release on the M1 Max by Metal traces without counters (`tools/gpu-trace.sh --no-counters`, 120 frames), interleaved with the base `2d0ea65e8` (2026-11-03). The views are `lamp-hall-64`'s film from frame 1 and demo-exit's deck from frame 399. The times are the busy means in ms, as the range over the runs: three of the branch, and two or three of the base. The one-minute loads at the starts were 6 to 29, because other agents built at the same time.
+The cost, measured in Release on the M1 Max against the base `2d0ea65e8`, by the recipe of docs/plans/temporal-renderer.md, section 11, after the review's fixes of `ter-nmbm` (2026-11-03). Each run held the GPU lock. Other agents built and tested at the same time, so each measure names its one-minute loads.
 
-| View and size | Base: direct light | Light candidates | Direct light | Accumulate direct | Base: ambient light | Composite | Base: frame span | Frame span |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| Hall, 1280 × 720 | 5.56 to 6.52 | 0.83 to 0.85 | 0.82 to 0.84 | 0.67 to 0.69 | 0.18 to 0.20 | 0.19 | 11.7 to 13.2 | 7.9 to 8.1 |
-| Hall, 1920 × 1080 | 8.37 to 8.68 | 1.47 to 1.53 | 1.51 to 1.55 | 1.46 to 1.48 | 0.32 | 0.40 | 15.9 to 16.3 | 12.2 to 12.4 |
-| Deck, 1280 × 720 | 3.12 to 3.38 | 1.35 to 1.36 | 1.79 to 1.83 | 1.15 to 1.16 | 0.26 to 0.27 | 0.28 to 0.29 | 12.2 to 13.0 | 12.2 |
-| Deck, 1920 × 1080 | 5.04 to 5.62 | 2.22 to 2.24 | 3.06 to 3.07 | 2.39 to 2.40 | 0.53 to 0.57 | 0.61 to 0.62 | 16.8 to 18.4 | 18.0 to 18.1 |
+The renderer's timers: 7 interleaved rounds of the 120-frame windows `time-deck` and `time-floor` (`ter-f3g2`), in a turned order of the base, a byte copy of the base as the control, and the branch. The loads at the starts were 2.4 to 10.0. The table gives the median over the rounds of each run's median frame span, the mean over the rounds of each run's mean span, and the sum of the means of the passes that the ticket changed, in ms. On MoltenVK the timer holds only for the span and for sums of neighboring passes (see "GPU timings").
 
-The budget of ticket 3 at 1280 × 720 is 0.6 to 1.3 ms for the light candidates and the direct light together, and 0.15 to 0.30 ms for the accumulation (docs/plans/temporal-renderer.md, section 14). Both are over it: 1.66 ms and 0.68 ms on the hall, 3.15 ms and 1.15 ms on the deck. The hall's frame still falls by about 4 ms, because the exact loop over 64 shadowed lamps took 5.6 ms. The deck's frame keeps its span. Its direct pass also shades the star, an exact light with a cascade set, at every pixel, and a trace without counters does not show which part of the pass costs most. Ticket `ter-9nrc` holds the work on the cost.
+| Window and size | Span median: base, control, branch | Span mean: base, control, branch | Base: direct and ambient light | Control | Branch: light candidates, direct light, accumulate direct and composite |
+|---|---|---|---:|---:|---:|
+| Deck, 1280 × 720 | 12.60, 12.86, 11.40 | 11.69, 11.81, 11.76 | 2.59 | 2.65 | 4.36 |
+| Deck, 1920 × 1080 | 15.64, 15.61, 17.67 | 15.63, 15.59, 17.69 | 4.67 | 4.66 | 8.22 |
+| Floor, 1280 × 720 | 12.07, 12.14, 11.05 | 11.42, 11.39, 11.25 | 3.28 | 3.28 | 4.77 |
+| Floor, 1920 × 1080 | 15.57, 15.56, 17.33 | 15.97, 15.63, 17.36 | 6.24 | 6.06 | 9.11 |
+
+Each pass's own time comes from traces without counters (`tools/gpu-trace.sh --no-counters`) of demo-exit's deck from frame 399, 120 frames, interleaved base, branch and base. A trace counts the first still's 32 warm-up draws, which `gpu-timings.json` leaves out: 152 command buffers on the branch against 121 on the base. A trace of the still alone, 33 command buffers, gives the warm-up draws' means, and the film's mean is (152 × the trace's mean − 32 × the still's mean) / 120. At 1280 × 720 the warm-up draws cost less than the film's frames, at 1920 × 1080 about the same. The busy means in ms, with the film's means of the branch:
+
+| Size | Base: direct light | Base: ambient light | Light candidates | Direct light | Accumulate direct | Composite | Loads |
+|---|---:|---:|---:|---:|---:|---:|---|
+| 1280 × 720 | 2.95 to 3.32 | 0.26 to 0.27 | 1.63 | 1.90 | 1.18 | 0.29 | Base 8.3, 9.6, 15.8 and 46.7. Branch 5.8, its still 23.9 |
+| 1920 × 1080 | 4.67 and 5.09 | 0.52 and 0.54 | 2.56 | 3.05 | 2.41 | 0.62 | Base 15.3 and 7.3. Branch 22.1, its still 20.0 |
+
+A second branch trace at each size, at loads of 21.9 and 30.1, gave the same times at 1280 × 720 and 10 to 20 % more at 1920 × 1080.
+
+The budget of ticket 3 at 1280 × 720 is 0.6 to 1.3 ms for the light candidates and the direct light together, and 0.15 to 0.30 ms for the accumulation (docs/plans/temporal-renderer.md, section 14). On the deck they take 3.53 ms and 1.18 ms. With the composite, the ticket's passes take about 5.0 ms against the base's 3.4 ms for its direct and ambient passes. Yet the 1280 × 720 spans hold: in the branch's trace, every pass that the ticket did not change ran 10 to 25 % faster than in the base's traces, such as the environment faces (0.51 against 0.64 to 0.67 ms), the transparent pass (1.06 against 1.27 to 1.35 ms) and the bloom (0.95 against 1.11 to 1.15 ms). The likely cause is the GPU's clock, which the branch's heavier work keeps higher. That is an inference from the traces, which measure no clock. At 1920 × 1080 the span shows the added cost: about 2.0 ms more.
+
+On `lamp-hall-64`'s film from frame 1, traces before the review's fixes gave light candidates 0.83 to 0.85 ms, direct light 0.82 to 0.84 ms and accumulate direct 0.67 to 0.69 ms at 1280 × 720, against the base's direct light of 5.56 to 6.52 ms, and a frame span of 7.9 to 8.1 ms against 11.7 to 13.2 ms. At 1920 × 1080 they gave 1.47 to 1.53, 1.51 to 1.55 and 1.46 to 1.48 ms, against 8.37 to 8.68 ms, and a span of 12.2 to 12.4 ms against 15.9 to 16.3 ms. So with 64 shadowed lamps, ReSTIR saves about 4 ms of the frame, and on the deck, with its few lamps and its exact star, it costs more than the exact loop. Ticket `ter-9nrc` holds the work on the cost.
 
 #### Hair
 
@@ -2727,7 +2750,7 @@ The step Δt is the time between two drawn frames. `FrameClock` is a union of tw
 | `WallClock` | `CreateForWindow` | `Stopwatch.GetTimestamp()` at each drawn frame |
 | `FilmClock` | `CreateOffscreen`, which `CreateHeadless` calls | `RenderSnapshot.Time` |
 
-So a headless film gives the same images every run. (User) The host needs to know nothing about exposure, and `IRenderer.Render` keeps its signature. The step is the time now minus the time of the last drawn frame. Before the first drawn frame it is endless. It is 0 when the time did not move forward, such as two captures at one tick or a NaN. A frame that the output skips records nothing, so the next drawn frame steps from the last one that drew. The step reaches the exposure pass as `FrameContext.ExposureStep`.
+So a headless film gives the same images every run. (User) The host needs to know nothing about exposure, and `IRenderer.Render` keeps its signature. The step is the time now minus the time of the last drawn frame. Before the first drawn frame it is endless. It is 0 when the time did not move forward, such as two captures at one tick or a NaN. A frame that the output skips records nothing, so the next drawn frame steps from the last one that drew. The step reaches the exposure pass as the pending frame's `ExposureStep` (`FrameHistory.PendingFrame`), the one store of the draw's step.
 
 #### The still rule
 

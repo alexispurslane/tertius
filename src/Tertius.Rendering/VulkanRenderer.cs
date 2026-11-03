@@ -147,9 +147,12 @@ public sealed unsafe class VulkanRenderer : IRenderer
             releases = Own(new DeferredReleases());
             ShaderLibrary shaders = Own(new ShaderLibrary(device, ShaderLibrary.EngineShaders));
 
-            int glowLevels = GlowLevelsOf(options.Bloom);
             layouts = Own(
-                new DescriptorLayouts(device: device, framesInFlight: options.FramesInFlight, glowLevels: glowLevels)
+                new DescriptorLayouts(
+                    device: device,
+                    framesInFlight: options.FramesInFlight,
+                    glowLevels: GlowLevelsOf(options.Bloom)
+                )
             );
             output = Own(createOutput(device, Allocator));
             geometry = Own(new GeometryStore(device, Allocator));
@@ -160,12 +163,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             BrdfTableImages = Own(new BrdfTableImages(device, Allocator));
             uploads = CreateUploads();
 
-            targets = CreateTargets(
-                glowLevels: glowLevels,
-                antiAliasing: options.AntiAliasing,
-                reflections: options.Reflections,
-                subsurface: options.Subsurface
-            );
+            targets = CreateTargets(options);
             // Before the occlusion images, whose bounce source reads the direct signal's slow diffuse history.
             (surfaceHistory, DirectSignal, reservoirs) = CreateHistories(shaders, options);
 
@@ -1772,17 +1770,12 @@ public sealed unsafe class VulkanRenderer : IRenderer
         };
 
     /// <summary>
-    /// The screen-sized images at the output's size, or 1 × 1 before a window has one, and the SMAA tables when
-    /// <paramref name="antiAliasing"/> is SMAA. The renderer owns both.
+    /// The screen-sized images of <paramref name="options"/> at the output's size, or 1 × 1 before a window has one, and the
+    /// SMAA tables when its anti-aliasing is SMAA. The renderer owns both.
     /// </summary>
-    private RenderTargets CreateTargets(
-        int glowLevels,
-        AntiAliasing antiAliasing,
-        ReflectionSetting reflections,
-        SubsurfaceSetting subsurface
-    )
+    private RenderTargets CreateTargets(RendererOptions options)
     {
-        SmaaTables? smaaTables = antiAliasing switch
+        SmaaTables? smaaTables = options.AntiAliasing switch
         {
             AntiAliasing.None => null,
             AntiAliasing.Smaa => Own(new SmaaTables(device, Allocator)),
@@ -1794,14 +1787,14 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 allocator: Allocator,
                 layouts: layouts,
                 extent: extent,
-                glowLevels: glowLevels,
+                glowLevels: GlowLevelsOf(options.Bloom),
                 smaaTables: smaaTables,
-                reflections: reflections switch
+                reflections: options.Reflections switch
                 {
                     NoReflections => null,
                     ConeTracedReflections on => on.Resolution,
                 },
-                subsurface: subsurface is SeparableSubsurface
+                subsurface: options.Subsurface is SeparableSubsurface
             )
         );
     }
