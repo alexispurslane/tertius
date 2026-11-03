@@ -3228,6 +3228,16 @@ The deformation needs no device feature (docs/plans/skinning-and-morphs.md, "Por
 
 The four occlusion passes of the screen-space light dispatch one workgroup of 8 × 8 invocations per 8 × 8 texels of their target, which is at most the screen. A side of the screen is at most the device's `maxImageDimension2D`, 32,768 or less on the desktop Linux drivers and lavapipe, which gives at most 4,096 workgroups per dimension. Only a side above 524,280 px (65,535 × 8) would pass the 65,535 of `ComputeLimits.MaxGroupsPerDimension`, so the passes need no `ComputeLimits.Grid`.
 
+#### GPU memory
+
+`DeviceAllocator` places every buffer and image in large blocks of device memory, 64 MiB each, with one set of blocks for each memory type. Buffers and optimal-tiling images use separate blocks. A resource of more than half a block gets a dedicated allocation. Each allocation names its usage, `MemoryUsage`: `GpuOnly`, `Upload` (the CPU writes, the GPU reads) or `Readback` (the GPU writes, the CPU reads). The usage chooses the memory type. `GpuOnly` requires a device-local type. `Upload` and `Readback` require a host-visible, coherent type, and `Upload` prefers a device-local one and `Readback` a cached one.
+
+A block or a dedicated allocation is mapped for its whole life exactly when its memory type is host-visible. The usage of the allocation that made it does not matter. The type's property flags are the one store of that fact, so no block can disagree with its type. So every `Upload` or `Readback` allocation gets a CPU address. A `GpuOnly` allocation of a host-visible type gets an address that nothing reads. The mapping costs CPU address space of the block's size and one `vkMapMemory` for each block, not for each allocation.
+
+The rule matters on drivers that report one memory type that is device-local, host-visible, coherent and cached: KosmicKrisp, lavapipe, and RADV and ANV on integrated GPUs. On them, allocations of every usage share the blocks of that type. Before the rule, a block was mapped when the allocation that made it was not `GpuOnly`. So on KosmicKrisp, an upload landed in a block that a `GpuOnly` allocation made, with no address. The demo crashed at its first texture upload (ter-gmv8). MoltenVK hid the bug, because it reports a separate type 0 that is only device-local.
+
+The allocator reaches the device through `IDeviceMemory`: the table of memory types and the calls that allocate, map, name and free one `VkDeviceMemory`. `VulkanDeviceMemory` is a real device's. `DeviceAllocatorTests` gives the allocator the tables of KosmicKrisp and MoltenVK through a test double that keeps the valid-usage rules of `vkMapMemory`. `DeviceAllocator.AssertInvariants` checks that every block and dedicated allocation of a host-visible type has an address, and that no other one has.
+
 #### Required device features
 
 The renderer requires these, and `VulkanDevice` refuses a device without them. The desktop Linux drivers, NVIDIA's, RADV (AMD) and ANV (Intel), and lavapipe, Mesa's software driver, offer each one.
