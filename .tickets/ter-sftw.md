@@ -1,6 +1,6 @@
 ---
 id: ter-sftw
-status: open
+status: in_progress
 deps: [ter-8hbi]
 links: []
 created: 2026-11-03T19:35:47Z
@@ -31,3 +31,7 @@ The GPU lock (mkdir /tmp/tertius-gpu-measure.lock) holds for every timed run. Pe
 **2026-11-03T20:45:23Z**
 
 2026-11-03: add the direct signal's temporal accumulation (accumulate_temporal.comp, the pass "accumulate direct") to step 2's profile in Xcode, beside the walk step and FSR's accumulate pass. The direct light's build (branch ter-nmbm-direct-light) measured it at 0.67 ms on lamp-hall-64 and 1.15 ms on demo-exit's deck at 1280 x 720, against a budget of 0.15 to 0.30 ms. That is the same pattern as FSR (2.8 ms against AMD's under 1 ms) and the trace: a compute pass at 2 to 4 times its expected cost on this Mac. If the profile shows one cause for all three, the ticket for the direct signal's cost (ter-9nrc, on that branch) uses it.
+
+**2026-11-03T22:48:42Z**
+
+2026-11-03: launched as workflow run ab3b5db2-ede2-4783-9178-8555202ba759, version 869b0b07-3413-4b06-8707-a88a91bf6e91 (Opus high builder, Opus xhigh reviewer), branch ter-sftw-profiling-spike from 9e0f48be1, the lean trace spike's last commit. The builder first merges main (ac3370c14 or later) for FSR's host and the motion vectors. The report goes to docs/research/temporal-renderer/profiling-spike.md.
