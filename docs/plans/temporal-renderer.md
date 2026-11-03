@@ -4,7 +4,7 @@ Ticket: `ter-vges`, the design of epic `ter-89xq`. The user decided on 2026-11-0
 
 ## Goal
 
-The renderer reuses each pixel's light from earlier frames. Every lit surface gets reflections up to a roughness limit, the demo's paint of roughness 0.38 included. Bounce light comes from the screen at any distance on screen. Direct light costs about the same for 4 lamps and for 64. FSR 3.1 upscales the frame from a render size that a controller changes each frame, so that the game holds 60 frames per second.
+The renderer reuses each pixel's light from earlier frames. Every lit surface gets reflections up to a roughness limit, the demo's paint of roughness 0.38 included. Bounce light comes from the screen at any distance on screen, and it bounces again in every frame. Direct light costs about the same for 4 lamps and for 64. FSR 3.1 upscales the frame from a render size that a controller changes each frame, so that the game holds 60 frames per second.
 
 ## Terms
 
@@ -32,7 +32,7 @@ The renderer reuses each pixel's light from earlier frames. Every lit surface ge
 
 ### Made by the user
 
-These come from `.tickets/ter-89xq.md` and the brief of this ticket. The design holds them and does not reopen them.
+These come from `.tickets/ter-89xq.md`, the brief of this ticket and its notes. The design holds them and does not reopen them.
 
 1. The renderer is temporal. Decision 8 of [rendering-performance.md](rendering-performance.md) no longer holds. (User, 2026-11-02)
 2. FSR 3.1's upscaler is the one TAA and the one upscaler, with dynamic resolution from the start. Frame generation is out of this epic (`ter-hdbw`). (User, 2026-11-02 and 2026-11-03)
@@ -50,34 +50,31 @@ These come from `.tickets/ter-89xq.md` and the brief of this ticket. The design 
 14. Motion vectors hold no jitter. Each object has a stable key, and the snapshot gains the previous scale. Last frame's deformed vertices are kept. The previous camera is expressed relative to this frame's camera. (Orchestrator, 2026-11-03)
 15. Bloom and tone mapping move after FSR, at the output size. (Orchestrator, 2026-11-03)
 16. The project's rules hold: portable Vulkan only, and determinism with a reason for each ordering rule. Each piece of state has one store, no mechanism runs in parallel to another, and the code follows [STYLE.md](../../STYLE.md).
+17. Many bounces. A diffuse ray's hit also brings the hit's own indirect diffuse light of the last frame, so light bounces again in every frame. This replaces decision 30 of [screen-space-illumination.md](screen-space-illumination.md), "exactly one bounce". The user chose it with the model of the later bounces' lag that section 6 gives. (User, 2026-11-03)
 
 ### Settled by this design
 
 Each decision gives its reason. The important ones also give the second design and why it lost. The sections below hold the details.
 
-17. The light model of a lit pixel is one sum: the material times each signal, plus the emission. The three signals are demodulated, accumulated light. The composite is the one place that multiplies the material back in.
-18. The frame's stocks are the three signals' histories, the surface history, the reservoirs and the placement history. The previous camera, FSR's state and the controller's state are stocks too. Section 1 gives the owner of each.
-19. The renderer decides a reset in one choke-point method, `FrameHistory.Begin`, at the start of each drawn frame. Every history owner reads its answer. Reason: one place holds the reset rules, so no owner can miss one.
-20. The snapshot counts camera cuts, `RenderSnapshot.CameraCuts`, instead of a flag. A renderer that skips a snapshot still sees the cut, because the count differs.
-21. The previous rows of each object come from the placement history, joined by key, not from the snapshot's previous transform. Section 3 gives both designs.
-22. A pixel without a history of its own gets a previous place outside the last frame's image. FSR and every accumulator then treat it as new, with no flag of its own.
-23. The surface test writes the device depth that FSR reads, the surface history and the motion of the sky. It is one pass, because each of these reads the distance target once.
-24. A hit of the screen tracer brings this frame's accumulated direct light. A reflection ray's hit also brings its own previous indirect light. A diffuse ray's hit brings it only under option B of the open question. This frame's material at the hit multiplies the light. No lit image is kept. Section 6 gives both designs.
-25. A diffuse miss reads the environment map along the ray's own direction, through the map's specular image at roughness 0.5. Reason: decision 41 asks for the environment's light from that direction. The irradiance at the normal, D(n), counts a near blocker twice, the fault that decision 42 removed. Section 6 gives the details.
-26. The roughness limit of the reflection rays is 0.5. In a band from 0.4 to 0.5, the reflection rays hand over to the reuse of the diffuse rays. Reason: below 0.4 the cosine-weighted diffuse rays sample a GGX lobe badly, and at 0.38 their weight reaches about 12 times the mean. Ticket 4's first captures test the value.
-27. ReSTIR shades the chosen light with its exact unshadowed contribution and a stochastic visibility. The candidates come from a table weighted by each light's rank irradiance at the eye, mixed half and half with a uniform choice. Section 7 gives the details.
-28. The exact loop over every light stays as the zero case of the direct light's setting, `EveryLight`. The forward passes use it too. Reason: the tests need an exact direct light, and the bias of ReSTIR needs a reference. Section 7 gives both designs.
-29. FSR's reactive mask and its transparency and composition mask come from AMD's own generator, from a copy of the image before the transparent pass. Reason: the transparent pass blends with two sources, and the four drivers allow only one color attachment with such a blend. Section 9 gives both designs.
-30. FSR's two pre-exposure constants come from the GPU's exposure buffer, through a small copy into FSR's constant buffer. AMD's shaders stay unchanged. Section 5 gives the reason.
-31. A headless still starts with a reset and draws `WarmUpFrames`, 32 by default, of the same snapshot before the shown draw. Its noise and its jitter count from the reset, so a still is a pure function of its snapshot. Section 10 gives the rule.
-32. Headless scripted runs use a fixed render scale, 2/3 by default, and the window uses the controller. Reason: a controller that follows GPU timings breaks the determinism of headless captures. A scale of 2/3 gives the budget's size, 1280 × 720 at a 1080p output.
-33. The main view's shadow taps are the turning quarter of the 16 taps under `Fsr3Upscaling` and all 16 taps under `NoUpscaling`. The environment faces and the impostor captures always take all 16. Reason: only an image that FSR averages can take a quarter.
-
-## Open question
-
-This question is the one fork of the design. It goes to the user. Until the user answers, the work follows the recommended option, which the code holds in one term (section 6, "Where a hit's light comes from").
-
-1. The light of a diffuse ray's hit. Option A, one bounce: the hit brings its diffuse direct light and its glow. Decision 30 of [screen-space-illumination.md](screen-space-illumination.md) says so ("exactly one bounce", the user's). Option B, many bounces: the hit also brings its own indirect diffuse light of the last frame, so light bounces again in every frame. B costs no more GPU time. It makes white rooms brighter by the light of the later bounces, and that light lags one frame. Recommended: B. Reason: A was the rule of a frame that kept nothing, and B is the physical answer that the histories make free. With B, the screen shows more bounces than the environment map, whose faces hold one bounce. So a surface that leaves the screen loses its later bounces. `ter-bsxh` and `ter-13rm` close that gap later.
+18. The light model of a lit pixel is one sum: the material times each signal, plus the emission. The three signals are demodulated, accumulated light. The composite is the one place that multiplies the material back in.
+19. The frame's stocks are the three signals' histories, the surface history, the reservoirs and the placement history. The previous camera, FSR's state and the controller's state are stocks too. Section 1 gives the owner of each.
+20. The renderer decides a reset in one choke-point method, `FrameHistory.Begin`, at the start of each drawn frame. Every history owner reads its answer. Reason: one place holds the reset rules, so no owner can miss one.
+21. The snapshot counts camera cuts, `RenderSnapshot.CameraCuts`, instead of a flag. A renderer that skips a snapshot still sees the cut, because the count differs.
+22. The previous rows of each object come from the placement history, joined by key, not from the snapshot's previous transform. Section 3 gives both designs.
+23. A pixel without a history of its own gets a previous place outside the last frame's image. FSR and every accumulator then treat it as new, with no flag of its own.
+24. The surface test writes the device depth that FSR reads, the surface history and the motion of the sky. It is one pass, because each of these reads the distance target once.
+25. A hit of the screen tracer brings this frame's accumulated direct light. It also brings the hit's own indirect light of the last frame, from its slow histories (decision 17). A diffuse ray's hit leaves out the hit's specular light. This frame's material at the hit multiplies the light. No lit image is kept. Section 6 gives both designs, and the reason for the slow history over the fast one.
+26. A diffuse miss reads the environment map along the ray's own direction, through the map's specular image at roughness 0.5. Reason: decision 41 asks for the environment's light from that direction. The irradiance at the normal, D(n), counts a near blocker twice, the fault that decision 42 removed. Section 6 gives the details.
+27. The roughness limit of the reflection rays is 0.5. In a band from 0.4 to 0.5, the reflection rays hand over to the reuse of the diffuse rays. Reason: below 0.4 the cosine-weighted diffuse rays sample a GGX lobe badly, and at 0.38 their weight reaches about 12 times the mean. Ticket 4's first captures test the value.
+28. ReSTIR shades the chosen light with its exact unshadowed contribution and a stochastic visibility. The candidates come from a table weighted by each light's rank irradiance at the eye, mixed half and half with a uniform choice. Section 7 gives the details.
+29. The exact loop over every light stays as the zero case of the direct light's setting, `EveryLight`. The forward passes use it too. Reason: the tests need an exact direct light, and the bias of ReSTIR needs a reference. Section 7 gives both designs.
+30. FSR's reactive mask and its transparency and composition mask come from AMD's own generator, from a copy of the image before the transparent pass. Reason: the transparent pass blends with two sources, and the four drivers allow only one color attachment with such a blend. Section 9 gives both designs.
+31. FSR's two pre-exposure constants come from the GPU's exposure buffer, through a small copy into FSR's constant buffer. AMD's shaders stay unchanged. Section 5 gives the reason.
+32. A headless still starts with a reset and draws `WarmUpFrames`, 32 by default, of the same snapshot before the shown draw. Its noise and its jitter count from the reset, so a still is a pure function of its snapshot. Section 10 gives the rule.
+33. Headless scripted runs use a fixed render scale, 2/3 by default, and the window uses the controller. Reason: a controller that follows GPU timings breaks the determinism of headless captures. A scale of 2/3 gives the budget's size, 1280 × 720 at a 1080p output.
+34. The main view's shadow taps are the turning quarter of the 16 taps under `Fsr3Upscaling` and all 16 taps under `NoUpscaling`. The environment faces and the impostor captures always take all 16. Reason: only an image that FSR averages can take a quarter.
+35. A reflection miss reads the map where its ray ends, through the distance cube. This is the corrected read of the closed `ter-s6zr`, which ticket 8 ports, and every reader of the map's specular term takes it. A diffuse miss keeps its read along its direction. Reason: the diffuse signal averages its misses over the hemisphere, so their parallax error stays small, by decision 23 of [environment-map-distances.md](environment-map-distances.md). Section 6 gives both designs.
+36. An impostor billboard writes its instance's light mark, as a mesh does. So a lamp that draws as a billboard sends its light once to the tracer's hits, by the rule that the closed `ter-coy0` carries forward. Section 6 gives the cost.
 
 ## 1. The model
 
@@ -224,7 +221,7 @@ The list follows section 1 of [pass-map.md](../research/temporal-renderer/pass-m
 | Occlusion depth, sectors, denoise and upsample | Deleted | The tracer's diffuse rays find the blocked directions (decision 4). |
 | Ambient light | Changed | It becomes the composite. |
 | Scatter rows, scatter columns | Kept | Render size. |
-| Radiance pyramid | Deleted | A hit reads the histories (decision 24). |
+| Radiance pyramid | Deleted | A hit reads the histories (decision 25). |
 | Reflection trace, reflections | Deleted | The tracer's reflection rays and the specular signal take their place. |
 | Haze | Kept | Render size. |
 | Transparent | Changed | Jitter, the frame's taps, and the copy of the opaque-only image at its start. |
@@ -353,7 +350,7 @@ A change of the render size, a change of the exposure and a skipped snapshot res
 - A pixel whose surface fails the surface test (section 8): a disocclusion.
 - A specular pixel whose reflection fails its own tests (section 8).
 
-A new instance's pixels get a previous place outside the last frame's image (decision 22). `mesh.vert` writes the motion vector (2, 2) for them, which moves every place by two image widths. FSR treats a place outside the image as a disocclusion. The surface test treats it as a failed test, so no accumulator needs a flag. FSR's dilation of the motion vectors can give the ring of pixels around a new object the same vector for one frame. That ring then loses its history too. This costs one frame of history at a spawn.
+A new instance's pixels get a previous place outside the last frame's image (decision 23). `mesh.vert` writes the motion vector (2, 2) for them, which moves every place by two image widths. FSR treats a place outside the image as a disocclusion. The surface test treats it as a failed test, so no accumulator needs a flag. FSR's dilation of the motion vectors can give the ring of pixels around a new object the same vector for one frame. That ring then loses its history too. This costs one frame of history at a spawn.
 
 ## 4. Dynamic resolution
 
@@ -401,7 +398,7 @@ A reset does not touch the controller, because its state describes the GPU, not 
 
 `FixedRenderScale(Scale)` gives every frame the same render size. The test helpers keep `NoUpscaling`, so their render size is the output size. A test of the upscaler names its own `FixedRenderScale`. The controller's own tests are CPU tests: they feed it a series of timings and read its scales, with no GPU.
 
-The headless host chooses `FixedRenderScale(2 / 3)` for scripted runs, and `--render-scale <scale>` changes it (decision 32). Only a window runs the controller. So every headless run gives the same images on every run.
+The headless host chooses `FixedRenderScale(2 / 3)` for scripted runs, and `--render-scale <scale>` changes it (decision 33). Only a window runs the controller. So every headless run gives the same images on every run.
 
 ## 5. FSR 3.1
 
@@ -494,10 +491,10 @@ The inputs:
 | Input | Source | Note |
 |---|---|---|
 | Color | The HDR image after the transparent pass, render size | Pre-exposed, capped at 64,512, before bloom and the tone map |
-| Depth | The surface test's device depth, R32F | Reversed and infinite, from the distance and the near plane of 5 cm (decision 23), because the three depth ranges leave no single depth buffer |
+| Depth | The surface test's device depth, R32F | Reversed and infinite, from the distance and the near plane of 5 cm (decision 24), because the three depth ranges leave no single depth buffer |
 | Motion vectors | The motion target's xy, RGBA16F | Units of the image's size, scale = the render size, no jitter |
 | Exposure | A 1 × 1 R32F image that the constants step writes, 2^S | The pre-exposed color divided by the pre-exposure and times this exposure is the color itself |
-| Pre-exposure | The constants step writes 2^S and the last frame's 2^S into FSR's constant buffer | Decision 30 |
+| Pre-exposure | The constants step writes 2^S and the last frame's 2^S into FSR's constant buffer | Decision 31 |
 | Reactive and transparency masks | AMD's mask generator from the opaque-only image and the color | Section 9 |
 | Frame values | The step in ms, the near plane, the vertical field of view, 1 m per view unit | AMD's host turns them into the constants |
 
@@ -507,7 +504,7 @@ The host's own tests compare its calculations with AMD's. A small C++ tool in `t
 
 ### Where FSR loses
 
-At a render scale of 0.77, the FSR 1 experiment saw tiny bright lights merge and fade. Thin struts softened, and far thin geometry broke up (`ter-htg7`). FSR 3.1 recovers detail over frames, but a star of one pixel at 2/3 scale still falls between samples in some frames. `ter-esoe`, stars defined by their light at every resolution, matters more now.
+At a render scale of 0.77, the FSR 1 experiment saw tiny bright lights merge and fade. Thin struts softened, and far thin geometry broke up (the closed `ter-htg7`). FSR 3.1 recovers detail over frames, but a star of one pixel at 2/3 scale still falls between samples in some frames. `ter-esoe`, stars defined by their light at every resolution, matters more now.
 
 ## 6. The screen tracer
 
@@ -540,14 +537,13 @@ Two designs:
 | Design | A hit's light | Bounces | New store | Reads per hit |
 |---|---|---|---|---|
 | A: a kept lit image | The last frame's composite before the haze, at the hit's previous place | Many | One render-size image, and a second one of diffuse light alone for diffuse rays | 1 |
-| B: the histories | This frame's accumulated direct light at q, and q's own indirect history of the last frame, times this frame's material at q | Many for reflection rays, and diffuse rays by the open question | None | About 6 |
+| B: the histories | This frame's accumulated direct light at q, and q's own indirect history of the last frame, times this frame's material at q | Many, for both ray kinds (decision 17) | None | About 6 |
 
 B wins. A keeps a second store of light beside the histories. The two stores can disagree, for example after a reset of one of them. B reads more per hit, but a frame has at most about 0.5 million hits at 1280 × 720.
 
 ```glsl
 Light history = indirectHistoryAt(q);
-float indirectShare = isReflection ? 1.0 : bounces;
-vec3 hitLight = factors.diffuse * (directDiffuseAt(q) + history.diffuse * indirectShare)
+vec3 hitLight = factors.diffuse * (directDiffuseAt(q) + history.diffuse)
               + factors.specular * (directSpecularAt(q) + history.specular) * float(isReflection)
               + preExposed(glowSent(emissionAt(q), lightMarkAt(q)));
 ```
@@ -557,22 +553,67 @@ where
 - `q` = the hit pixel.
 - `factors` = `materialFactors` of q's surface in this frame's G-buffer.
 - `directDiffuseAt`, `directSpecularAt` = this frame's direct history at q, after "accumulate direct".
-- `indirectHistoryAt` = the diffuse and specular histories of the last frame at q's previous place, rescaled by the exposure ratio. Where q fails the surface test, it gives the environment's closed form at q instead: D(n_q) and the map's specular term along q's dominant direction.
-- `bounces` = 1 under option B of the open question, 0 under option A.
-- `indirectShare` = how much of the hit's indirect diffuse light the ray brings: all of it for a reflection ray, `bounces` for a diffuse ray. A reflection shows the lit scene, bounce light included, under both options.
+- `indirectHistoryAt` = the slow diffuse and specular histories of the last frame at q's previous place, rescaled by the exposure ratio. Where q fails the surface test, it gives the environment's closed form at q instead: D(n_q) and the map's specular term along q's dominant direction. In a reset frame, no pixel has a history, so every hit takes the closed form.
+- `history.diffuse`, `history.specular` = the two parts of that read.
 - `isReflection` = whether the ray is a reflection ray. A diffuse ray brings only light that leaves the hit alike in every direction, so it leaves out the hit's highlight.
+- `emissionAt`, `lightMarkAt` = q's emission and light mark in this frame's G-buffer. The light mark is 1 where q's entity holds a light.
 - `glowSent` = today's rule that a lamp's glow is its light's face and sends no light of its own (`frame.glsl`).
 
-The hit is in this frame's image, so its direct light, its material and its glow are current. Only its indirect light is one frame old.
+The hit's indirect diffuse light has no switch, because no setting and no test needs a single bounce (decision 17). The hit is in this frame's image, so its direct light, its material and its glow are current. Only its indirect light is one frame old.
+
+An impostor billboard writes its instance's light mark, as `gbuffer.frag` does for a mesh (decision 36). Today `impostor.frag` writes 0. So a hit on a far lamp's billboard brings the lamp's glow, and the lamp's light counts twice. The closed `ter-coy0` found this case in today's reflections. The billboard's emission holds the lit housing and the glow as one sum, so a hit on a lamp's billboard brings neither. The lamp's light reaches the receiver through its light alone. A billboard is smaller than 200 px, and a lamp's housing sends little light beside its glow.
+
+### How the later bounces settle
+
+A model gives the pace of the many bounces of decision 17. It treats a room as uniform. Let g be the share of the light at a surface that the room sends back per bounce. It is the walls' albedo times the share of directions that hit a wall on screen. Let E be the first bounce: the indirect light that reaches the surface after one bounce. Each frame's diffuse sample is then E plus g times the hits' slow history of the last frame. The settled light is E / (1 − g).
+
+Each bounce passes through the diffuse history again, so the lag compounds. While the history fills, its blend is the plain mean of the frames so far. After it fills at its cap of 32 frames, the gap to the settled light shrinks by a factor of e every 32 / (1 − g) frames. A still shows draw 33 after its reset (section 10):
+
+| g | Settled light | Time for the gap to shrink by e | The still, start from the closed form | The still, dark start |
+|---:|---:|---|---:|---:|
+| 0.5 | 2 E | 64 frames, 1.1 s at 60 fps | 95 % | 90 % |
+| 0.8 | 5 E | 160 frames, 2.7 s at 60 fps | 66 % | 57 % |
+
+In the reset frame, every hit takes the closed form, which holds the map's single bounce. Where the closed form equals the first bounce, a still starts one bounce ahead, and the fourth column holds. Where the closed form is dark at the hits, the last column holds. `WarmUpFrames` stays 32, the count with which the user chose decision 17. Each extra warm-up draw costs a still about 10 ms of GPU time. The figures come from a simulation of section 8's accumulator on a grid of pixels, written for this design and not kept. Without noise and without the clamp, it gives the same figures as the two means above.
+
+The clamp and the anti-lag of section 8 do not hold the later bounces down:
+
+- During a rise, the fast history leads the slow history, because it averages only the last 4 samples. The clamp's box is centered on the fast history. So the clamp can only lift the slow history toward the current light.
+- Without noise, the rise does not oscillate. In each frame, the gap to the settled light changes by a factor of 1 − w (1 − g). Here w is the blend weight, from 1/32 to 1. The factor lies between 0 and 1, so the light rises and stays below the settled light.
+- How much the clamp lifts depends on the noise. If the fast history has almost no spread, the box is narrow. The clamp then pulls the slow history to the fast one in every frame. The anti-lag then cuts the history length to the fast cap. The gap then shrinks by e every 4 / (1 − g) frames, and a still shows about 99 % at g = 0.5 and 86 to 89 % at g = 0.8. At a noise of 25 % per sample or more, the box is wider than the gap between the two histories. The clamp then rarely acts, and the table holds.
+- The clamp's bias compounds. Take a skewed noise of 100 % per sample. The clamp then leaves the settled light about 1 % low at g = 0.5 and 2 % low at g = 0.8, against 0.4 % for one bounce.
+- In the window, the same rates hold after a lamp switches on. The anti-lag cuts a history length only where the box catches the first bounce's step, and a noisy diffuse sample widens the box. After such a cut, the plain mean starts again from the fast cap. Ticket 6 tunes `ClampSigmas` and `AntiLagShare` on captures of a lamp that switches on, and it measures the bias.
+
+Two designs for the history that a hit reads, from the same simulation at g = 0.8 and a noise of 100 %:
+
+| Design | A hit reads | The still | Frame 160 | Noise that each bounce brings |
+|---|---|---:|---:|---|
+| A: the slow history | q's slow history, cap 32 | 66 % | 84 % | The slow history's |
+| B: the fast history | q's fast history, cap 4 | 74 % | 93 % | About 3 times the slow history's standard deviation |
+
+A wins. B raises the still from 66 % to 74 % of the settled light, but it brings the fast history's noise into every bounce. B also exposes the fast history, which stays inside `Accumulate` (section 8).
+
+The screen shows many bounces, but the environment map's faces hold one. A wall that leaves the screen falls back to the map's single bounce. So a bright room dims a little when the camera turns away from its walls. Its indirect light then loses up to the share g that the later bounces hold. `ter-bsxh`, a fill of the later bounces in the map, closed on 2026-11-03 without its work. So `ter-13rm`, the world-space radiance cache, alone closes this gap.
 
 ### Misses
 
 - A diffuse miss reads `environmentLobe(map, ω, 0.5)`: the map's specular image along the ray's direction ω at roughness 0.5, the read that the sector pass gives an open piece today. The map is the receiver's, from its map code, as today.
-- A reflection miss reads `environmentSpecular(map, ω, r, f)`: the map along ω at the lobe's roughness r, with the reflected stars and the pixel's footprint f. A smooth lobe reads level 0, so a mirror's miss is the map's exact texel. A rough lobe reads a blurred texel along a blurred direction, which widens the map's reflection a little past the lobe's width (a known limit).
+- A reflection miss reads `environmentSpecular`: the map at the lobe's roughness r, with the reflected stars and the pixel's footprint f. A smooth lobe reads level 0, so a mirror's miss is the map's exact texel. A rough lobe reads a blurred texel along a blurred direction, which widens the map's reflection a little past the lobe's width (a known limit).
+
+Ticket 4 reads `environmentSpecular(map, ω, r, f)` along ω, as today. Ticket 8 makes it the corrected read of the closed `ter-s6zr` (decision 35). That read is `environmentSpecular(map, position, ω, n_g, r, f)` on the branch `ter-s6zr-corrected-read` at 570fdbbf8, where n_g is the pixel's geometric normal. The branch is built and reviewed, with its hardening unfinished. A search of the distance cube along the ray from the pixel's point finds where the ray ends. The map's texel there gives the light ([environment-map-distances.md](environment-map-distances.md), "The search"). A ray that meets no stored surface reads the texel along ω, exactly as before. Every reader of `environmentSpecular` takes it: the tracer's reflection misses, the closed forms of the composite and of the hits, and the forward passes.
+
+Two designs for the misses that take the corrected read:
+
+| Design | Misses that take it | Searches per frame at 1280 × 720 | A rough reflection above 0.5 |
+|---|---|---|---|
+| A: the readers of the specular term | Reflection misses, and every other reader of `environmentSpecular` | About 0.1 to 0.4 million | The plain read of the diffuse rays' misses |
+| B: every miss | Both kinds | About 2 to 3 times as many | The corrected read |
+
+A wins. It is the scope that `ter-s6zr` built: every reader of the specular term, with the diffuse light's reads unchanged (decision 23 of environment-map-distances.md). The diffuse signal averages its misses over the hemisphere, so their parallax error stays small. A lobe above roughness 0.5 averages in the same way. B pays for the most frequent misses with the least visible gain.
 
 ### Rough reflections reuse the diffuse rays
 
-Above 0.5, a pixel traces no reflection ray. Its specular sample comes from the diffuse rays that its resolve reads. A diffuse ray of direction ω has the density cos θ / π. So it estimates the specular integral as L(ω) · f_s(ω) · π, divided by the specular factor. Between 0.4 and 0.5 the specular sample blends the two estimates linearly by the roughness, so no edge shows where the limit falls. The miss of a diffuse ray reads the map at 0.5, which a lobe of roughness 0.5 to 1 accepts.
+Above 0.5, a pixel traces no reflection ray. Its specular sample comes from the diffuse rays that its resolve reads. A diffuse ray of direction ω has the density cos θ / π. So it estimates the specular integral as L(ω) · f_s(ω) · π, divided by the specular factor. Between 0.4 and 0.5 the specular sample blends the two estimates linearly by the roughness, so no edge shows where the limit falls. The miss of a diffuse ray reads the map at 0.5 with the plain read, which a lobe of roughness 0.5 to 1 accepts.
 
 ### The ray budget
 
@@ -624,7 +665,7 @@ Two designs for the pixels of the G-buffer:
 | A: ReSTIR only | Resampled for every G-buffer pixel | One path | A test of exact light needs a tolerance, and the bias has no reference |
 | B: ReSTIR, with the exact loop as the zero case of the setting | `ResampledLights` by default, `EveryLight` for tests and as the reference | Two shader variants of one pass | Exact tests, and a measured bias |
 
-B wins. The loop already exists for the forward passes, so `EveryLight` adds no new code, and ReSTIR's bias needs a reference to measure (decision 28).
+B wins. The loop already exists for the forward passes, so `EveryLight` adds no new code, and ReSTIR's bias needs a reference to measure (decision 29).
 
 The forward passes, the transparent pass, the lit puffs, the environment faces and the impostor captures, keep the loop over every light. They draw no G-buffer, so they have no place for reservoirs.
 
@@ -679,7 +720,7 @@ Under `EveryLight` there is no candidates pass, and "direct light" loops over ev
 - The full set: today's 4 × 4 bilinear taps, one texel apart, of equal weight.
 - The frame's quarter: 4 of the 16 taps. Tap (i, j), with i and j from 0 to 3, belongs to group (i mod 2) + 2 (j mod 2). The group of a pixel is (draw index + x + 2y) mod 4. So each 2 × 2 quad of pixels takes all four groups in every frame. The taps have equal weights, so each group is an unbiased quarter of the filter.
 
-The tiles of the local atlas compute their quarter from 4 gathers with exact weights, as their full filter computes from 9. The early test of the bounds stays first, so a pixel that is fully lit or fully shadowed takes no tap and no noise. Only the penumbra is noisy, and FSR and the direct signal's history average it. Decision 33 says which passes take which set.
+The tiles of the local atlas compute their quarter from 4 gathers with exact weights, as their full filter computes from 9. The early test of the bounds stays first, so a pixel that is fully lit or fully shadowed takes no tap and no noise. Only the penumbra is noisy, and FSR and the direct signal's history average it. Decision 34 says which passes take which set.
 
 ### Panel lights
 
@@ -824,6 +865,8 @@ where
 
 A light that changes moves the fast history within about 4 frames. The slow history then falls outside the fast history's box, and the clamp pulls it in. The length falls with the size of the move, so the next frames weigh their samples more.
 
+The box follows the fast history, so during a slow rise the clamp can only lift the slow history. Section 6, "How the later bounces settle", gives how the clamp and the anti-lag act on the later bounces.
+
 ### The parameter sets
 
 | Parameter | Direct | Diffuse | Specular |
@@ -835,7 +878,7 @@ A light that changes moves the fast history within about 4 frames. The slow hist
 | `AntiLagShare` | 0.5 | 0.5 | 0.25 |
 | Places | Surface | Surface | Surface and reflected point |
 
-The direct sample has no noise under `EveryLight` with `NoUpscaling` (section 1). The diffuse cap follows the research's starting range of 16 to 32 frames ([signals.md](../research/temporal-renderer/signals.md), section 3). A sharp reflection keeps few frames, because its lag shows. A rough reflection reuses the diffuse rays, so it is as noisy as the diffuse signal and takes the same cap. These values are unmeasured, and ticket 6 tunes them from captures.
+The direct sample has no noise under `EveryLight` with `NoUpscaling` (section 1). The diffuse cap follows the research's starting range of 16 to 32 frames ([signals.md](../research/temporal-renderer/signals.md), section 3). A sharp reflection keeps few frames, because its lag shows. A rough reflection reuses the diffuse rays, so it is as noisy as the diffuse signal and takes the same cap. These values are unmeasured, and ticket 6 tunes them from captures. The diffuse box is wide for a noisy sample, so ticket 6 also tunes it on a lamp that switches on (section 6).
 
 ### Images
 
@@ -902,11 +945,11 @@ Under `NoScreenTrace`, the tracer and the two indirect accumulations do not run.
 
 `CompositePass` takes the place of `AmbientLightPass`, and `composite.frag` takes the place of `ambient.frag`. It draws the active part once. At each G-buffer pixel, it writes the light of section 1 into the HDR image, capped at `MaxRadiance`. It reads the G-buffer, the three slow histories and `materialFactors`. At skin pixels it also writes the diffuse image, the diffuse factor times the two diffuse terms, which the scatter passes read as today. The sky's pixels get the sky as today.
 
-The composite is the one place that multiplies the material back in (decision 17). Under `NoScreenTrace`, it computes the two indirect terms in closed form, from the environment map, instead of reading the histories (section 8).
+The composite is the one place that multiplies the material back in (decision 18). Under `NoScreenTrace`, it computes the two indirect terms in closed form, from the environment map, instead of reading the histories (section 8).
 
 ### FSR's masks
 
-FSR takes two masks. The reactive mask marks the pixels whose color does not follow the motion vectors. A particle that the transparent pass blends is an example. The transparency and composition mask marks other light that moves on its own, such as a reflection in glass. Two designs (decision 29):
+FSR takes two masks. The reactive mask marks the pixels whose color does not follow the motion vectors. A particle that the transparent pass blends is an example. The transparency and composition mask marks other light that moves on its own, such as a reflection in glass. Two designs (decision 30):
 
 | Design | The masks come from | Cost | On the four drivers |
 |---|---|---|---|
@@ -923,7 +966,7 @@ The haze draws before the copy, so it is not reactive. It changes slowly and fol
 |---|---|---|
 | Exposure | Render size | Before FSR. The meter reads the active part. The adapt step also writes `previousStops` (section 5). |
 | FSR 3.1 | Output size | Its sharpening runs at `Sharpness`, which ticket 5 chooses from captures. |
-| Bloom | Output size | After FSR. Its glow width now follows the output size, which `ter-ch7z` asks for. |
+| Bloom | Output size | After FSR. Its glow is then a fixed count of output pixels, so it no longer widens as the render scale falls. The closed `ter-ch7z` carries this idea forward. |
 | Tone map | Output size | After the bloom, as today. |
 | Outlines | Output size | Each output pixel reads the distance target at its place in the render size, with the unjittered camera. FSR does not smear the outlines, because they draw after it. |
 | Capture | Output size | Unchanged. |
@@ -951,7 +994,7 @@ If one of these holds, a headless draw is a still:
 1. It is the renderer's first draw.
 2. Its snapshot's `Tick` is not the last drawn snapshot's `Tick` plus 1. A `run` step, a long step and a draw of the same tick again are examples.
 
-A still resets every history, then draws `WarmUpFrames` warm-up draws of its snapshot, then the shown draw. So the shown draw is draw 33 since the reset, by default. The warm-up draws take no capture and no readback. So a still is a pure function of its snapshot and the options (decision 31).
+A still resets every history, then draws `WarmUpFrames` warm-up draws of its snapshot, then the shown draw. So the shown draw is draw 33 since the reset, by default. The warm-up draws take no capture and no readback. So a still is a pure function of its snapshot and the options (decision 32).
 
 A film that captures one frame per tick is not a still after its first frame. Its histories carry from frame to frame, as in the window. A camera cut in a film resets the histories, and its next frames show the noise that a window shows after a cut.
 
@@ -980,7 +1023,8 @@ GPU tests, through `Gpu.Headless` with the named options:
 | The surface test | Every pixel of a still scene passes. An object that moves uncovers pixels that fail. The age counts frames, up to 255. |
 | The accumulator | A constant sample stays constant. After a step of the sample, the history reaches 90 % of the step within a bound that the anti-lag sets. A pixel without a sample keeps its history. A NaN sample counts as no sample. |
 | ReSTIR | One light gives the exact light. On `lamp-hall-64`, the bias against `EveryLight` stays under the bound that ticket 3 measures. |
-| The tracer | A white furnace: under an environment of uniform light L with no blocker, both indirect signals converge to L within 1 %. A mirror in front of a lamp shows it at its analytic place. A blocker of known light takes its share of a receiver's light (decision 41). |
+| The tracer | A white furnace: under an environment of uniform light L with no blocker, both indirect signals converge to L within 1 %. A mirror in front of a lamp shows it at its analytic place. A blocker of known light takes its share of a receiver's light (decision 41). In a closed box of known albedo, the diffuse light rises with no overshoot toward the sum of the bounces, within the model of section 6. A lamp's impostor billboard sends no glow to a hit. |
+| The corrected read | Tests 16, 17, 18, 20 and 21 of [environment-map-distances.md](environment-map-distances.md), "Tests", under `NoScreenTrace`. Test 19 tests the deleted reflections' delta and goes. A reflection miss of the tracer finds a wall behind the camera where a CPU ray trace finds it. |
 | FSR | A still at `FixedRenderScale(2 / 3)` gives the same image on every run. A reset frame reads no history. |
 
 The snapshot tests' references come again under the new defaults. The first approval of each is a real review of the reference, the actual image and the FLIP heat map, as CLAUDE.md asks. Each ticket runs its GPU tests once under `VK_LAYER_KHRONOS_validation` with synchronization validation on MoltenVK. Ticket 7 does the same on lavapipe and the Linux drivers.
@@ -1003,6 +1047,7 @@ The estimate below is for a render size of 1280 × 720, the headless default. A 
 | Accumulate direct | New | Render | 0.15 to 0.30 | Two dispatches of two parts |
 | Screen trace | 4.40, the occlusion and reflection passes | Render | 0.8 to 1.7 | A guess, which ticket 4 measures |
 | Accumulate diffuse and specular | New | Render | 0.20 to 0.40 | Two signals of one part |
+| The corrected read, in the screen trace and the forward passes | New | Render | 0.2 to 0.6 | `ter-s6zr` added 2.7 ms for one search at each of the 2.07 million lit pixels of 1080p. The misses take a twentieth to a fifth as many searches. Ticket 8 measures it |
 | Composite | 0.43 | Render | 0.20 | The share |
 | Scatter, haze | 0.55 | Render | 0.24 | The share |
 | Transparent and the copy | 1.26 | Render | 0.61 | The share, plus the copy |
@@ -1011,11 +1056,34 @@ The estimate below is for a render size of 1280 × 720, the headless default. A 
 | Bloom, tone map | 0.47 | Output | 0.47 | Unchanged |
 | SMAA | 0.16 | Deleted | 0 | |
 | Outlines, capture | 0.04 | Output | 0.04 | Unchanged |
-| The frame | 15.2 | | 7.1 to 10.0 | The sum |
+| The frame | 15.2 | | 7.3 to 10.6 | The sum |
 
 The tracer's guess rests on two times of today: the sector pass takes 1.60 ms for the 518,400 half-size pixels at 1080p, and the reflection trace 0.14 ms. The tracer at 1280 × 720 traces about 230,400 block rays of each kind, plus the own rays.
 
-At a scale of 1, the render-size passes cost 2.25 times as much: 8.2 to 12.6 ms. The frame then takes 11.6 to 17.0 ms. So on demo-exit, the controller settles at a scale between about 0.9 and 1. If the high end holds, ticket 6 finds the passes over their share. Ticket 6 then decides what to cut before any default changes.
+At a scale of 1, the render-size passes cost 2.25 times as much: 8.6 to 13.9 ms. The frame then takes 12.1 to 18.4 ms. So on demo-exit, the controller settles at a scale between about 0.87 and 1. If the high end holds, ticket 6 finds the passes over their share. Ticket 6 then decides what to cut before any default changes.
+
+### How each ticket measures its part
+
+Every measurement runs in Release on the M1 Max, under the GPU lock `/tmp/tertius-gpu-measure.lock`. It follows the recipe of `ter-8bda`, which [environment-map-distances.md](environment-map-distances.md), "The measurement plan", writes out:
+
+1. Build three binaries: the base, which is main at the branch's merge base, a byte copy of the base as the control, and the branch.
+2. Run 7 interleaved rounds of demo-exit's deck and floor windows of 120 frames, in a rotated order of base, control and branch. Record the 1-minute load at each start.
+3. Report the median frame span and each pass's mean from `gpu-timings.json`. The control's distance from the base is the noise.
+4. For a pass's own time, take three interleaved traces, base, branch and base, with `tools/gpu-trace.sh --no-counters`. For a cost below the drift between runs, use its paired mode.
+
+A ticket that lands before ticket 5 runs at an output of 1280 × 720 under `NoUpscaling`, the budget's render size. After ticket 5, the runs take an output of 1920 × 1080 and `FixedRenderScale(2 / 3)`.
+
+| Ticket | What it measures | Against |
+|---|---|---|
+| 1 | FSR's dispatches from 1280 × 720 to 1920 × 1080, by GPU timestamps around `Record` in its GPU test | 1.0 to 2.0 ms |
+| 2 | The G-buffer with the motion target, and the surface test | 0.22 ms and 0.10 ms |
+| 3 | Light candidates, direct light and accumulate direct, on demo-exit and `lamp-hall-64`. ReSTIR's bias against `EveryLight` | 0.5 to 1.2 ms, and 0.15 to 0.30 ms |
+| 4 | The screen trace and the two accumulations, against the passes that it deletes | 0.8 to 1.7 ms, and 0.20 to 0.40 ms |
+| 8 | The corrected read's cost in the screen trace and the transparent pass | 0.2 to 0.6 ms |
+| 5 | The frame, and the controller's scale in a window run of demo-exit that logs it | 7.3 to 10.6 ms, and a scale from about 0.87 to 1 |
+| 6 | Every pass at the scales 2/3 and 1 | 15.0 ms for the frame |
+
+Ticket 7 measures no time, because lavapipe's times say nothing about a GPU.
 
 Memory, at an output of 1920 × 1080 with the largest render scale of 1. An RGBA16F image of that size takes 16.6 MB.
 
@@ -1060,62 +1128,65 @@ The docs to edit. Each ticket edits ARCHITECTURE.md as its last step, by the pro
 | "Local shadows" | The stochastic taps | 5 |
 | "Ambient occlusion" and "Screen-space reflections" | The screen tracer replaces them. The part "The depth pyramid and the trace" moves into it | 4 |
 | [rendering-performance.md](rendering-performance.md) | Decision 8 is superseded | This ticket |
-| [screen-space-illumination.md](screen-space-illumination.md), [screen-space-reflections.md](screen-space-reflections.md) | A note at the top: superseded by this design. Decisions 13, 39 and 41 of the first stay in force through it | 4 |
+| [screen-space-illumination.md](screen-space-illumination.md), [screen-space-reflections.md](screen-space-reflections.md) | A note at the top: superseded by this design. Decisions 13, 39 and 41 of the first stay in force through it. Its decision 30, exactly one bounce, gives way to decision 17 | 4 |
+| "Impostors" | A billboard writes its instance's light mark | 4 |
+| "The environment map" | The corrected read in every reader of the map's specular term | 8 |
+| [environment-map-distances.md](environment-map-distances.md) | A note at the top: the corrected read serves the tracer's reflection misses and the forward passes (decision 35). Its decision 8 gives way to this design | 8 |
 | `THIRD-PARTY-NOTICES.md` | AMD's notice. SMAA's notice goes | 1, 5 |
 | `tools/README.md` | `tools/fsr3-golden/` | 1 |
 | rendering-performance.md, "The techniques" and "Out of scope" | Their mentions of decision 8 and of dynamic resolution point to this design | 5 |
 
 ## 13. The fate of open tickets
 
-The fates use five words:
+On 2026-11-03 the user closed 26 tickets of the renderer before this design, as superseded by epic `ter-89xq` and without their work merged (main's commit 9dd66085f). They are `ter-sglu`, `ter-pq5y`, `ter-b2da`, `ter-0saa`, `ter-16vv`, `ter-3g1g`, `ter-5aak`, `ter-8hk9`, `ter-bsxh`, `ter-bytc`, `ter-ch7z`, `ter-cklj`, `ter-coy0`, `ter-efa0`, `ter-enb1`, `ter-g6af`, `ter-htg7`, `ter-ikm1`, `ter-ku9c`, `ter-nw4a`, `ter-olhk`, `ter-pn1w`, `ter-prio`, `ter-s6zr`, `ter-u102` and `ter-ww0h`. Four of their last notes carry an idea forward, and section 14 puts each into the build ticket that takes it:
 
-- Superseded: the design deletes or replaces what the ticket changes. The named ticket closes it at its merge.
-- Absorbed: a ticket of this design does its work.
-- Kept: it stays as it is. A note says what changes around it.
-- Waits for the user: the user cancelled it on 2026-11-02, and its branch stays. The user decides whether it starts again.
+| Closed ticket | The idea | Build ticket |
+|---|---|---|
+| `ter-s6zr` | The corrected read: a ray that misses the screen reads the map where it ends. Branch `ter-s6zr-corrected-read` at 570fdbbf8 | 8 |
+| `ter-coy0` | A lamp that draws as an impostor billboard must send its light once to what reads the lit image | 4 |
+| `ter-ch7z` | The bloom's width follows the output size | 5 |
+| `ter-htg7` | The split of the render size from the output size on branch `experiment-fsr1` at 3be9aef99 | 5 |
+
+The fates of the rendering tickets that stay open use three words:
+
+- Kept: it stays as it is. The reason says what changes around it.
+- Changed: it stays, but its text or its dependencies no longer match this design. The reason gives the edit.
 - Later: a ticket of this epic after the order of work.
 
 This list proposes the fates. This ticket edits no other ticket.
 
 | Ticket | Subject | Fate | Reason |
 |---|---|---|---|
-| `ter-b2da` | Screen-space artifacts, an epic | Superseded by ticket 4 | Its reflections and screen-space light are deleted. Its kept children stand alone. |
-| `ter-nw4a` | A reflected outline shows as pixel stairs | Superseded by ticket 4 | The reflection's upsample is deleted. Its branch is not merged. |
-| `ter-cklj` | A rough curved mirror keeps a sharp reflection | Superseded by ticket 4 | GGX rays sample the lobe. The mirror and cone estimate is deleted. |
-| `ter-5aak` | The open share's ratio over 3 slices | Superseded by ticket 4 | The sectors are deleted. |
-| `ter-8hk9` | The sectors pass skips map reads | Superseded by ticket 4 | The same. |
-| `ter-olhk` | The reflection passes skip a frame with no reflection | Superseded by ticket 4 | A block traces a reflection ray only for a pixel that starts one, so such a frame traces none. |
-| `ter-16vv` | A slab entry exactly at a segment's end | Waits for the user | `traceScreen` keeps today's trace, so the tie stays. Its worktree keeps uncommitted changes. |
-| `ter-s6zr` | The corrected read of the map | Waits for the user | After ticket 4, its readers are the tracer's misses and the forward passes. Its branch can move onto them. |
-| `ter-g6af` | The captures of the corrected read | Follows `ter-s6zr` | |
-| `ter-coy0` | An impostor lamp's glow in the reflections and the bounce | Waits for the user | The tracer's hits apply `glowSent`, as section 6 says. Its fork waits for the user. |
-| `ter-ikm1` | Rename `PixelPlane` and `PixelSurface` | Kept, before ticket 4 | The tracer keeps these types. |
-| `ter-pn1w` | Each map face keeps the eye that drew it | Kept | The tracer's misses read the maps as today's readers do. |
-| `ter-pq5y` | Rendering performance, an epic | Kept | Decision 8 is superseded. Its goal of 12 ms at a render size of 1080p gives way to the budget of section 11. |
-| `ter-3g1g` | The whole frame in 12 ms at 1080p | Superseded by ticket 6 | Section 11's budget replaces it. |
-| `ter-prio` | The other passes within their share | Kept | Its built changes to the passes that stay keep their value at the render size. Its shares come from the old budget. |
-| `ter-ww0h` | Measure the work of lamps that walls block | Superseded by ticket 3 | ReSTIR's cost does not grow with the lamps. Ticket 3 measures its bias at walls. |
-| `ter-0saa` | Drop a shadowed lamp per tile | Superseded by ticket 3 | The visibility reuse drops a shadowed choice at each pixel. |
-| `ter-htg7` | Merge the FSR 1 experiment | Superseded by tickets 1 and 5 | FSR 3.1 replaces FSR 1. Its findings feed section 5, and its branch is not merged. |
-| `ter-ch7z` | The bloom's width follows the output size | Absorbed by ticket 5 | The bloom runs after FSR. |
-| `ter-efa0` | Async compute | Kept | |
-| `ter-g25a`, `ter-ku9c`, `ter-u102` | Questions about gpu-trace | Kept | Ticket 6 uses gpu-trace. |
-| `ter-bsxh` | The map's closed-form fill of later bounces | Kept | It closes the gap that option B of the open question leaves. |
-| `ter-1r63` | Specular anti-aliasing without temporal filtering | Kept | FSR now filters over time, so the title's condition no longer holds. Normal maps still flicker under FSR. |
-| `ter-p349` | Volumetric light | Kept | It can now use the accumulator. |
-| `ter-vcfa`, `ter-80o1`, `ter-m24j` | Panel lights | Kept | Section 7 fits them into ReSTIR. |
-| `ter-u5be` | A light cutoff that knows the specular peak | Kept | The light list's reach serves both cases of `DirectLight`. |
-| `ter-qi9z` | Unshadowed lamps light through walls | Kept | ReSTIR keeps the leak of an unshadowed lamp. |
-| `ter-7l43`, `ter-d7rb`, `ter-esoe` | The stars' light | Kept | The tracer's misses read the map and the reflected stars. `ter-esoe` matters more below a scale of 1 (section 5). |
-| `ter-enp7` | A camera cut in the map's snapshot | Kept | Ticket 2 adds `CameraCuts`, which it can read. |
-| `ter-h1z6` | An impostor's geometric normal | Kept | It matters more: the surface test reads the geometric normal. |
+| `ter-13rm` | A world-space radiance cache | Later, after ticket 4 | With `ter-bsxh` closed, it alone closes the gap between the screen's many bounces and the map's single bounce (section 6). It needs a design of its own. |
+| `ter-hdbw` | FSR 3.1's frame generation | Later, after ticket 5 | Decision 2. |
+| `ter-7khp` | Time-sliced maps and far cascades | Later, after ticket 6 | Decision 11. |
 | `ter-kzj3` | Vulkan on Linux | Kept | Ticket 1's lavapipe run needs its first step, and ticket 7 needs it. |
-| `ter-rtxu` | Renderer snapshot tests | Kept | Its references come again after ticket 5. |
-| `ter-hdbw` | FSR 3.1's frame generation | Later | After ticket 5. |
-| `ter-13rm` | A world-space radiance cache | Later | After ticket 4. |
-| `ter-7khp` | Time-sliced maps and far cascades | Later | After ticket 6. |
+| `ter-1r63` | Specular anti-aliasing for normal-mapped assets, on top of FSR 3.1 | Kept | Its new title matches this design. After the asset pipeline, it decides whether the normal maps still need their variance filter under FSR. |
+| `ter-7gtc` | Rendering after the asset pipeline, an epic | Changed | Its text says that its tickets keep decision 8, which no longer holds. Its tickets can use FSR and the accumulator. Its dependency on the closed `ter-sglu` is met. |
+| `ter-p349` | Volumetric light | Changed | Its text rules out temporal reprojection by decision 8. Now it can reproject over frames, and FSR averages its jitter. Its design decides whether its froxels follow the accumulator's rules. |
+| `ter-80o1` | Panel lights, an epic | Changed | It waits for `ter-pq5y` and `ter-htg7`, which closed without their work. The user's order put it after FSR and the performance work, so those two dependencies move to tickets 5 and 6. Section 7 fits the LTC formula into ReSTIR. |
+| `ter-vcfa` | The design of panel lights | Changed | The same two dependencies move to tickets 5 and 6. Its design reads section 7, "Panel lights". |
+| `ter-m24j` | A cabin panel lamp in a mirror | Kept | The tracer's hits keep a lamp's glow dark (decision 36). So a mirror shows the light's small sphere until the panel lights. |
+| `ter-u5be` | A light cutoff that knows the specular peak | Kept | The light list's reach serves both cases of `DirectLight`. |
+| `ter-qi9z` | Unshadowed lamps light through walls | Kept | ReSTIR keeps the leak of an unshadowed lamp, because its visibility comes from the shadow maps. Its dependency on the closed `ter-0saa` is met. |
+| `ter-7l43`, `ter-d7rb` | The stars' diffuse and reflected light | Kept | The tracer's misses read the map and the reflected stars as today's readers do. |
+| `ter-esoe` | Stars defined by their light | Kept | It matters more, because a star of one pixel can fall between samples below a scale of 1 (section 5). |
+| `ter-enp7` | A camera cut in the map's snapshot | Kept | Ticket 2 adds `CameraCuts`, which it can read. |
+| `ter-h1z6` | An impostor's geometric normal | Kept | It matters more: the surface test and the resolve's test of a block ray's plane read the geometric normal. Ticket 4 also changes `impostor.frag`, for the light mark. |
+| `ter-c8ab` | Sunlight in the impostor captures of a closed hull | Kept | The captures do not change. |
+| `ter-2o8j` | Cull small objects in the map's faces | Kept | The faces do not change. |
+| `ter-28vm` | Whether an invisible entity casts a shadow | Kept | The shadow maps do not change. |
+| `ter-bdt3`, `ter-egcv`, `ter-fu8n` | The shadow tiles' holders and the slope bias | Kept | The shadow maps do not change, and the stochastic taps read the same maps. |
+| `ter-qril` | An invalid layout barrier after a frame that throws | Kept | The map's prefilter does not change. |
+| `ter-rtxu` | Renderer snapshot tests, an epic | Changed | Its dependency on the closed `ter-sglu` is met. The frame's defaults change until ticket 6, so it moves after ticket 6, and its references come from the new defaults. |
+| `ter-ed76`, `ter-g25a` | gpu-trace's counter traces and its leftover recordings | Kept | Ticket 6 traces with gpu-trace. `ter-g25a` stays open with no parent, and its dependency on the closed `ter-b2da` is met. |
+| `ter-viyi` | Encode captures off the render thread | Kept | The capture does not change. |
+| `ter-hadv` | Two late storage-image checks | Changed | Ticket 4 deletes `OcclusionImages`, with its check and `OcclusionImagesTests`. So the ticket keeps only the check of the depth tail. |
+| `ter-c4eb` | Descriptor pool needs from one schema of the bindings | Kept | Tickets 2 to 5 add four image owners and delete `SmaaTargets`. If it lands first, the new owners follow its schema. |
+| `ter-gnwg` | One upload entry for each mesh and its deformation | Kept | Ticket 2 keeps the deformed positions in `DeformPass`, not in the upload queue. |
+| `ter-e3xg` | Planet surfaces with terrain, a design | Kept | Its far patches draw as impostors, which this design keeps. |
 
-These open rendering tickets do not change: `ter-28vm`, `ter-2o8j`, `ter-bdt3`, `ter-c8ab`, `ter-ed76`, `ter-egcv`, `ter-enb1`, `ter-fu8n`, `ter-hadv`, `ter-qril` and `ter-viyi`.
+The list matches the `.tickets` folder on 2026-11-03. It holds every open ticket with the tag `rendering`, and every open ticket that names code in `src/Tertius.Rendering`. Content tickets outside the renderer do not change, for example `ter-trz2`, the cracks in the demo's geometry, and the asset pipeline's tickets under `ter-kge6`.
 
 ## 14. The order of work
 
@@ -1126,7 +1197,9 @@ flowchart LR
     T2[2. Motion vectors, the frame history, the surface test] --> T3[3. The direct signal and ReSTIR DI]
     T3 --> T4[4. The screen tracer]
     T4 --> T5[5. FSR 3.1 in the frame, with dynamic resolution]
+    T4 --> T8[8. The corrected read in the misses]
     T5 --> T6[6. The budget and the defaults]
+    T8 --> T6
     T5 --> T7[7. The Linux run]
     K --> T7
     T5 --> HD[ter-hdbw]
@@ -1137,12 +1210,24 @@ flowchart LR
 | # | Ticket | Sections | What the user sees | Depends on |
 |---|---|---|---|---|
 | 1 | FSR 3.1's source, build and host | 5 | Nothing: FSR runs only in its tests | `ter-kzj3`'s first step, for the lavapipe run |
-| 2 | Motion vectors, the frame history and the surface test | 3, 8 ("The surface test") | Nothing | None |
+| 2 | Motion vectors, the frame history and the surface test | 3, 8 ("The surface test") | Nothing. Its result is the measured time of the G-buffer and the surface test | None |
 | 3 | The direct signal: the accumulator, the composite, ReSTIR DI and the still rule | 7, 8, 9 ("The composite"), 10 ("The still rule") | Direct light of many lamps at a lower cost. Its noise settles over a few frames | 2 |
-| 4 | The screen tracer | 6, 12 | Reflections on every surface up to roughness 0.5, the demo's paint included. Bounce light from the whole screen | 3 |
-| 5 | FSR 3.1 in the frame, with dynamic resolution | 4, 5, 9, decision 33 | FSR's anti-aliasing and upscaling. SMAA goes, and the controller holds the frame time | 1, 4 |
-| 6 | The budget and the defaults | 11 | The tuned parameter sets and controller | 5 |
+| 4 | The screen tracer | 6, 12 | Reflections on every surface up to roughness 0.5, the demo's paint included. Bounce light from the whole screen, with many bounces | 3 |
+| 5 | FSR 3.1 in the frame, with dynamic resolution | 4, 5, 9, decision 34 | FSR's anti-aliasing and upscaling. SMAA goes, and the controller holds the frame time | 1, 4 |
+| 6 | The budget and the defaults | 11 | The tuned parameter sets and controller | 5, 8 |
 | 7 | The Linux run | "Portable Vulkan" | Nothing on the Mac | 5, `ter-kzj3` |
+| 8 | The corrected read in the misses | 6 ("Misses"), decision 35 | A reflection that leaves the screen shows the near room where it stands, for example the terminal's sunlit door in its floor | 4 |
+
+Each ticket's acceptance, beyond the end that every build ticket shares (below):
+
+1. Ticket 1 pins the GLSL of v1.1.4 with AMD's notices, and its README records the comparison with 3.1.5 and 3.1.6. The dev shell builds the shaders with `FFX_HALF=0` and `FFX_SPD_NO_WAVE_OPERATIONS=1`, and `spirv-val` passes. The format defect is resolved by the order of section 5. Each host value equals the golden value of `tools/fsr3-golden/`. A GPU test upscales a known input under the validation layer with no message, on MoltenVK and on lavapipe. The ticket measures FSR's time.
+2. Ticket 2 adds `EntityGeneration`, `PreviousScale` and `CameraCuts` to the snapshot. It adds `FrameHistory.Begin` with the reset rules, the placement history, the kept deformed positions, the motion target and the surface test. Section 10's rows for `FrameHistory`, the placement history, the motion vectors and the surface test pass.
+3. Ticket 3 adds `TemporalSignal`, `CompositePass`, ReSTIR's light table, reservoirs and two passes, `WarmUpFrames` and the still rule. Its first measured result is ReSTIR's noise and bias on `lamp-hall-64` and demo-exit's deck, against `EveryLight`. One light gives the exact light. The screenshots show `lamp-hall-64` and the deck before and after.
+4. Ticket 4 adds the tracer's three dispatches, both ray kinds, the ray budget, the plain misses and the many bounces of the hits. Its first measured result is the trace's time at 1280 × 720, before any deletion. If that time exceeds the budget's 1.7 ms, the ticket reports to the user before it goes on. `impostor.frag` writes its instance's light mark (decision 36, from the closed `ter-coy0`). The ticket makes the deletions of section 12, and `ScreenTrace` replaces `ScreenSpaceLight` and `Reflections`. Section 10's tracer rows pass. The screenshots show the deck's paint and a room's bounce light.
+5. Ticket 5 adds the largest render size with its active part, the controller, and `Upscaling` in place of `AntiAliasing`. It adds FSR's masks and exposure step, the stochastic taps (decision 34) and the mip bias in the frame constants. It starts from the split of `RenderTargets.Extent` from `OutputExtent`, the stage Upscale and `FrameContext.RenderResult` on branch `experiment-fsr1` at 3be9aef99 (from the closed `ter-htg7`). Bloom, the tone map and the outlines move after FSR, at the output size. So the glow's width follows the output size (from the closed `ter-ch7z`). SMAA goes. The controller's CPU tests and section 10's FSR rows pass. The screenshots show demo-exit at a scale of 2/3 against today's native image.
+6. Ticket 6 measures every pass at the scales 2/3 and 1, against section 11. It tunes the parameter sets, `ClampSigmas` and `AntiLagShare` on captures, among them a lamp that switches on (section 6). If the frame exceeds 15.0 ms at the controller's scale, the ticket asks the user what to cut before any default changes.
+7. Ticket 7 runs every GPU test on lavapipe and on the Linux drivers, under the validation layer with synchronization validation, with no message.
+8. Ticket 8 ports the corrected read from branch `ter-s6zr-corrected-read` at 570fdbbf8 (from the closed `ter-s6zr`): `mapHit`, the corrected `environmentSpecular`, `ShadingInput.position` and the twin test of `MapSearch`. Every reader of `environmentSpecular` after ticket 4 takes it, and a diffuse miss keeps its plain read (decision 35). The branch also holds the one owner of the lobe's cone of the closed `ter-bytc`. Ticket 4 deletes the reflections' cone, so that owner keeps only the search's use. Section 10's rows for the corrected read pass, each red first. The ticket measures its cost by section 11. The screenshots show the terminal floor, the floor film and pbr-spheres before and after.
 
 Each reason for the order:
 
@@ -1152,6 +1237,9 @@ Each reason for the order:
 4. Ticket 4 comes before ticket 5. So no pass that ticket 4 deletes ever needs the active part of dynamic resolution.
 5. Ticket 5 lands FSR and dynamic resolution together, as decision 2 asks. Until then, every frame draws at the output size under `NoUpscaling`, with SMAA.
 6. The still rule lands in ticket 3, with the first default that accumulates. From then on, every headless still warms up.
+7. Ticket 8 follows ticket 4, because the tracer's reflection misses are its main reader. It changes only the map's read, so it runs beside ticket 5. Ticket 6 waits for it, because its cost belongs in the budget.
+
+The three riskiest unknowns come first. FSR 3.1 on MoltenVK and lavapipe is ticket 1, which starts at once. ReSTIR's noise in direct light is ticket 3's first measured result, and the tracer's cost on the M1 Max is ticket 4's.
 
 Each build ticket ends as the project asks: its tests of section 10, its coverage and mutation testing, its edits of section 12, the Release tests, and screenshots for the user.
 
@@ -1175,9 +1263,9 @@ Ticket 1 lists the SPIR-V capabilities of AMD's modules and the storage images t
 
 ## Known limits
 
-1. The screen shows only what it shows. Light from hidden and off-screen surfaces comes from the environment maps, with their capture's parallax (decision 3).
+1. The screen shows only what it shows. Light from hidden and off-screen surfaces comes from the environment maps (decision 3). After ticket 8, a reflection miss reads the map where its ray ends (decision 35). A diffuse miss, and a rough reflection above 0.5 that reuses it, keep the capture's parallax.
 2. A surface fills 10 % of its view depth behind it. A ray that passes behind a thicker object counts as a miss, so a little light leaks behind it.
-3. A history lags a change of light by up to its cap: 32 frames, about 0.5 s, for the diffuse signal. The anti-lag shortens the lag, but a fading lamp still fades over a few frames in the bounce light.
+3. A history lags a change of light. The first bounce lags by up to the diffuse cap, 32 frames, about 0.5 s. The later bounces pass through the history again, so their lag compounds. Their gap shrinks by e every 32 / (1 − g) frames: 1.1 s at g = 0.5 and 2.7 s at g = 0.8 (section 6). A still of 32 warm-up draws shows 90 to 95 % of the settled light at g = 0.5, and 57 to 66 % at g = 0.8. The anti-lag shortens the lag only where the fast history's box catches a change, and a noisy diffuse sample widens the box.
 4. The reflected place is exact only for a flat mirror that does not move (section 8).
 5. A disoccluded pixel shows noise for its first frames, at the edges of moving objects. The own rays and the fix limit it to about 8 frames.
 6. ReSTIR's choices trade a measured bias for speed (section 7).
@@ -1186,6 +1274,9 @@ Ticket 1 lists the SPIR-V capabilities of AMD's modules and the storage images t
 9. Two GPUs or drivers give images that differ in their last bits (section 10).
 10. The design takes about 0.5 GB more memory at a 1080p output (section 11).
 11. Under `NoUpscaling`, the main view takes all 16 shadow taps. So the GPU tests with the zero cases do not see the noise of the stochastic taps. Ticket 5's tests cover the taps under `Fsr3Upscaling`.
+12. The screen shows many bounces, and the map's faces hold one. A wall that leaves the screen falls back to the map's single bounce. So a bright room dims a little when the camera turns away from its walls. Its indirect light then loses up to the share g that the later bounces hold. Only `ter-13rm` closes this gap, because `ter-bsxh` closed without its work.
+13. The clamp's bias compounds through the bounces. The model of section 6 takes a skewed noise of 100 % per sample. The settled light is then about 1 % low at g = 0.5 and 2 % low at g = 0.8.
+14. A hit on a lamp's impostor billboard brings no light, also not the light of the lamp's lit housing (decision 36).
 
 ## Sources
 
