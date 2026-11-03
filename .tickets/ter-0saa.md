@@ -1,6 +1,6 @@
 ---
 id: ter-0saa
-status: open
+status: closed
 deps: [ter-ww0h, ter-b2da]
 links: []
 created: 2026-11-01T18:38:04Z
@@ -18,3 +18,9 @@ ter-ww0h's measurement (2026-11-01, review pending on its branch c2c39308): 40.0
 
 The image is unchanged under the share tickets' image rule. The direct light pass's saving is measured on demo-exit with traces of every frame, against ter-ww0h's bound. A test pins that a tile with one lit pixel keeps its lamp.
 
+
+## Notes
+
+**2026-11-03T12:35:13Z**
+
+Closed on 2026-11-03 at the user's request, without its work merged: it belongs to the pre-temporal renderer (spatial reuse, the 12 ms performance push, or the old reflection and bounce pipeline), and epic ter-89xq, the temporal renderer, supersedes it. Its notes and any branch or worktree stay for reference.

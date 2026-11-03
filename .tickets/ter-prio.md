@@ -1,6 +1,6 @@
 ---
 id: ter-prio
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-11-01T02:14:19Z
@@ -29,3 +29,7 @@ These passes' own busy time on demo-exit (a trace of every frame, two runs or a 
 **2026-11-01T18:14:47Z**
 
 2026-11-01: the orchestrator stopped workflow run 06ca6f7f at the start of its review, by the pause of ter-pq5y (docs/plans/screen-space-artifacts.md, decision 4). The build finished at 2bfec0f2 with done=true: the image-keeping changes are used up at 2.90 to 3.20 ms against the share of 2.00 ms. A later continuation runs the review and the fix from that head, then the hardening and the merge. The captures moved to the main checkout's captures/ter-prio-bloom-levels (the Bloom Levels 4 candidate for ter-3g1g) and captures/ter-prio-final. Two items for that continuation's reviewer: GeometryPass.ClearDepth binds sets 0 to 2 again after vkCmdClearAttachments, because MoltenVK loses the bound descriptor sets there (the spec says the clear changes no bound state); and the async compute estimate became its own ticket.
+
+**2026-11-03T12:35:13Z**
+
+Closed on 2026-11-03 at the user's request, without its work merged: it belongs to the pre-temporal renderer (spatial reuse, the 12 ms performance push, or the old reflection and bounce pipeline), and epic ter-89xq, the temporal renderer, supersedes it. Its notes and any branch or worktree stay for reference.

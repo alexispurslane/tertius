@@ -1,6 +1,6 @@
 ---
 id: ter-htg7
-status: open
+status: closed
 deps: [ter-b2da]
 links: []
 created: 2026-11-01T22:08:21Z
@@ -32,3 +32,8 @@ The user's decisions (2026-11-01): (1) FSR waits for the reflection work, so thi
 **2026-11-02T02:28:35Z**
 
 2026-11-01: epic ter-b2da now also holds ter-8bda (the 0.37 limit) and ter-gf0t (the sized light's highlight), and no longer ter-rnjk (not built, the user's decision). FSR still merges after the epic.
+
+**2026-11-03T12:35:22Z**
+
+Closed on 2026-11-03 at the user's request, without its work merged: it belongs to the pre-temporal renderer, and epic ter-89xq, the temporal renderer, supersedes it. Its notes and any branch or worktree stay for reference.
+Carry forward: FSR 3.1 replaces FSR 1. The branch experiment-fsr1 (head 3be9aef99) holds a split of the render size from the output size that the temporal design can reuse.

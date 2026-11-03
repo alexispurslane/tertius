@@ -1,6 +1,6 @@
 ---
 id: ter-g6af
-status: open
+status: closed
 deps: [ter-s6zr]
 links: []
 created: 2026-11-02T12:51:56Z
@@ -20,3 +20,7 @@ Ticket 4 of ter-jw7g's design (docs/plans/environment-map-distances.md, 'Ticket 
 **2026-11-02T14:23:54Z**
 
 2026-11-02, from ter-0pj8's fix: (1) The near sample t0 = 1/64 stays for every N of the measurement plan, so a pixel reads at most N + K + 1 times. (2) An Illinois step (halve the kept end's clearance when the same end is kept twice) cut the near bracket's edge error from up to about 3 level-0 texels to about 1 to 2.4 in the fixer's Python port, at the same 12 reads. It changes decision 15, so it was not built. Measure it here beside the plain regula falsi, and report the box numbers and the cost of both for the user's choice.
+
+**2026-11-03T12:35:12Z**
+
+Closed on 2026-11-03 at the user's request, without its work merged: it belongs to the pre-temporal renderer (spatial reuse, the 12 ms performance push, or the old reflection and bounce pipeline), and epic ter-89xq, the temporal renderer, supersedes it. Its notes and any branch or worktree stay for reference.

@@ -1,6 +1,6 @@
 ---
 id: ter-olhk
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-11-02T08:33:55Z
@@ -18,3 +18,9 @@ Found by ter-8bda's measurement (2026-11-02). With the default SSR roughness lim
 
 In a frame with no reflecting pixel, the reflection passes record no work, and the image is unchanged (a test of a scene of rough floors only). In a frame with one reflecting pixel, every pass runs. On the demo's deck and floor windows, by interleaved runs with a control, the reflection passes' sum falls by about the measured 1.79 and 2.02 ms, and the report gives the drop of the median frame span beside it (ter-8bda measured 1.70 and 0.61 ms for a similar removal). Checked and Release tests pass; ARCHITECTURE.md describes the skip.
 
+
+## Notes
+
+**2026-11-03T12:35:13Z**
+
+Closed on 2026-11-03 at the user's request, without its work merged: it belongs to the pre-temporal renderer (spatial reuse, the 12 ms performance push, or the old reflection and bounce pipeline), and epic ter-89xq, the temporal renderer, supersedes it. Its notes and any branch or worktree stay for reference.

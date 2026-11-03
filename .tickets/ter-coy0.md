@@ -1,6 +1,6 @@
 ---
 id: ter-coy0
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-11-02T20:04:22Z
@@ -24,3 +24,8 @@ Found by the review of ter-b1j3 (2026-11-02). impostor.frag writes the light mar
 **2026-11-03T00:51:43Z**
 
 Cancelled by the user on 2026-11-02, to take stock of the rendering work. The run 79202d58 ended at its fork before the cancel, and the fork waits for the user. The branch ter-coy0-impostor-lamp-glow holds only the ticket note, 5569cfe97.
+
+**2026-11-03T12:35:22Z**
+
+Closed on 2026-11-03 at the user's request, without its work merged: it belongs to the pre-temporal renderer, and epic ter-89xq, the temporal renderer, supersedes it. Its notes and any branch or worktree stay for reference.
+Carry forward: a light source drawn twice, as a lamp's light and as a glowing surface that the screen shows, can count twice in anything that reads the lit image. The temporal design's tracer reads the lit image for its hits, so it needs the same rule that glowSent and the light mark give today.

@@ -1,6 +1,6 @@
 ---
 id: ter-bytc
-status: open
+status: closed
 deps: []
 links: [ter-s6zr]
 created: 2026-11-02T14:10:07Z
@@ -20,3 +20,7 @@ Found in the review of ter-0pj8 (2026-11-02). Two types own the cone that stands
 **2026-11-02T15:19:23Z**
 
 2026-11-02, the user's choice between two designs: one cone, SSR's width. ReflectionCone owns the specular lobe's cone (tan of the half angle = TangentPerAlpha · α, TangentPerAlpha = 1.7602 from Uludag's share), and the map search reads it, with SSR's level rule: the level whose texel side equals the cone's radius as the eye sees it. MapSearch.ConeWidthPerAlpha (2.57, the full width at half maximum) goes away. No SSR image changes; the search's distance reads become about half a level sharper, and ter-g6af measures the effect. Rejected: two cones with a recorded reason. Built inside ter-s6zr, which writes the GLSL twin of the search, so that the C# and GLSL searches change together. This ticket closes when ter-s6zr merges.
+
+**2026-11-03T12:35:12Z**
+
+Closed on 2026-11-03 at the user's request, without its work merged: it belongs to the pre-temporal renderer (spatial reuse, the 12 ms performance push, or the old reflection and bounce pipeline), and epic ter-89xq, the temporal renderer, supersedes it. Its notes and any branch or worktree stay for reference.

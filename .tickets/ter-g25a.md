@@ -7,7 +7,6 @@ created: 2026-11-01T13:09:14Z
 type: task
 priority: 1
 assignee: Alexis Purslane
-parent: ter-pq5y
 tags: [rendering, performance, tools]
 ---
 # gpu-trace: delete the recording that xctrace leaves in the temporary folder after each run
@@ -17,3 +16,9 @@ Found on 2026-11-01. Each xctrace record leaves a file $TMPDIR/instruments*.ktra
 ## Acceptance Criteria
 
 After a gpu-trace.sh run, with or without a failure, no instruments*.ktrace file of that run stays in the system's temporary folder, and run.trace stays only with --keep. tools/README.md 'GPU trace' says so.
+
+## Notes
+
+**2026-11-03T12:35:27Z**
+
+On 2026-11-03 its epic ter-pq5y closed as superseded by the temporal renderer. This tool fix stays valid for every gpu-trace run, so it stays open with no parent.

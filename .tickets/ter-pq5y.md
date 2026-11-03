@@ -1,6 +1,6 @@
 ---
 id: ter-pq5y
-status: in_progress
+status: closed
 deps: [ter-nydu, ter-izsu, ter-ff6y, ter-of1p, ter-3g1g, ter-okrp, ter-19fm]
 links: []
 created: 2026-10-25T22:29:46Z
@@ -44,3 +44,7 @@ Paused on 2026-11-01 by the user's decision: correct reflections and screen-spac
 **2026-11-01T18:30:34Z**
 
 Ruling on condition 2 of the image rule (orchestrator, 2026-11-01, asked for by ter-rjts's fix stage). A pixel counts as shown to lie on a knife edge when a probe places it on the boundary where the pass under test switches between two ways of computing it, for example the edge of the upsample's own-ray region, and its two candidate values there differ by about as much as the moved pixel. The probe need not reproduce the base's exact value. Applied to ter-rjts's change 1 (the own-ray list): unbelt (1136, 493), 19 levels with SMAA off, is shown directly (the base's blend equals the pixel's own ray, the head's blend does not). Unbelt (1043, 670), 7 levels, is a blended pixel at the own-ray region's edge, and its blend and its own ray lie within a level of each other in the head. Both are isolated, the other 2.07 million pixels and the other 25 captures are unchanged, and the 10x crops show no difference. So change 1 keeps the image and stays in ter-rjts.
+
+**2026-11-03T12:35:12Z**
+
+Closed on 2026-11-03 at the user's request, without its work merged: it belongs to the pre-temporal renderer (spatial reuse, the 12 ms performance push, or the old reflection and bounce pipeline), and epic ter-89xq, the temporal renderer, supersedes it. Its notes and any branch or worktree stay for reference.

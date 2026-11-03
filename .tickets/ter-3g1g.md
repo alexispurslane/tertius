@@ -1,6 +1,6 @@
 ---
 id: ter-3g1g
-status: open
+status: closed
 deps: [ter-s9cv, ter-a24f, ter-jxv9, ter-nl5u, ter-6vhj, ter-izsu, ter-ff6y, ter-of1p, ter-nydu, ter-p1u7, ter-fhlb, ter-uqmn, ter-ox1a, ter-0y0z, ter-19fm, ter-qsye, ter-4xw0, ter-mfyv, ter-rjts, ter-pjza, ter-prio, ter-ww0h, ter-b2da]
 links: [ter-r5hb]
 created: 2026-10-25T22:29:46Z
@@ -73,3 +73,7 @@ C screen-space light   own  2.763  share  1.746  over  1.016
 D other                own  3.171  share  2.004  over  1.167
 
 Step 4 split into four tickets by group, so that the groups are cut in parallel: ter-mfyv (direct light), ter-rjts (depth pyramid and reflections), ter-pjza (occlusion passes and ambient light), ter-prio (the other passes and the gaps). This ticket keeps steps 5 and 6: measure again after they merge, lower a default only after the user sees the captures of the old and the new default, and write the budget table into ARCHITECTURE.md. The runs and the trace are in captures/gpu-3g1g on the main checkout, which git ignores.
+
+**2026-11-03T12:35:12Z**
+
+Closed on 2026-11-03 at the user's request, without its work merged: it belongs to the pre-temporal renderer (spatial reuse, the 12 ms performance push, or the old reflection and bounce pipeline), and epic ter-89xq, the temporal renderer, supersedes it. Its notes and any branch or worktree stay for reference.
