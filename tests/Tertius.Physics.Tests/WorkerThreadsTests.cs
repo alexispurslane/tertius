@@ -170,14 +170,18 @@ public sealed class WorkerThreadsTests
 public sealed class JoltThreadCountCollection;
 
 /// <summary>
-/// The number of native threads that a backend's Jolt job system starts. A backend passes its count to Jolt, so that Jolt
-/// never sizes its workers from the hardware. Each count of a backend allows one more thread, for a thread that the
-/// runtime starts in the meantime.
+/// A backend's Jolt worker threads, which never follow the hardware, and their count by unique thread IDs, which a thread
+/// that ends does not lower. On macOS nothing marks a Jolt worker, so a count allows one thread more, which the runtime can
+/// start. Linux, untried, counts alike (ter-zrk6).
 /// </summary>
 [Collection(nameof(JoltThreadCountTests))]
 public sealed class JoltThreadCountTests
 {
-    /// <summary>The flavor of <c>proc_pidinfo</c> that lists the kernel's unique thread IDs (sys/proc_info.h).</summary>
+    /// <summary>
+    /// The flavor of <c>proc_pidinfo</c> that lists the kernel's unique 64-bit thread IDs. It is private to XNU
+    /// (bsd/sys/proc_info_private.h), and the SDK's sys/proc_info.h leaves it out. If macOS changes the value, the IDs
+    /// fail to load or come out wrong.
+    /// </summary>
     private const int ProcPidListThreadIds = 28;
 
     [Fact]
@@ -216,9 +220,8 @@ public sealed class JoltThreadCountTests
 
     // The threads of the process that a backend with these options adds while it lives: the IDs present after it starts
     // and absent before, so that a thread that ends in the meantime, such as a worker of the disposed backend that the
-    // kernel still lists, lowers no count. Jolt names its workers on Linux and Windows only, so on macOS nothing tells a
-    // thread that the runtime starts in the meantime from a worker, and it counts too. The first backend of the process
-    // also initializes Jolt, so a backend built and disposed first keeps that out of the count.
+    // kernel still lists, lowers no count. The first backend of the process also initializes Jolt, so a backend built and
+    // disposed first keeps that out of the count.
     private static int ThreadsStartedBy(JoltBackendOptions options)
     {
         new JoltPhysicsBackend(new() { WorkerThreads = 1 }).Dispose();
