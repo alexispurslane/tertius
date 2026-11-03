@@ -83,12 +83,11 @@ internal sealed unsafe class DirectLightPass : RenderPass
         // Discarded, and still after this frame's candidates read it.
         barriers.Image(reservoirs.R1, ImageUse.ColorAttachment, discard: true);
         barriers.Flush(context.Vk, context.CommandBuffer);
-        var push = ResampledPush.Of(setting, context.History.DrawIndex);
         context.DrawSceneFullScreen(
             pipeline: pipeline,
             layout: layouts.ReservoirLayout,
             passSet: reservoirs.DirectSet,
-            push: push,
+            push: ResampledPush.Of(setting, context.History.DrawIndex),
             targets:
             [
                 (signal.Sample(0), AttachmentLoadOp.DontCare),

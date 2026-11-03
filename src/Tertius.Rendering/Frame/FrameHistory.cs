@@ -200,12 +200,7 @@ internal sealed class FrameHistory
     {
         Contract.Requires(draw >= 0 && draw < DrawsOf(step));
         bool still = IsStill(step);
-        bool reset =
-            drawn is not { } last
-            || last.CameraCuts != snapshot.CameraCuts
-            || last.OutputSize.Width != outputSize.Width
-            || last.OutputSize.Height != outputSize.Height
-            || (still && draw == 0);
+        bool reset = Resets(snapshot: snapshot, outputSize: outputSize, firstOfAStill: still && draw == 0);
         derived = new(
             Reset: reset,
             DrawIndex: reset ? 0 : lastDrawIndex + 1,
@@ -225,6 +220,17 @@ internal sealed class FrameHistory
         armed = true;
         return pending;
     }
+
+    /// <summary>
+    /// Whether a draw of <paramref name="snapshot"/> at <paramref name="outputSize"/> resets every history: the first drawn
+    /// frame, a change of the count of camera cuts or of the output size, or <paramref name="firstOfAStill"/>.
+    /// </summary>
+    private bool Resets(RenderSnapshot snapshot, Extent2D outputSize, bool firstOfAStill) =>
+        drawn is not { } last
+        || last.CameraCuts != snapshot.CameraCuts
+        || last.OutputSize.Width != outputSize.Width
+        || last.OutputSize.Height != outputSize.Height
+        || firstOfAStill;
 
     /// <summary>Whether a draw after a clock step of <paramref name="step"/> s is a still: the rule of decision 32.</summary>
     private bool IsStill(float step) => rule.Headless && (step == 0 || step >= MeteringStepSeconds);
@@ -261,11 +267,13 @@ internal sealed class FrameHistory
             CameraCuts: derived.CameraCuts,
             LightCount: pendingLightCount
         );
+
         // The lists change places, so a draw copies no placement or light and allocates none.
         (drawnPlacements, pendingPlacements) = (pendingPlacements, drawnPlacements);
         pendingPlacements.Clear();
         (drawnLights, pendingLights) = (pendingLights, drawnLights);
         pendingLights.Clear();
+
         lastDrawIndex = derived.DrawIndex;
         DrawnFrames++;
         armed = false;

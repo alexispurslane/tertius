@@ -13,7 +13,7 @@ namespace Tertius.Rendering;
 /// </remarks>
 internal sealed class LightReservoirs : IDisposable
 {
-    /// <summary>The format of a reservoir.</summary>
+    /// <summary>A reservoir's texel: x the chosen light in the low 16 bits and M in the high 16, y the bits of W (restir.glsl).</summary>
     public const Format ReservoirFormat = Format.R32G32Uint;
 
     private readonly VulkanDevice device;

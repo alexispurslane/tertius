@@ -168,30 +168,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
             );
             surfaceHistory = CreateSurfaceHistory();
             // Before the occlusion images, whose bounce source reads the direct signal's slow diffuse history.
-            DirectSignal = Own(
-                new TemporalSignal(
-                    device: device,
-                    allocator: Allocator,
-                    layouts: layouts,
-                    shaders: shaders,
-                    targets: targets,
-                    surfaces: surfaceHistory,
-                    parameters: SignalParameters.Direct(options),
-                    name: "direct",
-                    parts: 2
-                )
-            );
-            reservoirs = options.DirectLight is ResampledLights
-                ? Own(
-                    new LightReservoirs(
-                        device: device,
-                        allocator: Allocator,
-                        layouts: layouts,
-                        targets: targets,
-                        surfaces: surfaceHistory
-                    )
-                )
-                : null;
+            DirectSignal = CreateDirectSignal(shaders, options);
+            reservoirs = options.DirectLight is ResampledLights ? CreateReservoirs() : null;
 
             // Before every pass, whose shading constants say whether the scatter is on.
             ScatterImages = CreateScatterImages(options.Subsurface);
@@ -371,6 +349,21 @@ public sealed unsafe class VulkanRenderer : IRenderer
     private static void CheckOptions(RendererOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
+        CheckCounts(options);
+        if (!Enum.IsDefined(options.ToneCurve))
+            throw new ArgumentOutOfRangeException(nameof(options), $"ToneCurve {options.ToneCurve} is not a curve.");
+        if (SettingsProblem(options) is { } problem)
+            throw new ArgumentOutOfRangeException(nameof(options), problem);
+        if (!Enum.IsDefined(options.AntiAliasing))
+            throw new ArgumentOutOfRangeException(
+                nameof(options),
+                $"AntiAliasing {options.AntiAliasing} is not an anti-aliasing."
+            );
+    }
+
+    /// <summary>Refuses a count or a size of <paramref name="options"/> outside its range.</summary>
+    private static void CheckCounts(RendererOptions options)
+    {
         if (options.FramesInFlight is < 1 or > 4)
             throw new ArgumentOutOfRangeException(nameof(options), "FramesInFlight must be 1 to 4.");
         if (options.Width < 0 || options.Height < 0)
@@ -392,15 +385,6 @@ public sealed unsafe class VulkanRenderer : IRenderer
             );
         if (options.Impostors && options.ImpostorTiles < 1)
             throw new ArgumentOutOfRangeException(nameof(options), "ImpostorTiles must be at least 1.");
-        if (!Enum.IsDefined(options.ToneCurve))
-            throw new ArgumentOutOfRangeException(nameof(options), $"ToneCurve {options.ToneCurve} is not a curve.");
-        if (SettingsProblem(options) is { } problem)
-            throw new ArgumentOutOfRangeException(nameof(options), problem);
-        if (!Enum.IsDefined(options.AntiAliasing))
-            throw new ArgumentOutOfRangeException(
-                nameof(options),
-                $"AntiAliasing {options.AntiAliasing} is not an anti-aliasing."
-            );
     }
 
     /// <summary>The first problem of the settings in <paramref name="options"/> that are unions, in their order there, or null.</summary>
@@ -534,12 +518,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             return false;
         }
 
-        if (image.Extent.Width != targets.Extent.Width || image.Extent.Height != targets.Extent.Height)
-        {
-            // The swapchain changed size on its own (out of date). The targets are shared by frames in flight.
-            device.WaitIdle();
-            ResizeTargets(image.Extent);
-        }
+        MatchTargetsTo(image);
 
         // The draw's one choke point of the history: its reset, its draw index, its exposure step, its refresh of the map's
         // faces and the last frame's state. After the acquire, which can change the output size.
@@ -586,6 +565,16 @@ public sealed unsafe class VulkanRenderer : IRenderer
             exposure: Exposure.Latest
         );
         return true;
+    }
+
+    /// <summary>Resizes the targets to the output's <paramref name="image"/> when the swapchain changed size on its own (out of date).</summary>
+    private void MatchTargetsTo(GpuImage image)
+    {
+        if (image.Extent.Width == targets.Extent.Width && image.Extent.Height == targets.Extent.Height)
+            return;
+        // The targets are shared by frames in flight.
+        device.WaitIdle();
+        ResizeTargets(image.Extent);
     }
 
     /// <summary>
@@ -1985,6 +1974,34 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// <summary>The images of the surface test at the targets' size, which the renderer owns.</summary>
     private SurfaceHistory CreateSurfaceHistory() =>
         Own(new SurfaceHistory(device: device, allocator: Allocator, layouts: layouts, targets: targets));
+
+    /// <summary>The direct signal of two parts, diffuse and specular, with the parameter set of <paramref name="options"/>.</summary>
+    private TemporalSignal CreateDirectSignal(ShaderLibrary shaders, RendererOptions options) =>
+        Own(
+            new TemporalSignal(
+                device: device,
+                allocator: Allocator,
+                layouts: layouts,
+                shaders: shaders,
+                targets: targets,
+                surfaces: surfaceHistory,
+                parameters: SignalParameters.Direct(options),
+                name: "direct",
+                parts: 2
+            )
+        );
+
+    /// <summary>ReSTIR's two reservoir images, which only <see cref="ResampledLights"/> needs.</summary>
+    private LightReservoirs CreateReservoirs() =>
+        Own(
+            new LightReservoirs(
+                device: device,
+                allocator: Allocator,
+                layouts: layouts,
+                targets: targets,
+                surfaces: surfaceHistory
+            )
+        );
 
     /// <summary>The store of the deformed copies, which the renderer owns, at most one storage buffer's range in size.</summary>
     private DeformStore CreateDeformStore() =>

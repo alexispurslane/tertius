@@ -773,10 +773,10 @@ internal struct ResampledPushConstants
     /// <summary>The low 32 bits of the frame's draw index (<see cref="FrameHistory.PendingFrame.DrawIndex"/>), which turn the random numbers.</summary>
     public uint DrawIndex;
 
-    /// <summary><see cref="ResampledLights.Candidates"/>.</summary>
+    /// <summary>The candidates that each pixel draws from the light table (<see cref="ResampledLights.Candidates"/>).</summary>
     public uint Candidates;
 
-    /// <summary><see cref="ResampledLights.SpatialNeighbors"/>.</summary>
+    /// <summary>The neighbors whose reservoirs the direct pass combines (<see cref="ResampledLights.SpatialNeighbors"/>).</summary>
     public uint Neighbors;
 
     public uint Unused;
