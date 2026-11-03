@@ -65,6 +65,7 @@ internal sealed unsafe class TemporalSignal : IDisposable
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(parts, 1);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(parts, DescriptorLayouts.SignalReadParts);
+        CheckDevice(device);
         this.device = device;
         this.allocator = allocator;
         this.layouts = layouts;
@@ -72,27 +73,27 @@ internal sealed unsafe class TemporalSignal : IDisposable
         this.surfaces = surfaces;
         Name = name;
         Parameters = parameters;
-        CheckDevice(device);
+
         this.parts = new PartImages[parts];
         sets = new DescriptorSet[parts, 2];
         for (int part = 0; part < parts; part++)
             for (int parity = 0; parity < 2; parity++)
                 sets[part, parity] = layouts.AllocateSignalSet();
         ReadSet = layouts.AllocateSignalReadSet();
-        temporal = new ComputePipelineDesc
-        {
-            Name = $"accumulate {name} temporal",
-            Shader = "accumulate_temporal.comp",
-            Layout = layouts.AccumulateLayout,
-        }.Create(device, shaders);
-        spatial = new ComputePipelineDesc
-        {
-            Name = $"accumulate {name} spatial",
-            Shader = "accumulate_spatial.comp",
-            Layout = layouts.AccumulateLayout,
-        }.Create(device, shaders);
+
+        temporal = CreatePipeline(shaders, "temporal");
+        spatial = CreatePipeline(shaders, "spatial");
         Create();
     }
+
+    /// <summary>The pipeline of the dispatch of <paramref name="kind"/>, "temporal" or "spatial": accumulate_kind.comp.</summary>
+    private Pipeline CreatePipeline(ShaderLibrary shaders, string kind) =>
+        new ComputePipelineDesc
+        {
+            Name = $"accumulate {Name} {kind}",
+            Shader = $"accumulate_{kind}.comp",
+            Layout = layouts.AccumulateLayout,
+        }.Create(device, shaders);
 
     /// <summary>The signal's name in the images' names and the passes' names, such as "direct".</summary>
     public string Name { get; }

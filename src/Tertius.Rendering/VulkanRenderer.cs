@@ -166,10 +166,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 reflections: options.Reflections,
                 subsurface: options.Subsurface
             );
-            surfaceHistory = CreateSurfaceHistory();
             // Before the occlusion images, whose bounce source reads the direct signal's slow diffuse history.
-            DirectSignal = CreateDirectSignal(shaders, options);
-            reservoirs = options.DirectLight is ResampledLights resampled ? CreateReservoirs(resampled) : null;
+            (surfaceHistory, DirectSignal, reservoirs) = CreateHistories(shaders, options);
 
             // Before every pass, whose shading constants say whether the scatter is on.
             ScatterImages = CreateScatterImages(options.Subsurface);
@@ -2013,37 +2011,46 @@ public sealed unsafe class VulkanRenderer : IRenderer
         );
 
     /// <summary>The images of the surface test at the targets' size, which the renderer owns.</summary>
-    private SurfaceHistory CreateSurfaceHistory() =>
-        Own(new SurfaceHistory(device: device, allocator: Allocator, layouts: layouts, targets: targets));
-
-    /// <summary>The direct signal of two parts, diffuse and specular, with the parameter set of <paramref name="options"/>.</summary>
-    private TemporalSignal CreateDirectSignal(ShaderLibrary shaders, RendererOptions options) =>
-        Own(
+    /// <summary>
+    /// The stores of the last frames at the render size: the surface history, the direct signal of two parts, diffuse and
+    /// specular, with the parameter set of <paramref name="options"/>, and ReSTIR's reservoirs, which only
+    /// <see cref="ResampledLights"/> needs. The signal and the reservoirs bind the surface history's test image.
+    /// </summary>
+    private (SurfaceHistory Surfaces, TemporalSignal Direct, LightReservoirs? Reservoirs) CreateHistories(
+        ShaderLibrary shaders,
+        RendererOptions options
+    )
+    {
+        SurfaceHistory surfaces = Own(
+            new SurfaceHistory(device: device, allocator: Allocator, layouts: layouts, targets: targets)
+        );
+        TemporalSignal direct = Own(
             new TemporalSignal(
                 device: device,
                 allocator: Allocator,
                 layouts: layouts,
                 shaders: shaders,
                 targets: targets,
-                surfaces: surfaceHistory,
+                surfaces: surfaces,
                 parameters: SignalParameters.Direct(options),
                 name: "direct",
                 parts: 2
             )
         );
-
-    /// <summary>ReSTIR's two reservoir images of <paramref name="setting"/>, which only <see cref="ResampledLights"/> needs.</summary>
-    private LightReservoirs CreateReservoirs(ResampledLights setting) =>
-        Own(
-            new LightReservoirs(
-                device: device,
-                allocator: Allocator,
-                layouts: layouts,
-                setting: setting,
-                targets: targets,
-                surfaces: surfaceHistory
+        LightReservoirs? held = options.DirectLight is ResampledLights setting
+            ? Own(
+                new LightReservoirs(
+                    device: device,
+                    allocator: Allocator,
+                    layouts: layouts,
+                    setting: setting,
+                    targets: targets,
+                    surfaces: surfaces
+                )
             )
-        );
+            : null;
+        return (surfaces, direct, held);
+    }
 
     /// <summary>The store of the deformed copies, which the renderer owns, at most one storage buffer's range in size.</summary>
     private DeformStore CreateDeformStore() =>
