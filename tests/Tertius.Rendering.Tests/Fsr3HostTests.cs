@@ -293,6 +293,26 @@ public sealed class Fsr3HostTests
     }
 
     [Fact]
+    public void EachStorageSlotOfTheLuminancePyramidWritesItsOwnLevelAndTheSampledSlotAllOfThem()
+    {
+        // A storage descriptor of the whole chain writes level 0, which Vulkan allows, so no validation message shows
+        // a wrong level.
+        Fsr3Slot[] slots =
+        [
+            Fsr3Slot.SpdMips,
+            Fsr3Slot.SpdMip0,
+            Fsr3Slot.SpdMip1,
+            Fsr3Slot.SpdMip2,
+            Fsr3Slot.SpdMip3,
+            Fsr3Slot.SpdMip4,
+            Fsr3Slot.SpdMip5,
+            Fsr3Slot.SpdAtomic,
+        ];
+
+        slots.Select(Fsr3Bindings.SpdLevel).Should().Equal(null, 0u, 1u, 2u, 3u, 4u, 5u, null);
+    }
+
+    [Fact]
     public void ADeviceWhoseComputeStageSeesFewerStorageImagesThanAPassBindsIsRefused()
     {
         // The shading change pyramid binds the atomic counter and six levels of the luminance pyramid.
@@ -316,6 +336,46 @@ public sealed class Fsr3HostTests
         Action check = () => CheckLimits(RoomyLimits);
 
         check.Should().NotThrow();
+    }
+
+    [Fact]
+    public void ADeviceWhoseComputeStageSeesFewerStorageBuffersThanTheExposureStepBindsIsRefused()
+    {
+        // The exposure step binds the exposure buffer and FSR's constants, and none of AMD's passes binds one.
+        Action check = () => CheckLimits(RoomyLimits with { MaxPerStageDescriptorStorageBuffers = 1 });
+
+        check.Should().Throw<NotSupportedException>().WithMessage("*2 storage buffers*");
+    }
+
+    [Theory]
+    [InlineData(0u, 72u)]
+    [InlineData(96u, 0u)]
+    public void AnOutputSizeWithASideOfNoPixelsIsRefused(uint width, uint height)
+    {
+        Action check = () =>
+            Fsr3Upscaler.CheckArguments(
+                limits: RoomyLimits,
+                maxRenderSize: new(64, 48),
+                outputSize: new(width, height),
+                framesInFlight: 2
+            );
+
+        check.Should().Throw<ArgumentOutOfRangeException>();
+    }
+
+    [Fact]
+    public void AnUpscalerWithNoFrameInFlightIsRefused()
+    {
+        // The upscaler keeps one set of each pass per frame in flight.
+        Action check = () =>
+            Fsr3Upscaler.CheckArguments(
+                limits: RoomyLimits,
+                maxRenderSize: new(64, 48),
+                outputSize: new(96, 72),
+                framesInFlight: 0
+            );
+
+        check.Should().Throw<ArgumentOutOfRangeException>();
     }
 
     [Theory]

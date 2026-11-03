@@ -6,8 +6,9 @@ namespace Tertius.Rendering.Tests;
 
 /// <summary>
 /// <see cref="Fsr3Upscaler"/> on the GPU, over AMD's pinned shaders (docs/plans/temporal-renderer.md, "FSR 3.1"): an
-/// upscale of a known input under the validation layer with its synchronization checks, a reset, the exposure step and
-/// the determinism of the result. Each test records one frame per submission and waits for it.
+/// upscale of a known input under the validation layer with its synchronization checks, the history across frames,
+/// resets and exposure changes, the exposure step, the reactive mask generator, the refused inputs and the determinism of
+/// the result. Most tests record one frame per submission and wait for it.
 /// </summary>
 [Collection(GpuCollection.Name)]
 public sealed class Fsr3UpscalerTests
@@ -141,6 +142,218 @@ public sealed class Fsr3UpscalerTests
     }
 
     [Fact]
+    public void TheFirstFrameOfAnUpscalerReadsNoHistoryEvenWithoutAReset()
+    {
+        using var reset = new Fsr3Bench(LargestRenderSize, OutputSize);
+        using var unreset = new Fsr3Bench(LargestRenderSize, OutputSize);
+        reset.FillPattern();
+        unreset.FillPattern();
+
+        reset.Upscale(index: 0, reset: true);
+        unreset.Upscale(index: 0, reset: false);
+
+        unreset.ReadOutput().Should().Equal(reset.ReadOutput(), "an upscaler's first frame has no history to read");
+    }
+
+    [Fact]
+    public void WithoutResetsTheUpscaleOfAStillPatternSettles()
+    {
+        using var bench = new Fsr3Bench(LargestRenderSize, OutputSize);
+        bench.FillPattern();
+        for (int index = 0; index < 11; index++)
+            bench.Upscale(index, reset: index == 0);
+        Vector4[] tenth = bench.ReadOutput();
+
+        bench.Upscale(index: 11, reset: false);
+
+        // A frame that draws alone moves the pattern's edges with its jitter: two such frames differ by 0.19 to 0.42 on
+        // average. With the history, the measured difference is 0.002 to 0.004 from the eighth frame on.
+        MeanDifference(bench.ReadOutput(), tenth)
+            .Should()
+            .BeLessThan(0.02f, "each frame blends its jittered samples into the history of the frames before it");
+    }
+
+    [Fact]
+    public void AResetFrameUpscalesAsTheFirstFrameOfANewUpscalerDoes()
+    {
+        using var settled = new Fsr3Bench(LargestRenderSize, OutputSize);
+        using var fresh = new Fsr3Bench(LargestRenderSize, OutputSize);
+        settled.FillPattern();
+        fresh.FillPattern();
+        for (int index = 0; index < 8; index++)
+            settled.Upscale(index, reset: index == 0);
+
+        settled.Upscale(index: 8, reset: true);
+        fresh.Upscale(index: 8, reset: true);
+
+        settled
+            .ReadOutput()
+            .Should()
+            .Equal(fresh.ReadOutput(), "a reset reads none of the history of the frames before it");
+    }
+
+    [Fact]
+    public void AChangeOfThePreExposureScalesTheHistoryByTheRatioAlone()
+    {
+        static Vector4[] Run(bool brighter)
+        {
+            using var bench = new Fsr3Bench(LargestRenderSize, OutputSize);
+            bench.FillPattern();
+            for (int index = 0; index < 12; index++)
+                bench.Upscale(index, reset: index == 0);
+            if (brighter)
+            {
+                // One stop more: the pre-exposed color doubles, and so must the history that FSR reprojects.
+                bench.FillPattern(scale: 2f);
+                bench.SetExposure(stops: 1, previousStops: 0);
+            }
+
+            bench.Upscale(index: 12, reset: false);
+            return bench.ReadOutput();
+        }
+
+        Vector4[] same = Run(brighter: false);
+        Vector4[] brighter = Run(brighter: true);
+
+        // The exposure image reads as 1, so only deltaPreExposure, 2 here, scales the history. The measured difference
+        // is 0.0004 on average, from the half floats of the history and AMD's tone map of the doubled color.
+        MeanDifference(brighter, [.. same.Select(pixel => 2f * pixel)])
+            .Should()
+            .BeLessThan(0.01f, "the brighter frame's history is the settled history at twice the pre-exposure");
+    }
+
+    [Fact]
+    public void ANewUpscalerOverTheMemoryOfAnOldOneReadsNoneOfItsImages()
+    {
+        using var reused = new Fsr3Bench(LargestRenderSize, OutputSize);
+        using var fresh = new Fsr3Bench(LargestRenderSize, OutputSize);
+        reused.FillPattern(scale: 4f, inverted: true);
+        for (int index = 0; index < 8; index++)
+            reused.Upscale(index, reset: index == 0);
+        reused.ReplaceUpscaler();
+        reused.FillPattern();
+        fresh.FillPattern();
+
+        reused.Upscale(index: 0, reset: false);
+        fresh.Upscale(index: 0, reset: false);
+
+        reused.ReadOutput().Should().Equal(fresh.ReadOutput(), "the first frame clears every image that it reads");
+    }
+
+    [Fact]
+    public void TheFirstFrameAfterAChangeOfTheSceneFollowsTheNewScene()
+    {
+        using var changed = new Fsr3Bench(LargestRenderSize, OutputSize);
+        using var settled = new Fsr3Bench(LargestRenderSize, OutputSize);
+        changed.FillPattern();
+        settled.FillPattern(inverted: true);
+        for (int index = 0; index < 10; index++)
+        {
+            changed.Upscale(index, reset: index == 0);
+            settled.Upscale(index, reset: index == 0);
+        }
+        changed.FillPattern(inverted: true);
+
+        changed.Upscale(index: 10, reset: false);
+        settled.Upscale(index: 10, reset: false);
+
+        // FSR compares this frame's luma with the last frame's and drops the history where the shading changed. The
+        // measured difference is 0.59 on average; with the last frame's luma read as this frame's, it is 2.6.
+        MeanDifference(changed.ReadOutput(), settled.ReadOutput())
+            .Should()
+            .BeLessThan(1.2f, "the shading change pyramid reads this frame's luma and the last frame's");
+    }
+
+    [Fact]
+    public void AnExposureBufferThatTheGpuWritesJustBeforeTheUpscaleGivesItsRatioWithoutAHazard()
+    {
+        using var bench = new Fsr3Bench(LargestRenderSize, OutputSize);
+        using GpuBuffer written = bench.CreateGpuExposureBuffer();
+        bench.FillPattern();
+
+        // In the frame, the exposure pass writes the buffer on the GPU in the same command buffer as the upscale.
+        bench.Submit(commandBuffer =>
+        {
+            bench.WriteOnGpu(commandBuffer: commandBuffer, buffer: written, stops: 1f, previousStops: 0f);
+            Fsr3Inputs inputs = bench.Inputs(index: 0, reset: true) with { Exposure = written };
+            bench.Upscaler.Record(commandBuffer, bench.Barriers, inputs);
+        });
+
+        bench.ReadDeltaPreExposure().Should().Be(2f);
+        string.Join("\n", bench.Device.Log.Snapshot())
+            .Should()
+            .BeEmpty("the exposure step waits for the write of the exposure buffer");
+    }
+
+    [Fact]
+    public void TwoFramesRecordedIntoOneCommandBufferReportNothingToValidation()
+    {
+        using var bench = new Fsr3Bench(LargestRenderSize, OutputSize);
+        bench.FillPattern();
+
+        // The upscaler has two frames in flight, so the second frame writes sets that the first frame does not bind.
+        bench.Submit(commandBuffer =>
+        {
+            bench.Upscaler.Record(commandBuffer, bench.Barriers, bench.Inputs(index: 0, reset: true));
+            bench.Upscaler.Record(commandBuffer, bench.Barriers, bench.Inputs(index: 1, reset: false));
+        });
+
+        string.Join("\n", bench.Device.Log.Snapshot())
+            .Should()
+            .BeEmpty("a set that a recorded frame binds stays as it was");
+    }
+
+    [Fact]
+    public void TheGeneratorMarksEveryPixelWhoseColorDiffersFromTheOpaqueOnlyColorWithAmdsBinaryValue()
+    {
+        using var bench = new Fsr3Bench(LargestRenderSize, OutputSize);
+        bench.Fill(colorValue: new Vector4(x: 2f, y: 0f, z: 0f, w: 1f), opaqueOnlyValue: Vector4.Zero);
+
+        bench.Upscale(index: 0, reset: true);
+
+        // Tone mapped, the colors differ by 2/3, above AMD's threshold of 0.2, and an R8 texel holds 0.9 within 1/255.
+        bench
+            .ReadReactive()
+            .Should()
+            .AllSatisfy(reactive => reactive.Should().BeApproximately(0.9f, 1f / 255f, "AMD's sample's binary value"));
+    }
+
+    [Theory]
+    [InlineData(65u, 48u)]
+    [InlineData(64u, 49u)]
+    [InlineData(0u, 48u)]
+    [InlineData(64u, 0u)]
+    public void ARenderSizeOutsideTheLargestRenderSizeIsRefused(uint width, uint height)
+    {
+        using var bench = new Fsr3Bench(LargestRenderSize, OutputSize) { RenderSize = new(width, height) };
+        Fsr3Inputs inputs = bench.Inputs(index: 0, reset: true);
+
+        Action record = () =>
+            bench.Submit(commandBuffer => bench.Upscaler.Record(commandBuffer, new BarrierBatch(), inputs));
+
+        record.Should().Throw<ArgumentException>().WithMessage("*not within the largest render size*");
+    }
+
+    [Theory]
+    [InlineData(97u, 72u)]
+    [InlineData(96u, 73u)]
+    public void AnOutputOfAnotherSizeThanTheOutputSizeIsRefused(uint width, uint height)
+    {
+        using var bench = new Fsr3Bench(LargestRenderSize, OutputSize);
+        using GpuImage other = bench.CreateImage(
+            new(width, height),
+            Format.R16G16B16A16Sfloat,
+            "fsr output of another size"
+        );
+        Fsr3Inputs inputs = bench.Inputs(index: 0, reset: true) with { Output = other };
+
+        Action record = () =>
+            bench.Submit(commandBuffer => bench.Upscaler.Record(commandBuffer, new BarrierBatch(), inputs));
+
+        record.Should().Throw<ArgumentException>().WithMessage("*not of the output size*");
+    }
+
+    [Fact]
     public void AnUpscaleFrom1280x720To1920x1080ReportsItsGpuTime()
     {
         // A measurement, not a check: it runs only on request, in a Release build under the GPU lock (tools/README.md,
@@ -166,6 +379,16 @@ public sealed class Fsr3UpscalerTests
         median.Should().BePositive();
     }
 
+    // The mean over the pixels of the summed absolute differences of red, green and blue.
+    private static float MeanDifference(Vector4[] pixels, Vector4[] others) =>
+        pixels
+            .Zip(others)
+            .Average(pair =>
+                MathF.Abs(pair.First.X - pair.Second.X)
+                + MathF.Abs(pair.First.Y - pair.Second.Y)
+                + MathF.Abs(pair.First.Z - pair.Second.Z)
+            );
+
     // FSR keeps its history in half floats. 1e-3 is two half-float steps at 0.5, four at 0.25 and eight at 0.125.
     private static void ShouldAllBeTheConstant(Vector4[] pixels)
     {
@@ -188,7 +411,6 @@ public sealed class Fsr3UpscalerTests
     {
         private readonly DeviceAllocator allocator;
         private readonly ShaderLibrary shaders;
-        private readonly BarrierBatch barriers = new();
         private readonly CommandPool pool;
         private readonly Fence fence;
         private readonly GpuImage color;
@@ -237,14 +459,7 @@ public sealed class Fsr3UpscalerTests
                 memoryUsage: MemoryUsage.Readback,
                 name: "fsr test readback"
             );
-            Upscaler = new Fsr3Upscaler(
-                device: Device,
-                allocator: allocator,
-                shaders: shaders,
-                maxRenderSize: largestRenderSize,
-                outputSize: outputSize,
-                framesInFlight: 2
-            );
+            Upscaler = CreateUpscaler(outputSize);
             var poolInfo = new CommandPoolCreateInfo
             {
                 SType = StructureType.CommandPoolCreateInfo,
@@ -266,27 +481,34 @@ public sealed class Fsr3UpscalerTests
         }
 
         public VulkanDevice Device { get; }
-        public Fsr3Upscaler Upscaler { get; }
+        public Fsr3Upscaler Upscaler { get; private set; }
+
+        /// <summary>The barriers of every submission, which carry each image's state from one to the next.</summary>
+        public BarrierBatch Barriers { get; } = new();
         public Extent2D LargestRenderSize { get; }
 
         /// <summary>The render size of the next upscales: the largest render size until a test sets it.</summary>
         public Extent2D RenderSize { get; set; }
 
-        /// <summary>Fills the color, the opaque-only image and the depth with one value each, and the motion with 0.</summary>
-        public void Fill(Vector4 value) =>
+        /// <summary>Fills the color and the opaque-only image with one value, the depth with another, and the motion with 0.</summary>
+        public void Fill(Vector4 value) => Fill(colorValue: value, opaqueOnlyValue: value);
+
+        /// <summary>Fills the color and the opaque-only image with a value each, the depth with one, and the motion with 0.</summary>
+        public void Fill(Vector4 colorValue, Vector4 opaqueOnlyValue) =>
             Submit(commandBuffer =>
             {
-                Clear(commandBuffer, color, value);
-                Clear(commandBuffer, opaqueOnly, value);
+                Clear(commandBuffer, color, colorValue);
+                Clear(commandBuffer, opaqueOnly, opaqueOnlyValue);
                 Clear(commandBuffer, depth, new Vector4(0.5f));
                 Clear(commandBuffer, motion, Vector4.Zero);
             });
 
         /// <summary>
         /// Fills the color and the opaque-only image with a pattern of colored squares, the depth with two depths and the
-        /// motion with 0, so that every pass of FSR sees edges.
+        /// motion with 0, so that every pass of FSR sees edges. <paramref name="scale"/> multiplies every color, and
+        /// <paramref name="inverted"/> swaps the squares of the two colors.
         /// </summary>
-        public void FillPattern()
+        public void FillPattern(float scale = 1f, bool inverted = false)
         {
             int pixels = (int)(LargestRenderSize.Width * LargestRenderSize.Height);
             var colors = new Half[pixels * 4];
@@ -295,10 +517,10 @@ public sealed class Fsr3UpscalerTests
             for (int x = 0; x < LargestRenderSize.Width; x++)
             {
                 int pixel = y * (int)LargestRenderSize.Width + x;
-                bool square = (x / 8 + y / 8) % 2 == 0;
-                colors[pixel * 4 + 0] = (Half)(square ? 3f : 0.1f);
-                colors[pixel * 4 + 1] = (Half)(x / 64f);
-                colors[pixel * 4 + 2] = (Half)(y / 48f);
+                bool square = (x / 8 + y / 8) % 2 == (inverted ? 1 : 0);
+                colors[pixel * 4 + 0] = (Half)(scale * (square ? 3f : 0.1f));
+                colors[pixel * 4 + 1] = (Half)(scale * x / 64f);
+                colors[pixel * 4 + 2] = (Half)(scale * y / 48f);
                 colors[pixel * 4 + 3] = (Half)1f;
                 depths[pixel] = square ? 0.25f : 0.0625f;
             }
@@ -314,7 +536,7 @@ public sealed class Fsr3UpscalerTests
 
         /// <summary>Records the upscale of draw <paramref name="index"/>, with AMD's jitter of that draw, and waits for it.</summary>
         public void Upscale(int index, bool reset) =>
-            Submit(commandBuffer => Upscaler.Record(commandBuffer, barriers, Inputs(index, reset)));
+            Submit(commandBuffer => Upscaler.Record(commandBuffer, Barriers, Inputs(index, reset)));
 
         /// <summary>The inputs of draw <paramref name="index"/>.</summary>
         public Fsr3Inputs Inputs(int index, bool reset)
@@ -381,7 +603,7 @@ public sealed class Fsr3UpscalerTests
                             queryPool: queries,
                             query: 0
                         );
-                        Upscaler.Record(commandBuffer, barriers, Inputs(draw, reset: draw == 0));
+                        Upscaler.Record(commandBuffer, Barriers, Inputs(draw, reset: draw == 0));
                         vk.CmdWriteTimestamp2(
                             commandBuffer: commandBuffer,
                             stage: PipelineStageFlags2.AllCommandsBit,
@@ -423,29 +645,8 @@ public sealed class Fsr3UpscalerTests
         /// <summary>The output's pixels, row by row.</summary>
         public Vector4[] ReadOutput()
         {
-            Submit(commandBuffer =>
-            {
-                barriers.Image(output, ImageUse.TransferSource);
-                barriers.Buffer(readback, BufferUse.TransferDestination);
-                barriers.Flush(Device.Vk, commandBuffer);
-                var region = new BufferImageCopy
-                {
-                    ImageSubresource = Level0,
-                    ImageExtent = new(output.Extent.Width, output.Extent.Height, 1),
-                };
-                Device.Vk.CmdCopyImageToBuffer(
-                    commandBuffer: commandBuffer,
-                    srcImage: output.Handle,
-                    srcImageLayout: ImageLayout.TransferSrcOptimal,
-                    dstBuffer: readback.Handle,
-                    regionCount: 1,
-                    pRegions: &region
-                );
-                barriers.Buffer(readback, BufferUse.HostRead);
-                barriers.Flush(Device.Vk, commandBuffer);
-            });
             int pixels = (int)(output.Extent.Width * output.Extent.Height);
-            Span<Half> halves = readback.AsSpan<Half>(pixels * 4);
+            Span<Half> halves = ReadBack(output).AsSpan<Half>(pixels * 4);
             var result = new Vector4[pixels];
             for (int pixel = 0; pixel < pixels; pixel++)
                 result[pixel] = new(
@@ -457,6 +658,40 @@ public sealed class Fsr3UpscalerTests
             return result;
         }
 
+        /// <summary>The reactive mask's pixels, row by row, from 0 to 1.</summary>
+        public float[] ReadReactive()
+        {
+            int pixels = (int)(reactive.Extent.Width * reactive.Extent.Height);
+            return [.. ReadBack(reactive).AsSpan<byte>(pixels).ToArray().Select(texel => texel / 255f)];
+        }
+
+        /// <summary>Copies level 0 of <paramref name="image"/> to the readback buffer and waits for it.</summary>
+        private GpuBuffer ReadBack(GpuImage image)
+        {
+            Submit(commandBuffer =>
+            {
+                Barriers.Image(image, ImageUse.TransferSource);
+                Barriers.Buffer(readback, BufferUse.TransferDestination);
+                Barriers.Flush(Device.Vk, commandBuffer);
+                var region = new BufferImageCopy
+                {
+                    ImageSubresource = Level0,
+                    ImageExtent = new(image.Extent.Width, image.Extent.Height, 1),
+                };
+                Device.Vk.CmdCopyImageToBuffer(
+                    commandBuffer: commandBuffer,
+                    srcImage: image.Handle,
+                    srcImageLayout: ImageLayout.TransferSrcOptimal,
+                    dstBuffer: readback.Handle,
+                    regionCount: 1,
+                    pRegions: &region
+                );
+                Barriers.Buffer(readback, BufferUse.HostRead);
+                Barriers.Flush(Device.Vk, commandBuffer);
+            });
+            return readback;
+        }
+
         /// <summary>The ratio of the pre-exposures that the exposure step wrote into FSR's constants.</summary>
         public float ReadDeltaPreExposure()
         {
@@ -464,9 +699,9 @@ public sealed class Fsr3UpscalerTests
                 System.Runtime.InteropServices.Marshal.OffsetOf<Fsr3Constants>(nameof(Fsr3Constants.DeltaPreExposure));
             Submit(commandBuffer =>
             {
-                barriers.Buffer(Upscaler.Constants, BufferUse.TransferSource);
-                barriers.Buffer(readback, BufferUse.TransferDestination);
-                barriers.Flush(Device.Vk, commandBuffer);
+                Barriers.Buffer(Upscaler.Constants, BufferUse.TransferSource);
+                Barriers.Buffer(readback, BufferUse.TransferDestination);
+                Barriers.Flush(Device.Vk, commandBuffer);
                 var region = new BufferCopy(offset, 0, sizeof(float));
                 Device.Vk.CmdCopyBuffer(
                     commandBuffer: commandBuffer,
@@ -475,8 +710,8 @@ public sealed class Fsr3UpscalerTests
                     regionCount: 1,
                     pRegions: &region
                 );
-                barriers.Buffer(readback, BufferUse.HostRead);
-                barriers.Flush(Device.Vk, commandBuffer);
+                Barriers.Buffer(readback, BufferUse.HostRead);
+                Barriers.Flush(Device.Vk, commandBuffer);
             });
             return readback.AsSpan<float>(1)[0];
         }
@@ -546,6 +781,50 @@ public sealed class Fsr3UpscalerTests
             Device.Dispose();
         }
 
+        /// <summary>An exposure buffer in GPU memory, which only the GPU writes.</summary>
+        public GpuBuffer CreateGpuExposureBuffer() =>
+            GpuBuffer.Create(
+                device: Device,
+                allocator: allocator,
+                size: 16,
+                usage: BufferUsageFlags.StorageBufferBit | BufferUsageFlags.TransferDstBit,
+                memoryUsage: MemoryUsage.GpuOnly,
+                name: "fsr test exposure in GPU memory"
+            );
+
+        /// <summary>Records a write of this frame's stops and the last frame's into <paramref name="buffer"/>.</summary>
+        public void WriteOnGpu(CommandBuffer commandBuffer, GpuBuffer buffer, float stops, float previousStops)
+        {
+            Barriers.Buffer(buffer, BufferUse.TransferDestination);
+            Barriers.Flush(Device.Vk, commandBuffer);
+            float* values = stackalloc float[] { stops, previousStops, 0f, 0f };
+            Device.Vk.CmdUpdateBuffer(
+                commandBuffer: commandBuffer,
+                dstBuffer: buffer.Handle,
+                dstOffset: 0,
+                dataSize: 4 * sizeof(float),
+                pData: values
+            );
+        }
+
+        /// <summary>Replaces the upscaler with a new one, which the allocator gives the memory of the old one.</summary>
+        public void ReplaceUpscaler()
+        {
+            Device.WaitIdle();
+            Upscaler.Dispose();
+            Upscaler = CreateUpscaler(output.Extent);
+        }
+
+        private Fsr3Upscaler CreateUpscaler(Extent2D outputSize) =>
+            new(
+                device: Device,
+                allocator: allocator,
+                shaders: shaders,
+                maxRenderSize: LargestRenderSize,
+                outputSize: outputSize,
+                framesInFlight: 2
+            );
+
         /// <summary>An input or output image: sampled, stored, cleared, uploaded and read back.</summary>
         public GpuImage CreateImage(Extent2D extent, Format format, string name) =>
             GpuImage.Create(
@@ -563,8 +842,8 @@ public sealed class Fsr3UpscalerTests
 
         private void Clear(CommandBuffer commandBuffer, GpuImage image, Vector4 value)
         {
-            barriers.Image(image, ImageUse.TransferDestination, discard: true);
-            barriers.Flush(Device.Vk, commandBuffer);
+            Barriers.Image(image, ImageUse.TransferDestination, discard: true);
+            Barriers.Flush(Device.Vk, commandBuffer);
             var clear = new ClearColorValue
             {
                 Float32_0 = value.X,
@@ -603,8 +882,8 @@ public sealed class Fsr3UpscalerTests
             staging.Write(texels);
             Submit(commandBuffer =>
             {
-                barriers.Image(image, ImageUse.TransferDestination, discard: true);
-                barriers.Flush(Device.Vk, commandBuffer);
+                Barriers.Image(image, ImageUse.TransferDestination, discard: true);
+                Barriers.Flush(Device.Vk, commandBuffer);
                 var region = new BufferImageCopy
                 {
                     ImageSubresource = Level0,
