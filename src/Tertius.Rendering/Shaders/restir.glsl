@@ -154,13 +154,15 @@ void addCandidate(inout Combining c, uint light, float target, float w, float m,
     }
 }
 
-// The reservoir that the candidates make: W is the sum of the weights over M, divided by the chosen light's target
-// (Bitterli's biased combine, with weights 1 / M). A W that is not finite, from a target near the least float, makes no
-// choice, so that no reuse carries it on.
-Reservoir finishCombining(Combining c)
+// The reservoir that the candidates make: W is the sum of the weights over Z, divided by the chosen light's target. Z is
+// the count of the candidates whose source can give the chosen light: M in the candidates pass (Bitterli's biased
+// combine, with weights 1 / M), and the M of the reservoirs whose surface can choose it in the spatial reuse (the unbiased
+// combine, direct_pass.glsl). A W that is not finite, from a target near the least float, makes no choice, so that no
+// reuse carries it on.
+Reservoir finishCombining(Combining c, float Z)
 {
     Reservoir r = c.r;
-    r.W = c.chosenTarget > 0.0 && r.M > 0.0 ? c.weightSum / (r.M * c.chosenTarget) : 0.0;
+    r.W = c.chosenTarget > 0.0 && Z > 0.0 ? c.weightSum / (Z * c.chosenTarget) : 0.0;
     if (isinf(r.W) || isnan(r.W))
         r.W = 0.0;
     return r;
@@ -205,11 +207,10 @@ float targetOf(uint light, ResampledSurface surface)
 }
 
 // Combines a reused reservoir `other`, whose choice is `light` in this frame's list, that stands for `m` candidates: its
-// choice with p̂ at the surface and the weight p̂ · W · m. One without a choice adds only its m candidates, whose light was 0.
-void addReservoir(
-    inout Combining c, Reservoir other, uint light, float m, ResampledSurface surface, inout RandomStream random)
+// choice with `target`, the combine's p̂ of the light at the surface, and the weight target · W · m. One without a choice
+// adds only its m candidates, whose light was 0, and its target is 0.
+void addReservoir(inout Combining c, Reservoir other, uint light, float target, float m, inout RandomStream random)
 {
-    float target = holdsChoice(other) ? targetOf(light, surface) : 0.0;
     addCandidate(c, light, target, target * other.W * m, m, random);
 }
 
@@ -221,6 +222,22 @@ float visibilityOf(uint light, ResampledSurface surface)
     if (!lightPath(light, surface.fiber, surface.tinted, surface.s, surface.position, p))
         return 0.0;
     return pathVisibility(light, p, surface.position, ShadowMapsMainView);
+}
+
+// p̂ · V of a light at the surface: its target times its visibility from the frame's taps, the target of the spatial
+// reuse. It is above 0 exactly where targetOf and visibilityOf both are, the lights that the candidates pass can leave in
+// a reservoir there after its visibility reuse: the bounds of a shadow tile that show the light fully shadowed give
+// pathVisibility 0, as they give targetOf 0. The response is evaluated only where the visibility is above 0.
+float visibleTarget(uint light, ResampledSurface surface)
+{
+    LightPath p;
+    if (!lightPath(light, surface.fiber, surface.tinted, surface.s, surface.position, p))
+        return 0.0;
+    float visibility = pathVisibility(light, p, surface.position, ShadowMapsMainView);
+    if (visibility <= 0.0)
+        return 0.0;
+    DirectTerms terms = pathLight(light, surface.fiber, surface.s, surface.lobes, surface.V, p);
+    return luminance(terms.diffuse + terms.specular) * visibility;
 }
 
 // The light of a light at the surface with its shadows, from the frame's taps.

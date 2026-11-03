@@ -7,7 +7,7 @@ namespace Tertius.Rendering.Tests;
 /// ReSTIR DI against the exact loop (docs/plans/temporal-renderer.md, section 7): one light gives the exact light, a light
 /// with a cascade set stays exact beside it, in a closed box lit by its lamps, under a bright light with a cascade set that
 /// the box shadows, the box's light matches <see cref="EveryLight"/> with the noise of its lamps alone, and the temporal
-/// reuse keeps a lamp's shadow. Most tests draw one still of the same snapshot under each setting, with the shadow atlas
+/// reuse alone and the default reuse keep a lamp's shadow. Most tests draw one still of the same snapshot under each setting, with the shadow atlas
 /// on, and compare the direct signal of the shown draws: the samples, which ReSTIR estimates, or the histories, which the
 /// accumulator settles.
 /// </summary>
@@ -361,6 +361,29 @@ public sealed class ResampledLightsRenderTests
         );
 
         (double bias, int shadowed) = BiasOf(exact, resampled, pixel => exact[pixel].X < 0.8f * open[pixel].X);
+        shadowed.Should().BeGreaterThan(Width * 4, "the slats shadow stripes across the wall from the upper lamp");
+        bias.Should().BeInRange(-BiasBound, BiasBound, "the stripes hold the lower lamp's light alone");
+    }
+
+    /// <summary>
+    /// The spatial reuse's combine tests the visibility of a neighbor's light at this pixel: today's stripes measured a
+    /// bias of 0.011 (2026-11-03), and the biased combine before it, which took a neighbor's light with no such test,
+    /// −0.102.
+    /// </summary>
+    [Fact]
+    public void UnderTheSpatialReuseTheStripesThatOneOfTwoLampsShadowsKeepTheOthersLight()
+    {
+        Vector3[] open = DirectOf(new EveryLight(), renderer => ShadowedWall(renderer, slats: false), samples: false);
+        Vector3[] exact = DirectOf(new EveryLight(), renderer => ShadowedWall(renderer, slats: true), samples: false);
+
+        Vector3[] resampled = DirectOf(
+            ResampledLights.Default,
+            renderer => ShadowedWall(renderer, slats: true),
+            samples: false
+        );
+
+        (double bias, int shadowed) = BiasOf(exact, resampled, pixel => exact[pixel].X < 0.8f * open[pixel].X);
+        TestContext.Current.TestOutputHelper?.WriteLine($"The stripes' bias: {bias:0.0000}.");
         shadowed.Should().BeGreaterThan(Width * 4, "the slats shadow stripes across the wall from the upper lamp");
         bias.Should().BeInRange(-BiasBound, BiasBound, "the stripes hold the lower lamp's light alone");
     }
