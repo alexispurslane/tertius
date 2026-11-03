@@ -1,6 +1,6 @@
 ---
 id: ter-gmv8
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-11-03T23:31:32Z
@@ -17,3 +17,9 @@ The cause: DeviceAllocator.Allocate maps memory when usage != GpuOnly, but Alloc
 
 The class of bug: a block's mapped state is a second store beside its memory type's HOST_VISIBLE flag, set by whichever usage came first. Fix the class, not the instance: derive the mapping from the memory type, so that every block of a host-visible type is mapped when it is allocated, and no block can disagree with its type. A test with a memory-type table of one type (and of MoltenVK's three types) makes sure that an Upload after a GpuOnly allocation gets a mapped pointer.
 
+
+## Notes
+
+**2026-11-03T23:32:33Z**
+
+2026-11-03: launched as workflow run 81e4d289-17d5-48f0-9c6c-82d39806a1b2, version 869b0b07-3413-4b06-8707-a88a91bf6e91 (Opus high builder, Opus xhigh reviewer), branch ter-gmv8-mapped-blocks from 116a0e50a.
