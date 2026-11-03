@@ -287,19 +287,21 @@ public sealed class GpuTimingTests
     [Fact]
     public void APassThatRecordsNothingAddsNearlyNoTimeBetweenTheEndOfThePassBeforeItAndTheEndOfThePassAfterIt()
     {
-        // With no screen-space light, the ambient pass follows the direct pass in both renderers, so a stamp after the
-        // direct pass that latches late waits on the same work in each. No reflections either, so no depth pyramid sits
-        // between the G-buffer pass and the direct pass.
+        // With no screen-space light, the composite, a fragment pass, follows the accumulation of the direct signal in both
+        // renderers, so a stamp after the accumulation that latches late waits on the same work in each. The direct pass's
+        // own stamp would wait on the accumulation's compute work, which holds it back by more than the bound in some
+        // frames. No reflections either, so no depth pyramid sits between the G-buffer pass and the direct pass, and the
+        // test renderers take every light exactly, so no light candidates either.
         VulkanRenderer without = TimedRenderer(screenSpaceLight: new NoScreenSpaceLight());
         VulkanRenderer with = TimedRenderer(screenSpaceLight: new NoScreenSpaceLight());
         try
         {
             // Between the G-buffer pass and the direct pass. On a driver whose stamps latch late, the empty pass's own
-            // time can hold part of the direct pass's work, and the direct pass's time then shows that much less, so only
-            // the time from the G-buffer's stamp to the direct pass's stamp holds (ARCHITECTURE.md, "GPU timings").
+            // time can hold part of the next pass's work, and that pass's time then shows that much less, so only the time
+            // from the G-buffer's stamp to the accumulation's stamp holds (ARCHITECTURE.md, "GPU timings").
             with.Graph.Add(FrameGraph.Stage.GBuffer, new EmptyPass());
 
-            double[] fewest = FewestMilliseconds(FromTheGBufferToTheEndOfTheDirectLight, without, with);
+            double[] fewest = FewestMilliseconds(FromTheGBufferToTheEndOfTheDirectAccumulation, without, with);
 
             (fewest[1] - fewest[0])
                 .Should()
@@ -432,11 +434,11 @@ public sealed class GpuTimingTests
     /// The time from the G-buffer's stamp to the direct pass's stamp: the passes after the G-buffer pass up to the direct
     /// pass.
     /// </summary>
-    private static double FromTheGBufferToTheEndOfTheDirectLight(PassTiming[] passes)
+    private static double FromTheGBufferToTheEndOfTheDirectAccumulation(PassTiming[] passes)
     {
         int gBuffer = Array.FindIndex(passes, pass => pass.Pass == "G-buffer");
-        int direct = Array.FindIndex(passes, pass => pass.Pass == "direct light");
-        return passes[(gBuffer + 1)..(direct + 1)].Sum(pass => pass.Milliseconds);
+        int accumulation = Array.FindIndex(passes, pass => pass.Pass == "accumulate direct");
+        return passes[(gBuffer + 1)..(accumulation + 1)].Sum(pass => pass.Milliseconds);
     }
 
     private sealed class EmptyPass : RenderPass
