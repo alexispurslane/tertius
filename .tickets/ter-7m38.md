@@ -1,6 +1,6 @@
 ---
 id: ter-7m38
-status: open
+status: in_progress
 deps: [ter-k63u]
 links: []
 created: 2026-11-03T16:31:49Z
@@ -20,3 +20,7 @@ The user's request of 2026-11-03, at high priority. Compile AMD's pinned FSR 3.1
 **2026-11-03T18:40:17Z**
 
 2026-11-03, the orchestrator's addition, a small choice inside the chosen design: before the timing, add FSR's first snapshot test. Render the settled pattern of colored squares of Fsr3UpscalerTests (and its scene-change frames) with the 32-bit build, review the image as CLAUDE.md asks for a first approval, and store it as the reference. The 16-bit build and the subgroup variant must match that reference within the snapshot tolerance before their time counts. So the rule becomes: a variant that is measurably faster and matches the reference becomes the only build. The test also kills ter-k63u's survivors C50, C57, C58 and C66 (the table in .tickets/ter-k63u.md): run them again with tools/mutate.py --only and record the result.
+
+**2026-11-03T18:41:58Z**
+
+2026-11-03: launched as workflow run b27b717b-e7ea-4822-8692-6e628af080cc, version 869b0b07-3413-4b06-8707-a88a91bf6e91, branch ter-7m38-fsr-16bit from 3344c722c. The brief adds the port of AMD's 3.1.6 fix of the FFX_HALF branch of ReprojectHistoryColor, which the 3.1.4 pin lacks.
