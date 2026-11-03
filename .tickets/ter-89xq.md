@@ -67,3 +67,7 @@ On 2026-11-03 the user cleared the open tickets of the pre-temporal renderer, to
 **2026-11-03T15:24:49Z**
 
 2026-11-03: the user chose that the exact lights of ReSTIR DI are the cascade-set holders (at most CascadedLights), not every far light.
+
+**2026-11-03T16:31:49Z**
+
+2026-11-03: the user asked for ter-7m38 at high priority: FSR 3.1's 16-bit build, kept only if it is faster on the M1 Max. It starts when ter-k63u merges, and ter-s7c6 waits for it.
