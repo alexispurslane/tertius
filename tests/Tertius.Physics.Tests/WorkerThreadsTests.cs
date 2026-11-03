@@ -230,7 +230,8 @@ public sealed class JoltThreadCountTests
         return ThreadsStartedBetween(before, ThreadIds());
     }
 
-    private static int ThreadsStartedBetween(HashSet<ulong> before, HashSet<ulong> after) => after.Except(before).Count();
+    private static int ThreadsStartedBetween(HashSet<ulong> before, HashSet<ulong> after) =>
+        after.Except(before).Count();
 
     // The IDs that are present while a new thread runs and absent before it starts: the new thread's ID, and the ID of any
     // thread that the runtime starts in the meantime.
@@ -261,7 +262,7 @@ public sealed class JoltThreadCountTests
         if (OperatingSystem.IsMacOS())
             return MacThreadIds();
         using var process = Process.GetCurrentProcess();
-        return process.Threads.Cast<ProcessThread>().Select(thread => (ulong)thread.Id).ToHashSet();
+        return [.. process.Threads.Cast<ProcessThread>().Select(thread => (ulong)thread.Id)];
     }
 
     private static HashSet<ulong> MacThreadIds()
@@ -269,7 +270,7 @@ public sealed class JoltThreadCountTests
         // proc_pidinfo fills at most the buffer that it gets, so a full buffer can hide threads, and a larger one follows.
         for (int capacity = 256; ; capacity *= 2)
         {
-            var ids = new ulong[capacity];
+            ulong[] ids = new ulong[capacity];
             int bytes = ProcPidInfo(
                 pid: Environment.ProcessId,
                 flavor: ProcPidListThreadIds,
@@ -280,7 +281,7 @@ public sealed class JoltThreadCountTests
             if (bytes <= 0)
                 throw new Win32Exception(Marshal.GetLastPInvokeError());
             if (bytes < capacity * sizeof(ulong))
-                return ids[..(bytes / sizeof(ulong))].ToHashSet();
+                return [.. ids[..(bytes / sizeof(ulong))]];
         }
     }
 
