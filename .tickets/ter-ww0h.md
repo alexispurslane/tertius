@@ -1,6 +1,6 @@
 ---
 id: ter-ww0h
-status: in_progress
+status: closed
 deps: [ter-mfyv]
 links: []
 created: 2026-11-01T02:46:28Z
@@ -33,3 +33,7 @@ A ticket note gives the four counts per film of demo-exit and the estimated time
 **2026-11-01T18:38:04Z**
 
 2026-11-01: the orchestrator stopped workflow run cc31bfac at the start of its review, by the pause of ter-pq5y. The build finished at c2c39308 on branch ter-ww0h-wall-blocked-lamps; that commit holds only this ticket's result note, which a later continuation reviews before the merge. The result, unreviewed: 41.6 % of the tested pairs of shadowed lamps have visibility 0, and the bounds decide 99 % of them; 40.0 % of the (16 x 16 tile, shadowed lamp) pairs with a tested pixel are dark; 1.51 dark shadowed lamps and 0.98 unshadowed lamps that light no pixel per frame. Upper bounds per frame: design B 0.99 ms (1.23 with the tiles that no pixel reaches), design A 0.39 ms (0.52). The pass needs 1.54 to 1.59 ms less to reach its share of 3.80 ms. The unshadowed lamps that light pixels cost 1.65 ms. The builder recommends B and not A. The hall-r-1 trace that the GPU lock incident touched was recorded again.
+
+**2026-11-03T12:35:13Z**
+
+Closed on 2026-11-03 at the user's request, without its work merged: it belongs to the pre-temporal renderer (spatial reuse, the 12 ms performance push, or the old reflection and bounce pipeline), and epic ter-89xq, the temporal renderer, supersedes it. Its notes and any branch or worktree stay for reference.

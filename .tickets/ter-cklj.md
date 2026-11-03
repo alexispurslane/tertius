@@ -1,6 +1,6 @@
 ---
 id: ter-cklj
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-11-02T22:40:17Z
@@ -18,3 +18,9 @@ Design A sizes the footprint with f = max(alongX, alongY) from reflectionFootpri
 
 To decide: a probe of the elliptical footprint on mirror-balls balls against the 64-ray reference, with its cost on the step view and on reflections low, or a recorded limit with the reason.
 
+
+## Notes
+
+**2026-11-03T12:35:12Z**
+
+Closed on 2026-11-03 at the user's request, without its work merged: it belongs to the pre-temporal renderer (spatial reuse, the 12 ms performance push, or the old reflection and bounce pipeline), and epic ter-89xq, the temporal renderer, supersedes it. Its notes and any branch or worktree stay for reference.

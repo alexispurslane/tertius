@@ -1,6 +1,6 @@
 ---
 id: ter-nw4a
-status: open
+status: closed
 deps: []
 links: [ter-eqtb]
 parent: ter-b2da
@@ -44,3 +44,7 @@ Asked by the user on 2026-11-02 about the floor film's stair steps in ter-eqtb's
 **2026-11-03T00:51:43Z**
 
 Cancelled by the user on 2026-11-02, to take stock of the rendering work. The continuation run cee79292 stopped in its build stage, after it merged main (7a774cd9b) and before its checks. The branch ter-nw4a-reflected-outline is 17 commits ahead of main and clean. It holds no review of the cost pass and no hardening.
+
+**2026-11-03T12:35:12Z**
+
+Closed on 2026-11-03 at the user's request, without its work merged: it belongs to the pre-temporal renderer (spatial reuse, the 12 ms performance push, or the old reflection and bounce pipeline), and epic ter-89xq, the temporal renderer, supersedes it. Its notes and any branch or worktree stay for reference.

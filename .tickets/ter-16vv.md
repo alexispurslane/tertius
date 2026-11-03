@@ -1,6 +1,6 @@
 ---
 id: ter-16vv
-status: open
+status: closed
 deps: []
 links: [ter-pywg]
 created: 2026-11-02T23:28:56Z
@@ -30,3 +30,7 @@ ter-pywg's property test OnRaysOfBinaryFractionsWhoseEntriesAndCrossingsTieWithP
 **2026-11-03T00:51:43Z**
 
 Cancelled by the user on 2026-11-02, to take stock of the rendering work. The run b360b355 stopped in its build stage. The branch ter-16vv-segment-end-tie has no commits. Its worktree keeps uncommitted changes in ScreenRay.cs, reflection.glsl, ScreenRayTests.cs, ARCHITECTURE.md and docs/plans/screen-space-reflections.md.
+
+**2026-11-03T12:35:12Z**
+
+Closed on 2026-11-03 at the user's request, without its work merged: it belongs to the pre-temporal renderer (spatial reuse, the 12 ms performance push, or the old reflection and bounce pipeline), and epic ter-89xq, the temporal renderer, supersedes it. Its notes and any branch or worktree stay for reference.

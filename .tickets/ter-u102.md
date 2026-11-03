@@ -1,6 +1,6 @@
 ---
 id: ter-u102
-status: open
+status: closed
 deps: [ter-b2da]
 links: []
 created: 2026-11-01T03:01:55Z
@@ -17,3 +17,9 @@ Found by ter-svcs, 2026-10-31. ter-r5hb's three controls of demo-exit's deck (de
 ## Acceptance Criteria
 
 The frame span offset of the deck controls is explained with evidence from a trace, or shown not to come from the face schedule.
+
+## Notes
+
+**2026-11-03T12:35:13Z**
+
+Closed on 2026-11-03 at the user's request, without its work merged: it belongs to the pre-temporal renderer (spatial reuse, the 12 ms performance push, or the old reflection and bounce pipeline), and epic ter-89xq, the temporal renderer, supersedes it. Its notes and any branch or worktree stay for reference.

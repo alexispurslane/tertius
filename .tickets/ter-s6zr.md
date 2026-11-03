@@ -1,6 +1,6 @@
 ---
 id: ter-s6zr
-status: open
+status: closed
 deps: [ter-0pj8, ter-55xu]
 links: [ter-bytc, ter-b1j3]
 created: 2026-11-02T12:51:56Z
@@ -60,3 +60,8 @@ Ticket 3 of ter-jw7g's design (docs/plans/environment-map-distances.md, 'Ticket 
 **2026-11-03T00:51:43Z**
 
 Cancelled by the user on 2026-11-02, to take stock of the rendering work. The hardening task stopped during its mutation run. The branch ter-s6zr-corrected-read is 16 commits ahead of main, clean, at 570fdbbf8. It is built and reviewed, and its hardening is not finished.
+
+**2026-11-03T12:35:22Z**
+
+Closed on 2026-11-03 at the user's request, without its work merged: it belongs to the pre-temporal renderer, and epic ter-89xq, the temporal renderer, supersedes it. Its notes and any branch or worktree stay for reference.
+Carry forward: a reflection ray that misses the screen reads the environment map, and that map still has the parallax error of a capture at the eye. The corrected read (branch ter-s6zr-corrected-read at 570fdbbf8, built and reviewed, hardening unfinished) reads the map where the ray ends, through the distance cube. The temporal design can take it as its miss read.
