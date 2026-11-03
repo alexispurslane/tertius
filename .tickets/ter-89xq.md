@@ -41,3 +41,13 @@ Settled by the orchestrator from the research, because it left one clear answer:
 - Motion vectors: no jitter in the vectors, a stable key per object, the previous scale added, last frame's deformed vertices kept, and the previous camera expressed relative to this frame's camera.
 - Frame order: bloom and tone mapping move after FSR, at the output size.
 - The accumulator: one module, slow and fast histories per signal, the surface test once per frame, and the reflection's own checks of the hit distance and the reflected point.
+
+**2026-11-03T12:30:05Z**
+
+The user's choices of 2026-11-03 on lightening dynamic light (beyond the render size and FSR). In the design now:
+- Stochastic shadow taps: each frame takes a few of the shadow-map taps in a pattern that rotates per frame, and FSR averages them.
+- Rays where history is short: the screen tracer spends rays on pixels whose history is new or changed, and fewer on converged pixels.
+- Many-light sampling (ReSTIR DI): each pixel samples a few lights, weighted by their light, and reuses the picks of its neighbors and of last frame. Direct light becomes a temporal signal with a history of its own, through the same accumulator module.
+Later, as tickets of their own: time-sliced environment maps and far shadow cascades, and a world-space radiance cache that keeps the light of surfaces that the camera saw.
+
+The user asked why diffuse rays replace the occlusion passes. The answer recorded in chat: decision 41 of docs/plans/screen-space-illumination.md already says that a blocked direction brings the blocker's light and an open one the environment's light. The rays find the blocked directions at any distance on screen, and their average over frames gives the bounce and the crease shadowing at once. The far rays that the user removed on 2026-10-26 for cost and speckle come back: the speckle came from the old ban on accumulation, and the tracer's first ticket measures the cost.
