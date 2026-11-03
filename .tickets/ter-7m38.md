@@ -14,3 +14,9 @@ tags: [rendering, fsr, performance]
 
 The user's request of 2026-11-03, at high priority. Compile AMD's pinned FSR 3.1.4 GLSL (ter-k63u) with FFX_HALF=1, which needs shaderFloat16 and 16-bit storage access (GL_EXT_shader_16bit_storage in ffx_core_glsl.h). The user accepts new device requirements that every GPU from 2019 on offers: NVIDIA Turing and later, AMD Vega and RDNA, Intel Gen9 and later, Apple GPUs through MoltenVK, and lavapipe. Run the same tests as ter-k63u, and time the 16-bit build against the 32-bit build in alternating runs in one session under the GPU lock. In the same runs, also time AMD's subgroup variant of the pyramid pass (FFX_SPD_NO_WAVE_OPERATIONS=0), whose 16-bit form also needs shaderSubgroupExtendedTypes. Rule: if a variant is measurably faster on the M1 Max, it becomes the only build, and the engine requires its features. Otherwise FSR stays as ter-k63u built it. Either way the engine keeps one build of FSR. Update decision 12 of docs/plans/temporal-renderer.md, the device feature list in ARCHITECTURE.md, and the pin's README with the measured times.
 
+
+## Notes
+
+**2026-11-03T18:40:17Z**
+
+2026-11-03, the orchestrator's addition, a small choice inside the chosen design: before the timing, add FSR's first snapshot test. Render the settled pattern of colored squares of Fsr3UpscalerTests (and its scene-change frames) with the 32-bit build, review the image as CLAUDE.md asks for a first approval, and store it as the reference. The 16-bit build and the subgroup variant must match that reference within the snapshot tolerance before their time counts. So the rule becomes: a variant that is measurably faster and matches the reference becomes the only build. The test also kills ter-k63u's survivors C50, C57, C58 and C66 (the table in .tickets/ter-k63u.md): run them again with tools/mutate.py --only and record the result.

@@ -1,6 +1,6 @@
 ---
 id: ter-k63u
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-11-03T14:53:48Z
@@ -207,3 +207,7 @@ Tests added (steps 5 and 6):
 The constant-color tests cannot show the history, because AMD's rectification clamps the history to the current frame's neighborhood, which is one color. The new lock-ins use the pattern of colored squares. Their thresholds come from measurements on the M1 Max, and each test's comment gives them.
 
 No defect found. Open question for a later ticket: C50, C57, C58 and C66 change the output, but only a reference image can tell a right output from a wrong one. A reference upscale, such as an approved FLIP snapshot of the settled pattern, would kill them.
+
+**2026-11-03T18:40:17Z**
+
+2026-11-03: merged into main as 5a6106d6b after the hardening (3ec53d065: coverage 99.8 % of changed lines, 97 listed mutants with 78 killed and 19 answered, Checked 10,055 and Release 10,042 tests with 0 failures). Closed. The four survivors that change the image without a reference (C50, C57, C58, C66) go to the FSR 16-bit build (ter-7m38): it adds the first FSR snapshot reference from the 32-bit build, which also checks the 16-bit image.
