@@ -78,6 +78,7 @@ Each decision gives its reason. The important ones also give the second design a
 36. An impostor billboard writes its instance's light mark, as a mesh does. So a lamp that draws as a billboard sends its light once to the tracer's hits, by the rule that the closed `ter-coy0` carries forward. Section 6 gives the cost.
 37. The frame submits its work in two parts: the passes up to the bloom, then the passes that write the output image. Only the second part waits for the swapchain image. Reason: the controller's measure of the first part then holds no wait (section 4).
 38. Every pixel gets a sample of each of its signals in every frame. The ray plan gives a pixel its own ray where its history is short or where its block's ray does not fit its surface. The plan reads each signal's history length, the one store of how long a history is. Reason: no pixel is then without both a history and a sample, and the surface history needs no age of its own. Section 6 gives the rule.
+39. The dark panel of `ter-m24j` waits for the panel lights of `ter-80o1`. From ticket 4, the demo's paint shows a cabin's panel lamp as a dark square around the small highlight of its light. The panel lights of `ter-80o1` end this after tickets 5 and 6. Reason: the project prefers the real mechanism over a look-alike. The user also accepted the same dark panel in the map's reflections on 2026-10-31 (`ter-ylzk`). The second design grows each cabin lamp's light to about 0.6 m before ticket 4, which gives a round highlight where the panel is square. (Orchestrator, 2026-11-03, under the user's rule for small choices inside a chosen design)
 
 ## 1. The model
 
@@ -1324,7 +1325,7 @@ This list proposes the fates. This ticket edits no other ticket.
 | `ter-p349` | Volumetric light | Changed | Its text rules out temporal reprojection by decision 8. Now it can reproject over frames, and FSR averages its jitter. Its design decides whether its froxels follow the accumulator's rules. |
 | `ter-80o1` | Panel lights, an epic | Changed | It waits for `ter-pq5y` and `ter-htg7`, which closed without their work. The user's order put it after FSR and the performance work, so those two dependencies move to tickets 5 and 6. Section 7 fits the LTC formula into ReSTIR. |
 | `ter-vcfa` | The design of panel lights | Changed | The same two dependencies move to tickets 5 and 6. Its design reads section 7, "Panel lights". |
-| `ter-m24j` | A cabin panel lamp in a mirror | Changed | Ticket 4 makes it visible in the demo. Its text says that no demo view shows it, because no floor lies below roughness 0.37. Decision 6 turns on reflection rays up to 0.5, the paint of 0.38 included. A lamp's glow is dark in every reflection by today's `glowSent` rule (`frame.glsl`), which the tracer's hits keep. So the paint can reflect a 1.2 m panel as a dark square around the small highlight of its light of 5 cm. Its own choice, a light of the panel's size or the panel lights of `ter-80o1`, is the open question below. |
+| `ter-m24j` | A cabin panel lamp in a mirror | Changed | Ticket 4 makes it visible in the demo. Its text says that no demo view shows it, because no floor lies below roughness 0.37. Decision 6 turns on reflection rays up to 0.5, the paint of 0.38 included. A lamp's glow is dark in every reflection by today's `glowSent` rule (`frame.glsl`), which the tracer's hits keep. So the paint can reflect a 1.2 m panel as a dark square around the small highlight of its light of 5 cm. It waits for the panel lights of `ter-80o1` (decision 39). |
 | `ter-u5be` | A light cutoff that knows the specular peak | Kept | The light list's reach serves both cases of `DirectLight`. |
 | `ter-qi9z` | Unshadowed lamps light through walls | Kept | ReSTIR keeps the leak of an unshadowed lamp, because its visibility comes from the shadow maps. Its dependency on the closed `ter-0saa` is met. |
 | `ter-7l43`, `ter-d7rb` | The stars' diffuse and reflected light | Kept | The tracer's misses read the map and the reflected stars as today's readers do. |
@@ -1446,18 +1447,7 @@ Ticket 1 lists the SPIR-V capabilities of AMD's modules and the storage images t
 15. A demodulated value is capped at `MaxRadiance`. So a highlight brighter than `MaxRadiance` times its specular factor loses its excess, about 1,290 in pre-exposed units for a dielectric. The tone map shows both as white, but the bloom of such a glint is weaker than today's (section 1).
 16. The corrected read of ticket 8 keeps the misses that the user accepted for `ter-s6zr` on 2026-11-02 (section 14, ticket 8). They are soft ghosts of near objects on far walls, the terminal door's overshoot and the pillar's sharp foot. The read also misses 11 of its acceptance boxes.
 17. Under `AutoExposure`, a still's first warm-up draw shades with the exposure of the draw before it. If the exposure moves by more than about 15 stops, that draw's samples reach `MaxRadiance`. Then about 3 % of the shown draw's diffuse history is wrong (section 10).
-18. From ticket 4, a cabin's panel lamp shows in the paint as a dark panel around the small highlight of its light. The open question below decides when that ends (`ter-m24j`).
-
-## Open question
-
-The dark panel of `ter-m24j`: fix it before ticket 4, or wait for the panel lights. From ticket 4, the demo's paint of roughness 0.38 reflects the room. A cabin's panel lamp is a 1.2 m glowing panel with a light of radius 5 cm. It then shows in the paint as a dark square around the small highlight of its light. Its glow is dark in every reflection by `glowSent`, the user's rule that an entity sends its power once (2026-10-27).
-
-| Option | What the user gets | What it costs |
-|---|---|---|
-| A: a light of the panel's size, before ticket 4 | Each cabin lamp's light grows to about the panel's half width, 0.6 m. Its highlight then fills most of the panel's reflection, as a round disc | One content ticket before ticket 4. Every glossy surface then shows a round highlight where the panel is square, until `ter-80o1` |
-| B: wait for the panel lights of `ter-80o1` (Recommended) | The dark panels show in the paint from ticket 4 until `ter-80o1` lands, after tickets 5 and 6. Then the LTC light gives the panel's true shape | No work now. The demo's screenshots of tickets 4 to 6 can show the dark panels |
-
-B is the recommendation. It follows the project's preference for the real mechanism over a look-alike. The user also accepted the same dark panel in the map's reflections on 2026-10-31 (`ter-ylzk`). A costs little if the user wants the demo free of dark panels before `ter-80o1`.
+18. From ticket 4, a cabin's panel lamp shows in the paint as a dark panel around the small highlight of its light. The panel lights of `ter-80o1` end it (`ter-m24j`, decision 39).
 
 ## Sources
 
