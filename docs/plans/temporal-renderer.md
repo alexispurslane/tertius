@@ -760,7 +760,9 @@ The two samples belong to their `TemporalSignal`s, which the tracer writes. The 
 
 ### Randomness
 
-Every random number comes from `pcg3d` of three values: the pixel, the draw index since the last reset, and a constant per kind and dimension. The spike drew its rays the same way. The block's turn uses the same draw index. So a still draws the same rays on every run (section 10). A blue-noise sequence spreads the error better, and it is a later measured change, not part of this design.
+Every random number comes from `pcg3d` of three values: the pixel, the draw index since the last reset, and a constant per kind and dimension. The spike drew its rays the same way. The block's turn uses the same draw index. So a still draws the same rays on every run (section 10).
+
+The block's chosen pixel traces no own ray of a kind for which it already traces the block's ray. Its own sample is the block ray at weight 1. Reason: under the rule above, its own ray draws the same direction as the block ray, so a second trace adds no information (`ter-jz2y`, found in the review of the trace timing spike). The plan knows the chosen pixel from the turn. The second design, a constant of its own for block rays, gives that pixel two independent samples at the cost of a second trace. (Orchestrator, 2026-11-03) A blue-noise sequence spreads the error better, and it is a later measured change, not part of this design.
 
 ## 7. Direct light with ReSTIR DI
 
