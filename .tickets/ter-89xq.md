@@ -55,3 +55,7 @@ The user asked why diffuse rays replace the occlusion passes. The answer recorde
 **2026-11-03T12:35:35Z**
 
 On 2026-11-03 the user cleared the open tickets of the pre-temporal renderer, to start fresh. Closed as superseded, with their work not merged: the epics ter-sglu, ter-pq5y and ter-b2da, and ter-0saa, ter-16vv, ter-3g1g, ter-5aak, ter-8hk9, ter-bsxh, ter-bytc, ter-ch7z, ter-cklj, ter-coy0, ter-efa0, ter-enb1, ter-g6af, ter-htg7, ter-ikm1, ter-ku9c, ter-nw4a, ter-olhk, ter-pn1w, ter-prio, ter-s6zr, ter-u102, ter-ww0h. Four closing notes name an idea that this design can reuse: the corrected environment read (ter-s6zr), the rule against counting a glowing lamp twice (ter-coy0), bloom at the output size (ter-ch7z) and the size split of experiment-fsr1 (ter-htg7). Kept open because they stay valid: the shadow, impostor, star, panel light, environment map bug, Linux, tool and snapshot test tickets. ter-g25a lost its closed parent, and ter-1r63 now reads "on top of FSR 3.1". The design ticket ter-vges started before this cleanup, so its list of open tickets (section 13) can name tickets that are now closed.
+
+**2026-11-03T13:31:51Z**
+
+2026-11-03: the user chose many bounces (option B of ter-vges's open question) for the diffuse rays' hits.
