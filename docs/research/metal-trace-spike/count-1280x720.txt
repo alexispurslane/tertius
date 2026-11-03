@@ -1,0 +1,59 @@
+Count runs (TERTIUS_METALTRACE_MODE=count) of every script in scripts/ at 1280 x 720, Release, headless, --video none,
+built from 5f8b44b82 (the spike code of 675b65020), 2026-11-02, under the GPU lock. Each row is the script's frame with the most
+triangles in the TLAS. maxImpostors is the largest count of impostor billboards in any frame. frames counts the frames
+that the spike saw. Made by /private/tmp/afyv-count/sum.py from each run's frames.jsonl, which was not kept.
+
+rigs-crowd                   tri= 3,962,316 inst=  102 deformed= 100 maxImpostors=   0 frames=  601 topFrame=1
+lamp-hall-64-moving          tri=   148,440 inst=  146 deformed=   0 maxImpostors=   0 frames=  301 topFrame=1
+lamp-hall-64                 tri=   148,440 inst=  146 deformed=   0 maxImpostors=   0 frames=  301 topFrame=1
+mirror-balls                 tri=   124,404 inst=   10 deformed=   0 maxImpostors=   0 frames=    3 topFrame=1
+pbr-spheres                  tri=   112,908 inst=   14 deformed=   0 maxImpostors=   0 frames=    2 topFrame=1
+blue-danube                  tri=   100,744 inst=   58 deformed=   0 maxImpostors=   0 frames=23866 topFrame=4744
+demo-surface                 tri=   100,732 inst=   57 deformed=   0 maxImpostors=   0 frames=    7 topFrame=1
+demo-launch                  tri=   100,732 inst=   57 deformed=   0 maxImpostors=   0 frames=   19 topFrame=1
+demo-docking                 tri=   100,732 inst=   57 deformed=   0 maxImpostors=   0 frames= 4037 topFrame=1
+cabin-light                  tri=   100,732 inst=   57 deformed=   0 maxImpostors=   0 frames=    3 topFrame=1
+earth-system                 tri=    98,976 inst=   42 deformed=   0 maxImpostors=   0 frames=   10 topFrame=1
+orbit-cluster                tri=    86,796 inst=   20 deformed=   0 maxImpostors=   0 frames=    5 topFrame=1
+weightless-push              tri=    86,772 inst=   18 deformed=   0 maxImpostors=   0 frames=    6 topFrame=1
+windows                      tri=    86,748 inst=   16 deformed=   0 maxImpostors=   0 frames=    3 topFrame=1
+walk                         tri=    86,748 inst=   16 deformed=   0 maxImpostors=   0 frames=    2 topFrame=1
+throw                        tri=    86,748 inst=   16 deformed=   0 maxImpostors=   0 frames=    2 topFrame=1
+spacewalk                    tri=    86,748 inst=   16 deformed=   0 maxImpostors=   0 frames=    1 topFrame=1
+orbit-umbra                  tri=    86,748 inst=   16 deformed=   0 maxImpostors=   0 frames= 1402 topFrame=1
+orbit                        tri=    86,748 inst=   16 deformed=   0 maxImpostors=   0 frames=   11 topFrame=1
+airlock                      tri=    86,748 inst=   16 deformed=   0 maxImpostors=   0 frames=    4 topFrame=1
+station                      tri=    86,272 inst=   16 deformed=   0 maxImpostors=   0 frames=    7 topFrame=1
+demo-exit                    tri=    80,080 inst=   48 deformed=   0 maxImpostors=   0 frames= 3888 topFrame=1
+mars-air                     tri=    69,800 inst=   16 deformed=   0 maxImpostors=   0 frames=    6 topFrame=1
+lamp-hall-16-hair            tri=    37,368 inst=  138 deformed=   0 maxImpostors=   0 frames=  301 topFrame=1
+lamp-hall-16-moving          tri=    37,176 inst=   42 deformed=   0 maxImpostors=   0 frames=  301 topFrame=1
+lamp-hall-16                 tri=    37,176 inst=   42 deformed=   0 maxImpostors=   0 frames=  301 topFrame=1
+demo-meshes                  tri=    12,236 inst=    7 deformed=   0 maxImpostors=   0 frames=    5 topFrame=1
+reflections                  tri=    11,628 inst=   11 deformed=   0 maxImpostors=   0 frames=  203 topFrame=1
+lamp-hall-4-moving           tri=     9,336 inst=   14 deformed=   0 maxImpostors=   0 frames=  301 topFrame=1
+lamp-hall-4                  tri=     9,336 inst=   14 deformed=   0 maxImpostors=   0 frames=  301 topFrame=1
+spin-station                 tri=     7,716 inst=  134 deformed=   0 maxImpostors=   0 frames=   10 topFrame=1
+skin-and-hair                tri=     7,164 inst=   29 deformed=   0 maxImpostors=   0 frames=  486 topFrame=1
+rigs                         tri=     3,960 inst=    5 deformed=   3 maxImpostors=   0 frames=    5 topFrame=1
+demo-shuttle                 tri=     3,048 inst=    6 deformed=   0 maxImpostors=   0 frames=    3 topFrame=1
+pillar-room                  tri=     2,484 inst=   16 deformed=   0 maxImpostors=   0 frames=  301 topFrame=1
+stars-4                      tri=     2,364 inst=    6 deformed=   0 maxImpostors=   0 frames=  301 topFrame=1
+stars-2                      tri=     2,364 inst=    6 deformed=   0 maxImpostors=   0 frames=  301 topFrame=1
+stars-1                      tri=     2,364 inst=    6 deformed=   0 maxImpostors=   0 frames=  301 topFrame=1
+lamp-hall-64-spot-moving     tri=     1,752 inst=  146 deformed=   0 maxImpostors=   0 frames=  301 topFrame=1
+lamp-hall-64-spot            tri=     1,752 inst=  146 deformed=   0 maxImpostors=   0 frames=  301 topFrame=1
+lamp-hall-16-spot-moving     tri=       504 inst=   42 deformed=   0 maxImpostors=   0 frames=  301 topFrame=1
+lamp-hall-16-spot            tri=       504 inst=   42 deformed=   0 maxImpostors=   0 frames=  301 topFrame=1
+lamp-hall-4-spot-moving      tri=       168 inst=   14 deformed=   0 maxImpostors=   0 frames=  301 topFrame=1
+lamp-hall-4-spot             tri=       168 inst=   14 deformed=   0 maxImpostors=   0 frames=  301 topFrame=1
+hair-bent-cards              tri=        82 inst=   11 deformed=   0 maxImpostors=   0 frames=  242 topFrame=1
+surface-yard                 tri=        60 inst=    5 deformed=   0 maxImpostors=   0 frames=    5 topFrame=1
+puff-yard                    tri=        60 inst=    5 deformed=   0 maxImpostors=   0 frames=    4 topFrame=1
+doorway                      tri=        48 inst=    4 deformed=   0 maxImpostors=   0 frames=    4 topFrame=1
+spot-box                     tri=        36 inst=    3 deformed=   0 maxImpostors=   0 frames=  301 topFrame=1
+deep-yard                    tri=        36 inst=    3 deformed=   0 maxImpostors=   0 frames=    2 topFrame=1
+hair-rugs                    tri=        28 inst=    4 deformed=   0 maxImpostors=   0 frames=    2 topFrame=1
+drop-box                     tri=        24 inst=    2 deformed=   0 maxImpostors=   0 frames=    3 topFrame=1
+bounce-red-wall              tri=        24 inst=    2 deformed=   0 maxImpostors=   0 frames=    1 topFrame=1
+bounce-raised-box            tri=        24 inst=    2 deformed=   0 maxImpostors=   0 frames=    1 topFrame=1

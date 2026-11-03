@@ -1,6 +1,6 @@
 ---
 id: ter-afyv
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-11-03T01:57:54Z
@@ -57,3 +57,19 @@ Report: docs/research/metal-trace-spike.md holds the method, the tables, the ima
 **2026-11-03T01:58:51Z**
 
 Launched 2026-11-02: workflow run 112dbd8e-e665-46f0-84d8-244f9e675d78, version 869b0b07-3413-4b06-8707-a88a91bf6e91 (build, one review, one fix), branch ter-afyv-metal-trace-spike from 8ebc19923.
+
+**2026-11-03T02:55:07Z**
+
+2026-11-02, the spike's result (branch ter-afyv-metal-trace-spike, report docs/research/metal-trace-spike.md). Verdict: B is not fast enough by the rule as written, so the renderer goes all in on design A.
+
+The rule sum (TLAS build + deformed BLAS updates + reflection rays + diffuse quarter rays, per frame, median / p95 over 120 frames, Release, 1280 x 720): demo-exit antispinward 11.08 / 12.24 ms, reflections 1.77 / 1.88 ms, rigs-crowd 21.13 / 27.28 ms, lamp-hall-64 1.75 / 2.13 ms. A second run: 10.97 / 11.93, 1.76 / 1.78, 19.63 / 24.60, 1.54 / 2.07 ms. The heaviest view, rigs-crowd, is seven times the bound of 3.0 / 3.5 ms: its 100 deformed rigs take 16.94 ms of BLAS refits. demo-exit, the heaviest view by main's frame span, fails with no deformed mesh: 8.62 ms of reflection rays in a closed hall where every ray hits. All nine films of demo-exit fail (7.09 to 11.08 ms median). They fail only because of the reflection rays, which start from the demo's paint of roughness 0.38. Main starts no reflection ray there, because its limit is 0.37 (ter-8bda). Without the reflection rays, the TLAS and the diffuse quarter rays of the films take 1.55 to 2.91 ms in the sum of their medians, inside the bound. So if B traces no world ray from a surface of roughness 0.38, the verdict rests on the deformed BLAS refits of rigs-crowd alone.
+
+The scene is the one on screen: the primary hits agree with the G-buffer distance within 1 % on at least 99.998 % of the surface pixels in all 24 timed runs. MoltenVK 1.4.2 exported the MTLDevice, the buffers and a timeline semaphore as a MTLSharedEvent with no failure. The in-frame run's one Metal command buffer takes 13.14 ms on demo-exit against 13.20 ms for the sum of the timed parts. On the other views it takes less than the timed sum: 0.87 ms less on lamp-hall-64, 1.66 ms on reflections and 5.31 ms on rigs-crowd. That is 0.015 to 1.06 ms per timed command buffer, so it is no fixed cost, and the spike did not measure its cause. The verdict holds in the in-frame run too: less the timed primary rays, its command buffer takes 15.90 ms on rigs-crowd and 11.02 ms on demo-exit. The baseline, main at 1920 x 1080, spends 4.0 to 7.5 ms on the passes that B replaces.
+
+Choices made in the spike: the note's "step view whose frame took 14.31 ms" is not on record. In the tickets, "the step view" means pbr-spheres low (ter-eqtb), but the note puts it under demo-exit. So all nine demo-exit films were measured, and the report uses antispinward, the heaviest by the rule. pbr-spheres was not measured. It has no deformed mesh, so the verdict does not change. The script with the most triangles is rigs-crowd (3,962,316), already a view, so the fourth view is lamp-hall-64 (148,440). A count at 1280 x 720 in the review's fix stage gave the same ranking, with no impostor billboard in any script. The report lists every limit, among them the unread GPU clock, the gap of unknown cause between the timed and the in-frame numbers, the roughness of the demo's paint, and the raw run data, which was not kept.
+
+**2026-11-03T03:42:13Z**
+
+Integrated on 2026-11-02 by the orchestrator: main holds only the report (docs/research/metal-trace-spike.md, its images and count-1280x720.txt) and this note, from the docs-only commits 5f8b44b82 and 0f5d181f0. The spike code stays on the branch ter-afyv-metal-trace-spike at 0f5d181f0 (code commit 675b65020).
+
+The orchestrator's reading of limit 5: demo-exit fails only because of reflection rays from the demo's paint of roughness 0.38, which main does not reflect (cutoff 0.37). The temporal renderer exists to reflect such surfaces, because their missing reflections are the user's main complaint (2026-11-02). So demo-exit's failure counts against B, beside rigs-crowd's deformed BLAS refits. By the user's rule of 2026-11-02, the renderer goes all in on design A.
