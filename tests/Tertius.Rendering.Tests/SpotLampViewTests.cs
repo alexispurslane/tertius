@@ -44,6 +44,7 @@ public sealed class SpotLampViewTests
                 materials: MaterialSlots.Of(8),
                 environment: new WithoutMap(),
                 region: DeformRegion.None,
+                frame: Batchers.FirstFrame(),
                 scene: scene
             );
         return scene;

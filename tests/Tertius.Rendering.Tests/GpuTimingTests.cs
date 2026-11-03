@@ -123,11 +123,12 @@ public sealed class GpuTimingTests
             string[] passes = [.. renderer.LastFrameStats.GpuTimings!.Value.Passes.ToArray().Select(pass => pass.Pass)];
             passes
                 .SkipWhile(pass => pass != "G-buffer")
-                .Take(7)
+                .Take(8)
                 .Should()
                 .Equal(
                     [
                         "G-buffer",
+                        "surface test",
                         "direct light",
                         "occlusion depth",
                         "occlusion sectors",
@@ -158,10 +159,10 @@ public sealed class GpuTimingTests
             string[] passes = [.. renderer.LastFrameStats.GpuTimings!.Value.Passes.ToArray().Select(pass => pass.Pass)];
             passes
                 .SkipWhile(pass => pass != "G-buffer")
-                .Take(3)
+                .Take(4)
                 .Should()
                 .Equal(
-                    ["G-buffer", "direct light", "ambient light"],
+                    ["G-buffer", "surface test", "direct light", "ambient light"],
                     "the ambient pass reads the cleared estimate target"
                 );
             passes.Should().NotContain(pass => pass.StartsWith("occlusion"));

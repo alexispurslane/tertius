@@ -51,6 +51,7 @@ public sealed class FarShadowTests
                 materials: MaterialSlots.Of(8),
                 environment: default,
                 region: DeformRegion.None,
+                frame: Batchers.FirstFrame(),
                 scene: scene
             );
         return scene;

@@ -239,31 +239,43 @@ internal sealed unsafe class GeometryStore : IDisposable
 
     /// <summary>
     /// Grows the deform region to hold <paramref name="vertices"/>, up to the most that its window allows, with a new
-    /// vertex buffer that keeps the static vertices. The region needs no copy: every frame writes it anew.
+    /// vertex buffer that keeps the static vertices. The region needs no copy: every frame writes it anew. Grows
+    /// <paramref name="kept"/>, the kept positions of the deformation, to the region's capacity in the same step, because
+    /// the deform pass writes a kept position for every vertex of the region.
     /// </summary>
     public void ReserveDeformed(
         int vertices,
+        KeptPositions? kept,
         CommandBuffer commandBuffer,
         BarrierBatch barriers,
         DeferredReleases releases,
         long frame
     )
     {
-        if (vertices <= regionCapacity)
-            return;
-        int capacity = RegionCapacityFor(vertices, maxRegion);
-        if (capacity <= regionCapacity)
-            return;
-        VertexBuffer = Replace(
+        int capacity = vertices > regionCapacity ? RegionCapacityFor(vertices, maxRegion) : regionCapacity;
+        if (capacity > regionCapacity)
+        {
+            VertexBuffer = Replace(
+                commandBuffer: commandBuffer,
+                old: VertexBuffer,
+                replacement: CreateVertexBuffer(vertexCapacity + (ulong)capacity),
+                usedBytes: VertexCount * (ulong)Unsafe.SizeOf<GpuVertex>(),
+                barriers: barriers,
+                releases: releases,
+                frame: frame
+            );
+            regionCapacity = capacity;
+        }
+
+        // In every frame, also one that keeps the region: a growth of the kept positions that no drawn frame copied yet
+        // records its copy again.
+        kept?.Reserve(
+            vertices: regionCapacity,
             commandBuffer: commandBuffer,
-            old: VertexBuffer,
-            replacement: CreateVertexBuffer(vertexCapacity + (ulong)capacity),
-            usedBytes: VertexCount * (ulong)Unsafe.SizeOf<GpuVertex>(),
             barriers: barriers,
             releases: releases,
             frame: frame
         );
-        regionCapacity = capacity;
     }
 
     private GpuBuffer Replace(

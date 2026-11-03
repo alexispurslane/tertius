@@ -50,6 +50,7 @@ public sealed class ImpostorManagerTests
         public readonly ImpostorManager Manager;
 
         private readonly DeformRegion region;
+        private readonly FrameHistory history = new();
 
         public Harness(int tiles = 64, DeformRegion region = default)
         {
@@ -58,8 +59,14 @@ public sealed class ImpostorManagerTests
             this.region = region;
         }
 
+        /// <summary>Batches <paramref name="snapshot"/> as the frame after the ones before it, and commits it as drawn.</summary>
         public PreparedScene Run(RenderSnapshot snapshot, EnvironmentDraw environment = default)
         {
+            FrameHistory.PendingFrame frame = history.Begin(
+                snapshot: snapshot,
+                outputSize: new(Width, Height),
+                renderSize: new(Width, Height)
+            );
             Batcher.Prepare(
                 snapshot: snapshot,
                 alpha: 1f,
@@ -70,8 +77,10 @@ public sealed class ImpostorManagerTests
                 materials: Materials,
                 environment: environment,
                 region: region,
+                frame: frame,
                 scene: Scene
             );
+            history.Drew(frame);
             return Scene;
         }
 

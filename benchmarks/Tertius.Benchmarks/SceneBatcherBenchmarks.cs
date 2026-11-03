@@ -67,6 +67,7 @@ public class SceneBatcherBenchmarks
         JobCapacity: 1 << 10
     );
 
+    private readonly FrameHistory history = new();
     private readonly SceneBatcher batcher = new(
         cascadedLights: 1,
         shadowMapSize: ShadowMap.DefaultSize,
@@ -116,7 +117,14 @@ public class SceneBatcherBenchmarks
     }
 
     [Benchmark]
-    public void Prepare() =>
+    public void Prepare()
+    {
+        // Each call continues the one before, so the join finds every key of the last frame, as a window's frames do.
+        FrameHistory.PendingFrame frame = history.Begin(
+            snapshot: snapshot,
+            outputSize: new(Width, Height),
+            renderSize: new(Width, Height)
+        );
         batcher.Prepare(
             snapshot: snapshot,
             alpha: 0.5f,
@@ -129,8 +137,11 @@ public class SceneBatcherBenchmarks
             materials: Materials,
             environment: environment,
             region: Region,
+            frame: frame,
             scene: scene
         );
+        history.Drew(frame);
+    }
 
     /// <summary>
     /// The grid, under a chain of <paramref name="chainLength"/> frames in the root's axes, every instance in the root.

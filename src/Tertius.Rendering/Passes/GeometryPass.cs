@@ -24,17 +24,21 @@ internal interface IRangeDrawer
 internal sealed unsafe class GeometryPass : RenderPass
 {
     private readonly VulkanDevice device;
+    private readonly KeptPositions? kept;
     private readonly SidedPipeline pipeline;
     private readonly SidedPipeline cutoutPipeline;
 
+    /// <param name="kept">The kept deformed positions, whose last frame's buffer the motion reads, or null without the deformation.</param>
     public GeometryPass(
         VulkanDevice device,
         ShaderLibrary shaders,
         DescriptorLayouts layouts,
-        ShaderConstants constants
+        ShaderConstants constants,
+        KeptPositions? kept
     )
     {
         this.device = device;
+        this.kept = kept;
         var desc = new GraphicsPipelineDesc
         {
             Name = "g-buffer",
@@ -47,7 +51,7 @@ internal sealed unsafe class GeometryPass : RenderPass
             DepthTest = true,
             DepthWrite = true,
             DepthCompare = CompareOp.Greater,
-            Constants = constants,
+            Constants = constants with { WritesMotion = true },
         };
         pipeline = SidedPipeline.Create(device: device, shaders: shaders, desc: desc);
         try
@@ -58,7 +62,7 @@ internal sealed unsafe class GeometryPass : RenderPass
                 desc: desc with
                 {
                     Name = "g-buffer cutout",
-                    Constants = constants with { CutoutAlpha = true },
+                    Constants = constants with { CutoutAlpha = true, WritesMotion = true },
                 }
             );
         }
@@ -86,6 +90,9 @@ internal sealed unsafe class GeometryPass : RenderPass
         barriers.Buffer(context.Geometry.IndexBuffer, BufferUse.VertexInput);
         barriers.Buffer(context.Materials.Buffer, BufferUse.ShaderRead);
         barriers.Buffer(context.Exposure.Buffer, BufferUse.ShaderRead);
+        // After the last drawn frame's deform pass wrote them, which may have no job this frame.
+        if (kept?.Read(context.History.Parity) is { } lastPositions)
+            barriers.Buffer(lastPositions, BufferUse.ShaderRead);
 
         RenderingAttachmentInfo* colors = stackalloc RenderingAttachmentInfo[targets.GBuffer.Length];
         for (int range = DepthRanges.Far; range <= DepthRanges.Near; range++)

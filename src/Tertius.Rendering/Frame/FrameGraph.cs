@@ -217,6 +217,12 @@ internal sealed class FrameContext
 
     public PreparedScene Scene { get; set; } = null!;
 
+    /// <summary>
+    /// The frame's pending state of the frame history (<see cref="FrameHistory.Begin"/>): its reset, and the parity of the
+    /// drawn frames, which picks the kept positions and the surface history that the frame writes.
+    /// </summary>
+    public FrameHistory.PendingFrame History { get; set; } = null!;
+
     /// <summary>The final image: a swapchain image or the headless output.</summary>
     public GpuImage Output { get; set; } = null!;
 #pragma warning restore TS0003
@@ -288,6 +294,12 @@ internal sealed class FrameGraph : IDisposable
         EnvironmentPrefilter,
         ImpostorCaptures,
         GBuffer,
+
+        /// <summary>
+        /// The surface test: right after the G-buffer pass, whose distance, normals, roughness and motion target it reads,
+        /// and before the temporal passes, which read its pass bits (docs/plans/temporal-renderer.md, "The frame's order").
+        /// </summary>
+        SurfaceTest,
 
         /// <summary>
         /// The depth pyramid, under <see cref="ConeTracedReflections"/>: right after the G-buffer pass, because it describes

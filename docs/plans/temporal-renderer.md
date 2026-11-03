@@ -169,7 +169,7 @@ A box in parentheses is a stock. Each arrow into a stock is a flow that changes 
 | Direct history | `TemporalSignal` of the direct signal | Slow and fast history of each of the two parts, length | Accumulate direct | Every frame reset |
 | Diffuse history | `TemporalSignal` of the diffuse signal | Slow and fast history, length | Accumulate diffuse | Every frame reset |
 | Specular history | `TemporalSignal` of the specular signal | Slow and fast history, length, hit distance | Accumulate specular | Every frame reset |
-| Surface history | `SurfaceHistory` | The last frame's view depth, geometric normal and roughness at each pixel | Surface test | Every frame reset |
+| Surface history | `SurfaceHistory` | The last frame's geometric normal and roughness at each pixel, and its device depth, which holds its view depth | Surface test | Every frame reset |
 | Reservoirs | `LightReservoirs` | One reservoir per pixel | Light candidates, direct light | Every frame reset |
 | The last drawn frame | `FrameHistory` | Its eye, frame id and rotation. Its unjittered projection, root rotation, render size and jitter. Its snapshot's count of cuts. Its placement history: the rows of each keyed instance relative to its eye, its mesh and its deformed copy's place. Its light keys. The count of drawn frames, and the draw index since the last reset | `FrameHistory.Drew`, after the submission | The draw index restarts at 0. The rest stays, so the motion vectors stay exact across a reset |
 | Kept deformed positions | `DeformPass` | The last frame's position of each deformed vertex | Deformation | Never |
@@ -948,11 +948,13 @@ The surface test pass runs one invocation per pixel of the active part. For a pi
 4. Apply the surface test to each tap. The plane test: |(x_t − x′) · n_p| is at most 0.01 times x′'s view depth. The normal test: n_t · n_p is at least cos 25°. If both tests hold, the tap passes.
 5. Apply the specular test to each tap. If a tap passes the surface test and its roughness differs from p's by at most 0.1, it passes.
 6. Write the surface test image, R8_UINT: one bit per tap for each of the two tests.
-7. Write this frame's surface history: p's view depth, normal and roughness.
+7. Write this frame's surface history: p's normal and roughness. The device depth holds p's view depth.
 
 n_p is p's geometric normal. Its current direction stands in for its last direction. For an object that turns, the plane test's error is then the tap's distance from x′ times the sine of the turn, which is small.
 
 The pass also writes FSR's device depth at every pixel and the sky's motion at each sky pixel (section 3). A sky pixel has no surface and no signal, so only FSR keeps its history.
+
+Changed on 2026-11-03 (ticket `ter-ohqr`, its hardening): the surface history no longer holds the view depth. A half float holds at most 65,504 m, so a farther surface, such as a planet's ground seen from orbit, failed the test in every frame, and its light would never settle. The device depth, R32F, is now the one store of the view depth. `SurfaceHistory` keeps two device depths by the same parity as the two surface histories. The test reads the last frame's and gets the last view depth as 0.05 m over it. FSR reads this frame's. The surface history's x stays unused.
 
 Each accumulator computes the bilinear weights of the previous place, multiplies them by the pass bits, and divides them by their sum. If the sum is below 0.05, the pixel has no history, and its length starts from 0. The ray plan reads the history length through the same function, `reprojectedLength` in `signals.glsl` (section 6).
 
@@ -1039,7 +1041,8 @@ The direct sample has no noise under `EveryLight` with `NoUpscaling` (section 1)
 
 | Image | Format | Count | Holds |
 |---|---|---|---|
-| Surface history | RGBA16F | 2 | View depth, normal, roughness |
+| Surface history | RGBA16F | 2 | x unused, normal, roughness |
+| Device depth | R32F | 2 | The near plane over the view depth, 0 for sky. FSR reads this frame's, the surface test the last frame's |
 | Surface test image | R8_UINT | 1 | The pass bits |
 | Slow history, per part | RGBA16F | 1 | rgb the light, a the length |
 | Fast history, per part | RGBA16F | 2 | rgb the light, a the hit distance for the specular signal |
@@ -1263,7 +1266,7 @@ Memory, at an output of 1920 × 1080 with the largest render scale of 1. An RGBA
 | Store | Images | MB |
 |---|---|---:|
 | The three signals: 4 parts of 4 images, and 2 shared scratch images | 18 × RGBA16F | 299 |
-| Surface history and the surface test image | 2 × RGBA16F, 1 × R8_UINT | 35 |
+| Surface history, the last device depth and the surface test image | 2 × RGBA16F, 1 × R32F, 1 × R8_UINT | 44 |
 | Reservoirs | 2 × RG32UI | 33 |
 | Motion target, device depth, opaque-only image, reactive mask | RGBA16F, R32F, RGBA16F, R8_UNORM | 44 |
 | Block rays and the own-ray list | Quarter size, and a buffer | 25 |

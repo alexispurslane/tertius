@@ -28,6 +28,7 @@ public sealed class OutlinePassTests
                 materials: MaterialSlots.Of(1),
                 environment: default,
                 region: DeformRegion.None,
+                frame: Batchers.FirstFrame(),
                 scene: scene
             );
         OutlinePass.Collect(snapshot, scene);
@@ -235,6 +236,7 @@ public sealed class OutlinePassTests
             materials: MaterialSlots.Of(1),
             environment: default,
             region: DeformRegion.None,
+            frame: Batchers.FirstFrame(),
             scene: scene
         );
         OutlinePass.Collect(shown, scene);
@@ -250,6 +252,7 @@ public sealed class OutlinePassTests
             materials: MaterialSlots.Of(1),
             environment: default,
             region: DeformRegion.None,
+            frame: Batchers.FirstFrame(),
             scene: scene
         );
         OutlinePass.Collect(hidden, scene);

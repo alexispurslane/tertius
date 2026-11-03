@@ -50,6 +50,7 @@ public sealed class BatcherTests
             materials: MaterialSlots.Of(materials),
             environment: environment,
             region: DeformRegion.None,
+            frame: Batchers.FirstFrame(),
             scene: scene
         );
         return scene;
@@ -1310,6 +1311,7 @@ public sealed class BatcherTests
             materials: MaterialSlots.Of(8),
             environment: MapOf(FaceMask.All),
             region: DeformRegion.None,
+            frame: Batchers.FirstFrame(),
             scene: scene
         );
         scene.EnvironmentFaces.Should().HaveCount(6);
@@ -1324,6 +1326,7 @@ public sealed class BatcherTests
             materials: MaterialSlots.Of(8),
             environment: MapOf(FaceMask.NegativeY),
             region: DeformRegion.None,
+            frame: Batchers.FirstFrame(),
             scene: scene
         );
 
@@ -1334,7 +1337,7 @@ public sealed class BatcherTests
     public void APlacedSlotHoldsNothingOfTheInstanceThatFilledItTheFrameBefore()
     {
         var scene = new PreparedScene();
-        scene.AddPlaced() = new()
+        scene.AddPlaced(motion: default) = new()
         {
             Depth = 5f,
             Mesh = 2,
@@ -1343,7 +1346,7 @@ public sealed class BatcherTests
         };
         scene.Reset();
 
-        PreparedInstance slot = scene.AddPlaced();
+        PreparedInstance slot = scene.AddPlaced(motion: default);
 
         slot.Should()
             .Be(
@@ -2003,6 +2006,7 @@ public sealed class BatcherTests
             materials: MaterialSlots.Of(8),
             environment: default,
             region: DeformRegion.None,
+            frame: Batchers.FirstFrame(),
             scene: scene
         );
         scene.PuffCount.Should().Be(1);
@@ -2017,6 +2021,7 @@ public sealed class BatcherTests
             materials: MaterialSlots.Of(8),
             environment: default,
             region: DeformRegion.None,
+            frame: Batchers.FirstFrame(),
             scene: scene
         );
 
@@ -2065,7 +2070,7 @@ public sealed class BatcherTests
     [Fact]
     public void TheFrameConstantsMatchTheShadersFrameBlock()
     {
-        Unsafe.SizeOf<GpuFrameConstants>().Should().Be(2192);
+        Unsafe.SizeOf<GpuFrameConstants>().Should().Be(2416);
         ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.Counts))).Should().Be(304);
         ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.RootRotation))).Should().Be(384);
         ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.CascadeSets))).Should().Be(400);
@@ -2074,6 +2079,11 @@ public sealed class BatcherTests
             .Should()
             .Be(2096, "the atmosphere follows the 42 map axes");
         Unsafe.SizeOf<GpuAtmosphere>().Should().Be(96, "std140 lays out six vec4s in 96 bytes");
+        ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.MotionViewProj)))
+            .Should()
+            .Be(2192, "the previous camera follows the atmosphere");
+        ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.PreviousEye))).Should().Be(2320);
+        ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.PreviousRootRotation))).Should().Be(2400);
     }
 
     [Fact]

@@ -34,11 +34,11 @@ public sealed class DescriptorLayoutsTests
         };
 
     [Fact]
-    public void ADeviceWithTheSpecsMinimumOfFourStorageBuffersInAStageCannotBindALayoutWhoseStageSeesEight() =>
-        Descriptors(storageBuffers: 8, storageImages: 0, sampledImages: 0)
+    public void ADeviceWithTheSpecsMinimumOfFourStorageBuffersInAStageCannotBindALayoutWhoseStageSeesTen() =>
+        Descriptors(storageBuffers: 10, storageImages: 0, sampledImages: 0)
             .Problem(LeastLimits)
             .Should()
-            .Contain("8 storage buffers", "the frame set's vertex and fragment stages see eight storage buffers");
+            .Contain("10 storage buffers", "the frame set's vertex stage sees ten storage buffers");
 
     [Fact]
     public void ADeviceWithTheSpecsMinimumOfFourStorageImagesInAStageCannotBindALayoutWhoseStageSeesTen() =>
@@ -132,7 +132,7 @@ public sealed class DescriptorLayoutsTests
     }
 
     [Fact]
-    public void TheDeformLayoutsComputeStageSeesFiveStorageBuffers()
+    public void TheDeformLayoutsComputeStageSeesSixStorageBuffers()
     {
         using var device = VulkanDevice.Create(validation: true, surfaceExtensions: [], createSurface: null);
         using var layouts = new DescriptorLayouts(device: device, framesInFlight: 2, glowLevels: 0);
@@ -140,7 +140,10 @@ public sealed class DescriptorLayoutsTests
         layouts
             .DescriptorsOf(layouts.DeformLayout)
             .StorageBuffers.Compute.Should()
-            .Be(5, "the window, the deform vertices, the morph deltas, the pose rows and the job table");
+            .Be(
+                6,
+                "the window, the deform vertices, the morph deltas, the pose rows, the job table and the kept positions"
+            );
     }
 
     /// <summary>
@@ -148,7 +151,7 @@ public sealed class DescriptorLayoutsTests
     /// ARCHITECTURE.md, "Required device features", states.
     /// </summary>
     [Fact]
-    public void TheLayoutsNeedOfAStageEightStorageBuffersTenStorageImagesAndEighteenSampledImages()
+    public void TheLayoutsNeedOfAStageTenStorageBuffersTenStorageImagesAndEighteenSampledImages()
     {
         using var device = VulkanDevice.Create(validation: true, surfaceExtensions: [], createSurface: null);
         using var layouts = new DescriptorLayouts(device: device, framesInFlight: 2, glowLevels: 0);
@@ -161,7 +164,7 @@ public sealed class DescriptorLayoutsTests
                 .Select(property => layouts.DescriptorsOf((PipelineLayout)property.GetValue(layouts)!)),
         ];
 
-        all.Max(counts => counts.StorageBuffers.Most).Should().Be(8, "the frame set's graphics stages see eight");
+        all.Max(counts => counts.StorageBuffers.Most).Should().Be(10, "the frame set's vertex stage sees ten");
         all.Max(counts => counts.StorageImages.Most).Should().Be(10, "the depth tail's compute stage writes ten mips");
         all.Max(counts => counts.SampledImages.Most)
             .Should()

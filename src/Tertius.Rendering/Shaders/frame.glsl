@@ -189,6 +189,16 @@ layout(set = 0, binding = 0, std140) uniform FrameBlock
     GpuCascadeSet cascadeSets[4];   // ShadowCascades.MaxSets; set i belongs to the light whose slot names it
     vec4 mapAxes[42];         // R_i: the axes of map i's frame in world axes, a unit quaternion (xyz, w), root first
     GpuAtmosphere atmosphere; // the air that the camera looks through
+    // The last drawn frame's camera, for the motion vectors (docs/plans/temporal-renderer.md, section 3). Both matrices
+    // have no jitter and no translation, and only their x, y and w rows count: clip w is the view depth.
+    mat4 motionViewProj;      // this frame's clip space from world space
+    mat4 previousViewProj;    // the last frame's clip space from a position relative to the last frame's eye
+    vec4 previousEye;         // xyz the last frame's eye relative to this frame's eye, in m, in world axes
+    vec4 previousCameraRight; // xyz the last frame's right × tan(horizontal half-fov)
+    vec4 previousCameraUp;    // xyz the last frame's up × tan(vertical half-fov)
+    vec4 previousCameraForward; // xyz the last frame's unit forward
+    vec4 previousViewport;    // the last frame's render size: width, height, 1 / width, 1 / height
+    vec4 previousRootRotation; // the last frame's root axes in world axes, as a quaternion (xyz, w)
 } frame;
 
 layout(set = 0, binding = 1, std430) readonly buffer InstanceBlock { GpuInstance instances[]; };
@@ -201,9 +211,35 @@ layout(set = 0, binding = 6, std430) readonly buffer OutlineBlock { GpuOutline o
 layout(set = 0, binding = 7, std430) readonly buffer PuffBlock { GpuPuff puffs[]; };
 // The exposure in stops that this frame's passes use (ExposureResources.cs). The adapt step of the frame before wrote it.
 layout(set = 0, binding = 11, std430) readonly buffer ExposureBlock { float exposureStops; };
+// GpuMotion.Kind (MotionKind in GpuTypes.cs).
+const uint MotionMoved = 0u;
+const uint MotionStill = 1u;
+const uint MotionNew = 2u;
+
+// GpuMotion.NoKeptCopy: the previous first vertex of an instance whose last frame kept no copy of its vertex count.
+const uint NoKeptCopy = 0xFFFFFFFFu;
+
+// Where one placed instance was in the last drawn frame (GpuMotion, docs/plans/temporal-renderer.md, "The placement
+// history").
+struct GpuMotion
+{
+    vec4 previousRow0;        // the last frame's model rows, relative to the last frame's eye
+    vec4 previousRow1;
+    vec4 previousRow2;
+    uint previousFirstVertex; // the last frame's copy's first vertex in the kept positions, or NoKeptCopy
+    uint kind;                // MotionMoved, MotionStill or MotionNew
+    uint firstVertex;         // this frame's frame mesh's first vertex in the vertex buffer
+};                            // std430: 60 bytes of members, a stride of 64
+
 // The tile views of the local shadows (ShadowAtlas.TileViewsBinding): a near light's AtlasTiles slot names its views.
 // Partially bound: empty without the atlas, when no light has such a slot.
 layout(set = 0, binding = 15, std430) readonly buffer ShadowTileBlock { GpuShadowTile shadowTiles[]; };
+// The motion rows of the frame's placed instances, by GpuInstance.placedIndex. Only the G-buffer's vertex stage reads
+// them.
+layout(set = 0, binding = 17, std430) readonly buffer MotionBlock { GpuMotion motions[]; };
+// The deformed positions that the last drawn frame kept, three floats per vertex of the deform region
+// (KeptPositions.cs). Partially bound: empty without the deformation.
+layout(set = 0, binding = 18, std430) readonly buffer KeptPositionBlock { float keptPositions[]; };
 
 layout(set = 1, binding = 0) uniform texture2D textures[];
 

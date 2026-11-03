@@ -1,24 +1,34 @@
+using System.Diagnostics;
 using Silk.NET.Vulkan;
 
 namespace Tertius.Rendering;
 
 /// <summary>
 /// The deform pass (docs/plans/skinning-and-morphs.md, "The pass"): one compute dispatch over every job of the frame
-/// writes each job's deformed copy into the deform region, before every pass that draws a mesh. A frame without a job
-/// records nothing.
+/// writes each job's deformed copy into the deform region, before every pass that draws a mesh, and each deformed vertex's
+/// position into the kept positions of the frame's parity (docs/plans/temporal-renderer.md, "Kept deformed positions"). A
+/// frame without a job records nothing.
 /// </summary>
 internal sealed unsafe class DeformPass : RenderPass
 {
     private readonly VulkanDevice device;
     private readonly DescriptorLayouts layouts;
     private readonly DeformStore deforms;
+    private readonly KeptPositions kept;
     private readonly Pipeline pipeline;
 
-    public DeformPass(VulkanDevice device, ShaderLibrary shaders, DescriptorLayouts layouts, DeformStore deforms)
+    public DeformPass(
+        VulkanDevice device,
+        ShaderLibrary shaders,
+        DescriptorLayouts layouts,
+        DeformStore deforms,
+        KeptPositions kept
+    )
     {
         this.device = device;
         this.layouts = layouts;
         this.deforms = deforms;
+        this.kept = kept;
         pipeline = new ComputePipelineDesc
         {
             Name = "deform",
@@ -53,9 +63,18 @@ internal sealed unsafe class DeformPass : RenderPass
         CommandBuffer commandBuffer = context.CommandBuffer;
         BarrierBatch barriers = context.Barriers;
         GpuBuffer vertices = context.Geometry.VertexBuffer;
+        // deform.comp writes a kept position for each vertex of a job's target, with no bound of its own.
+        Contract.Requires(kept.Capacity >= context.Geometry.Region.Capacity);
         // A write after the vertex reads of every earlier pass, the frame before's included: the region serves every
         // frame in flight (docs/plans/skinning-and-morphs.md, decision 18).
         barriers.Buffer(vertices, BufferUse.ComputeWrite);
+        // After the vertex reads of the frame before the last, the last one that read this parity's buffer. A frame with a
+        // job has a region, which the kept positions hold.
+        barriers.Buffer(
+            kept.Written(context.History.Parity)
+                ?? throw new UnreachableException("The kept positions hold the deform region of a frame with a job."),
+            BufferUse.ComputeWrite
+        );
         barriers.Buffer(deforms.Vertices.Buffer, BufferUse.ComputeRead);
         barriers.Buffer(deforms.Deltas.Buffer, BufferUse.ComputeRead);
         barriers.Flush(vk, commandBuffer);

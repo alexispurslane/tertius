@@ -260,6 +260,7 @@ public sealed class StressTests(ITestOutputHelper output)
                 materials: MaterialSlots.Of(8),
                 environment: default,
                 region: DeformRegion.None,
+                frame: Batchers.FirstFrame(),
                 scene: scene
             );
         var timer = Stopwatch.StartNew();
@@ -274,6 +275,7 @@ public sealed class StressTests(ITestOutputHelper output)
                 materials: MaterialSlots.Of(8),
                 environment: default,
                 region: DeformRegion.None,
+                frame: Batchers.FirstFrame(),
                 scene: scene
             );
         return timer.Elapsed.TotalMilliseconds / 50;

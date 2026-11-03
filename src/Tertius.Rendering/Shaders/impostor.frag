@@ -4,6 +4,7 @@
 #include "draw.glsl"
 #include "octahedral.glsl"
 #include "exposure.glsl"
+#include "motion.glsl"
 
 // Impostor billboards into the G-buffer (ImpostorPass.cs). The capture's lighting is baked, so the pixel is
 // written as emission with base color alpha 0, which tells the direct and ambient passes to add nothing else. The captured relative
@@ -23,6 +24,7 @@ layout(location = 2) out vec4 outSpecular;
 layout(location = 3) out vec4 outEmissive;
 layout(location = 4) out float outDistance;
 layout(location = 5) out uvec4 outShading;
+layout(location = 6) out vec4 outMotion;
 
 void main()
 {
@@ -62,4 +64,10 @@ void main()
     outDistance = length(world - draw.eye.xyz);
     // The standard code: the pixel is unlit, which the base color's alpha of 0 says, and holds no strand.
     outShading = uvec4(0u);
+    // The billboard moves with its object's center: a turn of the object since the last frame does not move the
+    // billboard's point.
+    GpuMotion motion = motions[instance.placedIndex];
+    vec3 center = vec3(instance.modelRow0.w, instance.modelRow1.w, instance.modelRow2.w);
+    vec3 lastCenter = vec3(motion.previousRow0.w, motion.previousRow1.w, motion.previousRow2.w);
+    outMotion = motionOf(clipOf(world), motion.kind == MotionNew ? vec3(0.0) : lastClipOf(world - center + lastCenter));
 }

@@ -47,6 +47,7 @@ public sealed class BatcherLightTests
             materials: MaterialSlots.Of(8),
             environment: environment ?? new WithoutMap(),
             region: DeformRegion.None,
+            frame: Batchers.FirstFrame(),
             scene: scene
         );
         return scene;

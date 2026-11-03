@@ -103,6 +103,7 @@ public sealed class BatcherDeformTests
                 materials: MaterialSlots.Of(8),
                 environment: environment,
                 region: region,
+                frame: Batchers.FirstFrame(),
                 scene: scene
             );
         return scene;
@@ -526,7 +527,15 @@ public sealed class BatcherDeformTests
         SceneBatcher batcher = Batchers.Default();
         // Outside the frame, whose allocations the test counts.
         MaterialInfo[] materials = MaterialSlots.Of(8);
-        void Frame() =>
+        var history = new FrameHistory();
+        // Each frame continues the one before, so the join of the placement history runs as in a window's frames.
+        void Frame()
+        {
+            FrameHistory.PendingFrame frame = history.Begin(
+                snapshot: snapshot,
+                outputSize: new(1600, 900),
+                renderSize: new(1600, 900)
+            );
             batcher.Prepare(
                 snapshot: snapshot,
                 alpha: 0.5f,
@@ -537,8 +546,12 @@ public sealed class BatcherDeformTests
                 materials: materials,
                 environment: default,
                 region: Roomy,
+                frame: frame,
                 scene: scene
             );
+            history.Drew(frame);
+        }
+
         for (int i = 0; i < 3; i++)
             Frame();
 

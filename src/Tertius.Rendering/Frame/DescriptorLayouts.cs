@@ -10,8 +10,9 @@ namespace Tertius.Rendering;
 /// frame outlines, puffs, the BRDF tables (bindings 8 and 9) with their sampler (binding 10, immutable), and the exposure
 /// buffer (binding 11), which every frame's set shares, and the environment map's specular map (binding 12, partially
 /// bound), its sampler (binding 13, immutable) and its irradiance cube (binding 14, partially bound), which stay empty
-/// with the map off, and the tile views of the local shadows (binding 15, partially bound), empty without the atlas. One per frame
-/// in flight.</description></item>
+/// with the map off, the tile views of the local shadows (binding 15, partially bound), empty without the atlas, the
+/// motion rows (binding 17) and the kept deformed positions of the last drawn frame (binding 18, partially bound), empty
+/// without the deformation. One per frame in flight.</description></item>
 /// <item><term>set 1, textures</term>
 /// <description>the bindless texture array: variable count, partially bound, update-after-bind. One per frame in flight.</description>
 /// </item>
@@ -57,7 +58,12 @@ namespace Tertius.Rendering;
 /// its bounds as a storage image, for the compute stage. One with the atlas, written once.</description></item>
 /// <item><term>deform</term><description>the set of <see cref="DeformLayout"/>: the deform region's window of the vertex
 /// buffer, the deform vertices, the morph deltas, the frame's pose rows and its job table, five storage buffers for the
-/// compute stage (docs/plans/skinning-and-morphs.md, "The pass"). One per frame in flight.</description></item>
+/// compute stage (docs/plans/skinning-and-morphs.md, "The pass"), and this frame's kept positions (binding 5). One per
+/// frame in flight.</description></item>
+/// <item><term>surface test</term><description>set 3 of <see cref="SurfaceTestLayout"/>: the last surface history and
+/// the last device depth as sampled images, and the motion target, this frame's surface history, the surface test image
+/// and this frame's device depth as storage images (docs/plans/temporal-renderer.md, "The surface test"). Two, one per parity of the drawn frames,
+/// rewritten on resize.</description></item>
 /// </list>
 /// Every pass that draws meshes or reads the G-buffer uses <see cref="SceneLayout"/>, so sets 0 and 1 stay bound
 /// across pipeline changes. <see cref="ImpostorLayout"/> and <see cref="AmbientScatterLayout"/> add set 3 and are
@@ -71,18 +77,30 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// <summary>The bindings of <see cref="SmaaSet"/>.</summary>
     private const uint SmaaBindings = 6;
 
-    /// <summary>
-    /// The storage buffers of the frame set: bindings 1 to 4, 6, 7, 11 and 15, which the vertex and fragment stages all
-    /// see.
-    /// </summary>
-    public const uint FrameSetStorageBuffers = 8;
+    /// <summary>The surface test sets: one per parity of the drawn frames (<see cref="SurfaceHistory"/>).</summary>
+    private const uint SurfaceTestSets = 2;
 
     /// <summary>
-    /// The storage buffers of the deform set: the region's window, the deform vertices, the deltas, the pose rows and the
-    /// job table. At most <see cref="FrameSetStorageBuffers"/>, which every device that the renderer accepts offers a stage,
-    /// because the scene layout needs that many.
+    /// The storage buffers of the frame set: bindings 1 to 4, 6, 7, 11, 15, 17 and 18, which the vertex stage all sees. The
+    /// fragment stage sees all but binding 18.
     /// </summary>
-    public const uint DeformSetStorageBuffers = 5;
+    public const uint FrameSetStorageBuffers = 10;
+
+    /// <summary>
+    /// The storage buffers of the deform set: the region's window, the deform vertices, the deltas, the pose rows, the job
+    /// table and this frame's kept positions. At most <see cref="FrameSetStorageBuffers"/>, which every device that the
+    /// renderer accepts offers a stage, because the scene layout needs that many.
+    /// </summary>
+    public const uint DeformSetStorageBuffers = 6;
+
+    /// <summary>The binding of the motion rows in the frame set.</summary>
+    public const uint MotionsBinding = 17;
+
+    /// <summary>The binding of the last drawn frame's kept positions in the frame set.</summary>
+    public const uint KeptPositionsBinding = 18;
+
+    /// <summary>The binding of this frame's kept positions in the deform set.</summary>
+    public const uint DeformKeptPositionsBinding = 5;
 
     /// <summary>
     /// The pyramid level sets of the largest pyramids: levels 1 to 14 of the depth pyramid and 0 to 14 of the radiance
@@ -140,6 +158,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         DeformSet = CreateDeformSetLayout();
         ScatterSet = CreateScatterSetLayout();
         ShadowBoundsSet = CreateShadowBoundsSetLayout();
+        SurfaceTestSet = CreateSurfaceTestSetLayout();
 
         (SceneLayout, ImpostorLayout, AmbientScatterLayout, OverlayLayout, PostLayout, BloomLayout, SmaaLayout) =
             CreateGraphicsLayouts();
@@ -154,6 +173,11 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             ScatterLayout,
             ShadowBoundsLayout
         ) = CreateComputeLayouts();
+
+        SurfaceTestLayout = ComputeLayout<SurfaceTestPushConstants>(
+            sets: [FrameSet, TextureSet, GBufferSet, SurfaceTestSet],
+            name: "surface test layout"
+        );
 
         (pool, texturePool) = CreatePools(framesInFlight: (uint)framesInFlight, glowSourceSets: (uint)glowLevels + 1);
     }
@@ -334,6 +358,16 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     public PipelineLayout DeformLayout { get; }
 
     /// <summary>
+    /// Set 3 of <see cref="SurfaceTestLayout"/>: the last surface history (binding 0, sampled), as storage images the
+    /// motion target (binding 1), this frame's surface history (binding 2), the surface test image (binding 3) and this
+    /// frame's device depth (binding 4), and the last device depth (binding 5, sampled) (Shaders/surface_test.comp).
+    /// </summary>
+    public DescriptorSetLayout SurfaceTestSet { get; }
+
+    /// <summary>Sets 0 to 2 of <see cref="SceneLayout"/>, the surface test set and <see cref="SurfaceTestPushConstants"/>.</summary>
+    public PipelineLayout SurfaceTestLayout { get; }
+
+    /// <summary>
     /// The storage buffers, storage images and sampled images that each shader stage of <paramref name="layout"/> sees,
     /// outside the sets that are updated after bind: the counts that the device's per-stage limits bound.
     /// </summary>
@@ -372,6 +406,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     public DescriptorSet AllocateScatterSet() => Allocate(pool, ScatterSet, null);
 
     public DescriptorSet AllocateShadowBoundsSet() => Allocate(pool, ShadowBoundsSet, null);
+
+    public DescriptorSet AllocateSurfaceTestSet() => Allocate(pool, SurfaceTestSet, null);
 
     public DescriptorSet AllocateTextureSet()
     {
@@ -519,6 +555,10 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             pDescriptorCopies: null
         );
     }
+
+    /// <summary>A binding of one storage buffer.</summary>
+    private static DescriptorSetLayoutBinding StorageBuffer(uint binding, ShaderStageFlags stages) =>
+        new(binding: binding, descriptorType: DescriptorType.StorageBuffer, descriptorCount: 1, stageFlags: stages);
 
     /// <summary>A binding of one sampled image.</summary>
     private static DescriptorSetLayoutBinding Image(uint binding, ShaderStageFlags stages) =>
@@ -715,7 +755,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             sets: [FrameSet, TextureSet, GBufferSet, ReflectionSet],
             name: "reflection layout"
         );
-        // The deform set alone, so its compute stage sees five storage buffers, within the eight that the scene layout
+        // The deform set alone, so its compute stage sees six storage buffers, within the ten that the scene layout
         // already needs of every device.
         PipelineLayout deform = ComputeLayout<DeformPushConstants>(sets: [DeformSet], name: "deform layout");
         PipelineLayout scatter = CreatePipelineLayout(
@@ -765,10 +805,15 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             new(DescriptorType.Sampler, 3 * frames + 5 + glowSourceSets),
             // 21 for the G-buffer, post and atlas sets, five per frame set for the tables, the specular map, the irradiance
             // cube and the distance cube, one per glow source set, two for the meter set, one per pyramid level set, one for
-            // the depth tail set, two for the reflection set, one for the prefilter set and one for the shadow bounds set.
-            new(DescriptorType.SampledImage, 21 + 5 * frames + glowSourceSets + 2 + PyramidLevelSets + 1 + 2 + 1 + 1),
+            // the depth tail set, two for the reflection set, one for the prefilter set, one for the shadow bounds set and
+            // two for each surface test set.
+            new(
+                DescriptorType.SampledImage,
+                21 + 5 * frames + glowSourceSets + 2 + PyramidLevelSets + 1 + 2 + 1 + 1 + 2 * SurfaceTestSets
+            ),
             // Those of each of the two occlusion sets, one per pyramid level set, the depth tail set's mips, three for the
-            // reflection set, four per environment levels set, three for the scatter set and one for the shadow bounds set.
+            // reflection set, four per environment levels set, three for the scatter set, one for the shadow bounds set and
+            // four per surface test set.
             new(
                 DescriptorType.StorageImage,
                 2 * OcclusionImages.StorageImages
@@ -778,16 +823,18 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
                     + 4 * EnvironmentLevelsSets
                     + 3
                     + 1
+                    + 4 * SurfaceTestSets
             ),
             // The SMAA set.
             new(DescriptorType.CombinedImageSampler, SmaaBindings),
         ];
         // The frame sets, the deform sets, the G-buffer, post, atlas, meter, exposure, SMAA, reflection, prefilter,
-        // scatter and shadow bounds sets, the two occlusion sets, the glow source sets, the pyramid level sets, the depth tail set and the
-        // environment levels sets. The reflection sets exist even with reflections off: they cost nothing per frame.
+        // scatter and shadow bounds sets, the two occlusion sets, the glow source sets, the pyramid level sets, the depth tail set,
+        // the environment levels sets and the surface test sets. The reflection sets exist even with reflections off: they
+        // cost nothing per frame.
         DescriptorPool shared = CreatePool(
             sizes: sizes,
-            maxSets: 2 * frames + 13 + glowSourceSets + PyramidLevelSets + EnvironmentLevelsSets,
+            maxSets: 2 * frames + 13 + glowSourceSets + PyramidLevelSets + EnvironmentLevelsSets + SurfaceTestSets,
             flags: 0,
             name: "descriptor pool"
         );
@@ -962,6 +1009,24 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         return CreateLayout(bindings: bounds, name: "shadow bounds set");
     }
 
+    /// <summary>
+    /// The layout of the surface test set: the last surface history and the last device depth as sampled images and four
+    /// storage images, for the compute stage.
+    /// </summary>
+    private DescriptorSetLayout CreateSurfaceTestSetLayout()
+    {
+        Span<DescriptorSetLayoutBinding> surface =
+        [
+            Image(binding: 0, stages: ShaderStageFlags.ComputeBit),
+            StorageImage(binding: 1),
+            StorageImage(binding: 2),
+            StorageImage(binding: 3),
+            StorageImage(binding: 4),
+            Image(binding: 5, stages: ShaderStageFlags.ComputeBit),
+        ];
+        return CreateLayout(bindings: surface, name: "surface test set");
+    }
+
     /// <summary>A binding of one storage image for the compute stage.</summary>
     private static DescriptorSetLayoutBinding StorageImage(uint binding) =>
         new(
@@ -1004,7 +1069,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// <paramref name="environment"/> as their immutable samplers. Bindings 12, 14 and 16 are partially bound: they stay
     /// empty with the map off, as the bindless array's unused slots do (docs/plans/environment-map.md, decision 29, and
     /// docs/plans/environment-map-distances.md, decision 29). Binding 15, the tile views, is partially bound too: it stays
-    /// empty without the local shadow atlas.
+    /// empty without the local shadow atlas. So is binding 18, the kept positions, which stays empty without the
+    /// deformation.
     /// </summary>
     private DescriptorSetLayout CreateFrameSetLayout(Sampler linearClamp, Sampler environment)
     {
@@ -1021,13 +1087,13 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
                 descriptorCount: 1,
                 stageFlags: graphicsAndCompute
             ),
-            new(binding: 1, descriptorType: DescriptorType.StorageBuffer, descriptorCount: 1, stageFlags: graphics),
-            new(binding: 2, descriptorType: DescriptorType.StorageBuffer, descriptorCount: 1, stageFlags: graphics),
-            new(binding: 3, descriptorType: DescriptorType.StorageBuffer, descriptorCount: 1, stageFlags: graphics),
-            new(binding: 4, descriptorType: DescriptorType.StorageBuffer, descriptorCount: 1, stageFlags: graphics),
+            StorageBuffer(binding: 1, stages: graphics),
+            StorageBuffer(binding: 2, stages: graphics),
+            StorageBuffer(binding: 3, stages: graphics),
+            StorageBuffer(binding: 4, stages: graphics),
             new(binding: 5, descriptorType: DescriptorType.Sampler, descriptorCount: 1, stageFlags: graphics),
-            new(binding: 6, descriptorType: DescriptorType.StorageBuffer, descriptorCount: 1, stageFlags: graphics),
-            new(binding: 7, descriptorType: DescriptorType.StorageBuffer, descriptorCount: 1, stageFlags: graphics),
+            StorageBuffer(binding: 6, stages: graphics),
+            StorageBuffer(binding: 7, stages: graphics),
             // The tables sit in the frame set because the impostor capture binds only sets 0 and 1.
             Image(binding: 8, stages: shading),
             Image(binding: 9, stages: shading),
@@ -1038,29 +1104,23 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
                 stageFlags: shading,
                 pImmutableSamplers: &linearClamp
             ),
-            new(
-                binding: 11,
-                descriptorType: DescriptorType.StorageBuffer,
-                descriptorCount: 1,
-                stageFlags: graphicsAndCompute
-            ),
+            StorageBuffer(binding: 11, stages: graphicsAndCompute),
             Image(binding: 12, stages: shading),
             // The lit puffs read the irradiance cube's mean in the vertex stage, through this sampler.
             ImmutableSampler(binding: 13, stages: graphicsAndCompute, sampler: &environment),
             Image(binding: 14, stages: graphicsAndCompute),
             // The lit puffs sample the tiles in the vertex stage. The reflections' compute shaders declare the views but
             // never use them.
-            new(
-                binding: ShadowAtlas.TileViewsBinding,
-                descriptorType: DescriptorType.StorageBuffer,
-                descriptorCount: 1,
-                stageFlags: graphics
-            ),
+            StorageBuffer(binding: ShadowAtlas.TileViewsBinding, stages: graphics),
             // The distance cubes, which the shading passes search in the fragment and compute stages.
             Image(binding: 16, stages: shading),
+            // The motion rows, which the G-buffer's vertex stage and the billboards' fragment stage read.
+            StorageBuffer(binding: MotionsBinding, stages: graphics),
+            // The last drawn frame's kept positions, which the G-buffer's vertex stage reads.
+            StorageBuffer(binding: KeptPositionsBinding, stages: ShaderStageFlags.VertexBit),
         ];
         Span<DescriptorBindingFlags> flags = stackalloc DescriptorBindingFlags[frame.Length];
-        foreach (uint binding in (ReadOnlySpan<uint>)[12, 14, ShadowAtlas.TileViewsBinding, 16])
+        foreach (uint binding in (ReadOnlySpan<uint>)[12, 14, ShadowAtlas.TileViewsBinding, 16, KeptPositionsBinding])
             flags[(int)binding] = DescriptorBindingFlags.PartiallyBoundBit;
         return CreateLayout(bindings: frame, name: "frame set", bindingFlags: flags);
     }

@@ -18,6 +18,7 @@ internal static class BenchmarkLights
         Vector3 position = Vector3.Normalize(direction) * (float)StarDistance;
         return new(
             EntityIndex: 0,
+            EntityGeneration: 0,
             Position: position,
             PreviousPosition: position,
             Color: Vector3.One,
@@ -32,6 +33,7 @@ internal static class BenchmarkLights
     public static PointRenderLight Lamp(Vector3 position, Vector3 color, float intensity) =>
         new(
             EntityIndex: 0,
+            EntityGeneration: 0,
             Position: position,
             PreviousPosition: position,
             Color: color,
@@ -55,6 +57,7 @@ internal static class BenchmarkLights
     ) =>
         new(
             EntityIndex: 0,
+            EntityGeneration: 0,
             Position: position,
             PreviousPosition: position,
             Direction: direction,

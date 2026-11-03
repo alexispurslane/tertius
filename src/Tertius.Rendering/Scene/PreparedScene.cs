@@ -394,6 +394,15 @@ internal sealed class PreparedScene
     /// </summary>
     public PreparedInstance[] Placed = new PreparedInstance[256];
 
+    /// <summary>
+    /// The motion row of each placed instance, by <see cref="PreparedInstance.PlacedIndex"/>, as long as
+    /// <see cref="Placed"/>. <see cref="AddPlaced"/> writes both.
+    /// </summary>
+    public GpuMotion[] Motions = new GpuMotion[256];
+
+    /// <summary>The last drawn frame's camera relative to this frame's eye, which the frame constants hold.</summary>
+    public PreviousView PreviousView;
+
     public int PlacedCount;
 
     /// <summary>Visible instances. Instance processors may edit this list before batching.</summary>
@@ -571,6 +580,9 @@ internal sealed class PreparedScene
 
     public ReadOnlySpan<PreparedInstance> PlacedSpan => Placed.AsSpan(0, PlacedCount);
 
+    /// <summary>The motion rows of the placed instances, by placed index.</summary>
+    public ReadOnlySpan<GpuMotion> MotionSpan => Motions.AsSpan(0, PlacedCount);
+
     /// <summary>Whether frame mesh <paramref name="mesh"/> is a deformed copy.</summary>
     public bool IsDeformed(int mesh) => mesh >= StaticMeshCount;
 
@@ -647,11 +659,16 @@ internal sealed class PreparedScene
         return ref slot;
     }
 
-    /// <summary>Appends a placed instance of the frame.</summary>
-    public ref PreparedInstance AddPlaced()
+    /// <summary>Appends a placed instance of the frame, whose motion row is <paramref name="motion"/>.</summary>
+    public ref PreparedInstance AddPlaced(in GpuMotion motion)
     {
         if (PlacedCount == Placed.Length)
+        {
             Array.Resize(ref Placed, Placed.Length * 2);
+            Array.Resize(ref Motions, Placed.Length);
+        }
+
+        Motions[PlacedCount] = motion;
         ref PreparedInstance slot = ref Placed[PlacedCount++];
         slot = default;
         return ref slot;

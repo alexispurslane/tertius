@@ -1,6 +1,7 @@
 #version 460
 // The deform pass (docs/plans/skinning-and-morphs.md, "The pass"): one dispatch over every job of the frame, in which one
-// invocation per vertex of a job writes the vertex after its morphs and its skin into the job's copy in the deform region. MeshDeform.Deformed is its C# copy, with
+// invocation per vertex of a job writes the vertex after its morphs and its skin into the job's copy in the deform region,
+// and its position into the kept positions. MeshDeform.Deformed is its C# copy, with
 // the same order of every sum, because a float sum depends on its order.
 #extension GL_GOOGLE_include_directive : require
 #include "vectors.glsl"
@@ -55,6 +56,10 @@ struct Job
 
 // The frame's job table, in job order.
 layout(set = 0, binding = 4, std430) readonly buffer JobBlock { Job jobs[]; };
+
+// The kept positions of this frame's parity (KeptPositions.cs): three floats per vertex of the region, which the next
+// frame's G-buffer reads as the last frame's positions (docs/plans/temporal-renderer.md, "Kept deformed positions").
+layout(set = 0, binding = 5, std430) writeonly buffer KeptBlock { float kept[]; };
 
 // DeformPushConstants.
 layout(push_constant, std430) uniform DeformPush
@@ -138,6 +143,10 @@ void main()
         sn += a * vec3(dot(poses[r].xyz, n), dot(poses[r + 1u].xyz, n), dot(poses[r + 2u].xyz, n));
         st += a * vec3(dot(poses[r].xyz, t), dot(poses[r + 1u].xyz, t), dot(poses[r + 2u].xyz, t));
     }
+    uint k = 3u * (job.target + i);
+    kept[k] = sp.x;
+    kept[k + 1u] = sp.y;
+    kept[k + 2u] = sp.z;
     writeVertex(
         job.target + i,
         sp,
