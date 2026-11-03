@@ -1,7 +1,8 @@
-// Tool code (tools/fsr3-golden/README.md): prints the golden values of FSR 3.1.4's host calculations as JSON. It links
-// AMD's own host code, ffx_fsr3upscaler.cpp of FidelityFX SDK v1.1.4, and gives it a recording backend: a set of the
-// backend callbacks that keeps every resource description, staged constant buffer and scheduled job instead of touching a
-// GPU. So each value below comes from AMD's code, never from the engine's C# host that the tests check against it.
+// Tool code (tools/README.md, "FSR 3.1 golden values"): prints the golden values of FSR 3.1.4's host calculations as
+// JSON. It links AMD's own host code, ffx_fsr3upscaler.cpp of FidelityFX SDK v1.1.4, and gives it a recording backend: a
+// set of the backend callbacks that keeps every resource description, staged constant buffer and scheduled job instead
+// of touching a GPU. So each value below comes from AMD's code, never from the engine's C# host that the tests check
+// against it.
 //
 // The engine's choices (docs/plans/temporal-renderer.md, section 5) are the inputs: HDR color, reversed infinite depth
 // (cameraNear = FLT_MAX, cameraFar = the near plane, as AMD's sample passes it), motion vectors at the render size with

@@ -31,3 +31,22 @@ Built (branch ter-k63u-fsr31-host):
 Corrections to the design (section 5 has a dated note): AMD's shaders multiply the color by the exposure image and never divide by the pre-exposure, so the host binds AMD's default exposure (read as 1) and the exposure step writes only deltaPreExposure. Record takes the command buffer and the barrier batch instead of a FrameContext, and the constructor has no depth parameter.
 
 Not done here: the lavapipe run (ticket ter-cgif), and coverage and mutation testing (the orchestrator's pass).
+
+**2026-11-03T17:00:00Z**
+
+The review's fix stage (one pass, all findings):
+
+1. FSR's device-limit check is the engine's one check now. Fsr3Upscaler.CheckArguments folds the bindings of every pass and of the exposure step into a LimitedDescriptors and throws LimitedDescriptors.Problem before any layout exists. StorageImageProblem and Fsr3Bindings.MostStorageImages are gone. A new test refuses a device whose compute stage sees 8 sampled images (prepare reactivity samples 9), which the old check missed. The ARCHITECTURE rows of the storage-image limit and of the per-stage check say so.
+2. Fsr3HostTests.EveryPassBindsWhatItsCompiledModuleDeclaresUnderAmdsNames reads the OpName and Binding words of each embedded module and maps the names to Fsr3Slot by AMD's three name tables. It failed when two rows of the table were swapped. The SPIR-V reader (tests/Tertius.Rendering.Tests/Spirv.cs) is shared with ShaderConstantsTests.
+3. Every member of Fsr3Frame and Fsr3Inputs.Frame has a doc comment with its units and sign. The class summary of Fsr3Upscaler is within STYLE.md's 50 words, and the design's interface comment is the built one.
+4. WriteConstants uploads the constants around the word of DeltaPreExposure, so the exposure step is that word's one writer, and the order of the two writes no longer matters. The doc comments are true now.
+5. WriteSet sizes its three stackalloc buffers by the pass's bindings.
+6. Record refuses a reactive mask that is not R8_UNORM (a GPU test, red first: without the check it recorded and returned).
+7. ARCHITECTURE no longer says that golden values check each binding's image of a pair. It names what they check, and the binding test. The formats row lists R32G32_SFLOAT.
+8. Decision 31, the usage code, the interface comment, the exposure step and the inputs table of section 5 say what the host does. The dated note records the change.
+9. A GPU test upscales a constant color at 48 x 32 and then 56 x 40 within a largest render size of 64 x 48, with no validation message. CPU tests refuse a largest render size with a longer side below 64 or a side of 1 pixel (the second was red first).
+10. golden.cpp points at tools/README.md, "FSR 3.1 golden values".
+
+Also: build.sh compiles with -ffp-contract=off. The golden file stayed byte-equal. The tolerance comment of the constant-color tests names the steps that 1e-3 allows.
+
+The 3.1.5 and 3.1.6 comparison is reproducible now. The README of the pin lists the fetch commands, the NAR hashes and the result for each header. Two more differences exist, and neither has an effect: three lines of ffx_core_gpu_common.h end with ";;", and ffx_fsr3upscaler_rcas.h includes ffx_core.h by a longer path. AMD's HLSL bindings changed only their register macro.

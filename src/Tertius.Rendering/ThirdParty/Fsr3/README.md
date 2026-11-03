@@ -30,6 +30,30 @@ FSR 3.1.4 is the last release with GLSL passes for Vulkan. The later releases ar
 
 Apart from those lines and the years of the notices, the 3.1.6 changes are in the host: messages, a watermark and D3D12 aliasing barriers. The engine repeats none of them, because its host is a C# copy of the 3.1.4 host (`Fsr3Upscaler`).
 
+### How the shaders were compared
+
+The comparison of 2026-11-03 fetched both commits into the Nix store and diffed each pinned header with its counterpart, ignoring white space and the lines of the notices. Run it again with these commands from the dev shell:
+
+```bash
+nix flake prefetch github:GPUOpen-LibrariesAndSDKs/FidelityFX-SDK/f4c1da8e92f3fe563b5c28c44e6267ce6b6b8eb2
+nix flake prefetch github:GPUOpen-LibrariesAndSDKs/FidelityFX-SDK/7539ae8b6568ad29ed78a753404351daf3b5cca7
+diff -w -I Copyright <pinned header> <counterpart>
+```
+
+The NAR hashes are `sha256-P6rvt15dDwxZCUV7M4LFR45ByNDnFq8ohthLsbdbcOM=` for v2.0.0 and `sha256-S/PxlzZwhF6sjTKwunxST5ZwQpqlYPiIWV9nuR7ksGM=` for v2.4.0. In both releases, the counterpart of `gpu/fsr3upscaler/`, `gpu/fsr1/` and `gpu/spd/` is under `Kits/FidelityFX/upscalers/fsr3/include/`, and the counterpart of the `gpu/ffx_core*.h` and `gpu/ffx_common_types.h` headers is under `Kits/FidelityFX/api/internal/`.
+
+| Pinned header | 3.1.5 (v2.0.0) | 3.1.6 (v2.4.0) |
+|---|---|---|
+| `ffx_common_types.h`, `ffx_core.h`, `ffx_core_portability.h`, `ffx_core_gpu_common_half.h`, `spd/ffx_spd.h` | Equal | Equal |
+| `ffx_core_gpu_common.h` | Three lines end with `;;` instead of `;`. No effect | The same |
+| `fsr1/ffx_fsr1.h` | The RCAS fix above | The same as 3.1.5 |
+| `fsr3upscaler/ffx_fsr3upscaler_rcas.h` | The include of `ffx_core.h` takes a longer path. No effect | The same |
+| `fsr3upscaler/ffx_fsr3upscaler_reproject.h` | Equal | The reprojection fix above |
+| The 12 other headers of `fsr3upscaler/` | Equal | Equal |
+| `fsr3upscaler/ffx_fsr3upscaler_callbacks_glsl.h`, `ffx_core_glsl.h` | No counterpart: GLSL only | No counterpart |
+
+The later releases replace the GLSL bindings with HLSL bindings only. So the comparison also diffed AMD's `ffx_fsr3upscaler_callbacks_hlsl.h` of 3.1.4 with those of both releases. The only change is the macro that declares a register. No binding, name or type changed.
+
 ## The changed declarations
 
 AMD's GLSL declares two storage images in formats that differ from the images that AMD's host binds to them. The Vulkan spec leaves a store through such a mismatch undefined, and the validation layer reports it. `Fsr3UpscalerTests.UpscalingReportsNothingToValidation` reported both with AMD's declarations on MoltenVK:
@@ -74,7 +98,7 @@ The images that the shaders filter with AMD's linear sampler are of formats whos
 
 ## Bindings
 
-Every pass uses set 0, and AMD's linear clamp sampler at binding 1001. glslang removes unused bindings, so a pass binds only what it reads or writes. `Fsr3Bindings` holds the same table:
+Every pass uses set 0, and AMD's linear clamp sampler at binding 1001. glslang removes unused bindings, so a pass binds only what it reads or writes. `Fsr3Bindings` holds the same table, and `Fsr3HostTests.EveryPassBindsWhatItsCompiledModuleDeclaresUnderAmdsNames` compares it with the binding numbers and the variable names of each embedded module:
 
 | Pass | Sampled images | Storage images | Uniform buffers |
 |---|---|---|---|
@@ -87,4 +111,4 @@ Every pass uses set 0, and AMD's linear clamp sampler at binding 1001. glslang r
 | `luma_instability` | 0 exposure, 1 dilated reactive masks, 2 dilated motion, 4 luma history, 6 current luma | 7 luma history `rgba16f`, 8 luma instability `r16f` | 9 `cbFSR3Upscaler` |
 | `accumulate` | 0 exposure, 1 dilated reactive masks, 2 dilated motion, 3 upscaled history, 5 farthest depth level 1, 7 luma instability, 8 color | 9 upscaled history `rgba16f`, 10 output (no format), 11 new locks `r8` | 12 `cbFSR3Upscaler` |
 
-The shading change pyramid binds seven storage images, the most of any pass. Every device that the engine accepts must let one compute stage see that many (`Fsr3Upscaler.StorageImageProblem`).
+The shading change pyramid binds seven storage images, the most of any pass, and prepare reactivity samples nine images. `Fsr3Upscaler` refuses a device whose compute stage sees fewer descriptors of a type than a pass binds, by the engine's per-stage check (`LimitedDescriptors`).

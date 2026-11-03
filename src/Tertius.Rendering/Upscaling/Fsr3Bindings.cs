@@ -232,15 +232,6 @@ internal static class Fsr3Bindings
     public static uint? SpdLevel(Fsr3Slot slot) =>
         slot is >= Fsr3Slot.SpdMip0 and <= Fsr3Slot.SpdMip5 ? (uint)(slot - Fsr3Slot.SpdMip0) : null;
 
-    /// <summary>The most storage images that one pass binds: the seven of the shading change pyramid.</summary>
-    public static int MostStorageImages()
-    {
-        int most = 0;
-        foreach (Fsr3Pass pass in Enum.GetValues<Fsr3Pass>())
-            most = Math.Max(most, Of(pass).Count(binding => binding.Type == DescriptorType.StorageImage));
-        return most;
-    }
-
     private static Fsr3Binding Sampled(uint binding, Fsr3Slot slot) => new(binding, slot, DescriptorType.SampledImage);
 
     private static Fsr3Binding Storage(uint binding, Fsr3Slot slot) => new(binding, slot, DescriptorType.StorageImage);

@@ -144,10 +144,24 @@ internal struct Fsr3Constants
 /// <summary>This frame's values, from which FSR's constants derive.</summary>
 internal readonly record struct Fsr3Frame
 {
+    /// <summary>The size in pixels that this frame drew at, within the largest render size.</summary>
     public required Extent2D RenderSize { get; init; }
+
+    /// <summary>
+    /// AMD's jitter offset in render pixels: the negation of the offset that the frame's projection moved by, which is
+    /// <see cref="Fsr3Upscaler.JitterOffset"/> of the draw.
+    /// </summary>
     public required Vector2 Jitter { get; init; }
+
+    /// <summary>The time from the last frame in ms, which AMD clamps to 0 to 1,000.</summary>
     public required float FrameMilliseconds { get; init; }
+
+    /// <summary>The camera's near plane in meters, the far plane of AMD's reversed infinite depth.</summary>
     public required float NearMeters { get; init; }
+
+    /// <summary>The vertical field of view of the projection in radians.</summary>
     public required float VerticalFov { get; init; }
+
+    /// <summary>This frame reads no history, as after a cut.</summary>
     public required bool Reset { get; init; }
 }

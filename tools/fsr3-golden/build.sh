@@ -12,8 +12,9 @@ out="$root/tests/Tertius.Rendering.Tests/Fsr3Golden.json"
 build="$(mktemp -d "${TMPDIR:-/tmp}/fsr3-golden.XXXXXX")"
 trap 'rm -rf "$build"' EXIT
 
-# AMD's sources stay unchanged: compat.h supplies the Windows names that they use.
-c++ -std=c++17 -O1 -w -fshort-wchar \
+# AMD's sources stay unchanged: compat.h supplies the Windows names that they use. -ffp-contract=off keeps each
+# multiply and add rounded on its own, as in C# and in AMD's MSVC build.
+c++ -std=c++17 -O1 -w -fshort-wchar -ffp-contract=off \
     -include "$here/compat.h" \
     -I "$sdk/sdk/include" \
     -I "$sdk/sdk/src/shared" \

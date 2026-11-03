@@ -103,20 +103,15 @@ internal readonly record struct Fsr3Inputs
     /// <summary>The exposure buffer, read as a storage buffer.</summary>
     public required GpuBuffer Exposure { get; init; }
 
+    /// <summary>This frame's sizes, jitter, camera and reset, from which FSR's constants derive.</summary>
     public required Fsr3Frame Frame { get; init; }
 }
 
 /// <summary>
-/// AMD's FSR 3.1 upscaler, over AMD's own shaders, with AMD's host calculations repeated (docs/plans/temporal-renderer.md,
-/// "FSR 3.1"). It upscales the jittered, pre-exposed HDR color of the render size to the output size, and keeps its
-/// histories at the output size. Each <see cref="Record"/> takes this frame's inputs: the color, the color before the
-/// transparent pass, the image of the reactive mask, the device depth (reversed and infinite), the motion vectors without
-/// jitter, the output, the exposure buffer, and the frame's values (<see cref="Fsr3Frame"/>). Record first writes the
-/// ratio of this frame's pre-exposure to the last frame's into its constants on the GPU, then the reactive mask with AMD's
-/// generator, then upscales. It passes no transparency and composition mask, and AMD's default exposure of 1, because the
-/// color is already pre-exposed. <see cref="JitterOffset"/> and <see cref="JitterPhaseCount"/> give the jitter that the
-/// frame must draw with. Record leaves every image that it touched in the state that its last use put it in, and
-/// <see cref="BarrierBatch"/> carries the rest.
+/// AMD's FSR 3.1 upscaler over AMD's own shaders, with AMD's host calculations repeated (ARCHITECTURE.md, "Upscaling: FSR
+/// 3.1"). It upscales the jittered, pre-exposed HDR color of the render size to the output size. Each
+/// <see cref="Record"/> takes one frame's <see cref="Fsr3Inputs"/>. <see cref="JitterOffset"/> gives the jitter that the
+/// frame draws with.
 /// </summary>
 internal sealed unsafe class Fsr3Upscaler : IDisposable
 {
@@ -135,10 +130,14 @@ internal sealed unsafe class Fsr3Upscaler : IDisposable
 
     // The bindings of the exposure step: the exposure buffer and FSR's constants, both storage buffers.
     private static readonly Fsr3Binding[] ExposureBindings =
-        [
-            new(Binding: 0, Slot: Fsr3Slot.ExposureBuffer, Type: DescriptorType.StorageBuffer),
-            new(Binding: 1, Slot: Fsr3Slot.Constants, Type: DescriptorType.StorageBuffer),
-        ];
+    [
+        new(Binding: 0, Slot: Fsr3Slot.ExposureBuffer, Type: DescriptorType.StorageBuffer),
+        new(Binding: 1, Slot: Fsr3Slot.Constants, Type: DescriptorType.StorageBuffer),
+    ];
+
+    // The bindings of each set layout: one per pass of AMD's, then the exposure step's.
+    private static IEnumerable<Fsr3Binding[]> LayoutBindings =>
+        Enum.GetValues<Fsr3Pass>().Select(Fsr3Bindings.Of).Append(ExposureBindings);
 
     /// <summary>The passes of the upscale in the order of AMD's <c>fsr3upscalerDispatch</c>, after the generator.</summary>
     public static ReadOnlySpan<Fsr3Pass> UpscalePasses =>
@@ -175,11 +174,14 @@ internal sealed unsafe class Fsr3Upscaler : IDisposable
     // The frames recorded so far. AMD's frame index is this modulo 16, of which only the parity matters.
     private long executions;
 
-    /// <param name="maxRenderSize">The largest render size, with a longer side of at least 64 pixels.</param>
+    /// <param name="maxRenderSize">
+    /// The largest render size: a longer side of at least 64 pixels, a shorter one of at least 2.
+    /// </param>
     /// <param name="outputSize">The size of the upscaled image in pixels, which the output of every Record has.</param>
     /// <param name="framesInFlight">The frames that the GPU may still run when Record is called.</param>
     /// <exception cref="ArgumentOutOfRangeException">A size or the count of frames is out of range.</exception>
-    /// <exception cref="NotSupportedException">One of AMD's passes binds more storage images than the device allows.</exception>
+    /// <exception cref="NotSupportedException">One of AMD's passes binds more descriptors of a type than the device's
+    /// compute stage sees.</exception>
     public Fsr3Upscaler(
         VulkanDevice device,
         DeviceAllocator allocator,
@@ -190,7 +192,7 @@ internal sealed unsafe class Fsr3Upscaler : IDisposable
     )
     {
         CheckArguments(
-            device: device,
+            limits: device.Properties.Limits,
             maxRenderSize: maxRenderSize,
             outputSize: outputSize,
             framesInFlight: framesInFlight
@@ -204,28 +206,24 @@ internal sealed unsafe class Fsr3Upscaler : IDisposable
 
         images = [.. ImageDescriptions(maxRenderSize, outputSize).Select(CreateImage)];
         GpuImage spdMips = images[(int)Fsr3Image.SpdMips];
-        spdLevelViews = [.. Enumerable.Range(0, 6).Select(level => spdMips.CreateLayerView(layer: 0, mipLevel: (uint)level))];
+        spdLevelViews =
+        [
+            .. Enumerable.Range(0, 6).Select(level => spdMips.CreateLayerView(layer: 0, mipLevel: (uint)level)),
+        ];
 
-        // The constants are a storage buffer too, for the exposure step, and a transfer source, for a test to read.
-        Constants = CreateBuffer(
-            size: (ulong)sizeof(Fsr3Constants),
-            usage: BufferUsageFlags.UniformBufferBit | BufferUsageFlags.StorageBufferBit | BufferUsageFlags.TransferSrcBit,
-            name: "FSR3UPSCALER constants"
-        );
-        spdConstants = CreateBuffer((ulong)sizeof(Fsr3SpdConstants), BufferUsageFlags.UniformBufferBit, "FSR3UPSCALER SPD constants");
-        reactiveConstants = CreateBuffer(
-            size: (ulong)sizeof(Fsr3ReactiveConstants),
-            usage: BufferUsageFlags.UniformBufferBit,
-            name: "FSR3UPSCALER reactive constants"
-        );
-
+        (Constants, spdConstants, reactiveConstants) = CreateConstantBuffers();
         linearClamp = CreateLinearClamp(device);
         pool = CreatePool(device, framesInFlight);
         pipelines =
         [
             .. Enum.GetValues<Fsr3Pass>()
                 .Select(pass =>
-                    CreatePipeline(shaders: shaders, shader: ShaderOf(pass), bindings: Fsr3Bindings.Of(pass), pushConstantBytes: 0)
+                    CreatePipeline(
+                        shaders: shaders,
+                        shader: ShaderOf(pass),
+                        bindings: Fsr3Bindings.Of(pass),
+                        pushConstantBytes: 0
+                    )
                 ),
         ];
         // The exposure step's push constant is the word that it writes.
@@ -250,25 +248,21 @@ internal sealed unsafe class Fsr3Upscaler : IDisposable
         ClearLists[(firstExecution ? 4 : 0) + (reset ? 2 : 0) + (odd ? 1 : 0)];
 
     /// <summary>
-    /// The message for a device whose compute stage sees fewer storage images than one of AMD's passes binds, or null.
+    /// Records this frame's upscale: the pre-exposure ratio into the constants, AMD's reactive mask generator, AMD's clears
+    /// and the seven passes. It writes the sets of the frame <c>framesInFlight</c> frames ago, which must have finished.
+    /// Every touched image stays in its last use's state, which <paramref name="barriers"/> carries.
     /// </summary>
-    internal static string? StorageImageProblem(uint maxPerStageStorageImages) =>
-        maxPerStageStorageImages < Fsr3Bindings.MostStorageImages()
-            ? $"A pass of FSR 3.1 binds {Fsr3Bindings.MostStorageImages()} storage images in one compute stage, above the device's maxPerStageDescriptorStorageImages of {maxPerStageStorageImages}."
-            : null;
-
-    /// <summary>
-    /// Records this frame's upscale into <paramref name="commandBuffer"/>: the exposure step, AMD's reactive mask
-    /// generator, AMD's clears and the seven passes of the upscale. The descriptor sets that it writes belong to the frame
-    /// <c>framesInFlight</c> frames ago, which must have finished.
-    /// </summary>
-    /// <exception cref="ArgumentException">The render size is not within the largest render size, or the output is not
-    /// of the output size.</exception>
+    /// <exception cref="ArgumentException">The render size is not within the largest render size, the output is not of
+    /// the output size, or the reactive mask is not R8_UNORM.</exception>
     public void Record(CommandBuffer commandBuffer, BarrierBatch barriers, in Fsr3Inputs inputs)
     {
         CheckInputs(inputs);
         bool first = executions == 0;
-        constants = Fsr3Constants.Next(last: constants, frame: inputs.Frame, resetAccumulation: inputs.Frame.Reset || first);
+        constants = Fsr3Constants.Next(
+            last: constants,
+            frame: inputs.Frame,
+            resetAccumulation: inputs.Frame.Reset || first
+        );
         var frame = new Recording(
             CommandBuffer: commandBuffer,
             Barriers: barriers,
@@ -358,10 +352,18 @@ internal sealed unsafe class Fsr3Upscaler : IDisposable
         return image switch
         {
             Fsr3Image.Accumulation1 or Fsr3Image.Accumulation2 => new(name, Format.R8Unorm, maxRenderSize),
-            Fsr3Image.Luma1 or Fsr3Image.Luma2 or Fsr3Image.IntermediateFp16x1 => new(name, Format.R16Sfloat, maxRenderSize),
+            Fsr3Image.Luma1 or Fsr3Image.Luma2 or Fsr3Image.IntermediateFp16x1 => new(
+                name,
+                Format.R16Sfloat,
+                maxRenderSize
+            ),
             Fsr3Image.ShadingChange => new(name, Format.R8Unorm, half),
             Fsr3Image.NewLocks => new(name, Format.R8Unorm, outputSize),
-            Fsr3Image.InternalUpscaled1 or Fsr3Image.InternalUpscaled2 => new(name, Format.R16G16B16A16Sfloat, outputSize),
+            Fsr3Image.InternalUpscaled1 or Fsr3Image.InternalUpscaled2 => new(
+                name,
+                Format.R16G16B16A16Sfloat,
+                outputSize
+            ),
             // The full chain of mips.
             Fsr3Image.SpdMips => new(name, Format.R16G16Sfloat, half)
             {
@@ -400,7 +402,7 @@ internal sealed unsafe class Fsr3Upscaler : IDisposable
     }
 
     /// <summary>The embedded SPIR-V of AMD's pass.</summary>
-    private static string ShaderOf(Fsr3Pass pass) =>
+    internal static string ShaderOf(Fsr3Pass pass) =>
         pass switch
         {
             Fsr3Pass.GenerateReactive => "ffx_fsr3upscaler_autogen_reactive_pass.glsl",
@@ -418,7 +420,9 @@ internal sealed unsafe class Fsr3Upscaler : IDisposable
         [
             .. Enumerable
                 .Range(0, 8)
-                .Select(index => BuildClears(firstExecution: (index & 4) != 0, reset: (index & 2) != 0, odd: (index & 1) != 0)),
+                .Select(index =>
+                    BuildClears(firstExecution: (index & 4) != 0, reset: (index & 2) != 0, odd: (index & 1) != 0)
+                ),
         ];
 
     private static Fsr3Clear[] BuildClears(bool firstExecution, bool reset, bool odd)
@@ -449,6 +453,19 @@ internal sealed unsafe class Fsr3Upscaler : IDisposable
         return [.. clears];
     }
 
+    /// <summary>
+    /// One binding of a pass's set layout: one descriptor that the compute stage sees, with AMD's immutable sampler.
+    /// </summary>
+    private static DescriptorSetLayoutBinding LayoutBinding(Fsr3Binding binding, Sampler* sampler) =>
+        new()
+        {
+            Binding = binding.Binding,
+            DescriptorType = binding.Type,
+            DescriptorCount = 1,
+            StageFlags = ShaderStageFlags.ComputeBit,
+            PImmutableSamplers = binding.Type == DescriptorType.Sampler ? sampler : null,
+        };
+
     private static Sampler CreateLinearClamp(VulkanDevice device)
     {
         // AMD's FFX_FILTER_TYPE_MINMAGMIP_LINEAR with clamped addresses, as AMD's Vulkan backend makes it (ffx_vk.cpp).
@@ -465,7 +482,12 @@ internal sealed unsafe class Fsr3Upscaler : IDisposable
             BorderColor = BorderColor.IntTransparentBlack,
         };
         device
-            .Vk.CreateSampler(device: device.Device, pCreateInfo: &info, pAllocator: null, pSampler: out Sampler sampler)
+            .Vk.CreateSampler(
+                device: device.Device,
+                pCreateInfo: &info,
+                pAllocator: null,
+                pSampler: out Sampler sampler
+            )
             .Check("vkCreateSampler");
         device.SetName(ObjectType.Sampler, sampler.Handle, "FSR3UPSCALER linear clamp");
         return sampler;
@@ -474,7 +496,7 @@ internal sealed unsafe class Fsr3Upscaler : IDisposable
     /// <summary>A pool of one set per pass and per frame in flight, with the descriptors that their bindings hold.</summary>
     private static DescriptorPool CreatePool(VulkanDevice device, int framesInFlight)
     {
-        Fsr3Binding[] all = [.. Enum.GetValues<Fsr3Pass>().SelectMany(Fsr3Bindings.Of), .. ExposureBindings];
+        Fsr3Binding[] all = [.. LayoutBindings.SelectMany(bindings => bindings)];
         DescriptorPoolSize[] sizes =
         [
             .. all.GroupBy(binding => binding.Type)
@@ -485,7 +507,7 @@ internal sealed unsafe class Fsr3Upscaler : IDisposable
             var info = new DescriptorPoolCreateInfo
             {
                 SType = StructureType.DescriptorPoolCreateInfo,
-                MaxSets = (uint)((Enum.GetValues<Fsr3Pass>().Length + 1) * framesInFlight),
+                MaxSets = (uint)(LayoutBindings.Count() * framesInFlight),
                 PoolSizeCount = (uint)sizes.Length,
                 PPoolSizes = pSizes,
             };
@@ -501,14 +523,32 @@ internal sealed unsafe class Fsr3Upscaler : IDisposable
         }
     }
 
-    private static void CheckArguments(VulkanDevice device, Extent2D maxRenderSize, Extent2D outputSize, int framesInFlight)
+    /// <summary>Refuses arguments of the constructor and a device whose limits one of AMD's passes exceeds.</summary>
+    internal static void CheckArguments(
+        in PhysicalDeviceLimits limits,
+        Extent2D maxRenderSize,
+        Extent2D outputSize,
+        int framesInFlight
+    )
     {
-        ArgumentOutOfRangeException.ThrowIfLessThan(Math.Max(maxRenderSize.Width, maxRenderSize.Height), SmallestLargestSide);
-        ArgumentOutOfRangeException.ThrowIfZero(Math.Min(maxRenderSize.Width, maxRenderSize.Height));
+        ArgumentOutOfRangeException.ThrowIfLessThan(
+            Math.Max(maxRenderSize.Width, maxRenderSize.Height),
+            SmallestLargestSide
+        );
+        // AMD's images at half the largest render size need a pixel on each side.
+        ArgumentOutOfRangeException.ThrowIfLessThan(Math.Min(maxRenderSize.Width, maxRenderSize.Height), 2u);
         ArgumentOutOfRangeException.ThrowIfZero(Math.Min(outputSize.Width, outputSize.Height));
         ArgumentOutOfRangeException.ThrowIfLessThan(framesInFlight, 1);
-        if (StorageImageProblem(device.Properties.Limits.MaxPerStageDescriptorStorageImages) is { } problem)
-            throw new NotSupportedException(problem);
+        // Before any layout exists: a pipeline layout above a per-stage limit breaks the valid usage of
+        // vkCreatePipelineLayout.
+        foreach (Fsr3Binding[] bindings in LayoutBindings)
+        {
+            var counts = default(LimitedDescriptors);
+            foreach (Fsr3Binding binding in bindings)
+                counts = counts.With(binding: LayoutBinding(binding, sampler: null), updatedAfterBind: false);
+            if (counts.Problem(limits) is { } problem)
+                throw new NotSupportedException($"A pass of FSR 3.1: {problem}");
+        }
     }
 
     private void CheckInputs(in Fsr3Inputs inputs)
@@ -516,9 +556,19 @@ internal sealed unsafe class Fsr3Upscaler : IDisposable
         Extent2D render = inputs.Frame.RenderSize;
         bool renderFits = render.Width <= maxRenderSize.Width && render.Height <= maxRenderSize.Height;
         if (render.Width == 0 || render.Height == 0 || !renderFits)
-            throw new ArgumentException($"The render size {render.Width} × {render.Height} is not within the largest render size.", nameof(inputs));
+            throw new ArgumentException(
+                $"The render size {render.Width} × {render.Height} is not within the largest render size.",
+                nameof(inputs)
+            );
         if (inputs.Output.Extent.Width != outputSize.Width || inputs.Output.Extent.Height != outputSize.Height)
             throw new ArgumentException("The output is not of the output size.", nameof(inputs));
+        // AMD's generator stores the mask through an r8 declaration, and a store through another format is undefined
+        // (ThirdParty/Fsr3/README.md, "The changed declarations").
+        if (inputs.Reactive.Format != Format.R8Unorm)
+            throw new ArgumentException(
+                $"The reactive mask is {inputs.Reactive.Format}, not R8_UNORM.",
+                nameof(inputs)
+            );
     }
 
     // Every image of FSR is a storage image, a sampled image and a clear's destination.
@@ -533,7 +583,36 @@ internal sealed unsafe class Fsr3Upscaler : IDisposable
             name: description.Name
         );
 
-    private FsrPipeline CreatePipeline(ShaderLibrary shaders, string shader, Fsr3Binding[] bindings, uint pushConstantBytes) =>
+    /// <summary>FSR's three constant buffers: <c>cbFSR3Upscaler</c>, <c>cbSPD</c> and <c>cbGenerateReactive</c>.</summary>
+    private (GpuBuffer Main, GpuBuffer Spd, GpuBuffer Reactive) CreateConstantBuffers()
+    {
+        // The main constants are a storage buffer too, for the exposure step, and a transfer source, for a test to read.
+        GpuBuffer main = CreateBuffer(
+            size: (ulong)sizeof(Fsr3Constants),
+            usage: BufferUsageFlags.UniformBufferBit
+                | BufferUsageFlags.StorageBufferBit
+                | BufferUsageFlags.TransferSrcBit,
+            name: "FSR3UPSCALER constants"
+        );
+        GpuBuffer spd = CreateBuffer(
+            size: (ulong)sizeof(Fsr3SpdConstants),
+            usage: BufferUsageFlags.UniformBufferBit,
+            name: "FSR3UPSCALER SPD constants"
+        );
+        GpuBuffer reactive = CreateBuffer(
+            size: (ulong)sizeof(Fsr3ReactiveConstants),
+            usage: BufferUsageFlags.UniformBufferBit,
+            name: "FSR3UPSCALER reactive constants"
+        );
+        return (Main: main, Spd: spd, Reactive: reactive);
+    }
+
+    private FsrPipeline CreatePipeline(
+        ShaderLibrary shaders,
+        string shader,
+        Fsr3Binding[] bindings,
+        uint pushConstantBytes
+    ) =>
         FsrPipeline.Create(
             device: device,
             shaders: shaders,
@@ -579,10 +658,16 @@ internal sealed unsafe class Fsr3Upscaler : IDisposable
             Fsr3Slot.InternalUpscaledColorWrite => Image(
                 Fsr3Bindings.Written(Fsr3Image.InternalUpscaled1, Fsr3Image.InternalUpscaled2, odd)
             ),
-            Fsr3Slot.AccumulationRead => Image(Fsr3Bindings.Read(Fsr3Image.Accumulation1, Fsr3Image.Accumulation2, odd)),
-            Fsr3Slot.AccumulationWrite => Image(Fsr3Bindings.Written(Fsr3Image.Accumulation1, Fsr3Image.Accumulation2, odd)),
+            Fsr3Slot.AccumulationRead => Image(
+                Fsr3Bindings.Read(Fsr3Image.Accumulation1, Fsr3Image.Accumulation2, odd)
+            ),
+            Fsr3Slot.AccumulationWrite => Image(
+                Fsr3Bindings.Written(Fsr3Image.Accumulation1, Fsr3Image.Accumulation2, odd)
+            ),
             Fsr3Slot.LumaHistoryRead => Image(Fsr3Bindings.Read(Fsr3Image.LumaHistory1, Fsr3Image.LumaHistory2, odd)),
-            Fsr3Slot.LumaHistoryWrite => Image(Fsr3Bindings.Written(Fsr3Image.LumaHistory1, Fsr3Image.LumaHistory2, odd)),
+            Fsr3Slot.LumaHistoryWrite => Image(
+                Fsr3Bindings.Written(Fsr3Image.LumaHistory1, Fsr3Image.LumaHistory2, odd)
+            ),
             // This frame's luma goes where the pair's read image is, and the last frame's is the other.
             Fsr3Slot.CurrentLuma => Image(Fsr3Bindings.Read(Fsr3Image.Luma1, Fsr3Image.Luma2, odd)),
             Fsr3Slot.PreviousLuma => Image(Fsr3Bindings.Written(Fsr3Image.Luma1, Fsr3Image.Luma2, odd)),
@@ -657,27 +742,46 @@ internal sealed unsafe class Fsr3Upscaler : IDisposable
         );
     }
 
-    /// <summary>Writes this frame's three constant buffers, all but the pre-exposure ratio, as AMD's host stages them.</summary>
+    /// <summary>
+    /// Writes this frame's three constant buffers as AMD's host stages them, all but the word of the pre-exposure ratio,
+    /// which the exposure step owns.
+    /// </summary>
     private void WriteConstants(in Recording frame, Fsr3SpdConstants spd)
     {
         frame.Barriers.Buffer(Constants, BufferUse.TransferDestination);
         frame.Barriers.Buffer(spdConstants, BufferUse.TransferDestination);
         frame.Barriers.Buffer(reactiveConstants, BufferUse.TransferDestination);
         frame.Barriers.Flush(device.Vk, frame.CommandBuffer);
-        Fsr3Constants main = constants;
+
+        WriteAllButTheRatio(frame);
+        Update(frame: frame, buffer: spdConstants, data: new Span<byte>(&spd, sizeof(Fsr3SpdConstants)), offset: 0);
         Fsr3ReactiveConstants reactive = Fsr3ReactiveConstants.Sample;
-        Update(frame, Constants, new Span<byte>(&main, sizeof(Fsr3Constants)));
-        Update(frame, spdConstants, new Span<byte>(&spd, sizeof(Fsr3SpdConstants)));
-        Update(frame, reactiveConstants, new Span<byte>(&reactive, sizeof(Fsr3ReactiveConstants)));
+        Update(
+            frame: frame,
+            buffer: reactiveConstants,
+            data: new Span<byte>(&reactive, sizeof(Fsr3ReactiveConstants)),
+            offset: 0
+        );
     }
 
-    private void Update(in Recording frame, GpuBuffer buffer, Span<byte> data)
+    /// <summary>Uploads FSR's constants in two ranges, around the word of the pre-exposure ratio.</summary>
+    private void WriteAllButTheRatio(in Recording frame)
+    {
+        Fsr3Constants main = constants;
+        var bytes = new Span<byte>(&main, sizeof(Fsr3Constants));
+        int ratio = (int)DeltaPreExposureWord * sizeof(uint);
+        int afterRatio = ratio + sizeof(uint);
+        Update(frame: frame, buffer: Constants, data: bytes[..ratio], offset: 0);
+        Update(frame: frame, buffer: Constants, data: bytes[afterRatio..], offset: afterRatio);
+    }
+
+    private void Update(in Recording frame, GpuBuffer buffer, Span<byte> data, int offset)
     {
         fixed (byte* bytes = data)
             device.Vk.CmdUpdateBuffer(
                 commandBuffer: frame.CommandBuffer,
                 dstBuffer: buffer.Handle,
-                dstOffset: 0,
+                dstOffset: (ulong)offset,
                 dataSize: (ulong)data.Length,
                 pData: bytes
             );
@@ -693,11 +797,10 @@ internal sealed unsafe class Fsr3Upscaler : IDisposable
 
     private void WriteSet(in Recording frame, FsrPipeline pipeline)
     {
-        const int MostBindings = 16;
         Fsr3Binding[] bindings = pipeline.Bindings;
-        var imageInfos = stackalloc DescriptorImageInfo[MostBindings];
-        var bufferInfos = stackalloc DescriptorBufferInfo[MostBindings];
-        var writes = stackalloc WriteDescriptorSet[MostBindings];
+        DescriptorImageInfo* imageInfos = stackalloc DescriptorImageInfo[bindings.Length];
+        DescriptorBufferInfo* bufferInfos = stackalloc DescriptorBufferInfo[bindings.Length];
+        WriteDescriptorSet* writes = stackalloc WriteDescriptorSet[bindings.Length];
         int count = 0;
         foreach (Fsr3Binding binding in bindings)
         {
@@ -858,7 +961,7 @@ internal sealed unsafe class Fsr3Upscaler : IDisposable
                 Shader = shader,
                 Layout = layout,
             }.Create(device, shaders);
-            DescriptorSet[] allocated = new DescriptorSet[sets];
+            var allocated = new DescriptorSet[sets];
             for (int index = 0; index < sets; index++)
             {
                 var allocate = new DescriptorSetAllocateInfo
@@ -901,16 +1004,9 @@ internal sealed unsafe class Fsr3Upscaler : IDisposable
 
         private static DescriptorSetLayout CreateSetLayout(VulkanDevice device, Fsr3Binding[] bindings, Sampler sampler)
         {
-            var layoutBindings = stackalloc DescriptorSetLayoutBinding[bindings.Length];
+            DescriptorSetLayoutBinding* layoutBindings = stackalloc DescriptorSetLayoutBinding[bindings.Length];
             for (int index = 0; index < bindings.Length; index++)
-                layoutBindings[index] = new DescriptorSetLayoutBinding
-                {
-                    Binding = bindings[index].Binding,
-                    DescriptorType = bindings[index].Type,
-                    DescriptorCount = 1,
-                    StageFlags = ShaderStageFlags.ComputeBit,
-                    PImmutableSamplers = bindings[index].Type == DescriptorType.Sampler ? &sampler : null,
-                };
+                layoutBindings[index] = LayoutBinding(bindings[index], &sampler);
             var info = new DescriptorSetLayoutCreateInfo
             {
                 SType = StructureType.DescriptorSetLayoutCreateInfo,

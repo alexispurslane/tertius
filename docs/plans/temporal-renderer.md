@@ -70,7 +70,7 @@ Each decision gives its reason. The important ones also give the second design a
 28. ReSTIR resamples the near lights. The far lights, such as a star, take the exact loop with the frame's taps, outside the resampling. ReSTIR shades the chosen light with its exact unshadowed contribution and a stochastic visibility. A candidate's target is 0 where the bounds of its shadow tile show it fully shadowed. The candidates come from a table weighted by each near light's rank irradiance at the eye, mixed half and half with a uniform choice. Section 7 gives both designs.
 29. The exact loop over every light stays as the zero case of the direct light's setting, `EveryLight`. The forward passes use it too. Reason: the tests need an exact direct light, and the bias of ReSTIR needs a reference. Section 7 gives both designs.
 30. FSR's reactive mask comes from AMD's generator, in a dispatch of its own before the upscale. The generator reads a copy of the image before the transparent pass and the final color. FSR gets no transparency and composition mask. Reason: AMD's 3.1.4 has no generator for that mask, and the reactive mask already marks the glass. Section 9 gives both designs.
-31. FSR's two pre-exposure constants come from the GPU's exposure buffer, through a small copy into FSR's constant buffer. AMD's shaders stay unchanged. Section 5 gives the reason.
+31. FSR's pre-exposure constant comes from the GPU's exposure buffer, through a small copy into FSR's constant buffer. AMD's shaders stay unchanged. Section 5 gives the reason. Ticket `ter-k63u` corrected this decision on 2026-11-03: AMD's 3.1.4 shaders have one such constant, `deltaPreExposure`, and the exposure image is AMD's default (section 5, "The host").
 32. If a headless draw's step is 0, endless or at least `MeteringStepSeconds`, 0.09 s, the draw is a still. This is today's rule of the metering draw, so one predicate decides both. A still resets every history, then draws warm-up draws of the same snapshot before the shown draw. Their count is `WarmUpFrames`, 32 by default, or 0 where no history holds more than one frame. The first warm-up draw takes over the metering draw's two jobs, the exposure and the refresh of every face. Section 10 gives the rule and what a still depends on.
 33. Headless scripted runs use a fixed render scale, 2/3 by default, and the window uses the controller. Reason: a controller that follows GPU timings breaks the determinism of headless captures. A scale of 2/3 gives the budget's size, 1280 × 720 at a 1080p output.
 34. The main view's shadow taps are the turning quarter of the 16 taps under `Fsr3Upscaling` and all 16 taps under `NoUpscaling`. The environment faces and the impostor captures always take all 16. Reason: only an image that FSR averages can take a quarter.
@@ -531,14 +531,17 @@ Ticket 1 then runs FSR under `VK_LAYER_KHRONOS_validation` with its synchronizat
 // Once, when the targets are made or the output size changes.
 var fsr = new Fsr3Upscaler(
     device: device,
+    allocator: allocator,
+    shaders: shaders,
     maxRenderSize: targets.LargestRenderSize,
     outputSize: targets.OutputSize,
-    depth: Fsr3Depth.InvertedInfinite
+    framesInFlight: framesInFlight
 );
 
 // Each frame, in the frame graph's stage Upscale.
 fsr.Record(
-    context: frame,
+    commandBuffer: frame.CommandBuffer,
+    barriers: frame.Barriers,
     inputs: new Fsr3Inputs
     {
         Color = targets.Hdr,
@@ -547,41 +550,53 @@ fsr.Record(
         Depth = surfaces.DeviceDepth,
         Motion = targets.Motion,
         Output = targets.OutputHdr,
-        RenderSize = frame.RenderSize,
-        Jitter = frame.Pending.Jitter,
-        FrameMilliseconds = frame.Pending.FsrFrameMilliseconds,
-        NearMeters = DepthRanges.NearPlane,
-        VerticalFov = frame.Camera.VerticalFov,
-        Reset = frame.Pending.Reset,
+        Exposure = frame.ExposureBuffer,
+        Frame = new Fsr3Frame
+        {
+            RenderSize = frame.RenderSize,
+            Jitter = frame.Pending.Jitter,
+            FrameMilliseconds = frame.Pending.FsrFrameMilliseconds,
+            NearMeters = DepthRanges.NearPlane,
+            VerticalFov = frame.Camera.VerticalFov,
+            Reset = frame.Pending.Reset,
+        },
     }
 );
 ```
 
 where
 
-- `Reactive` = the reactive mask, R8_UNORM at the largest render size, which `Record` writes with AMD's generator before the upscale (section 9).
+- `Reactive` = the reactive mask, R8_UNORM at the largest render size, which `Record` writes with AMD's generator before the upscale (section 9). `Record` refuses another format.
+- `Exposure` = the exposure buffer, whose first two floats are this frame's stops and the last frame's.
 - `FsrFrameMilliseconds` = the draw's step in ms, or 1000 / 60 in the draws of a still. AMD's shaders read it only in their own automatic exposure, which is off, because the engine passes its exposure.
 
 The interface comment:
 
 ```csharp
 /// <summary>
-/// AMD's FSR 3.1 upscaler, over AMD's own shaders, with AMD's host calculations repeated (docs/plans/temporal-renderer.md,
-/// "FSR 3.1"). It upscales the jittered, pre-exposed HDR color of the render size to the output size, and keeps its
-/// histories at the output size. Each Record takes this frame's inputs: the color, the color before the transparent pass,
-/// the image of the reactive mask, the device depth (reversed and infinite), the motion vectors without jitter, the render
-/// size within the largest render size, the jitter, and whether this frame resets. Record first writes the two
-/// pre-exposures from the exposure buffer into its constants on the GPU, then the reactive mask with AMD's generator, then
-/// upscales. It passes no transparency and composition mask. JitterOffset and JitterPhaseCount give the jitter that the
-/// frame must draw with.
+/// AMD's FSR 3.1 upscaler over AMD's own shaders, with AMD's host calculations repeated (ARCHITECTURE.md, "Upscaling: FSR
+/// 3.1"). It upscales the jittered, pre-exposed HDR color of the render size to the output size. Each
+/// <see cref="Record"/> takes one frame's <see cref="Fsr3Inputs"/>. <see cref="JitterOffset"/> gives the jitter that the
+/// frame draws with.
 /// </summary>
-internal sealed class Fsr3Upscaler : IDisposable
+internal sealed unsafe class Fsr3Upscaler : IDisposable
 {
+    public Fsr3Upscaler(
+        VulkanDevice device,
+        DeviceAllocator allocator,
+        ShaderLibrary shaders,
+        Extent2D maxRenderSize,
+        Extent2D outputSize,
+        int framesInFlight
+    );
+
     public static int JitterPhaseCount(uint renderWidth, uint outputWidth);
     public static Vector2 JitterOffset(int index, int phaseCount);
-    public void Record(FrameContext context, in Fsr3Inputs inputs);
+    public void Record(CommandBuffer commandBuffer, BarrierBatch barriers, in Fsr3Inputs inputs);
 }
 ```
+
+The members of `Fsr3Inputs` and `Fsr3Frame` carry the units: the jitter in render pixels, negated against the offset that the projection moved by, the field of view in radians, and the near plane in meters. Ticket `ter-k63u` built this interface. The sketch of this design had `Record(FrameContext, in Fsr3Inputs)` with flat frame values, and a depth parameter in the constructor.
 
 `FrameHistory` gives the jitter index: the draw index since the last reset modulo the phase count. AMD's phase count follows the render width over the output width: 18 at 1280 to 1920. So it changes with the render size, and the index follows it.
 
@@ -592,18 +607,18 @@ The inputs:
 | Color | The HDR image after the transparent pass, render size | Pre-exposed, at most 64,512 (section 1), before bloom and the tone map |
 | Depth | The surface test's device depth, R32F | Reversed and infinite, from the distance and the near plane of 5 cm (decision 24), because the three depth ranges leave no single depth buffer |
 | Motion vectors | The motion target's xy, RGBA16F | Units of the image's size, scale = the render size, no jitter |
-| Exposure | A 1 × 1 R32F image that the constants step writes, 2^S | The pre-exposed color divided by the pre-exposure and times this exposure is the color itself |
-| Pre-exposure | The constants step writes 2^S and the last frame's 2^S into FSR's constant buffer | Decision 31 |
+| Exposure | AMD's default 1 × 1 image, cleared to 0, which AMD's shaders read as 1 | AMD's shaders multiply the color by the exposure and divide the history by it before the output, so the pre-exposed color needs 1 |
+| Pre-exposure | The exposure step writes 2^S / 2^S_prev into `deltaPreExposure` of FSR's constant buffer | Decision 31 |
 | Reactive mask | AMD's generator, `ffxFsr3UpscalerContextGenerateReactiveMask`, from the opaque-only image and the color, in a dispatch of its own | Section 9 |
 | Transparency and composition mask | None. AMD's shaders then read a cleared 1 × 1 image | Section 9 |
 | Frame values | The step in ms, the near plane, the vertical field of view, 1 m per view unit | AMD's host turns them into the constants |
 
-The exposure step. The renderer knows the exposure only on the GPU, a few frames late on the CPU (ARCHITECTURE.md, "The exposure buffer"). FSR rescales its histories by the ratio of this frame's pre-exposure to the last frame's. So the CPU writes every other field of the constant buffer as AMD's host does. Then a dispatch of one invocation, `fsr_exposure.comp`, writes the two pre-exposures and the exposure image from the exposure buffer. It runs before the first FSR dispatch. The exposure buffer gains a second float, `previousStops`. The adapt step writes the stops that this frame used into it, before it writes the next stops. Under `FixedExposure` both are the setting's stops. The accumulators read the same two floats (section 8). Patching AMD's shaders to read the buffer works too, but keeps a diff on every later pin.
+The exposure step. The renderer knows the exposure only on the GPU, a few frames late on the CPU (ARCHITECTURE.md, "The exposure buffer"). FSR rescales its histories by the ratio of this frame's pre-exposure to the last frame's. So the CPU writes every other field of the constant buffer as AMD's host does. Then a dispatch of one invocation, `fsr_exposure.comp`, writes the ratio of the two pre-exposures from the exposure buffer. It runs before the first FSR dispatch. The exposure buffer gains a second float, `previousStops`. The adapt step writes the stops that this frame used into it, before it writes the next stops. Under `FixedExposure` both are the setting's stops. The accumulators read the same two floats (section 8). Patching AMD's shaders to read the buffer works too, but keeps a diff on every later pin.
 
 Corrections from ticket `ter-k63u` (2026-11-03):
 
-- The exposure image. AMD's 3.1.4 shaders never divide the color by the pre-exposure. They multiply the color by the exposure image, and divide the history by it again before the output. So for the pre-exposed color, the exposure that gives "the color itself" is 1, not 2^S. The host binds AMD's default exposure image, 0, which the shaders read as 1, and `fsr_exposure.comp` writes only the ratio 2^S / 2^S_prev into the constant buffer's `deltaPreExposure`. The row "Exposure" of the inputs table above is wrong in this point.
-- The interface. `Record` takes the command buffer and the barrier batch, so that the GPU tests can call it without a frame, and the frame's values are one `Fsr3Frame` in `Fsr3Inputs`. Ticket 5 passes those of the `FrameContext`. The constructor takes the allocator, the shader library and the frames in flight, and no depth parameter: the engine has one depth convention, reversed and infinite.
+- The exposure image. AMD's 3.1.4 shaders never divide the color by the pre-exposure. They multiply the color by the exposure image, and divide the history by it again before the output. So for the pre-exposed color, the exposure that gives "the color itself" is 1, not 2^S. The host binds AMD's default exposure image, 0, which the shaders read as 1, and `fsr_exposure.comp` writes only the ratio 2^S / 2^S_prev into the constant buffer's `deltaPreExposure`. The design said 2^S and two constants. The inputs table, the exposure step and decision 31 now say what the host does.
+- The interface. `Record` takes the command buffer and the barrier batch, so that the GPU tests can call it without a frame, and the frame's values are one `Fsr3Frame` in `Fsr3Inputs`. Ticket 5 passes those of the `FrameContext`. The constructor takes the allocator, the shader library and the frames in flight, and no depth parameter: the engine has one depth convention, reversed and infinite. The usage code and the interface comment above are the built ones.
 - The format defect. Two of AMD's declarations differ from the images that AMD's host binds, `rw_luma_history` and `rw_output_autoreactive`. The rule above resolved both (`src/Tertius.Rendering/ThirdParty/Fsr3/README.md`).
 
 The host's own tests compare its calculations with AMD's. A small C++ tool in `tools/fsr3-golden/` builds in the dev shell from AMD's host sources. For a table of inputs, it prints the jitter, the phase counts, the depth constants, the dispatch sizes and the constant buffer. The C# tests hold those values. AMD's host code needs no Windows header for those pure functions, so the tool builds on the Mac.
