@@ -44,6 +44,8 @@ internal readonly record struct RenderView(
 /// to.</item>
 /// <item>The memory is a column of the entity table, so a released entity's memory is cleared, and a new entity in a
 /// reused slot never interpolates from the old one.</item>
+/// <item>An entity's remembered scale comes from a build that has happened.</item>
+/// <item>The count of camera cuts is at most the count of builds.</item>
 /// </list>
 /// </para>
 /// </remarks>
@@ -84,6 +86,7 @@ internal sealed partial class RenderSnapshotBuilder
     private long[] lastFrameStamp = new long[16];
 
     private readonly EntityTable.Column<PoseMemory> lastEntityPose;
+    private readonly EntityTable.Column<ScaleMemory> lastEntityScale;
 
     private long buildStamp;
     private Entity lastCamera;
@@ -102,6 +105,9 @@ internal sealed partial class RenderSnapshotBuilder
 
     // The tick of the last build with a camera.
     private long lastCameraTick;
+
+    // The builds with a camera that did not interpolate it, which every snapshot carries as RenderSnapshot.CameraCuts.
+    private long cameraCuts;
 
     // Inputs of the per-chunk workers for the build that is running.
     private Double3 renderOrigin;
@@ -133,6 +139,7 @@ internal sealed partial class RenderSnapshotBuilder
         this.workers = workers;
         renderChunk = BuildChunk;
         lastEntityPose = entities.AddColumn<PoseMemory>();
+        lastEntityScale = entities.AddColumn<ScaleMemory>();
     }
 
     /// <summary>
@@ -172,6 +179,15 @@ internal sealed partial class RenderSnapshotBuilder
         public long Stamp;
     }
 
+    /// <summary>The render scale of one entity at the last build that drew it.</summary>
+    private struct ScaleMemory
+    {
+        public Vector3 Scale;
+
+        /// <summary>The build that wrote it, or 0 for none.</summary>
+        public long Stamp;
+    }
+
     /// <summary>A posed instance of one chunk: its index among the chunk's instances, and its entity's rig pose.</summary>
     private readonly record struct PosedInstance(int Instance, EntityTable.RigPoseBlock RigPose);
 
@@ -201,6 +217,7 @@ internal sealed partial class RenderSnapshotBuilder
     {
         long stamp = ++buildStamp;
         ClearToView(snapshot, view);
+        snapshot.CameraCuts = cameraCuts;
         renderHasCamera = renderFollowsTick = false;
 
         if (CameraPoseOf(view.Camera) is not (var cameraFrame, var cameraHome, var eyeInFrame, var cameraPose))
@@ -215,6 +232,8 @@ internal sealed partial class RenderSnapshotBuilder
         bool interpolate = lastCamera == view.Camera && lastCameraFrame == cameraFrame && lastCameraStamp == stamp - 1;
         PrepareFramePoses(cameraHome, stamp, interpolate);
         renderInterpolate = interpolate;
+        if (!interpolate)
+            snapshot.CameraCuts = ++cameraCuts;
         renderOrigin = cameraPose.Position;
         renderHasCamera = true;
         renderFollowsTick = interpolate && view.Tick == lastCameraTick + 1;
@@ -543,10 +562,12 @@ internal sealed partial class RenderSnapshotBuilder
                     chainDepth: (ushort)chainDepth[dense],
                     flags: render.Flags,
                     entityIndex: entity.Index,
-                    part: 0
+                    part: 0,
+                    entityGeneration: entity.Generation
                 );
                 instance.PreviousPosition = (previous.Position - origin).ToVector3();
                 instance.PreviousRotation = previous.Rotation.ToQuaternion();
+                instance.PreviousScale = PreviousScaleOf(entity, render.Scale);
                 if (entities.RigPoseOf(entity) is { } rigPose)
                     posed.Add(new(Instance: instances.Count - 1, RigPose: rigPose));
             }
@@ -561,6 +582,19 @@ internal sealed partial class RenderSnapshotBuilder
                 chainDepth: (ushort)chainDepth[dense]
             );
         }
+    }
+
+    /// <summary>
+    /// The scale of <paramref name="entity"/> at the build before, by the rule of the previous transforms: the remembered
+    /// scale when this build interpolates and the build before drew the entity, and <paramref name="scale"/> otherwise.
+    /// Remembers <paramref name="scale"/> for the next build.
+    /// </summary>
+    private Vector3 PreviousScaleOf(Entity entity, Vector3 scale)
+    {
+        ref ScaleMemory last = ref lastEntityScale[entity];
+        Vector3 previous = renderInterpolate && last.Stamp == buildStamp - 1 ? last.Scale : scale;
+        last = new() { Scale = scale, Stamp = buildStamp };
+        return previous;
     }
 
     /// <summary>
@@ -895,10 +929,13 @@ internal sealed partial class RenderSnapshotBuilder
         Array.Resize(ref lastFrameStamp, size);
     }
 
-    /// <summary>Checks the invariant in the class comment. O(capacity): a pass over the whole memory column.</summary>
+    /// <summary>Checks the invariants in the class comment. O(capacity): a pass over the whole memory columns.</summary>
     internal void AssertInvariants()
     {
         foreach (ref readonly PoseMemory last in lastEntityPose.AsSpan())
             Contract.Invariant(last.Stamp >= 0 && last.Stamp <= buildStamp && (last.Stamp == 0 || !last.Frame.IsNull));
+        foreach (ref readonly ScaleMemory last in lastEntityScale.AsSpan())
+            Contract.Invariant(last.Stamp >= 0 && last.Stamp <= buildStamp);
+        Contract.Invariant(cameraCuts >= 0 && cameraCuts <= buildStamp);
     }
 }

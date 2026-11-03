@@ -408,4 +408,77 @@ public sealed class RenderSnapshotInterpolationTests
                 "the ball moved between the two snapshots, or the test cannot tell the old pose from the new one"
             );
     }
+
+    // ---- The count of camera cuts ----------------------------------------------------------------------------------
+
+    [Fact]
+    public void TheFirstSnapshotWithACameraCountsOneCameraCut()
+    {
+        using var test = new TestWorld();
+        test.World.Camera = test.SpawnCamera(test.Root, DPose.Identity);
+
+        test.Run(1);
+
+        test.World.Latest().CameraCuts.Should().Be(1);
+    }
+
+    [Fact]
+    public void ASnapshotThatInterpolatesTheCameraCountsNoNewCut()
+    {
+        using var test = new TestWorld();
+        test.World.Camera = test.SpawnCamera(test.Root, DPose.Identity, new Mover(new(0, 1, 0)));
+        test.Run(1);
+        long before = test.World.Latest().CameraCuts;
+
+        test.Run(1);
+
+        test.World.Latest().CameraCuts.Should().Be(before);
+    }
+
+    [Fact]
+    public void WhenAnotherEntityBecomesTheCameraTheSnapshotCountsOneMoreCut()
+    {
+        using var test = new TestWorld();
+        Entity first = test.SpawnCamera(test.Root, DPose.Identity);
+        Entity second = test.SpawnCamera(test.Root, TestWorld.At(0, 5, 0));
+        test.World.Camera = first;
+        test.Run(2);
+        long before = test.World.Latest().CameraCuts;
+
+        test.World.Camera = second;
+        test.Run(1);
+
+        test.World.Latest().CameraCuts.Should().Be(before + 1);
+    }
+
+    [Fact]
+    public void WhenTheCameraChangesFrameTheSnapshotCountsOneMoreCut()
+    {
+        using var scene = new HandOffScene();
+        scene.Test.Run(2);
+        long before = scene.Test.World.Latest().CameraCuts;
+
+        scene.Test.Run(1);
+
+        scene.Test.World.Latest().CameraCuts.Should().Be(before + 1);
+    }
+
+    [Fact]
+    public void ASnapshotWithoutACameraKeepsTheCountAndTheSnapshotAfterItCountsOneMoreCut()
+    {
+        using var test = new TestWorld();
+        Entity camera = test.SpawnCamera(test.Root, DPose.Identity);
+        test.World.Camera = camera;
+        test.Run(2);
+        long before = test.World.Latest().CameraCuts;
+        test.World.Camera = Entity.Null;
+        test.Run(1);
+        long without = test.World.Latest().CameraCuts;
+
+        test.World.Camera = camera;
+        test.Run(1);
+
+        without.Should().Be(before);
+        test.World.Latest().CameraCuts.Should().Be(before + 1);
+    }
 }

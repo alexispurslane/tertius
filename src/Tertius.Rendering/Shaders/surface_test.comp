@@ -1,0 +1,68 @@
+#version 460
+// The surface test pass (docs/plans/temporal-renderer.md, section 8, "The surface test", and decision 24): one invocation
+// per pixel finds the pixel's surface in the last drawn frame and tests the 2 × 2 texels of the last surface history
+// around its last place. It writes the surface test image, this frame's surface history, FSR's device depth and the
+// sky's motion, because each of these reads the distance target once.
+#extension GL_GOOGLE_include_directive : require
+#include "frame.glsl"
+#include "gbuffer_inputs.glsl"
+#include "octahedral.glsl"
+#include "screen.glsl"
+#include "sky.glsl"
+#include "motion.glsl"
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+layout(set = 3, binding = 0) uniform texture2D lastSurfaceHistory;              // RGBA16F: the last drawn frame's
+layout(set = 3, binding = 1, rgba16f) uniform image2D motionTarget;              // the G-buffer's motion target
+layout(set = 3, binding = 2, rgba16f) uniform writeonly image2D surfaceHistory;  // this frame's: view depth, octahedral
+                                                                                 // geometric normal, roughness
+layout(set = 3, binding = 3, r8ui) uniform writeonly uimage2D surfaceTest;       // the pass bits (signals.glsl)
+layout(set = 3, binding = 4, r32f) uniform writeonly image2D deviceDepth;        // reversed and infinite, 0 for sky
+
+#include "signals.glsl"
+
+// SurfaceTestPushConstants.
+layout(push_constant, std430) uniform SurfaceTestPush
+{
+    uint reset;  // 1 when the frame resets every history: every tap fails
+} pass;
+
+// SurfaceTestPass.DeviceDepthNear: the near plane of FSR's reversed and infinite depth, in m (DepthRanges.NearPlane).
+const float DeviceDepthNear = 0.05;
+
+void main()
+{
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    if (any(greaterThanEqual(pixel, ivec2(frame.viewport.xy))))
+        return;
+    vec2 center = vec2(pixel) + 0.5;
+    vec3 ray = viewRayThrough(center);
+    float eyeDistance = texelFetch(gbufferDistance, pixel, 0).r;
+    if (eyeDistance <= 0.0)
+    {
+        // The sky: its last place is its ray turned by the root's turn since the last frame, through the last camera. The
+        // stars are fixed in the root's axes, and the sky lies at infinity, so the eye's step moves nothing.
+        vec3 root = rootAxesOf(ray);
+        vec4 q = frame.previousRootRotation;
+        vec3 last = root + 2.0 * cross(q.xyz, cross(q.xyz, root) + q.w * root);
+        imageStore(motionTarget, pixel, motionOf(clipOf(ray), lastClipOf(last)));
+        imageStore(surfaceHistory, pixel, vec4(0.0));
+        imageStore(surfaceTest, pixel, uvec4(0u));
+        imageStore(deviceDepth, pixel, vec4(0.0));
+        return;
+    }
+
+    // The view ray's component along forward is 1, so the view depth is the distance over its length.
+    float depth = eyeDistance / length(ray);
+    vec3 normal = octDecode(texelFetch(gbufferNormal, pixel, 0).ba);
+    float roughness = texelFetch(gbufferSpecular, pixel, 0).g;
+    vec4 motion = imageLoad(motionTarget, pixel);
+    vec2 place = center * frame.viewport.zw + motion.xy;
+    uint bits = 0u;
+    if (pass.reset == 0u && all(greaterThanEqual(place, vec2(0.0))) && all(lessThanEqual(place, vec2(1.0))))
+        bits = surfaceTaps(place, lastViewRayThrough(place) * (depth * motion.z), normal, roughness);
+    imageStore(surfaceTest, pixel, uvec4(bits));
+    imageStore(surfaceHistory, pixel, vec4(depth, octEncode(normal), roughness));
+    imageStore(deviceDepth, pixel, vec4(min(DeviceDepthNear / depth, 1.0)));
+}

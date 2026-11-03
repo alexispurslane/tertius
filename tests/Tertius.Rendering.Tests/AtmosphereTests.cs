@@ -54,6 +54,7 @@ public sealed class AtmosphereTests
                 materials: MaterialSlots.Of(1),
                 environment: new WithoutMap(),
                 region: DeformRegion.None,
+                frame: Batchers.FirstFrame(),
                 scene: scene
             );
         return scene;

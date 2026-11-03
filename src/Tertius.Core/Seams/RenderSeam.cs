@@ -98,8 +98,14 @@ public enum RenderFlags : uint
 /// </summary>
 public struct RenderInstance
 {
-    /// <summary>The entity slot. With <see cref="Part"/>, it identifies the object from tick to tick.</summary>
+    /// <summary>The entity slot. With <see cref="EntityGeneration"/> and <see cref="Part"/>, it identifies the object from tick to tick.</summary>
     public uint EntityIndex;
+
+    /// <summary>
+    /// The generation of the entity in <see cref="EntityIndex"/>, so that a new entity in a reused slot is a new object to
+    /// the renderer, with no history of the old one (docs/plans/temporal-renderer.md, "The key of an object").
+    /// </summary>
+    public uint EntityGeneration;
 
     /// <summary>Which of the entity's render parts this is, 0 for the first. The renderer keys impostor state on (EntityIndex, Part, Mesh, Material), so a part that changes its mesh or material gets a new capture.</summary>
     public ushort Part;
@@ -118,6 +124,12 @@ public struct RenderInstance
     public Vector3 Scale;
     public Vector3 PreviousPosition;
     public Quaternion PreviousRotation;
+
+    /// <summary>
+    /// <see cref="Scale"/> at the previous build, by the rule of the previous transforms. A scale with no volume, such as
+    /// the zero of an unset field, counts as <see cref="Scale"/>.
+    /// </summary>
+    public Vector3 PreviousScale;
 
     /// <summary>The world-space radius around <see cref="Position"/>, scale included. 0 means "derive it from the mesh".</summary>
     public float BoundingRadius;
@@ -140,11 +152,13 @@ public struct RenderInstance
         ushort chainDepth,
         RenderFlags flags = RenderFlags.Visible,
         uint entityIndex = 0,
-        ushort part = 0
+        ushort part = 0,
+        uint entityGeneration = 0
     ) =>
         new()
         {
             EntityIndex = entityIndex,
+            EntityGeneration = entityGeneration,
             Part = part,
             ChainDepth = chainDepth,
             Mesh = mesh,
@@ -155,6 +169,7 @@ public struct RenderInstance
             Scale = scale,
             PreviousPosition = position,
             PreviousRotation = rotation,
+            PreviousScale = scale,
             BoundingRadius = boundingRadius,
             Hemisphere = hemisphere,
         };
@@ -223,6 +238,13 @@ public sealed class RenderSnapshot
     public Double3 OriginInFrame;
 
     public AmbientLight Ambient;
+
+    /// <summary>
+    /// How many builds so far did not interpolate the camera: a first build, another camera, or another frame of the
+    /// camera. A count, not a flag, so that a renderer that skips the snapshot of a cut still sees it
+    /// (docs/plans/temporal-renderer.md, "Resets"). A build without a camera keeps the count.
+    /// </summary>
+    public long CameraCuts;
 
     /// <summary>The air that the camera looks through, or null for none: no sky, no haze and no tint.</summary>
     public RenderAtmosphere? Atmosphere;

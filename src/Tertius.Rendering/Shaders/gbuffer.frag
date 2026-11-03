@@ -7,6 +7,7 @@
 #include "hemisphere.glsl"
 #include "exposure.glsl"
 #include "environment.glsl"
+#include "motion.glsl"
 
 layout(location = 0) in vec3 inPosition;
 layout(location = 1) in vec3 inNormal;
@@ -15,6 +16,8 @@ layout(location = 3) in vec2 inTexCoord;
 layout(location = 4) flat in uvec4 inInstanceWords;  // x: the material. y: the instance's map. z: GpuInstance.holdsLight. w:
                                                      // the card code (mesh.vert)
 layout(location = 5) flat in vec4 inHemisphere;
+layout(location = 6) in vec3 inMotionNow;   // this frame's and the last frame's motion clip x, y and w (mesh.vert)
+layout(location = 7) in vec3 inMotionLast;
 
 layout(location = 0) out vec4 outBaseColor;
 layout(location = 1) out vec4 outNormal;
@@ -22,6 +25,7 @@ layout(location = 2) out vec4 outSpecular;
 layout(location = 3) out vec4 outEmissive;
 layout(location = 4) out float outDistance;
 layout(location = 5) out uvec4 outShading;
+layout(location = 6) out vec4 outMotion;
 
 // The map code (docs/plans/environment-maps-per-frame.md, decision 20): map i owns the codes 255 − 2i and 256 − 2i of the
 // 8-bit alpha, and the value lies between them, so either rounding that the conversion to UNORM may take names map i.
@@ -53,4 +57,5 @@ void main()
     // the entity holds a light, whose face its glow is (docs/plans/screen-space-illumination.md, "The bounce source").
     outShading = uvec4(s.model == ShadingHair ? strandCode(s.strand) : uvec2(0u),
                        lightModelAndCardWords(inInstanceWords.z, s.model, inInstanceWords.w));
+    outMotion = motionOf(inMotionNow, inMotionLast);
 }

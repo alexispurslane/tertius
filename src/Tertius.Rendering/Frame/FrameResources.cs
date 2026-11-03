@@ -7,8 +7,8 @@ namespace Tertius.Rendering;
 
 /// <summary>
 /// What one frame in flight owns: its command buffer, fence and acquire semaphore, the host-visible buffers the CPU
-/// fills each frame (frame constants, instances, indirect commands, lights, occluders, frame outlines, puffs, the deform
-/// pass's pose rows and job table and, with the local shadow atlas, the tile views), its descriptor
+/// fills each frame (frame constants, instances, indirect commands, lights, occluders, frame outlines, puffs, the motion
+/// rows, the deform pass's pose rows and job table and, with the local shadow atlas, the tile views), its descriptor
 /// sets and its staging memory. The CPU touches these only after waiting on <see cref="Fence"/>, so no other
 /// synchronization is needed for them.
 /// </summary>
@@ -34,6 +34,12 @@ internal sealed unsafe class FrameResources : IDisposable
 
     /// <summary>The <see cref="DeformStore.Version"/> that bindings 1 and 2 of the deform set point at, or −1 before.</summary>
     private int deformVersion = -1;
+
+    /// <summary>The buffer that the frame set's kept positions point at, or null before it is written.</summary>
+    private GpuBuffer? keptRead;
+
+    /// <summary>The buffer that the deform set's kept positions point at, or null before it is written.</summary>
+    private GpuBuffer? keptWritten;
 
     public FrameResources(
         VulkanDevice device,
@@ -75,6 +81,8 @@ internal sealed unsafe class FrameResources : IDisposable
         Occluders = StorageArray<Vector4>(allocator, "occluders", 16);
         Outlines = StorageArray<GpuOutline>(allocator, "outlines", 16);
         Puffs = StorageArray<GpuPuff>(allocator, "puffs", 256);
+        Motions = StorageArray<GpuMotion>(allocator, "motion rows", 1024);
+
         Poses = StorageArray<Vector4>(allocator, "pose rows", 256);
         DeformJobs = StorageArray<GpuDeformJob>(allocator, "deform jobs", 16);
         // Without the atlas the binding stays empty: it is partially bound.
@@ -106,6 +114,9 @@ internal sealed unsafe class FrameResources : IDisposable
     public HostArray<Vector4> Occluders { get; }
     public HostArray<GpuOutline> Outlines { get; }
     public HostArray<GpuPuff> Puffs { get; }
+
+    /// <summary>The motion rows of the frame's placed instances, which the G-buffer reads (<see cref="PreparedScene.Motions"/>).</summary>
+    public HostArray<GpuMotion> Motions { get; }
 
     /// <summary>The pose rows of the frame's deform jobs, which the deform pass reads.</summary>
     public HostArray<Vector4> Poses { get; }
@@ -153,12 +164,52 @@ internal sealed unsafe class FrameResources : IDisposable
             layouts.WriteBuffer(set: FrameSet, binding: 6, type: DescriptorType.StorageBuffer, buffer: Outlines.Buffer);
         if (Puffs.Write(scene.Puffs.AsSpan(0, scene.PuffCount)))
             layouts.WriteBuffer(set: FrameSet, binding: 7, type: DescriptorType.StorageBuffer, buffer: Puffs.Buffer);
+        if (Motions.Write(scene.MotionSpan))
+            WriteMotions(Motions);
         if (ShadowTiles?.Write(scene.ShadowTiles.AsSpan(0, scene.ShadowTileCount)) == true)
             WriteShadowTiles(ShadowTiles);
         if (Poses.Write(scene.Poses))
             WritePoses(Poses);
         if (DeformJobs.Write(GpuDeformJobsOf(scene)))
             WriteDeformJobs(DeformJobs);
+    }
+
+    private void WriteMotions(HostArray<GpuMotion> motions) =>
+        layouts.WriteBuffer(
+            set: FrameSet,
+            binding: DescriptorLayouts.MotionsBinding,
+            type: DescriptorType.StorageBuffer,
+            buffer: motions.Buffer
+        );
+
+    /// <summary>
+    /// Points the frame set at the kept positions that the frame of <paramref name="parity"/> reads and the deform set at
+    /// the ones that it writes (<see cref="KeptPositions"/>). Both stay empty before the first deformed copy, when no
+    /// motion row names a kept copy and no job runs.
+    /// </summary>
+    public void UpdateKeptPositions(KeptPositions kept, int parity)
+    {
+        if (kept.Read(parity) is { } read && read != keptRead)
+        {
+            layouts.WriteBuffer(
+                set: FrameSet,
+                binding: DescriptorLayouts.KeptPositionsBinding,
+                type: DescriptorType.StorageBuffer,
+                buffer: read
+            );
+            keptRead = read;
+        }
+
+        if (kept.Written(parity) is { } written && written != keptWritten)
+        {
+            layouts.WriteBuffer(
+                set: DeformSet,
+                binding: DescriptorLayouts.DeformKeptPositionsBinding,
+                type: DescriptorType.StorageBuffer,
+                buffer: written
+            );
+            keptWritten = written;
+        }
     }
 
     private void WritePoses(HostArray<Vector4> poses) =>
@@ -279,6 +330,8 @@ internal sealed unsafe class FrameResources : IDisposable
         layouts.WriteSampler(FrameSet, 5, textures.MaterialSampler);
         layouts.WriteBuffer(set: FrameSet, binding: 6, type: DescriptorType.StorageBuffer, buffer: Outlines.Buffer);
         layouts.WriteBuffer(set: FrameSet, binding: 7, type: DescriptorType.StorageBuffer, buffer: Puffs.Buffer);
+        WriteMotions(Motions);
+
         // The tables never change, so their bindings are written once.
         layouts.WriteImage(set: FrameSet, binding: 8, arrayElement: 0, image: tables.Dfg);
         layouts.WriteImage(set: FrameSet, binding: 9, arrayElement: 0, image: tables.LobeSky);
@@ -378,6 +431,8 @@ internal sealed unsafe class FrameResources : IDisposable
         Occluders.Dispose();
         Outlines.Dispose();
         Puffs.Dispose();
+        Motions.Dispose();
+
         Poses.Dispose();
         DeformJobs.Dispose();
         ShadowTiles?.Dispose();

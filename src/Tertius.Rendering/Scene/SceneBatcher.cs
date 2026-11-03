@@ -102,6 +102,7 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
     /// maps are those of <paramref name="snapshot"/>'s chain (docs/plans/environment-maps-per-frame.md).
     /// </param>
     /// <param name="region">The deform region that this frame's deformed copies fill.</param>
+    /// <param name="frame">The draw's pending state: the batch joins its placement history and writes this frame's into it.</param>
     /// <param name="scene">Receives the result.</param>
     public void Prepare(
         RenderSnapshot snapshot,
@@ -113,12 +114,19 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
         ReadOnlySpan<MaterialInfo> materials,
         EnvironmentDraw environment,
         DeformRegion region,
+        PendingFrame frame,
         PreparedScene scene
     )
     {
         alpha = ClampAlpha(alpha);
         scene.Reset();
         scene.Camera = InterpolateCamera(snapshot: snapshot, alpha: alpha, width: width, height: height);
+
+        // Before the placement, whose motion rows take the last frame's eye relative to this one.
+        DrawnCamera camera = DrawnCameraOf(snapshot, scene.Camera);
+        frame.Write(camera);
+        scene.PreviousView = frame.PreviousViewOf(camera);
+
         scene.Atmosphere = PaintedAtmosphere.Prepare(snapshot: snapshot, alpha: alpha, eye: scene.Camera.Offset);
         // With the map off, one map stands for none, and every object takes map 0 (decision 24).
         (ReadOnlyMemory<FaceMask> drawn, scene.Ambient) = environment switch
@@ -140,7 +148,7 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
 
         // First, because every collector reads the frame meshes and their bounds.
         PoseInstances(snapshot: snapshot, alpha: alpha, meshes: meshes, region: region, scene: scene);
-        PlaceInstances(snapshot: snapshot, alpha: alpha, materials: materials, scene: scene);
+        PlaceInstances(snapshot: snapshot, alpha: alpha, materials: materials, frame: frame, scene: scene);
         CollectPuffs(snapshot, alpha, scene);
         // Before the processors: impostor captures are lit by the lights as their far shadows leave them.
         CollectLights(
@@ -229,15 +237,35 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
         };
     }
 
+    /// <summary>The camera of this frame, as the record of the drawn frame keeps it for the next one.</summary>
+    private static DrawnCamera DrawnCameraOf(RenderSnapshot snapshot, in CameraView camera) =>
+        new(
+            EyeInFrame: snapshot.OriginInFrame + (Double3)camera.Offset,
+            FrameId: snapshot.OriginFrameId,
+            Rotation: camera.Rotation,
+            TanHalfX: camera.TanHalfX,
+            TanHalfY: camera.TanHalfY,
+            RootRotation: camera.RootRotation
+        );
+
+    /// <summary>
+    /// An instance's scale at <paramref name="alpha"/>, interpolated as its place is. A previous scale without a volume,
+    /// such as the zero of an unset field, counts as the current scale.
+    /// </summary>
+    internal static Vector3 InterpolatedScale(in RenderInstance instance, float alpha) =>
+        HasVolume(instance.PreviousScale)
+            ? Vector3.Lerp(instance.PreviousScale, instance.Scale, alpha)
+            : instance.Scale;
+
     /// <summary>The interpolation factor as every part of the frame uses it: clamped to [0, 1], and 1 when not finite.</summary>
     internal static float ClampAlpha(float alpha) => float.IsFinite(alpha) ? Math.Clamp(alpha, 0f, 1f) : 1f;
 
     /// <summary>
-    /// The world-space bounding radius of an instance: <see cref="RenderInstance.BoundingRadius"/> when it is set,
-    /// else <see cref="MeshExtent"/>.
+    /// The world-space bounding radius of an instance drawn at <paramref name="scale"/>:
+    /// <see cref="RenderInstance.BoundingRadius"/> when it is set, else <see cref="MeshExtent"/>.
     /// </summary>
-    internal static float BoundingRadius(in RenderInstance instance, in MeshInfo mesh) =>
-        instance.BoundingRadius > 0f ? instance.BoundingRadius : MeshExtent(instance.Scale, mesh);
+    internal static float BoundingRadius(in RenderInstance instance, Vector3 scale, in MeshInfo mesh) =>
+        instance.BoundingRadius > 0f ? instance.BoundingRadius : MeshExtent(scale, mesh);
 
     /// <summary>How far the scaled mesh reaches from the instance's origin: the mesh radius times the largest scale factor.</summary>
     internal static float MeshExtent(Vector3 scale, in MeshInfo mesh) =>
@@ -386,10 +414,12 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
     /// view copies the visible ones that it does not cull, with their depth, into its visible instances. The faces and the
     /// shadow views select theirs (ARCHITECTURE.md, "One placement per instance").
     /// </summary>
+    /// <param name="frame">The draw's pending state, whose placement history gives each placed instance its motion row.</param>
     private void PlaceInstances(
         RenderSnapshot snapshot,
         float alpha,
         ReadOnlySpan<MaterialInfo> materials,
+        PendingFrame frame,
         PreparedScene scene
     )
     {
@@ -399,21 +429,24 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
         ReadOnlySpan<MeshInfo> meshes = scene.Meshes;
         FrameMeshCursor frameMeshes = FrameMeshes(snapshot, scene);
         CollectLightHolders(snapshot);
+        var join = new MotionJoin(frame: frame, previousEye: scene.PreviousView.Eye);
         for (int index = 0; index < instances.Length; index++)
         {
             ref readonly RenderInstance instance = ref instances[index];
-            // Every instance moves the cursor, those that no view draws too.
+            // Every instance moves the cursors, those that no view draws too.
             int mesh = frameMeshes.MeshOf(index, instance);
+            PlacementKey? key = join.Identify(instance);
             if (
                 Place(instance: instance, mesh: mesh, alpha: alpha, meshes: meshes, eye: camera.Offset)
                 is not { } placement
             )
                 continue;
-            ref PreparedInstance placed = ref scene.AddPlaced();
+            ref PreparedInstance placed = ref scene.AddPlaced(
+                MotionOf(join: ref join, key: key, placement: placement, scene: scene)
+            );
             placed = Prepared(
                 instance: instance,
                 placement: placement,
-                alpha: alpha,
                 materials: materials,
                 maps: scene.MapCount,
                 holdsLight: lightHolders.Contains(instance.EntityIndex)
@@ -428,8 +461,42 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
     }
 
     /// <summary>
-    /// Where an instance draws, relative to the interpolated <paramref name="eye"/>, its bounding radius and its frame mesh
-    /// <paramref name="mesh"/>. Null when it draws in no view: neither visible nor a caster, no mesh on the GPU (−1), no
+    /// The motion row of a placed instance of <paramref name="key"/>, which also enters this frame's placements: its rows
+    /// as the main view draws them, and its frame mesh's static mesh and deformed copy.
+    /// </summary>
+    private static GpuMotion MotionOf(ref MotionJoin join, PlacementKey? key, Placement placement, PreparedScene scene)
+    {
+        (int staticMesh, KeptCopy? copy) = KeptMeshOf(placement.Mesh, scene);
+        return join.Place(
+            key: key,
+            rows: GpuInstance.RowsOf(
+                position: placement.Position,
+                rotation: placement.Rotation,
+                scale: placement.Scale
+            ),
+            mesh: staticMesh,
+            vertexCount: scene.Meshes[staticMesh].Deform?.VertexCount,
+            copy: copy,
+            firstVertex: (uint)scene.Meshes[placement.Mesh].VertexOffset
+        );
+    }
+
+    /// <summary>
+    /// The static mesh of frame mesh <paramref name="mesh"/>, and where this frame keeps its deformed copy, or null for a
+    /// static mesh. The deform pass keeps a copy's vertices at their places in the deform region.
+    /// </summary>
+    private static (int Mesh, KeptCopy? Copy) KeptMeshOf(int mesh, PreparedScene scene)
+    {
+        if (!scene.IsDeformed(mesh))
+            return (mesh, null);
+        DeformJob job = scene.Deforms[mesh - scene.StaticMeshCount];
+        int vertices = scene.Meshes[job.Mesh].Deform?.VertexCount ?? 0;
+        return (job.Mesh, new KeptCopy(FirstVertex: job.Target, VertexCount: vertices));
+    }
+
+    /// <summary>
+    /// Where an instance draws, relative to the interpolated <paramref name="eye"/>, at its interpolated scale, with its
+    /// bounding radius and its frame mesh <paramref name="mesh"/>. Null when it draws in no view: neither visible nor a caster, no mesh on the GPU (−1), no
     /// volume, or a place that reaches past <see cref="ShaderInput.PositionLimit"/> or is not finite.
     /// </summary>
     private static Placement? Place(
@@ -443,11 +510,18 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
         if (mesh < 0 || !MayDraw(instance))
             return null;
         Vector3 position = Vector3.Lerp(instance.PreviousPosition, instance.Position, alpha) - eye;
-        float radius = BoundingRadius(instance, meshes[mesh]);
+        Vector3 scale = InterpolatedScale(instance, alpha);
+        float radius = BoundingRadius(instance: instance, scale: scale, mesh: meshes[mesh]);
         // The mesh's extent bounds its scaled vertices, which must stay in range also when the bounding radius is set.
         // MathF.Max passes a NaN on.
-        return ShaderInput.InPositionRange(position, MathF.Max(radius, MeshExtent(instance.Scale, meshes[mesh])))
-            ? new Placement(position, radius, mesh)
+        return ShaderInput.InPositionRange(position, MathF.Max(radius, MeshExtent(scale, meshes[mesh])))
+            ? new Placement(
+                Position: position,
+                Rotation: Interpolate(instance.PreviousRotation, instance.Rotation, alpha),
+                Scale: scale,
+                Radius: radius,
+                Mesh: mesh
+            )
             : null;
     }
 
@@ -458,7 +532,6 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
     private static PreparedInstance Prepared(
         in RenderInstance instance,
         Placement placement,
-        float alpha,
         ReadOnlySpan<MaterialInfo> materials,
         int maps,
         bool holdsLight
@@ -468,8 +541,8 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
         return new()
         {
             Position = placement.Position,
-            Rotation = Interpolate(instance.PreviousRotation, instance.Rotation, alpha),
-            Scale = instance.Scale,
+            Rotation = placement.Rotation,
+            Scale = placement.Scale,
             Radius = placement.Radius,
             Distance = placement.Position.Length(),
             Mesh = placement.Mesh,
@@ -1300,6 +1373,37 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
         }
     }
 
+    /// <summary>
+    /// The view-projection of a camera at the eye with <paramref name="rotation"/>, with no jitter and no translation, in
+    /// System.Numerics row-vector form: clip x and y as the main view's, with y down, and clip w the view depth. Clip z is
+    /// 0, because the motion vectors take only x, y and w (docs/plans/temporal-renderer.md, "Jitter").
+    /// </summary>
+    internal static Matrix4x4 MotionProjection(Quaternion rotation, float tanHalfX, float tanHalfY)
+    {
+        Vector3 right = Vector3.Transform(Vector3.UnitX, rotation) / tanHalfX;
+        // Vulkan's clip y points down the image, so the up axis enters with its sign turned.
+        Vector3 down = -Vector3.Transform(Vector3.UnitY, rotation) / tanHalfY;
+        var forward = Vector3.Transform(-Vector3.UnitZ, rotation);
+        return new(
+            m11: right.X,
+            m12: down.X,
+            m13: 0,
+            m14: forward.X,
+            m21: right.Y,
+            m22: down.Y,
+            m23: 0,
+            m24: forward.Y,
+            m31: right.Z,
+            m32: down.Z,
+            m33: 0,
+            m34: forward.Z,
+            m41: 0,
+            m42: 0,
+            m43: 0,
+            m44: 0
+        );
+    }
+
     private static void WriteConstants(RenderSnapshot snapshot, PreparedScene scene)
     {
         CameraView camera = scene.Camera;
@@ -1321,12 +1425,7 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
             CameraForward = new(camera.Forward, 0f),
             AmbientSky = new(ShaderInput.Radiance(sky), 0f),
             AmbientGround = new(ShaderInput.Radiance(ground), 0f),
-            Viewport = new(
-                x: camera.Width,
-                y: camera.Height,
-                z: 1f / Math.Max(camera.Width, 1),
-                w: 1f / Math.Max(camera.Height, 1)
-            ),
+            Viewport = ViewportOf(width: camera.Width, height: camera.Height),
             // Written after the batch, which sets the count of the puffs drawn.
             Params = new(
                 x: ShaderInput.PuffRadianceCap(scene.PuffCount),
@@ -1352,12 +1451,51 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
             ),
             Atmosphere = scene.Atmosphere,
         };
+        WriteMotionConstants(scene);
         for (int map = 0; map < scene.MapCount; map++)
         {
             Quaternion axes = scene.MapAxes[map];
             scene.Constants.MapAxes[map] = new(x: axes.X, y: axes.Y, z: axes.Z, w: axes.W);
         }
     }
+
+    /// <summary>
+    /// The constants of the motion vectors (docs/plans/temporal-renderer.md, "The previous camera and the frame tree"):
+    /// both frames' motion projections, and the last drawn frame's camera relative to this frame's eye.
+    /// </summary>
+    private static void WriteMotionConstants(PreparedScene scene)
+    {
+        CameraView camera = scene.Camera;
+        PreviousView previous = scene.PreviousView;
+        ref GpuFrameConstants constants = ref scene.Constants;
+        constants.MotionViewProj = MotionProjection(
+            rotation: camera.Rotation,
+            tanHalfX: camera.TanHalfX,
+            tanHalfY: camera.TanHalfY
+        );
+        constants.PreviousViewProj = MotionProjection(
+            rotation: previous.Rotation,
+            tanHalfX: previous.TanHalfX,
+            tanHalfY: previous.TanHalfY
+        );
+        constants.PreviousEye = new(previous.Eye, 0f);
+        constants.PreviousCameraRight = new(
+            Vector3.Transform(Vector3.UnitX, previous.Rotation) * previous.TanHalfX,
+            0f
+        );
+        constants.PreviousCameraUp = new(Vector3.Transform(Vector3.UnitY, previous.Rotation) * previous.TanHalfY, 0f);
+        constants.PreviousCameraForward = new(Vector3.Transform(-Vector3.UnitZ, previous.Rotation), 0f);
+        constants.PreviousViewport = ViewportOf(
+            width: (int)previous.RenderSize.Width,
+            height: (int)previous.RenderSize.Height
+        );
+        Quaternion root = previous.RootRotation;
+        constants.PreviousRootRotation = new(x: root.X, y: root.Y, z: root.Z, w: root.W);
+    }
+
+    /// <summary>The frame constants' form of a render size: width, height, 1 / width, 1 / height.</summary>
+    private static Vector4 ViewportOf(int width, int height) =>
+        new(x: width, y: height, z: 1f / Math.Max(width, 1), w: 1f / Math.Max(height, 1));
 
     private static void Append(ref DrawItem[] items, ref int count, DrawItem item)
     {
@@ -1456,8 +1594,17 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
         Puff,
     }
 
-    /// <summary>Where an instance draws relative to the eye, its bounding radius, and the index of its mesh on the GPU.</summary>
-    private readonly record struct Placement(Vector3 Position, float Radius, int Mesh);
+    /// <summary>
+    /// Where an instance draws relative to the eye, at which rotation and scale, its bounding radius, and the index of its
+    /// mesh on the GPU.
+    /// </summary>
+    private readonly record struct Placement(
+        Vector3 Position,
+        Quaternion Rotation,
+        Vector3 Scale,
+        float Radius,
+        int Mesh
+    );
 
     /// <summary>Orders by key, then by visible index, so equal keys keep a deterministic order.</summary>
     private readonly struct DrawItemComparer : IComparer<DrawItem>

@@ -26,6 +26,12 @@ namespace Tertius.Rendering;
 /// <description>R8G8B8A8_UINT: a hair pixel's strand code in rg, 1 in b where the pixel's entity holds a light, the
 /// shading model's code in a, all 0 where nothing lit draws (docs/plans/skin-and-hair.md, "The shading target").
 /// </description></item>
+/// <item><term>motion</term>
+/// <description>R16G16B16A16_SFLOAT: xy the last drawn frame's place of the pixel's point minus this frame's place, in
+/// units of the image's size, with no jitter; z the ratio of the point's view depth in the last frame to its view depth in
+/// this frame (docs/plans/temporal-renderer.md, "Jitter"). (2, 2) where the point has no last place. The G-buffer clears
+/// it to 0, and the surface test writes the sky's motion. It is also a storage image, for the surface test.
+/// </description></item>
 /// </list>
 /// The depth buffer is D32_SFLOAT with reversed Z (1 near, 0 far, cleared to 0, compare GREATER). The direct image and the
 /// estimate target are R16G16B16A16_SFLOAT (docs/plans/screen-space-illumination.md, "Images and buffers"): the direct
@@ -46,11 +52,15 @@ internal sealed class RenderTargets : IDisposable
     public const Format EmissiveFormat = Format.R16G16B16A16Sfloat;
     public const Format DistanceFormat = Format.R32Sfloat;
     public const Format ShadingFormat = Format.R8G8B8A8Uint;
+    public const Format MotionFormat = Format.R16G16B16A16Sfloat;
     public const Format DepthFormat = Format.D32Sfloat;
     public const Format HdrFormat = Format.R16G16B16A16Sfloat;
     public const Format DirectFormat = Format.R16G16B16A16Sfloat;
     public const Format EstimateFormat = EstimatePacking.Format;
     public const Format DiffuseFormat = Format.R16G16B16A16Sfloat;
+
+    /// <summary>The color attachments per pass that the renderer asks of a device (<see cref="ColorAttachmentProblem"/>).</summary>
+    public const uint RequiredColorAttachments = 8;
 
     /// <summary>The binding of the estimate target in the G-buffer set (Shaders/gbuffer_inputs.glsl).</summary>
     public const uint EstimateBinding = 7;
@@ -84,6 +94,7 @@ internal sealed class RenderTargets : IDisposable
         EmissiveFormat,
         DistanceFormat,
         ShadingFormat,
+        MotionFormat,
     ];
 
     private readonly VulkanDevice device;
@@ -154,6 +165,9 @@ internal sealed class RenderTargets : IDisposable
 
     /// <summary>The shading model of each pixel and a hair pixel's strand, the sixth G-buffer target.</summary>
     public GpuImage Shading { get; private set; }
+
+    /// <summary>The motion target, the seventh G-buffer target, which no shading pass reads.</summary>
+    public GpuImage Motion { get; private set; }
 
     public GpuImage Depth { get; private set; }
     public GpuImage Hdr { get; private set; }
@@ -240,6 +254,7 @@ internal sealed class RenderTargets : IDisposable
         nameof(Emissive),
         nameof(Distance),
         nameof(Shading),
+        nameof(Motion),
         nameof(Depth),
         nameof(Hdr),
         nameof(Direct),
@@ -254,6 +269,15 @@ internal sealed class RenderTargets : IDisposable
         Emissive = ColorTarget(extent: extent, format: EmissiveFormat, name: "g-buffer emissive");
         Distance = ColorTarget(extent: extent, format: DistanceFormat, name: "g-buffer distance", readable: true);
         Shading = ColorTarget(extent: extent, format: ShadingFormat, name: "g-buffer shading", readable: true);
+        // A storage image too, for the surface test, which writes the sky's motion.
+        Motion = ColorTarget(
+            extent: extent,
+            format: MotionFormat,
+            name: "g-buffer motion",
+            readable: true,
+            extraUsage: ImageUsageFlags.StorageBit
+        );
+
         Depth = GpuImage.Create(
             device: device,
             allocator: allocator,
@@ -285,22 +309,26 @@ internal sealed class RenderTargets : IDisposable
         );
         estimateNeedsClear = true;
         Diffuse = diffuse ? DiffuseImage(extent) : null;
-        GBuffer = [BaseColor, Normal, Specular, Emissive, Distance, Shading];
+
+        GBuffer = [BaseColor, Normal, Specular, Emissive, Distance, Shading, Motion];
+        WriteSets();
+        CreateGlow(extent);
+    }
+
+    /// <summary>Points the G-buffer, post and meter sets at the targets that <see cref="Create"/> made.</summary>
+    private void WriteSets()
+    {
         // The first five targets' bindings are their attachments' indices; the shading target came after the bindings
-        // 5 to 9 were taken.
-        for (int i = 0; i < GBuffer.Length; i++)
-            layouts.WriteImage(
-                set: GBufferSet,
-                binding: GBuffer[i] == Shading ? ShadingBinding : (uint)i,
-                arrayElement: 0,
-                image: GBuffer[i]
-            );
+        // 5 to 9 were taken. No shading pass reads the motion target, so the set holds none.
+        for (int i = 0; i < 5; i++)
+            layouts.WriteImage(set: GBufferSet, binding: (uint)i, arrayElement: 0, image: GBuffer[i]);
+        layouts.WriteImage(set: GBufferSet, binding: ShadingBinding, arrayElement: 0, image: Shading);
         layouts.WriteImage(set: GBufferSet, binding: EstimateBinding, arrayElement: 0, image: Estimate);
         layouts.WriteImage(set: GBufferSet, binding: DirectBinding, arrayElement: 0, image: Direct);
+
         layouts.WriteImage(set: PostSet, binding: 0, arrayElement: 0, image: Hdr);
         layouts.WriteImage(set: MeterSet, binding: 0, arrayElement: 0, image: Hdr);
         layouts.WriteImage(set: MeterSet, binding: 1, arrayElement: 0, image: Distance);
-        CreateGlow(extent);
     }
 
     /// <summary>
@@ -389,8 +417,32 @@ internal sealed class RenderTargets : IDisposable
         estimateNeedsClear = false;
     }
 
+    /// <summary>
+    /// Why a device with <paramref name="maxColorAttachments"/> color attachments per pass cannot draw the G-buffer, or null
+    /// when it can. The renderer asks for 8, which every desktop Linux driver and MoltenVK offer, though the G-buffer draws 7
+    /// (docs/plans/temporal-renderer.md, "Portable Vulkan").
+    /// </summary>
+    internal static string? ColorAttachmentProblem(uint maxColorAttachments) =>
+        maxColorAttachments < RequiredColorAttachments
+            ? $"The G-buffer needs a device with maxColorAttachments of at least {RequiredColorAttachments}, not {maxColorAttachments}."
+            : null;
+
+    /// <summary>
+    /// The G-buffer draws seven color attachments, and the surface test writes the motion target as a storage image
+    /// (docs/plans/temporal-renderer.md, "Portable Vulkan").
+    /// </summary>
+    private static void CheckMotionTarget(VulkanDevice device)
+    {
+        if (ColorAttachmentProblem(device.Properties.Limits.MaxColorAttachments) is { } attachments)
+            throw new NotSupportedException($"{attachments} ({device.DeviceName})");
+        // The spec requires storage support of RGBA16F on every device.
+        if ((device.FormatProperties(MotionFormat).OptimalTilingFeatures & FormatFeatureFlags.StorageImageBit) == 0)
+            throw new NotSupportedException($"{MotionFormat} cannot be a storage image on {device.DeviceName}.");
+    }
+
     private static void CheckFormats(VulkanDevice device, bool reflections, bool diffuse)
     {
+        CheckMotionTarget(device);
         foreach (Format format in (Format[])[.. GBufferFormats, HdrFormat, DirectFormat])
         {
             FormatFeatureFlags features = device.FormatProperties(format).OptimalTilingFeatures;

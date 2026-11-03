@@ -23,6 +23,9 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
     /// <summary>The constant_id of dropsFibers in frame.glsl.</summary>
     public const uint DropsFibersId = 3;
 
+    /// <summary>The constant_id of writesMotion in mesh.vert.</summary>
+    public const uint WritesMotionId = 4;
+
     /// <summary>
     /// True in the cutout pipeline of an opaque pass, whose material sample discards a texel below its material's cutoff
     /// (docs/plans/skin-and-hair.md, "The cutout test"); false in the solid pipelines, which keep their early depth writes.
@@ -37,6 +40,13 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
     /// variant.
     /// </summary>
     public bool DropsFibers { get; init; }
+
+    /// <summary>
+    /// True in the G-buffer's pipelines, whose vertex shader reads the motion rows and the kept positions and passes the
+    /// motion target's two places on (docs/plans/temporal-renderer.md, "Jitter"). The other passes that draw with mesh.vert
+    /// write no motion.
+    /// </summary>
+    public bool WritesMotion { get; init; }
 
     /// <summary>
     /// The skin scatter's taps per side (docs/plans/skin-and-hair.md, "The two passes"), which only
@@ -69,6 +79,7 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
             (CutoutAlphaId, values.CutoutAlpha ? 1u : 0u),
             (ScatterTapsPerSideId, (uint)tapsPerSide),
             (DropsFibersId, values.DropsFibers ? 1u : 0u),
+            (WritesMotionId, values.WritesMotion ? 1u : 0u),
         ];
         for (int i = 0; i < rows.Length; i++)
         {
@@ -97,7 +108,7 @@ internal struct SpecializationStorage
     /// The number of constants: one per field of <see cref="ShaderConstants"/>, the subsurface setting's being its taps per
     /// side. <see cref="ShaderConstants.Specialization"/> writes one row per constant, and a row past this count throws.
     /// </summary>
-    public const int Count = 4;
+    public const int Count = 5;
 
     public SpecializationValues Data;
     public SpecializationEntries Entries;

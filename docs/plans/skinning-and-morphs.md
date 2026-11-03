@@ -783,12 +783,12 @@ Each ordering rule has its reason:
 
 ## Stored state, one store, determinism and no temporal rendering
 
-- Stored state describes the last finished step. The front rig pose describes the last finished tick, and the placed copy the last build. The back copy is the tick in flight, which only its entity reads. The deformed copies describe the frame that wrote them. A tile record describes the frame that drew it.
+- Stored state describes the last finished step. The front rig pose describes the last finished tick, and the placed copy the last build. The back copy is the tick in flight, which only its entity reads. The deformed copies describe the frame that wrote them. The kept positions of each parity describe the drawn frame that wrote them, and give the motion vectors the last frame's positions (docs/plans/temporal-renderer.md, "Kept deformed positions"). A tile record describes the frame that drew it.
 - One store for each piece of state. The rig pose has one block per slot, whose three copies each describe their own step, like the back and front rows and `PoseMemory`. The snapshot's lists are its one store of the rig pose. A mesh's rigging lives in its `MeshData`, and its CPU side in its `MeshInfo`. The frame mesh of an instance is derived in every frame.
 - Closed sets. No kind enum is added. A frame mesh is a deformed copy exactly when its index is at least `StaticMeshCount`, an index range, not a flag beside the index.
 - An entity writes only itself: `Self.RigPose` gives its own block.
 - Determinism. The rig pose is written only by its entity's tick. The snapshot's entries follow the instance order, independent of threads. The batcher poses in snapshot order on one thread. The shader's sums run in a fixed order, and each invocation writes only its own vertex. A film draws the same copies on every run on one device.
-- No temporal rendering ([rendering-performance.md](rendering-performance.md), decision 8). The interpolation of the rig pose is the interpolation of state between two ticks, as for transforms. No pixel blends with an earlier frame's.
+- No temporal rendering ([rendering-performance.md](rendering-performance.md), decision 8). The interpolation of the rig pose is the interpolation of state between two ticks, as for transforms. No pixel blends with an earlier frame's. The temporal renderer ([temporal-renderer.md](temporal-renderer.md)) replaces this rule: its first ticket keeps each deformed position for the next frame's motion vectors.
 
 ## Memory and cost
 

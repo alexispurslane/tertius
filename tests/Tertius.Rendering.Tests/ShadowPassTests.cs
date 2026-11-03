@@ -48,6 +48,7 @@ public sealed class ShadowPassTests
                 materials: MaterialSlots.Of(1),
                 environment: new WithoutMap(),
                 region: DeformRegion.None,
+                frame: Batchers.FirstFrame(),
                 scene: scene
             );
         ShadowPass.WriteSets(scene);

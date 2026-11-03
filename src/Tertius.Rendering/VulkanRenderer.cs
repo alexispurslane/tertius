@@ -92,6 +92,9 @@ public sealed unsafe class VulkanRenderer : IRenderer
     private readonly GeometryStore geometry;
     private readonly DeformStore deforms;
 
+    /// <summary>The kept deformed positions, or null without the deformation.</summary>
+    private readonly KeptPositions? keptPositions;
+
     /// <summary><see cref="RendererOptions.Deformation"/>: off, every frame passes the batcher an empty deform region.</summary>
     private readonly bool deformation;
     private readonly TextureStore textures;
@@ -99,6 +102,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
     private readonly RenderTargets targets;
     private readonly ImpostorAtlas? impostorAtlas;
     private readonly OcclusionImages? occlusionImages;
+    private readonly SurfaceHistory surfaceHistory;
     private readonly BarrierBatch barriers = new();
     private readonly GpuTimer timer;
     private readonly ExposureSetting exposureSetting;
@@ -116,6 +120,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
     private long pendingResize = -1;
     private long frameNumber;
     private FrameClock clock;
+    private readonly FrameHistory history = new();
     private bool disposed;
 
     private VulkanRenderer(
@@ -145,13 +150,12 @@ public sealed unsafe class VulkanRenderer : IRenderer
             output = Own(createOutput(device, Allocator));
             geometry = Own(new GeometryStore(device, Allocator));
             deforms = CreateDeformStore();
+            keptPositions = deformation ? Own(new KeptPositions(device, Allocator)) : null;
             textures = Own(new TextureStore(device, Allocator));
             materials = Own(new MaterialStore(device, Allocator));
             BrdfTableImages = Own(new BrdfTableImages(device, Allocator));
-            uploads = new(
-                maxTextureSize: (int)device.Properties.Limits.MaxImageDimension2D,
-                deformBytesLimit: device.Properties.Limits.MaxStorageBufferRange
-            );
+            uploads = CreateUploads();
+
             targets = CreateTargets(
                 glowLevels: glowLevels,
                 antiAliasing: options.AntiAliasing,
@@ -159,6 +163,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 subsurface: options.Subsurface,
                 screenSpaceLight: options.ScreenSpaceLight
             );
+            surfaceHistory = CreateSurfaceHistory();
 
             // Before every pass, whose shading constants say whether the scatter is on.
             ScatterImages = CreateScatterImages(options.Subsurface);
@@ -540,14 +545,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
         // Reset only now: if anything above threw, the fence stays signaled and the next frame does not hang.
         device.Vk.ResetFences(device.Device, 1, &fence).Check("vkResetFences");
         output.SubmitAndPresent(frame);
-
-        // Only now, so that a frame that threw above leaves the maps' drawn chain, the slot's readback, the tiles' records
-        // and the exposure's steps as they were.
-        environmentMap?.Drew(served: Served(snapshot), slot: frame.Index);
-        localShadows?.Tiles.Drew();
-        Exposure.Drew(frame: frameNumber, step: exposureStep);
-        frame.Number = frameNumber;
-        frameNumber++;
+        CommitDrawnFrame(frame: frame, snapshot: snapshot, exposureStep: exposureStep);
 
         if (sink != null && capture != null)
         {
@@ -565,6 +563,21 @@ public sealed unsafe class VulkanRenderer : IRenderer
             exposure: Exposure.Latest
         );
         return true;
+    }
+
+    /// <summary>
+    /// Commits the frame that <paramref name="frame"/>'s slot just submitted to each owner of state that describes the last
+    /// drawn frame. Only after the submission, so that a frame that threw before it leaves the maps' drawn chain, the frame
+    /// history, the slot's readback, the tiles' records and the exposure's steps as they were.
+    /// </summary>
+    private void CommitDrawnFrame(FrameResources frame, RenderSnapshot snapshot, float exposureStep)
+    {
+        environmentMap?.Drew(served: Served(snapshot), slot: frame.Index);
+        history.Drew(context.History);
+        localShadows?.Tiles.Drew();
+        Exposure.Drew(frame: frameNumber, step: exposureStep);
+        frame.Number = frameNumber;
+        frameNumber++;
     }
 
     /// <summary>The stats of a frame that the output skipped: what was submitted, and the readings that the wait found.</summary>
@@ -642,6 +655,14 @@ public sealed unsafe class VulkanRenderer : IRenderer
         // Before the frame graph, whose ambient pass reads the target, and whose occlusion passes overwrite it.
         targets.RecordEstimateClear(vk: device.Vk, commandBuffer: commandBuffer, barriers: barriers);
         frame.UpdateSharedDescriptors(materials: materials, textures: textures, geometry: geometry, deforms: deforms);
+        // The frame's one choke point of the history: its reset, its draw index and the last frame's state.
+        PendingFrame pending = history.Begin(
+            snapshot: snapshot,
+            outputSize: targets.Extent,
+            renderSize: targets.Extent
+        );
+        if (keptPositions is { } kept)
+            frame.UpdateKeptPositions(kept: kept, parity: pending.Parity);
 
         Batcher.Prepare(
             snapshot: snapshot,
@@ -653,10 +674,12 @@ public sealed unsafe class VulkanRenderer : IRenderer
             materials: materials.Infos,
             environment: environment,
             region: region,
+            frame: pending,
             scene: LastScene
         );
         SetContext(
             frame: frame,
+            history: pending,
             snapshot: snapshot,
             alpha: alpha,
             exposureStep: exposureStep,
@@ -684,6 +707,13 @@ public sealed unsafe class VulkanRenderer : IRenderer
             return DeformRegion.None;
         geometry.ReserveDeformed(
             vertices: SceneBatcher.DeformNeed(snapshot, geometry.Meshes),
+            commandBuffer: commandBuffer,
+            barriers: barriers,
+            releases: releases,
+            frame: frameNumber
+        );
+        keptPositions?.Reserve(
+            vertices: geometry.Region.Capacity,
             commandBuffer: commandBuffer,
             barriers: barriers,
             releases: releases,
@@ -721,6 +751,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// <summary>Sets the values of this frame in the context that the passes read.</summary>
     private void SetContext(
         FrameResources frame,
+        PendingFrame history,
         RenderSnapshot snapshot,
         float alpha,
         float exposureStep,
@@ -729,10 +760,12 @@ public sealed unsafe class VulkanRenderer : IRenderer
     )
     {
         context.Frame = frame;
+        context.History = history;
         context.Snapshot = snapshot;
         context.Alpha = alpha;
         context.ExposureStep = exposureStep;
         context.Scene = LastScene;
+
         context.Output = image;
         context.Number = frameNumber;
         context.EncodeSrgb = output.EncodeSrgbInShader;
@@ -865,6 +898,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
         targets.Resize(extent);
         occlusionImages?.Resize(targets);
         ScatterImages?.Resize(targets);
+        surfaceHistory.Resize(targets);
     }
 
     /// <summary>
@@ -998,6 +1032,33 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// sky. A test hook: it waits for the device to be idle and submits its own copy.
     /// </summary>
     internal float[] ReadDirect() => ReadLevel(image: targets.Direct, layer: 0, mip: 0).Values;
+
+    /// <summary>
+    /// The motion target of the last frame, RGBA per pixel, row by row from the top: xy the last drawn frame's place of the
+    /// pixel's point minus this frame's place, in units of the image's size, z the ratio of the view depths, (2, 2) without
+    /// a last place (<see cref="RenderTargets.Motion"/>). A test hook, like <see cref="ReadDistance"/>.
+    /// </summary>
+    internal float[] ReadMotion() => ReadLevel(image: targets.Motion, layer: 0, mip: 0).Values;
+
+    /// <summary>
+    /// The surface test image of the last frame, one byte per pixel, row by row from the top: bit i set where tap i passed
+    /// the surface test, bit 4 + i where it passed the specular test (<see cref="SurfaceHistory.Test"/>). A test hook.
+    /// </summary>
+    internal byte[] ReadSurfaceTest() =>
+        [.. ReadLevel(image: surfaceHistory.Test, layer: 0, mip: 0).Values.Select(value => (byte)value)];
+
+    /// <summary>
+    /// FSR's device depth of the last frame, row by row from the top: <see cref="SurfaceTestPass.DeviceDepthNear"/> over
+    /// the view depth, 0 for sky. A test hook.
+    /// </summary>
+    internal float[] ReadDeviceDepth() => ReadLevel(image: surfaceHistory.DeviceDepth, layer: 0, mip: 0).Values;
+
+    /// <summary>
+    /// The surface history that the last frame wrote, RGBA per pixel, row by row from the top: the view depth in m, the
+    /// geometric normal in octahedral code, and the roughness, all 0 for sky. A test hook.
+    /// </summary>
+    internal float[] ReadSurfaceHistory() =>
+        ReadLevel(image: surfaceHistory.Written(context.History.Parity), layer: 0, mip: 0).Values;
 
     /// <summary>
     /// The diffuse image of the last frame, RGBA per pixel, row by row from the top, as <see cref="RenderTargets.Diffuse"/>
@@ -1754,10 +1815,10 @@ public sealed unsafe class VulkanRenderer : IRenderer
         RendererOptions options
     )
     {
-        if (options.Deformation)
+        if (keptPositions is { } kept)
             Graph.Add(
                 FrameGraph.Stage.Deformation,
-                new DeformPass(device: device, shaders: shaders, layouts: layouts, deforms: deforms)
+                new DeformPass(device: device, shaders: shaders, layouts: layouts, deforms: deforms, kept: kept)
             );
         Graph.Add(
             FrameGraph.Stage.ShadowMaps,
@@ -1787,9 +1848,14 @@ public sealed unsafe class VulkanRenderer : IRenderer
             device: device,
             shaders: shaders,
             layouts: layouts,
-            constants: ShadingConstants
+            constants: ShadingConstants,
+            kept: keptPositions
         );
         Graph.Add(FrameGraph.Stage.GBuffer, geometryPass);
+        Graph.Add(
+            FrameGraph.Stage.SurfaceTest,
+            new SurfaceTestPass(device: device, shaders: shaders, layouts: layouts, images: surfaceHistory)
+        );
         if (!options.Impostors)
             return (null, null, localShadowPass);
         (ImpostorAtlas impostorAtlas, ImpostorManager manager) = AddImpostors(
@@ -1878,6 +1944,17 @@ public sealed unsafe class VulkanRenderer : IRenderer
         };
 
     /// <summary>The store of the deformed copies, which the renderer owns, at most one storage buffer's range in size.</summary>
+    /// <summary>The queue of the uploads, within the device's largest texture and storage buffer.</summary>
+    private UploadQueue CreateUploads() =>
+        new(
+            maxTextureSize: (int)device.Properties.Limits.MaxImageDimension2D,
+            deformBytesLimit: device.Properties.Limits.MaxStorageBufferRange
+        );
+
+    /// <summary>The images of the surface test at the targets' size, which the renderer owns.</summary>
+    private SurfaceHistory CreateSurfaceHistory() =>
+        Own(new SurfaceHistory(device: device, allocator: Allocator, layouts: layouts, targets: targets));
+
     private DeformStore CreateDeformStore() =>
         Own(
             new DeformStore(

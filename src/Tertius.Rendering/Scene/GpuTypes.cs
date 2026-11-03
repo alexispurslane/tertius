@@ -38,6 +38,45 @@ internal struct GpuVertex
         };
 }
 
+/// <summary>How a drawn instance relates to the last drawn frame (docs/plans/temporal-renderer.md, "The placement history").</summary>
+internal enum MotionKind : uint
+{
+    /// <summary>The last frame drew the instance's key with the same mesh: it moves from the rows that the last frame drew.</summary>
+    Moved = 0,
+
+    /// <summary>The instance has no identity: its key is not above the key before it. It is still in the camera's frame.</summary>
+    Still = 1,
+
+    /// <summary>The last frame did not draw the key, or drew it with another mesh: the instance has no history.</summary>
+    New = 2,
+}
+
+/// <summary>
+/// Where one placed instance was in the last drawn frame, by <see cref="PreparedInstance.PlacedIndex"/>
+/// (docs/plans/temporal-renderer.md, "The placement history"). 64 bytes in std430.
+/// </summary>
+[StructLayout(LayoutKind.Sequential, Size = 64)]
+internal struct GpuMotion
+{
+    /// <summary><see cref="PreviousFirstVertex"/> of an instance whose last frame kept no deformed copy of the same vertex count.</summary>
+    public const uint NoKeptCopy = uint.MaxValue;
+
+    /// <summary>The last frame's model rows, relative to the last frame's eye.</summary>
+    public Vector4 PreviousRow0;
+
+    public Vector4 PreviousRow1;
+    public Vector4 PreviousRow2;
+
+    /// <summary>The first vertex of the last frame's deformed copy in the kept positions, or <see cref="NoKeptCopy"/>.</summary>
+    public uint PreviousFirstVertex;
+
+    /// <summary>A <see cref="MotionKind"/>.</summary>
+    public uint Kind;
+
+    /// <summary>The first vertex of this frame's frame mesh in the vertex buffer, from which a vertex finds its place in its copy.</summary>
+    public uint FirstVertex;
+}
+
 /// <summary>One drawn instance in the instance storage buffer. 92 bytes of fields, padded to 96, the struct's alignment of 16.</summary>
 [StructLayout(LayoutKind.Sequential, Size = 96)]
 internal struct GpuInstance
@@ -95,6 +134,28 @@ internal struct GpuInstance
         HemisphereUp hemisphere = default
     )
     {
+        (Vector4 row0, Vector4 row1, Vector4 row2) = RowsOf(position: position, rotation: rotation, scale: scale);
+        return new()
+        {
+            ModelRow0 = row0,
+            ModelRow1 = row1,
+            ModelRow2 = row2,
+            InverseScaleSquared = new(InverseSquare(scale.X), InverseSquare(scale.Y), InverseSquare(scale.Z)),
+            Material = material,
+            Hemisphere = HemisphereOf(position, hemisphere),
+            Map = (uint)map,
+            HoldsLight = holdsLight ? 1u : 0u,
+            PlacedIndex = (uint)placedIndex,
+        };
+    }
+
+    /// <summary>The three rows of the 3 × 4 model matrix M = T · R · S of an instance, as <see cref="From"/> writes them.</summary>
+    public static (Vector4 Row0, Vector4 Row1, Vector4 Row2) RowsOf(
+        Vector3 position,
+        Quaternion rotation,
+        Vector3 scale
+    )
+    {
         // Rotation matrix columns from the unit quaternion, then scaled per axis: M = T · R · S.
         float x = rotation.X,
             y = rotation.Y,
@@ -112,31 +173,33 @@ internal struct GpuInstance
         Vector3 axisX = new Vector3(1 - 2 * (yy + zz), 2 * (xy + wz), 2 * (xz - wy)) * scale.X;
         Vector3 axisY = new Vector3(2 * (xy - wz), 1 - 2 * (xx + zz), 2 * (yz + wx)) * scale.Y;
         Vector3 axisZ = new Vector3(2 * (xz + wy), 2 * (yz - wx), 1 - 2 * (xx + yy)) * scale.Z;
-        return new()
-        {
-            ModelRow0 = new(x: axisX.X, y: axisY.X, z: axisZ.X, w: position.X),
-            ModelRow1 = new(x: axisX.Y, y: axisY.Y, z: axisZ.Y, w: position.Y),
-            ModelRow2 = new(x: axisX.Z, y: axisY.Z, z: axisZ.Z, w: position.Z),
-            InverseScaleSquared = new(InverseSquare(scale.X), InverseSquare(scale.Y), InverseSquare(scale.Z)),
-            Material = material,
-            Hemisphere = HemisphereOf(position, hemisphere),
-            Map = (uint)map,
-            HoldsLight = holdsLight ? 1u : 0u,
-            PlacedIndex = (uint)placedIndex,
-        };
+        return (
+            new(x: axisX.X, y: axisY.X, z: axisZ.X, w: position.X),
+            new(x: axisX.Y, y: axisY.Y, z: axisZ.Y, w: position.Y),
+            new(x: axisX.Z, y: axisY.Z, z: axisZ.Z, w: position.Z)
+        );
     }
 
     /// <summary>
     /// An instance whose model matrix has the given columns, for draws that are not meshes: an impostor billboard
-    /// maps its quad space through it and keeps its atlas layer in <see cref="Material"/>.
+    /// maps its quad space through it, keeps its atlas layer in <see cref="Material"/>, and reads its object's motion row
+    /// at <paramref name="placedIndex"/>.
     /// </summary>
-    public static GpuInstance FromAxes(Vector3 axisX, Vector3 axisY, Vector3 axisZ, Vector3 origin, uint material) =>
+    public static GpuInstance FromAxes(
+        Vector3 axisX,
+        Vector3 axisY,
+        Vector3 axisZ,
+        Vector3 origin,
+        uint material,
+        int placedIndex
+    ) =>
         new()
         {
             ModelRow0 = new(x: axisX.X, y: axisY.X, z: axisZ.X, w: origin.X),
             ModelRow1 = new(x: axisX.Y, y: axisY.Y, z: axisZ.Y, w: origin.Y),
             ModelRow2 = new(x: axisX.Z, y: axisY.Z, z: axisZ.Z, w: origin.Z),
             Material = material,
+            PlacedIndex = (uint)placedIndex,
         };
 
     private static float InverseSquare(float s) => s != 0 ? 1f / (s * s) : 0f;
@@ -444,6 +507,30 @@ internal struct GpuFrameConstants
 
     /// <summary>The atmosphere of the frame (docs/plans/atmosphere.md, "The renderer").</summary>
     public GpuAtmosphere Atmosphere;
+
+    /// <summary>
+    /// This frame's view-projection without jitter and without translation, which the motion vectors take
+    /// (docs/plans/temporal-renderer.md, "Jitter"). Only its x, y and w rows count.
+    /// </summary>
+    public Matrix4x4 MotionViewProj;
+
+    /// <summary>The last drawn frame's view-projection without jitter and without translation, from its own eye.</summary>
+    public Matrix4x4 PreviousViewProj;
+
+    /// <summary>xyz: the last drawn frame's eye relative to this frame's eye, in m, in world axes; w: unused.</summary>
+    public Vector4 PreviousEye;
+
+    /// <summary>The last drawn frame's camera axes: right × tan(horizontal half-fov), up × tan(vertical half-fov), unit forward.</summary>
+    public Vector4 PreviousCameraRight;
+
+    public Vector4 PreviousCameraUp;
+    public Vector4 PreviousCameraForward;
+
+    /// <summary>The last drawn frame's render size: width, height, 1 / width, 1 / height.</summary>
+    public Vector4 PreviousViewport;
+
+    /// <summary>The last drawn frame's root axes in world axes, as a quaternion (x, y, z, w).</summary>
+    public Vector4 PreviousRootRotation;
 }
 
 /// <summary>
@@ -643,6 +730,14 @@ internal struct ShadowBoundsPushConstants
 
     /// <summary>The atlas layer of each drawn tile of the dispatch, each below <see cref="ShadowAtlas.Tiles"/>.</summary>
     public fixed uint Layers[MaxLayers];
+}
+
+/// <summary>The push constants of the surface test, surface_test.comp (<see cref="SurfaceTestPass"/>).</summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct SurfaceTestPushConstants
+{
+    /// <summary>1 when the frame resets every history (<see cref="PendingFrame.Reset"/>), so that every tap fails, else 0.</summary>
+    public uint Reset;
 }
 
 /// <summary>The push constants of the depth pyramid's tail, depth_pyramid_tail.comp (<see cref="DepthPyramidTail"/>).</summary>

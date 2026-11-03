@@ -594,6 +594,17 @@ internal static class Batchers
     /// </summary>
     public static SceneBatcher WithCascadedLights(int cascadedLights) =>
         new(cascadedLights: cascadedLights, shadowMapSize: ShadowMap.DefaultSize, depthRangeScale: 16f);
+
+    /// <summary>
+    /// The pending state of the first draw of a renderer, which continues no drawn frame: the frame of a CPU test that
+    /// prepares one frame.
+    /// </summary>
+    public static PendingFrame FirstFrame() =>
+        new FrameHistory().Begin(
+            snapshot: new RenderSnapshot(),
+            outputSize: new Silk.NET.Vulkan.Extent2D(1600, 900),
+            renderSize: new Silk.NET.Vulkan.Extent2D(1600, 900)
+        );
 }
 
 /// <summary>The material slots that the CPU tests hand the batcher, as a renderer's material store holds them.</summary>
