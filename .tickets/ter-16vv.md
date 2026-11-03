@@ -1,6 +1,6 @@
 ---
 id: ter-16vv
-status: open
+status: in_progress
 deps: []
 links: [ter-pywg]
 created: 2026-11-02T23:28:56Z
@@ -20,3 +20,9 @@ Reproduction on a 16 x 16 sky with one surface at pixel (15, 14) of inverse dept
 
 ter-pywg's property test OnRaysOfBinaryFractionsWhoseEntriesAndCrossingsTieWithPixelEdgesTheTraceFindsThePixelThatTheMarchFinds (ScreenRayTests.RandomRays) found 48 such rays in 200,000 when End also lay on quarter steps. With End = k / 4 + 1 / 1024 it finds 0, so the test keeps End off the grid until this ticket decides. To decide: whether the segment's end point belongs to the segment (then the trace tests the pixel of an entry at End, in C# and GLSL alike), or the level-0 test counts a meeting only before End (then the march and MeetPixel change). Either way the reproduction becomes a test, and the property test takes End back onto the grid.
 
+
+## Notes
+
+**2026-11-03T00:34:52Z**
+
+2026-11-02: launched as workflow run b360b355-ae8c-44bc-8da0-c3b5bc0b8db9 (version 869b0b07), base 26524e8cc, branch ter-16vv-segment-end-tie, brief /tmp/briefs/16vv.txt. Settled by the orchestrator: the segment's end point belongs to the segment, so the trace tests the pixel of a slab entry at s = End, and the march, MeetPixel and the level-0 test do not change (the same reason as ter-pywg's rule: the march's closed stretch is the oracle).
