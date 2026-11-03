@@ -1,6 +1,6 @@
 ---
 id: ter-7m38
-status: in_progress
+status: closed
 deps: [ter-k63u]
 links: []
 created: 2026-11-03T16:31:49Z
@@ -103,3 +103,7 @@ Median of the 60 run medians: today 2.725, control 2.711, (a) 2.744, (b) 2.702, 
 - Quad subgroup operations, with the compute stage: every desktop report on Linux; on macOS every GPU but pre-2015 Intel and NVIDIA Kepler Macs. Only mobile GPUs (PowerVR, Broadcom V3D, Adreno) and llvmpipe 14 (2022) lack them on Linux.
 - shaderFloat16: NVIDIA Turing and later on NVIDIA's own driver from about 455.50 (late 2020) on, never before; AMD Vega (GFX9) and later; never on Polaris or Vega M by any Linux driver (RADV up to 25.1.5, AMDVLK); every Mac GPU with a current MoltenVK; lavapipe on some hosts only.
 The continuation records both timing analyses (pooled frame median and paired per-round run median, which shows the build with both changes 0.085 ms faster) and this decision in the pin's README, decision 12 and ARCHITECTURE.md.
+
+**2026-11-03T20:10:02Z**
+
+2026-11-03: merged into main as 6fc270705 and closed. The fix stage's run b27b717b ended blocked on the choice of statistic, which the user settled by keeping the 32-bit build; the orchestrator recorded the decision in the pin's README, decision 12, section 5 and ARCHITECTURE.md (a8ba7e45a). Hardening: the only changed production line is line 67 of ffx_fsr3upscaler_reproject.h, inside the FFX_HALF branch that the engine's build does not compile (its modules stay byte-equal), so no coverage or mutant applies to it. The new snapshot test kills ter-k63u's survivors C50, C57, C58 and C66. The fix stage's Checked (10,056 tests) and Release (10,043 tests) runs passed with 0 failures on 07a4538f2; a8ba7e45a changed only docs.
