@@ -736,7 +736,7 @@ internal struct ShadowBoundsPushConstants
 [StructLayout(LayoutKind.Sequential)]
 internal struct SurfaceTestPushConstants
 {
-    /// <summary>1 when the frame resets every history (<see cref="PendingFrame.Reset"/>), so that every tap fails, else 0.</summary>
+    /// <summary>1 when the frame resets every history (<see cref="FrameHistory.PendingFrame.Reset"/>), so that every tap fails, else 0.</summary>
     public uint Reset;
 }
 

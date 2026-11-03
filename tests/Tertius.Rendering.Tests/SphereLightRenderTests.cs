@@ -69,6 +69,7 @@ public sealed class SphereLightRenderTests
             snapshot.Lights.Add(
                 new PointRenderLight(
                     EntityIndex: Gpu.LampEntity,
+                    EntityGeneration: 0,
                     Position: lamp,
                     PreviousPosition: lamp,
                     Color: Vector3.One,
@@ -390,6 +391,7 @@ public sealed class SphereLightRenderTests
         snapshot.Lights.Add(
             new PointRenderLight(
                 EntityIndex: Gpu.LampEntity,
+                EntityGeneration: 0,
                 Position: lamp,
                 PreviousPosition: lamp,
                 Color: Vector3.One,

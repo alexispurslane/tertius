@@ -277,6 +277,7 @@ internal static class Gpu
         Vector3 position = Vector3.Normalize(direction) * (float)StarDistance;
         return new(
             EntityIndex: StarEntity,
+            EntityGeneration: 0,
             Position: position,
             PreviousPosition: position,
             Color: color,
@@ -295,6 +296,7 @@ internal static class Gpu
     public static PointRenderLight Lamp(Vector3 position, Vector3 color, float intensity, ushort chainDepth) =>
         new(
             EntityIndex: LampEntity,
+            EntityGeneration: 0,
             Position: position,
             PreviousPosition: position,
             Color: color,
@@ -322,6 +324,7 @@ internal static class Gpu
         double sine = Math.Sin(outerConeAngle / 2.0);
         return new(
             EntityIndex: LampEntity,
+            EntityGeneration: 0,
             Position: position,
             PreviousPosition: position,
             Direction: direction,
@@ -599,7 +602,7 @@ internal static class Batchers
     /// The pending state of the first draw of a renderer, which continues no drawn frame: the frame of a CPU test that
     /// prepares one frame.
     /// </summary>
-    public static PendingFrame FirstFrame() =>
+    public static FrameHistory.PendingFrame FirstFrame() =>
         new FrameHistory().Begin(
             snapshot: new RenderSnapshot(),
             outputSize: new Silk.NET.Vulkan.Extent2D(1600, 900),

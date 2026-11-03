@@ -7,7 +7,8 @@ namespace Tertius.Simulation.Tests;
 /// <summary>
 /// What the renderer needs to follow an object from frame to frame (docs/plans/temporal-renderer.md, section 3): each
 /// instance carries the generation of its entity, so that a slot that a new entity reuses gives a new key, and its scale at
-/// the previous build by the rule of the previous transforms.
+/// the previous build by the rule of the previous transforms. Each light carries the generation of its entity too, because
+/// ReSTIR keys its lights.
 /// </summary>
 public sealed class RenderSnapshotKeyTests
 {
@@ -44,6 +45,46 @@ public sealed class RenderSnapshotKeyTests
             .EntityGeneration.Should()
             .Be(second.Generation)
             .And.NotBe(first.Generation);
+    }
+
+    [Fact]
+    public void APointLampInTheSlotOfADestroyedOneCarriesItsOwnGeneration()
+    {
+        (Entity first, Entity lamp, RenderLight light) = LampInAReusedSlot(
+            new PointLightData(Offset: Pose.Identity, Color: Vector3.One, Power: 40, Radius: 0.05f, CastsShadow: false)
+        );
+
+        uint generation = light switch
+        {
+            PointRenderLight { EntityGeneration: var g } => g,
+            SpotRenderLight => throw new InvalidOperationException("The lamp is a point light."),
+            null => throw new InvalidOperationException("The lamp has no light."),
+        };
+        generation.Should().Be(lamp.Generation).And.NotBe(first.Generation);
+    }
+
+    [Fact]
+    public void ASpotLampInTheSlotOfADestroyedOneCarriesItsOwnGeneration()
+    {
+        (Entity first, Entity lamp, RenderLight light) = LampInAReusedSlot(
+            new SpotLightData(
+                Offset: Pose.Identity,
+                Color: Vector3.One,
+                Power: 500,
+                Radius: 0.1f,
+                CastsShadow: false,
+                InnerConeAngle: 0.5f,
+                OuterConeAngle: 0.8f
+            )
+        );
+
+        uint generation = light switch
+        {
+            SpotRenderLight { EntityGeneration: var g } => g,
+            PointRenderLight => throw new InvalidOperationException("The lamp is a spot light."),
+            null => throw new InvalidOperationException("The lamp has no light."),
+        };
+        generation.Should().Be(lamp.Generation).And.NotBe(first.Generation);
     }
 
     [Fact]
@@ -130,5 +171,34 @@ public sealed class RenderSnapshotKeyTests
 
         RenderInstance instance = test.World.Latest().InstanceOf(growing);
         instance.PreviousScale.Should().Be(instance.Scale);
+    }
+
+    /// <summary>
+    /// A lamp of <paramref name="data"/> that takes the slot of a destroyed entity, <c>first</c>, and the one light of the
+    /// snapshot after it.
+    /// </summary>
+    private static (Entity First, Entity Lamp, RenderLight Light) LampInAReusedSlot(LightData data)
+    {
+        using var test = new TestWorld();
+        test.World.Camera = test.SpawnCamera(test.Root, DPose.Identity);
+        Entity first = test.Show(test.Root, TestWorld.At(0, 0, -5));
+        test.Run(1);
+        test.World.Latest();
+        test.World.Destroy(first);
+        test.Run(1);
+        test.World.Latest();
+
+        Entity lamp = test.World.Spawn(
+            new()
+            {
+                Frame = test.Root,
+                Pose = TestWorld.At(0, 2, -5),
+                Render = new() { Light = data },
+            }
+        );
+        test.Run(1);
+
+        lamp.Index.Should().Be(first.Index, "the table reuses the freed slot, which the test needs");
+        return (first, lamp, test.World.Latest().Lights.Should().ContainSingle().Subject);
     }
 }

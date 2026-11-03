@@ -114,7 +114,7 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
         ReadOnlySpan<MaterialInfo> materials,
         EnvironmentDraw environment,
         DeformRegion region,
-        PendingFrame frame,
+        FrameHistory.PendingFrame frame,
         PreparedScene scene
     )
     {
@@ -250,12 +250,17 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
 
     /// <summary>
     /// An instance's scale at <paramref name="alpha"/>, interpolated as its place is. A previous scale without a volume,
-    /// such as the zero of an unset field, counts as the current scale.
+    /// such as the zero of an unset field, counts as the current scale. So does one with an axis of the other sign, a
+    /// mirror between two ticks, because the way between them passes through a flat scale, which no view draws.
     /// </summary>
-    internal static Vector3 InterpolatedScale(in RenderInstance instance, float alpha) =>
-        HasVolume(instance.PreviousScale)
-            ? Vector3.Lerp(instance.PreviousScale, instance.Scale, alpha)
-            : instance.Scale;
+    internal static Vector3 InterpolatedScale(in RenderInstance instance, float alpha)
+    {
+        Vector3 previous = instance.PreviousScale,
+            scale = instance.Scale;
+        // Two drawable scales with the signs of each axis alike have a volume at every point between them.
+        bool alike = previous.X * scale.X > 0 && previous.Y * scale.Y > 0 && previous.Z * scale.Z > 0;
+        return HasVolume(previous) && alike ? Vector3.Lerp(previous, scale, alpha) : scale;
+    }
 
     /// <summary>The interpolation factor as every part of the frame uses it: clamped to [0, 1], and 1 when not finite.</summary>
     internal static float ClampAlpha(float alpha) => float.IsFinite(alpha) ? Math.Clamp(alpha, 0f, 1f) : 1f;
@@ -419,7 +424,7 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
         RenderSnapshot snapshot,
         float alpha,
         ReadOnlySpan<MaterialInfo> materials,
-        PendingFrame frame,
+        FrameHistory.PendingFrame frame,
         PreparedScene scene
     )
     {
@@ -475,7 +480,6 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
                 scale: placement.Scale
             ),
             mesh: staticMesh,
-            vertexCount: scene.Meshes[staticMesh].Deform?.VertexCount,
             copy: copy,
             firstVertex: (uint)scene.Meshes[placement.Mesh].VertexOffset
         );
@@ -490,8 +494,7 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
         if (!scene.IsDeformed(mesh))
             return (mesh, null);
         DeformJob job = scene.Deforms[mesh - scene.StaticMeshCount];
-        int vertices = scene.Meshes[job.Mesh].Deform?.VertexCount ?? 0;
-        return (job.Mesh, new KeptCopy(FirstVertex: job.Target, VertexCount: vertices));
+        return (job.Mesh, new KeptCopy(FirstVertex: job.Target));
     }
 
     /// <summary>

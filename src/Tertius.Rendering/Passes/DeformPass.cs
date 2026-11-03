@@ -63,6 +63,8 @@ internal sealed unsafe class DeformPass : RenderPass
         CommandBuffer commandBuffer = context.CommandBuffer;
         BarrierBatch barriers = context.Barriers;
         GpuBuffer vertices = context.Geometry.VertexBuffer;
+        // deform.comp writes a kept position for each vertex of a job's target, with no bound of its own.
+        Contract.Requires(kept.Capacity >= context.Geometry.Region.Capacity);
         // A write after the vertex reads of every earlier pass, the frame before's included: the region serves every
         // frame in flight (docs/plans/skinning-and-morphs.md, decision 18).
         barriers.Buffer(vertices, BufferUse.ComputeWrite);

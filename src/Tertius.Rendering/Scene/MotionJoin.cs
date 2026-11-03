@@ -10,10 +10,10 @@ namespace Tertius.Rendering;
 /// </summary>
 /// <param name="frame">The draw's pending state, whose placement history the join reads and whose placements it writes.</param>
 /// <param name="previousEye">The last frame's eye relative to this frame's, which moves an instance without an identity.</param>
-internal ref struct MotionJoin(PendingFrame frame, Vector3 previousEye)
+internal ref struct MotionJoin(FrameHistory.PendingFrame frame, Vector3 previousEye)
 {
     private readonly ReadOnlySpan<KeptPlacement> history = frame.PreviousPlacements;
-    private readonly PendingFrame frame = frame;
+    private readonly FrameHistory.PendingFrame frame = frame;
     private readonly Vector3 previousEye = previousEye;
     private int next;
     private bool any;
@@ -42,12 +42,10 @@ internal ref struct MotionJoin(PendingFrame frame, Vector3 previousEye)
     /// <paramref name="rows"/>, from static mesh <paramref name="mesh"/>, kept as <paramref name="copy"/>, from vertex
     /// <paramref name="firstVertex"/> of the vertex buffer. An instance with a key is also written into the pending state.
     /// </summary>
-    /// <param name="vertexCount">The vertex count of the static mesh, which a deformed copy of it has, or null for a rigid mesh.</param>
     public GpuMotion Place(
         PlacementKey? key,
         (Vector4 Row0, Vector4 Row1, Vector4 Row2) rows,
         int mesh,
-        int? vertexCount,
         KeptCopy? copy,
         uint firstVertex
     )
@@ -65,10 +63,10 @@ internal ref struct MotionJoin(PendingFrame frame, Vector3 previousEye)
         return Motion(
             rows: (last.Row0, last.Row1, last.Row2),
             kind: MotionKind.Moved,
-            // A copy of another vertex count is no copy of this mesh, so the vertex finds no place in it.
-            previousFirstVertex: last.Copy is { } kept && kept.VertexCount == vertexCount
-                ? (uint)kept.FirstVertex
-                : GpuMotion.NoKeptCopy,
+            // The last frame drew the same static mesh, so a copy that it kept has this copy's vertex count and order: a
+            // mesh never changes its vertices. The design's rule that a copy of another vertex count is new then never
+            // applies (docs/plans/temporal-renderer.md, "The placement history").
+            previousFirstVertex: last.Copy is { } kept ? (uint)kept.FirstVertex : GpuMotion.NoKeptCopy,
             firstVertex: firstVertex
         );
     }

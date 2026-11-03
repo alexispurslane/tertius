@@ -5,9 +5,9 @@ namespace Tertius.Rendering;
 
 /// <summary>
 /// The images of the surface test (docs/plans/temporal-renderer.md, section 8, "The surface test" and "Images"): two
-/// surface histories, which alternate between frames by the parity of the drawn frames (<see cref="PendingFrame.Parity"/>),
-/// the surface test image and FSR's device depth, all at the targets' size, and the two sets of the surface test, one per
-/// parity. Every image stays in the General layout but the last surface history, which the pass samples.
+/// surface histories, which alternate between frames by the parity of the drawn frames
+/// (<see cref="FrameHistory.PendingFrame.Parity"/>), the surface test image and FSR's device depth, all at the targets'
+/// size, and the two sets of the surface test, one per parity. Every image stays in the General layout but the last surface history, which the pass samples.
 /// </summary>
 internal sealed class SurfaceHistory : IDisposable
 {

@@ -35,19 +35,37 @@ public sealed class MotionVectorRenderTests
         return snapshot;
     }
 
-    /// <summary>The camera-relative point that pixel (x, y) shows, for a camera that looks down −Z: on its ray, at its distance.</summary>
-    private static Vector3 PointAt(float[] distance, int x, int y)
+    /// <summary>
+    /// The direction of the ray through the center of pixel (x, y), in the axes of the camera's frame, for a camera with
+    /// <paramref name="camera"/> as its axes. Its length is 1 along the camera's view axis.
+    /// </summary>
+    private static Vector3 RayThrough(int x, int y, Quaternion camera)
     {
         float tanY = MathF.Tan(Gpu.Fov / 2);
         float tanX = tanY * Width / Height;
         var ray = new Vector3(((x + 0.5f) / Width * 2 - 1) * tanX, (1 - (y + 0.5f) / Height * 2) * tanY, -1);
-        return Vector3.Normalize(ray) * distance[y * Width + x];
+        return Vector3.Transform(ray, camera);
     }
 
-    /// <summary>The motion that pixel (x, y) must hold when the point that it shows was at <paramref name="previous"/>.</summary>
-    private static Vector2 ExpectedMotion(Vector3 previous, int x, int y)
+    /// <summary>
+    /// The camera-relative point that pixel (x, y) shows, on its ray at its distance, for a camera with
+    /// <paramref name="camera"/> as its axes, or one that looks down −Z.
+    /// </summary>
+    private static Vector3 PointAt(float[] distance, int x, int y, Quaternion? camera = null) =>
+        Vector3.Normalize(RayThrough(x, y, camera ?? Quaternion.Identity)) * distance[y * Width + x];
+
+    /// <summary>
+    /// The motion that pixel (x, y) must hold when the point that it shows was at <paramref name="previous"/>, relative to
+    /// the eye, and the last frame's camera had <paramref name="lastCamera"/> as its axes, or looked down −Z.
+    /// </summary>
+    private static Vector2 ExpectedMotion(Vector3 previous, int x, int y, Quaternion? lastCamera = null)
     {
-        Vector2 last = Gpu.Project(point: previous, width: Width, height: Height);
+        Vector2 last = Gpu.Project(
+            point: previous,
+            cameraRotation: lastCamera ?? Quaternion.Identity,
+            width: Width,
+            height: Height
+        );
         return new((last.X - (x + 0.5f)) / Width, (last.Y - (y + 0.5f)) / Height);
     }
 
@@ -76,9 +94,9 @@ public sealed class MotionVectorRenderTests
         {
             int x = (int)pixel.X + dx,
                 y = (int)pixel.Y + dy;
-            Vector3 point = PointAt(distance, x, y);
+            Vector3 point = PointAt(distance: distance, x: x, y: y);
             Vector3 previous = previousOf(point);
-            Vector2 expected = ExpectedMotion(previous, x, y);
+            Vector2 expected = ExpectedMotion(previous: previous, x: x, y: y);
             Vector3 actual = MotionAt(motion, x, y);
             actual.X.Should().BeApproximately(expected.X, MotionTolerance, "{0} at ({1}, {2})", what, x, y);
             actual.Y.Should().BeApproximately(expected.Y, MotionTolerance, "{0} at ({1}, {2})", what, x, y);
@@ -297,7 +315,7 @@ public sealed class MotionVectorRenderTests
             foreach ((int x, int y) in new[] { (Width / 2, Height / 2), (40, 30), (280, 150) })
             {
                 var ray = new Vector3(((x + 0.5f) / Width * 2 - 1) * tanX, (1 - (y + 0.5f) / Height * 2) * tanY, -1);
-                Vector2 expected = ExpectedMotion(Vector3.Transform(ray, lastFromNow), x, y);
+                Vector2 expected = ExpectedMotion(previous: Vector3.Transform(ray, lastFromNow), x: x, y: y);
                 Vector3 actual = MotionAt(motion, x, y);
                 actual.X.Should().BeApproximately(expected.X, MotionTolerance, "the sky at ({0}, {1})", x, y);
                 actual.Y.Should().BeApproximately(expected.Y, MotionTolerance, "the sky at ({0}, {1})", x, y);
@@ -307,6 +325,127 @@ public sealed class MotionVectorRenderTests
         {
             Gpu.DisposeAndAssertClean(renderer);
         }
+    }
+
+    [Fact]
+    public void AStillBoxAndTheSkySeenFromATurningCameraGiveTheMotionOfTheTurn()
+    {
+        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
+        try
+        {
+            MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
+            MaterialId white = renderer.CreateMaterial(MaterialDesc.Color(Vector4.One, roughness: 0.5f));
+            var before = Quaternion.CreateFromYawPitchRoll(0.05f, 0.02f, 0f);
+            var after = Quaternion.CreateFromYawPitchRoll(0.15f, 0.02f, 0f);
+            // The box stands 6 m ahead of the turned camera, in the axes of the camera's frame, in both frames.
+            var center = Vector3.Transform(new Vector3(0, 0, -6), after);
+            renderer.Render(Turned(WithBox(box: box, white: white, position: center), before), 1f);
+
+            renderer.Render(Turned(WithBox(box: box, white: white, position: center), after), 1f);
+
+            float[] distance = renderer.ReadDistance();
+            float[] motion = renderer.ReadMotion();
+            var front = Vector3.Transform(new Vector3(0, 0, -5.5f), after);
+            Vector2 pixel = Gpu.Project(point: front, cameraRotation: after, width: Width, height: Height);
+            for (int dy = -4; dy <= 4; dy++)
+            for (int dx = -4; dx <= 4; dx++)
+            {
+                int x = (int)pixel.X + dx,
+                    y = (int)pixel.Y + dy;
+                Vector3 point = PointAt(distance: distance, x: x, y: y, camera: after);
+                ShouldHoldMotion(
+                    motion: motion,
+                    x: x,
+                    y: y,
+                    expected: ExpectedMotion(previous: point, x: x, y: y, lastCamera: before),
+                    what: "the still box"
+                );
+            }
+
+            // The sky has no distance: its point is the direction of the pixel's ray, which a turn of the camera alone
+            // moves across the image.
+            foreach ((int x, int y) in new[] { (12, 10), (300, 20), (20, 165) })
+                ShouldHoldMotion(
+                    motion: motion,
+                    x: x,
+                    y: y,
+                    expected: ExpectedMotion(previous: RayThrough(x, y, after), x: x, y: y, lastCamera: before),
+                    what: "the sky"
+                );
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void ABillboardMovesWithItsObjectsCenter()
+    {
+        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height, impostors: true);
+        try
+        {
+            MeshId sphere = renderer.CreateMesh(Primitives.Sphere(1f, 48, 24));
+            MaterialId white = renderer.CreateMaterial(MaterialDesc.Color(Vector4.One, roughness: 0.5f));
+            // About 60 px tall, below the 200 px under which an object draws as a billboard.
+            var center = new Vector3(0, 0, -11);
+            var step = new Vector3(0.4f, 0.2f, 0);
+            renderer.Render(WithBox(box: sphere, white: white, position: center), 1f);
+            renderer.Render(WithBox(box: sphere, white: white, position: center), 1f);
+
+            renderer.Render(WithBox(box: sphere, white: white, position: center + step), 1f);
+
+            renderer.LastFrameStats.Impostors.Should().Be(1, "the test needs the sphere drawn as a billboard");
+            // The distance of a billboard's pixel is the distance of its quad's point, whose last place is the same point
+            // moved back by the object's step.
+            ShouldMoveAsAnalytic(
+                renderer: renderer,
+                center: center + step,
+                previousOf: point => point - step,
+                what: "a billboard whose object moved"
+            );
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void ANewBillboardGivesAMotionOutsideTheLastFramesImage()
+    {
+        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height, impostors: true);
+        try
+        {
+            MeshId sphere = renderer.CreateMesh(Primitives.Sphere(1f, 48, 24));
+            MaterialId white = renderer.CreateMaterial(MaterialDesc.Color(Vector4.One, roughness: 0.5f));
+            renderer.Render(Gpu.Snapshot(new(0.3f, 1f, 0.4f)), 1f);
+
+            renderer.Render(WithBox(box: sphere, white: white, position: new(0, 0, -11)), 1f);
+
+            renderer.LastFrameStats.Impostors.Should().Be(1, "the test needs the sphere drawn as a billboard");
+            Vector3 motion = MotionAt(renderer.ReadMotion(), Width / 2, Height / 2);
+            new Vector2(motion.X, motion.Y).Should().Be(new Vector2(2, 2));
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    private static void ShouldHoldMotion(float[] motion, int x, int y, Vector2 expected, string what)
+    {
+        Vector3 actual = MotionAt(motion, x, y);
+        actual.X.Should().BeApproximately(expected.X, MotionTolerance, "{0} at ({1}, {2})", what, x, y);
+        actual.Y.Should().BeApproximately(expected.Y, MotionTolerance, "{0} at ({1}, {2})", what, x, y);
+    }
+
+    /// <summary><paramref name="snapshot"/> seen from a camera with <paramref name="camera"/> as its axes in both builds.</summary>
+    private static RenderSnapshot Turned(RenderSnapshot snapshot, Quaternion camera)
+    {
+        snapshot.Camera.Rotation = camera;
+        snapshot.Camera.PreviousRotation = camera;
+        return snapshot;
     }
 
     /// <summary>A snapshot of nothing but sky, whose chain is the camera's frame and a root with the given axes.</summary>

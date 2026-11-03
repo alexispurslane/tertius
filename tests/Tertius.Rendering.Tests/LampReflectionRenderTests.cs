@@ -39,6 +39,7 @@ public sealed class LampReflectionRenderTests
     private static PointRenderLight Lamp(Vector3 center, float radius) =>
         new(
             EntityIndex: Gpu.LampEntity,
+            EntityGeneration: 0,
             Position: center,
             PreviousPosition: center,
             Color: Vector3.One,

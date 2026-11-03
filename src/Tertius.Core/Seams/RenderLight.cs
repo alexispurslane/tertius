@@ -7,6 +7,11 @@ namespace Tertius;
 /// rules of the position of a <see cref="RenderInstance"/> (docs/plans/local-light-shadows.md, "Light data").
 /// </summary>
 /// <param name="EntityIndex">The slot of the entity that carries the light.</param>
+/// <param name="EntityGeneration">
+/// The generation of the entity that carries the light. With <paramref name="EntityIndex"/>, it identifies the light from
+/// tick to tick, so a lamp that reuses a destroyed lamp's slot gets a new key (docs/plans/temporal-renderer.md, "The key of
+/// an object").
+/// </param>
 /// <param name="Position">The place of the light, relative to the render origin, in the axes of the camera's frame, in meters.</param>
 /// <param name="PreviousPosition">The place at the previous snapshot, relative to the same origin, as an instance's.</param>
 /// <param name="Color">Linear RGB that scales the power per channel.</param>
@@ -16,6 +21,7 @@ namespace Tertius;
 /// <param name="ChainDepth">The chain depth of the entity that carries the light, as <see cref="RenderInstance.ChainDepth"/>.</param>
 public readonly record struct PointRenderLight(
     uint EntityIndex,
+    uint EntityGeneration,
     Vector3 Position,
     Vector3 PreviousPosition,
     Vector3 Color,
@@ -30,6 +36,7 @@ public readonly record struct PointRenderLight(
 /// the rules of the position of a <see cref="RenderInstance"/> (docs/plans/local-light-shadows.md, "Light data").
 /// </summary>
 /// <param name="EntityIndex">The slot of the entity that carries the light.</param>
+/// <param name="EntityGeneration">As for <see cref="PointRenderLight"/>.</param>
 /// <param name="Position">The place of the light, relative to the render origin, in the axes of the camera's frame, in meters.</param>
 /// <param name="PreviousPosition">The place at the previous snapshot, relative to the same origin, as an instance's.</param>
 /// <param name="Direction">
@@ -46,6 +53,7 @@ public readonly record struct PointRenderLight(
 /// <param name="ChainDepth">As for <see cref="PointRenderLight"/>.</param>
 public readonly record struct SpotRenderLight(
     uint EntityIndex,
+    uint EntityGeneration,
     Vector3 Position,
     Vector3 PreviousPosition,
     Vector3 Direction,
@@ -65,7 +73,7 @@ public readonly record struct SpotRenderLight(
 /// </summary>
 /// <remarks>
 /// The union generator writes its union members (docs/plans/union-tooling.md). A light reads only the values of its own
-/// case. The cases share their slots by type, so the union takes the fields of one spot light and its kind byte, 84
+/// case. The cases share their slots by type, so the union takes the fields of one spot light and its kind byte, 88
 /// bytes.
 /// Equality needs the same case and the same values, and counts a NaN as equal to a NaN, as
 /// <see cref="Vector3.Equals(Vector3)"/> does.

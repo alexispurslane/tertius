@@ -23,6 +23,7 @@ public sealed class RenderLightUnionTests
     /// <summary>A point light and a spot light that share every field that both cases have, so that only the case tells them apart.</summary>
     private static readonly PointRenderLight Lamp = new(
         EntityIndex: 7,
+        EntityGeneration: 0,
         Position: Here,
         PreviousPosition: Here,
         Color: Warm,
@@ -34,6 +35,7 @@ public sealed class RenderLightUnionTests
 
     private static readonly SpotRenderLight Beam = new(
         EntityIndex: 7,
+        EntityGeneration: 0,
         Position: Here,
         PreviousPosition: Here,
         Direction: Down,
@@ -129,6 +131,7 @@ public sealed class RenderLightUnionTests
         // Every field of each case differs from every other field, so a swap of two fields shows.
         var point = new PointRenderLight(
             EntityIndex: 1,
+            EntityGeneration: 0,
             Position: new(2, 3, 4),
             PreviousPosition: new(5, 6, 7),
             Color: new(8, 9, 10),
@@ -139,6 +142,7 @@ public sealed class RenderLightUnionTests
         );
         var spot = new SpotRenderLight(
             EntityIndex: 1,
+            EntityGeneration: 0,
             Position: new(2, 3, 4),
             PreviousPosition: new(5, 6, 7),
             Direction: new(8, 9, 10),
@@ -240,6 +244,7 @@ public sealed class RenderLightUnionTests
         [
             new PointRenderLight(
                 EntityIndex: 7,
+                EntityGeneration: 0,
                 Position: Here,
                 PreviousPosition: Here,
                 Color: Warm,
@@ -250,6 +255,7 @@ public sealed class RenderLightUnionTests
             ),
             new SpotRenderLight(
                 EntityIndex: 7,
+                EntityGeneration: 0,
                 Position: Here,
                 PreviousPosition: Here,
                 Direction: Down,
@@ -287,6 +293,7 @@ public sealed class RenderLightUnionTests
         RenderLight light = Lamp;
 
         light.Should().NotBe(new RenderLight(Lamp with { EntityIndex = 8 }), "another entity");
+        light.Should().NotBe(new RenderLight(Lamp with { EntityGeneration = 2 }), "another entity in the same slot");
         light.Should().NotBe(new RenderLight(Lamp with { Position = new(1, 2, 4) }), "another position");
         light
             .Should()
@@ -327,6 +334,7 @@ public sealed class RenderLightUnionTests
         RenderLight spot = Beam;
         RenderLight spotWithoutDirectionOrCone = new SpotRenderLight(
             EntityIndex: 7,
+            EntityGeneration: 0,
             Position: Here,
             PreviousPosition: Here,
             Direction: default,
@@ -457,13 +465,13 @@ public sealed class RenderLightUnionTests
     }
 
     [Fact]
-    public void ALightTakesEightyFourBytesTheFieldsOfOneSpotLight()
+    public void ALightTakesEightyEightBytesTheFieldsOfOneSpotLight()
     {
-        // The cases share the storage of every field of a point light, so the union holds one spot light's 83 bytes of
+        // The cases share the storage of every field of a point light, so the union holds one spot light's 87 bytes of
         // fields. Its slots are packed by type, so the shadow flag, the chain depth and the kind byte fill 4 bytes, and the
-        // union takes 84, less than a spot light alone, which pads to 88. Storing each case whole would take 140 bytes.
-        Unsafe.SizeOf<PointRenderLight>().Should().Be(52);
-        Unsafe.SizeOf<SpotRenderLight>().Should().Be(88);
-        Unsafe.SizeOf<RenderLight>().Should().Be(84);
+        // union takes 88, less than a spot light alone, which pads to 92. Storing each case whole would take 148 bytes.
+        Unsafe.SizeOf<PointRenderLight>().Should().Be(56);
+        Unsafe.SizeOf<SpotRenderLight>().Should().Be(92);
+        Unsafe.SizeOf<RenderLight>().Should().Be(88);
     }
 }

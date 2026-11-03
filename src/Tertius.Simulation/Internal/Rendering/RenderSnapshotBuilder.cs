@@ -574,7 +574,7 @@ internal sealed partial class RenderSnapshotBuilder
 
             AddLight(
                 lights: lights,
-                entity: entity.Index,
+                entity: entity,
                 light: render.Light,
                 current: current,
                 previous: previous,
@@ -605,7 +605,7 @@ internal sealed partial class RenderSnapshotBuilder
     /// </summary>
     private static void AddLight(
         RefList<RenderLight> lights,
-        uint entity,
+        Entity entity,
         in LightData light,
         in DPose current,
         in DPose previous,
@@ -624,7 +624,8 @@ internal sealed partial class RenderSnapshotBuilder
                 CastsShadow: var castsShadow
             }:
                 lights.AddRef() = new PointRenderLight(
-                    EntityIndex: entity,
+                    EntityIndex: entity.Index,
+                    EntityGeneration: entity.Generation,
                     Position: (LightPose(current, offset).Position - origin).ToVector3(),
                     PreviousPosition: (LightPose(previous, offset).Position - origin).ToVector3(),
                     Color: color,
@@ -648,7 +649,8 @@ internal sealed partial class RenderSnapshotBuilder
                 DPose pose = LightPose(current, offset);
                 DPose previousPose = LightPose(previous, offset);
                 lights.AddRef() = new SpotRenderLight(
-                    EntityIndex: entity,
+                    EntityIndex: entity.Index,
+                    EntityGeneration: entity.Generation,
                     Position: (pose.Position - origin).ToVector3(),
                     PreviousPosition: (previousPose.Position - origin).ToVector3(),
                     Direction: pose.Rotation.Rotate(LightForward).ToVector3(),

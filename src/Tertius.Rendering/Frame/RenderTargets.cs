@@ -59,7 +59,10 @@ internal sealed class RenderTargets : IDisposable
     public const Format EstimateFormat = EstimatePacking.Format;
     public const Format DiffuseFormat = Format.R16G16B16A16Sfloat;
 
-    /// <summary>The color attachments per pass that the renderer asks of a device (<see cref="ColorAttachmentProblem"/>).</summary>
+    /// <summary>
+    /// The color attachments per pass, and the outputs of a fragment shader, that the renderer asks of a device
+    /// (<see cref="ColorAttachmentProblem"/>).
+    /// </summary>
     public const uint RequiredColorAttachments = 8;
 
     /// <summary>The binding of the estimate target in the G-buffer set (Shaders/gbuffer_inputs.glsl).</summary>
@@ -418,14 +421,19 @@ internal sealed class RenderTargets : IDisposable
     }
 
     /// <summary>
-    /// Why a device with <paramref name="maxColorAttachments"/> color attachments per pass cannot draw the G-buffer, or null
-    /// when it can. The renderer asks for 8, which every desktop Linux driver and MoltenVK offer, though the G-buffer draws 7
-    /// (docs/plans/temporal-renderer.md, "Portable Vulkan").
+    /// Why a device with <paramref name="maxColorAttachments"/> color attachments per pass and
+    /// <paramref name="maxFragmentOutputAttachments"/> outputs of a fragment shader cannot draw the G-buffer, or null when
+    /// it can. The renderer asks for 8 of each, which every desktop Linux driver, lavapipe and MoltenVK offer, though the
+    /// G-buffer draws 7 (docs/plans/temporal-renderer.md, "Portable Vulkan"). The spec's least is 4 of each.
     /// </summary>
-    internal static string? ColorAttachmentProblem(uint maxColorAttachments) =>
-        maxColorAttachments < RequiredColorAttachments
-            ? $"The G-buffer needs a device with maxColorAttachments of at least {RequiredColorAttachments}, not {maxColorAttachments}."
-            : null;
+    internal static string? ColorAttachmentProblem(uint maxColorAttachments, uint maxFragmentOutputAttachments)
+    {
+        if (maxColorAttachments < RequiredColorAttachments)
+            return $"The G-buffer needs a device with maxColorAttachments of at least {RequiredColorAttachments}, not {maxColorAttachments}.";
+        if (maxFragmentOutputAttachments < RequiredColorAttachments)
+            return $"The G-buffer needs a device with maxFragmentOutputAttachments of at least {RequiredColorAttachments}, not {maxFragmentOutputAttachments}.";
+        return null;
+    }
 
     /// <summary>
     /// The G-buffer draws seven color attachments, and the surface test writes the motion target as a storage image
@@ -433,7 +441,13 @@ internal sealed class RenderTargets : IDisposable
     /// </summary>
     private static void CheckMotionTarget(VulkanDevice device)
     {
-        if (ColorAttachmentProblem(device.Properties.Limits.MaxColorAttachments) is { } attachments)
+        if (
+            ColorAttachmentProblem(
+                device.Properties.Limits.MaxColorAttachments,
+                device.Properties.Limits.MaxFragmentOutputAttachments
+            ) is
+            { } attachments
+        )
             throw new NotSupportedException($"{attachments} ({device.DeviceName})");
         // The spec requires storage support of RGBA16F on every device.
         if ((device.FormatProperties(MotionFormat).OptimalTilingFeatures & FormatFeatureFlags.StorageImageBit) == 0)

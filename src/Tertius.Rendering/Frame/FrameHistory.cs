@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Runtime.InteropServices;
 using Silk.NET.Vulkan;
 
 namespace Tertius.Rendering;
@@ -16,8 +17,11 @@ internal readonly record struct PlacementKey(uint Slot, uint Generation, ushort 
     public ulong Order => ((ulong)Slot << 16) | Part;
 }
 
-/// <summary>Where a drawn frame wrote an instance's deformed copy: its first vertex in the kept positions, and its vertex count.</summary>
-internal readonly record struct KeptCopy(int FirstVertex, int VertexCount);
+/// <summary>
+/// Where a drawn frame wrote an instance's deformed copy: its first vertex in the kept positions. The copy's vertex count
+/// is its static mesh's, which <see cref="KeptPlacement.Mesh"/> names.
+/// </summary>
+internal readonly record struct KeptCopy(int FirstVertex);
 
 /// <summary>
 /// One placed instance of a drawn frame, as the placement history keeps it (docs/plans/temporal-renderer.md, "The
@@ -63,124 +67,6 @@ internal readonly record struct PreviousView(
     Extent2D RenderSize
 );
 
-/// <summary>
-/// One draw's pending state: a derived read of what <see cref="FrameHistory.Begin"/> found, and the camera and the
-/// placements that the batch writes for <see cref="FrameHistory.Drew"/> to commit. It holds no rule of its own. The history
-/// keeps one and arms it again at each <see cref="FrameHistory.Begin"/>, so a draw allocates nothing.
-/// </summary>
-internal sealed class PendingFrame
-{
-    private readonly FrameHistory history;
-    private DrawnFrame? continued;
-
-    internal PendingFrame(FrameHistory history)
-    {
-        this.history = history;
-    }
-
-    /// <summary>Whether the draw resets every history (docs/plans/temporal-renderer.md, "Resets").</summary>
-    public bool Reset { get; private set; }
-
-    /// <summary>The draw's index among the drawn frames since the last reset: 0 for a draw that resets.</summary>
-    public long DrawIndex { get; private set; }
-
-    /// <summary>The frames drawn before this draw. Each owner of two images that alternate takes its parity from it.</summary>
-    public long DrawnFrames { get; private set; }
-
-    /// <summary>Which of two alternating images this draw writes: the parity of <see cref="DrawnFrames"/>. It reads the other.</summary>
-    public int Parity => (int)(DrawnFrames & 1);
-
-    /// <summary>The draw's render size.</summary>
-    public Extent2D RenderSize { get; private set; }
-
-    /// <summary>The draw's output size.</summary>
-    internal Extent2D OutputSize { get; private set; }
-
-    /// <summary>The snapshot's count of camera cuts, which <see cref="FrameHistory.Drew"/> commits.</summary>
-    internal long CameraCuts { get; private set; }
-
-    /// <summary>The render size of the last drawn frame that this draw continues, or this draw's own where it continues none.</summary>
-    public Extent2D PreviousRenderSize => continued?.RenderSize ?? RenderSize;
-
-    /// <summary>
-    /// The placement history that this draw joins: the last drawn frame's placed instances, keys rising, or none when the
-    /// last frame's camera was in another frame, or no frame was drawn.
-    /// </summary>
-    public ReadOnlySpan<KeptPlacement> PreviousPlacements => continued.HasValue ? history.DrawnPlacements : [];
-
-    /// <summary>The placements that the batch wrote into this draw so far.</summary>
-    internal List<KeptPlacement> Placements { get; private set; } = [];
-
-    /// <summary>The camera that the batch wrote, or null before it did.</summary>
-    internal DrawnCamera? Camera { get; private set; }
-
-    /// <summary>
-    /// The last drawn frame's camera relative to <paramref name="current"/>, this draw's camera. Where this draw continues
-    /// no frame, the last camera is this one, at this eye: a point then has no motion of the camera.
-    /// </summary>
-    public PreviousView PreviousViewOf(in DrawnCamera current)
-    {
-        DrawnCamera last = continued?.Camera ?? current;
-        return new(
-            // In doubles, then narrowed: two positions far from the frame's origin differ exactly by the eye's step.
-            Eye: (last.EyeInFrame - current.EyeInFrame).ToVector3(),
-            Rotation: last.Rotation,
-            TanHalfX: last.TanHalfX,
-            TanHalfY: last.TanHalfY,
-            RootRotation: last.RootRotation,
-            RenderSize: PreviousRenderSize
-        );
-    }
-
-    /// <summary>Writes the draw's camera, as the batch interpolated it. Once per draw.</summary>
-    public void Write(in DrawnCamera drawn)
-    {
-        Contract.Requires(Camera is null);
-        Camera = drawn;
-    }
-
-    /// <summary>Appends one placed instance of the draw. The keys rise strictly, in the order of the snapshot's instances.</summary>
-    public void Place(in KeptPlacement placement)
-    {
-        Contract.Requires(Placements.Count == 0 || Placements[^1].Key.Order < placement.Key.Order);
-        Placements.Add(placement);
-    }
-
-    /// <summary>Arms the pending state of a new draw, from the history's derivation in <see cref="FrameHistory.Begin"/>.</summary>
-    internal void Arm(
-        bool reset,
-        long drawIndex,
-        long drawnFrames,
-        Extent2D renderSize,
-        Extent2D outputSize,
-        long cameraCuts,
-        DrawnFrame? continuing
-    )
-    {
-        Reset = reset;
-        DrawIndex = drawIndex;
-        DrawnFrames = drawnFrames;
-        RenderSize = renderSize;
-        OutputSize = outputSize;
-        CameraCuts = cameraCuts;
-        continued = continuing;
-        Camera = null;
-        Placements.Clear();
-    }
-
-    /// <summary>
-    /// Takes the placements that the batch wrote, and gives the pending state <paramref name="spare"/> to fill in its next
-    /// draw. <see cref="FrameHistory.Drew"/> swaps the two lists, so a draw copies no placement.
-    /// </summary>
-    internal List<KeptPlacement> TakePlacements(List<KeptPlacement> spare)
-    {
-        List<KeptPlacement> taken = Placements;
-        spare.Clear();
-        Placements = spare;
-        return taken;
-    }
-}
-
 /// <summary>A drawn frame, as the history records it.</summary>
 internal readonly record struct DrawnFrame(
     DrawnCamera Camera,
@@ -195,7 +81,7 @@ internal readonly record struct DrawnFrame(
 /// reset, the parity of the images that alternate, and the record relative to this draw's eye. The batch writes the draw's
 /// camera and placements into the pending state. Drew commits it after the submission. A draw that throws before Drew
 /// leaves the record, the count of drawn frames and so every parity as they were. No other owner keeps a copy of these
-/// values.
+/// values: the renderer numbers its frames by <see cref="DrawnFrames"/>.
 /// </summary>
 /// <remarks>
 /// Invariants, checked by <see cref="AssertInvariants"/>:
@@ -205,13 +91,28 @@ internal readonly record struct DrawnFrame(
 /// <item>The keys of the placement history, and of the pending placements, rise strictly.</item>
 /// </list>
 /// </remarks>
+/// <example>
+/// One draw, as the renderer runs it:
+/// <code>
+/// PendingFrame pending = history.Begin(snapshot, outputSize, renderSize);
+/// batcher.Prepare(..., frame: pending, ...);   // writes the camera and the placements
+/// graph.Record(context);                       // the passes read pending.Reset and pending.Parity
+/// output.SubmitAndPresent(frame);
+/// history.Drew(pending);
+/// </code>
+/// </example>
 internal sealed class FrameHistory
 {
     private readonly PendingFrame pending;
     private List<KeptPlacement> drawnPlacements = [];
     private DrawnFrame? drawn;
-    private long drawnFrames;
     private long lastDrawIndex;
+
+    // The pending state of the draw that the last Begin armed, which only Begin, Drew and the pending frame's own writes
+    // change.
+    private Derivation derived;
+    private List<KeptPlacement> pendingPlacements = [];
+    private DrawnCamera? pendingCamera;
     private bool armed;
 
     public FrameHistory()
@@ -219,9 +120,14 @@ internal sealed class FrameHistory
         pending = new(this);
     }
 
+    /// <summary>
+    /// The frames drawn so far: the number of the frame that the renderer draws next. Each owner of two images that
+    /// alternate takes its parity from it, through <see cref="PendingFrame.Parity"/>.
+    /// </summary>
+    public long DrawnFrames { get; private set; }
+
     /// <summary>The placement history: the last drawn frame's placed instances, keys rising.</summary>
-    internal ReadOnlySpan<KeptPlacement> DrawnPlacements =>
-        System.Runtime.InteropServices.CollectionsMarshal.AsSpan(drawnPlacements);
+    internal ReadOnlySpan<KeptPlacement> DrawnPlacements => CollectionsMarshal.AsSpan(drawnPlacements);
 
     /// <summary>
     /// The one choke point of the resets: derives the pending state of a draw of <paramref name="snapshot"/> at
@@ -237,16 +143,18 @@ internal sealed class FrameHistory
             || last.CameraCuts != snapshot.CameraCuts
             || last.OutputSize.Width != outputSize.Width
             || last.OutputSize.Height != outputSize.Height;
-        pending.Arm(
-            reset: reset,
-            drawIndex: reset ? 0 : lastDrawIndex + 1,
-            drawnFrames: drawnFrames,
-            renderSize: renderSize,
-            outputSize: outputSize,
-            cameraCuts: snapshot.CameraCuts,
+        derived = new(
+            Reset: reset,
+            DrawIndex: reset ? 0 : lastDrawIndex + 1,
+            DrawnFrames: DrawnFrames,
+            RenderSize: renderSize,
+            OutputSize: outputSize,
+            CameraCuts: snapshot.CameraCuts,
             // A position in another frame's axes means nothing in this one's, so the record then serves no motion.
-            continuing: drawn is { } record && record.Camera.FrameId == snapshot.OriginFrameId ? record : null
+            Continued: drawn is { } record && record.Camera.FrameId == snapshot.OriginFrameId ? record : null
         );
+        pendingCamera = null;
+        pendingPlacements.Clear();
         armed = true;
         return pending;
     }
@@ -259,28 +167,30 @@ internal sealed class FrameHistory
     {
         Contract.Requires(armed && ReferenceEquals(frame, pending));
         DrawnCamera camera =
-            frame.Camera ?? throw new InvalidOperationException("The batch wrote no camera into the pending frame.");
-        long framesBefore = drawnFrames;
+            pendingCamera ?? throw new InvalidOperationException("The batch wrote no camera into the pending frame.");
+        long framesBefore = DrawnFrames;
         drawn = new(
             Camera: camera,
-            RenderSize: frame.RenderSize,
-            OutputSize: frame.OutputSize,
-            CameraCuts: frame.CameraCuts
+            RenderSize: derived.RenderSize,
+            OutputSize: derived.OutputSize,
+            CameraCuts: derived.CameraCuts
         );
-        drawnPlacements = frame.TakePlacements(drawnPlacements);
-        lastDrawIndex = frame.DrawIndex;
-        drawnFrames++;
+        // The two lists change places, so a draw copies no placement and allocates none.
+        (drawnPlacements, pendingPlacements) = (pendingPlacements, drawnPlacements);
+        pendingPlacements.Clear();
+        lastDrawIndex = derived.DrawIndex;
+        DrawnFrames++;
         armed = false;
-        Contract.Ensures(drawnFrames == framesBefore + 1);
+        Contract.Ensures(DrawnFrames == framesBefore + 1);
     }
 
     /// <summary>Checks the invariants in the class comment. O(placements).</summary>
     internal void AssertInvariants()
     {
-        Contract.Invariant(drawn.HasValue == drawnFrames > 0);
-        Contract.Invariant(drawnFrames == 0 || lastDrawIndex < drawnFrames);
+        Contract.Invariant(drawn.HasValue == DrawnFrames > 0);
+        Contract.Invariant(DrawnFrames == 0 || lastDrawIndex < DrawnFrames);
         Contract.Invariant(KeysRise(DrawnPlacements));
-        Contract.Invariant(KeysRise(System.Runtime.InteropServices.CollectionsMarshal.AsSpan(pending.Placements)));
+        Contract.Invariant(KeysRise(CollectionsMarshal.AsSpan(pendingPlacements)));
     }
 
     private static bool KeysRise(ReadOnlySpan<KeptPlacement> placements)
@@ -289,5 +199,96 @@ internal sealed class FrameHistory
             if (placements[i - 1].Key.Order >= placements[i].Key.Order)
                 return false;
         return true;
+    }
+
+    /// <summary>What <see cref="Begin"/> derived for the pending draw.</summary>
+    /// <param name="DrawnFrames">The frames drawn before the draw, which stays the draw's own after <see cref="Drew"/>.</param>
+    /// <param name="Continued">The drawn frame that the draw continues, or null where it continues none.</param>
+    private readonly record struct Derivation(
+        bool Reset,
+        long DrawIndex,
+        long DrawnFrames,
+        Extent2D RenderSize,
+        Extent2D OutputSize,
+        long CameraCuts,
+        DrawnFrame? Continued
+    );
+
+    /// <summary>
+    /// One draw's pending state: a derived read of what <see cref="Begin"/> found, and the writes of the camera and the
+    /// placements that <see cref="Drew"/> commits. It holds no state of its own: the history keeps it, so only Begin and
+    /// Drew arm and commit it. The history has one, which each Begin arms again, so a draw allocates nothing.
+    /// </summary>
+    internal sealed class PendingFrame
+    {
+        private readonly FrameHistory history;
+
+        internal PendingFrame(FrameHistory history)
+        {
+            this.history = history;
+        }
+
+        /// <summary>Whether the draw resets every history (docs/plans/temporal-renderer.md, "Resets").</summary>
+        public bool Reset => history.derived.Reset;
+
+        /// <summary>The draw's index among the drawn frames since the last reset: 0 for a draw that resets.</summary>
+        public long DrawIndex => history.derived.DrawIndex;
+
+        /// <summary>
+        /// The frames drawn before this draw: <see cref="FrameHistory.DrawnFrames"/> at its <see cref="Begin"/>, also after
+        /// its <see cref="Drew"/>, so that a read of the draw's images after its commit finds the ones that it wrote.
+        /// </summary>
+        public long DrawnFrames => history.derived.DrawnFrames;
+
+        /// <summary>Which of two alternating images this draw writes: the parity of <see cref="DrawnFrames"/>. It reads the other.</summary>
+        public int Parity => (int)(DrawnFrames & 1);
+
+        /// <summary>The draw's render size.</summary>
+        public Extent2D RenderSize => history.derived.RenderSize;
+
+        /// <summary>The render size of the last drawn frame that this draw continues, or this draw's own where it continues none.</summary>
+        public Extent2D PreviousRenderSize => history.derived.Continued?.RenderSize ?? RenderSize;
+
+        /// <summary>
+        /// The placement history that this draw joins: the last drawn frame's placed instances, keys rising, or none when
+        /// the last frame's camera was in another frame, or no frame was drawn.
+        /// </summary>
+        public ReadOnlySpan<KeptPlacement> PreviousPlacements =>
+            history.derived.Continued.HasValue ? history.DrawnPlacements : [];
+
+        /// <summary>
+        /// The last drawn frame's camera relative to <paramref name="current"/>, this draw's camera. Where this draw
+        /// continues no frame, the last camera is this one, at this eye: a point then has no motion of the camera.
+        /// </summary>
+        public PreviousView PreviousViewOf(in DrawnCamera current)
+        {
+            DrawnCamera last = history.derived.Continued?.Camera ?? current;
+            return new(
+                // In doubles, then narrowed: two positions far from the frame's origin differ exactly by the eye's step.
+                Eye: (last.EyeInFrame - current.EyeInFrame).ToVector3(),
+                Rotation: last.Rotation,
+                TanHalfX: last.TanHalfX,
+                TanHalfY: last.TanHalfY,
+                RootRotation: last.RootRotation,
+                RenderSize: PreviousRenderSize
+            );
+        }
+
+        /// <summary>Writes the draw's camera, as the batch interpolated it. Once per draw.</summary>
+        public void Write(in DrawnCamera drawn)
+        {
+            Contract.Requires(history.armed && history.pendingCamera is null);
+            history.pendingCamera = drawn;
+        }
+
+        /// <summary>Appends one placed instance of the draw. The keys rise strictly, in the order of the snapshot's instances.</summary>
+        public void Place(in KeptPlacement placement)
+        {
+            List<KeptPlacement> placements = history.pendingPlacements;
+            Contract.Requires(
+                history.armed && (placements.Count == 0 || placements[^1].Key.Order < placement.Key.Order)
+            );
+            placements.Add(placement);
+        }
     }
 }

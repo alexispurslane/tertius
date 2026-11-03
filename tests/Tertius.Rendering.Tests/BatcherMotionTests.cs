@@ -30,7 +30,7 @@ public sealed class BatcherMotionTests
     private PreparedScene Draw(RenderSnapshot snapshot, float alpha = 1f)
     {
         var scene = new PreparedScene();
-        PendingFrame pending = history.Begin(snapshot: snapshot, outputSize: Size, renderSize: Size);
+        FrameHistory.PendingFrame pending = history.Begin(snapshot: snapshot, outputSize: Size, renderSize: Size);
         batcher.Prepare(
             snapshot: snapshot,
             alpha: alpha,
@@ -216,6 +216,43 @@ public sealed class BatcherMotionTests
         PreparedScene scene = Draw(snapshot, alpha: 0.5f);
 
         scene.Placed[0].Scale.Should().Be(new Vector3(3));
+    }
+
+    [Fact]
+    public void AnInstanceThatMirrorsBetweenTwoTicksDrawsAtItsScaleNotAFlatOne()
+    {
+        RenderSnapshot snapshot = WithInstance(position: new(0, 0, -10));
+        RenderInstance mirrored = snapshot.Instances[0];
+        mirrored.Scale = new(1, 1, 1);
+        mirrored.PreviousScale = new(-1, 1, 1);
+        snapshot.Instances[0] = mirrored;
+
+        PreparedScene scene = Draw(snapshot, alpha: 0.5f);
+
+        scene.Placed[0].Scale.Should().Be(new Vector3(1, 1, 1), "half way between −1 and 1 the mesh has no volume");
+    }
+
+    [Theory]
+    [InlineData(0f, 0f, 0f)]
+    [InlineData(0.3f, 0f, 0f)]
+    [InlineData(0.2f, -0.4f, 0.1f)]
+    public void TheMotionProjectionPlacesAPointWhereTheTurnedCameraSeesIt(float yaw, float pitch, float roll)
+    {
+        var rotation = Quaternion.CreateFromYawPitchRoll(yaw, pitch, roll);
+        float tanY = MathF.Tan(Gpu.Fov / 2);
+        float tanX = tanY * Width / Height;
+        Matrix4x4 projection = SceneBatcher.MotionProjection(rotation: rotation, tanHalfX: tanX, tanHalfY: tanY);
+
+        foreach (Vector3 inView in (Vector3[])[new(0, 0, -5), new(1.5f, 0.8f, -6), new(-2, -1, -4)])
+        {
+            var point = Vector3.Transform(inView, rotation);
+            var clip = Vector4.Transform(new Vector4(point, 1), projection);
+            var pixel = new Vector2((clip.X / clip.W * 0.5f + 0.5f) * Width, (clip.Y / clip.W * 0.5f + 0.5f) * Height);
+
+            Vector2 expected = Gpu.Project(point: point, cameraRotation: rotation, width: Width, height: Height);
+            (pixel - expected).Length().Should().BeLessThan(1e-3f, "the point {0} in the camera's view", inView);
+            clip.W.Should().BeApproximately(-inView.Z, 1e-5f, "clip w is the view depth");
+        }
     }
 
     [Fact]

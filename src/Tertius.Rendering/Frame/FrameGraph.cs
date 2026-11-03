@@ -221,7 +221,7 @@ internal sealed class FrameContext
     /// The frame's pending state of the frame history (<see cref="FrameHistory.Begin"/>): its reset, and the parity of the
     /// drawn frames, which picks the kept positions and the surface history that the frame writes.
     /// </summary>
-    public PendingFrame History { get; set; } = null!;
+    public FrameHistory.PendingFrame History { get; set; } = null!;
 
     /// <summary>The final image: a swapchain image or the headless output.</summary>
     public GpuImage Output { get; set; } = null!;

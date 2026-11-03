@@ -118,8 +118,9 @@ public sealed unsafe class VulkanRenderer : IRenderer
     private GpuBuffer? captureBuffer;
     private ICaptureSink? pendingCapture;
     private long pendingResize = -1;
-    private long frameNumber;
     private FrameClock clock;
+
+    /// <summary>The record of the last drawn frame, whose count of drawn frames numbers every frame of the renderer.</summary>
     private readonly FrameHistory history = new();
     private bool disposed;
 
@@ -509,7 +510,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// </summary>
     private bool DrawFrame(RenderSnapshot snapshot, float alpha, float exposureStep, bool longStep, bool takeCapture)
     {
-        FrameResources frame = frames[frameNumber % frames.Length];
+        FrameResources frame = frames[FrameNumber % frames.Length];
         Fence fence = frame.Fence;
         FinishSlot(frame);
 
@@ -572,13 +573,21 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// </summary>
     private void CommitDrawnFrame(FrameResources frame, RenderSnapshot snapshot, float exposureStep)
     {
+        long number = FrameNumber;
         environmentMap?.Drew(served: Served(snapshot), slot: frame.Index);
-        history.Drew(context.History);
+        keptPositions?.Drew(releases: releases, frame: number);
         localShadows?.Tiles.Drew();
-        Exposure.Drew(frame: frameNumber, step: exposureStep);
-        frame.Number = frameNumber;
-        frameNumber++;
+        Exposure.Drew(frame: number, step: exposureStep);
+        frame.Number = number;
+        // Last, because it advances the frame number that the commits above name.
+        history.Drew(context.History);
     }
+
+    /// <summary>
+    /// The number of the frame that the renderer draws next: the count of drawn frames, which the history keeps. A frame
+    /// that throws before its submission keeps its number, so its retry takes its frame slot, its releases and its parity.
+    /// </summary>
+    private long FrameNumber => history.DrawnFrames;
 
     /// <summary>The stats of a frame that the output skipped: what was submitted, and the readings that the wait found.</summary>
     private RenderStats SkippedFrameStats(RenderSnapshot snapshot) =>
@@ -627,7 +636,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             return new(new WithoutMap());
         Span<long> served = servedChain.AsSpan(0, EnvironmentChain.Maps(snapshot.Chain.Count));
         EnvironmentChain.Serve(snapshot.Chain, served);
-        ReadOnlyMemory<FaceMask> faces = map.FacesFor(frame: frameNumber, served: served, longStep: longStep);
+        ReadOnlyMemory<FaceMask> faces = map.FacesFor(frame: FrameNumber, served: served, longStep: longStep);
         return new(new WithMap(Faces: faces, Irradiance: map.ReadingsOf(served.Length)));
     }
 
@@ -656,18 +665,19 @@ public sealed unsafe class VulkanRenderer : IRenderer
         targets.RecordEstimateClear(vk: device.Vk, commandBuffer: commandBuffer, barriers: barriers);
         frame.UpdateSharedDescriptors(materials: materials, textures: textures, geometry: geometry, deforms: deforms);
         // The frame's one choke point of the history: its reset, its draw index and the last frame's state.
-        PendingFrame pending = history.Begin(
+        FrameHistory.PendingFrame pending = history.Begin(
             snapshot: snapshot,
             outputSize: targets.Extent,
             renderSize: targets.Extent
         );
+        // After ReserveRegion, which can replace the kept buffers, so that the sets name this frame's buffers.
         if (keptPositions is { } kept)
             frame.UpdateKeptPositions(kept: kept, parity: pending.Parity);
 
         Batcher.Prepare(
             snapshot: snapshot,
             alpha: alpha,
-            highestStops: Exposure.HighestStops(frame: frameNumber, step: exposureStep),
+            highestStops: Exposure.HighestStops(frame: FrameNumber, step: exposureStep),
             width: (int)targets.Extent.Width,
             height: (int)targets.Extent.Height,
             meshes: geometry.Meshes,
@@ -707,17 +717,11 @@ public sealed unsafe class VulkanRenderer : IRenderer
             return DeformRegion.None;
         geometry.ReserveDeformed(
             vertices: SceneBatcher.DeformNeed(snapshot, geometry.Meshes),
+            kept: keptPositions,
             commandBuffer: commandBuffer,
             barriers: barriers,
             releases: releases,
-            frame: frameNumber
-        );
-        keptPositions?.Reserve(
-            vertices: geometry.Region.Capacity,
-            commandBuffer: commandBuffer,
-            barriers: barriers,
-            releases: releases,
-            frame: frameNumber
+            frame: FrameNumber
         );
         return geometry.Region;
     }
@@ -751,7 +755,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// <summary>Sets the values of this frame in the context that the passes read.</summary>
     private void SetContext(
         FrameResources frame,
-        PendingFrame history,
+        FrameHistory.PendingFrame history,
         RenderSnapshot snapshot,
         float alpha,
         float exposureStep,
@@ -767,7 +771,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
         context.Scene = LastScene;
 
         context.Output = image;
-        context.Number = frameNumber;
+        context.Number = FrameNumber;
         context.EncodeSrgb = output.EncodeSrgbInShader;
         context.CaptureBuffer = capture;
         context.IndirectDrawCalls = 0;
@@ -794,14 +798,14 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 staging: frame.Staging,
                 barriers: barriers,
                 releases: releases,
-                frame: frameNumber
+                frame: FrameNumber
             );
             deforms.Upload(
                 commandBuffer: commandBuffer,
                 staging: frame.Staging,
                 barriers: barriers,
                 releases: releases,
-                frame: frameNumber
+                frame: FrameNumber
             );
             materials.Upload(
                 commandBuffer: commandBuffer,
@@ -809,14 +813,14 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 staging: frame.Staging,
                 barriers: barriers,
                 releases: releases,
-                frame: frameNumber
+                frame: FrameNumber
             );
             // The first frame always comes here, because it makes the built-in defaults, and the tables go with them.
             BrdfTableImages.Upload(commandBuffer: commandBuffer, staging: frame.Staging, barriers: barriers);
             ScatterImages?.Upload(commandBuffer: commandBuffer, staging: frame.Staging, barriers: barriers);
             targets.Smaa?.Tables.Upload(commandBuffer: commandBuffer, staging: frame.Staging, barriers: barriers);
             // Frame 0 is the first drawn frame, because the frame number counts submitted frames.
-            if (frameNumber == 0)
+            if (FrameNumber == 0)
                 Exposure.RecordSeed(commandBuffer: commandBuffer, barriers: barriers);
             device.EndLabel(commandBuffer);
         }
@@ -1943,7 +1947,6 @@ public sealed unsafe class VulkanRenderer : IRenderer
             ),
         };
 
-    /// <summary>The store of the deformed copies, which the renderer owns, at most one storage buffer's range in size.</summary>
     /// <summary>The queue of the uploads, within the device's largest texture and storage buffer.</summary>
     private UploadQueue CreateUploads() =>
         new(
@@ -1955,6 +1958,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
     private SurfaceHistory CreateSurfaceHistory() =>
         Own(new SurfaceHistory(device: device, allocator: Allocator, layouts: layouts, targets: targets));
 
+    /// <summary>The store of the deformed copies, which the renderer owns, at most one storage buffer's range in size.</summary>
     private DeformStore CreateDeformStore() =>
         Own(
             new DeformStore(

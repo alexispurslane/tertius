@@ -72,7 +72,7 @@ public class ImpostorManagerBenchmarks
     public void Prepare()
     {
         // Each call continues the one before, so the join finds every key of the last frame, as a window's frames do.
-        PendingFrame frame = history.Begin(
+        FrameHistory.PendingFrame frame = history.Begin(
             snapshot: snapshot,
             outputSize: new(Width, Height),
             renderSize: new(Width, Height)

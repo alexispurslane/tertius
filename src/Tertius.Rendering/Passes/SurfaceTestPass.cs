@@ -5,7 +5,7 @@ namespace Tertius.Rendering;
 /// <summary>
 /// The surface test pass (docs/plans/temporal-renderer.md, section 8, "The surface test", and decision 24): one compute
 /// dispatch, right after the G-buffer, writes the surface test image, this frame's surface history, FSR's device depth
-/// and the motion of the sky (Shaders/surface_test.comp). A frame that resets (<see cref="PendingFrame.Reset"/>) fails
+/// and the motion of the sky (Shaders/surface_test.comp). A frame that resets (<see cref="FrameHistory.PendingFrame.Reset"/>) fails
 /// every tap, because the last surface history belongs to another camera, size or no frame at all.
 /// </summary>
 internal sealed unsafe class SurfaceTestPass : RenderPass

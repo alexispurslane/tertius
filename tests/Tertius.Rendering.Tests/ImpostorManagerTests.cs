@@ -62,7 +62,7 @@ public sealed class ImpostorManagerTests
         /// <summary>Batches <paramref name="snapshot"/> as the frame after the ones before it, and commits it as drawn.</summary>
         public PreparedScene Run(RenderSnapshot snapshot, EnvironmentDraw environment = default)
         {
-            PendingFrame frame = history.Begin(
+            FrameHistory.PendingFrame frame = history.Begin(
                 snapshot: snapshot,
                 outputSize: new(Width, Height),
                 renderSize: new(Width, Height)

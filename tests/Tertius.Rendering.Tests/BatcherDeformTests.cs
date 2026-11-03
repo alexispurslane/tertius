@@ -531,7 +531,7 @@ public sealed class BatcherDeformTests
         // Each frame continues the one before, so the join of the placement history runs as in a window's frames.
         void Frame()
         {
-            PendingFrame frame = history.Begin(
+            FrameHistory.PendingFrame frame = history.Begin(
                 snapshot: snapshot,
                 outputSize: new(1600, 900),
                 renderSize: new(1600, 900)
