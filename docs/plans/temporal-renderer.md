@@ -46,7 +46,7 @@ These come from `.tickets/ter-89xq.md`, the brief of this ticket and its notes. 
 9. A ray budget driven by history length: more rays where the history is short. (User, 2026-11-03)
 10. Many-light sampling, ReSTIR DI, for direct light, which then becomes a temporal signal through the same accumulator module. (User, 2026-11-03)
 11. Time-sliced maps (`ter-7khp`) and a world-space radiance cache (`ter-13rm`) are later tickets, outside this design. (User, 2026-11-03)
-12. FSR 3.1's path: the engine's own C# host code over AMD's GLSL shaders from FidelityFX SDK v1.1.4 (upscaler 3.1.4), compiled with glslang. The host repeats AMD's host calculations exactly. The 3.1.5 and 3.1.6 fixes are compared before the pin. The baseline is 32-bit math and the variant without subgroup operations. The format defect of `rw_luma_history` is resolved under the Vulkan validation layer on MoltenVK and lavapipe. AMD's MIT notices stay. (Orchestrator, 2026-11-03)
+12. FSR 3.1's path: the engine's own C# host code over AMD's GLSL shaders from FidelityFX SDK v1.1.4 (upscaler 3.1.4), compiled with glslang. The host repeats AMD's host calculations exactly. The 3.1.5 and 3.1.6 fixes are compared before the pin. The baseline is 32-bit math and the variant without subgroup operations. The format defect of `rw_luma_history` is resolved under the Vulkan validation layer on MoltenVK and lavapipe. AMD's MIT notices stay. (Orchestrator, 2026-11-03) Note of 2026-11-03 (ticket `ter-7m38`): the baseline stays the only build. AMD's 16-bit modules, the pyramids with quad subgroup operations, and both together matched the reference image and passed every FSR test under validation. In 60 alternating rounds from 1280 × 720 to 1920 × 1080 on the M1 Max, today's build took a median of 2.826 ms and a byte copy of it 2.769 ms. The variants took 2.797, 2.788 and 2.776 ms, so none gained more than the copy's spread. The pin carries AMD's 3.1.6 fix of the 16-bit reprojection (`src/Tertius.Rendering/ThirdParty/Fsr3/README.md`, "The 16-bit and subgroup builds").
 13. Dynamic resolution: images at the largest render size, with the active part changing each frame. A camera cut resets the histories, and a change of the render size does not. (Orchestrator, 2026-11-03)
 14. Motion vectors hold no jitter. Each object has a stable key, and the snapshot gains the previous scale. Last frame's deformed vertices are kept. The previous camera is expressed relative to this frame's camera. (Orchestrator, 2026-11-03)
 15. Bloom and tone mapping move after FSR, at the output size. (Orchestrator, 2026-11-03)
@@ -503,7 +503,7 @@ Before the pin, ticket 1 compares two later fixes and writes the comparison into
 - The sharpening fix of upscaler 3.1.5 (SDK v2.0.0).
 - The precision and reprojection changes of upscaler 3.1.6 (FSR SDK v2.4.0), which ship in HLSL only.
 
-If a fix changes the shaders' results, the ticket ports it into the pinned GLSL by hand and puts its diff in the README. Otherwise the README records why the ticket did not take it. The research found no source build of the 3.1.6 Vulkan shaders, so the GLSL of 3.1.4 stays the base.
+If a fix changes the shaders' results, the ticket ports it into the pinned GLSL by hand and puts its diff in the README. Otherwise the README records why the ticket did not take it. Ticket `ter-7m38` ported the one shader line of the 3.1.6 fix, which only a 16-bit build compiles (2026-11-03). The research found no source build of the 3.1.6 Vulkan shaders, so the GLSL of 3.1.4 stays the base.
 
 ### The build
 
@@ -512,7 +512,7 @@ The Nix dev shell compiles the shaders with glslang, as AMD's Vulkan build does,
 - `FFX_HALF=0`: 32-bit math. lavapipe offers 16-bit floats only on some CPUs.
 - `FFX_SPD_NO_WAVE_OPERATIONS=1`: the luminance pyramid reduces through shared memory, with no subgroup operations.
 
-The SPIR-V goes into the engine's assembly beside the other shaders, and `spirv-val` runs on each module in the build. A faster variant, 16-bit math or subgroup operations, comes only after a comparison on the four Linux drivers and the Mac, as a later ticket.
+The SPIR-V goes into the engine's assembly beside the other shaders, and `spirv-val` runs on each module in the build. A faster variant, 16-bit math or subgroup operations, comes only after a comparison on the four Linux drivers and the Mac, as a later ticket. Ticket `ter-7m38` made that comparison on the Mac on 2026-11-03, and no variant was faster than the noise between two copies of the baseline (decision 12).
 
 ### The format defect
 

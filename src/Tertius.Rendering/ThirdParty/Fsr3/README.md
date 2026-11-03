@@ -1,6 +1,6 @@
 # AMD FidelityFX Super Resolution 3.1.4: the pinned GLSL
 
-This folder holds the GLSL source of AMD's FSR 3.1 upscaler that the engine compiles, `Fsr3Upscaler` dispatches and `docs/plans/temporal-renderer.md`, section 5, specifies. The files are AMD's, from the FidelityFX SDK v1.1.4, with two changed declarations. `LICENSE.txt` is AMD's MIT license, and every file keeps AMD's notice. `THIRD-PARTY-NOTICES.md` at the root carries the notice too.
+This folder holds the GLSL source of AMD's FSR 3.1 upscaler that the engine compiles, `Fsr3Upscaler` dispatches and `docs/plans/temporal-renderer.md`, section 5, specifies. The files are AMD's, from the FidelityFX SDK v1.1.4, with two changed declarations and one line of AMD's 3.1.6 fix. `LICENSE.txt` is AMD's MIT license, and every file keeps AMD's notice. `THIRD-PARTY-NOTICES.md` at the root carries the notice too.
 
 ## The pin
 
@@ -26,7 +26,7 @@ FSR 3.1.4 is the last release with GLSL passes for Vulkan. The later releases ar
 | Release | Shader change against 3.1.4 | Effect on the engine's build |
 |---|---|---|
 | 3.1.5 | "Fix for possible negative RCAS output": `FsrRcasF` and its half variants in `fsr1/ffx_fsr1.h` multiply `hitMin` by `lowerLimiterMultiplier` | None. Only the sharpening pass runs RCAS, and the engine runs no sharpening and does not build that pass |
-| 3.1.6 | `ReprojectHistoryColor` in `ffx_fsr3upscaler_reproject.h` passes `PreviousFrameUpscaleSize()` instead of `UpscaleSize()` to `HistorySample16` | None. The line is in the branch of `FFX_HALF && FFX_FSR3UPSCALER_OPTION_REPROJECT_SAMPLERS_USE_DATA_HALF`. The build sets `FFX_HALF=0`, and its 32-bit branch already passes `PreviousFrameUpscaleSize()` in 3.1.4 |
+| 3.1.6 | `ReprojectHistoryColor` in `ffx_fsr3upscaler_reproject.h` passes `PreviousFrameUpscaleSize()` instead of `UpscaleSize()` to `HistorySample16` | None on the modules. The line is in the branch of `FFX_HALF && FFX_FSR3UPSCALER_OPTION_REPROJECT_SAMPLERS_USE_DATA_HALF`. The build sets `FFX_HALF=0`, and its 32-bit branch already passes `PreviousFrameUpscaleSize()` in 3.1.4. The pin carries the line all the same (see "AMD's 3.1.6 fix") |
 
 Apart from those lines and the years of the notices, the 3.1.6 changes are in the host: messages, a watermark and D3D12 aliasing barriers. The engine repeats none of them, because its host is a C# copy of the 3.1.4 host (`Fsr3Upscaler`).
 
@@ -70,7 +70,17 @@ Section 5 of the design gives the order of the fix. Its first rule takes the dec
 | `rw_luma_history` | `rgba8` | `rgba16f` | `R16G16B16A16_FLOAT`, as AMD's host creates `FSR3UPSCALER_LumaHistory1` and `2` |
 | `rw_output_autoreactive` | `r32f` | `r8` | `R8_UNORM`, the reactive mask of section 9, of AMD's manual and of AMD's sample |
 
-`tools/fsr3-golden/pin.diff` is the whole difference. With the two changes, the test reports no message.
+With the two changes, the test reports no message.
+
+## AMD's 3.1.6 fix
+
+The pin carries one line of AMD's 3.1.6 fix (ticket `ter-7m38`, 2026-11-03). In the 16-bit branch of `ReprojectHistoryColor` in `ffx_fsr3upscaler_reproject.h`, `HistorySample16` takes `PreviousFrameUpscaleSize()` instead of `UpscaleSize()`. The line is that of `Kits/FidelityFX/upscalers/fsr3/include/gpu/fsr3upscaler/ffx_fsr3upscaler_reproject.h` in v2.4.0, and the rest of the file equals 3.1.4.
+
+- The two sizes differ only in a frame after the output size changes. Then the 3.1.4 line reads the history at the new size, which is AMD's defect.
+- The 32-bit branch had the fix in 3.1.4. The engine's build compiles that branch, so its modules did not change, byte for byte.
+- The port keeps a later 16-bit build from carrying the known defect.
+
+`tools/fsr3-golden/pin.diff` is the whole difference from AMD's tag: the two declarations and this line.
 
 ## The build
 
@@ -95,6 +105,73 @@ glslangValidator -V --target-env vulkan1.3 -S comp -Os -DFFX_GPU=1 -DFFX_GLSL=1 
 The modules use these SPIR-V capabilities: `Shader`, `ImageQuery`, `StorageImageExtendedFormats`, and `StorageImageWriteWithoutFormat` in the accumulate pass, which writes the output through `rw_upscaled_output`, declared with no format. No module uses a subgroup or a 16-bit capability. The engine requires `shaderStorageImageExtendedFormats` and `shaderStorageImageWriteWithoutFormat` (ARCHITECTURE.md, "Required device features").
 
 The images that the shaders filter with AMD's linear sampler are of formats whose linear filtering Vulkan requires: `R8_UNORM`, `R8G8B8A8_UNORM`, `R16_SFLOAT`, `R16G16_SFLOAT` and `R16G16B16A16_SFLOAT`. No pass filters a 32-bit float image.
+
+## The 16-bit and subgroup builds
+
+Ticket `ter-7m38` (2026-11-03) built three variants beside the build above, tested them, timed them, and kept none of them. The engine keeps the build above, and no switch chooses a build at run time.
+
+### How the variants follow AMD
+
+- AMD's host asks for its 16-bit modules, `FFX_HALF=1`, in four passes only: autogen reactive, prepare reactivity, shading change and accumulate. The other passes always run AMD's 32-bit modules (`sdk/src/backends/shared/blob_accessors/ffx_fsr3upscaler_shaderblobs.cpp` of v1.1.4). So the 16-bit variants set `FFX_HALF=1` in those four passes only.
+- The 16-bit branch of the luminance pyramid in `ffx_fsr3upscaler_luma_pyramid.h` loads 0 and stores nothing. A build with `FFX_HALF=1` in every pass failed the binding test, the scene change test and the snapshot test.
+- `ffx_spd.h` tests `defined(FFX_SPD_NO_WAVE_OPERATIONS)`, not its value. So the subgroup variant leaves the define out, as AMD's own Vulkan build does. With `FFX_SPD_NO_WAVE_OPERATIONS=0`, glslang gives the same module as with `1`.
+
+### Capabilities and device requirements
+
+`spirv-dis` lists these capabilities beyond those of the build above:
+
+| Build | Defines | Changed modules | Added capabilities | Vulkan requirement |
+|---|---|---|---|---|
+| 16-bit | `FFX_HALF=1` in AMD's four 16-bit passes | Autogen reactive, prepare reactivity, shading change, accumulate | `Float16` (accumulate), `Int16` (accumulate, autogen reactive) | The features `shaderFloat16` and `shaderInt16` |
+| Subgroup | No `FFX_SPD_NO_WAVE_OPERATIONS` | The two pyramids | `GroupNonUniform`, `GroupNonUniformQuad` | `subgroupSupportedStages` with the compute stage, and `subgroupSupportedOperations` with the basic and the quad operations. Vulkan 1.1 requires the compute stage and the basic operations of a device with a compute queue, so only the quad operations are new |
+| Both | Both of the above | The six modules above | All four | All of the above |
+
+- No module uses a capability of 16-bit storage, such as `StorageBuffer16BitAccess`. `ffx_core_glsl.h` enables `GL_EXT_shader_16bit_storage`, but no pass reads or writes 16-bit values in a buffer or a shader interface. So no build needs `storageBuffer16BitAccess` or its siblings.
+- No build needs `shaderSubgroupExtendedTypes`. The pyramids stay 32-bit in AMD's 16-bit build, so their quad swaps take 32-bit values. With `FFX_HALF=1` in the pyramids, they swap `v4half` values and need the feature.
+
+Support on the user's list of GPUs, from each driver's source:
+
+| Requirement | NVIDIA, Turing and later | RADV: Vega and RDNA | ANV: Gen9 and later | MoltenVK | lavapipe |
+|---|---|---|---|---|---|
+| `shaderFloat16` | NVK sets it for `sm >= 70`, and Turing is SM 7.5 | Set from `has_packed_math_16bit`, which is `gfx_level >= GFX9`: Vega and later | Set unless the debug switch `no_16bit` is on | Always set | Set from llvmpipe's fp16 cap: an x86 CPU with F16C, or any AArch64 CPU |
+| `shaderInt16` | Always set | Always set | Always set | Always set | Set from llvmpipe's int16 cap, which is always on |
+| Quad operations in the compute stage | Set, in every supported stage | Set | Set, in every stage | Set on the Apple4 and Mac2 GPU families | Set with LLVM 10 or later, and the stages include compute |
+
+The sources are Mesa's main branch at `b381eaf859621ed7fdb3bfef00ac956e4cca209c` (2026-11-03): `src/nouveau/vulkan/nvk_physical_device.c`, `src/amd/vulkan/radv_physical_device.c`, `src/amd/common/ac_gpu_info.c`, `src/intel/vulkan/anv_physical_device.c`, `src/gallium/frontends/lavapipe/lvp_device.c` and `src/gallium/auxiliary/gallivm/lp_bld_limits.h`. MoltenVK's are `MoltenVK/MoltenVK/GPUObjects/MVKDevice.mm` at `5189f8de86ec365860f63bf1da736815cfaea5cd`. NVK is Mesa's driver for NVIDIA GPUs. NVIDIA's own driver has no public source, and vulkan.gpuinfo.org refused automated reads, so its column is not checked for that driver. The Apple M1 Max reports every requirement (`vulkaninfo`, MoltenVK 1.4.2).
+
+### Correctness
+
+Each variant ran every test of `Fsr3HostTests`, `Fsr3UpscalerTests` and `DeviceFeatureTests` in Release, under the validation layer with synchronization validation. Every FSR test passed with no message. The reference image of `TheSettledPatternAndTheFramesAfterAChangeOfTheSceneMatchTheirReferenceImage` gives these largest FLIP values, against the tolerance of 0.1:
+
+| Build | Largest FLIP value | Mean FLIP value |
+|---|---|---|
+| The build above | 0.0000 | 0.000000 |
+| 16-bit | 0.0134 | 0.000127 |
+| Subgroup | 0.0000 | 0.000000 |
+| Both | 0.0134 | 0.000127 |
+
+### The timing
+
+The opt-in test `AnUpscaleFrom1280x720To1920x1080ReportsItsGpuTime` (`TERTIUS_FSR_TIMING=1`) times 300 frames from 1280 × 720 to 1920 × 1080 by timestamps around `Record`. It ran from five Release builds of the test project in 60 rounds, on the Apple M1 Max:
+
+- The builds differ only in `Tertius.Rendering.dll`. The control is a byte copy of the build above, so that the table shows the spread between two runs of the same code.
+- Each round runs each build once, in an order that rotates by one build per round.
+- Each run takes the GPU lock, `/tmp/tertius-gpu-measure.lock`, and releases it as soon as the run ends. Each run records `uptime` at its start.
+- The 1-minute load at the start of the runs was 3.4 at the least, 6.0 at the median and 30.5 at the most, because other agents built at the same time.
+
+| Build | Median of all frames, ms | 10th percentile, ms | 90th percentile, ms | Median minus the build above over the resamples: middle value and 90 % interval, ms |
+|---|---|---|---|---|
+| The build above | 2.826 | 2.581 | 3.446 | |
+| Control, a byte copy | 2.769 | 2.580 | 3.440 | −0.047, from −0.178 to +0.066 |
+| 16-bit | 2.797 | 2.547 | 3.416 | −0.030, from −0.163 to +0.099 |
+| Subgroup | 2.788 | 2.546 | 3.375 | −0.038, from −0.159 to +0.075 |
+| Both | 2.776 | 2.521 | 3.348 | −0.052, from −0.168 to +0.061 |
+
+The interval comes from 2,000 resamples of the 60 rounds. Each resample draws whole rounds with replacement and pools their frames.
+
+The rule of the ticket keeps a variant only if its median is lower than the build above by more than the control's spread. The control alone came out 0.057 ms faster than the build above, and its 90 % interval reaches 0.178 ms below it. Every variant gains less than either number, so no variant is measurably faster.
+
+At the 10th percentile, the variant with both changes is 0.060 ms faster, and its interval, from −0.070 to −0.022 ms, lies outside the control's, from −0.043 to +0.039 ms. That is 2.3 % of the frame. The rule judges the median, so the 10th percentile decides nothing here.
 
 ## Bindings
 

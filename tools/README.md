@@ -416,7 +416,7 @@ nix develop --command bash tools/fsr3-golden/build.sh
 - `compat.h` gives the few Windows names that AMD's code uses. The build uses `-fshort-wchar`, because AMD's private context assumes the 2-byte `wchar_t` of Windows.
 - `Fsr3HostTests` hold the file as an embedded resource and compare the host with it. A value from the math library, such as the tangent of the field of view, can differ by one unit in the last place on another C library. So those values compare within one unit.
 
-`check-pin.sh` compares the pinned GLSL in `src/Tertius.Rendering/ThirdParty/Fsr3` with AMD's tag. It passes when the only differences are those in `pin.diff`, the two declarations that the folder's README records:
+`check-pin.sh` compares the pinned GLSL in `src/Tertius.Rendering/ThirdParty/Fsr3` with AMD's tag. It passes when the only differences are those in `pin.diff`, the two declarations and the port of AMD's 3.1.6 fix that the folder's README records:
 
 ```bash
 nix develop --command bash tools/fsr3-golden/check-pin.sh
