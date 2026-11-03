@@ -36,3 +36,7 @@ Asked by the user on 2026-11-02 about the floor film's stair steps in ter-eqtb's
 **2026-11-02T22:55:09Z**
 
 2026-11-02, the user's choices after the fix stage (run 67504b63, head e4af3ce28) stopped at the fork of the taps' cost: nearest taps (rejected: bilinear taps, +3.37 ms on reflections low, +0.46 ms on the step view, +0.15 ms on frames with no blending pixel), and a cost pass in this ticket before the merge (rejected: merge now and cut the cost later). The user was told that nearest taps start at +1.75 / +0.20 / +0.03 ms and that the cost after the pass is unknown. ter-7d82 keeps the blocks as follow-up work. The ball of 0.2 still shows its neighbor's reflection sharply near the rim: ter-cklj (an elliptical footprint) is filed in the epic, not as a blocker. Continuation launched: workflow run ba772b3f-6bd8-41f3-b372-651053f130d1 (version 869b0b07), brief /tmp/briefs/nw4a-cost.txt.
+
+**2026-11-03T00:40:02Z**
+
+2026-11-02: the cost pass (run ba772b3f) did all its work, clean at 008dab0bb, but failed with output_json because its report began with a sentence of prose. Result: nearest taps built; no image-keeping cut lowered the cost (the texel-depth and tile cuts were reverted because they cost the deck and floor windows 0.05 to 0.06 ms); final cost of the 'reflections' pass: reflections low +1.805 ms, step view +0.191 ms (goal +0.10, not met), deck +0.025 ms, floor +0.023 ms. Continuation launched for the review and fix: run cee79292-e694-4feb-9b3e-f68b4f961544, brief /tmp/briefs/nw4a-cost-cont.txt.
