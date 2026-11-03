@@ -2,7 +2,7 @@
 id: ter-jnyk
 status: open
 deps: []
-links: []
+links: [ter-442t]
 created: 2026-10-26T18:17:52Z
 type: bug
 priority: 4
