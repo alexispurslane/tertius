@@ -1,7 +1,7 @@
 ---
 id: ter-7khp
 status: open
-deps: [ter-vges]
+deps: [ter-vges, ter-odli]
 links: []
 created: 2026-11-03T12:30:05Z
 type: feature

@@ -13,3 +13,9 @@ tags: [content, lights, reflections]
 
 Found by ter-b1j3 (2026-11-02). After ter-b1j3, every reflection counts a lamp once, through its light's lobe alone: SSR, the map and the bounce source all read the glow of an entity that holds a light dark. So a lamp whose glowing surface is much larger than its light's sphere shows in a floor below roughness 0.37 as the light's disc on a dark panel. The cabin panels are such lamps: a 1.2 m square panel with a light of radius 5 cm. No demo view has such a floor under a panel today, so nothing in the demo shows it. Options to weigh: a light whose sphere matches the panel's size (content only), or a rectangle light with its own lobe (a renderer feature, which needs a design). Not in epic ter-b2da: the demo does not show it.
 
+
+## Notes
+
+**2026-11-03T14:54:04Z**
+
+2026-11-03: from ter-gayt (the screen tracer), the demo's paint of roughness 0.38 reflects a cabin's panel lamp as a dark square around its light's small highlight. The orchestrator settled that the dark panel waits for the panel lights of ter-80o1 (decision 39 of docs/plans/temporal-renderer.md), as the user accepted the same panel in the map's reflections (ter-ylzk).

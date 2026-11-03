@@ -59,3 +59,7 @@ On 2026-11-03 the user cleared the open tickets of the pre-temporal renderer, to
 **2026-11-03T13:31:51Z**
 
 2026-11-03: the user chose many bounces (option B of ter-vges's open question) for the diffuse rays' hits.
+
+**2026-11-03T14:54:04Z**
+
+2026-11-03: the design (ter-vges) merged as docs/plans/temporal-renderer.md. Build tickets: ter-k63u (1, FSR source and host), ter-ohqr (2, motion vectors and frame history), ter-nmbm (3, direct signal and ReSTIR DI), ter-gayt (4, screen tracer), ter-s7c6 (5, FSR in the frame with dynamic resolution), ter-odli (6, budget and defaults), ter-cgif (7, Linux run), ter-7tnv (8, corrected map read), ter-toaw (9, trace timing spike). Ticket 1's lavapipe run moved to ter-cgif, because the user decided on 2026-10-25 to skip Linux runs for now. ter-hdbw waits for ter-s7c6, ter-13rm for ter-gayt and ter-7khp for ter-odli.

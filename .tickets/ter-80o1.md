@@ -1,7 +1,7 @@
 ---
 id: ter-80o1
 status: open
-deps: [ter-vcfa, ter-pq5y, ter-htg7]
+deps: [ter-vcfa, ter-s7c6, ter-odli]
 links: []
 created: 2026-11-03T00:07:59Z
 type: epic
@@ -19,3 +19,9 @@ The model to design: a light takes the shape of its glowing surface (a rectangle
 
 To measure: the direct pass's cost per panel light against a sphere light on demo-exit, and the frame's span against ter-pq5y's 12 ms budget after that epic. The user sees the cabin lamps reflect at their true size and brightness in a mirror floor and in the demo's paint.
 
+
+## Notes
+
+**2026-11-03T14:54:04Z**
+
+2026-11-03: its dependencies on the closed ter-pq5y and ter-htg7 moved to ter-s7c6 (FSR in the frame) and ter-odli (the budget), by section 13 of docs/plans/temporal-renderer.md. Section 7, 'Panel lights', fits the LTC formula into ReSTIR DI.

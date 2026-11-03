@@ -1,7 +1,7 @@
 ---
 id: ter-hdbw
 status: open
-deps: [ter-vges]
+deps: [ter-vges, ter-s7c6]
 links: []
 created: 2026-11-03T12:22:22Z
 type: feature

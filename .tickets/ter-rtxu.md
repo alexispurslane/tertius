@@ -1,7 +1,7 @@
 ---
 id: ter-rtxu
 status: open
-deps: [ter-tanj, ter-sglu]
+deps: [ter-tanj, ter-sglu, ter-odli]
 links: []
 created: 2026-10-11T13:52:12Z
 type: epic
@@ -23,3 +23,7 @@ Steps 2 and 3 (FLIP and the snapshot helper) moved to ter-721k on 2026-10-18, so
 **2026-10-22T00:25:39Z**
 
 2026-10-21: this epic now waits for the whole rendering upgrade epic (ter-sglu) instead of its members one by one.
+
+**2026-11-03T14:54:04Z**
+
+2026-11-03: it now waits for ter-odli, the budget and defaults of the temporal renderer, because its reference images come again after FSR and the tuned defaults (docs/plans/temporal-renderer.md, section 13).

@@ -1,6 +1,6 @@
 ---
 id: ter-vges
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-11-03T12:22:22Z
