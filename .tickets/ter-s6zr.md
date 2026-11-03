@@ -1,6 +1,6 @@
 ---
 id: ter-s6zr
-status: in_progress
+status: open
 deps: [ter-0pj8, ter-55xu]
 links: [ter-bytc, ter-b1j3]
 created: 2026-11-02T12:51:56Z
@@ -56,3 +56,7 @@ Ticket 3 of ter-jw7g's design (docs/plans/environment-map-distances.md, 'Ticket 
 **2026-11-02T22:28:21Z**
 
 2026-11-02: the build of S + Q2 launched as workflow run 113a5f6f-0c2a-4d78-8c6d-f370cf1120f3, version 869b0b07-3413-4b06-8707-a88a91bf6e91, on branch ter-s6zr-corrected-read (brief /tmp/briefs/s6zr-build-sq2.txt). It merges main, ports Q2 with its C# rule and twin test, makes the one owner of the lobe's cone cover ter-nw4a's site if ter-nw4a is in main, and records the known limits and the accepted misses.
+
+**2026-11-03T00:51:43Z**
+
+Cancelled by the user on 2026-11-02, to take stock of the rendering work. The hardening task stopped during its mutation run. The branch ter-s6zr-corrected-read is 16 commits ahead of main, clean, at 570fdbbf8. It is built and reviewed, and its hardening is not finished.

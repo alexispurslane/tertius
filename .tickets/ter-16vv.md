@@ -1,6 +1,6 @@
 ---
 id: ter-16vv
-status: in_progress
+status: open
 deps: []
 links: [ter-pywg]
 created: 2026-11-02T23:28:56Z
@@ -26,3 +26,7 @@ ter-pywg's property test OnRaysOfBinaryFractionsWhoseEntriesAndCrossingsTieWithP
 **2026-11-03T00:34:52Z**
 
 2026-11-02: launched as workflow run b360b355-ae8c-44bc-8da0-c3b5bc0b8db9 (version 869b0b07), base 26524e8cc, branch ter-16vv-segment-end-tie, brief /tmp/briefs/16vv.txt. Settled by the orchestrator: the segment's end point belongs to the segment, so the trace tests the pixel of a slab entry at s = End, and the march, MeetPixel and the level-0 test do not change (the same reason as ter-pywg's rule: the march's closed stretch is the oracle).
+
+**2026-11-03T00:51:43Z**
+
+Cancelled by the user on 2026-11-02, to take stock of the rendering work. The run b360b355 stopped in its build stage. The branch ter-16vv-segment-end-tie has no commits. Its worktree keeps uncommitted changes in ScreenRay.cs, reflection.glsl, ScreenRayTests.cs, ARCHITECTURE.md and docs/plans/screen-space-reflections.md.

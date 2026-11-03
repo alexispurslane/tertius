@@ -1,6 +1,6 @@
 ---
 id: ter-coy0
-status: in_progress
+status: open
 deps: []
 links: []
 created: 2026-11-02T20:04:22Z
@@ -20,3 +20,7 @@ Found by the review of ter-b1j3 (2026-11-02). impostor.frag writes the light mar
 **2026-11-02T23:55:26Z**
 
 2026-11-02: launched as workflow run 79202d58-a24a-4298-bef7-fdb2c8ed5607 (version 869b0b07), base 46c2f4da0, branch ter-coy0-impostor-lamp-glow, brief /tmp/briefs/coy0.txt. The run measures the double count, probes two designs as patches, and ends at a fork for the user: fix it with one design, or record the exception.
+
+**2026-11-03T00:51:43Z**
+
+Cancelled by the user on 2026-11-02, to take stock of the rendering work. The run 79202d58 ended at its fork before the cancel, and the fork waits for the user. The branch ter-coy0-impostor-lamp-glow holds only the ticket note, 5569cfe97.

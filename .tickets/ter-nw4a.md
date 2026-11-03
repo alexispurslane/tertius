@@ -1,6 +1,6 @@
 ---
 id: ter-nw4a
-status: in_progress
+status: open
 deps: []
 links: [ter-eqtb]
 parent: ter-b2da
@@ -40,3 +40,7 @@ Asked by the user on 2026-11-02 about the floor film's stair steps in ter-eqtb's
 **2026-11-03T00:40:02Z**
 
 2026-11-02: the cost pass (run ba772b3f) did all its work, clean at 008dab0bb, but failed with output_json because its report began with a sentence of prose. Result: nearest taps built; no image-keeping cut lowered the cost (the texel-depth and tile cuts were reverted because they cost the deck and floor windows 0.05 to 0.06 ms); final cost of the 'reflections' pass: reflections low +1.805 ms, step view +0.191 ms (goal +0.10, not met), deck +0.025 ms, floor +0.023 ms. Continuation launched for the review and fix: run cee79292-e694-4feb-9b3e-f68b4f961544, brief /tmp/briefs/nw4a-cost-cont.txt.
+
+**2026-11-03T00:51:43Z**
+
+Cancelled by the user on 2026-11-02, to take stock of the rendering work. The continuation run cee79292 stopped in its build stage, after it merged main (7a774cd9b) and before its checks. The branch ter-nw4a-reflected-outline is 17 commits ahead of main and clean. It holds no review of the cost pass and no hardening.
