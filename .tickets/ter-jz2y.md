@@ -1,6 +1,6 @@
 ---
 id: ter-jz2y
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-11-03T16:06:43Z
@@ -20,3 +20,9 @@ Two ways out, which the design doc must choose between before ticket 4 (ter-gayt
 
 The spike's timing does not depend on the choice, because the spike traces both rays.
 
+
+## Notes
+
+**2026-11-03T16:48:59Z**
+
+2026-11-03: the orchestrator settled it as way 2, under the user's rule for small choices inside a chosen design: the block's chosen pixel traces no own ray of that kind, and its own sample is the block ray at weight 1. It saves a trace, and the lean trace spike (ter-8hbi) uses the same rule. Section 6, 'Randomness', of docs/plans/temporal-renderer.md now says so.
