@@ -600,6 +600,12 @@ The inputs:
 
 The exposure step. The renderer knows the exposure only on the GPU, a few frames late on the CPU (ARCHITECTURE.md, "The exposure buffer"). FSR rescales its histories by the ratio of this frame's pre-exposure to the last frame's. So the CPU writes every other field of the constant buffer as AMD's host does. Then a dispatch of one invocation, `fsr_exposure.comp`, writes the two pre-exposures and the exposure image from the exposure buffer. It runs before the first FSR dispatch. The exposure buffer gains a second float, `previousStops`. The adapt step writes the stops that this frame used into it, before it writes the next stops. Under `FixedExposure` both are the setting's stops. The accumulators read the same two floats (section 8). Patching AMD's shaders to read the buffer works too, but keeps a diff on every later pin.
 
+Corrections from ticket `ter-k63u` (2026-11-03):
+
+- The exposure image. AMD's 3.1.4 shaders never divide the color by the pre-exposure. They multiply the color by the exposure image, and divide the history by it again before the output. So for the pre-exposed color, the exposure that gives "the color itself" is 1, not 2^S. The host binds AMD's default exposure image, 0, which the shaders read as 1, and `fsr_exposure.comp` writes only the ratio 2^S / 2^S_prev into the constant buffer's `deltaPreExposure`. The row "Exposure" of the inputs table above is wrong in this point.
+- The interface. `Record` takes the command buffer and the barrier batch, so that the GPU tests can call it without a frame, and the frame's values are one `Fsr3Frame` in `Fsr3Inputs`. Ticket 5 passes those of the `FrameContext`. The constructor takes the allocator, the shader library and the frames in flight, and no depth parameter: the engine has one depth convention, reversed and infinite.
+- The format defect. Two of AMD's declarations differ from the images that AMD's host binds, `rw_luma_history` and `rw_output_autoreactive`. The rule above resolved both (`src/Tertius.Rendering/ThirdParty/Fsr3/README.md`).
+
 The host's own tests compare its calculations with AMD's. A small C++ tool in `tools/fsr3-golden/` builds in the dev shell from AMD's host sources. For a table of inputs, it prints the jitter, the phase counts, the depth constants, the dispatch sizes and the constant buffer. The C# tests hold those values. AMD's host code needs no Windows header for those pure functions, so the tool builds on the Mac.
 
 ### Where FSR loses

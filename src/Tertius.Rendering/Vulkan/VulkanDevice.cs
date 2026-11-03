@@ -427,6 +427,8 @@ internal sealed unsafe class VulkanDevice : IDisposable
             return "samplerAnisotropy";
         if (!f.ShaderStorageImageExtendedFormats)
             return "shaderStorageImageExtendedFormats";
+        if (!f.ShaderStorageImageWriteWithoutFormat)
+            return "shaderStorageImageWriteWithoutFormat";
         if (!f.ImageCubeArray)
             return "imageCubeArray";
         return null;
@@ -500,6 +502,9 @@ internal sealed unsafe class VulkanDevice : IDisposable
             SamplerAnisotropy = true,
             // The occlusion passes store R8 and R16F images (docs/plans/ambient-occlusion.md, decision 35).
             ShaderStorageImageExtendedFormats = true,
+            // AMD's FSR 3.1 accumulate pass writes its output image, declared with no format
+            // (docs/plans/temporal-renderer.md, "FSR 3.1").
+            ShaderStorageImageWriteWithoutFormat = true,
             // The environment maps of the chain's frames are cube arrays (docs/plans/environment-maps-per-frame.md,
             // decision 18).
             ImageCubeArray = true,

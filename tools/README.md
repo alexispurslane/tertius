@@ -401,6 +401,36 @@ nix develop --command dotnet run -c Release --project benchmarks/Tertius.Benchma
 
 The filter matches the full name of the method, with wildcards. A filter that names only the class runs every method of the class with every parameter value.
 
+## FSR 3.1 golden values
+
+`tools/fsr3-golden/` holds tool code for the FSR 3.1 host (`Fsr3Upscaler`, ARCHITECTURE.md, "Upscaling: FSR 3.1"). The dev shell fetches AMD's FidelityFX SDK at tag `v1.1.4` into the variable `TERTIUS_FFX_SDK` (`native/fidelityfx-sdk.nix`). Both scripts read AMD's code from there and never from the network.
+
+`build.sh` compiles `golden.cpp` with AMD's unchanged host code, `ffx_fsr3upscaler.cpp` and its shared files, and writes `tests/Tertius.Rendering.Tests/Fsr3Golden.json`. Run it after a change to `golden.cpp` or to the pin:
+
+```bash
+nix develop --command bash tools/fsr3-golden/build.sh
+```
+
+- `golden.cpp` is a backend of AMD's `FfxInterface` that runs no GPU. It records the resources that AMD's host creates, the constant buffers that it stages, and the jobs that it schedules: the clears, the dispatches and the discards. It reports waves of 32 lanes and no 16-bit floats, so AMD picks the permutation without the Lanczos table.
+- It prints AMD's jitter phase counts, AMD's jitter offsets, the layout of the constant buffer, and three sequences of frames with their inputs, constants, pyramid constants and jobs. The "budget" sequence, from 1920 × 1080, has resets, render size changes, odd frame times and changes of the pre-exposure. The "odd" sequence has odd sizes, and the "small" sequence the sizes of the GPU tests.
+- `compat.h` gives the few Windows names that AMD's code uses. The build uses `-fshort-wchar`, because AMD's private context assumes the 2-byte `wchar_t` of Windows.
+- `Fsr3HostTests` hold the file as an embedded resource and compare the host with it. A value from the math library, such as the tangent of the field of view, can differ by one unit in the last place on another C library. So those values compare within one unit.
+
+`check-pin.sh` compares the pinned GLSL in `src/Tertius.Rendering/ThirdParty/Fsr3` with AMD's tag. It passes when the only differences are those in `pin.diff`, the two declarations that the folder's README records:
+
+```bash
+nix develop --command bash tools/fsr3-golden/check-pin.sh
+```
+
+`Fsr3UpscalerTests.AnUpscaleFrom1280x720To1920x1080ReportsItsGpuTime` measures FSR's GPU time by timestamps around `Record`. It runs only with `TERTIUS_FSR_TIMING=1`, and it prints the median and the percentiles of 300 frames. Run it in Release under the GPU lock:
+
+```bash
+nix develop --command dotnet build tests/Tertius.Rendering.Tests -c Release
+mkdir /tmp/tertius-gpu-measure.lock
+TERTIUS_FSR_TIMING=1 nix develop --command dotnet test --project tests/Tertius.Rendering.Tests -c Release --no-build --filter-method "*ReportsItsGpuTime" --output detailed
+rmdir /tmp/tertius-gpu-measure.lock
+```
+
 ## GPU trace
 
 `tools/gpu-trace.sh` records a Metal System Trace of a headless demo run, and writes a table of each pass's GPU time and limiters. It runs only on macOS, with Xcode's `xctrace` (27.0 on the development Mac). No engine code depends on it: the GPU timings of a headless run (ARCHITECTURE.md, "GPU timings") work on every Vulkan driver, and this script adds why a pass takes its time.

@@ -2,6 +2,13 @@
   <PropertyGroup>
     <!-- glslc comes from shaderc in the Nix dev shell. Override with -p:Glslc=/path/to/glslc. -->
     <Glslc Condition="'$(Glslc)' == ''">glslc</Glslc>
+    <!-- glslang and spirv-val come from the dev shell too. They build AMD's FSR 3.1 passes (ThirdParty/Fsr3/README.md). -->
+    <Glslang Condition="'$(Glslang)' == ''">glslangValidator</Glslang>
+    <SpirvVal Condition="'$(SpirvVal)' == ''">spirv-val</SpirvVal>
+    <Fsr3Root>$(MSBuildProjectDirectory)/ThirdParty/Fsr3/sdk/include/FidelityFX/gpu</Fsr3Root>
+    <!-- The portable build: 32-bit floats, SPD without wave operations, the reference Lanczos, and the engine's inputs
+         (HDR color, render-size motion vectors without jitter, reversed depth), without sharpening. -->
+    <Fsr3Defines>-DFFX_GPU=1 -DFFX_GLSL=1 -DFFX_HALF=0 -DFFX_SPD_NO_WAVE_OPERATIONS=1 -DFFX_FSR3UPSCALER_OPTION_UPSAMPLE_SAMPLERS_USE_DATA_HALF=0 -DFFX_FSR3UPSCALER_OPTION_ACCUMULATE_SAMPLERS_USE_DATA_HALF=0 -DFFX_FSR3UPSCALER_OPTION_REPROJECT_SAMPLERS_USE_DATA_HALF=1 -DFFX_FSR3UPSCALER_OPTION_POSTPROCESSLOCKSTATUS_SAMPLERS_USE_DATA_HALF=0 -DFFX_FSR3UPSCALER_OPTION_UPSAMPLE_USE_LANCZOS_TYPE=2 -DFFX_FSR3UPSCALER_OPTION_REPROJECT_USE_LANCZOS_TYPE=0 -DFFX_FSR3UPSCALER_OPTION_HDR_COLOR_INPUT=1 -DFFX_FSR3UPSCALER_OPTION_LOW_RESOLUTION_MOTION_VECTORS=1 -DFFX_FSR3UPSCALER_OPTION_JITTERED_MOTION_VECTORS=0 -DFFX_FSR3UPSCALER_OPTION_INVERTED_DEPTH=1 -DFFX_FSR3UPSCALER_OPTION_APPLY_SHARPENING=0</Fsr3Defines>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../Tertius.Core/Tertius.Core.csproj" />
@@ -29,6 +36,30 @@
   <ItemGroup>
     <EmbeddedResource Include="ThirdParty/Smaa/*.bin" LogicalName="Tertius.Rendering.Smaa.%(Filename)%(Extension)" WithCulture="false" />
   </ItemGroup>
+
+  <!-- AMD's FSR 3.1.4 passes that the engine dispatches, compiled by glslang with the portable defines and checked by
+       spirv-val, embedded as Tertius.Rendering.Shaders.<file>.spv. The sharpening and debug passes stay out. -->
+  <ItemGroup>
+    <Fsr3Shader Include="ThirdParty/Fsr3/sdk/src/backends/vk/shaders/fsr3upscaler/*.glsl"
+                Exclude="ThirdParty/Fsr3/sdk/src/backends/vk/shaders/fsr3upscaler/ffx_fsr3upscaler_rcas_pass.glsl;ThirdParty/Fsr3/sdk/src/backends/vk/shaders/fsr3upscaler/ffx_fsr3upscaler_debug_view_pass.glsl" />
+    <Fsr3Include Include="ThirdParty/Fsr3/sdk/include/FidelityFX/gpu/**/*.h" />
+    <None Include="@(Fsr3Shader);@(Fsr3Include)" />
+  </ItemGroup>
+
+  <Target Name="CompileFsr3Shaders" BeforeTargets="BeforeBuild"
+          Inputs="@(Fsr3Shader);@(Fsr3Include);$(MSBuildProjectFullPath)"
+          Outputs="@(Fsr3Shader->'$(IntermediateOutputPath)shaders/%(Filename)%(Extension).spv')">
+    <MakeDir Directories="$(IntermediateOutputPath)shaders" />
+    <Exec Command="&quot;$(Glslang)&quot; -V --target-env vulkan1.3 -S comp -Os $(Fsr3Defines) -I&quot;$(Fsr3Root)&quot; -I&quot;$(Fsr3Root)/fsr3upscaler&quot; -o &quot;$(IntermediateOutputPath)shaders/%(Fsr3Shader.Filename)%(Fsr3Shader.Extension).spv&quot; &quot;%(Fsr3Shader.FullPath)&quot;" />
+    <Exec Command="&quot;$(SpirvVal)&quot; --target-env vulkan1.3 &quot;$(IntermediateOutputPath)shaders/%(Fsr3Shader.Filename)%(Fsr3Shader.Extension).spv&quot;" />
+  </Target>
+
+  <Target Name="EmbedFsr3Shaders" DependsOnTargets="CompileFsr3Shaders" BeforeTargets="BeforeBuild">
+    <ItemGroup>
+      <_Fsr3Spirv Include="@(Fsr3Shader->'$(IntermediateOutputPath)shaders/%(Filename)%(Extension).spv')" />
+      <EmbeddedResource Include="@(_Fsr3Spirv)" LogicalName="Tertius.Rendering.Shaders.%(_Fsr3Spirv.Filename)%(_Fsr3Spirv.Extension)" WithCulture="false" />
+    </ItemGroup>
+  </Target>
 
   <Target Name="CompileGlslShaders" BeforeTargets="BeforeBuild"
           Inputs="@(GlslShader);@(GlslInclude);$(MSBuildProjectFullPath)"

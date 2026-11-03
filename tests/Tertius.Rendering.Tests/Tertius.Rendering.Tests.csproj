@@ -11,6 +11,10 @@
     <PackageReference Include="AwesomeAssertions" />
     <PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" />
   </ItemGroup>
+  <!-- The golden values of FSR 3.1.4's host calculations, which tools/fsr3-golden/build.sh writes from AMD's code. -->
+  <ItemGroup>
+    <EmbeddedResource Include="Fsr3Golden.json" LogicalName="Tertius.Rendering.Tests.Fsr3Golden.json" WithCulture="false" />
+  </ItemGroup>
   <ItemGroup>
     <Using Include="Xunit" />
     <Using Include="AwesomeAssertions" />

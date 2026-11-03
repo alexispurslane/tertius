@@ -17,6 +17,8 @@
       packages = forAllSystems (pkgs: {
         joltc-double = pkgs.callPackage ./native/joltc.nix { };
         jscpd = pkgs.callPackage ./native/jscpd.nix { };
+        # AMD's FSR 3.1 host sources at the pin, for tools/fsr3-golden/ (native/fidelityfx-sdk.nix).
+        fidelityfx-sdk = pkgs.callPackage ./native/fidelityfx-sdk.nix { };
         # The official Blender Lab MCP server of the assets shell. Its add-on is passthru.addon.
         blender-mcp = pkgs.callPackage ./native/blender-mcp.nix { };
         # The dev shell's SDK, so that tools/rider.sh can keep a stable link to it (.nix/dotnet-sdk) for Rider.
@@ -29,6 +31,7 @@
           dotnet = pkgs.dotnet-sdk_11;
           joltc = pkgs.callPackage ./native/joltc.nix { };
           jscpd = pkgs.callPackage ./native/jscpd.nix { };
+          fidelityfxSdk = pkgs.callPackage ./native/fidelityfx-sdk.nix { };
           blenderMcp = pkgs.callPackage ./native/blender-mcp.nix { };
           mpfb = pkgs.callPackage ./native/mpfb.nix { };
           makehumanAssets = pkgs.callPackage ./native/makehuman-assets.nix { };
@@ -58,6 +61,8 @@
               pkgs.python3
               pkgs.shaderc
               pkgs.glslang
+              # spirv-val checks every FSR module in the build (src/Tertius.Rendering/ThirdParty/Fsr3/README.md).
+              pkgs.spirv-tools
               pkgs.vulkan-headers
               pkgs.vulkan-loader
               pkgs.vulkan-tools
@@ -92,6 +97,9 @@
 
             # The Nix-built double-precision Jolt library, which Directory.Build.targets copies next to each output.
             TERTIUS_JOLTC_DIR = "${joltc}/lib";
+
+            # AMD's FSR 3.1 host sources at the pin, which tools/fsr3-golden/ builds from.
+            TERTIUS_FFX_SDK = "${fidelityfxSdk}";
 
             # The Vulkan loader, which Directory.Build.targets copies next to each output, so that Silk.NET finds it
             # without DYLD_FALLBACK_LIBRARY_PATH. macOS removes DYLD_* variables in /usr/bin/env and in apps with the

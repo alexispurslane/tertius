@@ -1,0 +1,20 @@
+--- amd/sdk/include/FidelityFX/gpu/fsr3upscaler/ffx_fsr3upscaler_callbacks_glsl.h
++++ pin/sdk/include/FidelityFX/gpu/fsr3upscaler/ffx_fsr3upscaler_callbacks_glsl.h
+@@ -395,7 +395,7 @@
+ #endif
+ 
+ #if defined(FSR3UPSCALER_BIND_UAV_LUMA_HISTORY)
+-layout (set = 0, binding = FSR3UPSCALER_BIND_UAV_LUMA_HISTORY, rgba8) uniform image2D  rw_luma_history;
++layout (set = 0, binding = FSR3UPSCALER_BIND_UAV_LUMA_HISTORY, rgba16f) uniform image2D  rw_luma_history;
+ 
+ void StoreLumaHistory(FfxInt32x2 iPxPos, FfxFloat32x4 fLumaHistory)
+ {
+@@ -782,7 +782,7 @@
+ #if defined(FSR3UPSCALER_BIND_UAV_AUTOREACTIVE) && \
+     defined(FSR3UPSCALER_BIND_UAV_AUTOCOMPOSITION)
+ 
+-layout(set = 0, binding = FSR3UPSCALER_BIND_UAV_AUTOREACTIVE, r32f)    uniform image2D  rw_output_autoreactive;
++layout(set = 0, binding = FSR3UPSCALER_BIND_UAV_AUTOREACTIVE, r8)    uniform image2D  rw_output_autoreactive;
+ layout(set = 0, binding = FSR3UPSCALER_BIND_UAV_AUTOCOMPOSITION, r32f) uniform image2D  rw_output_autocomposition;
+ 
+ void StoreAutoReactive(FFX_PARAMETER_IN FFX_MIN16_I2 iPxPos, FFX_PARAMETER_IN FFX_MIN16_F2 fReactive)
