@@ -25,3 +25,9 @@ Scope:
 
 The GPU lock (mkdir /tmp/tertius-gpu-measure.lock) holds for every timed run. Persistent lanes stay untested (ter-8hbi's review), and this spike leaves them out.
 
+
+## Notes
+
+**2026-11-03T20:45:23Z**
+
+2026-11-03: add the direct signal's temporal accumulation (accumulate_temporal.comp, the pass "accumulate direct") to step 2's profile in Xcode, beside the walk step and FSR's accumulate pass. The direct light's build (branch ter-nmbm-direct-light) measured it at 0.67 ms on lamp-hall-64 and 1.15 ms on demo-exit's deck at 1280 x 720, against a budget of 0.15 to 0.30 ms. That is the same pattern as FSR (2.8 ms against AMD's under 1 ms) and the trace: a compute pass at 2 to 4 times its expected cost on this Mac. If the profile shows one cause for all three, the ticket for the direct signal's cost (ter-9nrc, on that branch) uses it.
