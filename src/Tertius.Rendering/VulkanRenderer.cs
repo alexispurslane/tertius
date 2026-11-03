@@ -169,7 +169,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             surfaceHistory = CreateSurfaceHistory();
             // Before the occlusion images, whose bounce source reads the direct signal's slow diffuse history.
             DirectSignal = CreateDirectSignal(shaders, options);
-            reservoirs = options.DirectLight is ResampledLights ? CreateReservoirs() : null;
+            reservoirs = options.DirectLight is ResampledLights resampled ? CreateReservoirs(resampled) : null;
 
             // Before every pass, whose shading constants say whether the scatter is on.
             ScatterImages = CreateScatterImages(options.Subsurface);
@@ -235,6 +235,9 @@ public sealed unsafe class VulkanRenderer : IRenderer
 
     /// <summary>The direct signal: its samples, which the direct pass writes, and its histories. A test hook.</summary>
     internal TemporalSignal DirectSignal { get; }
+
+    /// <summary>ReSTIR's reservoirs under <see cref="ResampledLights"/>, else null. A test hook.</summary>
+    internal LightReservoirs? Reservoirs => reservoirs;
 
     internal SceneBatcher Batcher { get; }
 
@@ -770,7 +773,6 @@ public sealed unsafe class VulkanRenderer : IRenderer
         context.History = history;
         context.Snapshot = snapshot;
         context.Alpha = alpha;
-        context.ExposureStep = history.ExposureStep;
         context.Scene = LastScene;
 
         context.Output = image;
@@ -906,8 +908,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
         // The surface history first, whose test image the signal's and the reservoirs' sets bind, and the direct signal
         // before the occlusion images, whose set binds its slow diffuse history.
         surfaceHistory.Resize(targets);
-        DirectSignal.Resize(targets, surfaceHistory);
-        reservoirs?.Resize(targets, surfaceHistory);
+        DirectSignal.Resize();
+        reservoirs?.Resize();
         occlusionImages?.Resize(targets);
         ScatterImages?.Resize(targets);
     }
@@ -1056,6 +1058,45 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// the history, with a 1 at every lit pixel. A test hook.
     /// </summary>
     internal float[] ReadDirectSample(int part) => ReadLevel(image: DirectSignal.Sample(part), layer: 0, mip: 0).Values;
+
+    /// <summary>
+    /// The reservoirs of R0 after the last frame under <see cref="ResampledLights"/>, the reservoirs that "light candidates"
+    /// wrote, one per pixel, row by row from the top: the chosen light, M and W, as restir.glsl packs them. A test hook: it
+    /// waits for the device to be idle and submits its own copy.
+    /// </summary>
+    internal (int Light, int M, float W)[] ReadCandidateReservoirs()
+    {
+        LightReservoirs held = reservoirs ?? throw new InvalidOperationException("Only ResampledLights keeps reservoirs.");
+        float[] texels = ReadLevel(image: held.R0, layer: 0, mip: 0).Values;
+        var read = new (int Light, int M, float W)[texels.Length / 2];
+        for (int pixel = 0; pixel < read.Length; pixel++)
+        {
+            uint x = BitConverter.SingleToUInt32Bits(texels[2 * pixel]);
+            read[pixel] = (Light: (int)(x & 0xFFFF), M: (int)(x >> 16), W: texels[2 * pixel + 1]);
+        }
+
+        return read;
+    }
+
+    /// <summary>
+    /// The exposure buffer: the stops that the next frame uses, and the stops that the frame before it used, which its
+    /// histories hold. A test hook: it waits for the device to be idle and submits its own copy.
+    /// </summary>
+    internal (float Stops, float PreviousStops) ReadExposureStops()
+    {
+        GpuBuffer exposure = Exposure.Buffer;
+        using var buffer = GpuBuffer.Create(
+            device: device,
+            allocator: Allocator,
+            size: exposure.Size,
+            usage: BufferUsageFlags.TransferDstBit,
+            memoryUsage: MemoryUsage.Readback,
+            name: "exposure readback"
+        );
+        SubmitAndWait(commandBuffer => CopyBuffer(commandBuffer: commandBuffer, source: exposure, buffer: buffer));
+        ReadOnlySpan<float> stops = new(buffer.Mapped, 2);
+        return (stops[0], stops[1]);
+    }
 
     /// <summary>
     /// The motion target of the last frame, RGBA per pixel, row by row from the top: xy the last drawn frame's place of the
@@ -1991,13 +2032,14 @@ public sealed unsafe class VulkanRenderer : IRenderer
             )
         );
 
-    /// <summary>ReSTIR's two reservoir images, which only <see cref="ResampledLights"/> needs.</summary>
-    private LightReservoirs CreateReservoirs() =>
+    /// <summary>ReSTIR's two reservoir images of <paramref name="setting"/>, which only <see cref="ResampledLights"/> needs.</summary>
+    private LightReservoirs CreateReservoirs(ResampledLights setting) =>
         Own(
             new LightReservoirs(
                 device: device,
                 allocator: Allocator,
                 layouts: layouts,
+                setting: setting,
                 targets: targets,
                 surfaces: surfaceHistory
             )
@@ -2171,12 +2213,13 @@ public sealed unsafe class VulkanRenderer : IRenderer
         };
 
     /// <summary>
-    /// Adds ReSTIR's candidates under <see cref="ResampledLights"/>, the direct pass, the direct signal's accumulation and
-    /// the composite, which writes the diffuse image too under <see cref="SeparableSubsurface"/>.
+    /// Adds ReSTIR's candidates under <see cref="ResampledLights"/>, whose reservoirs exist only then, the direct pass, the
+    /// direct signal's accumulation and the composite, which writes the diffuse image too under
+    /// <see cref="SeparableSubsurface"/>.
     /// </summary>
-    private void AddLightingPasses(ShaderLibrary shaders, DirectLightSetting setting)
+    private void AddLightingPasses(ShaderLibrary shaders)
     {
-        if (setting is ResampledLights resampled && reservoirs is { } held)
+        if (reservoirs is { } held)
             Graph.Add(
                 FrameGraph.Stage.LightCandidates,
                 new LightCandidatesPass(
@@ -2185,8 +2228,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
                     layouts: layouts,
                     constants: ShadingConstants,
                     reservoirs: held,
-                    surfaces: surfaceHistory,
-                    setting: resampled
+                    surfaces: surfaceHistory
                 )
             );
         Graph.Add(
@@ -2197,13 +2239,12 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 layouts: layouts,
                 constants: ShadingConstants,
                 signal: DirectSignal,
-                setting: setting,
                 reservoirs: reservoirs
             )
         );
         Graph.Add(
             FrameGraph.Stage.AccumulateDirect,
-            new AccumulatePass(signal: DirectSignal, surfaces: surfaceHistory, signalName: "direct")
+            new AccumulatePass(DirectSignal)
         );
         Graph.Add(
             FrameGraph.Stage.Composite,
@@ -2225,7 +2266,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// </summary>
     private void AddPassesAfterGeometry(ShaderLibrary shaders, RendererOptions options)
     {
-        AddLightingPasses(shaders, options.DirectLight);
+        AddLightingPasses(shaders);
         Graph.Add(FrameGraph.Stage.Haze, new HazePass(device: device, shaders: shaders, layouts: layouts));
         Graph.Add(
             FrameGraph.Stage.Transparent,

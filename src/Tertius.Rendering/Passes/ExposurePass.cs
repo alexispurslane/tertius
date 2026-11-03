@@ -78,7 +78,7 @@ internal sealed unsafe class ExposurePass : RenderPass
         barriers.Buffer(context.Exposure.Buffer, BufferUse.ComputeWrite);
         barriers.Flush(vk, commandBuffer);
         vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Compute, adapt);
-        ExposureAdaptPushConstants push = PushConstants(context.ExposureStep);
+        ExposureAdaptPushConstants push = PushConstants(context.History.ExposureStep);
         vk.CmdPushConstants(
             commandBuffer: commandBuffer,
             layout: layouts.ExposureLayout,

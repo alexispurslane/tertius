@@ -4,11 +4,12 @@ using Tertius.Testing;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// ReSTIR DI against the exact loop (docs/plans/temporal-renderer.md, section 7): one light gives the exact light, in a
-/// closed box lit by its lamps, under a bright light with a cascade set that the box shadows, the box's accumulated light
-/// matches <see cref="EveryLight"/>, and the temporal reuse keeps a lamp's shadow. Each test draws one still of the same
-/// snapshot under each setting, with the shadow atlas on, and compares the direct signal of the shown draws: the samples,
-/// which ReSTIR estimates, or the histories, which the accumulator settles.
+/// ReSTIR DI against the exact loop (docs/plans/temporal-renderer.md, section 7): one light gives the exact light, a light
+/// with a cascade set stays exact beside it, in a closed box lit by its lamps, under a bright light with a cascade set that
+/// the box shadows, the box's light matches <see cref="EveryLight"/> with the noise of its lamps alone, and the temporal
+/// reuse keeps a lamp's shadow. Most tests draw one still of the same snapshot under each setting, with the shadow atlas
+/// on, and compare the direct signal of the shown draws: the samples, which ReSTIR estimates, or the histories, which the
+/// accumulator settles.
 /// </summary>
 [Collection(GpuCollection.Name)]
 public sealed class ResampledLightsRenderTests
@@ -21,6 +22,32 @@ public sealed class ResampledLightsRenderTests
     /// its sum: the bias that the lamp hall of 64 lamps measured, rounded up (ARCHITECTURE.md, "ReSTIR DI").
     /// </summary>
     private const double BiasBound = 0.05;
+
+    /// <summary>
+    /// The bound of the mean relative error of the box's samples against the exact loop's: its measured 0.308 (2026-11-03),
+    /// rounded up. Decision 28 makes the star exact because a sampled star, whose light the box shadows, would take
+    /// candidates from the lamps and raise this noise.
+    /// </summary>
+    private const double SampleErrorBound = 0.40;
+
+    /// <summary>
+    /// The mean over the pixels that <paramref name="counts"/> keeps of the relative error of <paramref name="resampled"/>'s
+    /// light against <paramref name="exact"/>'s, both summed over the three channels: the noise of a single draw.
+    /// </summary>
+    private static double SampleErrorOf(Vector3[] exact, Vector3[] resampled, Func<int, bool> counts)
+    {
+        double error = 0;
+        int pixels = 0;
+        for (int pixel = 0; pixel < exact.Length; pixel++)
+        {
+            if (!counts(pixel))
+                continue;
+            float reference = exact[pixel].X + exact[pixel].Y + exact[pixel].Z;
+            error += Math.Abs(resampled[pixel].X + resampled[pixel].Y + resampled[pixel].Z - reference) / reference;
+            pixels++;
+        }
+        return error / pixels;
+    }
 
     /// <summary>
     /// The relative error of the sum of <paramref name="resampled"/>'s light against the sum of <paramref name="exact"/>'s,
@@ -74,12 +101,19 @@ public sealed class ResampledLightsRenderTests
     }
 
     /// <summary>A wall 8 m ahead that fills the view, lit by one lamp of entity 2, with no star.</summary>
-    private static RenderSnapshot OneLamp(VulkanRenderer renderer)
+    private static RenderSnapshot OneLamp(VulkanRenderer renderer) => OneLamp(renderer, star: false, lamp: new(1, 0.5f, -5));
+
+    /// <summary>
+    /// A wall 8 m ahead that fills the view, lit by one lamp of entity 2 at <paramref name="lamp"/>, and, if
+    /// <paramref name="star"/>, by the test star, which holds the cascade set.
+    /// </summary>
+    private static RenderSnapshot OneLamp(VulkanRenderer renderer, bool star, Vector3 lamp)
     {
         MeshId cube = renderer.CreateMesh(Primitives.Box(new(0.5f)));
         MaterialId paint = renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.8f, y: 0.6f, z: 0.4f, w: 1f), roughness: 0.4f));
-        RenderSnapshot snapshot = Gpu.Snapshot(new(0.3f, 1f, 0.4f));
-        snapshot.Lights.Clear();
+        RenderSnapshot snapshot = Gpu.Snapshot(new(0.3f, 1f, 0.4f), starIrradiance: 20f);
+        if (!star)
+            snapshot.Lights.Clear();
         snapshot.Instances.Add(
             Gpu.Instance(
                 mesh: cube,
@@ -91,7 +125,7 @@ public sealed class ResampledLightsRenderTests
             )
         );
         snapshot.Lights.Add(
-            Gpu.Lamp(position: new(1, 0.5f, -5), color: Vector3.One, intensity: 40, chainDepth: TestChains.CamerasFrame)
+            Gpu.Lamp(position: lamp, color: Vector3.One, intensity: 40, chainDepth: TestChains.CamerasFrame)
                 with
                 {
                     EntityIndex = 2,
@@ -199,6 +233,28 @@ public sealed class ResampledLightsRenderTests
     }
 
     [Fact]
+    public void ALightWithACascadeSetStaysExactBesideASampledLamp()
+    {
+        Vector3[] exact = DirectOf(new EveryLight(), r => OneLamp(r, star: true, lamp: new(1, 0.5f, -5)), samples: true);
+
+        Vector3[] resampled = DirectOf(
+            ResampledLights.Default,
+            r => OneLamp(r, star: true, lamp: new(1, 0.5f, -5)),
+            samples: true
+        );
+
+        for (int pixel = 0; pixel < exact.Length; pixel++)
+            resampled[pixel]
+                .X.Should()
+                .BeApproximately(
+                    exact[pixel].X,
+                    2e-3f * MathF.Max(exact[pixel].X, 1e-3f),
+                    "pixel {0} takes the star exactly and the one sampled lamp with W = 1",
+                    pixel
+                );
+    }
+
+    [Fact]
     public void ABoxLitByItsLampsUnderAStarWithACascadeSetThatItShadowsMatchesTheExactLoop()
     {
         Vector3[] exact = DirectOf(new EveryLight(), LitBox, samples: false);
@@ -208,6 +264,88 @@ public sealed class ResampledLightsRenderTests
         (double bias, int lit) = BiasOf(exact, resampled, pixel => exact[pixel].X + exact[pixel].Y + exact[pixel].Z > 1e-3f);
         lit.Should().BeGreaterThan(exact.Length / 2, "the lamps light most of the box");
         bias.Should().BeInRange(-BiasBound, BiasBound, "the star's cascade set makes it an exact light");
+    }
+
+    [Fact]
+    public void InABoxUnderAStarWithACascadeSetTheSamplesHoldOnlyTheNoiseOfTheLamps()
+    {
+        Vector3[] exact = DirectOf(new EveryLight(), LitBox, samples: true);
+
+        Vector3[] resampled = DirectOf(ResampledLights.Default, LitBox, samples: true);
+
+        double error = SampleErrorOf(exact, resampled, pixel => exact[pixel].X + exact[pixel].Y + exact[pixel].Z > 1e-3f);
+        TestContext.Current.TestOutputHelper?.WriteLine($"The box's sample error: {error:0.0000}.");
+        error.Should().BeLessThan(SampleErrorBound, "no candidate goes to the star, whose light the box shadows");
+    }
+
+    [Fact]
+    public void AReservoirWhoseCandidatesFoundNoLightStillStandsForThemInTheNextFrame()
+    {
+        // The lamp lies behind the wall, so every candidate at every pixel has a target of 0.
+        VulkanRenderer renderer = Gpu.Headless(
+            width: Width,
+            height: Height,
+            localShadows: LocalShadowAtlas.Default,
+            directLight: ResampledLights.Default
+        );
+        try
+        {
+            RenderSnapshot snapshot = OneLamp(renderer, star: false, lamp: new(0, 0, -12));
+            renderer.Render(snapshot, 1f);
+            for (int frame = 0; frame < 2; frame++)
+            {
+                snapshot.Time += 1.0 / 60.0;
+                renderer.Render(snapshot, 1f);
+            }
+
+            (int light, int m, float w) = renderer.ReadCandidateReservoirs()[Height / 2 * Width + Width / 2];
+
+            w.Should().Be(0, "no candidate found light");
+            m.Should().Be(4 + 80, "the 4 candidates of this frame, and the last frame's reservoir capped at 80 (light {0})", light);
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void TheSignalTheReservoirsAndTheLightTableKeepTheirInvariantsThroughFramesAndAResize()
+    {
+        VulkanRenderer renderer = Gpu.Headless(
+            width: Width,
+            height: Height,
+            localShadows: LocalShadowAtlas.Default,
+            directLight: ResampledLights.Default
+        );
+        try
+        {
+            RenderSnapshot snapshot = LitBox(renderer);
+            for (int frame = 0; frame < 3; frame++)
+            {
+                snapshot.Time += 1.0 / 60.0;
+                renderer.Render(snapshot, 1f);
+            }
+            AssertDirectInvariants(renderer);
+
+            renderer.Resize(Width / 2, Height / 2);
+            snapshot.Time += 1.0 / 60.0;
+            renderer.Render(snapshot, 1f);
+
+            AssertDirectInvariants(renderer);
+            renderer.DirectSignal.Slow(0).Extent.Width.Should().Be(Width / 2, "the resize reached the signal");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    private static void AssertDirectInvariants(VulkanRenderer renderer)
+    {
+        renderer.DirectSignal.AssertInvariants();
+        renderer.Reservoirs!.AssertInvariants();
+        renderer.LastScene.LightTable.AssertInvariants();
     }
 
     [Fact]

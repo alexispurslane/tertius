@@ -242,8 +242,6 @@ internal sealed class FrameContext
     /// <summary>The interpolation factor of this frame.</summary>
     public float Alpha { get; set; }
 
-    /// <summary>The step, in s, by which this draw's adapt step moves the exposure (docs/plans/auto-exposure.md, "The clock").</summary>
-    public float ExposureStep { get; set; }
 
     public PreparedScene Scene { get; set; } = null!;
 

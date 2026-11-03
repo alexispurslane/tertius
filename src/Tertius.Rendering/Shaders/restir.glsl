@@ -85,7 +85,9 @@ float nextRandom(inout RandomStream r)
     return float(v.x >> 8) * (1.0 / 16777216.0);
 }
 
-// A reservoir unpacked from its RG32UI texel: x the light in the low 16 bits and M in the high 16, y the bits of W.
+// A reservoir unpacked from its RG32UI texel: x the light in the low 16 bits and M in the high 16, y the bits of W. It holds
+// a choice exactly where W > 0 (holdsChoice), and its light means something only there. A reservoir without a choice, whose
+// candidates all had a target of 0 or whose choice a visibility test emptied, still stands for its M candidates.
 struct Reservoir
 {
     uint light;
@@ -100,6 +102,12 @@ Reservoir emptyReservoir()
     r.M = 0.0;
     r.W = 0.0;
     return r;
+}
+
+// Whether the reservoir holds a choice: the one test of it, also false for a W that is NaN.
+bool holdsChoice(Reservoir r)
+{
+    return r.W > 0.0;
 }
 
 Reservoir unpackReservoir(uvec2 texel)
@@ -147,13 +155,14 @@ void addCandidate(inout Combining c, uint light, float target, float w, float m,
 }
 
 // The reservoir that the candidates make: W is the sum of the weights over M, divided by the chosen light's target
-// (Bitterli's biased combine, with weights 1 / M).
+// (Bitterli's biased combine, with weights 1 / M). A W that is not finite, from a target near the least float, makes no
+// choice, so that no reuse carries it on.
 Reservoir finishCombining(Combining c)
 {
     Reservoir r = c.r;
     r.W = c.chosenTarget > 0.0 && r.M > 0.0 ? c.weightSum / (r.M * c.chosenTarget) : 0.0;
-    if (r.W == 0.0)
-        r.light = NoLight;
+    if (isinf(r.W) || isnan(r.W))
+        r.W = 0.0;
     return r;
 }
 
@@ -185,23 +194,33 @@ ResampledSurface resampledSurfaceAt(ivec2 pixel, vec3 direction, float distanceT
 // the surface takes none of it or where the bounds of its shadow tile show it fully shadowed.
 float targetOf(uint light, ResampledSurface surface)
 {
-    UnshadowedLight u;
-    if (!unshadowedLight(light, surface.fiber, surface.tinted, surface.s, surface.lobes, surface.position, surface.V, u))
+    LightPath p;
+    if (!lightPath(light, surface.fiber, surface.tinted, surface.s, surface.position, p))
         return 0.0;
     if (lights[light].shadow.x == AtlasTilesSlot
-        && tileFullyShadowed(lights[light], surface.position, u.L, u.d, u.shadowNormal, u.sinTheta))
+        && tileFullyShadowed(lights[light], surface.position, p.L, p.d, p.shadowNormal, p.sinTheta))
         return 0.0;
-    return luminance(u.terms.diffuse + u.terms.specular);
+    DirectTerms terms = pathLight(light, surface.fiber, surface.s, surface.lobes, surface.V, p);
+    return luminance(terms.diffuse + terms.specular);
+}
+
+// Combines a reused reservoir `other`, whose choice is `light` in this frame's list, that stands for `m` candidates: its
+// choice with p̂ at the surface and the weight p̂ · W · m. One without a choice adds only its m candidates, whose light was 0.
+void addReservoir(
+    inout Combining c, Reservoir other, uint light, float m, ResampledSurface surface, inout RandomStream random)
+{
+    float target = holdsChoice(other) ? targetOf(light, surface) : 0.0;
+    addCandidate(c, light, target, target * other.W * m, m, random);
 }
 
 // The share of a light that its shadows let through at the surface, from the frame's taps, or 0 where the surface takes
 // none of it.
 float visibilityOf(uint light, ResampledSurface surface)
 {
-    UnshadowedLight u;
-    if (!unshadowedLight(light, surface.fiber, surface.tinted, surface.s, surface.lobes, surface.position, surface.V, u))
+    LightPath p;
+    if (!lightPath(light, surface.fiber, surface.tinted, surface.s, surface.position, p))
         return 0.0;
-    return unshadowedVisibility(light, u, surface.position, ShadowMapsMainView);
+    return pathVisibility(light, p, surface.position, ShadowMapsMainView);
 }
 
 // The light of a light at the surface with its shadows, from the frame's taps.
@@ -210,12 +229,16 @@ DirectTerms shadedLight(uint light, ResampledSurface surface)
     DirectTerms terms;
     terms.diffuse = vec3(0.0);
     terms.specular = vec3(0.0);
-    UnshadowedLight u;
-    if (!unshadowedLight(light, surface.fiber, surface.tinted, surface.s, surface.lobes, surface.position, surface.V, u))
+    LightPath p;
+    if (!lightPath(light, surface.fiber, surface.tinted, surface.s, surface.position, p))
         return terms;
-    float visibility = unshadowedVisibility(light, u, surface.position, ShadowMapsMainView);
-    terms.diffuse = u.terms.diffuse * visibility;
-    terms.specular = u.terms.specular * visibility;
+    float visibility = pathVisibility(light, p, surface.position, ShadowMapsMainView);
+    if (visibility > 0.0)
+    {
+        terms = pathLight(light, surface.fiber, surface.s, surface.lobes, surface.V, p);
+        terms.diffuse *= visibility;
+        terms.specular *= visibility;
+    }
     return terms;
 }
 

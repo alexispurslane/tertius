@@ -21,15 +21,15 @@ internal readonly record struct LightSample(int Light, int Alias, double Thresho
 /// Invariants, checked by <see cref="AssertInvariants"/>:
 /// <list type="bullet">
 /// <item>The shares of the samples add to 1, and each alias names an entry.</item>
-/// <item>No light is both sampled and exact.</item>
+/// <item>No light is both sampled and exact, and every sampled light's index lies below <see cref="NoLight"/>.</item>
 /// <item>Every remapped index names a sampled light.</item>
 /// </list>
 /// </remarks>
 internal sealed class LightTable
 {
     /// <summary>
-    /// The remap of a light that this frame does not sample, and the index of no light in a reservoir, whose index holds 16
-    /// bits. So a light list holds at most this many sampled lights.
+    /// The remap of a light that this frame does not sample, and the index of no light in a reservoir, which holds a light's
+    /// index in the light list in 16 bits. So only a light whose index in the list lies below this one can be sampled.
     /// </summary>
     public const int NoLight = 0xFFFF;
 
@@ -67,6 +67,8 @@ internal sealed class LightTable
         Classify(lights);
         BuildAlias();
         JoinKeys(lights, frame);
+        Contract.Ensures(SharesAddToOne());
+        Contract.Ensures(EveryExactLightHoldsACascadeSet(lights));
     }
 
     /// <summary>
@@ -110,17 +112,33 @@ internal sealed class LightTable
     /// <summary>Checks the invariants in the class comment. O(lights).</summary>
     internal void AssertInvariants()
     {
-        double sum = 0;
         foreach (LightSample sample in Samples)
         {
-            sum += sample.Share;
             Contract.Invariant(sample.Alias >= 0 && sample.Alias < sampleCount);
-            Contract.Invariant(!Exact.Contains(sample.Light));
+            Contract.Invariant(sample.Light < NoLight && !Exact.Contains(sample.Light));
         }
 
-        Contract.Invariant(sampleCount == 0 || Math.Abs(sum - 1) < 1e-9);
+        Contract.Invariant(SharesAddToOne());
         foreach (int index in Remap)
             Contract.Invariant(index == NoLight || sampled[index]);
+    }
+
+    /// <summary>Whether the samples' shares add to 1, or the table samples no light.</summary>
+    private bool SharesAddToOne()
+    {
+        double sum = 0;
+        foreach (LightSample sample in Samples)
+            sum += sample.Share;
+        return sampleCount == 0 || Math.Abs(sum - 1) < 1e-9;
+    }
+
+    /// <summary>Whether every exact light of <paramref name="lights"/> holds a cascade set (decision 28).</summary>
+    private bool EveryExactLightHoldsACascadeSet(ReadOnlySpan<PreparedLight> lights)
+    {
+        foreach (int index in Exact)
+            if (lights[index].Shadow is not CascadeSet)
+                return false;
+        return true;
     }
 
     private void Grow(int lights)
@@ -157,7 +175,7 @@ internal sealed class LightTable
                 continue;
             }
 
-            if (sampleCount == NoLight)
+            if (i >= NoLight)
                 continue;
             double rank = LightUnits.RankIrradiance(light);
             scaled[sampleCount] = rank;

@@ -5,9 +5,9 @@ namespace Tertius.Rendering;
 /// <summary>
 /// "Direct light" (docs/plans/temporal-renderer.md, section 7, "The two passes"): one fullscreen pass over all depth
 /// ranges that writes the direct signal's sample of each lit pixel in its two parts, the diffuse and the specular light,
-/// each divided by its material factor and pre-exposed. Sky and impostor pixels get 0. Under <see cref="EveryLight"/> it
-/// takes every light with its shadows. Under <see cref="ResampledLights"/> it reuses the neighbors' reservoirs of R0,
-/// shades the chosen light and every exact light, and writes R1.
+/// each divided by its material factor and pre-exposed. Sky and impostor pixels get 0. Under <see cref="EveryLight"/>,
+/// which keeps no reservoirs, it takes every light with its shadows. Under <see cref="ResampledLights"/> it reuses the
+/// neighbors' reservoirs of R0, shades the chosen light and every exact light, and writes R1.
 /// </summary>
 internal sealed unsafe class DirectLightPass : RenderPass
 {
@@ -15,17 +15,16 @@ internal sealed unsafe class DirectLightPass : RenderPass
     private readonly DescriptorLayouts layouts;
     private readonly TemporalSignal signal;
     private readonly LightReservoirs? reservoirs;
-    private readonly ResampledLights? resampled;
     private readonly Pipeline pipeline;
 
-    /// <param name="reservoirs">The reservoirs under <see cref="ResampledLights"/>, else null.</param>
+    /// <param name="reservoirs">The reservoirs, which hold the setting of <see cref="ResampledLights"/>, or null under
+    /// <see cref="EveryLight"/>.</param>
     public DirectLightPass(
         VulkanDevice device,
         ShaderLibrary shaders,
         DescriptorLayouts layouts,
         ShaderConstants constants,
         TemporalSignal signal,
-        DirectLightSetting setting,
         LightReservoirs? reservoirs
     )
     {
@@ -33,18 +32,13 @@ internal sealed unsafe class DirectLightPass : RenderPass
         this.layouts = layouts;
         this.signal = signal;
         this.reservoirs = reservoirs;
-        resampled = setting switch
-        {
-            ResampledLights on => on,
-            EveryLight => null,
-        };
         pipeline = new GraphicsPipelineDesc
         {
             Name = "direct light",
             VertexShader = "lighting.vert",
-            FragmentShader = resampled is null ? "direct_every.frag" : "direct_resampled.frag",
-            Layout = resampled is null ? layouts.SceneLayout : layouts.ReservoirLayout,
-            ColorFormats = resampled is null
+            FragmentShader = reservoirs is null ? "direct_every.frag" : "direct_resampled.frag",
+            Layout = reservoirs is null ? layouts.SceneLayout : layouts.ReservoirLayout,
+            ColorFormats = reservoirs is null
                 ? [TemporalSignal.SignalFormat, TemporalSignal.SignalFormat]
                 : [TemporalSignal.SignalFormat, TemporalSignal.SignalFormat, LightReservoirs.ReservoirFormat],
             CullMode = CullModeFlags.None,
@@ -69,7 +63,7 @@ internal sealed unsafe class DirectLightPass : RenderPass
         // Discarded, and still after the last frame's accumulation read them: the pass writes every pixel.
         barriers.Image(signal.Sample(0), ImageUse.ColorAttachment, discard: true);
         barriers.Image(signal.Sample(1), ImageUse.ColorAttachment, discard: true);
-        if (resampled is not { } setting || reservoirs is null)
+        if (reservoirs is null)
         {
             barriers.Flush(context.Vk, context.CommandBuffer);
             context.DrawSceneFullScreen(
@@ -87,7 +81,7 @@ internal sealed unsafe class DirectLightPass : RenderPass
             pipeline: pipeline,
             layout: layouts.ReservoirLayout,
             passSet: reservoirs.DirectSet,
-            push: ResampledPush.Of(setting, context.History.DrawIndex),
+            push: ResampledPush.Of(reservoirs.Setting, context.History.DrawIndex),
             targets:
             [
                 (signal.Sample(0), AttachmentLoadOp.DontCare),

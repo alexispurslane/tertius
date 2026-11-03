@@ -19,10 +19,20 @@ public sealed class AccumulatorRenderTests
     /// <summary>The step of each frame after the first: one tick, which continues the last frame.</summary>
     private const double Tick = 1.0 / 60.0;
 
-    /// <summary>The renderer under ResampledLights, whose direct history holds 16 frames, with the test pass in the producer's place.</summary>
-    private static (VulkanRenderer Renderer, SamplePass Sample, RenderSnapshot Scene) Accumulating()
+    /// <summary>
+    /// The renderer under ResampledLights, whose direct history holds 16 frames, with the test pass in the producer's place,
+    /// under <paramref name="exposure"/>, the fixed exposure of the tests without it.
+    /// </summary>
+    private static (VulkanRenderer Renderer, SamplePass Sample, RenderSnapshot Scene) Accumulating(
+        ExposureSetting exposure = default
+    )
     {
-        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height, directLight: ResampledLights.Default);
+        VulkanRenderer renderer = Gpu.Headless(
+            width: Width,
+            height: Height,
+            exposure: exposure,
+            directLight: ResampledLights.Default
+        );
         MeshId cube = renderer.CreateMesh(Primitives.Box(new(0.5f)));
         MaterialId white = renderer.CreateMaterial(MaterialDesc.Color(Vector4.One, roughness: 0.5f));
         RenderSnapshot scene = Gpu.Snapshot(new(0.3f, 1f, 0.4f));
@@ -172,6 +182,46 @@ public sealed class AccumulatorRenderTests
 
             for (int part = 0; part < 2; part++)
                 CenterOf(renderer, part).Light.Should().Be(Vector3.Zero, "the still's first draw reset every history");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void WhenTheExposureMovesBetweenTwoFramesTheHistoryTakesTheNewExposureInThatFrame()
+    {
+        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(AutoExposure.Default);
+        try
+        {
+            // A sample of a constant light, pre-exposed at the exposure that the next frame uses, as a producer writes it.
+            void ExposeAndContinue(float light)
+            {
+                float scale = MathF.Pow(2, renderer.ReadExposureStops().Stops);
+                sample.Value = new(x: light * scale, y: light * scale, z: light * scale, w: 1f);
+                Continue(renderer, scene, frames: 1);
+            }
+
+            sample.Value = new(x: 0.05f, y: 0.05f, z: 0.05f, w: 1f);
+            renderer.Render(scene, 1f);
+            for (int frame = 0; frame < 20; frame++)
+                ExposeAndContinue(0.05f);
+            // A frame 64 times as bright: its adapt step lowers the exposure of the next frame.
+            float before = renderer.ReadExposureStops().Stops;
+            ExposeAndContinue(3.2f);
+            float after = renderer.ReadExposureStops().Stops;
+            float ratio = MathF.Pow(2, after - before);
+            ratio.Should().BeLessThan(0.98f, "the bright frame moved the exposure");
+            (Vector3 light, float length) history = CenterOf(renderer, part: 0);
+
+            // No sample, so the history holds only its rescaled self.
+            sample.Value = new(x: float.NaN, y: float.NaN, z: float.NaN, w: 1f);
+            Continue(renderer, scene, frames: 1);
+
+            CenterOf(renderer, part: 0)
+                .Light.X.Should()
+                .BeApproximately(history.light.X * ratio, 2e-3f * history.light.X, "the history holds light at the frame's exposure");
         }
         finally
         {

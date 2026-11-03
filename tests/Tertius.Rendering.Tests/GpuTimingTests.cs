@@ -431,8 +431,8 @@ public sealed class GpuTimingTests
     }
 
     /// <summary>
-    /// The time from the G-buffer's stamp to the direct pass's stamp: the passes after the G-buffer pass up to the direct
-    /// pass.
+    /// The time from the G-buffer's stamp to the stamp of the direct signal's accumulation: the passes after the G-buffer
+    /// pass up to the accumulation.
     /// </summary>
     private static double FromTheGBufferToTheEndOfTheDirectAccumulation(PassTiming[] passes)
     {

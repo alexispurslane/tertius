@@ -185,7 +185,7 @@ public sealed class OcclusionImagesTests
             Device.WaitIdle();
             Targets.Resize(extent);
             surfaces.Resize(Targets);
-            Direct.Resize(Targets, surfaces);
+            Direct.Resize();
         }
 
         public void Dispose()

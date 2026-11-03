@@ -77,20 +77,16 @@ void main()
     if (texel.x >= 0)
     {
         Reservoir last = unpackReservoir(texelFetch(readReservoirs, texel, 0).xy);
-        uint light = last.light == NoLight ? NoLight : remappedLight(last.light);
-        // A reservoir whose light is gone starts empty. One whose choice its visibility test emptied still stands for its
-        // M candidates, whose light here is 0: dropping it would keep only the lit choices and wash out the shadows.
-        if (light != NoLight)
-        {
-            float m = min(last.M, HistoryCandidates * float(resampled.candidates));
-            float target = last.W > 0.0 ? targetOf(light, surface) : 0.0;
-            addCandidate(c, light, target, target * last.W * m, m, random);
-        }
+        uint light = holdsChoice(last) ? remappedLight(last.light) : NoLight;
+        // A reservoir whose light is gone starts empty. One without a choice still stands for its M candidates, whose
+        // light was 0: dropping them would keep only the lit choices, raise W and wash out the shadows.
+        if (!holdsChoice(last) || light != NoLight)
+            addReservoir(c, last, light, min(last.M, HistoryCandidates * float(resampled.candidates)), surface, random);
     }
 
     // Step 3: the visibility reuse. A shadowed light does not spread to the neighbors.
     Reservoir r = finishCombining(c);
-    if (r.light != NoLight && visibilityOf(r.light, surface) == 0.0)
+    if (holdsChoice(r) && visibilityOf(r.light, surface) == 0.0)
         r.W = 0.0;
     outReservoir = packReservoir(r);
 }

@@ -31,13 +31,7 @@ Reservoir spatialReuse(ivec2 pixel, ResampledSurface surface, inout RandomStream
 {
     Combining c = startCombining();
     Reservoir own = unpackReservoir(texelFetch(readReservoirs, pixel, 0).xy);
-    if (own.light != NoLight)
-    {
-        float target = targetOf(own.light, surface);
-        addCandidate(c, own.light, target, target * own.W * own.M, own.M, random);
-    }
-    else
-        c.r.M = own.M;
+    addReservoir(c, own, own.light, own.M, surface, random);
 
     SurfaceKey key = surfaceKeyAt(pixel);
     ivec2 last = textureSize(gbufferDistance, 0) - 1;
@@ -50,16 +44,9 @@ Reservoir spatialReuse(ivec2 pixel, ResampledSurface surface, inout RandomStream
         ivec2 neighbor = clamp(pixel + ivec2(round(offset)), ivec2(0), last);
         if (neighbor == pixel || !sameSurface(key, surfaceKeyAt(neighbor)))
             continue;
+        // A neighbor without a choice still stands for its M candidates (Bitterli's biased combine).
         Reservoir other = unpackReservoir(texelFetch(readReservoirs, neighbor, 0).xy);
-        // A neighbor whose choice its own visibility test emptied still stands for its M candidates (Bitterli's biased
-        // combine).
-        if (other.light == NoLight || other.W <= 0.0)
-        {
-            c.r.M += other.M;
-            continue;
-        }
-        float target = targetOf(other.light, surface);
-        addCandidate(c, other.light, target, target * other.W * other.M, other.M, random);
+        addReservoir(c, other, other.light, other.M, surface, random);
     }
     return finishCombining(c);
 }
@@ -102,7 +89,7 @@ void main()
     DirectTerms direct;
     direct.diffuse = vec3(0.0);
     direct.specular = vec3(0.0);
-    if (r.light != NoLight)
+    if (holdsChoice(r))
     {
         DirectTerms chosen = shadedLight(r.light, surface);
         direct.diffuse = chosen.diffuse * r.W;

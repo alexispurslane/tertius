@@ -173,6 +173,36 @@ public sealed class LightTableTests
     }
 
     [Fact]
+    public void ALightWhoseIndexInTheListDoesNotFitAReservoirIsNotSampled()
+    {
+        // A reservoir holds a light's index in the list in 16 bits, and NoLight is the largest of them.
+        PreparedLight[] lights = new PreparedLight[LightTable.NoLight + 2];
+        for (int i = 0; i < lights.Length; i++)
+            lights[i] = Light(slot: (uint)i + 1, tier: i is 0 or >= LightTable.NoLight ? MainViewTier.InView : MainViewTier.FaceOnly);
+
+        LightTable table = Draw(new FrameHistory(StillRule.Window), lights);
+
+        table.Samples.ToArray().Select(s => s.Light).Should().Equal(0);
+    }
+
+    [Fact]
+    public void TheTableKeepsItsInvariantsThroughDrawsThatAddRemoveAndChangeLights()
+    {
+        var history = new FrameHistory(StillRule.Window);
+        PreparedLight[][] draws =
+        [
+            [Light(slot: 1), Light(slot: 2, shadow: Cascades(0)), Light(slot: 4, power: 7, distance: 3)],
+            [Light(slot: 2, shadow: Cascades(0)), Light(slot: 3), Light(slot: 4, generation: 2), Light(slot: 9)],
+            [Light(slot: 3, tier: MainViewTier.FaceOnly), Light(slot: 9, power: 0)],
+            [],
+            [Light(slot: 5, power: 0), Light(slot: 6, power: 0)],
+        ];
+
+        foreach (PreparedLight[] lights in draws)
+            Draw(history, lights).Invoking(table => table.AssertInvariants()).Should().NotThrow();
+    }
+
+    [Fact]
     public void AFirstDrawHasAnEmptyRemap() =>
         Draw(new FrameHistory(StillRule.Window), [Light(slot: 1)]).Remap.Length.Should().Be(0);
 }

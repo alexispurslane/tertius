@@ -21,7 +21,7 @@ namespace Tertius.Rendering;
 /// </para>
 /// <para>Invariants, checked by <see cref="AssertInvariants"/>:</para>
 /// <list type="bullet">
-/// <item>Every image of every part has the targets' size.</item>
+/// <item>Every image of every part has the size of the targets that the signal binds.</item>
 /// <item>The signal sets hold one set per part and parity.</item>
 /// <item>The parameter set has a cap and a fast cap of at least 1.</item>
 /// </list>
@@ -37,7 +37,8 @@ internal sealed unsafe class TemporalSignal : IDisposable
     private readonly VulkanDevice device;
     private readonly DeviceAllocator allocator;
     private readonly DescriptorLayouts layouts;
-    private readonly string name;
+    private readonly RenderTargets targets;
+    private readonly SurfaceHistory surfaces;
     private readonly Pipeline temporal;
     private readonly Pipeline spatial;
     private readonly PartImages[] parts;
@@ -45,6 +46,8 @@ internal sealed unsafe class TemporalSignal : IDisposable
     /// <summary>The signal sets, [part, parity].</summary>
     private readonly DescriptorSet[,] sets;
 
+    /// <param name="targets">The render targets, whose size the images take, and whose motion target the sets bind.</param>
+    /// <param name="surfaces">The surface history, whose test image the sets bind.</param>
     /// <param name="name">The signal's name in the images' names and the passes' names, such as "direct".</param>
     /// <param name="parts">The signal's parts: 2 for the direct signal, the diffuse and the specular.</param>
     /// <exception cref="NotSupportedException">The format is not a color attachment and a storage image on the device.</exception>
@@ -65,7 +68,9 @@ internal sealed unsafe class TemporalSignal : IDisposable
         this.device = device;
         this.allocator = allocator;
         this.layouts = layouts;
-        this.name = name;
+        this.targets = targets;
+        this.surfaces = surfaces;
+        Name = name;
         Parameters = parameters;
         CheckDevice(device);
         this.parts = new PartImages[parts];
@@ -86,8 +91,11 @@ internal sealed unsafe class TemporalSignal : IDisposable
             Shader = "accumulate_spatial.comp",
             Layout = layouts.AccumulateLayout,
         }.Create(device, shaders);
-        Create(targets, surfaces);
+        Create();
     }
+
+    /// <summary>The signal's name in the images' names and the passes' names, such as "direct".</summary>
+    public string Name { get; }
 
     /// <summary>The signal's parts.</summary>
     public int Parts => parts.Length;
@@ -112,12 +120,11 @@ internal sealed unsafe class TemporalSignal : IDisposable
     /// frame's fast history, and the spatial dispatch fixes, clamps and writes the slow history. Its reads of the surface
     /// test's outputs follow the surface test pass, and its read of each sample follows the producer.
     /// </summary>
-    public void Accumulate(FrameContext context, SurfaceHistory surfaces)
+    public void Accumulate(FrameContext context)
     {
-        Contract.Requires(context.Extent.Width == parts[0].Slow.Extent.Width);
+        Contract.Requires(context.Targets == targets && FitsTargets());
         int parity = context.History.Parity;
         BarrierBatch barriers = context.Barriers;
-        RenderTargets targets = context.Targets;
         barriers.Image(targets.Distance, ImageUse.SampledCompute);
         barriers.Image(targets.Normal, ImageUse.SampledCompute);
         barriers.Image(targets.Shading, ImageUse.SampledCompute);
@@ -144,26 +151,36 @@ internal sealed unsafe class TemporalSignal : IDisposable
     }
 
     /// <summary>
-    /// Recreates the images at the targets' size and rewrites every set. The device must be idle, and the surface history
-    /// resized first, because the sets point at its test image. A new size resets every history
-    /// (<see cref="FrameHistory.Begin"/>), so the images' contents need not survive.
+    /// Recreates the images at the size of the targets that the signal binds, and rewrites every set. The device must be
+    /// idle, and the surface history resized first, because the sets point at its test image. A new size resets every
+    /// history (<see cref="FrameHistory.Begin"/>), so the images' contents need not survive.
     /// </summary>
-    public void Resize(RenderTargets targets, SurfaceHistory surfaces)
+    public void Resize()
     {
+        Contract.Requires(SameExtent(surfaces.Test.Extent, targets.Extent));
         DestroyImages();
-        Create(targets, surfaces);
+        Create();
+        Contract.Ensures(FitsTargets());
     }
 
     /// <summary>Checks the invariants in the class remarks.</summary>
     internal void AssertInvariants()
     {
-        Extent2D extent = parts[0].Slow.Extent;
-        foreach (PartImages images in parts)
-            foreach (GpuImage image in images.All)
-                Contract.Invariant(image.Extent.Width == extent.Width && image.Extent.Height == extent.Height);
+        Contract.Invariant(FitsTargets());
         Contract.Invariant(sets.GetLength(0) == parts.Length && sets.GetLength(1) == 2);
         Contract.Invariant(Parameters.Cap >= 1 && Parameters.FastCap >= 1);
     }
+
+    /// <summary>Whether every image of every part has the targets' size. It allocates nothing, so a frame can check it.</summary>
+    private bool FitsTargets()
+    {
+        foreach (PartImages images in parts)
+            if (!images.Fit(targets.Extent))
+                return false;
+        return true;
+    }
+
+    private static bool SameExtent(Extent2D a, Extent2D b) => a.Width == b.Width && a.Height == b.Height;
 
     private void Dispatch(FrameContext context, Pipeline pipeline, DescriptorSet set)
     {
@@ -186,24 +203,24 @@ internal sealed unsafe class TemporalSignal : IDisposable
         );
     }
 
-    private void Create(RenderTargets targets, SurfaceHistory surfaces)
+    private void Create()
     {
         Extent2D extent = targets.Extent;
         for (int part = 0; part < parts.Length; part++)
         {
             parts[part] = new PartImages(
-                Sample: CreateImage(extent, $"{name} sample {part}", ImageUsageFlags.ColorAttachmentBit | ImageUsageFlags.TransferDstBit),
-                Slow: CreateImage(extent, $"{name} slow history {part}", 0),
-                Fasts: [CreateImage(extent, $"{name} fast history {part}.0", 0), CreateImage(extent, $"{name} fast history {part}.1", 0)],
-                Scratch: CreateImage(extent, $"{name} scratch {part}", 0)
+                Sample: CreateImage(extent, $"{Name} sample {part}", ImageUsageFlags.ColorAttachmentBit | ImageUsageFlags.TransferDstBit),
+                Slow: CreateImage(extent, $"{Name} slow history {part}", 0),
+                Fasts: [CreateImage(extent, $"{Name} fast history {part}.0", 0), CreateImage(extent, $"{Name} fast history {part}.1", 0)],
+                Scratch: CreateImage(extent, $"{Name} scratch {part}", 0)
             );
             for (int parity = 0; parity < 2; parity++)
-                WriteSignalSet(set: sets[part, parity], images: parts[part], parity: parity, targets: targets, surfaces: surfaces);
+                WriteSignalSet(set: sets[part, parity], images: parts[part], parity: parity);
             layouts.WriteStorageImage(set: ReadSet, binding: (uint)part, image: parts[part].Slow);
         }
     }
 
-    private void WriteSignalSet(DescriptorSet set, PartImages images, int parity, RenderTargets targets, SurfaceHistory surfaces)
+    private void WriteSignalSet(DescriptorSet set, PartImages images, int parity)
     {
         layouts.WriteStorageImage(set: set, binding: 0, image: images.Sample);
         layouts.WriteStorageImage(set: set, binding: 1, image: images.Slow);
@@ -263,6 +280,14 @@ internal sealed unsafe class TemporalSignal : IDisposable
         public GpuImage LastFast(int parity) => Fasts[1 - parity];
 
         public IEnumerable<GpuImage> All => [Sample, Slow, Fasts[0], Fasts[1], Scratch];
+
+        /// <summary>Whether every image has <paramref name="extent"/>.</summary>
+        public bool Fit(Extent2D extent) =>
+            SameExtent(Sample.Extent, extent)
+            && SameExtent(Slow.Extent, extent)
+            && SameExtent(Fasts[0].Extent, extent)
+            && SameExtent(Fasts[1].Extent, extent)
+            && SameExtent(Scratch.Extent, extent);
     }
 }
 
@@ -270,12 +295,12 @@ internal sealed unsafe class TemporalSignal : IDisposable
 /// The accumulation of a signal as a pass of the frame graph, named "accumulate" and the signal's name: after its
 /// producer, whose samples it reads.
 /// </summary>
-internal sealed class AccumulatePass(TemporalSignal signal, SurfaceHistory surfaces, string signalName) : RenderPass
+internal sealed class AccumulatePass(TemporalSignal signal) : RenderPass
 {
     // Made once, because the timer reads the name in every frame, which allocates nothing.
-    private readonly string name = $"accumulate {signalName}";
+    private readonly string name = $"accumulate {signal.Name}";
 
     public override string Name => name;
 
-    public override void Record(FrameContext context) => signal.Accumulate(context, surfaces);
+    public override void Record(FrameContext context) => signal.Accumulate(context);
 }

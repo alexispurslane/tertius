@@ -13,7 +13,6 @@ internal sealed unsafe class LightCandidatesPass : RenderPass
     private readonly DescriptorLayouts layouts;
     private readonly LightReservoirs reservoirs;
     private readonly SurfaceHistory surfaces;
-    private readonly ResampledLights setting;
     private readonly Pipeline pipeline;
 
     public LightCandidatesPass(
@@ -22,15 +21,13 @@ internal sealed unsafe class LightCandidatesPass : RenderPass
         DescriptorLayouts layouts,
         ShaderConstants constants,
         LightReservoirs reservoirs,
-        SurfaceHistory surfaces,
-        ResampledLights setting
+        SurfaceHistory surfaces
     )
     {
         this.device = device;
         this.layouts = layouts;
         this.reservoirs = reservoirs;
         this.surfaces = surfaces;
-        this.setting = setting;
         pipeline = new GraphicsPipelineDesc
         {
             Name = "light candidates",
@@ -66,7 +63,7 @@ internal sealed unsafe class LightCandidatesPass : RenderPass
             pipeline: pipeline,
             layout: layouts.ReservoirLayout,
             passSet: reservoirs.CandidatesSet,
-            push: ResampledPush.Of(setting, context.History.DrawIndex),
+            push: ResampledPush.Of(reservoirs.Setting, context.History.DrawIndex),
             targets: [(reservoirs.R0, AttachmentLoadOp.DontCare)]
         );
     }
