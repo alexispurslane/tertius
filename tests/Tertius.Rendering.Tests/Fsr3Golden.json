@@ -1,0 +1,5023 @@
+{
+ "source": "FidelityFX SDK v1.1.4, c6efa6bf7f2027b3ec94f28578bb5965eabb9e55, upscaler 3.1.4",
+ "phaseCounts": [
+  {
+   "renderWidth": 1920,
+   "outputWidth": 1920,
+   "phaseCount": 8
+  },
+  {
+   "renderWidth": 1280,
+   "outputWidth": 1920,
+   "phaseCount": 18
+  },
+  {
+   "renderWidth": 1440,
+   "outputWidth": 1920,
+   "phaseCount": 14
+  },
+  {
+   "renderWidth": 960,
+   "outputWidth": 1920,
+   "phaseCount": 32
+  },
+  {
+   "renderWidth": 1000,
+   "outputWidth": 1920,
+   "phaseCount": 29
+  },
+  {
+   "renderWidth": 1288,
+   "outputWidth": 1920,
+   "phaseCount": 17
+  },
+  {
+   "renderWidth": 1536,
+   "outputWidth": 1920,
+   "phaseCount": 12
+  },
+  {
+   "renderWidth": 640,
+   "outputWidth": 1920,
+   "phaseCount": 72
+  },
+  {
+   "renderWidth": 1280,
+   "outputWidth": 1280,
+   "phaseCount": 8
+  },
+  {
+   "renderWidth": 1279,
+   "outputWidth": 1920,
+   "phaseCount": 18
+  },
+  {
+   "renderWidth": 8,
+   "outputWidth": 1920,
+   "phaseCount": 460800
+  },
+  {
+   "renderWidth": 1920,
+   "outputWidth": 2560,
+   "phaseCount": 14
+  }
+ ],
+ "offsets": [
+  {
+   "index": 0,
+   "phaseCount": 1,
+   "x": 0,
+   "y": -0.166666657
+  },
+  {
+   "index": 1,
+   "phaseCount": 1,
+   "x": 0,
+   "y": -0.166666657
+  },
+  {
+   "index": 2,
+   "phaseCount": 1,
+   "x": 0,
+   "y": -0.166666657
+  },
+  {
+   "index": 3,
+   "phaseCount": 1,
+   "x": 0,
+   "y": -0.166666657
+  },
+  {
+   "index": 7,
+   "phaseCount": 1,
+   "x": 0,
+   "y": -0.166666657
+  },
+  {
+   "index": 8,
+   "phaseCount": 1,
+   "x": 0,
+   "y": -0.166666657
+  },
+  {
+   "index": 17,
+   "phaseCount": 1,
+   "x": 0,
+   "y": -0.166666657
+  },
+  {
+   "index": 18,
+   "phaseCount": 1,
+   "x": 0,
+   "y": -0.166666657
+  },
+  {
+   "index": 31,
+   "phaseCount": 1,
+   "x": 0,
+   "y": -0.166666657
+  },
+  {
+   "index": 32,
+   "phaseCount": 1,
+   "x": 0,
+   "y": -0.166666657
+  },
+  {
+   "index": 71,
+   "phaseCount": 1,
+   "x": 0,
+   "y": -0.166666657
+  },
+  {
+   "index": 72,
+   "phaseCount": 1,
+   "x": 0,
+   "y": -0.166666657
+  },
+  {
+   "index": 1000,
+   "phaseCount": 1,
+   "x": 0,
+   "y": -0.166666657
+  },
+  {
+   "index": 123457,
+   "phaseCount": 1,
+   "x": 0,
+   "y": -0.166666657
+  },
+  {
+   "index": 0,
+   "phaseCount": 8,
+   "x": 0,
+   "y": -0.166666657
+  },
+  {
+   "index": 1,
+   "phaseCount": 8,
+   "x": -0.25,
+   "y": 0.166666687
+  },
+  {
+   "index": 2,
+   "phaseCount": 8,
+   "x": 0.25,
+   "y": -0.388888896
+  },
+  {
+   "index": 3,
+   "phaseCount": 8,
+   "x": -0.375,
+   "y": -0.0555555522
+  },
+  {
+   "index": 7,
+   "phaseCount": 8,
+   "x": -0.4375,
+   "y": 0.388888896
+  },
+  {
+   "index": 8,
+   "phaseCount": 8,
+   "x": 0,
+   "y": -0.166666657
+  },
+  {
+   "index": 17,
+   "phaseCount": 8,
+   "x": -0.25,
+   "y": 0.166666687
+  },
+  {
+   "index": 18,
+   "phaseCount": 8,
+   "x": 0.25,
+   "y": -0.388888896
+  },
+  {
+   "index": 31,
+   "phaseCount": 8,
+   "x": -0.4375,
+   "y": 0.388888896
+  },
+  {
+   "index": 32,
+   "phaseCount": 8,
+   "x": 0,
+   "y": -0.166666657
+  },
+  {
+   "index": 71,
+   "phaseCount": 8,
+   "x": -0.4375,
+   "y": 0.388888896
+  },
+  {
+   "index": 72,
+   "phaseCount": 8,
+   "x": 0,
+   "y": -0.166666657
+  },
+  {
+   "index": 1000,
+   "phaseCount": 8,
+   "x": 0,
+   "y": -0.166666657
+  },
+  {
+   "index": 123457,
+   "phaseCount": 8,
+   "x": -0.25,
+   "y": 0.166666687
+  },
+  {
+   "index": 0,
+   "phaseCount": 18,
+   "x": 0,
+   "y": -0.166666657
+  },
+  {
+   "index": 1,
+   "phaseCount": 18,
+   "x": -0.25,
+   "y": 0.166666687
+  },
+  {
+   "index": 2,
+   "phaseCount": 18,
+   "x": 0.25,
+   "y": -0.388888896
+  },
+  {
+   "index": 3,
+   "phaseCount": 18,
+   "x": -0.375,
+   "y": -0.0555555522
+  },
+  {
+   "index": 7,
+   "phaseCount": 18,
+   "x": -0.4375,
+   "y": 0.388888896
+  },
+  {
+   "index": 8,
+   "phaseCount": 18,
+   "x": 0.0625,
+   "y": -0.462962955
+  },
+  {
+   "index": 17,
+   "phaseCount": 18,
+   "x": -0.21875,
+   "y": -0.42592591
+  },
+  {
+   "index": 18,
+   "phaseCount": 18,
+   "x": 0,
+   "y": -0.166666657
+  },
+  {
+   "index": 31,
+   "phaseCount": 18,
+   "x": -0.0625,
+   "y": 0.314814806
+  },
+  {
+   "index": 32,
+   "phaseCount": 18,
+   "x": 0.4375,
+   "y": -0.240740746
+  },
+  {
+   "index": 71,
+   "phaseCount": 18,
+   "x": -0.21875,
+   "y": -0.42592591
+  },
+  {
+   "index": 72,
+   "phaseCount": 18,
+   "x": 0,
+   "y": -0.166666657
+  },
+  {
+   "index": 1000,
+   "phaseCount": 18,
+   "x": 0.3125,
+   "y": 0.203703701
+  },
+  {
+   "index": 123457,
+   "phaseCount": 18,
+   "x": -0.0625,
+   "y": 0.314814806
+  },
+  {
+   "index": 0,
+   "phaseCount": 32,
+   "x": 0,
+   "y": -0.166666657
+  },
+  {
+   "index": 1,
+   "phaseCount": 32,
+   "x": -0.25,
+   "y": 0.166666687
+  },
+  {
+   "index": 2,
+   "phaseCount": 32,
+   "x": 0.25,
+   "y": -0.388888896
+  },
+  {
+   "index": 3,
+   "phaseCount": 32,
+   "x": -0.375,
+   "y": -0.0555555522
+  },
+  {
+   "index": 7,
+   "phaseCount": 32,
+   "x": -0.4375,
+   "y": 0.388888896
+  },
+  {
+   "index": 8,
+   "phaseCount": 32,
+   "x": 0.0625,
+   "y": -0.462962955
+  },
+  {
+   "index": 17,
+   "phaseCount": 32,
+   "x": -0.21875,
+   "y": -0.42592591
+  },
+  {
+   "index": 18,
+   "phaseCount": 32,
+   "x": 0.28125,
+   "y": -0.092592597
+  },
+  {
+   "index": 31,
+   "phaseCount": 32,
+   "x": -0.484375,
+   "y": 0.290123463
+  },
+  {
+   "index": 32,
+   "phaseCount": 32,
+   "x": 0,
+   "y": -0.166666657
+  },
+  {
+   "index": 71,
+   "phaseCount": 32,
+   "x": -0.4375,
+   "y": 0.388888896
+  },
+  {
+   "index": 72,
+   "phaseCount": 32,
+   "x": 0.0625,
+   "y": -0.462962955
+  },
+  {
+   "index": 1000,
+   "phaseCount": 32,
+   "x": 0.0625,
+   "y": -0.462962955
+  },
+  {
+   "index": 123457,
+   "phaseCount": 32,
+   "x": -0.25,
+   "y": 0.166666687
+  },
+  {
+   "index": 0,
+   "phaseCount": 72,
+   "x": 0,
+   "y": -0.166666657
+  },
+  {
+   "index": 1,
+   "phaseCount": 72,
+   "x": -0.25,
+   "y": 0.166666687
+  },
+  {
+   "index": 2,
+   "phaseCount": 72,
+   "x": 0.25,
+   "y": -0.388888896
+  },
+  {
+   "index": 3,
+   "phaseCount": 72,
+   "x": -0.375,
+   "y": -0.0555555522
+  },
+  {
+   "index": 7,
+   "phaseCount": 72,
+   "x": -0.4375,
+   "y": 0.388888896
+  },
+  {
+   "index": 8,
+   "phaseCount": 72,
+   "x": 0.0625,
+   "y": -0.462962955
+  },
+  {
+   "index": 17,
+   "phaseCount": 72,
+   "x": -0.21875,
+   "y": -0.42592591
+  },
+  {
+   "index": 18,
+   "phaseCount": 72,
+   "x": 0.28125,
+   "y": -0.092592597
+  },
+  {
+   "index": 31,
+   "phaseCount": 72,
+   "x": -0.484375,
+   "y": 0.290123463
+  },
+  {
+   "index": 32,
+   "phaseCount": 72,
+   "x": 0.015625,
+   "y": -0.26543209
+  },
+  {
+   "index": 71,
+   "phaseCount": 72,
+   "x": -0.4296875,
+   "y": -0.401234567
+  },
+  {
+   "index": 72,
+   "phaseCount": 72,
+   "x": 0,
+   "y": -0.166666657
+  },
+  {
+   "index": 1000,
+   "phaseCount": 72,
+   "x": 0.0078125,
+   "y": 0.228395045
+  },
+  {
+   "index": 123457,
+   "phaseCount": 72,
+   "x": -0.203125,
+   "y": 0.364197552
+  }
+ ],
+ "constantsLayout": {
+  "size": 148,
+  "jitterOffset": 64,
+  "tanHalfFOV": 104,
+  "deltaPreExposure": 116,
+  "minDisocclusionAccumulation": 144
+ },
+ "sequences": [
+  {
+   "name": "budget",
+   "maxRenderWidth": 1920,
+   "maxRenderHeight": 1080,
+   "outputWidth": 1920,
+   "outputHeight": 1080,
+   "nearMeters": 0.0500000007,
+   "resources": [
+    {
+     "name": "FSR3UPSCALER_Accumulation1",
+     "format": "R8_UNORM",
+     "width": 1920,
+     "height": 1080,
+     "mipCount": 1
+    },
+    {
+     "name": "FSR3UPSCALER_Accumulation2",
+     "format": "R8_UNORM",
+     "width": 1920,
+     "height": 1080,
+     "mipCount": 1
+    },
+    {
+     "name": "FSR3UPSCALER_Luma1",
+     "format": "R16_FLOAT",
+     "width": 1920,
+     "height": 1080,
+     "mipCount": 1
+    },
+    {
+     "name": "FSR3UPSCALER_Luma2",
+     "format": "R16_FLOAT",
+     "width": 1920,
+     "height": 1080,
+     "mipCount": 1
+    },
+    {
+     "name": "FSR3UPSCALER_IntermediateFp16x1",
+     "format": "R16_FLOAT",
+     "width": 1920,
+     "height": 1080,
+     "mipCount": 1
+    },
+    {
+     "name": "FSR3UPSCALER_ShadingChange",
+     "format": "R8_UNORM",
+     "width": 960,
+     "height": 540,
+     "mipCount": 1
+    },
+    {
+     "name": "FSR3UPSCALER_NewLocks",
+     "format": "R8_UNORM",
+     "width": 1920,
+     "height": 1080,
+     "mipCount": 1
+    },
+    {
+     "name": "FSR3UPSCALER_InternalUpscaled1",
+     "format": "R16G16B16A16_FLOAT",
+     "width": 1920,
+     "height": 1080,
+     "mipCount": 1
+    },
+    {
+     "name": "FSR3UPSCALER_InternalUpscaled2",
+     "format": "R16G16B16A16_FLOAT",
+     "width": 1920,
+     "height": 1080,
+     "mipCount": 1
+    },
+    {
+     "name": "FSR3UPSCALER_SpdMips",
+     "format": "R16G16_FLOAT",
+     "width": 960,
+     "height": 540,
+     "mipCount": 0
+    },
+    {
+     "name": "FSR3UPSCALER_FarthestDepthMip1",
+     "format": "R16_FLOAT",
+     "width": 960,
+     "height": 540,
+     "mipCount": 1
+    },
+    {
+     "name": "FSR3UPSCALER_LumaHistory1",
+     "format": "R16G16B16A16_FLOAT",
+     "width": 1920,
+     "height": 1080,
+     "mipCount": 1
+    },
+    {
+     "name": "FSR3UPSCALER_LumaHistory2",
+     "format": "R16G16B16A16_FLOAT",
+     "width": 1920,
+     "height": 1080,
+     "mipCount": 1
+    },
+    {
+     "name": "FSR3UPSCALER_SpdAtomicCounter",
+     "format": "R32_UINT",
+     "width": 1,
+     "height": 1,
+     "mipCount": 1
+    },
+    {
+     "name": "FSR3UPSCALER_DilatedReactiveMasks",
+     "format": "R8G8B8A8_UNORM",
+     "width": 1920,
+     "height": 1080,
+     "mipCount": 1
+    },
+    {
+     "name": "FSR3UPSCALER_LanczosLutData",
+     "format": "R16_SNORM",
+     "width": 128,
+     "height": 1,
+     "mipCount": 1
+    },
+    {
+     "name": "FSR3UPSCALER_DefaultReactivityMask",
+     "format": "R8_UNORM",
+     "width": 1,
+     "height": 1,
+     "mipCount": 1
+    },
+    {
+     "name": "FSR3UPSCALER_DefaultExposure",
+     "format": "R32G32_FLOAT",
+     "width": 1,
+     "height": 1,
+     "mipCount": 1
+    },
+    {
+     "name": "FSR3UPSCALER_FrameInfo",
+     "format": "R32G32B32A32_FLOAT",
+     "width": 1,
+     "height": 1,
+     "mipCount": 1
+    }
+   ],
+   "sharedResources": [
+    {
+     "name": "FSR3UPSCALER_DilatedDepth",
+     "format": "R32_FLOAT",
+     "width": 1920,
+     "height": 1080,
+     "mipCount": 1
+    },
+    {
+     "name": "FSR3UPSCALER_DilatedVelocity",
+     "format": "R16G16_FLOAT",
+     "width": 1920,
+     "height": 1080,
+     "mipCount": 1
+    },
+    {
+     "name": "FSR3UPSCALER_ReconstructedPrevNearestDepth",
+     "format": "R32_UINT",
+     "width": 1920,
+     "height": 1080,
+     "mipCount": 1
+    }
+   ],
+   "frames": [
+    {
+     "renderWidth": 1280,
+     "renderHeight": 720,
+     "jitterX": 0,
+     "jitterY": 0.166666657,
+     "frameMilliseconds": 16.666666,
+     "preExposure": 1,
+     "verticalFov": 1.04719758,
+     "reset": true,
+     "reactiveWords": [
+      1065353216,
+      1045220557,
+      1063675494,
+      13
+     ],
+     "constants": {
+      "renderSizeX": 1280,
+      "renderSizeY": 720,
+      "previousFrameRenderSizeX": 0,
+      "previousFrameRenderSizeY": 0,
+      "upscaleSizeX": 1920,
+      "upscaleSizeY": 1080,
+      "previousFrameUpscaleSizeX": 0,
+      "previousFrameUpscaleSizeY": 0,
+      "maxRenderSizeX": 1920,
+      "maxRenderSizeY": 1080,
+      "maxUpscaleSizeX": 1920,
+      "maxUpscaleSizeY": 1080,
+      "deviceToViewDepth0": -1.1920929e-07,
+      "deviceToViewDepth1": 0.0500000007,
+      "deviceToViewDepth2": 1.02640045,
+      "deviceToViewDepth3": 0.577350259,
+      "jitterOffsetX": 0,
+      "jitterOffsetY": 0.166666657,
+      "previousFrameJitterOffsetX": 0,
+      "previousFrameJitterOffsetY": 0,
+      "motionVectorScaleX": 1,
+      "motionVectorScaleY": 1,
+      "downscaleFactorX": 0.666666687,
+      "downscaleFactorY": 0.666666687,
+      "motionVectorJitterCancellationX": 0,
+      "motionVectorJitterCancellationY": 0,
+      "tanHalfFOV": 1.02640045,
+      "jitterPhaseCount": 18,
+      "deltaTime": 0.0166666657,
+      "deltaPreExposure": 1,
+      "viewSpaceToMetersFactor": 1,
+      "frameIndex": 0,
+      "velocityFactor": 1,
+      "reactivenessScale": 1,
+      "shadingChangeScale": 1,
+      "accumulationAddedPerFrame": 0.333333343,
+      "minDisocclusionAccumulation": -0.333333343
+     },
+     "spdWords": [
+      10,
+      240,
+      0,
+      0,
+      1280,
+      720
+     ],
+     "jobs": [
+      {
+       "kind": "dispatch",
+       "label": "FSR3-GEN_REACTIVE",
+       "x": 160,
+       "y": 90,
+       "z": 1
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Accumulation 1",
+       "target": "FSR3UPSCALER_Accumulation1",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Accumulation 2",
+       "target": "FSR3UPSCALER_Accumulation2",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Temporal Luma 1",
+       "target": "FSR3UPSCALER_Luma1",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Temporal Luma 2",
+       "target": "FSR3UPSCALER_Luma2",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Resource",
+       "target": "FSR3UPSCALER_Accumulation1",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Scene Luminance",
+       "target": "FSR3UPSCALER_SpdMips",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Frame Info",
+       "target": "FSR3UPSCALER_FrameInfo",
+       "color": [
+        -1,
+        1,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Reconstructed Previous Nearest Depth",
+       "target": "FSR3UPSCALER_ReconstructedPrevNearestDepth",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Spd Atomic Count",
+       "target": "FSR3UPSCALER_SpdAtomicCounter",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_IntermediateFp16x1"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_ShadingChange"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_NewLocks"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_FarthestDepthMip1"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_DilatedReactiveMasks"
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Spd Atomic Count",
+       "target": "FSR3UPSCALER_SpdMips",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-PREPARE-INPUTS",
+       "x": 160,
+       "y": 90,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-LUMA-PYRAMID",
+       "x": 20,
+       "y": 12,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-SHADING-CHANGE-PYRAMID",
+       "x": 20,
+       "y": 12,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-SHADING-CHANGE",
+       "x": 80,
+       "y": 45,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-PREPARE-REACTIVITY",
+       "x": 160,
+       "y": 90,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-LUMA-INSTABILITY",
+       "x": 160,
+       "y": 90,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-ACCUMULATE",
+       "x": 240,
+       "y": 135,
+       "z": 1
+      }
+     ]
+    },
+    {
+     "renderWidth": 1280,
+     "renderHeight": 720,
+     "jitterX": 0.25,
+     "jitterY": -0.166666687,
+     "frameMilliseconds": 16.666666,
+     "preExposure": 1,
+     "verticalFov": 1.04719758,
+     "reset": false,
+     "reactiveWords": [
+      1065353216,
+      1045220557,
+      1063675494,
+      13
+     ],
+     "constants": {
+      "renderSizeX": 1280,
+      "renderSizeY": 720,
+      "previousFrameRenderSizeX": 1280,
+      "previousFrameRenderSizeY": 720,
+      "upscaleSizeX": 1920,
+      "upscaleSizeY": 1080,
+      "previousFrameUpscaleSizeX": 1920,
+      "previousFrameUpscaleSizeY": 1080,
+      "maxRenderSizeX": 1920,
+      "maxRenderSizeY": 1080,
+      "maxUpscaleSizeX": 1920,
+      "maxUpscaleSizeY": 1080,
+      "deviceToViewDepth0": -1.1920929e-07,
+      "deviceToViewDepth1": 0.0500000007,
+      "deviceToViewDepth2": 1.02640045,
+      "deviceToViewDepth3": 0.577350259,
+      "jitterOffsetX": 0.25,
+      "jitterOffsetY": -0.166666687,
+      "previousFrameJitterOffsetX": 0,
+      "previousFrameJitterOffsetY": 0.166666657,
+      "motionVectorScaleX": 1,
+      "motionVectorScaleY": 1,
+      "downscaleFactorX": 0.666666687,
+      "downscaleFactorY": 0.666666687,
+      "motionVectorJitterCancellationX": 0,
+      "motionVectorJitterCancellationY": 0,
+      "tanHalfFOV": 1.02640045,
+      "jitterPhaseCount": 18,
+      "deltaTime": 0.0166666657,
+      "deltaPreExposure": 1,
+      "viewSpaceToMetersFactor": 1,
+      "frameIndex": 1,
+      "velocityFactor": 1,
+      "reactivenessScale": 1,
+      "shadingChangeScale": 1,
+      "accumulationAddedPerFrame": 0.333333343,
+      "minDisocclusionAccumulation": -0.333333343
+     },
+     "spdWords": [
+      10,
+      240,
+      0,
+      0,
+      1280,
+      720
+     ],
+     "jobs": [
+      {
+       "kind": "dispatch",
+       "label": "FSR3-GEN_REACTIVE",
+       "x": 160,
+       "y": 90,
+       "z": 1
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Reconstructed Previous Nearest Depth",
+       "target": "FSR3UPSCALER_ReconstructedPrevNearestDepth",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Spd Atomic Count",
+       "target": "FSR3UPSCALER_SpdAtomicCounter",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_IntermediateFp16x1"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_ShadingChange"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_NewLocks"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_FarthestDepthMip1"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_DilatedReactiveMasks"
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Spd Atomic Count",
+       "target": "FSR3UPSCALER_SpdMips",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-PREPARE-INPUTS",
+       "x": 160,
+       "y": 90,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-LUMA-PYRAMID",
+       "x": 20,
+       "y": 12,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-SHADING-CHANGE-PYRAMID",
+       "x": 20,
+       "y": 12,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-SHADING-CHANGE",
+       "x": 80,
+       "y": 45,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-PREPARE-REACTIVITY",
+       "x": 160,
+       "y": 90,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-LUMA-INSTABILITY",
+       "x": 160,
+       "y": 90,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-ACCUMULATE",
+       "x": 240,
+       "y": 135,
+       "z": 1
+      }
+     ]
+    },
+    {
+     "renderWidth": 1280,
+     "renderHeight": 720,
+     "jitterX": -0.25,
+     "jitterY": 0.388888896,
+     "frameMilliseconds": 33.2999992,
+     "preExposure": 2,
+     "verticalFov": 1.04719758,
+     "reset": false,
+     "reactiveWords": [
+      1065353216,
+      1045220557,
+      1063675494,
+      13
+     ],
+     "constants": {
+      "renderSizeX": 1280,
+      "renderSizeY": 720,
+      "previousFrameRenderSizeX": 1280,
+      "previousFrameRenderSizeY": 720,
+      "upscaleSizeX": 1920,
+      "upscaleSizeY": 1080,
+      "previousFrameUpscaleSizeX": 1920,
+      "previousFrameUpscaleSizeY": 1080,
+      "maxRenderSizeX": 1920,
+      "maxRenderSizeY": 1080,
+      "maxUpscaleSizeX": 1920,
+      "maxUpscaleSizeY": 1080,
+      "deviceToViewDepth0": -1.1920929e-07,
+      "deviceToViewDepth1": 0.0500000007,
+      "deviceToViewDepth2": 1.02640045,
+      "deviceToViewDepth3": 0.577350259,
+      "jitterOffsetX": -0.25,
+      "jitterOffsetY": 0.388888896,
+      "previousFrameJitterOffsetX": 0.25,
+      "previousFrameJitterOffsetY": -0.166666687,
+      "motionVectorScaleX": 1,
+      "motionVectorScaleY": 1,
+      "downscaleFactorX": 0.666666687,
+      "downscaleFactorY": 0.666666687,
+      "motionVectorJitterCancellationX": 0,
+      "motionVectorJitterCancellationY": 0,
+      "tanHalfFOV": 1.02640045,
+      "jitterPhaseCount": 18,
+      "deltaTime": 0.0332999974,
+      "deltaPreExposure": 2,
+      "viewSpaceToMetersFactor": 1,
+      "frameIndex": 2,
+      "velocityFactor": 1,
+      "reactivenessScale": 1,
+      "shadingChangeScale": 1,
+      "accumulationAddedPerFrame": 0.333333343,
+      "minDisocclusionAccumulation": -0.333333343
+     },
+     "spdWords": [
+      10,
+      240,
+      0,
+      0,
+      1280,
+      720
+     ],
+     "jobs": [
+      {
+       "kind": "dispatch",
+       "label": "FSR3-GEN_REACTIVE",
+       "x": 160,
+       "y": 90,
+       "z": 1
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Reconstructed Previous Nearest Depth",
+       "target": "FSR3UPSCALER_ReconstructedPrevNearestDepth",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Spd Atomic Count",
+       "target": "FSR3UPSCALER_SpdAtomicCounter",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_IntermediateFp16x1"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_ShadingChange"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_NewLocks"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_FarthestDepthMip1"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_DilatedReactiveMasks"
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Spd Atomic Count",
+       "target": "FSR3UPSCALER_SpdMips",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-PREPARE-INPUTS",
+       "x": 160,
+       "y": 90,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-LUMA-PYRAMID",
+       "x": 20,
+       "y": 12,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-SHADING-CHANGE-PYRAMID",
+       "x": 20,
+       "y": 12,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-SHADING-CHANGE",
+       "x": 80,
+       "y": 45,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-PREPARE-REACTIVITY",
+       "x": 160,
+       "y": 90,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-LUMA-INSTABILITY",
+       "x": 160,
+       "y": 90,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-ACCUMULATE",
+       "x": 240,
+       "y": 135,
+       "z": 1
+      }
+     ]
+    },
+    {
+     "renderWidth": 1440,
+     "renderHeight": 816,
+     "jitterX": 0.375,
+     "jitterY": 0.0555555522,
+     "frameMilliseconds": 0.5,
+     "preExposure": 2,
+     "verticalFov": 1.04719758,
+     "reset": false,
+     "reactiveWords": [
+      1065353216,
+      1045220557,
+      1063675494,
+      13
+     ],
+     "constants": {
+      "renderSizeX": 1440,
+      "renderSizeY": 816,
+      "previousFrameRenderSizeX": 1280,
+      "previousFrameRenderSizeY": 720,
+      "upscaleSizeX": 1920,
+      "upscaleSizeY": 1080,
+      "previousFrameUpscaleSizeX": 1920,
+      "previousFrameUpscaleSizeY": 1080,
+      "maxRenderSizeX": 1920,
+      "maxRenderSizeY": 1080,
+      "maxUpscaleSizeX": 1920,
+      "maxUpscaleSizeY": 1080,
+      "deviceToViewDepth0": -1.1920929e-07,
+      "deviceToViewDepth1": 0.0500000007,
+      "deviceToViewDepth2": 1.01885343,
+      "deviceToViewDepth3": 0.577350259,
+      "jitterOffsetX": 0.375,
+      "jitterOffsetY": 0.0555555522,
+      "previousFrameJitterOffsetX": -0.25,
+      "previousFrameJitterOffsetY": 0.388888896,
+      "motionVectorScaleX": 1,
+      "motionVectorScaleY": 1,
+      "downscaleFactorX": 0.75,
+      "downscaleFactorY": 0.75555557,
+      "motionVectorJitterCancellationX": 0,
+      "motionVectorJitterCancellationY": 0,
+      "tanHalfFOV": 1.01885343,
+      "jitterPhaseCount": 17,
+      "deltaTime": 0.000500000024,
+      "deltaPreExposure": 1,
+      "viewSpaceToMetersFactor": 1,
+      "frameIndex": 3,
+      "velocityFactor": 1,
+      "reactivenessScale": 1,
+      "shadingChangeScale": 1,
+      "accumulationAddedPerFrame": 0.333333343,
+      "minDisocclusionAccumulation": -0.333333343
+     },
+     "spdWords": [
+      10,
+      299,
+      0,
+      0,
+      1440,
+      816
+     ],
+     "jobs": [
+      {
+       "kind": "dispatch",
+       "label": "FSR3-GEN_REACTIVE",
+       "x": 180,
+       "y": 102,
+       "z": 1
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Reconstructed Previous Nearest Depth",
+       "target": "FSR3UPSCALER_ReconstructedPrevNearestDepth",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Spd Atomic Count",
+       "target": "FSR3UPSCALER_SpdAtomicCounter",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_IntermediateFp16x1"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_ShadingChange"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_NewLocks"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_FarthestDepthMip1"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_DilatedReactiveMasks"
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Spd Atomic Count",
+       "target": "FSR3UPSCALER_SpdMips",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-PREPARE-INPUTS",
+       "x": 180,
+       "y": 102,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-LUMA-PYRAMID",
+       "x": 23,
+       "y": 13,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-SHADING-CHANGE-PYRAMID",
+       "x": 23,
+       "y": 13,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-SHADING-CHANGE",
+       "x": 90,
+       "y": 51,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-PREPARE-REACTIVITY",
+       "x": 180,
+       "y": 102,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-LUMA-INSTABILITY",
+       "x": 180,
+       "y": 102,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-ACCUMULATE",
+       "x": 240,
+       "y": 135,
+       "z": 1
+      }
+     ]
+    },
+    {
+     "renderWidth": 1440,
+     "renderHeight": 816,
+     "jitterX": -0.125,
+     "jitterY": -0.277777791,
+     "frameMilliseconds": 2000,
+     "preExposure": 0.25,
+     "verticalFov": 1.04719758,
+     "reset": false,
+     "reactiveWords": [
+      1065353216,
+      1045220557,
+      1063675494,
+      13
+     ],
+     "constants": {
+      "renderSizeX": 1440,
+      "renderSizeY": 816,
+      "previousFrameRenderSizeX": 1440,
+      "previousFrameRenderSizeY": 816,
+      "upscaleSizeX": 1920,
+      "upscaleSizeY": 1080,
+      "previousFrameUpscaleSizeX": 1920,
+      "previousFrameUpscaleSizeY": 1080,
+      "maxRenderSizeX": 1920,
+      "maxRenderSizeY": 1080,
+      "maxUpscaleSizeX": 1920,
+      "maxUpscaleSizeY": 1080,
+      "deviceToViewDepth0": -1.1920929e-07,
+      "deviceToViewDepth1": 0.0500000007,
+      "deviceToViewDepth2": 1.01885343,
+      "deviceToViewDepth3": 0.577350259,
+      "jitterOffsetX": -0.125,
+      "jitterOffsetY": -0.277777791,
+      "previousFrameJitterOffsetX": 0.375,
+      "previousFrameJitterOffsetY": 0.0555555522,
+      "motionVectorScaleX": 1,
+      "motionVectorScaleY": 1,
+      "downscaleFactorX": 0.75,
+      "downscaleFactorY": 0.75555557,
+      "motionVectorJitterCancellationX": 0,
+      "motionVectorJitterCancellationY": 0,
+      "tanHalfFOV": 1.01885343,
+      "jitterPhaseCount": 16,
+      "deltaTime": 1,
+      "deltaPreExposure": 0.125,
+      "viewSpaceToMetersFactor": 1,
+      "frameIndex": 4,
+      "velocityFactor": 1,
+      "reactivenessScale": 1,
+      "shadingChangeScale": 1,
+      "accumulationAddedPerFrame": 0.333333343,
+      "minDisocclusionAccumulation": -0.333333343
+     },
+     "spdWords": [
+      10,
+      299,
+      0,
+      0,
+      1440,
+      816
+     ],
+     "jobs": [
+      {
+       "kind": "dispatch",
+       "label": "FSR3-GEN_REACTIVE",
+       "x": 180,
+       "y": 102,
+       "z": 1
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Reconstructed Previous Nearest Depth",
+       "target": "FSR3UPSCALER_ReconstructedPrevNearestDepth",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Spd Atomic Count",
+       "target": "FSR3UPSCALER_SpdAtomicCounter",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_IntermediateFp16x1"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_ShadingChange"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_NewLocks"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_FarthestDepthMip1"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_DilatedReactiveMasks"
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Spd Atomic Count",
+       "target": "FSR3UPSCALER_SpdMips",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-PREPARE-INPUTS",
+       "x": 180,
+       "y": 102,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-LUMA-PYRAMID",
+       "x": 23,
+       "y": 13,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-SHADING-CHANGE-PYRAMID",
+       "x": 23,
+       "y": 13,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-SHADING-CHANGE",
+       "x": 90,
+       "y": 51,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-PREPARE-REACTIVITY",
+       "x": 180,
+       "y": 102,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-LUMA-INSTABILITY",
+       "x": 180,
+       "y": 102,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-ACCUMULATE",
+       "x": 240,
+       "y": 135,
+       "z": 1
+      }
+     ]
+    },
+    {
+     "renderWidth": 1920,
+     "renderHeight": 1080,
+     "jitterX": 0.125,
+     "jitterY": 0.277777791,
+     "frameMilliseconds": 16.666666,
+     "preExposure": 0.0078125,
+     "verticalFov": 1.04719758,
+     "reset": false,
+     "reactiveWords": [
+      1065353216,
+      1045220557,
+      1063675494,
+      13
+     ],
+     "constants": {
+      "renderSizeX": 1920,
+      "renderSizeY": 1080,
+      "previousFrameRenderSizeX": 1440,
+      "previousFrameRenderSizeY": 816,
+      "upscaleSizeX": 1920,
+      "upscaleSizeY": 1080,
+      "previousFrameUpscaleSizeX": 1920,
+      "previousFrameUpscaleSizeY": 1080,
+      "maxRenderSizeX": 1920,
+      "maxRenderSizeY": 1080,
+      "maxUpscaleSizeX": 1920,
+      "maxUpscaleSizeY": 1080,
+      "deviceToViewDepth0": -1.1920929e-07,
+      "deviceToViewDepth1": 0.0500000007,
+      "deviceToViewDepth2": 1.02640045,
+      "deviceToViewDepth3": 0.577350259,
+      "jitterOffsetX": 0.125,
+      "jitterOffsetY": 0.277777791,
+      "previousFrameJitterOffsetX": -0.125,
+      "previousFrameJitterOffsetY": -0.277777791,
+      "motionVectorScaleX": 1,
+      "motionVectorScaleY": 1,
+      "downscaleFactorX": 1,
+      "downscaleFactorY": 1,
+      "motionVectorJitterCancellationX": 0,
+      "motionVectorJitterCancellationY": 0,
+      "tanHalfFOV": 1.02640045,
+      "jitterPhaseCount": 15,
+      "deltaTime": 0.0166666657,
+      "deltaPreExposure": 0.03125,
+      "viewSpaceToMetersFactor": 1,
+      "frameIndex": 5,
+      "velocityFactor": 1,
+      "reactivenessScale": 1,
+      "shadingChangeScale": 1,
+      "accumulationAddedPerFrame": 0.333333343,
+      "minDisocclusionAccumulation": -0.333333343
+     },
+     "spdWords": [
+      10,
+      510,
+      0,
+      0,
+      1920,
+      1080
+     ],
+     "jobs": [
+      {
+       "kind": "dispatch",
+       "label": "FSR3-GEN_REACTIVE",
+       "x": 240,
+       "y": 135,
+       "z": 1
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Reconstructed Previous Nearest Depth",
+       "target": "FSR3UPSCALER_ReconstructedPrevNearestDepth",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Spd Atomic Count",
+       "target": "FSR3UPSCALER_SpdAtomicCounter",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_IntermediateFp16x1"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_ShadingChange"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_NewLocks"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_FarthestDepthMip1"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_DilatedReactiveMasks"
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Spd Atomic Count",
+       "target": "FSR3UPSCALER_SpdMips",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-PREPARE-INPUTS",
+       "x": 240,
+       "y": 135,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-LUMA-PYRAMID",
+       "x": 30,
+       "y": 17,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-SHADING-CHANGE-PYRAMID",
+       "x": 30,
+       "y": 17,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-SHADING-CHANGE",
+       "x": 120,
+       "y": 68,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-PREPARE-REACTIVITY",
+       "x": 240,
+       "y": 135,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-LUMA-INSTABILITY",
+       "x": 240,
+       "y": 135,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-ACCUMULATE",
+       "x": 240,
+       "y": 135,
+       "z": 1
+      }
+     ]
+    },
+    {
+     "renderWidth": 1920,
+     "renderHeight": 1080,
+     "jitterX": -0.375,
+     "jitterY": -0.055555582,
+     "frameMilliseconds": 8,
+     "preExposure": 1.41421354,
+     "verticalFov": 0.800000012,
+     "reset": false,
+     "reactiveWords": [
+      1065353216,
+      1045220557,
+      1063675494,
+      13
+     ],
+     "constants": {
+      "renderSizeX": 1920,
+      "renderSizeY": 1080,
+      "previousFrameRenderSizeX": 1920,
+      "previousFrameRenderSizeY": 1080,
+      "upscaleSizeX": 1920,
+      "upscaleSizeY": 1080,
+      "previousFrameUpscaleSizeX": 1920,
+      "previousFrameUpscaleSizeY": 1080,
+      "maxRenderSizeX": 1920,
+      "maxRenderSizeY": 1080,
+      "maxUpscaleSizeX": 1920,
+      "maxUpscaleSizeY": 1080,
+      "deviceToViewDepth0": -1.1920929e-07,
+      "deviceToViewDepth1": 0.0500000007,
+      "deviceToViewDepth2": 0.751632333,
+      "deviceToViewDepth3": 0.42279321,
+      "jitterOffsetX": -0.375,
+      "jitterOffsetY": -0.055555582,
+      "previousFrameJitterOffsetX": 0.125,
+      "previousFrameJitterOffsetY": 0.277777791,
+      "motionVectorScaleX": 1,
+      "motionVectorScaleY": 1,
+      "downscaleFactorX": 1,
+      "downscaleFactorY": 1,
+      "motionVectorJitterCancellationX": 0,
+      "motionVectorJitterCancellationY": 0,
+      "tanHalfFOV": 0.751632512,
+      "jitterPhaseCount": 14,
+      "deltaTime": 0.00800000038,
+      "deltaPreExposure": 181.019333,
+      "viewSpaceToMetersFactor": 1,
+      "frameIndex": 6,
+      "velocityFactor": 1,
+      "reactivenessScale": 1,
+      "shadingChangeScale": 1,
+      "accumulationAddedPerFrame": 0.333333343,
+      "minDisocclusionAccumulation": -0.333333343
+     },
+     "spdWords": [
+      10,
+      510,
+      0,
+      0,
+      1920,
+      1080
+     ],
+     "jobs": [
+      {
+       "kind": "dispatch",
+       "label": "FSR3-GEN_REACTIVE",
+       "x": 240,
+       "y": 135,
+       "z": 1
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Reconstructed Previous Nearest Depth",
+       "target": "FSR3UPSCALER_ReconstructedPrevNearestDepth",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Spd Atomic Count",
+       "target": "FSR3UPSCALER_SpdAtomicCounter",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_IntermediateFp16x1"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_ShadingChange"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_NewLocks"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_FarthestDepthMip1"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_DilatedReactiveMasks"
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Spd Atomic Count",
+       "target": "FSR3UPSCALER_SpdMips",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-PREPARE-INPUTS",
+       "x": 240,
+       "y": 135,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-LUMA-PYRAMID",
+       "x": 30,
+       "y": 17,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-SHADING-CHANGE-PYRAMID",
+       "x": 30,
+       "y": 17,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-SHADING-CHANGE",
+       "x": 120,
+       "y": 68,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-PREPARE-REACTIVITY",
+       "x": 240,
+       "y": 135,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-LUMA-INSTABILITY",
+       "x": 240,
+       "y": 135,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-ACCUMULATE",
+       "x": 240,
+       "y": 135,
+       "z": 1
+      }
+     ]
+    },
+    {
+     "renderWidth": 1280,
+     "renderHeight": 720,
+     "jitterX": 0.4375,
+     "jitterY": -0.388888896,
+     "frameMilliseconds": 16.666666,
+     "preExposure": 1,
+     "verticalFov": 0.800000012,
+     "reset": false,
+     "reactiveWords": [
+      1065353216,
+      1045220557,
+      1063675494,
+      13
+     ],
+     "constants": {
+      "renderSizeX": 1280,
+      "renderSizeY": 720,
+      "previousFrameRenderSizeX": 1920,
+      "previousFrameRenderSizeY": 1080,
+      "upscaleSizeX": 1920,
+      "upscaleSizeY": 1080,
+      "previousFrameUpscaleSizeX": 1920,
+      "previousFrameUpscaleSizeY": 1080,
+      "maxRenderSizeX": 1920,
+      "maxRenderSizeY": 1080,
+      "maxUpscaleSizeX": 1920,
+      "maxUpscaleSizeY": 1080,
+      "deviceToViewDepth0": -1.1920929e-07,
+      "deviceToViewDepth1": 0.0500000007,
+      "deviceToViewDepth2": 0.751632333,
+      "deviceToViewDepth3": 0.42279321,
+      "jitterOffsetX": 0.4375,
+      "jitterOffsetY": -0.388888896,
+      "previousFrameJitterOffsetX": -0.375,
+      "previousFrameJitterOffsetY": -0.055555582,
+      "motionVectorScaleX": 1,
+      "motionVectorScaleY": 1,
+      "downscaleFactorX": 0.666666687,
+      "downscaleFactorY": 0.666666687,
+      "motionVectorJitterCancellationX": 0,
+      "motionVectorJitterCancellationY": 0,
+      "tanHalfFOV": 0.751632512,
+      "jitterPhaseCount": 15,
+      "deltaTime": 0.0166666657,
+      "deltaPreExposure": 0.707106769,
+      "viewSpaceToMetersFactor": 1,
+      "frameIndex": 7,
+      "velocityFactor": 1,
+      "reactivenessScale": 1,
+      "shadingChangeScale": 1,
+      "accumulationAddedPerFrame": 0.333333343,
+      "minDisocclusionAccumulation": -0.333333343
+     },
+     "spdWords": [
+      10,
+      240,
+      0,
+      0,
+      1280,
+      720
+     ],
+     "jobs": [
+      {
+       "kind": "dispatch",
+       "label": "FSR3-GEN_REACTIVE",
+       "x": 160,
+       "y": 90,
+       "z": 1
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Reconstructed Previous Nearest Depth",
+       "target": "FSR3UPSCALER_ReconstructedPrevNearestDepth",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Spd Atomic Count",
+       "target": "FSR3UPSCALER_SpdAtomicCounter",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_IntermediateFp16x1"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_ShadingChange"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_NewLocks"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_FarthestDepthMip1"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_DilatedReactiveMasks"
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Spd Atomic Count",
+       "target": "FSR3UPSCALER_SpdMips",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-PREPARE-INPUTS",
+       "x": 160,
+       "y": 90,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-LUMA-PYRAMID",
+       "x": 20,
+       "y": 12,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-SHADING-CHANGE-PYRAMID",
+       "x": 20,
+       "y": 12,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-SHADING-CHANGE",
+       "x": 80,
+       "y": 45,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-PREPARE-REACTIVITY",
+       "x": 160,
+       "y": 90,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-LUMA-INSTABILITY",
+       "x": 160,
+       "y": 90,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-ACCUMULATE",
+       "x": 240,
+       "y": 135,
+       "z": 1
+      }
+     ]
+    },
+    {
+     "renderWidth": 960,
+     "renderHeight": 544,
+     "jitterX": -0.0625,
+     "jitterY": 0.462962955,
+     "frameMilliseconds": 16.666666,
+     "preExposure": 1,
+     "verticalFov": 0.800000012,
+     "reset": false,
+     "reactiveWords": [
+      1065353216,
+      1045220557,
+      1063675494,
+      13
+     ],
+     "constants": {
+      "renderSizeX": 960,
+      "renderSizeY": 544,
+      "previousFrameRenderSizeX": 1280,
+      "previousFrameRenderSizeY": 720,
+      "upscaleSizeX": 1920,
+      "upscaleSizeY": 1080,
+      "previousFrameUpscaleSizeX": 1920,
+      "previousFrameUpscaleSizeY": 1080,
+      "maxRenderSizeX": 1920,
+      "maxRenderSizeY": 1080,
+      "maxUpscaleSizeX": 1920,
+      "maxUpscaleSizeY": 1080,
+      "deviceToViewDepth0": -1.1920929e-07,
+      "deviceToViewDepth1": 0.0500000007,
+      "deviceToViewDepth2": 0.746105671,
+      "deviceToViewDepth3": 0.42279321,
+      "jitterOffsetX": -0.0625,
+      "jitterOffsetY": 0.462962955,
+      "previousFrameJitterOffsetX": 0.4375,
+      "previousFrameJitterOffsetY": -0.388888896,
+      "motionVectorScaleX": 1,
+      "motionVectorScaleY": 1,
+      "downscaleFactorX": 0.5,
+      "downscaleFactorY": 0.503703713,
+      "motionVectorJitterCancellationX": 0,
+      "motionVectorJitterCancellationY": 0,
+      "tanHalfFOV": 0.74610579,
+      "jitterPhaseCount": 16,
+      "deltaTime": 0.0166666657,
+      "deltaPreExposure": 1,
+      "viewSpaceToMetersFactor": 1,
+      "frameIndex": 8,
+      "velocityFactor": 1,
+      "reactivenessScale": 1,
+      "shadingChangeScale": 1,
+      "accumulationAddedPerFrame": 0.333333343,
+      "minDisocclusionAccumulation": -0.333333343
+     },
+     "spdWords": [
+      9,
+      135,
+      0,
+      0,
+      960,
+      544
+     ],
+     "jobs": [
+      {
+       "kind": "dispatch",
+       "label": "FSR3-GEN_REACTIVE",
+       "x": 120,
+       "y": 68,
+       "z": 1
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Reconstructed Previous Nearest Depth",
+       "target": "FSR3UPSCALER_ReconstructedPrevNearestDepth",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Spd Atomic Count",
+       "target": "FSR3UPSCALER_SpdAtomicCounter",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_IntermediateFp16x1"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_ShadingChange"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_NewLocks"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_FarthestDepthMip1"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_DilatedReactiveMasks"
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Spd Atomic Count",
+       "target": "FSR3UPSCALER_SpdMips",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-PREPARE-INPUTS",
+       "x": 120,
+       "y": 68,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-LUMA-PYRAMID",
+       "x": 15,
+       "y": 9,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-SHADING-CHANGE-PYRAMID",
+       "x": 15,
+       "y": 9,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-SHADING-CHANGE",
+       "x": 60,
+       "y": 34,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-PREPARE-REACTIVITY",
+       "x": 120,
+       "y": 68,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-LUMA-INSTABILITY",
+       "x": 120,
+       "y": 68,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-ACCUMULATE",
+       "x": 240,
+       "y": 135,
+       "z": 1
+      }
+     ]
+    },
+    {
+     "renderWidth": 960,
+     "renderHeight": 544,
+     "jitterX": 0.1875,
+     "jitterY": 0.129629612,
+     "frameMilliseconds": 16.666666,
+     "preExposure": 3,
+     "verticalFov": 0.800000012,
+     "reset": true,
+     "reactiveWords": [
+      1065353216,
+      1045220557,
+      1063675494,
+      13
+     ],
+     "constants": {
+      "renderSizeX": 960,
+      "renderSizeY": 544,
+      "previousFrameRenderSizeX": 960,
+      "previousFrameRenderSizeY": 544,
+      "upscaleSizeX": 1920,
+      "upscaleSizeY": 1080,
+      "previousFrameUpscaleSizeX": 1920,
+      "previousFrameUpscaleSizeY": 1080,
+      "maxRenderSizeX": 1920,
+      "maxRenderSizeY": 1080,
+      "maxUpscaleSizeX": 1920,
+      "maxUpscaleSizeY": 1080,
+      "deviceToViewDepth0": -1.1920929e-07,
+      "deviceToViewDepth1": 0.0500000007,
+      "deviceToViewDepth2": 0.746105671,
+      "deviceToViewDepth3": 0.42279321,
+      "jitterOffsetX": 0.1875,
+      "jitterOffsetY": 0.129629612,
+      "previousFrameJitterOffsetX": -0.0625,
+      "previousFrameJitterOffsetY": 0.462962955,
+      "motionVectorScaleX": 1,
+      "motionVectorScaleY": 1,
+      "downscaleFactorX": 0.5,
+      "downscaleFactorY": 0.503703713,
+      "motionVectorJitterCancellationX": 0,
+      "motionVectorJitterCancellationY": 0,
+      "tanHalfFOV": 0.74610579,
+      "jitterPhaseCount": 32,
+      "deltaTime": 0.0166666657,
+      "deltaPreExposure": 3,
+      "viewSpaceToMetersFactor": 1,
+      "frameIndex": 0,
+      "velocityFactor": 1,
+      "reactivenessScale": 1,
+      "shadingChangeScale": 1,
+      "accumulationAddedPerFrame": 0.333333343,
+      "minDisocclusionAccumulation": -0.333333343
+     },
+     "spdWords": [
+      9,
+      135,
+      0,
+      0,
+      960,
+      544
+     ],
+     "jobs": [
+      {
+       "kind": "dispatch",
+       "label": "FSR3-GEN_REACTIVE",
+       "x": 120,
+       "y": 68,
+       "z": 1
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Resource",
+       "target": "FSR3UPSCALER_Accumulation2",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Scene Luminance",
+       "target": "FSR3UPSCALER_SpdMips",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Frame Info",
+       "target": "FSR3UPSCALER_FrameInfo",
+       "color": [
+        -1,
+        1,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Reconstructed Previous Nearest Depth",
+       "target": "FSR3UPSCALER_ReconstructedPrevNearestDepth",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Spd Atomic Count",
+       "target": "FSR3UPSCALER_SpdAtomicCounter",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_IntermediateFp16x1"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_ShadingChange"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_NewLocks"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_FarthestDepthMip1"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_DilatedReactiveMasks"
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Spd Atomic Count",
+       "target": "FSR3UPSCALER_SpdMips",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-PREPARE-INPUTS",
+       "x": 120,
+       "y": 68,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-LUMA-PYRAMID",
+       "x": 15,
+       "y": 9,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-SHADING-CHANGE-PYRAMID",
+       "x": 15,
+       "y": 9,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-SHADING-CHANGE",
+       "x": 60,
+       "y": 34,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-PREPARE-REACTIVITY",
+       "x": 120,
+       "y": 68,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-LUMA-INSTABILITY",
+       "x": 120,
+       "y": 68,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-ACCUMULATE",
+       "x": 240,
+       "y": 135,
+       "z": 1
+      }
+     ]
+    },
+    {
+     "renderWidth": 1280,
+     "renderHeight": 720,
+     "jitterX": -0.3125,
+     "jitterY": -0.203703701,
+     "frameMilliseconds": 16.666666,
+     "preExposure": 3,
+     "verticalFov": 0.800000012,
+     "reset": false,
+     "reactiveWords": [
+      1065353216,
+      1045220557,
+      1063675494,
+      13
+     ],
+     "constants": {
+      "renderSizeX": 1280,
+      "renderSizeY": 720,
+      "previousFrameRenderSizeX": 960,
+      "previousFrameRenderSizeY": 544,
+      "upscaleSizeX": 1920,
+      "upscaleSizeY": 1080,
+      "previousFrameUpscaleSizeX": 1920,
+      "previousFrameUpscaleSizeY": 1080,
+      "maxRenderSizeX": 1920,
+      "maxRenderSizeY": 1080,
+      "maxUpscaleSizeX": 1920,
+      "maxUpscaleSizeY": 1080,
+      "deviceToViewDepth0": -1.1920929e-07,
+      "deviceToViewDepth1": 0.0500000007,
+      "deviceToViewDepth2": 0.751632333,
+      "deviceToViewDepth3": 0.42279321,
+      "jitterOffsetX": -0.3125,
+      "jitterOffsetY": -0.203703701,
+      "previousFrameJitterOffsetX": 0.1875,
+      "previousFrameJitterOffsetY": 0.129629612,
+      "motionVectorScaleX": 1,
+      "motionVectorScaleY": 1,
+      "downscaleFactorX": 0.666666687,
+      "downscaleFactorY": 0.666666687,
+      "motionVectorJitterCancellationX": 0,
+      "motionVectorJitterCancellationY": 0,
+      "tanHalfFOV": 0.751632512,
+      "jitterPhaseCount": 31,
+      "deltaTime": 0.0166666657,
+      "deltaPreExposure": 1,
+      "viewSpaceToMetersFactor": 1,
+      "frameIndex": 1,
+      "velocityFactor": 1,
+      "reactivenessScale": 1,
+      "shadingChangeScale": 1,
+      "accumulationAddedPerFrame": 0.333333343,
+      "minDisocclusionAccumulation": -0.333333343
+     },
+     "spdWords": [
+      10,
+      240,
+      0,
+      0,
+      1280,
+      720
+     ],
+     "jobs": [
+      {
+       "kind": "dispatch",
+       "label": "FSR3-GEN_REACTIVE",
+       "x": 160,
+       "y": 90,
+       "z": 1
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Reconstructed Previous Nearest Depth",
+       "target": "FSR3UPSCALER_ReconstructedPrevNearestDepth",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Spd Atomic Count",
+       "target": "FSR3UPSCALER_SpdAtomicCounter",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_IntermediateFp16x1"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_ShadingChange"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_NewLocks"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_FarthestDepthMip1"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_DilatedReactiveMasks"
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Spd Atomic Count",
+       "target": "FSR3UPSCALER_SpdMips",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-PREPARE-INPUTS",
+       "x": 160,
+       "y": 90,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-LUMA-PYRAMID",
+       "x": 20,
+       "y": 12,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-SHADING-CHANGE-PYRAMID",
+       "x": 20,
+       "y": 12,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-SHADING-CHANGE",
+       "x": 80,
+       "y": 45,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-PREPARE-REACTIVITY",
+       "x": 160,
+       "y": 90,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-LUMA-INSTABILITY",
+       "x": 160,
+       "y": 90,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-ACCUMULATE",
+       "x": 240,
+       "y": 135,
+       "z": 1
+      }
+     ]
+    },
+    {
+     "renderWidth": 1280,
+     "renderHeight": 720,
+     "jitterX": 0.3125,
+     "jitterY": 0.351851851,
+     "frameMilliseconds": 16.666666,
+     "preExposure": 0.5,
+     "verticalFov": 0.800000012,
+     "reset": false,
+     "reactiveWords": [
+      1065353216,
+      1045220557,
+      1063675494,
+      13
+     ],
+     "constants": {
+      "renderSizeX": 1280,
+      "renderSizeY": 720,
+      "previousFrameRenderSizeX": 1280,
+      "previousFrameRenderSizeY": 720,
+      "upscaleSizeX": 1920,
+      "upscaleSizeY": 1080,
+      "previousFrameUpscaleSizeX": 1920,
+      "previousFrameUpscaleSizeY": 1080,
+      "maxRenderSizeX": 1920,
+      "maxRenderSizeY": 1080,
+      "maxUpscaleSizeX": 1920,
+      "maxUpscaleSizeY": 1080,
+      "deviceToViewDepth0": -1.1920929e-07,
+      "deviceToViewDepth1": 0.0500000007,
+      "deviceToViewDepth2": 0.751632333,
+      "deviceToViewDepth3": 0.42279321,
+      "jitterOffsetX": 0.3125,
+      "jitterOffsetY": 0.351851851,
+      "previousFrameJitterOffsetX": -0.3125,
+      "previousFrameJitterOffsetY": -0.203703701,
+      "motionVectorScaleX": 1,
+      "motionVectorScaleY": 1,
+      "downscaleFactorX": 0.666666687,
+      "downscaleFactorY": 0.666666687,
+      "motionVectorJitterCancellationX": 0,
+      "motionVectorJitterCancellationY": 0,
+      "tanHalfFOV": 0.751632512,
+      "jitterPhaseCount": 30,
+      "deltaTime": 0.0166666657,
+      "deltaPreExposure": 0.166666672,
+      "viewSpaceToMetersFactor": 1,
+      "frameIndex": 2,
+      "velocityFactor": 1,
+      "reactivenessScale": 1,
+      "shadingChangeScale": 1,
+      "accumulationAddedPerFrame": 0.333333343,
+      "minDisocclusionAccumulation": -0.333333343
+     },
+     "spdWords": [
+      10,
+      240,
+      0,
+      0,
+      1280,
+      720
+     ],
+     "jobs": [
+      {
+       "kind": "dispatch",
+       "label": "FSR3-GEN_REACTIVE",
+       "x": 160,
+       "y": 90,
+       "z": 1
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Reconstructed Previous Nearest Depth",
+       "target": "FSR3UPSCALER_ReconstructedPrevNearestDepth",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Spd Atomic Count",
+       "target": "FSR3UPSCALER_SpdAtomicCounter",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_IntermediateFp16x1"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_ShadingChange"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_NewLocks"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_FarthestDepthMip1"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_DilatedReactiveMasks"
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Spd Atomic Count",
+       "target": "FSR3UPSCALER_SpdMips",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-PREPARE-INPUTS",
+       "x": 160,
+       "y": 90,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-LUMA-PYRAMID",
+       "x": 20,
+       "y": 12,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-SHADING-CHANGE-PYRAMID",
+       "x": 20,
+       "y": 12,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-SHADING-CHANGE",
+       "x": 80,
+       "y": 45,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-PREPARE-REACTIVITY",
+       "x": 160,
+       "y": 90,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-LUMA-INSTABILITY",
+       "x": 160,
+       "y": 90,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-ACCUMULATE",
+       "x": 240,
+       "y": 135,
+       "z": 1
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "odd",
+   "maxRenderWidth": 641,
+   "maxRenderHeight": 361,
+   "outputWidth": 1001,
+   "outputHeight": 563,
+   "nearMeters": 0.0500000007,
+   "resources": [
+    {
+     "name": "FSR3UPSCALER_Accumulation1",
+     "format": "R8_UNORM",
+     "width": 641,
+     "height": 361,
+     "mipCount": 1
+    },
+    {
+     "name": "FSR3UPSCALER_Accumulation2",
+     "format": "R8_UNORM",
+     "width": 641,
+     "height": 361,
+     "mipCount": 1
+    },
+    {
+     "name": "FSR3UPSCALER_Luma1",
+     "format": "R16_FLOAT",
+     "width": 641,
+     "height": 361,
+     "mipCount": 1
+    },
+    {
+     "name": "FSR3UPSCALER_Luma2",
+     "format": "R16_FLOAT",
+     "width": 641,
+     "height": 361,
+     "mipCount": 1
+    },
+    {
+     "name": "FSR3UPSCALER_IntermediateFp16x1",
+     "format": "R16_FLOAT",
+     "width": 641,
+     "height": 361,
+     "mipCount": 1
+    },
+    {
+     "name": "FSR3UPSCALER_ShadingChange",
+     "format": "R8_UNORM",
+     "width": 320,
+     "height": 180,
+     "mipCount": 1
+    },
+    {
+     "name": "FSR3UPSCALER_NewLocks",
+     "format": "R8_UNORM",
+     "width": 1001,
+     "height": 563,
+     "mipCount": 1
+    },
+    {
+     "name": "FSR3UPSCALER_InternalUpscaled1",
+     "format": "R16G16B16A16_FLOAT",
+     "width": 1001,
+     "height": 563,
+     "mipCount": 1
+    },
+    {
+     "name": "FSR3UPSCALER_InternalUpscaled2",
+     "format": "R16G16B16A16_FLOAT",
+     "width": 1001,
+     "height": 563,
+     "mipCount": 1
+    },
+    {
+     "name": "FSR3UPSCALER_SpdMips",
+     "format": "R16G16_FLOAT",
+     "width": 320,
+     "height": 180,
+     "mipCount": 0
+    },
+    {
+     "name": "FSR3UPSCALER_FarthestDepthMip1",
+     "format": "R16_FLOAT",
+     "width": 320,
+     "height": 180,
+     "mipCount": 1
+    },
+    {
+     "name": "FSR3UPSCALER_LumaHistory1",
+     "format": "R16G16B16A16_FLOAT",
+     "width": 641,
+     "height": 361,
+     "mipCount": 1
+    },
+    {
+     "name": "FSR3UPSCALER_LumaHistory2",
+     "format": "R16G16B16A16_FLOAT",
+     "width": 641,
+     "height": 361,
+     "mipCount": 1
+    },
+    {
+     "name": "FSR3UPSCALER_SpdAtomicCounter",
+     "format": "R32_UINT",
+     "width": 1,
+     "height": 1,
+     "mipCount": 1
+    },
+    {
+     "name": "FSR3UPSCALER_DilatedReactiveMasks",
+     "format": "R8G8B8A8_UNORM",
+     "width": 641,
+     "height": 361,
+     "mipCount": 1
+    },
+    {
+     "name": "FSR3UPSCALER_LanczosLutData",
+     "format": "R16_SNORM",
+     "width": 128,
+     "height": 1,
+     "mipCount": 1
+    },
+    {
+     "name": "FSR3UPSCALER_DefaultReactivityMask",
+     "format": "R8_UNORM",
+     "width": 1,
+     "height": 1,
+     "mipCount": 1
+    },
+    {
+     "name": "FSR3UPSCALER_DefaultExposure",
+     "format": "R32G32_FLOAT",
+     "width": 1,
+     "height": 1,
+     "mipCount": 1
+    },
+    {
+     "name": "FSR3UPSCALER_FrameInfo",
+     "format": "R32G32B32A32_FLOAT",
+     "width": 1,
+     "height": 1,
+     "mipCount": 1
+    }
+   ],
+   "sharedResources": [
+    {
+     "name": "FSR3UPSCALER_DilatedDepth",
+     "format": "R32_FLOAT",
+     "width": 641,
+     "height": 361,
+     "mipCount": 1
+    },
+    {
+     "name": "FSR3UPSCALER_DilatedVelocity",
+     "format": "R16G16_FLOAT",
+     "width": 641,
+     "height": 361,
+     "mipCount": 1
+    },
+    {
+     "name": "FSR3UPSCALER_ReconstructedPrevNearestDepth",
+     "format": "R32_UINT",
+     "width": 641,
+     "height": 361,
+     "mipCount": 1
+    }
+   ],
+   "frames": [
+    {
+     "renderWidth": 427,
+     "renderHeight": 241,
+     "jitterX": 0,
+     "jitterY": 0.166666657,
+     "frameMilliseconds": 16.666666,
+     "preExposure": 1,
+     "verticalFov": 1.29999995,
+     "reset": true,
+     "reactiveWords": [
+      1065353216,
+      1045220557,
+      1063675494,
+      13
+     ],
+     "constants": {
+      "renderSizeX": 427,
+      "renderSizeY": 241,
+      "previousFrameRenderSizeX": 0,
+      "previousFrameRenderSizeY": 0,
+      "upscaleSizeX": 1001,
+      "upscaleSizeY": 563,
+      "previousFrameUpscaleSizeX": 0,
+      "previousFrameUpscaleSizeY": 0,
+      "maxRenderSizeX": 641,
+      "maxRenderSizeY": 361,
+      "maxUpscaleSizeX": 1001,
+      "maxUpscaleSizeY": 563,
+      "deviceToViewDepth0": -1.1920929e-07,
+      "deviceToViewDepth1": 0.0500000007,
+      "deviceToViewDepth2": 1.34691811,
+      "deviceToViewDepth3": 0.760204375,
+      "jitterOffsetX": 0,
+      "jitterOffsetY": 0.166666657,
+      "previousFrameJitterOffsetX": 0,
+      "previousFrameJitterOffsetY": 0,
+      "motionVectorScaleX": 1,
+      "motionVectorScaleY": 1,
+      "downscaleFactorX": 0.426573426,
+      "downscaleFactorY": 0.428063929,
+      "motionVectorJitterCancellationX": 0,
+      "motionVectorJitterCancellationY": 0,
+      "tanHalfFOV": 1.34691811,
+      "jitterPhaseCount": 43,
+      "deltaTime": 0.0166666657,
+      "deltaPreExposure": 1,
+      "viewSpaceToMetersFactor": 1,
+      "frameIndex": 0,
+      "velocityFactor": 1,
+      "reactivenessScale": 1,
+      "shadingChangeScale": 1,
+      "accumulationAddedPerFrame": 0.333333343,
+      "minDisocclusionAccumulation": -0.333333343
+     },
+     "spdWords": [
+      8,
+      28,
+      0,
+      0,
+      427,
+      241
+     ],
+     "jobs": [
+      {
+       "kind": "dispatch",
+       "label": "FSR3-GEN_REACTIVE",
+       "x": 54,
+       "y": 31,
+       "z": 1
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Accumulation 1",
+       "target": "FSR3UPSCALER_Accumulation1",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Accumulation 2",
+       "target": "FSR3UPSCALER_Accumulation2",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Temporal Luma 1",
+       "target": "FSR3UPSCALER_Luma1",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Temporal Luma 2",
+       "target": "FSR3UPSCALER_Luma2",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Resource",
+       "target": "FSR3UPSCALER_Accumulation1",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Scene Luminance",
+       "target": "FSR3UPSCALER_SpdMips",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Frame Info",
+       "target": "FSR3UPSCALER_FrameInfo",
+       "color": [
+        -1,
+        1,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Reconstructed Previous Nearest Depth",
+       "target": "FSR3UPSCALER_ReconstructedPrevNearestDepth",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Spd Atomic Count",
+       "target": "FSR3UPSCALER_SpdAtomicCounter",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_IntermediateFp16x1"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_ShadingChange"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_NewLocks"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_FarthestDepthMip1"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_DilatedReactiveMasks"
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Spd Atomic Count",
+       "target": "FSR3UPSCALER_SpdMips",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-PREPARE-INPUTS",
+       "x": 54,
+       "y": 31,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-LUMA-PYRAMID",
+       "x": 7,
+       "y": 4,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-SHADING-CHANGE-PYRAMID",
+       "x": 7,
+       "y": 4,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-SHADING-CHANGE",
+       "x": 27,
+       "y": 15,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-PREPARE-REACTIVITY",
+       "x": 54,
+       "y": 31,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-LUMA-INSTABILITY",
+       "x": 54,
+       "y": 31,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-ACCUMULATE",
+       "x": 126,
+       "y": 71,
+       "z": 1
+      }
+     ]
+    },
+    {
+     "renderWidth": 427,
+     "renderHeight": 241,
+     "jitterX": 0.25,
+     "jitterY": -0.166666687,
+     "frameMilliseconds": 16.666666,
+     "preExposure": 1,
+     "verticalFov": 1.29999995,
+     "reset": false,
+     "reactiveWords": [
+      1065353216,
+      1045220557,
+      1063675494,
+      13
+     ],
+     "constants": {
+      "renderSizeX": 427,
+      "renderSizeY": 241,
+      "previousFrameRenderSizeX": 427,
+      "previousFrameRenderSizeY": 241,
+      "upscaleSizeX": 1001,
+      "upscaleSizeY": 563,
+      "previousFrameUpscaleSizeX": 1001,
+      "previousFrameUpscaleSizeY": 563,
+      "maxRenderSizeX": 641,
+      "maxRenderSizeY": 361,
+      "maxUpscaleSizeX": 1001,
+      "maxUpscaleSizeY": 563,
+      "deviceToViewDepth0": -1.1920929e-07,
+      "deviceToViewDepth1": 0.0500000007,
+      "deviceToViewDepth2": 1.34691811,
+      "deviceToViewDepth3": 0.760204375,
+      "jitterOffsetX": 0.25,
+      "jitterOffsetY": -0.166666687,
+      "previousFrameJitterOffsetX": 0,
+      "previousFrameJitterOffsetY": 0.166666657,
+      "motionVectorScaleX": 1,
+      "motionVectorScaleY": 1,
+      "downscaleFactorX": 0.426573426,
+      "downscaleFactorY": 0.428063929,
+      "motionVectorJitterCancellationX": 0,
+      "motionVectorJitterCancellationY": 0,
+      "tanHalfFOV": 1.34691811,
+      "jitterPhaseCount": 43,
+      "deltaTime": 0.0166666657,
+      "deltaPreExposure": 1,
+      "viewSpaceToMetersFactor": 1,
+      "frameIndex": 1,
+      "velocityFactor": 1,
+      "reactivenessScale": 1,
+      "shadingChangeScale": 1,
+      "accumulationAddedPerFrame": 0.333333343,
+      "minDisocclusionAccumulation": -0.333333343
+     },
+     "spdWords": [
+      8,
+      28,
+      0,
+      0,
+      427,
+      241
+     ],
+     "jobs": [
+      {
+       "kind": "dispatch",
+       "label": "FSR3-GEN_REACTIVE",
+       "x": 54,
+       "y": 31,
+       "z": 1
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Reconstructed Previous Nearest Depth",
+       "target": "FSR3UPSCALER_ReconstructedPrevNearestDepth",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Spd Atomic Count",
+       "target": "FSR3UPSCALER_SpdAtomicCounter",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_IntermediateFp16x1"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_ShadingChange"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_NewLocks"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_FarthestDepthMip1"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_DilatedReactiveMasks"
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Spd Atomic Count",
+       "target": "FSR3UPSCALER_SpdMips",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-PREPARE-INPUTS",
+       "x": 54,
+       "y": 31,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-LUMA-PYRAMID",
+       "x": 7,
+       "y": 4,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-SHADING-CHANGE-PYRAMID",
+       "x": 7,
+       "y": 4,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-SHADING-CHANGE",
+       "x": 27,
+       "y": 15,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-PREPARE-REACTIVITY",
+       "x": 54,
+       "y": 31,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-LUMA-INSTABILITY",
+       "x": 54,
+       "y": 31,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-ACCUMULATE",
+       "x": 126,
+       "y": 71,
+       "z": 1
+      }
+     ]
+    },
+    {
+     "renderWidth": 641,
+     "renderHeight": 361,
+     "jitterX": -0.25,
+     "jitterY": 0.388888896,
+     "frameMilliseconds": 16.666666,
+     "preExposure": 1,
+     "verticalFov": 1.29999995,
+     "reset": false,
+     "reactiveWords": [
+      1065353216,
+      1045220557,
+      1063675494,
+      13
+     ],
+     "constants": {
+      "renderSizeX": 641,
+      "renderSizeY": 361,
+      "previousFrameRenderSizeX": 427,
+      "previousFrameRenderSizeY": 241,
+      "upscaleSizeX": 1001,
+      "upscaleSizeY": 563,
+      "previousFrameUpscaleSizeX": 1001,
+      "previousFrameUpscaleSizeY": 563,
+      "maxRenderSizeX": 641,
+      "maxRenderSizeY": 361,
+      "maxUpscaleSizeX": 1001,
+      "maxUpscaleSizeY": 563,
+      "deviceToViewDepth0": -1.1920929e-07,
+      "deviceToViewDepth1": 0.0500000007,
+      "deviceToViewDepth2": 1.34983659,
+      "deviceToViewDepth3": 0.760204375,
+      "jitterOffsetX": -0.25,
+      "jitterOffsetY": 0.388888896,
+      "previousFrameJitterOffsetX": 0.25,
+      "previousFrameJitterOffsetY": -0.166666687,
+      "motionVectorScaleX": 1,
+      "motionVectorScaleY": 1,
+      "downscaleFactorX": 0.64035964,
+      "downscaleFactorY": 0.641207814,
+      "motionVectorJitterCancellationX": 0,
+      "motionVectorJitterCancellationY": 0,
+      "tanHalfFOV": 1.34983659,
+      "jitterPhaseCount": 42,
+      "deltaTime": 0.0166666657,
+      "deltaPreExposure": 1,
+      "viewSpaceToMetersFactor": 1,
+      "frameIndex": 2,
+      "velocityFactor": 1,
+      "reactivenessScale": 1,
+      "shadingChangeScale": 1,
+      "accumulationAddedPerFrame": 0.333333343,
+      "minDisocclusionAccumulation": -0.333333343
+     },
+     "spdWords": [
+      9,
+      66,
+      0,
+      0,
+      641,
+      361
+     ],
+     "jobs": [
+      {
+       "kind": "dispatch",
+       "label": "FSR3-GEN_REACTIVE",
+       "x": 81,
+       "y": 46,
+       "z": 1
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Reconstructed Previous Nearest Depth",
+       "target": "FSR3UPSCALER_ReconstructedPrevNearestDepth",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Spd Atomic Count",
+       "target": "FSR3UPSCALER_SpdAtomicCounter",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_IntermediateFp16x1"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_ShadingChange"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_NewLocks"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_FarthestDepthMip1"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_DilatedReactiveMasks"
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Spd Atomic Count",
+       "target": "FSR3UPSCALER_SpdMips",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-PREPARE-INPUTS",
+       "x": 81,
+       "y": 46,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-LUMA-PYRAMID",
+       "x": 11,
+       "y": 6,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-SHADING-CHANGE-PYRAMID",
+       "x": 11,
+       "y": 6,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-SHADING-CHANGE",
+       "x": 40,
+       "y": 23,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-PREPARE-REACTIVITY",
+       "x": 81,
+       "y": 46,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-LUMA-INSTABILITY",
+       "x": 81,
+       "y": 46,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-ACCUMULATE",
+       "x": 126,
+       "y": 71,
+       "z": 1
+      }
+     ]
+    },
+    {
+     "renderWidth": 333,
+     "renderHeight": 187,
+     "jitterX": 0.375,
+     "jitterY": 0.0555555522,
+     "frameMilliseconds": 16.666666,
+     "preExposure": 1,
+     "verticalFov": 1.29999995,
+     "reset": false,
+     "reactiveWords": [
+      1065353216,
+      1045220557,
+      1063675494,
+      13
+     ],
+     "constants": {
+      "renderSizeX": 333,
+      "renderSizeY": 187,
+      "previousFrameRenderSizeX": 641,
+      "previousFrameRenderSizeY": 361,
+      "upscaleSizeX": 1001,
+      "upscaleSizeY": 563,
+      "previousFrameUpscaleSizeX": 1001,
+      "previousFrameUpscaleSizeY": 563,
+      "maxRenderSizeX": 641,
+      "maxRenderSizeY": 361,
+      "maxUpscaleSizeX": 1001,
+      "maxUpscaleSizeY": 563,
+      "deviceToViewDepth0": -1.1920929e-07,
+      "deviceToViewDepth1": 0.0500000007,
+      "deviceToViewDepth2": 1.35373282,
+      "deviceToViewDepth3": 0.760204375,
+      "jitterOffsetX": 0.375,
+      "jitterOffsetY": 0.0555555522,
+      "previousFrameJitterOffsetX": -0.25,
+      "previousFrameJitterOffsetY": 0.388888896,
+      "motionVectorScaleX": 1,
+      "motionVectorScaleY": 1,
+      "downscaleFactorX": 0.332667321,
+      "downscaleFactorY": 0.332149208,
+      "motionVectorJitterCancellationX": 0,
+      "motionVectorJitterCancellationY": 0,
+      "tanHalfFOV": 1.35373282,
+      "jitterPhaseCount": 43,
+      "deltaTime": 0.0166666657,
+      "deltaPreExposure": 1,
+      "viewSpaceToMetersFactor": 1,
+      "frameIndex": 3,
+      "velocityFactor": 1,
+      "reactivenessScale": 1,
+      "shadingChangeScale": 1,
+      "accumulationAddedPerFrame": 0.333333343,
+      "minDisocclusionAccumulation": -0.333333343
+     },
+     "spdWords": [
+      8,
+      18,
+      0,
+      0,
+      333,
+      187
+     ],
+     "jobs": [
+      {
+       "kind": "dispatch",
+       "label": "FSR3-GEN_REACTIVE",
+       "x": 42,
+       "y": 24,
+       "z": 1
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Reconstructed Previous Nearest Depth",
+       "target": "FSR3UPSCALER_ReconstructedPrevNearestDepth",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Spd Atomic Count",
+       "target": "FSR3UPSCALER_SpdAtomicCounter",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_IntermediateFp16x1"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_ShadingChange"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_NewLocks"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_FarthestDepthMip1"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_DilatedReactiveMasks"
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Spd Atomic Count",
+       "target": "FSR3UPSCALER_SpdMips",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-PREPARE-INPUTS",
+       "x": 42,
+       "y": 24,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-LUMA-PYRAMID",
+       "x": 6,
+       "y": 3,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-SHADING-CHANGE-PYRAMID",
+       "x": 6,
+       "y": 3,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-SHADING-CHANGE",
+       "x": 21,
+       "y": 12,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-PREPARE-REACTIVITY",
+       "x": 42,
+       "y": 24,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-LUMA-INSTABILITY",
+       "x": 42,
+       "y": 24,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-ACCUMULATE",
+       "x": 126,
+       "y": 71,
+       "z": 1
+      }
+     ]
+    },
+    {
+     "renderWidth": 427,
+     "renderHeight": 241,
+     "jitterX": -0.125,
+     "jitterY": -0.277777791,
+     "frameMilliseconds": 16.666666,
+     "preExposure": 1,
+     "verticalFov": 1.29999995,
+     "reset": false,
+     "reactiveWords": [
+      1065353216,
+      1045220557,
+      1063675494,
+      13
+     ],
+     "constants": {
+      "renderSizeX": 427,
+      "renderSizeY": 241,
+      "previousFrameRenderSizeX": 333,
+      "previousFrameRenderSizeY": 187,
+      "upscaleSizeX": 1001,
+      "upscaleSizeY": 563,
+      "previousFrameUpscaleSizeX": 1001,
+      "previousFrameUpscaleSizeY": 563,
+      "maxRenderSizeX": 641,
+      "maxRenderSizeY": 361,
+      "maxUpscaleSizeX": 1001,
+      "maxUpscaleSizeY": 563,
+      "deviceToViewDepth0": -1.1920929e-07,
+      "deviceToViewDepth1": 0.0500000007,
+      "deviceToViewDepth2": 1.34691811,
+      "deviceToViewDepth3": 0.760204375,
+      "jitterOffsetX": -0.125,
+      "jitterOffsetY": -0.277777791,
+      "previousFrameJitterOffsetX": 0.375,
+      "previousFrameJitterOffsetY": 0.0555555522,
+      "motionVectorScaleX": 1,
+      "motionVectorScaleY": 1,
+      "downscaleFactorX": 0.426573426,
+      "downscaleFactorY": 0.428063929,
+      "motionVectorJitterCancellationX": 0,
+      "motionVectorJitterCancellationY": 0,
+      "tanHalfFOV": 1.34691811,
+      "jitterPhaseCount": 43,
+      "deltaTime": 0.0166666657,
+      "deltaPreExposure": 1,
+      "viewSpaceToMetersFactor": 1,
+      "frameIndex": 4,
+      "velocityFactor": 1,
+      "reactivenessScale": 1,
+      "shadingChangeScale": 1,
+      "accumulationAddedPerFrame": 0.333333343,
+      "minDisocclusionAccumulation": -0.333333343
+     },
+     "spdWords": [
+      8,
+      28,
+      0,
+      0,
+      427,
+      241
+     ],
+     "jobs": [
+      {
+       "kind": "dispatch",
+       "label": "FSR3-GEN_REACTIVE",
+       "x": 54,
+       "y": 31,
+       "z": 1
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Reconstructed Previous Nearest Depth",
+       "target": "FSR3UPSCALER_ReconstructedPrevNearestDepth",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Spd Atomic Count",
+       "target": "FSR3UPSCALER_SpdAtomicCounter",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_IntermediateFp16x1"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_ShadingChange"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_NewLocks"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_FarthestDepthMip1"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_DilatedReactiveMasks"
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Spd Atomic Count",
+       "target": "FSR3UPSCALER_SpdMips",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-PREPARE-INPUTS",
+       "x": 54,
+       "y": 31,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-LUMA-PYRAMID",
+       "x": 7,
+       "y": 4,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-SHADING-CHANGE-PYRAMID",
+       "x": 7,
+       "y": 4,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-SHADING-CHANGE",
+       "x": 27,
+       "y": 15,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-PREPARE-REACTIVITY",
+       "x": 54,
+       "y": 31,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-LUMA-INSTABILITY",
+       "x": 54,
+       "y": 31,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-ACCUMULATE",
+       "x": 126,
+       "y": 71,
+       "z": 1
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "small",
+   "maxRenderWidth": 64,
+   "maxRenderHeight": 48,
+   "outputWidth": 96,
+   "outputHeight": 72,
+   "nearMeters": 0.0500000007,
+   "resources": [
+    {
+     "name": "FSR3UPSCALER_Accumulation1",
+     "format": "R8_UNORM",
+     "width": 64,
+     "height": 48,
+     "mipCount": 1
+    },
+    {
+     "name": "FSR3UPSCALER_Accumulation2",
+     "format": "R8_UNORM",
+     "width": 64,
+     "height": 48,
+     "mipCount": 1
+    },
+    {
+     "name": "FSR3UPSCALER_Luma1",
+     "format": "R16_FLOAT",
+     "width": 64,
+     "height": 48,
+     "mipCount": 1
+    },
+    {
+     "name": "FSR3UPSCALER_Luma2",
+     "format": "R16_FLOAT",
+     "width": 64,
+     "height": 48,
+     "mipCount": 1
+    },
+    {
+     "name": "FSR3UPSCALER_IntermediateFp16x1",
+     "format": "R16_FLOAT",
+     "width": 64,
+     "height": 48,
+     "mipCount": 1
+    },
+    {
+     "name": "FSR3UPSCALER_ShadingChange",
+     "format": "R8_UNORM",
+     "width": 32,
+     "height": 24,
+     "mipCount": 1
+    },
+    {
+     "name": "FSR3UPSCALER_NewLocks",
+     "format": "R8_UNORM",
+     "width": 96,
+     "height": 72,
+     "mipCount": 1
+    },
+    {
+     "name": "FSR3UPSCALER_InternalUpscaled1",
+     "format": "R16G16B16A16_FLOAT",
+     "width": 96,
+     "height": 72,
+     "mipCount": 1
+    },
+    {
+     "name": "FSR3UPSCALER_InternalUpscaled2",
+     "format": "R16G16B16A16_FLOAT",
+     "width": 96,
+     "height": 72,
+     "mipCount": 1
+    },
+    {
+     "name": "FSR3UPSCALER_SpdMips",
+     "format": "R16G16_FLOAT",
+     "width": 32,
+     "height": 24,
+     "mipCount": 0
+    },
+    {
+     "name": "FSR3UPSCALER_FarthestDepthMip1",
+     "format": "R16_FLOAT",
+     "width": 32,
+     "height": 24,
+     "mipCount": 1
+    },
+    {
+     "name": "FSR3UPSCALER_LumaHistory1",
+     "format": "R16G16B16A16_FLOAT",
+     "width": 64,
+     "height": 48,
+     "mipCount": 1
+    },
+    {
+     "name": "FSR3UPSCALER_LumaHistory2",
+     "format": "R16G16B16A16_FLOAT",
+     "width": 64,
+     "height": 48,
+     "mipCount": 1
+    },
+    {
+     "name": "FSR3UPSCALER_SpdAtomicCounter",
+     "format": "R32_UINT",
+     "width": 1,
+     "height": 1,
+     "mipCount": 1
+    },
+    {
+     "name": "FSR3UPSCALER_DilatedReactiveMasks",
+     "format": "R8G8B8A8_UNORM",
+     "width": 64,
+     "height": 48,
+     "mipCount": 1
+    },
+    {
+     "name": "FSR3UPSCALER_LanczosLutData",
+     "format": "R16_SNORM",
+     "width": 128,
+     "height": 1,
+     "mipCount": 1
+    },
+    {
+     "name": "FSR3UPSCALER_DefaultReactivityMask",
+     "format": "R8_UNORM",
+     "width": 1,
+     "height": 1,
+     "mipCount": 1
+    },
+    {
+     "name": "FSR3UPSCALER_DefaultExposure",
+     "format": "R32G32_FLOAT",
+     "width": 1,
+     "height": 1,
+     "mipCount": 1
+    },
+    {
+     "name": "FSR3UPSCALER_FrameInfo",
+     "format": "R32G32B32A32_FLOAT",
+     "width": 1,
+     "height": 1,
+     "mipCount": 1
+    }
+   ],
+   "sharedResources": [
+    {
+     "name": "FSR3UPSCALER_DilatedDepth",
+     "format": "R32_FLOAT",
+     "width": 64,
+     "height": 48,
+     "mipCount": 1
+    },
+    {
+     "name": "FSR3UPSCALER_DilatedVelocity",
+     "format": "R16G16_FLOAT",
+     "width": 64,
+     "height": 48,
+     "mipCount": 1
+    },
+    {
+     "name": "FSR3UPSCALER_ReconstructedPrevNearestDepth",
+     "format": "R32_UINT",
+     "width": 64,
+     "height": 48,
+     "mipCount": 1
+    }
+   ],
+   "frames": [
+    {
+     "renderWidth": 64,
+     "renderHeight": 48,
+     "jitterX": 0,
+     "jitterY": 0.166666657,
+     "frameMilliseconds": 16.666666,
+     "preExposure": 1,
+     "verticalFov": 1.04719758,
+     "reset": true,
+     "reactiveWords": [
+      1065353216,
+      1045220557,
+      1063675494,
+      13
+     ],
+     "constants": {
+      "renderSizeX": 64,
+      "renderSizeY": 48,
+      "previousFrameRenderSizeX": 0,
+      "previousFrameRenderSizeY": 0,
+      "upscaleSizeX": 96,
+      "upscaleSizeY": 72,
+      "previousFrameUpscaleSizeX": 0,
+      "previousFrameUpscaleSizeY": 0,
+      "maxRenderSizeX": 64,
+      "maxRenderSizeY": 48,
+      "maxUpscaleSizeX": 96,
+      "maxUpscaleSizeY": 72,
+      "deviceToViewDepth0": -1.1920929e-07,
+      "deviceToViewDepth1": 0.0500000007,
+      "deviceToViewDepth2": 0.769800365,
+      "deviceToViewDepth3": 0.577350259,
+      "jitterOffsetX": 0,
+      "jitterOffsetY": 0.166666657,
+      "previousFrameJitterOffsetX": 0,
+      "previousFrameJitterOffsetY": 0,
+      "motionVectorScaleX": 1,
+      "motionVectorScaleY": 1,
+      "downscaleFactorX": 0.666666687,
+      "downscaleFactorY": 0.666666687,
+      "motionVectorJitterCancellationX": 0,
+      "motionVectorJitterCancellationY": 0,
+      "tanHalfFOV": 0.769800365,
+      "jitterPhaseCount": 18,
+      "deltaTime": 0.0166666657,
+      "deltaPreExposure": 1,
+      "viewSpaceToMetersFactor": 1,
+      "frameIndex": 0,
+      "velocityFactor": 1,
+      "reactivenessScale": 1,
+      "shadingChangeScale": 1,
+      "accumulationAddedPerFrame": 0.333333343,
+      "minDisocclusionAccumulation": -0.333333343
+     },
+     "spdWords": [
+      6,
+      1,
+      0,
+      0,
+      64,
+      48
+     ],
+     "jobs": [
+      {
+       "kind": "dispatch",
+       "label": "FSR3-GEN_REACTIVE",
+       "x": 8,
+       "y": 6,
+       "z": 1
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Accumulation 1",
+       "target": "FSR3UPSCALER_Accumulation1",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Accumulation 2",
+       "target": "FSR3UPSCALER_Accumulation2",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Temporal Luma 1",
+       "target": "FSR3UPSCALER_Luma1",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Temporal Luma 2",
+       "target": "FSR3UPSCALER_Luma2",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Resource",
+       "target": "FSR3UPSCALER_Accumulation1",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Scene Luminance",
+       "target": "FSR3UPSCALER_SpdMips",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Frame Info",
+       "target": "FSR3UPSCALER_FrameInfo",
+       "color": [
+        -1,
+        1,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Reconstructed Previous Nearest Depth",
+       "target": "FSR3UPSCALER_ReconstructedPrevNearestDepth",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Spd Atomic Count",
+       "target": "FSR3UPSCALER_SpdAtomicCounter",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_IntermediateFp16x1"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_ShadingChange"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_NewLocks"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_FarthestDepthMip1"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_DilatedReactiveMasks"
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Spd Atomic Count",
+       "target": "FSR3UPSCALER_SpdMips",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-PREPARE-INPUTS",
+       "x": 8,
+       "y": 6,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-LUMA-PYRAMID",
+       "x": 1,
+       "y": 1,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-SHADING-CHANGE-PYRAMID",
+       "x": 1,
+       "y": 1,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-SHADING-CHANGE",
+       "x": 4,
+       "y": 3,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-PREPARE-REACTIVITY",
+       "x": 8,
+       "y": 6,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-LUMA-INSTABILITY",
+       "x": 8,
+       "y": 6,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-ACCUMULATE",
+       "x": 12,
+       "y": 9,
+       "z": 1
+      }
+     ]
+    },
+    {
+     "renderWidth": 64,
+     "renderHeight": 48,
+     "jitterX": 0.25,
+     "jitterY": -0.166666687,
+     "frameMilliseconds": 16.666666,
+     "preExposure": 1,
+     "verticalFov": 1.04719758,
+     "reset": false,
+     "reactiveWords": [
+      1065353216,
+      1045220557,
+      1063675494,
+      13
+     ],
+     "constants": {
+      "renderSizeX": 64,
+      "renderSizeY": 48,
+      "previousFrameRenderSizeX": 64,
+      "previousFrameRenderSizeY": 48,
+      "upscaleSizeX": 96,
+      "upscaleSizeY": 72,
+      "previousFrameUpscaleSizeX": 96,
+      "previousFrameUpscaleSizeY": 72,
+      "maxRenderSizeX": 64,
+      "maxRenderSizeY": 48,
+      "maxUpscaleSizeX": 96,
+      "maxUpscaleSizeY": 72,
+      "deviceToViewDepth0": -1.1920929e-07,
+      "deviceToViewDepth1": 0.0500000007,
+      "deviceToViewDepth2": 0.769800365,
+      "deviceToViewDepth3": 0.577350259,
+      "jitterOffsetX": 0.25,
+      "jitterOffsetY": -0.166666687,
+      "previousFrameJitterOffsetX": 0,
+      "previousFrameJitterOffsetY": 0.166666657,
+      "motionVectorScaleX": 1,
+      "motionVectorScaleY": 1,
+      "downscaleFactorX": 0.666666687,
+      "downscaleFactorY": 0.666666687,
+      "motionVectorJitterCancellationX": 0,
+      "motionVectorJitterCancellationY": 0,
+      "tanHalfFOV": 0.769800365,
+      "jitterPhaseCount": 18,
+      "deltaTime": 0.0166666657,
+      "deltaPreExposure": 1,
+      "viewSpaceToMetersFactor": 1,
+      "frameIndex": 1,
+      "velocityFactor": 1,
+      "reactivenessScale": 1,
+      "shadingChangeScale": 1,
+      "accumulationAddedPerFrame": 0.333333343,
+      "minDisocclusionAccumulation": -0.333333343
+     },
+     "spdWords": [
+      6,
+      1,
+      0,
+      0,
+      64,
+      48
+     ],
+     "jobs": [
+      {
+       "kind": "dispatch",
+       "label": "FSR3-GEN_REACTIVE",
+       "x": 8,
+       "y": 6,
+       "z": 1
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Reconstructed Previous Nearest Depth",
+       "target": "FSR3UPSCALER_ReconstructedPrevNearestDepth",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Spd Atomic Count",
+       "target": "FSR3UPSCALER_SpdAtomicCounter",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_IntermediateFp16x1"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_ShadingChange"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_NewLocks"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_FarthestDepthMip1"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_DilatedReactiveMasks"
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Spd Atomic Count",
+       "target": "FSR3UPSCALER_SpdMips",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-PREPARE-INPUTS",
+       "x": 8,
+       "y": 6,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-LUMA-PYRAMID",
+       "x": 1,
+       "y": 1,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-SHADING-CHANGE-PYRAMID",
+       "x": 1,
+       "y": 1,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-SHADING-CHANGE",
+       "x": 4,
+       "y": 3,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-PREPARE-REACTIVITY",
+       "x": 8,
+       "y": 6,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-LUMA-INSTABILITY",
+       "x": 8,
+       "y": 6,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-ACCUMULATE",
+       "x": 12,
+       "y": 9,
+       "z": 1
+      }
+     ]
+    },
+    {
+     "renderWidth": 64,
+     "renderHeight": 48,
+     "jitterX": -0.25,
+     "jitterY": 0.388888896,
+     "frameMilliseconds": 16.666666,
+     "preExposure": 4,
+     "verticalFov": 1.04719758,
+     "reset": false,
+     "reactiveWords": [
+      1065353216,
+      1045220557,
+      1063675494,
+      13
+     ],
+     "constants": {
+      "renderSizeX": 64,
+      "renderSizeY": 48,
+      "previousFrameRenderSizeX": 64,
+      "previousFrameRenderSizeY": 48,
+      "upscaleSizeX": 96,
+      "upscaleSizeY": 72,
+      "previousFrameUpscaleSizeX": 96,
+      "previousFrameUpscaleSizeY": 72,
+      "maxRenderSizeX": 64,
+      "maxRenderSizeY": 48,
+      "maxUpscaleSizeX": 96,
+      "maxUpscaleSizeY": 72,
+      "deviceToViewDepth0": -1.1920929e-07,
+      "deviceToViewDepth1": 0.0500000007,
+      "deviceToViewDepth2": 0.769800365,
+      "deviceToViewDepth3": 0.577350259,
+      "jitterOffsetX": -0.25,
+      "jitterOffsetY": 0.388888896,
+      "previousFrameJitterOffsetX": 0.25,
+      "previousFrameJitterOffsetY": -0.166666687,
+      "motionVectorScaleX": 1,
+      "motionVectorScaleY": 1,
+      "downscaleFactorX": 0.666666687,
+      "downscaleFactorY": 0.666666687,
+      "motionVectorJitterCancellationX": 0,
+      "motionVectorJitterCancellationY": 0,
+      "tanHalfFOV": 0.769800365,
+      "jitterPhaseCount": 18,
+      "deltaTime": 0.0166666657,
+      "deltaPreExposure": 4,
+      "viewSpaceToMetersFactor": 1,
+      "frameIndex": 2,
+      "velocityFactor": 1,
+      "reactivenessScale": 1,
+      "shadingChangeScale": 1,
+      "accumulationAddedPerFrame": 0.333333343,
+      "minDisocclusionAccumulation": -0.333333343
+     },
+     "spdWords": [
+      6,
+      1,
+      0,
+      0,
+      64,
+      48
+     ],
+     "jobs": [
+      {
+       "kind": "dispatch",
+       "label": "FSR3-GEN_REACTIVE",
+       "x": 8,
+       "y": 6,
+       "z": 1
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Reconstructed Previous Nearest Depth",
+       "target": "FSR3UPSCALER_ReconstructedPrevNearestDepth",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Spd Atomic Count",
+       "target": "FSR3UPSCALER_SpdAtomicCounter",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_IntermediateFp16x1"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_ShadingChange"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_NewLocks"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_FarthestDepthMip1"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_DilatedReactiveMasks"
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Spd Atomic Count",
+       "target": "FSR3UPSCALER_SpdMips",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-PREPARE-INPUTS",
+       "x": 8,
+       "y": 6,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-LUMA-PYRAMID",
+       "x": 1,
+       "y": 1,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-SHADING-CHANGE-PYRAMID",
+       "x": 1,
+       "y": 1,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-SHADING-CHANGE",
+       "x": 4,
+       "y": 3,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-PREPARE-REACTIVITY",
+       "x": 8,
+       "y": 6,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-LUMA-INSTABILITY",
+       "x": 8,
+       "y": 6,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-ACCUMULATE",
+       "x": 12,
+       "y": 9,
+       "z": 1
+      }
+     ]
+    },
+    {
+     "renderWidth": 64,
+     "renderHeight": 48,
+     "jitterX": 0.375,
+     "jitterY": 0.0555555522,
+     "frameMilliseconds": 16.666666,
+     "preExposure": 4,
+     "verticalFov": 1.04719758,
+     "reset": false,
+     "reactiveWords": [
+      1065353216,
+      1045220557,
+      1063675494,
+      13
+     ],
+     "constants": {
+      "renderSizeX": 64,
+      "renderSizeY": 48,
+      "previousFrameRenderSizeX": 64,
+      "previousFrameRenderSizeY": 48,
+      "upscaleSizeX": 96,
+      "upscaleSizeY": 72,
+      "previousFrameUpscaleSizeX": 96,
+      "previousFrameUpscaleSizeY": 72,
+      "maxRenderSizeX": 64,
+      "maxRenderSizeY": 48,
+      "maxUpscaleSizeX": 96,
+      "maxUpscaleSizeY": 72,
+      "deviceToViewDepth0": -1.1920929e-07,
+      "deviceToViewDepth1": 0.0500000007,
+      "deviceToViewDepth2": 0.769800365,
+      "deviceToViewDepth3": 0.577350259,
+      "jitterOffsetX": 0.375,
+      "jitterOffsetY": 0.0555555522,
+      "previousFrameJitterOffsetX": -0.25,
+      "previousFrameJitterOffsetY": 0.388888896,
+      "motionVectorScaleX": 1,
+      "motionVectorScaleY": 1,
+      "downscaleFactorX": 0.666666687,
+      "downscaleFactorY": 0.666666687,
+      "motionVectorJitterCancellationX": 0,
+      "motionVectorJitterCancellationY": 0,
+      "tanHalfFOV": 0.769800365,
+      "jitterPhaseCount": 18,
+      "deltaTime": 0.0166666657,
+      "deltaPreExposure": 1,
+      "viewSpaceToMetersFactor": 1,
+      "frameIndex": 3,
+      "velocityFactor": 1,
+      "reactivenessScale": 1,
+      "shadingChangeScale": 1,
+      "accumulationAddedPerFrame": 0.333333343,
+      "minDisocclusionAccumulation": -0.333333343
+     },
+     "spdWords": [
+      6,
+      1,
+      0,
+      0,
+      64,
+      48
+     ],
+     "jobs": [
+      {
+       "kind": "dispatch",
+       "label": "FSR3-GEN_REACTIVE",
+       "x": 8,
+       "y": 6,
+       "z": 1
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Reconstructed Previous Nearest Depth",
+       "target": "FSR3UPSCALER_ReconstructedPrevNearestDepth",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Spd Atomic Count",
+       "target": "FSR3UPSCALER_SpdAtomicCounter",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_IntermediateFp16x1"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_ShadingChange"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_NewLocks"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_FarthestDepthMip1"
+      },
+      {
+       "kind": "discard",
+       "label": "",
+       "target": "FSR3UPSCALER_DilatedReactiveMasks"
+      },
+      {
+       "kind": "clear",
+       "label": "Clear Spd Atomic Count",
+       "target": "FSR3UPSCALER_SpdMips",
+       "color": [
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-PREPARE-INPUTS",
+       "x": 8,
+       "y": 6,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-LUMA-PYRAMID",
+       "x": 1,
+       "y": 1,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-SHADING-CHANGE-PYRAMID",
+       "x": 1,
+       "y": 1,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-SHADING-CHANGE",
+       "x": 4,
+       "y": 3,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-PREPARE-REACTIVITY",
+       "x": 8,
+       "y": 6,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-LUMA-INSTABILITY",
+       "x": 8,
+       "y": 6,
+       "z": 1
+      },
+      {
+       "kind": "dispatch",
+       "label": "FSR3-ACCUMULATE",
+       "x": 12,
+       "y": 9,
+       "z": 1
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

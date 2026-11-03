@@ -19,6 +19,7 @@ public sealed class DeviceFeatureTests
         FragmentStoresAndAtomics = true,
         SamplerAnisotropy = true,
         ShaderStorageImageExtendedFormats = true,
+        ShaderStorageImageWriteWithoutFormat = true,
         ImageCubeArray = true,
     };
 
@@ -93,6 +94,19 @@ public sealed class DeviceFeatureTests
         };
 
         VulkanDevice.MissingFeature(withoutIt, Vulkan12, Vulkan13).Should().Be("shaderStorageImageExtendedFormats");
+    }
+
+    [Fact]
+    public void ADeviceWithoutStorageWritesWithoutAFormatIsRefusedByItsName()
+    {
+        // AMD's accumulate pass of FSR 3.1 declares its output image with no format (docs/plans/temporal-renderer.md,
+        // "FSR 3.1"), which only this feature lets a shader write.
+        PhysicalDeviceFeatures withoutIt = Core with
+        {
+            ShaderStorageImageWriteWithoutFormat = false,
+        };
+
+        VulkanDevice.MissingFeature(withoutIt, Vulkan12, Vulkan13).Should().Be("shaderStorageImageWriteWithoutFormat");
     }
 
     [Fact]

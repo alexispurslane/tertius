@@ -1,6 +1,6 @@
 ---
 id: ter-nmbm
-status: open
+status: in_progress
 deps: [ter-ohqr]
 links: []
 created: 2026-11-03T14:53:48Z
@@ -21,6 +21,10 @@ Build ticket 3 of epic ter-89xq. Design: docs/plans/temporal-renderer.md, sectio
 
 2026-11-03: the user chose the count of exact lights: the lights whose shadow slot is a cascade set (RendererOptions.CascadedLights, 1 by default and 4 at most) take the exact loop. Every other light of the main view, far lights without a set included, is a sampled light in ReSTIR DI. Decision 28 and section 7 of docs/plans/temporal-renderer.md hold the rule, and known limit 19 holds its cost.
 
+**2026-11-03T17:53:57Z**
+
+2026-11-03: launched as workflow run 46d28d1d-5d6f-4186-b518-019afd9643f0, version 869b0b07-3413-4b06-8707-a88a91bf6e91, branch ter-nmbm-direct-light from 2d0ea65e8 (ter-ohqr's branch merged with main, before ter-ohqr's hardening). ter-ohqr's hardening runs at the same time as delegated task ter-ohqr-hardening-1, with one fix inside the surface test: the last view depth moves from the half-float surface history to a kept R32F device depth, so surfaces beyond 65,504 m pass.
+
 **2026-11-03T19:37:12Z**
 
 2026-11-03: the build of ticket 3 (branch ter-nmbm-direct-light).
@@ -39,6 +43,10 @@ Screenshots (1280 x 720, headless, Release):
 - /private/tmp/nmbm-shots/base-lamp-hall-64-still/hall.png and after-lamp-hall-64-still/hall.png: the hall of 64 lamps. After, the floor shows grain and the pillars' shadows lose most of their contrast.
 - /private/tmp/nmbm-shots/base-demo-exit-deck/deck.png and after-demo-exit-deck/deck.png: demo-exit's deck. After, the thin shadows of the glasshouse's frame on the floor nearly vanish. branch-every-deck/deck.png, the branch under --direct-light every, matches the base.
 - /private/tmp/nmbm-shots/base-cabin/cabin.png and after-cabin/cabin.png: the cabin of cabin-light under the star, an exact light. Before and after look the same.
+
+**2026-11-03T21:28:46Z**
+
+2026-11-03: the user chose the full fix of the review's shadow fork in this ticket. The default ResampledLights(4, 2) washes out thin lamp shadows (the deck's glasshouse frame, the hall's pillars), because the spatial combine takes a neighbor's light with no visibility test at this pixel. Before the merge, ticket 3 builds the visibility-aware combine that ticket ter-t8z7 describes: Bitterli's unbiased combine, each neighbor's light weighted with its visibility at this pixel, and 1 / Z over the reservoirs whose surface sees the chosen light. The visibility tests go through lightVisibility, the one rule of every pass, so an atlas light's test ends at the shadow atlas's bounds (ShadowAtlas.Bounds, tileShadow) wherever its 5 x 5 texels agree, and only pixels near a shadow edge take the gathers. The user asked about screen tiles of 16 x 16 pixels for this; the atlas bounds already decide each pixel at a finer grain, so no screen-tile pass. The default keeps 2 neighbors. The merge waits for the combine's GPU time, its bias on the three views, new screenshots and its review. A GPU test of a scene with thin shadows under the default fails if they wash out.
 
 **2026-11-03T22:13:22Z**
 
@@ -71,3 +79,7 @@ Open fork for the user: the default setting (merge as is with ter-t8z7 next, Spa
 **2026-11-03T22:47:20Z**
 
 Checks of the fix stage: the full Checked suite passed (10,124 of 10,139, 15 skipped). The full Release suite failed once on GpuTimingTests.APassThatRecordsNothingAddsNearlyNoTime... (0.060 ms against 0.05 ms), then passed (10,111 of 10,126). That test fails about one run in ten under load also on 16f48fb82, before the fix stage: ticket ter-35w5 holds the measures.
+
+**2026-11-03T22:50:15Z**
+
+2026-11-03: the first run (46d28d1d-5d6f-4186-b518-019afd9643f0) ended at the fork after its fix stage, head 253e5f149. The continuation that builds the visibility-aware combine is workflow run 5af508ba-4e08-4585-9c48-f5b9a8ae3478 (version 869b0b07-3413-4b06-8707-a88a91bf6e91), on the same worktree. It first merges main for the motion vectors' far-depth fix.

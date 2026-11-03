@@ -174,14 +174,28 @@ public sealed class BatcherMotionTests
     }
 
     [Fact]
+    public void AnInstanceOfSlotZeroThatTheLastFrameDrewMovesFromTheRowsThatItDrew()
+    {
+        Draw(WithInstance(position: new(0, 0, -10), slot: 0));
+
+        PreparedScene scene = Draw(WithInstance(position: new(1, 0, -10), slot: 0));
+
+        ((MotionKind)scene.Motions[0].Kind)
+            .Should()
+            .Be(MotionKind.Moved, "slot 0 and part 0 is the lowest key, not none");
+        TranslationOf(scene.Motions[0]).Should().Be(new Vector3(0, 0, -10));
+    }
+
+    [Fact]
     public void AnInstanceWhoseKeyIsNotAboveTheOneBeforeItIsStillInTheCamerasFrame()
     {
         // A hand-built snapshot whose two instances both keep slot 0 and part 0: the second has no identity.
         RenderSnapshot first = WithInstance(position: new(0, 0, -10), slot: 0);
         first.Instances.Add(WithInstance(position: new(4, 0, -10), slot: 0).Instances[0]);
         Draw(first);
-        RenderSnapshot second = WithInstance(position: new(0, -1, -10), slot: 0, origin: new(0, 1, 0));
-        second.Instances.Add(WithInstance(position: new(4, -1, -10), slot: 0, origin: new(0, 1, 0)).Instances[0]);
+        var origin = new Double3(1, 2, -3);
+        RenderSnapshot second = WithInstance(position: new(-1, -2, -7), slot: 0, origin: origin);
+        second.Instances.Add(WithInstance(position: new(3, -2, -7), slot: 0, origin: origin).Instances[0]);
 
         PreparedScene scene = Draw(second);
 
@@ -219,12 +233,44 @@ public sealed class BatcherMotionTests
     }
 
     [Fact]
-    public void AnInstanceThatMirrorsBetweenTwoTicksDrawsAtItsScaleNotAFlatOne()
+    public void AnInstanceWhosePreviousScaleIsTooSmallToDrawDrawsAtItsScale()
+    {
+        RenderSnapshot snapshot = WithInstance(position: new(0, 0, -10));
+        RenderInstance instance = snapshot.Instances[0];
+        instance.Scale = new(3);
+        instance.PreviousScale = new(1e-20f);
+        snapshot.Instances[0] = instance;
+
+        PreparedScene scene = Draw(snapshot, alpha: 0.5f);
+
+        scene.Placed[0].Scale.Should().Be(new Vector3(3), "a scale that no view draws counts as the current scale");
+    }
+
+    [Fact]
+    public void ThePreviousEyeFollowsTheEyesOffsetFromTheRenderOrigin()
+    {
+        Draw(WithInstance(position: new(0, 0, -10)));
+        RenderSnapshot moved = WithInstance(position: new(0, 0, -10));
+        moved.Camera.Position = new(1, 2, 3);
+        moved.Camera.PreviousPosition = new(1, 2, 3);
+
+        PreparedScene scene = Draw(moved);
+
+        scene.Constants.PreviousEye.Should().Be(new Vector4(x: -1, y: -2, z: -3, w: 0));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void AnInstanceThatMirrorsBetweenTwoTicksDrawsAtItsScaleNotAFlatOne(int axis)
     {
         RenderSnapshot snapshot = WithInstance(position: new(0, 0, -10));
         RenderInstance mirrored = snapshot.Instances[0];
         mirrored.Scale = new(1, 1, 1);
-        mirrored.PreviousScale = new(-1, 1, 1);
+        Vector3 previous = Vector3.One;
+        previous[axis] = -1;
+        mirrored.PreviousScale = previous;
         snapshot.Instances[0] = mirrored;
 
         PreparedScene scene = Draw(snapshot, alpha: 0.5f);

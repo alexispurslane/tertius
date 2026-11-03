@@ -1,0 +1,27 @@
+#version 460
+
+// FSR's exposure step (docs/plans/temporal-renderer.md, decision 31): AMD's ratio of this frame's pre-exposure to the
+// last frame's, which AMD's host computes on the CPU, written into FSR's constant buffer on the GPU, because the CPU
+// learns the exposure only frames late. AMD's shaders multiply the history by it when the exposure changes. One
+// invocation, before FSR's first pass.
+
+layout(local_size_x = 1) in;
+
+// The exposure buffer: the stops of this frame and of the last frame (ARCHITECTURE.md, "The exposure buffer").
+layout(set = 0, binding = 0, std430) readonly buffer ExposureBlock
+{
+    float exposureStops;
+    float previousStops;
+};
+
+// FSR's constant buffer, cbFSR3Upscaler, as words.
+layout(set = 0, binding = 1, std430) writeonly buffer ConstantsBlock { float constantWords[]; };
+
+// The index of the word of deltaPreExposure, from the C# layout of the constants.
+layout(push_constant, std430) uniform ExposurePush { uint deltaPreExposureWord; };
+
+void main()
+{
+    // The pre-exposure is 2 to the power of the stops (exposure.glsl, exposureScale).
+    constantWords[deltaPreExposureWord] = exp2(exposureStops) / exp2(previousStops);
+}

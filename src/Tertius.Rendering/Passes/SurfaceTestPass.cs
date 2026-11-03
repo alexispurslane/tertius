@@ -51,10 +51,11 @@ internal sealed unsafe class SurfaceTestPass : RenderPass
         // Read at every pixel, and written at the sky's.
         barriers.Image(targets.Motion, ImageUse.StorageCompute);
         barriers.Image(images.Last(parity), ImageUse.SampledCompute);
+        barriers.Image(images.LastDepth(parity), ImageUse.SampledCompute);
         // Discarded: the pass writes every pixel of each.
         barriers.Image(images.Written(parity), ImageUse.StorageCompute, discard: true);
         barriers.Image(images.Test, ImageUse.StorageCompute, discard: true);
-        barriers.Image(images.DeviceDepth, ImageUse.StorageCompute, discard: true);
+        barriers.Image(images.WrittenDepth(parity), ImageUse.StorageCompute, discard: true);
         Dispatch(context: context, set: images.Sets[parity]);
     }
 

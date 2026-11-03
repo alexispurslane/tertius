@@ -15,10 +15,12 @@ layout(local_size_x = 8, local_size_y = 8) in;
 
 layout(set = 3, binding = 0) uniform texture2D lastSurfaceHistory;              // RGBA16F: the last drawn frame's
 layout(set = 3, binding = 1, rgba16f) uniform image2D motionTarget;              // the G-buffer's motion target
-layout(set = 3, binding = 2, rgba16f) uniform writeonly image2D surfaceHistory;  // this frame's: view depth, octahedral
+layout(set = 3, binding = 2, rgba16f) uniform writeonly image2D surfaceHistory;  // this frame's: x unused, octahedral
                                                                                  // geometric normal, roughness
 layout(set = 3, binding = 3, r8ui) uniform writeonly uimage2D surfaceTest;       // the pass bits (signals.glsl)
-layout(set = 3, binding = 4, r32f) uniform writeonly image2D deviceDepth;        // reversed and infinite, 0 for sky
+layout(set = 3, binding = 4, r32f) uniform writeonly image2D deviceDepth;        // this frame's: reversed and infinite,
+                                                                                 // 0 for sky
+layout(set = 3, binding = 5) uniform texture2D lastDeviceDepth;                  // R32F: the last drawn frame's
 
 #include "signals.glsl"
 
@@ -27,9 +29,6 @@ layout(push_constant, std430) uniform SurfaceTestPush
 {
     uint reset;  // 1 when the frame resets every history: every tap fails
 } pass;
-
-// SurfaceTestPass.DeviceDepthNear: the near plane of FSR's reversed and infinite depth, in m (DepthRanges.NearPlane).
-const float DeviceDepthNear = 0.05;
 
 void main()
 {
@@ -63,6 +62,7 @@ void main()
     if (pass.reset == 0u && all(greaterThanEqual(place, vec2(0.0))) && all(lessThanEqual(place, vec2(1.0))))
         bits = surfaceTaps(place, lastViewRayThrough(place) * (depth * motion.z), normal, roughness);
     imageStore(surfaceTest, pixel, uvec4(bits));
-    imageStore(surfaceHistory, pixel, vec4(depth, octEncode(normal), roughness));
+    // The device depth holds the view depth: a half float holds at most 65,504 m.
+    imageStore(surfaceHistory, pixel, vec4(0.0, octEncode(normal), roughness));
     imageStore(deviceDepth, pixel, vec4(min(DeviceDepthNear / depth, 1.0)));
 }

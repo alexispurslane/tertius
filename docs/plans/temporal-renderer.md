@@ -46,7 +46,7 @@ These come from `.tickets/ter-89xq.md`, the brief of this ticket and its notes. 
 9. A ray budget driven by history length: more rays where the history is short. (User, 2026-11-03)
 10. Many-light sampling, ReSTIR DI, for direct light, which then becomes a temporal signal through the same accumulator module. (User, 2026-11-03)
 11. Time-sliced maps (`ter-7khp`) and a world-space radiance cache (`ter-13rm`) are later tickets, outside this design. (User, 2026-11-03)
-12. FSR 3.1's path: the engine's own C# host code over AMD's GLSL shaders from FidelityFX SDK v1.1.4 (upscaler 3.1.4), compiled with glslang. The host repeats AMD's host calculations exactly. The 3.1.5 and 3.1.6 fixes are compared before the pin. The baseline is 32-bit math and the variant without subgroup operations. The format defect of `rw_luma_history` is resolved under the Vulkan validation layer on MoltenVK and lavapipe. AMD's MIT notices stay. (Orchestrator, 2026-11-03)
+12. FSR 3.1's path: the engine's own C# host code over AMD's GLSL shaders from FidelityFX SDK v1.1.4 (upscaler 3.1.4), compiled with glslang. The host repeats AMD's host calculations exactly. The 3.1.5 and 3.1.6 fixes are compared before the pin. The baseline is 32-bit math and the variant without subgroup operations. The format defect of `rw_luma_history` is resolved under the Vulkan validation layer on MoltenVK and lavapipe. AMD's MIT notices stay. (Orchestrator, 2026-11-03) Note of 2026-11-03 (ticket `ter-7m38`): the baseline stays the only build, by the user's choice. AMD's 16-bit modules, the pyramids with quad subgroup operations, and both together matched the reference image and passed every FSR test under validation. In 60 alternating rounds from 1280 × 720 to 1920 × 1080 on the M1 Max, the median of all frames was 2.826 ms for today's build and 2.769 ms for a byte copy of it. The variants took 2.797, 2.788 and 2.776 ms, so by this median none gained more than the copy's spread. By the median of the per-round differences of the run medians, the copy lies within 0.038 ms of today's build, and the build with both changes is 0.085 ms faster. The paired reading is the sound one. But the build with both changes needs `shaderFloat16`, which AMD's Polaris GPUs and Vega M lack under Linux, so the user kept the baseline for a gain of about 0.08 ms. The pin carries AMD's 3.1.6 fix of the 16-bit reprojection (`src/Tertius.Rendering/ThirdParty/Fsr3/README.md`, "The 16-bit and subgroup builds").
 13. Dynamic resolution: images at the largest render size, with the active part changing each frame. A camera cut resets the histories, and a change of the render size does not. (Orchestrator, 2026-11-03)
 14. Motion vectors hold no jitter. Each object has a stable key, and the snapshot gains the previous scale. Last frame's deformed vertices are kept. The previous camera is expressed relative to this frame's camera. (Orchestrator, 2026-11-03)
 15. Bloom and tone mapping move after FSR, at the output size. (Orchestrator, 2026-11-03)
@@ -70,7 +70,7 @@ Each decision gives its reason. The important ones also give the second design a
 28. ReSTIR resamples the sampled lights: every light of the main view except the exact lights. The exact lights are the lights whose shadow slot is a cascade set, which `FarShadows.Choose` gives to the brightest shadowed far lights. There are at most `RendererOptions.CascadedLights` of them, 1 by default and 4 at most (user, 2026-11-03). They take the exact loop with the frame's taps, outside the resampling, because a cascade map has no bounds image. A far light is any light at least `LightUnits.FarDistance` from the eye, the test that already gives a light cascade shadows instead of shadow tiles. A star is far because of its distance, not its kind: there is no star type. ReSTIR shades the chosen light with its exact unshadowed contribution and a stochastic visibility. A candidate's target is 0 where the bounds of its shadow tile show it fully shadowed. The candidates come from a table weighted by each sampled light's rank irradiance at the eye, mixed half and half with a uniform choice. Section 7 gives both designs.
 29. The exact loop over every light stays as the zero case of the direct light's setting, `EveryLight`. The forward passes use it too. Reason: the tests need an exact direct light, and the bias of ReSTIR needs a reference. Section 7 gives both designs.
 30. FSR's reactive mask comes from AMD's generator, in a dispatch of its own before the upscale. The generator reads a copy of the image before the transparent pass and the final color. FSR gets no transparency and composition mask. Reason: AMD's 3.1.4 has no generator for that mask, and the reactive mask already marks the glass. Section 9 gives both designs.
-31. FSR's two pre-exposure constants come from the GPU's exposure buffer, through a small copy into FSR's constant buffer. AMD's shaders stay unchanged. Section 5 gives the reason.
+31. FSR's pre-exposure constant comes from the GPU's exposure buffer, through a small copy into FSR's constant buffer. AMD's shaders stay unchanged. Section 5 gives the reason. Ticket `ter-k63u` corrected this decision on 2026-11-03: AMD's 3.1.4 shaders have one such constant, `deltaPreExposure`, and the exposure image is AMD's default (section 5, "The host").
 32. If a headless draw's step is 0, endless or at least `MeteringStepSeconds`, 0.09 s, the draw is a still. This is today's rule of the metering draw, so one predicate decides both. A still resets every history, then draws warm-up draws of the same snapshot before the shown draw. Their count is `WarmUpFrames`, 32 by default, or 0 where no history holds more than one frame. The first warm-up draw takes over the metering draw's two jobs, the exposure and the refresh of every face. Section 10 gives the rule and what a still depends on.
 33. Headless scripted runs use a fixed render scale, 2/3 by default, and the window uses the controller. Reason: a controller that follows GPU timings breaks the determinism of headless captures. A scale of 2/3 gives the budget's size, 1280 × 720 at a 1080p output.
 34. The main view's shadow taps are the turning quarter of the 16 taps under `Fsr3Upscaling` and all 16 taps under `NoUpscaling`. The environment faces and the impostor captures always take all 16. Reason: only an image that FSR averages can take a quarter.
@@ -169,7 +169,7 @@ A box in parentheses is a stock. Each arrow into a stock is a flow that changes 
 | Direct history | `TemporalSignal` of the direct signal | Slow and fast history of each of the two parts, length | Accumulate direct | Every frame reset |
 | Diffuse history | `TemporalSignal` of the diffuse signal | Slow and fast history, length | Accumulate diffuse | Every frame reset |
 | Specular history | `TemporalSignal` of the specular signal | Slow and fast history, length, hit distance | Accumulate specular | Every frame reset |
-| Surface history | `SurfaceHistory` | The last frame's view depth, geometric normal and roughness at each pixel | Surface test | Every frame reset |
+| Surface history | `SurfaceHistory` | The last frame's geometric normal and roughness at each pixel, and its device depth, which holds its view depth | Surface test | Every frame reset |
 | Reservoirs | `LightReservoirs` | One reservoir per pixel | Light candidates, direct light | Every frame reset |
 | The last drawn frame | `FrameHistory` | Its eye, frame id and rotation. Its unjittered projection, root rotation, render size and jitter. Its snapshot's count of cuts. Its placement history: the rows of each keyed instance relative to its eye, its mesh and its deformed copy's place. Its light keys. The count of drawn frames, and the draw index since the last reset | `FrameHistory.Drew`, after the submission | The draw index restarts at 0. The rest stays, so the motion vectors stay exact across a reset |
 | Kept deformed positions | `DeformPass` | The last frame's position of each deformed vertex | Deformation | Never |
@@ -503,7 +503,7 @@ Before the pin, ticket 1 compares two later fixes and writes the comparison into
 - The sharpening fix of upscaler 3.1.5 (SDK v2.0.0).
 - The precision and reprojection changes of upscaler 3.1.6 (FSR SDK v2.4.0), which ship in HLSL only.
 
-If a fix changes the shaders' results, the ticket ports it into the pinned GLSL by hand and puts its diff in the README. Otherwise the README records why the ticket did not take it. The research found no source build of the 3.1.6 Vulkan shaders, so the GLSL of 3.1.4 stays the base.
+If a fix changes the shaders' results, the ticket ports it into the pinned GLSL by hand and puts its diff in the README. Otherwise the README records why the ticket did not take it. Ticket `ter-7m38` ported the one shader line of the 3.1.6 fix, which only a 16-bit build compiles (2026-11-03). The research found no source build of the 3.1.6 Vulkan shaders, so the GLSL of 3.1.4 stays the base.
 
 ### The build
 
@@ -512,7 +512,7 @@ The Nix dev shell compiles the shaders with glslang, as AMD's Vulkan build does,
 - `FFX_HALF=0`: 32-bit math. lavapipe offers 16-bit floats only on some CPUs.
 - `FFX_SPD_NO_WAVE_OPERATIONS=1`: the luminance pyramid reduces through shared memory, with no subgroup operations.
 
-The SPIR-V goes into the engine's assembly beside the other shaders, and `spirv-val` runs on each module in the build. A faster variant, 16-bit math or subgroup operations, comes only after a comparison on the four Linux drivers and the Mac, as a later ticket.
+The SPIR-V goes into the engine's assembly beside the other shaders, and `spirv-val` runs on each module in the build. A faster variant, 16-bit math or subgroup operations, comes only after a comparison on the four Linux drivers and the Mac, as a later ticket. Ticket `ter-7m38` made that comparison on the Mac on 2026-11-03. By the median of all frames, no variant was faster than the noise between two copies of the baseline. By the paired run medians, the build with both changes was 0.085 ms faster. The user kept the baseline, because that build needs `shaderFloat16`, which AMD's Polaris GPUs and Vega M lack under Linux (decision 12).
 
 ### The format defect
 
@@ -531,14 +531,17 @@ Ticket 1 then runs FSR under `VK_LAYER_KHRONOS_validation` with its synchronizat
 // Once, when the targets are made or the output size changes.
 var fsr = new Fsr3Upscaler(
     device: device,
+    allocator: allocator,
+    shaders: shaders,
     maxRenderSize: targets.LargestRenderSize,
     outputSize: targets.OutputSize,
-    depth: Fsr3Depth.InvertedInfinite
+    framesInFlight: framesInFlight
 );
 
 // Each frame, in the frame graph's stage Upscale.
 fsr.Record(
-    context: frame,
+    commandBuffer: frame.CommandBuffer,
+    barriers: frame.Barriers,
     inputs: new Fsr3Inputs
     {
         Color = targets.Hdr,
@@ -547,41 +550,53 @@ fsr.Record(
         Depth = surfaces.DeviceDepth,
         Motion = targets.Motion,
         Output = targets.OutputHdr,
-        RenderSize = frame.RenderSize,
-        Jitter = frame.Pending.Jitter,
-        FrameMilliseconds = frame.Pending.FsrFrameMilliseconds,
-        NearMeters = DepthRanges.NearPlane,
-        VerticalFov = frame.Camera.VerticalFov,
-        Reset = frame.Pending.Reset,
+        Exposure = frame.ExposureBuffer,
+        Frame = new Fsr3Frame
+        {
+            RenderSize = frame.RenderSize,
+            Jitter = frame.Pending.Jitter,
+            FrameMilliseconds = frame.Pending.FsrFrameMilliseconds,
+            NearMeters = DepthRanges.NearPlane,
+            VerticalFov = frame.Camera.VerticalFov,
+            Reset = frame.Pending.Reset,
+        },
     }
 );
 ```
 
 where
 
-- `Reactive` = the reactive mask, R8_UNORM at the largest render size, which `Record` writes with AMD's generator before the upscale (section 9).
+- `Reactive` = the reactive mask, R8_UNORM at the largest render size, which `Record` writes with AMD's generator before the upscale (section 9). `Record` refuses another format.
+- `Exposure` = the exposure buffer, whose first two floats are this frame's stops and the last frame's.
 - `FsrFrameMilliseconds` = the draw's step in ms, or 1000 / 60 in the draws of a still. AMD's shaders read it only in their own automatic exposure, which is off, because the engine passes its exposure.
 
 The interface comment:
 
 ```csharp
 /// <summary>
-/// AMD's FSR 3.1 upscaler, over AMD's own shaders, with AMD's host calculations repeated (docs/plans/temporal-renderer.md,
-/// "FSR 3.1"). It upscales the jittered, pre-exposed HDR color of the render size to the output size, and keeps its
-/// histories at the output size. Each Record takes this frame's inputs: the color, the color before the transparent pass,
-/// the image of the reactive mask, the device depth (reversed and infinite), the motion vectors without jitter, the render
-/// size within the largest render size, the jitter, and whether this frame resets. Record first writes the two
-/// pre-exposures from the exposure buffer into its constants on the GPU, then the reactive mask with AMD's generator, then
-/// upscales. It passes no transparency and composition mask. JitterOffset and JitterPhaseCount give the jitter that the
-/// frame must draw with.
+/// AMD's FSR 3.1 upscaler over AMD's own shaders, with AMD's host calculations repeated (ARCHITECTURE.md, "Upscaling: FSR
+/// 3.1"). It upscales the jittered, pre-exposed HDR color of the render size to the output size. Each
+/// <see cref="Record"/> takes one frame's <see cref="Fsr3Inputs"/>. <see cref="JitterOffset"/> gives the jitter that the
+/// frame draws with.
 /// </summary>
-internal sealed class Fsr3Upscaler : IDisposable
+internal sealed unsafe class Fsr3Upscaler : IDisposable
 {
+    public Fsr3Upscaler(
+        VulkanDevice device,
+        DeviceAllocator allocator,
+        ShaderLibrary shaders,
+        Extent2D maxRenderSize,
+        Extent2D outputSize,
+        int framesInFlight
+    );
+
     public static int JitterPhaseCount(uint renderWidth, uint outputWidth);
     public static Vector2 JitterOffset(int index, int phaseCount);
-    public void Record(FrameContext context, in Fsr3Inputs inputs);
+    public void Record(CommandBuffer commandBuffer, BarrierBatch barriers, in Fsr3Inputs inputs);
 }
 ```
+
+The members of `Fsr3Inputs` and `Fsr3Frame` carry the units: the jitter in render pixels, negated against the offset that the projection moved by, the field of view in radians, and the near plane in meters. Ticket `ter-k63u` built this interface. The sketch of this design had `Record(FrameContext, in Fsr3Inputs)` with flat frame values, and a depth parameter in the constructor.
 
 `FrameHistory` gives the jitter index: the draw index since the last reset modulo the phase count. AMD's phase count follows the render width over the output width: 18 at 1280 to 1920. So it changes with the render size, and the index follows it.
 
@@ -592,13 +607,19 @@ The inputs:
 | Color | The HDR image after the transparent pass, render size | Pre-exposed, at most 64,512 (section 1), before bloom and the tone map |
 | Depth | The surface test's device depth, R32F | Reversed and infinite, from the distance and the near plane of 5 cm (decision 24), because the three depth ranges leave no single depth buffer |
 | Motion vectors | The motion target's xy, RGBA16F | Units of the image's size, scale = the render size, no jitter |
-| Exposure | A 1 × 1 R32F image that the constants step writes, 2^S | The pre-exposed color divided by the pre-exposure and times this exposure is the color itself |
-| Pre-exposure | The constants step writes 2^S and the last frame's 2^S into FSR's constant buffer | Decision 31 |
+| Exposure | AMD's default 1 × 1 image, cleared to 0, which AMD's shaders read as 1 | AMD's shaders multiply the color by the exposure and divide the history by it before the output, so the pre-exposed color needs 1 |
+| Pre-exposure | The exposure step writes 2^S / 2^S_prev into `deltaPreExposure` of FSR's constant buffer | Decision 31 |
 | Reactive mask | AMD's generator, `ffxFsr3UpscalerContextGenerateReactiveMask`, from the opaque-only image and the color, in a dispatch of its own | Section 9 |
 | Transparency and composition mask | None. AMD's shaders then read a cleared 1 × 1 image | Section 9 |
 | Frame values | The step in ms, the near plane, the vertical field of view, 1 m per view unit | AMD's host turns them into the constants |
 
-The exposure step. The renderer knows the exposure only on the GPU, a few frames late on the CPU (ARCHITECTURE.md, "The exposure buffer"). FSR rescales its histories by the ratio of this frame's pre-exposure to the last frame's. So the CPU writes every other field of the constant buffer as AMD's host does. Then a dispatch of one invocation, `fsr_exposure.comp`, writes the two pre-exposures and the exposure image from the exposure buffer. It runs before the first FSR dispatch. The exposure buffer gains a second float, `previousStops`. The adapt step writes the stops that this frame used into it, before it writes the next stops. Under `FixedExposure` both are the setting's stops. The accumulators read the same two floats (section 8). Patching AMD's shaders to read the buffer works too, but keeps a diff on every later pin.
+The exposure step. The renderer knows the exposure only on the GPU, a few frames late on the CPU (ARCHITECTURE.md, "The exposure buffer"). FSR rescales its histories by the ratio of this frame's pre-exposure to the last frame's. So the CPU writes every other field of the constant buffer as AMD's host does. Then a dispatch of one invocation, `fsr_exposure.comp`, writes the ratio of the two pre-exposures from the exposure buffer. It runs before the first FSR dispatch. The exposure buffer gains a second float, `previousStops`. The adapt step writes the stops that this frame used into it, before it writes the next stops. Under `FixedExposure` both are the setting's stops. The accumulators read the same two floats (section 8). Patching AMD's shaders to read the buffer works too, but keeps a diff on every later pin.
+
+Corrections from ticket `ter-k63u` (2026-11-03):
+
+- The exposure image. AMD's 3.1.4 shaders never divide the color by the pre-exposure. They multiply the color by the exposure image, and divide the history by it again before the output. So for the pre-exposed color, the exposure that gives "the color itself" is 1, not 2^S. The host binds AMD's default exposure image, 0, which the shaders read as 1, and `fsr_exposure.comp` writes only the ratio 2^S / 2^S_prev into the constant buffer's `deltaPreExposure`. The design said 2^S and two constants. The inputs table, the exposure step and decision 31 now say what the host does.
+- The interface. `Record` takes the command buffer and the barrier batch, so that the GPU tests can call it without a frame, and the frame's values are one `Fsr3Frame` in `Fsr3Inputs`. Ticket 5 passes those of the `FrameContext`. The constructor takes the allocator, the shader library and the frames in flight, and no depth parameter: the engine has one depth convention, reversed and infinite. The usage code and the interface comment above are the built ones.
+- The format defect. Two of AMD's declarations differ from the images that AMD's host binds, `rw_luma_history` and `rw_output_autoreactive`. The rule above resolved both (`src/Tertius.Rendering/ThirdParty/Fsr3/README.md`).
 
 The host's own tests compare its calculations with AMD's. A small C++ tool in `tools/fsr3-golden/` builds in the dev shell from AMD's host sources. For a table of inputs, it prints the jitter, the phase counts, the depth constants, the dispatch sizes and the constant buffer. The C# tests hold those values. AMD's host code needs no Windows header for those pure functions, so the tool builds on the Mac.
 
@@ -927,11 +948,13 @@ The surface test pass runs one invocation per pixel of the active part. For a pi
 4. Apply the surface test to each tap. The plane test: |(x_t − x′) · n_p| is at most 0.01 times x′'s view depth. The normal test: n_t · n_p is at least cos 25°. If both tests hold, the tap passes.
 5. Apply the specular test to each tap. If a tap passes the surface test and its roughness differs from p's by at most 0.1, it passes.
 6. Write the surface test image, R8_UINT: one bit per tap for each of the two tests.
-7. Write this frame's surface history: p's view depth, normal and roughness.
+7. Write this frame's surface history: p's normal and roughness. The device depth holds p's view depth.
 
 n_p is p's geometric normal. Its current direction stands in for its last direction. For an object that turns, the plane test's error is then the tap's distance from x′ times the sine of the turn, which is small.
 
 The pass also writes FSR's device depth at every pixel and the sky's motion at each sky pixel (section 3). A sky pixel has no surface and no signal, so only FSR keeps its history.
+
+Changed on 2026-11-03 (ticket `ter-ohqr`, its hardening): the surface history no longer holds the view depth. A half float holds at most 65,504 m, so a farther surface, such as a planet's ground seen from orbit, failed the test in every frame, and its light would never settle. The device depth, R32F, is now the one store of the view depth. `SurfaceHistory` keeps two device depths by the same parity as the two surface histories. The test reads the last frame's and gets the last view depth as 0.05 m over it. FSR reads this frame's. The surface history's x stays unused.
 
 Each accumulator computes the bilinear weights of the previous place, multiplies them by the pass bits, and divides them by their sum. If the sum is below 0.05, the pixel has no history, and its length starts from 0. The ray plan reads the history length through the same function, `reprojectedLength` in `signals.glsl` (section 6).
 
@@ -1018,7 +1041,8 @@ The direct sample has no noise under `EveryLight` with `NoUpscaling` (section 1)
 
 | Image | Format | Count | Holds |
 |---|---|---|---|
-| Surface history | RGBA16F | 2 | View depth, normal, roughness |
+| Surface history | RGBA16F | 2 | x unused, normal, roughness |
+| Device depth | R32F | 2 | The near plane over the view depth, 0 for sky. FSR reads this frame's, the surface test the last frame's |
 | Surface test image | R8_UINT | 1 | The pass bits |
 | Slow history, per part | RGBA16F | 1 | rgb the light, a the length |
 | Fast history, per part | RGBA16F | 2 | rgb the light, a the hit distance for the specular signal |
@@ -1242,7 +1266,7 @@ Memory, at an output of 1920 × 1080 with the largest render scale of 1. An RGBA
 | Store | Images | MB |
 |---|---|---:|
 | The three signals: 4 parts of 4 images, and 2 shared scratch images | 18 × RGBA16F | 299 |
-| Surface history and the surface test image | 2 × RGBA16F, 1 × R8_UINT | 35 |
+| Surface history, the last device depth and the surface test image | 2 × RGBA16F, 1 × R32F, 1 × R8_UINT | 44 |
 | Reservoirs | 2 × RG32UI | 33 |
 | Motion target, device depth, opaque-only image, reactive mask | RGBA16F, R32F, RGBA16F, R8_UNORM | 44 |
 | Block rays and the own-ray list | Quarter size, and a buffer | 25 |

@@ -1,6 +1,7 @@
 // The reprojection of the temporal signals (docs/plans/temporal-renderer.md, section 8, "The surface test"): a point's
 // place in the last drawn frame's image, and the surface test of the 2 × 2 texels of the last surface history around a
-// place. Needs frame.glsl and octahedral.glsl, and the last surface history bound as lastSurfaceHistory.
+// place. Needs frame.glsl and octahedral.glsl, the last surface history bound as lastSurfaceHistory and the last device
+// depth as lastDeviceDepth.
 #ifndef TERTIUS_SIGNALS_GLSL
 #define TERTIUS_SIGNALS_GLSL
 
@@ -14,6 +15,10 @@ const float NormalCosine = 0.906307787;
 
 // The specular test's bound: the most that a tap's roughness differs from the pixel's.
 const float RoughnessStep = 0.1;
+
+// SurfaceTestPass.DeviceDepthNear: the near plane of FSR's reversed and infinite depth, in m (DepthRanges.NearPlane). The
+// device depth is this over the view depth, 0 for sky.
+const float DeviceDepthNear = 0.05;
 
 // The last frame's view ray through a place in its image, in units of its width and height from the top left: forward +
 // x right tan h − y up tan v, in world axes. Its component along the last frame's forward is 1.
@@ -39,10 +44,12 @@ uint surfaceTaps(vec2 place, vec3 lastPoint, vec3 normal, float roughness)
         ivec2 texel = first + ivec2(tap & 1u, tap >> 1);
         if (any(lessThan(texel, ivec2(0))) || any(greaterThanEqual(texel, size)))
             continue;
-        vec4 last = texelFetch(lastSurfaceHistory, texel, 0);
-        if (last.x <= 0.0)
+        float lastDevice = texelFetch(lastDeviceDepth, texel, 0).r;
+        if (lastDevice <= 0.0)
             continue;
-        vec3 point = lastViewRayThrough((vec2(texel) + 0.5) * frame.previousViewport.zw) * last.x;
+        float lastDepth = DeviceDepthNear / lastDevice;
+        vec4 last = texelFetch(lastSurfaceHistory, texel, 0);
+        vec3 point = lastViewRayThrough((vec2(texel) + 0.5) * frame.previousViewport.zw) * lastDepth;
         bool surface = abs(dot(point - lastPoint, normal)) <= bound && dot(octDecode(last.yz), normal) >= NormalCosine;
         if (!surface)
             continue;

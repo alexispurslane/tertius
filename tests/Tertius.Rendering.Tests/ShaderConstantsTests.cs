@@ -1,4 +1,3 @@
-using System.Runtime.InteropServices;
 using Silk.NET.Vulkan;
 
 namespace Tertius.Rendering.Tests;
@@ -85,19 +84,17 @@ public sealed class ShaderConstantsTests
             OpTypeInt = 21,
             OpSpecConstantTrue = 48,
             OpSpecConstantFalse = 49;
-        const ushort OpSpecConstant = 50,
-            OpDecorate = 71;
+        const ushort OpSpecConstant = 50;
         const uint SpecId = 1;
 
-        ReadOnlySpan<uint> words = MemoryMarshal.Cast<byte, uint>(spirv);
         Dictionary<uint, string> types = [];
         Dictionary<uint, uint> specIds = [];
         Dictionary<uint, Declared> constants = [];
-        // The header takes 5 words. Each instruction's first word holds its word count above its opcode.
-        for (int at = 5; at < words.Length; at += (int)(words[at] >> 16))
+        foreach (Spirv.Instruction instruction in Spirv.Instructions(spirv))
         {
-            ReadOnlySpan<uint> operands = words.Slice(at + 1, (int)(words[at] >> 16) - 1);
-            switch ((ushort)words[at])
+            uint[] operands = instruction.Operands;
+            ushort opcode = instruction.Opcode;
+            switch (opcode)
             {
                 case OpTypeBool:
                     types[operands[0]] = "bool";
@@ -106,7 +103,7 @@ public sealed class ShaderConstantsTests
                     types[operands[0]] = operands[2] == 1 ? "int" : "uint";
                     break;
                 case OpSpecConstantTrue or OpSpecConstantFalse or OpSpecConstant:
-                    uint value = (ushort)words[at] switch
+                    uint value = opcode switch
                     {
                         OpSpecConstantTrue => 1,
                         OpSpecConstantFalse => 0,
@@ -114,7 +111,7 @@ public sealed class ShaderConstantsTests
                     };
                     constants[operands[1]] = new(Type: types[operands[0]], Default: value);
                     break;
-                case OpDecorate when operands[1] == SpecId:
+                case Spirv.OpDecorate when operands[1] == SpecId:
                     specIds[operands[0]] = operands[2];
                     break;
                 default:
