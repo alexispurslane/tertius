@@ -19,7 +19,7 @@ namespace Tertius.Rendering;
 internal sealed unsafe class GpuTimer : IDisposable
 {
     /// <summary>The most passes that one frame can time: a pool holds a stamp before them and one after each.</summary>
-    public const int MaxPasses = 31;
+    public const int MaxPasses = 40;
 
     private const uint Queries = MaxPasses + 1;
 

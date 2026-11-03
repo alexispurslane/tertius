@@ -8,7 +8,7 @@
 layout(local_size_x = 256) in;
 
 layout(set = 1, binding = 0, std430) readonly buffer HistogramBlock { uint bins[HistogramBins]; };
-layout(set = 1, binding = 1, std430) buffer ExposureBlock { float exposureStops; };
+layout(set = 1, binding = 1, std430) buffer ExposureBlock { float exposureStops; float previousStops; };
 
 layout(push_constant, std430) uniform AdaptPush
 {
@@ -75,6 +75,8 @@ void main()
             target = clamp(compensated, adapt.minStops, adapt.maxStops);
         }
         float factor = target > used ? adapt.intoDarkFactor : adapt.intoLightFactor;
+        // The next frame's histories hold light at this frame's exposure.
+        previousStops = used;
         exposureStops = used + (target - used) * factor;
     }
 }

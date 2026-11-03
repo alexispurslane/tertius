@@ -123,21 +123,22 @@ public sealed class GpuTimingTests
             string[] passes = [.. renderer.LastFrameStats.GpuTimings!.Value.Passes.ToArray().Select(pass => pass.Pass)];
             passes
                 .SkipWhile(pass => pass != "G-buffer")
-                .Take(8)
+                .Take(9)
                 .Should()
                 .Equal(
                     [
                         "G-buffer",
                         "surface test",
                         "direct light",
+                        "accumulate direct",
                         "occlusion depth",
                         "occlusion sectors",
                         "occlusion denoise",
                         "occlusion upsample",
-                        "ambient light",
+                        "composite",
                     ],
-                    "the occlusion passes read the finished G-buffer and the direct image, no pass of theirs reads the "
-                        + "depth pyramid, and the ambient pass reads their estimate target"
+                    "the occlusion passes read the finished G-buffer and the direct history, no pass of theirs reads the "
+                        + "depth pyramid, and the composite reads their estimate target"
                 );
         }
         finally
@@ -147,7 +148,7 @@ public sealed class GpuTimingTests
     }
 
     [Fact]
-    public void WithNoScreenSpaceLightTheFrameHasTheDirectAndTheAmbientPassAndNoOcclusionPass()
+    public void WithNoScreenSpaceLightTheFrameHasTheDirectPassAndTheCompositeAndNoOcclusionPass()
     {
         VulkanRenderer renderer = TimedRenderer(screenSpaceLight: new NoScreenSpaceLight());
         try
@@ -159,11 +160,11 @@ public sealed class GpuTimingTests
             string[] passes = [.. renderer.LastFrameStats.GpuTimings!.Value.Passes.ToArray().Select(pass => pass.Pass)];
             passes
                 .SkipWhile(pass => pass != "G-buffer")
-                .Take(4)
+                .Take(5)
                 .Should()
                 .Equal(
-                    ["G-buffer", "surface test", "direct light", "ambient light"],
-                    "the ambient pass reads the cleared estimate target"
+                    ["G-buffer", "surface test", "direct light", "accumulate direct", "composite"],
+                    "the composite reads the cleared estimate target"
                 );
             passes.Should().NotContain(pass => pass.StartsWith("occlusion"));
         }
@@ -174,7 +175,7 @@ public sealed class GpuTimingTests
     }
 
     [Fact]
-    public void UnderSeparableSubsurfaceTheTwoScatterPassesRunRightAfterTheAmbientPass()
+    public void UnderSeparableSubsurfaceTheTwoScatterPassesRunRightAfterTheComposite()
     {
         VulkanRenderer renderer = TimedRenderer(subsurface: SeparableSubsurface.Default);
         try
@@ -185,12 +186,12 @@ public sealed class GpuTimingTests
 
             string[] passes = [.. renderer.LastFrameStats.GpuTimings!.Value.Passes.ToArray().Select(pass => pass.Pass)];
             passes
-                .SkipWhile(pass => pass != "ambient light")
+                .SkipWhile(pass => pass != "composite")
                 .Take(3)
                 .Should()
                 .Equal(
-                    ["ambient light", "scatter rows", "scatter columns"],
-                    "the scatter blurs the diffuse light that the ambient pass completes"
+                    ["composite", "scatter rows", "scatter columns"],
+                    "the scatter blurs the diffuse light that the composite writes"
                 );
         }
         finally
@@ -245,6 +246,7 @@ public sealed class GpuTimingTests
                 EnvironmentMap = SceneEnvironmentMap.Default,
                 Deformation = true,
                 Subsurface = SeparableSubsurface.Default,
+                DirectLight = ResampledLights.Default,
             }
         );
 
@@ -272,7 +274,7 @@ public sealed class GpuTimingTests
                         .BeInRange(0, 1_000, "{0} is a time on a counter that only grows", pass.Pass)
                 );
             passes
-                .Where(pass => pass.Pass is "shadow maps" or "G-buffer" or "direct light" or "ambient light")
+                .Where(pass => pass.Pass is "shadow maps" or "G-buffer" or "direct light" or "composite")
                 .Should()
                 .AllSatisfy(pass => pass.Milliseconds.Should().BePositive("{0} draws the reference scene", pass.Pass));
         }
@@ -372,8 +374,9 @@ public sealed class GpuTimingTests
                 Bloom = new NoBloom(),
                 Height = Height,
                 Impostors = false,
-                // A fixed exposure draws no metering draw, so each Render draws one frame.
+                // A fixed exposure and the exact loop draw no warm-up draw, so each Render draws one frame.
                 Exposure = new FixedExposure(0),
+                DirectLight = new EveryLight(),
                 AntiAliasing = AntiAliasing.None,
             },
             (device, allocator, extent) => made = new(device: device, allocator: allocator, extent: extent, bgra: false)

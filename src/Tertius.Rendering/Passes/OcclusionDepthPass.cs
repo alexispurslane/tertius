@@ -34,14 +34,13 @@ internal sealed class OcclusionDepthPass(
         RenderTargets targets = context.Targets;
         barriers.Image(targets.Distance, ImageUse.SampledCompute);
         barriers.Image(targets.Normal, ImageUse.SampledCompute);
-        // The bounce source: the glow and the light mark of the G-buffer pass, and the direct pass's color write.
+        // The bounce source: the glow and the light mark of the G-buffer pass, the material that gives the diffuse factor,
+        // and the accumulation of the direct signal.
         barriers.Image(targets.Emissive, ImageUse.SampledCompute);
         barriers.Image(targets.Shading, ImageUse.SampledCompute);
-        barriers.Image(
-            targets.Diffuse
-                ?? throw new UnreachableException("The targets of the screen-space light hold the diffuse image."),
-            ImageUse.StorageCompute
-        );
+        barriers.Image(targets.BaseColor, ImageUse.SampledCompute);
+        barriers.Image(targets.Specular, ImageUse.SampledCompute);
+        barriers.Image(images.DirectDiffuse, ImageUse.StorageCompute);
 
         // Discarded, and still after the last frame's upsample read it.
         barriers.Image(images.ViewDepth, ImageUse.StorageCompute, discard: true);

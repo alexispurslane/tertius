@@ -510,7 +510,7 @@ Each ordering rule has its reason:
 - One store for each piece of state. `RenderSnapshot.Chain` holds the camera's frame's id and the root's rotation, which become reads of it. Drawn for replaces `FrameId`. One cube array holds every map's faces, and one buffer every map's coefficients. A map's levels and coefficients are not a second store of its faces: they are their pure function, rebuilt in the frame that changes the faces.
 - Closed sets stay unions: `EnvironmentDraw` (`WithoutMap`, `WithMap`) and `AmbientSource` (`HemisphereAmbient`, `MapAmbient`). No kind enum is added. Which map is the camera's frame's is an index, M − 1, not a kind.
 - Determinism. The in-turn slots are a pure function of the drawn frame's number, F and M, so a film draws the same faces on every run. The faces and the prefilter run in a fixed order, and each texel and coefficient sums its samples in a fixed order and writes only its own slot. The light list keeps the snapshot's order. The dense depths do not depend on the threads of the build.
-- No temporal rendering ([rendering-performance.md](rendering-performance.md), decision 8). As today, a face is drawn whole in one frame and read in later frames, and no pixel is blended with an earlier frame's.
+- No temporal rendering ([rendering-performance.md](rendering-performance.md), decision 8). As today, a face is drawn whole in one frame and read in later frames, and no pixel is blended with an earlier frame's. The user superseded decision 8 on 2026-11-02 ([temporal-renderer.md](temporal-renderer.md)). Since ticket `ter-nmbm` the direct light accumulates over frames, and the maps still blend nothing.
 
 ## Memory and cost
 

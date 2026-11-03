@@ -338,6 +338,42 @@ bool viewKeeps(uint view, GpuLight light)
     return view == MainView ? light.inMainView != 0u : light.map <= view;
 }
 
+// The light of light `index` of the list at a surface point before its shadows, in its two parts, and what its shadow lookup
+// takes: L the unit direction toward the light, d its distance, the geometric normal turned toward the light and the sine
+// of its angle with L. Its parts are irradiance times the response, plain radiance.
+struct UnshadowedLight
+{
+    DirectTerms terms;
+    vec3 L;
+    float d;
+    vec3 shadowNormal;
+    float sinTheta;
+};
+
+// The light of light `index` at a surface point before its shadows, or false where the point takes none of it. `fiber` as
+// in respond, `tinted` as in lightIrradiance. A surface's geometric normal faces every light that it takes (takesLight), so
+// only a fiber's turns. The sine of the angle to the light is the same on both sides of a card.
+bool unshadowedLight(
+    uint index, bool fiber, bool tinted, ShadingInput s, SurfaceLobes lobes, vec3 position, vec3 V, out UnshadowedLight u)
+{
+    vec3 irradiance = lightIrradiance(index, tinted, position, u.L, u.d);
+    float geometricNdotL = dot(s.geometricNormal, u.L);
+    if (irradiance == vec3(0.0) || !takesLight(fiber, s, u.L, geometricNdotL))
+        return false;
+    u.shadowNormal = fiber && geometricNdotL < 0.0 ? -s.geometricNormal : s.geometricNormal;
+    u.sinTheta = sqrt(max(1.0 - geometricNdotL * geometricNdotL, 0.0));
+    DirectTerms response = respond(fiber, s, lobes, V, u.L, lightSineAt(lights[index], u.d));
+    u.terms.diffuse = response.diffuse * irradiance;
+    u.terms.specular = response.specular * irradiance;
+    return true;
+}
+
+// The share of light `index` that its shadows let through at a point, for the light that unshadowedLight gave there.
+float unshadowedVisibility(uint index, UnshadowedLight u, vec3 position, uint shadowMaps)
+{
+    return lightVisibility(lights[index], position, u.L, u.d, u.shadowNormal, u.sinTheta, shadowMaps);
+}
+
 // directLight for one model: a fiber's light if `fiber`, else a surface's. `fiber` as in respond, `tinted` as in
 // lightIrradiance. directLight is the one caller, and it passes constants, so each copy of the loop holds one model's
 // code and only the tint that it needs.
@@ -349,27 +385,14 @@ DirectTerms modelLight(
     sum.specular = vec3(0.0);
     for (uint i = 0u; i < frame.counts.x; i++)
     {
-        GpuLight light = lights[i];
-        if (!viewKeeps(view, light))
+        if (!viewKeeps(view, lights[i]))
             continue;
-        vec3 L;
-        float d;
-        vec3 irradiance = lightIrradiance(i, tinted, position, L, d);
-        float geometricNdotL = dot(s.geometricNormal, L);
-        if (irradiance == vec3(0.0) || !takesLight(fiber, s, L, geometricNdotL))
+        UnshadowedLight u;
+        if (!unshadowedLight(i, fiber, tinted, s, lobes, position, V, u))
             continue;
-        // A surface's geometric normal faces every light that it takes (takesLight), so only a fiber's turns. The sine
-        // of the angle to the light is the same on both sides of a card.
-        vec3 shadowNormal = fiber && geometricNdotL < 0.0 ? -s.geometricNormal : s.geometricNormal;
-        float sinTheta = sqrt(max(1.0 - geometricNdotL * geometricNdotL, 0.0));
-        float visibility = lightVisibility(light, position, L, d, shadowNormal, sinTheta, shadowMaps);
-        if (visibility > 0.0)
-        {
-            DirectTerms terms = respond(fiber, s, lobes, V, L, lightSineAt(light, d));
-            vec3 weight = irradiance * visibility;
-            sum.diffuse += terms.diffuse * weight;
-            sum.specular += terms.specular * weight;
-        }
+        float visibility = unshadowedVisibility(i, u, position, shadowMaps);
+        sum.diffuse += u.terms.diffuse * visibility;
+        sum.specular += u.terms.specular * visibility;
     }
     return sum;
 }

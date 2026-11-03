@@ -1,26 +1,76 @@
-// The direct pass (docs/plans/screen-space-illumination.md, "The direct pass"): the light of each light of the list
-// that the main view keeps, plus the emission, pre-exposed and capped, into the direct image. No ambient light: the
-// ambient pass adds it after the occlusion passes. When the targets hold the diffuse image, under the skin scatter or the
-// screen-space light, it also writes the diffuse part and the skin mask into it (docs/plans/skin-and-hair.md, "The
-// diffuse light D"). direct.frag and direct_diffuse.frag, which defines DIFFUSE_OUTPUT, include it: the diffuse image is
-// a second color attachment only then, and an output with no attachment is a write that validation reports.
+// The direct pass (docs/plans/temporal-renderer.md, section 7, "The two passes"): the direct signal's sample of each lit
+// pixel in its two parts, the diffuse and the specular light of the main view's lights, each divided by its material
+// factor and pre-exposed. No ambient light and no emission: the composite adds both. direct_every.frag takes every light
+// with its shadows, as the loop of the forward passes does (EveryLight). direct_resampled.frag, which defines RESAMPLED,
+// shades the light of the pixel's reservoir after the spatial reuse, plus every exact light, and writes R1.
 #ifndef TERTIUS_DIRECT_PASS_GLSL
 #define TERTIUS_DIRECT_PASS_GLSL
 
 #include "frame.glsl"
 #include "gbuffer_surface.glsl"
-
-layout(location = 0) in vec3 inRay;
-layout(location = 0) out vec4 outColor;
-#ifdef DIFFUSE_OUTPUT
-// The diffuse image: the pass writes every one of its pixels.
-layout(location = 1) out vec4 outDiffuse;
+#include "temporal.glsl"
+#ifdef RESAMPLED
+#include "restir.glsl"
+#include "reservoirs.glsl"
 #endif
 
-void writeDiffuse(vec4 value)
+layout(location = 0) in vec3 inRay;
+layout(location = 0) out vec4 outDiffuse;   // the direct signal's diffuse sample
+layout(location = 1) out vec4 outSpecular;  // its specular sample
+#ifdef RESAMPLED
+layout(location = 2) out uvec2 outReservoir;  // R1
+
+// The pass's constant in the random numbers.
+const uint DirectStream = 0x2u;
+
+// The radius of the disk of the spatial neighbors, in pixels at a render width of 1,280.
+const float NeighborRadius = 16.0;
+
+// Step 1, the spatial reuse: the pixel's reservoir of R0 combined with its neighbors' that show the same surface.
+Reservoir spatialReuse(ivec2 pixel, ResampledSurface surface, inout RandomStream random)
 {
-#ifdef DIFFUSE_OUTPUT
-    outDiffuse = value;
+    Combining c = startCombining();
+    Reservoir own = unpackReservoir(texelFetch(readReservoirs, pixel, 0).xy);
+    if (own.light != NoLight)
+    {
+        float target = targetOf(own.light, surface);
+        addCandidate(c, own.light, target, target * own.W * own.M, own.M, random);
+    }
+    else
+        c.r.M = own.M;
+
+    SurfaceKey key = surfaceKeyAt(pixel);
+    ivec2 last = textureSize(gbufferDistance, 0) - 1;
+    float radius = NeighborRadius * frame.viewport.x / 1280.0;
+    float turn = nextRandom(random);
+    for (uint i = 0u; i < resampled.neighbors; i++)
+    {
+        float angle = 2.0 * PI * (turn + float(i) / float(resampled.neighbors));
+        vec2 offset = radius * sqrt(nextRandom(random)) * vec2(cos(angle), sin(angle));
+        ivec2 neighbor = clamp(pixel + ivec2(round(offset)), ivec2(0), last);
+        if (neighbor == pixel || !sameSurface(key, surfaceKeyAt(neighbor)))
+            continue;
+        Reservoir other = unpackReservoir(texelFetch(readReservoirs, neighbor, 0).xy);
+        // A neighbor whose choice its own visibility test emptied still stands for its M candidates (Bitterli's biased
+        // combine).
+        if (other.light == NoLight || other.W <= 0.0)
+        {
+            c.r.M += other.M;
+            continue;
+        }
+        float target = targetOf(other.light, surface);
+        addCandidate(c, other.light, target, target * other.W * other.M, other.M, random);
+    }
+    return finishCombining(c);
+}
+#endif
+
+void writeEmpty()
+{
+    outDiffuse = vec4(0.0);
+    outSpecular = vec4(0.0);
+#ifdef RESAMPLED
+    outReservoir = packReservoir(emptyReservoir());
 #endif
 }
 
@@ -31,22 +81,10 @@ void main()
     ivec2 pixel = min(ivec2(gl_FragCoord.xy), textureSize(gbufferDistance, 0) - 1);
     vec3 direction = normalize(inRay);
     float distanceToEye = texelFetch(gbufferDistance, pixel, 0).r;
-    // Sky: no reader reads the direct image there, and the ambient pass draws the sky and the stars.
-    if (distanceToEye <= 0.0)
+    // Sky and impostors: no direct light. An impostor's light, ambient light included, is baked into its emission.
+    if (distanceToEye <= 0.0 || texelFetch(gbufferBaseColor, pixel, 0).a == 0.0)
     {
-        outColor = vec4(0.0);
-        writeDiffuse(vec4(0.0));
-        return;
-    }
-
-    // The G-buffer pass pre-exposed the emission.
-    vec3 emissive = texelFetch(gbufferEmissive, pixel, 0).rgb;
-    // Base color alpha 0 marks an unlit pixel: an impostor, whose light, ambient light included, is baked into its
-    // emission.
-    if (texelFetch(gbufferBaseColor, pixel, 0).a == 0.0)
-    {
-        outColor = vec4(emissive, 1.0);
-        writeDiffuse(vec4(0.0));
+        writeEmpty();
         return;
     }
 
@@ -55,12 +93,38 @@ void main()
     vec3 position = direction * distanceToEye;
     vec3 V = -direction;
     ShadingInput s = materialAt(pixel);
-    DirectTerms direct = directLight(s, lobesOf(s, V), position, V, ShadowMapsMainView, MainView);
+    SurfaceLobes lobes = lobesOf(s, V);
+#ifdef RESAMPLED
+    ResampledSurface surface = resampledSurfaceAt(pixel, direction, distanceToEye);
+    RandomStream random = randomStream(pixel, DirectStream);
+    Reservoir r = spatialReuse(pixel, surface, random);
+    // Step 2: the chosen light, its exact light times its visibility times W, and every exact light.
+    DirectTerms direct;
+    direct.diffuse = vec3(0.0);
+    direct.specular = vec3(0.0);
+    if (r.light != NoLight)
+    {
+        DirectTerms chosen = shadedLight(r.light, surface);
+        direct.diffuse = chosen.diffuse * r.W;
+        direct.specular = chosen.specular * r.W;
+        // Step 3: a shadowed choice keeps its M and loses its weight.
+        if (chosen.diffuse + chosen.specular == vec3(0.0))
+            r.W = 0.0;
+    }
+    for (uint i = 0u; i < exactLights(); i++)
+    {
+        DirectTerms exact = shadedLight(exactLight(i), surface);
+        direct.diffuse += exact.diffuse;
+        direct.specular += exact.specular;
+    }
+    outReservoir = packReservoir(r);
+#else
+    DirectTerms direct = directLight(s, lobes, position, V, ShadowMapsMainView, MainView);
+#endif
+    MaterialFactors factors = materialFactors(s, lobes);
     float k = exposureScale();
-    outColor = vec4(min(exposed(directSum(direct), k) + emissive, vec3(MaxRadiance)), 1.0);
-    // The diffuse part alone, at most MaxRadiance: the light that skin scatters and that the bounce light sends on. The
-    // mask marks skin, whose pixels alone the scatter passes spread.
-    writeDiffuse(vec4(exposed(direct.diffuse, k), s.model == ShadingSkin ? 1.0 : 0.0));
+    outDiffuse = vec4(demodulated(direct.diffuse, factors.diffuse, k), 1.0);
+    outSpecular = vec4(demodulated(direct.specular, factors.specular, k), 1.0);
 }
 
 #endif

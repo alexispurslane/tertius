@@ -159,12 +159,42 @@ internal sealed class FrameContext
     }
 
     /// <summary>
-    /// Begins rendering into <paramref name="targets"/>, one or two color attachments of one size, their whole extent, each
-    /// stored at the end.
+    /// Draws one full-screen triangle as the overload above does, after it pushes <paramref name="push"/> for the fragment
+    /// stage, at offset 0 of <paramref name="layout"/>'s push range.
+    /// </summary>
+    public unsafe void DrawSceneFullScreen<TPush>(
+        Pipeline pipeline,
+        PipelineLayout layout,
+        DescriptorSet passSet,
+        TPush push,
+        ReadOnlySpan<(GpuImage Image, AttachmentLoadOp LoadOp)> targets
+    )
+        where TPush : unmanaged
+    {
+        BeginRenderingInto(targets);
+        Vk.CmdBindPipeline(CommandBuffer, PipelineBindPoint.Graphics, pipeline);
+        BindSceneSets(PipelineBindPoint.Graphics, layout);
+        BindPassSet(PipelineBindPoint.Graphics, layout, passSet);
+        Vk.CmdPushConstants(
+            commandBuffer: CommandBuffer,
+            layout: layout,
+            stageFlags: ShaderStageFlags.FragmentBit,
+            offset: 0,
+            size: (uint)sizeof(TPush),
+            pValues: &push
+        );
+        SetFullViewport();
+        Vk.CmdDraw(commandBuffer: CommandBuffer, vertexCount: 3, instanceCount: 1, firstVertex: 0, firstInstance: 0);
+        Vk.CmdEndRendering(CommandBuffer);
+    }
+
+    /// <summary>
+    /// Begins rendering into <paramref name="targets"/>, one to three color attachments of one size, their whole extent,
+    /// each stored at the end.
     /// </summary>
     public unsafe void BeginRenderingInto(ReadOnlySpan<(GpuImage Image, AttachmentLoadOp LoadOp)> targets)
     {
-        const int mostTargets = 2;
+        const int mostTargets = 3;
         RenderingAttachmentInfo* colors = stackalloc RenderingAttachmentInfo[mostTargets];
         ArgumentOutOfRangeException.ThrowIfGreaterThan(targets.Length, mostTargets);
         for (int i = 0; i < targets.Length; i++)
@@ -308,31 +338,47 @@ internal sealed class FrameGraph : IDisposable
         DepthPyramid,
 
         /// <summary>
-        /// The direct pass: after the G-buffer pass and the shadow maps, which it reads, and before the occlusion passes,
-        /// so that the bounce light's sector pass can gather from its direct image (docs/plans/screen-space-illumination.md,
-        /// "The frame").
+        /// ReSTIR's candidates, under <see cref="ResampledLights"/>: after the surface test, whose pass bits its temporal
+        /// reuse reads, and after the G-buffer pass and the shadow maps, and before the direct pass, which reads the
+        /// reservoirs that it writes (docs/plans/temporal-renderer.md, "The frame's order").
+        /// </summary>
+        LightCandidates,
+
+        /// <summary>
+        /// The direct pass: after the candidates, whose reservoirs it reads, and after the G-buffer pass and the shadow
+        /// maps. It writes the direct signal's samples.
         /// </summary>
         DirectLight,
 
         /// <summary>
+        /// The direct signal's accumulation: after the direct pass, whose samples it reads, and before the occlusion passes,
+        /// so that the bounce light's depth pass gathers from its slow diffuse history, and before the composite, which
+        /// reads both slow histories.
+        /// </summary>
+        AccumulateDirect,
+
+        /// <summary>
         /// The occlusion passes, under <see cref="VisibilityBitmaskLight"/>: after the G-buffer pass, whose distance and
-        /// normals they read, and after the direct pass, whose image the bounce light's depth pass copies for its sectors.
-        /// Before the ambient pass, which reads their estimate target.
+        /// normals they read, and after the direct signal's accumulation, whose slow diffuse history the bounce light's
+        /// depth pass copies for its sectors. Before the composite, which reads their estimate target.
         /// </summary>
         AmbientOcclusion,
 
-        /// <summary>The ambient pass: after the occlusion passes, whose estimate target it reads, into the HDR image.</summary>
-        AmbientLight,
+        /// <summary>
+        /// The composite: after the occlusion passes, whose estimate target it reads, and the accumulation, whose histories
+        /// it reads, into the HDR image.
+        /// </summary>
+        Composite,
 
         /// <summary>
-        /// The skin scatter's two passes, under <see cref="SeparableSubsurface"/>: after the ambient pass, so that the
+        /// The skin scatter's two passes, under <see cref="SeparableSubsurface"/>: after the composite, so that the
         /// scattered light holds the ambient light, the crease shadowing and the bounce, and before the reflections, so that
         /// a mirror shows the scattered skin (docs/plans/skin-and-hair.md, decision 18).
         /// </summary>
         SkinScatter,
 
         /// <summary>
-        /// The radiance pyramid and the reflections, under <see cref="ConeTracedReflections"/>: after the ambient pass,
+        /// The radiance pyramid and the reflections, under <see cref="ConeTracedReflections"/>: after the composite,
         /// whose lit image they read, so that a reflection shows the ambient light and the bounce, and before the
         /// transparent pass, so glass and puffs neither show in reflections nor lose them
         /// (docs/plans/screen-space-reflections.md, "The order of a frame").

@@ -15,15 +15,15 @@
     <Using Include="Xunit" />
     <Using Include="AwesomeAssertions" />
   </ItemGroup>
-  <!-- The reference of AmbientSkipsTests: the ambient pass's two stages from src, built with TERTIUS_EVERY_AMBIENT_TERM,
-       which computes every term that the engine's build skips (environment.glsl). Embedded under the engine's resource
+  <!-- The reference of AmbientSkipsTests: the composite's two stages from src, built with TERTIUS_EVERY_AMBIENT_TERM,
+       which computes every term that the engine's build skips (environment.glsl), and the probe of DirectLightProbe. Embedded under the engine's resource
        names, for a ShaderLibrary of this assembly. glslc comes from shaderc in the Nix dev shell. -->
   <PropertyGroup>
     <Glslc Condition="'$(Glslc)' == ''">glslc</Glslc>
     <EngineShaders>$(MSBuildProjectDirectory)/../../src/Tertius.Rendering/Shaders</EngineShaders>
   </PropertyGroup>
   <ItemGroup>
-    <ReferenceShader Include="$(EngineShaders)/lighting.vert;$(EngineShaders)/ambient.frag;$(EngineShaders)/ambient_scatter.frag" />
+    <ReferenceShader Include="$(EngineShaders)/lighting.vert;$(EngineShaders)/composite.frag;$(EngineShaders)/composite_scatter.frag;$(MSBuildProjectDirectory)/Shaders/direct_light_probe.frag;$(MSBuildProjectDirectory)/Shaders/direct_diffuse_probe.frag" />
     <ReferenceShaderInclude Include="$(EngineShaders)/*.glsl" />
   </ItemGroup>
 

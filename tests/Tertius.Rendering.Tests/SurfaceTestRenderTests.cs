@@ -7,7 +7,8 @@ namespace Tertius.Rendering.Tests;
 /// The surface test (docs/plans/temporal-renderer.md, section 8, "The surface test"): once per frame, each pixel finds
 /// its surface's previous place and tests the 2 × 2 texels of the last surface history around it. The same pass writes
 /// this frame's surface history and the device depth that FSR reads. Each test reads the pass's images after a second
-/// frame.
+/// frame, one tick after the first, so that it continues the first frame: a second draw of the same time is a still, which
+/// resets every history (docs/plans/temporal-renderer.md, "The still rule").
 /// </summary>
 [Collection(GpuCollection.Name)]
 public sealed class SurfaceTestRenderTests
@@ -15,13 +16,20 @@ public sealed class SurfaceTestRenderTests
     private const int Width = 320,
         Height = 180;
 
+    /// <summary>The step of the second frame: one tick, which continues the first frame.</summary>
+    private const double Tick = 1.0 / 60.0;
+
     /// <summary>The bits of the surface test image that hold the four taps of the plane and normal test.</summary>
     private const byte SurfaceBits = 0x0F;
 
-    /// <summary>A wall 20 m ahead that fills the view, and a box in front of it at <paramref name="box"/>.</summary>
-    private static RenderSnapshot Scene(MeshId cube, MaterialId wall, MaterialId paint, Vector3 box)
+    /// <summary>
+    /// A wall 20 m ahead that fills the view, and a box in front of it at <paramref name="box"/>, at the snapshot time of
+    /// <see cref="Gpu.Snapshot"/> plus <paramref name="later"/>, in s.
+    /// </summary>
+    private static RenderSnapshot Scene(MeshId cube, MaterialId wall, MaterialId paint, Vector3 box, double later = 0)
     {
         RenderSnapshot snapshot = Gpu.Snapshot(new(0.3f, 1f, 0.4f));
+        snapshot.Time += later;
         snapshot.Instances.Add(
             Gpu.Instance(
                 mesh: cube,
@@ -55,6 +63,7 @@ public sealed class SurfaceTestRenderTests
             MaterialId white = renderer.CreateMaterial(MaterialDesc.Color(Vector4.One, roughness: 0.5f));
             RenderSnapshot scene = Scene(cube: cube, wall: white, paint: white, box: new(0, 0, -6));
             renderer.Render(scene, 1f);
+            scene.Time += Tick;
 
             renderer.Render(scene, 1f);
 
@@ -104,7 +113,7 @@ public sealed class SurfaceTestRenderTests
             MaterialId white = renderer.CreateMaterial(MaterialDesc.Color(Vector4.One, roughness: 0.5f));
             renderer.Render(Scene(cube: cube, wall: white, paint: white, box: new(0, 0, -6)), 1f);
 
-            renderer.Render(Scene(cube: cube, wall: white, paint: white, box: new(1.5f, 0, -6)), 1f);
+            renderer.Render(Scene(cube: cube, wall: white, paint: white, box: new(1.5f, 0, -6), later: Tick), 1f);
 
             byte[] bits = renderer.ReadSurfaceTest();
             // The wall where the box stood: its last texel there held the box, 14 m nearer.
@@ -135,7 +144,7 @@ public sealed class SurfaceTestRenderTests
             MaterialId rough = renderer.CreateMaterial(MaterialDesc.Color(Vector4.One, roughness: 0.6f));
             renderer.Render(Scene(cube: cube, wall: wall, paint: smooth, box: new(0, 0, -6)), 1f);
 
-            renderer.Render(Scene(cube: cube, wall: wall, paint: rough, box: new(0, 0, -6)), 1f);
+            renderer.Render(Scene(cube: cube, wall: wall, paint: rough, box: new(0, 0, -6), later: Tick), 1f);
 
             byte bits = renderer.ReadSurfaceTest()[Height / 2 * Width + Width / 2];
             (bits & 1).Should().Be(1, "the box stood still");

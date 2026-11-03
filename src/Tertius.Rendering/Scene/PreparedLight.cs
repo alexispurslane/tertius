@@ -81,6 +81,9 @@ internal struct PreparedLight
 {
     public uint EntityIndex;
 
+    /// <summary>The generation of the entity that carries the light: with <see cref="EntityIndex"/>, the light's key.</summary>
+    public uint EntityGeneration;
+
     /// <summary>Camera-relative position, interpolated.</summary>
     public Vector3 Position;
 

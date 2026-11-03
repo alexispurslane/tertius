@@ -371,6 +371,17 @@ public sealed class ScriptCommandTests : IDisposable
     )]
     [InlineData("--subsurface applies to a headless run", "--scene", "no-such-scene", "--subsurface", "off")]
     [InlineData(
+        "--direct-light needs resampled or every, not 'fast'",
+        "--script",
+        "script.json",
+        "--headless",
+        "--out",
+        "out",
+        "--direct-light",
+        "fast"
+    )]
+    [InlineData("--direct-light applies to a headless run", "--scene", "no-such-scene", "--direct-light", "every")]
+    [InlineData(
         "--subsurface needs on or off, not 'waxy'",
         "--script",
         "script.json",

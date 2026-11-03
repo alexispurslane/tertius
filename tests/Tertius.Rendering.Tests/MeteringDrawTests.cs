@@ -4,7 +4,7 @@ namespace Tertius.Rendering.Tests;
 
 /// <summary>
 /// The metering draw (docs/plans/auto-exposure.md, "The metering draw (option B)"): a headless frame under
-/// <see cref="AutoExposure"/> whose step is at least <see cref="VulkanRenderer.MeteringStepSeconds"/>, or 0, is drawn
+/// <see cref="AutoExposure"/> whose step is at least <see cref="FrameHistory.MeteringStepSeconds"/>, or 0, is drawn
 /// twice, so that the shown draw uses the exposure that the first draw metered on its own view. A real-time film's
 /// frames draw once.
 /// </summary>

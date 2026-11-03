@@ -209,8 +209,9 @@ layout(set = 0, binding = 4, std430) readonly buffer OccluderBlock { vec4 occlud
 layout(set = 0, binding = 5) uniform sampler materialSampler;
 layout(set = 0, binding = 6, std430) readonly buffer OutlineBlock { GpuOutline outlines[]; };
 layout(set = 0, binding = 7, std430) readonly buffer PuffBlock { GpuPuff puffs[]; };
-// The exposure in stops that this frame's passes use (ExposureResources.cs). The adapt step of the frame before wrote it.
-layout(set = 0, binding = 11, std430) readonly buffer ExposureBlock { float exposureStops; };
+// The exposure in stops that this frame's passes use, and the one that the last frame used (ExposureResources.cs). The adapt
+// step of the frame before wrote both. The histories rescale by 2^(exposureStops − previousStops).
+layout(set = 0, binding = 11, std430) readonly buffer ExposureBlock { float exposureStops; float previousStops; };
 // GpuMotion.Kind (MotionKind in GpuTypes.cs).
 const uint MotionMoved = 0u;
 const uint MotionStill = 1u;

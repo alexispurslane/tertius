@@ -1,5 +1,5 @@
-// The G-buffer as the direct, ambient and transparent passes read it (set 2), the cascade sets of the far lights, the local
-// shadow atlas of the near lights, the estimate target and the direct image (docs/plans/screen-space-illumination.md,
+// The G-buffer as the direct pass, the composite and the transparent pass read it (set 2), the cascade sets of the far
+// lights, the local shadow atlas of the near lights and the estimate target (docs/plans/screen-space-illumination.md,
 // "Push constants and sets"), and the shading target (docs/plans/skin-and-hair.md, "The shading target"). All G-buffer
 // targets have the output's size and are read with texelFetch at gl_FragCoord, so they need no sampler.
 #ifndef TERTIUS_GBUFFER_INPUTS_GLSL
@@ -24,8 +24,6 @@ layout(set = 2, binding = 7) uniform utexture2D gbufferEstimate;       // RGBA32
                                                                        // packs it (estimate.glsl)
 layout(set = 2, binding = 8) uniform texture2DArray shadowAtlas;      // D32: one tile per layer, reversed depth;
                                                                        // partially bound, empty without the atlas
-layout(set = 2, binding = 9) uniform texture2D gbufferDirect;          // RGBA16F: the direct light, pre-exposed, 0 for
-                                                                       // sky
 layout(set = 2, binding = 10) uniform utexture2D gbufferShading;       // RGBA8 UINT: rg a hair pixel's strand code (strandCode,
                                                                        // octahedral.glsl), bit 0 of b 1 where the entity
                                                                        // holds a light, bits 0 and 1 of a the shading

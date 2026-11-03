@@ -128,6 +128,7 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
         VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: setting);
         try
         {
+            DirectLightProbe diffuseProbe = DirectLightProbe.On(renderer, diffuseOnly: true);
             // The term that the sector pass leaves, before the blur overwrites it.
             renderer.Graph.Skipped.UnionWith(["occlusion denoise", "occlusion upsample"]);
             renderer.Render(CornerWithBoxes(renderer), 1f);
@@ -140,7 +141,7 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
             var images = new CornerImages(
                 ViewDepth: renderer.ReadOcclusionViewDepth().Depths,
                 HalfSize: (Width: halfWidth, Height: halfHeight),
-                Source: renderer.ReadDiffuse()
+                Source: diffuseProbe.Read()
             );
             // The brightest channel of the bounce source, which one sector's light can reach.
             double brightest = images.Source.Where((_, i) => i % 4 != 3).Max();
@@ -257,6 +258,7 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
         VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: setting, environmentMap: SceneEnvironmentMap.Default);
         try
         {
+            DirectLightProbe diffuseProbe = DirectLightProbe.On(renderer, diffuseOnly: true);
             // The term that the sector pass leaves, before the blur overwrites it.
             renderer.Graph.Skipped.UnionWith(["occlusion denoise", "occlusion upsample"]);
             // The faces draw the map in the first frame, and the sector pass reads it after them.
@@ -270,7 +272,7 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
             var images = new CornerImages(
                 ViewDepth: renderer.ReadOcclusionViewDepth().Depths,
                 HalfSize: (Width: halfWidth, Height: halfHeight),
-                Source: renderer.ReadDiffuse()
+                Source: diffuseProbe.Read()
             );
             var map = SpecularMap.Read(renderer, SceneEnvironmentMap.Default.FaceSize);
             double brightest = Math.Max(images.Source.Where((_, i) => i % 4 != 3).Max(), map.Brightest);
@@ -314,6 +316,7 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
         VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: setting);
         try
         {
+            DirectLightProbe diffuseProbe = DirectLightProbe.On(renderer, diffuseOnly: true);
             renderer.Graph.Skipped.UnionWith(["occlusion denoise", "occlusion upsample"]);
             RenderSnapshot scene = Corner(renderer, Matte(renderer), LitCorner());
             scene.Instances.Add(
@@ -342,7 +345,7 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
             var images = new HairCardImages(
                 ViewDepth: renderer.ReadOcclusionViewDepth().Depths,
                 HalfSize: (Width: halfWidth, Height: halfHeight),
-                Source: renderer.ReadDiffuse(),
+                Source: diffuseProbe.Read(),
                 Normals: renderer.ReadNormals(),
                 Shading: shading
             );
@@ -381,9 +384,10 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
         );
         try
         {
+            DirectLightProbe probe = DirectLightProbe.On(renderer);
             renderer.Render(Corner(renderer, renderer.CreateMaterial(desc), LitCorner()), 1f);
             float[] estimate = renderer.ReadEstimate();
-            float[] direct = renderer.ReadDirect();
+            float[] direct = probe.Read();
             float[] hdr = renderer.ReadHdr();
 
             Vector2 corner = PixelOf(FloorAtTheCorner, CornerView);

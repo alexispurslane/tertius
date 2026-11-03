@@ -620,7 +620,7 @@ public sealed class PyramidRenderTests
     }
 
     [Fact]
-    public void ReflectionsBuildTheDepthPyramidAfterTheGBufferAndTheRadiancePyramidAfterTheAmbientLight()
+    public void ReflectionsBuildTheDepthPyramidAfterTheGBufferAndTheRadiancePyramidAfterTheComposite()
     {
         VulkanRenderer renderer = Gpu.Headless(reflections: ConeTracedReflections.Default);
         try
@@ -632,7 +632,7 @@ public sealed class PyramidRenderTests
                     "G-buffer",
                     "depth pyramid",
                     "direct light",
-                    "ambient light",
+                    "composite",
                     "radiance pyramid",
                     "transparent",
                 ]);

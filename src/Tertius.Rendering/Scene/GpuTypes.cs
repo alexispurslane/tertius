@@ -740,6 +740,48 @@ internal struct SurfaceTestPushConstants
     public uint Reset;
 }
 
+/// <summary>
+/// The push constants of both dispatches of an accumulation, accumulate.glsl (<see cref="TemporalSignal"/>): the signal's
+/// parameter set (<see cref="SignalParameters"/>).
+/// </summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct AccumulatePushConstants
+{
+    public float Cap;
+    public float FastCap;
+    public float HistoryFixFrames;
+    public float ClampSigmas;
+    public float AntiLagShare;
+
+    public static AccumulatePushConstants Of(SignalParameters parameters) =>
+        new()
+        {
+            Cap = parameters.Cap,
+            FastCap = parameters.FastCap,
+            HistoryFixFrames = parameters.HistoryFixFrames,
+            ClampSigmas = parameters.ClampSigmas,
+            AntiLagShare = parameters.AntiLagShare,
+        };
+}
+
+/// <summary>
+/// The push constants of ReSTIR's two passes, restir.glsl (<see cref="LightCandidatesPass"/>, <see cref="DirectLightPass"/>).
+/// </summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct ResampledPushConstants
+{
+    /// <summary>The low 32 bits of the frame's draw index (<see cref="FrameHistory.PendingFrame.DrawIndex"/>), which turn the random numbers.</summary>
+    public uint DrawIndex;
+
+    /// <summary><see cref="ResampledLights.Candidates"/>.</summary>
+    public uint Candidates;
+
+    /// <summary><see cref="ResampledLights.SpatialNeighbors"/>.</summary>
+    public uint Neighbors;
+
+    public uint Unused;
+}
+
 /// <summary>The push constants of the depth pyramid's tail, depth_pyramid_tail.comp (<see cref="DepthPyramidTail"/>).</summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct DepthTailPushConstants

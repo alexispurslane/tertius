@@ -44,7 +44,7 @@ Bring the renderer to its intended look in one epic: a PBR BRDF, an HDR pipeline
 - A `RendererOptions` switch for the feature, and its cost measured at 1080p, as "Measuring the cost of a feature" below says.
 - Red-green TDD for the C# parts and the math that CPU tests can reach.
 - The look is reviewed by eye in headless screenshots of the demo scenes. No member adds reference images. The snapshot tests epic adds them after this epic.
-- No member blends a pixel's estimate with results from earlier frames: no temporal accumulation, no TAA and no temporal upscaling (user, 2026-10-25). Each frame's image comes from that frame alone, so it has no grain that settles, no ghosting and no smearing. See [rendering-performance.md](rendering-performance.md), decision 8.
+- No member blends a pixel's estimate with results from earlier frames: no temporal accumulation, no TAA and no temporal upscaling (user, 2026-10-25). Each frame's image comes from that frame alone, so it has no grain that settles, no ghosting and no smearing. See [rendering-performance.md](rendering-performance.md), decision 8. The user superseded this rule on 2026-11-02 ([temporal-renderer.md](temporal-renderer.md)), and since ticket `ter-nmbm` the direct light accumulates over frames.
 - The last step of each member updates ARCHITECTURE.md to match the code.
 
 ### Measuring the cost of a feature
