@@ -53,3 +53,7 @@ Baseline: from a run of main's code with the same views at 1920 x 1080 in Releas
 Decision rule. The orchestrator proposed it on 2026-11-02, and the user can change it before the result. B is fast enough when, on the heaviest of the four views at 1280 x 720, these four take at most 3.0 ms median and 3.5 ms at the 95th percentile of GPU time: the TLAS build, the deformed BLAS updates, the reflection rays and the diffuse quarter rays. The reflection workload traces a ray for every opaque pixel. In B, only the screen trace's misses need a world ray, so this bound is conservative. Reasoning: at 60 fps the frame has 16.7 ms. At a 1280 x 720 render size, the raster passes, the hit shading pass, the two accumulators and FSR 3.1 need the rest.
 
 Report: docs/research/metal-trace-spike.md holds the method, the tables, the images, the verdict against the rule, and the open items for B (alpha-tested hair, impostors, the hit pass, KosmicKrisp). The report and this ticket's note go in a final commit of their own, so that only they come to main. ARCHITECTURE.md does not change.
+
+**2026-11-03T01:58:51Z**
+
+Launched 2026-11-02: workflow run 112dbd8e-e665-46f0-84d8-244f9e675d78, version 869b0b07-3413-4b06-8707-a88a91bf6e91 (build, one review, one fix), branch ter-afyv-metal-trace-spike from 8ebc19923.
