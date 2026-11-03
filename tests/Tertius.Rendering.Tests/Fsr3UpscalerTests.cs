@@ -1,0 +1,904 @@
+using System.Numerics;
+using Silk.NET.Vulkan;
+using Buffer = Silk.NET.Vulkan.Buffer;
+
+namespace Tertius.Rendering.Tests;
+
+/// <summary>
+/// <see cref="Fsr3Upscaler"/> on the GPU, over AMD's pinned shaders (docs/plans/temporal-renderer.md, "FSR 3.1"): an
+/// upscale of a known input under the validation layer with its synchronization checks, the history across frames,
+/// resets and exposure changes, the exposure step, the reactive mask generator, the refused inputs and the determinism of
+/// the result. Most tests record one frame per submission and wait for it.
+/// </summary>
+[Collection(GpuCollection.Name)]
+public sealed class Fsr3UpscalerTests
+{
+    private static readonly Extent2D LargestRenderSize = new(64, 48);
+    private static readonly Extent2D OutputSize = new(96, 72);
+
+    // The variable that turns on the measurement of FSR's GPU time.
+    private const string TimingVariable = "TERTIUS_FSR_TIMING";
+
+    // The color of the tests that upscale one color.
+    private static readonly Vector4 Constant = new(x: 0.5f, y: 0.25f, z: 0.125f, w: 1f);
+
+    [Fact]
+    public void AConstantColorUpscalesToTheSameColorAtEveryPixelOfTheOutput()
+    {
+        using var bench = new Fsr3Bench(LargestRenderSize, OutputSize);
+        bench.Fill(Constant);
+
+        for (int index = 0; index < 4; index++)
+            bench.Upscale(index, reset: index == 0);
+
+        ShouldAllBeTheConstant(bench.ReadOutput());
+    }
+
+    [Fact]
+    public void AConstantColorUpscalesToTheSameColorBelowTheLargestRenderSizeAndAfterTheRenderSizeChanges()
+    {
+        using var bench = new Fsr3Bench(LargestRenderSize, OutputSize);
+        bench.Fill(Constant);
+
+        // Below the largest render size, AMD's passes clamp their reads by the largest render size and reproject by
+        // the last frame's render size.
+        bench.RenderSize = new(48, 32);
+        for (int index = 0; index < 4; index++)
+            bench.Upscale(index, reset: index == 0);
+        bench.RenderSize = new(56, 40);
+        for (int index = 4; index < 8; index++)
+            bench.Upscale(index, reset: false);
+
+        ShouldAllBeTheConstant(bench.ReadOutput());
+        string.Join("\n", bench.Device.Log.Snapshot()).Should().BeEmpty("a smaller render size breaks no valid usage");
+    }
+
+    [Fact]
+    public void AReactiveMaskOfAFormatOtherThanR8UnormIsRefused()
+    {
+        using var bench = new Fsr3Bench(LargestRenderSize, OutputSize);
+        using GpuImage wide = bench.CreateImage(LargestRenderSize, Format.R16Sfloat, "fsr reactive in R16F");
+        Fsr3Inputs inputs = bench.Inputs(index: 0, reset: true) with { Reactive = wide };
+
+        Action record = () =>
+            bench.Submit(commandBuffer => bench.Upscaler.Record(commandBuffer, new BarrierBatch(), inputs));
+
+        record
+            .Should()
+            .Throw<ArgumentException>("AMD's generator stores the mask through an r8 declaration")
+            .WithMessage("*R8*");
+    }
+
+    [Fact]
+    public void UpscalingReportsNothingToValidation()
+    {
+        ValidationLog log;
+        using (var bench = new Fsr3Bench(LargestRenderSize, OutputSize))
+        {
+            log = bench.Device.Log;
+            bench.FillPattern();
+            for (int index = 0; index < 6; index++)
+                bench.Upscale(index, reset: index == 0);
+        }
+
+        // Joined, so that a failure shows every message.
+        string.Join("\n", log.Snapshot())
+            .Should()
+            .BeEmpty("every image must match its shader's declared format, and every pass its barriers and layouts");
+    }
+
+    [Fact]
+    public void AResetFrameShowsNoneOfTheColorOfTheFramesBeforeIt()
+    {
+        using var bench = new Fsr3Bench(LargestRenderSize, OutputSize);
+        bench.Fill(new Vector4(x: 4f, y: 0f, z: 0f, w: 1f));
+        for (int index = 0; index < 8; index++)
+            bench.Upscale(index, reset: index == 0);
+
+        bench.Fill(new Vector4(x: 0f, y: 0f, z: 2f, w: 1f));
+        bench.Upscale(index: 8, reset: true);
+
+        bench
+            .ReadOutput()
+            .Select(pixel => pixel.X)
+            .Should()
+            .AllSatisfy(red => red.Should().BeLessThan(1e-3f, "a reset reads no history of the red frames"));
+    }
+
+    [Fact]
+    public void TheExposureStepWritesAmdsRatioOfThisFramesPreExposureToTheLastFrames()
+    {
+        Fsr3Golden.Frame[] golden = Fsr3Golden.Values.Sequences.Single(sequence => sequence.Name == "small").Frames;
+        using var bench = new Fsr3Bench(LargestRenderSize, OutputSize);
+        bench.FillPattern();
+
+        var written = new List<float>();
+        float lastStops = MathF.Log2(golden[0].PreExposure);
+        for (int index = 0; index < golden.Length; index++)
+        {
+            float stops = MathF.Log2(golden[index].PreExposure);
+            bench.SetExposure(stops: stops, previousStops: lastStops);
+            bench.Upscale(index, reset: golden[index].Reset);
+            written.Add(bench.ReadDeltaPreExposure());
+            lastStops = stops;
+        }
+
+        written.Should().Equal(golden.Select(frame => frame.Constants["deltaPreExposure"]));
+    }
+
+    [Fact]
+    public void TwoUpscalersOfTheSameFramesGiveTheSameBits()
+    {
+        static Vector4[] Run()
+        {
+            using var bench = new Fsr3Bench(LargestRenderSize, OutputSize);
+            bench.FillPattern();
+            for (int index = 0; index < 5; index++)
+                bench.Upscale(index, reset: index == 0);
+            return bench.ReadOutput();
+        }
+
+        Run().Should().Equal(Run());
+    }
+
+    [Fact]
+    public void TheFirstFrameOfAnUpscalerReadsNoHistoryEvenWithoutAReset()
+    {
+        using var reset = new Fsr3Bench(LargestRenderSize, OutputSize);
+        using var unreset = new Fsr3Bench(LargestRenderSize, OutputSize);
+        reset.FillPattern();
+        unreset.FillPattern();
+
+        reset.Upscale(index: 0, reset: true);
+        unreset.Upscale(index: 0, reset: false);
+
+        unreset.ReadOutput().Should().Equal(reset.ReadOutput(), "an upscaler's first frame has no history to read");
+    }
+
+    [Fact]
+    public void WithoutResetsTheUpscaleOfAStillPatternSettles()
+    {
+        using var bench = new Fsr3Bench(LargestRenderSize, OutputSize);
+        bench.FillPattern();
+        for (int index = 0; index < 11; index++)
+            bench.Upscale(index, reset: index == 0);
+        Vector4[] tenth = bench.ReadOutput();
+
+        bench.Upscale(index: 11, reset: false);
+
+        // A frame that draws alone moves the pattern's edges with its jitter: two such frames differ by 0.19 to 0.42 on
+        // average. With the history, the measured difference is 0.002 to 0.004 from the eighth frame on.
+        MeanDifference(bench.ReadOutput(), tenth)
+            .Should()
+            .BeLessThan(0.02f, "each frame blends its jittered samples into the history of the frames before it");
+    }
+
+    [Fact]
+    public void AResetFrameUpscalesAsTheFirstFrameOfANewUpscalerDoes()
+    {
+        using var settled = new Fsr3Bench(LargestRenderSize, OutputSize);
+        using var fresh = new Fsr3Bench(LargestRenderSize, OutputSize);
+        settled.FillPattern();
+        fresh.FillPattern();
+        for (int index = 0; index < 8; index++)
+            settled.Upscale(index, reset: index == 0);
+
+        settled.Upscale(index: 8, reset: true);
+        fresh.Upscale(index: 8, reset: true);
+
+        settled
+            .ReadOutput()
+            .Should()
+            .Equal(fresh.ReadOutput(), "a reset reads none of the history of the frames before it");
+    }
+
+    [Fact]
+    public void AChangeOfThePreExposureScalesTheHistoryByTheRatioAlone()
+    {
+        static Vector4[] Run(bool brighter)
+        {
+            using var bench = new Fsr3Bench(LargestRenderSize, OutputSize);
+            bench.FillPattern();
+            for (int index = 0; index < 12; index++)
+                bench.Upscale(index, reset: index == 0);
+            if (brighter)
+            {
+                // One stop more: the pre-exposed color doubles, and so must the history that FSR reprojects.
+                bench.FillPattern(scale: 2f);
+                bench.SetExposure(stops: 1, previousStops: 0);
+            }
+
+            bench.Upscale(index: 12, reset: false);
+            return bench.ReadOutput();
+        }
+
+        Vector4[] same = Run(brighter: false);
+        Vector4[] brighter = Run(brighter: true);
+
+        // The exposure image reads as 1, so only deltaPreExposure, 2 here, scales the history. The measured difference
+        // is 0.0004 on average, from the half floats of the history and AMD's tone map of the doubled color.
+        MeanDifference(brighter, [.. same.Select(pixel => 2f * pixel)])
+            .Should()
+            .BeLessThan(0.01f, "the brighter frame's history is the settled history at twice the pre-exposure");
+    }
+
+    [Fact]
+    public void ANewUpscalerOverTheMemoryOfAnOldOneReadsNoneOfItsImages()
+    {
+        using var reused = new Fsr3Bench(LargestRenderSize, OutputSize);
+        using var fresh = new Fsr3Bench(LargestRenderSize, OutputSize);
+        reused.FillPattern(scale: 4f, inverted: true);
+        for (int index = 0; index < 8; index++)
+            reused.Upscale(index, reset: index == 0);
+        reused.ReplaceUpscaler();
+        reused.FillPattern();
+        fresh.FillPattern();
+
+        reused.Upscale(index: 0, reset: false);
+        fresh.Upscale(index: 0, reset: false);
+
+        reused.ReadOutput().Should().Equal(fresh.ReadOutput(), "the first frame clears every image that it reads");
+    }
+
+    [Fact]
+    public void TheFirstFrameAfterAChangeOfTheSceneFollowsTheNewScene()
+    {
+        using var changed = new Fsr3Bench(LargestRenderSize, OutputSize);
+        using var settled = new Fsr3Bench(LargestRenderSize, OutputSize);
+        changed.FillPattern();
+        settled.FillPattern(inverted: true);
+        for (int index = 0; index < 10; index++)
+        {
+            changed.Upscale(index, reset: index == 0);
+            settled.Upscale(index, reset: index == 0);
+        }
+        changed.FillPattern(inverted: true);
+
+        changed.Upscale(index: 10, reset: false);
+        settled.Upscale(index: 10, reset: false);
+
+        // FSR compares this frame's luma with the last frame's and drops the history where the shading changed. The
+        // measured difference is 0.59 on average; with the last frame's luma read as this frame's, it is 2.6.
+        MeanDifference(changed.ReadOutput(), settled.ReadOutput())
+            .Should()
+            .BeLessThan(1.2f, "the shading change pyramid reads this frame's luma and the last frame's");
+    }
+
+    [Fact]
+    public void AnExposureBufferThatTheGpuWritesJustBeforeTheUpscaleGivesItsRatioWithoutAHazard()
+    {
+        using var bench = new Fsr3Bench(LargestRenderSize, OutputSize);
+        using GpuBuffer written = bench.CreateGpuExposureBuffer();
+        bench.FillPattern();
+
+        // In the frame, the exposure pass writes the buffer on the GPU in the same command buffer as the upscale.
+        bench.Submit(commandBuffer =>
+        {
+            bench.WriteOnGpu(commandBuffer: commandBuffer, buffer: written, stops: 1f, previousStops: 0f);
+            Fsr3Inputs inputs = bench.Inputs(index: 0, reset: true) with { Exposure = written };
+            bench.Upscaler.Record(commandBuffer, bench.Barriers, inputs);
+        });
+
+        bench.ReadDeltaPreExposure().Should().Be(2f);
+        string.Join("\n", bench.Device.Log.Snapshot())
+            .Should()
+            .BeEmpty("the exposure step waits for the write of the exposure buffer");
+    }
+
+    [Fact]
+    public void TwoFramesRecordedIntoOneCommandBufferReportNothingToValidation()
+    {
+        using var bench = new Fsr3Bench(LargestRenderSize, OutputSize);
+        bench.FillPattern();
+
+        // The upscaler has two frames in flight, so the second frame writes sets that the first frame does not bind.
+        bench.Submit(commandBuffer =>
+        {
+            bench.Upscaler.Record(commandBuffer, bench.Barriers, bench.Inputs(index: 0, reset: true));
+            bench.Upscaler.Record(commandBuffer, bench.Barriers, bench.Inputs(index: 1, reset: false));
+        });
+
+        string.Join("\n", bench.Device.Log.Snapshot())
+            .Should()
+            .BeEmpty("a set that a recorded frame binds stays as it was");
+    }
+
+    [Fact]
+    public void TheGeneratorMarksEveryPixelWhoseColorDiffersFromTheOpaqueOnlyColorWithAmdsBinaryValue()
+    {
+        using var bench = new Fsr3Bench(LargestRenderSize, OutputSize);
+        bench.Fill(colorValue: new Vector4(x: 2f, y: 0f, z: 0f, w: 1f), opaqueOnlyValue: Vector4.Zero);
+
+        bench.Upscale(index: 0, reset: true);
+
+        // Tone mapped, the colors differ by 2/3, above AMD's threshold of 0.2, and an R8 texel holds 0.9 within 1/255.
+        bench
+            .ReadReactive()
+            .Should()
+            .AllSatisfy(reactive => reactive.Should().BeApproximately(0.9f, 1f / 255f, "AMD's sample's binary value"));
+    }
+
+    [Theory]
+    [InlineData(65u, 48u)]
+    [InlineData(64u, 49u)]
+    [InlineData(0u, 48u)]
+    [InlineData(64u, 0u)]
+    public void ARenderSizeOutsideTheLargestRenderSizeIsRefused(uint width, uint height)
+    {
+        using var bench = new Fsr3Bench(LargestRenderSize, OutputSize) { RenderSize = new(width, height) };
+        Fsr3Inputs inputs = bench.Inputs(index: 0, reset: true);
+
+        Action record = () =>
+            bench.Submit(commandBuffer => bench.Upscaler.Record(commandBuffer, new BarrierBatch(), inputs));
+
+        record.Should().Throw<ArgumentException>().WithMessage("*not within the largest render size*");
+    }
+
+    [Theory]
+    [InlineData(97u, 72u)]
+    [InlineData(96u, 73u)]
+    public void AnOutputOfAnotherSizeThanTheOutputSizeIsRefused(uint width, uint height)
+    {
+        using var bench = new Fsr3Bench(LargestRenderSize, OutputSize);
+        using GpuImage other = bench.CreateImage(
+            new(width, height),
+            Format.R16G16B16A16Sfloat,
+            "fsr output of another size"
+        );
+        Fsr3Inputs inputs = bench.Inputs(index: 0, reset: true) with { Output = other };
+
+        Action record = () =>
+            bench.Submit(commandBuffer => bench.Upscaler.Record(commandBuffer, new BarrierBatch(), inputs));
+
+        record.Should().Throw<ArgumentException>().WithMessage("*not of the output size*");
+    }
+
+    [Fact]
+    public void AnUpscaleFrom1280x720To1920x1080ReportsItsGpuTime()
+    {
+        // A measurement, not a check: it runs only on request, in a Release build under the GPU lock (tools/README.md,
+        // "FSR 3.1 golden values"), and prints the time of FSR's dispatches by timestamps around Record.
+        Assert.SkipUnless(
+            Environment.GetEnvironmentVariable(TimingVariable) == "1",
+            $"Set {TimingVariable}=1 to measure FSR's GPU time."
+        );
+        using var bench = new Fsr3Bench(new Extent2D(1280, 720), new Extent2D(1920, 1080), validation: false);
+        if (!bench.Device.Timestamps.Supported)
+            Assert.Skip($"{bench.Device.DeviceName} writes no timestamps on its queue.");
+        bench.FillPattern();
+
+        // The first frames warm the caches and the driver's pipelines.
+        double[] times = [.. bench.TimedUpscales(count: 360).Skip(60).Order()];
+
+        double median = times[times.Length / 2];
+        TestContext.Current.TestOutputHelper!.WriteLine(
+            $"FSR 3.1 from 1280 x 720 to 1920 x 1080 on {bench.Device.DeviceName}: median {median:F3} ms, "
+                + $"10th percentile {times[times.Length / 10]:F3} ms, 90th percentile {times[times.Length * 9 / 10]:F3} ms "
+                + $"over {times.Length} frames"
+        );
+        median.Should().BePositive();
+    }
+
+    // The mean over the pixels of the summed absolute differences of red, green and blue.
+    private static float MeanDifference(Vector4[] pixels, Vector4[] others) =>
+        pixels
+            .Zip(others)
+            .Average(pair =>
+                MathF.Abs(pair.First.X - pair.Second.X)
+                + MathF.Abs(pair.First.Y - pair.Second.Y)
+                + MathF.Abs(pair.First.Z - pair.Second.Z)
+            );
+
+    // FSR keeps its history in half floats. 1e-3 is two half-float steps at 0.5, four at 0.25 and eight at 0.125.
+    private static void ShouldAllBeTheConstant(Vector4[] pixels)
+    {
+        const float Tolerance = 1e-3f;
+        pixels
+            .Should()
+            .AllSatisfy(pixel =>
+            {
+                pixel.X.Should().BeApproximately(Constant.X, Tolerance);
+                pixel.Y.Should().BeApproximately(Constant.Y, Tolerance);
+                pixel.Z.Should().BeApproximately(Constant.Z, Tolerance);
+            });
+    }
+
+    /// <summary>
+    /// A validating headless device, the inputs of one upscale at the largest render size, an output and an upscaler,
+    /// which records each frame alone and waits for it.
+    /// </summary>
+    internal sealed unsafe class Fsr3Bench : IDisposable
+    {
+        private readonly DeviceAllocator allocator;
+        private readonly ShaderLibrary shaders;
+        private readonly CommandPool pool;
+        private readonly Fence fence;
+        private readonly GpuImage color;
+        private readonly GpuImage opaqueOnly;
+        private readonly GpuImage reactive;
+        private readonly GpuImage depth;
+        private readonly GpuImage motion;
+        private readonly GpuImage output;
+        private readonly GpuBuffer exposure;
+        private readonly GpuBuffer readback;
+
+        // Mip level 0 and layer 0 of a color image, for a copy.
+        private static readonly ImageSubresourceLayers Level0 = new()
+        {
+            AspectMask = ImageAspectFlags.ColorBit,
+            LayerCount = 1,
+        };
+
+        public Fsr3Bench(Extent2D largestRenderSize, Extent2D outputSize, bool validation = true)
+        {
+            Device = VulkanDevice.Create(validation: validation, surfaceExtensions: [], createSurface: null);
+            allocator = new DeviceAllocator(Device);
+            shaders = new ShaderLibrary(Device, ShaderLibrary.EngineShaders);
+            LargestRenderSize = largestRenderSize;
+            RenderSize = largestRenderSize;
+            color = CreateImage(largestRenderSize, Format.R16G16B16A16Sfloat, "fsr color");
+            opaqueOnly = CreateImage(largestRenderSize, Format.R16G16B16A16Sfloat, "fsr opaque only");
+            reactive = CreateImage(largestRenderSize, Format.R8Unorm, "fsr reactive");
+            depth = CreateImage(largestRenderSize, Format.R32Sfloat, "fsr depth");
+            motion = CreateImage(largestRenderSize, Format.R16G16B16A16Sfloat, "fsr motion");
+            output = CreateImage(outputSize, Format.R16G16B16A16Sfloat, "fsr output");
+            exposure = GpuBuffer.Create(
+                device: Device,
+                allocator: allocator,
+                size: 16,
+                usage: BufferUsageFlags.StorageBufferBit,
+                memoryUsage: MemoryUsage.Upload,
+                name: "fsr test exposure"
+            );
+            SetExposure(stops: 0, previousStops: 0);
+            readback = GpuBuffer.Create(
+                device: Device,
+                allocator: allocator,
+                size: (ulong)outputSize.Width * outputSize.Height * 8,
+                usage: BufferUsageFlags.TransferDstBit | BufferUsageFlags.TransferSrcBit,
+                memoryUsage: MemoryUsage.Readback,
+                name: "fsr test readback"
+            );
+            Upscaler = CreateUpscaler(outputSize);
+            var poolInfo = new CommandPoolCreateInfo
+            {
+                SType = StructureType.CommandPoolCreateInfo,
+                Flags = CommandPoolCreateFlags.ResetCommandBufferBit,
+                QueueFamilyIndex = Device.QueueFamily,
+            };
+            Device
+                .Vk.CreateCommandPool(
+                    device: Device.Device,
+                    pCreateInfo: &poolInfo,
+                    pAllocator: null,
+                    pCommandPool: out pool
+                )
+                .Check("vkCreateCommandPool");
+            var fenceInfo = new FenceCreateInfo { SType = StructureType.FenceCreateInfo };
+            Device
+                .Vk.CreateFence(device: Device.Device, pCreateInfo: &fenceInfo, pAllocator: null, pFence: out fence)
+                .Check("vkCreateFence");
+        }
+
+        public VulkanDevice Device { get; }
+        public Fsr3Upscaler Upscaler { get; private set; }
+
+        /// <summary>The barriers of every submission, which carry each image's state from one to the next.</summary>
+        public BarrierBatch Barriers { get; } = new();
+        public Extent2D LargestRenderSize { get; }
+
+        /// <summary>The render size of the next upscales: the largest render size until a test sets it.</summary>
+        public Extent2D RenderSize { get; set; }
+
+        /// <summary>Fills the color and the opaque-only image with one value, the depth with another, and the motion with 0.</summary>
+        public void Fill(Vector4 value) => Fill(colorValue: value, opaqueOnlyValue: value);
+
+        /// <summary>Fills the color and the opaque-only image with a value each, the depth with one, and the motion with 0.</summary>
+        public void Fill(Vector4 colorValue, Vector4 opaqueOnlyValue) =>
+            Submit(commandBuffer =>
+            {
+                Clear(commandBuffer, color, colorValue);
+                Clear(commandBuffer, opaqueOnly, opaqueOnlyValue);
+                Clear(commandBuffer, depth, new Vector4(0.5f));
+                Clear(commandBuffer, motion, Vector4.Zero);
+            });
+
+        /// <summary>
+        /// Fills the color and the opaque-only image with a pattern of colored squares, the depth with two depths and the
+        /// motion with 0, so that every pass of FSR sees edges. <paramref name="scale"/> multiplies every color, and
+        /// <paramref name="inverted"/> swaps the squares of the two colors.
+        /// </summary>
+        public void FillPattern(float scale = 1f, bool inverted = false)
+        {
+            int pixels = (int)(LargestRenderSize.Width * LargestRenderSize.Height);
+            var colors = new Half[pixels * 4];
+            float[] depths = new float[pixels];
+            for (int y = 0; y < LargestRenderSize.Height; y++)
+            for (int x = 0; x < LargestRenderSize.Width; x++)
+            {
+                int pixel = y * (int)LargestRenderSize.Width + x;
+                bool square = (x / 8 + y / 8) % 2 == (inverted ? 1 : 0);
+                colors[pixel * 4 + 0] = (Half)(scale * (square ? 3f : 0.1f));
+                colors[pixel * 4 + 1] = (Half)(scale * x / 64f);
+                colors[pixel * 4 + 2] = (Half)(scale * y / 48f);
+                colors[pixel * 4 + 3] = (Half)1f;
+                depths[pixel] = square ? 0.25f : 0.0625f;
+            }
+
+            Upload(color, colors);
+            Upload(opaqueOnly, colors);
+            Upload(depth, depths);
+            Submit(commandBuffer => Clear(commandBuffer, motion, Vector4.Zero));
+        }
+
+        /// <summary>Writes the exposure buffer: this frame's stops and the last frame's.</summary>
+        public void SetExposure(float stops, float previousStops) => exposure.Write([stops, previousStops, 0f, 0f]);
+
+        /// <summary>Records the upscale of draw <paramref name="index"/>, with AMD's jitter of that draw, and waits for it.</summary>
+        public void Upscale(int index, bool reset) =>
+            Submit(commandBuffer => Upscaler.Record(commandBuffer, Barriers, Inputs(index, reset)));
+
+        /// <summary>The inputs of draw <paramref name="index"/>.</summary>
+        public Fsr3Inputs Inputs(int index, bool reset)
+        {
+            int phases = Fsr3Upscaler.JitterPhaseCount(RenderSize.Width, output.Extent.Width);
+            return new()
+            {
+                Color = color,
+                OpaqueOnly = opaqueOnly,
+                Reactive = reactive,
+                Depth = depth,
+                Motion = motion,
+                Output = output,
+                Exposure = exposure,
+                Frame = new()
+                {
+                    RenderSize = RenderSize,
+                    Jitter = -Fsr3Upscaler.JitterOffset(index, phases),
+                    FrameMilliseconds = 1000f / 60f,
+                    NearMeters = 0.05f,
+                    VerticalFov = MathF.PI / 3f,
+                    Reset = reset,
+                },
+            };
+        }
+
+        /// <summary>
+        /// The GPU time in ms of each of <paramref name="count"/> upscales, the first of which resets, by timestamps around
+        /// Record: every command before the second stamp, from the first.
+        /// </summary>
+        public double[] TimedUpscales(int count)
+        {
+            Vk vk = Device.Vk;
+            var info = new QueryPoolCreateInfo
+            {
+                SType = StructureType.QueryPoolCreateInfo,
+                QueryType = QueryType.Timestamp,
+                QueryCount = 2,
+            };
+            vk.CreateQueryPool(
+                    device: Device.Device,
+                    pCreateInfo: &info,
+                    pAllocator: null,
+                    pQueryPool: out QueryPool queries
+                )
+                .Check("vkCreateQueryPool");
+            try
+            {
+                double[] times = new double[count];
+                for (int index = 0; index < count; index++)
+                {
+                    int draw = index;
+                    Submit(commandBuffer =>
+                    {
+                        vk.CmdResetQueryPool(
+                            commandBuffer: commandBuffer,
+                            queryPool: queries,
+                            firstQuery: 0,
+                            queryCount: 2
+                        );
+                        vk.CmdWriteTimestamp2(
+                            commandBuffer: commandBuffer,
+                            stage: PipelineStageFlags2.AllCommandsBit,
+                            queryPool: queries,
+                            query: 0
+                        );
+                        Upscaler.Record(commandBuffer, Barriers, Inputs(draw, reset: draw == 0));
+                        vk.CmdWriteTimestamp2(
+                            commandBuffer: commandBuffer,
+                            stage: PipelineStageFlags2.AllCommandsBit,
+                            queryPool: queries,
+                            query: 1
+                        );
+                    });
+                    times[index] = MillisecondsBetweenStamps(queries);
+                }
+
+                return times;
+            }
+            finally
+            {
+                vk.DestroyQueryPool(Device.Device, queries, null);
+            }
+        }
+
+        /// <summary>The time in ms from the first timestamp of <paramref name="queries"/> to the second.</summary>
+        private double MillisecondsBetweenStamps(QueryPool queries)
+        {
+            Span<ulong> stamps = stackalloc ulong[2];
+            fixed (ulong* data = stamps)
+                Device
+                    .Vk.GetQueryPoolResults(
+                        device: Device.Device,
+                        queryPool: queries,
+                        firstQuery: 0,
+                        queryCount: 2,
+                        dataSize: 2 * sizeof(ulong),
+                        pData: data,
+                        stride: sizeof(ulong),
+                        flags: QueryResultFlags.Result64Bit | QueryResultFlags.ResultWaitBit
+                    )
+                    .Check("vkGetQueryPoolResults");
+            return Device.Timestamps.Milliseconds(stamps[0], stamps[1]);
+        }
+
+        /// <summary>The output's pixels, row by row.</summary>
+        public Vector4[] ReadOutput()
+        {
+            int pixels = (int)(output.Extent.Width * output.Extent.Height);
+            Span<Half> halves = ReadBack(output).AsSpan<Half>(pixels * 4);
+            var result = new Vector4[pixels];
+            for (int pixel = 0; pixel < pixels; pixel++)
+                result[pixel] = new(
+                    x: (float)halves[pixel * 4],
+                    y: (float)halves[pixel * 4 + 1],
+                    z: (float)halves[pixel * 4 + 2],
+                    w: (float)halves[pixel * 4 + 3]
+                );
+            return result;
+        }
+
+        /// <summary>The reactive mask's pixels, row by row, from 0 to 1.</summary>
+        public float[] ReadReactive()
+        {
+            int pixels = (int)(reactive.Extent.Width * reactive.Extent.Height);
+            return [.. ReadBack(reactive).AsSpan<byte>(pixels).ToArray().Select(texel => texel / 255f)];
+        }
+
+        /// <summary>Copies level 0 of <paramref name="image"/> to the readback buffer and waits for it.</summary>
+        private GpuBuffer ReadBack(GpuImage image)
+        {
+            Submit(commandBuffer =>
+            {
+                Barriers.Image(image, ImageUse.TransferSource);
+                Barriers.Buffer(readback, BufferUse.TransferDestination);
+                Barriers.Flush(Device.Vk, commandBuffer);
+                var region = new BufferImageCopy
+                {
+                    ImageSubresource = Level0,
+                    ImageExtent = new(image.Extent.Width, image.Extent.Height, 1),
+                };
+                Device.Vk.CmdCopyImageToBuffer(
+                    commandBuffer: commandBuffer,
+                    srcImage: image.Handle,
+                    srcImageLayout: ImageLayout.TransferSrcOptimal,
+                    dstBuffer: readback.Handle,
+                    regionCount: 1,
+                    pRegions: &region
+                );
+                Barriers.Buffer(readback, BufferUse.HostRead);
+                Barriers.Flush(Device.Vk, commandBuffer);
+            });
+            return readback;
+        }
+
+        /// <summary>The ratio of the pre-exposures that the exposure step wrote into FSR's constants.</summary>
+        public float ReadDeltaPreExposure()
+        {
+            ulong offset = (ulong)
+                System.Runtime.InteropServices.Marshal.OffsetOf<Fsr3Constants>(nameof(Fsr3Constants.DeltaPreExposure));
+            Submit(commandBuffer =>
+            {
+                Barriers.Buffer(Upscaler.Constants, BufferUse.TransferSource);
+                Barriers.Buffer(readback, BufferUse.TransferDestination);
+                Barriers.Flush(Device.Vk, commandBuffer);
+                var region = new BufferCopy(offset, 0, sizeof(float));
+                Device.Vk.CmdCopyBuffer(
+                    commandBuffer: commandBuffer,
+                    srcBuffer: Upscaler.Constants.Handle,
+                    dstBuffer: readback.Handle,
+                    regionCount: 1,
+                    pRegions: &region
+                );
+                Barriers.Buffer(readback, BufferUse.HostRead);
+                Barriers.Flush(Device.Vk, commandBuffer);
+            });
+            return readback.AsSpan<float>(1)[0];
+        }
+
+        /// <summary>Records <paramref name="record"/> into a new command buffer, submits it and waits for it.</summary>
+        public void Submit(Action<CommandBuffer> record)
+        {
+            Vk vk = Device.Vk;
+            var allocate = new CommandBufferAllocateInfo
+            {
+                SType = StructureType.CommandBufferAllocateInfo,
+                CommandPool = pool,
+                Level = CommandBufferLevel.Primary,
+                CommandBufferCount = 1,
+            };
+            vk.AllocateCommandBuffers(Device.Device, &allocate, out CommandBuffer commandBuffer)
+                .Check("vkAllocateCommandBuffers");
+            var begin = new CommandBufferBeginInfo
+            {
+                SType = StructureType.CommandBufferBeginInfo,
+                Flags = CommandBufferUsageFlags.OneTimeSubmitBit,
+            };
+            vk.BeginCommandBuffer(commandBuffer, &begin).Check("vkBeginCommandBuffer");
+            record(commandBuffer);
+            vk.EndCommandBuffer(commandBuffer).Check("vkEndCommandBuffer");
+            var submit = new SubmitInfo
+            {
+                SType = StructureType.SubmitInfo,
+                CommandBufferCount = 1,
+                PCommandBuffers = &commandBuffer,
+            };
+            Fence wait = fence;
+            vk.QueueSubmit(queue: Device.Queue, submitCount: 1, pSubmits: &submit, fence: wait).Check("vkQueueSubmit");
+            vk.WaitForFences(
+                    device: Device.Device,
+                    fenceCount: 1,
+                    pFences: &wait,
+                    waitAll: true,
+                    timeout: ulong.MaxValue
+                )
+                .Check("vkWaitForFences");
+            vk.ResetFences(Device.Device, 1, &wait).Check("vkResetFences");
+            vk.FreeCommandBuffers(
+                device: Device.Device,
+                commandPool: pool,
+                commandBufferCount: 1,
+                pCommandBuffers: &commandBuffer
+            );
+        }
+
+        public void Dispose()
+        {
+            Device.WaitIdle();
+            Upscaler.Dispose();
+            Device.Vk.DestroyFence(Device.Device, fence, null);
+            Device.Vk.DestroyCommandPool(Device.Device, pool, null);
+            readback.Dispose();
+            exposure.Dispose();
+            output.Dispose();
+            motion.Dispose();
+            depth.Dispose();
+            reactive.Dispose();
+            opaqueOnly.Dispose();
+            color.Dispose();
+            shaders.Dispose();
+            allocator.Dispose();
+            Device.Dispose();
+        }
+
+        /// <summary>An exposure buffer in GPU memory, which only the GPU writes.</summary>
+        public GpuBuffer CreateGpuExposureBuffer() =>
+            GpuBuffer.Create(
+                device: Device,
+                allocator: allocator,
+                size: 16,
+                usage: BufferUsageFlags.StorageBufferBit | BufferUsageFlags.TransferDstBit,
+                memoryUsage: MemoryUsage.GpuOnly,
+                name: "fsr test exposure in GPU memory"
+            );
+
+        /// <summary>Records a write of this frame's stops and the last frame's into <paramref name="buffer"/>.</summary>
+        public void WriteOnGpu(CommandBuffer commandBuffer, GpuBuffer buffer, float stops, float previousStops)
+        {
+            Barriers.Buffer(buffer, BufferUse.TransferDestination);
+            Barriers.Flush(Device.Vk, commandBuffer);
+            float* values = stackalloc float[] { stops, previousStops, 0f, 0f };
+            Device.Vk.CmdUpdateBuffer(
+                commandBuffer: commandBuffer,
+                dstBuffer: buffer.Handle,
+                dstOffset: 0,
+                dataSize: 4 * sizeof(float),
+                pData: values
+            );
+        }
+
+        /// <summary>Replaces the upscaler with a new one, which the allocator gives the memory of the old one.</summary>
+        public void ReplaceUpscaler()
+        {
+            Device.WaitIdle();
+            Upscaler.Dispose();
+            Upscaler = CreateUpscaler(output.Extent);
+        }
+
+        private Fsr3Upscaler CreateUpscaler(Extent2D outputSize) =>
+            new(
+                device: Device,
+                allocator: allocator,
+                shaders: shaders,
+                maxRenderSize: LargestRenderSize,
+                outputSize: outputSize,
+                framesInFlight: 2
+            );
+
+        /// <summary>An input or output image: sampled, stored, cleared, uploaded and read back.</summary>
+        public GpuImage CreateImage(Extent2D extent, Format format, string name) =>
+            GpuImage.Create(
+                device: Device,
+                allocator: allocator,
+                extent: extent,
+                format: format,
+                usage: ImageUsageFlags.SampledBit
+                    | ImageUsageFlags.StorageBit
+                    | ImageUsageFlags.TransferDstBit
+                    | ImageUsageFlags.TransferSrcBit,
+                mipLevels: 1,
+                name: name
+            );
+
+        private void Clear(CommandBuffer commandBuffer, GpuImage image, Vector4 value)
+        {
+            Barriers.Image(image, ImageUse.TransferDestination, discard: true);
+            Barriers.Flush(Device.Vk, commandBuffer);
+            var clear = new ClearColorValue
+            {
+                Float32_0 = value.X,
+                Float32_1 = value.Y,
+                Float32_2 = value.Z,
+                Float32_3 = value.W,
+            };
+            var range = new ImageSubresourceRange
+            {
+                AspectMask = ImageAspectFlags.ColorBit,
+                LevelCount = 1,
+                LayerCount = 1,
+            };
+            Device.Vk.CmdClearColorImage(
+                commandBuffer: commandBuffer,
+                image: image.Handle,
+                imageLayout: ImageLayout.TransferDstOptimal,
+                pColor: &clear,
+                rangeCount: 1,
+                pRanges: &range
+            );
+        }
+
+        private void Upload<T>(GpuImage image, T[] texels)
+            where T : unmanaged
+        {
+            ulong bytes = (ulong)(texels.Length * sizeof(T));
+            using var staging = GpuBuffer.Create(
+                device: Device,
+                allocator: allocator,
+                size: bytes,
+                usage: BufferUsageFlags.TransferSrcBit,
+                memoryUsage: MemoryUsage.Upload,
+                name: "fsr test upload"
+            );
+            staging.Write(texels);
+            Submit(commandBuffer =>
+            {
+                Barriers.Image(image, ImageUse.TransferDestination, discard: true);
+                Barriers.Flush(Device.Vk, commandBuffer);
+                var region = new BufferImageCopy
+                {
+                    ImageSubresource = Level0,
+                    ImageExtent = new(image.Extent.Width, image.Extent.Height, 1),
+                };
+                Buffer source = staging.Handle;
+                Device.Vk.CmdCopyBufferToImage(
+                    commandBuffer: commandBuffer,
+                    srcBuffer: source,
+                    dstImage: image.Handle,
+                    dstImageLayout: ImageLayout.TransferDstOptimal,
+                    regionCount: 1,
+                    pRegions: &region
+                );
+            });
+        }
+    }
+}
