@@ -1,6 +1,6 @@
 ---
 id: ter-nmbm
-status: in_progress
+status: closed
 deps: [ter-ohqr]
 links: []
 created: 2026-11-03T14:53:48Z
@@ -203,3 +203,7 @@ The other new tests, each red on its mutant first:
 - ScriptCommandTests.TheDirectLightOptionEveryTakesEveryLightExactlyAndResampledKeepsTheRenderersDefault (H01, H02).
 
 Logs: /tmp/nmbm-harden (cov, full, rerun, coverage.txt, table.md).
+
+**2026-11-04T13:15:34Z**
+
+2026-11-04: closed, merged into main as b42b6c684.

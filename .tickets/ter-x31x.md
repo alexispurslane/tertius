@@ -5,7 +5,7 @@ deps: [ter-nmbm]
 links: []
 created: 2026-11-04T00:13:46Z
 type: bug
-priority: 2
+priority: 1
 assignee: Alexis Purslane
 parent: ter-89xq
 tags: [rendering, temporal]
@@ -24,3 +24,7 @@ On demo-exit's deck at frame 120, a small panel next to a lamp holds a bright ho
 **2026-11-04T02:58:15Z**
 
 2026-11-03, from the review of ter-nmbm's continuation: one run gives one result per pixel, and the spatial reuse links the pixels' samples, so the per-frame results cannot yet tell a true bias from a heavy tail. A cheap test decides: average the hot spot's samples over many independent runs (an offset of the draw index or a salt in the seed), or over a long still of about 1,000 frames. If the mean ratio goes to 1, the cause is variance. If it stays at 0.8, the bias is real. The fix stage also counted the deck's sparkle: 0.21 % of the pixels have a sample above 4 times their exact light under the unbiased combine (1.85 % of the light, brightest 437 times), against 0.07 % with the biased combine and 0.13 % without neighbors. A heavy tail of this kind fits the variance reading.
+
+**2026-11-04T13:15:34Z**
+
+2026-11-04: priority raised to 1. The user chose to merge the shadow-aware combine of ter-nmbm first (b42b6c684) and to fix this sparkle next.
