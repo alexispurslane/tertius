@@ -1,7 +1,7 @@
 ---
 id: ter-odli
 status: open
-deps: [ter-s7c6, ter-7tnv]
+deps: [ter-s7c6, ter-7tnv, ter-rgg9]
 links: []
 created: 2026-11-03T14:53:48Z
 type: task
