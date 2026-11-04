@@ -99,3 +99,45 @@ Every interval holds zero, so base and control do not differ. The batched median
 Checks of the trace tools with the new lengths: fsr-trace.sh into /private/tmp/q58r-fsr-trace-0 kept 1200 frames, exactly the 150 timed batches of 8, at a span clock of 1296.0 MHz (25 samples). fsr-passes.py now reads the count of warm-up batches from the measurement's line "warm-up batches: 60, timed batches: 150" in run.log. The shader-dump command of tools/README.md, "GPU calibration", ran under the lock and wrote 18 dumped shaders.
 
 New ticket for work found along the way: ter-ty4s, the GPU lock vanished while a run of gpu-lock.sh held it.
+
+**2026-11-04T18:47:05Z**
+
+2026-11-04, the hardening.
+
+Coverage. The branch changes no line under src/, so tools/coverage/changed-lines.py, which reads src/ only, has no line to report. The changed C# is test code in tests/Tertius.Rendering.Tests/Fsr3UpscalerTests.cs. A copy of changed-lines.py that reads tests/ measured it over one Debug run of Fsr3UpscalerTests with TERTIUS_FSR_TIMING=1 under tools/gpu-lock.sh, with the test assembly in the coverage (IncludeTestAssembly). The run passed 31 of 31 tests. The changed lines: 233/238 lines and 29/34 branches. The 5 lines that no test ran, and their 5 partial branches, are the `Assert.Skip` of a device that writes no timestamps on its queue, at the start of five tests. The development Mac writes timestamps, so no run here reaches them. GpuCalibrationTests.cs only lost lines.
+
+coverage.py is not in the dev shell, so the standard library's `trace` module measured the Python tools over tools/test_fsr3_timing.py, test_gpu_calibration.py and test_gpu_clock.py (10, 20 and 32 tests, all passed). The changed executable lines that the tests ran:
+
+- tools/fsr3-timing/analyze.py: 18/18.
+- tools/gpu-calibration/fsr-passes.py: 5/14. The 9 lines that no test ran are in `main()`: the reading of run.log, the call of `warm_up_batches` and the clock line. `main()` needs an xctrace export of a real trace, which no test reached before this ticket either. The acceptance run of fsr-trace.sh above ran it and kept exactly 1200 frames. `warm_up_batches`, the decision in those lines, has its own two tests.
+
+The shell scripts time-round.sh, fsr-trace.sh and upscalers.sh have no tests. The acceptance runs above ran each of them.
+
+Mutation. The branch changes no C# in Core, Simulation or Physics, so no Stryker run applies. tools/mutate.py runs only `dotnet test`, so the Python tools have no mutation run. Their decision logic stays tested by tools/test_fsr3_timing.py and tools/test_gpu_calibration.py alone. The C# list holds the bench's decisions: the refusal guard, the slot of each batch in flight, the reading of each batch and the draws of each batch (C01 to C09). It also holds the measurement's frames in flight, batches in flight and warm-up counts (M01 to M04). M01 to M04 ran with TERTIUS_FSR_TIMING=1 under tools/gpu-lock.sh, because only then does the measurement run. The final runs:
+
+| id | place | change | result | killed by | s |
+|---|---|---|---|---|---:|
+| C01 | tests/Tertius.Rendering.Tests/Fsr3UpscalerTests.cs:862 | refusal guard > -> >= | killed | Fsr3UpscalerTests.ATimedBatchOfAsManyUpscalesAsTheUpscalersFramesInFlightReportsNothingToValidation, Fsr3UpscalerTests.TimedBatchesUpscaleTheSameDrawsAsOneUpscalePerSubmission, Fsr3UpscalerTests.TwoTimedBatchesInFlightOfHalfTheUpscalersFramesInFlightReportNothingToValidation | 16.4 |
+| C02 | tests/Tertius.Rendering.Tests/Fsr3UpscalerTests.cs:862 | refusal guard ignores batches in flight | killed | Fsr3UpscalerTests.TimedBatchesInFlightOfMoreUpscalesThanTheUpscalersFramesInFlightAreRefused | 10.0 |
+| C03 | tests/Tertius.Rendering.Tests/Fsr3UpscalerTests.cs:862 | refusal guard one upscale late | killed | Fsr3UpscalerTests.ATimedBatchOfMoreUpscalesThanTheUpscalersFramesInFlightIsRefused | 9.3 |
+| C04 | tests/Tertius.Rendering.Tests/Fsr3UpscalerTests.cs:881 | every batch takes slot 0 | killed | Fsr3UpscalerTests.TwoTimedBatchesInFlightOfHalfTheUpscalersFramesInFlightReportNothingToValidation | 9.1 |
+| C05 | tests/Tertius.Rendering.Tests/Fsr3UpscalerTests.cs:883 | the first batch is never read | killed | Fsr3UpscalerTests.ATimedBatchOfAsManyUpscalesAsTheUpscalersFramesInFlightReportsNothingToValidation | 6.5 |
+| C06 | tests/Tertius.Rendering.Tests/Fsr3UpscalerTests.cs:879 | the loop drains one batch in flight | killed | Fsr3UpscalerTests.TimedBatchesInFlightUpscaleTheSameDrawsAsOneUpscalePerSubmission | 9.1 |
+| C07 | tests/Tertius.Rendering.Tests/Fsr3UpscalerTests.cs:890 | the draws ignore firstBatch | killed | Fsr3UpscalerTests.TimedBatchesUpscaleTheSameDrawsAsOneUpscalePerSubmission | 8.8 |
+| C08 | tests/Tertius.Rendering.Tests/Fsr3UpscalerTests.cs:886 | time per batch, not per upscale | killed | Fsr3UpscalerTests.ATimedBatchReportsTheTimeOfOneOfItsUpscalesNotOfTheWholeBatch | 9.2 |
+| C09 | tests/Tertius.Rendering.Tests/Fsr3UpscalerTests.cs:973 | one more upscale per batch | killed | Fsr3UpscalerTests.ATimedBatchOfAsManyUpscalesAsTheUpscalersFramesInFlightReportsNothingToValidation, Fsr3UpscalerTests.TimedBatchesUpscaleTheSameDrawsAsOneUpscalePerSubmission, Fsr3UpscalerTests.TwoTimedBatchesInFlightOfHalfTheUpscalersFramesInFlightReportNothingToValidation | 9.1 |
+| M01 | tests/Tertius.Rendering.Tests/Fsr3UpscalerTests.cs:592 | measurement: frames in flight for one batch only | killed | Fsr3UpscalerTests.AnUpscaleFrom1280x720To1920x1080ReportsItsGpuTimePerFrameWhenEightFramesShareASubmission | 9.8 |
+| M02 | tests/Tertius.Rendering.Tests/Fsr3UpscalerTests.cs:587 | measurement: one batch in flight | survived |  | 12.9 |
+| M03 | tests/Tertius.Rendering.Tests/Fsr3UpscalerTests.cs:604 | measurement: printed warm-up count wrong | survived |  | 13.2 |
+| M04 | tests/Tertius.Rendering.Tests/Fsr3UpscalerTests.cs:605 | measurement: warm-up shorter than printed | survived |  | 11.9 |
+13 rows: killed 10, timeout 0, survived 3, no-coverage 0, build-failed 0, no-tests 0, no-mutant 0, removed 0
+
+The first run of the list had two other results. C07 replaced `(firstBatch + batch) * batchSize` with `batch * batchSize` and was build-failed, because IDE0060 then refuses the unused parameter `firstBatch`. The row above replaces it with `(firstBatch * 0 + batch) * batchSize`. C08 survived, so no test read the size of a batch's time.
+
+The answers:
+
+- C08: killed by the new test `ATimedBatchReportsTheTimeOfOneOfItsUpscalesNotOfTheWholeBatch`. C08 survived the first run of the list, and the second run on the committed test shows it killed. A batch of 2 and a batch of 16 take turns 9 times, and the median time of the batch of 16 must stay below 3 times the median of the batch of 2. In three runs with the times printed, the ratio of the medians was 1.35, 0.98 and 0.78, and the mutant multiplies it by 8. A first form against a lone upscale did not work: a lone upscale took about 2 ms against about 0.8 ms per upscale in a batch, so the mutant's ratio was only 1.5 to 2.3. The test passed 5 runs of 5 alone, and the hook's run.
+- M02: judgment call. With one batch in flight, the measurement still runs and gives frame times. The effect of two batches in flight is that the GPU's clock holds when another process takes the CPU, and only a timed run under load beside gpu-clock shows it, as the acceptance rounds above did. No test can read the GPU's clock or its busy share.
+- M03 and M04: judgment call. The printed count and the count of warm-up batches are the same constant in two adjacent lines of a measurement that runs only on request, and their one reader is tools/gpu-calibration/fsr-passes.py. The acceptance trace above checked the pair: fsr-passes.py kept exactly 1200 frames, the 150 timed batches of 8, and a disagreement would have kept another count.
+
+New test: `Fsr3UpscalerTests.ATimedBatchReportsTheTimeOfOneOfItsUpscalesNotOfTheWholeBatch` (commit 3c69f4a83).
