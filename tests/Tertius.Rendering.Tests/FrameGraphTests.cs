@@ -55,40 +55,22 @@ public sealed class FrameGraphTests
     }
 
     [Fact]
-    public void TheCandidatesTheDirectPassAndTheAccumulationRunInTurnAfterTheSurfaceTest()
-    {
-        using var graph = new FrameGraph();
-        graph.Add(FrameGraph.Stage.AccumulateDirect, new NamedPass("accumulate direct"));
-        graph.Add(FrameGraph.Stage.DirectLight, new NamedPass("direct light"));
-        graph.Add(FrameGraph.Stage.LightCandidates, new NamedPass("light candidates"));
-        graph.Add(FrameGraph.Stage.SurfaceTest, new NamedPass("surface test"));
-
-        graph
-            .Passes.Select(pass => pass.Name)
-            .Should()
-            .Equal(
-                ["surface test", "light candidates", "direct light", "accumulate direct"],
-                "the candidates read the pass bits, the direct pass their reservoirs, and the accumulation its samples"
-            );
-    }
-
-    [Fact]
-    public void TheOcclusionPassesRunAfterTheDirectAccumulationAndBeforeTheComposite()
+    public void TheOcclusionPassesRunAfterTheDirectPassAndBeforeTheComposite()
     {
         using var graph = new FrameGraph();
         graph.Add(FrameGraph.Stage.Composite, new NamedPass("composite"));
         graph.Add(FrameGraph.Stage.AmbientOcclusion, new NamedPass("occlusion depth"));
         graph.Add(FrameGraph.Stage.AmbientOcclusion, new NamedPass("occlusion sectors"));
-        graph.Add(FrameGraph.Stage.AccumulateDirect, new NamedPass("accumulate direct"));
         graph.Add(FrameGraph.Stage.DirectLight, new NamedPass("direct light"));
+        graph.Add(FrameGraph.Stage.SurfaceTest, new NamedPass("surface test"));
         graph.Add(FrameGraph.Stage.GBuffer, new NamedPass("G-buffer"));
 
         graph
             .Passes.Select(pass => pass.Name)
             .Should()
             .Equal(
-                ["G-buffer", "direct light", "accumulate direct", "occlusion depth", "occlusion sectors", "composite"],
-                "the occlusion passes read the finished G-buffer and the direct history, and the composite reads their "
+                ["G-buffer", "surface test", "direct light", "occlusion depth", "occlusion sectors", "composite"],
+                "the occlusion passes read the finished G-buffer and the direct light, and the composite reads their "
                     + "estimate target"
             );
     }

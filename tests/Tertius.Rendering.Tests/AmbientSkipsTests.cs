@@ -38,10 +38,9 @@ public sealed class AmbientSkipsTests
                 Width = Width,
                 Height = Height,
                 Impostors = false,
+                // A fixed exposure, whose still draws once: the test compares the composite's ambient terms alone.
                 Exposure = new FixedExposure(ExposureStops),
                 Bloom = new NoBloom(),
-                // The exact loop, whose still draws once: the test compares the composite's ambient terms alone.
-                DirectLight = new EveryLight(),
                 EnvironmentMap = SceneEnvironmentMap.Default with { FaceSize = 64 },
                 // The scene has no skin, so the scatter changes no pixel: under it, the pass draws from
                 // composite_scatter.frag, which also writes the diffuse image, and without it from composite.frag.
@@ -106,10 +105,7 @@ public sealed class AmbientSkipsTests
                 renderer.Graph.Skipped.Add("composite");
                 renderer.Graph.Add(
                     FrameGraph.Stage.Composite,
-                    new EveryTermCompositePass(
-                        direct: renderer.DirectSignal,
-                        scatter: renderer.ScatterImages is not null
-                    )
+                    new EveryTermCompositePass(scatter: renderer.ScatterImages is not null)
                 );
             }
 
@@ -147,9 +143,8 @@ public sealed class AmbientSkipsTests
     /// The composite with the shaders of this project's build, which computes every term: a
     /// <see cref="CompositePass"/> under another name, made at its first frame from the frame's device and layouts.
     /// </summary>
-    /// <param name="direct">The renderer's direct signal, whose histories the composite reads.</param>
     /// <param name="scatter">True under the skin scatter.</param>
-    private sealed class EveryTermCompositePass(TemporalSignal direct, bool scatter) : RenderPass
+    private sealed class EveryTermCompositePass(bool scatter) : RenderPass
     {
         private ShaderLibrary? shaders;
         private CompositePass? pass;
@@ -166,7 +161,6 @@ public sealed class AmbientSkipsTests
                 shaders: shaders,
                 layouts: context.Layouts,
                 constants: new ShaderConstants(EnvironmentMap: true),
-                direct: direct,
                 scatter: scatter
             );
         }

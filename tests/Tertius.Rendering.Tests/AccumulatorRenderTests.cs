@@ -5,10 +5,12 @@ using Tertius.Testing;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The accumulator of the direct signal (docs/plans/temporal-renderer.md, section 8): a constant sample stays constant, a
-/// step of the sample reaches the history within the bound of the anti-lag, and a sample that is not finite counts as no
-/// sample. A test pass takes the producer's place and writes a chosen sample into both parts in each frame. The camera
-/// stands still before a wall that fills the view, and each frame steps one tick, so each frame continues the last one.
+/// The accumulator of a signal (docs/plans/temporal-renderer.md, section 8): a constant sample stays constant, a step of the
+/// sample reaches the history within the bound of the anti-lag, and a sample that is not finite counts as no sample. The
+/// renderer makes no signal until the screen tracer's (ter-gayt), so the test makes one of two parts with a cap of 16
+/// frames, the parameter set that the direct signal had under ReSTIR, and a test pass, its producer, writes a chosen sample
+/// into both parts in each frame. The camera stands still before a wall that fills the view, and each frame steps one tick,
+/// so each frame continues the last one.
 /// </summary>
 [Collection(GpuCollection.Name)]
 public sealed class AccumulatorRenderTests
@@ -19,20 +21,24 @@ public sealed class AccumulatorRenderTests
     /// <summary>The step of each frame after the first: one tick, which continues the last frame.</summary>
     private const double Tick = 1.0 / 60.0;
 
+    /// <summary>The test signal's parameter set: a history of 16 frames and a fast history of 4.</summary>
+    private static readonly SignalParameters Parameters = new(
+        Cap: 16,
+        FastCap: 4,
+        HistoryFixFrames: 4,
+        ClampSigmas: 2,
+        AntiLagShare: 0.5f
+    );
+
     /// <summary>
-    /// The renderer under ResampledLights, whose direct history holds 16 frames, with the test pass in the producer's place,
-    /// under <paramref name="exposure"/>, the fixed exposure of the tests without it.
+    /// The renderer with the test signal and its producer and accumulation after the direct pass, under
+    /// <paramref name="exposure"/>, the fixed exposure of the tests without it.
     /// </summary>
     private static (VulkanRenderer Renderer, SamplePass Sample, RenderSnapshot Scene) Accumulating(
         ExposureSetting exposure = default
     )
     {
-        VulkanRenderer renderer = Gpu.Headless(
-            width: Width,
-            height: Height,
-            exposure: exposure,
-            directLight: ResampledLights.Default
-        );
+        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height, exposure: exposure);
         MeshId cube = renderer.CreateMesh(Primitives.Box(new(0.5f)));
         MaterialId white = renderer.CreateMaterial(MaterialDesc.Color(Vector4.One, roughness: 0.5f));
         RenderSnapshot scene = Gpu.Snapshot(new(0.3f, 1f, 0.4f));
@@ -46,10 +52,9 @@ public sealed class AccumulatorRenderTests
                 entity: 1
             )
         );
-        var sample = new SamplePass(renderer.DirectSignal);
-        renderer.Graph.Skipped.Add("light candidates");
-        renderer.Graph.Skipped.Add("direct light");
+        var sample = new SamplePass(renderer.CreateSignal(parameters: Parameters, name: "test", parts: 2));
         renderer.Graph.Add(FrameGraph.Stage.DirectLight, sample);
+        renderer.Graph.Add(FrameGraph.Stage.DirectLight, new AccumulatePass(sample.Signal));
         return (renderer, sample, scene);
     }
 
@@ -63,10 +68,17 @@ public sealed class AccumulatorRenderTests
         }
     }
 
+    /// <summary>
+    /// The test signal's slow history of <paramref name="part"/> after the last frame, RGBA per pixel, row by row from the
+    /// top: rgb the light, a the history length in frames.
+    /// </summary>
+    private static float[] HistoryOf(VulkanRenderer renderer, SamplePass sample, int part) =>
+        renderer.ReadImage(sample.Signal.Slow(part));
+
     /// <summary>The light of the slow history of <paramref name="part"/> at the center pixel, and its length.</summary>
-    private static (Vector3 Light, float Length) CenterOf(VulkanRenderer renderer, int part)
+    private static (Vector3 Light, float Length) CenterOf(VulkanRenderer renderer, SamplePass sample, int part)
     {
-        float[] history = renderer.ReadDirectHistory(part);
+        float[] history = HistoryOf(renderer, sample, part);
         int at = 4 * (Height / 2 * Width + Width / 2);
         return (new(history[at], history[at + 1], history[at + 2]), history[at + 3]);
     }
@@ -84,7 +96,7 @@ public sealed class AccumulatorRenderTests
 
             for (int part = 0; part < 2; part++)
             {
-                float[] history = renderer.ReadDirectHistory(part);
+                float[] history = HistoryOf(renderer, sample, part);
                 for (int pixel = 0; pixel < Width * Height; pixel++)
                     new Vector3(history[4 * pixel], history[4 * pixel + 1], history[4 * pixel + 2])
                         .Should()
@@ -108,11 +120,11 @@ public sealed class AccumulatorRenderTests
             sample.Value = new(x: 1f, y: 1f, z: 1f, w: 1f);
             renderer.Render(scene, 1f);
             Continue(renderer, scene, frames: 40);
-            CenterOf(renderer, part: 0).Length.Should().Be(16, "the history holds its cap before the step");
+            CenterOf(renderer, sample, part: 0).Length.Should().Be(16, "the history holds its cap before the step");
 
             sample.Value = new(x: 2f, y: 2f, z: 2f, w: 1f);
             int frames = 0;
-            while (frames < 40 && CenterOf(renderer, part: 0).Light.X < 1.9f)
+            while (frames < 40 && CenterOf(renderer, sample, part: 0).Light.X < 1.9f)
             {
                 Continue(renderer, scene, frames: 1);
                 frames++;
@@ -145,7 +157,7 @@ public sealed class AccumulatorRenderTests
 
             for (int part = 0; part < 2; part++)
             {
-                (Vector3 light, float length) = CenterOf(renderer, part);
+                (Vector3 light, float length) = CenterOf(renderer, sample, part);
                 length.Should().Be(4, "the cut started the history four frames ago");
                 light.Should().Be(new Vector3(4f), "the mean of 1, 3, 5 and 7 is 4");
             }
@@ -168,12 +180,12 @@ public sealed class AccumulatorRenderTests
             sample.Value = new(x: 1f, y: 1f, z: 1f, w: 1f);
             renderer.Render(scene, 1f);
             Continue(renderer, scene, frames: 40);
-            CenterOf(renderer, part: 0).Length.Should().Be(16, "the history holds its cap before the step");
+            CenterOf(renderer, sample, part: 0).Length.Should().Be(16, "the history holds its cap before the step");
 
             sample.Value = new(x: 2f, y: 2f, z: 2f, w: 1f);
             Continue(renderer, scene, frames: 1);
 
-            (Vector3 light, float length) = CenterOf(renderer, part: 0);
+            (Vector3 light, float length) = CenterOf(renderer, sample, part: 0);
             light.X.Should().Be(1.25f, "the clamp moves the slow history to the fast history's mean");
             length.Should().BeApproximately(11.2f, 0.01f, "the anti-lag shortens the history by the clamp's move");
         }
@@ -192,12 +204,12 @@ public sealed class AccumulatorRenderTests
             sample.Value = new(x: 0.5f, y: 0.5f, z: 0.5f, w: 1f);
             renderer.Render(scene, 1f);
             Continue(renderer, scene, frames: 6);
-            (Vector3 light, float length) before = CenterOf(renderer, part: 1);
+            (Vector3 light, float length) before = CenterOf(renderer, sample, part: 1);
 
             sample.Value = new(x: float.PositiveInfinity, y: float.PositiveInfinity, z: float.PositiveInfinity, w: 1f);
             Continue(renderer, scene, frames: 5);
 
-            CenterOf(renderer, part: 1).Should().Be(before, "an infinite sample is no sample");
+            CenterOf(renderer, sample, part: 1).Should().Be(before, "an infinite sample is no sample");
         }
         finally
         {
@@ -214,12 +226,12 @@ public sealed class AccumulatorRenderTests
             sample.Value = new(x: 0.5f, y: 0.75f, z: 1f, w: 1f);
             renderer.Render(scene, 1f);
             Continue(renderer, scene, frames: 6);
-            (Vector3 light, float length) before = CenterOf(renderer, part: 0);
+            (Vector3 light, float length) before = CenterOf(renderer, sample, part: 0);
 
             sample.Value = new(x: float.NaN, y: float.NaN, z: float.NaN, w: 1f);
             Continue(renderer, scene, frames: 5);
 
-            CenterOf(renderer, part: 0).Should().Be(before);
+            CenterOf(renderer, sample, part: 0).Should().Be(before);
         }
         finally
         {
@@ -228,7 +240,7 @@ public sealed class AccumulatorRenderTests
     }
 
     [Fact]
-    public void APixelWithoutAHistoryAndWithANaNSampleTakesTheClosedFormOfTheDirectSignalZero()
+    public void APixelWithoutAHistoryAndWithANaNSampleTakesTheClosedFormZero()
     {
         (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating();
         try
@@ -238,7 +250,9 @@ public sealed class AccumulatorRenderTests
             renderer.Render(scene, 1f);
 
             for (int part = 0; part < 2; part++)
-                CenterOf(renderer, part).Light.Should().Be(Vector3.Zero, "the still's first draw reset every history");
+                CenterOf(renderer, sample, part)
+                    .Light.Should()
+                    .Be(Vector3.Zero, "the still's first draw reset every history");
         }
         finally
         {
@@ -264,19 +278,21 @@ public sealed class AccumulatorRenderTests
             renderer.Render(scene, 1f);
             for (int frame = 0; frame < 20; frame++)
                 ExposeAndContinue(0.05f);
-            // A frame 64 times as bright: its adapt step lowers the exposure of the next frame.
+            // A frame 64 times as bright: its adapt step lowers the exposure of the next frame. The meter reads the HDR
+            // image, which shows the scene's star and not the test signal, so the star brightens with the sample.
             float before = renderer.ReadExposureStops().Stops;
+            Gpu.Star(snapshot: scene, irradiance: 64 * Gpu.StarIrradiance(scene));
             ExposeAndContinue(3.2f);
             float after = renderer.ReadExposureStops().Stops;
             float ratio = MathF.Pow(2, after - before);
             ratio.Should().BeLessThan(0.98f, "the bright frame moved the exposure");
-            (Vector3 light, float length) history = CenterOf(renderer, part: 0);
+            (Vector3 light, float length) history = CenterOf(renderer, sample, part: 0);
 
             // No sample, so the history holds only its rescaled self.
             sample.Value = new(x: float.NaN, y: float.NaN, z: float.NaN, w: 1f);
             Continue(renderer, scene, frames: 1);
 
-            CenterOf(renderer, part: 0)
+            CenterOf(renderer, sample, part: 0)
                 .Light.X.Should()
                 .BeApproximately(
                     history.light.X * ratio,
@@ -290,10 +306,13 @@ public sealed class AccumulatorRenderTests
         }
     }
 
-    /// <summary>A pass in the producer's place: it clears both parts of the direct signal's sample to <see cref="Value"/>.</summary>
+    /// <summary>The producer of <paramref name="signal"/>: it clears the sample of each part to <see cref="Value"/>.</summary>
     private sealed unsafe class SamplePass(TemporalSignal signal) : RenderPass
     {
         public Vector4 Value { get; set; }
+
+        /// <summary>The signal whose samples the pass writes.</summary>
+        public TemporalSignal Signal => signal;
 
         public override string Name => "test sample";
 

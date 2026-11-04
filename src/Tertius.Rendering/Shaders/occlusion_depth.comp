@@ -20,10 +20,10 @@ void main()
     uvec2 depthAndNormal = texelDepthAndNormal(texel);
     float z = depthOf(depthAndNormal);
     imageStore(viewDepth, texel, vec4(z));
-    // The light that leaves the pixel alike in every direction: its accumulated direct diffuse light times its diffuse
-    // factor, the base color times 1 − metallic as materialFactors (temporal.glsl) gives it, at most MaxRadiance, and the
-    // glow that it sends (glowSent, frame.glsl). The G-buffer pass pre-exposed the glow, and the history holds pre-exposed
-    // light. Sky and impostors hold no direct light in the history, and an impostor marks no light, so it keeps its glow.
+    // The light that leaves the pixel alike in every direction: its direct diffuse light times its diffuse factor, the base
+    // color times 1 − metallic as materialFactors (temporal.glsl) gives it, at most MaxRadiance, and the glow that it sends
+    // (glowSent, frame.glsl). The G-buffer pass pre-exposed the glow, and the direct pass its light. Sky and impostors hold
+    // no direct light, and an impostor marks no light, so it keeps its glow.
     vec3 glow = glowSent(texelFetch(gbufferEmissive, pixel, 0).rgb, lightMarkOfWord(texelFetch(gbufferShading, pixel, 0).b));
     vec3 factor = texelFetch(gbufferBaseColor, pixel, 0).rgb * (1.0 - texelFetch(gbufferSpecular, pixel, 0).r);
     vec3 diffuse = texelFetch(gbufferBaseColor, pixel, 0).a == 0.0 ? vec3(0.0) : factor * imageLoad(directDiffuse, pixel).rgb;

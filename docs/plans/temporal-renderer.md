@@ -26,7 +26,7 @@ The renderer reuses each pixel's light from earlier frames. Every lit surface ge
 - Hand-over band: the roughness range in which the reflection rays hand over to the reuse of the diffuse rays (decision 27).
 - Key: the identity of an object from frame to frame: its entity's slot, its entity's generation and its render part.
 - Ray budget: the rule that says which pixels trace their own rays in a frame.
-- Reservoir: ReSTIR's record of the one light that a pixel chose, with its weight and its count of candidates.
+- Reservoir: ReSTIR's record of the one light that a pixel chose, with its weight and its count of candidates. Removed with ReSTIR DI on 2026-11-04 (`ter-9nrc`).
 - Pre-exposed: multiplied by k = 2^S, the scale of the frame's exposure S in stops, as today (ARCHITECTURE.md, "Pre-exposure").
 
 ## Decisions
@@ -44,7 +44,7 @@ These come from `.tickets/ter-89xq.md`, the brief of this ticket and its notes. 
 7. One accumulator module with a parameter set per signal. It has slow and fast histories, a history fix for new pixels, anti-lag and demodulated light. It runs the surface test once per frame. The reflection adds its own tests of the hit distance and the reflected point. Each history keeps the render size of the frame that wrote it. (User and orchestrator, 2026-11-03)
 8. Stochastic shadow taps: a few of the shadow taps per frame, in a pattern that turns each frame. (User, 2026-11-03)
 9. A ray budget driven by history length: more rays where the history is short. (User, 2026-11-03)
-10. Many-light sampling, ReSTIR DI, for direct light, which then becomes a temporal signal through the same accumulator module. (User, 2026-11-03)
+10. Many-light sampling, ReSTIR DI, for direct light, which then becomes a temporal signal through the same accumulator module. (User, 2026-11-03) Changed on 2026-11-04 (`ter-9nrc`): the user removed ReSTIR DI. Every light is shaded exactly, and the direct light keeps no history (section 7).
 11. Time-sliced maps (`ter-7khp`) and a world-space radiance cache (`ter-13rm`) are later tickets, outside this design. (User, 2026-11-03)
 12. FSR 3.1's path: the engine's own C# host code over AMD's GLSL shaders from FidelityFX SDK v1.1.4 (upscaler 3.1.4), compiled with glslang. The host repeats AMD's host calculations exactly. The 3.1.5 and 3.1.6 fixes are compared before the pin. The baseline is 32-bit math and the variant without subgroup operations. The format defect of `rw_luma_history` is resolved under the Vulkan validation layer on MoltenVK and lavapipe. AMD's MIT notices stay. (Orchestrator, 2026-11-03) Note of 2026-11-03 (ticket `ter-7m38`): the baseline stays the only build, by the user's choice. AMD's 16-bit modules, the pyramids with quad subgroup operations, and both together matched the reference image and passed every FSR test under validation. In 60 alternating rounds from 1280 × 720 to 1920 × 1080 on the M1 Max, the median of all frames was 2.826 ms for today's build and 2.769 ms for a byte copy of it. The variants took 2.797, 2.788 and 2.776 ms, so by this median none gained more than the copy's spread. By the median of the per-round differences of the run medians, the copy lies within 0.038 ms of today's build, and the build with both changes is 0.085 ms faster. The paired reading is the sound one. But the build with both changes needs `shaderFloat16`, which AMD's Polaris GPUs and Vega M lack under Linux, so the user kept the baseline for a gain of about 0.08 ms. The pin carries AMD's 3.1.6 fix of the 16-bit reprojection (`src/Tertius.Rendering/ThirdParty/Fsr3/README.md`, "The 16-bit and subgroup builds").
 13. Dynamic resolution: images at the largest render size, with the active part changing each frame. A camera cut resets the histories, and a change of the render size does not. (Orchestrator, 2026-11-03)
@@ -58,7 +58,7 @@ These come from `.tickets/ter-89xq.md`, the brief of this ticket and its notes. 
 Each decision gives its reason. The important ones also give the second design and why it lost. The sections below hold the details.
 
 18. The light model of a lit pixel is one sum: the material times each signal, plus the emission. The three signals are demodulated, accumulated light. The composite is the one place that multiplies the material back in.
-19. The frame's stocks are the three signals' histories, the surface history, the reservoirs and the placement history. The previous camera, FSR's state and the controller's state are stocks too. Section 1 gives the owner of each.
+19. The frame's stocks are the three signals' histories, the surface history, the reservoirs and the placement history. Changed on 2026-11-04 (`ter-9nrc`): the reservoirs and the direct signal's history are gone, so two signals remain. The previous camera, FSR's state and the controller's state are stocks too. Section 1 gives the owner of each.
 20. `FrameHistory` owns the CPU state of the last drawn frame and the rules that decide whether a frame continues it. Its one choke-point method, `Begin`, derives each draw's pending state: whether the draw is part of a still, whether it resets, and the previous camera. Every history owner, the exposure's adapt step and the map's refresh read that answer. `Drew` commits the pending state after the submission. Reason: one place holds the rules, and a frame that throws changes no stock. Section 3 gives the interface.
 21. The snapshot counts camera cuts, `RenderSnapshot.CameraCuts`, instead of a flag. A renderer that skips a snapshot still sees the cut, because the count differs.
 22. The previous rows of each object come from the placement history, joined by key, not from the snapshot's previous transform. Section 3 gives both designs.
@@ -67,11 +67,11 @@ Each decision gives its reason. The important ones also give the second design a
 25. A hit of the screen tracer brings this frame's accumulated direct light. It also brings the hit's own indirect light of the last frame, from its fast histories (decision 17). A diffuse ray's hit leaves out the hit's specular light. This frame's material at the hit multiplies the light. No lit image is kept. Section 6 gives both designs, and the reason for the fast history over the slow one.
 26. A diffuse miss reads the environment map along the ray's own direction, through the map's specular image at roughness 0.5. Reason: decision 41 asks for the environment's light from that direction. The irradiance at the normal, D(n), counts a near blocker twice, the fault that decision 42 removed. So this design reads the user's "irradiance" of decision 4 through the user's own note on decision 41. That note of 2026-10-27 says: "read the environment map in each open direction". Section 6 gives the details.
 27. The roughness limit of the reflection rays is the setting `MaxRoughness`, 0.5 by default. In the hand-over band, from `MaxRoughness` − `HandOverWidth` to `MaxRoughness`, the reflection rays hand over to the reuse of the diffuse rays. `HandOverWidth` is a named constant of 0.1. Reason: below 0.4 the cosine-weighted diffuse rays sample a GGX lobe badly. At 0.38 their weight reaches about 12 times the mean. Ticket 4's first captures test the default.
-28. ReSTIR resamples the sampled lights: every light of the main view except the exact lights. The exact lights are the lights whose shadow slot is a cascade set, which `FarShadows.Choose` gives to the brightest shadowed far lights. There are at most `RendererOptions.CascadedLights` of them, 1 by default and 4 at most (user, 2026-11-03). They take the exact loop with the frame's taps, outside the resampling, because a cascade map has no bounds image. A far light is any light at least `LightUnits.FarDistance` from the eye, the test that already gives a light cascade shadows instead of shadow tiles. A star is far because of its distance, not its kind: there is no star type. ReSTIR shades the chosen light with its exact unshadowed contribution and a stochastic visibility. A candidate's target is 0 where the bounds of its shadow tile show it fully shadowed. The candidates come from a table weighted by each sampled light's rank irradiance at the eye, mixed half and half with a uniform choice. Section 7 gives both designs.
-29. The exact loop over every light stays as the zero case of the direct light's setting, `EveryLight`. The forward passes use it too. Reason: the tests need an exact direct light, and the bias of ReSTIR needs a reference. Section 7 gives both designs.
+28. ReSTIR resamples the sampled lights: every light of the main view except the exact lights. The exact lights are the lights whose shadow slot is a cascade set, which `FarShadows.Choose` gives to the brightest shadowed far lights. There are at most `RendererOptions.CascadedLights` of them, 1 by default and 4 at most (user, 2026-11-03). They take the exact loop with the frame's taps, outside the resampling, because a cascade map has no bounds image. A far light is any light at least `LightUnits.FarDistance` from the eye, the test that already gives a light cascade shadows instead of shadow tiles. A star is far because of its distance, not its kind: there is no star type. ReSTIR shades the chosen light with its exact unshadowed contribution and a stochastic visibility. A candidate's target is 0 where the bounds of its shadow tile show it fully shadowed. The candidates come from a table weighted by each sampled light's rank irradiance at the eye, mixed half and half with a uniform choice. Section 7 gives both designs. Changed on 2026-11-04 (`ter-9nrc`): the user removed ReSTIR DI, so no light is sampled. A light with a cascade set is shaded by the same loop as every other light (section 7).
+29. The exact loop over every light stays as the zero case of the direct light's setting, `EveryLight`. The forward passes use it too. Reason: the tests need an exact direct light, and the bias of ReSTIR needs a reference. Section 7 gives both designs. Changed on 2026-11-04 (`ter-9nrc`): the exact loop is the only direct path, so the setting `DirectLight` and its cases are gone (section 7).
 30. FSR's reactive mask comes from AMD's generator, in a dispatch of its own before the upscale. The generator reads a copy of the image before the transparent pass and the final color. FSR gets no transparency and composition mask. Reason: AMD's 3.1.4 has no generator for that mask, and the reactive mask already marks the glass. Section 9 gives both designs.
 31. FSR's pre-exposure constant comes from the GPU's exposure buffer, through a small copy into FSR's constant buffer. AMD's shaders stay unchanged. Section 5 gives the reason. Ticket `ter-k63u` corrected this decision on 2026-11-03: AMD's 3.1.4 shaders have one such constant, `deltaPreExposure`, and the exposure image is AMD's default (section 5, "The host").
-32. If a headless draw's step is 0, endless or at least `MeteringStepSeconds`, 0.09 s, the draw is a still. This is today's rule of the metering draw, so one predicate decides both. A still resets every history, then draws warm-up draws of the same snapshot before the shown draw. Their count is `WarmUpFrames`, 32 by default, or 0 where no history holds more than one frame. The first warm-up draw takes over the metering draw's two jobs, the exposure and the refresh of every face. Section 10 gives the rule and what a still depends on.
+32. If a headless draw's step is 0, endless or at least `MeteringStepSeconds`, 0.09 s, the draw is a still. This is today's rule of the metering draw, so one predicate decides both. A still resets every history, then draws warm-up draws of the same snapshot before the shown draw. Their count is `WarmUpFrames`, 32 by default, or 0 where no history holds more than one frame. The first warm-up draw takes over the metering draw's two jobs, the exposure and the refresh of every face. Section 10 gives the rule and what a still depends on. Changed on 2026-11-04 (`ter-9nrc`): no history holds more than one frame until the screen tracer, so `WarmUpFrames` is gone. A still draws one warm-up draw under `AutoExposure` and none under a fixed exposure. `ter-gayt` brings the count back with its histories.
 33. Headless scripted runs use a fixed render scale, 2/3 by default, and the window uses the controller. Reason: a controller that follows GPU timings breaks the determinism of headless captures. A scale of 2/3 gives the budget's size, 1280 × 720 at a 1080p output.
 34. The main view's shadow taps are the turning quarter of the 16 taps under `Fsr3Upscaling` and all 16 taps under `NoUpscaling`. The environment faces and the impostor captures always take all 16. Reason: only an image that FSR averages can take a quarter.
 35. A reflection miss reads the map where its ray ends, through the distance cube. This is the corrected read of the closed `ter-s6zr`, which ticket 8 ports, and every reader of the map's specular term takes it. A diffuse miss keeps its read along its direction. Reason: the diffuse signal averages its misses over the hemisphere, so their parallax error stays small, by decision 23 of [environment-map-distances.md](environment-map-distances.md). Section 6 gives both designs.
@@ -117,9 +117,9 @@ A cap of demodulated light removes the light above `MaxRadiance` times the facto
 flowchart LR
     subgraph CPU
         SN[Snapshot] --> FB[FrameHistory.Begin: still, reset, draw index, previous camera]
-        FR[(Last drawn frame: camera, cut count, placement history, light keys)] --> FB
+        FR[(Last drawn frame: camera, cut count, placement history)] --> FB
         RC[(Render scale controller)] --> FB
-        FB --> BA[SceneBatcher.Prepare: motion rows, light table, light remap]
+        FB --> BA[SceneBatcher.Prepare: motion rows]
         FR --> BA
         BA --> FD[FrameHistory.Drew, after the submission]
         FD --> FR
@@ -134,23 +134,18 @@ flowchart LR
         GB --> ST[Surface test]
         SH[(Surface history)] --> ST
         ST --> SH
-        ST --> RS[Light candidates and direct light]
-        RV[(Reservoirs)] --> RS
-        RS --> RV
-        RS --> AD[Accumulate direct]
-        HD[(Direct history)] --> AD
-        AD --> HD
-        HD --> TR[Screen tracer]
+        GB --> DL[Direct light]
+        DL --> DI[(Direct light's images)]
+        DI --> TR[Screen tracer]
         HI[(Diffuse and specular histories)] --> TR
         ENV[(Environment maps)] --> TR
         TR --> AI[Accumulate diffuse and specular]
         AI --> HI
-        HD --> CO[Composite]
+        DI --> CO[Composite]
         HI --> CO
         CO --> TP[Scatter, haze, transparent]
         TP --> MT[Exposure: meter and adapt step]
         MT --> EB[(Exposure buffer: stops, previous stops)]
-        EB --> AD
         EB --> AI
     end
     subgraph GPU, output size
@@ -162,16 +157,16 @@ flowchart LR
     end
 ```
 
-A box in parentheses is a stock. Each arrow into a stock is a flow that changes it. The arrows from the exposure buffer and from the last drawn frame are reads.
+A box in parentheses is a stock. Each arrow into a stock is a flow that changes it. The arrows from the exposure buffer and from the last drawn frame are reads. Changed on 2026-11-04 (`ter-9nrc`): the light candidates, the reservoirs, the direct history, accumulate direct, the light table and the light keys are gone. The direct pass writes the direct light's two images, which hold this frame's light alone, so they are not a stock that carries light across frames.
 
 | Stock | Owner | What it holds | Written by | Reset |
 |---|---|---|---|---|
-| Direct history | `TemporalSignal` of the direct signal | Slow and fast history of each of the two parts, length | Accumulate direct | Every frame reset |
+| Direct history | `TemporalSignal` of the direct signal | Slow and fast history of each of the two parts, length | Accumulate direct | Removed on 2026-11-04 (`ter-9nrc`). The direct light's two images hold this frame's light alone (section 7) |
 | Diffuse history | `TemporalSignal` of the diffuse signal | Slow and fast history, length | Accumulate diffuse | Every frame reset |
 | Specular history | `TemporalSignal` of the specular signal | Slow and fast history, length, hit distance | Accumulate specular | Every frame reset |
 | Surface history | `SurfaceHistory` | The last frame's geometric normal and roughness at each pixel, and its device depth, which holds its view depth | Surface test | Every frame reset |
-| Reservoirs | `LightReservoirs` | One reservoir per pixel | Light candidates, direct light | Every frame reset |
-| The last drawn frame | `FrameHistory` | Its eye, frame id and rotation. Its unjittered projection, root rotation, render size and jitter. Its snapshot's count of cuts. Its placement history: the rows of each keyed instance relative to its eye, its mesh and its deformed copy's place. Its light keys. The count of drawn frames, and the draw index since the last reset | `FrameHistory.Drew`, after the submission | The draw index restarts at 0. The rest stays, so the motion vectors stay exact across a reset |
+| Reservoirs | `LightReservoirs` | One reservoir per pixel | Light candidates, direct light | Removed on 2026-11-04 (`ter-9nrc`). |
+| The last drawn frame | `FrameHistory` | Its eye, frame id and rotation. Its unjittered projection, root rotation, render size and jitter. Its snapshot's count of cuts. Its placement history: the rows of each keyed instance relative to its eye, its mesh and its deformed copy's place. The count of drawn frames, and the draw index since the last reset | `FrameHistory.Drew`, after the submission | The draw index restarts at 0. The rest stays, so the motion vectors stay exact across a reset |
 | Kept deformed positions | `DeformPass` | The last frame's position of each deformed vertex | Deformation | Never |
 | FSR's state | `Fsr3Upscaler` | AMD's histories, locks and luminance history at the output size | FSR's dispatches | Every frame reset |
 | Controller's state | `RenderScaleController` | The current render scale, the filtered fixed and per-pixel GPU times, and the scale of each frame in flight by its number | `RenderScaleController.Next` and `Measure` | Never |
@@ -182,7 +177,7 @@ Every render-size history has the render size of the last drawn frame, because e
 Four flows cross the CPU and the GPU:
 
 - `FrameHistory.Begin` runs before batching. It derives the draw's pending state, such as the reset, the draw index and the previous camera relative to this frame's eye. It is the one place of the still and reset rules (section 3, "The frame history").
-- `SceneBatcher.Prepare` joins the snapshot's instances with the record's placement history and writes the frame's motion rows. It also joins the light keys for ReSTIR's remap (sections 3 and 7). It writes this frame's placements and light keys into the pending state.
+- `SceneBatcher.Prepare` joins the snapshot's instances with the record's placement history and writes the frame's motion rows. It writes this frame's placements into the pending state. Changed on 2026-11-04 (`ter-9nrc`): it no longer joins the light keys for ReSTIR's remap.
 - `FrameHistory.Drew` commits the pending state after the submission.
 - `RenderScaleController.Measure(timings)` reads each finished frame's GPU timings and sets the next render scale (section 4).
 
@@ -193,16 +188,16 @@ Four flows cross the CPU and the GPU:
 | `Upscaling` | `NoUpscaling`, `Fsr3Upscaling(RenderScale, Sharpness)` | `NoUpscaling`: no jitter, render size = output size | `Fsr3Upscaling(FrameTimeTarget.Default, Sharpness: chosen in ticket 5)` | `AntiAliasing` (`None`, `Smaa`) |
 | `RenderScale`, inside `Fsr3Upscaling` | `FixedRenderScale(Scale)`, `FrameTimeTarget(Milliseconds, MinScale, MaxScale)` | None: a required field | `FrameTimeTarget(1000 / 60, 0.5, 1)` | Nothing |
 | `ScreenTrace` | `NoScreenTrace`, `ScreenTrace(MaxRoughness, ReflectionSteps, DiffuseSteps)` | `NoScreenTrace`: every direction open, the composite reads the environment's terms in closed form | `ScreenTrace(0.5, 256, 64)` | `ScreenSpaceLight`, `Reflections` |
-| `DirectLight` | `EveryLight`, `ResampledLights(Candidates, SpatialNeighbors)` | `EveryLight`: the exact loop over the light list | `ResampledLights(4, 2)` | Nothing |
-| `WarmUpFrames` | An integer, 1 to 256 | None. Under the three zero cases a still draws no warm-up draws (section 10) | 32 | Nothing |
+| `DirectLight` | `EveryLight`, `ResampledLights(Candidates, SpatialNeighbors)` | `EveryLight`: the exact loop over the light list | `ResampledLights(4, 2)` | Removed on 2026-11-04 (`ter-9nrc`). |
+| `WarmUpFrames` | An integer, 1 to 256 | None. Under the three zero cases a still draws no warm-up draws (section 10) | 32 | Removed on 2026-11-04 (`ter-9nrc`). `ter-gayt` brings it back |
 
-Each union has `Problem`, which `VulkanRenderer.CheckOptions` turns into an `ArgumentOutOfRangeException`, as the settings of today do. The test helpers `Gpu.Headless` and `GpuTesting.Headless` set `NoUpscaling`, `NoScreenTrace` and `EveryLight`, as they set `NoScreenSpaceLight` and `NoReflections` today. So a test's frame keeps no noise and no jitter, and its direct light is exact. Each signal's parameter set follows the settings. Under `EveryLight` with `NoUpscaling`, the direct sample takes all 16 taps and has no noise. So the direct signal then keeps one frame, and its history is its exact sample (section 8).
+Each union has `Problem`, which `VulkanRenderer.CheckOptions` turns into an `ArgumentOutOfRangeException`, as the settings of today do. The test helpers `Gpu.Headless` and `GpuTesting.Headless` set `NoUpscaling` and `NoScreenTrace`, as they set `NoScreenSpaceLight` and `NoReflections` today. So a test's frame keeps no noise and no jitter. Each signal's parameter set follows the settings. Changed on 2026-11-04 (`ter-9nrc`): no `DirectLight` setting is left, because every renderer takes every light exactly, and the direct light keeps no history (section 7).
 
 ## 2. The frame's order
 
 The frame records in this order. "Fixed" passes have sizes of their own, "render" passes draw the active part of the largest render size, and "output" passes draw the output size. Each reason names the read that forces the order.
 
-1. CPU: `FrameHistory.Begin`, then the batch. The batch joins the record's placement history and writes the motion rows, the light table and the light remap of ReSTIR (section 7).
+1. CPU: `FrameHistory.Begin`, then the batch. The batch joins the record's placement history and writes the motion rows, the light table and the light remap of ReSTIR (section 7). The light table and the remap were removed on 2026-11-04 (`ter-9nrc`).
 2. Uploads and the exposure readback, as today.
 3. Deformation (fixed). It writes this frame's deformed copies and their positions into the kept positions of this frame's slot. It comes first because every pass that draws a mesh draws the copies.
 4. Shadow maps and local shadows (fixed). Unchanged.
@@ -211,9 +206,9 @@ The frame records in this order. "Fixed" passes have sizes of their own, "render
 7. G-buffer (render). Jittered. It adds the motion target. After the deformation, whose current and kept positions it reads.
 8. Surface test (render). It reads the distance, the normals and the motion target, and the surface history. It writes the surface test image, the new surface history, FSR's device depth and the sky's motion. After the G-buffer, whose targets it reads.
 9. Depth pyramid (render). As today, over the active part. After the G-buffer.
-10. Light candidates (render, under `ResampledLights`). The candidates and the temporal reuse of the reservoirs. After the surface test, whose previous places it reads.
-11. Direct light (render). The spatial reuse and the shading of the chosen light, or the loop over every light under `EveryLight`. It writes the direct signal's sample.
-12. Accumulate direct (render). Before the tracer, whose hits read this frame's accumulated direct light.
+10. Light candidates (render, under `ResampledLights`). The candidates and the temporal reuse of the reservoirs. After the surface test, whose previous places it reads. Removed on 2026-11-04 (`ter-9nrc`).
+11. Direct light (render). The spatial reuse and the shading of the chosen light, or the loop over every light under `EveryLight`. It writes the direct signal's sample. Changed on 2026-11-04 (`ter-9nrc`): the loop over every light, into the direct light's two images.
+12. Accumulate direct (render). Before the tracer, whose hits read this frame's accumulated direct light. Removed on 2026-11-04 (`ter-9nrc`). The hits read the direct light's images.
 13. Screen trace (render). The ray plan, the trace and the resolve, in three dispatches. It writes the samples of the diffuse and the specular signal. After the depth pyramid, the direct history and the environment maps.
 14. Accumulate diffuse, then accumulate specular (render). After the tracer.
 15. Composite (render). It takes the place of the ambient pass. It writes the HDR image and, at skin pixels, the diffuse image. After every accumulation.
@@ -244,7 +239,7 @@ The list follows section 1 of [pass-map.md](../research/temporal-renderer/pass-m
 | Impostor captures | Kept | A billboard moves by its instance's rows, so it has a motion vector. |
 | G-buffer | Changed | Render size, jitter, the mip bias of the render scale, and the motion target. |
 | Depth pyramid | Changed | It serves the tracer and covers only the active part. Its owner moves from `ReflectionTargets` to `ScreenTraceImages`. |
-| Direct light | Changed | It writes the direct signal's demodulated sample. Under `ResampledLights` it shades one chosen light, under `EveryLight` it loops as today. |
+| Direct light | Changed | It writes the direct light's demodulated two parts, with the loop over every light (section 7, changed on 2026-11-04). |
 | Occlusion depth, sectors, denoise and upsample | Deleted | The tracer's diffuse rays find the blocked directions (decision 4). |
 | Ambient light | Changed | It becomes the composite. |
 | Scatter rows, scatter columns | Kept | Render size. |
@@ -259,14 +254,14 @@ The list follows section 1 of [pass-map.md](../research/temporal-renderer/pass-m
 | Outlines | Changed | Output size, with the render-size distance and the unjittered camera. |
 | Capture | Kept | The output. |
 | New: surface test | New | Section 3 and section 8. |
-| New: light candidates | New | Section 7. |
-| New: accumulate direct, diffuse and specular | New | Section 8. |
+| New: light candidates | New | Removed on 2026-11-04 (`ter-9nrc`). |
+| New: accumulate diffuse and specular | New | Section 8. Accumulate direct was removed on 2026-11-04 (`ter-9nrc`). |
 | New: screen trace | New | Section 6. |
 | New: FSR 3.1 upscale | New | Section 5. |
 
 ## 3. Motion vectors and the previous frame's state
 
-A motion vector gives, for each pixel, the place in the last drawn frame's image where the same surface point was. FSR, the surface test, ReSTIR and the accumulators read it. Section 3 of [pass-map.md](../research/temporal-renderer/pass-map.md) lists what the engine lacks today. This section adds each piece.
+A motion vector gives, for each pixel, the place in the last drawn frame's image where the same surface point was. FSR, the surface test and the accumulators read it. ReSTIR read it too, until its removal on 2026-11-04 (`ter-9nrc`). Section 3 of [pass-map.md](../research/temporal-renderer/pass-map.md) lists what the engine lacks today. This section adds each piece.
 
 ### The key of an object
 
@@ -274,7 +269,7 @@ The key of an instance is its entity's slot, its entity's generation and its ren
 
 The builder writes the instances in slot order and each entity's parts in order (ARCHITECTURE.md, "The render snapshot"). So the keys rise strictly along `RenderSnapshot.Instances`. The batcher depends on this order. An instance whose slot and part are not above the ones before it has no identity. One example is a hand-built test snapshot whose instances all keep the default index 0. Such an instance draws as still in the camera's frame. Its previous rows are its rows of this frame, moved by the eye's step since the last frame.
 
-`RenderLight`'s two cases gain `EntityGeneration` too, because ReSTIR keys its lights (section 7).
+`RenderLight`'s two cases gain `EntityGeneration` too, because ReSTIR keys its lights (section 7). Changed on 2026-11-04 (`ter-9nrc`): no pass reads it since ReSTIR's removal, and `ter-nt65` removes it.
 
 ### The placement history
 
@@ -673,7 +668,7 @@ where
 
 - `q` = the hit pixel.
 - `factors` = `materialFactors` of q's surface in this frame's G-buffer.
-- `directDiffuseAt`, `directSpecularAt` = this frame's direct history at q, after "accumulate direct".
+- `directDiffuseAt`, `directSpecularAt` = this frame's direct light at q, from the direct light's two images. Changed on 2026-11-04 (`ter-9nrc`): the direct light keeps no history, and "accumulate direct" is gone.
 - `indirectHistoryAt` = the fast diffuse and specular histories of the last frame at q's previous place, rescaled by the exposure ratio. "How the later bounces settle" below gives the reason for the fast history. Where q fails the surface test, it gives the environment's closed form at q instead: D(n_q) and the map's specular term along q's dominant direction. In a reset frame, no pixel has a history, so every hit takes the closed form.
 - `history.diffuse`, `history.specular` = the two parts of that read.
 - `isReflection` = whether the ray is a reflection ray. A diffuse ray brings only light that leaves the hit alike in every direction, so it leaves out the hit's highlight.
@@ -785,131 +780,57 @@ Every random number comes from `pcg3d` of three values: the pixel, the draw inde
 
 The block's chosen pixel traces no own ray of a kind for which it already traces the block's ray. Its own sample is the block ray at weight 1. Reason: under the rule above, its own ray draws the same direction as the block ray, so a second trace adds no information (`ter-jz2y`, found in the review of the trace timing spike). The plan knows the chosen pixel from the turn. The second design, a constant of its own for block rays, gives that pixel two independent samples at the cost of a second trace. (Orchestrator, 2026-11-03) A blue-noise sequence spreads the error better, and it is a later measured change, not part of this design.
 
-## 7. Direct light with ReSTIR DI
+## 7. Direct light: every light, exactly
+
+Changed on 2026-11-04 (`ter-9nrc`): the user removed ReSTIR DI. This section first gave ReSTIR's design: candidates from an alias table, reservoirs, a temporal and a spatial reuse, and the exact loop as the zero case `EveryLight`. Git holds that text, and ARCHITECTURE.md held its measures until this ticket.
 
 ### The model
 
-The direct light of a pixel is the sum of the contributions of the main view's lights. A light's contribution is its response times its irradiance times its visibility, as today. ReSTIR DI estimates that sum with one light per pixel per frame. Resampled importance sampling chooses that light: it draws cheap candidates, then keeps one in proportion to its real contribution. ReSTIR reuses the choices of the last frame and of the neighbors (Bitterli and others 2020).
+The direct light of a pixel is the sum of the contributions of the main view's lights. A light's contribution is its response times its irradiance times its visibility. One fullscreen pass, "direct light", takes this sum with the loop over every light that the forward passes use (`directLight` in `lighting.glsl`). It writes the two parts, the diffuse and the specular light, each divided by its material factor and pre-exposed, into the two RGBA16F images `RenderTargets.DirectDiffuse` and `DirectSpecular`. The composite multiplies them back by their factors (decision 18), and the occlusion depth pass reads the diffuse part. The direct light keeps no history, because an exact sum has no noise to average.
 
-The target function of a pixel is p̂(light) = the luminance of the light's unshadowed contribution, its two parts times their factors. The chosen light is shaded with its exact unshadowed contribution and a stochastic visibility, times the reservoir's weight. So the only noise comes from the choice of the light and from the shadow taps. One light alone gives the exact light, because its weight is then exactly 1. This is Heitz's split of analytic light and stochastic shadow (Heitz and others 2018), with ReSTIR choosing the light.
+The user's decision of 2026-11-04 and its reasons:
 
-A target without visibility fails where a bright light is shadowed. Take a cabin under the star, lit by its own lamps. The star's rank irradiance at the eye, and its unshadowed p̂ on a wall that faces it, are far above every lamp's. With about 25 lights, about half of the candidates are the star, and the reservoir keeps it. Its visibility is then 0, so W becomes 0. No reuse keeps a lamp, because the next frame's star outweighs it again. So the cabin's pixels see their lamps in few frames, with a large weight, and a 16-frame history does not settle that noise.
+1. The ReSTIR paper (Bitterli and others 2020) targets 7,500 to 3.4 million emissive triangles, with ray-traced visibility, 32 candidates and a denoiser. It never compares against shading every light. Our scenes have tens of lights.
+2. On `lamp-hall-64`, the sampling saved 1.5 to 2.2 ms headless at 1280 × 720, about 0.9 to 1.4 ms at the windowed clock. It also put grain over the whole floor.
+3. On demo-exit's deck, the sampling cost 2.9 ms more than the loop.
+4. It kept a second direct path and the sparkle bug `ter-x31x`, which closed as obsolete.
 
-Two designs:
+A short-lived rule of the same day, "exact lights when they are few", kept both paths and chose one per frame. The user replaced it with the removal. The same day, the user deferred tile light lists (`ter-69s8`), because every lamp's reach covers the whole of `lamp-hall-64`, so a tile list cannot drop a lamp there. The user chose a runtime cap on the lights that the main view keeps (`ter-bqun`) as the next step.
 
-| Design | The lights with a cascade set | The other lights | Cost |
-|---|---|---|---|
-| A: the exact lights outside the resampling | The exact loop, with the frame's taps, in the direct light pass | ReSTIR, and p̂ is 0 where the bounds of the light's shadow tile show it fully shadowed | One exact evaluation per cascade set, about 0.05 to 0.1 ms each at 1280 × 720, at most 4. One bounds read per evaluation of a light with tiles |
-| B: visibility bounds in every target | ReSTIR, with p̂ 0 where a new bounds image of the cascades shows the light fully shadowed | ReSTIR, with the tiles' bounds as in A | A new bounds pass over every cascade, and a bounds read per evaluation |
+Two designs for the direct light's image:
 
-A wins. The exact lights are the lights whose shadow slot is a `CascadeSet`. `FarShadows.Choose` already gives the sets to the brightest shadowed far lights, by tier and rank irradiance, so one ranking decides both the cascade maps and the exact shading. Their count is `RendererOptions.CascadedLights`, 1 by default and 4 at most. A far light is any light at least `LightUnits.FarDistance` away (`LightUnits.IsFar`), the same test that sends its shadow to the cascades (`FarShadows`) and not to the shadow tiles (`ShadowTiles`). In the demo the star is the one such light. The lights with a cascade set are the brightest shadowed lights, so their shadow decides most of a pixel's light. A cascade map has no bounds image today, and B adds a pass for one. Every other light gives ReSTIR a target that it can trust:
+| Design | Store | Cost |
+|---|---|---|
+| A: keep the direct signal's history, with a cap of 1 | `TemporalSignal`'s slow and fast histories of two parts, and two accumulation dispatches | 80 bytes per pixel, and 0.3 to 1.2 ms of dispatches that copy the sample |
+| B: the sample is the direct light | Two images in `RenderTargets` | 16 bytes per pixel, and no dispatch |
 
-- A light without a shadow has a visibility of 1, so its target is exact.
-- A light with shadow tiles has the tiles' bounds (`shadow_bounds.comp`), which both designs read.
-- A far light with far shadows alone lights an interior through its walls, because a point inside a caster's sphere gets no far shadow. Its target is exact there.
-
-A tile's bound is exact: it shows a light fully shadowed only where every tap of the filter is shadowed. So p̂ is 0 only where the contribution is 0, and the estimate keeps its expectation. A near lamp behind a wall then no longer outweighs the lamps of the room.
-
-The user chose this count on 2026-11-03. The second count, every far light, has a cost with no limit, and it shades exactly the far lights that ReSTIR handles well.
-
-So the direct light of a pixel is the exact sum over the exact lights, plus ReSTIR's estimate of the sum over the sampled lights. Both use `lightVisibility` with the frame's taps. Under `EveryLight`, one loop takes every light. A frame without sampled lights draws no candidates.
-
-Two designs for the pixels of the G-buffer:
-
-| Design | Direct light | Cost | Tests |
-|---|---|---|---|
-| A: ReSTIR only | Resampled for every G-buffer pixel | One path | A test of exact light needs a tolerance, and the bias has no reference |
-| B: ReSTIR, with the exact loop as the zero case of the setting | `ResampledLights` by default, `EveryLight` for tests and as the reference | Two shader variants of one pass | Exact tests, and a measured bias |
-
-B wins. The loop already exists for the forward passes, so `EveryLight` adds no new code, and ReSTIR's bias needs a reference to measure (decision 29).
-
-The forward passes, the transparent pass, the lit puffs, the environment faces and the impostor captures, keep the loop over every light. They draw no G-buffer, so they have no place for reservoirs.
-
-### The candidates
-
-The batcher builds the frame's light table on the CPU, in doubles, in the light list's order. It holds the main view's sampled lights, those that `viewKeeps(MainView, light)` keeps and that hold no cascade set. Each light's source probability is half its share of the rank irradiance at the eye, `LightUnits.RankIrradiance`, plus half of a uniform share:
-
-```csharp
-double share = 0.5 * rankIrradiance[i] / rankIrradianceSum + 0.5 / lightCount;
-```
-
-where
-
-- `rankIrradiance[i]` = the shadow budget's rank of light i: its luminance over its distance from the eye's spot of light, squared (ARCHITECTURE.md, "Local shadows").
-- `rankIrradianceSum` = the sum over the table.
-- `lightCount` = the number of the main view's sampled lights.
-
-The table is an alias table (Vose 1991), one entry per light, so a candidate costs two random numbers and one read. The rank alone starves a lamp far from the eye that lights a near wall. The uniform half gives every light a share, so p̂ can still pick it. The table goes into a storage buffer of the frame set.
-
-### The reservoirs
-
-A reservoir is 8 bytes, one RG32UI texel per pixel:
-
-- x: the chosen light's index in this frame's light list, in its low 16 bits. The high 16 bits hold M, the number of candidates that the reservoir stands for.
-- y: the bits of W, the weight of the chosen light. W is the sum of the candidates' weights over M, divided by p̂ of the chosen light.
-
-`LightReservoirs` owns two images at the largest render size, R0 and R1. It needs no swap: "light candidates" reads R1 and writes R0, and "direct light" reads R0 and writes R1, which the next frame's candidates read.
-
-The light remap. A light's index changes from frame to frame, because the list keeps only the lights that reach a view. The batcher joins the light keys of `FrameHistory`'s record with this frame's, by the same merge as the instances. It writes the remap: for each index of the last frame, its index in this frame, or none. A reservoir whose light is gone starts empty.
-
-### The two passes
-
-"Light candidates", one invocation per pixel:
-
-1. Draw 4 candidates from the alias table (`Candidates`). Weighted reservoir sampling keeps one, with the weight p̂ / source probability. A candidate's p̂ is 0 where the bounds of its shadow tile show it fully shadowed.
-2. The temporal reuse. If the surface test passes at the pixel's previous place, read the last frame's reservoir there. Remap its light, and combine it with p̂ at this pixel. M is capped at 20 times the candidates, 80.
-3. The visibility reuse. Test the chosen light's visibility at this pixel with the frame's shadow taps. If it is 0, W becomes 0, so a shadowed light does not spread to the neighbors.
-4. Write R0.
-
-"Direct light", one invocation per pixel:
-
-1. The spatial reuse. Read 2 neighbors' reservoirs from R0 (`SpatialNeighbors`). They lie on a disk of radius 16 pixels at a render width of 1,280, scaled with the width and turned by the draw index. Combine only a neighbor whose surface is like this pixel's: a view depth within 10 %, normals within 25° and the same shading model. The combine is Bitterli's unbiased one (2026-11-03, below).
-2. Shade the chosen light: its exact unshadowed contribution in two parts, times its visibility with the frame's taps, times W. Add the light of every exact light, with the frame's taps. Divide each part by its factor. Write the direct signal's sample, pre-exposed and capped.
-3. Write R1. The combine keeps only a light that the pixel sees, so R1 needs no visibility test of its own.
-
-Note of 2026-11-03 (`ter-nmbm`, which built the design of `ter-t8z7`): the first build combined the neighbors with Bitterli's biased weights, 1 / M, and no visibility test of a neighbor's light at this pixel. Thin lamp shadows then lost most of their contrast: the deck's glasshouse frame and the hall's pillars, a bias of −0.107 on the deck. The user chose the unbiased combine before the merge. Each reused light's target at this pixel is p̂ times its visibility there, and W = Σ w / (Z · p̂'(y)), where Z adds the M of the reservoirs whose surface can choose the kept light: one visibility test of it at each neighbor's surface. Every test goes through the shading's rule of a light's visibility, so a light with atlas tiles ends at the tile's bounds wherever its 5 × 5 texels agree, and only pixels near a shadow edge take the gathers. No pass over screen tiles is needed for that. The temporal reuse keeps 1 / M: its last reservoir lies on the same surface, so in a still it can choose every light that the pixel sees. ARCHITECTURE.md, "ReSTIR DI", gives the proof and the measures.
-
-Note of 2026-11-03, the fix stage of `ter-nmbm`: the proof needs a light's p̂' to be above 0 at a surface exactly where the candidates pass can keep that light there. Two choices keep this true by construction. Both passes build a pixel's surface with one function, `resampledSurfaceAt(pixel)`, from the ray through the pixel's center, so the test of Z at a neighbor sees the surface that the neighbor's own pass saw. The target's test of the shadow tile's bounds and the early 0 of the tile's filter call one predicate, `fullyShadowed`. The combine's cost leaves the hall's saving smaller than the first build's: about 2 ms of the frame at 1280 × 720, against about 4 ms before. On the deck, the combine adds about 1.4 ms of direct light and a sparkle of single bright pixels.
-
-Under `EveryLight` there is no candidates pass, and "direct light" loops over every light as today, into the same two-part sample.
+B wins. Under the exact loop, A's history equals the sample, so its images are a second store of the same light. The screen tracer (`ter-gayt`) reads this frame's direct light at a hit, which B's images hold. `TemporalSignal` and `AccumulatePass` stay for the tracer's two indirect signals (section 8).
 
 ### Visibility and the stochastic taps
 
-`lightVisibility` stays the one function of a light's shadow: the cascade sets, the far shadows and the tiles of the local shadow atlas. It gains the tap set as an argument:
+`lightVisibility` stays the one function of a light's shadow: the cascade sets, the far shadows and the tiles of the local shadow atlas. It takes the tap set as an argument:
 
-- The full set: today's 4 × 4 bilinear taps, one texel apart, of equal weight.
+- The full set: the 4 × 4 bilinear taps, one texel apart, of equal weight.
 - The frame's quarter: 4 of the 16 taps. Tap (i, j), with i and j from 0 to 3, belongs to group (i mod 2) + 2 (j mod 2). The group of a pixel is (draw index + x + 2y) mod 4. So each 2 × 2 quad of pixels takes all four groups in every frame. The taps have equal weights, so each group is an unbiased quarter of the filter.
 
-The tiles of the local atlas compute their quarter from 4 gathers with exact weights, as their full filter computes from 9. The early test of the bounds stays first, so a pixel that is fully lit or fully shadowed takes no tap and no noise. Only the penumbra is noisy, and FSR and the direct signal's history average it. Decision 34 says which passes take which set.
+The tiles of the local atlas compute their quarter from 4 gathers with exact weights, as their full filter computes from 9. The early test of the bounds stays first, so a pixel that is fully lit or fully shadowed takes no tap and no noise. Only the penumbra is noisy, and FSR averages it. Decision 34 says which passes take which set.
 
 ### Panel lights
 
-`ter-80o1` adds lights in the shape of their glowing surface, with the exact formula of linearly transformed cosines (LTC, Heitz and others 2016). Such a light fits this model with no change of the sampler. Its unshadowed contribution is the LTC integral over its polygon, for p̂ and for the shading alike. Its visibility comes from its shadow tiles, from the panel's center. So a panel adds no noise beyond the choice of the light and the taps. The LTC tables go into the frame set beside the BRDF tables.
+`ter-80o1` adds lights in the shape of their glowing surface, with the exact formula of linearly transformed cosines (LTC, Heitz and others 2016). Such a light fits the loop with no change: its contribution is the LTC integral over its polygon, and its visibility comes from its shadow tiles, from the panel's center. The LTC tables go into the frame set beside the BRDF tables.
 
-### The bias
+### The cost
 
-ReSTIR's choices here trade bias for speed. Each is measured against `EveryLight`:
+The loop costs each pixel one unshadowed evaluation for each light in reach, plus a shadow lookup for each shadowed light. Ticket `ter-9nrc` measured the removal in Release, in 5 rounds interleaved with the base `badb6ac67`, under the GPU lock, with `gpu-clock` beside each run. Each time below is the mean over the rounds, converted to the windowed clock of 1296 MHz (time × the run's clock / 1296). On MoltenVK the timer cannot split the direct pass from its neighbours, so the table gives the sum of the neighbouring passes from the end of "surface test" through "composite": the depth pyramid, the light passes, the occlusion passes and the composite.
 
-1. The temporal reuse's weights 1 / M (Bitterli's biased variant). In a still they equal the unbiased 1 / Z, so only a light whose visibility changed since the last frame takes a bias. The spatial reuse takes the unbiased combine (note of 2026-11-03 above): its first build, with weights 1 / M and no visibility test of the neighbor's light at this pixel, washed out thin lamp shadows.
-2. The cap of M at 80: a higher cap adds correlation and lag, a lower one adds noise.
-3. The visibility reuse, which removes shadowed choices. It cuts noise inside shadows. Under the unbiased spatial combine it adds no bias of its own: it makes the lights that a reservoir can hold the lights that its surface sees, and Z counts exactly those (note of 2026-11-03 above). In a moving view, a light whose visibility changed takes the bias of item 1.
-4. The surface test of the neighbors, which keeps light from crossing edges.
-
-Ticket 3 measures the bias: the mean relative error of the accumulated direct light against `EveryLight`, per view. It measures it on demo-exit's films, on `lamp-hall-64`, and on the cabin of `cabin-light`, which its lamps light under the star.
-
-### The cost model
-
-Today's loop costs each pixel one unshadowed evaluation for each light in reach, plus a shadow lookup of 16 taps for each shadowed light. On `lamp-hall-64` at 1080p, the direct pass takes 11.8 ms with 64 shadowed lamps. Without shadows, it takes 6.42 ms (ARCHITECTURE.md, "The scenes and the cost of the shadows"). So one light costs about 0.10 ms per frame unshadowed and 0.084 ms more with shadows, at 1080p.
-
-ReSTIR costs each pixel about 8 unshadowed evaluations: 4 candidates, 1 temporal, 2 spatial and the final shade. It adds 2 visibility tests with a quarter of the taps each. This cost does not grow with the number of sampled lights. Each exact light adds one exact evaluation and a quarter of its shadow lookup. The unbiased combine (2026-11-03) evaluates each of the 3 combined lights at this pixel with its shadows, and the pass shades the kept light with that same evaluation. It adds a visibility test and an evaluation of the kept light at the surface of each combined neighbor whose reservoir does not hold that light, also a neighbor without a choice, with that neighbor's G-buffer reads. So a pixel takes 1 to 5 visibility tests in place of 1. A test ends at the bounds of the light's shadow tile wherever its filter agrees. ARCHITECTURE.md, "ReSTIR DI", has the measured cost.
-
-| View | Today at 1080p | Today, scaled to 1280 × 720 | ReSTIR at 1280 × 720, estimated |
+| View | Size | Base, ReSTIR: span, neighbouring passes, ms | After: span, neighbouring passes, ms |
 |---|---|---|---|
-| demo-exit, deck | 4.79 to 5.39 ms (`ter-mfyv`) | 2.1 to 2.4 ms | 0.6 to 1.3 ms, with the star's exact light |
-| `lamp-hall-64` | 11.8 ms | 5.2 ms | 0.5 to 1.2 ms, plus 0.05 to 0.1 ms for each exact light, at most 4 |
-| One shadowed light | 0.18 ms | 0.08 ms | 0.5 to 1.2 ms, as above. The counts alone give 0.37 ms: 8 evaluations and half a shadow lookup. So ReSTIR is dearer than the loop here |
+| demo-exit's deck, from frame 399 | 1280 × 720 | 10.29, 6.53 | 7.10, 3.71 |
+| demo-exit's deck | 1920 × 1080 | 19.49, 13.72 | 13.08, 7.56 |
+| `lamp-hall-64`'s film | 1280 × 720 | 5.92, 3.74 | 6.90, 4.77 |
+| `lamp-hall-64`'s film | 1920 × 1080 | 10.43, 7.33 | 12.38, 9.23 |
 
-The scale to 1280 × 720 is 0.444, the share of the pixels. The estimate is a range because the direct pass waits on chains of dependent reads, at 13 % occupancy today (`ter-mfyv`). A count of evaluations does not predict those waits. Ticket 3 measures it.
+So the deck's frame takes 3.2 ms less at 1280 × 720 and 6.4 ms less at 1920 × 1080. The hall's frame takes 1.0 ms and 2.0 ms more, where the loop pays for 64 shadowed lamps at every pixel. Every lamp's reach covers the whole hall, so tile light lists cannot lower that cost there. The runtime light cap of `ter-bqun` bounds it. ARCHITECTURE.md, "The removal of ReSTIR DI", holds the runs.
 
 ## 8. The accumulator
 
@@ -1039,7 +960,7 @@ The box follows the fast history, so during a slow rise the clamp can only lift 
 | `AntiLagShare` | 0.5 | 0.5 | 0.25 |
 | Places | Surface | Surface | Surface and reflected point |
 
-The direct sample has no noise under `EveryLight` with `NoUpscaling` (section 1). The diffuse cap follows the research's starting range of 16 to 32 frames ([signals.md](../research/temporal-renderer/signals.md), section 3). A sharp reflection keeps few frames, because its lag shows. A rough reflection reuses the diffuse rays, so it is as noisy as the diffuse signal and takes the same cap. These values are unmeasured, and ticket 6 tunes them from captures. The diffuse box is wide for a noisy sample, so ticket 6 also tunes it on a lamp that switches on (section 6).
+The direct light has no noise, because the direct pass takes every light exactly, and it keeps no history (section 7, changed on 2026-11-04, `ter-9nrc`). The diffuse cap follows the research's starting range of 16 to 32 frames ([signals.md](../research/temporal-renderer/signals.md), section 3). A sharp reflection keeps few frames, because its lag shows. A rough reflection reuses the diffuse rays, so it is as noisy as the diffuse signal and takes the same cap. These values are unmeasured, and ticket 6 tunes them from captures. The diffuse box is wide for a noisy sample, so ticket 6 also tunes it on a lamp that switches on (section 6).
 
 ### Images
 
@@ -1100,7 +1021,7 @@ internal sealed class TemporalSignal : IDisposable
 
 ### The zero cases
 
-Under `NoScreenTrace`, the tracer and the two indirect accumulations do not run. The composite reads the environment's closed forms with every direction open, as `NoScreenSpaceLight` and `NoReflections` give today. Under `EveryLight` with `NoUpscaling`, the direct cap is 1, so the direct history is the exact sample. So a test frame under the three zero cases depends on its snapshot alone.
+Under `NoScreenTrace`, the tracer and the two indirect accumulations do not run. The composite reads the environment's closed forms with every direction open, as `NoScreenSpaceLight` and `NoReflections` give today. The direct light keeps no history (section 7, changed on 2026-11-04, `ter-9nrc`). So a test frame under the two zero cases depends on its snapshot alone.
 
 ## 9. The composite, the masks and the post passes
 
@@ -1148,8 +1069,8 @@ A temporal frame depends on every frame since the last reset. Its image is a fun
 
 Each ordering rule and its reason:
 
-1. The batcher builds the light table and its alias table in the light list's order, in doubles. Reason: the same lights give the same table on every run.
-2. ReSTIR combines in a fixed order. The candidates come first, in the order of their draws, then the temporal reservoir, then the spatial neighbors in the order of their pattern. Reason: weighted reservoir sampling depends on the order of its random numbers.
+1. The batcher builds the light table and its alias table in the light list's order, in doubles. Reason: the same lights give the same table on every run. Removed on 2026-11-04 (`ter-9nrc`).
+2. ReSTIR combines in a fixed order. The candidates come first, in the order of their draws, then the temporal reservoir, then the spatial neighbors in the order of their pattern. Reason: weighted reservoir sampling depends on the order of its random numbers. Removed on 2026-11-04 (`ter-9nrc`).
 3. The own-ray list's order follows the GPU's schedule, but each ray writes only its own pixel's record. Reason: then no result depends on the order of the list. No pass adds light with atomic operations.
 4. No dispatch reads an image that it writes. Reason: no read can then see a write of the same dispatch, whatever the order of the invocations.
 5. The draw index counts drawn frames, not ticks. The noise, the block's turn, the tap group and FSR's jitter index derive from it. Reason: a window that skips a snapshot still draws a new noise pattern in its next frame.
@@ -1164,7 +1085,7 @@ Two GPUs, or two drivers, give images that differ in their last bits. The refere
 A still's draws follow in this order:
 
 1. The reset. The first draw resets every history, FSR's included, and its draw index is 0.
-2. The warm-up draws. Their count W is `WarmUpFrames`, 32 by default, where some history holds more than one frame. That is the case under `Fsr3Upscaling`, under `ScreenTrace`, or under `ResampledLights`. Under the three zero cases W is 0. Under `AutoExposure`, W is at least 1, so that the exposure has a draw to adapt in.
+2. The warm-up draws. Changed on 2026-11-04 (`ter-9nrc`): `WarmUpFrames` is gone until `ter-gayt`, so W is 1 under `AutoExposure` and 0 otherwise. Their count W is `WarmUpFrames`, 32 by default, where some history holds more than one frame. That is the case under `Fsr3Upscaling`, under `ScreenTrace`, or under `ResampledLights`. Under the three zero cases W is 0. Under `AutoExposure`, W is at least 1, so that the exposure has a draw to adapt in.
 3. The shown draw, draw W + 1 since the reset, 33 by default. It takes the capture.
 
 The exposure. Each warm-up draw adapts the exposure by the still's step divided by W. Where the still's step is 0 or endless, each warm-up draw adapts by an endless step. The shown draw adapts it by 0. So the exposure adapts while the histories converge, and the last warm-up draws meter the nearly settled light. With W = 1, the one warm-up draw is today's metering draw. The first warm-up draw shades with the exposure of the draw before the still. If the exposure then moves by more than about 15 stops, the first draw's samples can reach `MaxRadiance`. They hold about 3 % of the shown draw's diffuse history.
@@ -1181,7 +1102,7 @@ The cost: at about 10 ms per draw, a still with W = 32 takes about 0.33 s of GPU
 
 ### The tests
 
-Every GPU test of today runs under the three zero cases, `NoUpscaling`, `NoScreenTrace` and `EveryLight`, and keeps its expectations. A test of a deleted pass goes with its pass. Section 12 gives the fate of the three tests that assert no history.
+Every GPU test of today runs under the two zero cases, `NoUpscaling` and `NoScreenTrace`, and keeps its expectations. The third zero case, `EveryLight`, became the only direct light on 2026-11-04 (`ter-9nrc`). A test of a deleted pass goes with its pass. Section 12 gives the fate of the three tests that assert no history.
 
 CPU tests, with no GPU:
 
@@ -1201,7 +1122,7 @@ GPU tests, through `Gpu.Headless` with the named options:
 | Motion vectors | A cube that moves by a known step gives the analytic motion. A turning, a growing and a deformed mesh do too. A new instance gives (2, 2). The sky's motion follows a turning root. |
 | The surface test | Every pixel of a still scene passes. An object that moves uncovers pixels that fail, and their history length starts from 0. |
 | The accumulator | A constant sample stays constant. After a step of the sample, the history reaches 90 % of the step within a bound that the anti-lag sets. A pixel without a sample keeps its history. A NaN sample counts as no sample. A pixel without a history and with a NaN sample takes the closed form. |
-| ReSTIR | One light gives the exact light. On `lamp-hall-64`, the bias against `EveryLight` stays under the bound that ticket 3 measures. In a closed box lit by a lamp, with a bright light that holds a cascade set shadowed outside it, the box's light matches `EveryLight` within that bound. |
+| ReSTIR (removed on 2026-11-04, `ter-9nrc`) | One light gives the exact light. On `lamp-hall-64`, the bias against `EveryLight` stays under the bound that ticket 3 measures. In a closed box lit by a lamp, with a bright light that holds a cascade set shadowed outside it, the box's light matches `EveryLight` within that bound. |
 | The tracer | A white furnace: under an environment of uniform light L with no blocker, both indirect signals converge to L within 1 %. A mirror in front of a lamp shows it at its analytic place. A blocker of known light takes its share of a receiver's light (decision 41). In a closed box of known albedo, the diffuse light rises with no overshoot toward the sum of the bounces. It stays within the model of section 6. A lamp's impostor billboard sends no glow to a hit. A pixel whose block's ray leaves from another surface traces its own ray, so every lit pixel has a sample. |
 | The corrected read | Tests 16, 17, 18, 20 and 21 of [environment-map-distances.md](environment-map-distances.md), "Tests", under `NoScreenTrace`. Test 19 tests the deleted reflections' delta and goes. A reflection miss of the tracer finds a wall behind the camera where a CPU ray trace finds it. |
 | FSR | A still at `FixedRenderScale(2 / 3)` gives the same image on every run. A reset frame reads no history. |
@@ -1220,10 +1141,10 @@ The estimate below is for a render size of 1280 × 720, the headless default. A 
 | Shadow maps and local shadows | 0.91 | Fixed | 0.91 | Unchanged |
 | Environment faces and prefilter | 0.97 | Fixed | 0.97 | Unchanged |
 | G-buffer | 0.42 | Render | 0.22 | The share, plus a seventh target |
-| Surface test | New | Render | 0.10 | About 12 reads per pixel, in one pass |
+| Surface test | New | Render | 0.10 | About 12 reads per pixel, in one pass. Since 2026-11-04 (`ter-9nrc`) no pass reads it until the tracer, but it runs in every frame: its own timer time was about 0.13 ms on the deck at the windowed clock |
 | Depth pyramid | 1.19 | Render | 0.53 | The share |
-| Light candidates and direct light | 4.21 | Render | 0.6 to 1.3 | Section 7, with the star's exact light |
-| Accumulate direct | New | Render | 0.15 to 0.30 | Two dispatches of two parts |
+| Light candidates and direct light | 4.21 | Render | 0.6 to 1.3 | Section 7, with the star's exact light. Changed on 2026-11-04 (`ter-9nrc`): direct light alone, the loop over every light. On MoltenVK the timer does not split it from its neighbours. At the windowed clock, the passes from the depth pyramid through the composite took 3.71 ms on the deck and 4.77 ms on `lamp-hall-64`, against 6.53 and 3.74 ms under ReSTIR (section 7, "The cost") |
+| Accumulate direct | New | Render | 0.15 to 0.30 | Two dispatches of two parts. Removed on 2026-11-04 (`ter-9nrc`), so 0 |
 | Screen trace | 4.40, the occlusion and reflection passes | Render | 0.8 to 1.7 | A guess, which ticket 4 measures |
 | Accumulate diffuse and specular | New | Render | 0.20 to 0.40 | Two signals of one part |
 | The corrected read, in the screen trace and the forward passes | New | Render | 0.2 to 0.6 | `ter-s6zr` added 2.7 ms for one search at each of the 2.07 million lit pixels of 1080p. The misses take a twentieth to a fifth as many searches. Ticket 8 measures it |
@@ -1256,7 +1177,7 @@ A ticket that lands before ticket 5 runs at an output of 1280 × 720 under `NoUp
 |---|---|---|
 | 1 | FSR's dispatches from 1280 × 720 to 1920 × 1080, by GPU timestamps around `Record` in its GPU test | 1.0 to 2.0 ms |
 | 2 | The G-buffer with the motion target, and the surface test | 0.22 ms and 0.10 ms |
-| 3 | Light candidates, direct light and accumulate direct, on demo-exit and `lamp-hall-64`. ReSTIR's bias against `EveryLight`, also in the cabin of `cabin-light` | 0.6 to 1.3 ms, and 0.15 to 0.30 ms |
+| 3 | Light candidates, direct light and accumulate direct, on demo-exit and `lamp-hall-64`. ReSTIR's bias against `EveryLight`, also in the cabin of `cabin-light` | 0.6 to 1.3 ms, and 0.15 to 0.30 ms. Changed on 2026-11-04: `ter-9nrc` removed the sampling and measured the frame span and the sum of the passes around the direct pass against the base, with the GPU clock beside each run (section 7, "The cost") |
 | 4 | The screen trace and the two accumulations, against the passes that it deletes | 0.8 to 1.7 ms, and 0.20 to 0.40 ms |
 | 8 | The corrected read's cost in the screen trace and the transparent pass | 0.2 to 0.6 ms |
 | 9 | The trace dispatch alone, at the budget's ray counts, over today's frame at 1280 × 720 | The trace's part of 0.8 to 1.7 ms |
@@ -1269,9 +1190,9 @@ Memory, at an output of 1920 × 1080 with the largest render scale of 1. An RGBA
 
 | Store | Images | MB |
 |---|---|---:|
-| The three signals: 4 parts of 4 images, and 2 shared scratch images | 18 × RGBA16F | 299 |
+| The three signals: 4 parts of 4 images, and 2 shared scratch images | 18 × RGBA16F | 299. Changed on 2026-11-04 (`ter-9nrc`): the direct signal's 8 images, 133 MB, are gone, and the direct light's 2 × RGBA16F take 33 MB |
 | Surface history, the last device depth and the surface test image | 2 × RGBA16F, 1 × R32F, 1 × R8_UINT | 44 |
-| Reservoirs | 2 × RG32UI | 33 |
+| Reservoirs | 2 × RG32UI | 33. Removed on 2026-11-04 (`ter-9nrc`), so 0 |
 | Motion target, device depth, opaque-only image, reactive mask | RGBA16F, R32F, RGBA16F, R8_UNORM | 44 |
 | Block rays and the own-ray list | Quarter size, and a buffer | 25 |
 | FSR's own images and the output HDR image | AMD's list | About 140, which ticket 1 measures |
@@ -1304,7 +1225,7 @@ The docs to edit. Each ticket edits ARCHITECTURE.md as its last step, by the pro
 | "The order of a rendered frame" and "GPU timings" | The new passes and their order | 2 to 5 |
 | "Anti-aliasing" and the post passes | FSR 3.1, its masks, bloom and the tone map after it, the outlines at the output size | 5 |
 | "Pre-exposure" and "The exposure buffer" | `previousStops`, and FSR's pre-exposure | 5 |
-| "Shading" | The direct signal, the composite and ReSTIR DI | 3 |
+| "Shading" | The direct signal, the composite and ReSTIR DI. ReSTIR DI and the direct history were removed on 2026-11-04 (`ter-9nrc`) | 3 |
 | "Local shadows" | The stochastic taps | 5 |
 | "Ambient occlusion" and "Screen-space reflections" | The screen tracer replaces them. The part "The depth pyramid and the trace" moves into it | 4 |
 | [rendering-performance.md](rendering-performance.md) | Decision 8 is superseded | This ticket |
@@ -1365,7 +1286,7 @@ This list proposes the fates. This ticket edits no other ticket.
 | `ter-vcfa` | The design of panel lights | Changed | The same two dependencies move to tickets 5 and 6. Its design reads section 7, "Panel lights". |
 | `ter-m24j` | A cabin panel lamp in a mirror | Changed | Ticket 4 makes it visible in the demo. Its text says that no demo view shows it, because no floor lies below roughness 0.37. Decision 6 turns on reflection rays up to 0.5, the paint of 0.38 included. A lamp's glow is dark in every reflection by today's `glowSent` rule (`frame.glsl`), which the tracer's hits keep. So the paint can reflect a 1.2 m panel as a dark square around the small highlight of its light of 5 cm. It waits for the panel lights of `ter-80o1` (decision 39). |
 | `ter-u5be` | A light cutoff that knows the specular peak | Kept | The light list's reach serves both cases of `DirectLight`. |
-| `ter-qi9z` | Unshadowed lamps light through walls | Kept | ReSTIR keeps the leak of an unshadowed lamp, because its visibility comes from the shadow maps. Its dependency on the closed `ter-0saa` is met. |
+| `ter-qi9z` | Unshadowed lamps light through walls | Kept | ReSTIR keeps the leak of an unshadowed lamp, because its visibility comes from the shadow maps. Since ReSTIR's removal on 2026-11-04 (`ter-9nrc`), the exact loop keeps the same leak, for the same reason. Its dependency on the closed `ter-0saa` is met. |
 | `ter-7l43`, `ter-d7rb` | The stars' diffuse and reflected light | Kept | The tracer's misses read the map and the reflected stars as today's readers do. |
 | `ter-esoe` | Stars defined by their light | Kept | It matters more, because a star of one pixel can fall between samples below a scale of 1 (section 5). |
 | `ter-enp7` | A camera cut in the map's snapshot | Kept | Ticket 2 adds `CameraCuts`, which it can read. |
@@ -1454,7 +1375,7 @@ The design keeps to the Vulkan spec and to what the desktop Linux drivers (NVIDI
 | Need | Where | Why it holds |
 |---|---|---|
 | A seventh color attachment | The G-buffer's motion target | `maxColorAttachments` is 8 on the four drivers and on MoltenVK. Ticket 2 makes the renderer throw `NotSupportedException` at start on a device with fewer, as `OcclusionImages` does for its formats. |
-| Storage images of RGBA16F, RG32UI and R32F | The histories, the reservoirs, the device depth | The spec requires storage support for these formats. |
+| Storage images of RGBA16F, RG32UI and R32F | The histories, the device depth, and the reservoirs until their removal on 2026-11-04 (`ter-9nrc`) | The spec requires storage support for these formats. |
 | Storage images of R8_UINT | The surface test image | `shaderStorageImageExtendedFormats`, which the four drivers offer. Each owner tests the format at the creation of its images, as `OcclusionImages` does. |
 | No subgroup operations and no 16-bit math in FSR | Section 5 | `FFX_SPD_NO_WAVE_OPERATIONS=1` and `FFX_HALF=0`. |
 | NaN | The accumulators | `isnan` and `isinf` test each sample. No pass relies on a clamp of NaN. |
@@ -1473,7 +1394,7 @@ Ticket 1 lists the SPIR-V capabilities of AMD's modules and the storage images t
 3. A history lags a change of light. The first bounce lags by up to the diffuse cap, 32 frames, about 0.5 s. A hit reads the fast history, so the later bounces add little to that lag up to g = 0.875 (section 6). Their gap shrinks by e every 32 frames at g = 0.5 and every 36 frames at g = 0.8. At frames 71 and 149, 99 % of the settled light shows. A still of 32 warm-up draws shows 93 to 97 % of the settled light at g = 0.5, and 68 to 75 % at g = 0.8. The anti-lag shortens the lag only where the fast history's box catches a change, and a noisy diffuse sample widens the box.
 4. The reflected place is exact only for a flat mirror that does not move (section 8).
 5. A disoccluded pixel shows noise for its first frames, at the edges of moving objects. The own rays and the fix limit it to about 8 frames.
-6. ReSTIR's choices trade a measured bias for speed (section 7).
+6. ReSTIR's choices trade a measured bias for speed (section 7). Removed on 2026-11-04 (`ter-9nrc`).
 7. In the hand-over band, from `MaxRoughness` − `HandOverWidth` to `MaxRoughness`, the specular sample blends two estimators. A reflection miss blurs a little past its lobe (section 6).
 8. A star of one pixel can fall between samples at render scales below 1 (section 5).
 9. Two GPUs or drivers give images that differ in their last bits (section 10).
@@ -1486,7 +1407,7 @@ Ticket 1 lists the SPIR-V capabilities of AMD's modules and the storage images t
 16. The corrected read of ticket 8 keeps the misses that the user accepted for `ter-s6zr` on 2026-11-02 (section 14, ticket 8). They are soft ghosts of near objects on far walls, the terminal door's overshoot and the pillar's sharp foot. The read also misses 11 of its acceptance boxes.
 17. Under `AutoExposure`, a still's first warm-up draw shades with the exposure of the draw before it. If the exposure moves by more than about 15 stops, that draw's samples reach `MaxRadiance`. Then about 3 % of the shown draw's diffuse history is wrong (section 10).
 18. From ticket 4, a cabin's panel lamp shows in the paint as a dark panel around the small highlight of its light. The panel lights of `ter-80o1` end it (`ter-m24j`, decision 39).
-19. A far light without a cascade set is a sampled light, and its target leaves out its far shadows. If a planet eclipses such a light while near lamps light the view, ReSTIR wastes some samples on it, and the lamps' noise settles more slowly (decision 28).
+19. A far light without a cascade set is a sampled light, and its target leaves out its far shadows. If a planet eclipses such a light while near lamps light the view, ReSTIR wastes some samples on it, and the lamps' noise settles more slowly (decision 28). Removed on 2026-11-04 (`ter-9nrc`).
 
 ## Sources
 

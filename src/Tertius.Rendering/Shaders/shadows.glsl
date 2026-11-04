@@ -266,19 +266,10 @@ TileLookup tileLookupOf(GpuLight light, vec3 position, vec3 L, float d, vec3 geo
     return t;
 }
 
-// Whether the lookup's bounds show every tap of the filter shadowed. tileShadow returns 0 exactly there, and ReSTIR's
-// target of the light is 0 exactly there, so this one test keeps the two in step: the unbiased combine of the spatial
-// reuse needs a light's target and its visibility to be above 0 at the same surfaces (ARCHITECTURE.md, "ReSTIR DI").
+// Whether the lookup's bounds show every tap of the filter shadowed, where tileShadow returns 0 exactly.
 bool fullyShadowed(TileLookup t)
 {
     return t.ndc.z < t.bounds.x;
-}
-
-// Whether the bounds of a near light's tile show it fully shadowed at a world position: every tap of the filter is
-// shadowed, so tileShadow gives exactly 0 (docs/plans/temporal-renderer.md, "The model": ReSTIR's target of the light).
-bool tileFullyShadowed(GpuLight light, vec3 position, vec3 L, float d, vec3 geometricNormal, float sinTheta)
-{
-    return fullyShadowed(tileLookupOf(light, position, L, d, geometricNormal, sinTheta));
 }
 
 // The share of a near light that its atlas tiles let through at a world position (docs/plans/local-light-shadows.md,

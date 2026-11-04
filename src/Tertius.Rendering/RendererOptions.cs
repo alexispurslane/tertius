@@ -6,9 +6,6 @@ public sealed class RendererOptions
     /// <summary>The most far lights that get cascaded shadow maps.</summary>
     public const int MaxCascadedLights = 4;
 
-    /// <summary>The most warm-up draws of a headless still.</summary>
-    public const int MaxWarmUpFrames = 256;
-
     /// <summary>
     /// Enables VK_LAYER_KHRONOS_validation with synchronization validation, and records every warning and error in
     /// <see cref="VulkanRenderer.ValidationMessages"/>. Costs CPU time; use it in tests and debug builds.
@@ -98,20 +95,6 @@ public sealed class RendererOptions
     /// 2 MB (docs/plans/environment-map.md, "The setting").
     /// </summary>
     public EnvironmentMapSetting EnvironmentMap { get; set; } = SceneEnvironmentMap.Default;
-
-    /// <summary>
-    /// How the main view estimates its direct light: <see cref="ResampledLights"/>, ReSTIR DI, whose noise the direct
-    /// signal's history averages, or <see cref="EveryLight"/>, the exact loop. The default is
-    /// <see cref="ResampledLights.Default"/> (docs/plans/temporal-renderer.md, section 7). Its reservoirs take 16 bytes per
-    /// pixel, and the direct signal's images 80 (about 33 MB and 166 MB at 1920 × 1080).
-    /// </summary>
-    public DirectLightSetting DirectLight { get; set; } = ResampledLights.Default;
-
-    /// <summary>
-    /// The warm-up draws of a headless still, 1 to 256, before its shown draw, where some history holds more than one frame
-    /// (docs/plans/temporal-renderer.md, decision 32). Each costs a draw of the same snapshot. The default is 32.
-    /// </summary>
-    public int WarmUpFrames { get; set; } = 32;
 
     /// <summary>
     /// Whether posed instances draw their meshes deformed by their rig poses, in every pass. Off, each draws as uploaded.

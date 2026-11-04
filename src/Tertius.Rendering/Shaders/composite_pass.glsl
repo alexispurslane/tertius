@@ -1,13 +1,12 @@
 // The composite (docs/plans/temporal-renderer.md, section 9, "The composite"): at each lit pixel, the light of section 1
-// into the HDR image, capped at MaxRadiance. It multiplies the direct signal's slow histories back by their material
-// factors (decision 18), adds today's ambient terms with the occlusion passes' estimate until the screen tracer replaces
+// into the HDR image, capped at MaxRadiance. It multiplies the direct light's two images back by their material factors
+// (decision 18), adds today's ambient terms with the occlusion passes' estimate until the screen tracer replaces
 // them, and adds the emission. The sky's pixels get the sky and the stars, and an impostor's pixels their baked light.
 // Under the scatter it also writes the diffuse image, the diffuse factor times the two diffuse terms and the skin mask at
 // skin, and 0 elsewhere (docs/plans/skin-and-hair.md, "The diffuse light D"). composite.frag and composite_scatter.frag,
 // which defines SCATTER_OUTPUT, include it: the diffuse image is a second color attachment only then. A test's probe
-// defines TERTIUS_DIRECT_LIGHT_ONLY, which leaves out the ambient light and the sky: the direct light and the emission, as
-// the direct image held them before the direct signal. With TERTIUS_DIRECT_DIFFUSE_ONLY too, it writes the diffuse part
-// alone, as the diffuse image held it.
+// defines TERTIUS_DIRECT_LIGHT_ONLY, which leaves out the ambient light and the sky: the direct light and the emission.
+// With TERTIUS_DIRECT_DIFFUSE_ONLY too, it writes the diffuse part alone.
 #ifndef TERTIUS_COMPOSITE_PASS_GLSL
 #define TERTIUS_COMPOSITE_PASS_GLSL
 
@@ -15,10 +14,10 @@
 #include "gbuffer_surface.glsl"
 #include "temporal.glsl"
 
-// Set 3 of the composite layout, the signal read set: the direct signal's slow histories, rgb the light, demodulated and
-// pre-exposed, a the history length (TemporalSignal.ReadSet).
-layout(set = 3, binding = 0, rgba16f) uniform readonly image2D directDiffuseHistory;
-layout(set = 3, binding = 1, rgba16f) uniform readonly image2D directSpecularHistory;
+// Set 3 of the composite layout, the signal read set: the direct light's two parts, rgb the light, demodulated and
+// pre-exposed (RenderTargets.DirectSet).
+layout(set = 3, binding = 0, rgba16f) uniform readonly image2D directDiffuseLight;
+layout(set = 3, binding = 1, rgba16f) uniform readonly image2D directSpecularLight;
 
 layout(location = 0) in vec3 inRay;
 layout(location = 0) out vec4 outColor;
@@ -69,8 +68,8 @@ void main()
     vec3 V = -direction;
     SurfaceLobes lobes = lobesOf(s, V);
     MaterialFactors factors = materialFactors(s, lobes);
-    vec3 directDiffuse = factors.diffuse * imageLoad(directDiffuseHistory, pixel).rgb;
-    vec3 directSpecular = factors.specular * imageLoad(directSpecularHistory, pixel).rgb;
+    vec3 directDiffuse = factors.diffuse * imageLoad(directDiffuseLight, pixel).rgb;
+    vec3 directSpecular = factors.specular * imageLoad(directSpecularLight, pixel).rgb;
 #if defined(TERTIUS_DIRECT_DIFFUSE_ONLY)
     outColor = vec4(min(directDiffuse, vec3(MaxRadiance)), 1.0);
     return;

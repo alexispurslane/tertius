@@ -12,6 +12,11 @@ namespace Tertius.Rendering;
 /// </summary>
 /// <remarks>
 /// <para>
+/// No signal of the renderer accumulates today: the direct light keeps one frame (docs/plans/temporal-renderer.md, decision
+/// 29), so the composite reads the direct pass's images. The screen tracer's signals (ter-gayt) are the next users, and
+/// until then only the accumulator's tests make a signal (<see cref="VulkanRenderer.CreateSignal"/>).
+/// </para>
+/// <para>
 /// Each part owns a sample, a slow history, two fast histories, which alternate by the parity of the drawn frames
 /// (<see cref="FrameHistory.PendingFrame.Parity"/>), and a scratch image, all RGBA16F at the targets' size. The slow
 /// history holds the length in alpha. The sample is a color attachment of its producer, and every other image stays in
@@ -47,8 +52,8 @@ internal sealed unsafe class TemporalSignal : IDisposable
 
     /// <param name="targets">The render targets, whose size the images take, and whose motion target the sets bind.</param>
     /// <param name="surfaces">The surface history, whose test image the sets bind.</param>
-    /// <param name="name">The signal's name in the images' names and the passes' names, such as "direct".</param>
-    /// <param name="parts">The signal's parts: 2 for the direct signal, the diffuse and the specular.</param>
+    /// <param name="name">The signal's name in the images' names and the passes' names, such as "indirect diffuse".</param>
+    /// <param name="parts">The signal's parts, such as 2 for a diffuse and a specular part.</param>
     /// <exception cref="NotSupportedException">The format is not a color attachment and a storage image on the device.</exception>
     public TemporalSignal(
         VulkanDevice device,
@@ -94,7 +99,7 @@ internal sealed unsafe class TemporalSignal : IDisposable
             Layout = layouts.AccumulateLayout,
         }.Create(device, shaders);
 
-    /// <summary>The signal's name in the images' names and the passes' names, such as "direct".</summary>
+    /// <summary>The signal's name in the images' names and the passes' names, such as "indirect diffuse".</summary>
     public string Name { get; }
 
     /// <summary>The signal's parts.</summary>

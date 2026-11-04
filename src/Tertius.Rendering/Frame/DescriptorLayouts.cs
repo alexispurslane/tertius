@@ -12,7 +12,7 @@ namespace Tertius.Rendering;
 /// bound), its sampler (binding 13, immutable) and its irradiance cube (binding 14, partially bound), which stay empty
 /// with the map off, the tile views of the local shadows (binding 15, partially bound), empty without the atlas, the
 /// motion rows (binding 17), the kept deformed positions of the last drawn frame (binding 18, partially bound), empty
-/// without the deformation, and ReSTIR's light table (binding 19). One per frame in flight.</description></item>
+/// without the deformation. One per frame in flight.</description></item>
 /// <item><term>set 1, textures</term>
 /// <description>the bindless texture array: variable count, partially bound, update-after-bind. One per frame in flight.</description>
 /// </item>
@@ -67,14 +67,12 @@ namespace Tertius.Rendering;
 /// <item><term>signal</term><description>set 3 of <see cref="AccumulateLayout"/>: one part of a signal's images, the
 /// surface test image and the motion target, as storage images for the compute stage
 /// (<see cref="TemporalSignal"/>). One per part and parity, rewritten on resize.</description></item>
-/// <item><term>signal read</term><description>set 3 of <see cref="CompositeLayout"/>: the slow histories of a signal's two
-/// parts as storage images for the fragment stage. One per signal, rewritten on resize.</description></item>
-/// <item><term>reservoir</term><description>set 3 of <see cref="ReservoirLayout"/>: the reservoirs that a pass reads as
-/// a sampled image, and the surface test image and the motion target as storage images, for the fragment stage
-/// (<see cref="LightReservoirs"/>). Two, rewritten on resize.</description></item>
+/// <item><term>signal read</term><description>set 3 of <see cref="CompositeLayout"/>: the two parts of a light as storage
+/// images for the fragment stage, the direct light's images (<see cref="RenderTargets.DirectSet"/>) or a signal's slow
+/// histories (<see cref="TemporalSignal.ReadSet"/>). Rewritten on resize.</description></item>
 /// </list>
 /// Every pass that draws meshes or reads the G-buffer uses <see cref="SceneLayout"/>, so sets 0 and 1 stay bound
-/// across pipeline changes. <see cref="ImpostorLayout"/>, <see cref="CompositeLayout"/> and <see cref="ReservoirLayout"/> add set 3 and are
+/// across pipeline changes. <see cref="ImpostorLayout"/> and <see cref="CompositeLayout"/> add set 3 and are
 /// compatible with it for sets 0 to 2. The
 /// compute layouts of the reflections, <see cref="PyramidLayout"/> and <see cref="ReflectionLayout"/>, and of the
 /// occlusion, <see cref="OcclusionLayout"/>, and of the skin scatter, <see cref="ScatterLayout"/>, take sets 0 to 2 too, whose bindings that their shaders read include the
@@ -88,29 +86,26 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// <summary>The surface test sets: one per parity of the drawn frames (<see cref="SurfaceHistory"/>).</summary>
     private const uint SurfaceTestSets = 2;
 
-    /// <summary>The signal sets: one per part and parity of the direct signal's two parts (<see cref="TemporalSignal"/>).</summary>
+    /// <summary>
+    /// The signal sets: one per part and parity of a signal of two parts (<see cref="TemporalSignal"/>). The renderer makes
+    /// no signal until the screen tracer's (ter-gayt), so only the accumulator's tests take them today.
+    /// </summary>
     private const uint SignalSets = 4;
 
     /// <summary>The storage images of a signal set.</summary>
     private const uint SignalSetImages = 7;
 
-    /// <summary>The most parts of a signal: the slow histories of the signal read set.</summary>
+    /// <summary>The most parts of a signal: the images of the signal read set.</summary>
     public const int SignalReadParts = 2;
 
-    /// <summary>The signal read sets: one for the direct signal.</summary>
-    private const uint SignalReadSets = 1;
-
-    /// <summary>The reservoir sets: one for each of the two passes of ReSTIR (<see cref="LightReservoirs"/>).</summary>
-    private const uint ReservoirSets = 2;
+    /// <summary>The signal read sets: the direct light's and that of the one signal of <see cref="SignalSets"/>.</summary>
+    private const uint SignalReadSets = 2;
 
     /// <summary>
-    /// The storage buffers that one stage of the frame set sees: bindings 1 to 4, 6, 7, 11, 15, 17 and 18 the vertex stage,
-    /// and the same but binding 18, with binding 19, the fragment stage. The set holds 11.
+    /// The storage buffers of the frame set: bindings 1 to 4, 6, 7, 11, 15, 17 and 18, which the vertex stage all sees. The
+    /// fragment stage sees all but binding 18.
     /// </summary>
     public const uint FrameSetStorageBuffers = 10;
-
-    /// <summary>The binding of ReSTIR's light table in the frame set.</summary>
-    public const uint LightTableBinding = 19;
 
     /// <summary>
     /// The storage buffers of the deform set: the region's window, the deform vertices, the deltas, the pose rows, the job
@@ -187,15 +182,10 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         ScatterSet = CreateScatterSetLayout();
         ShadowBoundsSet = CreateShadowBoundsSetLayout();
         SurfaceTestSet = CreateSurfaceTestSetLayout();
-        (SignalSet, SignalReadSet, ReservoirSet) = CreateTemporalSetLayouts();
+        (SignalSet, SignalReadSet) = CreateTemporalSetLayouts();
 
         (SceneLayout, ImpostorLayout, CompositeLayout, OverlayLayout, PostLayout, BloomLayout, SmaaLayout) =
             CreateGraphicsLayouts();
-        ReservoirLayout = CreatePipelineLayout(
-            sets: [FrameSet, TextureSet, GBufferSet, ReservoirSet],
-            push: new(ShaderStageFlags.FragmentBit, 0, (uint)Unsafe.SizeOf<ResampledPushConstants>()),
-            name: "reservoir layout"
-        );
         (
             ExposureLayout,
             EnvironmentPrefilterLayout,
@@ -289,7 +279,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// <summary>Sets 0 to 2 plus <see cref="DrawPushConstants"/> for the vertex and fragment stages.</summary>
     public PipelineLayout SceneLayout { get; }
 
-    /// <summary>Sets 0 to 2 of <see cref="SceneLayout"/> and the signal read set of the direct signal, with the draw push constants, for the composite.</summary>
+    /// <summary>Sets 0 to 2 of <see cref="SceneLayout"/> and the signal read set of the direct light, with the draw push constants, for the composite.</summary>
     public PipelineLayout CompositeLayout { get; }
 
     /// <summary>
@@ -408,20 +398,11 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// </summary>
     public DescriptorSetLayout SignalSet { get; }
 
-    /// <summary>The slow histories of a signal's two parts, storage images for the fragment stage, which the composite reads.</summary>
+    /// <summary>The two parts of a light, storage images for the fragment stage, which the composite reads.</summary>
     public DescriptorSetLayout SignalReadSet { get; }
-
-    /// <summary>
-    /// The reservoirs that a pass of ReSTIR reads, a sampled image (0), and the surface test image (1) and the motion target
-    /// (2), storage images, all for the fragment stage.
-    /// </summary>
-    public DescriptorSetLayout ReservoirSet { get; }
 
     /// <summary>Sets 0 to 2 of <see cref="SceneLayout"/>, the signal set and <see cref="AccumulatePushConstants"/>, for both dispatches of an accumulation.</summary>
     public PipelineLayout AccumulateLayout { get; }
-
-    /// <summary>Sets 0 to 2 of <see cref="SceneLayout"/>, the reservoir set and <see cref="ResampledPushConstants"/> for the fragment stage, for ReSTIR's two passes.</summary>
-    public PipelineLayout ReservoirLayout { get; }
 
     /// <summary>
     /// The storage buffers, storage images and sampled images that each shader stage of <paramref name="layout"/> sees,
@@ -468,8 +449,6 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     public DescriptorSet AllocateSignalSet() => Allocate(pool, SignalSet, null);
 
     public DescriptorSet AllocateSignalReadSet() => Allocate(pool, SignalReadSet, null);
-
-    public DescriptorSet AllocateReservoirSet() => Allocate(pool, ReservoirSet, null);
 
     public DescriptorSet AllocateTextureSet()
     {
@@ -857,31 +836,21 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             new(DescriptorType.UniformBuffer, frames + 1),
             // Those of each frame set and each deform set, the two of the exposure set and the own-ray list of the
             // reflection set.
-            new(DescriptorType.StorageBuffer, (FrameSetStorageBuffers + 1 + DeformSetStorageBuffers) * frames + 3),
+            new(DescriptorType.StorageBuffer, (FrameSetStorageBuffers + DeformSetStorageBuffers) * frames + 3),
             // Three per frame set (the material sampler and the immutable linear clamp and environment samplers), the
             // immutable samplers of the G-buffer, atlas, post, reflection and prefilter sets, and one per glow source set.
             new(DescriptorType.Sampler, 3 * frames + 5 + glowSourceSets),
             // 21 for the G-buffer, post and atlas sets, five per frame set for the tables, the specular map, the irradiance
             // cube and the distance cube, one per glow source set, two for the meter set, one per pyramid level set, one for
-            // the depth tail set, two for the reflection set, one for the prefilter set, one for the shadow bounds set, two
-            // for each surface test set and one for each reservoir set.
+            // the depth tail set, two for the reflection set, one for the prefilter set, one for the shadow bounds set and two
+            // for each surface test set.
             new(
                 DescriptorType.SampledImage,
-                21
-                    + 5 * frames
-                    + glowSourceSets
-                    + 2
-                    + PyramidLevelSets
-                    + 1
-                    + 2
-                    + 1
-                    + 1
-                    + 2 * SurfaceTestSets
-                    + ReservoirSets
+                21 + 5 * frames + glowSourceSets + 2 + PyramidLevelSets + 1 + 2 + 1 + 1 + 2 * SurfaceTestSets
             ),
             // Those of each of the two occlusion sets, one per pyramid level set, the depth tail set's mips, three for the
             // reflection set, four per environment levels set, three for the scatter set, one for the shadow bounds set and
-            // four per surface test set, seven per signal set, two per signal read set and two per reservoir set.
+            // four per surface test set, seven per signal set and two per signal read set.
             new(
                 DescriptorType.StorageImage,
                 2 * OcclusionImages.StorageImages
@@ -894,7 +863,6 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
                     + 4 * SurfaceTestSets
                     + SignalSetImages * SignalSets
                     + 2 * SignalReadSets
-                    + 2 * ReservoirSets
             ),
             // The SMAA set.
             new(DescriptorType.CombinedImageSampler, SmaaBindings),
@@ -906,7 +874,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         uint frames = framesInFlight;
         // The frame sets, the deform sets, the G-buffer, post, atlas, meter, exposure, SMAA, reflection, prefilter,
         // scatter and shadow bounds sets, the two occlusion sets, the glow source sets, the pyramid level sets, the depth tail set,
-        // the environment levels sets, the surface test sets, the signal sets, the signal read sets and the reservoir sets.
+        // the environment levels sets, the surface test sets, the signal sets and the signal read sets.
         // The reflection sets exist even with reflections off: they cost nothing per frame.
         SetPool shared = CreatePool(
             sizes: SharedPoolSizes(frames, glowSourceSets),
@@ -917,8 +885,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
                 + EnvironmentLevelsSets
                 + SurfaceTestSets
                 + SignalSets
-                + SignalReadSets
-                + ReservoirSets,
+                + SignalReadSets,
             flags: 0,
             name: "descriptor pool"
         );
@@ -1106,12 +1073,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         return CreateLayout(bindings: surface, name: "surface test set");
     }
 
-    /// <summary>The layouts of the signal set, the signal read set and the reservoir set (<see cref="SignalSet"/>).</summary>
-    private (
-        DescriptorSetLayout Signal,
-        DescriptorSetLayout SignalRead,
-        DescriptorSetLayout Reservoir
-    ) CreateTemporalSetLayouts()
+    /// <summary>The layouts of the signal set and the signal read set (<see cref="SignalSet"/>).</summary>
+    private (DescriptorSetLayout Signal, DescriptorSetLayout SignalRead) CreateTemporalSetLayouts()
     {
         Span<DescriptorSetLayoutBinding> signal = stackalloc DescriptorSetLayoutBinding[(int)SignalSetImages];
         for (uint binding = 0; binding < SignalSetImages; binding++)
@@ -1121,16 +1084,9 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             StorageImage(binding: 0, stages: ShaderStageFlags.FragmentBit),
             StorageImage(binding: 1, stages: ShaderStageFlags.FragmentBit),
         ];
-        Span<DescriptorSetLayoutBinding> reservoir =
-        [
-            Image(binding: 0, stages: ShaderStageFlags.FragmentBit),
-            StorageImage(binding: 1, stages: ShaderStageFlags.FragmentBit),
-            StorageImage(binding: 2, stages: ShaderStageFlags.FragmentBit),
-        ];
         return (
             CreateLayout(bindings: signal, name: "signal set"),
-            CreateLayout(bindings: read, name: "signal read set"),
-            CreateLayout(bindings: reservoir, name: "reservoir set")
+            CreateLayout(bindings: read, name: "signal read set")
         );
     }
 
@@ -1224,8 +1180,6 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             StorageBuffer(binding: MotionsBinding, stages: graphics),
             // The last drawn frame's kept positions, which the G-buffer's vertex stage reads.
             StorageBuffer(binding: KeptPositionsBinding, stages: ShaderStageFlags.VertexBit),
-            // ReSTIR's light table, which its two fragment passes read.
-            StorageBuffer(binding: LightTableBinding, stages: ShaderStageFlags.FragmentBit),
         ];
         Span<DescriptorBindingFlags> flags = stackalloc DescriptorBindingFlags[frame.Length];
         foreach (uint binding in (ReadOnlySpan<uint>)[12, 14, ShadowAtlas.TileViewsBinding, 16, KeptPositionsBinding])

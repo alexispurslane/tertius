@@ -31,20 +31,15 @@ namespace Tertius.Rendering;
 /// inverse depth of the distance target, level by level, and its small mips in one dispatch (<see cref="DepthPyramidTail"/>).</item>
 /// <item>The surface test (<see cref="SurfaceTestPass"/>): the pass bits of each pixel's last place, this frame's surface
 /// history and FSR's device depth.</item>
-/// <item>ReSTIR's candidates (<see cref="LightCandidatesPass"/>), under <see cref="ResampledLights"/>: each pixel's
-/// reservoir from its candidates and its last reservoir, in R0.</item>
-/// <item>The direct pass (<see cref="DirectLightPass"/>): one fullscreen pass into the direct signal's two samples, the
-/// diffuse and the specular light, each divided by its material factor and pre-exposed. Under
-/// <see cref="ResampledLights"/> it shades each pixel's chosen light after the spatial reuse, plus the exact lights, and
-/// writes R1. Under <see cref="EveryLight"/> it takes every light that the main view keeps.</item>
-/// <item>The direct signal's accumulation (<see cref="TemporalSignal"/>): the samples blended into the histories through
-/// the surface test, fixed and clamped.</item>
+/// <item>The direct pass (<see cref="DirectLightPass"/>): one fullscreen pass into the direct light's two images, the
+/// diffuse and the specular light of every light that the main view keeps, each divided by its material factor and
+/// pre-exposed.</item>
 /// <item>The occlusion passes (<see cref="OcclusionDepthPass"/> to <see cref="OcclusionUpsamplePass"/>), under
 /// <see cref="VisibilityBitmaskLight"/>: the estimate of the light around each pixel, the bounce of the direct light of
 /// the surfaces that block its hemisphere within the radius, and the share that nothing blocks there, in the estimate
 /// target.</item>
-/// <item>The composite (<see cref="CompositePass"/>): one fullscreen pass into the HDR target, the direct signal's
-/// histories times their material factors plus the ambient light with the estimate target applied and the emission,
+/// <item>The composite (<see cref="CompositePass"/>): one fullscreen pass into the HDR target, the direct light's
+/// images times their material factors plus the ambient light with the estimate target applied and the emission,
 /// capped.</item>
 /// <item>The skin scatter (<see cref="SkinScatterPass"/>), under <see cref="SeparableSubsurface"/>: the diffuse light of
 /// skin pixels, which the composite writes into the diffuse image, summed along the rows and then the
@@ -163,8 +158,9 @@ public sealed unsafe class VulkanRenderer : IRenderer
             uploads = CreateUploads();
 
             targets = CreateTargets(options);
-            // Before the occlusion images, whose bounce source reads the direct signal's slow diffuse history.
-            (surfaceHistory, DirectSignal, Reservoirs) = CreateHistories(shaders, options);
+            surfaceHistory = Own(
+                new SurfaceHistory(device: device, allocator: Allocator, layouts: layouts, targets: targets)
+            );
 
             // Before every pass, whose shading constants say whether the scatter is on.
             ScatterImages = CreateScatterImages(options.Subsurface);
@@ -227,12 +223,6 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// The skin scatter's images under <see cref="SeparableSubsurface"/>, or null without the scatter. A test hook.
     /// </summary>
     internal ScatterImages? ScatterImages { get; }
-
-    /// <summary>The direct signal: its samples, which the direct pass writes, and its histories. A test hook.</summary>
-    internal TemporalSignal DirectSignal { get; }
-
-    /// <summary>ReSTIR's reservoirs under <see cref="ResampledLights"/>, else null. A test hook.</summary>
-    internal LightReservoirs? Reservoirs { get; }
 
     internal SceneBatcher Batcher { get; }
 
@@ -376,11 +366,6 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 nameof(options),
                 $"CascadedLights must be 0 to {RendererOptions.MaxCascadedLights}, not {options.CascadedLights}."
             );
-        if (options.WarmUpFrames is < 1 or > RendererOptions.MaxWarmUpFrames)
-            throw new ArgumentOutOfRangeException(
-                nameof(options),
-                $"WarmUpFrames must be 1 to {RendererOptions.MaxWarmUpFrames}, not {options.WarmUpFrames}."
-            );
         if (options.Impostors && options.ImpostorTiles < 1)
             throw new ArgumentOutOfRangeException(nameof(options), "ImpostorTiles must be at least 1.");
     }
@@ -398,8 +383,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 : null
         )
         ?? options.EnvironmentMap.Problem
-        ?? options.Subsurface.Problem
-        ?? options.DirectLight.Problem;
+        ?? options.Subsurface.Problem;
 
     /// <summary>The checks of <paramref name="options"/> that need the device's limits, after <see cref="CheckOptions"/>.</summary>
     private static void CheckOptionsOnDevice(RendererOptions options, VulkanDevice device)
@@ -893,11 +877,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
         if (extent.Width == targets.Extent.Width && extent.Height == targets.Extent.Height)
             return;
         targets.Resize(extent);
-        // The surface history first, whose test image the signal's and the reservoirs' sets bind, and the direct signal
-        // before the occlusion images, whose set binds its slow diffuse history.
         surfaceHistory.Resize(targets);
-        DirectSignal.Resize();
-        Reservoirs?.Resize();
         occlusionImages?.Resize(targets);
         ScatterImages?.Resize(targets);
     }
@@ -1029,42 +1009,33 @@ public sealed unsafe class VulkanRenderer : IRenderer
     internal float[] ReadHdr() => ReadLevel(image: targets.Hdr, layer: 0, mip: 0).Values;
 
     /// <summary>
-    /// The direct signal's slow history of <paramref name="part"/> after the last frame, 0 the diffuse and 1 the specular,
-    /// RGBA per pixel, row by row from the top: rgb the light divided by its material factor and pre-exposed, a the history
-    /// length in frames, 0 for sky. A test hook: it waits for the device to be idle and submits its own copy.
-    /// </summary>
-    internal float[] ReadDirectHistory(int part) => ReadLevel(image: DirectSignal.Slow(part), layer: 0, mip: 0).Values;
-
-    /// <summary>
     /// The first level of the first layer of <paramref name="image"/>, row by row from the top, as floats: a test's own
     /// image. A test hook: it waits for the device to be idle and submits its own copy.
     /// </summary>
     internal float[] ReadImage(GpuImage image) => ReadLevel(image: image, layer: 0, mip: 0).Values;
 
     /// <summary>
-    /// The direct signal's sample of <paramref name="part"/> of the last frame, as <see cref="ReadDirectHistory"/> gives
-    /// the history, with a 1 at every lit pixel. A test hook.
+    /// A signal of <paramref name="parts"/> parts with <paramref name="parameters"/> at the size of the render targets, whose
+    /// sets bind the targets and the surface history, and which the renderer owns. A test hook until the screen tracer's
+    /// signals (ter-gayt): the renderer makes no signal of its own, and it resizes none.
     /// </summary>
-    internal float[] ReadDirectSample(int part) => ReadLevel(image: DirectSignal.Sample(part), layer: 0, mip: 0).Values;
-
-    /// <summary>
-    /// The reservoirs of R0 after the last frame under <see cref="ResampledLights"/>, the reservoirs that "light candidates"
-    /// wrote, one per pixel, row by row from the top: the chosen light, M and W, as restir.glsl packs them. A test hook: it
-    /// waits for the device to be idle and submits its own copy.
-    /// </summary>
-    internal (int Light, int M, float W)[] ReadCandidateReservoirs()
+    internal TemporalSignal CreateSignal(SignalParameters parameters, string name, int parts)
     {
-        LightReservoirs held =
-            Reservoirs ?? throw new InvalidOperationException("Only ResampledLights keeps reservoirs.");
-        float[] texels = ReadLevel(image: held.R0, layer: 0, mip: 0).Values;
-        var read = new (int Light, int M, float W)[texels.Length / 2];
-        for (int pixel = 0; pixel < read.Length; pixel++)
-        {
-            uint x = BitConverter.SingleToUInt32Bits(texels[2 * pixel]);
-            read[pixel] = (Light: (int)(x & 0xFFFF), M: (int)(x >> 16), W: texels[2 * pixel + 1]);
-        }
-
-        return read;
+        // The pipelines keep no reference to the shader modules, so the library goes with this call.
+        using var shaders = new ShaderLibrary(device, ShaderLibrary.EngineShaders);
+        return Own(
+            new TemporalSignal(
+                device: device,
+                allocator: Allocator,
+                layouts: layouts,
+                shaders: shaders,
+                targets: targets,
+                surfaces: surfaceHistory,
+                parameters: parameters,
+                name: name,
+                parts: parts
+            )
+        );
     }
 
     /// <summary>
@@ -1997,48 +1968,6 @@ public sealed unsafe class VulkanRenderer : IRenderer
             deformBytesLimit: device.Properties.Limits.MaxStorageBufferRange
         );
 
-    /// <summary>The images of the surface test at the targets' size, which the renderer owns.</summary>
-    /// <summary>
-    /// The stores of the last frames at the render size: the surface history, the direct signal of two parts, diffuse and
-    /// specular, with the parameter set of <paramref name="options"/>, and ReSTIR's reservoirs, which only
-    /// <see cref="ResampledLights"/> needs. The signal and the reservoirs bind the surface history's test image.
-    /// </summary>
-    private (SurfaceHistory Surfaces, TemporalSignal Direct, LightReservoirs? Reservoirs) CreateHistories(
-        ShaderLibrary shaders,
-        RendererOptions options
-    )
-    {
-        SurfaceHistory surfaces = Own(
-            new SurfaceHistory(device: device, allocator: Allocator, layouts: layouts, targets: targets)
-        );
-        TemporalSignal direct = Own(
-            new TemporalSignal(
-                device: device,
-                allocator: Allocator,
-                layouts: layouts,
-                shaders: shaders,
-                targets: targets,
-                surfaces: surfaces,
-                parameters: SignalParameters.Direct(options),
-                name: "direct",
-                parts: 2
-            )
-        );
-        LightReservoirs? held = options.DirectLight is ResampledLights setting
-            ? Own(
-                new LightReservoirs(
-                    device: device,
-                    allocator: Allocator,
-                    layouts: layouts,
-                    setting: setting,
-                    targets: targets,
-                    surfaces: surfaces
-                )
-            )
-            : null;
-        return (surfaces, direct, held);
-    }
-
     /// <summary>The store of the deformed copies, which the renderer owns, at most one storage buffer's range in size.</summary>
     private DeformStore CreateDeformStore() =>
         Own(
@@ -2103,13 +2032,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
     private OcclusionImages AddOcclusionPasses(ShaderLibrary shaders, VisibilityBitmaskLight setting)
     {
         OcclusionImages images = Own(
-            new OcclusionImages(
-                device: device,
-                allocator: Allocator,
-                layouts: layouts,
-                targets: targets,
-                direct: DirectSignal
-            )
+            new OcclusionImages(device: device, allocator: Allocator, layouts: layouts, targets: targets)
         );
         foreach (RenderPass pass in OcclusionPasses(shaders: shaders, setting: setting, images: images))
             Graph.Add(FrameGraph.Stage.AmbientOcclusion, pass);
@@ -2207,36 +2130,14 @@ public sealed unsafe class VulkanRenderer : IRenderer
         };
 
     /// <summary>
-    /// Adds ReSTIR's candidates under <see cref="ResampledLights"/>, whose reservoirs exist only then, the direct pass, the
-    /// direct signal's accumulation and the composite, which writes the diffuse image too under
-    /// <see cref="SeparableSubsurface"/>.
+    /// Adds the direct pass and the composite, which writes the diffuse image too under <see cref="SeparableSubsurface"/>.
     /// </summary>
     private void AddLightingPasses(ShaderLibrary shaders)
     {
-        if (Reservoirs is { } held)
-            Graph.Add(
-                FrameGraph.Stage.LightCandidates,
-                new LightCandidatesPass(
-                    device: device,
-                    shaders: shaders,
-                    layouts: layouts,
-                    constants: ShadingConstants,
-                    reservoirs: held,
-                    surfaces: surfaceHistory
-                )
-            );
         Graph.Add(
             FrameGraph.Stage.DirectLight,
-            new DirectLightPass(
-                device: device,
-                shaders: shaders,
-                layouts: layouts,
-                constants: ShadingConstants,
-                signal: DirectSignal,
-                reservoirs: Reservoirs
-            )
+            new DirectLightPass(device: device, shaders: shaders, layouts: layouts, constants: ShadingConstants)
         );
-        Graph.Add(FrameGraph.Stage.AccumulateDirect, new AccumulatePass(DirectSignal));
         Graph.Add(
             FrameGraph.Stage.Composite,
             new CompositePass(
@@ -2244,7 +2145,6 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 shaders: shaders,
                 layouts: layouts,
                 constants: ShadingConstants,
-                direct: DirectSignal,
                 scatter: ScatterImages is not null
             )
         );

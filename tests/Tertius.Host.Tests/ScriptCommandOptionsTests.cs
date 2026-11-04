@@ -24,7 +24,6 @@ public sealed class ScriptCommandOptionsTests
         ["--cascaded-lights", "2"],
         ["--environment-map", "off"],
         ["--subsurface", "off"],
-        ["--direct-light", "every"],
     ];
 
     public static TheoryData<string[]> AcceptedCommandLines =>
@@ -71,8 +70,6 @@ public sealed class ScriptCommandOptionsTests
                     "off",
                     "--subsurface",
                     "off",
-                    "--direct-light",
-                    "every",
                 ]
             },
         };
@@ -423,8 +420,6 @@ public sealed class ScriptCommandOptionsTests
                 "off",
                 "--subsurface",
                 "off",
-                "--direct-light",
-                "every",
             ],
             out _
         );
@@ -440,7 +435,6 @@ public sealed class ScriptCommandOptionsTests
             CascadedLights = 2,
             EnvironmentMapOff = true,
             SubsurfaceOff = true,
-            EveryLight = true,
         };
         options
             .Should()

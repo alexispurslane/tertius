@@ -335,35 +335,21 @@ internal sealed class FrameGraph : IDisposable
         DepthPyramid,
 
         /// <summary>
-        /// ReSTIR's candidates, under <see cref="ResampledLights"/>: after the surface test, whose pass bits its temporal
-        /// reuse reads, and after the G-buffer pass and the shadow maps, and before the direct pass, which reads the
-        /// reservoirs that it writes (docs/plans/temporal-renderer.md, "The frame's order").
-        /// </summary>
-        LightCandidates,
-
-        /// <summary>
-        /// The direct pass: after the candidates, whose reservoirs it reads, and after the G-buffer pass and the shadow
-        /// maps. It writes the direct signal's samples.
+        /// The direct pass: after the G-buffer pass and the shadow maps, which it reads. It writes the direct light's two
+        /// images (docs/plans/temporal-renderer.md, "The frame's order").
         /// </summary>
         DirectLight,
 
         /// <summary>
-        /// The direct signal's accumulation: after the direct pass, whose samples it reads, and before the occlusion passes,
-        /// so that the bounce light's depth pass gathers from its slow diffuse history, and before the composite, which
-        /// reads both slow histories.
-        /// </summary>
-        AccumulateDirect,
-
-        /// <summary>
         /// The occlusion passes, under <see cref="VisibilityBitmaskLight"/>: after the G-buffer pass, whose distance and
-        /// normals they read, and after the direct signal's accumulation, whose slow diffuse history the bounce light's
-        /// depth pass copies for its sectors. Before the composite, which reads their estimate target.
+        /// normals they read, and after the direct pass, whose diffuse light the bounce light's depth pass copies for its
+        /// sectors. Before the composite, which reads their estimate target.
         /// </summary>
         AmbientOcclusion,
 
         /// <summary>
-        /// The composite: after the occlusion passes, whose estimate target it reads, and the accumulation, whose histories
-        /// it reads, into the HDR image.
+        /// The composite: after the occlusion passes, whose estimate target it reads, and the direct pass, whose images it
+        /// reads, into the HDR image.
         /// </summary>
         Composite,
 

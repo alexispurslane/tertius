@@ -764,24 +764,6 @@ internal struct AccumulatePushConstants
         };
 }
 
-/// <summary>
-/// The push constants of ReSTIR's two passes, restir.glsl (<see cref="LightCandidatesPass"/>, <see cref="DirectLightPass"/>).
-/// </summary>
-[StructLayout(LayoutKind.Sequential)]
-internal struct ResampledPushConstants
-{
-    /// <summary>The low 32 bits of the frame's draw index (<see cref="FrameHistory.PendingFrame.DrawIndex"/>), which turn the random numbers.</summary>
-    public uint DrawIndex;
-
-    /// <summary>The candidates that each pixel draws from the light table (<see cref="ResampledLights.Candidates"/>).</summary>
-    public uint Candidates;
-
-    /// <summary>The neighbors whose reservoirs the direct pass combines (<see cref="ResampledLights.SpatialNeighbors"/>).</summary>
-    public uint Neighbors;
-
-    public uint Unused;
-}
-
 /// <summary>The push constants of the depth pyramid's tail, depth_pyramid_tail.comp (<see cref="DepthPyramidTail"/>).</summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct DepthTailPushConstants

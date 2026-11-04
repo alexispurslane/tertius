@@ -9,7 +9,7 @@
 // The least sum of the passing taps' bilinear weights that holds a history.
 const float LeastHistoryWeight = 0.05;
 
-// The closed form of the direct signal: a pixel without a history and without a finite sample takes it as its sample.
+// The closed form of a signal: a pixel without a history and without a finite sample takes it as its sample.
 const vec3 ClosedForm = vec3(0.0);
 
 void main()

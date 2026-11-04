@@ -4,8 +4,8 @@ using Silk.NET.Vulkan;
 namespace Tertius.Rendering;
 
 /// <summary>
-/// The screen-sized images shared by all frames in flight: the G-buffer, the depth buffer, the estimate target, the HDR
-/// target, the bloom levels, under the skin scatter, the diffuse image, when SMAA is on, the images of SMAA (<see cref="SmaaTargets"/>), and under
+/// The screen-sized images shared by all frames in flight: the G-buffer, the depth buffer, the direct light's two images,
+/// the estimate target, the HDR target, the bloom levels, under the skin scatter, the diffuse image, when SMAA is on, the images of SMAA (<see cref="SmaaTargets"/>), and under
 /// <see cref="ConeTracedReflections"/>, the pyramids of the reflections (<see cref="ReflectionTargets"/>).
 /// Sharing is safe because every use goes through <see cref="BarrierBatch"/>, and barriers order against earlier
 /// submissions on the queue. Resizing recreates everything; the caller makes sure the device is idle.
@@ -33,7 +33,10 @@ namespace Tertius.Rendering;
 /// it to 0, and the surface test writes the sky's motion. It is also a storage image, for the surface test.
 /// </description></item>
 /// </list>
-/// The depth buffer is D32_SFLOAT with reversed Z (1 near, 0 far, cleared to 0, compare GREATER). The estimate target holds
+/// The depth buffer is D32_SFLOAT with reversed Z (1 near, 0 far, cleared to 0, compare GREATER). The direct light's images
+/// are R16G16B16A16_SFLOAT: the diffuse and the specular part of each lit pixel's direct light, each divided by its material
+/// factor and pre-exposed, 0 for sky and impostors, which the direct pass draws and the composite and the occlusion's depth
+/// pass read as storage images (docs/plans/temporal-renderer.md, section 7). The estimate target holds
 /// the bounce G in rgb with the occlusion V in a, (0, 0, 0, 1) under NoScreenSpaceLight
 /// (docs/plans/screen-space-illumination.md, "Images and buffers"). The diffuse image is R16G16B16A16_SFLOAT: the diffuse
 /// light D of each skin pixel, which the composite writes, and the skin mask, whose pixels the skin scatter spreads
@@ -56,6 +59,7 @@ internal sealed class RenderTargets : IDisposable
     public const Format HdrFormat = Format.R16G16B16A16Sfloat;
     public const Format EstimateFormat = EstimatePacking.Format;
     public const Format DiffuseFormat = Format.R16G16B16A16Sfloat;
+    public const Format DirectFormat = Format.R16G16B16A16Sfloat;
 
     /// <summary>
     /// The color attachments per pass, and the outputs of a fragment shader, that the renderer asks of a device
@@ -131,9 +135,12 @@ internal sealed class RenderTargets : IDisposable
         hdrStorage = reflections is not null || subsurface;
         diffuse = subsurface;
         CheckFormats(device: device, reflections: reflections is not null, diffuse: diffuse);
+
         GBufferSet = layouts.AllocateGBufferSet();
         PostSet = layouts.AllocatePostSet();
         MeterSet = layouts.AllocateMeterSet();
+        DirectSet = layouts.AllocateSignalReadSet();
+
         Glow = new GpuImage[glowLevels];
         GlowSources = glowLevels == 0 ? [] : new DescriptorSet[glowLevels + 1];
         for (int i = 0; i < GlowSources.Length; i++)
@@ -169,6 +176,15 @@ internal sealed class RenderTargets : IDisposable
     public GpuImage Hdr { get; private set; }
 
     /// <summary>
+    /// The diffuse part of each lit pixel's direct light after the direct pass: rgb the light divided by the diffuse factor,
+    /// pre-exposed, a 1, and 0 for sky and impostors.
+    /// </summary>
+    public GpuImage DirectDiffuse { get; private set; }
+
+    /// <summary>The specular part of each lit pixel's direct light, as <see cref="DirectDiffuse"/> holds the diffuse part.</summary>
+    public GpuImage DirectSpecular { get; private set; }
+
+    /// <summary>
     /// The estimate of each pixel: rgb the bounce, pre-exposed, a the occlusion. Cleared to (0, 0, 0, 1) in the first
     /// frame after each creation.
     /// </summary>
@@ -186,8 +202,14 @@ internal sealed class RenderTargets : IDisposable
     /// <summary>The pyramids of the reflections, or null under <see cref="NoReflections"/>.</summary>
     public ReflectionTargets? Reflections { get; }
 
-    /// <summary>Set 2: the G-buffer, the estimate target and the direct image, for the passes that shade surfaces.</summary>
+    /// <summary>Set 2: the G-buffer and the estimate target, for the passes that shade surfaces.</summary>
     public DescriptorSet GBufferSet { get; }
+
+    /// <summary>
+    /// Set 3 of <see cref="DescriptorLayouts.CompositeLayout"/>: <see cref="DirectDiffuse"/> and
+    /// <see cref="DirectSpecular"/> as storage images for the fragment stage, which the composite reads.
+    /// </summary>
+    public DescriptorSet DirectSet { get; }
 
     /// <summary>The HDR image for tone mapping.</summary>
     public DescriptorSet PostSet { get; }
@@ -249,6 +271,8 @@ internal sealed class RenderTargets : IDisposable
         nameof(Motion),
         nameof(Depth),
         nameof(Hdr),
+        nameof(DirectDiffuse),
+        nameof(DirectSpecular),
         nameof(Estimate)
     )]
     private void Create(Extent2D extent)
@@ -285,6 +309,8 @@ internal sealed class RenderTargets : IDisposable
             readable: true,
             extraUsage: hdrStorage ? ImageUsageFlags.StorageBit : 0
         );
+        DirectDiffuse = DirectImage(extent: extent, name: "direct diffuse");
+        DirectSpecular = DirectImage(extent: extent, name: "direct specular");
         Estimate = GpuImage.Create(
             device: device,
             allocator: allocator,
@@ -305,7 +331,7 @@ internal sealed class RenderTargets : IDisposable
         CreateGlow(extent);
     }
 
-    /// <summary>Points the G-buffer, post and meter sets at the targets that <see cref="Create"/> made.</summary>
+    /// <summary>Points the G-buffer, direct, post and meter sets at the targets that <see cref="Create"/> made.</summary>
     private void WriteSets()
     {
         // The first five targets' bindings are their attachments' indices; the shading target came after the bindings
@@ -314,11 +340,28 @@ internal sealed class RenderTargets : IDisposable
             layouts.WriteImage(set: GBufferSet, binding: (uint)i, arrayElement: 0, image: GBuffer[i]);
         layouts.WriteImage(set: GBufferSet, binding: ShadingBinding, arrayElement: 0, image: Shading);
         layouts.WriteImage(set: GBufferSet, binding: EstimateBinding, arrayElement: 0, image: Estimate);
+        layouts.WriteStorageImage(set: DirectSet, binding: 0, image: DirectDiffuse);
+        layouts.WriteStorageImage(set: DirectSet, binding: 1, image: DirectSpecular);
 
         layouts.WriteImage(set: PostSet, binding: 0, arrayElement: 0, image: Hdr);
         layouts.WriteImage(set: MeterSet, binding: 0, arrayElement: 0, image: Hdr);
         layouts.WriteImage(set: MeterSet, binding: 1, arrayElement: 0, image: Distance);
     }
+
+    /// <summary>
+    /// A direct light image at <paramref name="extent"/>. The direct pass draws it, and the composite and the occlusion's
+    /// depth pass read it as a storage image.
+    /// </summary>
+    private GpuImage DirectImage(Extent2D extent, string name) =>
+        GpuImage.Create(
+            device: device,
+            allocator: allocator,
+            extent: extent,
+            format: DirectFormat,
+            usage: ImageUsageFlags.ColorAttachmentBit | ImageUsageFlags.StorageBit,
+            mipLevels: 1,
+            name: name
+        );
 
     /// <summary>
     /// The diffuse image at <paramref name="extent"/>. The composite draws it, the scatter passes read it as a storage
@@ -470,15 +513,13 @@ internal sealed class RenderTargets : IDisposable
         if (reflections)
             CheckReflectionFormats(device);
         // The spec requires both of RGBA16F on every device (docs/plans/skin-and-hair.md, "Required device features").
-        const FormatFeatureFlags diffuseFeatures =
+        const FormatFeatureFlags drawnAndStored =
             FormatFeatureFlags.ColorAttachmentBit | FormatFeatureFlags.StorageImageBit;
-        if (
-            diffuse
-            && (device.FormatProperties(DiffuseFormat).OptimalTilingFeatures & diffuseFeatures) != diffuseFeatures
-        )
-            throw new NotSupportedException(
-                $"{DiffuseFormat} cannot be a color attachment and a storage image on {device.DeviceName}."
-            );
+        foreach (Format format in diffuse ? (Format[])[DirectFormat, DiffuseFormat] : [DirectFormat])
+            if ((device.FormatProperties(format).OptimalTilingFeatures & drawnAndStored) != drawnAndStored)
+                throw new NotSupportedException(
+                    $"{format} cannot be a color attachment and a storage image on {device.DeviceName}."
+                );
     }
 
     /// <summary>
@@ -512,6 +553,8 @@ internal sealed class RenderTargets : IDisposable
             image.Dispose();
         Depth?.Dispose();
         Hdr?.Dispose();
+        DirectDiffuse?.Dispose();
+        DirectSpecular?.Dispose();
         Estimate?.Dispose();
         Diffuse?.Dispose();
         foreach (GpuImage? level in Glow)

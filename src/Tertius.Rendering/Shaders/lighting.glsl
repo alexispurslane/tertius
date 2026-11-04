@@ -411,8 +411,8 @@ DirectTerms modelLight(
 // shadowMaps says: a face of map i passes i, and every other caller MainView. The lights add in the order of the list,
 // so the sum rounds the same way on every run. A light adds only where takesLight says. A hair card's shadow lookups
 // take its geometric normal turned toward the light, the side that the light sees (docs/plans/skin-and-hair.md,
-// decision 27). The result is plain radiance: no ambient light, no emission and no exposure. Under EveryLight the direct
-// pass divides it by its material factors into the direct signal's samples (Shaders/direct_pass.glsl).
+// decision 27). The result is plain radiance: no ambient light, no emission and no exposure. The direct pass divides it
+// by its material factors into the direct light's images (Shaders/direct.frag).
 //
 // A pixel has one model, so directLight chooses the model once per pixel, before the loop over the lights, and each
 // model has a loop of its own. Chosen per light inside one loop, the hair's code made the direct pass of demo-exit's deck
