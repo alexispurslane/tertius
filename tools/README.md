@@ -446,6 +446,10 @@ rmdir /tmp/tertius-gpu-measure.lock
 
 `tools/fsr3-timing/` holds tool code that times builds of FSR's passes against each other (ticket `ter-7m38`, `src/Tertius.Rendering/ThirdParty/Fsr3/README.md`, "The 16-bit and subgroup builds"). It does not ship. The method runs each build once per round, in many rounds, so that the load of the machine falls on every build alike.
 
+Each run is FSR's batched measurement, `Fsr3UpscalerTests.AnUpscaleFrom1280x720To1920x1080ReportsItsGpuTimePerFrameWhenEightFramesShareASubmission`, which runs only with `TERTIUS_FSR_TIMING=1`. It upscales from 1280 × 720 to 1920 × 1080, 8 frames per command buffer, so that the GPU does not idle between frames. First it runs 60 batches of warm-up, about 1 s on the development Mac, so that the GPU's governor reaches its clock under full load. Then it times 150 batches, about 2.4 s. A frame time is the span of a batch's timestamps over 8. The upscaler of the measurement has 8 frames in flight, so that no frame of a batch writes a descriptor set that an earlier frame of the same command buffer binds.
+
+The batched measurement holds the GPU clock from run to run, and the per-frame measurement does not. On 2026-11-04, 20 runs of the batched measurement from one build and its byte copy ran at 1294.1 to 1296.0 MHz over their timed spans, except for 2 runs. A comparison holds only at the same clock (see "The GPU clock of a timed run"). The per-frame measurement, `AnUpscaleFrom1280x720To1920x1080ReportsItsGpuTime`, waits for each frame. So its clock moved from 886.6 to 1008.5 MHz over four runs of one build, and `analyze.py` refused nearly every round. It stays for the calibration rounds of `tools/gpu-calibration/`, which measure FSR with the GPU idle between frames.
+
 1. If a build uses `FFX_HALF=1`, enable its two device features in `src/Tertius.Rendering/Vulkan/VulkanDevice.cs` for every build of the comparison. Add `ShaderFloat16 = true` to `EnabledVulkan12Features` and `ShaderInt16 = true` to `EnabledCoreFeatures`. The engine does not enable them, and the validation layer refuses a 16-bit module without them. Revert the change after the builds. Two fixtures of `DeviceFeatureTests` fail while it stands. The quad operations of the subgroup builds need no enabled feature.
 2. Build each variant into its own copy of the Release test build under `captures/fsr-builds`. The arguments are `FFX_HALF` in AMD's four 16-bit passes, subgroup operations in the pyramids, and the name of the copy:
 
@@ -460,7 +464,7 @@ rmdir /tmp/tertius-gpu-measure.lock
    cp -R captures/fsr-builds/base captures/fsr-builds/control
    ```
 
-4. Run at least 5 rounds, more on a busy machine. Each run takes and releases the GPU lock through `tools/gpu-lock.sh` (see "The GPU lock"), and records `uptime` at its start. It runs beside `gpu-clock` through `tools/gpu-clock.sh`, so its log holds the clock over the test's 300 timed frames (see "The GPU clock of a timed run"). The order of the builds rotates by one build per round:
+4. Run at least 5 rounds, more on a busy machine. Each run takes and releases the GPU lock through `tools/gpu-lock.sh` (see "The GPU lock"), and records `uptime` at its start. It runs beside `gpu-clock` through `tools/gpu-clock.sh`, so its log holds the clock over the measurement's 150 timed batches (see "The GPU clock of a timed run"). The log also holds the frame time of each batch, which `analyze.py` reads. The order of the builds rotates by one build per round:
 
    ```bash
    mkdir -p /private/tmp/fsr-timing
@@ -475,7 +479,7 @@ rmdir /tmp/tertius-gpu-measure.lock
 
 `build-variant.sh` builds the test project, writes the variant's modules over the engine's in `obj`, and builds again. The modules are then newer than their sources, so the build embeds them without compiling them again. At the end, the script touches the csproj and builds again, so that `obj` and `bin` hold the engine's modules. The script prints the SPIR-V capabilities of each module.
 
-`analyze.py` prints two readings of "the build's median minus the reference's", each with the 90 % interval of 2,000 resamples of the rounds:
+`analyze.py` reads the frame time of each batch from the line `frame times, ms: ...` of each run's log, and the frames per batch from the line of the median. Below, a frame is the mean frame of one batch. A log without the two lines, such as the log of a per-frame run, stops the tool with a `ValueError` that names the log. The first line of the output counts the batches of each run and the frames of each batch. It prints two readings of "the build's median minus the reference's", each with the 90 % interval of 2,000 resamples of the rounds:
 
 - The pooled frame median is the median of all frames of a build. A resample pools the frames of the rounds that it draws.
 - The paired run median is the median over the rounds of the run median of the build minus the run median of the reference in the same round. A resample draws these per-round differences.
@@ -490,9 +494,9 @@ It also checks the clocks (see "The GPU clock of a timed run"):
 - A build whose checked rounds all ran at different clocks gets no paired reading, even with unchecked rounds: the table says `refused`.
 - The pooled reading mixes every round. The line above the tables marks it `INVALID` when the medians of the two builds' clocks differ by more than 3 %.
 
-On 2026-11-04 two rounds of one build against a byte copy of it ran at 886.6 to 1008.5 MHz, and the tool refused both rounds. FSR's timing test waits for each frame, so its clock moves from run to run, and the tool refuses nearly every round. Ticket `ter-q58r` gives the comparison of FSR builds a held clock, from FSR's batched measurement. Until then, a refused comparison of FSR builds has no result.
+On 2026-11-04 (ticket `ter-q58r`), 10 rounds of the engine's build against its byte copy ran on a machine where other processes also used the GPU outside the lock. 8 rounds ran at the same clock, and `analyze.py` found no difference: the paired median of the control minus the base was −0.002 ms, with a 90 % interval of −0.006 to +0.001 ms. In each of the other 2 rounds, one run held 1296 MHz for about 1 s. Then the GPU's busy share fell, and the clock fell to about 800 MHz and rose again over about 1.5 s, at a span clock of 1147.1 and 1148.7 MHz. The batch times of those runs rose with the clock. The paired reading left the 2 rounds out. If many rounds fail the check, look for another process on the GPU, such as an emulator or a test run outside the lock.
 
-`tools/test_fsr3_timing.py` tests the per-round decision of `analyze.py` on small synthetic out folders. It uses the Python standard library only:
+`tools/test_fsr3_timing.py` tests the reading of the batches from the logs and the per-round decision of `analyze.py` on small synthetic out folders. It uses the Python standard library only:
 
 ```bash
 nix develop --command python3 -I tools/test_fsr3_timing.py
@@ -586,7 +590,7 @@ python3 -I tools/gpu_clock.py compare captures/gpu-base/gpu-timings.json capture
 |---|---|---|---|
 | `tools/demo-timing.sh` | The demo's frames after the first | `gpu-timings.json` and the printed lines | `tools/gpu_clock.py compare` |
 | `tools/gpu-trace.sh` | The demo's frames after the first | `run/gpu-timings.json`, `passes.md` and `passes.json` | None: the paired mode compares frames of one trace |
-| `tools/fsr3-timing/time-round.sh` | FSR's 300 timed frames | Each run's log and its line in `rounds.log` | `tools/fsr3-timing/analyze.py` checks each round |
+| `tools/fsr3-timing/time-round.sh` | FSR's 150 timed batches | Each run's log and its line in `rounds.log` | `tools/fsr3-timing/analyze.py` checks each round |
 | `tools/gpu-calibration/rounds.sh` | Each probe's timed dispatches, or the demo's or FSR's timed frames | Each run's log | `analyze.py rounds` prints the clock of each run kind |
 | `tools/gpu-calibration/upscalers.sh` | Each upscaler's timed frames or batches | Each run's log | `analyze.py upscalers` prints the clock of each kind |
 | `tools/gpu-calibration/fsr-trace.sh` | FSR's timed batches | `run.log` and `passes.md` | None |
@@ -619,7 +623,7 @@ nix develop --command python3 -I tools/test_gpu_clock.py
 | `work.py` | The counted work of compute and fragment shaders from MoltenVK's MSL: lane operations, texture reads and the loops left after an unroll. `work.py fsr` adds the roofline of each of FSR's passes against its time from `fsr-passes.py`. |
 | `analyze.py` | The tables: `rounds` for the rounds, `upscalers` for the upscaler runs, `windows` and `window` for the window runs, and `probes` for any folder of probe logs. |
 
-The Vulkan twins of the probes are `GpuCalibrationTests` in `tests/Tertius.Rendering.Tests`. Their checks against the CPU run in every test run. Their measurements run only with `TERTIUS_GPU_CALIBRATION=1`, as FSR's timing test runs only with `TERTIUS_FSR_TIMING=1`. Every measurement of the rounds prints the lines `timed-start` and `timed-end` around its timed work, and runs beside `gpu-clock` through `tools/gpu-clock.sh`. `analyze.py upscalers` and `analyze.py rounds` then give `gpu-clock`'s clock over that span beside the clock over the whole run, because the whole run holds the setup at 648 MHz (see "The GPU clock of a timed run"). The rebuilt `probes` and `metalfx` print the markers. A binary built before 2026-11-04 does not, and its span clock is unknown.
+The Vulkan twins of the probes are `GpuCalibrationTests` in `tests/Tertius.Rendering.Tests`. Their checks against the CPU run in every test run. Their measurements run only with `TERTIUS_GPU_CALIBRATION=1`, as FSR's two measurements in `Fsr3UpscalerTests`, per frame and in batches, run only with `TERTIUS_FSR_TIMING=1`. Every measurement of the rounds prints the lines `timed-start` and `timed-end` around its timed work, and runs beside `gpu-clock` through `tools/gpu-clock.sh`. `analyze.py upscalers` and `analyze.py rounds` then give `gpu-clock`'s clock over that span beside the clock over the whole run, because the whole run holds the setup at 648 MHz (see "The GPU clock of a timed run"). The rebuilt `probes` and `metalfx` print the markers. A binary built before 2026-11-04 does not, and its span clock is unknown.
 
 `tools/test_gpu_calibration.py` tests the summaries of `analyze.py`, the frames of `fsr-passes.py` and the counts of `work.py` on synthetic logs and AIR. `tools/test_gpu_clock.py` tests the clock of the timed span. It uses the Python standard library only:
 
@@ -671,7 +675,7 @@ To hold each of FSR's passes against its roofline, follow these steps. Trace FSR
 
 ```bash
 for trace in 0 1 2; do nix develop --command bash tools/gpu-calibration/fsr-trace.sh captures/gpu-calibration/fsr-trace/$trace; done
-nix develop --command bash -c 'MVK_CONFIG_SHADER_DUMP_DIR=$PWD/captures/gpu-calibration/fsr-dump TERTIUS_GPU_CALIBRATION=1 tests/Tertius.Rendering.Tests/bin/Release/net11.0/Tertius.Rendering.Tests -method Tertius.Rendering.Tests.GpuCalibrationTests.FsrReportsItsGpuTimePerFrameWhenEightFramesShareASubmission'
+nix develop --command bash -c 'MVK_CONFIG_SHADER_DUMP_DIR=$PWD/captures/gpu-calibration/fsr-dump TERTIUS_FSR_TIMING=1 tests/Tertius.Rendering.Tests/bin/Release/net11.0/Tertius.Rendering.Tests -method Tertius.Rendering.Tests.Fsr3UpscalerTests.AnUpscaleFrom1280x720To1920x1080ReportsItsGpuTimePerFrameWhenEightFramesShareASubmission'
 python3 -I tools/gpu-calibration/work.py fsr captures/gpu-calibration/fsr-dump captures/gpu-calibration/fsr-counts src/Tertius.Rendering/obj/Release/net11.0/shaders captures/gpu-calibration/fsr-trace/0 captures/gpu-calibration/fsr-trace/1 captures/gpu-calibration/fsr-trace/2
 ```
 

@@ -1,6 +1,11 @@
-"""Tool code (tools/README.md, "FSR 3.1 timing"): compares the frame times that time-round.sh wrote.
+"""Tool code (tools/README.md, "FSR 3.1 timing"): compares the runs of FSR's batched measurement that time-round.sh
+logged.
 
 Usage: python3 -I tools/fsr3-timing/analyze.py <out folder> <reference build> <build> ...
+
+The times of a run come from its log: the mean frame time of each batch of the measurement, in ms, which the line
+"frame times, ms: ..." holds. Below, a frame time is such a mean. The batches keep the GPU busy, so its clock holds
+from run to run, as the per-frame timing test's clock does not (tools/README.md, "FSR 3.1 timing").
 
 For each build other than the reference, it prints two readings of "the build's median minus the reference's":
 
@@ -58,6 +63,17 @@ def load(folder):
     return sorted(rounds), starts
 
 
+def run_times(folder, r, b):
+    """The mean frame times in ms of the batches of one run, in their order, and the frames in each batch."""
+    log = Path(f"{folder}/{r}-{b}.log")
+    text = log.read_text()
+    size = re.search(r"in batches of (\d+) ", text)
+    times = re.search(r"frame times, ms: (.*)", text)
+    if not size or not times:
+        raise ValueError(f"{log} holds no frame times of FSR's batched measurement")
+    return [float(t) for t in times[1].split()], int(size[1])
+
+
 def run_clock(folder, r, b):
     """The clock of the timed span of one run, or an unknown clock for a run without a log."""
     log = Path(f"{folder}/{r}-{b}.log")
@@ -95,11 +111,13 @@ def build_clock(clocks):
 def main(folder, reference, others):
     rounds, starts = load(folder)
     builds = [reference, *others]
-    times = {
-        (r, b): [float(t) for t in Path(f"{folder}/{r}-{b}.times").read_text().split()] for r in rounds for b in builds
-    }
+    runs = {(r, b): run_times(folder, r, b) for r in rounds for b in builds}
+    times = {run: batches for run, (batches, _) in runs.items()}
     clocks = {(r, b): run_clock(folder, r, b) for r in rounds for b in builds}
-    print(f"{len(rounds)} rounds, frames per run {sorted({len(t) for t in times.values()})}")
+    print(
+        f"{len(rounds)} rounds, batches per run {sorted({len(t) for t in times.values()})}, frames per batch"
+        f" {sorted({size for _, size in runs.values()})}"
+    )
     print(f"1-minute load at the run starts: least {min(starts)}, median {statistics.median(starts)}, most {max(starts)}")
     print(
         f"The clock of a build is the median of its runs' clocks over their timed spans (p10 and p90 of the runs). The"

@@ -3,14 +3,14 @@ FSR's batched measurement that fsr-trace.sh records.
 
 Usage: python3 -I tools/gpu-calibration/fsr-passes.py <run.trace> <out folder>
 
-The measurement submits 45 batches of 8 frames, each batch in one command buffer, with a timestamp before each frame
+The measurement submits 210 batches of 8 frames, each batch in one command buffer, with a timestamp before each frame
 and after the last. MoltenVK writes each timestamp as an encoder of its own, "Record GPU Counter Sample BlitEncoder",
 and ends its compute encoder at each pipeline barrier. FSR's Record puts a barrier before each dispatch, so a frame
 between two stamps holds nine compute encoders in order: the exposure step, AMD's reactive mask generator and the seven
 passes of Fsr3Upscaler.UpscalePasses. Its other encoders are AMD's clears and the update of the constants.
 
 A pass's time is its busy time: the union of its encoder's GPU intervals. The script leaves out:
-- the first 8 command buffers with stamps, the warm-up batches that the measurement does not time;
+- the first 60 command buffers with stamps, the warm-up batches that the measurement does not time;
 - a frame with another count of dispatches;
 - a frame in which another process's GPU interval overlaps the frame's span, because the GPU then runs both, and the
   other work slows the pass. Other sessions' test runs take no GPU lock.
@@ -39,7 +39,7 @@ STAMP = "Record GPU Counter Sample BlitEncoder"
 DISPATCH = "vkCmdDispatch ComputeEncoder"
 OTHER = "(clears and constants)"
 SPAN = "(frame span)"
-WARM_UP_BUFFERS = 8
+WARM_UP_BUFFERS = 60
 
 
 def busy(intervals):

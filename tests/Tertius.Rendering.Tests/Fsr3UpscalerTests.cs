@@ -326,6 +326,67 @@ public sealed class Fsr3UpscalerTests
     }
 
     [Fact]
+    public void TimedBatchesUpscaleTheSameDrawsAsOneUpscalePerSubmission()
+    {
+        using var batched = new Fsr3Bench(
+            largestRenderSize: LargestRenderSize,
+            outputSize: OutputSize,
+            validation: true,
+            framesInFlight: 4
+        );
+        using var single = new Fsr3Bench(LargestRenderSize, OutputSize);
+        if (!batched.Device.Timestamps.Supported)
+            Assert.Skip($"{batched.Device.DeviceName} writes no timestamps on its queue.");
+        batched.FillPattern();
+        single.FillPattern();
+        for (int index = 0; index < 8; index++)
+            single.Upscale(index, reset: index == 0);
+
+        batched.TimedUpscales(firstBatch: 0, batches: 1, batchSize: 4);
+        batched.TimedUpscales(firstBatch: 1, batches: 1, batchSize: 4);
+
+        batched
+            .ReadOutput()
+            .Should()
+            .Equal(single.ReadOutput(), "the second call's batch continues the draws after the first call's batch");
+    }
+
+    [Fact]
+    public void ATimedBatchOfAsManyUpscalesAsTheUpscalersFramesInFlightReportsNothingToValidation()
+    {
+        using var bench = new Fsr3Bench(
+            largestRenderSize: LargestRenderSize,
+            outputSize: OutputSize,
+            validation: true,
+            framesInFlight: 4
+        );
+        if (!bench.Device.Timestamps.Supported)
+            Assert.Skip($"{bench.Device.DeviceName} writes no timestamps on its queue.");
+        bench.FillPattern();
+
+        bench.TimedUpscales(firstBatch: 0, batches: 2, batchSize: 4);
+
+        string.Join("\n", bench.Device.Log.Snapshot())
+            .Should()
+            .BeEmpty("each upscale of a batch writes a set that no earlier upscale of its command buffer binds");
+    }
+
+    [Fact]
+    public void ATimedBatchOfMoreUpscalesThanTheUpscalersFramesInFlightIsRefused()
+    {
+        using var bench = new Fsr3Bench(
+            largestRenderSize: LargestRenderSize,
+            outputSize: OutputSize,
+            validation: true,
+            framesInFlight: 2
+        );
+
+        Action time = () => bench.TimedUpscales(firstBatch: 0, batches: 1, batchSize: 3);
+
+        time.Should().Throw<ArgumentOutOfRangeException>().WithMessage("*frames in flight*");
+    }
+
+    [Fact]
     public void TheGeneratorMarksEveryPixelWhoseColorDiffersFromTheOpaqueOnlyColorWithAmdsBinaryValue()
     {
         using var bench = new Fsr3Bench(LargestRenderSize, OutputSize);
@@ -391,8 +452,8 @@ public sealed class Fsr3UpscalerTests
 
         // The first 60 frames warm the caches and the driver's pipelines. The marker lines around the 300 timed frames let
         // tools/gpu_clock.py take gpu-clock's clock over them alone (tools/README.md, "The GPU clock of a timed run").
-        bench.TimedUpscales(firstDraw: 0, count: 60);
-        double[] frames = TimedSpan.Run(() => bench.TimedUpscales(firstDraw: 60, count: 300));
+        bench.TimedUpscales(firstBatch: 0, batches: 60, batchSize: 1);
+        double[] frames = TimedSpan.Run(() => bench.TimedUpscales(firstBatch: 60, batches: 300, batchSize: 1));
         ITestOutputHelper output = TestContext.Current.TestOutputHelper!;
         double[] times = [.. frames.Order()];
 
@@ -408,6 +469,50 @@ public sealed class Fsr3UpscalerTests
                 + string.Join(' ', frames.Select(time => time.ToString("F4", CultureInfo.InvariantCulture)))
         );
         median.Should().BePositive();
+    }
+
+    [Fact]
+    public void AnUpscaleFrom1280x720To1920x1080ReportsItsGpuTimePerFrameWhenEightFramesShareASubmission()
+    {
+        // A measurement, not a check: it runs only on request, in a Release build under the GPU lock, and it is the
+        // measurement of tools/fsr3-timing/time-round.sh (tools/README.md, "FSR 3.1 timing"). FSR's frames run back to
+        // back on the GPU, eight per submission, so that the GPU idles between frames as little as MetalFX's frames in
+        // tools/gpu-calibration/metalfx.swift do, and its clock holds from run to run (gpu-calibration.md, "MetalFX
+        // against FSR"). A frame's time is the span of its batch over 8, which holds whenever MoltenVK latches a stamp.
+        Assert.SkipUnless(
+            Environment.GetEnvironmentVariable(TimingVariable) == "1",
+            $"Set {TimingVariable}=1 to measure FSR's GPU time."
+        );
+        const int Batch = 8;
+        using var bench = new Fsr3Bench(
+            largestRenderSize: new Extent2D(1280, 720),
+            outputSize: new Extent2D(1920, 1080),
+            validation: false,
+            framesInFlight: Batch
+        );
+        if (!bench.Device.Timestamps.Supported)
+            Assert.Skip($"{bench.Device.DeviceName} writes no timestamps on its queue.");
+        bench.FillPattern();
+
+        // The first 60 batches, about 1 s on the development Mac, warm the caches and the driver, and let the GPU's
+        // governor reach its clock under full load: after 8 batches, the clock still rose over the first 0.4 s of the
+        // timed batches (ter-q58r). The 150 timed batches, about 2.4 s, hold about 24 of gpu-clock's samples. The marker
+        // lines around them let tools/gpu_clock.py take gpu-clock's clock over them alone.
+        bench.TimedUpscales(firstBatch: 0, batches: 60, batchSize: Batch);
+        double[] frames = TimedSpan.Run(() => bench.TimedUpscales(firstBatch: 60, batches: 150, batchSize: Batch));
+        ITestOutputHelper output = TestContext.Current.TestOutputHelper!;
+
+        double[] sorted = [.. frames.Order()];
+        CultureInfo inv = CultureInfo.InvariantCulture;
+        output.WriteLine(
+            string.Create(
+                inv,
+                $"FSR 3.1 in batches of {Batch} from 1280 x 720 to 1920 x 1080 on {bench.Device.DeviceName}: median {sorted[sorted.Length / 2]:F3} ms, 10th percentile {sorted[sorted.Length / 10]:F3} ms, 90th percentile {sorted[sorted.Length * 9 / 10]:F3} ms over {sorted.Length} batches"
+            )
+        );
+        // Every batch's frame time in the order of the batches, for tools/fsr3-timing/analyze.py.
+        output.WriteLine("frame times, ms: " + string.Join(' ', frames.Select(time => time.ToString("F4", inv))));
+        sorted[0].Should().BePositive();
     }
 
     // The mean over the pixels of the summed absolute differences of red, green and blue.
@@ -460,7 +565,8 @@ public sealed class Fsr3UpscalerTests
 
     /// <summary>
     /// A validating headless device, the inputs of one upscale at the largest render size, an output and an upscaler,
-    /// which records each frame alone and waits for it.
+    /// which records each frame alone and waits for it. The upscaler has 2 frames in flight, as the renderer has by
+    /// default, unless a timing in batches asks for one per upscale of its batch.
     /// </summary>
     internal sealed unsafe class Fsr3Bench : IDisposable
     {
@@ -476,6 +582,7 @@ public sealed class Fsr3UpscalerTests
         private readonly GpuImage output;
         private readonly GpuBuffer exposure;
         private readonly GpuBuffer readback;
+        private readonly int framesInFlight;
 
         // Mip level 0 and layer 0 of a color image, for a copy.
         private static readonly ImageSubresourceLayers Level0 = new()
@@ -485,7 +592,16 @@ public sealed class Fsr3UpscalerTests
         };
 
         public Fsr3Bench(Extent2D largestRenderSize, Extent2D outputSize, bool validation = true)
+            : this(
+                largestRenderSize: largestRenderSize,
+                outputSize: outputSize,
+                validation: validation,
+                framesInFlight: 2
+            ) { }
+
+        public Fsr3Bench(Extent2D largestRenderSize, Extent2D outputSize, bool validation, int framesInFlight)
         {
+            this.framesInFlight = framesInFlight;
             Device = VulkanDevice.Create(validation: validation, surfaceExtensions: [], createSurface: null);
             allocator = new DeviceAllocator(Device);
             shaders = new ShaderLibrary(Device, ShaderLibrary.EngineShaders);
@@ -619,18 +735,29 @@ public sealed class Fsr3UpscalerTests
         }
 
         /// <summary>
-        /// The GPU time in ms of each of <paramref name="count"/> upscales, by timestamps around Record: every command
-        /// before the second stamp, from the first. The upscales continue the bench's draws from
-        /// <paramref name="firstDraw"/>, and only draw 0 resets the accumulation.
+        /// The mean GPU time in ms of an upscale in each of <paramref name="batches"/> submissions of
+        /// <paramref name="batchSize"/> upscales, by the span of the batch's timestamps: a stamp before each upscale and
+        /// one after the last, so every command before the last stamp from the first. The batches continue the bench's
+        /// draws after <paramref name="firstBatch"/> batches of <paramref name="batchSize"/>, and only draw 0 resets the
+        /// accumulation. A batch of 1 is the time of each upscale alone.
         /// </summary>
-        public double[] TimedUpscales(int firstDraw, int count)
+        /// <exception cref="ArgumentOutOfRangeException"><paramref name="batchSize"/> is more than the upscaler's frames in
+        /// flight. Each upscale writes the sets of the upscale that many before it, and a set that an earlier upscale of
+        /// the same command buffer binds must not change (VUID-vkEndCommandBuffer-commandBuffer-00059).</exception>
+        public double[] TimedUpscales(int firstBatch, int batches, int batchSize)
         {
+            if (batchSize > framesInFlight)
+                throw new ArgumentOutOfRangeException(
+                    nameof(batchSize),
+                    $"A batch of {batchSize} upscales needs as many frames in flight, and the upscaler has {framesInFlight}."
+                );
             Vk vk = Device.Vk;
+            uint stampCount = (uint)batchSize + 1;
             var info = new QueryPoolCreateInfo
             {
                 SType = StructureType.QueryPoolCreateInfo,
                 QueryType = QueryType.Timestamp,
-                QueryCount = 2,
+                QueryCount = stampCount,
             };
             vk.CreateQueryPool(
                     device: Device.Device,
@@ -641,33 +768,45 @@ public sealed class Fsr3UpscalerTests
                 .Check("vkCreateQueryPool");
             try
             {
-                double[] times = new double[count];
-                for (int index = 0; index < count; index++)
+                double[] times = new double[batches];
+                Span<ulong> stamps = stackalloc ulong[batchSize + 1];
+                for (int batch = 0; batch < batches; batch++)
                 {
-                    int draw = firstDraw + index;
+                    int firstDraw = (firstBatch + batch) * batchSize;
                     Submit(commandBuffer =>
                     {
                         vk.CmdResetQueryPool(
                             commandBuffer: commandBuffer,
                             queryPool: queries,
                             firstQuery: 0,
-                            queryCount: 2
+                            queryCount: stampCount
                         );
-                        vk.CmdWriteTimestamp2(
-                            commandBuffer: commandBuffer,
-                            stage: PipelineStageFlags2.AllCommandsBit,
-                            queryPool: queries,
-                            query: 0
-                        );
-                        Upscaler.Record(commandBuffer, Barriers, Inputs(draw, reset: draw == 0));
-                        vk.CmdWriteTimestamp2(
-                            commandBuffer: commandBuffer,
-                            stage: PipelineStageFlags2.AllCommandsBit,
-                            queryPool: queries,
-                            query: 1
-                        );
+                        for (int frame = 0; frame <= batchSize; frame++)
+                        {
+                            vk.CmdWriteTimestamp2(
+                                commandBuffer: commandBuffer,
+                                stage: PipelineStageFlags2.AllCommandsBit,
+                                queryPool: queries,
+                                query: (uint)frame
+                            );
+                            int draw = firstDraw + frame;
+                            if (frame < batchSize)
+                                Upscaler.Record(commandBuffer, Barriers, Inputs(draw, reset: draw == 0));
+                        }
                     });
-                    times[index] = MillisecondsBetweenStamps(queries);
+                    fixed (ulong* data = stamps)
+                        vk.GetQueryPoolResults(
+                                device: Device.Device,
+                                queryPool: queries,
+                                firstQuery: 0,
+                                queryCount: stampCount,
+                                dataSize: stampCount * sizeof(ulong),
+                                pData: data,
+                                stride: sizeof(ulong),
+                                flags: QueryResultFlags.Result64Bit | QueryResultFlags.ResultWaitBit
+                            )
+                            .Check("vkGetQueryPoolResults");
+                    times[batch] = Device.Timestamps.Milliseconds(stamps[0], stamps[batchSize]) / batchSize;
                 }
 
                 return times;
@@ -676,26 +815,6 @@ public sealed class Fsr3UpscalerTests
             {
                 vk.DestroyQueryPool(Device.Device, queries, null);
             }
-        }
-
-        /// <summary>The time in ms from the first timestamp of <paramref name="queries"/> to the second.</summary>
-        private double MillisecondsBetweenStamps(QueryPool queries)
-        {
-            Span<ulong> stamps = stackalloc ulong[2];
-            fixed (ulong* data = stamps)
-                Device
-                    .Vk.GetQueryPoolResults(
-                        device: Device.Device,
-                        queryPool: queries,
-                        firstQuery: 0,
-                        queryCount: 2,
-                        dataSize: 2 * sizeof(ulong),
-                        pData: data,
-                        stride: sizeof(ulong),
-                        flags: QueryResultFlags.Result64Bit | QueryResultFlags.ResultWaitBit
-                    )
-                    .Check("vkGetQueryPoolResults");
-            return Device.Timestamps.Milliseconds(stamps[0], stamps[1]);
         }
 
         /// <summary>The output's pixels, row by row.</summary>
@@ -878,7 +997,7 @@ public sealed class Fsr3UpscalerTests
                 shaders: shaders,
                 maxRenderSize: LargestRenderSize,
                 outputSize: outputSize,
-                framesInFlight: 2
+                framesInFlight: framesInFlight
             );
 
         /// <summary>An input or output image: sampled, stored, cleared, uploaded and read back.</summary>
