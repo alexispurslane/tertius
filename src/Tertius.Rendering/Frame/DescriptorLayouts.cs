@@ -145,6 +145,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     );
 
     private readonly VulkanDevice device;
+
     // No handle until the constructor makes the pools, so a Dispose after a refused device destroys none.
     private readonly SetPool pool = new(default, 0);
     private readonly SetPool texturePool = new(default, 0);

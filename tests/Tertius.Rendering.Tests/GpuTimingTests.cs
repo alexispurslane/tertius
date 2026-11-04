@@ -352,7 +352,7 @@ public sealed class GpuTimingTests
         // The Mac has two drivers, MoltenVK and KosmicKrisp, so the operating system does not name the driver. A device of
         // the test's own reads it.
         DriverId driver;
-        using (VulkanDevice probe = VulkanDevice.Create(validation: false, surfaceExtensions: [], createSurface: null))
+        using (var probe = VulkanDevice.Create(validation: false, surfaceExtensions: [], createSurface: null))
         {
             driver = probe.Driver;
         }
