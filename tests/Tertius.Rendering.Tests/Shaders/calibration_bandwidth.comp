@@ -1,0 +1,35 @@
+#version 460
+// The bandwidth probe of GpuCalibrationTests (docs/research/temporal-renderer/gpu-calibration.md, "The probes"): each
+// invocation reads `reads` elements of 16 bytes, one grid apart, so that the reads of a subgroup are contiguous and the
+// dispatch reads every element once. The native twin is probe_bandwidth in tools/gpu-calibration/probes.swift.
+
+layout(local_size_x = 256) in;
+
+layout(set = 0, binding = 0, std430) writeonly buffer Results
+{
+    uint results[];
+};
+
+layout(set = 0, binding = 1, std430) readonly buffer Source
+{
+    uvec4 source[];
+};
+
+layout(push_constant) uniform Constants
+{
+    uint reads;
+}
+constants;
+
+void main()
+{
+    uint id = gl_GlobalInvocationID.x;
+    uint grid = gl_NumWorkGroups.x * gl_WorkGroupSize.x;
+    uint sum = 0u;
+    for (uint r = 0u; r < constants.reads; r++)
+    {
+        uvec4 v = source[id + r * grid];
+        sum += v.x + v.y + v.z + v.w;
+    }
+    results[id] = sum;
+}

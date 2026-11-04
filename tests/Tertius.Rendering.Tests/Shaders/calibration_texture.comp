@@ -1,0 +1,46 @@
+#version 460
+// The texture probe of GpuCalibrationTests (docs/research/temporal-renderer/gpu-calibration.md, "The probes"):
+// bilinear samples at texel corners, so that every sample blends four texels with weights of one half. Sample s of
+// invocation (x, y) reads the corner (x * stride + (s & maskX) * stepX, y * stride + (s >> shiftY) * stepY), wrapped
+// at the image's size, a power of two. The native twin is probe_texture in tools/gpu-calibration/probes.swift.
+
+layout(local_size_x = 16, local_size_y = 16) in;
+
+layout(set = 0, binding = 0, std430) writeonly buffer Results
+{
+    float results[];
+};
+
+layout(set = 0, binding = 2) uniform sampler2D image;
+
+layout(push_constant) uniform Constants
+{
+    uint samples;
+    uint stride;
+    uint stepX;
+    uint stepY;
+    uint maskX;
+    uint shiftY;
+}
+constants;
+
+void main()
+{
+    uvec2 id = gl_GlobalInvocationID.xy;
+    uvec2 size = uvec2(textureSize(image, 0));
+    uvec2 mask = size - 1u;
+    vec2 scale = 1.0 / vec2(size);
+    float sum = 0.0;
+    for (uint s = 0u; s < constants.samples; s++)
+    {
+        uvec2 corner = uvec2(
+                           id.x * constants.stride + (s & constants.maskX) * constants.stepX,
+                           id.y * constants.stride + (s >> constants.shiftY) * constants.stepY
+                       )
+            & mask;
+        vec4 texel = textureLod(image, vec2(corner) * scale, 0.0);
+        sum += texel.x + texel.y + texel.z + texel.w;
+    }
+    uint width = gl_NumWorkGroups.x * gl_WorkGroupSize.x;
+    results[id.y * width + id.x] = sum;
+}

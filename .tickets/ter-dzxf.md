@@ -23,3 +23,10 @@ Scope:
 
 It starts after ter-sftw, because the profiling spike measures where the walk's time goes and tests the two-depth walk, and its answer picks the kernel that the climb starts from.
 
+
+## Notes
+
+**2026-11-04T03:25:10Z**
+
+2026-11-03 (ter-3ug8's review fix): ter-scm7, "Unroll the lean walk's step loop two to four times, and measure it at a recorded clock", is folded into this ticket, whose step 4 already names an unrolled step loop. Its data, now from the variants of the native FMA probe (probes fma-variants, 7 rounds, docs/research/temporal-renderer/gpu-calibration.md, "The variants of the FMA probe"): with 4 float4 chains, 1, 2, 4 and 8 steps per pass of the loop reach 0.41, 0.77, 0.93 and 0.97 of the FP32 peak. A rolled loop with 2 to 16 float4 chains stays at 0.37 to 0.45, so more chains do not help. The first run's figures of 0.58, about 0.80 and 0.84 came from scratch kernels without logs and are withdrawn. The unrolled loop must not cost time on other Vulkan drivers. The lean walk V5c takes 2.4 to 3.3 times an estimate of its work at the rolled loop's rate (40 operations per step, ter-sftw's estimate). Time each variant at the clock over its timed span (ter-qk78).
+

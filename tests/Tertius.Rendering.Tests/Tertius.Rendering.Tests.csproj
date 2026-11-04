@@ -19,29 +19,33 @@
     <Using Include="Xunit" />
     <Using Include="AwesomeAssertions" />
   </ItemGroup>
-  <!-- The reference of AmbientSkipsTests: the ambient pass's two stages from src, built with TERTIUS_EVERY_AMBIENT_TERM,
-       which computes every term that the engine's build skips (environment.glsl). Embedded under the engine's resource
-       names, for a ShaderLibrary of this assembly. glslc comes from shaderc in the Nix dev shell. -->
+  <!-- The test shaders, each compiled with the engine's flags plus its own Flags, and embedded under the engine's resource
+       names for a ShaderLibrary of this assembly. glslc comes from shaderc in the Nix dev shell.
+       - The reference of AmbientSkipsTests: the ambient pass's two stages from src, built with TERTIUS_EVERY_AMBIENT_TERM,
+         which computes every term that the engine's build skips (environment.glsl).
+       - The probes of GpuCalibrationTests. -->
   <PropertyGroup>
     <Glslc Condition="'$(Glslc)' == ''">glslc</Glslc>
     <EngineShaders>$(MSBuildProjectDirectory)/../../src/Tertius.Rendering/Shaders</EngineShaders>
   </PropertyGroup>
   <ItemGroup>
-    <ReferenceShader Include="$(EngineShaders)/lighting.vert;$(EngineShaders)/ambient.frag;$(EngineShaders)/ambient_scatter.frag" />
-    <ReferenceShaderInclude Include="$(EngineShaders)/*.glsl" />
+    <TestShader Include="$(EngineShaders)/lighting.vert;$(EngineShaders)/ambient.frag;$(EngineShaders)/ambient_scatter.frag"
+                Flags="-DTERTIUS_EVERY_AMBIENT_TERM -I &quot;$(EngineShaders)&quot;" />
+    <TestShader Include="Shaders/*.comp" Flags="" />
+    <TestShaderInclude Include="$(EngineShaders)/*.glsl;Shaders/*.glsl" />
   </ItemGroup>
 
-  <Target Name="CompileReferenceShaders" BeforeTargets="BeforeBuild"
-          Inputs="@(ReferenceShader);@(ReferenceShaderInclude);$(MSBuildProjectFullPath)"
-          Outputs="@(ReferenceShader->'$(IntermediateOutputPath)reference-shaders/%(Filename)%(Extension).spv')">
-    <MakeDir Directories="$(IntermediateOutputPath)reference-shaders" />
-    <Exec Command="&quot;$(Glslc)&quot; --target-env=vulkan1.3 -O -Werror -DTERTIUS_EVERY_AMBIENT_TERM -I &quot;$(EngineShaders)&quot; -o &quot;$(IntermediateOutputPath)reference-shaders/%(ReferenceShader.Filename)%(ReferenceShader.Extension).spv&quot; &quot;%(ReferenceShader.FullPath)&quot;" />
+  <Target Name="CompileTestShaders" BeforeTargets="BeforeBuild"
+          Inputs="@(TestShader);@(TestShaderInclude);$(MSBuildProjectFullPath)"
+          Outputs="@(TestShader->'$(IntermediateOutputPath)test-shaders/%(Filename)%(Extension).spv')">
+    <MakeDir Directories="$(IntermediateOutputPath)test-shaders" />
+    <Exec Command="&quot;$(Glslc)&quot; --target-env=vulkan1.3 -O -Werror %(TestShader.Flags) -o &quot;$(IntermediateOutputPath)test-shaders/%(TestShader.Filename)%(TestShader.Extension).spv&quot; &quot;%(TestShader.FullPath)&quot;" />
   </Target>
 
-  <Target Name="EmbedReferenceShaders" DependsOnTargets="CompileReferenceShaders" BeforeTargets="BeforeBuild">
+  <Target Name="EmbedTestShaders" DependsOnTargets="CompileTestShaders" BeforeTargets="BeforeBuild">
     <ItemGroup>
-      <_ReferenceSpirv Include="@(ReferenceShader->'$(IntermediateOutputPath)reference-shaders/%(Filename)%(Extension).spv')" />
-      <EmbeddedResource Include="@(_ReferenceSpirv)" LogicalName="Tertius.Rendering.Shaders.%(_ReferenceSpirv.Filename)%(_ReferenceSpirv.Extension)" WithCulture="false" />
+      <_TestSpirv Include="@(TestShader->'$(IntermediateOutputPath)test-shaders/%(Filename)%(Extension).spv')" />
+      <EmbeddedResource Include="@(_TestSpirv)" LogicalName="Tertius.Rendering.Shaders.%(_TestSpirv.Filename)%(_TestSpirv.Extension)" WithCulture="false" />
     </ItemGroup>
   </Target>
 </Project>
