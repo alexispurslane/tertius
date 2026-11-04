@@ -71,3 +71,7 @@ On 2026-11-03 the user cleared the open tickets of the pre-temporal renderer, to
 **2026-11-03T16:31:49Z**
 
 2026-11-03: the user asked for ter-7m38 at high priority: FSR 3.1's 16-bit build, kept only if it is faster on the M1 Max. It starts when ter-k63u merges, and ter-s7c6 waits for it.
+
+**2026-11-04T12:20:46Z**
+
+2026-11-04, the user: aim for 12 ms frames, not 15 (the budget decision of 2026-10-25 in docs/plans/rendering-performance.md, 12 ms with 4.7 ms of headroom for heavier scenes, still holds). The orchestrator's reading, which the user can correct: section 11's budget is 12.0 ms of GPU time per frame on demo-exit at the windowed clock (1296 MHz), 1920 x 1080 output from 1280 x 720 rendering. The controller's limit of 15.0 ms (60 Hz times 0.9) stays as the runtime limit for heavier scenes. By the trace budget facts (ter-gayt's note of the same day), the frame without the tracer is 9.34 to 10.02 ms, so at 12.0 ms the two trace dispatches get 1.36 to 2.05 ms, against V6's 2.92 to 3.16 ms at 10 % own rays. Against section 11's allowances, the two large overruns are the trace dispatches (3.16 against 1.1) and the direct signal (light candidates with direct light 3.06 against 1.3, accumulate direct 0.76 against 0.30, upper ends at the windowed clock). Section 11 changes with the budget decision after ter-sftw.
