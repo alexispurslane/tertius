@@ -30,3 +30,12 @@ Scope: 1. In flake.nix, add Mesa to the Darwin dev shell and an environment vari
 - Timing, 8 rounds per arm with a byte-copy control, at a load of 3 to 32: KosmicKrisp's span is about 2.2 ms (19 %) longer on the deck, even on the floor and the 64-lamp hall, and 0.5 ms longer in the 16-lamp hall, within the control's spread. FSR: 2.73 to 3.00 ms on MoltenVK, 2.91 to 2.99 ms on KosmicKrisp, a lower bound there.
 - Recommendation: keep MoltenVK as the default and KosmicKrisp beside it. Switching is the user's decision.
 - After the fix, on KosmicKrisp: Checked 10,180 tests, 2 failed (the span test and the macOS test), 15 skipped; Release 10,167, 3 failed (those two and the BGRA test), 15 skipped. The BGRA test fails in most runs, not all, because ter-gyfe's fault varies.
+
+**2026-11-04T12:32:42Z**
+
+2026-11-04: the settled fork of the macOS test, and the suites after it.
+- The orchestrator chose to key the test to the driver. GpuTimingTests.OnMacOsWhereVulkanRunsOnMoltenVkTheRendererSaysThatItsStampsLatchLate is now TheRendererSaysThatItsStampsLatchLateOnMoltenVkAndOnNoOtherDriver. It reads the driver id from a device of its own and expects VulkanRenderer.StampsLatchLate exactly on MoltenVK. StampsLatchLate does not change: it stays keyed to MoltenVK's driver id, because KosmicKrisp's stamps read early, not late (ter-dgen).
+- The old test was red on KosmicKrisp. The new test is green on both drivers. A mutant that keys the flag to OperatingSystem.IsMacOS() fails it on KosmicKrisp (tools/mutate.py, killed in 13 s). On MoltenVK that mutant gives the same value, so only KosmicKrisp kills it.
+- KosmicKrisp: Checked 10,180 tests, 2 failed, 15 skipped. Release 10,167 tests, 2 failed, 15 skipped. In both, the failures are the span test (ter-dgen) and the BGRA test (ter-gyfe).
+- MoltenVK: Checked 10,180 tests, 0 failed, 16 skipped. Release 10,167 tests, 0 failed, 16 skipped.
+- The default driver stays MoltenVK in flake.nix. The user decides that separately.

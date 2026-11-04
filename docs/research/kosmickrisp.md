@@ -19,21 +19,23 @@ Both suites ran on KosmicKrisp before any change of this ticket, with `VK_ICD_FI
 | Checked | 10,180 | 4 | 15 |
 | Release | 10,167 | 4 | 15 |
 
-The same four tests failed in both suites. After the fix of this ticket, the suites on KosmicKrisp gave these counts:
+The same four tests failed in both suites. After the two fixes of this ticket, the suites on KosmicKrisp gave these counts on 2026-11-04:
 
 | Suite | Tests | Failed | Skipped | Failed tests |
 |---|---:|---:|---:|---|
-| Checked | 10,180 | 2 | 15 | The span test and the macOS test |
-| Release | 10,167 | 3 | 15 | The span test, the BGRA test and the macOS test |
+| Checked | 10,180 | 2 | 15 | The span test (ter-dgen) and the BGRA test (ter-gyfe) |
+| Release | 10,167 | 2 | 15 | The span test (ter-dgen) and the BGRA test (ter-gyfe) |
 
-The BGRA test fails in most runs on KosmicKrisp, not in all, because the fault of ter-gyfe varies from run to run. It passed in the final Checked suite. The table sorts each one into one of three classes: a defect of ours against the Vulkan spec, a defect of KosmicKrisp, or a legitimate difference between the drivers.
+On MoltenVK, the Release suite gave 10,167 tests, 0 failed and 16 skipped, and the Checked suite gave 10,180 tests, 0 failed and 16 skipped. MoltenVK skips one test more, because `OnADriverWhoseStampsLatchWhenTheWorkBeforeThemEndsAPassThatRecordsNothingReportsNearlyNoTimeOfItsOwn` skips on a driver whose stamps latch late.
+
+The BGRA test fails in most runs on KosmicKrisp, not in all, because the fault of ter-gyfe varies from run to run. It passed in the first run's final Checked suite, on 2026-11-03. The table sorts each one into one of three classes: a defect of ours against the Vulkan spec, a defect of KosmicKrisp, or a legitimate difference between the drivers.
 
 | Test | Class | Outcome |
 |---|---|---|
 | `EnvironmentMapPlumbingTests.AMapThatCannotGetItsDescriptorSetsReleasesTheImagesAndBuffersItMade` | Ours: the test relied on a refusal that the spec does not promise | Fixed: each pool refuses a set past its `maxSets` itself |
 | `ScriptCommandCaptureTests.AHeadlessFilmWritesTheGpuSpanOfItsFramesBesideThePassesWithAMeanNoShorterThanItsLongestPass` | KosmicKrisp: its timestamps | ter-dgen, with a minimal reproduction. The test stays |
 | `CaptureSinkTests.ABgraOutputHandsItsSinkThePixelsOfAnRgbaOutputInRgbaOrder` | KosmicKrisp: its indirect dispatch in the reflections | ter-gyfe. The test stays |
-| `GpuTimingTests.OnMacOsWhereVulkanRunsOnMoltenVkTheRendererSaysThatItsStampsLatchLate` | A difference between the drivers: the test takes macOS for MoltenVK | A fork for the user. The test stays |
+| `GpuTimingTests.OnMacOsWhereVulkanRunsOnMoltenVkTheRendererSaysThatItsStampsLatchLate` | Ours: the test took macOS for MoltenVK | Fixed: the test reads the driver, and its new name is `TheRendererSaysThatItsStampsLatchLateOnMoltenVkAndOnNoOtherDriver` |
 
 ### The descriptor pool test (ours)
 
@@ -76,9 +78,11 @@ The test renders one frame of the reference scene in two renderers, one with an 
 
 A small program with the same commands ran every workgroup on KosmicKrisp. So ter-gyfe has no standalone reproduction yet, only the engine's. It is a defect of KosmicKrisp by this evidence, and the test stays.
 
-### The test that takes macOS for MoltenVK (a fork)
+### The test that took macOS for MoltenVK (ours)
 
-`OnMacOsWhereVulkanRunsOnMoltenVkTheRendererSaysThatItsStampsLatchLate` expects `VulkanRenderer.StampsLatchLate` to be true exactly on macOS. The property is true exactly on MoltenVK, by the driver id. On KosmicKrisp it is false, so the test fails. The test's premise no longer holds, because the Mac now has two drivers. KosmicKrisp's stamps do not latch late in MoltenVK's sense either: they read early, or 0 (ter-dgen). This is a choice for the user, and the test stays as it is (see "Forks").
+`OnMacOsWhereVulkanRunsOnMoltenVkTheRendererSaysThatItsStampsLatchLate` expected `VulkanRenderer.StampsLatchLate` to be true exactly on macOS. The property is true exactly on MoltenVK, by the driver id. On KosmicKrisp it is false, so the test failed. The test's premise no longer held, because the Mac now has two drivers.
+
+The property stays as it is. KosmicKrisp's stamps do not latch late in MoltenVK's sense: they read their encoder's start, or 0 (ter-dgen). A later Mesa release can fix that, so the flag stays keyed to MoltenVK's driver id. The test, now `TheRendererSaysThatItsStampsLatchLateOnMoltenVkAndOnNoOtherDriver`, reads the driver id from a device of its own. It expects the flag on MoltenVK and on no other driver. It passes on both drivers. A mutant that keys the flag to macOS fails it on KosmicKrisp (2026-11-04).
 
 ### The snapshot tests
 
@@ -168,4 +172,4 @@ Switching the default is the user's decision. A switch after a Mesa release that
 ## Forks
 
 - Switching the dev shell's default driver. This report recommends MoltenVK as the default and KosmicKrisp beside it.
-- `GpuTimingTests.OnMacOsWhereVulkanRunsOnMoltenVkTheRendererSaysThatItsStampsLatchLate`, which fails on KosmicKrisp because its premise names the operating system where it means the driver. Three choices: keep it as it is, so that it fails on KosmicKrisp; key it to the driver, so that it holds on MoltenVK and says nothing on KosmicKrisp; or make `StampsLatchLate` true on KosmicKrisp too, so that a headless run there prints the note that only the span holds. The test stays as it is until the user chooses.
+- The test that took macOS for MoltenVK is settled (2026-11-04): it is keyed to the driver ("The test that took macOS for MoltenVK").
