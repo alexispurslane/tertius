@@ -140,8 +140,10 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     );
 
     private readonly VulkanDevice device;
-    private readonly DescriptorPool pool;
-    private readonly DescriptorPool texturePool;
+
+    // No handle until the constructor makes the pools, so a Dispose after a refused device destroys none.
+    private readonly SetPool pool = new(default, 0);
+    private readonly SetPool texturePool = new(default, 0);
 
     /// <summary>The descriptors that device limits bound in each set layout that this object made, by handle.</summary>
     private readonly Dictionary<ulong, LimitedDescriptors> setDescriptors = [];
@@ -867,14 +869,14 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         ];
 
     /// <summary>The shared pool, which holds <paramref name="glowSourceSets"/> glow source sets, and the pool of the texture sets.</summary>
-    private (DescriptorPool Shared, DescriptorPool Textures) CreatePools(uint framesInFlight, uint glowSourceSets)
+    private (SetPool Shared, SetPool Textures) CreatePools(uint framesInFlight, uint glowSourceSets)
     {
         uint frames = framesInFlight;
         // The frame sets, the deform sets, the G-buffer, post, atlas, meter, exposure, SMAA, reflection, prefilter,
         // scatter and shadow bounds sets, the two occlusion sets, the glow source sets, the pyramid level sets, the depth tail set,
         // the environment levels sets, the surface test sets, the signal sets and the signal read sets.
         // The reflection sets exist even with reflections off: they cost nothing per frame.
-        DescriptorPool shared = CreatePool(
+        SetPool shared = CreatePool(
             sizes: SharedPoolSizes(frames, glowSourceSets),
             maxSets: 2 * frames
                 + 13
@@ -888,7 +890,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             name: "descriptor pool"
         );
         Span<DescriptorPoolSize> textureSizes = [new(DescriptorType.SampledImage, frames * TextureStore.Capacity)];
-        DescriptorPool textures = CreatePool(
+        SetPool textures = CreatePool(
             sizes: textureSizes,
             maxSets: frames,
             flags: DescriptorPoolCreateFlags.UpdateAfterBindBit,
@@ -1359,7 +1361,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         return layout;
     }
 
-    private DescriptorPool CreatePool(
+    private SetPool CreatePool(
         Span<DescriptorPoolSize> sizes,
         uint maxSets,
         DescriptorPoolCreateFlags flags,
@@ -1385,30 +1387,48 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
                 )
                 .Check("vkCreateDescriptorPool");
             device.SetName(ObjectType.DescriptorPool, created.Handle, name);
-            return created;
+            return new SetPool(created, maxSets);
         }
     }
 
-    private DescriptorSet Allocate(DescriptorPool from, DescriptorSetLayout layout, void* next)
+    /// <summary>
+    /// A set of <paramref name="layout"/> from <paramref name="from"/>. The pool refuses a set past its <c>maxSets</c>
+    /// itself, because the spec lets a driver give one past it or refuse it (ARCHITECTURE.md, "Descriptor pools").
+    /// </summary>
+    /// <exception cref="VulkanException">The pool holds no more sets, or the driver refused one.</exception>
+    private DescriptorSet Allocate(SetPool from, DescriptorSetLayout layout, void* next)
     {
+        if (from.Given == from.MaxSets)
+            throw new VulkanException("vkAllocateDescriptorSets", Result.ErrorOutOfPoolMemory);
         var info = new DescriptorSetAllocateInfo
         {
             SType = StructureType.DescriptorSetAllocateInfo,
             PNext = next,
-            DescriptorPool = from,
+            DescriptorPool = from.Handle,
             DescriptorSetCount = 1,
             PSetLayouts = &layout,
         };
         device.Vk.AllocateDescriptorSets(device.Device, &info, out DescriptorSet set).Check("vkAllocateDescriptorSets");
+        from.Given++;
         return set;
+    }
+
+    /// <summary>A descriptor pool, the most sets that it holds, and the sets that it gave. No set returns to it.</summary>
+    private sealed class SetPool(DescriptorPool handle, uint maxSets)
+    {
+        public DescriptorPool Handle { get; } = handle;
+
+        public uint MaxSets { get; } = maxSets;
+
+        public uint Given { get; set; }
     }
 
     public void Dispose()
     {
         Vk vk = device.Vk;
         // Destroying a pool frees its sets.
-        vk.DestroyDescriptorPool(device.Device, pool, null);
-        vk.DestroyDescriptorPool(device.Device, texturePool, null);
+        vk.DestroyDescriptorPool(device.Device, pool.Handle, null);
+        vk.DestroyDescriptorPool(device.Device, texturePool.Handle, null);
 
         // The tables hold every layout that this object made, also while a refused device stops the constructor.
         foreach (ulong layout in layoutDescriptors.Keys)

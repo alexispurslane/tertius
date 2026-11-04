@@ -83,3 +83,7 @@ On 2026-11-03 the user cleared the open tickets of the pre-temporal renderer, to
 **2026-11-04T13:42:29Z**
 
 2026-11-04, the user, after the orchestrator read the ReSTIR paper: remove the direct light sampling (ReSTIR DI) from the renderer, and shade every light of the main view exactly. The exact-when-few rule of the earlier note is replaced. ter-9nrc removes the sampling. ter-x31x (the sparkle and hot spot of ReSTIR) is closed as obsolete. The user also chose to build tile light lists now (ter-69s8, after ter-9nrc), over a light budget alone. Section 7 of docs/plans/temporal-renderer.md changes with ter-9nrc.
+
+**2026-11-04T14:24:28Z**
+
+2026-11-04, the user: the scene light budget is enforced at runtime by a cap of N lights that the main view keeps, by the shadow budgets' rank, with a fade at the cut (ter-bqun, after ter-9nrc). Tile light lists (ter-69s8) stay deferred.

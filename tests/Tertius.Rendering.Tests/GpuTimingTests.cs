@@ -1,3 +1,5 @@
+using Silk.NET.Vulkan;
+
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
@@ -341,17 +343,26 @@ public sealed class GpuTimingTests
     }
 
     [Fact]
-    public void OnMacOsWhereVulkanRunsOnMoltenVkTheRendererSaysThatItsStampsLatchLate()
+    public void TheRendererSaysThatItsStampsLatchLateOnMoltenVkAndOnNoOtherDriver()
     {
+        // The Mac has two drivers, MoltenVK and KosmicKrisp, so the operating system does not name the driver. A device of
+        // the test's own reads it.
+        DriverId driver;
+        using (var probe = VulkanDevice.Create(validation: false, surfaceExtensions: [], createSurface: null))
+        {
+            driver = probe.Driver;
+        }
+
         VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
         try
         {
             renderer
                 .StampsLatchLate.Should()
                 .Be(
-                    OperatingSystem.IsMacOS(),
-                    "MoltenVK samples each stamp in an encoder of its own that the next pass's work can delay, and the"
-                        + " desktop drivers of Linux latch a stamp when the work before it ends"
+                    driver == DriverId.Moltenvk,
+                    "MoltenVK samples each stamp in an encoder of its own that the next pass's work can delay, the"
+                        + " desktop drivers of Linux latch a stamp when the work before it ends, and KosmicKrisp's stamps"
+                        + " read their encoder's start, early rather than late (ter-dgen)"
                 );
         }
         finally

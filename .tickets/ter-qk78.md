@@ -1,6 +1,6 @@
 ---
 id: ter-qk78
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-11-04T01:46:03Z
@@ -20,3 +20,7 @@ Found in ter-3ug8 (docs/research/temporal-renderer/gpu-calibration.md). The GPU'
 
 2026-11-03 (ter-3ug8's review fix): record the clock over the timed span, not over the whole run. The run's mean holds the setup, which runs at 648 MHz: FSR's batched measurement ran at 1208 MHz over the whole run and at 1257 MHz over its timed batches. The measurement prints the lines timed-start and timed-end around its timed work, and tools/gpu-calibration/analyze.py's span_clock averages gpu-clock's samples between them. Every timing tool takes the GPU lock through tools/gpu-lock.sh, the one helper of the lock, whose waiters take turns in the order in which they came.
 
+
+**2026-11-04T14:04:14Z**
+
+2026-11-04: started as workflow run b918231c-7a42-41bc-8d71-fd4a73fe4341 (version 869b0b07), branch ter-qk78-gpu-clock from ef5ae90c4.

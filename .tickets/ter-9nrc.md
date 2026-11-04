@@ -1,6 +1,6 @@
 ---
 id: ter-9nrc
-status: open
+status: in_progress
 deps: [ter-nmbm]
 links: []
 created: 2026-11-03T19:30:31Z
@@ -36,6 +36,31 @@ Ticket ter-nmbm measured the new passes in Release on the M1 Max with Metal trac
 **2026-11-04T13:42:24Z**
 
 2026-11-04, the user's decision, which replaces the exact-when-few rule of the note above: remove ReSTIR DI. Every light of the main view is shaded exactly, by today's EveryLight path, and it is the only direct path. Reasons: the ReSTIR paper (Bitterli et al. 2020) targets 7,500 to 3.4 million emissive triangles with ray-traced visibility, 32 candidates and a denoiser, and never compares against shading every light; our scenes have tens of lights. In lamp-hall-64, sampling saved 1.5 to 2.2 ms headless at 1280 x 720 (about 0.9 to 1.4 ms at the windowed clock) but put grain over the whole floor, and on demo-exit's deck it cost 2.9 ms more. It also kept a second lighting path and the sparkle bug (ter-x31x, closed as obsolete). The user also chose to build tile light lists now (a new ticket after this one), so that each pixel loops only over the lights near it. This ticket's scope: delete the sampling (ResampledLights and the DirectLightSetting union, the light candidates pass, the reservoirs, the light table's sampling parts, the combine and its shaders, the host option), keep the exact loop, drop the direct signal's history if the image stays the same, measure the cost, and update ARCHITECTURE.md and docs/plans/temporal-renderer.md section 7.
+
+**2026-11-04T14:03:53Z**
+
+2026-11-04, build brief (orchestrator) for workflow run ter-9nrc-remove-light-sampling.
+
+Read first: this ticket's note of 2026-11-04 (the user's decision; it replaces the exact-when-few rule), .tickets/ter-89xq.md's notes of 2026-11-04, ARCHITECTURE.md sections "The direct signal", "ReSTIR DI" and "The order of a rendered frame", and docs/plans/temporal-renderer.md sections 7, 8 and 11 and decisions 28 and 29. Do not reopen the decision. Tile light lists come later in ter-69s8, not here.
+
+Scope:
+1. Delete the sampling: ResampledLights, the DirectLightSetting union and RendererOptions.DirectLight (one behavior needs no setting), the light candidates pass, LightReservoirs, the light table's sampling parts (keep only what the exact loop needs), the spatial combine, their shaders and descriptor bindings, and the host's --direct-light option. Delete or rewrite the tests that only test sampling. Keep every test of the exact loop.
+2. The direct history (settled by the orchestrator): the exact loop keeps one frame (decision 29), so its history equals its sample. Remove the direct signal's accumulation dispatches and its TemporalSignal images, and let the composite and the occlusion depth pass read the direct sample, if the image stays the same. Compare the final images of demo-exit's deck, the cabin and lamp-hall-64 before and after, bit for bit or by FLIP, and explain any difference. Keep TemporalSignal, AccumulatePass and their shaders, because the design gives them to ter-gayt's indirect signals; if they become unused until then, say so in a comment that names ter-gayt. Keep the still rule.
+3. Measure: the deck (time-deck window) and lamp-hall-64's film, at 1280 x 720 and 1920 x 1080, Release, interleaved with the base build in at least 5 rounds, under the GPU lock, with tools/gpu-calibration's gpu-clock beside each run. Report pass times and the frame span with clock and spread, and their estimate at the windowed clock (docs/research/temporal-renderer/gpu-calibration.md).
+4. Screenshots of the deck, the cabin and lamp-hall-64 before and after, from the headless demo, under /private/tmp/9nrc/shots. Look at each and name them in the report.
+5. Docs last: ARCHITECTURE.md (remove "ReSTIR DI", update "The direct signal", the frame order, GPU timings, memory figures), docs/plans/temporal-renderer.md section 7 (the user's decision and reasons; mark decisions 28 and 29 changed, with the date) and section 11, tools/README.md where it names the removed option, and a dated note in this ticket with what was removed, the image comparison and the times.
+
+Red-green TDD for changed behavior (for example the composite reading the sample). Project rules: one store per state, no parallel mechanism, no dead option.
+
+Required checks at the end: nix develop --command dotnet test --solution Tertius.slnx -c Checked just before the last commit, then -c Release. Leave GpuTimingTests' empty-pass skip alone. Coverage and mutation testing stay with the orchestrator. Do not merge and do not close the ticket.
+
+Rules: read CLAUDE.md, STYLE.md and tests/STYLE.md first. Builds and tests run in the dev shell. GPU lock for every timed run: mkdir /tmp/tertius-gpu-measure.lock, wait and retry if it exists, rmdir only your own; screenshots need no lock. Put the base build under /private/tmp/9nrc, not in the repository. Run long commands in the foreground and poll logs in steps under ten minutes. The final message is the stage's JSON report and nothing else. Run every rm as its own command. GNU sed. A ticket that tk creates in a worktree gets renamed to the ter- prefix. Portable Vulkan only.
+
+For the reviewer: no sampling code, setting, binding, shader or test remains; the exact loop's tests survive; the image comparison holds; the direct light has one store; the accumulator stays for ter-gayt; each timed number has clock, spread and lock; the docs match the code.
+
+**2026-11-04T14:03:53Z**
+
+2026-11-04: started as workflow run 95057274-a8ee-48d7-8958-8eac557eb750 (version 869b0b07, title 'ter-9nrc: remove light sampling'), branch ter-9nrc-remove-light-sampling from badb6ac67. The brief is the note above; the run read it from /private/tmp/ter-9nrc-brief.md. The base predates the KosmicKrisp merge (a6aedea6c), which also changed DescriptorLayouts.cs (the shared pool's set counts, including the reservoir sets), so expect a conflict there at integration.
 
 **2026-11-04T14:48:16Z**
 
