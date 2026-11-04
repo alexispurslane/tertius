@@ -150,7 +150,7 @@ public sealed class GpuCalibrationTests
     }
 
     [Fact]
-    public unsafe void FsrReportsItsGpuTimePerFrameWhenEightFramesShareASubmission()
+    public void FsrReportsItsGpuTimePerFrameWhenEightFramesShareASubmission()
     {
         // A measurement: FSR's frames from 1280 x 720 to 1920 x 1080 back to back on the GPU, eight per submission, so
         // that the GPU idles between frames as little as MetalFX's frames in tools/gpu-calibration/metalfx.swift do
@@ -160,53 +160,10 @@ public sealed class GpuCalibrationTests
         const int Batch = 8;
         using var bench = new Fsr3UpscalerTests.Fsr3Bench(new(1280, 720), new(1920, 1080), validation: false);
         bench.FillPattern();
-        Vk vk = bench.Device.Vk;
-        var info = new QueryPoolCreateInfo
-        {
-            SType = StructureType.QueryPoolCreateInfo,
-            QueryType = QueryType.Timestamp,
-            QueryCount = Batch + 1,
-        };
-        vk.CreateQueryPool(device: bench.Device.Device, pCreateInfo: &info, pAllocator: null, pQueryPool: out QueryPool queries)
-            .Check("vkCreateQueryPool");
-        var frames = new List<double>();
-        Span<ulong> stamps = stackalloc ulong[Batch + 1];
-        for (int batch = 0; batch < 45; batch++)
-        {
-            bench.Submit(commandBuffer =>
-            {
-                vk.CmdResetQueryPool(commandBuffer: commandBuffer, queryPool: queries, firstQuery: 0, queryCount: Batch + 1);
-                for (int frame = 0; frame <= Batch; frame++)
-                {
-                    vk.CmdWriteTimestamp2(
-                        commandBuffer: commandBuffer,
-                        stage: PipelineStageFlags2.AllCommandsBit,
-                        queryPool: queries,
-                        query: (uint)frame
-                    );
-                    int draw = batch * Batch + frame;
-                    if (frame < Batch)
-                        bench.Upscaler.Record(commandBuffer, bench.Barriers, bench.Inputs(draw, reset: draw == 0));
-                }
-            });
-            fixed (ulong* data = stamps)
-                vk.GetQueryPoolResults(
-                        device: bench.Device.Device,
-                        queryPool: queries,
-                        firstQuery: 0,
-                        queryCount: Batch + 1,
-                        dataSize: (nuint)((Batch + 1) * sizeof(ulong)),
-                        pData: data,
-                        stride: sizeof(ulong),
-                        flags: QueryResultFlags.Result64Bit | QueryResultFlags.ResultWaitBit
-                    )
-                    .Check("vkGetQueryPoolResults");
-            // The first 8 batches warm the caches and the driver, as the 60 frames of the timing test do.
-            if (batch >= 8)
-                frames.Add(bench.Device.Timestamps.Milliseconds(stamps[0], stamps[Batch]) / Batch);
-        }
 
-        vk.DestroyQueryPool(bench.Device.Device, queries, null);
+        // The first 8 batches warm the caches and the driver, as the 60 frames of the timing test do.
+        double[] frames = [.. BatchedFrameTimes(bench, batches: 45, batchSize: Batch).Skip(8)];
+
         double[] sorted = [.. frames.Order()];
         CultureInfo inv = CultureInfo.InvariantCulture;
         TestContext.Current.TestOutputHelper!.WriteLine(
@@ -219,6 +176,60 @@ public sealed class GpuCalibrationTests
             "frame times, ms: " + string.Join(' ', frames.Select(time => time.ToString("F4", inv)))
         );
         sorted[0].Should().BePositive();
+    }
+
+    /// <summary>
+    /// The mean GPU time in ms of a frame of FSR in each of <paramref name="batches"/> submissions of
+    /// <paramref name="batchSize"/> frames, by the span of the batch's timestamps.
+    /// </summary>
+    private static unsafe double[] BatchedFrameTimes(Fsr3UpscalerTests.Fsr3Bench bench, int batches, int batchSize)
+    {
+        Vk vk = bench.Device.Vk;
+        var info = new QueryPoolCreateInfo
+        {
+            SType = StructureType.QueryPoolCreateInfo,
+            QueryType = QueryType.Timestamp,
+            QueryCount = (uint)batchSize + 1,
+        };
+        vk.CreateQueryPool(device: bench.Device.Device, pCreateInfo: &info, pAllocator: null, pQueryPool: out QueryPool queries)
+            .Check("vkCreateQueryPool");
+        var times = new double[batches];
+        Span<ulong> stamps = stackalloc ulong[batchSize + 1];
+        for (int batch = 0; batch < batches; batch++)
+        {
+            bench.Submit(commandBuffer =>
+            {
+                vk.CmdResetQueryPool(commandBuffer: commandBuffer, queryPool: queries, firstQuery: 0, queryCount: (uint)batchSize + 1);
+                for (int frame = 0; frame <= batchSize; frame++)
+                {
+                    vk.CmdWriteTimestamp2(
+                        commandBuffer: commandBuffer,
+                        stage: PipelineStageFlags2.AllCommandsBit,
+                        queryPool: queries,
+                        query: (uint)frame
+                    );
+                    int draw = batch * batchSize + frame;
+                    if (frame < batchSize)
+                        bench.Upscaler.Record(commandBuffer, bench.Barriers, bench.Inputs(draw, reset: draw == 0));
+                }
+            });
+            fixed (ulong* data = stamps)
+                vk.GetQueryPoolResults(
+                        device: bench.Device.Device,
+                        queryPool: queries,
+                        firstQuery: 0,
+                        queryCount: (uint)batchSize + 1,
+                        dataSize: (nuint)((batchSize + 1) * sizeof(ulong)),
+                        pData: data,
+                        stride: sizeof(ulong),
+                        flags: QueryResultFlags.Result64Bit | QueryResultFlags.ResultWaitBit
+                    )
+                    .Check("vkGetQueryPoolResults");
+            times[batch] = bench.Device.Timestamps.Milliseconds(stamps[0], stamps[batchSize]) / batchSize;
+        }
+
+        vk.DestroyQueryPool(bench.Device.Device, queries, null);
+        return times;
     }
 
     private static void SkipUnlessMeasuring()
