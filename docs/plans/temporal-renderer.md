@@ -26,7 +26,7 @@ The renderer reuses each pixel's light from earlier frames. Every lit surface ge
 - Hand-over band: the roughness range in which the reflection rays hand over to the reuse of the diffuse rays (decision 27).
 - Key: the identity of an object from frame to frame: its entity's slot, its entity's generation and its render part.
 - Ray budget: the rule that says which pixels trace their own rays in a frame.
-- Reservoir: ReSTIR's record of the one light that a pixel chose, with its weight and its count of candidates.
+- Reservoir: ReSTIR's record of the one light that a pixel chose, with its weight and its count of candidates. Removed with ReSTIR DI on 2026-11-04 (`ter-9nrc`).
 - Pre-exposed: multiplied by k = 2^S, the scale of the frame's exposure S in stops, as today (ARCHITECTURE.md, "Pre-exposure").
 
 ## Decisions
@@ -117,9 +117,9 @@ A cap of demodulated light removes the light above `MaxRadiance` times the facto
 flowchart LR
     subgraph CPU
         SN[Snapshot] --> FB[FrameHistory.Begin: still, reset, draw index, previous camera]
-        FR[(Last drawn frame: camera, cut count, placement history, light keys)] --> FB
+        FR[(Last drawn frame: camera, cut count, placement history)] --> FB
         RC[(Render scale controller)] --> FB
-        FB --> BA[SceneBatcher.Prepare: motion rows, light table, light remap]
+        FB --> BA[SceneBatcher.Prepare: motion rows]
         FR --> BA
         BA --> FD[FrameHistory.Drew, after the submission]
         FD --> FR
@@ -134,23 +134,18 @@ flowchart LR
         GB --> ST[Surface test]
         SH[(Surface history)] --> ST
         ST --> SH
-        ST --> RS[Light candidates and direct light]
-        RV[(Reservoirs)] --> RS
-        RS --> RV
-        RS --> AD[Accumulate direct]
-        HD[(Direct history)] --> AD
-        AD --> HD
-        HD --> TR[Screen tracer]
+        GB --> DL[Direct light]
+        DL --> DI[(Direct light's images)]
+        DI --> TR[Screen tracer]
         HI[(Diffuse and specular histories)] --> TR
         ENV[(Environment maps)] --> TR
         TR --> AI[Accumulate diffuse and specular]
         AI --> HI
-        HD --> CO[Composite]
+        DI --> CO[Composite]
         HI --> CO
         CO --> TP[Scatter, haze, transparent]
         TP --> MT[Exposure: meter and adapt step]
         MT --> EB[(Exposure buffer: stops, previous stops)]
-        EB --> AD
         EB --> AI
     end
     subgraph GPU, output size
@@ -162,7 +157,7 @@ flowchart LR
     end
 ```
 
-A box in parentheses is a stock. Each arrow into a stock is a flow that changes it. The arrows from the exposure buffer and from the last drawn frame are reads.
+A box in parentheses is a stock. Each arrow into a stock is a flow that changes it. The arrows from the exposure buffer and from the last drawn frame are reads. Changed on 2026-11-04 (`ter-9nrc`): the light candidates, the reservoirs, the direct history, accumulate direct, the light table and the light keys are gone. The direct pass writes the direct light's two images, which hold this frame's light alone, so they are not a stock that carries light across frames.
 
 | Stock | Owner | What it holds | Written by | Reset |
 |---|---|---|---|---|
@@ -171,7 +166,7 @@ A box in parentheses is a stock. Each arrow into a stock is a flow that changes 
 | Specular history | `TemporalSignal` of the specular signal | Slow and fast history, length, hit distance | Accumulate specular | Every frame reset |
 | Surface history | `SurfaceHistory` | The last frame's geometric normal and roughness at each pixel, and its device depth, which holds its view depth | Surface test | Every frame reset |
 | Reservoirs | `LightReservoirs` | One reservoir per pixel | Light candidates, direct light | Removed on 2026-11-04 (`ter-9nrc`). |
-| The last drawn frame | `FrameHistory` | Its eye, frame id and rotation. Its unjittered projection, root rotation, render size and jitter. Its snapshot's count of cuts. Its placement history: the rows of each keyed instance relative to its eye, its mesh and its deformed copy's place. Its light keys. The count of drawn frames, and the draw index since the last reset | `FrameHistory.Drew`, after the submission | The draw index restarts at 0. The rest stays, so the motion vectors stay exact across a reset |
+| The last drawn frame | `FrameHistory` | Its eye, frame id and rotation. Its unjittered projection, root rotation, render size and jitter. Its snapshot's count of cuts. Its placement history: the rows of each keyed instance relative to its eye, its mesh and its deformed copy's place. The count of drawn frames, and the draw index since the last reset | `FrameHistory.Drew`, after the submission | The draw index restarts at 0. The rest stays, so the motion vectors stay exact across a reset |
 | Kept deformed positions | `DeformPass` | The last frame's position of each deformed vertex | Deformation | Never |
 | FSR's state | `Fsr3Upscaler` | AMD's histories, locks and luminance history at the output size | FSR's dispatches | Every frame reset |
 | Controller's state | `RenderScaleController` | The current render scale, the filtered fixed and per-pixel GPU times, and the scale of each frame in flight by its number | `RenderScaleController.Next` and `Measure` | Never |
@@ -182,7 +177,7 @@ Every render-size history has the render size of the last drawn frame, because e
 Four flows cross the CPU and the GPU:
 
 - `FrameHistory.Begin` runs before batching. It derives the draw's pending state, such as the reset, the draw index and the previous camera relative to this frame's eye. It is the one place of the still and reset rules (section 3, "The frame history").
-- `SceneBatcher.Prepare` joins the snapshot's instances with the record's placement history and writes the frame's motion rows. It also joins the light keys for ReSTIR's remap (sections 3 and 7). Removed on 2026-11-04 (`ter-9nrc`): no light keys. It writes this frame's placements and light keys into the pending state.
+- `SceneBatcher.Prepare` joins the snapshot's instances with the record's placement history and writes the frame's motion rows. It writes this frame's placements into the pending state. Changed on 2026-11-04 (`ter-9nrc`): it no longer joins the light keys for ReSTIR's remap.
 - `FrameHistory.Drew` commits the pending state after the submission.
 - `RenderScaleController.Measure(timings)` reads each finished frame's GPU timings and sets the next render scale (section 4).
 
@@ -196,7 +191,7 @@ Four flows cross the CPU and the GPU:
 | `DirectLight` | `EveryLight`, `ResampledLights(Candidates, SpatialNeighbors)` | `EveryLight`: the exact loop over the light list | `ResampledLights(4, 2)` | Removed on 2026-11-04 (`ter-9nrc`). |
 | `WarmUpFrames` | An integer, 1 to 256 | None. Under the three zero cases a still draws no warm-up draws (section 10) | 32 | Removed on 2026-11-04 (`ter-9nrc`). `ter-gayt` brings it back |
 
-Each union has `Problem`, which `VulkanRenderer.CheckOptions` turns into an `ArgumentOutOfRangeException`, as the settings of today do. The test helpers `Gpu.Headless` and `GpuTesting.Headless` set `NoUpscaling`, `NoScreenTrace` and `EveryLight`, as they set `NoScreenSpaceLight` and `NoReflections` today. So a test's frame keeps no noise and no jitter, and its direct light is exact. Each signal's parameter set follows the settings. Under `EveryLight` with `NoUpscaling`, the direct sample takes all 16 taps and has no noise. So the direct signal then keeps one frame, and its history is its exact sample (section 8).
+Each union has `Problem`, which `VulkanRenderer.CheckOptions` turns into an `ArgumentOutOfRangeException`, as the settings of today do. The test helpers `Gpu.Headless` and `GpuTesting.Headless` set `NoUpscaling` and `NoScreenTrace`, as they set `NoScreenSpaceLight` and `NoReflections` today. So a test's frame keeps no noise and no jitter. Each signal's parameter set follows the settings. Changed on 2026-11-04 (`ter-9nrc`): no `DirectLight` setting is left, because every renderer takes every light exactly, and the direct light keeps no history (section 7).
 
 ## 2. The frame's order
 
@@ -266,7 +261,7 @@ The list follows section 1 of [pass-map.md](../research/temporal-renderer/pass-m
 
 ## 3. Motion vectors and the previous frame's state
 
-A motion vector gives, for each pixel, the place in the last drawn frame's image where the same surface point was. FSR, the surface test, ReSTIR and the accumulators read it. Section 3 of [pass-map.md](../research/temporal-renderer/pass-map.md) lists what the engine lacks today. This section adds each piece.
+A motion vector gives, for each pixel, the place in the last drawn frame's image where the same surface point was. FSR, the surface test and the accumulators read it. ReSTIR read it too, until its removal on 2026-11-04 (`ter-9nrc`). Section 3 of [pass-map.md](../research/temporal-renderer/pass-map.md) lists what the engine lacks today. This section adds each piece.
 
 ### The key of an object
 
@@ -274,7 +269,7 @@ The key of an instance is its entity's slot, its entity's generation and its ren
 
 The builder writes the instances in slot order and each entity's parts in order (ARCHITECTURE.md, "The render snapshot"). So the keys rise strictly along `RenderSnapshot.Instances`. The batcher depends on this order. An instance whose slot and part are not above the ones before it has no identity. One example is a hand-built test snapshot whose instances all keep the default index 0. Such an instance draws as still in the camera's frame. Its previous rows are its rows of this frame, moved by the eye's step since the last frame.
 
-`RenderLight`'s two cases gain `EntityGeneration` too, because ReSTIR keys its lights (section 7).
+`RenderLight`'s two cases gain `EntityGeneration` too, because ReSTIR keys its lights (section 7). Changed on 2026-11-04 (`ter-9nrc`): no pass reads it since ReSTIR's removal, and `ter-nt65` removes it.
 
 ### The placement history
 
@@ -673,7 +668,7 @@ where
 
 - `q` = the hit pixel.
 - `factors` = `materialFactors` of q's surface in this frame's G-buffer.
-- `directDiffuseAt`, `directSpecularAt` = this frame's direct history at q, after "accumulate direct".
+- `directDiffuseAt`, `directSpecularAt` = this frame's direct light at q, from the direct light's two images. Changed on 2026-11-04 (`ter-9nrc`): the direct light keeps no history, and "accumulate direct" is gone.
 - `indirectHistoryAt` = the fast diffuse and specular histories of the last frame at q's previous place, rescaled by the exposure ratio. "How the later bounces settle" below gives the reason for the fast history. Where q fails the surface test, it gives the environment's closed form at q instead: D(n_q) and the map's specular term along q's dominant direction. In a reset frame, no pixel has a history, so every hit takes the closed form.
 - `history.diffuse`, `history.specular` = the two parts of that read.
 - `isReflection` = whether the ray is a reflection ray. A diffuse ray brings only light that leaves the hit alike in every direction, so it leaves out the hit's highlight.
@@ -965,7 +960,7 @@ The box follows the fast history, so during a slow rise the clamp can only lift 
 | `AntiLagShare` | 0.5 | 0.5 | 0.25 |
 | Places | Surface | Surface | Surface and reflected point |
 
-The direct sample has no noise under `EveryLight` with `NoUpscaling` (section 1). The diffuse cap follows the research's starting range of 16 to 32 frames ([signals.md](../research/temporal-renderer/signals.md), section 3). A sharp reflection keeps few frames, because its lag shows. A rough reflection reuses the diffuse rays, so it is as noisy as the diffuse signal and takes the same cap. These values are unmeasured, and ticket 6 tunes them from captures. The diffuse box is wide for a noisy sample, so ticket 6 also tunes it on a lamp that switches on (section 6).
+The direct light has no noise, because the direct pass takes every light exactly, and it keeps no history (section 7, changed on 2026-11-04, `ter-9nrc`). The diffuse cap follows the research's starting range of 16 to 32 frames ([signals.md](../research/temporal-renderer/signals.md), section 3). A sharp reflection keeps few frames, because its lag shows. A rough reflection reuses the diffuse rays, so it is as noisy as the diffuse signal and takes the same cap. These values are unmeasured, and ticket 6 tunes them from captures. The diffuse box is wide for a noisy sample, so ticket 6 also tunes it on a lamp that switches on (section 6).
 
 ### Images
 
@@ -1026,7 +1021,7 @@ internal sealed class TemporalSignal : IDisposable
 
 ### The zero cases
 
-Under `NoScreenTrace`, the tracer and the two indirect accumulations do not run. The composite reads the environment's closed forms with every direction open, as `NoScreenSpaceLight` and `NoReflections` give today. Under `EveryLight` with `NoUpscaling`, the direct cap is 1, so the direct history is the exact sample. So a test frame under the three zero cases depends on its snapshot alone.
+Under `NoScreenTrace`, the tracer and the two indirect accumulations do not run. The composite reads the environment's closed forms with every direction open, as `NoScreenSpaceLight` and `NoReflections` give today. The direct light keeps no history (section 7, changed on 2026-11-04, `ter-9nrc`). So a test frame under the two zero cases depends on its snapshot alone.
 
 ## 9. The composite, the masks and the post passes
 
@@ -1107,7 +1102,7 @@ The cost: at about 10 ms per draw, a still with W = 32 takes about 0.33 s of GPU
 
 ### The tests
 
-Every GPU test of today runs under the three zero cases, `NoUpscaling`, `NoScreenTrace` and `EveryLight`, and keeps its expectations. A test of a deleted pass goes with its pass. Section 12 gives the fate of the three tests that assert no history.
+Every GPU test of today runs under the two zero cases, `NoUpscaling` and `NoScreenTrace`, and keeps its expectations. The third zero case, `EveryLight`, became the only direct light on 2026-11-04 (`ter-9nrc`). A test of a deleted pass goes with its pass. Section 12 gives the fate of the three tests that assert no history.
 
 CPU tests, with no GPU:
 
@@ -1230,7 +1225,7 @@ The docs to edit. Each ticket edits ARCHITECTURE.md as its last step, by the pro
 | "The order of a rendered frame" and "GPU timings" | The new passes and their order | 2 to 5 |
 | "Anti-aliasing" and the post passes | FSR 3.1, its masks, bloom and the tone map after it, the outlines at the output size | 5 |
 | "Pre-exposure" and "The exposure buffer" | `previousStops`, and FSR's pre-exposure | 5 |
-| "Shading" | The direct signal, the composite and ReSTIR DI | 3 |
+| "Shading" | The direct signal, the composite and ReSTIR DI. ReSTIR DI and the direct history were removed on 2026-11-04 (`ter-9nrc`) | 3 |
 | "Local shadows" | The stochastic taps | 5 |
 | "Ambient occlusion" and "Screen-space reflections" | The screen tracer replaces them. The part "The depth pyramid and the trace" moves into it | 4 |
 | [rendering-performance.md](rendering-performance.md) | Decision 8 is superseded | This ticket |
@@ -1291,7 +1286,7 @@ This list proposes the fates. This ticket edits no other ticket.
 | `ter-vcfa` | The design of panel lights | Changed | The same two dependencies move to tickets 5 and 6. Its design reads section 7, "Panel lights". |
 | `ter-m24j` | A cabin panel lamp in a mirror | Changed | Ticket 4 makes it visible in the demo. Its text says that no demo view shows it, because no floor lies below roughness 0.37. Decision 6 turns on reflection rays up to 0.5, the paint of 0.38 included. A lamp's glow is dark in every reflection by today's `glowSent` rule (`frame.glsl`), which the tracer's hits keep. So the paint can reflect a 1.2 m panel as a dark square around the small highlight of its light of 5 cm. It waits for the panel lights of `ter-80o1` (decision 39). |
 | `ter-u5be` | A light cutoff that knows the specular peak | Kept | The light list's reach serves both cases of `DirectLight`. |
-| `ter-qi9z` | Unshadowed lamps light through walls | Kept | ReSTIR keeps the leak of an unshadowed lamp, because its visibility comes from the shadow maps. Its dependency on the closed `ter-0saa` is met. |
+| `ter-qi9z` | Unshadowed lamps light through walls | Kept | ReSTIR keeps the leak of an unshadowed lamp, because its visibility comes from the shadow maps. Since ReSTIR's removal on 2026-11-04 (`ter-9nrc`), the exact loop keeps the same leak, for the same reason. Its dependency on the closed `ter-0saa` is met. |
 | `ter-7l43`, `ter-d7rb` | The stars' diffuse and reflected light | Kept | The tracer's misses read the map and the reflected stars as today's readers do. |
 | `ter-esoe` | Stars defined by their light | Kept | It matters more, because a star of one pixel can fall between samples below a scale of 1 (section 5). |
 | `ter-enp7` | A camera cut in the map's snapshot | Kept | Ticket 2 adds `CameraCuts`, which it can read. |
@@ -1380,7 +1375,7 @@ The design keeps to the Vulkan spec and to what the desktop Linux drivers (NVIDI
 | Need | Where | Why it holds |
 |---|---|---|
 | A seventh color attachment | The G-buffer's motion target | `maxColorAttachments` is 8 on the four drivers and on MoltenVK. Ticket 2 makes the renderer throw `NotSupportedException` at start on a device with fewer, as `OcclusionImages` does for its formats. |
-| Storage images of RGBA16F, RG32UI and R32F | The histories, the reservoirs, the device depth | The spec requires storage support for these formats. |
+| Storage images of RGBA16F, RG32UI and R32F | The histories, the device depth, and the reservoirs until their removal on 2026-11-04 (`ter-9nrc`) | The spec requires storage support for these formats. |
 | Storage images of R8_UINT | The surface test image | `shaderStorageImageExtendedFormats`, which the four drivers offer. Each owner tests the format at the creation of its images, as `OcclusionImages` does. |
 | No subgroup operations and no 16-bit math in FSR | Section 5 | `FFX_SPD_NO_WAVE_OPERATIONS=1` and `FFX_HALF=0`. |
 | NaN | The accumulators | `isnan` and `isinf` test each sample. No pass relies on a clamp of NaN. |
