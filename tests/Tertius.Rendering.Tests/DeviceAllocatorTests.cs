@@ -138,6 +138,30 @@ public sealed unsafe class DeviceAllocatorTests
     }
 
     [Fact]
+    public void AGpuOnlyAllocationGetsNoPointerOnADriverWithOneMemoryTypeAlthoughItsMemoryIsMapped()
+    {
+        using var memory = new TableMemory([UnifiedType]);
+        using var allocator = new DeviceAllocator(memory);
+
+        MemoryAllocation vertices = allocator.Allocate(
+            requirements: Requirements(Kilobytes64, typeBits: 0b1),
+            usage: MemoryUsage.GpuOnly,
+            linear: true,
+            name: "vertices"
+        );
+        MemoryAllocation atlas = allocator.Allocate(
+            requirements: Requirements(DeviceAllocator.BlockSize, typeBits: 0b1),
+            usage: MemoryUsage.GpuOnly,
+            linear: false,
+            name: "atlas"
+        );
+
+        ((nint)vertices.Mapped).Should().Be(0, "a CPU write into GpuOnly memory fails on every driver");
+        ((nint)atlas.Mapped).Should().Be(0, "a dedicated GpuOnly allocation follows the same rule");
+        memory.Live.Should().OnlyContain(live => live.Mapped, "the one type is host-visible");
+    }
+
+    [Fact]
     public void AGpuOnlyAllocationOnMoltenVkTakesTheDeviceLocalOnlyTypeAndStaysUnmapped()
     {
         using var memory = new TableMemory(MoltenVkTypes);
@@ -211,6 +235,110 @@ public sealed unsafe class DeviceAllocatorTests
         memory.Live.Should().ContainSingle().Which.Should().Be(new LiveMemory(Type: 3, Mapped: true));
     }
 
+    [Fact]
+    public void AGpuOnlyResourceThatNoDeviceLocalTypeAllowsTakesTheFirstTypeThatItAllows()
+    {
+        using var memory = new TableMemory(RadvDiscreteTypes);
+        using var allocator = new DeviceAllocator(memory);
+
+        MemoryAllocation vertices = allocator.Allocate(
+            requirements: Requirements(Kilobytes64, typeBits: 0b0100100),
+            usage: MemoryUsage.GpuOnly,
+            linear: true,
+            name: "vertices"
+        );
+
+        ((nint)vertices.Mapped).Should().Be(0, "a GpuOnly allocation gets no address, also in host-visible memory");
+        memory.Live.Should().ContainSingle().Which.Should().Be(new LiveMemory(Type: 2, Mapped: true));
+    }
+
+    [Fact]
+    public void AnUploadThatNoHostVisibleTypeAllowsIsRefused()
+    {
+        using var memory = new TableMemory(MoltenVkTypes);
+        using var allocator = new DeviceAllocator(memory);
+
+        allocator
+            .Invoking(it =>
+                it.Allocate(
+                    requirements: Requirements(Kilobytes64, typeBits: 0b001),
+                    usage: MemoryUsage.Upload,
+                    linear: true,
+                    name: "staging"
+                )
+            )
+            .Should()
+            .Throw<NotSupportedException>();
+        memory.Live.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void AnAllocationWhoseMappingFailsFreesItsMemoryBeforeItThrows()
+    {
+        using var memory = new TableMemory([UnifiedType]) { RefusesMaps = true };
+        using var allocator = new DeviceAllocator(memory);
+
+        allocator
+            .Invoking(it =>
+                it.Allocate(
+                    requirements: Requirements(Kilobytes64, typeBits: 0b1),
+                    usage: MemoryUsage.Upload,
+                    linear: true,
+                    name: "staging"
+                )
+            )
+            .Should()
+            .Throw<VulkanException>();
+        memory.Live.Should().BeEmpty("the memory whose mapping failed is freed");
+        allocator.LiveAllocations.Should().Be(0);
+    }
+
+    [Fact]
+    public void FreeingADedicatedAllocationReleasesItsMemoryAtOnce()
+    {
+        using var memory = new TableMemory(MoltenVkTypes);
+        using var allocator = new DeviceAllocator(memory);
+        MemoryAllocation atlas = allocator.Allocate(
+            requirements: Requirements(DeviceAllocator.BlockSize, typeBits: 0b011),
+            usage: MemoryUsage.GpuOnly,
+            linear: false,
+            name: "atlas"
+        );
+
+        allocator.Free(atlas);
+
+        memory.Live.Should().BeEmpty("a dedicated allocation owns its memory alone");
+    }
+
+    [Fact]
+    public void DisposingTheAllocatorReleasesEveryBlockAndDedicatedAllocation()
+    {
+        using var memory = new TableMemory(MoltenVkTypes);
+        using var allocator = new DeviceAllocator(memory);
+        MemoryRequirements small = Requirements(Kilobytes64, typeBits: 0b011);
+        allocator.Allocate(requirements: small, usage: MemoryUsage.GpuOnly, linear: true, name: "vertices");
+        allocator.Allocate(requirements: small, usage: MemoryUsage.Upload, linear: true, name: "staging");
+        allocator.Allocate(
+            requirements: Requirements(DeviceAllocator.BlockSize, typeBits: 0b011),
+            usage: MemoryUsage.GpuOnly,
+            linear: false,
+            name: "atlas"
+        );
+
+        allocator.Dispose();
+
+        memory.Live.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void FreeingAnAllocationThatTheAllocatorDidNotMakeIsRefused()
+    {
+        using var memory = new TableMemory([UnifiedType]);
+        using var allocator = new DeviceAllocator(memory);
+
+        allocator.Invoking(it => it.Free(default)).Should().Throw<ArgumentException>();
+    }
+
     [Theory]
     [InlineData("one type")]
     [InlineData("MoltenVK")]
@@ -282,6 +410,9 @@ public sealed unsafe class DeviceAllocatorTests
 
         public PhysicalDeviceMemoryProperties Types { get; }
 
+        /// <summary>Whether <see cref="Map"/> fails as a driver out of host memory does.</summary>
+        public bool RefusesMaps { get; init; }
+
         /// <summary>Each live memory's type and whether it is mapped, in the order of allocation.</summary>
         public IReadOnlyList<LiveMemory> Live =>
             [
@@ -305,6 +436,8 @@ public sealed unsafe class DeviceAllocatorTests
                 throw new InvalidOperationException($"vkMapMemory of memory type {type}, which is not host-visible.");
             if (pointer != 0)
                 throw new InvalidOperationException("vkMapMemory of memory that is mapped already.");
+            if (RefusesMaps)
+                throw new VulkanException("vkMapMemory", Result.ErrorMemoryMapFailed);
             pointer = (nint)NativeMemory.Alloc((nuint)size);
             live[memory.Handle] = (type, size, pointer);
             return (byte*)pointer;

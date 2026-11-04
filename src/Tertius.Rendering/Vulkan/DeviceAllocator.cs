@@ -32,11 +32,15 @@ internal readonly struct MemoryAllocation
     public ulong Offset { get; }
     public ulong Size { get; }
 
-    /// <summary>The CPU address of <see cref="Offset"/>, or null for memory that is not host-visible.</summary>
+    /// <summary>The CPU address of <see cref="Offset"/> for an Upload or a Readback, or null for a GpuOnly allocation.</summary>
     public byte* Mapped { get; }
 
     /// <summary>The block or dedicated allocation this came from.</summary>
     internal object Owner { get; }
+
+    /// <summary>This allocation with a null <see cref="Mapped"/>.</summary>
+    internal unsafe MemoryAllocation WithoutAddress() =>
+        new(memory: Memory, offset: Offset, size: Size, mapped: null, owner: Owner);
 }
 
 /// <summary>
@@ -122,9 +126,12 @@ internal sealed unsafe class DeviceAllocator(IDeviceMemory memory) : IDisposable
         {
             ObjectDisposedException.ThrowIf(disposed, this);
             CountTowardFailure(name);
-            return requirements.Size > BlockSize / 2
-                ? AllocateDedicated(size: requirements.Size, type: type, name: name)
-                : AllocateInBlock(requirements: requirements, type: type, linear: linear);
+            MemoryAllocation granted =
+                requirements.Size > BlockSize / 2
+                    ? AllocateDedicated(size: requirements.Size, type: type, name: name)
+                    : AllocateInBlock(requirements: requirements, type: type, linear: linear);
+            // A GpuOnly allocation in mapped memory hides the address, so that a CPU access fails on every driver.
+            return usage == MemoryUsage.GpuOnly ? granted.WithoutAddress() : granted;
         }
     }
 
