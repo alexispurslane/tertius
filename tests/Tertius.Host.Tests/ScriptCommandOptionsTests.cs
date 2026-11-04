@@ -24,6 +24,7 @@ public sealed class ScriptCommandOptionsTests
         ["--cascaded-lights", "2"],
         ["--environment-map", "off"],
         ["--subsurface", "off"],
+        ["--in-flight", "2"],
     ];
 
     public static TheoryData<string[]> AcceptedCommandLines =>
@@ -70,6 +71,8 @@ public sealed class ScriptCommandOptionsTests
                     "off",
                     "--subsurface",
                     "off",
+                    "--in-flight",
+                    "2",
                 ]
             },
         };
@@ -420,6 +423,8 @@ public sealed class ScriptCommandOptionsTests
                 "off",
                 "--subsurface",
                 "off",
+                "--in-flight",
+                "2",
             ],
             out _
         );
@@ -435,6 +440,7 @@ public sealed class ScriptCommandOptionsTests
             CascadedLights = 2,
             EnvironmentMapOff = true,
             SubsurfaceOff = true,
+            CapturesInFlight = true,
         };
         options
             .Should()

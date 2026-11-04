@@ -617,6 +617,75 @@ public sealed class ScriptCommandCaptureTests : IDisposable
     }
 
     [Theory]
+    [InlineData(new string[0], false)]
+    [InlineData(new[] { "--in-flight", "1" }, false)]
+    [InlineData(new[] { "--in-flight", "2" }, true)]
+    public void TheInFlightOptionKeepsTheHeadlessRenderersCapturesInFlightAndOneKeepsTheRenderersDefault(
+        string[] inFlight,
+        bool kept
+    )
+    {
+        string script = ScriptFile(
+            """{ "scene": "lit-box", "window": { "width": 160, "height": 90 }, "steps": [ { "do": "capture", "name": "front" } ] }"""
+        );
+        var settings = new List<bool>();
+
+        int code = ScriptCommand.Run(
+            args: ["--script", script, "--headless", "--out", Out, .. inFlight],
+            scenes: [LitBoxScene],
+            output: output,
+            error: error,
+            createRenderer: options =>
+            {
+                settings.Add(options.CapturesInFlight);
+                return VulkanRenderer.CreateHeadless(options);
+            }
+        );
+
+        code.Should().Be(ScriptCommand.Ok, error.ToString());
+        settings.Should().Equal([kept]);
+    }
+
+    [Fact]
+    public void AFilmWithTwoFramesInFlightWritesTheImagesAndTheReadingsOfAFilmThatWaitsForEachFrame()
+    {
+        string script = ScriptFile(
+            """{ "scene": "lit-box", "window": { "width": 160, "height": 90 }, "steps": [ { "do": "film", "name": "box", "frames": 5, "every": 1 } ] }"""
+        );
+        string waited = Path.Combine(folder, "waited");
+        string inFlight = Path.Combine(folder, "in-flight");
+
+        int waitedCode = ScriptCommand.Run(
+            args: ["--script", script, "--headless", "--out", waited],
+            scenes: [LitBoxScene],
+            output: output,
+            error: error
+        );
+        int inFlightCode = ScriptCommand.Run(
+            args: ["--script", script, "--headless", "--out", inFlight, "--in-flight", "2"],
+            scenes: [LitBoxScene],
+            output: output,
+            error: error
+        );
+
+        waitedCode.Should().Be(ScriptCommand.Ok, error.ToString());
+        inFlightCode.Should().Be(ScriptCommand.Ok, error.ToString());
+        string[] images = [.. Directory.GetFiles(waited, "*.png").Select(Path.GetFileName).Order()!];
+        images.Should().HaveCount(5);
+        Directory.GetFiles(inFlight, "*.png").Select(Path.GetFileName).Order().Should().Equal(images);
+        foreach (string image in images)
+            File.ReadAllBytes(Path.Combine(inFlight, image))
+                .Should()
+                .Equal(File.ReadAllBytes(Path.Combine(waited, image)), $"{image} is the same frame");
+        File.ReadAllText(Path.Combine(inFlight, ScriptCommand.ExposureFile))
+            .Should()
+            .Be(File.ReadAllText(Path.Combine(waited, ScriptCommand.ExposureFile)), "each capture reads its own frame");
+        using var timings = JsonDocument.Parse(File.ReadAllText(Path.Combine(inFlight, ScriptCommand.GpuTimingsFile)));
+        if (timings.RootElement.TryGetProperty("frame", out JsonElement frame))
+            frame.GetProperty("frames").GetInt32().Should().Be(5, "the end of the run hands over the frames in flight");
+    }
+
+    [Theory]
     [InlineData(new string[0], AntiAliasing.Smaa)]
     [InlineData(new[] { "--anti-aliasing", "off" }, AntiAliasing.None)]
     public void TheAntiAliasingOptionChoosesTheAntiAliasingOfTheHeadlessRendererWhichIsTheRenderersDefaultWithoutIt(

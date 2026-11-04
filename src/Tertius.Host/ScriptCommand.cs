@@ -37,6 +37,9 @@ namespace Tertius.Host;
 /// it off.</item>
 /// <item><c>--subsurface on|off</c> keeps the headless renderer's default <see cref="SeparableSubsurface"/>, or turns the
 /// skin scatter off.</item>
+/// <item><c>--in-flight 1|2</c> keeps the headless renderer's default, which waits for each captured frame, or keeps two
+/// frames in flight, as a window does, so that a timed film keeps the GPU at its top clock
+/// (<see cref="RendererOptions.CapturesInFlight"/>).</item>
 /// <item><c>--scene &lt;name&gt; [--speed &lt;factor&gt;] [--record &lt;file&gt;]</c> runs a scene live in a window until you close it.
 /// With <c>--record</c>, the command writes your session to the file as a script that replays it.</item>
 /// </list>
@@ -93,7 +96,7 @@ public static partial class ScriptCommand
     public const string ExposureFile = "exposure.json";
 
     private const string Usage =
-        "Usage: --script <file> --headless --out <folder> [--video none|<file.mkv> [--fps <rate>]] [--size <width>x<height>] [--tone-curve aces|hable] [--screen-space-light off|<meters>] [--screen-space-light-steps <count>] [--bloom on|off] [--reflections on|off] [--anti-aliasing off|smaa] [--local-shadows off|on] [--local-shadow-tiles <count>] [--cascaded-lights <count>] [--environment-map on|off] [--subsurface on|off]  |  --script <file> --out <folder> [--speed <factor>] [--size <width>x<height>]  |  --scene <name> [--speed <factor>] [--record <file>]";
+        "Usage: --script <file> --headless --out <folder> [--video none|<file.mkv> [--fps <rate>]] [--size <width>x<height>] [--tone-curve aces|hable] [--screen-space-light off|<meters>] [--screen-space-light-steps <count>] [--bloom on|off] [--reflections on|off] [--anti-aliasing off|smaa] [--local-shadows off|on] [--local-shadow-tiles <count>] [--cascaded-lights <count>] [--environment-map on|off] [--subsurface on|off] [--in-flight 1|2]  |  --script <file> --out <folder> [--speed <factor>] [--size <width>x<height>]  |  --scene <name> [--speed <factor>] [--record <file>]";
 
     // The value of --video that draws the captures and drops them (Discard), for a run that only times its frames.
     private const string NoVideo = "none";
@@ -123,6 +126,7 @@ public static partial class ScriptCommand
         ("--cascaded-lights", (_, count) => CascadedLightsProblem(count)),
         ("--environment-map", (_, value) => OnOffProblem("--environment-map", value)),
         ("--subsurface", (_, value) => OnOffProblem("--subsurface", value)),
+        ("--in-flight", (_, count) => InFlightProblem(count)),
     ];
 
     // The options that choose the run, each with the problem when a run that does not take it is given it. A command line
@@ -425,6 +429,8 @@ public static partial class ScriptCommand
                 outputFolder: run.Out,
                 playback: playback
             );
+            // The timed span ends when the GPU finished the frames in flight, which their hand-over waits for.
+            playback?.FinishCaptures();
             if (readings.Exposures.Count > 0)
                 output.WriteLine(TimedEnd);
             playback?.Finish();
@@ -470,8 +476,8 @@ public static partial class ScriptCommand
 
     /// <summary>
     /// The playback that draws the captures into <paramref name="target"/> and adds each shown frame to
-    /// <paramref name="readings"/>, or why it cannot start: the video's ffmpeg or folder. It writes
-    /// <see cref="TimedStart"/> to <paramref name="output"/> when the first shown frame has finished.
+    /// <paramref name="readings"/> when its capture is handed over, or why it cannot start: the video's ffmpeg or folder.
+    /// It writes <see cref="TimedStart"/> to <paramref name="output"/> when the first shown frame has finished.
     /// </summary>
     private static Result<HeadlessPlayback, RunFailure> StartPlayback(
         VulkanRenderer renderer,
@@ -490,7 +496,7 @@ public static partial class ScriptCommand
                 size: size,
                 target: target,
                 startVideo: startVideo,
-                rendered: () =>
+                handedOver: () =>
                 {
                     readings.Add(renderer.LastFrameStats);
                     // The timed span starts after the first shown frame, which holds the creation of the pipelines and
@@ -854,6 +860,7 @@ public static partial class ScriptCommand
             CascadedLights = CascadedLightsOf(given.Value("--cascaded-lights")),
             EnvironmentMapOff = given.Value("--environment-map") == "off",
             SubsurfaceOff = given.Value("--subsurface") == "off",
+            CapturesInFlight = given.Value("--in-flight") == "2",
         };
 
     private static string? SpeedProblem(string speed) =>
@@ -897,6 +904,9 @@ public static partial class ScriptCommand
     }
 
     /// <summary>The problem with a switch of the headless renderer, such as <c>--bloom</c>, which takes on or off, or null.</summary>
+    private static string? InFlightProblem(string count) =>
+        count is "1" or "2" ? null : $"--in-flight needs 1 or 2, not '{count}'.";
+
     private static string? OnOffProblem(string option, string value) =>
         value is "on" or "off" ? null : $"{option} needs on or off, not '{value}'.";
 

@@ -65,7 +65,8 @@ internal static class Gpu
         int cascadedLights = 1,
         LocalShadowSetting localShadows = default,
         bool deformation = true,
-        SubsurfaceSetting subsurface = default
+        SubsurfaceSetting subsurface = default,
+        bool capturesInFlight = false
     ) =>
         VulkanRenderer.CreateHeadless(
             new()
@@ -86,6 +87,7 @@ internal static class Gpu
                 CascadedLights = cascadedLights,
                 Deformation = deformation,
                 Subsurface = subsurface,
+                CapturesInFlight = capturesInFlight,
             }
         );
 

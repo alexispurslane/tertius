@@ -18,6 +18,8 @@ internal sealed class TimedRenderer(VulkanRenderer inner) : IRenderer
 
     public void Render(RenderSnapshot snapshot, float alpha) => inner.Render(snapshot, alpha);
 
+    public void FinishCaptures() => inner.FinishCaptures();
+
     public void Resize(int width, int height) => inner.Resize(width, height);
 
     public MeshId CreateMesh(MeshData mesh) => inner.CreateMesh(mesh);

@@ -15,6 +15,14 @@ public sealed class RendererOptions
     /// <summary>How many frames the CPU may record while the GPU still works on earlier ones. 1 to 4.</summary>
     public int FramesInFlight { get; set; } = 2;
 
+    /// <summary>
+    /// Whether a captured frame stays in flight. False: <see cref="VulkanRenderer.Render"/> waits for the captured frame
+    /// and hands its pixels to the sink before it returns, so the GPU idles until the next frame. True: the renderer hands
+    /// them over when it draws the frame's slot again or at <see cref="VulkanRenderer.FinishCaptures"/>, so a run of
+    /// captures keeps <see cref="FramesInFlight"/> frames on the GPU, as a window does. The pixels are the same.
+    /// </summary>
+    public bool CapturesInFlight { get; set; }
+
     /// <summary>Present with FIFO (wait for vertical blank). Otherwise mailbox or immediate. Ignored when headless.</summary>
     public bool VSync { get; set; } = true;
 

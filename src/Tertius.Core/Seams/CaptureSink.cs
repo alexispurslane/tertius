@@ -8,8 +8,9 @@ public interface ICaptureSink
 {
     /// <summary>
     /// Takes the pixels of one captured frame. The renderer calls it inside the <see cref="IRenderer.Render"/> call that
-    /// drew the frame, on the thread that called <c>Render</c>, after the GPU finished the frame. The pixels are valid
-    /// only until this method returns, so a sink that keeps them copies them.
+    /// drew the frame, or for a capture in flight inside a later <c>Render</c> or <see cref="IRenderer.FinishCaptures"/>,
+    /// on the thread of that call, after the GPU finished the frame. The pixels are valid only until this method returns,
+    /// so a sink that keeps them copies them.
     /// </summary>
     void Take(in CapturedImage image);
 }

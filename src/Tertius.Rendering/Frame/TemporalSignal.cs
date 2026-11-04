@@ -73,12 +73,14 @@ internal sealed unsafe class TemporalSignal : IDisposable
         ArgumentOutOfRangeException.ThrowIfLessThan(parts, 1);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(parts, DescriptorLayouts.SignalReadParts);
         CheckDevice(device);
+
         this.device = device;
         this.allocator = allocator;
         this.layouts = layouts;
         this.targets = targets;
         this.surfaces = surfaces;
         this.scratch = scratch;
+
         Name = name;
         Parameters = parameters;
 
@@ -148,6 +150,8 @@ internal sealed unsafe class TemporalSignal : IDisposable
         barriers.Image(targets.Shading, ImageUse.SampledCompute);
         barriers.Image(surfaces.Test, ImageUse.StorageCompute);
         barriers.Image(targets.Motion, ImageUse.StorageCompute);
+
+        // The closed form's material, and the last frame's surfaces of the reflected point's surface test.
         barriers.Image(targets.BaseColor, ImageUse.SampledCompute);
         barriers.Image(targets.Specular, ImageUse.SampledCompute);
         barriers.Image(targets.Emissive, ImageUse.SampledCompute);

@@ -478,8 +478,16 @@ public interface IRenderer : IRenderResources, IDisposable
     /// <summary>
     /// Asks for the pixels of the next frame that <see cref="Render"/> draws. Any thread may call it. That
     /// <c>Render</c> call waits for the frame on the GPU and hands its pixels to <paramref name="sink"/> before it
-    /// returns, on its own thread, once. A frame that the output skips (a minimized window) hands nothing, and the
-    /// request waits for the next frame that draws. A second request before the frame replaces the first.
+    /// returns, on its own thread, once. A renderer that keeps its captures in flight hands them over later instead, on
+    /// the thread of a later <c>Render</c> or of <see cref="FinishCaptures"/>, in the order drawn. A frame that the output
+    /// skips (a minimized window) hands nothing, and the request waits for the next frame that draws. A second request
+    /// before the frame replaces the first.
     /// </summary>
     void CaptureNextFrame(ICaptureSink sink);
+
+    /// <summary>
+    /// Waits for every drawn frame whose capture the renderer still holds, and hands each to its sink, oldest first, on
+    /// the calling thread. A renderer whose captures wait for their frames holds none.
+    /// </summary>
+    void FinishCaptures();
 }

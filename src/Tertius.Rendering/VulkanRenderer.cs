@@ -112,7 +112,14 @@ public sealed unsafe class VulkanRenderer : IRenderer
     private readonly FrameContext context;
     private IWindow? window;
     private Action<Vector2D<int>>? onFramebufferResize;
-    private GpuBuffer? captureBuffer;
+    private readonly bool capturesInFlight;
+
+    // The readback buffer of each frame slot, made at its first capture. A slot reuses its buffer only after it handed
+    // over the capture of its last frame.
+    private readonly GpuBuffer?[] captureBuffers;
+
+    // The capture that the last frame of each slot holds until the renderer hands it over, or null.
+    private readonly SlotCapture?[] slotCaptures;
     private ICaptureSink? pendingCapture;
     private long pendingResize = -1;
     private FrameClock clock;
@@ -130,6 +137,9 @@ public sealed unsafe class VulkanRenderer : IRenderer
     {
         this.device = device;
         this.headless = headless;
+        capturesInFlight = options.CapturesInFlight;
+        captureBuffers = new GpuBuffer?[options.FramesInFlight];
+        slotCaptures = new SlotCapture?[options.FramesInFlight];
         clock = headless ? FrameClock.Film : FrameClock.Window;
         exposureSetting = options.Exposure;
         deformation = options.Deformation;
@@ -465,6 +475,22 @@ public sealed unsafe class VulkanRenderer : IRenderer
         Interlocked.Exchange(ref pendingCapture, sink);
     }
 
+    /// <summary>
+    /// Waits for every frame in flight that holds a capture and hands its pixels to its sink, oldest first, on the calling
+    /// thread. A renderer whose captures wait for their frames (<see cref="RendererOptions.CapturesInFlight"/> false)
+    /// holds none, so it returns at once.
+    /// </summary>
+    public void FinishCaptures()
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        for (long number = Math.Max(0, FrameNumber - frames.Length); number < FrameNumber; number++)
+        {
+            FrameResources frame = frames[number % frames.Length];
+            if (slotCaptures[frame.Index] != null)
+                FinishSlot(frame);
+        }
+    }
+
     public void Render(RenderSnapshot snapshot, float alpha)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
@@ -514,7 +540,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             renderSize: targets.Extent
         );
         ICaptureSink? sink = takeCapture ? Interlocked.Exchange(ref pendingCapture, null) : null;
-        GpuBuffer? capture = sink != null ? CaptureBuffer(image.Extent) : null;
+        GpuBuffer? capture = sink != null ? CaptureBuffer(slot: frame.Index, extent: image.Extent) : null;
         // After the output gave the frame an image, so a skipped frame leaves the map's frame as it is, and before
         // batching, which prepares the faces' views.
         EnvironmentDraw environment = EnvironmentDrawFor(snapshot: snapshot, everyFace: pending.RefreshesEveryFace);
@@ -535,10 +561,11 @@ public sealed unsafe class VulkanRenderer : IRenderer
 
         if (sink != null && capture != null)
         {
-            WaitFor(fence);
-            // The frame has finished, so the stats below describe it (docs/plans/auto-exposure.md, "Writers and readers").
-            Collect(frame);
-            HandOver(sink, capture, image.Extent);
+            slotCaptures[frame.Index] = new(Sink: sink, Buffer: capture, Extent: image.Extent);
+            // A capture that waits for its frame hands it over now. Its frame has finished, so the stats below describe it
+            // (docs/plans/auto-exposure.md, "Writers and readers").
+            if (!capturesInFlight)
+                FinishSlot(frame);
         }
 
         LastFrameStats = StatsOf(
@@ -595,13 +622,18 @@ public sealed unsafe class VulkanRenderer : IRenderer
         };
 
     /// <summary>
-    /// Waits for the last frame that <paramref name="frame"/>'s slot submitted, and collects what it left behind: the
-    /// releases it waited for, its GPU timings, its exposure and its irradiance.
+    /// Waits for the last frame that <paramref name="frame"/>'s slot submitted, collects what it left behind: the
+    /// releases it waited for, its GPU timings, its exposure and its irradiance, and hands over its capture.
     /// </summary>
     private void FinishSlot(FrameResources frame)
     {
         WaitFor(frame.Fence);
         Collect(frame);
+        if (slotCaptures[frame.Index] is not { } capture)
+            return;
+        // Before the sink, which can throw: a capture is handed over once.
+        slotCaptures[frame.Index] = null;
+        HandOver(sink: capture.Sink, buffer: capture.Buffer, extent: capture.Extent);
     }
 
     /// <summary>
@@ -617,6 +649,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
         Exposure.Collect(frame.Index, frame.Number);
         environmentMap?.Collect(frame.Index, frame.Number);
         frame.Staging.Reset();
+        // So that a sink that takes this slot's capture reads the readings of the captured frame.
+        LastFrameStats = LastFrameStats with { GpuTimings = timer.Latest, Exposure = Exposure.Latest };
     }
 
     /// <summary>
@@ -1696,12 +1730,13 @@ public sealed unsafe class VulkanRenderer : IRenderer
         }
     }
 
-    private GpuBuffer CaptureBuffer(Extent2D extent)
+    private GpuBuffer CaptureBuffer(int slot, Extent2D extent)
     {
         ulong size = (ulong)extent.Width * extent.Height * 4;
+        ref GpuBuffer? captureBuffer = ref captureBuffers[slot];
         if (captureBuffer == null || captureBuffer.Size < size)
         {
-            // Only Render uses this buffer and it waits for the capture frame, so the old one is idle.
+            // The slot's last frame finished and handed its capture over, so the old buffer is idle.
             captureBuffer?.Dispose();
             captureBuffer = GpuBuffer.Create(
                 device: device,
@@ -1715,6 +1750,9 @@ public sealed unsafe class VulkanRenderer : IRenderer
 
         return captureBuffer;
     }
+
+    /// <summary>The capture of a slot's last frame: its sink, its readback buffer and the size of the frame.</summary>
+    private readonly record struct SlotCapture(ICaptureSink Sink, GpuBuffer Buffer, Extent2D Extent);
 
     /// <summary>
     /// Hands the pixels of a captured frame, read back into <paramref name="buffer"/>, to <paramref name="sink"/>. Every
@@ -2229,8 +2267,14 @@ public sealed unsafe class VulkanRenderer : IRenderer
 
     private void ReleaseOwned()
     {
-        captureBuffer?.Dispose();
-        captureBuffer = null;
+        // A capture still in flight is dropped with its buffer.
+        for (int slot = 0; slot < captureBuffers.Length; slot++)
+        {
+            captureBuffers[slot]?.Dispose();
+            captureBuffers[slot] = null;
+            slotCaptures[slot] = null;
+        }
+
         // Reverse creation order: passes and frames before the stores and layouts they use, the allocator last.
         while (owned.Count > 0)
         {

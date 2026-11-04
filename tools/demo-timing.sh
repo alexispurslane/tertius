@@ -3,11 +3,13 @@
 # lock through tools/gpu-lock.sh and beside gpu-clock through tools/gpu-clock.sh. Run it inside the dev shell:
 #   nix develop --command bash tools/demo-timing.sh <out folder> <script.json> [demo options]
 #   nix develop --command bash tools/demo-timing.sh captures/gpu-branch scripts/demo-exit.json --size 1920x1080
+#   nix develop --command bash tools/demo-timing.sh captures/deck deck-120.json --size 1280x720 --in-flight 2
 # Run it from the checkout whose demo it times. It builds the demo in Release and runs the built binary with --headless
 # --out <out folder> --video none and the demo options, so the run holds no build. The run's output goes to
 # <out folder>/run.log. The script writes the clock over the run's timed span into <out folder>/gpu-timings.json as
 # "gpuClock", and prints the GPU lines of the run: one per pass, the frame span and the clock. tools/gpu_clock.py compare
-# compares two such runs. A demo from before ter-qk78 prints no markers, so its clock is unknown.
+# compares two such runs. A demo from before ter-qk78 prints no markers, so its clock is unknown. With --in-flight 2, the
+# demo keeps two frames on the GPU, so that the GPU does not idle between frames and can reach its top clock.
 set -uo pipefail
 
 usage="usage: tools/demo-timing.sh <out folder> <script.json> [demo options]"

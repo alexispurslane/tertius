@@ -371,6 +371,17 @@ public sealed class ScriptCommandTests : IDisposable
     )]
     [InlineData("--subsurface applies to a headless run", "--scene", "no-such-scene", "--subsurface", "off")]
     [InlineData(
+        "--in-flight needs 1 or 2, not '3'",
+        "--script",
+        "script.json",
+        "--headless",
+        "--out",
+        "out",
+        "--in-flight",
+        "3"
+    )]
+    [InlineData("--in-flight applies to a headless run", "--script", "script.json", "--out", "out", "--in-flight", "2")]
+    [InlineData(
         "--subsurface needs on or off, not 'waxy'",
         "--script",
         "script.json",

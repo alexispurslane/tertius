@@ -580,6 +580,15 @@ So a difference between two builds' estimates below about 8 % says nothing about
 nix develop --command bash tools/demo-timing.sh captures/gpu-branch scripts/demo-exit.json --size 1920x1080
 ```
 
+A headless run waits for each captured frame, so its GPU idles between frames. At 1280 × 720, the deck then runs far below the top clock. The demo option `--in-flight 2` keeps two frames on the GPU, as a window does, and the film's images and exposures stay the same. Make the 120 frames of the deck from frame 399 with `gpu-trace.py trim` (see "GPU calibration"), and time them:
+
+```bash
+nix develop --command python3 -I tools/gpu-trace.py trim scripts/demo-exit.json 399 120 /private/tmp/deck-120.json
+nix develop --command bash tools/demo-timing.sh captures/deck /private/tmp/deck-120.json --size 1280x720 --in-flight 2
+```
+
+On 2026-11-04 (ter-gayt), one run that waited for each frame ran at 683.0 MHz, with a mean frame span of 13.011 ms. Three runs with `--in-flight 2` ran at 1293.2, 1276.0 and 1275.4 MHz, all within the tolerance of the top clock (see "Comparing two runs"). Their mean frame spans were 7.769, 7.765 and 7.759 ms.
+
 `tools/gpu_clock.py compare` compares two such runs. It prints the check of the two clocks, then the mean frame span and the mean of each pass of each run, with their difference and their estimates at the windowed clock:
 
 ```bash
