@@ -1,6 +1,6 @@
 ---
 id: ter-abun
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-10-26T21:23:47Z
@@ -43,3 +43,7 @@ Merged (b2bcb027). Two tests now, one per promise of 'GPU timings', each on the 
 **2026-11-04T01:00:00Z**
 
 2026-11-03: skipped with `[Fact(Skip = ...)]` at the user's request, until this ticket fixes it. The fix removes the skip.
+
+**2026-11-04T11:54:12Z**
+
+2026-11-04: started as a workflow, run c81f71df-e136-4251-b500-d591a04ecab3 (version 869b0b07), branch ter-abun-stable-empty-pass from 730f94b8e.
