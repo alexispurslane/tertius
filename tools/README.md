@@ -473,6 +473,56 @@ It prints the same two readings of the 10th percentile, and the least, median an
 
 The rotation gives each build the same predecessor in most runs. So an effect of one run on the next mixes with the effect of the build. A Williams design, an order that gives each build every predecessor equally often, removes this. The tool does not use one yet.
 
+## GPU calibration
+
+`tools/gpu-calibration/` holds tool code that measures what the development Mac's GPU can do, apart from the engine's passes. Ticket `ter-3ug8` wrote it, and `docs/research/temporal-renderer/gpu-calibration.md` holds its results. It does not ship, and no engine code depends on it. It runs only on macOS.
+
+| File | What it does |
+|---|---|
+| `probes.swift` | The native Metal probes: FMAs in an unrolled and a rolled loop, cached and streamed texture samples, and buffer reads. Each checks its result against the CPU. It also times the FMA probe cold, after a sustained load, and as a short pulse every 20 ms. |
+| `metalfx.swift` | Times Apple's MetalFX temporal upscaler from 1280 × 720 to 1920 × 1080 on the inputs of FSR's timing test. Each frame has its own command buffer, with an optional gap after it. |
+| `gpu-clock.c` | Samples the GPU's performance states through IOReport while a command runs, and prints the mean clock over the active time. It needs no root. |
+| `kernel-code.swift` | Serializes each kernel of a Metal source file into a binary archive with this GPU's native code. |
+| `count.sh` | Counts the FMAs, samples and loads of each probe in SPIR-V, in AIR and in the size of the native code. |
+| `locked.sh` | Runs one command under the GPU lock, records uptime at its start and its end, and removes the lock on any exit. |
+| `rounds.sh` | One round of the calibration runs in a rotated order, each under `locked.sh` and beside `gpu-clock`. |
+| `analyze.py` | The tables of the rounds: probes, clocks, the pulse, the upscalers and the demo's frame spans. |
+
+The Vulkan twins of the probes are `GpuCalibrationTests` in `tests/Tertius.Rendering.Tests`. Their checks against the CPU run in every test run. Their measurements run only with `TERTIUS_GPU_CALIBRATION=1`, as FSR's timing test runs only with `TERTIUS_FSR_TIMING=1`.
+
+The native tools use Xcode's command line tools outside the dev shell, because the dev shell hides Xcode's Metal toolchain from `xcrun`. `count.sh` also needs the Metal toolchain component (`xcodebuild -downloadComponent MetalToolchain`). Build them from the worktree root:
+
+```bash
+mkdir -p captures/3ug8/bin
+xcrun swiftc -O -o captures/3ug8/bin/probes tools/gpu-calibration/probes.swift -framework Metal
+xcrun swiftc -O -o captures/3ug8/bin/metalfx tools/gpu-calibration/metalfx.swift -framework Metal -framework MetalFX
+xcrun swiftc -O -o captures/3ug8/bin/kernel-code tools/gpu-calibration/kernel-code.swift -framework Metal
+xcrun clang -O2 -o captures/3ug8/bin/gpu-clock tools/gpu-calibration/gpu-clock.c -framework CoreFoundation -framework IOKit -lIOReport
+```
+
+Then build the Release test project and demo, and the 120 frames of demo-exit's deck, in the dev shell:
+
+```bash
+nix develop --command bash -c 'dotnet build tests/Tertius.Rendering.Tests -c Release && dotnet build src/Tertius.Demo -c Release'
+nix develop --command python3 -I tools/gpu-trace.py trim scripts/demo-exit.json 399 120 captures/3ug8/deck-120.json
+```
+
+Run at least 5 rounds, then the tables:
+
+```bash
+for round in $(seq 0 6); do nix develop --command bash tools/gpu-calibration/rounds.sh $round captures/3ug8/rounds; done
+python3 -I tools/gpu-calibration/analyze.py captures/3ug8/rounds
+```
+
+To count the work in each probe, dump MoltenVK's MSL from a run of the Vulkan checks, then count outside the dev shell:
+
+```bash
+nix develop --command bash -c 'MVK_CONFIG_SHADER_DUMP_DIR=$PWD/captures/3ug8/mvk-dump tests/Tertius.Rendering.Tests/bin/Release/net11.0/Tertius.Rendering.Tests -class Tertius.Rendering.Tests.GpuCalibrationTests'
+bash tools/gpu-calibration/count.sh captures/3ug8/mvk-dump captures/3ug8/counts
+```
+
+`gpu-clock 100 <command>` works beside any run, such as a timed demo run. Its clock is the mean over the time that the GPU was not off, which includes short idle times between command buffers.
+
 ## GPU trace
 
 `tools/gpu-trace.sh` records a Metal System Trace of a headless demo run, and writes a table of each pass's GPU time and limiters. It runs only on macOS, with Xcode's `xctrace` (27.0 on the development Mac). No engine code depends on it: the GPU timings of a headless run (ARCHITECTURE.md, "GPU timings") work on every Vulkan driver, and this script adds why a pass takes its time.
