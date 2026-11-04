@@ -1,5 +1,4 @@
 using System.Globalization;
-using Silk.NET.Vulkan;
 
 namespace Tertius.Rendering.Tests;
 
