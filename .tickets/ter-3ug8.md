@@ -1,6 +1,6 @@
 ---
 id: ter-3ug8
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-11-03T23:05:27Z
@@ -88,3 +88,7 @@ Results:
 
 Tools: tools/gpu-lock.sh replaces locked.sh as the one helper of the GPU lock, with waiters in the order in which they came, and time-round.sh uses it. analyze.py prints the window, upscaler and probe tables, with numbers compared as numbers. upscalers.sh replaces the scratch driver. The binaries live in captures/gpu-calibration/bin. The test project compiles its two sets of test shaders with one target pair. ter-scm7 is folded into ter-dzxf, which already owned the unrolled step loop. Raw data: captures/3ug8/ (variants/, fsr-trace/, fsr-dump/, fsr-counts/, pass-dump/, pass-counts/, upscalers-2/).
 
+
+**2026-11-04T12:01:10Z**
+
+2026-11-04: merged into main as d7fe2b7a. The branch changes no file under src/ or analyzers/ against its base 2ca2a841e, so coverage and mutation testing do not apply.
