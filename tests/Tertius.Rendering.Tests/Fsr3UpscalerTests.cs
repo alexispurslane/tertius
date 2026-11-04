@@ -769,7 +769,6 @@ public sealed class Fsr3UpscalerTests
             try
             {
                 double[] times = new double[batches];
-                Span<ulong> stamps = stackalloc ulong[batchSize + 1];
                 for (int batch = 0; batch < batches; batch++)
                 {
                     int firstDraw = (firstBatch + batch) * batchSize;
@@ -794,19 +793,7 @@ public sealed class Fsr3UpscalerTests
                                 Upscaler.Record(commandBuffer, Barriers, Inputs(draw, reset: draw == 0));
                         }
                     });
-                    fixed (ulong* data = stamps)
-                        vk.GetQueryPoolResults(
-                                device: Device.Device,
-                                queryPool: queries,
-                                firstQuery: 0,
-                                queryCount: stampCount,
-                                dataSize: stampCount * sizeof(ulong),
-                                pData: data,
-                                stride: sizeof(ulong),
-                                flags: QueryResultFlags.Result64Bit | QueryResultFlags.ResultWaitBit
-                            )
-                            .Check("vkGetQueryPoolResults");
-                    times[batch] = Device.Timestamps.Milliseconds(stamps[0], stamps[batchSize]) / batchSize;
+                    times[batch] = MillisecondsFromFirstToLastStamp(queries, stampCount) / batchSize;
                 }
 
                 return times;
@@ -815,6 +802,29 @@ public sealed class Fsr3UpscalerTests
             {
                 vk.DestroyQueryPool(Device.Device, queries, null);
             }
+        }
+
+        /// <summary>
+        /// The time in ms from the first of the <paramref name="stampCount"/> timestamps of <paramref name="queries"/> to
+        /// the last.
+        /// </summary>
+        private double MillisecondsFromFirstToLastStamp(QueryPool queries, uint stampCount)
+        {
+            Span<ulong> stamps = stackalloc ulong[(int)stampCount];
+            fixed (ulong* data = stamps)
+                Device
+                    .Vk.GetQueryPoolResults(
+                        device: Device.Device,
+                        queryPool: queries,
+                        firstQuery: 0,
+                        queryCount: stampCount,
+                        dataSize: stampCount * sizeof(ulong),
+                        pData: data,
+                        stride: sizeof(ulong),
+                        flags: QueryResultFlags.Result64Bit | QueryResultFlags.ResultWaitBit
+                    )
+                    .Check("vkGetQueryPoolResults");
+            return Device.Timestamps.Milliseconds(stamps[0], stamps[^1]);
         }
 
         /// <summary>The output's pixels, row by row.</summary>
