@@ -1,6 +1,6 @@
 ---
 id: ter-r88x
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-11-04T17:28:26Z
@@ -23,3 +23,7 @@ Found in ter-q58r on 2026-11-04: during one timed run, tools/gpu-lock.sh printed
 **2026-11-04T19:05:31Z**
 
 2026-11-04: a second consequence, found in ter-q58r and first written in ter-ty4s, which duplicates this ticket. The EXIT trap of tools/gpu-lock.sh runs rmdir on the lock path whenever held=1, even when the lock vanished and another run took it since. So a run whose lock was removed then removes the next holder's lock in turn, and the class of bug spreads from one wrong release to the next run. The fix of this ticket must cover the helper's own release too: it removes the lock only when the lock's record is its own, and it writes a line into the run's log when its lock vanished or belongs to another run, so that the run's timing can be discarded.
+
+**2026-11-04T20:08:12Z**
+
+2026-11-04: started as a workflow, run 9a5cc5f9-05a2-42e6-acbe-cd8ad0ea42ef (version 869b0b07), branch ter-r88x-gpu-lock-holder from 93e46dd7f, Opus builder at high, Opus reviewer at xhigh. Settled: the lock stays the mkdir directory with the queue; the holder writes a record (process id, its start time, a token, a label) into it; every release removes only its own lock and logs a vanished or foreign lock; a waiter clears only a lock whose holder process is gone, race-safe; a lock without a record is never cleared; old and new helpers exclude each other during the change; no take/release form; tests use temp paths through environment variables, never the real lock.
