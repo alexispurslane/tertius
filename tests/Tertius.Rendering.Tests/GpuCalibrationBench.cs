@@ -90,7 +90,7 @@ internal static class CalibrationReference
         Span<float> components = stackalloc float[4];
         for (int chain = 0; chain < Chains; chain++)
         {
-            float x = start + (chain % 4) * 0.125f + (chain / 4) * 0.5f;
+            float x = start + chain % 4 * 0.125f + chain / 4 * 0.5f;
             for (uint step = 0; step < iterations; step++)
                 x = MathF.FusedMultiplyAdd(x, A, B);
             components[chain % 4] += x;
@@ -403,7 +403,13 @@ internal sealed unsafe class CalibrationBench : IDisposable
         {
             int slot = index % InFlight;
             Fence wait = fences[slot];
-            vk.WaitForFences(device: Device.Device, fenceCount: 1, pFences: &wait, waitAll: true, timeout: ulong.MaxValue)
+            vk.WaitForFences(
+                    device: Device.Device,
+                    fenceCount: 1,
+                    pFences: &wait,
+                    waitAll: true,
+                    timeout: ulong.MaxValue
+                )
                 .Check("vkWaitForFences");
             vk.ResetFences(Device.Device, 1, &wait).Check("vkResetFences");
             CommandBuffer commandBuffer = buffers[slot];
@@ -416,11 +422,22 @@ internal sealed unsafe class CalibrationBench : IDisposable
             vk.QueueSubmit(queue: Device.Queue, submitCount: 1, pSubmits: &submit, fence: wait).Check("vkQueueSubmit");
         }
 
-        vk.WaitForFences(device: Device.Device, fenceCount: InFlight, pFences: fences, waitAll: true, timeout: ulong.MaxValue)
+        vk.WaitForFences(
+                device: Device.Device,
+                fenceCount: InFlight,
+                pFences: fences,
+                waitAll: true,
+                timeout: ulong.MaxValue
+            )
             .Check("vkWaitForFences");
         for (int slot = 0; slot < InFlight; slot++)
             vk.DestroyFence(Device.Device, fences[slot], null);
-        vk.FreeCommandBuffers(device: Device.Device, commandPool: pool, commandBufferCount: InFlight, pCommandBuffers: buffers);
+        vk.FreeCommandBuffers(
+            device: Device.Device,
+            commandPool: pool,
+            commandBufferCount: InFlight,
+            pCommandBuffers: buffers
+        );
     }
 
     public void Dispose()
@@ -495,7 +512,12 @@ internal sealed unsafe class CalibrationBench : IDisposable
                 size: (uint)probe.Push.Length,
                 pValues: push
             );
-        vk.CmdDispatch(commandBuffer: commandBuffer, groupCountX: probe.Groups.X, groupCountY: probe.Groups.Y, groupCountZ: 1);
+        vk.CmdDispatch(
+            commandBuffer: commandBuffer,
+            groupCountX: probe.Groups.X,
+            groupCountY: probe.Groups.Y,
+            groupCountZ: 1
+        );
         if (stamped)
             vk.CmdWriteTimestamp2(
                 commandBuffer: commandBuffer,
@@ -541,7 +563,12 @@ internal sealed unsafe class CalibrationBench : IDisposable
             .Check("vkWaitForFences");
         double wall = Stopwatch.GetElapsedTime(start).TotalMilliseconds;
         vk.ResetFences(Device.Device, 1, &wait).Check("vkResetFences");
-        vk.FreeCommandBuffers(device: Device.Device, commandPool: pool, commandBufferCount: 1, pCommandBuffers: &commandBuffer);
+        vk.FreeCommandBuffers(
+            device: Device.Device,
+            commandPool: pool,
+            commandBufferCount: 1,
+            pCommandBuffers: &commandBuffer
+        );
         return wall;
     }
 
@@ -582,7 +609,7 @@ internal sealed unsafe class CalibrationBench : IDisposable
                 words[index * 4L + 3] = w;
             }
         );
-        GpuBuffer source = GpuBuffer.Create(
+        var source = GpuBuffer.Create(
             device: Device,
             allocator: allocator,
             size: bytes,
@@ -629,7 +656,7 @@ internal sealed unsafe class CalibrationBench : IDisposable
                     texels[((long)y * side + x) * 4 + channel] = CalibrationReference.Texel(x, y, channel);
             }
         );
-        GpuImage image = GpuImage.Create(
+        var image = GpuImage.Create(
             device: Device,
             allocator: allocator,
             extent: new((uint)side, (uint)side),
@@ -689,7 +716,10 @@ internal sealed unsafe class CalibrationBench : IDisposable
         if (source is not null)
             writes[count++] = Write(set, binding: 1, DescriptorType.StorageBuffer) with { PBufferInfo = &sourceInfo };
         if (image is not null)
-            writes[count++] = Write(set, binding: 2, DescriptorType.CombinedImageSampler) with { PImageInfo = &imageInfo };
+            writes[count++] = Write(set, binding: 2, DescriptorType.CombinedImageSampler) with
+            {
+                PImageInfo = &imageInfo,
+            };
         vk.UpdateDescriptorSets(
             device: Device.Device,
             descriptorWriteCount: count,

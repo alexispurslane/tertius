@@ -181,9 +181,7 @@ public sealed class GpuCalibrationTests
                 $"FSR 3.1 in batches of {Batch} from 1280 x 720 to 1920 x 1080 on {bench.Device.DeviceName}: median {sorted[sorted.Length / 2]:F3} ms, 10th percentile {sorted[sorted.Length / 10]:F3} ms, 90th percentile {sorted[sorted.Length * 9 / 10]:F3} ms over {sorted.Length} batches"
             )
         );
-        output.WriteLine(
-            "frame times, ms: " + string.Join(' ', frames.Select(time => time.ToString("F4", inv)))
-        );
+        output.WriteLine("frame times, ms: " + string.Join(' ', frames.Select(time => time.ToString("F4", inv))));
         sorted[0].Should().BePositive();
     }
 
@@ -206,15 +204,25 @@ public sealed class GpuCalibrationTests
             QueryType = QueryType.Timestamp,
             QueryCount = (uint)batchSize + 1,
         };
-        vk.CreateQueryPool(device: bench.Device.Device, pCreateInfo: &info, pAllocator: null, pQueryPool: out QueryPool queries)
+        vk.CreateQueryPool(
+                device: bench.Device.Device,
+                pCreateInfo: &info,
+                pAllocator: null,
+                pQueryPool: out QueryPool queries
+            )
             .Check("vkCreateQueryPool");
-        var times = new double[batches];
+        double[] times = new double[batches];
         Span<ulong> stamps = stackalloc ulong[batchSize + 1];
         for (int batch = 0; batch < batches; batch++)
         {
             bench.Submit(commandBuffer =>
             {
-                vk.CmdResetQueryPool(commandBuffer: commandBuffer, queryPool: queries, firstQuery: 0, queryCount: (uint)batchSize + 1);
+                vk.CmdResetQueryPool(
+                    commandBuffer: commandBuffer,
+                    queryPool: queries,
+                    firstQuery: 0,
+                    queryCount: (uint)batchSize + 1
+                );
                 for (int frame = 0; frame <= batchSize; frame++)
                 {
                     vk.CmdWriteTimestamp2(
@@ -247,13 +255,11 @@ public sealed class GpuCalibrationTests
         return times;
     }
 
-    private static void SkipUnlessMeasuring()
-    {
+    private static void SkipUnlessMeasuring() =>
         Assert.SkipUnless(
             Environment.GetEnvironmentVariable(TimingVariable) == "1",
             $"Set {TimingVariable}=1 to measure the probes."
         );
-    }
 
     // One line in the format of the native probes, which tools/gpu-calibration/analyze.py reads, then every time.
     private static void Report(
@@ -264,7 +270,8 @@ public sealed class GpuCalibrationTests
         (double Gpu, double Wall)[] times
     )
     {
-        static double At(double[] sorted, double fraction) => sorted[Math.Min(sorted.Length - 1, (int)(sorted.Length * fraction))];
+        static double At(double[] sorted, double fraction) =>
+            sorted[Math.Min(sorted.Length - 1, (int)(sorted.Length * fraction))];
         double[] gpu = [.. times.Select(time => time.Gpu).Order()];
         double[] wall = [.. times.Select(time => time.Wall).Order()];
         double median = At(gpu, 0.5);

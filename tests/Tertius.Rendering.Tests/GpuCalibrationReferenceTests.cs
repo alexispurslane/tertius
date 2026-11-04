@@ -28,7 +28,10 @@ public sealed class GpuCalibrationReferenceTests
         {
             float fused = CalibrationReference.Fma(id, iterations: 1024);
             float unfused = UnfusedFma(id, iterations: 1024);
-            MathF.Abs(fused - unfused).Should().BeLessThanOrEqualTo(CalibrationReference.FmaTolerance * MathF.Abs(fused));
+            MathF
+                .Abs(fused - unfused)
+                .Should()
+                .BeLessThanOrEqualTo(CalibrationReference.FmaTolerance * MathF.Abs(fused));
         }
     }
 
@@ -36,7 +39,7 @@ public sealed class GpuCalibrationReferenceTests
     public void TheTextureProbesCheckTellsAResultThatSkippedOneSampleFromTheFullResult()
     {
         // Every texel channel is at least 64 / 255, so every sample adds at least 1.
-        TextureWalk walk = TextureWalk.Cached(side: 32, gridX: 4096, gridY: 256, samples: 512);
+        var walk = TextureWalk.Cached(side: 32, gridX: 4096, gridY: 256, samples: 512);
         for (int y = 0; y < 32; y++)
         for (int x = 0; x < 32; x++)
             CalibrationReference
@@ -52,7 +55,7 @@ public sealed class GpuCalibrationReferenceTests
     {
         // A bilinear sample at a corner of even coordinates reads the 2 x 2 texels up and left of it, and those blocks
         // tile the image. So each texel feeds one sample when the walk visits every even corner exactly once.
-        TextureWalk walk = TextureWalk.Streamed(side, gridY);
+        var walk = TextureWalk.Streamed(side, gridY);
         int corners = side / 2;
         var visited = new System.Collections.BitArray(corners * corners);
         long visits = 0;
@@ -81,7 +84,7 @@ public sealed class GpuCalibrationReferenceTests
         Span<float> components = stackalloc float[4];
         for (int chain = 0; chain < CalibrationReference.Chains; chain++)
         {
-            float x = start + (chain % 4) * 0.125f + (chain / 4) * 0.5f;
+            float x = start + chain % 4 * 0.125f + chain / 4 * 0.5f;
             for (uint step = 0; step < iterations; step++)
             {
                 float product = x * CalibrationReference.A;
