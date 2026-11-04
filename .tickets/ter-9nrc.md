@@ -5,7 +5,7 @@ deps: [ter-nmbm]
 links: []
 created: 2026-11-03T19:30:31Z
 type: task
-priority: 2
+priority: 1
 assignee: Alexis Purslane
 parent: ter-89xq
 tags: [rendering, temporal, performance]
@@ -28,3 +28,7 @@ Ticket ter-nmbm measured the new passes in Release on the M1 Max with Metal trac
 **2026-11-04T02:58:15Z**
 
 2026-11-03, the fix stage of ter-nmbm's continuation: the hall, lamp-hall-64's film from frame 1, re-measured on the final build 25f1f9485 against the base c6572ca3d, 3 interleaved traces each, warm-up corrected. At 1280 x 720 the branch's light candidates + direct light + accumulate direct + composite take 3.51 to 3.77 ms (1.13-1.21, 1.47-1.58, 0.72-0.77, 0.19-0.21) against the base's direct + ambient light of 5.21 to 5.98 ms, and the frame mean 9.29 to 9.71 ms against 10.77 to 11.92 ms. At 1920 x 1080: 6.33 to 6.88 ms against 7.89 to 8.89 ms, and the frame 13.88 to 14.83 against 14.82 to 16.31 ms. So the hall's saving fell from about 4 ms (first build, biased combine) to about 1.5 to 2.2 ms at 1280 x 720. The deck stays this ticket's acceptance view: there the four passes cost about 4.9 ms + 1.2 ms against a budget of 0.6 to 1.3 + 0.15 to 0.30 ms. Files: /private/tmp/nmbm4 (builds.txt, traces.txt, traces.md).
+
+**2026-11-04T13:20:55Z**
+
+2026-11-04, the user's decision (see ter-89xq's note of the same day): the first change of this ticket is the rule 'exact lights when they are few'. One model: each light of the main view is exact or sampled, and LightTable decides once per frame on the CPU. A light is exact when it holds a cascade set (as today) or when the main view keeps at most N lights. A frame with no sampled light runs no light candidates pass and no reservoir reuse, and the direct pass shades every light exactly, as EveryLight does now; EveryLight becomes the same rule with no limit. N comes from measurement: the light count at which the two costs cross, from a sweep of a scene with n lamps (n = 1, 2, 3, ... 16) plus demo-exit's deck and lamp-hall-64, at 1280 x 720 under the GPU lock with gpu-clock beside each run. The switch when the count crosses N: an exact frame's sample is already the converged light, so its history can count as full length; measure whether the switch needs a margin against flicker. Left out until a scene needs it: a per-tile or per-pixel count (the renderer has one light list per frame and no tile light lists). The invariant 'every exact light holds a cascade set' becomes 'every light with a cascade set is exact'. Expected on the deck, from the old measurements: the exact loop took 3.35 to 3.63 ms with the old ambient pass, against 6.34 to 6.49 ms for the four sampled passes (headless, 1280 x 720), about 1.3 to 2.0 ms at the windowed clock. The other candidates of this ticket (one accumulation dispatch for both parts, a surface key image, the combine's neighbor reads) stay, for scenes that sample. The user's frame target is 12 ms (ter-89xq). Priority 1.
