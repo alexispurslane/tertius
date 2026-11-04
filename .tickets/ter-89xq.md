@@ -87,3 +87,7 @@ On 2026-11-03 the user cleared the open tickets of the pre-temporal renderer, to
 **2026-11-04T14:24:28Z**
 
 2026-11-04, the user: the scene light budget is enforced at runtime by a cap of N lights that the main view keeps, by the shadow budgets' rank, with a fade at the cut (ter-bqun, after ter-9nrc). Tile light lists (ter-69s8) stay deferred.
+
+**2026-11-04T18:20:05Z**
+
+2026-11-04: the user chose full rays at the screen tracer's first build and a diffuse cap of 62 steps. The two trace dispatches get an estimated 2.94 to 3.76 ms under 12.0 ms on the deck after ter-9nrc; V6 at 10 % own rays takes 3.90 ms there, so the deck frame is an estimated 12.1 to 13.0 ms until the hill-climb lands. Design update ter-jxjx precedes ter-gayt.

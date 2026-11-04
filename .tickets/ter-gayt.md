@@ -1,7 +1,7 @@
 ---
 id: ter-gayt
 status: open
-deps: [ter-nmbm, ter-toaw, ter-8hbi, ter-jz2y, ter-sftw, ter-3ug8]
+deps: [ter-nmbm, ter-toaw, ter-8hbi, ter-jz2y, ter-sftw, ter-3ug8, ter-jxjx]
 links: [ter-dzxf]
 created: 2026-11-03T14:53:48Z
 type: feature
@@ -24,3 +24,7 @@ Build ticket 4 of epic ter-89xq. Design: docs/plans/temporal-renderer.md, sectio
 **2026-11-04T17:30:08Z**
 
 2026-11-04, the trace budget under 12.0 ms after ter-9nrc, from a read-only researcher (GPT 6.1 SOL), file /private/tmp/trace-budget-12ms.md. It replaces the note above that gave 1.36 to 2.05 ms. Deck, 1920 x 1080 output from 1280 x 720 rendering, at the windowed clock: the measured frame after ter-9nrc (7.03 to 7.32 ms) minus the old occlusion, reflection and SMAA groups, plus FSR (1.93 to 1.99), the output-size passes (0.40), the plan and resolve (0.6, allowance) and the finest level (0.025), gives 7.84 to 8.13 ms before the dispatches. With section 11's reserves for unbuilt work (indirect accumulation, corrected environment reads, the opaque copy: 0.40 to 0.93 ms) it is 8.24 to 9.06 ms. So the two dispatches get 2.94 to 3.76 ms (complete design), or 3.87 to 4.16 ms (replacement only). With the clock rule's 15 % error on every converted term, the room spans 1.74 to 4.87 ms. At the top clock, V6 at 10 % own rays takes 3.93 (cap 64), 3.90 (62) and 3.78 (54) ms on the deck and 3.50, 3.47 and 3.35 ms on the floor. 25 % own rays (5.2 to 5.4 ms) fits in no setting. The 9nrc runs' clocks are whole-run active means, not timed-span clocks, so these are estimates. The old 1.1 ms figure is not an input. Decision to the user: rays at the first build and the diffuse cap.
+
+**2026-11-04T18:20:05Z**
+
+2026-11-04, the user's decision on the budget: full rays at the first build (every 2x2 block's ray plus 10 % own rays per kind), no ray limit now; the build measures the real frame at the top clock and reports it, and a ray limit comes only if the measured frame stays over 12 ms after the hill-climb (ter-dzxf) lands. Diffuse cap 62 steps (at least V1's image in both views at V1's diffuse time), reflection cap 256. The stop rule of this ticket's body (1.7 ms for the whole tracer) is replaced by this rule. The design update ter-jxjx runs first.
