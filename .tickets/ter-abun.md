@@ -1,6 +1,6 @@
 ---
 id: ter-abun
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-10-26T21:23:47Z
@@ -152,3 +152,7 @@ The answers:
 - M15: judgment call. With one frame in flight and runs of two, 128 pairs form in about 259 frames when the timer reports every frame, so a limit of 264 frames also holds on this Mac. The limit of 520 frames is a margin for frames whose timings are not available. No test can make the timer drop a frame, and the limit only changes how soon a broken frame order fails.
 
 New tests (commit 038267c9b): ANarrowChunkThatLiesWhollyBelowTheBoundDecidesThatThePassAddsNearlyNoTime, AChunkMoreThanTwiceTheBoundWideDecidesNothingEvenWhenItLiesWhollyAboveTheBound, TheIntervalOfAChunksMedianHoldsTheMedianOfASkewedDistributionInNearlyEveryChunk.
+
+**2026-11-04T20:05:36Z**
+
+2026-11-04: closed. Merged into main as b57ebb14f, after the full Checked (10,221 succeeded, 0 failed, 19 skipped) and Release (10,208 succeeded, 0 failed, 19 skipped) suites passed on the merge.
