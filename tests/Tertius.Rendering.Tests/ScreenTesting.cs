@@ -9,7 +9,7 @@ namespace Tertius.Rendering.Tests;
 internal readonly record struct SceneRectangle(Vector3 Center, Vector3 HalfSide, Vector3 HalfOtherSide);
 
 /// <summary>
-/// Cameras built by hand and synthetic scenes of rectangles, for the CPU tests of the screen-space reflections: each
+/// Cameras built by hand and synthetic scenes of rectangles, for the CPU tests of the screen rays: each
 /// pixel's inverse view depth comes from an exact intersection of its view ray with the rectangles.
 /// </summary>
 internal static class ScreenTesting

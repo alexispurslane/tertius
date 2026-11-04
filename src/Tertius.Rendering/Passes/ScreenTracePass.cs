@@ -175,9 +175,9 @@ internal sealed unsafe class ScreenTracePass : RenderPass
     {
         BarrierBatch barriers = context.Barriers;
         RenderTargets targets = context.Targets;
-        ReflectionTargets pyramids = targets.Reflections ?? throw new UnreachableException("The tracer reads the pyramid.");
-        barriers.Image(pyramids.DepthImage, ImageUse.SampledComputeGeneral);
-        barriers.Image(pyramids.DepthFinest, ImageUse.SampledComputeGeneral);
+        DepthPyramidImages pyramid = targets.Pyramid ?? throw new UnreachableException("The tracer reads the pyramid.");
+        barriers.Image(pyramid.DepthImage, ImageUse.SampledComputeGeneral);
+        barriers.Image(pyramid.DepthFinest, ImageUse.SampledComputeGeneral);
         barriers.Image(targets.DirectDiffuse, ImageUse.StorageCompute);
         barriers.Image(targets.DirectSpecular, ImageUse.StorageCompute);
         DeclareHistories(barriers, context.History.Parity, slow: false);

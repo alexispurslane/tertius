@@ -27,28 +27,24 @@ namespace Tertius.Rendering;
 /// during batching, each rendered alone into its tile of the impostor atlas.</item>
 /// <item>G-buffer: far, middle and near depth ranges, each one vkCmdDrawIndexedIndirect, plus one instanced draw of
 /// the impostor billboards in that range.</item>
-/// <item>The depth pyramid (<see cref="DepthPyramidPass"/>), under <see cref="ConeTracedReflections"/>: the min-max
-/// inverse depth of the distance target, level by level, and its small mips in one dispatch (<see cref="DepthPyramidTail"/>).</item>
+/// <item>The depth pyramid (<see cref="DepthPyramidPass"/>), under <see cref="ScreenTrace"/>: the min-max inverse depth
+/// of the distance target, level by level, its small mips in one dispatch (<see cref="DepthPyramidTail"/>), and the
+/// finest level, each pixel's center w.</item>
 /// <item>The surface test (<see cref="SurfaceTestPass"/>): the pass bits of each pixel's last place, this frame's surface
 /// history and FSR's device depth.</item>
 /// <item>The direct pass (<see cref="DirectLightPass"/>): one fullscreen pass into the direct light's two images, the
 /// diffuse and the specular light of every light that the main view keeps, each divided by its material factor and
 /// pre-exposed.</item>
-/// <item>The occlusion passes (<see cref="OcclusionDepthPass"/> to <see cref="OcclusionUpsamplePass"/>), under
-/// <see cref="VisibilityBitmaskLight"/>: the estimate of the light around each pixel, the bounce of the direct light of
-/// the surfaces that block its hemisphere within the radius, and the share that nothing blocks there, in the estimate
-/// target.</item>
+/// <item>The screen tracer (<see cref="ScreenTracePass"/>), under <see cref="ScreenTrace"/>: the ray plan, the
+/// reflection rays and the diffuse rays, each kind's block rays and own rays through the depth pyramid, and the resolve,
+/// which writes the samples of the indirect diffuse and indirect specular signals. Then their accumulations
+/// (<see cref="AccumulatePass"/>).</item>
 /// <item>The composite (<see cref="CompositePass"/>): one fullscreen pass into the HDR target, the direct light's
-/// images times their material factors plus the ambient light with the estimate target applied and the emission,
-/// capped.</item>
+/// images and the two indirect signals' slow histories times their material factors, plus the emission, capped. Under
+/// <see cref="NoScreenTrace"/>, the environment's closed forms take the place of the histories.</item>
 /// <item>The skin scatter (<see cref="SkinScatterPass"/>), under <see cref="SeparableSubsurface"/>: the diffuse light of
 /// skin pixels, which the composite writes into the diffuse image, summed along the rows and then the
 /// columns, and the difference added to the lit image at skin pixels.</item>
-/// <item>The radiance pyramid (<see cref="RadiancePyramidPass"/>), under <see cref="ConeTracedReflections"/>: the lit
-/// image without the glow of an entity that holds a light, times the surface coverage, and its 13-tap downsamples.</item>
-/// <item>The reflections (<see cref="ReflectionPass"/>), under <see cref="ConeTracedReflections"/>: by default one ray per
-/// block of 2 × 2 pixels through the depth pyramid into the half-resolution trace, and its upsample, which adds each
-/// pixel's reflection to the lit image; at full resolution, one ray per pixel, whose hit adds it.</item>
 /// <item>The haze (<see cref="HazePass"/>), when the atmosphere has one: one fullscreen pass that blends the haze over
 /// the opaque surfaces of the lit image.</item>
 /// <item>Transparent objects: forward-shaded, blended, back to front, each seen through the haze.</item>
@@ -97,7 +93,6 @@ public sealed unsafe class VulkanRenderer : IRenderer
     private readonly MaterialStore materials;
     private readonly RenderTargets targets;
     private readonly ImpostorAtlas? impostorAtlas;
-    private readonly OcclusionImages? occlusionImages;
     private readonly SurfaceHistory surfaceHistory;
     private readonly SignalScratch signalScratch;
 
@@ -187,10 +182,9 @@ public sealed unsafe class VulkanRenderer : IRenderer
             frames = CreateFrames(options.FramesInFlight);
 
             (impostorAtlas, Impostors, localShadows) = AddPassesThroughGeometry(shaders, options);
-            occlusionImages = AddOcclusionPasses(shaders, options.ScreenSpaceLight);
-            AddPassesAfterGeometry(shaders, options);
-            AddReflectionPasses(shaders, options.Reflections);
+            // Before the composite, which reads the tracer's signals.
             screenTrace = AddScreenTracePasses(shaders, options.ScreenTrace);
+            AddPassesAfterGeometry(shaders, options);
             AddScatterPasses(shaders);
             Own(Graph);
             timer = Own(new GpuTimer(device, options.FramesInFlight));
@@ -384,23 +378,26 @@ public sealed unsafe class VulkanRenderer : IRenderer
             );
         if (options.Impostors && options.ImpostorTiles < 1)
             throw new ArgumentOutOfRangeException(nameof(options), "ImpostorTiles must be at least 1.");
+        if (options.WarmUpFrames is < 0 or > RendererOptions.MaxWarmUpFrames)
+            throw new ArgumentOutOfRangeException(
+                nameof(options),
+                $"WarmUpFrames must be 0 to {RendererOptions.MaxWarmUpFrames}, not {options.WarmUpFrames}."
+            );
     }
 
     /// <summary>The first problem of the settings in <paramref name="options"/> that are unions, in their order there, or null.</summary>
     private static string? SettingsProblem(RendererOptions options) =>
         options.LocalShadows.Problem
         ?? options.Exposure.Problem
-        ?? options.ScreenSpaceLight.Problem
         ?? options.Bloom.Problem
-        ?? options.Reflections.Problem
-        ?? (
-            options.Reflections is ConeTracedReflections
-                ? ReflectionTargets.ScreenProblem(options.Width, options.Height)
-                : null
-        )
         ?? options.EnvironmentMap.Problem
         ?? options.Subsurface.Problem
-        ?? options.ScreenTrace.Problem;
+        ?? options.ScreenTrace.Problem
+        ?? (
+            options.ScreenTrace is ScreenTrace
+                ? DepthPyramidImages.ScreenProblem(options.Width, options.Height)
+                : null
+        );
 
     /// <summary>The checks of <paramref name="options"/> that need the device's limits, after <see cref="CheckOptions"/>.</summary>
     private static void CheckOptionsOnDevice(RendererOptions options, VulkanDevice device)
@@ -679,8 +676,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
         servedChain.AsSpan(0, EnvironmentChain.Maps(snapshot.Chain.Count));
 
     /// <summary>
-    /// Records the command buffer of a frame: the uploads, the clear of a new estimate target, the batch, the exposure's
-    /// readback copy and the passes.
+    /// Records the command buffer of a frame: the uploads, the batch, the exposure's readback copy and the passes.
     /// </summary>
     private void RecordFrame(
         FrameResources frame,
@@ -695,8 +691,6 @@ public sealed unsafe class VulkanRenderer : IRenderer
         CommandBuffer commandBuffer = BeginCommands(frame);
         Upload(frame, commandBuffer);
         DeformRegion region = ReserveRegion(snapshot, commandBuffer);
-        // Before the frame graph, whose composite reads the target, and whose occlusion passes overwrite it.
-        targets.RecordEstimateClear(vk: device.Vk, commandBuffer: commandBuffer, barriers: barriers);
         frame.UpdateSharedDescriptors(materials: materials, textures: textures, geometry: geometry, deforms: deforms);
         // After ReserveRegion, which can replace the kept buffers, so that the sets name this frame's buffers.
         if (keptPositions is { } kept)
@@ -909,10 +903,12 @@ public sealed unsafe class VulkanRenderer : IRenderer
     }
 
     /// <summary>
-    /// Resizes the render targets, and the occlusion and the scatter images, whose sets point at the targets, to
+    /// Resizes the render targets, and the screen tracer's and the scatter's images, whose sets point at the targets, to
     /// <paramref name="extent"/>. The device must be idle. Internal for the tests of a size that no output takes.
     /// </summary>
-    /// <exception cref="ArgumentOutOfRangeException">Reflections are on, and a side is above <see cref="ReflectionTargets.MaxSide"/>.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// The screen tracer is on, and a side is above <see cref="DepthPyramidImages.MaxSide"/>.
+    /// </exception>
     internal void ResizeTargets(Extent2D extent)
     {
         if (extent.Width == targets.Extent.Width && extent.Height == targets.Extent.Height)
@@ -927,7 +923,6 @@ public sealed unsafe class VulkanRenderer : IRenderer
             tracer.Resize();
         }
 
-        occlusionImages?.Resize(targets);
         ScatterImages?.Resize(targets);
     }
 
@@ -1007,20 +1002,6 @@ public sealed unsafe class VulkanRenderer : IRenderer
 
         return depths;
     }
-
-    /// <summary>
-    /// The estimate target of the last frame, RGBA per pixel, row by row from the top: rgb the bounce, pre-exposed, a the
-    /// occlusion V from 0 to 1. A test hook: it waits for the device to be idle and submits its own copy.
-    /// </summary>
-    internal float[] ReadEstimate() =>
-        EstimatePacking.BounceAndOcclusion(ReadLevel(image: targets.Estimate, layer: 0, mip: 0).Values);
-
-    /// <summary>
-    /// The open share S of the estimate target of the last frame, RGB per pixel, row by row from the top: from 0 to 1 in
-    /// each channel, 1 − the blocked share that the target holds. A test hook, like <see cref="ReadEstimate"/>.
-    /// </summary>
-    internal float[] ReadEstimateOpenShare() =>
-        EstimatePacking.OpenShare(ReadLevel(image: targets.Estimate, layer: 0, mip: 0).Values);
 
     /// <summary>
     /// The distance target of the last frame, in m from the eye and 0 for sky, row by row from the top. A test hook: it
@@ -1179,90 +1160,13 @@ public sealed unsafe class VulkanRenderer : IRenderer
         ).Values;
 
     /// <summary>
-    /// Occlusion term A of the last frame at half resolution, RGBA per texel, row by row from the top: rgb the bounce,
-    /// pre-exposed, a the occlusion. A test hook: it waits for the device to be idle and submits its own copy.
-    /// </summary>
-    /// <exception cref="InvalidOperationException">The screen-space light is off.</exception>
-    internal (float[] Rgba, int Width, int Height) ReadOcclusionTerm()
-    {
-        (float[] halves, int width, int height) = ReadLevel(image: OcclusionImagesOrThrow().TermA, layer: 0, mip: 0);
-        return (EstimatePacking.BounceAndOcclusion(halves), width, height);
-    }
-
-    /// <summary>
-    /// The open share S of occlusion term A of the last frame at half resolution, RGB per texel, row by row from the top,
-    /// as <see cref="ReadEstimateOpenShare"/> gives it. A test hook, like <see cref="ReadOcclusionTerm"/>.
-    /// </summary>
-    /// <exception cref="InvalidOperationException">The screen-space light is off.</exception>
-    internal float[] ReadOcclusionTermOpenShare() =>
-        EstimatePacking.OpenShare(ReadLevel(image: OcclusionImagesOrThrow().TermA, layer: 0, mip: 0).Values);
-
-    /// <summary>
-    /// The view depth image of the last frame at half resolution, in m, row by row from the top. A test hook: it waits for
-    /// the device to be idle and submits its own copy.
-    /// </summary>
-    /// <exception cref="InvalidOperationException">The screen-space light is off.</exception>
-    internal (float[] Depths, int Width, int Height) ReadOcclusionViewDepth() =>
-        ReadLevel(image: OcclusionImagesOrThrow().ViewDepth, layer: 0, mip: 0);
-
-    /// <summary>
-    /// The bounce source of the last frame at half resolution, RGBA per texel, row by row from the top, as
-    /// <see cref="OcclusionImages.Source"/> says. A test hook, like <see cref="ReadOcclusionViewDepth"/>.
-    /// </summary>
-    /// <exception cref="InvalidOperationException">The screen-space light is off.</exception>
-    internal (float[] Rgba, int Width, int Height) ReadOcclusionSource() =>
-        ReadLevel(image: OcclusionImagesOrThrow().Source, layer: 0, mip: 0);
-
-    /// <summary>
-    /// The depth pass's copy of the view depth and the octahedral geometric normal of the last frame at half resolution,
-    /// row by row from the top, as <see cref="OcclusionImages.DepthAndNormal"/> says: one depth in m per texel, and the
-    /// normal's two components per texel. A test hook, like <see cref="ReadOcclusionViewDepth"/>.
-    /// </summary>
-    /// <exception cref="InvalidOperationException">The screen-space light is off.</exception>
-    internal (float[] Depths, float[] Normals, int Width, int Height) ReadOcclusionDepthAndNormal()
-    {
-        (float[] words, int width, int height) = ReadLevel(
-            image: OcclusionImagesOrThrow().DepthAndNormal,
-            layer: 0,
-            mip: 0
-        );
-        float[] depths = new float[width * height];
-        float[] normals = new float[2 * width * height];
-        for (int i = 0; i < depths.Length; i++)
-        {
-            depths[i] = words[2 * i];
-            // packSnorm2x16 puts the first component in the low half of the word.
-            uint packedNormal = BitConverter.SingleToUInt32Bits(words[2 * i + 1]);
-            normals[2 * i] = SnormValue((short)(packedNormal & 0xFFFF));
-            normals[2 * i + 1] = SnormValue((short)(packedNormal >> 16));
-        }
-
-        return (depths, normals, width, height);
-    }
-
-    /// <summary>
-    /// The depth pass's continuation flags of the last frame at half resolution, one byte per texel, row by row from the
-    /// top, as <see cref="OcclusionImages.Continuation"/> says. A test hook, like <see cref="ReadOcclusionViewDepth"/>.
-    /// </summary>
-    /// <exception cref="InvalidOperationException">The screen-space light is off.</exception>
-    internal (byte[] Flags, int Width, int Height) ReadOcclusionContinuation()
-    {
-        (float[] values, int width, int height) = ReadLevel(
-            image: OcclusionImagesOrThrow().Continuation,
-            layer: 0,
-            mip: 0
-        );
-        return ([.. values.Select(value => (byte)value)], width, height);
-    }
-
-    /// <summary>
     /// Level 1 to L of the last frame's depth pyramid: the near and the far bound of each texel of its mip, padding
     /// included, row by row from the top. A test hook: it waits for the device to be idle and submits its own copy.
     /// </summary>
-    /// <exception cref="InvalidOperationException">Reflections are off.</exception>
+    /// <exception cref="InvalidOperationException">The screen tracer is off.</exception>
     internal (float[] Bounds, int Width, int Height) ReadDepthPyramidLevel(int level)
     {
-        ReflectionTargets pyramids = targets.Reflections ?? throw new InvalidOperationException("Reflections are off.");
+        DepthPyramidImages pyramids = PyramidOrThrow();
         ArgumentOutOfRangeException.ThrowIfLessThan(level, 1);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(level, pyramids.TopLevel);
         return ReadLevel(image: pyramids.DepthImage, layer: 0, mip: level - 1);
@@ -1272,64 +1176,11 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// The last frame's finest level of the depth pyramid: each pixel's center w in 1/m, 0 for sky, row by row from the
     /// top. A test hook, like <see cref="ReadDepthPyramidLevel"/>.
     /// </summary>
-    /// <exception cref="InvalidOperationException">Reflections are off.</exception>
-    internal float[] ReadDepthFinest()
-    {
-        ReflectionTargets pyramids = targets.Reflections ?? throw new InvalidOperationException("Reflections are off.");
-        return ReadLevel(image: pyramids.DepthFinest, layer: 0, mip: 0).Values;
-    }
+    /// <exception cref="InvalidOperationException">The screen tracer is off.</exception>
+    internal float[] ReadDepthFinest() => ReadLevel(image: PyramidOrThrow().DepthFinest, layer: 0, mip: 0).Values;
 
-    /// <summary>
-    /// The last frame's half-resolution trace of the reflections: for each texel, the radiance and the coverage of its
-    /// representative pixel's ray, times the ray's fade, or a negative coverage for no ray. A test hook, like
-    /// <see cref="ReadRadiancePyramidLevel"/>.
-    /// </summary>
-    /// <exception cref="InvalidOperationException">Reflections are off, or traced at full resolution.</exception>
-    internal (float[] Rgba, int Width, int Height) ReadReflectionTrace()
-    {
-        ReflectionTargets pyramids = targets.Reflections ?? throw new InvalidOperationException("Reflections are off.");
-        GpuImage traced = pyramids.Trace switch
-        {
-            HalfTrace half => half.Traced,
-            FullTrace => throw new InvalidOperationException("The trace runs at full resolution."),
-            null => throw new UnreachableException("The targets always hold a trace."),
-        };
-        return ReadLevel(image: traced, layer: 0, mip: 0);
-    }
-
-    /// <summary>
-    /// The last frame's hit depths of the half-resolution trace: for each texel, the view depth of its ray's hit in m,
-    /// or 0 for a ray that hit nothing or no ray. A test hook, like <see cref="ReadReflectionTrace"/>.
-    /// </summary>
-    /// <exception cref="InvalidOperationException">Reflections are off, or traced at full resolution.</exception>
-    internal (float[] Depths, int Width, int Height) ReadReflectionHitDepths()
-    {
-        ReflectionTargets pyramids = targets.Reflections ?? throw new InvalidOperationException("Reflections are off.");
-        GpuImage hitDepths = pyramids.Trace switch
-        {
-            HalfTrace half => half.HitDepths,
-            FullTrace => throw new InvalidOperationException("The trace runs at full resolution."),
-            null => throw new UnreachableException("The targets always hold a trace."),
-        };
-        return ReadLevel(image: hitDepths, layer: 0, mip: 0);
-    }
-
-    /// <summary>
-    /// The pixels whose own rays the last frame's upsample handed to its own-ray dispatch, in the order of the list. A test
-    /// hook, like <see cref="ReadReflectionTrace"/>.
-    /// </summary>
-    /// <exception cref="InvalidOperationException">Reflections are off, or traced at full resolution.</exception>
-    internal (int X, int Y)[] ReadOwnRayPixels()
-    {
-        ReflectionTargets pyramids = targets.Reflections ?? throw new InvalidOperationException("Reflections are off.");
-        GpuBuffer ownRays = pyramids.Trace switch
-        {
-            HalfTrace half => half.OwnRays,
-            FullTrace => throw new InvalidOperationException("The trace runs at full resolution."),
-            null => throw new UnreachableException("The targets always hold a trace."),
-        };
-        return OwnRayList.Pixels(ReadBufferWords(ownRays));
-    }
+    private DepthPyramidImages PyramidOrThrow() =>
+        targets.Pyramid ?? throw new InvalidOperationException("The screen tracer is off.");
 
     /// <summary>The words of <paramref name="buffer"/>. A test hook: it waits for the device to be idle and submits its own copy.</summary>
     private uint[] ReadBufferWords(GpuBuffer buffer)
@@ -1360,19 +1211,6 @@ public sealed unsafe class VulkanRenderer : IRenderer
             local.Flush(device.Vk, commandBuffer);
         });
         return new ReadOnlySpan<uint>(readback.Mapped, (int)(buffer.Size / sizeof(uint))).ToArray();
-    }
-
-    /// <summary>
-    /// One level of the last frame's radiance pyramid: premultiplied RGB and the coverage of each texel, row by row from
-    /// the top. A test hook: it waits for the device to be idle and submits its own copy.
-    /// </summary>
-    /// <exception cref="InvalidOperationException">Reflections are off.</exception>
-    internal (float[] Rgba, int Width, int Height) ReadRadiancePyramidLevel(int level)
-    {
-        ReflectionTargets pyramids = targets.Reflections ?? throw new InvalidOperationException("Reflections are off.");
-        ArgumentOutOfRangeException.ThrowIfNegative(level);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(level, pyramids.RadianceTopLevel);
-        return ReadLevel(image: pyramids.RadianceImage, layer: 0, mip: level);
     }
 
     /// <summary>
@@ -1550,10 +1388,6 @@ public sealed unsafe class VulkanRenderer : IRenderer
         return ReadLevel(image: targets.Glow[level], layer: 0, mip: 0).Values;
     }
 
-    /// <summary>The occlusion images, which the test hooks of the occlusion passes read: only under <see cref="VisibilityBitmaskLight"/>.</summary>
-    private OcclusionImages OcclusionImagesOrThrow() =>
-        occlusionImages ?? throw new InvalidOperationException("The screen-space light is off.");
-
     /// <summary>How <see cref="ReadLevel"/> finds each channel of an image in memory.</summary>
     private enum StoredChannel
     {
@@ -1588,7 +1422,6 @@ public sealed unsafe class VulkanRenderer : IRenderer
             // Each word comes back as the bits of a float, which its hook takes apart.
             Format.R32G32Uint => (2, StoredChannel.Float),
             Format.R16G16B16A16SNorm => (4, StoredChannel.Snorm16),
-            EstimatePacking.Format => (EstimatePacking.HalvesPerTexel, StoredChannel.Half),
             Format.R8G8B8A8Uint => (4, StoredChannel.Uint8),
             Format.R8Uint => (1, StoredChannel.Uint8),
             Format.R16G16B16A16Uint => (4, StoredChannel.Uint16),
@@ -1864,14 +1697,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 extent: extent,
                 glowLevels: GlowLevelsOf(options.Bloom),
                 smaaTables: smaaTables,
-                // The screen tracer walks the depth pyramid, which the reflections' targets build until part 6 of ter-gayt
-                // moves it, so the tracer alone makes them at the default resolution.
-                reflections: (options.Reflections, options.ScreenTrace) switch
-                {
-                    (ConeTracedReflections on, _) => on.Resolution,
-                    (NoReflections, ScreenTrace) => ConeTracedReflections.Default.Resolution,
-                    (NoReflections, NoScreenTrace) => null,
-                },
+                depthPyramid: options.ScreenTrace is ScreenTrace,
                 subsurface: options.Subsurface is SeparableSubsurface
             )
         );
@@ -2026,7 +1852,9 @@ public sealed unsafe class VulkanRenderer : IRenderer
     }
 
     /// <summary>The constants of the shading pipelines: the map is the ambient light exactly when the renderer has one.</summary>
-    internal ShaderConstants ShadingConstants => new(EnvironmentMap: environmentMap is not null);
+    internal ShaderConstants ShadingConstants =>
+        // The targets make the depth pyramid exactly under ScreenTrace, before any pass.
+        new(EnvironmentMap: environmentMap is not null) { ScreenTraceOn = targets.Pyramid is not null };
 
     /// <summary>
     /// The cascades' shadow map and, under <see cref="LocalShadowAtlas"/>, the local shadow atlas with its bounds, which the
@@ -2128,125 +1956,19 @@ public sealed unsafe class VulkanRenderer : IRenderer
         };
 
     /// <summary>
-    /// Under <see cref="VisibilityBitmaskLight"/>, makes the occlusion images, which the renderer owns, and adds the four
-    /// occlusion passes to the graph. Returns the images, or null under <see cref="NoScreenSpaceLight"/>.
-    /// </summary>
-    private OcclusionImages? AddOcclusionPasses(ShaderLibrary shaders, ScreenSpaceLightSetting setting) =>
-        setting switch
-        {
-            VisibilityBitmaskLight light => AddOcclusionPasses(shaders: shaders, setting: light),
-            NoScreenSpaceLight => null,
-        };
-
-    /// <summary>
-    /// Makes the occlusion images, which the renderer owns, and adds the four occlusion passes of
-    /// <paramref name="setting"/> to the graph. Returns the images.
-    /// </summary>
-    private OcclusionImages AddOcclusionPasses(ShaderLibrary shaders, VisibilityBitmaskLight setting)
-    {
-        OcclusionImages images = Own(
-            new OcclusionImages(device: device, allocator: Allocator, layouts: layouts, targets: targets)
-        );
-        foreach (RenderPass pass in OcclusionPasses(shaders: shaders, setting: setting, images: images))
-            Graph.Add(FrameGraph.Stage.AmbientOcclusion, pass);
-        return images;
-    }
-
-    /// <summary>
-    /// The four occlusion passes of <paramref name="setting"/> over <paramref name="images"/>, in the order of their
-    /// reads: the sectors pass reads the depth pass's view depth and copies, and the denoise blurs the estimate that the
-    /// sectors pass writes.
-    /// </summary>
-    private RenderPass[] OcclusionPasses(
-        ShaderLibrary shaders,
-        VisibilityBitmaskLight setting,
-        OcclusionImages images
-    ) =>
-        [
-            new OcclusionDepthPass(
-                device: device,
-                shaders: shaders,
-                layouts: layouts,
-                images: images,
-                setting: setting
-            ),
-            new OcclusionSectorsPass(
-                device: device,
-                shaders: shaders,
-                layouts: layouts,
-                images: images,
-                setting: setting,
-                constants: ShadingConstants
-            ),
-            new OcclusionDenoisePass(
-                device: device,
-                shaders: shaders,
-                layouts: layouts,
-                images: images,
-                setting: setting
-            ),
-            new OcclusionUpsamplePass(
-                device: device,
-                shaders: shaders,
-                layouts: layouts,
-                images: images,
-                setting: setting
-            ),
-        ];
-
-    /// <summary>
-    /// Adds the passes of <see cref="ConeTracedReflections"/> over the targets' pyramids, which the targets make only
-    /// under that setting: the depth pyramid after the G-buffer, then the radiance pyramid and the trace after the
-    /// composite.
-    /// </summary>
-    private void AddReflectionPasses(ShaderLibrary shaders, ReflectionSetting reflections)
-    {
-        if (targets.Reflections is not { } pyramids)
-            return;
-        // Under the reflections or the screen tracer, which both walk the depth pyramid.
-        Graph.Add(
-            FrameGraph.Stage.DepthPyramid,
-            new DepthPyramidPass(device: device, shaders: shaders, layouts: layouts, targets: pyramids)
-        );
-        if (reflections is not ConeTracedReflections setting)
-            return;
-        Graph.Add(
-            FrameGraph.Stage.Reflections,
-            new RadiancePyramidPass(device: device, shaders: shaders, layouts: layouts, targets: pyramids)
-        );
-        // After the radiance pyramid in the same stage: the trace reads the pyramid of the lit image, and the step that
-        // writes the reflections writes the image that the pyramid read. The upsample reads the half-resolution trace.
-        ReflectionStep[] steps = pyramids.Trace switch
-        {
-            FullTrace => [ReflectionStep.Trace],
-            HalfTrace => [ReflectionStep.Trace, ReflectionStep.Upsample],
-            null => throw new UnreachableException("The targets always hold a trace."),
-        };
-        foreach (ReflectionStep step in steps)
-            Graph.Add(
-                FrameGraph.Stage.Reflections,
-                new ReflectionPass(
-                    device: device,
-                    shaders: shaders,
-                    layouts: layouts,
-                    targets: pyramids,
-                    setting: setting,
-                    constants: ShadingConstants,
-                    step: step
-                )
-            );
-    }
-
-    /// <summary>
-    /// The screen tracer's images under <see cref="ScreenTrace"/>, with its two signals, and its four passes and the two
-    /// accumulations in <see cref="FrameGraph.Stage.ScreenTrace"/>; null under <see cref="NoScreenTrace"/>. The renderer
-    /// owns them.
+    /// The screen tracer's images under <see cref="ScreenTrace"/>, with its two signals; the depth pyramid's pass after the
+    /// G-buffer; and the tracer's four passes and the two accumulations in <see cref="FrameGraph.Stage.ScreenTrace"/>. Null
+    /// under <see cref="NoScreenTrace"/>. The renderer owns them.
     /// </summary>
     private ScreenTraceImages? AddScreenTracePasses(ShaderLibrary shaders, ScreenTraceSetting setting)
     {
         if (setting is not ScreenTrace trace)
             return null;
-        ReflectionTargets pyramids = targets.Reflections ?? throw new UnreachableException("The tracer makes the pyramid.");
+        DepthPyramidImages pyramid = targets.Pyramid ?? throw new UnreachableException("The targets make the pyramid.");
+        Graph.Add(
+            FrameGraph.Stage.DepthPyramid,
+            new DepthPyramidPass(device: device, shaders: shaders, layouts: layouts, pyramid: pyramid)
+        );
         TemporalSignal diffuse = CreateSignal(
             shaders: shaders,
             parameters: SignalParameters.Diffuse,
@@ -2266,7 +1988,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 layouts: layouts,
                 targets: targets,
                 surfaces: surfaceHistory,
-                pyramids: pyramids,
+                pyramid: pyramid,
                 diffuse: diffuse,
                 specular: specular
             )
@@ -2313,7 +2035,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 shaders: shaders,
                 layouts: layouts,
                 constants: ShadingConstants,
-                scatter: ScatterImages is not null
+                scatter: ScatterImages is not null,
+                tracer: screenTrace
             )
         );
     }

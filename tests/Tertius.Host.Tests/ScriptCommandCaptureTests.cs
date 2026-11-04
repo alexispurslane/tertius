@@ -12,9 +12,8 @@ public sealed class ScriptCommandCaptureTests : IDisposable
     /// <summary>
     /// The timed passes of a headless frame with the renderer's defaults, in frame order: the deformation first, the local
     /// shadows after the cascades, the environment map's faces and prefilter after them, the surface test after the
-    /// G-buffer, the direct pass after it, the occlusion passes of the screen-space light between the direct pass and the
-    /// composite, the skin scatter's two passes after the composite, the
-    /// reflections' half-resolution trace and its upsample after the radiance pyramid, the atmosphere's haze before the
+    /// G-buffer, the depth pyramid before the direct pass, the screen tracer's passes and its two accumulations between the
+    /// direct pass and the composite, the skin scatter's two passes after the composite, the atmosphere's haze before the
     /// transparent pass, SMAA after the tone map. A pass that records nothing, such as the haze without an atmosphere, still
     /// takes its timestamps.
     /// </summary>
@@ -29,16 +28,15 @@ public sealed class ScriptCommandCaptureTests : IDisposable
         "surface test",
         "depth pyramid",
         "direct light",
-        "occlusion depth",
-        "occlusion sectors",
-        "occlusion denoise",
-        "occlusion upsample",
+        "ray plan",
+        "reflection rays",
+        "diffuse rays",
+        "screen trace resolve",
+        "accumulate indirect diffuse",
+        "accumulate indirect specular",
         "composite",
         "scatter rows",
         "scatter columns",
-        "radiance pyramid",
-        "reflection trace",
-        "reflections",
         "haze",
         "transparent",
         "exposure",
@@ -490,42 +488,6 @@ public sealed class ScriptCommandCaptureTests : IDisposable
         curves.Should().Equal(expected);
     }
 
-    public static TheoryData<string[], ScreenSpaceLightSetting> ScreenSpaceLightOptions =>
-        new()
-        {
-            { [], VisibilityBitmaskLight.Default },
-            { ["--screen-space-light", "off"], new NoScreenSpaceLight() },
-            { ["--screen-space-light", "0.25"], VisibilityBitmaskLight.Default with { RadiusMeters = 0.25f } },
-        };
-
-    [Theory]
-    [MemberData(nameof(ScreenSpaceLightOptions))]
-    public void TheScreenSpaceLightOptionTurnsTheEstimateOffOrSetsItsRadius(
-        string[] screenSpaceLight,
-        ScreenSpaceLightSetting expected
-    )
-    {
-        string script = ScriptFile(
-            """{ "scene": "lit-box", "window": { "width": 160, "height": 90 }, "steps": [ { "do": "capture", "name": "front" } ] }"""
-        );
-        var settings = new List<ScreenSpaceLightSetting>();
-
-        int code = ScriptCommand.Run(
-            args: ["--script", script, "--headless", "--out", Out, .. screenSpaceLight],
-            scenes: [LitBoxScene],
-            output: output,
-            error: error,
-            createRenderer: options =>
-            {
-                settings.Add(options.ScreenSpaceLight);
-                return VulkanRenderer.CreateHeadless(options);
-            }
-        );
-
-        code.Should().Be(ScriptCommand.Ok, error.ToString());
-        settings.Should().Equal(expected);
-    }
-
     [Theory]
     [InlineData(new string[0], false)]
     [InlineData(new[] { "--bloom", "on" }, false)]
@@ -556,10 +518,10 @@ public sealed class ScriptCommandCaptureTests : IDisposable
 
     [Theory]
     [InlineData(new string[0], false)]
-    [InlineData(new[] { "--reflections", "on" }, false)]
-    [InlineData(new[] { "--reflections", "off" }, true)]
-    public void TheReflectionsOptionTurnsTheHeadlessRenderersReflectionsOffAndOnKeepsTheRenderersDefault(
-        string[] reflections,
+    [InlineData(new[] { "--screen-trace", "on" }, false)]
+    [InlineData(new[] { "--screen-trace", "off" }, true)]
+    public void TheScreenTraceOptionTurnsTheHeadlessRenderersTracerOffAndOnKeepsTheRenderersDefault(
+        string[] screenTrace,
         bool off
     )
     {
@@ -569,19 +531,19 @@ public sealed class ScriptCommandCaptureTests : IDisposable
         var settings = new List<object?>();
 
         int code = ScriptCommand.Run(
-            args: ["--script", script, "--headless", "--out", Out, .. reflections],
+            args: ["--script", script, "--headless", "--out", Out, .. screenTrace],
             scenes: [LitBoxScene],
             output: output,
             error: error,
             createRenderer: options =>
             {
-                settings.Add(options.Reflections.Value);
+                settings.Add(options.ScreenTrace.Value);
                 return VulkanRenderer.CreateHeadless(options);
             }
         );
 
         code.Should().Be(ScriptCommand.Ok, error.ToString());
-        object expected = off ? new NoReflections() : new RendererOptions().Reflections.Value!;
+        object expected = off ? new NoScreenTrace() : new RendererOptions().ScreenTrace.Value!;
         settings.Should().ContainSingle().Which.Should().Be(expected, "records compare by value");
     }
 

@@ -16,9 +16,12 @@ public sealed class ScreenTraceRenderTests
 {
     private const float Tick = 1f / 60;
 
-    /// <summary>A validating headless renderer of 640 × 360 under the screen tracer's default.</summary>
+    /// <summary>
+    /// A validating headless renderer of 640 × 360 under the screen tracer's default, with no warm-up draws: a still
+    /// is one draw, so the first frame of <see cref="Draw"/> is one reset frame, and each frame that it names is one draw.
+    /// </summary>
     private static VulkanRenderer Tracing() =>
-        Gpu.Headless(width: Width, height: Height, reflections: new NoReflections(), screenTrace: ScreenTrace.Default);
+        Gpu.Headless(width: Width, height: Height, screenTrace: ScreenTrace.Default, warmUpFrames: 0);
 
     /// <summary>Draws <paramref name="frames"/> frames of <paramref name="scene"/>, each one tick after the last.</summary>
     private static void Draw(VulkanRenderer renderer, RenderSnapshot scene, int frames)
@@ -87,22 +90,10 @@ public sealed class ScreenTraceRenderTests
         VulkanRenderer renderer = Tracing();
         try
         {
-            RenderSnapshot scene = Dark();
-            scene.Instances.Add(Floor(renderer, Mirror()));
-            var panel = new Vector3(0, -0.5f, -12);
-            scene.Instances.Add(
-                Block(
-                    box: renderer.CreateMesh(Primitives.Box(new(0.5f))),
-                    material: Glow(renderer, glow),
-                    center: panel,
-                    size: new(3, 2, 0.2f)
-                )
-            );
-
-            Draw(renderer, scene, frames: 1);
+            Draw(renderer, GlowingPanelOverAMirror(renderer, glow), frames: 1);
 
             float[] sample = renderer.ReadImage(renderer.ScreenTraceSignals.Specular.Sample(0));
-            (int X, int Y) shown = MirrorPixel(panel);
+            (int X, int Y) shown = MirrorPixel(GlowingPanelCenter);
             At(sample, shown).X.Should().BeGreaterThan(0.8f * glow.X, "the mirror image of the panel's center shows its glow");
             At(sample, (shown.X + 150, shown.Y)).X.Should().BeLessThan(0.05f * glow.X, "the floor beside the image shows the dark sky");
         }
@@ -110,6 +101,144 @@ public sealed class ScreenTraceRenderTests
         {
             Gpu.DisposeAndAssertClean(renderer);
         }
+    }
+
+    /// <summary>
+    /// A dark scene with a mirror floor and a glowing panel 12 m ahead, at <see cref="GlowingPanelCenter"/>. With
+    /// <paramref name="holdsLight"/>, the panel's entity holds a lamp at its center, so that it shows its glow to the
+    /// eye but sends none: the lamp's own light stands for it (frame.glsl, glowSent).
+    /// </summary>
+    private static RenderSnapshot GlowingPanelOverAMirror(VulkanRenderer renderer, Vector3 glow, bool holdsLight = false)
+    {
+        RenderSnapshot scene = Dark();
+        scene.Instances.Add(Floor(renderer, Mirror()));
+        scene.Instances.Add(
+            Gpu.Instance(
+                mesh: renderer.CreateMesh(Primitives.Box(new(0.5f))),
+                material: Glow(renderer, glow),
+                position: GlowingPanelCenter,
+                scale: new(3, 2, 0.2f),
+                radius: 1.8f,
+                entity: holdsLight ? Gpu.LampEntity : 0,
+                chainDepth: TestChains.CamerasFrame
+            )
+        );
+        if (holdsLight)
+            scene.Lights.Add(
+                Gpu.Lamp(position: GlowingPanelCenter, color: Vector3.One, intensity: 1, chainDepth: TestChains.CamerasFrame)
+            );
+        return scene;
+    }
+
+    private static readonly Vector3 GlowingPanelCenter = new(0, -0.5f, -12);
+
+    [Fact]
+    public void AMirrorFloorShowsNoGlowOfAPanelWhoseEntityHoldsALight()
+    {
+        var glow = new Vector3(4f);
+        VulkanRenderer renderer = Tracing();
+        try
+        {
+            Draw(renderer, GlowingPanelOverAMirror(renderer, glow, holdsLight: true), frames: 1);
+
+            float[] sample = renderer.ReadImage(renderer.ScreenTraceSignals.Specular.Sample(0));
+            At(sample, MirrorPixel(GlowingPanelCenter))
+                .X.Should()
+                .BeLessThan(0.05f * glow.X, "the lamp's light stands for its glow, so a hit counts the glow once");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void TheCompositeShowsTheTracersReflectionAndWithoutTheTracerTheClosedForm(bool tracer)
+    {
+        var glow = new Vector3(4f);
+        VulkanRenderer renderer = tracer ? Tracing() : Gpu.Headless(width: Width, height: Height);
+        try
+        {
+            Draw(renderer, GlowingPanelOverAMirror(renderer, glow), frames: 1);
+
+            Vector3 shown = At(renderer.ReadHdr(), MirrorPixel(GlowingPanelCenter));
+            if (tracer)
+                shown.X.Should().BeGreaterThan(0.8f * glow.X, "the composite adds the specular signal's slow history");
+            else
+                shown.X.Should().BeLessThan(0.05f * glow.X, "the closed form of the dark sky holds no panel");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void AFrameAfterOneWithMoreOwnRaysShowsWhatTheSameFrameShowsInAFreshRenderer()
+    {
+        // The wall's frame lists more own rays than the floor's, so the lists keep entries past the floor frame's count.
+        // A dispatch that read past the count, or a count that the clear did not reset, would trace them again.
+        static RenderSnapshot FloorAlone(VulkanRenderer renderer)
+        {
+            RenderSnapshot scene = Gray(0.3f);
+            scene.Instances.Add(Floor(renderer, WhiteFloor(roughness: 0.2f)));
+            // A cut, so that the frame resets every history, as the fresh renderer's first frame does.
+            scene.CameraCuts = 1;
+            return scene;
+        }
+
+        float[] fresh;
+        VulkanRenderer first = Tracing();
+        try
+        {
+            Draw(first, FloorAlone(first), frames: 1);
+            fresh = Signals(first);
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(first);
+        }
+
+        VulkanRenderer renderer = Tracing();
+        try
+        {
+            RenderSnapshot wall = Gray(0.3f);
+            wall.Instances.Add(Floor(renderer, WhiteFloor(roughness: 0.2f)));
+            wall.Instances.Add(
+                Block(
+                    box: renderer.CreateMesh(Primitives.Box(new(0.5f))),
+                    material: renderer.CreateMaterial(WhiteFloor(roughness: 0.2f)),
+                    center: new(0, 2, -10),
+                    size: new(40, 8, 1)
+                )
+            );
+            Draw(renderer, wall, frames: 1);
+            int listedBefore = renderer.ReadOwnRayCounts().Diffuse;
+            Draw(renderer, FloorAlone(renderer), frames: 1);
+            int listed = renderer.ReadOwnRayCounts().Diffuse;
+
+            Signals(renderer).Should().Equal(fresh, "a reset frame draws from nothing that the frame before it left");
+            listed.Should().BeLessThan(listedBefore, "the wall's frame lists the pixels of the wall too");
+            (listed % OwnRayGroupSize)
+                .Should()
+                .NotBe(0, "the last workgroup of the own-ray dispatch has invocations past the count");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>The invocations of a workgroup of the own-ray dispatch: OwnRayGroupSize of own_rays.glsl.</summary>
+    private const int OwnRayGroupSize = 64;
+
+    /// <summary>Both signals' samples of the last frame, one after the other.</summary>
+    private static float[] Signals(VulkanRenderer renderer)
+    {
+        (TemporalSignal diffuse, TemporalSignal specular) = renderer.ScreenTraceSignals;
+        return [.. renderer.ReadImage(diffuse.Sample(0)), .. renderer.ReadImage(specular.Sample(0))];
     }
 
     [Fact]
@@ -490,6 +619,58 @@ public sealed class ScreenTraceRenderTests
             float[] rays = own ? Own : Blocks;
             return OctahedralNormal.Decode(new(rays[4 * texel] * (2 / 65535f) - 1, rays[4 * texel + 1] * (2 / 65535f) - 1));
         }
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(3)]
+    public void AStillUnderTheTracerDrawsItsWarmUpDrawsAndThenTheShownDraw(int warmUpFrames)
+    {
+        VulkanRenderer renderer = Gpu.Headless(
+            width: 64,
+            height: 36,
+            screenTrace: ScreenTrace.Default,
+            warmUpFrames: warmUpFrames
+        );
+        try
+        {
+            var counted = new CountedDraws();
+            renderer.Graph.Add(FrameGraph.Stage.GBuffer, counted);
+
+            renderer.Render(Gray(0.3f), 1f);
+
+            counted.Draws.Should().Be(warmUpFrames + 1, "the first draw of a renderer is a still");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void TheRendererTakesTheLargestWarmUpCount() =>
+        FluentActions
+            .Invoking(() =>
+                Gpu.DisposeAndAssertClean(
+                    Gpu.Headless(
+                        width: 64,
+                        height: 36,
+                        screenTrace: ScreenTrace.Default,
+                        warmUpFrames: RendererOptions.MaxWarmUpFrames
+                    )
+                )
+            )
+            .Should()
+            .NotThrow("1024 is the top of the range");
+
+    /// <summary>A pass that records nothing and counts the draws that record it.</summary>
+    private sealed class CountedDraws : RenderPass
+    {
+        public int Draws { get; private set; }
+
+        public override string Name => "counted draws";
+
+        public override void Record(FrameContext context) => Draws++;
     }
 
     /// <summary>A pass before the tracer that sets both signals' samples to NaN, so that a sample that the tracer leaves shows.</summary>

@@ -1023,6 +1023,8 @@ public sealed class EnvironmentLightingTests
                     Exposure = new FixedExposure(exposureStops),
                     Bloom = new NoBloom(),
                     EnvironmentMap = SmallMap,
+                    // The map's closed form, which a ray's miss also takes, with no noise of the tracer's samples.
+                    ScreenTrace = new NoScreenTrace(),
                 }
             );
 

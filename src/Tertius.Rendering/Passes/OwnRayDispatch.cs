@@ -4,9 +4,8 @@ namespace Tertius.Rendering;
 
 /// <summary>
 /// The dispatch of an own-ray list (own_rays.glsl, <see cref="OwnRayList"/>): the clear of the list before a dispatch
-/// appends to it, and the indirect dispatch of the pipeline that traces each listed pixel. The half-resolution upsample of
-/// the reflections ("reflections" at <see cref="TraceResolution.Half"/>) and each ray kind of the screen tracer
-/// (<see cref="ScreenTracePass"/>) record both.
+/// appends to it, and the indirect dispatch of the pipeline that traces each listed pixel. The screen tracer's plan
+/// records the clears, and each ray kind's pass the dispatch (<see cref="ScreenTracePass"/>).
 /// </summary>
 internal sealed unsafe class OwnRayDispatch : IDisposable
 {

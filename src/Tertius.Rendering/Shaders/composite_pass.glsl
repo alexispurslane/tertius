@@ -1,7 +1,7 @@
 // The composite (docs/plans/temporal-renderer.md, section 9, "The composite"): at each lit pixel, the light of section 1
-// into the HDR image, capped at MaxRadiance. It multiplies the direct light's two images back by their material factors
-// (decision 18), adds today's ambient terms with the occlusion passes' estimate until the screen tracer replaces
-// them, and adds the emission. The sky's pixels get the sky and the stars, and an impostor's pixels their baked light.
+// into the HDR image, capped at MaxRadiance. It multiplies the direct light's two images and the two indirect terms back
+// by their material factors (decision 18), and adds the emission. The indirect terms are the screen tracer's slow
+// histories under ScreenTrace, and the environment's closed forms under NoScreenTrace (section 8, "The zero cases"). The sky's pixels get the sky and the stars, and an impostor's pixels their baked light.
 // Under the scatter it also writes the diffuse image, the diffuse factor times the two diffuse terms and the skin mask at
 // skin, and 0 elsewhere (docs/plans/skin-and-hair.md, "The diffuse light D"). composite.frag and composite_scatter.frag,
 // which defines SCATTER_OUTPUT, include it: the diffuse image is a second color attachment only then. A test's probe
@@ -14,10 +14,13 @@
 #include "gbuffer_surface.glsl"
 #include "temporal.glsl"
 
-// Set 3 of the composite layout, the signal read set: the direct light's two parts, rgb the light, demodulated and
-// pre-exposed (RenderTargets.DirectSet).
+// Set 3 of the composite layout, the light set (RenderTargets.LightSet): the direct light's two parts, and the slow
+// histories of the indirect diffuse and indirect specular signals, rgb the light, demodulated and pre-exposed. Under
+// NoScreenTrace, bindings 2 and 3 hold the direct images, which the composite does not read.
 layout(set = 3, binding = 0, rgba16f) uniform readonly image2D directDiffuseLight;
 layout(set = 3, binding = 1, rgba16f) uniform readonly image2D directSpecularLight;
+layout(set = 3, binding = 2, rgba16f) uniform readonly image2D indirectDiffuseLight;
+layout(set = 3, binding = 3, rgba16f) uniform readonly image2D indirectSpecularLight;
 
 layout(location = 0) in vec3 inRay;
 layout(location = 0) out vec4 outColor;
@@ -64,7 +67,7 @@ void main()
         return;
     }
 
-    ShadingInput s = ambientSurfaceAt(pixel);
+    ShadingInput s = materialAt(pixel);
     vec3 V = -direction;
     SurfaceLobes lobes = lobesOf(s, V);
     MaterialFactors factors = materialFactors(s, lobes);
@@ -77,15 +80,18 @@ void main()
     outColor = vec4(min(directDiffuse + directSpecular + emissive, vec3(MaxRadiance)), 1.0);
     return;
 #endif
-    AmbientTerms ambient = ambientTerms(s, lobes, V);
-    float k = exposureScale();
+    IndirectLight indirect = screenTraceOn
+        ? IndirectLight(imageLoad(indirectDiffuseLight, pixel).rgb, imageLoad(indirectSpecularLight, pixel).rgb)
+        : closedForm(withAmbientFootprint(s, pixel), V);
+    vec3 indirectDiffuse = factors.diffuse * indirect.diffuse;
+    vec3 indirectSpecular = factors.specular * indirect.specular;
     // Each part is finite and at most a few times MaxRadiance, so the sum is finite, and the cap keeps the surfaces' share
     // (docs/plans/screen-space-illumination.md, "The cap at MaxRadiance").
-    vec3 ambientLight = exposed(ambient.diffuse + ambient.specular, k);
-    outColor = vec4(min(directDiffuse + directSpecular + ambientLight + emissive, vec3(MaxRadiance)), 1.0);
+    outColor = vec4(
+        min(directDiffuse + directSpecular + indirectDiffuse + indirectSpecular + emissive, vec3(MaxRadiance)), 1.0);
     // D, at most MaxRadiance, and the mask, which marks the skin pixels that alone the scatter passes spread.
     bool skin = s.model == ShadingSkin;
-    writeDiffuse(skin ? vec4(min(directDiffuse + exposed(ambient.diffuse, k), vec3(MaxRadiance)), 1.0) : vec4(0.0));
+    writeDiffuse(skin ? vec4(min(directDiffuse + indirectDiffuse, vec3(MaxRadiance)), 1.0) : vec4(0.0));
 }
 
 #endif

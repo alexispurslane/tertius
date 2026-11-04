@@ -630,31 +630,6 @@ internal struct DrawPushConstants
     public uint Map;
 }
 
-/// <summary>
-/// The push constants of the occlusion passes (Shaders/occlusion.glsl): the setting. The camera comes from the frame
-/// constants, so the occlusion passes and the lighting passes read the one store. 16 bytes.
-/// </summary>
-[StructLayout(LayoutKind.Sequential)]
-internal struct OcclusionPushConstants
-{
-    public float RadiusMeters;
-    public uint Slices;
-    public uint StepsPerSide;
-
-    /// <summary>1 in the last denoise dispatch, 0 otherwise.</summary>
-    public uint LastDenoise;
-
-    /// <summary>The push constants of one dispatch.</summary>
-    public static OcclusionPushConstants For(VisibilityBitmaskLight setting, bool lastDenoise) =>
-        new()
-        {
-            RadiusMeters = setting.RadiusMeters,
-            Slices = (uint)setting.Slices,
-            StepsPerSide = (uint)setting.StepsPerSide,
-            LastDenoise = lastDenoise ? 1u : 0u,
-        };
-}
-
 /// <summary>The push constants of the tone mapping pass.</summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct ToneMapPushConstants
@@ -905,23 +880,4 @@ internal struct EnvironmentDownsamplePushConstants
 
     /// <summary>The map whose layers 6 · Map to 6 · Map + 5 the dispatch reads and writes.</summary>
     public uint Map;
-}
-
-/// <summary>
-/// The push constants of reflection_trace.comp, reflection_half_trace.comp and reflection_upsample.comp, which share the
-/// block of reflection_pixel.glsl: the setting of the reflections (docs/plans/screen-space-reflections.md, "Descriptor
-/// sets"). The shaders find the top level with textureQueryLevels, so they carry only the setting.
-/// </summary>
-[StructLayout(LayoutKind.Sequential)]
-internal struct ReflectionPushConstants
-{
-    /// <summary><see cref="ConeTracedReflections.MaxRoughness"/>.</summary>
-    public float MaxRoughness;
-
-    /// <summary><see cref="ConeTracedReflections.MaxSteps"/>.</summary>
-    public uint MaxSteps;
-
-    /// <summary>The push constants of <paramref name="setting"/>, which the renderer has checked.</summary>
-    public static ReflectionPushConstants For(ConeTracedReflections setting) =>
-        new() { MaxRoughness = setting.MaxRoughness, MaxSteps = (uint)setting.MaxSteps };
 }

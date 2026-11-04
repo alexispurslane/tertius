@@ -288,24 +288,14 @@ public sealed class HairRenderTests
         }
     }
 
-    /// <summary>The screen-space light of a test: the renderer's default, or off.</summary>
-    private static ScreenSpaceLightSetting ScreenSpaceLight(bool on) =>
-        on ? VisibilityBitmaskLight.Default : new NoScreenSpaceLight();
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void TwoCardsWithOneStrandAndDifferentNormalsShadeAlike(bool screenSpaceLight)
+    [Fact]
+    public void TwoCardsWithOneStrandAndDifferentNormalsShadeAlike()
     {
         // The same strand, +Y, and a card turned 40° about it.
         Quaternion turned = CardWith(normal: new(MathF.Sin(0.7f), 0, MathF.Cos(0.7f)), strand: Vector3.UnitY);
         Vector3 ShownAhead(bool hair, Quaternion rotation)
         {
-            VulkanRenderer renderer = Gpu.Headless(
-                width: Width,
-                height: Height,
-                screenSpaceLight: ScreenSpaceLight(screenSpaceLight)
-            );
+            VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
             try
             {
                 MeshId plane = renderer.CreateMesh(Primitives.Plane(1));
@@ -327,8 +317,7 @@ public sealed class HairRenderTests
         ShouldBeNear(
             actual: ShownAhead(hair: true, turned),
             expected: facing,
-            // Under the screen-space light, 1%: the tolerance of TheHairsAmbientLightIsTheSourcesAtTheFiberNormal.
-            relative: screenSpaceLight ? 0.01f : 4 * HalfRounding,
+            relative: 4 * HalfRounding,
             because: "a fiber's light does not depend on its card's plane"
         );
         Vector3 standardFacing = ShownAhead(hair: false, FacingTheCamera);
@@ -337,151 +326,10 @@ public sealed class HairRenderTests
             .BeGreaterThan(0.05f * standardFacing.X, "the same cards as standard shade apart, so the test can fail");
     }
 
-    /// <summary>
-    /// A card of the plane mesh's size and frame, bent along its strand into two segments side by side, each turned
-    /// 15° from the plane mesh's front, so the ridge between them stands toward the front. It is smooth-shaded: the
-    /// ridge's vertices take the front, and each outer edge's vertices their segment's normal. Each segment is one card's
-    /// half, so the mesh holds one card.
-    /// </summary>
-    private static MeshData RidgeCard()
-    {
-        const float halfBend = 15 * MathF.PI / 180;
-        float c = MathF.Cos(halfBend),
-            s = MathF.Sin(halfBend);
-        (Vector3 Position, Vector3 Normal, Vector3 Tangent, float U)[] columns =
-        [
-            (Position: new(-c, -s, 0), Normal: new(-s, c, 0), Tangent: new(c, s, 0), U: 0),
-            (Position: Vector3.Zero, Normal: Vector3.UnitY, Tangent: Vector3.UnitX, U: 0.5f),
-            (Position: new(c, -s, 0), Normal: new(s, c, 0), Tangent: new(c, -s, 0), U: 1),
-        ];
-        // The row at z = +1 has v = 1, as the plane mesh's, and the row at z = -1 v = 0.
-        Vertex[] vertices =
-        [
-            .. new[] { 1f, -1f }.SelectMany(z =>
-                columns.Select(column => new Vertex
-                {
-                    Position = column.Position + new Vector3(0, 0, z),
-                    Normal = column.Normal,
-                    Tangent = new(column.Tangent, 1),
-                    TexCoord = new(column.U, (z + 1) / 2),
-                })
-            ),
-        ];
-        // Each segment as the plane mesh's quad: top left, top right, bottom right, then top left, bottom right, bottom left.
-        return new(vertices, [0, 1, 4, 0, 4, 3, 1, 2, 5, 1, 5, 4]);
-    }
-
     [Fact]
-    public void UnderTheScreenSpaceLightABentSmoothShadedCardShadesAsAFlatCard()
+    public void UnderTheScreenTracerTheShadingTargetIsVisibleToTheComputeReadsOfTheTracer()
     {
-        // The ridge card turned 40° about its strand, +Y, against the flat card that faces the camera: at the ridge and
-        // on each segment, their fibers have one strand and one view, so one ambient light.
-        Quaternion turned = CardWith(normal: new(MathF.Sin(0.7f), 0, MathF.Cos(0.7f)), strand: Vector3.UnitY);
-        Vector2[] pixels = [Ahead, Ahead + new Vector2(-8, 0), Ahead + new Vector2(8, 0)];
-        Vector3[] ShownAt(bool bent, Quaternion rotation)
-        {
-            VulkanRenderer renderer = Gpu.Headless(
-                width: Width,
-                height: Height,
-                screenSpaceLight: VisibilityBitmaskLight.Default
-            );
-            try
-            {
-                MeshId mesh = renderer.CreateMesh(bent ? RidgeCard() : Primitives.Plane(1));
-                float[] hdr = Rendered(
-                    renderer,
-                    AmbientOnly(),
-                    Card(plane: mesh, material: Hair(renderer), rotation: rotation)
-                );
-                return [.. pixels.Select(pixel => At(hdr, pixel))];
-            }
-            finally
-            {
-                Gpu.DisposeAndAssertClean(renderer);
-            }
-        }
-
-        Vector3[] flat = ShownAt(bent: false, FacingTheCamera);
-        Vector3[] bent = ShownAt(bent: true, turned);
-        for (int i = 0; i < pixels.Length; i++)
-            ShouldBeNear(
-                actual: bent[i],
-                expected: flat[i],
-                // 1%: the tolerance of TwoCardsWithOneStrandAndDifferentNormalsShadeAlike.
-                relative: 0.01f,
-                because: $"a bent card's own points block none of its fibers' light at pixel {pixels[i]}"
-            );
-    }
-
-    [Fact]
-    public void UnderTheScreenSpaceLightOneCardOfAHairMeshDarkensAnotherCardOfTheSameMeshBehindIt()
-    {
-        // One mesh of two cards: the plane mesh, and a copy of half its size 0.2 m in front of it and beside the line
-        // of sight ahead, from 0.1 m to its right, as in UnderTheScreenSpaceLightAHairCardDarkensAHairCardBehindIt. The
-        // plane mesh's +X turns to the world's -X.
-        static MeshData TwoCards(bool withCardInFront)
-        {
-            MeshData plane = Primitives.Plane(1);
-            if (!withCardInFront)
-                return plane;
-            Vertex[] front =
-            [
-                .. plane.Vertices.Select(vertex =>
-                    vertex with
-                    {
-                        Position = vertex.Position * 0.5f + new Vector3(-0.6f, 0.2f, 0),
-                    }
-                ),
-            ];
-            return new(
-                [.. plane.Vertices, .. front],
-                [.. plane.Indices, .. plane.Indices.Select(index => index + (uint)plane.Vertices.Length)]
-            );
-        }
-
-        static Vector3 ShownAhead(bool withCardInFront)
-        {
-            VulkanRenderer renderer = Gpu.Headless(
-                width: Width,
-                height: Height,
-                screenSpaceLight: VisibilityBitmaskLight.Default
-            );
-            try
-            {
-                MeshId mesh = renderer.CreateMesh(TwoCards(withCardInFront));
-                return At(
-                    Rendered(
-                        renderer,
-                        AmbientOnly(),
-                        Card(plane: mesh, material: Hair(renderer), rotation: FacingTheCamera)
-                    ),
-                    Ahead
-                );
-            }
-            finally
-            {
-                Gpu.DisposeAndAssertClean(renderer);
-            }
-        }
-
-        Vector3 alone = ShownAhead(withCardInFront: false);
-        ShownAhead(withCardInFront: true)
-            .X.Should()
-            .BeLessThan(
-                0.95f * alone.X,
-                "the mesh's card in front blocks a part of the ambient light of its card behind"
-            );
-    }
-
-    [Fact]
-    public void UnderTheScreenSpaceLightTheShadingTargetIsVisibleToTheComputeReadsOfTheOcclusionSectorsPass()
-    {
-        // No reflections, whose compute passes read the shading target too: the sectors pass reads it alone.
-        VulkanRenderer renderer = Gpu.Headless(
-            width: Width,
-            height: Height,
-            screenSpaceLight: VisibilityBitmaskLight.Default
-        );
+        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height, screenTrace: ScreenTrace.Default);
         try
         {
             MeshId plane = renderer.CreateMesh(Primitives.Plane(1));
@@ -491,57 +339,13 @@ public sealed class HairRenderTests
                 .ShadingTargetState.Stages.HasFlag(PipelineStageFlags2.ComputeShaderBit)
                 .Should()
                 .BeTrue(
-                    "the sectors pass reads a hair receiver's model code in a compute shader (Vulkan spec, memory dependencies)"
+                    "the tracer reads a hair pixel's model code in a compute shader (Vulkan spec, memory dependencies)"
                 );
         }
         finally
         {
             Gpu.DisposeAndAssertClean(renderer);
         }
-    }
-
-    [Fact]
-    public void UnderTheScreenSpaceLightAHairCardDarkensAHairCardBehindIt()
-    {
-        // A card of half size 0.5, 0.2 m in front of the other and beside the line of sight ahead, from 0.1 m to its
-        // right: within the default radius of 1 m.
-        static Vector3 ShownAhead(bool withCardInFront)
-        {
-            VulkanRenderer renderer = Gpu.Headless(
-                width: Width,
-                height: Height,
-                screenSpaceLight: VisibilityBitmaskLight.Default
-            );
-            try
-            {
-                MeshId plane = renderer.CreateMesh(Primitives.Plane(1));
-                MaterialId hair = Hair(renderer);
-                RenderInstance behind = Card(plane: plane, material: hair, rotation: FacingTheCamera);
-                RenderInstance[] cards = withCardInFront
-                    ?
-                    [
-                        behind,
-                        Card(
-                            plane: plane,
-                            material: hair,
-                            rotation: FacingTheCamera,
-                            center: new(0.6f, 0, -2.8f),
-                            scale: new(0.5f)
-                        ),
-                    ]
-                    : [behind];
-                return At(Rendered(renderer, AmbientOnly(), cards), Ahead);
-            }
-            finally
-            {
-                Gpu.DisposeAndAssertClean(renderer);
-            }
-        }
-
-        Vector3 alone = ShownAhead(withCardInFront: false);
-        ShownAhead(withCardInFront: true)
-            .X.Should()
-            .BeLessThan(0.95f * alone.X, "the card in front blocks a part of the ambient light of the card behind it");
     }
 
     /// <summary>A dark, smooth hair: its primary highlight stands out along a card's middle column.</summary>
@@ -762,11 +566,9 @@ public sealed class HairRenderTests
     }
 
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(true, false)]
-    [InlineData(false, true)]
-    [InlineData(true, true)]
-    public void TheHairsAmbientLightIsTheSourcesAtTheFiberNormal(bool environmentMap, bool screenSpaceLight)
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TheHairsAmbientLightIsTheSourcesAtTheFiberNormal(bool environmentMap)
     {
         // A strand tilted 45° toward the eye, on a card turned 37° about it: its fiber normal looks down, its card's
         // normal sideways and down by other amounts.
@@ -782,8 +584,8 @@ public sealed class HairRenderTests
         Vector3 ShownAhead(bool hair)
         {
             VulkanRenderer renderer = environmentMap
-                ? EnvironmentScenes.Renderer(screenSpaceLight: ScreenSpaceLight(screenSpaceLight))
-                : Gpu.Headless(width: Width, height: Height, screenSpaceLight: ScreenSpaceLight(screenSpaceLight));
+                ? EnvironmentScenes.Renderer()
+                : Gpu.Headless(width: Width, height: Height);
             try
             {
                 MeshId plane = renderer.CreateMesh(Primitives.Plane(1));

@@ -1,12 +1,8 @@
-// The lit surface that the G-buffer holds at a pixel (docs/plans/screen-space-reflections.md, "The one place where SSR
-// reads the ambient light"). The direct and ambient passes and the reflections' passes read a lit pixel's surface only
-// through it, and the estimate of the light around the pixel enters the shading input here
-// (docs/plans/screen-space-illumination.md, "The ambient pass"). So does the reflection's footprint, which the ambient
-// pass and the pass that adds the reflections' delta (the full-resolution trace, or the upsample at half resolution)
-// take from the G-buffer, so that the delta takes away the very ambient specular term that the ambient pass added
-// (docs/plans/environment-map.md, "Where it runs"). Both take it only where their ambient light reads it
-// (withAmbientFootprint), and the reflections' cone reads it at a hit. The pixel must lie inside the G-buffer: texelFetch
-// outside an image is undefined.
+// The lit surface that the G-buffer holds at a pixel. The direct pass, the composite, the screen tracer and the
+// accumulator read a lit pixel's surface only through it. So does the reflection's footprint, which the closed form of
+// the environment's specular term reads from the G-buffer (docs/plans/environment-map.md, "Where it runs"), only where
+// that term reads it (withAmbientFootprint). The pixel must lie inside the G-buffer: texelFetch outside an image is
+// undefined.
 #ifndef TERTIUS_GBUFFER_SURFACE_GLSL
 #define TERTIUS_GBUFFER_SURFACE_GLSL
 
@@ -15,7 +11,6 @@
 #include "lighting.glsl"
 #include "exposure.glsl"
 #include "screen.glsl"
-#include "estimate.glsl"
 
 // d at a pixel: a surface's specular dominant direction toward the eye, and a sky pixel's view ray.
 vec3 dominantDirectionAt(ivec2 pixel)
@@ -46,9 +41,8 @@ float reflectionFootprintAt(ivec2 pixel)
     return max(frame.params.z, max(alongX, alongY));
 }
 
-// The surface without the estimate, with V = 1, S = 1 and G = 0, and with the footprint at its floor p, for the direct light,
-// which reads none of them. The direct pass reads the surface only through it, so it never reads the estimate target,
-// which the occlusion passes write after it.
+// The surface, with the footprint at its floor p: the direct light reads no footprint, and withAmbientFootprint sets it
+// where the closed form reads it.
 ShadingInput materialAt(ivec2 pixel)
 {
     ShadingInput s;
@@ -65,25 +59,9 @@ ShadingInput materialAt(ivec2 pixel)
     s.lobeSkyFraction = specular.a;
     s.skyFraction = texelFetch(gbufferEmissive, pixel, 0).a;
     s.reflectionFootprint = frame.params.z;
-    s.occlusion = 1.0;
-    s.openShare = vec3(1.0);
-    s.bounce = vec3(0.0);
     uvec4 shading = texelFetch(gbufferShading, pixel, 0);
     s.model = modelOfWord(shading.a);
     s.strand = s.model == ShadingHair ? strandOfCode(shading.rg) : vec3(0.0);
-    return s;
-}
-
-// The surface with the estimate, with the footprint still at its floor p.
-ShadingInput estimatedAt(ivec2 pixel)
-{
-    ShadingInput s = materialAt(pixel);
-    Estimate estimate = unpackEstimate(texelFetch(gbufferEstimate, pixel, 0));
-    s.occlusion = estimate.occlusion;
-    s.openShare = 1.0 - estimate.blockedShare;
-    // The images hold the bounce pre-exposed. k = exp2(stops) is a normal float above 0, and the quotient stays below
-    // c · 2⁶⁴, a finite single float.
-    s.bounce = estimate.bounce / exposureScale();
     return s;
 }
 
@@ -102,12 +80,6 @@ ShadingInput withAmbientFootprint(ShadingInput s, ivec2 pixel)
     if (ambientReadsFootprint(s))
         s.reflectionFootprint = reflectionFootprintAt(pixel);
     return s;
-}
-
-// The surface with the estimate, for the ambient light alone.
-ShadingInput ambientSurfaceAt(ivec2 pixel)
-{
-    return withAmbientFootprint(estimatedAt(pixel), pixel);
 }
 
 #endif

@@ -71,7 +71,7 @@ internal sealed unsafe class TemporalSignal : IDisposable
     )
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(parts, 1);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(parts, DescriptorLayouts.SignalReadParts);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(parts, MostParts);
         CheckDevice(device);
 
         this.device = device;
@@ -89,7 +89,6 @@ internal sealed unsafe class TemporalSignal : IDisposable
         for (int part = 0; part < parts; part++)
         for (int parity = 0; parity < 2; parity++)
             sets[part, parity] = layouts.AllocateSignalSet();
-        ReadSet = layouts.AllocateSignalReadSet();
 
         temporal = CreatePipeline(shaders, "temporal");
         spatial = CreatePipeline(shaders, "spatial");
@@ -114,11 +113,8 @@ internal sealed unsafe class TemporalSignal : IDisposable
     /// <summary>The signal's parameter set.</summary>
     public SignalParameters Parameters { get; }
 
-    /// <summary>
-    /// Set 3 of <see cref="DescriptorLayouts.CompositeLayout"/>: the slow history of each part as a storage image for the
-    /// fragment stage, which the composite reads.
-    /// </summary>
-    public DescriptorSet ReadSet { get; }
+    /// <summary>The most parts of a signal: the descriptor pool holds the sets of a test's signal of two parts.</summary>
+    public const int MostParts = 2;
 
     /// <summary>The sample of <paramref name="part"/>, which the producer writes in each frame: rgb the light, a 1.</summary>
     public GpuImage Sample(int part) => parts[part].Sample;
@@ -253,7 +249,6 @@ internal sealed unsafe class TemporalSignal : IDisposable
             );
             for (int parity = 0; parity < 2; parity++)
                 WriteSignalSet(set: sets[part, parity], images: parts[part], part: part, parity: parity);
-            layouts.WriteStorageImage(set: ReadSet, binding: (uint)part, image: parts[part].Slow);
         }
     }
 

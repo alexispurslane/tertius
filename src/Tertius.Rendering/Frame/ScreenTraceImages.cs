@@ -8,13 +8,11 @@ namespace Tertius.Rendering;
 /// plan's bits at each pixel, the records of each 2 × 2 block's ray and of each pixel's own ray of each kind, and the
 /// own-ray list of each kind. Its two sets, one per parity of the drawn frames, also bind what the tracer reads: the depth
 /// pyramid's finest level and its bounds, the direct light's two images, the surface test image, the motion target and the
-/// two signals' images of that parity (<see cref="TemporalSignal.HitImages"/>), whose samples the resolve writes. Every
-/// image holds the render targets' size, the block records a quarter of it, and each stays in the General layout.
+/// two signals' images of that parity (<see cref="TemporalSignal.HitImages"/>), whose samples the resolve writes. It also
+/// writes the two signals' slow histories into the light set of the targets (<see cref="RenderTargets.LightSet"/>),
+/// which the composite reads. Every image holds the render targets' size, the block records a quarter of it, and each
+/// stays in the General layout. The depth pyramid belongs to the targets (<see cref="DepthPyramidImages"/>).
 /// </summary>
-/// <remarks>
-/// The depth pyramid's images still belong to <see cref="ReflectionTargets"/>, which builds them for the reflections and
-/// for the tracer alike, until the reflections go (ter-gayt, part 6).
-/// </remarks>
 internal sealed class ScreenTraceImages : IDisposable
 {
     /// <summary>The format of the plan's bits: bit 0 an own reflection ray, bit 1 an own diffuse ray (screen_trace.glsl).</summary>
@@ -34,11 +32,11 @@ internal sealed class ScreenTraceImages : IDisposable
     private readonly DescriptorLayouts layouts;
     private readonly RenderTargets targets;
     private readonly SurfaceHistory surfaces;
-    private readonly ReflectionTargets pyramids;
+    private readonly DepthPyramidImages pyramid;
     private readonly TemporalSignal diffuse;
     private readonly TemporalSignal specular;
 
-    /// <param name="pyramids">The owner of the depth pyramid and its finest level.</param>
+    /// <param name="pyramid">The depth pyramid and its finest level.</param>
     /// <param name="diffuse">The diffuse signal, of one part, whose sample the resolve writes.</param>
     /// <param name="specular">The specular signal, of one part.</param>
     public ScreenTraceImages(
@@ -47,7 +45,7 @@ internal sealed class ScreenTraceImages : IDisposable
         DescriptorLayouts layouts,
         RenderTargets targets,
         SurfaceHistory surfaces,
-        ReflectionTargets pyramids,
+        DepthPyramidImages pyramid,
         TemporalSignal diffuse,
         TemporalSignal specular
     )
@@ -57,7 +55,7 @@ internal sealed class ScreenTraceImages : IDisposable
         this.layouts = layouts;
         this.targets = targets;
         this.surfaces = surfaces;
-        this.pyramids = pyramids;
+        this.pyramid = pyramid;
         this.diffuse = diffuse;
         this.specular = specular;
         Sets = [layouts.AllocateScreenTraceSet(), layouts.AllocateScreenTraceSet()];
@@ -102,11 +100,11 @@ internal sealed class ScreenTraceImages : IDisposable
 
     /// <summary>
     /// Recreates the images and the lists at the targets' size and rewrites both sets. The device must be idle, and the
-    /// targets, the surface history, the pyramids and both signals resize first, because the sets point at their images.
+    /// targets, the surface history and both signals resize first, because the sets point at their images.
     /// </summary>
     public void Resize()
     {
-        DestroyImages();
+        Dispose();
         Create();
     }
 
@@ -123,6 +121,8 @@ internal sealed class ScreenTraceImages : IDisposable
         OwnRays = [CreateOwnRayList(extent, "reflection"), CreateOwnRayList(extent, "diffuse")];
         for (int parity = 0; parity < Sets.Length; parity++)
             WriteSet(parity);
+        layouts.WriteStorageImage(set: targets.LightSet, binding: 2, image: diffuse.Slow(0));
+        layouts.WriteStorageImage(set: targets.LightSet, binding: 3, image: specular.Slow(0));
     }
 
     /// <summary>Writes the set of <paramref name="parity"/> in the bindings of screen_trace.glsl.</summary>
@@ -131,8 +131,8 @@ internal sealed class ScreenTraceImages : IDisposable
         DescriptorSet set = Sets[parity];
         (GpuImage diffuseSample, GpuImage lastFastDiffuse, GpuImage slowDiffuse) = diffuse.HitImages(part: 0, parity);
         (GpuImage specularSample, GpuImage lastFastSpecular, GpuImage slowSpecular) = specular.HitImages(part: 0, parity);
-        layouts.WriteImage(set: set, binding: 0, view: pyramids.DepthFinest.View, layout: ImageLayout.General);
-        layouts.WriteImage(set: set, binding: 1, view: pyramids.DepthImage.View, layout: ImageLayout.General);
+        layouts.WriteImage(set: set, binding: 0, view: pyramid.DepthFinest.View, layout: ImageLayout.General);
+        layouts.WriteImage(set: set, binding: 1, view: pyramid.DepthImage.View, layout: ImageLayout.General);
         GpuImage[] storage =
         [
             targets.DirectDiffuse,
@@ -190,8 +190,8 @@ internal sealed class ScreenTraceImages : IDisposable
             name: $"screen trace {kind} own rays"
         );
 
-    /// <summary>Destroys the images and the lists. The device must be idle.</summary>
-    private void DestroyImages()
+    /// <summary>Destroys the images and the lists, which <see cref="Resize"/> makes again. The device must be idle.</summary>
+    public void Dispose()
     {
         foreach (GpuImage image in Records)
             image.Dispose();
@@ -199,6 +199,4 @@ internal sealed class ScreenTraceImages : IDisposable
             list.Dispose();
         OwnRays = [];
     }
-
-    public void Dispose() => DestroyImages();
 }

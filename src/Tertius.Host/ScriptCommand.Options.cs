@@ -56,14 +56,11 @@ public static partial class ScriptCommand
         /// <summary>The curve that replaces the renderer's default, or null to keep it.</summary>
         public ToneCurve? ToneCurve { get; init; }
 
-        /// <summary>The setting that replaces the renderer's default, or null to keep it.</summary>
-        public ScreenSpaceLightSetting? ScreenSpaceLight { get; init; }
+        /// <summary>True to turn the renderer's screen tracer off, false to keep its default.</summary>
+        public bool ScreenTraceOff { get; init; }
 
         /// <summary>True to turn the renderer's bloom off, false to keep its default.</summary>
         public bool BloomOff { get; init; }
-
-        /// <summary>True to turn the renderer's reflections off, false to keep its default.</summary>
-        public bool ReflectionsOff { get; init; }
 
         /// <summary>The anti-aliasing that replaces the renderer's default, or null to keep it.</summary>
         public AntiAliasing? AntiAliasing { get; init; }
@@ -88,12 +85,10 @@ public static partial class ScriptCommand
         {
             if (ToneCurve is { } curve)
                 options.ToneCurve = curve;
-            if (ScreenSpaceLight is { } screenSpaceLight)
-                options.ScreenSpaceLight = screenSpaceLight;
+            if (ScreenTraceOff)
+                options.ScreenTrace = new NoScreenTrace();
             if (BloomOff)
                 options.Bloom = new NoBloom();
-            if (ReflectionsOff)
-                options.Reflections = new NoReflections();
             if (AntiAliasing is { } antiAliasing)
                 options.AntiAliasing = antiAliasing;
             if (LocalShadows is { } localShadows)

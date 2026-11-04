@@ -150,67 +150,6 @@ internal readonly record struct ScreenRay(
         Math.Clamp(Vector3.Dot(direction, geometricNormal) / SurfaceFadeCosine, 0, 1);
 
     /// <summary>
-    /// Walks the image through the pyramid, as traceRay in reflection.glsl does: one level up after each cell that the
-    /// ray crosses without meeting its slab, one level down into each cell whose slab it meets, a hit at level 0.
-    /// </summary>
-    /// <param name="pyramid">The depth pyramid of the frame.</param>
-    /// <param name="maxSteps">The most cells that the trace examines before it gives up.</param>
-    public RayTrace Trace(DepthPyramid pyramid, int maxSteps)
-    {
-        var travel = new Vector2(MathF.Sign(Step.X), MathF.Sign(Step.Y));
-        // The pixel that the walk stands in: a pixel of the march whose stretch holds s, the one that the image enters
-        // at s after a crossing and the one that it leaves at s after a descent. The cell of each level is the one
-        // that holds it, so the walk tests no pixel that the march does not visit, and skips only pixels before a slab
-        // entry.
-        Vector2 pixel = Floor(Start);
-        (float s, Vector2 crossed) = CellExit(level: 0, cell: pixel, travel: travel);
-        pixel += travel * crossed;
-        // The inverse depth at s. After a descent it is the slab bound that s was solved for, not InverseDepthAt(s):
-        // near the vanishing point the rounding of that sum is larger than a far surface's slab.
-        float inW = InverseDepthAt(s);
-        int level = 0;
-        for (int steps = 0; steps < maxSteps; steps++)
-        {
-            if (s >= End)
-                return new RayLeftTheSegment(EndsAt, steps);
-            Vector2 cell = Floor(pixel / (1 << level));
-            (float exit, crossed) = CellExit(level, cell, travel);
-            if (level == 0 && MeetPixel(pyramid: pyramid, pixel: cell) is { } met)
-                return new RayHit(
-                    Position: met.Position,
-                    Pixel: ((int)cell.X, (int)cell.Y),
-                    EntryShare: met.EntryShare,
-                    Steps: steps + 1
-                );
-            // At level 0 the pixel's surface decided: the ray crosses the pixel. Above it, the cell's slab decides.
-            if (
-                level == 0
-                || MetCellSlab(pyramid: pyramid, level: level, cell: cell, inW: inW, exit: exit) is not { } slab
-            )
-            {
-                // Never back: an entry solved inside a cell can round past the cell's exit. The walk still moves on,
-                // into the cell across the edges that the image leaves through.
-                s = MathF.Max(s, exit);
-                inW = InverseDepthAt(s);
-                pixel = PixelAt(level: level, cell: cell + travel * crossed, s: s, travel: travel);
-                level = Math.Min(level + 1, pyramid.TopLevel);
-                continue;
-            }
-            // GLSL's clamp, which never throws: exit can lie a rounding below s.
-            float entry = MathF.Min(MathF.Max(SlabEntry(s: s, inW: inW, low: slab.Low, high: slab.High), s), exit);
-            // An entry at s keeps the pixel, which s can stand on the edge of. An entry past s lies in the cell's pixel
-            // that the image leaves there, because the march tests a pixel's stretch up to its end, where the pixel's
-            // slab can reach the ray. That is the pixel at the float just below the entry: no edge lies between them.
-            if (entry > s)
-                pixel = PixelAt(level: level, cell: cell, s: MathF.BitDecrement(entry), travel: travel);
-            s = entry;
-            inW = Math.Clamp(inW, slab.Low, slab.High);
-            level--;
-        }
-        return s >= End ? new RayLeftTheSegment(EndsAt, maxSteps) : new RayOutOfSteps(maxSteps);
-    }
-
-    /// <summary>
     /// The two-depth walk, as walkScreen in screen_walk.glsl walks it (docs/plans/temporal-renderer.md, section 6, "The
     /// traversal"). A step reads one cell: the bounds of a level above 0, or a pixel's center w at the finest level. A
     /// ray that passes in front of the cell's slab or behind it crosses the cell and goes up a level, one that meets the
@@ -317,71 +256,6 @@ internal readonly record struct ScreenRay(
         return parent * 2 + (passedCenter == travel > 0 ? 1 : 0);
     }
 
-    /// <summary>
-    /// The slab of a cell of a level above 0 when the ray's inverse depths over the cell, from <paramref name="inW"/> to
-    /// w(<paramref name="exit"/>), meet it, or null when they miss it. At level 0 the pixel's surface decides instead
-    /// (<see cref="MeetPixel"/>).
-    /// </summary>
-    private (float Low, float High)? MetCellSlab(DepthPyramid pyramid, int level, Vector2 cell, float inW, float exit)
-    {
-        (float low, float high) = pyramid.Bounds(level, (int)cell.X, (int)cell.Y).Slab(CellBounds.ThicknessShare);
-        float outW = InverseDepthAt(exit);
-        return MathF.Max(MathF.Min(inW, outW), low) <= MathF.Min(MathF.Max(inW, outW), high) ? (low, high) : null;
-    }
-
-    /// <summary>
-    /// The trace's test at level 0, as meetsPixelSurface in reflection.glsl: whether the stretch of the image inside a
-    /// pixel, from where it enters the pixel to where it leaves it or the segment ends, meets the slab of thickness κ
-    /// behind the pixel's surface (docs/plans/screen-space-reflections.md, "The trace through the pyramid"). The ray
-    /// and the slab are each read at both ends of the stretch, and taken as affine between them. The pixel alone gives
-    /// the stretch, never a slab entry that a descent solved inside the pixel, so the answer does not depend on how the
-    /// walk reached the pixel. Where the surface's part stops at a center line, the surface bends there, so a hit is
-    /// always real, but a ray can pass the bend inside the slab and still miss: at most half a pixel's gradient in
-    /// inverse depth off the surface, and only beside a depth edge or a curve beyond
-    /// <see cref="CellBounds.ContinuationShare"/>.
-    /// </summary>
-    /// <param name="pyramid">The depth pyramid of the frame.</param>
-    /// <param name="pixel">The pixel, its top-left corner in pixels.</param>
-    /// <returns>Where the ray enters the slab, clamped into the pixel, and q from the pixel's edge where the image
-    /// enters it; or null for a pixel without a surface, or a stretch that passes in front of the slab or behind it.
-    /// </returns>
-    public (Vector2 Position, float EntryShare)? MeetPixel(DepthPyramid pyramid, Vector2 pixel)
-    {
-        if (pyramid.Surface((int)pixel.X, (int)pixel.Y) is not { } surface)
-            return null;
-        const float thickness = 1 + CellBounds.ThicknessShare;
-        var travel = new Vector2(MathF.Sign(Step.X), MathF.Sign(Step.Y));
-        float edge = PixelEntry(pixel, travel);
-        float exit = CellExit(level: 0, cell: pixel, travel: travel).Exit;
-
-        // The ray's inverse depth where the image enters the pixel, never at a solved s: that keeps a far surface's thin
-        // slab exact (docs/plans/screen-space-reflections.md, "Precision and determinism").
-        float inW = InverseDepthAt(edge);
-        float outW = InverseDepthAt(exit);
-        float surfaceIn = surface.InverseDepthAt(Start + Step * edge);
-        float surfaceOut = surface.InverseDepthAt(Start + Step * exit);
-
-        // How far the ray stands in front of the slab's front, and of its back, at both ends of the stretch.
-        float frontIn = inW - surfaceIn;
-        float frontOut = outW - surfaceOut;
-        float backIn = inW - surfaceIn / thickness;
-        float backOut = outW - surfaceOut / thickness;
-        if ((frontIn > 0 && frontOut > 0) || (backIn < 0 && backOut < 0))
-            return null;
-        // The share of the stretch before the ray enters the slab: through its front from in front, through its back
-        // from behind, or none from inside.
-        float crossed = 0;
-        if (frontIn > 0)
-            crossed = frontIn / (frontIn - frontOut);
-        else if (backIn < 0)
-            crossed = backIn / (backIn - backOut);
-        float entry = edge + (exit - edge) * crossed;
-        return (
-            Vector2.Clamp(Start + Step * entry, pixel, pixel + Vector2.One),
-            EntryShare(inW, surfaceIn / thickness, surfaceIn)
-        );
-    }
-
     /// <summary>The parameter where a coordinate that moves by step per unit reaches 0 or limit, or NoEnd when it
     /// stands still.</summary>
     private static float ParameterAtLimit(float position, float step, float limit)
@@ -419,45 +293,11 @@ internal readonly record struct ScreenRay(
         return s;
     }
 
-    /// <summary>
-    /// The pixel that the image enters at s, in a cell of a level: on each axis, the pixel whose near edge the image
-    /// reaches at s or before and whose far edge it reaches after s, by the quotients of <see cref="EdgeParameters"/>
-    /// that the march's steps compare. So a position that rounds across a pixel's corner does not move the walk off the
-    /// march's pixels. The position's rounding is far below a pixel, so floor(position) lies at most one pixel off on
-    /// each axis. Clamped into the cell, which holds that pixel whenever s lies in the cell.
-    /// </summary>
-    private Vector2 PixelAt(int level, Vector2 cell, float s, Vector2 travel)
-    {
-        Vector2 pixel = Floor(Start + Step * s);
-        Vector2 entry = EdgeParameters(edge: pixel + Vector2.Max(-travel, Vector2.Zero), still: -NoEnd);
-        Vector2 exit = EdgeParameters(edge: pixel + Vector2.Max(travel, Vector2.Zero), still: NoEnd);
-        pixel += travel * new Vector2(PixelShift(entry.X, exit.X, s), PixelShift(entry.Y, exit.Y, s));
-        Vector2 first = cell * (1 << level);
-        return Vector2.Clamp(pixel, first, first + new Vector2((1 << level) - 1));
-    }
-
-    /// <summary>On one axis, 1 when the image reaches a pixel's far edge at s or before, −1 when it reaches its near
-    /// edge after s, and 0 when s lies between: how many pixels on in the direction of travel the pixel that the image
-    /// enters at s lies.</summary>
-    private static float PixelShift(float entry, float exit, float s)
-    {
-        if (exit <= s)
-            return 1;
-        return entry > s ? -1 : 0;
-    }
-
     /// <summary>The parameters where the image reaches the line x = edge.X and the line y = edge.Y, or still on an axis
-    /// where the image stands still. The walk, the march and the level-0 test all take a pixel's edges from here.
+    /// where the image stands still. The walk takes a cell's edges from here.
     /// </summary>
     private Vector2 EdgeParameters(Vector2 edge, float still) =>
         new(Step.X != 0 ? (edge.X - Start.X) / Step.X : still, Step.Y != 0 ? (edge.Y - Start.Y) / Step.Y : still);
-
-    /// <summary>The parameter where the image enters a pixel, on its near edge across or down.</summary>
-    private float PixelEntry(Vector2 pixel, Vector2 travel)
-    {
-        Vector2 entry = EdgeParameters(edge: pixel + Vector2.Max(-travel, Vector2.Zero), still: -NoEnd);
-        return MathF.Max(entry.X, entry.Y);
-    }
 
     /// <summary>The parameter where the image leaves a cell of a level, on its far edge across or down, or the
     /// segment's end; and 1 on each axis whose far edge gives the earlier of the two parameters, 0 on the other, both

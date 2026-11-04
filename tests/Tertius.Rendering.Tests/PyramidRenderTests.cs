@@ -5,10 +5,9 @@ using Tertius.Testing;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The two pyramids of the screen-space reflections on the GPU (docs/plans/screen-space-reflections.md, "GPU tests of the
-/// pyramids"): the depth pyramid against its C# copy, the padding of its image, the radiance pyramid against the lit
-/// image and the 13-tap filter, a resize, the passes that the setting adds, and no depth pyramid for the screen-space light
-/// alone. The scene is a floor, two boxes and a lamp under the sky, at 640 × 360, whose odd levels exercise the sizes that round up.
+/// The depth pyramid of the screen tracer on the GPU (docs/plans/screen-space-reflections.md, "GPU tests of the
+/// pyramids"): the depth pyramid and its finest level against their C# copy, the padding of its image, a resize, and the
+/// passes that the setting adds. The scene is a floor, two boxes and a lamp under the sky, at 640 × 360, whose odd levels exercise the sizes that round up.
 /// A second scene puts a panel before a wall, for the bounds at a depth edge.
 /// </summary>
 [Collection(GpuCollection.Name)]
@@ -35,7 +34,7 @@ public sealed class PyramidRenderTests
     [InlineData(10)]
     public void EachDepthPyramidCellHoldsTheBoundsOfThePixelsUnderIt(int level)
     {
-        VulkanRenderer renderer = Gpu.Headless(reflections: ConeTracedReflections.Default);
+        VulkanRenderer renderer = Gpu.Headless(screenTrace: ScreenTrace.Default);
         try
         {
             renderer.Render(Scene(renderer), 1f);
@@ -98,7 +97,7 @@ public sealed class PyramidRenderTests
         // The panel's plane, seen from below at a grazing angle, runs steeply in depth: one pixel below the panel's far
         // edge it lies within 1 % of the wall behind. Only the wall's plane, which never passes back through the panel's
         // last row, tells the depth edge (the light bars of ter-eqtb's floor film at a roughness limit of 0.6).
-        VulkanRenderer renderer = Gpu.Headless(reflections: ConeTracedReflections.Default);
+        VulkanRenderer renderer = Gpu.Headless(screenTrace: ScreenTrace.Default);
         try
         {
             renderer.Render(PanelBeforeAWall(renderer), 1f);
@@ -133,7 +132,7 @@ public sealed class PyramidRenderTests
     [Fact]
     public void EachTexelOfTheFinestLevelHoldsOneOverTheViewDepthOfItsPixelsCenterAndSkyHoldsZero()
     {
-        VulkanRenderer renderer = Gpu.Headless(reflections: ConeTracedReflections.Default);
+        VulkanRenderer renderer = Gpu.Headless(screenTrace: ScreenTrace.Default);
         try
         {
             renderer.Render(Scene(renderer), 1f);
@@ -169,7 +168,7 @@ public sealed class PyramidRenderTests
     [Fact]
     public void ACellOfOnlySkyHoldsTheEmptyBounds()
     {
-        VulkanRenderer renderer = Gpu.Headless(reflections: ConeTracedReflections.Default);
+        VulkanRenderer renderer = Gpu.Headless(screenTrace: ScreenTrace.Default);
         try
         {
             renderer.Render(Scene(renderer), 1f);
@@ -193,7 +192,7 @@ public sealed class PyramidRenderTests
     [InlineData(7)]
     public void ACellBesideTheScreenHoldsTheEmptyBounds(int level)
     {
-        VulkanRenderer renderer = Gpu.Headless(reflections: ConeTracedReflections.Default);
+        VulkanRenderer renderer = Gpu.Headless(screenTrace: ScreenTrace.Default);
         try
         {
             renderer.Render(Scene(renderer), 1f);
@@ -221,292 +220,11 @@ public sealed class PyramidRenderTests
     }
 
     [Fact]
-    public void RadianceLevelZeroIsTheLitImageTimesTheSurfaceCoverage()
-    {
-        float[] lit;
-        float[] distance;
-        VulkanRenderer without = Gpu.Headless(reflections: new NoReflections());
-        try
-        {
-            without.Render(Scene(without), 1f);
-            lit = without.ReadHdr();
-            distance = without.ReadDistance();
-        }
-        finally
-        {
-            Gpu.DisposeAndAssertClean(without);
-        }
-
-        VulkanRenderer renderer = Gpu.Headless(reflections: ConeTracedReflections.Default);
-        try
-        {
-            renderer.Render(Scene(renderer), 1f);
-            (float[] radiance, int levelWidth, int levelHeight) = renderer.ReadRadiancePyramidLevel(0);
-
-            (levelWidth, levelHeight).Should().Be((Width, Height), "level 0 has the screen's size");
-            distance.Should().Contain(d => d > 0).And.Contain(0f, "the scene shows both surfaces and sky");
-            for (int pixel = 0; pixel < Width * Height; pixel++)
-            {
-                float coverage = distance[pixel] > 0 ? 1 : 0;
-                for (int channel = 0; channel < 3; channel++)
-                    radiance[4 * pixel + channel]
-                        .Should()
-                        .Be(
-                            lit[4 * pixel + channel] * coverage,
-                            "pixel {0} holds the lit image times its coverage",
-                            pixel
-                        );
-                radiance[4 * pixel + 3].Should().Be(coverage, "the alpha of pixel {0} is its surface coverage", pixel);
-            }
-        }
-        finally
-        {
-            Gpu.DisposeAndAssertClean(renderer);
-        }
-    }
-
-    [Fact]
-    public void RadianceLevelZeroLeavesOutTheGlowOfAnEntityThatHoldsALight()
-    {
-        // The lamp box holds the scene's light, so its glow is that light's face, which the light's lobe already reflects
-        // (docs/plans/screen-space-reflections.md, "A lamp's glow"). Level 0 holds the lit image without the glow: the
-        // image of the same scene whose lamp box glows not at all.
-        float[] dark;
-        VulkanRenderer without = Gpu.Headless(reflections: new NoReflections());
-        try
-        {
-            without.Render(Scene(renderer: without, lampEntity: Gpu.LampEntity, lampGlow: Vector3.Zero), 1f);
-            dark = without.ReadHdr();
-        }
-        finally
-        {
-            Gpu.DisposeAndAssertClean(without);
-        }
-
-        VulkanRenderer renderer = Gpu.Headless(reflections: ConeTracedReflections.Default);
-        try
-        {
-            renderer.Render(Scene(renderer: renderer, lampEntity: Gpu.LampEntity, lampGlow: new(20, 18, 14)), 1f);
-            float[] lit = renderer.ReadHdr();
-            float[] distance = renderer.ReadDistance();
-            (float[] radiance, _, _) = renderer.ReadRadiancePyramidLevel(0);
-
-            lit.Should().Contain(value => value >= 14, "the lamp box glows in the lit image");
-            for (int value = 0; value < radiance.Length; value++)
-                if (value % 4 != 3)
-                    // The lit image stores the glow's sum with the light in half floats, whose step below 64 is at most
-                    // 1 / 32, and the direct and the ambient pass round it once each. A glow left in adds 14 or more.
-                    radiance[value]
-                        .Should()
-                        .BeApproximately(
-                            distance[value / 4] > 0 ? dark[value] : 0,
-                            1 / 16f,
-                            "value {0} holds no glow of the lamp",
-                            value
-                        );
-        }
-        finally
-        {
-            Gpu.DisposeAndAssertClean(renderer);
-        }
-    }
-
-    [Fact]
-    public void RadianceLevelZeroReadsTheGlowAndTheLightMarkAfterTheirWritesAreVisibleToItsComputeShader()
-    {
-        // Level 0 reads the emissive and shading targets in a compute shader, so its barrier must make the G-buffer pass's
-        // writes visible to that stage (Vulkan spec, memory dependencies). The direct and ambient passes make them visible
-        // to fragment shaders only. The steps of the reflections declare the G-buffer for compute too, so they are left
-        // out here, and the targets keep the state that the pyramid left them in.
-        VulkanRenderer renderer = Gpu.Headless(reflections: ConeTracedReflections.Default);
-        try
-        {
-            renderer.Graph.Skipped.UnionWith(["reflection trace", "reflections"]);
-            renderer.Render(Scene(renderer), 1f);
-
-            renderer
-                .EmissiveTargetState.Stages.Should()
-                .HaveFlag(PipelineStageFlags2.ComputeShaderBit, "level 0 reads the glow");
-            renderer
-                .ShadingTargetState.Stages.Should()
-                .HaveFlag(PipelineStageFlags2.ComputeShaderBit, "level 0 reads the light mark");
-        }
-        finally
-        {
-            Gpu.DisposeAndAssertClean(renderer);
-        }
-    }
-
-    [Fact]
-    public void RadianceLevelZeroHoldsNoNegativeLightWhereTheSkinScatterDimsALampAtTheRadianceCap()
-    {
-        // A skin box whose entity holds a light, with a glow past MaxRadiance, so the G-buffer caps the glow at
-        // MaxRadiance and the lit image is the glow alone. The sun lights the face toward +X and leaves the other dark, so
-        // the scatter's sum of the lit face's diffuse light near the edge is less than that light, and the scatter takes
-        // the difference from the lit image after its cap. There the lit image is below the glow, and the light without
-        // the glow is below 0, which level 0 holds as 0: a cone that met it would take light out of a reflection.
-        VulkanRenderer renderer = Gpu.Headless(
-            exposure: new FixedExposure(0),
-            reflections: ConeTracedReflections.Default,
-            subsurface: SeparableSubsurface.Default
-        );
-        try
-        {
-            var center = new Vector3(0, 0, -0.4f);
-            RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitX, starIrradiance: 20_000);
-            snapshot.Ambient.Intensity = 0;
-            snapshot.Instances.Add(
-                Gpu.Instance(
-                    mesh: renderer.CreateMesh(Primitives.Box(new(0.1f))),
-                    material: renderer.CreateMaterial(
-                        new MaterialDesc(BaseColor: Vector4.One, Roughness: 0.5f, Model: new SkinShading()) with
-                        {
-                            Emissive = new(100_000),
-                        }
-                    ),
-                    position: center,
-                    scale: Vector3.One,
-                    // A turn of 45° about +Y shows the face toward +X and +Z and the face toward −X and +Z.
-                    rotation: Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 4),
-                    radius: 0.2f,
-                    entity: Gpu.LampEntity,
-                    chainDepth: TestChains.CamerasFrame
-                )
-            );
-            // Inside the box, the light reaches none of its outer faces.
-            snapshot.Lights.Add(
-                Gpu.Lamp(position: center, color: Vector3.One, intensity: 1, chainDepth: TestChains.CamerasFrame)
-            );
-            renderer.Render(snapshot, 1f);
-            float[] lit = renderer.ReadHdr();
-            float[] distance = renderer.ReadDistance();
-            (float[] radiance, _, _) = renderer.ReadRadiancePyramidLevel(0);
-
-            Enumerable
-                .Range(0, distance.Length)
-                .Where(pixel => distance[pixel] > 0)
-                .Select(pixel => lit[4 * pixel])
-                .Should()
-                .Contain(
-                    red => red < ShaderInput.MaxRadiance - 16,
-                    "the scatter dims the lit face near the edge below the capped glow"
-                );
-            for (int value = 0; value < radiance.Length; value++)
-                if (value % 4 != 3)
-                    radiance[value].Should().BeGreaterThanOrEqualTo(0, "value {0} holds no negative light", value);
-        }
-        finally
-        {
-            Gpu.DisposeAndAssertClean(renderer);
-        }
-    }
-
-    [Fact]
-    public void EachRadianceLevelIsTheThirteenTapDownsampleOfTheLevelBelow()
-    {
-        VulkanRenderer renderer = Gpu.Headless(reflections: ConeTracedReflections.Default);
-        try
-        {
-            renderer.Render(Scene(renderer), 1f);
-            (float[] below, int belowWidth, int belowHeight) = renderer.ReadRadiancePyramidLevel(1);
-            (float[] level, int levelWidth, int levelHeight) = renderer.ReadRadiancePyramidLevel(2);
-
-            // Level 1 is 320 × 180, even on both axes, so every tap lies on a texel corner, where a bilinear tap is the
-            // mean of four texels whatever the sampler's sub-texel precision.
-            (belowWidth, belowHeight)
-                .Should()
-                .Be((320, 180));
-            (levelWidth, levelHeight).Should().Be((160, 90));
-            level.Should().Contain(value => value > 0.01f, "the scene's lit surfaces reach level 2");
-            for (int y = 0; y < levelHeight; y++)
-            for (int x = 0; x < levelWidth; x++)
-            {
-                Vector4 expected = Jimenez13(
-                    rgba: below,
-                    width: belowWidth,
-                    height: belowHeight,
-                    cornerX: 2 * x + 1,
-                    cornerY: 2 * y + 1
-                );
-                for (int channel = 0; channel < 4; channel++)
-                {
-                    float wanted = expected[channel];
-                    level[4 * (y * levelWidth + x) + channel]
-                        .Should()
-                        .BeApproximately(
-                            wanted,
-                            2e-3f * Math.Abs(wanted) + 1e-5f,
-                            "texel ({0}, {1}), channel {2}",
-                            x,
-                            y,
-                            channel
-                        );
-                }
-            }
-        }
-        finally
-        {
-            Gpu.DisposeAndAssertClean(renderer);
-        }
-    }
-
-    [Fact]
-    public void ARadianceLevelBuiltFromAnOddSizedLevelTakesTheThirteenTapsAroundEachTexelsCenter()
-    {
-        VulkanRenderer renderer = Gpu.Headless(reflections: ConeTracedReflections.Default);
-        try
-        {
-            renderer.Render(Scene(renderer), 1f);
-            (float[] below, int belowWidth, int belowHeight) = renderer.ReadRadiancePyramidLevel(3);
-            (float[] level, int levelWidth, int levelHeight) = renderer.ReadRadiancePyramidLevel(4);
-
-            // Level 3 is 80 × 45, odd in height, so the taps of a texel lie on no texel corner along y, and the corners of
-            // the even build, 2p − 1 to 2p + 3, drift from them by up to a texel at the bottom.
-            (belowWidth, belowHeight)
-                .Should()
-                .Be((80, 45));
-            (levelWidth, levelHeight).Should().Be((40, 22));
-            level.Should().Contain(value => value > 0.01f, "the scene's lit surfaces reach level 4");
-            for (int y = 0; y < levelHeight; y++)
-            for (int x = 0; x < levelWidth; x++)
-            {
-                var center = new Vector2((x + 0.5f) / levelWidth, (y + 0.5f) / levelHeight);
-                (Vector4 expected, Vector4 spread) = Jimenez13AtCenter(
-                    rgba: below,
-                    width: belowWidth,
-                    height: belowHeight,
-                    center: center
-                );
-                for (int channel = 0; channel < 4; channel++)
-                {
-                    float wanted = expected[channel];
-                    // Vulkan rounds a bilinear tap's weights to as few as 4 bits (subTexelPrecisionBits), so a tap may
-                    // miss by a sixteenth of the step between the texels that it blends.
-                    level[4 * (y * levelWidth + x) + channel]
-                        .Should()
-                        .BeApproximately(
-                            wanted,
-                            2e-3f * Math.Abs(wanted) + spread[channel] / 16 + 1e-5f,
-                            "texel ({0}, {1}), channel {2}",
-                            x,
-                            y,
-                            channel
-                        );
-                }
-            }
-        }
-        finally
-        {
-            Gpu.DisposeAndAssertClean(renderer);
-        }
-    }
-
-    [Fact]
-    public void ThePyramidsFollowAResize()
+    public void ThePyramidFollowsAResize()
     {
         const int newWidth = 321,
             newHeight = 181;
-        VulkanRenderer renderer = Gpu.Headless(reflections: ConeTracedReflections.Default);
+        VulkanRenderer renderer = Gpu.Headless(screenTrace: ScreenTrace.Default);
         try
         {
             RenderSnapshot snapshot = Scene(renderer);
@@ -516,9 +234,8 @@ public sealed class PyramidRenderTests
             DepthPyramid expected = ReflectionTesting.PyramidOf(renderer);
             float[] slack = UndecidedSlack(renderer);
             (float[] bounds, int mipWidth, _) = renderer.ReadDepthPyramidLevel(1);
-            (_, int radianceWidth, int radianceHeight) = renderer.ReadRadiancePyramidLevel(0);
 
-            (radianceWidth, radianceHeight).Should().Be((newWidth, newHeight), "the radiance pyramid has the new size");
+            renderer.ReadDepthFinest().Length.Should().Be(newWidth * newHeight, "the finest level has the new size");
             expected.Width.Should().Be(newWidth);
             (int levelWidth, int levelHeight) = DepthPyramid.LevelSize(newWidth, newHeight, 1);
             for (int y = 0; y < levelHeight; y++)
@@ -540,62 +257,11 @@ public sealed class PyramidRenderTests
         }
     }
 
-    [Fact]
-    public void TheHalfResolutionTraceFollowsAResizeAndRoundsUp()
-    {
-        VulkanRenderer renderer = Gpu.Headless(
-            reflections: ConeTracedReflections.Default with
-            {
-                Resolution = TraceResolution.Half,
-            }
-        );
-        try
-        {
-            RenderSnapshot snapshot = Scene(renderer);
-            renderer.Render(snapshot, 1f);
-            renderer.Resize(321, 181);
-            renderer.Render(snapshot, 1f);
-
-            (_, int width, int height) = renderer.ReadReflectionTrace();
-
-            (width, height).Should().Be((161, 91), "each texel stands for a block of 2 × 2 pixels, cut by the edge");
-        }
-        finally
-        {
-            Gpu.DisposeAndAssertClean(renderer);
-        }
-    }
-
-    [Fact]
-    public void TheFullResolutionTraceKeepsNoHalfResolutionImage()
-    {
-        VulkanRenderer renderer = Gpu.Headless(
-            reflections: ConeTracedReflections.Default with
-            {
-                Resolution = TraceResolution.Full,
-            }
-        );
-        try
-        {
-            renderer.Render(Scene(renderer), 1f);
-
-            FluentActions
-                .Invoking(() => renderer.ReadReflectionTrace())
-                .Should()
-                .Throw<InvalidOperationException>()
-                .WithMessage("*full resolution*");
-        }
-        finally
-        {
-            Gpu.DisposeAndAssertClean(renderer);
-        }
-    }
-
     // ResizeTargets, not Resize: the output of a device whose largest image is 16,384 px would refuse the size first.
     [Fact]
-    public void AResizePastTheLongestSideIsRefusedAndKeepsThePyramids()
+    public void AResizePastTheLongestSideIsRefusedAndKeepsThePyramid()
     {
-        VulkanRenderer renderer = Gpu.Headless(reflections: ConeTracedReflections.Default);
+        VulkanRenderer renderer = Gpu.Headless(screenTrace: ScreenTrace.Default);
         try
         {
             FluentActions
@@ -605,8 +271,7 @@ public sealed class PyramidRenderTests
                 .WithMessage("*16384 px a side*");
 
             renderer.Render(Scene(renderer), 1f);
-            (_, int radianceWidth, int radianceHeight) = renderer.ReadRadiancePyramidLevel(0);
-            (radianceWidth, radianceHeight).Should().Be((Width, Height), "the refused size destroyed nothing");
+            renderer.ReadDepthFinest().Length.Should().Be(Width * Height, "the refused size destroyed nothing");
         }
         finally
         {
@@ -615,18 +280,15 @@ public sealed class PyramidRenderTests
     }
 
     [Fact]
-    public void NoReflectionsAddsNoPyramidPass()
+    public void NoScreenTraceAddsNoPyramidPass()
     {
-        VulkanRenderer renderer = Gpu.Headless(reflections: new NoReflections());
+        VulkanRenderer renderer = Gpu.Headless(screenTrace: new NoScreenTrace());
         try
         {
             renderer
                 .Graph.Passes.Select(pass => pass.Name)
                 .Should()
-                .NotContain(
-                    ["depth pyramid", "radiance pyramid", "reflections"],
-                    "a frame without reflections is the frame from before"
-                );
+                .NotContain(["depth pyramid", "ray plan"], "only the tracer's rays read the pyramid");
         }
         finally
         {
@@ -635,30 +297,9 @@ public sealed class PyramidRenderTests
     }
 
     [Fact]
-    public void TheScreenSpaceLightAloneBuildsNoDepthPyramid()
+    public void TheScreenTracerBuildsTheDepthPyramidAfterTheGBufferAndBeforeItsRays()
     {
-        VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: VisibilityBitmaskLight.Default);
-        try
-        {
-            renderer
-                .Graph.Passes.Select(pass => pass.Name)
-                .Should()
-                .Contain("occlusion sectors")
-                .And.NotContain(
-                    "depth pyramid",
-                    "the bounce light's near steps read the view depth image, not the pyramid"
-                );
-        }
-        finally
-        {
-            Gpu.DisposeAndAssertClean(renderer);
-        }
-    }
-
-    [Fact]
-    public void ReflectionsBuildTheDepthPyramidAfterTheGBufferAndTheRadiancePyramidAfterTheComposite()
-    {
-        VulkanRenderer renderer = Gpu.Headless(reflections: ConeTracedReflections.Default);
+        VulkanRenderer renderer = Gpu.Headless(screenTrace: ScreenTrace.Default);
         try
         {
             renderer
@@ -668,8 +309,9 @@ public sealed class PyramidRenderTests
                     "G-buffer",
                     "depth pyramid",
                     "direct light",
+                    "ray plan",
+                    "reflection rays",
                     "composite",
-                    "radiance pyramid",
                     "transparent",
                 ]);
         }
@@ -794,15 +436,7 @@ public sealed class PyramidRenderTests
     /// A white floor 1.5 m below the eye, a red box, a blue box and a lamp on it, the sun, and sky above the floor's far
     /// edge, seen 12° below the horizontal.
     /// </summary>
-    private static RenderSnapshot Scene(VulkanRenderer renderer) =>
-        Scene(renderer: renderer, lampEntity: 0, lampGlow: new(20, 18, 14));
-
-    /// <summary>
-    /// The scene of the pyramids' tests, with a lamp box of entity <paramref name="lampEntity"/> that glows with
-    /// <paramref name="lampGlow"/>. The scene's light carries <see cref="Gpu.LampEntity"/>, so the box holds that light
-    /// when <paramref name="lampEntity"/> is that entity.
-    /// </summary>
-    private static RenderSnapshot Scene(VulkanRenderer renderer, uint lampEntity, Vector3 lampGlow)
+    private static RenderSnapshot Scene(VulkanRenderer renderer)
     {
         RenderSnapshot snapshot = Gpu.Snapshot(new(0.4f, 0.8f, 0.3f));
         snapshot.Camera.Rotation = Gpu.PitchDown(MathF.PI / 15);
@@ -820,7 +454,7 @@ public sealed class PyramidRenderTests
         MaterialId lamp = renderer.CreateMaterial(
             MaterialDesc.Color(new(x: 1, y: 1, z: 1, w: 1), roughness: 0.5f) with
             {
-                Emissive = lampGlow,
+                Emissive = new(20, 18, 14),
             }
         );
         snapshot.Instances.Add(Block(box: box, material: floor, center: new(0, -2, -20), size: new(20, 1, 36)));
@@ -834,7 +468,6 @@ public sealed class PyramidRenderTests
                 position: new(0.3f, -1.25f, -4),
                 scale: lampSize,
                 radius: lampSize.Length() / 2,
-                entity: lampEntity,
                 chainDepth: TestChains.CamerasFrame
             )
         );
@@ -858,88 +491,4 @@ public sealed class PyramidRenderTests
             radius: size.Length() / 2,
             chainDepth: TestChains.CamerasFrame
         );
-
-    /// <summary>
-    /// Jimenez's 13-tap downsample of an RGBA level around the texel corner (<paramref name="cornerX"/>,
-    /// <paramref name="cornerY"/>), whose taps lie on texel corners: each is the mean of the four texels around it,
-    /// clamped to the edge.
-    /// </summary>
-    private static Vector4 Jimenez13(float[] rgba, int width, int height, int cornerX, int cornerY)
-    {
-        Vector4 Tap(int dx, int dy)
-        {
-            Vector4 sum = Vector4.Zero;
-            for (int y = cornerY + dy - 1; y <= cornerY + dy; y++)
-            for (int x = cornerX + dx - 1; x <= cornerX + dx; x++)
-            {
-                int index = 4 * (Math.Clamp(y, 0, height - 1) * width + Math.Clamp(x, 0, width - 1));
-                sum += new Vector4(x: rgba[index], y: rgba[index + 1], z: rgba[index + 2], w: rgba[index + 3]);
-            }
-
-            return sum / 4;
-        }
-
-        return Jimenez13Weights(Tap);
-    }
-
-    /// <summary>
-    /// Jimenez's 13-tap downsample of an RGBA level around <paramref name="center"/>, in texture coordinates from 0 to 1,
-    /// whose taps lie whole texels apart and are bilinear reads clamped to the edge, as the radiance build's odd-size path
-    /// takes them. Also gives the spread of each channel, the largest value less the smallest, over the texels that the
-    /// taps blend.
-    /// </summary>
-    private static (Vector4 Value, Vector4 Spread) Jimenez13AtCenter(
-        float[] rgba,
-        int width,
-        int height,
-        Vector2 center
-    )
-    {
-        Vector4 Texel(int x, int y)
-        {
-            int index = 4 * (Math.Clamp(y, 0, height - 1) * width + Math.Clamp(x, 0, width - 1));
-            return new(x: rgba[index], y: rgba[index + 1], z: rgba[index + 2], w: rgba[index + 3]);
-        }
-
-        var smallest = new Vector4(float.MaxValue);
-        var largest = new Vector4(float.MinValue);
-        Vector4 Tap(int dx, int dy)
-        {
-            // The texel space of the level below, where texel i spans i to i + 1 and a bilinear read at s blends texels
-            // ⌊s − 0.5⌋ and the next.
-            float sx = center.X * width + dx - 0.5f,
-                sy = center.Y * height + dy - 0.5f;
-            int x0 = (int)MathF.Floor(sx),
-                y0 = (int)MathF.Floor(sy);
-            float fx = sx - x0,
-                fy = sy - y0;
-            Vector4 sum = Vector4.Zero;
-            for (int j = 0; j < 2; j++)
-            for (int i = 0; i < 2; i++)
-            {
-                Vector4 texel = Texel(x0 + i, y0 + j);
-                smallest = Vector4.Min(smallest, texel);
-                largest = Vector4.Max(largest, texel);
-                sum += texel * (i == 0 ? 1 - fx : fx) * (j == 0 ? 1 - fy : fy);
-            }
-
-            return sum;
-        }
-
-        Vector4 value = Jimenez13Weights(Tap);
-        return (value, largest - smallest);
-    }
-
-    /// <summary>The 13-tap kernel over <paramref name="tap"/>, whose offsets are in texels of the level below.</summary>
-    private static Vector4 Jimenez13Weights(Func<int, int, Vector4> tap)
-    {
-        Vector4 inner = (tap(-1, -1) + tap(1, -1) + tap(-1, 1) + tap(1, 1)) / 4;
-        Vector4 g = tap(0, 0);
-        Vector4 corners =
-            (tap(-2, -2) + tap(0, -2) + tap(-2, 0) + g) / 4
-            + (tap(0, -2) + tap(2, -2) + g + tap(2, 0)) / 4
-            + (tap(-2, 0) + g + tap(-2, 2) + tap(0, 2)) / 4
-            + (g + tap(2, 0) + tap(0, 2) + tap(2, 2)) / 4;
-        return inner * 0.5f + corners * 0.125f;
-    }
 }

@@ -14,10 +14,8 @@ public sealed class ScriptCommandOptionsTests
     private static readonly string[][] RendererOptions =
     [
         ["--tone-curve", "hable"],
-        ["--screen-space-light", "0.5"],
-        ["--screen-space-light-steps", "4"],
+        ["--screen-trace", "off"],
         ["--bloom", "off"],
-        ["--reflections", "off"],
         ["--anti-aliasing", "smaa"],
         ["--local-shadows", "off"],
         ["--local-shadow-tiles", "8"],
@@ -51,13 +49,9 @@ public sealed class ScriptCommandOptionsTests
                     "800x600",
                     "--tone-curve",
                     "hable",
-                    "--screen-space-light",
-                    "0.5",
-                    "--screen-space-light-steps",
-                    "4",
-                    "--bloom",
+                    "--screen-trace",
                     "off",
-                    "--reflections",
+                    "--bloom",
                     "off",
                     "--anti-aliasing",
                     "off",
@@ -149,20 +143,6 @@ public sealed class ScriptCommandOptionsTests
             {
                 ["--script", "s.json", "--headless", "--out", "o", "--video", "none", "--fps", "30"],
                 "--fps sets the frame rate of a video file, and --video none writes no video."
-            },
-            {
-                [
-                    "--script",
-                    "s.json",
-                    "--headless",
-                    "--out",
-                    "o",
-                    "--screen-space-light",
-                    "off",
-                    "--screen-space-light-steps",
-                    "4",
-                ],
-                "--screen-space-light-steps sets the steps of the estimate, so leave out --screen-space-light off."
             },
             {
                 [
@@ -403,13 +383,9 @@ public sealed class ScriptCommandOptionsTests
                 "800x600",
                 "--tone-curve",
                 "hable",
-                "--screen-space-light",
-                "0.5",
-                "--screen-space-light-steps",
-                "4",
-                "--bloom",
+                "--screen-trace",
                 "off",
-                "--reflections",
+                "--bloom",
                 "off",
                 "--anti-aliasing",
                 "off",
@@ -432,9 +408,8 @@ public sealed class ScriptCommandOptionsTests
         var renderer = new ScriptCommand.RendererOverrides
         {
             ToneCurve = ToneCurve.Hable,
-            ScreenSpaceLight = VisibilityBitmaskLight.Default with { RadiusMeters = 0.5f, StepsPerSide = 4 },
+            ScreenTraceOff = true,
             BloomOff = true,
-            ReflectionsOff = true,
             AntiAliasing = AntiAliasing.None,
             LocalShadows = LocalShadowAtlas.Default with { Tiles = 8 },
             CascadedLights = 2,

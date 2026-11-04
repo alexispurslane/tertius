@@ -12,7 +12,7 @@ internal sealed class SignalScratch : IDisposable
     private readonly VulkanDevice device;
     private readonly DeviceAllocator allocator;
     private readonly RenderTargets targets;
-    private readonly GpuImage[] images = new GpuImage[DescriptorLayouts.SignalReadParts];
+    private readonly GpuImage[] images = new GpuImage[TemporalSignal.MostParts];
 
     /// <param name="targets">The render targets, whose size the images take.</param>
     public SignalScratch(VulkanDevice device, DeviceAllocator allocator, RenderTargets targets)
