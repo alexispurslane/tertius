@@ -1,6 +1,6 @@
 ---
 id: ter-nt65
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-11-04T14:47:45Z
@@ -24,3 +24,7 @@ ter-9nrc removed ReSTIR DI and its light keys (FrameHistory's light remap, Prepa
 **2026-11-04T21:34:44Z**
 
 2026-11-04: no longer on hold. The view cap with its per-light memory is not merged, so the light's generation has no reader again; this ticket proceeds as written.
+
+**2026-11-04T21:36:12Z**
+
+2026-11-04: started as a workflow, run 397dccea-d408-4189-a208-4f3e3a2c7103 (version 869b0b07), branch ter-nt65-light-generation from cad8a6787.

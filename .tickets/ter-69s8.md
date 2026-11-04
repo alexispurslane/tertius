@@ -1,6 +1,6 @@
 ---
 id: ter-69s8
-status: open
+status: in_progress
 deps: [ter-9nrc]
 links: []
 created: 2026-11-04T13:42:25Z
@@ -60,3 +60,7 @@ The user's decision of 2026-11-04: with light sampling removed (ter-9nrc), every
 **2026-11-04T21:34:44Z**
 
 2026-11-04, the user's decisions: no view cap (ter-bqun is closed without a merge); this ticket's budget is the only light budget of the main view, so its design covers every reader (direct pass, glass and fringes, lit puffs, impostor captures; environment faces keep their own loop). The user's concern for the design: the fraction controller and the automatic exposure must not drive each other into oscillation; the design analyses the loop and the acceptance includes a step film that logs both per frame.
+
+**2026-11-04T21:36:12Z**
+
+2026-11-04: design stage started as a workflow, run 71264c73-cb3c-4aa0-96d6-0bfa4057281e (version 869b0b07), branch ter-69s8-per-tile-light-budget from cad8a6787, Opus designer at xhigh and Opus reviewer at xhigh. It measures the lights each tile keeps (today's reach; even loss at 1, 2, 5, 10 %), the step at tile edges, then writes docs/plans/per-tile-light-budget.md with the exposure loop analysis, every reader without a view cap, B's default, and the order of work; open forks come back to the user.
