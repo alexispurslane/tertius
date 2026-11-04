@@ -638,6 +638,26 @@ class TheLock(unittest.TestCase):
         thread.join(timeout=5)
         self.assertEqual(order, ["first released", "second"])
 
+    def test_a_release_keeps_its_record_until_the_public_lock_name_is_free_for_the_next_run(self):
+        first = run.Lock(self.path, poll=0.01)
+        second = run.Lock(self.path, poll=0.01)
+        self.addCleanup(first.release)
+        self.addCleanup(second.release)
+        first.acquire()
+        remove = run.shutil.rmtree
+
+        def delete_released(folder):
+            self.assertFalse(self.path.exists())
+            self.assertEqual(read_record(Path(folder)).get("token"), first.token)
+            second.acquire()
+            remove(folder)
+
+        with mock.patch.object(run.shutil, "rmtree", side_effect=delete_released):
+            first.release()
+        self.assertTrue(second.held())
+        second.release()
+        self.assertEqual(os.listdir(self.dir.name), [])
+
     def test_a_release_leaves_a_lock_that_another_process_holds(self):
         self.write_record(os.getppid(), start_time(os.getppid()))
         lock = run.Lock(self.path, poll=0.01)

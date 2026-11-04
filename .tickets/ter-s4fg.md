@@ -1,6 +1,6 @@
 ---
 id: ter-s4fg
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-11-04T20:39:56Z
@@ -23,3 +23,52 @@ Found in the review of ter-r88x on 2026-11-04. tools/gpu-lock.sh (bash) and tool
 **2026-11-04T21:53:11Z**
 
 2026-11-04: fix stage of the review. (1) The two readers of the record differed: Python split lines with splitlines, kept a last line without its newline, kept NUL bytes, accepted digits such as ² that int() refuses, raised on a label that is not UTF-8 and raised OverflowError on a huge pid. Bash's IFS='=' read also dropped a trailing = of a value, and a later line without = emptied its key. Both now read the one written rule (tools/README.md, 'The record of a machine lock'): drop NUL bytes, only lines that end with a newline, split at the first =, ignore a line without =, the later line wins, and the pid is ASCII digits. A pid too large for kill counts as not 'no such process' in both, so ps judges it. TheSharedRecord gained an edge test of seven records and a test of a label that is not UTF-8. Each went red first: eight failures, one for each divergence. (2) verdicts() takes the expected verdict and waits up to 10 s for a GONE, so that a slow start on a loaded machine does not turn red. (3) The Stryker waiting message names the holder by the same cases as the stale check: one method _holder gives pid, start and a description, and _stale and the message use it. Its test went red on the old owner case. (4) gpu-lock.sh names this run's values own_record and own_start, so that the record_ prefix means only the record read last. Final runs: test_stryker.py 84 OK, test_gpu_lock.py 37 OK.
+
+**2026-11-04T22:46:57Z**
+
+2026-11-04: completed the changed-line hardening in ter-s4fg-machine-lock-records, from reviewed head 46cc7dbf3 against base db0e11171. No production code changed during hardening.
+
+Coverage before and after the new tests: tools/gpu-lock.sh 41/42 changed code lines (97.6190%); tools/stryker/run.py 66/66 changed executable lines (100%). Bash coverage uses BASH_ENV, PS4='+${BASH_SOURCE}:${LINENO}: ' and BASH_XTRACEFD to a separate file per real helper. Python coverage uses the standard-library trace module through an isolated interpreter wrapper, including the subprocesses started by both suites and the waiting threads. Each Python process appends its newly reached lines immediately, so a SIGKILL in the cross-test does not lose its coverage. All coverage files lived under a new /private/tmp folder, never in the repository.
+
+The denominator is the added/changed lines of git diff --unified=0 db0e11171. Bash excludes blank/comment lines, function declarations and standalone control delimiters, but includes a loop-ending line that carries a redirection. Python uses recursive dis.findlinestarts and excludes docstrings. These are line counts, not branch coverage. The only untraced changed code line is tools/gpu-lock.sh:85, done 2> /dev/null < "$1": Bash attributes the loop and its input redirection to read at line 77; the parser and missing-record cases execute it, so no extra behavior test is needed. Python has no uncovered changed executable line.
+
+Three new behavior tests close four initial survivors. TheSharedRecord.test_both_locks_use_the_last_pid_start_and_token_in_the_record checks six duplicate-field cases in both readers. TheStaleLock.test_a_record_with_a_non_ascii_pid_is_not_probed_as_a_process checks that an invalid pid causes no ps fork; it waits for two actual take attempts, not an assumed startup delay. TheLock.test_a_release_keeps_its_record_until_the_public_lock_name_is_free_for_the_next_run observes deletion, checks that the public name is already free and the renamed record is intact, then lets a successor take the public name before deletion completes. B06, B07, P07 and P11 each failed on its mutant before the original code passed.
+
+One JSON list and a script ran the 30 recorded mutants serially. Before each run the script replaced exactly one anchor in a copy of the original bytes, checked bash -n or py_compile, and ran the covering full suite(s), with both suites for parser/liveness changes and a 180-second total timeout per mutant. A finally block and INT/TERM/HUP handlers restored the exact original bytes. Each completed run checked git diff --exit-code HEAD for both production files. The exploratory P06 at the unchanged release guard was replaced with the recorded P06 at changed line 162 and rerun. Every recorded location is a changed code line. All four initial survivors are now killed. No equivalent or judgment-call exclusion remains.
+
+| id | file | line | change | result | killed by | answer |
+|---|---|---:|---|---|---|---|
+| B01 | tools/gpu-lock.sh | 98 | Every kill error means gone | killed | TheSharedRecord.test_both_locks_judge_a_holder_that_kill_cannot_signal_by_its_start_time (start='Fri Sep 25 17:25:43 2026') | Existing behavior test. |
+| B02 | tools/gpu-lock.sh | 103 | An empty ps answer means gone | killed | TheSharedRecord.test_both_locks_read_each_edge_of_the_record_format_alike (case='a pid too large for kill') | Existing behavior test. |
+| B03 | tools/gpu-lock.sh | 103 | Equal rather than different start means gone | killed | TheRelease.test_a_waiter_that_a_signal_ends_leaves_the_holders_lock | Existing behavior test. |
+| B04 | tools/gpu-lock.sh | 77 | Read an unterminated last line | killed | TheSharedRecord.test_both_locks_read_each_edge_of_the_record_format_alike (case='a last line without its newline') | Existing behavior test. |
+| B05 | tools/gpu-lock.sh | 81 | Split the start at its last equals sign | killed | TheSharedRecord.test_both_locks_read_each_edge_of_the_record_format_alike (case='a value that ends with =') | Existing behavior test. |
+| B06 | tools/gpu-lock.sh | 80 | The first pid line wins | killed | TheSharedRecord.test_both_locks_use_the_last_pid_start_and_token_in_the_record (case='a live pid after a dead pid') | New test: red on mutant, green on original. |
+| B07 | tools/gpu-lock.sh | 86 | Accept a non-ASCII pid digit | killed | TheStaleLock.test_a_record_with_a_non_ascii_pid_is_not_probed_as_a_process | New test: red on mutant, green on original. |
+| B08 | tools/gpu-lock.sh | 176 | The waiter ticket has no record | killed | TheQueue.test_a_waiters_ticket_holds_the_record_that_it_writes_into_the_lock | Existing behavior test. |
+| B09 | tools/gpu-lock.sh | 117 | Judge a ticket only by pid | killed | TheQueue.test_an_older_ticket_whose_process_id_a_later_process_reuses_does_not_block_the_queue | Existing behavior test. |
+| B10 | tools/gpu-lock.sh | 180 | Lose the shared ps clock in a command substitution | killed | TheQueue.test_a_waiter_asks_ps_about_an_older_live_waiter_at_most_once_a_second | Existing behavior test. |
+| B11 | tools/gpu-lock.sh | 129 | Take a lock without this process start time | killed | TheRecord.test_a_run_whose_ps_gives_no_start_time_removes_the_lock_and_does_not_run_its_command | Existing behavior test. |
+| B12 | tools/gpu-lock.sh | 85 | Preserve NUL as a visible character instead of dropping it | killed | TheSharedRecord.test_both_locks_read_each_edge_of_the_record_format_alike (case='a NUL byte in the start') | Existing behavior test. |
+| P01 | tools/stryker/run.py | 100 | No such process counts as alive | killed | TheLock.test_a_live_holder_is_waited_for_when_ps_gives_nothing_and_judged_gone_once_its_process_ends | Existing behavior test. |
+| P02 | tools/stryker/run.py | 102 | PermissionError means gone | killed | TheSharedRecord.test_both_locks_judge_a_holder_that_kill_cannot_signal_by_its_start_time (start='Fri Sep 25 17:25:43 2026') | Existing behavior test. |
+| P03 | tools/stryker/run.py | 102 | OverflowError means gone | killed | TheSharedRecord.test_both_locks_read_each_edge_of_the_record_format_alike (case='a pid too large for kill') | Existing behavior test. |
+| P04 | tools/stryker/run.py | 107 | An empty ps answer means gone | killed | TheLock.test_a_live_holder_is_waited_for_when_ps_gives_nothing_and_judged_gone_once_its_process_ends | Existing behavior test. |
+| P05 | tools/stryker/run.py | 107 | Equal rather than different start means gone | killed | TheLock.test_a_live_holder_in_another_time_zone_is_waited_for | Existing behavior test. |
+| P06 | tools/stryker/run.py | 162 | Release another run lock without checking its token | killed | TheLock.test_a_release_leaves_a_lock_that_another_process_holds | Existing behavior test. |
+| P07 | tools/stryker/run.py | 202 | Delete the public lock before renaming it | killed | TheLock.test_a_release_keeps_its_record_until_the_public_lock_name_is_free_for_the_next_run | New test: red on mutant, green on original. |
+| P08 | tools/stryker/run.py | 162 | held uses pid rather than token | killed | TheLock.test_a_release_leaves_a_lock_that_another_run_of_this_process_took_since | Existing behavior test. |
+| P09 | tools/stryker/run.py | 87 | Read an unterminated last line | killed | TheSharedRecord.test_both_locks_read_each_edge_of_the_record_format_alike (case='a last line without its newline') | Existing behavior test. |
+| P10 | tools/stryker/run.py | 87 | Split at the last equals sign | killed | TheSharedRecord.test_both_locks_read_each_edge_of_the_record_format_alike (case='a value that ends with =') | Existing behavior test. |
+| P11 | tools/stryker/run.py | 87 | The first duplicate line wins | killed | TheSharedRecord.test_both_locks_use_the_last_pid_start_and_token_in_the_record (case='a live pid after a dead pid') | New test: red on mutant, green on original. |
+| P12 | tools/stryker/run.py | 89 | Accept a non-ASCII pid digit | killed | TheSharedRecord.test_both_locks_read_each_edge_of_the_record_format_alike (case='a pid of other digits') | Existing behavior test. |
+| P13 | tools/stryker/run.py | 84 | Keep NUL bytes | killed | TheSharedRecord.test_both_locks_read_each_edge_of_the_record_format_alike (case='a NUL byte in the start') | Existing behavior test. |
+| P14 | tools/stryker/run.py | 137 | The waiting message loses the complete record holder | killed | TheLock.test_the_waiting_message_names_the_holder_of_the_lock (case='record') | Existing behavior test. |
+| P15 | tools/stryker/run.py | 140 | The waiting message loses the old owner holder | killed | TheLock.test_the_waiting_message_names_the_holder_of_the_lock (case='owner of a run.py before ter-s4fg') | Existing behavior test. |
+| P16 | tools/stryker/run.py | 178 | The waiting message loses the starting holder | killed | TheLock.test_the_waiting_message_names_the_holder_of_the_lock (case='nothing yet') | Existing behavior test. |
+| P17 | tools/stryker/run.py | 128 | Ignore the old owner transition file | killed | TheLock.test_a_lock_of_a_run_before_ter_s4fg_counts_as_held_while_its_process_runs | Existing behavior test. |
+| P18 | tools/stryker/run.py | 183 | Take a lock without this process start time | killed | TheLock.test_a_run_whose_ps_gives_no_start_time_removes_the_lock_and_stops | Existing behavior test. |
+
+30 rows: killed 30, timeout 0, survived 0, no-coverage 0, syntax-failed 0, no-tests 0. Mutation score 30/30 (100%). Each row has a named failing test, not only a nonzero process status.
+
+Final full suites after the last test change: test_stryker.py 85 tests OK in 4.064 s; test_gpu_lock.py 39 tests OK in 74.020 s. Final coverage runs: 85 OK in 3.970 s and 39 OK in 74.298 s. Both also passed under the final coverage wrapper. No Stryker run, GPU work or .NET test suite ran. All lock paths were test-owned paths under /private/tmp; no test or mutant took, removed or edited the real GPU lock, real GPU queue or real Stryker lock. The scratch runner, mutation list, logs and coverage are removed after integration; this note retains the full result table.

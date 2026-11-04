@@ -138,7 +138,7 @@ class Bench:
         """An environment whose ps writes its arguments into a file of the bench before it runs."""
         return self.shim("ps", f'echo "$*" >> {shlex.quote(str(self.folder / "ps-calls"))}; exec "$real" "$@"')
 
-    def ps_calls_about(self, pid: int) -> int:
+    def ps_calls_about(self, pid: int | str) -> int:
         calls = self.folder / "ps-calls"
         return sum(1 for line in calls.read_text().splitlines() if line.endswith(f"-p {pid}")) if calls.exists() else 0
 
@@ -489,6 +489,18 @@ class TheStaleLock(unittest.TestCase):
         self.assertEqual(waiter.finish(), 0)
         self.assertEqual(bench.leftovers(), [])
 
+    def test_a_record_with_a_non_ascii_pid_is_not_probed_as_a_process(self):
+        bench = Bench(self)
+        bench.write_record("\u00b2", NEVER_STARTED)
+        env = bench.counting_ps()
+        attempts = bench.folder / "take-attempts"
+        bench.shim("mkdir", f'if [ "$1" = {shlex.quote(str(bench.lock))} ]; then '
+                   f'echo take >> {shlex.quote(str(attempts))}; fi; exec "$real" "$@"')
+        waiter = bench.start("waiter", env=env)
+        self.assertTrue(wait_for(lambda: attempts.exists() and len(attempts.read_text().splitlines()) >= 2))
+        self.assertFalse(waiter.holds())
+        self.assertEqual(bench.ps_calls_about("\u00b2"), 0)
+
     def test_a_waiter_asks_ps_about_a_live_holder_at_most_once_a_second(self):
         bench = Bench(self)
         holder = bench.sleeper()
@@ -736,6 +748,24 @@ class TheSharedRecord(unittest.TestCase):
             "a NUL byte in the start": (f"pid={live}\nstart={start}\x00\ntoken=T\n", HELD),
             # A pid that no process can have: kill -0 refuses it, and ps gives nothing.
             "a pid too large for kill": (f"pid={'9' * 30}\nstart={NEVER_STARTED}\ntoken=T\n", HELD),
+        }
+        for case, (text, expected) in cases.items():
+            with self.subTest(case=case):
+                self.assertEqual(self.verdicts(text, expected), {"bash": expected, "python": expected})
+
+    def test_both_locks_use_the_last_pid_start_and_token_in_the_record(self):
+        dead = subprocess.Popen(["true"])
+        dead.wait()
+        live, start = self.reused.pid, start_time(self.reused.pid)
+        cases = {
+            "a live pid after a dead pid": (f"pid={dead.pid}\npid={live}\nstart={start}\ntoken=T\n", HELD),
+            "a dead pid after a live pid": (f"pid={live}\npid={dead.pid}\nstart={start}\ntoken=T\n", GONE),
+            "the real start after another start":
+                (f"pid={live}\nstart={NEVER_STARTED}\nstart={start}\ntoken=T\n", HELD),
+            "another start after the real start":
+                (f"pid={live}\nstart={start}\nstart={NEVER_STARTED}\ntoken=T\n", GONE),
+            "a token after an empty token": (f"pid={dead.pid}\nstart={start}\ntoken=\ntoken=T\n", GONE),
+            "an empty token after a token": (f"pid={dead.pid}\nstart={start}\ntoken=T\ntoken=\n", HELD),
         }
         for case, (text, expected) in cases.items():
             with self.subTest(case=case):
