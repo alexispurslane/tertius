@@ -1,6 +1,6 @@
 ---
 id: ter-x31x
-status: open
+status: in_progress
 deps: [ter-nmbm]
 links: []
 created: 2026-11-04T00:13:46Z
@@ -32,3 +32,7 @@ On demo-exit's deck at frame 120, a small panel next to a lamp holds a bright ho
 **2026-11-04T13:20:55Z**
 
 2026-11-04, the orchestrator, after the user asked whether FSR's temporal anti-aliasing would remove the sparkle: averaging over time removes noise that changes from frame to frame, not a loss that is the same in every frame, and both histories (accumulate direct's 2-sigma clamp, and FSR's history rectification after ticket 5) can cut the rare bright samples that a heavy tail needs. So this ticket measures before any fix: (1) the review's test of bias against variance, the hot spot's raw samples averaged over many independent runs or a still of about 1,000 frames; (2) the hot spot and the count of bright pixels in what the composite reads (the slow history) and in the final image, on a long still and with a moving camera, against EveryLight. If the slow history matches EveryLight within the noise and a still shows no grain, the ticket closes with no code change, and ticket 5 (ter-s7c6) checks the final image again with FSR. Otherwise fix the sampling itself. With ter-9nrc's exact-when-few rule, demo-exit's deck will sample no lights by default, so this ticket's measurements force ResampledLights.
+
+**2026-11-04T13:21:24Z**
+
+2026-11-04: started as workflow run f6f0e448-d204-493b-b7e6-c7a7e504a0bc (version 869b0b07), branch ter-x31x-direct-hot-spot from 023d50777.
