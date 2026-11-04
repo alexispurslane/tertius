@@ -32,3 +32,7 @@ Build ticket 3 of epic ter-89xq. Design: docs/plans/temporal-renderer.md, sectio
 **2026-11-03T22:50:15Z**
 
 2026-11-03: the first run (46d28d1d-5d6f-4186-b518-019afd9643f0) ended at the fork after its fix stage, head 253e5f149. The continuation that builds the visibility-aware combine is workflow run 5af508ba-4e08-4585-9c48-f5b9a8ae3478 (version 869b0b07-3413-4b06-8707-a88a91bf6e91), on the same worktree. It first merges main for the motion vectors' far-depth fix.
+
+**2026-11-04T11:52:04Z**
+
+2026-11-04: the user decided to merge the shadow-aware combine now and fix after. The sparkle and grain bug (ter-x31x, filed on the branch) becomes priority 1 when the branch merges, and starts in the next free slot with the reviewer's test of bias against variance (average the hot spot over many independent runs). The added cost goes to ter-9nrc.
