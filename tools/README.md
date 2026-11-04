@@ -213,13 +213,15 @@ A no-mutant row has the id `<module>-<path in the project>-L<line>`, for example
 
 After each module's run, `run.py` builds its test projects again in Checked. Stryker restores the plain module assembly in their output when it ends normally. A run that stops early, for example on a signal, leaves its mutated assembly there, and a later `dotnet test --no-build` runs it. Under the table, the script prints the evidence of each module's log. It gives the compile tries of the one schemata build, and the initial test run with its count of tests. It also gives the time of the per-test coverage capture, the Dubious tests, and the mean count of tests that each mutant ran. It also gives the 1-minute load and the test hosts, from the samples of `run.py`: their nice value, and the CPU of all hosts of one sample together. Stryker starts one host per test project at once, but it runs one of them at a time. So their CPU together shows the thread bound, and their count does not. `<module>/processes.log` holds each sample of Stryker's processes. `<out>/results.json` holds the rows, the evidence, the settings and the load samples.
 
-`tools/stryker/run.py` is the only script that starts Stryker. It takes the machine-wide lock `/tmp/tertius-stryker.lock`, a folder, because two Stryker runs at once compete for the CPU and their tests time out. `changed.py` holds the lock over all its modules. The lock works in this way:
+`tools/stryker/run.py` is the only script that starts Stryker. It takes the machine-wide lock `/tmp/tertius-stryker.lock`, a folder, because two Stryker runs at once compete for the CPU and their tests time out. `changed.py` holds the lock over all its modules. The record in the folder, the release rule and the liveness rule are those of every machine lock ("The record of a machine lock"). The record's label is the run's folder. The lock works in this way:
 
-- `os.mkdir` makes the folder for one process only. The folder holds the file `owner` with the pid, the folder and the start time of the run.
+- `os.mkdir` makes the folder for one process only. Right after it, the run writes its record into the folder.
 - A second run waits while another run holds the lock, and prints a message every 5 minutes.
-- The run removes the folder after its last module, also on a failure, an exception, Ctrl-C, SIGTERM or SIGHUP. It never removes a lock that another process holds.
-- The run stops if the process that holds the lock is gone, or if the folder has had no `owner` file for 60 s. It prints the command that removes the lock.
-- `run.py` refuses to start Stryker if this process does not hold the lock.
+- The run removes the folder after its last module, also on a failure, an exception, Ctrl-C, SIGTERM or SIGHUP. It removes the folder only when the record holds its own token.
+- The run stops if the holder of the record is gone, or if the folder has had no complete record for 60 s. It prints the command that removes the lock. It never clears the lock itself ("The record of a machine lock" gives the reason).
+- `run.py` refuses to start Stryker if this run does not hold the lock.
+
+A `run.py` from before ter-s4fg writes the file `owner` (pid, folder, local time) and no record. A current run judges such a lock by `kill -0` of that pid alone. The older `run.py` finds no `owner` file in a lock with a record, so after 60 s it stops and prints the command that removes the lock. If a lock holds a record, do not remove it while its holder runs: `pgrep -fl "stryker/(run|changed)\.py"` lists the runs.
 
 With `--head <commit>`, the script measures a merged range, for example the commits of a closed ticket from its base. The files of the range must be the same in the working tree as at `<commit>`, and the script refuses otherwise. `--concurrency` (1 to 4) and `--additional-timeout` are for a calibration only, and the script marks such a run as not official.
 
@@ -507,6 +509,35 @@ nix develop --command python3 -I tools/test_fsr3_timing.py
 
 The rotation gives each build the same predecessor in most runs. So an effect of one run on the next mixes with the effect of the build. A Williams design, an order that gives each build every predecessor equally often, removes this. The tool does not use one yet.
 
+## The record of a machine lock
+
+Two locks keep runs apart on this machine: the GPU lock of the timed runs, `/tmp/tertius-gpu-measure.lock`, and the Stryker lock, `/tmp/tertius-stryker.lock`. Each lock is a directory, and `mkdir` makes it for one process only. Both locks use one record format, one release rule and one liveness rule. `tools/gpu-lock.sh` holds them in bash, and `Lock` in `tools/stryker/run.py` holds them in Python.
+
+The holder's record is the file `holder` in the lock directory. Right after its `mkdir`, the holder writes the record into `holder.new` and renames it to `holder`. The record holds four lines:
+
+- `pid=`, the process id of the holder.
+- `start=`, the start time of that process, as `TZ=UTC0 LC_ALL=C ps -o lstart= -p <pid>` gives it, with each run of spaces squeezed to one space. The fixed time zone and locale make every run write and compare the same text.
+- `token=`, a value that no other run has.
+- `label=`, what the run is. For the GPU lock, it is the log path and the command. For the Stryker lock, it is the run's folder. A newline in the label becomes a space, so that it cannot split the record.
+
+A record that lacks its `pid=`, `start=` or `token=` value counts as no record. If `ps` gives no start time for the holder itself, the holder removes its new lock and stops.
+
+The release rule: a run removes the lock only when the record's token is its own. A removal first renames the lock to a name of the remover's own, and then deletes it. So no run sees a lock that lost its record because a removal stopped halfway.
+
+The liveness rule: the holder of a record is gone in two cases only.
+
+- `kill -0` of its pid fails with "No such process".
+- `ps` gives a start time for its pid that is not empty and differs from the record's. Then a later process reuses the pid.
+
+In every other case, the holder counts as alive. Two examples are a permission error of `kill -0`, which a process of another user gives, and an empty answer of `ps`. So no error makes a live holder look gone.
+
+A lock is stale when its record names a holder that is gone. The two locks treat a stale lock differently, for this reason:
+
+- The GPU lock has a queue, in which the waiters take turns in the order in which they came. Exactly one waiter, the oldest live one, can clear a stale lock and take it. So the clear is safe, and the next timed run does not wait for a person.
+- The Stryker lock has no queue, and its runs take hours. On a stale lock, a run stops and prints the command that removes the lock. A person makes sure that no Stryker run goes on and then removes the lock.
+
+The same rules have two implementations, because the GPU helper must stay plain bash that runs outside the dev shell, and its waiter must not fork more often than before. A Python process for each check would break both. `TheSharedRecord` in `tools/test_gpu_lock.py` keeps the two in step. A record that one lock writes, the other lock judges as the writer does: alive, gone by pid, gone by start, an incomplete record, no record and a holder that `kill -0` cannot signal.
+
 ## The GPU lock
 
 Every timed run on the development Mac takes the GPU lock, the directory `/tmp/tertius-gpu-measure.lock`, so that two timed runs never share the GPU. `tools/gpu-lock.sh` is the one helper of the lock for every timing tool. Take the lock only through it, and never with `mkdir` or `rmdir` by hand:
@@ -517,20 +548,13 @@ bash tools/gpu-lock.sh <log> <command> [arguments]
 
 It waits for the lock and runs the command with its output in the log. The log gets the uptime at the start and the end, and the seconds that the run waited. The exit code is the command's.
 
-The holder's record is the file `holder` in the lock directory. The helper takes the lock with `mkdir`, and right after it writes the record. The record holds four lines:
+The helper takes the lock with `mkdir`, and right after it writes the holder's record ("The record of a machine lock"). The record's label is the log path and the command. A plain `rmdir` of a lock with a record fails, because the directory is not empty. On 2026-11-04 a command line ran `mkdir` of the lock and then `rmdir` after `;`. The `mkdir` failed, and the `rmdir` removed the lock of another run. The record now stops that `rmdir`. If the record cannot be written, or `ps` gives no start time, the helper removes its new lock, does not run the command and exits with 1.
 
-- `pid=`, the process id of the helper.
-- `start=`, the start time of that process, as `TZ=UTC0 LC_ALL=C ps -o lstart=` gives it, with each run of spaces squeezed to one space. The fixed time zone and locale make every run write and compare the same text.
-- `token=`, a value that no other run has.
-- `label=`, the log path and the command.
+The helper follows the release rule of every machine lock when the command ends, when it fails and when INT, TERM or HUP ends the helper. If the lock vanished, or the record of another run is in it, the helper removes nothing. It then writes one line into its log, which starts with `gpu-lock: the lock was not this run's at its release` and ends with `Discard this run's timing.` Discard the timing of such a run, because another run could share the GPU with it. During the take and the release, INT, TERM and HUP only mark the run, and the run ends after that step. So no signal leaves an empty lock or a renamed lock behind.
 
-A plain `rmdir` of a lock with a record fails, because the directory is not empty. On 2026-11-04 a command line ran `mkdir` of the lock and then `rmdir` after `;`. The `mkdir` failed, and the `rmdir` removed the lock of another run. The record now stops that `rmdir`. If the record cannot be written, or `ps` gives no start time, the helper removes its new lock, does not run the command and exits with 1.
+The stale rule: the oldest live waiter clears a stale lock and takes it. The liveness rule of every machine lock says when a holder is gone. A waiter asks `ps` at most once a second, because a fork every 0.1 s loads the CPU of the measured run. In the other seconds, a holder that `kill -0` finds counts as alive. A lock without a record is never stale: a run takes it at this moment, or the helper before ter-r88x took it.
 
-The release rule: the helper removes the lock only when the record's token is its own. This holds when the command ends, when it fails and when INT, TERM or HUP ends the helper. If the lock vanished, or the record of another run is in it, the helper removes nothing. It then writes one line into its log, which starts with `gpu-lock: the lock was not this run's at its release` and ends with `Discard this run's timing.` Discard the timing of such a run, because another run could share the GPU with it. A removal first renames the lock to a name of the remover's own, and then deletes it. So no run ever sees a lock without its record because a removal stopped halfway. During the take and the release, INT, TERM and HUP only mark the run, and the run ends after that step. So no signal leaves an empty lock or a renamed lock behind.
-
-The stale rule: a waiter clears a stale lock. A lock is stale when its record names a process that no longer runs, which `kill -0` tells. It is also stale when another process now has the recorded process id, because then `ps` gives another start time. If `ps` gives nothing for a live process, the waiter does not know, so it waits. The waiter asks `ps` at most once a second, because a fork every 0.1 s loads the CPU of the measured run. A lock without a record is never stale: a run takes it at this moment, or the helper before ter-r88x took it. A record that lacks its `pid=`, `start=` or `token=` value counts as no record.
-
-The waiters take turns in the order in which they came. Each waiter writes a ticket into `/tmp/tertius-gpu-measure.queue`, a file named by its start time and its process id. It tries `mkdir`, or clears a stale lock, only while its ticket is the oldest ticket of a live process, every 0.1 s. Without the order, a loop of runs that tried every 0.1 s won nearly every release against a waiter that tried every 5 s. On 2026-11-03 that went on for more than 20 minutes. The order also makes the clear safe when two waiters see the same stale lock. Only the oldest waiter clears, and only the oldest waiter takes the lock that the clear freed.
+The waiters take turns in the order in which they came. Each waiter writes a ticket into `/tmp/tertius-gpu-measure.queue`, a file named by its start time and its process id. The ticket holds the waiter's record, the same text that the lock gets when the waiter takes it. The liveness rule judges each ticket, so a ticket whose pid a later process reuses does not block the queue. The ticket of a helper before ter-s4fg is empty, and `kill -0` of the pid in its name alone judges it. A waiter tries `mkdir`, or clears a stale lock, only while its ticket is the oldest ticket of a live waiter, every 0.1 s. Without the order, a loop of runs that tried every 0.1 s won nearly every release against a waiter that tried every 5 s. On 2026-11-03 that went on for more than 20 minutes. The order also makes the clear safe when two waiters see the same stale lock. Only the oldest waiter clears, and only the oldest waiter takes the lock that the clear freed.
 
 The helper before ter-r88x, as in `93e46dd7f`, makes an empty lock and does not clear. It and the current helper exclude each other: each one's `mkdir` fails while the other holds the lock. If such an older helper is the oldest waiter on a stale lock, no waiter clears the lock. The older helper waits until a person stops it.
 
@@ -555,7 +579,7 @@ Two environment variables give other paths, for the tests. Their defaults are th
 | `TERTIUS_GPU_LOCK` | `/tmp/tertius-gpu-measure.lock` |
 | `TERTIUS_GPU_QUEUE` | `/tmp/tertius-gpu-measure.queue` |
 
-`tools/test_gpu_lock.py` tests the record, the release rule, the stale rule, the queue's race on a stale lock and the exclusion with the helper of `93e46dd7f`. Scripts named `ps` or `mv` in front of `PATH` open the short windows of the take, the release and the clear, so that a test can send a signal or change the lock inside them. Each test uses a new folder under `/private/tmp`, and no test touches the real lock or the real queue. It uses the Python standard library only, and it runs in about 35 s:
+`tools/test_gpu_lock.py` tests the record, the release rule, the stale rule, the queue's tickets, the queue's race on a stale lock, the exclusion with the helper of `93e46dd7f` and the record that the helper shares with the Stryker lock. Scripts named `ps` or `mv` in front of `PATH` open the short windows of the take, the release and the clear, so that a test can send a signal or change the lock inside them. Each test uses a new folder under `/private/tmp`, and no test touches the real GPU lock, its queue or the real Stryker lock. It uses the Python standard library only, and it runs in about 65 s:
 
 ```bash
 nix develop --command python3 -I tools/test_gpu_lock.py

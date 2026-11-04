@@ -1,18 +1,21 @@
 #!/usr/bin/env python3
 """Tool code. The tests of tools/gpu-lock.sh, the helper of the GPU lock: the holder's record, the release that removes
-only its own lock, the clear of a stale lock, and the exclusion between the helper and its older copy of 93e46dd7f.
+only its own lock, the clear of a stale lock, the queue's tickets, the exclusion between the helper and its older copy
+of 93e46dd7f, and the record and liveness rule that the helper shares with the Stryker lock of tools/stryker/run.py.
 
     nix develop --command python3 -I tools/test_gpu_lock.py
 
 The standard library only. Each test gets a fresh folder under /private/tmp and gives the helper its lock and its queue
 there, through TERTIUS_GPU_LOCK and TERTIUS_GPU_QUEUE. No test touches the real lock or the real queue, because other
-runs measure on this machine.
+runs measure on this machine. The tests of the shared record give the Stryker lock its folder there too, never
+/tmp/tertius-stryker.lock.
 """
 
 import os
 import shlex
 import shutil
 import signal
+import sys
 import subprocess
 import tempfile
 import time
@@ -20,6 +23,7 @@ import unittest
 from pathlib import Path
 
 HELPER = Path(__file__).with_name("gpu-lock.sh")
+STRYKER_RUN = Path(__file__).with_name("stryker") / "run.py"
 REAL_LOCK = "/tmp/tertius-gpu-measure.lock"
 REAL_QUEUE = "/tmp/tertius-gpu-measure.queue"
 # The helper before this ticket, whose lock is an empty directory.
@@ -129,6 +133,20 @@ class Bench:
         path.write_text(f"#!/bin/bash\nreal={shlex.quote(shutil.which(name))}\n{body}\n")
         path.chmod(0o755)
         return {"PATH": f"{folder}{os.pathsep}{os.environ['PATH']}"}
+
+    def counting_ps(self) -> dict[str, str]:
+        """An environment whose ps writes its arguments into a file of the bench before it runs."""
+        return self.shim("ps", f'echo "$*" >> {shlex.quote(str(self.folder / "ps-calls"))}; exec "$real" "$@"')
+
+    def ps_calls_about(self, pid: int) -> int:
+        calls = self.folder / "ps-calls"
+        return sum(1 for line in calls.read_text().splitlines() if line.endswith(f"-p {pid}")) if calls.exists() else 0
+
+    def write_ticket(self, pid: int, start: str, name: str = "0000000000000000") -> Path:
+        """Writes the ticket of a waiter that came before every run of the test, with the record `pid` and `start`."""
+        ticket = self.queue / f"{name}-{pid}"
+        ticket.write_text(f"pid={pid}\nstart={start}\ntoken=older-waiter\nlabel=an older waiter\n")
+        return ticket
 
     def sleeper(self) -> subprocess.Popen:
         return self.track(subprocess.Popen(["sleep", "60"]))
@@ -316,8 +334,8 @@ class TheRelease(unittest.TestCase):
                                     ("HUP", signal.SIGHUP, 129)]:
             with self.subTest(how):
                 bench = Bench(self)
-                # A slow ps holds the run between its mkdir and the write of its record.
-                run = bench.start("run", env=bench.shim("ps", 'sleep 1; exec "$real" "$@"'))
+                # A slow rename of the record holds the run between its mkdir and its record.
+                run = bench.start("run", env=bench.shim("mv", 'case "$2" in */holder) sleep 1;; esac; exec "$real" "$@"'))
                 self.assertTrue(wait_for(bench.lock.exists))
                 self.assertEqual(bench.record(), {})
                 run.process.send_signal(sent)
@@ -406,6 +424,15 @@ class TheStaleLock(unittest.TestCase):
         waiter.wait_until_it_holds()
         self.assertEqual(waiter.finish(), 0)
 
+    def test_a_holder_that_kill_cannot_signal_is_not_cleared(self):
+        # kill -0 of process 1, which another user runs, fails with "Operation not permitted", not "No such process".
+        bench = Bench(self)
+        bench.write_record(1, start_time(1))
+        waiter = bench.start("waiter")
+        time.sleep(SETTLE)
+        self.assertFalse(waiter.holds())
+        self.assertEqual(bench.record().get("token"), "someone-else")
+
     def test_a_live_holder_is_not_cleared_when_ps_gives_the_waiter_nothing(self):
         bench = Bench(self)
         holder = bench.sleeper()
@@ -466,11 +493,10 @@ class TheStaleLock(unittest.TestCase):
         bench = Bench(self)
         holder = bench.sleeper()
         bench.write_record(holder.pid, start_time(holder.pid))
-        calls = bench.folder / "ps-calls"
-        waiter = bench.start("waiter", env=bench.shim("ps", f'echo >> {shlex.quote(str(calls))}; exec "$real" "$@"'))
+        waiter = bench.start("waiter", env=bench.counting_ps())
         time.sleep(2.0)
         self.assertFalse(waiter.holds())
-        self.assertLessEqual(len(calls.read_text().splitlines()) if calls.exists() else 0, 3)
+        self.assertLessEqual(bench.ps_calls_about(holder.pid), 3)
 
     def test_a_lock_that_another_run_takes_during_the_clear_goes_back_with_its_record(self):
         bench = Bench(self)
@@ -520,6 +546,169 @@ class TheStaleLock(unittest.TestCase):
         for log in logs:
             self.assertNotIn(NOT_ITS_OWN, log.read_text())
         self.assertEqual(bench.leftovers(), [])
+
+
+class TheQueue(unittest.TestCase):
+    """Each waiter's ticket holds the waiter's record, so that the queue judges a waiter as the lock judges a holder."""
+
+    def test_a_waiters_ticket_holds_the_record_that_it_writes_into_the_lock(self):
+        bench = Bench(self)
+        holder = bench.start("holder")
+        holder.wait_until_it_holds()
+        waiter = bench.start("waiter")
+        self.assertTrue(wait_for(lambda: any(p.name.endswith(f"-{waiter.process.pid}") and p.read_text()
+                                             for p in bench.queue.iterdir())))
+        ticket = next(p for p in bench.queue.iterdir() if p.name.endswith(f"-{waiter.process.pid}"))
+        record = dict(line.split("=", 1) for line in ticket.read_text().splitlines() if "=" in line)
+        self.assertEqual(record.get("pid"), str(waiter.process.pid))
+        self.assertEqual(record.get("start"), start_time(waiter.process.pid))
+        self.assertEqual(holder.finish(), 0)
+        waiter.wait_until_it_holds()
+        self.assertEqual(bench.record(), record)
+        self.assertEqual(waiter.finish(), 0)
+
+    def test_an_older_ticket_whose_process_id_a_later_process_reuses_does_not_block_the_queue(self):
+        bench = Bench(self)
+        older = bench.write_ticket(bench.sleeper().pid, NEVER_STARTED)
+        waiter = bench.start("waiter")
+        waiter.wait_until_it_holds()
+        self.assertFalse(older.exists())
+        self.assertEqual(waiter.finish(), 0)
+
+    def test_an_older_ticket_of_a_live_waiter_keeps_its_turn_until_that_waiter_ends(self):
+        bench = Bench(self)
+        older = bench.sleeper()
+        bench.write_ticket(older.pid, start_time(older.pid))
+        waiter = bench.start("waiter")
+        time.sleep(SETTLE)
+        self.assertFalse(waiter.holds())
+        older.kill()
+        older.wait()
+        waiter.wait_until_it_holds()
+        self.assertEqual(waiter.finish(), 0)
+
+    def test_a_waiter_asks_ps_about_an_older_live_waiter_at_most_once_a_second(self):
+        bench = Bench(self)
+        older = bench.sleeper()
+        bench.write_ticket(older.pid, start_time(older.pid))
+        waiter = bench.start("waiter", env=bench.counting_ps())
+        time.sleep(2.0)
+        self.assertFalse(waiter.holds())
+        self.assertLessEqual(bench.ps_calls_about(older.pid), 3)
+
+
+# A Stryker lock in a process of its own: it takes the lock at argv[2] and releases it. With argv[3] and argv[4], it
+# makes the file argv[3] once it holds the lock, and it holds the lock until the file argv[4] exists or argv[3]
+# vanishes. A run that stops on a stale lock prints its message and exits with 1.
+PYTHON_LOCK = """
+import importlib.util, os, sys, time
+spec = importlib.util.spec_from_file_location("run", sys.argv[1])
+run = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(run)
+lock = run.Lock(sys.argv[2], poll=0.01, say=lambda _: None)
+lock.acquire()
+if len(sys.argv) > 3:
+    open(sys.argv[3], "w").close()
+    while not os.path.exists(sys.argv[4]) and os.path.exists(sys.argv[3]):
+        time.sleep(0.02)
+lock.release()
+print("took")
+"""
+
+HELD, GONE = "held", "gone"
+
+
+class TheSharedRecord(unittest.TestCase):
+    """The GPU lock and the Stryker lock write one record and judge it with one liveness rule (tools/README.md, "The
+    record of a machine lock"). A record that one lock writes, the other judges as the writer itself does."""
+
+    @classmethod
+    def setUpClass(cls):
+        # A live process that started at least a second before each holder of these tests. A record with its pid and a
+        # holder's start time names a reused process id.
+        cls.reused = subprocess.Popen(["sleep", "300"])
+        time.sleep(1.1)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.reused.kill()
+        cls.reused.wait()
+
+    def written_by(self, writer: str, case: str) -> str | None:
+        """The text of the record that a holder of the lock `writer` ("bash" or "python") writes, brought into the
+        state `case`. None is no record."""
+        if case == "no record":
+            return None
+        bench = Bench(self)
+        if writer == "bash":
+            holder = bench.start("writer")
+            holder.wait_until_it_holds()
+            process = holder.process
+        else:
+            held, release = bench.folder / "writer.held", bench.folder / "writer.release"
+            process = bench.track(subprocess.Popen([sys.executable, "-I", "-c", PYTHON_LOCK, str(STRYKER_RUN),
+                                                    str(bench.lock), str(held), str(release)]))
+            self.assertTrue(wait_for(held.exists))
+        text = (bench.lock / "holder").read_text()
+        if case == "alive":
+            return text
+        process.kill()
+        process.wait()
+        if case == "gone by start":
+            return "".join(f"pid={self.reused.pid}\n" if line.startswith("pid=") else line
+                           for line in text.splitlines(keepends=True))
+        if case == "incomplete":
+            return "".join(line for line in text.splitlines(keepends=True) if not line.startswith("start="))
+        return text
+
+    def lock_with(self, bench: Bench, text: str | None):
+        bench.lock.mkdir()
+        if text is not None:
+            (bench.lock / "holder").write_text(text)
+
+    def verdicts(self, text: str | None) -> dict[str, str]:
+        """How the GPU helper and the Stryker lock judge a lock that holds the record `text`, each on a copy of its
+        own: GONE when the GPU helper takes it or the Stryker lock stops with the command that removes it, HELD when
+        each waits."""
+        gpu, stryker = Bench(self), Bench(self)
+        self.lock_with(gpu, text)
+        self.lock_with(stryker, text)
+        python = stryker.track(subprocess.Popen([sys.executable, "-I", "-c", PYTHON_LOCK, str(STRYKER_RUN),
+                                                 str(stryker.lock)], stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                                text=True))
+        waiter = gpu.start("judge")
+        time.sleep(SETTLE)
+        bash = GONE if waiter.holds() else HELD
+        if python.poll() is None:
+            python.kill()
+            python.wait()
+            python_verdict = HELD
+        else:
+            stderr = python.stderr.read()
+            python_verdict = GONE if python.returncode == 1 and f"rm -r {stryker.lock}" in stderr else stderr
+        python.stdout.close()
+        python.stderr.close()
+        if waiter.holds():
+            waiter.finish()
+        else:
+            waiter.process.terminate()
+            waiter.process.wait(timeout=10)
+        return {"bash": bash, "python": python_verdict}
+
+    def test_each_lock_judges_the_record_of_the_other_as_the_other_does(self):
+        cases = {"alive": HELD, "gone by pid": GONE, "gone by start": GONE, "incomplete": HELD, "no record": HELD}
+        for writer in ["bash", "python"]:
+            for case, expected in cases.items():
+                with self.subTest(writer=writer, case=case):
+                    self.assertEqual(self.verdicts(self.written_by(writer, case)),
+                                     {"bash": expected, "python": expected})
+
+    def test_both_locks_judge_a_holder_that_kill_cannot_signal_by_its_start_time(self):
+        # kill -0 of process 1, which another user runs, fails with "Operation not permitted".
+        for start, expected in [(start_time(1), HELD), (NEVER_STARTED, GONE)]:
+            with self.subTest(start=start):
+                text = f"pid=1\nstart={start}\ntoken=someone-else\nlabel=another user's process\n"
+                self.assertEqual(self.verdicts(text), {"bash": expected, "python": expected})
 
 
 class TheOldHelper(unittest.TestCase):

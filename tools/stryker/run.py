@@ -27,13 +27,18 @@ The run works in this order:
 5. It builds the test projects again in Checked. A Stryker run that ends early, for example on a signal, leaves its
    mutated assembly in their output, and a later `dotnet test --no-build` would run it.
 6. It removes the lock, also on a failure, an exception, Ctrl-C, SIGTERM or SIGHUP. It never removes a lock that
-   another process holds. If the process that holds the lock is gone, or the lock folder has had no owner file for
+   another run holds. If the process that holds the lock is gone, or the lock folder has had no complete record for
    STALE_SECONDS, it stops and prints the command that removes the lock.
+
+The lock folder holds the holder's record in the format of the GPU lock, and both locks judge it with one liveness rule
+(tools/README.md, "The record of a machine lock"). tools/gpu-lock.sh holds the same rule in bash, and
+tools/test_gpu_lock.py tests that each lock judges the other's record as the other does.
 """
 
 import argparse
 import json
 import os
+import secrets
 import shutil
 import subprocess
 import sys
@@ -49,8 +54,8 @@ import config  # noqa: E402
 from processes import Stopped, run_logged, stop_on_signals  # noqa: E402
 
 LOCK_PATH = Path('/tmp/tertius-stryker.lock')
-# A run writes its owner file right after its mkdir. A lock folder without one for longer is the rest of a run that died
-# at its start, or of a mkdir by hand.
+# A run writes its record right after its mkdir. A lock folder without a complete record for longer is the rest of a run
+# that died at its start, or of a mkdir by hand.
 STALE_SECONDS = 60
 # The helper class that Stryker compiles into every mutated assembly (Stryker.Core.InjectedHelpers.MutantControl.cs).
 STRYKER_MARK = b'MutantControl'
@@ -63,28 +68,50 @@ def _say(text):
     print(text, file=sys.stderr, flush=True)
 
 
-def _alive(pid):
+def start_of(pid):
+    """The start time of the process pid in UTC, with its spaces squeezed, or '' for a process that does not run or when
+    ps fails. TZ and LC_ALL make every run write and compare the same text, also tools/gpu-lock.sh."""
+    out = subprocess.run(['ps', '-o', 'lstart=', '-p', str(pid)], env={**os.environ, 'TZ': 'UTC0', 'LC_ALL': 'C'},
+                         capture_output=True, text=True, check=False).stdout
+    return ' '.join(out.split())
+
+
+def read_record(folder):
+    """The record in the file holder of folder as a dict of its lines key=value, or None unless it has its pid, start
+    and token."""
+    try:
+        text = (Path(folder) / 'holder').read_text()
+    except (FileNotFoundError, NotADirectoryError):
+        return None
+    record = dict(line.split('=', 1) for line in text.splitlines() if '=' in line)
+    complete = record.get('pid', '').isdigit() and record.get('start') and record.get('token')
+    return record if complete else None
+
+
+def gone(pid, start):
+    """True when the process pid that started at start is gone: kill -0 finds no such process, or ps gives a start time
+    that is not empty and differs. A permission error or an empty answer of ps counts as alive. With an empty start,
+    only kill -0 judges."""
     try:
         os.kill(pid, 0)
     except ProcessLookupError:
-        return False
+        return True
     except PermissionError:
         pass
-    return True
+    if not start:
+        return False
+    now = start_of(pid)
+    return bool(now) and now != start
 
 
 class Lock:
     """The machine-wide lock of Stryker runs: the folder at path, which os.mkdir makes for one process only. The folder
-    holds the file owner: the pid, the folder and the start time of the run that holds it."""
+    holds the holder's record, the file holder (tools/README.md, "The record of a machine lock"). Its label is the
+    folder of the run."""
 
     def __init__(self, path=LOCK_PATH, poll=30, say=_say):
         self.path, self.poll, self.say = Path(path), poll, say
-
-    def _owner(self):
-        try:
-            return (self.path / 'owner').read_text().strip()
-        except FileNotFoundError:
-            return ''
+        self.token = f'{os.getpid()}-{secrets.token_hex(8)}'
 
     def _age(self):
         try:
@@ -92,10 +119,36 @@ class Lock:
         except FileNotFoundError:
             return 0
 
+    def _old_owner(self):
+        """The pid in the file owner of a run.py from before ter-s4fg, which writes no record, or None."""
+        try:
+            return int((self.path / 'owner').read_text().split()[0])
+        except (OSError, ValueError, IndexError):
+            return None
+
+    def _stale(self):
+        """Why the lock is stale, as a message with the command that removes it, or None while a run can hold it."""
+        record, old = read_record(self.path), self._old_owner()
+        if record:
+            if not gone(int(record['pid']), record['start']):
+                return None
+            why = f'belongs to {record.get("label", "")} (process {record["pid"]}), which is gone'
+        elif old is not None:
+            if not gone(old, ''):
+                return None
+            why = f'belongs to process {old} of a run.py from before ter-s4fg, which is gone'
+        elif self._age() > STALE_SECONDS:
+            why = (f'has had no complete record for {self._age():.0f} s, so no run holds it: a run died at its start, '
+                   'or someone made the folder by hand')
+        else:
+            return None
+        return (f'The Stryker lock {self.path} {why}. If no Stryker runs on this machine, remove the lock: '
+                f'rm -r {self.path}')
+
     def held(self):
-        """True if this process holds the lock."""
-        owner = self._owner()
-        return bool(owner) and int(owner.split()[0]) == os.getpid()
+        """True if this run holds the lock: the record in it holds this run's token."""
+        record = read_record(self.path)
+        return record is not None and record['token'] == self.token
 
     def acquire(self):
         said = None
@@ -105,32 +158,38 @@ class Lock:
                 break
             except FileExistsError:
                 pass
-            owner = self._owner()
-            if owner:
-                pid = int(owner.split()[0])
-                if not _alive(pid):
-                    raise SystemExit(f'The Stryker lock {self.path} belongs to process {pid}, which is gone ({owner}). '
-                                     f'If no Stryker runs on this machine, remove the lock: rm -r {self.path}')
-            elif self._age() > STALE_SECONDS:
-                raise SystemExit(f'The Stryker lock {self.path} has had no owner file for {self._age():.0f} s, so no '
-                                 'run holds it: a run died at its start, or someone made the folder by hand. If no '
-                                 f'Stryker runs on this machine, remove the lock: rm -r {self.path}')
+            stale = self._stale()
+            if stale:
+                raise SystemExit(stale)
             if said is None or time.monotonic() - said > 300:
-                self.say(f'waiting for the Stryker lock {self.path}, held by {owner or "a run that is starting"}')
+                record = read_record(self.path)
+                self.say(f'waiting for the Stryker lock {self.path}, held by '
+                         f'{record.get("label") if record else "a run that is starting"}')
                 said = time.monotonic()
             time.sleep(self.poll)
         try:
-            (self.path / 'owner').write_text(f'{os.getpid()} {os.getcwd()} {time.strftime("%Y-%m-%dT%H:%M:%S")}\n')
+            start = start_of(os.getpid())
+            if not start:
+                raise SystemExit(f'ps gives no start time of this process, so no record goes into the Stryker lock '
+                                 f'{self.path}')
+            # A newline in the label would split the record.
+            label = os.getcwd().replace('\n', ' ')
+            (self.path / 'holder.new').write_text(f'pid={os.getpid()}\nstart={start}\ntoken={self.token}\n'
+                                                  f'label={label}\n')
+            os.rename(self.path / 'holder.new', self.path / 'holder')
         except BaseException:
+            (self.path / 'holder.new').unlink(missing_ok=True)
             os.rmdir(self.path)
             raise
 
     def release(self):
-        """Removes the lock if this process holds it, and leaves it otherwise."""
+        """Removes the lock if this run holds it, and leaves it otherwise. The removal renames the lock to a name of
+        this run's own first, so that no other run sees a lock that lost its record halfway."""
         if not self.held():
             return
-        (self.path / 'owner').unlink()
-        os.rmdir(self.path)
+        released = self.path.with_name(f'{self.path.name}.released.{self.token}')
+        os.rename(self.path, released)
+        shutil.rmtree(released)
 
     def __enter__(self):
         self.acquire()

@@ -18,25 +18,25 @@
 # that no other run sees a lock that lost its record. INT, TERM and HUP only mark the run during the wait, the take and
 # the release, so that no signal stops the take or the release halfway.
 #
-# A waiter clears a stale lock: one whose record names a process that no longer runs, or a process id that a later
-# process reuses with another start time. When ps gives nothing for a live process, the waiter does not know, and it
-# waits. A lock without a record, or with a record that lacks its pid, start or token, is being taken right now, or the
-# helper before ter-r88x took it. A waiter never clears it.
+# The record and the liveness rule are those of every machine lock (tools/README.md, "The record of a machine lock").
+# tools/stryker/run.py holds the same rule in Python, and tools/test_gpu_lock.py tests that each lock judges the other's
+# record as the other does. A waiter clears a stale lock: one whose record names a process that is gone. A lock without
+# a record, or with a record that lacks its pid, start or token, is being taken right now, or the helper before ter-r88x
+# took it. A waiter never clears it.
 #
 # The waiters take turns in the order in which they came. Each waiter writes a ticket, a file named by its start time
-# and its process id, into /tmp/tertius-gpu-measure.queue, and tries mkdir, or clears a stale lock, only while its
-# ticket is the oldest ticket of a live process. Without the order, a loop of runs that tried every 0.1 s won nearly
-# every release against a waiter that tried every 5 s, for more than 20 minutes on 2026-11-03. The order also makes the
-# clear safe: only the oldest waiter clears, and only the oldest waiter takes a lock that the clear freed.
+# and its process id, into /tmp/tertius-gpu-measure.queue. The ticket holds the waiter's record, so that the liveness
+# rule judges a waiter as it judges a holder. A waiter tries mkdir, or clears a stale lock, only while its ticket is the
+# oldest ticket of a live waiter. Without the order, a loop of runs that tried every 0.1 s won nearly every release
+# against a waiter that tried every 5 s, for more than 20 minutes on 2026-11-03. The order also makes the clear safe:
+# only the oldest waiter clears, and only the oldest waiter takes a lock that the clear freed.
 set -uo pipefail
 
 log=${1:?usage: gpu-lock.sh <log> <command> [arguments]}
 shift
 lock=${TERTIUS_GPU_LOCK:-/tmp/tertius-gpu-measure.lock}
 queue=${TERTIUS_GPU_QUEUE:-/tmp/tertius-gpu-measure.queue}
-mkdir -p "$queue"
 ticket=${EPOCHREALTIME/./}-$$
-touch "$queue/$ticket"
 token=$ticket-$SRANDOM$SRANDOM
 label="$log: $*"
 label=${label//$'\n'/ }
@@ -66,8 +66,8 @@ start_of() {
     echo $(TZ=UTC0 LC_ALL=C ps -o lstart= -p "$1" 2> /dev/null)
 }
 
-# Reads the record in the lock directory $1 into record_pid, record_start, record_token and record_label, with builtins
-# only, because a waiter reads it every 0.1 s. Fails unless the record has its pid, start and token.
+# Reads the record in the file $1 into record_pid, record_start, record_token and record_label, with builtins only,
+# because a waiter reads it every 0.1 s. Fails unless the record has its pid, start and token.
 read_record() {
     local key value
     record_pid= record_start= record_token= record_label=
@@ -78,16 +78,40 @@ read_record() {
             token) record_token=$value ;;
             label) record_label=$value ;;
         esac
-    done 2> /dev/null < "$1/holder"
+    done 2> /dev/null < "$1"
     [ -n "$record_pid" ] && [ -n "$record_start" ] && [ -n "$record_token" ]
 }
 
-# The oldest ticket of a live process. It removes the tickets of processes that ended without their trap.
+# Succeeds when the process $1, which started at $2, is gone: kill -0 finds no such process, or ps gives a start time
+# that is not empty and differs from $2. A permission error of kill -0 or an empty answer of ps counts as alive. With an
+# empty $2, kill -0 alone judges. ps forks, so a waiter runs it at most once a second, and in the other seconds a
+# process that kill -0 finds counts as alive.
+checked=
+gone() {
+    local now
+    if ! kill -0 "$1" 2> /dev/null; then
+        # Only the message tells no such process from a permission error. Its fork runs only when kill -0 fails.
+        [[ $(LC_ALL=C; kill -0 "$1" 2>&1) == *"No such process"* ]] && return 0
+    fi
+    [ -n "$2" ] && [ "$checked" != "$EPOCHSECONDS" ] || return 1
+    checked=$EPOCHSECONDS
+    now=$(start_of "$1")
+    [ -n "$now" ] && [ "$now" != "$2" ]
+}
+
+# Sets oldest to the oldest ticket of a live waiter. It removes the tickets of waiters that are gone, which ended without
+# their trap. The ticket of a helper before ter-s4fg is empty, so kill -0 alone judges it.
 oldest_ticket() {
     local entry
+    oldest=
     for entry in $(ls "$queue" | sort); do
-        if kill -0 "${entry##*-}" 2> /dev/null; then
-            echo "$entry"
+        if [ "$entry" = "$ticket" ]; then
+            oldest=$entry
+            return
+        fi
+        read_record "$queue/$entry"
+        if ! gone "${entry##*-}" "$record_start"; then
+            oldest=$entry
             return
         fi
         rm -f "$queue/$entry"
@@ -98,11 +122,7 @@ oldest_ticket() {
 # written, it removes the lock that it just made and ends the run.
 take() {
     mkdir "$lock" 2> /dev/null || return 1
-    local start
-    start=$(start_of $$)
-    if [ -z "$start" ] ||
-        ! printf 'pid=%s\nstart=%s\ntoken=%s\nlabel=%s\n' "$$" "$start" "$token" "$label" > "$lock/holder.new" ||
-        ! mv "$lock/holder.new" "$lock/holder"; then
+    if [ -z "$start" ] || ! printf %s "$record" > "$lock/holder.new" || ! mv "$lock/holder.new" "$lock/holder"; then
         rm -f "$lock/holder.new"
         rmdir "$lock"
         echo "gpu-lock: cannot write the holder's record into $lock" >&2
@@ -111,25 +131,16 @@ take() {
     held=1
 }
 
-# Clears the lock if its record names a process that no longer runs, or a live process that ps gives another start
-# time. The check of the start time forks ps, so it runs at most once a second. The renamed lock holds the token that
-# the check read, unless a run took the lock since the read. Then it goes back.
-checked=
+# Clears the lock if its record names a process that is gone. The renamed lock holds the token that the check read,
+# unless a run took the lock since the read. Then it goes back.
 clear_if_stale() {
-    read_record "$lock" || return
-    if kill -0 "$record_pid" 2> /dev/null; then
-        [ "$checked" = "$EPOCHSECONDS" ] && return
-        checked=$EPOCHSECONDS
-        local now
-        now=$(start_of "$record_pid")
-        [ -n "$now" ] && [ "$now" != "$record_start" ] || return
-    fi
-    local stale=$record_token gone=$lock.stale.$ticket
-    mv "$lock" "$gone" 2> /dev/null || return
-    if read_record "$gone" && [ "$record_token" = "$stale" ]; then
-        rm -rf "$gone"
+    read_record "$lock/holder" && gone "$record_pid" "$record_start" || return
+    local stale=$record_token cleared=$lock.stale.$ticket
+    mv "$lock" "$cleared" 2> /dev/null || return
+    if read_record "$cleared/holder" && [ "$record_token" = "$stale" ]; then
+        rm -rf "$cleared"
     else
-        mv "$gone" "$lock"
+        mv "$cleared" "$lock"
     fi
 }
 
@@ -138,10 +149,10 @@ clear_if_stale() {
 release() {
     defer_signals
     held=0
-    local gone=$lock.released.$ticket
-    read_record "$lock"
+    local released=$lock.released.$ticket
+    read_record "$lock/holder"
     if [ "$record_token" = "$token" ]; then
-        mv "$lock" "$gone" && rm -rf "$gone"
+        mv "$lock" "$released" && rm -rf "$released"
         return
     fi
     local now="it vanished"
@@ -153,10 +164,16 @@ release() {
     echo "gpu-lock: the lock was not this run's at its release ($now), so it stays. Discard this run's timing." >> "$log"
 }
 
+# The record of this run, which its ticket holds while it waits and the lock holds while it runs.
+start=$(start_of $$)
+printf -v record 'pid=%s\nstart=%s\ntoken=%s\nlabel=%s\n' "$$" "$start" "$token" "$label"
+mkdir -p "$queue"
+printf %s "$record" > "$queue/$ticket"
 started=$EPOCHSECONDS
 while :; do
     [ -n "$signal" ] && exit "$signal"
-    if [ "$(oldest_ticket)" = "$ticket" ]; then
+    oldest_ticket
+    if [ "$oldest" = "$ticket" ]; then
         take && break
         clear_if_stale
     fi
