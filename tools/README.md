@@ -53,6 +53,17 @@ Start Rider with the script every time. When the flake changes the SDK, the scri
 
 The build copies the Jolt library and the Vulkan loader next to each output, from `TERTIUS_JOLTC_DIR` and `TERTIUS_VULKAN_DIR`. macOS removes `DYLD_*` variables from Rider, because Rider has the hardened runtime, so a test that Rider starts never sees `DYLD_FALLBACK_LIBRARY_PATH`. The loader finds MoltenVK through `VK_ICD_FILENAMES`, which Rider keeps.
 
+## Vulkan drivers
+
+On the Mac, the dev shell offers two Vulkan drivers. MoltenVK is the default: the shell sets `VK_ICD_FILENAMES` to its ICD manifest. KosmicKrisp is LunarG's Mesa driver for Apple GPUs, from the pinned nixpkgs' `mesa`. The shell sets `TERTIUS_KOSMICKRISP_ICD` to its ICD manifest. To run a command on KosmicKrisp, set `VK_ICD_FILENAMES` from that variable for the command alone:
+
+```bash
+nix develop --command bash -c 'VK_ICD_FILENAMES=$TERTIUS_KOSMICKRISP_ICD dotnet test --solution Tertius.slnx -c Checked'
+nix develop --command bash -c 'VK_ICD_FILENAMES=$TERTIUS_KOSMICKRISP_ICD dotnet run --project src/Tertius.Demo -c Release -- --script scripts/lamp-hall-16.json --headless --out <folder>'
+```
+
+`vulkaninfo --summary` names the driver of a shell. On Linux the variable is empty, and the loader finds the system's drivers. [docs/research/kosmickrisp.md](../docs/research/kosmickrisp.md) compares the two drivers, and lists the tests that fail on KosmicKrisp and why.
+
 ## Coverage on changed lines
 
 1. Run every test project with coverage, in both build configurations:

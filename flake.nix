@@ -71,7 +71,11 @@
               # ffprobe, from the same package, reads the videos in the Host tests.
               pkgs.ffmpeg-headless
             ]
-            ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isDarwin [ pkgs.moltenvk ];
+            ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isDarwin [
+              pkgs.moltenvk
+              # Mesa's KosmicKrisp, the second Vulkan driver of the Mac, which TERTIUS_KOSMICKRISP_ICD names.
+              pkgs.mesa
+            ];
 
             # The wrapped SDK links its install tree to $out/share/dotnet.
             DOTNET_ROOT = "${dotnet}/share/dotnet";
@@ -87,6 +91,9 @@
             LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath vulkanLibs;
             VK_LAYER_PATH = "${pkgs.vulkan-validation-layers}/share/vulkan/explicit_layer.d";
             VK_ICD_FILENAMES = pkgs.lib.optionalString pkgs.stdenv.hostPlatform.isDarwin "${pkgs.moltenvk}/share/vulkan/icd.d/MoltenVK_icd.json";
+            # The ICD manifest of KosmicKrisp, LunarG's Mesa driver for Apple GPUs. MoltenVK stays the default, and a run
+            # picks KosmicKrisp with VK_ICD_FILENAMES=$TERTIUS_KOSMICKRISP_ICD (tools/README.md, "Vulkan drivers").
+            TERTIUS_KOSMICKRISP_ICD = pkgs.lib.optionalString pkgs.stdenv.hostPlatform.isDarwin "${pkgs.mesa}/share/vulkan/icd.d/kosmickrisp_mesa_icd.aarch64.json";
 
             # The repository's git hooks (.githooks/): cleanup, duplicates and build on commit, docs on push.
             shellHook = ''
