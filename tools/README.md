@@ -433,13 +433,12 @@ nix develop --command bash tools/fsr3-golden/build.sh
 nix develop --command bash tools/fsr3-golden/check-pin.sh
 ```
 
-`Fsr3UpscalerTests.AnUpscaleFrom1280x720To1920x1080ReportsItsGpuTime` measures FSR's GPU time by timestamps around `Record`. It runs only with `TERTIUS_FSR_TIMING=1`. It prints the median and the percentiles of 300 frames, and then the time of each frame in their order. Run it in Release under the GPU lock:
+`Fsr3UpscalerTests.AnUpscaleFrom1280x720To1920x1080ReportsItsGpuTime` measures FSR's GPU time by timestamps around `Record`. It runs only with `TERTIUS_FSR_TIMING=1`. It prints the median and the percentiles of 300 frames, and then the time of each frame in their order. Run it in Release under the GPU lock (see "The GPU lock"). The test's output goes to the log:
 
 ```bash
 nix develop --command dotnet build tests/Tertius.Rendering.Tests -c Release
-mkdir /tmp/tertius-gpu-measure.lock
-TERTIUS_FSR_TIMING=1 nix develop --command dotnet test --project tests/Tertius.Rendering.Tests -c Release --no-build --filter-method "*ReportsItsGpuTime" --output detailed
-rmdir /tmp/tertius-gpu-measure.lock
+mkdir -p captures
+TERTIUS_FSR_TIMING=1 bash tools/gpu-lock.sh captures/fsr-timing-test.log nix develop --command dotnet test --project tests/Tertius.Rendering.Tests -c Release --no-build --filter-method "*ReportsItsGpuTime" --output detailed
 ```
 
 ## FSR 3.1 timing
@@ -510,15 +509,43 @@ The rotation gives each build the same predecessor in most runs. So an effect of
 
 ## The GPU lock
 
-Every timed run on the development Mac takes the GPU lock, the directory `/tmp/tertius-gpu-measure.lock`, so that two timed runs never share the GPU. `mkdir` takes it, and `rmdir` releases it. `tools/gpu-lock.sh` is the one helper of the lock for every timing tool:
+Every timed run on the development Mac takes the GPU lock, the directory `/tmp/tertius-gpu-measure.lock`, so that two timed runs never share the GPU. `tools/gpu-lock.sh` is the one helper of the lock for every timing tool. Take the lock only through it, and never with `mkdir` or `rmdir` by hand:
 
 ```bash
 bash tools/gpu-lock.sh <log> <command> [arguments]
 ```
 
-It waits for the lock and runs the command with its output in the log. When the command ends, it removes the lock. It also removes the lock after a failure or a signal. It never removes a lock that it did not make. The log gets the uptime at the start and the end, and the seconds that the run waited. The exit code is the command's.
+It waits for the lock and runs the command with its output in the log. The log gets the uptime at the start and the end, and the seconds that the run waited. The exit code is the command's.
 
-The waiters take turns in the order in which they came. Each waiter writes a ticket into `/tmp/tertius-gpu-measure.queue`, a file named by its start time and its process id. It tries `mkdir` only while its ticket is the oldest ticket of a live process, every 0.1 s. Without the order, a loop of runs that tried every 0.1 s won nearly every release against a waiter that tried every 5 s. On 2026-11-03 that went on for more than 20 minutes. A run that takes the lock by hand with `mkdir` has no ticket, and it competes with the oldest waiter only.
+The holder's record is the file `holder` in the lock directory. The helper takes the lock with `mkdir`, and right after it writes the record. The record holds four lines:
+
+- `pid=`, the process id of the helper.
+- `start=`, the start time of that process, as `ps -o lstart=` gives it.
+- `token=`, a value that no other run has.
+- `label=`, the log path and the command.
+
+A plain `rmdir` of a lock with a record fails, because the directory is not empty. On 2026-11-04 a command line ran `mkdir` of the lock and then `rmdir` after `;`. The `mkdir` failed, and the `rmdir` removed the lock of another run. The record now stops that `rmdir`. If the record cannot be written, the helper removes its new lock, does not run the command and exits with 1.
+
+The release rule: the helper removes the lock only when the record's token is its own. This holds when the command ends, when it fails and when INT or TERM ends the helper. If the lock vanished, or the record of another run is in it, the helper removes nothing. It then writes one line into its log, which starts with `gpu-lock: the lock was not this run's at its release` and ends with `Discard this run's timing.` Discard the timing of such a run, because another run could share the GPU with it. A removal first renames the lock to a name of the remover's own, and then deletes it. So no run ever sees a lock without its record because a removal stopped halfway.
+
+The stale rule: a waiter clears a stale lock. A lock is stale when its record names a process that no longer runs. It is also stale when another process now has the recorded process id, because then the start time differs. A lock without a record is never stale: a run takes it at this moment, or the helper before ter-r88x took it. If a holder ends by `SIGKILL` between its `mkdir` and its record, its lock stays until a person removes it.
+
+The waiters take turns in the order in which they came. Each waiter writes a ticket into `/tmp/tertius-gpu-measure.queue`, a file named by its start time and its process id. It tries `mkdir`, or clears a stale lock, only while its ticket is the oldest ticket of a live process, every 0.1 s. Without the order, a loop of runs that tried every 0.1 s won nearly every release against a waiter that tried every 5 s. On 2026-11-03 that went on for more than 20 minutes. The order also makes the clear safe when two waiters see the same stale lock. Only the oldest waiter clears, and only the oldest waiter takes the lock that the clear freed.
+
+The helper before ter-r88x, as in `93e46dd7f`, makes an empty lock and does not clear. It and the current helper exclude each other: each one's `mkdir` fails while the other holds the lock. If such an older helper is the oldest waiter on a stale lock, no waiter clears the lock until that older helper ends.
+
+Two environment variables give other paths, for the tests. Their defaults are the real paths:
+
+| Variable | Default |
+|---|---|
+| `TERTIUS_GPU_LOCK` | `/tmp/tertius-gpu-measure.lock` |
+| `TERTIUS_GPU_QUEUE` | `/tmp/tertius-gpu-measure.queue` |
+
+`tools/test_gpu_lock.py` tests the record, the release rule, the stale rule, the queue's race on a stale lock and the exclusion with the helper of `93e46dd7f`. Each test uses a new folder under `/private/tmp`, and no test touches the real lock or the real queue. It uses the Python standard library only, and it runs in about 10 s:
+
+```bash
+nix develop --command python3 -I tools/test_gpu_lock.py
+```
 
 Every timing tool takes the lock through the helper: `tools/gpu-trace.sh`, `tools/demo-timing.sh`, `tools/fsr3-timing/time-round.sh` and the scripts of `tools/gpu-calibration/`. No tool holds a copy of the lock's logic.
 

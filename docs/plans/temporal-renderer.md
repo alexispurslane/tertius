@@ -1251,7 +1251,7 @@ At a render scale of 1, the render-size passes cost 2.25 times as much. The firs
 
 ### How each ticket measures its part
 
-Every measurement runs in Release on the M1 Max, under the GPU lock `/tmp/tertius-gpu-measure.lock`. It follows the recipe of `ter-8bda`, which [environment-map-distances.md](environment-map-distances.md), "The measurement plan", writes out:
+Every measurement runs in Release on the M1 Max, under the GPU lock `/tmp/tertius-gpu-measure.lock`, which it takes only through `tools/gpu-lock.sh` (tools/README.md, "The GPU lock"). It follows the recipe of `ter-8bda`, which [environment-map-distances.md](environment-map-distances.md), "The measurement plan", writes out:
 
 1. Build three binaries: the base, which is main at the branch's merge base, a byte copy of the base as the control, and the branch.
 2. Run 7 interleaved rounds of demo-exit's deck and floor windows of 120 frames, in a rotated order of base, control and branch. Run each run through `tools/demo-timing.sh`, which records the GPU clock over the run's timed span in `gpu-timings.json` (tools/README.md, "The GPU clock of a timed run"). Record the 1-minute load at each start.
