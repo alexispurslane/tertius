@@ -230,6 +230,27 @@ class TheRecord(unittest.TestCase):
         self.assertNotEqual(bench.record()["token"], token)
         second.finish()
 
+    def test_a_newline_in_the_log_path_cannot_split_the_holders_record(self):
+        bench = Bench(self)
+        run = bench.start("run\ntoken=foreign")
+        run.wait_until_it_holds()
+        self.assertIn(str(run.log).replace("\n", " "), bench.record().get("label", ""))
+        self.assertEqual(len((bench.lock / "holder").read_text().splitlines()), 4)
+        self.assertEqual(run.finish(), 0)
+        self.assertEqual(bench.leftovers(), [])
+        self.assertNotIn(NOT_ITS_OWN, run.log_text())
+
+    def test_a_failed_record_rename_removes_the_lock_without_running_the_command(self):
+        bench = Bench(self)
+        env = {**bench.env, **bench.shim("mv", 'case "$2" in */holder) exit 1;; esac; exec "$real" "$@"')}
+        result = subprocess.run(["bash", str(HELPER), str(bench.folder / "run.log"), "touch", str(bench.folder / "ran")],
+                                env=env, capture_output=True, text=True, timeout=10, check=False)
+        self.assertEqual(result.returncode, 1)
+        self.assertFalse((bench.folder / "ran").exists())
+        self.assertEqual(bench.leftovers(), [])
+        self.assertEqual(list(bench.queue.iterdir()), [])
+        self.assertIn("record", result.stderr)
+
     def test_a_run_that_cannot_write_its_record_removes_the_lock_and_does_not_run_its_command(self):
         bench = Bench(self)
         # umask 777 makes the lock directory unwritable, so the write of the record fails right after the mkdir.
@@ -306,18 +327,19 @@ class TheRelease(unittest.TestCase):
                 self.assertEqual(list(bench.queue.iterdir()), [])
 
     def test_a_signal_during_the_release_does_not_stop_it_halfway(self):
-        bench = Bench(self)
-        renaming = bench.folder / "renaming"
-        # A slow rename of the lock at its release holds the run inside the release.
-        run = bench.start("run", env=bench.shim("mv", f'case "$2" in *.released.*) touch {shlex.quote(str(renaming))}; '
-                                                      'sleep 1;; esac; exec "$real" "$@"'))
-        run.wait_until_it_holds()
-        run.release.touch()
-        self.assertTrue(wait_for(renaming.exists))
-        run.process.send_signal(signal.SIGTERM)
-        self.assertEqual(run.process.wait(timeout=10), 0)
-        self.assertEqual(bench.leftovers(), [])
-        self.assertNotIn(NOT_ITS_OWN, run.log_text())
+        for sent in [signal.SIGINT, signal.SIGTERM, signal.SIGHUP]:
+            with self.subTest(sent):
+                bench = Bench(self)
+                renaming = bench.folder / "renaming"
+                run = bench.start("run", env=bench.shim("mv", f'case "$2" in *.released.*) touch {shlex.quote(str(renaming))}; '
+                                                              'sleep 1;; esac; exec "$real" "$@"'))
+                run.wait_until_it_holds()
+                run.release.touch()
+                self.assertTrue(wait_for(renaming.exists))
+                run.process.send_signal(sent)
+                self.assertEqual(run.process.wait(timeout=10), 0)
+                self.assertEqual(bench.leftovers(), [])
+                self.assertNotIn(NOT_ITS_OWN, run.log_text())
 
     def test_a_waiter_that_a_signal_ends_leaves_the_holders_lock(self):
         bench = Bench(self)
@@ -333,6 +355,23 @@ class TheRelease(unittest.TestCase):
 
 class TheStaleLock(unittest.TestCase):
     """A waiter clears a lock whose record names a process that no longer exists or that started at another time."""
+
+    def test_only_the_oldest_live_waiter_can_clear_and_take_a_stale_lock(self):
+        bench = Bench(self)
+        older = bench.sleeper()
+        oldest = bench.queue / f"0000000000000000-{older.pid}"
+        oldest.touch()
+        bench.write_record(bench.dead_pid(), NEVER_STARTED)
+        waiter = bench.start("waiter")
+        self.assertTrue(wait_for(lambda: len(list(bench.queue.iterdir())) == 2))
+        time.sleep(SETTLE)
+        self.assertFalse(waiter.holds())
+        self.assertEqual(bench.record().get("token"), "someone-else")
+        older.kill()
+        older.wait()
+        waiter.wait_until_it_holds()
+        self.assertEqual(waiter.finish(), 0)
+        self.assertEqual(list(bench.queue.iterdir()), [])
 
     def test_a_waiter_takes_the_lock_of_a_holder_that_died(self):
         bench = Bench(self)
@@ -402,6 +441,26 @@ class TheStaleLock(unittest.TestCase):
                 time.sleep(SETTLE)
                 self.assertFalse(waiter.holds())
                 self.assertEqual(bench.record().get(lacks), "")
+
+    def test_an_incomplete_live_record_cannot_be_cleared_when_it_becomes_complete_during_the_rename(self):
+        bench = Bench(self)
+        holder = bench.sleeper()
+        bench.write_record(holder.pid, "")
+        complete = f"pid={holder.pid}\nstart={start_time(holder.pid)}\ntoken=someone-else\nlabel=the live holder\n"
+        finish_record = (f'case "$2" in *.stale.*) printf %s {shlex.quote(complete)} > "$1/holder";; esac; '
+                         'exec "$real" "$@"')
+        waiter = bench.start("waiter", env=bench.shim("mv", finish_record))
+        time.sleep(SETTLE)
+        self.assertFalse(waiter.holds())
+        (bench.lock / "holder").write_text(complete)
+        time.sleep(SETTLE)
+        self.assertFalse(waiter.holds())
+        self.assertEqual(bench.record().get("pid"), str(holder.pid))
+        holder.kill()
+        holder.wait()
+        waiter.wait_until_it_holds()
+        self.assertEqual(waiter.finish(), 0)
+        self.assertEqual(bench.leftovers(), [])
 
     def test_a_waiter_asks_ps_about_a_live_holder_at_most_once_a_second(self):
         bench = Bench(self)
