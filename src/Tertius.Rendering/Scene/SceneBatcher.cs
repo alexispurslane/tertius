@@ -454,9 +454,7 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
                 placement: placement,
                 materials: materials,
                 maps: scene.MapCount,
-                holdsLight: lightHolders.Contains(
-                    new(Index: instance.EntityIndex, Generation: instance.EntityGeneration)
-                )
+                holdsLight: lightHolders.Contains(instance.Entity)
             ) with
             {
                 PlacedIndex = scene.PlacedCount - 1,
@@ -555,7 +553,7 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
             Alpha = materials[(int)material].Alpha,
             TwoSided = materials[(int)material].TwoSided,
             Flags = instance.Flags,
-            Entity = new(Index: instance.EntityIndex, Generation: instance.EntityGeneration),
+            Entity = instance.Entity,
             Part = instance.Part,
             Hemisphere = instance.Hemisphere,
             Map = EnvironmentChain.MapOf(instance.ChainDepth, maps),
@@ -574,8 +572,8 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
         {
             Entity? holder = light switch
             {
-                PointRenderLight point => new Entity(Index: point.EntityIndex, Generation: point.EntityGeneration),
-                SpotRenderLight spot => new Entity(Index: spot.EntityIndex, Generation: spot.EntityGeneration),
+                PointRenderLight point => point.Entity,
+                SpotRenderLight spot => spot.Entity,
                 // A light that holds no case is no light, and the renderer skips it.
                 null => null,
             };
@@ -1091,7 +1089,7 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
         ) = light switch
         {
             PointRenderLight point => (
-                new Entity(Index: point.EntityIndex, Generation: point.EntityGeneration),
+                point.Entity,
                 Vector3.Lerp(point.PreviousPosition, point.Position, alpha),
                 point.Color,
                 LightUnits.PointIntensity(point.Power),
@@ -1101,7 +1099,7 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
                 point.ChainDepth
             ),
             SpotRenderLight spot => (
-                new Entity(Index: spot.EntityIndex, Generation: spot.EntityGeneration),
+                spot.Entity,
                 Vector3.Lerp(spot.PreviousPosition, spot.Position, alpha),
                 spot.Color,
                 LightUnits.SpotIntensity(spot.Power, spot.OuterConeAngle),

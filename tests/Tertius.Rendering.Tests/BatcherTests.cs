@@ -1048,19 +1048,40 @@ public sealed class BatcherTests
     public void TheGpuInstanceOfAnEntityThatHoldsALightSaysSoAndAnyOtherDoesNot()
     {
         RenderSnapshot snapshot = Empty();
+        // Live generations start at 1, so the lamp's generation is one that a live entity has.
         RenderInstance lamp = Box(new(-2, 0, -10), chainDepth: TestChains.CamerasFrame);
         lamp.EntityIndex = 7;
+        lamp.EntityGeneration = 3;
         RenderInstance screen = Box(new(2, 0, -10), chainDepth: TestChains.CamerasFrame);
         screen.EntityIndex = 8;
+        screen.EntityGeneration = 3;
         snapshot.Instances.Add(lamp);
         snapshot.Instances.Add(screen);
-        snapshot.Lights.Add(Lamp(new(-2, 1, -10)) with { EntityIndex = 7 });
+        snapshot.Lights.Add(Lamp(new(-2, 1, -10)) with { EntityIndex = 7, EntityGeneration = 3 });
 
         PreparedScene scene = Prepare(snapshot: snapshot);
 
         GpuInstance[] drawn = scene.Instances[..scene.InstanceCount];
         drawn.Single(each => each.ModelRow0.W < 0).HoldsLight.Should().Be(1u, "a light carries the lamp's entity");
         drawn.Single(each => each.ModelRow0.W > 0).HoldsLight.Should().Be(0u, "no light carries the screen's entity");
+    }
+
+    /// <summary>
+    /// The renderer follows an instance from frame to frame by its whole entity, slot and generation, because a new entity
+    /// can take the slot of a destroyed one (ImpostorKey, the shadow tiles' casters). The batcher builds that entity.
+    /// </summary>
+    [Fact]
+    public void APlacedInstanceCarriesTheSlotAndTheGenerationOfItsEntity()
+    {
+        RenderSnapshot snapshot = Empty();
+        RenderInstance box = Box(new(0, 0, -10), chainDepth: TestChains.CamerasFrame);
+        box.EntityIndex = 7;
+        box.EntityGeneration = 4;
+        snapshot.Instances.Add(box);
+
+        PreparedScene scene = Prepare(snapshot: snapshot);
+
+        scene.PlacedSpan.ToArray().Should().ContainSingle().Which.Entity.Should().Be(new Entity(Index: 7, Generation: 4));
     }
 
     [Fact]

@@ -159,6 +159,28 @@ public sealed class BatcherLightTests
         Vector3.Distance(cone.Axis, Vector3.Normalize(new(1, -1, 0))).Should().BeLessThan(1e-6f);
     }
 
+    // ---- Whose light it is -------------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// The shadow tiles follow a light from frame to frame by its whole entity, slot and generation, because a new entity
+    /// can take the slot of a destroyed one (docs/plans/local-light-shadows.md, "The cache"). The batcher builds that entity.
+    /// </summary>
+    [Fact]
+    public void AKeptLightCarriesTheSlotAndTheGenerationOfItsEntity()
+    {
+        RenderSnapshot snapshot = Dark();
+        snapshot.Lights.Add(Lamp(new(0, 1, -5)) with { EntityIndex = 4, EntityGeneration = 5 });
+        snapshot.Lights.Add(Beam(new(0, 3, -5), -Vector3.UnitY) with { EntityIndex = 9, EntityGeneration = 2 });
+
+        PreparedScene scene = Prepare(snapshot: snapshot);
+
+        scene
+            .LightSpan.ToArray()
+            .Select(light => light.Entity)
+            .Should()
+            .BeEquivalentTo([new Entity(Index: 4, Generation: 5), new Entity(Index: 9, Generation: 2)]);
+    }
+
     // ---- Which lights are kept --------------------------------------------------------------------------------------
 
     /// <summary>Each reason why a light does not shine, by name.</summary>
