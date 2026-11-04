@@ -28,6 +28,13 @@ The renderer reuses each pixel's light from earlier frames. Every lit surface ge
 - Ray budget: the rule that says which pixels trace their own rays in a frame.
 - Reservoir: ReSTIR's record of the one light that a pixel chose, with its weight and its count of candidates. Removed with ReSTIR DI on 2026-11-04 (`ter-9nrc`).
 - Pre-exposed: multiplied by k = 2^S, the scale of the frame's exposure S in stops, as today (ARCHITECTURE.md, "Pre-exposure").
+- Walk: the steps of one ray through the depth pyramid. Each step reads one texel.
+- Step cap: the most steps that a walk takes. A walk that reaches it ends as a miss.
+- Two-depth walk: the walk of decision 40, V6 of the profiling spike. It reads the near and the far bound of each cell.
+- Finest level: level 0 of the depth pyramid, the inverse view depth w of each pixel's center.
+- Own-ray share: the own rays of one kind in a frame, as a share of the pixels of the render size.
+- Top clock: the GPU's highest clock, 1296 MHz on the M1 Max. A window whose frame rate the GPU limits runs at it ([gpu-calibration.md](../research/temporal-renderer/gpu-calibration.md) calls that clock the windowed clock).
+- Tile bias: the mean signed difference of two converged images over tiles of 16 × 16 pixels, as a share of the reference's mean ([lean-trace-spike.md](../research/temporal-renderer/lean-trace-spike.md)).
 
 ## Decisions
 
@@ -38,12 +45,12 @@ These come from `.tickets/ter-89xq.md`, the brief of this ticket and its notes. 
 1. The renderer is temporal. Decision 8 of [rendering-performance.md](rendering-performance.md) no longer holds. (User, 2026-11-02)
 2. FSR 3.1's upscaler is the one TAA and the one upscaler, with dynamic resolution from the start. Frame generation is out of this epic (`ter-hdbw`). (User, 2026-11-02 and 2026-11-03)
 3. No world ray trace. Everything that the screen does not show comes from the environment maps (spike `ter-afyv`, [metal-trace-spike.md](../research/metal-trace-spike.md)). (User, 2026-11-02)
-4. One screen tracer. Diffuse rays and reflection rays go through one traversal of the depth pyramid. The four occlusion passes are deleted. A diffuse miss reads the environment's light, "its irradiance for a diffuse ray" in the user's words, and a reflection miss its prefiltered map. Decision 26 gives the read. Above the reflection rays' roughness limit, rough reflections reuse the diffuse rays' hits. (User, 2026-11-03)
+4. One screen tracer. Diffuse rays and reflection rays go through one traversal of the depth pyramid. The four occlusion passes are deleted. A diffuse miss reads the environment's light, "its irradiance for a diffuse ray" in the user's words, and a reflection miss its prefiltered map. Decision 26 gives the read. Above the reflection rays' roughness limit, rough reflections reuse the diffuse rays' hits. (User, 2026-11-03) Decision 40 gives the walk of that traversal (2026-11-04).
 5. Decision 41 of [screen-space-illumination.md](screen-space-illumination.md) holds: a blocked direction brings the blocker's light, an open one the environment's light from that direction. (User, 2026-10-27, kept on 2026-11-03)
 6. Reflection rays start from every surface up to a roughness limit, the demo's paint of 0.38 included. The radiance pyramid, the reflection trace, the reflections pass and SMAA are deleted. (User, 2026-11-03)
 7. One accumulator module with a parameter set per signal. It has slow and fast histories, a history fix for new pixels, anti-lag and demodulated light. It runs the surface test once per frame. The reflection adds its own tests of the hit distance and the reflected point. Each history keeps the render size of the frame that wrote it. (User and orchestrator, 2026-11-03)
 8. Stochastic shadow taps: a few of the shadow taps per frame, in a pattern that turns each frame. (User, 2026-11-03)
-9. A ray budget driven by history length: more rays where the history is short. (User, 2026-11-03)
+9. A ray budget driven by history length: more rays where the history is short. (User, 2026-11-03) Decision 43 adds no limit to these rays at the first build (2026-11-04).
 10. Many-light sampling, ReSTIR DI, for direct light, which then becomes a temporal signal through the same accumulator module. (User, 2026-11-03) Changed on 2026-11-04 (`ter-9nrc`): the user removed ReSTIR DI. Every light is shaded exactly, and the direct light keeps no history (section 7).
 11. Time-sliced maps (`ter-7khp`) and a world-space radiance cache (`ter-13rm`) are later tickets, outside this design. (User, 2026-11-03)
 12. FSR 3.1's path: the engine's own C# host code over AMD's GLSL shaders from FidelityFX SDK v1.1.4 (upscaler 3.1.4), compiled with glslang. The host repeats AMD's host calculations exactly. The 3.1.5 and 3.1.6 fixes are compared before the pin. The baseline is 32-bit math and the variant without subgroup operations. The format defect of `rw_luma_history` is resolved under the Vulkan validation layer on MoltenVK and lavapipe. AMD's MIT notices stay. (Orchestrator, 2026-11-03) Note of 2026-11-03 (ticket `ter-7m38`): the baseline stays the only build, by the user's choice. AMD's 16-bit modules, the pyramids with quad subgroup operations, and both together matched the reference image and passed every FSR test under validation. In 60 alternating rounds from 1280 × 720 to 1920 × 1080 on the M1 Max, the median of all frames was 2.826 ms for today's build and 2.769 ms for a byte copy of it. The variants took 2.797, 2.788 and 2.776 ms, so by this median none gained more than the copy's spread. By the median of the per-round differences of the run medians, the copy lies within 0.038 ms of today's build, and the build with both changes is 0.085 ms faster. The paired reading is the sound one. But the build with both changes needs `shaderFloat16`, which AMD's Polaris GPUs and Vega M lack under Linux, so the user kept the baseline for a gain of about 0.08 ms. The pin carries AMD's 3.1.6 fix of the 16-bit reprojection (`src/Tertius.Rendering/ThirdParty/Fsr3/README.md`, "The 16-bit and subgroup builds").
@@ -64,7 +71,7 @@ Each decision gives its reason. The important ones also give the second design a
 22. The previous rows of each object come from the placement history, joined by key, not from the snapshot's previous transform. Section 3 gives both designs.
 23. A pixel without a history of its own gets a previous place outside the last frame's image. FSR and every accumulator then treat it as new, with no flag of its own.
 24. The surface test writes the device depth that FSR reads, the surface history and the motion of the sky. It is one pass, because each of these reads the distance target once.
-25. A hit of the screen tracer brings this frame's accumulated direct light. It also brings the hit's own indirect light of the last frame, from its fast histories (decision 17). A diffuse ray's hit leaves out the hit's specular light. This frame's material at the hit multiplies the light. No lit image is kept. Section 6 gives both designs, and the reason for the fast history over the slow one.
+25. A hit of the screen tracer brings this frame's accumulated direct light. It also brings the hit's own indirect light of the last frame, from its fast histories (decision 17). A diffuse ray's hit leaves out the hit's specular light. This frame's material at the hit multiplies the light. No lit image is kept. Section 6 gives both designs, and the reason for the fast history over the slow one. Changed on 2026-11-04 (`ter-9nrc`): the direct light keeps no history, so a hit reads this frame's direct light from the direct light's two images.
 26. A diffuse miss reads the environment map along the ray's own direction, through the map's specular image at roughness 0.5. Reason: decision 41 asks for the environment's light from that direction. The irradiance at the normal, D(n), counts a near blocker twice, the fault that decision 42 removed. So this design reads the user's "irradiance" of decision 4 through the user's own note on decision 41. That note of 2026-10-27 says: "read the environment map in each open direction". Section 6 gives the details.
 27. The roughness limit of the reflection rays is the setting `MaxRoughness`, 0.5 by default. In the hand-over band, from `MaxRoughness` − `HandOverWidth` to `MaxRoughness`, the reflection rays hand over to the reuse of the diffuse rays. `HandOverWidth` is a named constant of 0.1. Reason: below 0.4 the cosine-weighted diffuse rays sample a GGX lobe badly. At 0.38 their weight reaches about 12 times the mean. Ticket 4's first captures test the default.
 28. ReSTIR resamples the sampled lights: every light of the main view except the exact lights. The exact lights are the lights whose shadow slot is a cascade set, which `FarShadows.Choose` gives to the brightest shadowed far lights. There are at most `RendererOptions.CascadedLights` of them, 1 by default and 4 at most (user, 2026-11-03). They take the exact loop with the frame's taps, outside the resampling, because a cascade map has no bounds image. A far light is any light at least `LightUnits.FarDistance` from the eye, the test that already gives a light cascade shadows instead of shadow tiles. A star is far because of its distance, not its kind: there is no star type. ReSTIR shades the chosen light with its exact unshadowed contribution and a stochastic visibility. A candidate's target is 0 where the bounds of its shadow tile show it fully shadowed. The candidates come from a table weighted by each sampled light's rank irradiance at the eye, mixed half and half with a uniform choice. Section 7 gives both designs. Changed on 2026-11-04 (`ter-9nrc`): the user removed ReSTIR DI, so no light is sampled. A light with a cascade set is shaded by the same loop as every other light (section 7).
@@ -79,6 +86,18 @@ Each decision gives its reason. The important ones also give the second design a
 37. The frame submits its work in two parts: the passes up to the bloom, then the passes that write the output image. Only the second part waits for the swapchain image. Reason: the controller's measure of the first part then holds no wait (section 4).
 38. Every pixel gets a sample of each of its signals in every frame. The ray plan gives a pixel its own ray where its history is short or where its block's ray does not fit its surface. The plan reads each signal's history length, the one store of how long a history is. Reason: no pixel is then without both a history and a sample, and the surface history needs no age of its own. Section 6 gives the rule.
 39. The dark panel of `ter-m24j` waits for the panel lights of `ter-80o1`. From ticket 4, the demo's paint shows a cabin's panel lamp as a dark square around the small highlight of its light. The panel lights of `ter-80o1` end this after tickets 5 and 6. Reason: the project prefers the real mechanism over a look-alike. The user also accepted the same dark panel in the map's reflections on 2026-10-31 (`ter-ylzk`). The second design grows each cabin lamp's light to about 0.6 m before ticket 4, which gives a round highlight where the panel is square. (Orchestrator, 2026-11-03, under the user's rule for small choices inside a chosen design)
+
+### Added on 2026-11-04
+
+These come from the spikes after the first version and from the user's decisions of 2026-11-04. The design update `ter-jxjx` wrote them. Each says what it replaces. Section 6 and section 11 give the details.
+
+40. The two-depth walk. Both ray kinds take one walk, V6 of the profiling spike ([profiling-spike.md](../research/temporal-renderer/profiling-spike.md), "Recommendation", items 1, 2 and 4). A step reads the near and the far bound of a cell from today's depth pyramid, or a pixel's center w from the finest level. A ray that passes in front of a cell's slab or behind it crosses the cell in one step. At the finest level, a pixel is a flat slab, and a hit on a surface that faces away from the ray is no hit. The ray's setup, its walk and its shading run in one kernel. The pyramid keeps one owner and one builder, which gains the finest level, and no second pyramid exists. Reason: at the top clock, its reflection rays take 20 to 32 % less time than those of the lean walk V1. At full length, it finds V1's hits. The second design, V1's step for the diffuse rays, buys nothing at equal image quality and needs a second step function. This replaces the first version's walk: today's trace, with its pixel planes at level 0. (Orchestrator, 2026-11-04, from the profiling spike's recommendation)
+41. The step caps. A reflection walk takes at most 256 steps, and a diffuse walk at most 62. At 62 steps, the two-depth walk's diffuse images are at least as good as V1's at 64 steps in both measured views. Its diffuse rays then take V1's time within 0.015 ms. This replaces the diffuse cap of 64. (User, 2026-11-04)
+42. The budget. A frame takes at most 12.0 ms of GPU time on demo-exit's deck at the top clock. The output is 1920 × 1080, and the render size 1280 × 720. The controller's runtime limit stays 15.0 ms (section 4). The two trace dispatches get an estimated 2.94 to 3.76 ms (section 11). This replaces the first version's target of 15.0 ms and its 0.8 to 1.7 ms for the whole tracer. (User, 2026-11-04. The budget decision of 2026-10-25 in [rendering-performance.md](rendering-performance.md), 12 ms with 4.7 ms of headroom for heavier scenes, still holds.)
+43. Full rays at the first build. Ticket 4 traces every 2 × 2 block's ray of each kind, plus the own rays of section 6, "The ray budget". The spikes measured the budget's rays with own rays for 10 % of the pixels of each kind. Ticket 4 adds no ray limit. It measures the real frame on demo-exit's deck at the top clock, and it reports that frame. If the measured frame stays over 12.0 ms after the hill-climb (`ter-dzxf`) lands, a ray limit follows as a ticket of its own. Otherwise none comes. Own rays for 25 % of the pixels fit the budget in no setting (section 11). This replaces the first version's rule: if the whole tracer exceeded 1.7 ms, ticket 4 stopped and reported. (User, 2026-11-04)
+44. The words form. A per-ray input that the trace kernel reads from a buffer reaches the walk's loop only through an operation before the loop. Examples are `uintBitsToFloat` of a word of a `uvec4` buffer, and a comparison. Reason: SPIRV-Cross writes a plain buffer load again at each use, so MoltenVK's code read such a value from memory at each step. In the speed-of-light walk, the words form cut 5.48 ms to 3.57 ms. After each change of the walk, `tools/sol-walk/loop-reads.py` counts the buffer accesses inside the loop of MoltenVK's code dump, and the count must be 0. Texel fetches and push constants need no such form. The form is plain GLSL and relies on no behavior of MoltenVK. (Orchestrator, 2026-11-04, from the profiling spike's recommendation, item 3)
+45. The walk's one place. One function, `walkScreen` in `screen_walk.glsl`, holds the step and the loop to the cap, for both kinds. The hill-climb (`ter-dzxf`) changes the walk's speed, one measured change at a time, and keeps its hits. Its winning change replaces the step and the loop in that function after ticket 4. (User, 2026-11-03, for the climb. Orchestrator, 2026-11-04, for the one place)
+46. Level 0 in an image of its own. The finest level is an R32F image beside today's RG32F pyramid image, as the profiling spike measured it. The pyramid image's mip m holds level m + 1. The second design puts level 0 into mip 0 of one RG32F image. In the speed-of-light walk, that saved 5 to 7 % of a step, but its saving in the trace is unmeasured. Its level 0 takes the pyramid's padded size and 8 bytes per texel: about 34 MB at a 1080p render size, against 8.3 MB. The hill-climb's fixed test setup runs the measured layout, so the second design is a candidate of the climb, not of the first build. (`ter-jxjx`, under the user's rule for small choices inside a chosen design)
 
 ## 1. The model
 
@@ -187,7 +206,7 @@ Four flows cross the CPU and the GPU:
 |---|---|---|---|---|
 | `Upscaling` | `NoUpscaling`, `Fsr3Upscaling(RenderScale, Sharpness)` | `NoUpscaling`: no jitter, render size = output size | `Fsr3Upscaling(FrameTimeTarget.Default, Sharpness: chosen in ticket 5)` | `AntiAliasing` (`None`, `Smaa`) |
 | `RenderScale`, inside `Fsr3Upscaling` | `FixedRenderScale(Scale)`, `FrameTimeTarget(Milliseconds, MinScale, MaxScale)` | None: a required field | `FrameTimeTarget(1000 / 60, 0.5, 1)` | Nothing |
-| `ScreenTrace` | `NoScreenTrace`, `ScreenTrace(MaxRoughness, ReflectionSteps, DiffuseSteps)` | `NoScreenTrace`: every direction open, the composite reads the environment's terms in closed form | `ScreenTrace(0.5, 256, 64)` | `ScreenSpaceLight`, `Reflections` |
+| `ScreenTrace` | `NoScreenTrace`, `ScreenTrace(MaxRoughness, ReflectionSteps, DiffuseSteps)` | `NoScreenTrace`: every direction open, the composite reads the environment's terms in closed form | `ScreenTrace(0.5, 256, 62)`. The diffuse cap was 64 until 2026-11-04 (decision 41) | `ScreenSpaceLight`, `Reflections` |
 | `DirectLight` | `EveryLight`, `ResampledLights(Candidates, SpatialNeighbors)` | `EveryLight`: the exact loop over the light list | `ResampledLights(4, 2)` | Removed on 2026-11-04 (`ter-9nrc`). |
 | `WarmUpFrames` | An integer, 1 to 256 | None. Under the three zero cases a still draws no warm-up draws (section 10) | 32 | Removed on 2026-11-04 (`ter-9nrc`). `ter-gayt` brings it back |
 
@@ -205,11 +224,11 @@ The frame records in this order. "Fixed" passes have sizes of their own, "render
 6. Impostor captures (fixed). Unchanged.
 7. G-buffer (render). Jittered. It adds the motion target. After the deformation, whose current and kept positions it reads.
 8. Surface test (render). It reads the distance, the normals and the motion target, and the surface history. It writes the surface test image, the new surface history, FSR's device depth and the sky's motion. After the G-buffer, whose targets it reads.
-9. Depth pyramid (render). As today, over the active part. After the G-buffer.
+9. Depth pyramid (render). As today, over the active part. One more dispatch writes the finest level: each pixel's center w (decision 40). After the G-buffer.
 10. Light candidates (render, under `ResampledLights`). The candidates and the temporal reuse of the reservoirs. After the surface test, whose previous places it reads. Removed on 2026-11-04 (`ter-9nrc`).
 11. Direct light (render). The spatial reuse and the shading of the chosen light, or the loop over every light under `EveryLight`. It writes the direct signal's sample. Changed on 2026-11-04 (`ter-9nrc`): the loop over every light, into the direct light's two images.
 12. Accumulate direct (render). Before the tracer, whose hits read this frame's accumulated direct light. Removed on 2026-11-04 (`ter-9nrc`). The hits read the direct light's images.
-13. Screen trace (render). The ray plan, the trace and the resolve, in three dispatches. It writes the samples of the diffuse and the specular signal. After the depth pyramid, the direct history and the environment maps.
+13. Screen trace (render). Four passes: the ray plan, the trace of the reflection rays, the trace of the diffuse rays and the resolve. It writes the samples of the diffuse and the specular signal. After the depth pyramid, the direct light's images and the environment maps. Changed on 2026-11-04 (`ter-jxjx`): the first version held one pass of three dispatches. A pass for each kind gives each kind's time in the GPU timings, which section 11 holds against the budget.
 14. Accumulate diffuse, then accumulate specular (render). After the tracer.
 15. Composite (render). It takes the place of the ambient pass. It writes the HDR image and, at skin pixels, the diffuse image. After every accumulation.
 16. Scatter rows and scatter columns (render). Unchanged, after the composite, whose diffuse image they read.
@@ -223,7 +242,7 @@ The frame records in this order. "Fixed" passes have sizes of their own, "render
 24. Capture (output). Unchanged.
 25. CPU: after the submission, `FrameHistory.Drew` and the other owners' `Drew`.
 
-The frame submits in two parts (decision 37). The first part holds steps 3 to 21. The second part holds steps 22 to 24, which write the output image, and only it waits for the swapchain image. The frame graph holds 26 passes, under `GpuTimer.MaxPasses`, 31.
+The frame submits in two parts (decision 37). The first part holds steps 3 to 21. The second part holds steps 22 to 24, which write the output image, and only it waits for the swapchain image. The frame graph holds 26 passes, under `GpuTimer.MaxPasses`, 31. Changed on 2026-11-04: without light candidates and accumulate direct (`ter-9nrc`), and with the screen trace in four passes (`ter-jxjx`), the graph holds 27 passes. `GpuTimer.MaxPasses` is 40 on main.
 
 ### The fate of today's passes
 
@@ -238,7 +257,7 @@ The list follows section 1 of [pass-map.md](../research/temporal-renderer/pass-m
 | Environment prefilter | Kept | The tracer's misses read its specular image. |
 | Impostor captures | Kept | A billboard moves by its instance's rows, so it has a motion vector. |
 | G-buffer | Changed | Render size, jitter, the mip bias of the render scale, and the motion target. |
-| Depth pyramid | Changed | It serves the tracer and covers only the active part. Its owner moves from `ReflectionTargets` to `ScreenTraceImages`. |
+| Depth pyramid | Changed | It serves the tracer and covers only the active part. It gains the finest level (decision 40). Its owner moves from `ReflectionTargets` to `ScreenTraceImages`, and `DepthPyramidPass` stays its one builder. |
 | Direct light | Changed | It writes the direct light's demodulated two parts, with the loop over every light (section 7, changed on 2026-11-04). |
 | Occlusion depth, sectors, denoise and upsample | Deleted | The tracer's diffuse rays find the blocked directions (decision 4). |
 | Ambient light | Changed | It becomes the composite. |
@@ -256,7 +275,7 @@ The list follows section 1 of [pass-map.md](../research/temporal-renderer/pass-m
 | New: surface test | New | Section 3 and section 8. |
 | New: light candidates | New | Removed on 2026-11-04 (`ter-9nrc`). |
 | New: accumulate diffuse and specular | New | Section 8. Accumulate direct was removed on 2026-11-04 (`ter-9nrc`). |
-| New: screen trace | New | Section 6. |
+| New: screen trace | New | Section 6. Four passes: the ray plan, the trace of each kind and the resolve. |
 | New: FSR 3.1 upscale | New | Section 5. |
 
 ## 3. Motion vectors and the previous frame's state
@@ -439,7 +458,7 @@ Every render-size image has the largest render size. The renderer makes it with 
 - A compute pass dispatches over the active part and tests its invocation against it.
 - A pass that samples a render-size image with normalized coordinates scales them by the active part over the image's size.
 - No shader reads `textureSize` or `imageSize` of a render-size image for the screen's size. The exposure meter and the depth pyramid read it today, and ticket 5 changes them.
-- The depth pyramid's cells outside the active part hold the empty bounds, so a ray that reaches the active part's edge leaves the screen.
+- The depth pyramid's cells outside the active part hold the empty bounds, so a ray that reaches the active part's edge leaves the screen. The walk tests each cell against the active part at every level, the finest level included (`beyondTheScreen`). So it reads no texel outside the active part.
 
 The render size is a multiple of 8 pixels on each axis, rounded down from the output size times the scale, and at least 8. Each axis rounds alone, so the aspect stays within 8 pixels of the output's. The material lookups of the G-buffer and the transparent pass take the mip bias log2(render width / output width) − 1. This is the formula of AMD's manual, "Mipmap biasing". At a scale of 2/3 that is −1.58. The bias comes from the frame constants, because it changes per frame. Ticket 5 keeps AMD's formula unless its captures show shimmer on the demo's textures.
 
@@ -624,27 +643,57 @@ At a render scale of 0.77, the FSR 1 experiment saw tiny bright lights merge and
 
 ## 6. The screen tracer
 
-The screen tracer gives the diffuse and the specular signal their samples. It is one pass, "screen trace", of three dispatches: the ray plan, the trace and the resolve. Its images belong to `ScreenTraceImages`, which also owns the depth pyramid.
+The screen tracer gives the diffuse and the specular signal their samples. It records four passes: the ray plan, the trace of the reflection rays, the trace of the diffuse rays and the resolve. Its images belong to `ScreenTraceImages`, which also owns the depth pyramid. Changed on 2026-11-04 (`ter-jxjx`): the first version held one pass, "screen trace", of three dispatches. A pass for each kind gives each kind's time in the GPU timings, the figure that section 11 holds against the budget.
 
 ### The traversal
 
-Both ray kinds walk today's hierarchical trace over the min-max pyramid of inverse depth (ARCHITECTURE.md, "Screen-space reflections", the part "The depth pyramid and the trace"). It stays as it is, with its pixel planes, its continuation rule and its thickness. A surface at view depth z fills z to 1.1 z (`CellBounds.ThicknessShare`, decision 13 of [screen-space-illumination.md](screen-space-illumination.md)). `traceRay` in `reflection.glsl` becomes `traceScreen` in `screen_trace.glsl`, and `ScreenRay` stays its C# copy. The one change is for hair. A hair receiver passes the card code of its own card, and the test at level 0 counts a pixel of that card as empty. So a hair pixel's rays pass through its own card, as the sector pass's steps did.
+Changed on 2026-11-04 (`ter-jxjx`, decisions 40 to 46). The first version walked today's trace, `traceRay` of `reflection.glsl`, with its pixel planes at level 0. Ticket 9 measured that trace at about 10 ms at 1280 × 720 with own rays for 10 % of the pixels ([trace-timing-spike.md](../research/temporal-renderer/trace-timing-spike.md)). The lean trace spike and the profiling spike then built and measured leaner walks ([lean-trace-spike.md](../research/temporal-renderer/lean-trace-spike.md), [profiling-spike.md](../research/temporal-renderer/profiling-spike.md)). Git holds the first text.
+
+Both ray kinds take the two-depth walk, `walkScreen` in `screen_walk.glsl` (decision 40). It reads two images of the depth pyramid:
+
+- The finest level, an R32F image at the largest render size. Each texel holds the inverse view depth w = 1 / z of its pixel's center, from `inverseDepthAlong`, or 0 for sky. Its image is apart from the pyramid's image (decision 46).
+- Today's pyramid, an RG32F image whose mip m holds level m + 1. A texel holds the near and the far bound of the surfaces under its cell (ARCHITECTURE.md, "The depth pyramid and the trace").
+
+A cell of a level above 0 is a slab from its far bound times 1 / (1 + κ) to its near bound. A pixel at level 0 is a flat slab from its center's w to w / (1 + κ). κ is 0.1, `CellBounds.ThicknessShare`. So a surface at view depth z fills z to 1.1 z, as in the first version (decision 13 of [screen-space-illumination.md](screen-space-illumination.md)). Each step reads one texel and does one of three things:
+
+1. If the ray passes in front of the cell's slab or behind it, the walk crosses the cell and goes up a level. So a ray that passes behind every slab in a cell crosses the cell in one step.
+2. If the ray meets the slab of a cell above level 0, the walk goes down a level, to where the ray enters the slab.
+3. If the ray meets a pixel's flat slab, the ray hits. A surface that faces away from the ray is no hit, and the walk crosses the pixel and goes on. This is the facing test.
+
+Each cell's slab holds the flat slab of every pixel under it, so the tests above level 0 skip no hit. The lean walk V1 walks the flat slabs alone. At full length, the two-depth walk finds V1's hits in fewer steps (profiling-spike.md, "V6, the two-depth walk"). The top level is the smaller of the pyramid's levels and 8. The walk tests each cell against the active part, so a cell beyond the active part holds no surface.
+
+Hair. A hair receiver passes the card code of its own card. At level 0, a pixel of that card is no hit, and the walk crosses it as it crosses a surface that faces away. So a hair pixel's rays pass through its own card, as the first version planned and the sector pass's steps did. The spikes' views held no hair, so this rule is unmeasured.
+
+The image. A flat slab at a steep pixel stands in front of the pixel's plane. Without the facing test, it made the deck's reflection light 18 % darker than today's trace. Take the facing test and the caps of decision 41. On the deck, the walk's tile bias against today's trace is then −6.2 % for the reflection light and −7.5 % for the diffuse light. On the floor view it is +1.6 % and +0.8 % (profiling-spike.md, "V6 at V1's image quality"). Today's trace also reads light through the backs of surfaces, so a difference from it is not an error against the truth.
+
+The caps. A reflection walk takes at most `ReflectionSteps`, 256 steps, and a diffuse walk at most `DiffuseSteps`, 62 steps (decision 41). A walk that reaches its cap ends as a miss, an open direction.
+
+The kernel. A kind's ray setup, walk and shading run in one invocation (decision 40). A walk in a pass of its own runs at a higher occupancy, but it takes the time of the whole trace. Its setup and shading passes then add 0.6 to 0.9 ms (profiling-spike.md, "The parts of the trace"). The kernel reads each per-ray input from a buffer in the words form (decision 44). One kernel source serves both kinds and both dispatches of a kind, by specialization constants.
+
+The one place. `walkScreen` holds the step and the loop to the cap (decision 45). Ticket 4 takes the profiling spike's `twoDepthStep` and `leanWalkOf` from `lean_trace.glsl` on the branch `ter-sftw-profiling-spike`. It keeps their logic, and it adds only the hair rule. It drops the spike's counters and the coarse levels of V4. So the hill-climb's change, which it makes on the spike's walk, ports by hand to this one place. The climb runs at the diffuse cap of 64, and its change does not depend on the cap.
+
+These changes keep the hits, and each waits for a measurement through the hill-climb or a ticket of its own:
+
+- Level 0 in mip 0 of the pyramid's image (decision 46).
+- The bounds of level 1 from the 4 centers' w alone. Today's first level bounds each pixel's plane from the reads of five pixels, for the first version's plane test at level 0. The two-depth walk makes no such test, so bounds of the flat slabs are tighter and cheaper to build.
+- Both kinds in one dispatch, so that one kind's rays fill the cores that the other kind's tail leaves idle (trace-timing-spike.md, "Limits", item 3).
+- The unrolled step loop, persistent lanes and the other candidates of `ter-dzxf`.
 
 A ray ends in one of two ways:
 
-- A hit: the ray meets a pixel's slab from the front. The result is the hit pixel q, the hit distance, and the entry share q of today's trace.
+- A hit: the ray meets a pixel's flat slab from the front, and the pixel's surface faces the ray. The result is the hit pixel q, the hit distance, and the entry share e. The entry share is where the ray enters the slab: 0 at its front and 1 at its back.
 - A miss: the ray leaves the active part, reaches the sky, passes behind every slab, or runs out of steps.
 
-The edge fade of today's trace stays. In the band of a tenth of the screen at each edge, a hit's light blends into the miss's light. The entry fade 1 − q blends the same way.
+The edge fade of today's trace stays. In the band of a tenth of the screen at each edge, a hit's light blends into the miss's light. The entry fade 1 − e blends the same way.
 
 ### The ray kinds
 
 | Kind | Direction | Estimator weight | Steps | Starts from |
 |---|---|---|---|---|
 | Reflection | The view direction reflected about a half vector from GGX's visible normals (Dupuy and Benyoub 2023), at α = r², r floored at 0.045 | F(v·h) · G2 / G1, divided by the specular factor | `ReflectionSteps`, 256 | Pixels of roughness up to `MaxRoughness`, 0.5 |
-| Diffuse | Cosine-weighted around the shading normal, the fiber normal for hair | 1: the mean of the rays is the cosine-weighted mean of the light | `DiffuseSteps`, 64 | Every lit pixel |
+| Diffuse | Cosine-weighted around the shading normal, the fiber normal for hair | 1: the mean of the rays is the cosine-weighted mean of the light | `DiffuseSteps`, 62. It was 64 until 2026-11-04 (decision 41) | Every lit pixel |
 
-A ray needs no length in meters: it runs to the edge of the screen or to the end of its steps. A diffuse ray that runs out of steps counts as a miss, an open direction. A direction below the pixel's geometric plane brings no light, for both kinds: the receiver's own surface blocks it, decision 39 of [screen-space-illumination.md](screen-space-illumination.md). A ray starts at its pixel's surface point, as today's trace starts.
+A ray needs no length in meters: it runs to the edge of the screen or to the end of its steps. A diffuse ray that runs out of steps counts as a miss, an open direction. A direction below the pixel's geometric plane brings no light, for both kinds: the receiver's own surface blocks it, decision 39 of [screen-space-illumination.md](screen-space-illumination.md). A ray starts at its pixel's surface point, as today's trace starts. `screen_trace.glsl` is the one owner of the rules of a ray's start and of its hit point. Today `reflection_pixel.glsl` and `reflection_ray.glsl` hold them, and ticket 9's spike copied them (trace-timing-spike.md, "What ticket 4 must change in the spike's code", item 3). `MaxRoughness` reaches the shaders as a push constant.
 
 ### Where a hit's light comes from
 
@@ -753,7 +802,11 @@ The history length is the signal's one store of how long its history is. The ray
 
 So a new or a disoccluded surface traces own rays for its first 8 frames. So does a pixel whose anti-lag cut its length below 8, for example after a lamp switches on. A mirror's specular cap is 4 (section 8), so a mirror always traces its own reflection rays and keeps its sharp image. A converged diffuse pixel inside a surface shares its block's ray, about a quarter of a ray per pixel per frame. The pixels along the edges of surfaces trace own rays, because the block's ray does not fit them.
 
-The ray plan dispatch, one invocation per pixel, appends each pixel with an own ray to the own-ray list, as `OwnRayList` does today. The trace dispatch runs one invocation per block ray and one per listed pixel, through an indirect dispatch. The list's order follows the GPU's schedule, but each ray's result depends only on its pixel, so the image does not.
+The own-ray share. The spikes drew own rays at random for 10 % or 25 % of the pixels. Section 11's budget holds the 10 % (decision 43). The rule above gives a share that depends on the scene. Edges, new surfaces and smooth pixels count: a pixel whose specular cap stays below `FullRateFrames` always traces own reflection rays, up to a roughness of about 0.19. Ticket 4 adds no limit to the share. It counts the share of each kind on the deck and the floor, and it reports it. An estimate, linear in the rays, from the spike's times at 10 % and 25 %: on the deck, each further 1 % of the pixels with own rays of both kinds costs about 0.1 ms at the top clock.
+
+After a reset. In a reset frame no pixel has a history, so every lit pixel traces own rays of both kinds. A camera cut is a reset, so this holds for the first 8 frames after each cut. A disoccluded region does the same at a smaller scale. By the same linear estimate, such a frame on the deck spends about 10 ms in the trace. That is about 6 ms more than a converged frame. Decision 43 adds no limit, so these frames run long. Ticket 4 measures them (section 14, "The parts of ticket 4", part 7).
+
+The ray plan dispatch runs one invocation per pixel. It appends each pixel with an own ray of a kind to that kind's own-ray list, in the layout of `OwnRayList` today. Each kind's trace pass dispatches one invocation per block, then one per listed pixel through the indirect dispatch of `OwnRayDispatch`. The list has one owner in GLSL, an include file, and `OwnRayDispatch` takes the pipeline and the layout. Ticket 9's spike copied both (trace-timing-spike.md, "What ticket 4 must change in the spike's code", item 2). The list's order follows the GPU's schedule, but each ray's result depends only on its pixel, so the image does not.
 
 ### The resolve
 
@@ -762,13 +815,14 @@ The resolve runs one invocation per pixel and writes the pixel's two samples:
 - Its own ray, where it traced one.
 - Otherwise the block's ray, reweighted for this pixel: the ratio of this pixel's estimator weight to the chosen pixel's density. For a diffuse ray that is max(0, n_p · ω) / max(2⁻¹⁴, n_c · ω). For a reflection ray it is f_p(ω) cos θ_p / pdf_c(ω), divided by the specular factor (Stachowiak 2015). The weight is clamped to 4, which trades a small bias for no fireflies.
 
-The plan gave an own ray to every pixel that its block's ray does not fit. So the resolve has a ray for every lit pixel. A block ray's record of 16 bytes holds what the resolve needs. It holds the hit light in three halves, the hit distance, the direction in an octahedral code and the density.
+The plan gave an own ray to every pixel that its block's ray does not fit. So the resolve has a ray for every lit pixel. A block ray's record of 16 bytes holds what the resolve needs. It holds the hit light in three halves, the hit distance, the direction in an octahedral code and the density. The record holds the density as its base-2 logarithm. At the roughness floor and an n · v below about 0.3, a reflection ray's density exceeds 65,504, the largest half float. Ticket 9's review found this (trace-timing-spike.md, "What ticket 4 must change in the spike's code", item 4).
 
 | Image | Format | Size | Use |
 |---|---|---|---|
-| Depth pyramid | RG32F | As today, over the largest render size | Unchanged |
+| Depth pyramid | RG32F | As today, over the largest render size | Levels 1 and up, unchanged |
+| Finest level | R32F | Largest render size | Level 0: each pixel's center w, 0 for sky (decision 40) |
 | Block rays | 2 × (RGBA16F and RGBA16_UINT) | A quarter of the largest render size | The records of the block rays of each kind |
-| Own-ray list | A buffer | One entry per render pixel at most | The pixels with own rays, and their kinds |
+| Own-ray lists | Two buffers, one per kind | One entry per render pixel at most, each | The pixels with own rays of the kind |
 | Diffuse sample | RGBA16F | Largest render size | rgb the demodulated sample, a 1 |
 | Specular sample | RGBA16F | Largest render size | rgb the demodulated sample, a the hit distance |
 
@@ -978,23 +1032,22 @@ The direct signal has two parts, the diffuse and the specular. The other signals
 
 ### The interface
 
+Changed on 2026-11-04 (`ter-9nrc`, `ter-jxjx`). The direct signal is gone. A signal takes the surface history at its creation, so `Accumulate` takes the frame alone. The tracer binds `HitSet`, which ticket 4 adds (section 14, "The parts of ticket 4", part 3). Git holds the first version's sketch.
+
 The usage code:
 
 ```csharp
-// With the targets: one module per signal, each with its parameter set.
-var surfaces = new SurfaceHistory(device, allocator, layouts, targets);
-var direct = new TemporalSignal(device, allocator, layouts, targets, SignalParameters.Direct(options), parts: 2);
-var diffuse = new TemporalSignal(device, allocator, layouts, targets, SignalParameters.Diffuse, parts: 1);
-var specular = new TemporalSignal(device, allocator, layouts, targets, SignalParameters.Specular, parts: 1);
+// With the targets: one module per indirect signal, each with its parameter set.
+var diffuse = new TemporalSignal(device, allocator, layouts, shaders, targets, surfaces, SignalParameters.Diffuse, name: "indirect diffuse", parts: 1);
+var specular = new TemporalSignal(device, allocator, layouts, shaders, targets, surfaces, SignalParameters.Specular, name: "indirect specular", parts: 1);
 
 // Each frame, in the order of section 2.
-surfaces.Test(frame);
-directLight.Record(frame, direct);
-direct.Accumulate(frame, surfaces);
-tracer.Record(frame, direct, diffuse, specular);
-diffuse.Accumulate(frame, surfaces);
-specular.Accumulate(frame, surfaces);
-composite.Record(frame, direct, diffuse, specular);
+surfaceTest.Record(frame);
+directLight.Record(frame);
+tracer.Record(frame, diffuse, specular);
+diffuse.Accumulate(frame);
+specular.Accumulate(frame);
+composite.Record(frame, diffuse, specular);
 ```
 
 The interface comment:
@@ -1006,18 +1059,20 @@ The interface comment:
 /// reprojects the last frame's history through the surface test, rescales it by the exposure ratio, blends the sample
 /// in, fixes short histories from their neighbors and clamps the slow history into the fast history's box. A pixel
 /// whose sample is missing or not finite keeps its history. In a reset frame, every pixel's history starts from its
-/// sample. Set binds the sample image as a storage image, and the slow history and the last frame's fast history as
-/// sampled images. The composite reads the slow history, and the tracer's hits read the last frame's fast history. The
-/// render size of both is the last drawn frame's, from FrameHistory.
+/// sample. ReadSet binds the slow history of each part, which the composite reads. HitSet binds, for a parity of the
+/// drawn frames, the sample of each part as a storage image, which the tracer's resolve writes, and the last frame's
+/// fast history of each part as a sampled image, which the tracer's hits read. The render size of both is the last
+/// drawn frame's, from FrameHistory.
 /// </summary>
 internal sealed class TemporalSignal : IDisposable
 {
-    public DescriptorSet Set { get; }
-    public void Accumulate(FrameContext frame, SurfaceHistory surfaces);
+    public DescriptorSet ReadSet { get; }
+    public DescriptorSet HitSet(int parity);
+    public void Accumulate(FrameContext context);
 }
 ```
 
-`Set` follows today's image owners, such as `OcclusionImages`: a pass binds one set for each owner that it reads. The scratch images stay inside `Accumulate`. The fast history's two images alternate by the parity of the count of drawn frames. So the tracer reads the one that the last frame wrote, while this frame's `Accumulate` writes the other.
+`ReadSet` and `HitSet` follow today's image owners, such as `OcclusionImages`: a pass binds one set for each owner that it reads. The scratch images stay inside `Accumulate`. The fast history's two images alternate by the parity of the count of drawn frames. So the tracer reads the one that the last frame wrote, while this frame's `Accumulate` writes the other.
 
 ### The zero cases
 
@@ -1071,7 +1126,7 @@ Each ordering rule and its reason:
 
 1. The batcher builds the light table and its alias table in the light list's order, in doubles. Reason: the same lights give the same table on every run. Removed on 2026-11-04 (`ter-9nrc`).
 2. ReSTIR combines in a fixed order. The candidates come first, in the order of their draws, then the temporal reservoir, then the spatial neighbors in the order of their pattern. Reason: weighted reservoir sampling depends on the order of its random numbers. Removed on 2026-11-04 (`ter-9nrc`).
-3. The own-ray list's order follows the GPU's schedule, but each ray writes only its own pixel's record. Reason: then no result depends on the order of the list. No pass adds light with atomic operations.
+3. The order of each own-ray list follows the GPU's schedule, but each ray writes only its own pixel's record. Reason: then no result depends on the order of the list. No pass adds light with atomic operations.
 4. No dispatch reads an image that it writes. Reason: no read can then see a write of the same dispatch, whatever the order of the invocations.
 5. The draw index counts drawn frames, not ticks. The noise, the block's turn, the tap group and FSR's jitter index derive from it. Reason: a window that skips a snapshot still draws a new noise pattern in its next frame.
 6. `FrameHistory.Drew` and the other owners' `Drew` run after the submission, and only then. Reason: a frame that throws then changes no stock, so the next frame starts from the last finished frame.
@@ -1113,7 +1168,7 @@ CPU tests, with no GPU:
 | `RenderScaleController` | A series of timings settles at the target. A sudden load falls within 10 frames. The clamp to the range. A gap below 3 % changes nothing. A wait of 10 ms in the tone map's time changes nothing. Timings that never arrive change nothing. |
 | `Fsr3Upscaler`'s host calculations | Each value equals the golden value of `tools/fsr3-golden/`. |
 | The light table | Each sampled light's probability equals its share to 1e-12. A light with a cascade set has no entry, and a far light without one has an entry. The remap of each index. |
-| The C# twins of the shaders | `ScreenRay` as today. GGX's visible normals integrate to 1. The block ray's reweighting is unbiased for a flat receiver. |
+| The C# twins of the shaders | `ScreenRay`'s image of a ray as today. GGX's visible normals integrate to 1. The block ray's reweighting is unbiased for a flat receiver. Under design A of fork 2 (section 14, "Open forks of ticket 4"), the walk has a C# copy. At a cap of 4,096, the copy finds the hit of a march over the flat slabs on 1,000,000 random rays. Behind a block, it takes fewer steps than the march. |
 
 GPU tests, through `Gpu.Headless` with the named options:
 
@@ -1123,7 +1178,7 @@ GPU tests, through `Gpu.Headless` with the named options:
 | The surface test | Every pixel of a still scene passes. An object that moves uncovers pixels that fail, and their history length starts from 0. |
 | The accumulator | A constant sample stays constant. After a step of the sample, the history reaches 90 % of the step within a bound that the anti-lag sets. A pixel without a sample keeps its history. A NaN sample counts as no sample. A pixel without a history and with a NaN sample takes the closed form. |
 | ReSTIR (removed on 2026-11-04, `ter-9nrc`) | One light gives the exact light. On `lamp-hall-64`, the bias against `EveryLight` stays under the bound that ticket 3 measures. In a closed box lit by a lamp, with a bright light that holds a cascade set shadowed outside it, the box's light matches `EveryLight` within that bound. |
-| The tracer | A white furnace: under an environment of uniform light L with no blocker, both indirect signals converge to L within 1 %. A mirror in front of a lamp shows it at its analytic place. A blocker of known light takes its share of a receiver's light (decision 41). In a closed box of known albedo, the diffuse light rises with no overshoot toward the sum of the bounces. It stays within the model of section 6. A lamp's impostor billboard sends no glow to a hit. A pixel whose block's ray leaves from another surface traces its own ray, so every lit pixel has a sample. |
+| The tracer | A white furnace: under an environment of uniform light L with no blocker, both indirect signals converge to L within 1 %. A mirror in front of a lamp shows it at its analytic place. A blocker of known light takes its share of a receiver's light (decision 41). In a closed box of known albedo, the diffuse light rises with no overshoot toward the sum of the bounces. It stays within the model of section 6. A lamp's impostor billboard sends no glow to a hit. A pixel whose block's ray leaves from another surface traces its own ray, so every lit pixel has a sample. Added on 2026-11-04 (`ter-jxjx`): at a cap of 4,096, the walk finds the hit of a march over the flat slabs on every ray of a test scene. A walk that reaches its cap is a miss. A surface that faces away from the ray, and a pixel of a hair receiver's own card, are no hits. The finest level holds each pixel's center w and 0 for sky. The block record's density survives its base-2 code. A block's chosen pixel traces no own ray of its block's kind (`ter-jz2y`). |
 | The corrected read | Tests 16, 17, 18, 20 and 21 of [environment-map-distances.md](environment-map-distances.md), "Tests", under `NoScreenTrace`. Test 19 tests the deleted reflections' delta and goes. A reflection miss of the tracer finds a wall behind the camera where a CPU ray trace finds it. |
 | FSR | A still at `FixedRenderScale(2 / 3)` gives the same image on every run. A reset frame reads no history. |
 
@@ -1131,36 +1186,68 @@ The snapshot tests' references come again under the new defaults. The first appr
 
 ## 11. The budget
 
-The target is a GPU span of at most 15.0 ms per frame (section 4). It holds at an output of 1920 × 1080 on the M1 Max, in demo-exit's views. Today's frame takes 15.2 to 15.7 ms there at 1920 × 1080 ([metal-trace-spike.md](../research/metal-trace-spike.md)).
+Changed on 2026-11-04 (`ter-jxjx`, decision 42). The first version set a target of 15.0 ms per frame at an output of 1920 × 1080. It estimated the frame at 7.4 to 10.7 ms at a render size of 1280 × 720, from headless times whose clock no run recorded. It gave the whole screen tracer 0.8 to 1.7 ms, a guess from today's sector pass and reflection trace. The lean trace spike took 1.1 ms of that for the two trace dispatches. The calibration (`ter-3ug8`) restated the first estimate at the top clock as 9.1 to 11.5 ms ([gpu-calibration.md](../research/temporal-renderer/gpu-calibration.md), "Section 11 at the windowed clock"). Git holds the first table. The figures of 1.7 ms and 1.1 ms are withdrawn, and no rule of this design reads them.
 
-The estimate below is for a render size of 1280 × 720, the headless default. A render-size pass costs 0.444 times its time at 1080p, the share of the pixels. Today's times are the medians of [pass-map.md](../research/temporal-renderer/pass-map.md), section 1.
+The target is at most 12.0 ms of GPU time per frame on demo-exit's deck, at the top clock (decision 42). The output is 1920 × 1080, and the render size 1280 × 720. The controller's runtime limit stays 15.0 ms (section 4), so heavier scenes keep room above the target.
 
-| Pass | Today at 1080p, ms | Size | Estimate, ms | Basis of the estimate |
-|---|---:|---|---:|---|
-| Deformation | 0.02 | Fixed | 0.03 | Today, plus the kept positions |
-| Shadow maps and local shadows | 0.91 | Fixed | 0.91 | Unchanged |
-| Environment faces and prefilter | 0.97 | Fixed | 0.97 | Unchanged |
-| G-buffer | 0.42 | Render | 0.22 | The share, plus a seventh target |
-| Surface test | New | Render | 0.10 | About 12 reads per pixel, in one pass. Since 2026-11-04 (`ter-9nrc`) no pass reads it until the tracer, but it runs in every frame: its own timer time was about 0.13 ms on the deck at the windowed clock |
-| Depth pyramid | 1.19 | Render | 0.53 | The share |
-| Light candidates and direct light | 4.21 | Render | 0.6 to 1.3 | Section 7, with the star's exact light. Changed on 2026-11-04 (`ter-9nrc`): direct light alone, the loop over every light. On MoltenVK the timer does not split it from its neighbours. At the windowed clock, the passes from the depth pyramid through the composite took 3.71 ms on the deck and 4.77 ms on `lamp-hall-64`, against 6.53 and 3.74 ms under ReSTIR (section 7, "The cost") |
-| Accumulate direct | New | Render | 0.15 to 0.30 | Two dispatches of two parts. Removed on 2026-11-04 (`ter-9nrc`), so 0 |
-| Screen trace | 4.40, the occlusion and reflection passes | Render | 0.8 to 1.7 | A guess, which ticket 4 measures |
-| Accumulate diffuse and specular | New | Render | 0.20 to 0.40 | Two signals of one part |
-| The corrected read, in the screen trace and the forward passes | New | Render | 0.2 to 0.6 | `ter-s6zr` added 2.7 ms for one search at each of the 2.07 million lit pixels of 1080p. The misses take a twentieth to a fifth as many searches. Ticket 8 measures it |
-| Composite | 0.43 | Render | 0.20 | The share |
-| Scatter, haze | 0.55 | Render | 0.24 | The share |
-| Transparent and the copy | 1.26 | Render | 0.61 | The share, plus the copy |
-| Exposure | 0.19 | Render | 0.09 | The share |
-| FSR 3.1 | New | Output | 1.0 to 2.0 | Unmeasured. Ticket 1 measures it |
-| Bloom, tone map | 0.47 | Output | 0.47 | Unchanged |
-| SMAA | 0.16 | Deleted | 0 | |
-| Outlines, capture | 0.04 | Output | 0.04 | Unchanged |
-| The frame | 15.2 | | 7.4 to 10.7 | The sum |
+### The frame before the trace
 
-The tracer's guess rests on two times of today. The sector pass takes 1.60 ms for the 518,400 half-size pixels at 1080p, and the reflection trace takes 0.14 ms. The tracer at 1280 × 720 traces about 230,400 block rays of each kind, plus the own rays.
+The table builds the deck's frame from the frame that `ter-9nrc` measured after the removal of light sampling. It removes the passes that the design deletes and adds the passes that it builds. Each row says whether its figure is measured, an estimate or an allowance:
 
-At a scale of 1, the render-size passes cost 2.25 times as much: 8.9 to 14.2 ms. The frame then takes 12.3 to 18.6 ms. So on demo-exit, the controller settles at a scale between about 0.86 and 1. If the high end holds, ticket 6 finds the passes over their share. Ticket 6 then decides what to cut before any default changes.
+- Measured: a time at a clock that the run recorded over its timed span.
+- Estimate: a measured time converted to the top clock by the calibration's rule, time × the run's clock / 1296 MHz. The rule holds within about 15 % either way (gpu-calibration.md, "The rule that converts a headless time to the windowed clock").
+- Allowance: time reserved for work that no run measured.
+
+The calculation is [trace-budget-12ms.md](../research/temporal-renderer/trace-budget-12ms.md), and the last column gives its row letters.
+
+| Part | ms at the top clock | Kind | Source |
+|---|---:|---|---|
+| The frame after `ter-9nrc` at 1280 × 720, with the old occlusion, reflection and SMAA passes | 7.03 to 7.32 | Estimate. The runs recorded the clock over the whole run, not over the timed span | `ter-9nrc`'s five rounds on the deck (section 7, "The cost"). Row A |
+| Less the four occlusion passes | −1.42 to −1.46 | Estimate, the sum of the adjacent passes | Row B |
+| Less the radiance pyramid, the reflection trace and the reflections | −0.42 to −0.46 | Estimate, the sum of the adjacent passes | Row C |
+| Less bloom to capture at 1280 × 720, SMAA included | −0.27 to −0.29 | Estimate, the sum of the adjacent passes | Row D |
+| The kept frame | 4.89 to 5.11 | Estimate, subtracted within each run | Section 3 of the calculation |
+| FSR 3.1 from 1280 × 720 to 1920 × 1080 | 1.93 to 1.99 | Measured at 1257 MHz over the timed span. The low end converts it to the top clock | gpu-calibration.md, "FSR at the windowed clock". Row E |
+| Bloom, tone map, outlines and capture at 1920 × 1080 | 0.40 | Estimate | `ter-9nrc`'s runs at 1920 × 1080. Row F |
+| The ray plan and the resolve | 0.60 | Allowance, 0.3 ms each | [lean-trace-spike.md](../research/temporal-renderer/lean-trace-spike.md), "Which variant fits the budget". Row G |
+| The finest level | 0.024 to 0.025 | Allowance. A run measured it alone, at a clock that it did not record | [profiling-spike.md](../research/temporal-renderer/profiling-spike.md), "The clock levels". Row H |
+| The frame before the dispatches, replacement only | 7.84 to 8.13 | Sum | Section 3 of the calculation |
+| Accumulate diffuse and specular | 0.20 to 0.40 | Allowance, the first version's guess | Row I |
+| The corrected read of ticket 8 | 0.16 to 0.49 | Estimate: the first version's 0.2 to 0.6 ms at an assumed 1050 MHz | gpu-calibration.md, "Section 11 at the windowed clock". Row J |
+| The copy of the opaque-only image | 0.04 | Estimate from the first version's rounded rows | Row K |
+| The frame before the dispatches, complete design | 8.24 to 9.06 | Sum | Section 3 of the calculation |
+
+So under 12.0 ms, the two trace dispatches get an estimated 2.94 to 3.76 ms. Without the accumulations, the corrected read and the copy, they get 3.87 to 4.16 ms. That replacement-only room cannot pay for the rest of the design a second time. With the rule's 15 % on every converted row, the room spans 1.74 to 4.87 ms. Under the controller's 15.0 ms, the dispatches get 5.94 to 6.76 ms.
+
+### The trace against its room
+
+The profiling spike timed the two-depth walk at the top clock. Each kind's trace ran 20 times in its pass, so the GPU stayed busy. The source is profiling-spike.md, "V6 and V1 at the top clock" and "V6 at V1's image quality". Each time below is measured, for both kinds with miss reads, at the reflection cap of 256 steps:
+
+| View | Own rays | Diffuse cap 64, ms | Diffuse cap 62, ms | Diffuse cap 54, ms |
+|---|---|---:|---:|---:|
+| Deck | 10 % | 3.93 | 3.90 | 3.78 |
+| Floor | 10 % | 3.50 | 3.47 | 3.35 |
+| Deck | 25 % | 5.38 | 5.34 | 5.17 |
+| Floor | 25 % | 4.77 | 4.71 | 4.54 |
+
+At the caps of decision 41 and 10 % own rays, the trace takes 3.90 ms on the deck. So the deck's frame is an estimated 12.1 to 13.0 ms until the hill-climb lands (`ter-dzxf`). No complete frame of the floor exists after `ter-9nrc`, so the floor's rows hold only against the deck's room. Own rays for 25 % of the pixels fit in no setting. Decision 43 sets what follows: ticket 4 traces full rays, measures the frame and reports it.
+
+What the spike's times leave out:
+
+- The spike's hit read the direct image, the distance and the normal. The design's hit also reads the material, the emission and the light mark. It reads the last frame's fast histories at the hit's previous place too (section 6, "Where a hit's light comes from"). No run measured that cost.
+- A trace that repeats can keep more of its inputs in the caches than one trace in a frame. The spike did not measure the effect.
+- The spike drew own rays at random. The ray plan of section 6 gives own rays where a history is short or a block's ray does not fit. Their share and their coherence differ (section 6, "The ray budget").
+- The 64-lamp hall has an estimated room of 2.94 to 3.65 ms, and no measured trace.
+
+Ticket 4 measures each of these in the real frame (section 14, "The parts of ticket 4", part 7).
+
+### The frame before ticket 5
+
+Until ticket 5, a frame draws at its output size under `NoUpscaling`, with SMAA and the post passes at the render size. So ticket 4 holds this sum against 12.0 ms: its measured span at 1280 × 720, less bloom to capture with SMAA, plus FSR's 1.93 to 1.99 ms and the output passes' 0.40 ms. From ticket 5, a run measures the frame whole.
+
+### The controller's scale
+
+At a render scale of 1, the render-size passes cost 2.25 times as much. The first version put the controller's scale on demo-exit at 0.86 to 1, and the calibration at 0.81 to 0.97. A rough estimate from this section's frame follows. The fixed passes take about 1.55 ms: the deformation, the shadow maps, the local shadows, and the environment faces and prefilter (gpu-calibration.md). FSR and the output passes take about 2.35 ms. So at a scale of 2/3, the render-size passes take about 8.2 to 9.1 ms. The controller's 15.0 ms then holds them at a scale of about 0.74 to 0.77. Ticket 5 measures the scale.
 
 ### How each ticket measures its part
 
@@ -1173,16 +1260,18 @@ Every measurement runs in Release on the M1 Max, under the GPU lock `/tmp/tertiu
 
 A ticket that lands before ticket 5 runs at an output of 1280 × 720 under `NoUpscaling`, the budget's render size. After ticket 5, the runs take an output of 1920 × 1080 and `FixedRenderScale(2 / 3)`.
 
+A figure near a budget's limit needs a run at the top clock, not an estimate (gpu-calibration.md). Ticket 4's frame is such a figure (decision 43). A headless film waits for each frame, so its GPU idles between frames and runs at about 800 MHz at 1280 × 720. Section 14, "Open forks of ticket 4", gives two ways to keep the GPU at its top clock.
+
 | Ticket | What it measures | Against |
 |---|---|---|
 | 1 | FSR's dispatches from 1280 × 720 to 1920 × 1080, by GPU timestamps around `Record` in its GPU test | 1.0 to 2.0 ms |
 | 2 | The G-buffer with the motion target, and the surface test | 0.22 ms and 0.10 ms |
 | 3 | Light candidates, direct light and accumulate direct, on demo-exit and `lamp-hall-64`. ReSTIR's bias against `EveryLight`, also in the cabin of `cabin-light` | 0.6 to 1.3 ms, and 0.15 to 0.30 ms. Changed on 2026-11-04: `ter-9nrc` removed the sampling and measured the frame span and the sum of the passes around the direct pass against the base, with the GPU clock beside each run (section 7, "The cost") |
-| 4 | The screen trace and the two accumulations, against the passes that it deletes | 0.8 to 1.7 ms, and 0.20 to 0.40 ms |
+| 4 | The real frame on demo-exit's deck at the top clock, and each pass of the tracer and of the two accumulations. The own-ray share of each kind, and the frames after a camera cut (section 14, "The parts of ticket 4", part 7) | 12.0 ms for the frame ("The frame before ticket 5"). 2.94 to 3.76 ms for the two trace passes, 0.6 ms for the plan and the resolve, and 0.20 to 0.40 ms for the accumulations. Changed on 2026-11-04 (decision 43): the first version held the tracer against 0.8 to 1.7 ms |
 | 8 | The corrected read's cost in the screen trace and the transparent pass | 0.2 to 0.6 ms |
-| 9 | The trace dispatch alone, at the budget's ray counts, over today's frame at 1280 × 720 | The trace's part of 0.8 to 1.7 ms |
-| 5 | The frame, and the controller's scale in a window run of demo-exit that logs it | 7.4 to 10.7 ms, and a scale from about 0.86 to 1 |
-| 6 | Every pass at the scales 2/3 and 1 | 15.0 ms for the frame |
+| 9 | The trace dispatch alone, at the budget's ray counts, over today's frame at 1280 × 720 | The trace's part of 0.8 to 1.7 ms. Done: about 10.0 ms at 10 % own rays (trace-timing-spike.md) |
+| 5 | The frame, and the controller's scale in a window run of demo-exit that logs it | 12.0 ms at `FixedRenderScale(2 / 3)`, and a scale of about 0.74 to 0.77 at the controller's 15.0 ms. Changed on 2026-11-04 (decision 42): the first version gave 7.4 to 10.7 ms and a scale of about 0.86 to 1 |
+| 6 | Every pass at the scales 2/3 and 1 | 12.0 ms for the frame at a scale of 2/3, and the controller's 15.0 ms. Changed on 2026-11-04 (decision 42): the first version gave 15.0 ms for the frame |
 
 Ticket 7 measures no time, because lavapipe's times say nothing about a GPU.
 
@@ -1194,7 +1283,8 @@ Memory, at an output of 1920 × 1080 with the largest render scale of 1. An RGBA
 | Surface history, the last device depth and the surface test image | 2 × RGBA16F, 1 × R32F, 1 × R8_UINT | 44 |
 | Reservoirs | 2 × RG32UI | 33. Removed on 2026-11-04 (`ter-9nrc`), so 0 |
 | Motion target, device depth, opaque-only image, reactive mask | RGBA16F, R32F, RGBA16F, R8_UNORM | 44 |
-| Block rays and the own-ray list | Quarter size, and a buffer | 25 |
+| Block rays and the own-ray lists | Quarter size, and a buffer per kind | 33. Changed on 2026-11-04 (`ter-jxjx`): a list per kind, 8.3 MB each |
+| The depth pyramid's finest level | 1 × R32F | 8 (decision 40) |
 | FSR's own images and the output HDR image | AMD's list | About 140, which ticket 1 measures |
 | Deleted: occlusion, radiance pyramid, reflection and SMAA images | | About −70 |
 | Total | | About +0.5 GB |
@@ -1208,13 +1298,13 @@ Each ticket deletes the files whose last caller it removes, with their tests.
 | Ticket | Deletes |
 |---|---|
 | 3 | `AmbientLightPass`, `ambient.frag` and `ambient_pass.glsl`, which the composite replaces |
-| 4 | The four occlusion passes, `OcclusionPipeline`, `OcclusionImages`, `occlusion_*` and `occlusion.glsl`, `sectors.glsl`, `estimate.glsl` and `gtao.glsl` |
-| 4 | `RadiancePyramidPass` and its shaders, `ReflectionPass`, `ReflectionTargets` and the `reflection_*` shaders, except the trace, which becomes `screen_trace.glsl` |
-| 4 | The C# twins of the deleted shaders, such as `SectorSearch`, `SliceSectors`, `HorizonSlice`, `OcclusionUpsample`, `ReflectionCone` and `ReflectionUpsample` |
+| 4 | The four occlusion passes, `OcclusionPipeline`, `OcclusionImages`, `occlusion_*` and `occlusion.glsl`, `sectors.glsl`, `estimate.glsl` and `gtao.glsl`. Also `texel_surface.glsl`, `EstimatePacking` and the estimate target of `RenderTargets` (`ter-jxjx`) |
+| 4 | `RadiancePyramidPass` and its shaders, `ReflectionPass`, `ReflectionTargets`, `ReflectionTrace`, `TraceResolution` and the `reflection_*` shaders. Changed on 2026-11-04 (`ter-jxjx`): the first version kept the trace as `screen_trace.glsl`. The two-depth walk replaces `traceRay` and `meetsPixelSurface` (decision 40). Of `reflection.glsl`, only the ray's image and the cells' geometry stay, in `screen_ray.glsl` |
+| 4 | The C# twins of the deleted shaders, such as `SectorSearch`, `SliceSectors`, `HorizonSlice`, `OcclusionUpsample`, `ReflectionCone` and `ReflectionUpsample`. `ScreenRay.Trace` and `ScreenRay.MeetPixel`, the C# copy of `traceRay`, take the fate that fork 2 chooses (section 14, "Open forks of ticket 4") |
 | 4 | `ScreenSpaceLightSetting` and `ReflectionSetting`, which `ScreenTrace` replaces |
 | 5 | `SmaaPass`, `SmaaTargets`, the `smaa_*` shaders and `smaa.glsl`, SMAA's lookup textures and their notice, and `AntiAliasing`, which `Upscaling` replaces |
 
-`OwnRayDispatch`, `ScreenRay`, `DepthPyramid` and `CardCode` stay: the tracer uses them. A twin's last caller decides its fate. So ticket 4 lists each candidate's callers before it deletes it.
+`OwnRayDispatch`, `ScreenRay`, `DepthPyramid` and `CardCode` stay: the tracer uses them. A twin's last caller decides its fate. So ticket 4 lists each candidate's callers before it deletes it. Changed on 2026-11-04 (`ter-jxjx`): `OwnRayDispatch` and `OwnRayList` serve the list of each kind. `PyramidBuild` and `DepthPyramidTail` stay with the depth pyramid. `ScreenRay` keeps the image of a ray, and `DepthPyramid` the bounds of the cells. `CardCode` serves the hair rule at level 0. The walk's C# copy follows fork 2.
 
 The docs to edit. Each ticket edits ARCHITECTURE.md as its last step, by the project's rule:
 
@@ -1227,7 +1317,7 @@ The docs to edit. Each ticket edits ARCHITECTURE.md as its last step, by the pro
 | "Pre-exposure" and "The exposure buffer" | `previousStops`, and FSR's pre-exposure | 5 |
 | "Shading" | The direct signal, the composite and ReSTIR DI. ReSTIR DI and the direct history were removed on 2026-11-04 (`ter-9nrc`) | 3 |
 | "Local shadows" | The stochastic taps | 5 |
-| "Ambient occlusion" and "Screen-space reflections" | The screen tracer replaces them. The part "The depth pyramid and the trace" moves into it | 4 |
+| "Ambient occlusion" and "Screen-space reflections" | The screen tracer replaces them. The part "The depth pyramid and the trace" moves into it and describes the two-depth walk and the finest level (decisions 40 and 46) | 4 |
 | [rendering-performance.md](rendering-performance.md) | Decision 8 is superseded | This ticket |
 | [screen-space-illumination.md](screen-space-illumination.md), [screen-space-reflections.md](screen-space-reflections.md) | A note at the top: superseded by this design. Decisions 13, 39 and 41 of the first stay in force through it. Its decision 30, exactly one bounce, gives way to decision 17 | 4 |
 | "Impostors" | A billboard writes its instance's light mark | 4 |
@@ -1235,6 +1325,7 @@ The docs to edit. Each ticket edits ARCHITECTURE.md as its last step, by the pro
 | [environment-map-distances.md](environment-map-distances.md) | A note at the top: the corrected read serves the tracer's reflection misses and the forward passes (decision 35). Its decision 8 gives way to this design | 8 |
 | `THIRD-PARTY-NOTICES.md` | AMD's notice. SMAA's notice goes | 1, 5 |
 | `tools/README.md` | `tools/fsr3-golden/` | 1 |
+| `tools/README.md` | `tools/sol-walk/loop-reads.py`, and its run after each change of the walk (decision 44) | 4 |
 | rendering-performance.md, "The techniques" and "Out of scope" | Their mentions of decision 8 and of dynamic resolution point to this design | 5 |
 | [rendering-upgrade.md](rendering-upgrade.md), line 47 | The rule that no member blends a pixel with earlier frames gets a note: superseded by this design | 3 |
 | [renderer-snapshot-tests.md](renderer-snapshot-tests.md), lines 16 and 19 | The renderer now has temporal effects. The test helpers' three zero cases and the still rule of section 10 take the place of the planned deterministic switch | 3 |
@@ -1252,7 +1343,7 @@ The code comments and the tests that state the old decision:
 | `gtao.glsl`, line 141, and `OcclusionNoise.cs`, line 5 | Deleted in ticket 4 | Their pass goes with the occlusion passes. |
 | `AmbientOcclusionRenderTests.AStillSceneHasTheSameOcclusionInEveryFrame`, line 374 | Deleted in ticket 4 | Its pass goes. The tracer's still test of section 10 asserts the same determinism. |
 | `ReflectionRenderTests.TwoRendersGiveTheSameBits`, line 694 | Deleted in ticket 4 | Its pass goes. Section 10's FSR row and the tracer's still test assert that a still gives the same bits on every run. |
-| `ReflectionShaderTests.AFrameAfterOneWithMoreOwnRaysShowsWhatTheSameFrameShowsInAFreshRenderer`, line 401 | Ported in ticket 4 | The own-ray list stays (section 6), and the test guards its count. The port draws a still of the first scene, then a still of the second, and compares the second with a fresh renderer's still, bit for bit. The still resets every history, so the two must agree. A dispatch that reads past the list's count still changes the first warm-up draw, and so the shown draw. |
+| `ReflectionShaderTests.AFrameAfterOneWithMoreOwnRaysShowsWhatTheSameFrameShowsInAFreshRenderer`, line 401 | Ported in ticket 4 | The own-ray lists stay (section 6), and the test guards their counts. The port draws a still of the first scene, then a still of the second, and compares the second with a fresh renderer's still, bit for bit. The still resets every history, so the two must agree. A dispatch that reads past the list's count still changes the first warm-up draw, and so the shown draw. |
 
 ## 13. The fate of open tickets
 
@@ -1313,7 +1404,14 @@ flowchart LR
     K[ter-kzj3: Linux] -- first step --> T1
     T1[1. FSR 3.1's source, build and host] --> T5
     T2[2. Motion vectors, the frame history, the surface test] --> T3[3. The direct signal and ReSTIR DI]
-    T9[9. A timing spike of the screen trace] --> T4
+    T9[9. A timing spike of the screen trace] --> LS[ter-8hbi: the lean trace spike]
+    LS --> PS[ter-sftw: the profiling spike]
+    CA[ter-3ug8: the GPU calibration] --> PS
+    PS --> JX[ter-jxjx: this design update]
+    JZ[ter-jz2y: one direction per pixel and kind] --> T4
+    JX --> T4
+    PS --> HC[ter-dzxf: the hill-climb of the walk]
+    HC -. its change after ticket 4 .-> T4
     T3 --> T4[4. The screen tracer]
     T4 --> T5[5. FSR 3.1 in the frame, with dynamic resolution]
     T4 --> T8[8. The corrected read in the misses]
@@ -1331,7 +1429,7 @@ flowchart LR
 | 1 | FSR 3.1's source, build and host | 5 | Nothing: FSR runs only in its tests | `ter-kzj3`'s first step, for the lavapipe run |
 | 2 | Motion vectors, the frame history and the surface test | 3, 8 ("The surface test") | Nothing. Its result is the measured time of the G-buffer and the surface test | None |
 | 3 | The direct signal: the accumulator, the composite, ReSTIR DI and the still rule | 7, 8, 9 ("The composite"), 10 ("The still rule") | Direct light of many lamps at a lower cost. Its noise settles over a few frames | 2 |
-| 4 | The screen tracer | 6, 12 | Reflections on every surface up to roughness 0.5, the demo's paint included. Bounce light from the whole screen, with many bounces | 3, 9 |
+| 4 | The screen tracer | 6, 12 | Reflections on every surface up to roughness 0.5, the demo's paint included. Bounce light from the whole screen, with many bounces | 3, 9, and since 2026-11-03 and 2026-11-04 the spikes `ter-8hbi`, `ter-sftw` and `ter-3ug8`, `ter-jz2y`, and this update `ter-jxjx` |
 | 5 | FSR 3.1 in the frame, with dynamic resolution | 4, 5, 9, decision 34 | FSR's anti-aliasing and upscaling. SMAA goes, and the controller holds the frame time | 1, 4 |
 | 6 | The budget and the defaults | 11 | The tuned parameter sets and controller | 5, 8 |
 | 7 | The Linux run | "Portable Vulkan" | Nothing on the Mac | 5, `ter-kzj3` |
@@ -1343,30 +1441,204 @@ Each ticket's acceptance, beyond the end that every build ticket shares (below):
 1. Ticket 1 pins the GLSL of v1.1.4 with AMD's notices, and its README records the comparison with 3.1.5 and 3.1.6. The dev shell builds the shaders with `FFX_HALF=0` and `FFX_SPD_NO_WAVE_OPERATIONS=1`, and `spirv-val` passes. The format defect is resolved by the order of section 5. Each host value equals the golden value of `tools/fsr3-golden/`. A GPU test upscales a known input under the validation layer with no message, on MoltenVK and on lavapipe. The ticket measures FSR's time.
 2. Ticket 2 adds `EntityGeneration`, `PreviousScale` and `CameraCuts` to the snapshot. It adds `FrameHistory` with `Begin`, `Drew` and the reset rules, the placement history, the kept deformed positions, the motion target and the surface test. Section 10's rows for `FrameHistory`, the placement history, the motion vectors and the surface test pass.
 3. Ticket 3 adds `TemporalSignal`, `CompositePass`, ReSTIR's light table, reservoirs and two passes, the exact light of the lights with a cascade set, `WarmUpFrames` and the still rule. Its composite reads today's ambient terms until ticket 4 (section 9). Its first measured result is ReSTIR's noise and bias against `EveryLight`. It measures them on `lamp-hall-64`, on demo-exit's deck, and on the cabin of `cabin-light`, which its lamps light under the star. One light gives the exact light. The screenshots show `lamp-hall-64`, the deck and the cabin before and after.
-4. Ticket 4 adds the tracer's three dispatches, both ray kinds, the ray budget, the plain misses and the many bounces of the hits. It starts from ticket 9's trace. Its first measured result is the whole tracer's time at 1280 × 720, before any deletion. If that time exceeds the budget's 1.7 ms, the ticket reports to the user before it goes on. `impostor.frag` writes its instance's light mark (decision 36, from the closed `ter-coy0`). The ticket makes the deletions of section 12, and `ScreenTrace` replaces `ScreenSpaceLight` and `Reflections`. Section 10's tracer rows pass. The screenshots show the deck's paint and a room's bounce light.
+4. Ticket 4 adds the tracer's four passes and the finest level of the depth pyramid. Both ray kinds take the two-depth walk at the caps of decision 41. It adds the ray budget with full rays (decision 43), the plain misses and the many bounces of the hits. It starts from the walk of the profiling spike and the ray code of ticket 9 ("The parts of ticket 4" below). `impostor.frag` writes its instance's light mark (decision 36, from the closed `ter-coy0`). The ticket makes the deletions of section 12, and `ScreenTrace` replaces `ScreenSpaceLight` and `Reflections`. `WarmUpFrames` comes back. Section 10's tracer rows pass. The ticket measures the real frame on demo-exit's deck at the top clock and reports it beside section 11's rows. No figure stops the ticket (decision 43). The screenshots show the deck's paint and a room's bounce light. Changed on 2026-11-04 (`ter-jxjx`): the first version started from ticket 9's trace. Its rule was: if the whole tracer exceeds 1.7 ms, the ticket stops and reports.
 5. Ticket 5 adds the largest render size with its active part, the controller, the two submissions of decision 37, and `Upscaling` in place of `AntiAliasing`. It adds FSR's reactive mask and exposure step, the stochastic taps (decision 34) and AMD's mip bias in the frame constants. Its films of demo-exit's glass make sure that the glass needs no transparency and composition mask (section 9). It starts from the split of `RenderTargets.Extent` from `OutputExtent`, the stage Upscale and `FrameContext.RenderResult` on branch `experiment-fsr1` at 3be9aef99 (from the closed `ter-htg7`). Bloom, the tone map and the outlines move after FSR, at the output size. So the glow's width follows the output size (from the closed `ter-ch7z`). SMAA goes. The controller's CPU tests and section 10's FSR rows pass. The screenshots show demo-exit at a scale of 2/3 against today's native image.
-6. Ticket 6 measures every pass at the scales 2/3 and 1, against section 11. It tunes the parameter sets, `ClampSigmas` and `AntiLagShare` on captures, among them a lamp that switches on (section 6). It runs `bounce_model.py` again with the tuned values and updates section 6's figures. If the frame exceeds 15.0 ms at the controller's scale, the ticket asks the user what to cut before any default changes.
+6. Ticket 6 measures every pass at the scales 2/3 and 1, against section 11. It tunes the parameter sets, `ClampSigmas` and `AntiLagShare` on captures, among them a lamp that switches on (section 6). It runs `bounce_model.py` again with the tuned values and updates section 6's figures. If the frame exceeds 15.0 ms at the controller's scale, the ticket asks the user what to cut before any default changes. Changed on 2026-11-04 (decision 42): if the frame exceeds 12.0 ms at a scale of 2/3, the ticket asks the user what to cut. The controller keeps its limit of 15.0 ms.
 7. Ticket 7 runs every GPU test on lavapipe and on the Linux drivers, under the validation layer with synchronization validation, with no message.
 8. Ticket 8 ports the corrected read from branch `ter-s6zr-corrected-read` at 570fdbbf8, from the closed `ter-s6zr`. It ports `mapHit`, the corrected `environmentSpecular`, `ShadingInput.position` and the twin test of `MapSearch`. Every reader of `environmentSpecular` after ticket 4 takes it, and a diffuse miss keeps its plain read (decision 35). The branch also holds the one owner of the lobe's cone of the closed `ter-bytc`. Ticket 4 deletes the reflections' cone, so that owner keeps only the search's use. Section 10's rows for the corrected read pass, each red first. The ticket measures its cost by section 11. The screenshots show the terminal floor, the floor film and pbr-spheres before and after. The user accepted the read of S + Q2 on 2026-11-02 with these misses, so the captures are judged against them as the expected result:
    - Soft ghosts of near objects on far walls, such as the terminal's pillar and kiosk, and deck-late's glass building.
    - The terminal door's overshoot: about 110 against the reference's 64.
    - The pillar's sharp foot.
    - 11 misses of `ter-s6zr`'s acceptance boxes, with a mean box error of 4.87 against the reference.
-9. Ticket 9 is a spike on a branch of its own, as `ter-afyv` was. It adds the trace dispatch to today's frame at an output of 1280 × 720, over today's depth pyramid and G-buffer. It traces both ray kinds at the budget's counts. These are 230,400 block rays of each kind, plus own rays for 10 % and for 25 % of the pixels. A hit reads today's direct image in place of the histories. It measures the trace by `tools/gpu-trace.sh` under the GPU lock, on demo-exit's deck and floor views. If the trace exceeds the budget's 1.7 ms, the orchestrator takes the result to the user before ticket 4 starts. Its report goes into `docs/research/temporal-renderer/`, and ticket 4 takes its trace code.
+9. Ticket 9 is a spike on a branch of its own, as `ter-afyv` was. It adds the trace dispatch to today's frame at an output of 1280 × 720, over today's depth pyramid and G-buffer. It traces both ray kinds at the budget's counts. These are 230,400 block rays of each kind, plus own rays for 10 % and for 25 % of the pixels. A hit reads today's direct image in place of the histories. It measures the trace by `tools/gpu-trace.sh` under the GPU lock, on demo-exit's deck and floor views. If the trace exceeds the budget's 1.7 ms, the orchestrator takes the result to the user before ticket 4 starts. Its report goes into `docs/research/temporal-renderer/`, and ticket 4 takes its trace code. Done on 2026-11-03 ([trace-timing-spike.md](../research/temporal-renderer/trace-timing-spike.md)): the trace took about 10.0 ms at 10 % own rays, 5.9 times the first budget's 1.7 ms. The lean trace spike, the calibration and the profiling spike followed, and decisions 40 to 46 came from them.
 
 Each reason for the order:
 
 1. Tickets 1, 2 and 9 touch different code, so they run side by side. Ticket 1 changes no pass, and ticket 9 merges no code.
 2. Ticket 2 comes before every temporal pass, because each reads the motion vectors and the surface test.
-3. Ticket 3 comes before ticket 4, because the tracer's hits read the accumulated direct light. ReSTIR is the accumulator's first real user, so the two land together.
+3. Ticket 3 comes before ticket 4, because the tracer's hits read the accumulated direct light. ReSTIR is the accumulator's first real user, so the two land together. Changed on 2026-11-04 (`ter-9nrc`): the hits read the direct light's two images, which hold no history, and the tracer's signals are the accumulator's first real users.
 4. Ticket 4 comes before ticket 5. So no pass that ticket 4 deletes ever needs the active part of dynamic resolution.
 5. Ticket 5 lands FSR and dynamic resolution together, as decision 2 asks. Until then, every frame draws at the output size under `NoUpscaling`, with SMAA.
 6. The still rule lands in ticket 3, with the first default that accumulates. From then on, every headless still warms up.
 7. Ticket 8 follows ticket 4, because the tracer's reflection misses are its main reader. It changes only the map's read, so it runs beside ticket 5. Ticket 6 waits for it, because its cost belongs in the budget.
 
-The three riskiest unknowns come first. FSR 3.1 on MoltenVK and lavapipe is ticket 1, and the tracer's cost on the M1 Max is ticket 9. Both start at once. ReSTIR's noise in direct light is ticket 3's first measured result, after ticket 2.
+The three riskiest unknowns come first. FSR 3.1 on MoltenVK and lavapipe is ticket 1, and the tracer's cost on the M1 Max is ticket 9. Both start at once. Ticket 9 found the trace far over its budget. So two spikes and a calibration of the GPU followed before ticket 4 (decisions 40 to 46). ReSTIR's noise in direct light is ticket 3's first measured result, after ticket 2.
 
 Each build ticket ends as the project asks. It ends with its tests of section 10, its coverage and mutation testing, its edits of section 12, the Release tests, and screenshots.
+
+### The parts of ticket 4
+
+Added on 2026-11-04 (`ter-jxjx`). Ticket 4 builds in eight parts. A part owns its files: no other part of the same stage edits them. The acceptance stays item 4 of the list above.
+
+```mermaid
+flowchart LR
+    P1[1. The walk] --> P5[5. The tracer's passes]
+    P2[2. The finest level] --> P5
+    P3[3. The accumulator's side of the tracer] --> P5
+    P5 --> P6[6. The switch and the deletions]
+    P6 --> P7[7. The measured frame and its report]
+    P4[4. The timing at the top clock] --> P7
+    P7 --> P8[8. Hardening, docs and screenshots]
+    P8 --> M[Merge into main]
+    M -.-> HC[After ticket 4: the hill-climb's change in the walk's one place]
+```
+
+| Stage | Parts | When |
+|---|---|---|
+| 1 | 1, 2, 3 and 4 | Side by side, within the project's limit of four building agents |
+| 2 | 5 | After parts 1, 2 and 3 |
+| 3 | 6 | After part 5 |
+| 4 | 7 | After parts 4 and 6 |
+| 5 | 8 | After part 7 |
+
+The parts of stage 1 share one file, `VulkanRenderer.cs`. Part 2 adds one test hook to it, and part 3 changes at most the test hook `CreateSignal`. Each edits only its own member, so their merge is mechanical.
+
+#### Part 1: the walk
+
+- Files: `Shaders/screen_walk.glsl`, new. `Shaders/screen_ray.glsl`, new: the image of a ray and the cells' geometry, which move from `reflection.glsl`. `Shaders/reflection.glsl` includes `screen_ray.glsl` until part 6 deletes it. Under design A of fork 2, also `Shading/ScreenRay.cs`, `Shading/DepthPyramid.cs` and their CPU tests.
+- Source: `twoDepthStep` and `leanWalkOf` of `lean_trace.glsl` on the branch `ter-sftw-profiling-spike`. The part keeps their logic and adds the hair rule. It drops the spike's counters and V4's coarse levels (section 6, "The traversal").
+- Under design A of fork 2, the C# copy of today's trace stays beside the new copy until part 6. Today's reflection tests pin `traceRay` to it.
+
+The part gives part 5 this interface:
+
+```glsl
+ScreenWalk screenWalkOf(ScreenRay ray, vec3 direction, uint ownCard);
+uint walkScreen(texture2D finest, texture2D bounds, inout ScreenWalk walk, uint cap, out vec2 hit, out float entryShare);
+```
+
+where
+
+- `ray` = the image of the ray on the screen, from `screenRayOf`.
+- `direction` = the ray's unit direction in the camera-relative axes, which the facing test reads.
+- `ownCard` = the card code of the receiver's hair card, or `NoCard` for a receiver that is not hair.
+- `finest` = the finest level, R32F.
+- `bounds` = today's RG32F pyramid, whose mip m holds level m + 1.
+- `cap` = the kind's step cap, `ReflectionSteps` or `DiffuseSteps`.
+- The result = `WalkHit` or `WalkMiss`. A walk that reaches its cap gives `WalkMiss`.
+- `hit` = the hit's position in pixels.
+- `entryShare` = the entry share e of the hit, from 0 at the slab's front to 1 at its back.
+
+Done when: under design A of fork 2, the CPU tests of section 10's row of the C# twins pass. Under design B, the part has no test of its own, and the walk's tests are GPU tests of part 5.
+
+#### Part 2: the finest level
+
+- Files: `Shaders/depth_pyramid_finest.comp`, new, from the spike. `Shaders/depth_pyramid.glsl` gains `inverseDepthAlong`, from the spike. `Passes/DepthPyramidPass.cs` records the finest level's dispatch after the pyramid's levels, in the same pass. `Frame/ReflectionTargets.cs` holds the finest image and its set until part 5 moves both. A GPU test file, and one test hook in `VulkanRenderer.cs`.
+- The finest level's set takes the layout of the pyramid's level sets, as in the spike. So the part does not edit `DescriptorLayouts.cs`.
+- Gives part 5: the finest level, written in every frame in which the depth pyramid runs.
+- Done when: a GPU test reads back the finest level and the distance target. Each pixel's texel equals 1 over the view depth of its center, to float precision, and sky holds 0. Every test of today's depth pyramid and reflections passes.
+
+#### Part 3: the accumulator's side of the tracer
+
+- Files: the C# owners `Frame/TemporalSignal.cs`, `Frame/SignalParameters.cs` and `Frame/DescriptorLayouts.cs`. The shaders `accumulate_temporal.comp`, `accumulate_spatial.comp`, `accumulate.glsl` and `signals.glsl`. The tests `AccumulatorRenderTests.cs` with their own sample pass. At most `CreateSignal` in `VulkanRenderer.cs`.
+- What it adds:
+  - The parameter sets `SignalParameters.Diffuse` and `SignalParameters.Specular` of section 8. The specular cap follows the roughness.
+  - The specular signal's own tests: the reflected point's place and the hit distance (section 8).
+  - The closed form as the sample of a pixel with neither a finite sample nor a history: D(n) for the diffuse signal, the map's specular term for the specular signal. Today the accumulator takes 0 there.
+  - Scratch images that the two signals share (section 8, "Images").
+  - `reprojectedLength` in `signals.glsl`: the history length at a pixel's previous place, by the accumulator's own taps, pass bits and weights.
+  - `TemporalSignal.HitSet(parity)` (section 8, "The interface").
+- Gives part 5: `HitSet`, `reprojectedLength`, the two parameter sets and the closed form.
+- Done when: `AccumulatorRenderTests` show these behaviors. A mirror's reflected place keeps its history while the camera moves along the mirror. A tap whose hit distance differs by more than half fails. The specular cap follows the roughness. A pixel without a sample or a history takes the closed form. `reprojectedLength` equals the length that the accumulation reads at the same pixel. Section 10's accumulator rows pass.
+
+#### Part 4: the timing at the top clock
+
+- Files: by fork 1 (below). Under design A, the headless host's frame loop in `src/Tertius.Host`, `tools/demo-timing.sh`, `tools/README.md` and the host's tests. Under design B, the window host in `src/Tertius.Host`, `tools/gpu-calibration/window.sh` and `tools/README.md`.
+- Gives part 7: one command that films demo-exit's deck at the top clock and writes `gpu-timings.json` with the clock of its timed span.
+- Done when: on main, three runs of the deck's film record a span clock within 3 % of 1296 MHz, the tolerance of `tools/gpu_clock.py`. Their frame spans agree within 3 %.
+
+#### Part 5: the tracer's passes
+
+- Files:
+  - `Frame/ScreenTraceImages.cs`, new. The pyramid image and the finest level move here from `ReflectionTargets`, which binds them from the new owner until part 6. The owner also holds the block rays' records and the two own-ray lists.
+  - `Passes/ScreenTracePass.cs`, new: the four passes. `Passes/DepthPyramidPass.cs` reads its images from the new owner.
+  - `Shaders/screen_trace.glsl`, new: the ray kinds, the randomness, the rules of a ray's start and of its hit point, the hit's light, the misses and the record.
+  - `Shaders/screen_trace_plan.comp`, `Shaders/screen_trace_rays.comp` and `Shaders/screen_trace_resolve.comp`, new. The rays' kernel serves both kinds and both dispatches of a kind, by specialization constants.
+  - `Shaders/own_rays.glsl`, new: the own-ray list's GLSL, moved from `reflection_own_rays.glsl`, which includes it until part 6. `Passes/OwnRayDispatch.cs` takes the pipeline and the layout.
+  - `ScreenTraceSetting.cs`, new: `ScreenTrace` and `NoScreenTrace`. `RendererOptions.cs` gains `ScreenTrace`, and the old settings stay until part 6.
+  - `Frame/DescriptorLayouts.cs`, `Frame/FrameGraph.cs`, `ShaderConstants.cs`, `VulkanRenderer.cs`, and the new `ScreenTraceRenderTests.cs`.
+- Sources: part 1's walk, and the ray code of ticket 9 on the branch `ter-toaw-trace-timing-spike`, `screen_trace.glsl` and `trace_spike.glsl`. The part fixes the four defects that ticket 9's review found (trace-timing-spike.md, "What ticket 4 must change in the spike's code"): one direction per pixel and kind (section 6, "Randomness"), one own-ray list, one owner of the start rules, and the density's base-2 code.
+- Gives part 6: `tracer.Record(frame, diffuse, specular)`, which writes both samples in each frame under `ScreenTrace`. Also the four passes in the GPU timings, and a test hook that reads the counts of the two own-ray lists.
+- Done when:
+  - Section 10's tracer rows that need no composite pass. These are the white furnace, the mirror in front of a lamp, the blocker's share and the closed box. Also a sample at every lit pixel, and the walk's rows. A still gives the same bits on every run.
+  - `tools/sol-walk/loop-reads.py` finds no access of a device buffer inside the walk's loop in MoltenVK's code of each rays kernel (decision 44). `MVK_CONFIG_SHADER_DUMP_DIR` dumps that code.
+  - The old frame still draws under the old settings, and every test of today passes.
+
+#### Part 6: the switch and the deletions
+
+- Files: `Passes/CompositePass.cs`, `Shaders/composite.frag` and `Shaders/composite_pass.glsl`. The composite reads the two slow histories in place of today's ambient terms, and the closed forms under `NoScreenTrace` (section 9).
+- `RendererOptions.cs`: `ScreenTrace` replaces `ScreenSpaceLight` and `Reflections`, and `WarmUpFrames` comes back. `Frame/FrameHistory.cs` takes the warm-up count of section 10, "The still rule".
+- `Shaders/impostor.frag` writes its instance's light mark (decision 36). `Passes/DepthPyramidPass.cs` runs under `ScreenTrace`.
+- The test helpers `Gpu.Headless` and `GpuTesting.Headless` set `NoScreenTrace`. The part makes the deletions of section 12 with their tests, and it ports the own-ray test of section 12's last table.
+- Done when: every GPU test of today passes under the zero cases with its expectations. Section 10's remaining tracer rows pass: a lamp's billboard sends no glow to a hit, and a still draws its warm-up draws. The full Checked tests and the Release tests pass. A reference image that changes gets the review that CLAUDE.md asks for.
+
+#### Part 7: the measured frame and its report
+
+- Files: no file in `src`. A script of demo-exit's deck with a camera cut goes into `scripts/`. The runs' folders go into `captures/`, which git ignores. The report is a note on `ter-gayt`.
+- Measures, with part 4's command, under the GPU lock, in 7 interleaved rounds with a byte copy of the branch as the control:
+  1. The deck's frame span at 1280 × 720 at the top clock. Each pass's mean: the depth pyramid with its finest level, the ray plan, each kind's trace, the resolve and the two accumulations.
+  2. The same on the floor view.
+  3. The own-ray share of each kind on both views, from part 5's hook.
+  4. The frames 1 to 8 after a camera cut on the deck.
+  5. The frame against 12.0 ms, as section 11, "The frame before ticket 5", builds it.
+- Gives: a report that holds each figure beside its row of section 11. The orchestrator takes it to the user. No figure stops the ticket (decision 43).
+
+#### Part 8: hardening, docs and screenshots
+
+- Coverage of the changed lines, and the table of mutants. `tools/mutate.py` runs the mutants of Rendering's C# and GLSL. Core, Simulation and Physics do not change, so no Stryker run applies.
+- ARCHITECTURE.md and the other docs of section 12. `tools/README.md` gains `loop-reads.py`. Section 11 of this plan gains part 7's measured rows.
+- Two to four screenshots: the deck's paint and a room's bounce light.
+- The Release tests, before the merge.
+
+#### After ticket 4: the hill-climb's change
+
+When `ter-dzxf` reports, its winning change replaces the step and the loop of `walkScreen`, and nothing else (decision 45). The walk's tests pass, `loop-reads.py` finds no read in the loop, and part 7's measurement runs again. If that frame stays over 12.0 ms, the orchestrator files the ray limit ticket (decision 43). The orchestrator decides whether the port is the last step of `ter-dzxf` or a ticket of its own.
+
+### Open forks of ticket 4
+
+Added on 2026-11-04 (`ter-jxjx`). The results and the decisions above leave two questions open. Each has two designs, and the user chooses. Part 4 waits for fork 1, and part 1 waits for fork 2.
+
+#### Fork 1: how ticket 4 keeps the GPU at its top clock
+
+A headless film waits for each frame, so the GPU idles between frames. At 1280 × 720 it then runs at about 800 MHz ([gpu-calibration.md](../research/temporal-renderer/gpu-calibration.md), "The clock under our runs"). Decision 43 asks for the frame at the top clock. No tool measures a real frame there today. The profiling spike repeated the trace alone, and a window run writes no times of passes.
+
+| Design | How the GPU reaches the top clock | What changes | Cost |
+|---|---|---|---|
+| A: a busy headless film | A timed film keeps two frames in flight, as the window does, so the GPU never waits for the CPU | The headless host's frame loop in a timed film, and `tools/demo-timing.sh` | Code in the host and its tests. The film's images stay the same, because its snapshots and its draws stay the same. The span's clock shows whether the GPU reached the top clock |
+| B: a window run that writes its times | The demo in a window whose frame rate the GPU limits, where the calibration found the top clock | The window host writes `gpu-timings.json` at its exit, and `tools/gpu-calibration/window.sh` records the span | Code in the window host. This Mac's display is 1080 pixels wide, so a 1280 × 720 window does not fit before ticket 5's render scale. A 1080 × 720 window holds 0.84 of the budget's pixels. Each run opens a window on the display |
+
+A sketch of each run:
+
+```bash
+# Sketch, A: a headless film with two frames in flight.
+nix develop --command bash tools/demo-timing.sh captures/gayt/deck-a scripts/demo-exit.json --start 399 --frames 120 --size 1280x720 --in-flight 2
+# Sketch, B: a window run that writes its times.
+nix develop --command bash tools/gpu-calibration/window.sh captures/gayt/deck-b scripts/window-deck.json --size 1080x720 --timings
+```
+
+Both designs share the GPU lock and the record of the span's clock of `ter-qk78`. They also share the interleaved rounds with a byte copy as the control, and the deck's view from frame 399.
+
+#### Fork 2: the C# copy of the walk
+
+Today's trace has a C# copy, `ScreenRay.Trace` with `ScreenRay.MeetPixel`, as production code. CPU tests hold it against a march through every pixel on 1,000,000 random rays. GPU tests pin the shader to it (ARCHITECTURE.md, "The depth pyramid and the trace"). The two-depth walk replaces `traceRay`, so that copy loses its shader.
+
+| Design | The walk's copy | Tests | Cost |
+|---|---|---|---|
+| A: a C# copy of the two-depth walk | `ScreenRay` walks the two-depth walk, and `DepthPyramid` gains the finest level | CPU tests against a march over the flat slabs, on 1,000,000 random rays. GPU tests pin the shader to the copy | About 150 lines of C# that repeat the step's rules, so a change of the rules edits both. The hill-climb keeps the hits, so its change leaves the copy alone |
+| B: no copy of the walk | `ScreenRay` keeps only the image of a ray, and `DepthPyramid` only the bounds | GPU tests compare the walk at a cap of 4,096 with a march over the flat slabs in test code, on a few scenes | No second copy of the step. A test scene holds thousands of rays, not 1,000,000, so a fault that only rare rays meet can pass. Part 1 then has no test of its own |
+
+A sketch of each test:
+
+```csharp
+// Sketch, A: the C# copy against the march, on random rays.
+RayTrace walked = ray.Walk(pyramid, maxSteps: 4096);
+walked.Hit.Should().Be(FlatSlabMarch.FirstHit(pyramid, ray));
+
+// Sketch, B: the shader against the march, on one scene's rays.
+var hits = renderer.ReadWalkHits(scene, cap: 4096);
+hits.Should().Equal(FlatSlabMarch.FirstHits(renderer.ReadDepthFinest(), rays));
+```
+
+Both designs take the march over the flat slabs as the reference of the hits. Both keep the hill-climb's gate on its dumped frames and the GPU tests of section 10.
 
 ## Portable Vulkan
 
@@ -1384,6 +1656,9 @@ The design keeps to the Vulkan spec and to what the desktop Linux drivers (NVIDI
 | Two submissions per frame | The frame's two parts (decision 37) | Core Vulkan 1.0. The second part's semaphore wait is the one that today's single submission holds. |
 | Timestamps | The controller | `timestampComputeAndGraphics`, which the four drivers and MoltenVK offer. If a device has no timestamps, the controller holds the largest scale. |
 | Indirect dispatch and image copies | The tracer's own rays, the opaque-only copy | Core Vulkan 1.0. |
+| A storage image of R32F | The depth pyramid's finest level | The spec requires storage support for R32F. |
+| The words form | The trace kernel's reads from buffers | Plain GLSL: `uintBitsToFloat` of a word of a `uvec4` load. It relies on no behavior of MoltenVK. It only keeps MoltenVK's code from a read at each step (decision 44). |
+| No subgroup operations in the walk | The trace | The two-depth walk uses none. The vote exit of the lean trace spike needed them, and the design leaves it out. Each change of the hill-climb keeps to core Vulkan, and an unrolled loop must cost no time on the other drivers (`ter-dzxf`). |
 
 Ticket 1 lists the SPIR-V capabilities of AMD's modules and the storage images that each of FSR's passes binds. Ticket 7 runs every GPU test on lavapipe and on the Linux drivers.
 
@@ -1408,11 +1683,15 @@ Ticket 1 lists the SPIR-V capabilities of AMD's modules and the storage images t
 17. Under `AutoExposure`, a still's first warm-up draw shades with the exposure of the draw before it. If the exposure moves by more than about 15 stops, that draw's samples reach `MaxRadiance`. Then about 3 % of the shown draw's diffuse history is wrong (section 10).
 18. From ticket 4, a cabin's panel lamp shows in the paint as a dark panel around the small highlight of its light. The panel lights of `ter-80o1` end it (`ter-m24j`, decision 39).
 19. A far light without a cascade set is a sampled light, and its target leaves out its far shadows. If a planet eclipses such a light while near lamps light the view, ReSTIR wastes some samples on it, and the lamps' noise settles more slowly (decision 28). Removed on 2026-11-04 (`ter-9nrc`).
+20. The two-depth walk's flat slabs and its facing test give images that differ from today's trace. Take the caps of decision 41. On the deck, the tile bias is then −6.2 % for the reflection light and −7.5 % for the diffuse light. On the floor view it is +1.6 % and +0.8 % (section 6, "The traversal").
+21. For 8 frames after a reset, such as a camera cut, every lit pixel traces own rays of both kinds. On the deck, such a frame spends an estimated 10 ms in the trace, about 6 ms more than a converged frame. Until a ray limit or the controller bounds it, a cut shows as a few long frames (section 6, "The ray budget").
 
 ## Sources
 
 - AMD, [FidelityFX SDK v1.1.4](https://github.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK/tree/v1.1.4), its header `sdk/include/FidelityFX/host/ffx_fsr3upscaler.h`, and the [FSR 3.1 upscaler manual](https://gpuopen.com/manuals/fidelityfx_sdk/techniques/super-resolution-upscaler/): "Mipmap biasing", the masks and "Frame Time Delta Input".
 - The research of this epic: [fsr31-integration.md](../research/temporal-renderer/fsr31-integration.md), [signals.md](../research/temporal-renderer/signals.md) and [pass-map.md](../research/temporal-renderer/pass-map.md). The model of the bounces: [bounce_model.py](../research/temporal-renderer/bounce_model.py). The spike: [metal-trace-spike.md](../research/metal-trace-spike.md).
+- The spikes and the calculation of 2026-11-03 and 2026-11-04: [trace-timing-spike.md](../research/temporal-renderer/trace-timing-spike.md), [lean-trace-spike.md](../research/temporal-renderer/lean-trace-spike.md), [gpu-calibration.md](../research/temporal-renderer/gpu-calibration.md), [profiling-spike.md](../research/temporal-renderer/profiling-spike.md) and [trace-budget-12ms.md](../research/temporal-renderer/trace-budget-12ms.md).
+- AMD, FidelityFX SDK v1.1.4, `FFX_SSSR_HierarchicalRaymarch` and `FFX_SSSR_ValidateHit`: the stackless walk that the lean walk follows.
 - Bitterli, Wyman, Pharr, Shirley, Lefohn and Jarosz, "Spatiotemporal reservoir resampling for real-time ray tracing with dynamic direct lighting", SIGGRAPH 2020.
 - Heitz, Hill and McGuire, "Combining analytic direct illumination and stochastic shadows", I3D 2018.
 - Heitz, Dupuy, Hill and Neubelt, "Real-time polygonal-light shading with linearly transformed cosines", SIGGRAPH 2016.
