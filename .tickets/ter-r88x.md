@@ -1,6 +1,6 @@
 ---
 id: ter-r88x
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-11-04T17:28:26Z
@@ -77,3 +77,7 @@ The scripted runner applied each mutant to a copy of the original helper bytes, 
 25 rows: killed 24, timeout 0 after replay, survived 1, no-coverage 0, invalid 0. The unadjusted mutation score is 24/25 = 96%; M22 remains a documented judgment call, not an equivalent mutant.
 
 Final traced run: `nix develop --command python3 -I tools/test_gpu_lock.py -v` with the tracing environment described above: 28 tests passed in 40.070 s. The production helper remains byte-for-byte identical to 2656cff9a.
+
+**2026-11-04T21:15:05Z**
+
+2026-11-04: merged into main as 239feb849ee98a17e749358de1f1f2e77a6c0399 after hardening commit 1768f10ea53ced48abc55ed8c087725be88eefca. The only merge conflict was this ticket's notes; both sides remain in timestamp order. Changed-line trace coverage is 68/69, with line 81 explained above. Mutation testing killed 24/25 mutants, with M22's judgment call recorded in the table; the one initial timeout was killed by a focused replay. The last full suite after the final edits passed all 28 tests in 40.500 s. The merged helper and tests are identical to the tested branch. No GPU run or .NET test suite ran, and the real GPU lock and queue were untouched. Closing after the merge.
