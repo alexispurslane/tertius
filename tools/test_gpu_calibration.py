@@ -129,6 +129,19 @@ class FsrPassFrames(unittest.TestCase):
         self.assertEqual(frames[0]["(frame span)"], 101)
 
 
+class FsrWarmUpBatches(unittest.TestCase):
+    """warm_up_batches: the count of warm-up batches comes from the measurement's own line in run.log, so the trace's
+    reading follows the test when its warm-up changes."""
+
+    def test_the_count_comes_from_the_line_of_the_measurement_in_the_log(self):
+        log = "    Tertius.Rendering.Tests.Fsr3UpscalerTests.Batched [OUTPUT] warm-up batches: 60, timed batches: 150\n"
+        self.assertEqual(fsr_passes.warm_up_batches(log, "run.log"), 60)
+
+    def test_a_log_without_the_line_stops_the_tool_with_the_path_of_the_log(self):
+        with self.assertRaisesRegex(ValueError, "out/run.log"):
+            fsr_passes.warm_up_batches("timed-start\ntimed-end\n", "out/run.log")
+
+
 class FsrTopClockFrames(unittest.TestCase):
     """top_clock_frames: the frames that ran at the top clock, whose summed pass time lies within 10 % of the 10th
     percentile of all frames. Under a trace the clock moves between 972 and 1296 MHz, and the frames at 972 MHz take at

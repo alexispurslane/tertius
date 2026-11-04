@@ -25,8 +25,8 @@ for ((i = 0; i < n; i++)); do
     case $name in
         fsr) command=(env TERTIUS_FSR_TIMING=1 bash tools/gpu-clock.sh "$tests" -noColor -showLiveOutput \
             -method Tertius.Rendering.Tests.Fsr3UpscalerTests.AnUpscaleFrom1280x720To1920x1080ReportsItsGpuTime) ;;
-        fsr-batch) command=(env TERTIUS_GPU_CALIBRATION=1 bash tools/gpu-clock.sh "$tests" -noColor -showLiveOutput \
-            -method Tertius.Rendering.Tests.GpuCalibrationTests.FsrReportsItsGpuTimePerFrameWhenEightFramesShareASubmission) ;;
+        fsr-batch) command=(env TERTIUS_FSR_TIMING=1 bash tools/gpu-clock.sh "$tests" -noColor -showLiveOutput \
+            -method Tertius.Rendering.Tests.Fsr3UpscalerTests.AnUpscaleFrom1280x720To1920x1080ReportsItsGpuTimePerFrameWhenEightFramesShareASubmission) ;;
         metalfx) command=(bash tools/gpu-clock.sh "$bin/metalfx" matched) ;;
         metalfx-gap) command=(bash tools/gpu-clock.sh "$bin/metalfx" matched 0.6) ;;
     esac

@@ -1,6 +1,11 @@
-"""Tool code (tools/README.md, "FSR 3.1 timing"): compares the frame times that time-round.sh wrote.
+"""Tool code (tools/README.md, "FSR 3.1 timing"): compares the runs of FSR's batched measurement that time-round.sh
+logged.
 
 Usage: python3 -I tools/fsr3-timing/analyze.py <out folder> <reference build> <build> ...
+
+The times of a run come from its log: the mean frame time of each batch of the measurement, in ms, which the line
+"frame times, ms: ..." holds. Below, a frame time is such a mean. The batches keep the GPU busy, so its clock holds
+from run to run, as the per-frame timing test's clock does not (tools/README.md, "FSR 3.1 timing").
 
 For each build other than the reference, it prints two readings of "the build's median minus the reference's":
 
@@ -58,10 +63,26 @@ def load(folder):
     return sorted(rounds), starts
 
 
-def run_clock(folder, r, b):
-    """The clock of the timed span of one run, or an unknown clock for a run without a log."""
+@dataclass(frozen=True)
+class Run:
+    """One run of FSR's batched measurement: the mean frame time in ms of each batch in their order, the frames in each
+    batch, and the GPU clock over the timed span."""
+
+    times: list
+    batch_size: int
+    clock: object
+
+
+def read_run(folder, r, b):
+    """The Run of round r of build b, from its log. A missing log raises FileNotFoundError, and a log without the
+    batched measurement's summary and frame times, such as a per-frame run's, raises ValueError. Both name the log."""
     log = Path(f"{folder}/{r}-{b}.log")
-    return gpu_clock.span_clock(log.read_text()) if log.exists() else gpu_clock.Unknown(f"{log} is missing")
+    text = log.read_text()
+    size = re.search(r"in batches of (\d+) ", text)
+    times = re.search(r"frame times, ms: (.*)", text)
+    if not size or not times:
+        raise ValueError(f"{log} holds no frame times of FSR's batched measurement")
+    return Run(times=[float(t) for t in times[1].split()], batch_size=int(size[1]), clock=gpu_clock.span_clock(text))
 
 
 @dataclass(frozen=True)
@@ -95,11 +116,13 @@ def build_clock(clocks):
 def main(folder, reference, others):
     rounds, starts = load(folder)
     builds = [reference, *others]
-    times = {
-        (r, b): [float(t) for t in Path(f"{folder}/{r}-{b}.times").read_text().split()] for r in rounds for b in builds
-    }
-    clocks = {(r, b): run_clock(folder, r, b) for r in rounds for b in builds}
-    print(f"{len(rounds)} rounds, frames per run {sorted({len(t) for t in times.values()})}")
+    runs = {(r, b): read_run(folder, r, b) for r in rounds for b in builds}
+    times = {key: run.times for key, run in runs.items()}
+    clocks = {key: run.clock for key, run in runs.items()}
+    print(
+        f"{len(rounds)} rounds, batches per run {sorted({len(t) for t in times.values()})}, frames per batch"
+        f" {sorted({run.batch_size for run in runs.values()})}"
+    )
     print(f"1-minute load at the run starts: least {min(starts)}, median {statistics.median(starts)}, most {max(starts)}")
     print(
         f"The clock of a build is the median of its runs' clocks over their timed spans (p10 and p90 of the runs). The"

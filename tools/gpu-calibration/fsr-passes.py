@@ -3,14 +3,15 @@ FSR's batched measurement that fsr-trace.sh records.
 
 Usage: python3 -I tools/gpu-calibration/fsr-passes.py <run.trace> <out folder>
 
-The measurement submits 45 batches of 8 frames, each batch in one command buffer, with a timestamp before each frame
+The measurement submits 210 batches of 8 frames, each batch in one command buffer, with a timestamp before each frame
 and after the last. MoltenVK writes each timestamp as an encoder of its own, "Record GPU Counter Sample BlitEncoder",
 and ends its compute encoder at each pipeline barrier. FSR's Record puts a barrier before each dispatch, so a frame
 between two stamps holds nine compute encoders in order: the exposure step, AMD's reactive mask generator and the seven
 passes of Fsr3Upscaler.UpscalePasses. Its other encoders are AMD's clears and the update of the constants.
 
 A pass's time is its busy time: the union of its encoder's GPU intervals. The script leaves out:
-- the first 8 command buffers with stamps, the warm-up batches that the measurement does not time;
+- the first command buffers with stamps, the warm-up batches that the measurement does not time. Their count comes
+  from the measurement's line "warm-up batches: N" in <out>/run.log, which fsr-trace.sh writes;
 - a frame with another count of dispatches;
 - a frame in which another process's GPU interval overlaps the frame's span, because the GPU then runs both, and the
   other work slows the pass. Other sessions' test runs take no GPU lock.
@@ -20,9 +21,10 @@ the frame's stamp to the next stamp, and it writes the times of every kept frame
 
 Under a trace, the clock moves between the states of 972 and 1296 MHz from one frame to the next, and the times of each
 pass fall into two clusters. The second table holds the frames at the top clock: those whose summed pass time lies
-within 10 % of the 10th percentile of all kept frames. A frame at 972 MHz takes at least 1.25 times as long. If
-<out>/run.log holds gpu-clock's samples and the measurement's markers, the script also prints the clock over the timed
-span beside the clock that the two clusters imply, the share of top-clock frames times 1296 MHz plus the rest times 972.
+within 10 % of the 10th percentile of all kept frames. A frame at 972 MHz takes at least 1.25 times as long. The
+script also prints the clock over the timed span, from gpu-clock's samples and the measurement's markers in
+<out>/run.log, beside the clock that the two clusters imply: the share of top-clock frames times 1296 MHz plus the rest
+times 972.
 """
 
 import importlib.util
@@ -39,7 +41,6 @@ STAMP = "Record GPU Counter Sample BlitEncoder"
 DISPATCH = "vkCmdDispatch ComputeEncoder"
 OTHER = "(clears and constants)"
 SPAN = "(frame span)"
-WARM_UP_BUFFERS = 8
 
 
 def busy(intervals):
@@ -54,6 +55,14 @@ def busy(intervals):
             total += stop - end
             end = stop
     return total
+
+
+def warm_up_batches(log_text, log_name):
+    """The count of warm-up batches that the measurement printed in its log, the first command buffers with stamps."""
+    match = re.search(r"warm-up batches: (\d+)", log_text)
+    if not match:
+        raise ValueError(f"{log_name} holds no line \"warm-up batches: N\" of FSR's batched measurement")
+    return int(match[1])
 
 
 def pass_frames(encoders, other, skip_buffers):
@@ -144,20 +153,20 @@ def main() -> int:
     out = Path(sys.argv[2])
     exports = out / "export"
     exports.mkdir(parents=True, exist_ok=True)
+    log = out / "run.log"
+    log_text = log.read_text()
     process, encoders, other = trace_encoders(trace, exports)
-    frames = pass_frames(encoders, other, WARM_UP_BUFFERS)
+    frames = pass_frames(encoders, other, warm_up_batches(log_text, log))
     (out / "passes.json").write_text(json.dumps({"process": process, "frames": frames}))
     top = top_clock_frames(frames)
     print(f"{process}: {len(frames)} frames kept of the timed batches, with no other process on the GPU")
     print(f"{len(top)} of them, {len(top) / len(frames):.3f}, ran at the top clock")
-    log = out / "run.log"
-    if log.exists():
-        spec = importlib.util.spec_from_file_location("gpu_clock", Path(__file__).parent.parent / "gpu_clock.py")
-        gpu_clock = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(gpu_clock)
-        span = gpu_clock.span_clock(log.read_text()).describe()
-        implied = len(top) / len(frames) * 1296 + (1 - len(top) / len(frames)) * 972
-        print(f"The clock over the timed span: {span}. The clock that the clusters imply: {implied:.1f} MHz")
+    spec = importlib.util.spec_from_file_location("gpu_clock", Path(__file__).parent.parent / "gpu_clock.py")
+    gpu_clock = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(gpu_clock)
+    span = gpu_clock.span_clock(log_text).describe()
+    implied = len(top) / len(frames) * 1296 + (1 - len(top) / len(frames)) * 972
+    print(f"The clock over the timed span: {span}. The clock that the clusters imply: {implied:.1f} MHz")
     print("\n| Pass | Busy time of every kept frame, median (p10 to p90), ms | At the top clock, ms |")
     print("|---|---|---|")
     for name in PASSES + [OTHER, SPAN]:
