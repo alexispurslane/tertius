@@ -5,8 +5,7 @@ namespace Tertius.Rendering;
 /// <summary>
 /// The memory that <see cref="DeviceAllocator"/> places its blocks in: the device's table of memory types, and the calls
 /// that allocate, map, name and free one <c>VkDeviceMemory</c>. <see cref="VulkanDeviceMemory"/> is a real device's. A
-/// test gives the allocator the table of another driver through this interface, so it runs the allocator's rules on that
-/// table without that driver.
+/// test gives the allocator another driver's table through it.
 /// </summary>
 internal interface IDeviceMemory
 {

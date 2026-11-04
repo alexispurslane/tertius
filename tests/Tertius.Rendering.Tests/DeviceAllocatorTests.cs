@@ -12,10 +12,7 @@ public sealed unsafe class DeviceAllocatorTests
 {
     private const ulong Kilobytes64 = 64ul << 10;
 
-    /// <summary>
-    /// The one memory type of KosmicKrisp, lavapipe and the integrated GPUs on RADV and ANV: device-local, host-visible,
-    /// coherent and cached.
-    /// </summary>
+    /// <summary>The one memory type of KosmicKrisp and lavapipe (ARCHITECTURE.md, "GPU memory").</summary>
     private static readonly MemoryPropertyFlags UnifiedType =
         MemoryPropertyFlags.DeviceLocalBit
         | MemoryPropertyFlags.HostVisibleBit
@@ -29,6 +26,24 @@ public sealed unsafe class DeviceAllocatorTests
         UnifiedType,
         MemoryPropertyFlags.DeviceLocalBit | MemoryPropertyFlags.LazilyAllocatedBit,
     ];
+
+    /// <summary>
+    /// RADV's seven types on a discrete GPU (Mesa 26.2.4, radv_physical_device.c): VRAM, GTT, host-visible VRAM and cached
+    /// GTT, each twice, the second for 32-bit addresses. Its upload type, 3, is not host-cached.
+    /// </summary>
+    private static readonly MemoryPropertyFlags[] RadvDiscreteTypes =
+    [
+        MemoryPropertyFlags.DeviceLocalBit,
+        MemoryPropertyFlags.DeviceLocalBit,
+        MemoryPropertyFlags.HostVisibleBit | MemoryPropertyFlags.HostCoherentBit,
+        MemoryPropertyFlags.DeviceLocalBit | MemoryPropertyFlags.HostVisibleBit | MemoryPropertyFlags.HostCoherentBit,
+        MemoryPropertyFlags.DeviceLocalBit | MemoryPropertyFlags.HostVisibleBit | MemoryPropertyFlags.HostCoherentBit,
+        MemoryPropertyFlags.HostVisibleBit | MemoryPropertyFlags.HostCoherentBit | MemoryPropertyFlags.HostCachedBit,
+        MemoryPropertyFlags.HostVisibleBit | MemoryPropertyFlags.HostCoherentBit | MemoryPropertyFlags.HostCachedBit,
+    ];
+
+    /// <summary>The types that RADV allows a buffer: all but the 32-bit types 1, 4 and 6.</summary>
+    private const uint RadvBufferTypes = 0b0101101;
 
     [Fact]
     public void AnUploadAfterAGpuOnlyAllocationGetsAWritablePointerOnADriverWithOneMemoryType()
@@ -161,16 +176,57 @@ public sealed unsafe class DeviceAllocatorTests
             .BeEquivalentTo([new LiveMemory(Type: 0, Mapped: false), new LiveMemory(Type: 1, Mapped: true)]);
     }
 
+    [Fact]
+    public void AGpuOnlyAllocationOnADiscreteRadeonTakesTheDeviceLocalOnlyTypeAndStaysUnmapped()
+    {
+        using var memory = new TableMemory(RadvDiscreteTypes);
+        using var allocator = new DeviceAllocator(memory);
+
+        MemoryAllocation vertices = allocator.Allocate(
+            requirements: Requirements(Kilobytes64, typeBits: RadvBufferTypes),
+            usage: MemoryUsage.GpuOnly,
+            linear: true,
+            name: "vertices"
+        );
+
+        ((nint)vertices.Mapped).Should().Be(0, "type 0 is not host-visible");
+        memory.Live.Should().ContainSingle().Which.Should().Be(new LiveMemory(Type: 0, Mapped: false));
+    }
+
+    [Fact]
+    public void AnUploadOnADiscreteRadeonTakesTheHostVisibleVramTypeThatIsNotCachedAndGetsAWritablePointer()
+    {
+        using var memory = new TableMemory(RadvDiscreteTypes);
+        using var allocator = new DeviceAllocator(memory);
+
+        MemoryAllocation staging = allocator.Allocate(
+            requirements: Requirements(Kilobytes64, typeBits: RadvBufferTypes),
+            usage: MemoryUsage.Upload,
+            linear: true,
+            name: "staging"
+        );
+
+        ((nint)staging.Mapped).Should().NotBe(0, "an upload writes through its pointer");
+        staging.Mapped[Kilobytes64 - 1] = 1;
+        memory.Live.Should().ContainSingle().Which.Should().Be(new LiveMemory(Type: 3, Mapped: true));
+    }
+
     [Theory]
     [InlineData("one type")]
     [InlineData("MoltenVK")]
+    [InlineData("RADV discrete")]
     public void TheMappedStateOfEveryBlockFollowsItsTypeAfterAllocationsOfEveryUsageAndFrees(string driver)
     {
-        using var memory = new TableMemory(driver == "MoltenVK" ? MoltenVkTypes : [UnifiedType]);
+        (MemoryPropertyFlags[] types, uint typeBits) = driver switch
+        {
+            "MoltenVK" => (MoltenVkTypes, 0b111u),
+            "RADV discrete" => (RadvDiscreteTypes, RadvBufferTypes),
+            _ => ([UnifiedType], 0b1u),
+        };
+        using var memory = new TableMemory(types);
         using var allocator = new DeviceAllocator(memory);
-        uint allTypes = (1u << (int)memory.Types.MemoryTypeCount) - 1;
-        MemoryRequirements small = Requirements(Kilobytes64, typeBits: allTypes);
-        MemoryRequirements large = Requirements(DeviceAllocator.BlockSize, typeBits: allTypes);
+        MemoryRequirements small = Requirements(Kilobytes64, typeBits: typeBits);
+        MemoryRequirements large = Requirements(DeviceAllocator.BlockSize, typeBits: typeBits);
 
         MemoryAllocation vertices = allocator.Allocate(
             requirements: small,
@@ -204,7 +260,7 @@ public sealed unsafe class DeviceAllocatorTests
     /// The memory of a driver with the memory types of a given table, in host memory. It keeps the valid-usage rules of
     /// <c>vkMapMemory</c> that the allocator must keep: it throws on a mapping of memory of a type that is not
     /// host-visible (VUID-vkMapMemory-memory-00682), on a second mapping (VUID-vkMapMemory-memory-00678), and on a free
-    /// of memory that is not live.
+    /// of memory that is not live. All types share one heap, because the allocator reads no heap.
     /// </summary>
     private sealed class TableMemory : IDeviceMemory, IDisposable
     {

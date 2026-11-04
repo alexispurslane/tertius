@@ -29,3 +29,10 @@ The tests use KosmicKrisp's table of one type (DEVICE_LOCAL, HOST_VISIBLE, HOST_
 The demo runs on KosmicKrisp (Mesa 26.2.4) to the end of `scripts/lamp-hall-16.json` with exit code 0. Its GPU timings of four passes are impossible, which ter-wwu7 records.
 
 The full Checked suite passed on MoltenVK (10,153 passed, 15 skipped). The full Release suite failed one test, the known flaky GpuTimingTests test of ter-abun, which fails the same way on the base commit.
+
+2026-11-03 (review fixes): The review found five low findings, and all are resolved on the branch.
+
+- The claim that RADV and ANV report one memory type on integrated GPUs was wrong. The pinned Mesa 26.2.4 source shows it: lavapipe reports one type (`lvp_device.c`), RADV puts a type that is only device-local first on every GPU (`radv_physical_device.c`), and ANV does the same except on Atom GPUs without a shared last-level cache under i915 (`i915/anv_device.c`). ARCHITECTURE.md, "GPU memory", now states the exact condition, and the comments point there instead of repeating it.
+- `DeviceAllocatorTests` now also runs RADV's discrete-GPU table of seven types, with the buffer type bits that RADV gives (no 32-bit types). Its upload type, 3, is device-local, host-visible and coherent, but not cached. With `IsHostVisible` reading HOST_CACHED instead of HOST_VISIBLE, the new upload test failed with a null pointer, and it passes on the real code.
+- The settled behavior stays: a `GpuOnly` allocation of a host-visible type gets a pointer. ARCHITECTURE.md now records its cost: `GpuBuffer.Write` on a `GpuOnly` buffer succeeds on KosmicKrisp and lavapipe, but throws on MoltenVK, RADV and most ANV devices.
+- ter-wwu7 now lists the 18 passes that read zero on KosmicKrisp, with the MoltenVK comparison.

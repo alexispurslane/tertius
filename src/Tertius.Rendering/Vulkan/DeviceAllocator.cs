@@ -40,20 +40,11 @@ internal readonly struct MemoryAllocation
 }
 
 /// <summary>
-/// Sub-allocates resources from large blocks of device memory, one set of blocks per memory type. Buffers and
-/// optimal-tiling images use separate blocks, so bufferImageGranularity never applies. Resources larger than half a
-/// block get a dedicated allocation. Only the render thread allocates, but the methods are locked so that a misuse
-/// cannot corrupt the free lists.
+/// Sub-allocates 64 MiB blocks, one set per memory type, with dedicated allocations for large resources (ARCHITECTURE.md,
+/// "GPU memory"). Locked, so that a misuse cannot corrupt the free lists.
 /// </summary>
 /// <remarks>
-/// A block or a dedicated allocation is mapped for its whole life exactly when its memory type is host-visible, whatever
-/// the usage of the allocation that made it. The type's property flags are the one store of that fact. KosmicKrisp,
-/// lavapipe and integrated GPUs report one memory type, device-local and host-visible, so allocations of every usage
-/// share its blocks, and an Upload or a Readback in a block that a GpuOnly allocation made still gets its pointer
-/// (ter-gmv8). A GpuOnly allocation of a host-visible type gets a pointer that nothing reads. The mapping costs CPU
-/// address space of the block's size, 64 MiB, and one <c>vkMapMemory</c> per block, not per allocation. A driver whose
-/// host-visible device-local type is slow for the CPU to read, such as a discrete GPU's BAR window, pays nothing more:
-/// only an Upload or a Readback touches the pointer.
+/// Memory is mapped exactly when its type is host-visible, which costs 64 MiB of CPU address space per block.
 /// <para>
 /// Invariants, checked by <see cref="AssertInvariants"/>:
 /// <list type="bullet">
