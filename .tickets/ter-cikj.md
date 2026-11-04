@@ -1,6 +1,6 @@
 ---
 id: ter-cikj
-status: in_progress
+status: closed
 deps: [ter-gmv8]
 links: [ter-wwu7, ter-dgen, ter-gyfe, ter-byim]
 created: 2026-11-03T23:31:32Z
@@ -85,3 +85,7 @@ Scope: 1. In flake.nix, add Mesa to the Darwin dev shell and an environment vari
 - C08 survives on MoltenVK. Judgment call: the shared pool's count holds the sets of the largest pyramids (a 16,384 px side) and the largest environment map. The test renderers are far smaller and never reach it, and a test at 16,384 px costs more than this one count is worth. The line is unchanged by this branch.
 - No new tests: every survivor has a judgment call.
 - Decision 2 of the orchestrator: the standalone reproduction of ter-gyfe stays in ter-gyfe, and this ticket closes without it. The user declined the Mesa bug reports for now (2026-11-04), and a standalone reproduction serves only such a report.
+
+**2026-11-04T14:00:40Z**
+
+2026-11-04: merged into main as a6aedea6c. Checked 10,260 tests and Release 10,247 tests on MoltenVK before the merge commit, 0 failed, 21 skipped each.

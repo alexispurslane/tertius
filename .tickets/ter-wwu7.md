@@ -1,6 +1,6 @@
 ---
 id: ter-wwu7
-status: open
+status: closed
 deps: [ter-gmv8]
 links: [ter-cikj, ter-dgen]
 created: 2026-11-03T23:39:41Z
@@ -22,3 +22,7 @@ Found on 2026-11-03 while ter-gmv8 ran the demo on KosmicKrisp (Mesa 26.2.4) wit
 **2026-11-04T02:26:05Z**
 
 2026-11-03 (ter-cikj): the cause is found, and it is a defect of KosmicKrisp, not of the renderer. ter-dgen holds the minimal reproduction, docs/research/kosmickrisp/timestamps.c. KosmicKrisp records every stamp outside a render pass into its open Metal compute encoder, with Metal's relaxed timestamp granularity. In one such encoder, every stamp reads the tick of the encoder's start, so a run of compute passes reads 0.000 ms each and the next render pass takes their time (the 18 zeros). From the fifth stamp in one encoder on, a stamp reads 0 and is marked available. A pass that ends at such a stamp wraps to about 7.686e14 ms, and the pass after it reads the whole GPU clock, 3.392e9 ms, which is this Mac's 39.3 days of uptime at 24 MHz. The spec forbids the 0s: a timestamp write that happens after another in the same submission must not have a lower value. The renderer's stamps, one at all commands before the first pass and after each pass, follow the spec, and MoltenVK gives sane values for the same commands. So the renderer does not change. This ticket can close with ter-cikj, and ter-dgen tracks the report to Mesa.
+
+**2026-11-04T14:00:40Z**
+
+2026-11-04: closed with ter-cikj, merged into main as a6aedea6c. The cause is KosmicKrisp's timestamps (ter-dgen).
