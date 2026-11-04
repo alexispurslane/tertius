@@ -1,3 +1,4 @@
+using System.Numerics;
 using Silk.NET.Vulkan;
 
 namespace Tertius.Rendering;
@@ -31,30 +32,46 @@ internal readonly struct MemoryAllocation
     public ulong Offset { get; }
     public ulong Size { get; }
 
-    /// <summary>The CPU address of <see cref="Offset"/>, or null for memory that is not host-visible.</summary>
+    /// <summary>The CPU address of <see cref="Offset"/> for an Upload or a Readback, or null for a GpuOnly allocation.</summary>
     public byte* Mapped { get; }
 
     /// <summary>The block or dedicated allocation this came from.</summary>
     internal object Owner { get; }
+
+    /// <summary>This allocation with a null <see cref="Mapped"/>.</summary>
+    internal unsafe MemoryAllocation WithoutAddress() =>
+        new(memory: Memory, offset: Offset, size: Size, mapped: null, owner: Owner);
 }
 
 /// <summary>
-/// Sub-allocates resources from large blocks of device memory, one set of blocks per memory type. Buffers and
-/// optimal-tiling images use separate blocks, so bufferImageGranularity never applies. Resources larger than half a
-/// block get a dedicated allocation. Host-visible blocks stay mapped for their whole life.
-/// Only the render thread allocates, but the methods are locked so that a misuse cannot corrupt the free lists.
+/// Sub-allocates 64 MiB blocks, one set per memory type, with dedicated allocations for large resources (ARCHITECTURE.md,
+/// "GPU memory"). Locked, so that a misuse cannot corrupt the free lists.
 /// </summary>
-internal sealed unsafe class DeviceAllocator(VulkanDevice device) : IDisposable
+/// <remarks>
+/// Memory is mapped exactly when its type is host-visible, which costs 64 MiB of CPU address space per block.
+/// <para>
+/// Invariants, checked by <see cref="AssertInvariants"/>:
+/// <list type="bullet">
+/// <item>Every block and dedicated allocation of a host-visible type has a pointer, and no other one has.</item>
+/// <item>The live allocations count at least the dedicated allocations.</item>
+/// </list>
+/// </para>
+/// </remarks>
+internal sealed unsafe class DeviceAllocator(IDeviceMemory memory) : IDisposable
 {
     public const ulong BlockSize = 64ul << 20;
 
-    private readonly VulkanDevice device = device;
+    private readonly IDeviceMemory memory = memory;
     private readonly Lock gate = new();
     private readonly List<Block> blocks = [];
     private readonly HashSet<Dedicated> dedicated = [];
     private int liveAllocations;
     private int? allocationsBeforeFailure;
     private bool disposed;
+
+    /// <summary>An allocator over the memory of <paramref name="device"/>.</summary>
+    public DeviceAllocator(VulkanDevice device)
+        : this(new VulkanDeviceMemory(device)) { }
 
     /// <summary>The number of allocations not yet freed. Zero after a clean shutdown.</summary>
     public int LiveAllocations
@@ -105,14 +122,16 @@ internal sealed unsafe class DeviceAllocator(VulkanDevice device) : IDisposable
     public MemoryAllocation Allocate(in MemoryRequirements requirements, MemoryUsage usage, bool linear, string name)
     {
         int type = MemoryTypeOf(requirements: requirements, usage: usage, name: name);
-        bool mapped = usage != MemoryUsage.GpuOnly;
         lock (gate)
         {
             ObjectDisposedException.ThrowIf(disposed, this);
             CountTowardFailure(name);
-            return requirements.Size > BlockSize / 2
-                ? AllocateDedicated(size: requirements.Size, type: type, mapped: mapped, name: name)
-                : AllocateInBlock(requirements: requirements, type: type, mapped: mapped, linear: linear);
+            MemoryAllocation granted =
+                requirements.Size > BlockSize / 2
+                    ? AllocateDedicated(size: requirements.Size, type: type, name: name)
+                    : AllocateInBlock(requirements: requirements, type: type, linear: linear);
+            // A GpuOnly allocation in mapped memory hides the address, so that a CPU access fails on every driver.
+            return usage == MemoryUsage.GpuOnly ? granted.WithoutAddress() : granted;
         }
     }
 
@@ -132,16 +151,39 @@ internal sealed unsafe class DeviceAllocator(VulkanDevice device) : IDisposable
                 MemoryPropertyFlags.HostCachedBit
             ),
         };
-        int type = device.FindMemoryType(requirements.MemoryTypeBits, required, preferred);
+        int type = FindMemoryType(requirements.MemoryTypeBits, required, preferred);
         if (type < 0 && usage == MemoryUsage.GpuOnly)
-            type = device.FindMemoryType(
-                requirements.MemoryTypeBits,
-                MemoryPropertyFlags.None,
-                MemoryPropertyFlags.None
-            );
+            type = FindMemoryType(requirements.MemoryTypeBits, MemoryPropertyFlags.None, MemoryPropertyFlags.None);
         if (type < 0)
             throw new NotSupportedException($"No memory type for {name} ({usage}).");
         return type;
+    }
+
+    /// <summary>
+    /// The memory type allowed by <paramref name="typeBits"/> with all <paramref name="required"/> flags and the most
+    /// <paramref name="preferred"/> flags, the first of them on a tie, or -1 where none has the required flags.
+    /// </summary>
+    private int FindMemoryType(uint typeBits, MemoryPropertyFlags required, MemoryPropertyFlags preferred)
+    {
+        int best = -1;
+        int bestScore = -1;
+        PhysicalDeviceMemoryProperties types = memory.Types;
+        for (int i = 0; i < types.MemoryTypeCount; i++)
+        {
+            if ((typeBits & (1u << i)) == 0)
+                continue;
+            MemoryPropertyFlags flags = types.MemoryTypes[i].PropertyFlags;
+            if ((flags & required) != required)
+                continue;
+            int score = BitOperations.PopCount((uint)(flags & preferred));
+            if (score > bestScore)
+            {
+                best = i;
+                bestScore = score;
+            }
+        }
+
+        return best;
     }
 
     /// <summary>
@@ -158,15 +200,16 @@ internal sealed unsafe class DeviceAllocator(VulkanDevice device) : IDisposable
     }
 
     /// <summary>An allocation of its own <c>VkDeviceMemory</c>, for a resource of more than half a block. Under the gate.</summary>
-    private MemoryAllocation AllocateDedicated(ulong size, int type, bool mapped, string name)
+    private MemoryAllocation AllocateDedicated(ulong size, int type, string name)
     {
         var allocation = new Dedicated(
-            AllocateMemory(size: size, type: (uint)type, map: mapped, pointer: out byte* pointer),
-            pointer
+            memory: AllocateMemory(size: size, type: type, pointer: out byte* pointer),
+            mapped: pointer,
+            type: type
         );
         dedicated.Add(allocation);
         liveAllocations++;
-        device.SetName(ObjectType.DeviceMemory, allocation.Memory.Handle, name);
+        memory.SetName(allocation.Memory, name);
         return new(memory: allocation.Memory, offset: 0, size: size, mapped: pointer, owner: allocation);
     }
 
@@ -174,7 +217,7 @@ internal sealed unsafe class DeviceAllocator(VulkanDevice device) : IDisposable
     /// An allocation in the first block of <paramref name="type"/> and <paramref name="linear"/> with room for it, or in a
     /// new block. Under the gate.
     /// </summary>
-    private MemoryAllocation AllocateInBlock(in MemoryRequirements requirements, int type, bool mapped, bool linear)
+    private MemoryAllocation AllocateInBlock(in MemoryRequirements requirements, int type, bool linear)
     {
         ulong alignment = Math.Max(requirements.Alignment, 16);
         foreach (Block block in blocks)
@@ -186,16 +229,12 @@ internal sealed unsafe class DeviceAllocator(VulkanDevice device) : IDisposable
                 return InBlock(block: block, offset: offset, size: requirements.Size);
 
         var created = new Block(
-            memory: AllocateMemory(size: BlockSize, type: (uint)type, map: mapped, pointer: out byte* blockPointer),
+            memory: AllocateMemory(size: BlockSize, type: type, pointer: out byte* blockPointer),
             mapped: blockPointer,
             type: type,
             linear: linear
         );
-        device.SetName(
-            ObjectType.DeviceMemory,
-            created.Memory.Handle,
-            $"block {blocks.Count} (type {type}, {(linear ? "buffers" : "images")})"
-        );
+        memory.SetName(created.Memory, $"block {blocks.Count} (type {type}, {(linear ? "buffers" : "images")})");
         blocks.Add(created);
         ulong first =
             created.Space.Allocate(requirements.Size, alignment)
@@ -230,7 +269,7 @@ internal sealed unsafe class DeviceAllocator(VulkanDevice device) : IDisposable
                 case Dedicated single:
                     if (!dedicated.Remove(single))
                         throw new InvalidOperationException("Double free of a dedicated allocation.");
-                    device.Vk.FreeMemory(device.Device, single.Memory, null);
+                    memory.Free(single.Memory);
                     break;
                 default:
                     throw new ArgumentException(
@@ -243,44 +282,45 @@ internal sealed unsafe class DeviceAllocator(VulkanDevice device) : IDisposable
         }
     }
 
-    private DeviceMemory AllocateMemory(ulong size, uint type, bool map, out byte* pointer)
+    /// <summary>
+    /// A new <c>VkDeviceMemory</c> of <paramref name="size"/> bytes of <paramref name="type"/>, mapped exactly when the
+    /// type is host-visible. A mapping that fails frees the memory before it throws.
+    /// </summary>
+    private DeviceMemory AllocateMemory(ulong size, int type, out byte* pointer)
     {
-        var info = new MemoryAllocateInfo
-        {
-            SType = StructureType.MemoryAllocateInfo,
-            AllocationSize = size,
-            MemoryTypeIndex = type,
-        };
-        device
-            .Vk.AllocateMemory(
-                device: device.Device,
-                pAllocateInfo: &info,
-                pAllocator: null,
-                pMemory: out DeviceMemory memory
-            )
-            .Check("vkAllocateMemory");
+        DeviceMemory allocated = memory.Allocate(size, (uint)type);
         pointer = null;
-        if (map)
+        if (IsHostVisible(type))
         {
-            void* p;
-            Result result = device.Vk.MapMemory(
-                device: device.Device,
-                memory: memory,
-                offset: 0,
-                size: Vk.WholeSize,
-                flags: 0,
-                ppData: &p
-            );
-            if (result != Result.Success)
+            try
             {
-                device.Vk.FreeMemory(device.Device, memory, null);
-                result.Check("vkMapMemory");
+                pointer = memory.Map(allocated);
             }
-
-            pointer = (byte*)p;
+            catch
+            {
+                memory.Free(allocated);
+                throw;
+            }
         }
 
-        return memory;
+        return allocated;
+    }
+
+    /// <summary>Whether memory of <paramref name="type"/> can be mapped.</summary>
+    private bool IsHostVisible(int type) =>
+        (memory.Types.MemoryTypes[type].PropertyFlags & MemoryPropertyFlags.HostVisibleBit) != 0;
+
+    /// <summary>Checks the invariants in the class comment. O(blocks + dedicated allocations).</summary>
+    internal void AssertInvariants()
+    {
+        lock (gate)
+        {
+            foreach (Block block in blocks)
+                Contract.Invariant(block.Mapped != null == IsHostVisible(block.Type));
+            foreach (Dedicated single in dedicated)
+                Contract.Invariant(single.Mapped != null == IsHostVisible(single.Type));
+            Contract.Invariant(liveAllocations >= dedicated.Count);
+        }
     }
 
     public void Dispose()
@@ -292,9 +332,9 @@ internal sealed unsafe class DeviceAllocator(VulkanDevice device) : IDisposable
             disposed = true;
             // Unmapping is implicit in vkFreeMemory.
             foreach (Block block in blocks)
-                device.Vk.FreeMemory(device.Device, block.Memory, null);
+                memory.Free(block.Memory);
             foreach (Dedicated single in dedicated)
-                device.Vk.FreeMemory(device.Device, single.Memory, null);
+                memory.Free(single.Memory);
             blocks.Clear();
             dedicated.Clear();
         }
@@ -309,9 +349,10 @@ internal sealed unsafe class DeviceAllocator(VulkanDevice device) : IDisposable
         public FreeList Space { get; } = new(BlockSize);
     }
 
-    private sealed class Dedicated(DeviceMemory memory, byte* mapped)
+    private sealed class Dedicated(DeviceMemory memory, byte* mapped, int type)
     {
         public DeviceMemory Memory { get; } = memory;
         public byte* Mapped { get; } = mapped;
+        public int Type { get; } = type;
     }
 }

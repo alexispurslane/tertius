@@ -282,7 +282,7 @@ public sealed class GpuTimingTests
         }
     }
 
-    [Fact]
+    [Fact(Skip = "Flaky in full Rendering runs, about half of them on 2026-11-03; skipped until ter-abun fixes it.")]
     public void APassThatRecordsNothingAddsNearlyNoTimeBetweenTheEndOfThePassBeforeItAndTheEndOfThePassAfterIt()
     {
         // With no screen-space light, the ambient pass follows the direct pass in both renderers, so a stamp after the

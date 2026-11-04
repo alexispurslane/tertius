@@ -1,4 +1,3 @@
-using System.Numerics;
 using System.Runtime.InteropServices;
 using System.Text;
 using Silk.NET.Core;
@@ -663,31 +662,6 @@ internal sealed unsafe class VulkanDevice : IDisposable
             if (Marshal.PtrToStringUTF8((nint)layer.LayerName) == name)
                 return true;
         return false;
-    }
-
-    /// <summary>Finds a memory type allowed by <paramref name="typeBits"/> with all <paramref name="required"/> flags, preferring the most
-    /// <paramref name="preferred"/> flags.</summary>
-    public int FindMemoryType(uint typeBits, MemoryPropertyFlags required, MemoryPropertyFlags preferred)
-    {
-        int best = -1;
-        int bestScore = -1;
-        PhysicalDeviceMemoryProperties memory = MemoryProperties;
-        for (int i = 0; i < memory.MemoryTypeCount; i++)
-        {
-            if ((typeBits & (1u << i)) == 0)
-                continue;
-            MemoryPropertyFlags flags = memory.MemoryTypes[i].PropertyFlags;
-            if ((flags & required) != required)
-                continue;
-            int score = BitOperations.PopCount((uint)(flags & preferred));
-            if (score > bestScore)
-            {
-                best = i;
-                bestScore = score;
-            }
-        }
-
-        return best;
     }
 
     public FormatProperties FormatProperties(Format format)

@@ -2,7 +2,7 @@
 id: ter-cikj
 status: open
 deps: [ter-gmv8]
-links: []
+links: [ter-wwu7]
 created: 2026-11-03T23:31:32Z
 type: task
 priority: 1
