@@ -1,6 +1,6 @@
 ---
 id: ter-jxjx
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-11-04T18:20:05Z
@@ -47,3 +47,7 @@ Open forks, for the user before ticket 4's part 4 and part 1:
 
 1. How ticket 4 measures at the top clock: a busy headless film with two frames in flight, or a window run that writes its GPU timings.
 2. Whether the walk gets a C# copy with CPU tests, or no copy and GPU tests against a flat-slab march in test code.
+
+**2026-11-04T18:46:43Z**
+
+2026-11-04: merged into main as f244ec0c4 after the orchestrator's reading. The two open forks of ticket 4 (how to measure the frame at the top clock, how to test the walk) go to the user before ter-gayt starts.
