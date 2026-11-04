@@ -1,6 +1,6 @@
 ---
 id: ter-q58r
-status: in_progress
+status: closed
 deps: []
 links: [ter-ty4s]
 created: 2026-11-04T15:03:35Z
@@ -145,3 +145,7 @@ The answers:
 - M03 and M04: judgment call. The printed count and the count of warm-up batches are the same constant in two adjacent lines of a measurement that runs only on request, and their one reader is tools/gpu-calibration/fsr-passes.py. The acceptance trace above checked the pair: fsr-passes.py kept exactly 1200 frames, the 150 timed batches of 8, and a disagreement would have kept another count.
 
 New test: `Fsr3UpscalerTests.ATimedBatchReportsTheTimeOfOneOfItsUpscalesNotOfTheWholeBatch` (commit 3c69f4a83).
+
+**2026-11-04T19:05:31Z**
+
+2026-11-04: closed. Merged into main as b96a1a02b, after the full Checked and Release suites and the Python tool tests passed on the merge.

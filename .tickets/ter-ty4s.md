@@ -1,6 +1,6 @@
 ---
 id: ter-ty4s
-status: open
+status: closed
 deps: []
 links: [ter-q58r]
 created: 2026-11-04T17:48:58Z
@@ -17,3 +17,9 @@ Two consequences follow. First, a second timed run can take the lock and share t
 
 Make the lock record its owner: the taker writes its process id and start time into the lock directory, and the release removes the directory only when the record is its own. At the release, gpu-lock.sh writes a line into the run's log when its lock vanished or belongs to someone else, so that the run's timing can be discarded. Document the rule for takers by hand in tools/README.md, 'The GPU lock'.
 
+
+## Notes
+
+**2026-11-04T19:05:31Z**
+
+2026-11-04: duplicate of ter-r88x, which holds the cause of the incident. Its finding about the EXIT trap of tools/gpu-lock.sh is now a note in ter-r88x.
