@@ -7,7 +7,8 @@ namespace Tertius.Host.Tests;
 /// <summary>
 /// ReSTIR's bias against the exact loop on lamp-hall-64 (docs/plans/temporal-renderer.md, section 10, "The tests"): the
 /// hall's still under <see cref="ResampledLights"/> and under <see cref="EveryLight"/>, at a small size, after the still's
-/// warm-up draws.
+/// warm-up draws. And the samples of demo-exit's deck at frame 120, which keep their expectation only while the random
+/// streams' seeds stay apart.
 /// </summary>
 [Collection(MeasurementCollection.Name)]
 public sealed class DirectLightBiasTests
@@ -45,6 +46,45 @@ public sealed class DirectLightBiasTests
         error.Pixels.Should().BeGreaterThan(320 * 180 / 3, "the lamps light the hall's floor, walls and pillars");
         Math.Abs(error.Bias).Should().BeLessThan(BiasBound, "the hall's summed light keeps nearly its expectation");
         error.HistoryError.Should().BeLessThan(HistoryBound, "the accumulated history settles near the exact light");
+    }
+
+    /// <summary>
+    /// The bound of the sample bias of demo-exit's deck at frame 120 at 1280 × 720: its measured −0.030 (2026-11-04),
+    /// rounded up. The seeds before b20714c0c measured +0.457 there.
+    /// </summary>
+    private const double DeckSampleBiasBound = 0.10;
+
+    /// <summary>
+    /// The direct pass takes two random streams of one pixel and draw, the combine's choices and the neighbors' places.
+    /// Seeds that differed only in the stream's low bits of one word gave the two streams correlated numbers, and the
+    /// deck's samples then measured a bias of +0.46 at 1280 × 720 (2026-11-03). Each seed now hashes the stream apart.
+    /// The view needs the full size: at 640 × 360 and 320 × 180 the old seeds measured −0.044 and −0.042, near the hashed
+    /// seeds' −0.014 and −0.048.
+    /// </summary>
+    [Fact]
+    public void TheRandomStreamsHashTheirSeedsApartSoTheDecksSamplesKeepTheExactLoopsLight()
+    {
+        DirectView exact = DirectLightViews.Measure(
+            script: "demo-exit",
+            capture: "deck-000120",
+            setting: new EveryLight(),
+            width: 1280,
+            height: 720
+        );
+        DirectView resampled = DirectLightViews.Measure(
+            script: "demo-exit",
+            capture: "deck-000120",
+            setting: ResampledLights.Default,
+            width: 1280,
+            height: 720
+        );
+
+        DirectError error = DirectError.Of(exact, resampled);
+
+        TestContext.Current.TestOutputHelper?.WriteLine(error.ToString());
+        Math.Abs(error.SampleBias)
+            .Should()
+            .BeLessThan(DeckSampleBiasBound, $"the deck's samples keep their expectation: {error}");
     }
 }
 

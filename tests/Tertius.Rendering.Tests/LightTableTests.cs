@@ -173,6 +173,21 @@ public sealed class LightTableTests
     }
 
     [Fact]
+    public void ASecondLightOfOneEntityHasNoKeySoNoReservoirCarriesItOn()
+    {
+        // An entity carries at most one light, and a key names one light from frame to frame.
+        var history = new FrameHistory(StillRule.Window);
+        Draw(history, [Light(slot: 3), Light(slot: 3, power: 50)]);
+
+        LightTable table = Draw(history, [Light(slot: 3), Light(slot: 3, power: 50)]);
+
+        table
+            .Remap.ToArray()
+            .Should()
+            .Equal([0, LightTable.NoLight], "the first light of slot 3 keeps its key, and the second has none");
+    }
+
+    [Fact]
     public void ALightWhoseIndexInTheListDoesNotFitAReservoirIsNotSampled()
     {
         // A reservoir holds a light's index in the list in 16 bits, and NoLight is the largest of them.

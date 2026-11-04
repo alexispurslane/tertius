@@ -7,7 +7,8 @@ namespace Tertius.Rendering.Tests;
 /// ReSTIR DI against the exact loop (docs/plans/temporal-renderer.md, section 7): one light gives the exact light, a light
 /// with a cascade set stays exact beside it, in a closed box lit by its lamps, under a bright light with a cascade set that
 /// the box shadows, the box's light matches <see cref="EveryLight"/> with the noise of its lamps alone, and the temporal
-/// reuse alone and the default reuse keep a lamp's shadow. Most tests draw one still of the same snapshot under each setting, with the shadow atlas
+/// reuse alone and the default reuse keep a lamp's shadow, also beside its edges, where the candidates skip a lamp that
+/// the slats fully shadow. Most tests draw one still of the same snapshot under each setting, with the shadow atlas
 /// on, and compare the direct signal of the shown draws: the samples, which ReSTIR estimates, or the histories, which the
 /// accumulator settles.
 /// </summary>
@@ -386,5 +387,80 @@ public sealed class ResampledLightsRenderTests
         TestContext.Current.TestOutputHelper?.WriteLine($"The stripes' bias: {bias:0.0000}.");
         shadowed.Should().BeGreaterThan(Width * 4, "the slats shadow stripes across the wall from the upper lamp");
         bias.Should().BeInRange(-BiasBound, BiasBound, "the stripes hold the lower lamp's light alone");
+    
+    }
+
+    /// <summary>
+    /// The bound of the bias of the pixels within the neighbor radius of a stripe's edge: the base's −0.009 (2026-11-04),
+    /// with room. A combine that built a neighbor's surface in the test of Z from the next row's ray measured −0.078, and one
+    /// that tested the light at the pixel's own surface −0.350.
+    /// </summary>
+    private const double EdgeBiasBound = 0.04;
+
+    /// <summary>
+    /// Whether <paramref name="pixel"/> lies within <paramref name="reach"/> rows of a pixel on the other side of a stripe's
+    /// edge, where <paramref name="shadowed"/> tells the two sides apart.
+    /// </summary>
+    private static bool NearAnEdge(int pixel, int reach, Func<int, bool> shadowed)
+    {
+        int x = pixel % Width,
+            y = pixel / Width;
+        for (int dy = -reach; dy <= reach; dy++)
+            if (y + dy >= 0 && y + dy < Height && shadowed((y + dy) * Width + x) != shadowed(pixel))
+                return true;
+        return false;
+    }
+
+    /// <summary>
+    /// The unbiased combine needs each neighbor's p̂' in the test of Z to be above 0 exactly where that neighbor's candidates
+    /// pass could keep the light. So both passes build a pixel's surface with resampledSurfaceAt, from the ray through its
+    /// center, and the target and the visibility end at one bounds test, fullyShadowed. Next to a stripe's edge the two
+    /// sides' domains differ, and a difference between the passes shows as a bias there. The reach is the neighbor radius:
+    /// 16 pixels at a width of 1,280 are 2 at 160.
+    /// </summary>
+    [Fact]
+    public void ThePixelsBesideAStripesEdgeKeepTheExactLightBecauseBothPassesSeeOneSurfaceAndOneBoundsTestPerPixel()
+    {
+        Vector3[] open = DirectOf(new EveryLight(), renderer => ShadowedWall(renderer, slats: false), samples: false);
+        Vector3[] exact = DirectOf(new EveryLight(), renderer => ShadowedWall(renderer, slats: true), samples: false);
+
+        Vector3[] resampled = DirectOf(
+            ResampledLights.Default,
+            renderer => ShadowedWall(renderer, slats: true),
+            samples: false
+        );
+
+        bool Shadowed(int pixel) => exact[pixel].X < 0.8f * open[pixel].X;
+        (double bias, int edges) = BiasOf(exact, resampled, pixel => NearAnEdge(pixel, reach: 2, shadowed: Shadowed));
+        TestContext.Current.TestOutputHelper?.WriteLine($"The edges' bias: {bias:0.0000} over {edges} pixels.");
+        edges.Should().BeGreaterThan(Width * 8, "each stripe has two edges, and each edge two rows on each side");
+        bias.Should().BeInRange(-EdgeBiasBound, EdgeBiasBound, "both passes give each pixel the same domain");
+    }
+
+    /// <summary>
+    /// The bound of the noise of a single draw's samples in the stripes: the base's 0.128 (2026-11-04), with room. A target
+    /// that ignored the bounds of the shadow tile measured 0.283.
+    /// </summary>
+    private const double StripeSampleErrorBound = 0.20;
+
+    /// <summary>
+    /// ReSTIR's target of a light is 0 where the bounds of its shadow tile show it fully shadowed, so the candidates in the
+    /// stripes go to the lower lamp, which they see, and not to the upper one, which the slats shadow.
+    /// </summary>
+    [Fact]
+    public void InTheStripesTheCandidatesSkipTheLampThatTheSlatsFullyShadowSoTheSamplesHoldLessNoise()
+    {
+        Vector3[] open = DirectOf(new EveryLight(), renderer => ShadowedWall(renderer, slats: false), samples: false);
+        Vector3[] exact = DirectOf(new EveryLight(), renderer => ShadowedWall(renderer, slats: true), samples: true);
+
+        Vector3[] resampled = DirectOf(
+            ResampledLights.Default,
+            renderer => ShadowedWall(renderer, slats: true),
+            samples: true
+        );
+
+        double error = SampleErrorOf(exact, resampled, pixel => exact[pixel].X < 0.8f * open[pixel].X);
+        TestContext.Current.TestOutputHelper?.WriteLine($"The stripes' sample error: {error:0.0000}.");
+        error.Should().BeLessThan(StripeSampleErrorBound, "the candidates in the stripes go to the lamp that they see");
     }
 }

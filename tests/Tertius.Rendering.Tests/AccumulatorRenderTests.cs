@@ -127,6 +127,63 @@ public sealed class AccumulatorRenderTests
     }
 
     [Fact]
+    public void UntilItsCapTheSlowHistoryIsTheMeanOfItsSamples()
+    {
+        // The blend weights the sample by 1 / length, so a history of n frames holds the mean of n samples.
+        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating();
+        try
+        {
+            sample.Value = new(x: 1f, y: 1f, z: 1f, w: 1f);
+            renderer.Render(scene, 1f);
+            // A camera cut resets the history, and each later frame continues it.
+            scene.CameraCuts++;
+            foreach (float light in new[] { 1f, 3f, 5f, 7f })
+            {
+                sample.Value = new(x: light, y: light, z: light, w: 1f);
+                Continue(renderer, scene, frames: 1);
+            }
+
+            for (int part = 0; part < 2; part++)
+            {
+                (Vector3 light, float length) = CenterOf(renderer, part);
+                length.Should().Be(4, "the cut started the history four frames ago");
+                light.Should().Be(new Vector3(4f), "the mean of 1, 3, 5 and 7 is 4");
+            }
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void AStepOfTheSampleShortensTheHistoryByTheClampsMoveOverHalfTheMeansLight()
+    {
+        // The first frame after the step: the slow history of 16 frames blends to 1 + 1 / 16 = 1.0625, the fast history
+        // of 4 to 1.25, and the clamp moves the slow one to the fast one's mean, 1.25. The lag is 0.1875 / 1.25 = 0.15, a
+        // share 0.3 of the anti-lag's 0.5, so the length falls from 16 to 16 · 0.7 = 11.2.
+        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating();
+        try
+        {
+            sample.Value = new(x: 1f, y: 1f, z: 1f, w: 1f);
+            renderer.Render(scene, 1f);
+            Continue(renderer, scene, frames: 40);
+            CenterOf(renderer, part: 0).Length.Should().Be(16, "the history holds its cap before the step");
+
+            sample.Value = new(x: 2f, y: 2f, z: 2f, w: 1f);
+            Continue(renderer, scene, frames: 1);
+
+            (Vector3 light, float length) = CenterOf(renderer, part: 0);
+            light.X.Should().Be(1.25f, "the clamp moves the slow history to the fast history's mean");
+            length.Should().BeApproximately(11.2f, 0.01f, "the anti-lag shortens the history by the clamp's move");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
     public void APixelWhoseSampleIsInfiniteKeepsItsHistoryAndItsLength()
     {
         (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating();
