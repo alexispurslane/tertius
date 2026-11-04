@@ -28,3 +28,7 @@ ter-9nrc removed ReSTIR DI and its light keys (FrameHistory's light remap, Prepa
 **2026-11-04T21:36:12Z**
 
 2026-11-04: started as a workflow, run 397dccea-d408-4189-a208-4f3e3a2c7103 (version 869b0b07), branch ter-nt65-light-generation from cad8a6787.
+
+**2026-11-04T21:54:47Z**
+
+2026-11-04, for the hardening brief: merge main into the branch before the Stryker run, so that the run uses the Stryker lock of ter-s4fg (its record). A run.py from before ter-s4fg stops after 60 s on a lock with a record and prints rm -r; nobody follows that advice while another run holds the lock.

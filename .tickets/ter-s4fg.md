@@ -23,3 +23,7 @@ Found in the review of ter-r88x on 2026-11-04. tools/gpu-lock.sh (bash) and tool
 **2026-11-04T21:46:25Z**
 
 2026-11-04, review of run 3a445525: pass on correctness, fulfillment and design, with four low findings for the fix stage (the Python parser reads more line separators than bash read and keeps a last line without a newline; the cross-test's fixed 1 s wait can turn an expected GONE red under load; the Stryker waiting message says 'a run that is starting' for an older run.py's owner; bash's record and start names clash with record_*). The reviewer offered one bash library (tools/machine-lock.sh) that run.py calls, so that the parse and the liveness rule have one implementation. Settled by the orchestrator: decision 4 stands, two implementations. Why: the library moves the parse to a new text boundary (bash prints the fields, Python reads them back) and adds a bash fork to each Stryker poll; after the fix both parsers split on \n only and drop a last line without one, which leaves the format too small to diverge, and the cross-test covers the edges that the reviewer found.
+
+**2026-11-04T21:54:47Z**
+
+2026-11-04: the fix stage resolved the four findings (46cc7dbf3); the run ended ready for integration. Hardening, merge, close and push went to a delegate (GPT 6.1 SOL, high), request ter-s4fg-harden-2026-11-04-a.
