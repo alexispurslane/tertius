@@ -91,3 +91,7 @@ On 2026-11-03 the user cleared the open tickets of the pre-temporal renderer, to
 **2026-11-04T18:20:05Z**
 
 2026-11-04: the user chose full rays at the screen tracer's first build and a diffuse cap of 62 steps. The two trace dispatches get an estimated 2.94 to 3.76 ms under 12.0 ms on the deck after ter-9nrc; V6 at 10 % own rays takes 3.90 ms there, so the deck frame is an estimated 12.1 to 13.0 ms until the hill-climb lands. Design update ter-jxjx precedes ter-gayt.
+
+**2026-11-04T20:07:04Z**
+
+2026-11-04: the user chose "View cap now, tile next" for the light budget. ter-bqun's continuation run b4b63382-a613-402f-9c6a-a5ea0bcff47d (version 869b0b07) records the known limits (the spot-lamp pop as option A, the hall's look until the per-tile cap) and runs the review and fix; its decision note is on its branch. ter-69s8 is widened to the per-tile cap, priority 1, after ter-bqun.
