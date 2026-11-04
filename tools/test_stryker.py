@@ -751,6 +751,30 @@ class TheLock(unittest.TestCase):
         self.assertIn(f"rm -r {self.path}", outcome[0])
         self.assertTrue((self.path / "owner").exists())
 
+    def test_the_waiting_message_names_the_holder_of_the_lock(self):
+        holder = self.sleeper()
+        old_owner = f"process {holder.pid} of a run.py from before ter-s4fg"
+        for case, writes, named in [
+            ("record", lambda: self.write_record(holder.pid, start_time(holder.pid), label="/other/worktree"),
+             f"/other/worktree (process {holder.pid})"),
+            ("owner of a run.py before ter-s4fg", lambda: (self.path.mkdir(), (self.path / "owner").write_text(
+                f"{holder.pid} /some/worktree 2026-11-04T12:00:00\n")), old_owner),
+            ("nothing yet", self.path.mkdir, "a run that is starting"),
+        ]:
+            with self.subTest(case=case):
+                subprocess.run(["rm", "-rf", str(self.path)], check=True)
+                writes()
+                said = []
+                waiter = threading.Thread(target=lambda: run.Lock(self.path, poll=0.01, say=said.append).acquire(),
+                                          daemon=True)
+                waiter.start()
+                self.assertTrue(wait_for(lambda: said))
+                self.assertEqual(said[0], f"waiting for the Stryker lock {self.path}, held by {named}")
+                # The waiter takes the empty path, gets its own record, and the thread ends.
+                subprocess.run(["rm", "-rf", str(self.path)], check=True)
+                waiter.join(10)
+                subprocess.run(["rm", "-rf", str(self.path)], check=True)
+
 
 def wait_for(condition, timeout=10.0):
     deadline = time.monotonic() + timeout

@@ -520,7 +520,7 @@ The holder's record is the file `holder` in the lock directory. Right after its 
 - `token=`, a value that no other run has.
 - `label=`, what the run is. For the GPU lock, it is the log path and the command. For the Stryker lock, it is the run's folder. A newline in the label becomes a space, so that it cannot split the record.
 
-A record that lacks its `pid=`, `start=` or `token=` value counts as no record. If `ps` gives no start time for the holder itself, the holder removes its new lock and stops.
+A reader reads the record as the `read` builtin of bash gives it, so that both implementations read every file alike. It drops NUL bytes. A line ends only at a newline, and a last line without its newline is not part of the record. Each line splits at its first `=`, and a line without `=` is not part of the record. If a key comes twice, the later line wins. A record whose pid is not all ASCII digits, or that lacks its `pid=`, `start=` or `token=` value, counts as no record. If `ps` gives no start time for the holder itself, the holder removes its new lock and stops.
 
 The release rule: a run removes the lock only when the record's token is its own. A removal first renames the lock to a name of the remover's own, and then deletes it. So no run sees a lock that lost its record because a removal stopped halfway.
 
@@ -536,7 +536,7 @@ A lock is stale when its record names a holder that is gone. The two locks treat
 - The GPU lock has a queue, in which the waiters take turns in the order in which they came. Exactly one waiter, the oldest live one, can clear a stale lock and take it. So the clear is safe, and the next timed run does not wait for a person.
 - The Stryker lock has no queue, and its runs take hours. On a stale lock, a run stops and prints the command that removes the lock. A person makes sure that no Stryker run goes on and then removes the lock.
 
-The same rules have two implementations, because the GPU helper must stay plain bash that runs outside the dev shell, and its waiter must not fork more often than before. A Python process for each check would break both. `TheSharedRecord` in `tools/test_gpu_lock.py` keeps the two in step. A record that one lock writes, the other lock judges as the writer does: alive, gone by pid, gone by start, an incomplete record, no record and a holder that `kill -0` cannot signal.
+The same rules have two implementations, because the GPU helper must stay plain bash that runs outside the dev shell, and its waiter must not fork more often than before. A Python process for each check would break both. `TheSharedRecord` in `tools/test_gpu_lock.py` keeps the two in step. A record that one lock writes, the other lock judges as the writer does: alive, gone by pid, gone by start, an incomplete record, no record and a holder that `kill -0` cannot signal. The same test also gives both locks records at each edge of the format, such as a carriage return in the label, a last line without its newline, a NUL byte, a pid of other digits and a label that is not UTF-8.
 
 ## The GPU lock
 

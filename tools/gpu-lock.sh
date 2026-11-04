@@ -67,19 +67,23 @@ start_of() {
 }
 
 # Reads the record in the file $1 into record_pid, record_start, record_token and record_label, with builtins only,
-# because a waiter reads it every 0.1 s. Fails unless the record has its pid, start and token.
+# because a waiter reads it every 0.1 s. These globals hold the record that it read last, and own_record and own_start
+# hold this run's own. Fails unless the record has its pid in ASCII digits, its start and its token.
+# Each line is split at its first =, and a line without = is no line of the record. read drops the NUL bytes and a last
+# line without its newline.
 read_record() {
-    local key value
+    local line
     record_pid= record_start= record_token= record_label=
-    while IFS='=' read -r key value; do
-        case $key in
-            pid) record_pid=$value ;;
-            start) record_start=$value ;;
-            token) record_token=$value ;;
-            label) record_label=$value ;;
+    while IFS= read -r line; do
+        [[ $line == *=* ]] || continue
+        case ${line%%=*} in
+            pid) record_pid=${line#*=} ;;
+            start) record_start=${line#*=} ;;
+            token) record_token=${line#*=} ;;
+            label) record_label=${line#*=} ;;
         esac
     done 2> /dev/null < "$1"
-    [ -n "$record_pid" ] && [ -n "$record_start" ] && [ -n "$record_token" ]
+    [[ -n $record_pid && $record_pid != *[!0123456789]* && -n $record_start && -n $record_token ]]
 }
 
 # Succeeds when the process $1, which started at $2, is gone: kill -0 finds no such process, or ps gives a start time
@@ -122,7 +126,8 @@ oldest_ticket() {
 # written, it removes the lock that it just made and ends the run.
 take() {
     mkdir "$lock" 2> /dev/null || return 1
-    if [ -z "$start" ] || ! printf %s "$record" > "$lock/holder.new" || ! mv "$lock/holder.new" "$lock/holder"; then
+    if [ -z "$own_start" ] || ! printf %s "$own_record" > "$lock/holder.new" \
+            || ! mv "$lock/holder.new" "$lock/holder"; then
         rm -f "$lock/holder.new"
         rmdir "$lock"
         echo "gpu-lock: cannot write the holder's record into $lock" >&2
@@ -165,10 +170,10 @@ release() {
 }
 
 # The record of this run, which its ticket holds while it waits and the lock holds while it runs.
-start=$(start_of $$)
-printf -v record 'pid=%s\nstart=%s\ntoken=%s\nlabel=%s\n' "$$" "$start" "$token" "$label"
+own_start=$(start_of $$)
+printf -v own_record 'pid=%s\nstart=%s\ntoken=%s\nlabel=%s\n' "$$" "$own_start" "$token" "$label"
 mkdir -p "$queue"
-printf %s "$record" > "$queue/$ticket"
+printf %s "$own_record" > "$queue/$ticket"
 started=$EPOCHSECONDS
 while :; do
     [ -n "$signal" ] && exit "$signal"

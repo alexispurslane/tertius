@@ -661,15 +661,16 @@ class TheSharedRecord(unittest.TestCase):
             return "".join(line for line in text.splitlines(keepends=True) if not line.startswith("start="))
         return text
 
-    def lock_with(self, bench: Bench, text: str | None):
+    def lock_with(self, bench: Bench, text: str | bytes | None):
         bench.lock.mkdir()
         if text is not None:
-            (bench.lock / "holder").write_text(text)
+            (bench.lock / "holder").write_bytes(text if isinstance(text, bytes) else text.encode())
 
-    def verdicts(self, text: str | None) -> dict[str, str]:
+    def verdicts(self, text: str | bytes | None, expected: str) -> dict[str, str]:
         """How the GPU helper and the Stryker lock judge a lock that holds the record `text`, each on a copy of its
         own: GONE when the GPU helper takes it or the Stryker lock stops with the command that removes it, HELD when
-        each waits."""
+        each waits. For an `expected` GONE, both get up to 10 s, so that a slow start on a loaded machine still counts.
+        For an expected HELD, both get SETTLE, the time in which a wrong GONE shows."""
         gpu, stryker = Bench(self), Bench(self)
         self.lock_with(gpu, text)
         self.lock_with(stryker, text)
@@ -677,7 +678,10 @@ class TheSharedRecord(unittest.TestCase):
                                                  str(stryker.lock)], stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                                 text=True))
         waiter = gpu.start("judge")
-        time.sleep(SETTLE)
+        if expected == GONE:
+            wait_for(lambda: waiter.holds() and python.poll() is not None)
+        else:
+            time.sleep(SETTLE)
         bash = GONE if waiter.holds() else HELD
         if python.poll() is None:
             python.kill()
@@ -700,7 +704,7 @@ class TheSharedRecord(unittest.TestCase):
         for writer in ["bash", "python"]:
             for case, expected in cases.items():
                 with self.subTest(writer=writer, case=case):
-                    self.assertEqual(self.verdicts(self.written_by(writer, case)),
+                    self.assertEqual(self.verdicts(self.written_by(writer, case), expected),
                                      {"bash": expected, "python": expected})
 
     def test_both_locks_judge_a_holder_that_kill_cannot_signal_by_its_start_time(self):
@@ -708,7 +712,39 @@ class TheSharedRecord(unittest.TestCase):
         for start, expected in [(start_time(1), HELD), (NEVER_STARTED, GONE)]:
             with self.subTest(start=start):
                 text = f"pid=1\nstart={start}\ntoken=someone-else\nlabel=another user's process\n"
-                self.assertEqual(self.verdicts(text), {"bash": expected, "python": expected})
+                self.assertEqual(self.verdicts(text, expected), {"bash": expected, "python": expected})
+
+    def test_both_locks_read_each_edge_of_the_record_format_alike(self):
+        # Each record is of a live holder or of a dead one, and a reader that splits or drops its lines unlike the
+        # written rule (tools/README.md, "The record of a machine lock") judges it the other way.
+        dead = subprocess.Popen(["true"])
+        dead.wait()
+        live, start = self.reused.pid, start_time(self.reused.pid)
+        cases = {
+            # Only a newline ends a line. Python's splitlines also splits at these.
+            "a carriage return and other separators in the label":
+                (f"pid={live}\nstart={start}\ntoken=T\nlabel=/a\rtoken=X\x1cpid={dead.pid}\x0bstart=S\n", HELD),
+            # A last line without its newline is not part of the record, so the token is missing.
+            "a last line without its newline": (f"pid={dead.pid}\nstart={NEVER_STARTED}\ntoken=T", HELD),
+            # A line is split at its first =, and the value keeps a = at its end.
+            "a value that ends with =": (f"pid={live}\nstart={start}=\ntoken=T\n", GONE),
+            # A line without = is no line of the record.
+            "a line without =": (f"pid={dead.pid}\nstart={NEVER_STARTED}\ntoken=T\npid\n", GONE),
+            # Only the ASCII digits make a pid.
+            "a pid of other digits": (f"pid=\u00b2\nstart={NEVER_STARTED}\ntoken=T\n", HELD),
+            # bash cannot hold a NUL byte, so both readers drop it.
+            "a NUL byte in the start": (f"pid={live}\nstart={start}\x00\ntoken=T\n", HELD),
+            # A pid that no process can have: kill -0 refuses it, and ps gives nothing.
+            "a pid too large for kill": (f"pid={'9' * 30}\nstart={NEVER_STARTED}\ntoken=T\n", HELD),
+        }
+        for case, (text, expected) in cases.items():
+            with self.subTest(case=case):
+                self.assertEqual(self.verdicts(text, expected), {"bash": expected, "python": expected})
+
+    def test_both_locks_read_a_label_that_is_not_utf_8(self):
+        # A command argument of the GPU lock can hold any bytes.
+        text = f"pid={self.reused.pid}\nstart={start_time(self.reused.pid)}\ntoken=T\nlabel=\xff\xfe\n"
+        self.assertEqual(self.verdicts(text.encode("latin-1"), HELD), {"bash": HELD, "python": HELD})
 
 
 class TheOldHelper(unittest.TestCase):

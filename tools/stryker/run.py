@@ -77,14 +77,16 @@ def start_of(pid):
 
 
 def read_record(folder):
-    """The record in the file holder of folder as a dict of its lines key=value, or None unless it has its pid, start
-    and token."""
+    """The record in the file holder of folder as a dict of its lines key=value, or None unless it has its pid in ASCII
+    digits, its start and its token. It reads the record as the read of bash does (tools/README.md, "The record of a
+    machine lock"): without NUL bytes, only the lines that end with a newline, and each line split at its first =."""
     try:
-        text = (Path(folder) / 'holder').read_text()
+        text = (Path(folder) / 'holder').read_bytes().replace(b'\0', b'').decode('utf-8', 'surrogateescape')
     except (FileNotFoundError, NotADirectoryError):
         return None
-    record = dict(line.split('=', 1) for line in text.splitlines() if '=' in line)
-    complete = record.get('pid', '').isdigit() and record.get('start') and record.get('token')
+    record = dict(line.split('=', 1) for line in text.split('\n')[:-1] if '=' in line)
+    pid = record.get('pid', '')
+    complete = pid.isascii() and pid.isdigit() and record.get('start') and record.get('token')
     return record if complete else None
 
 
@@ -96,7 +98,8 @@ def gone(pid, start):
         os.kill(pid, 0)
     except ProcessLookupError:
         return True
-    except PermissionError:
+    # A pid too large for kill is not "no such process" either, as in bash. Then ps judges, and it gives nothing.
+    except (PermissionError, OverflowError):
         pass
     if not start:
         return False
@@ -126,17 +129,25 @@ class Lock:
         except (OSError, ValueError, IndexError):
             return None
 
-    def _stale(self):
-        """Why the lock is stale, as a message with the command that removes it, or None while a run can hold it."""
-        record, old = read_record(self.path), self._old_owner()
+    def _holder(self):
+        """The process that the lock names, as (pid, start, who), or None while the lock names no process. start is ''
+        for a run.py from before ter-s4fg, and who describes the holder in a message."""
+        record = read_record(self.path)
         if record:
-            if not gone(int(record['pid']), record['start']):
+            return int(record['pid']), record['start'], f'{record.get("label", "")} (process {record["pid"]})'
+        old = self._old_owner()
+        if old is not None:
+            return old, '', f'process {old} of a run.py from before ter-s4fg'
+        return None
+
+    def _stale(self, holder):
+        """Why the lock with the holder of _holder is stale, as a message with the command that removes it, or None
+        while a run can hold it."""
+        if holder:
+            pid, start, who = holder
+            if not gone(pid, start):
                 return None
-            why = f'belongs to {record.get("label", "")} (process {record["pid"]}), which is gone'
-        elif old is not None:
-            if not gone(old, ''):
-                return None
-            why = f'belongs to process {old} of a run.py from before ter-s4fg, which is gone'
+            why = f'belongs to {who}, which is gone'
         elif self._age() > STALE_SECONDS:
             why = (f'has had no complete record for {self._age():.0f} s, so no run holds it: a run died at its start, '
                    'or someone made the folder by hand')
@@ -158,13 +169,13 @@ class Lock:
                 break
             except FileExistsError:
                 pass
-            stale = self._stale()
+            holder = self._holder()
+            stale = self._stale(holder)
             if stale:
                 raise SystemExit(stale)
             if said is None or time.monotonic() - said > 300:
-                record = read_record(self.path)
                 self.say(f'waiting for the Stryker lock {self.path}, held by '
-                         f'{record.get("label") if record else "a run that is starting"}')
+                         f'{holder[2] if holder else "a run that is starting"}')
                 said = time.monotonic()
             time.sleep(self.poll)
         try:
