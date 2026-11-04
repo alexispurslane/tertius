@@ -155,4 +155,11 @@ public sealed class StillRuleTests
             .For(new RendererOptions { Exposure = AutoExposure.Default }, headless: true)
             .WarmUpDraws.Should()
             .Be(1, "the exposure needs a draw to adapt in, today's metering draw");
+
+    [Fact]
+    public void AWindowedRendererDrawsEachSnapshotOnceEvenAfterAStepOfZero() =>
+        new FrameHistory(StillRule.For(new RendererOptions { Exposure = AutoExposure.Default }, headless: false))
+            .DrawsOf(0f)
+            .Should()
+            .Be(1, "only a headless renderer takes stills, and a window shows every draw");
 }
