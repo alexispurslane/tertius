@@ -10,6 +10,7 @@ runs measure on this machine.
 """
 
 import os
+import shlex
 import shutil
 import signal
 import subprocess
@@ -47,7 +48,8 @@ def wait_for(condition, timeout: float = 10.0) -> bool:
 
 
 def start_time(pid: int) -> str:
-    out = subprocess.run(["ps", "-o", "lstart=", "-p", str(pid)], env={**os.environ, "LC_ALL": "C"},
+    """The start time of the process `pid` as the helper records it: in UTC, with its spaces squeezed."""
+    out = subprocess.run(["ps", "-o", "lstart=", "-p", str(pid)], env={**os.environ, "TZ": "UTC0", "LC_ALL": "C"},
                          capture_output=True, text=True, check=False).stdout
     return " ".join(out.split())
 
@@ -55,15 +57,16 @@ def start_time(pid: int) -> str:
 class Run:
     """One run of a helper whose command holds the GPU until the test lets it go."""
 
-    def __init__(self, bench: "Bench", name: str, helper: Path, code: int):
+    def __init__(self, bench: "Bench", name: str, helper: Path, code: int, env: dict[str, str]):
         self.log = bench.folder / f"{name}.log"
         self.started = bench.folder / f"{name}.started"
         self.release = bench.folder / f"{name}.release"
-# The command also ends when its folder vanishes, so that no test leaves it behind.
+        # The command also ends when its started marker vanishes with the test's folder, so that no test leaves it
+        # behind.
         command = ["bash", "-c", 'touch "$1"; while [ ! -e "$2" ] && [ -e "$1" ]; do sleep 0.02; done; exit "$3"',
                    "held", str(self.started), str(self.release), str(code)]
-        self.process = subprocess.Popen(["bash", str(helper), str(self.log), *command], env=bench.env,
-                                        stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+        self.process = subprocess.Popen(["bash", str(helper), str(self.log), *command], env={**bench.env, **env},
+                                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     def holds(self) -> bool:
         return self.started.exists()
@@ -99,8 +102,9 @@ class Bench:
         self.processes: list[subprocess.Popen] = []
         test.addCleanup(self.stop)
 
-    def start(self, name: str, helper: Path = HELPER, code: int = 0) -> Run:
-        run = Run(self, name, helper, code)
+    def start(self, name: str, helper: Path = HELPER, code: int = 0, env: dict[str, str] | None = None) -> Run:
+        """Starts a run whose environment is the bench's, with `env` over it."""
+        run = Run(self, name, helper, code, env or {})
         self.runs.append(run)
         self.track(run.process)
         return run
@@ -116,6 +120,16 @@ class Bench:
         path.write_text(text)
         return path
 
+    def shim(self, name: str, body: str) -> dict[str, str]:
+        """An environment whose PATH finds the bash `body` as the command `name` first. The body finds the real command
+        in $real."""
+        folder = self.folder / "bin"
+        folder.mkdir(exist_ok=True)
+        path = folder / name
+        path.write_text(f"#!/bin/bash\nreal={shlex.quote(shutil.which(name))}\n{body}\n")
+        path.chmod(0o755)
+        return {"PATH": f"{folder}{os.pathsep}{os.environ['PATH']}"}
+
     def sleeper(self) -> subprocess.Popen:
         return self.track(subprocess.Popen(["sleep", "60"]))
 
@@ -125,7 +139,7 @@ class Bench:
             return {}
         return dict(line.split("=", 1) for line in holder.read_text().splitlines() if "=" in line)
 
-    def write_record(self, pid: int, start: str, token: str = "someone-else", label: str = "a test's holder"):
+    def write_record(self, pid: int | str, start: str, token: str = "someone-else", label: str = "a test's holder"):
         """Makes the lock as a holder with this record would."""
         self.lock.mkdir()
         (self.lock / "holder").write_text(f"pid={pid}\nstart={start}\ntoken={token}\nlabel={label}\n")
@@ -178,7 +192,8 @@ class TheIncidentsOf20261104(unittest.TestCase):
 
     def test_a_run_whose_lock_was_removed_and_taken_again_leaves_the_new_holders_lock(self):
         for how, sent, code, expected in [("normal end", None, 0, 0), ("failing command", None, 3, 3),
-                                          ("INT", signal.SIGINT, 0, 130), ("TERM", signal.SIGTERM, 0, 143)]:
+                                          ("INT", signal.SIGINT, 0, 130), ("TERM", signal.SIGTERM, 0, 143),
+                                          ("HUP", signal.SIGHUP, 0, 129)]:
             with self.subTest(how):
                 bench = Bench(self)
                 run = bench.start("run", code=code)
@@ -226,13 +241,24 @@ class TheRecord(unittest.TestCase):
         self.assertFalse(bench.lock.exists())
         self.assertIn("record", result.stderr)
 
+    def test_a_run_whose_ps_gives_no_start_time_removes_the_lock_and_does_not_run_its_command(self):
+        bench = Bench(self)
+        env = {**bench.env, **bench.shim("ps", "exit 0")}
+        result = subprocess.run(["bash", str(HELPER), str(bench.folder / "run.log"), "touch", str(bench.folder / "ran")],
+                                env=env, capture_output=True, text=True, timeout=10, check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse((bench.folder / "ran").exists())
+        self.assertFalse(bench.lock.exists())
+        self.assertIn("record", result.stderr)
+
 
 class TheRelease(unittest.TestCase):
     """The release removes the lock only when the record's token is the run's own."""
 
     def test_the_release_removes_its_own_lock_after_every_end(self):
         for how, sent, code, expected in [("normal end", None, 0, 0), ("failing command", None, 3, 3),
-                                          ("INT", signal.SIGINT, 0, 130), ("TERM", signal.SIGTERM, 0, 143)]:
+                                          ("INT", signal.SIGINT, 0, 130), ("TERM", signal.SIGTERM, 0, 143),
+                                          ("HUP", signal.SIGHUP, 0, 129)]:
             with self.subTest(how):
                 bench = Bench(self)
                 run = bench.start("run", code=code)
@@ -263,6 +289,35 @@ class TheRelease(unittest.TestCase):
         self.assertEqual(bench.record().get("token"), "someone-else")
         self.assertIn(DISCARD, run.log_text())
         self.assertIn("the other run", run.log_text())
+
+    def test_a_signal_between_the_mkdir_and_the_record_ends_the_run_without_a_lock(self):
+        for how, sent, expected in [("INT", signal.SIGINT, 130), ("TERM", signal.SIGTERM, 143),
+                                    ("HUP", signal.SIGHUP, 129)]:
+            with self.subTest(how):
+                bench = Bench(self)
+                # A slow ps holds the run between its mkdir and the write of its record.
+                run = bench.start("run", env=bench.shim("ps", 'sleep 1; exec "$real" "$@"'))
+                self.assertTrue(wait_for(bench.lock.exists))
+                self.assertEqual(bench.record(), {})
+                run.process.send_signal(sent)
+                self.assertEqual(run.process.wait(timeout=10), expected)
+                self.assertFalse(run.holds())
+                self.assertEqual(bench.leftovers(), [])
+                self.assertEqual(list(bench.queue.iterdir()), [])
+
+    def test_a_signal_during_the_release_does_not_stop_it_halfway(self):
+        bench = Bench(self)
+        renaming = bench.folder / "renaming"
+        # A slow rename of the lock at its release holds the run inside the release.
+        run = bench.start("run", env=bench.shim("mv", f'case "$2" in *.released.*) touch {shlex.quote(str(renaming))}; '
+                                                      'sleep 1;; esac; exec "$real" "$@"'))
+        run.wait_until_it_holds()
+        run.release.touch()
+        self.assertTrue(wait_for(renaming.exists))
+        run.process.send_signal(signal.SIGTERM)
+        self.assertEqual(run.process.wait(timeout=10), 0)
+        self.assertEqual(bench.leftovers(), [])
+        self.assertNotIn(NOT_ITS_OWN, run.log_text())
 
     def test_a_waiter_that_a_signal_ends_leaves_the_holders_lock(self):
         bench = Bench(self)
@@ -309,6 +364,74 @@ class TheStaleLock(unittest.TestCase):
         self.assertFalse(waiter.holds())
         holder.kill()
         holder.wait()
+        waiter.wait_until_it_holds()
+        self.assertEqual(waiter.finish(), 0)
+
+    def test_a_live_holder_is_not_cleared_when_ps_gives_the_waiter_nothing(self):
+        bench = Bench(self)
+        holder = bench.sleeper()
+        bench.write_record(holder.pid, start_time(holder.pid))
+        waiter = bench.start("waiter", env=bench.shim("ps", "exit 0"))
+        time.sleep(SETTLE)
+        self.assertFalse(waiter.holds())
+        self.assertEqual(bench.record().get("token"), "someone-else")
+
+    def test_a_live_holder_in_another_time_zone_is_not_cleared(self):
+        bench = Bench(self)
+        holder = bench.start("holder", env={"TZ": "UTC"})
+        holder.wait_until_it_holds()
+        waiter = bench.start("waiter", env={"TZ": "Asia/Tokyo"})
+        time.sleep(SETTLE)
+        self.assertFalse(waiter.holds())
+        self.assertEqual(bench.record().get("pid"), str(holder.process.pid))
+        self.assertEqual(holder.finish(), 0)
+        waiter.wait_until_it_holds()
+        self.assertEqual(waiter.finish(), 0)
+
+    def test_a_record_that_lacks_a_field_is_never_cleared(self):
+        for lacks in ["pid", "start", "token"]:
+            with self.subTest(lacks):
+                bench = Bench(self)
+                # Each record would be stale with the field: a dead process, or a live one with another start time.
+                record = {"pid": bench.dead_pid(), "start": NEVER_STARTED, "token": "someone-else"}
+                if lacks == "start":
+                    record["pid"] = bench.sleeper().pid
+                record[lacks] = ""
+                bench.write_record(**record)
+                waiter = bench.start("waiter")
+                time.sleep(SETTLE)
+                self.assertFalse(waiter.holds())
+                self.assertEqual(bench.record().get(lacks), "")
+
+    def test_a_waiter_asks_ps_about_a_live_holder_at_most_once_a_second(self):
+        bench = Bench(self)
+        holder = bench.sleeper()
+        bench.write_record(holder.pid, start_time(holder.pid))
+        calls = bench.folder / "ps-calls"
+        waiter = bench.start("waiter", env=bench.shim("ps", f'echo >> {shlex.quote(str(calls))}; exec "$real" "$@"'))
+        time.sleep(2.0)
+        self.assertFalse(waiter.holds())
+        self.assertLessEqual(len(calls.read_text().splitlines()) if calls.exists() else 0, 3)
+
+    def test_a_lock_that_another_run_takes_during_the_clear_goes_back_with_its_record(self):
+        bench = Bench(self)
+        bench.write_record(bench.dead_pid(), NEVER_STARTED)
+        live = bench.sleeper()
+        swapped = bench.folder / "swapped"
+        # Once, right before the waiter renames the stale lock, another run's record replaces the stale one, as if
+        # that run had cleared the lock and taken it since the waiter read the record.
+        swap = (f'if [[ "$2" == *.stale.* && ! -e {shlex.quote(str(swapped))} ]]; then '
+                f'touch {shlex.quote(str(swapped))}; '
+                f'printf "pid={live.pid}\\nstart={start_time(live.pid)}\\ntoken=live\\nlabel=x\\n" > "$1/holder"; fi; '
+                'exec "$real" "$@"')
+        waiter = bench.start("waiter", env=bench.shim("mv", swap))
+        self.assertTrue(wait_for(swapped.exists))
+        time.sleep(SETTLE)
+        self.assertFalse(waiter.holds())
+        self.assertEqual(bench.record().get("token"), "live")
+        self.assertEqual(bench.leftovers(), ["lock"])
+        live.kill()
+        live.wait()
         waiter.wait_until_it_holds()
         self.assertEqual(waiter.finish(), 0)
 
