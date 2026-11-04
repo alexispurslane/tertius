@@ -45,6 +45,16 @@ public sealed unsafe class DeviceAllocatorTests
     /// <summary>The types that RADV allows a buffer: all but the 32-bit types 1, 4 and 6.</summary>
     private const uint RadvBufferTypes = 0b0101101;
 
+    /// <summary>
+    /// ANV's two types on an Intel GPU without a shared last-level cache under i915 (Mesa 26.2.4, i915/anv_device.c).
+    /// Both are device-local and host-visible. Type 0 is coherent, and type 1 is cached but not coherent.
+    /// </summary>
+    private static readonly MemoryPropertyFlags[] AnvNonLlcTypes =
+    [
+        MemoryPropertyFlags.DeviceLocalBit | MemoryPropertyFlags.HostVisibleBit | MemoryPropertyFlags.HostCoherentBit,
+        MemoryPropertyFlags.DeviceLocalBit | MemoryPropertyFlags.HostVisibleBit | MemoryPropertyFlags.HostCachedBit,
+    ];
+
     [Fact]
     public void AnUploadAfterAGpuOnlyAllocationGetsAWritablePointerOnADriverWithOneMemoryType()
     {
@@ -236,6 +246,27 @@ public sealed unsafe class DeviceAllocatorTests
     }
 
     [Fact]
+    public void AReadbackOnAnIntelGpuWithoutASharedCacheTakesTheCoherentTypeAndNotTheCachedOne()
+    {
+        using var memory = new TableMemory(AnvNonLlcTypes);
+        using var allocator = new DeviceAllocator(memory);
+
+        MemoryAllocation readback = allocator.Allocate(
+            requirements: Requirements(Kilobytes64, typeBits: 0b11),
+            usage: MemoryUsage.Readback,
+            linear: true,
+            name: "readback"
+        );
+
+        ((nint)readback.Mapped).Should().NotBe(0, "a readback reads through its pointer");
+        memory
+            .Live.Should()
+            .ContainSingle()
+            .Which.Should()
+            .Be(new LiveMemory(Type: 0, Mapped: true), "the CPU sees GPU writes without an invalidate only in coherent memory");
+    }
+
+    [Fact]
     public void AGpuOnlyResourceThatNoDeviceLocalTypeAllowsTakesTheFirstTypeThatItAllows()
     {
         using var memory = new TableMemory(RadvDiscreteTypes);
@@ -343,12 +374,14 @@ public sealed unsafe class DeviceAllocatorTests
     [InlineData("one type")]
     [InlineData("MoltenVK")]
     [InlineData("RADV discrete")]
+    [InlineData("ANV without a shared cache")]
     public void TheMappedStateOfEveryBlockFollowsItsTypeAfterAllocationsOfEveryUsageAndFrees(string driver)
     {
         (MemoryPropertyFlags[] types, uint typeBits) = driver switch
         {
             "MoltenVK" => (MoltenVkTypes, 0b111u),
             "RADV discrete" => (RadvDiscreteTypes, RadvBufferTypes),
+            "ANV without a shared cache" => (AnvNonLlcTypes, 0b11u),
             _ => ([UnifiedType], 0b1u),
         };
         using var memory = new TableMemory(types);
@@ -371,6 +404,7 @@ public sealed unsafe class DeviceAllocatorTests
             linear: true,
             name: "big staging"
         );
+        allocator.Allocate(requirements: large, usage: MemoryUsage.Readback, linear: true, name: "big readback");
         allocator.Free(vertices);
         allocator.Free(upload);
         allocator.Allocate(requirements: small, usage: MemoryUsage.Upload, linear: true, name: "staging again");
