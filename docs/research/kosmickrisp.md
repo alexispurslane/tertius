@@ -26,7 +26,7 @@ The same four tests failed in both suites. After the two fixes of this ticket, t
 | Checked | 10,180 | 2 | 15 | The span test (ter-dgen) and the BGRA test (ter-gyfe) |
 | Release | 10,167 | 2 | 15 | The span test (ter-dgen) and the BGRA test (ter-gyfe) |
 
-On MoltenVK, the Release suite gave 10,167 tests, 0 failed and 16 skipped, and the Checked suite gave 10,180 tests, 0 failed and 16 skipped. MoltenVK skips one test more, because `OnADriverWhoseStampsLatchWhenTheWorkBeforeThemEndsAPassThatRecordsNothingReportsNearlyNoTimeOfItsOwn` skips on a driver whose stamps latch late.
+On MoltenVK, the Release suite gave 10,167 tests, 0 failed and 16 skipped, and the Checked suite gave 10,180 tests, 0 failed and 16 skipped. MoltenVK skips one test more, because `OnADriverWhoseStampsLatchWhenTheWorkBeforeThemEndsAPassThatRecordsNothingReportsNearlyNoTimeOfItsOwn` skips on a driver whose stamps latch late. On KosmicKrisp that test runs and passes without a check of its claim: both stamps of its empty pass read the start of one compute encoder, so the pass reads 0 ms whatever the timer does (ter-dgen). Only the span test shows ter-dgen.
 
 The BGRA test fails in most runs on KosmicKrisp, not in all, because the fault of ter-gyfe varies from run to run. It passed in the first run's final Checked suite, on 2026-11-03. The table sorts each one into one of three classes: a defect of ours against the Vulkan spec, a defect of KosmicKrisp, or a legitimate difference between the drivers.
 
@@ -34,7 +34,7 @@ The BGRA test fails in most runs on KosmicKrisp, not in all, because the fault o
 |---|---|---|
 | `EnvironmentMapPlumbingTests.AMapThatCannotGetItsDescriptorSetsReleasesTheImagesAndBuffersItMade` | Ours: the test relied on a refusal that the spec does not promise | Fixed: each pool refuses a set past its `maxSets` itself |
 | `ScriptCommandCaptureTests.AHeadlessFilmWritesTheGpuSpanOfItsFramesBesideThePassesWithAMeanNoShorterThanItsLongestPass` | KosmicKrisp: its timestamps | ter-dgen, with a minimal reproduction. The test stays |
-| `CaptureSinkTests.ABgraOutputHandsItsSinkThePixelsOfAnRgbaOutputInRgbaOrder` | KosmicKrisp: its indirect dispatch in the reflections | ter-gyfe. The test stays |
+| `CaptureSinkTests.ABgraOutputHandsItsSinkThePixelsOfAnRgbaOutputInRgbaOrder` | KosmicKrisp: the lost stores of its own-ray dispatch in the reflections | ter-gyfe. The test stays |
 | `GpuTimingTests.OnMacOsWhereVulkanRunsOnMoltenVkTheRendererSaysThatItsStampsLatchLate` | Ours: the test took macOS for MoltenVK | Fixed: the test reads the driver, and its new name is `TheRendererSaysThatItsStampsLatchLateOnMoltenVkAndOnNoOtherDriver` |
 
 ### The descriptor pool test (ours)
@@ -43,7 +43,9 @@ The test fills the shared descriptor pool with prefilter sets, at most 100, unti
 
 The spec allows that. `vkAllocateDescriptorSets` says that an allocation past `maxSets` "may fail". It says the same of an allocation past a pool's size of a descriptor type. KosmicKrisp sizes a pool in bytes from both limits. It refuses a set only after the bytes run out (`kk_descriptor_pool_alloc` in `kk_descriptor_set.c`). So the test relied on a behavior that only some drivers give.
 
-The fix gives the engine one behavior on every driver. `DescriptorLayouts` counts the sets that each of its two pools gave. It refuses a set past the pool's `maxSets` itself, with `VulkanException` and `ErrorOutOfPoolMemory` (ARCHITECTURE.md, "Descriptor pools"). No pool frees single sets, so the count only grows. The test was red on KosmicKrisp in both suites, and it is green on both drivers after the change. A set past a type's size still depends on the driver. No code of the engine reaches that case, and the shared pool's sizes hold every set that the engine makes.
+The fix gives the engine one behavior on every driver at a pool's `maxSets`. `DescriptorLayouts` counts the sets that each of its two pools gave. It refuses a set past the pool's `maxSets` itself, with `VulkanException` and `ErrorOutOfPoolMemory` (ARCHITECTURE.md, "Descriptor pools"). No pool frees single sets, so the count only grows. The test was red on KosmicKrisp in both suites, and it is green on both drivers after the change. A set past a type's size still depends on the driver. No code of the engine reaches that case, and the shared pool's sizes hold every set that the engine makes. MoltenVK and KosmicKrisp both gave the test 61 prefilter sets, which is more sets than the shared pool's size of samplers holds (2026-11-04). Ticket ter-byim derives the sizes of each type from the set layouts and refuses a set past them too.
+
+On MoltenVK the test does not guard the rule. MoltenVK refused a set of its own before the loop's limit of 100, because the test passed there before the fix. So the MoltenVK suite passes with or without the check, and only a run on KosmicKrisp fails without it.
 
 ### The GPU timings (KosmicKrisp, ter-dgen, which resolves ter-wwu7)
 
@@ -64,7 +66,7 @@ The spec forbids the 0s. Its chapter "Queries" says of `vkCmdWriteTimestamp2`: "
 
 The numbers of ter-wwu7 follow. A pass that ends at a stamp of 0 wraps: 2^64 ticks of 41.667 ns are 7.686e14 ms. The pass after it reads the whole clock: 3.392e9 ms is 39.26 days, the Mac's uptime at the time of the ter-gmv8 run.
 
-So on KosmicKrisp the per-pass times are not valid. The span starts at the start of the frame's first compute encoder. It ends at the start of the compute encoder that holds the last stamp. It leaves out the work of that last encoder, the capture, and it can take in the uploads, which share the first encoder. Both are short, so the span is close to the frame's GPU time, but it is not the same measure as on MoltenVK.
+So on KosmicKrisp the per-pass times are not valid. The span starts at the start of the frame's first compute encoder. It ends at the start of the compute encoder that holds the last stamp. It leaves out the work of that last encoder and the capture, so it can be too short. It can take in the uploads, which share the first encoder, so it can be too long. This report did not measure either share, so the span is not the same measure as on MoltenVK, and its error can go either way.
 
 ### The BGRA capture test (KosmicKrisp, ter-gyfe)
 
@@ -73,10 +75,13 @@ The test renders one frame of the reference scene in two renderers, one with an 
 - On MoltenVK, five renderers in turn give identical frames. On KosmicKrisp, they differ in 0 to 384 pixels, from run to run.
 - With `NoReflections` or with `TraceResolution.Full`, KosmicKrisp gives identical frames too.
 - Every pixel that differs is on the own-ray list of the half-resolution reflections. The list holds the same 502 pixels in every renderer.
-- With a shader change that marks every pixel that the own-ray dispatch reaches, 0, 64, 192 or all 502 listed pixels were marked. So the indirect dispatch ran 0, 1, 3 or all 8 of its workgroups. It read the header's workgroup count while the upsample's atomic adds were still landing.
+- With a shader change that marks every pixel after its own ray's trace, 0, 64, 192 or all 502 listed pixels were marked. So the stores of 0, 1, 3 or all 8 workgroups landed.
+- Every marked pixel read a workgroup count of 8 in `gl_NumWorkGroups`, also where only 1 or 3 workgroups stored. So the dispatch reads the list's header correctly. The first run's reading, that the dispatch read the header before the upsample's atomic adds landed, was wrong (2026-11-04).
+- A marker without the trace reached every listed pixel in every renderer. The trace's one loop has an integer bound, and Vulkan's robust buffer and image access did not remove the fault. So no defined behavior of the shader explains a lost store.
+- The fault needs no optional pass. With every option that removes a pass off, and every pass skipped but the G-buffer, the depth pyramid, the radiance pyramid, the reflection trace and the reflections, the stores of whole workgroups still go missing.
 - The renderer's barrier between the two dispatches is the spec's: from the upsample's storage writes to the draw-indirect and compute stages, with the indirect command read and the storage read. The validation layer's synchronization validation reports no hazard. A barrier from all commands to all commands, added right before the dispatch, changed nothing.
 
-A small program with the same commands ran every workgroup on KosmicKrisp. So ter-gyfe has no standalone reproduction yet, only the engine's. It is a defect of KosmicKrisp by this evidence, and the test stays.
+A small program with the same commands ran every workgroup on KosmicKrisp, but its dispatch had no trace. So ter-gyfe has no standalone reproduction yet. It has the engine's frame, cut down to five passes, with the probes that ter-gyfe lists. It is a defect of KosmicKrisp by this evidence, and the test stays.
 
 ### The test that took macOS for MoltenVK (ours)
 
@@ -107,11 +112,11 @@ Every run took the GPU lock, `/tmp/tertius-gpu-measure.lock`, and recorded the l
 | 16-lamp hall | `scripts/lamp-hall-16.json` | 301 |
 | 64-lamp hall | `scripts/lamp-hall-64.json` | 301 |
 
-The deck and floor scripts are those of `lean-trace-spike.md` and `trace-timing-spike.md`, at 1280 x 720. Nine rounds ran from 21:14 to 21:40 on 2026-11-03. In round 2, every KosmicKrisp run failed with `ErrorIncompatibleDriver`, because a garbage collection of the Nix store had removed Mesa, so round 2 has no KosmicKrisp runs. Other sessions used the machine: the 1-minute load at the start of a run was 3.2 to 31.8, with a median of 11.0, over 108 runs.
+The deck and floor scripts are those of `lean-trace-spike.md` and `trace-timing-spike.md`, at 1280 x 720. Nine rounds ran from 21:14 to 21:40 on 2026-11-03. In round 2, every KosmicKrisp run failed with `ErrorIncompatibleDriver`, because a garbage collection of the Nix store had removed Mesa, so round 2 has no KosmicKrisp runs. So MoltenVK and the control have 9 rounds, and KosmicKrisp has 8. Other sessions used the machine: the 1-minute load at the start of a run was 3.2 to 31.8, with a median of 11.0, over 108 runs.
 
 ### The frame span
 
-A run's figure is the median frame span of its timed frames. The table gives the median of the run figures over the rounds, and their range. The span on KosmicKrisp is not the same measure as on MoltenVK ("The GPU timings"), so read its rows as approximate.
+A run's figure is the median frame span of its timed frames. The table gives the median of the run figures over the rounds, and their range: 9 rounds for MoltenVK and the control, 8 for KosmicKrisp. The span on KosmicKrisp is not the same measure as on MoltenVK ("The GPU timings"), so read its rows as approximate.
 
 | View | MoltenVK (ms) | KosmicKrisp (ms) | Control (ms) |
 |---|---|---|---|
@@ -146,7 +151,7 @@ The brief compares pass times only where both drivers give valid ones. KosmicKri
 | MoltenVK | 2.726, 3.003, 2.951 |
 | KosmicKrisp | 2.931, 2.993, 2.910 |
 
-The test stamps before and after `Fsr3Upscaler.Record`, so on KosmicKrisp the end stamp reads the start of its encoder and leaves out the work of FSR in that encoder. The KosmicKrisp figure is therefore a lower bound, and it is already no lower than MoltenVK's.
+The test stamps before and after `Fsr3Upscaler.Record`. On KosmicKrisp the end stamp reads the start of its encoder and leaves out the work of FSR in that encoder. The start stamp reads the start of its own encoder, which can hold work before FSR. So the KosmicKrisp figure can err either way, and it says only that the two drivers are close.
 
 ## Screenshots
 
@@ -163,7 +168,7 @@ The deck shows the cabin's glass hull lit from inside, the floor's soft shadows 
 
 Keep MoltenVK as the dev shell's default, and keep KosmicKrisp beside it for comparison.
 
-- KosmicKrisp is not faster. It is slower on the deck by about 2.2 ms, and even or within the noise on the other views.
+- KosmicKrisp is not faster by its span. It is slower on the deck by about 2.2 ms, and even or within the noise on the other views. These figures are approximate, because the span on KosmicKrisp can err either way (ter-dgen).
 - Two defects of KosmicKrisp change what the engine reports or draws: the timestamps (ter-dgen) and the own-ray dispatch of the half-resolution reflections (ter-gyfe). On KosmicKrisp, the GPU timings that the performance work reads are not valid, and two renderers can draw different frames.
 - KosmicKrisp is a conformant Vulkan 1.4 driver with no portability subset. It found a defect of ours that MoltenVK hid: the descriptor pool test. Like ter-gmv8's allocator bug, it relied on a behavior that the spec leaves to the driver, and such a defect can show on a Linux driver too. So a run of both suites on KosmicKrisp before a large merge is cheap and useful. It takes about 15 minutes per suite.
 
