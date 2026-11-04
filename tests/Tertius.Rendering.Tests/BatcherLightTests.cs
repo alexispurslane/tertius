@@ -547,10 +547,10 @@ public sealed class BatcherLightTests
 
         scene
             .PlacedSpan.ToArray()
-            .Select(placed => placed.EntityIndex)
+            .Select(placed => placed.Entity.Index)
             .Should()
             .Equal([1u, 2u, 3u, 6u], "no view draws the fourth, and the fifth has no mesh on the GPU");
-        scene.VisibleSpan.ToArray().Select(visible => visible.EntityIndex).Should().Equal(1u, 3u);
+        scene.VisibleSpan.ToArray().Select(visible => visible.Entity.Index).Should().Equal(1u, 3u);
     }
 
     [Fact]

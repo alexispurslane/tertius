@@ -109,7 +109,7 @@ public sealed class SpotLampViewTests
             views: [],
             draws: []
         );
-        return [.. scene.LightSpan.ToArray().Where(light => light.Shadow.HasValue).Select(light => light.EntityIndex)];
+        return [.. scene.LightSpan.ToArray().Where(light => light.Shadow.HasValue).Select(light => light.Entity.Index)];
     }
 
     /// <summary>
@@ -134,7 +134,7 @@ public sealed class SpotLampViewTests
         scene
             .LightSpan.ToArray()
             .Where(light => light.InMainView)
-            .Select(light => light.EntityIndex)
+            .Select(light => light.Entity.Index)
             .Should()
             .Equal([2u], "lamp X's cone points away from the view, and one stop up its reach of 35 m holds the eye");
     }
@@ -410,7 +410,7 @@ public sealed class SpotLampViewTests
         first
             .LightSpan.ToArray()
             .Where(light => light.Shadow.HasValue)
-            .Select(light => light.EntityIndex)
+            .Select(light => light.Entity.Index)
             .Should()
             .Equal([1u], "the bulb holds the six layers before its reach shrinks");
         RenderSnapshot after = Dark();
@@ -433,7 +433,7 @@ public sealed class SpotLampViewTests
         scene
             .LightSpan.ToArray()
             .Where(light => light.Shadow.HasValue)
-            .Select(light => light.EntityIndex)
+            .Select(light => light.Entity.Index)
             .Should()
             .Equal(
                 [2u],

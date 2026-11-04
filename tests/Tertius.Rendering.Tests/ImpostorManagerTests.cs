@@ -1470,7 +1470,7 @@ public sealed class ImpostorManagerTests
             .Manager.Draws.ToArray()
             .Should()
             .NotContain(d => d.Tile == 0, "a stale capture is not drawn after a spell as geometry");
-        scene.VisibleSpan.ToArray().Should().Contain(v => v.EntityIndex == 1, "it draws as geometry meanwhile");
+        scene.VisibleSpan.ToArray().Should().Contain(v => v.Entity.Index == 1, "it draws as geometry meanwhile");
         // With the budget free again it is recaptured and drawn in the same frame.
         RenderSnapshot alone = Snapshot();
         alone.Instances.Add(Ball(entity: 1, position: At(far, 0.6f)));

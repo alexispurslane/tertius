@@ -343,7 +343,7 @@ public sealed class AtmosphereTests
         PreparedScene scene = Prepare(snapshot);
 
         scene.AirSunLight.Should().Be(1);
-        scene.Lights[1].EntityIndex.Should().Be(Gpu.StarEntity);
+        scene.Lights[1].Entity.Index.Should().Be(Gpu.StarEntity);
     }
 
     [Fact]
@@ -385,7 +385,7 @@ public sealed class AtmosphereTests
         snapshot.Atmosphere = snapshot.Atmosphere!.Value with { Sun = 1 };
         PreparedScene scene = Prepare(snapshot);
 
-        scene.LightSpan.ToArray().Select(light => light.EntityIndex).Should().Equal(Gpu.LampEntity, Gpu.StarEntity);
+        scene.LightSpan.ToArray().Select(light => light.Entity.Index).Should().Equal(Gpu.LampEntity, Gpu.StarEntity);
         scene.Constants.Counts.Y.Should().Be(1u, "the sun is the second light of the list");
     }
 

@@ -46,7 +46,7 @@ public sealed class ShadowTilesTests
         Vector3 place = position ?? Vector3.Zero;
         return new()
         {
-            EntityIndex = entity,
+            Entity = new(Index: entity, Generation: 1),
             Position = place,
             RadiantIntensity = new(intensity),
             Reach = Reach,
@@ -67,7 +67,7 @@ public sealed class ShadowTilesTests
         Vector3 place = position ?? Vector3.Zero;
         return new()
         {
-            EntityIndex = entity,
+            Entity = new(Index: entity, Generation: 1),
             Position = place,
             RadiantIntensity = new(intensity),
             Reach = Reach,
@@ -90,7 +90,7 @@ public sealed class ShadowTilesTests
             Radius = radius,
             Distance = position.Length(),
             Mesh = mesh,
-            EntityIndex = entity,
+            Entity = new(Index: entity, Generation: 1),
         };
 
     /// <summary>One submitted frame of the tiles with the camera in the frame of id 1, with the invariants checked after it.</summary>
@@ -478,7 +478,7 @@ public sealed class ShadowTilesTests
             lights[0].RadiantIntensity = new(firstLeads ? 1.5f : 1);
             lights[1].RadiantIntensity = new(firstLeads ? 1 : 1.5f);
             Frame(tiles, lights);
-            owners.AddRange(lights.ToArray().Where(light => light.Shadow.HasValue).Select(light => light.EntityIndex));
+            owners.AddRange(lights.ToArray().Where(light => light.Shadow.HasValue).Select(light => light.Entity.Index));
         }
 
         owners.Should().Equal(Enumerable.Repeat(1u, 20), "a swing of 1.5 times stays inside the margin of 2");
@@ -767,7 +767,7 @@ public sealed class ShadowTilesTests
         DrawsAfterTheCasterChanges(caster =>
                 change switch
                 {
-                    "entity" => caster with { EntityIndex = 8 },
+                    "entity" => caster with { Entity = new(Index: 8, Generation: 1) },
                     "part" => caster with { Part = 1 },
                     "mesh" => caster with { Mesh = 3 },
                     // A cutout material shadows only its core (docs/plans/skin-and-hair.md, "The cutout test").

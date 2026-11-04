@@ -73,7 +73,7 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
     private DrawItem[] transparent = new DrawItem[64];
 
     // The entities of this frame's snapshot that hold a light, which the lights carry. Refilled each frame.
-    private readonly HashSet<uint> lightHolders = [];
+    private readonly HashSet<Entity> lightHolders = [];
 
     // The commands of one face per depth range, indexed by DepthRanges.
     private readonly SidedRuns[] faceRanges = new SidedRuns[DepthRanges.Count];
@@ -454,7 +454,7 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
                 placement: placement,
                 materials: materials,
                 maps: scene.MapCount,
-                holdsLight: lightHolders.Contains(instance.EntityIndex)
+                holdsLight: lightHolders.Contains(new(Index: instance.EntityIndex, Generation: instance.EntityGeneration))
             ) with
             {
                 PlacedIndex = scene.PlacedCount - 1,
@@ -553,7 +553,7 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
             Alpha = materials[(int)material].Alpha,
             TwoSided = materials[(int)material].TwoSided,
             Flags = instance.Flags,
-            EntityIndex = instance.EntityIndex,
+            Entity = new(Index: instance.EntityIndex, Generation: instance.EntityGeneration),
             Part = instance.Part,
             Hemisphere = instance.Hemisphere,
             Map = EnvironmentChain.MapOf(instance.ChainDepth, maps),
@@ -570,10 +570,10 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
         lightHolders.Clear();
         foreach (ref readonly RenderLight light in CollectionsMarshal.AsSpan(snapshot.Lights))
         {
-            uint? holder = light switch
+            Entity? holder = light switch
             {
-                PointRenderLight point => point.EntityIndex,
-                SpotRenderLight spot => spot.EntityIndex,
+                PointRenderLight point => new Entity(Index: point.EntityIndex, Generation: point.EntityGeneration),
+                SpotRenderLight spot => new Entity(Index: spot.EntityIndex, Generation: spot.EntityGeneration),
                 // A light that holds no case is no light, and the renderer skips it.
                 null => null,
             };
@@ -1078,7 +1078,7 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
     )
     {
         (
-            uint entity,
+            Entity entity,
             Vector3 position,
             Vector3 color,
             double intensity,
@@ -1089,7 +1089,7 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
         ) = light switch
         {
             PointRenderLight point => (
-                point.EntityIndex,
+                new Entity(Index: point.EntityIndex, Generation: point.EntityGeneration),
                 Vector3.Lerp(point.PreviousPosition, point.Position, alpha),
                 point.Color,
                 LightUnits.PointIntensity(point.Power),
@@ -1099,7 +1099,7 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
                 point.ChainDepth
             ),
             SpotRenderLight spot => (
-                spot.EntityIndex,
+                new Entity(Index: spot.EntityIndex, Generation: spot.EntityGeneration),
                 Vector3.Lerp(spot.PreviousPosition, spot.Position, alpha),
                 spot.Color,
                 LightUnits.SpotIntensity(spot.Power, spot.OuterConeAngle),
@@ -1117,7 +1117,7 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
         );
         PreparedLight prepared = new()
         {
-            EntityIndex = entity,
+            Entity = entity,
             Position = relative,
             RadiantIntensity = LightUnits.RadiantIntensity(color, intensity),
             Radius = radius,

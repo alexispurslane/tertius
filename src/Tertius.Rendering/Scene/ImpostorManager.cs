@@ -12,7 +12,7 @@ namespace Tertius.Rendering;
 internal readonly record struct ImpostorKey(uint EntityIndex, ushort Part, int Mesh, uint Material)
 {
     public static ImpostorKey Of(in PreparedInstance instance) =>
-        new(EntityIndex: instance.EntityIndex, Part: instance.Part, Mesh: instance.Mesh, Material: instance.Material);
+        new(EntityIndex: instance.Entity.Index, Part: instance.Part, Mesh: instance.Mesh, Material: instance.Material);
 }
 
 /// <summary>A capture that <see cref="ImpostorPass"/> renders this frame: one object alone, into one atlas tile.</summary>

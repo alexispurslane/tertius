@@ -268,9 +268,13 @@ internal struct PreparedInstance
     /// <summary>Whether the passes that shade draw the instance's back faces: the <see cref="MaterialInfo"/> of <see cref="Material"/>'s slot.</summary>
     public bool TwoSided;
 
-    public uint EntityIndex;
+    /// <summary>
+    /// The entity of the instance, its slot and generation. The whole handle follows the object from frame to frame,
+    /// because a new entity can take the slot of a destroyed one.
+    /// </summary>
+    public Entity Entity;
 
-    /// <summary>Which of the entity's render parts this is. With <see cref="EntityIndex"/>, it names the object from frame to frame.</summary>
+    /// <summary>Which of the entity's render parts this is. With <see cref="Entity"/>, it names the object from frame to frame.</summary>
     public ushort Part;
 
     /// <summary>Which way is up for the hemisphere ambient light.</summary>
@@ -279,7 +283,7 @@ internal struct PreparedInstance
     /// <summary>The instance's map, <see cref="EnvironmentChain.MapOf"/> of its chain depth, or 0 with the map off.</summary>
     public int Map;
 
-    /// <summary>Whether the instance's entity holds a light: a light of the snapshot carries the entity's index.</summary>
+    /// <summary>Whether the instance's entity holds a light: a light of the snapshot carries the instance's entity.</summary>
     public bool HoldsLight;
 
     /// <summary>

@@ -79,7 +79,11 @@ internal enum MainViewTier : byte
 /// <summary>One light of a frame after interpolation and culling, before its GPU form: the analogue of PreparedInstance.</summary>
 internal struct PreparedLight
 {
-    public uint EntityIndex;
+    /// <summary>
+    /// The entity that carries the light, its slot and generation. The slot names the light within one snapshot, and the
+    /// whole handle follows it from frame to frame, because a new entity can take the slot of a destroyed one.
+    /// </summary>
+    public Entity Entity;
 
     /// <summary>Camera-relative position, interpolated.</summary>
     public Vector3 Position;

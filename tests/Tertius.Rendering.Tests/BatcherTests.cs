@@ -608,7 +608,7 @@ public sealed class BatcherTests
 
         Dictionary<uint, uint> materials = scene
             .VisibleSpan.ToArray()
-            .ToDictionary(v => v.EntityIndex, v => v.Material);
+            .ToDictionary(v => v.Entity.Index, v => v.Material);
         materials.Should().NotContainKey(6u, "MeshId.None draws nothing");
         materials[1].Should().Be(MaterialStore.DefaultSlot, "MaterialId.None asks for the default material");
         // Material 0 is a real material, not the default: ids are not confused with None.
@@ -651,7 +651,7 @@ public sealed class BatcherTests
             )
         );
         PreparedScene scene = Prepare(snapshot: snapshot);
-        scene.VisibleSpan.ToArray().Select(v => (v.EntityIndex, v.Part)).Should().Equal((9u, 0), (9u, 3));
+        scene.VisibleSpan.ToArray().Select(v => (v.Entity.Index, v.Part)).Should().Equal((9u, 0), (9u, 3));
     }
 
     [Fact]
