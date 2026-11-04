@@ -9,6 +9,7 @@ of the import path.
 """
 
 import importlib.util
+import json
 import os
 import subprocess
 import tempfile
@@ -132,6 +133,20 @@ class Record(unittest.TestCase):
         line = gpu_clock.Unknown("gpu-clock is not built").describe()
         self.assertIn("unknown", line)
         self.assertIn("gpu-clock is not built", line)
+
+    def test_recording_a_log_writes_its_spans_clock_into_the_timings_and_keeps_the_runs_times(self):
+        with tempfile.TemporaryDirectory() as folder:
+            log = Path(folder, "run.log")
+            log.write_text("\n".join(["timed-start", sample(0.1, 1.0, 1000.0), sample(0.2, 1.0, 1200.0), "timed-end"]))
+            timings = Path(folder, "gpu-timings.json")
+            timings.write_text(json.dumps({"frame": {"meanMs": 7.5}, "passes": []}))
+
+            clock = gpu_clock.record(log, timings)
+
+            report = json.loads(timings.read_text())
+            self.assertEqual(report["frame"], {"meanMs": 7.5})
+            self.assertEqual(gpu_clock.from_json(report["gpuClock"]), clock)
+            self.assertEqual(clock.mhz, 1100.0)
 
 
 class Comparison(unittest.TestCase):
