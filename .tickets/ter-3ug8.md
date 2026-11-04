@@ -35,3 +35,7 @@ Scope:
 **2026-11-03T23:25:35Z**
 
 2026-11-03: the user's point on step 3: MetalFX's temporal scaler does the same job as FSR 3.1 (the same inputs: color, depth, motion, jitter, exposure; one upscaled output), but not the same algorithm, and Apple does not document its internals. So MetalFX's time is only a reference for what a vendor-tuned temporal upscaler costs on this GPU. The report must not conclude from it that FSR is slow or fast. The fair test of FSR compares FSR with its own work: for each FSR pass, count its arithmetic instructions, texture reads and bytes moved (Metal counters through tools/gpu-trace.sh, or MoltenVK's shader dump), and divide each by the rate that the probes of step 1 measured. The largest of the three quotients is the time that this GPU predicts for the pass (a roofline). Report FSR's measured time against that prediction, pass by pass, and do the same for the other passes of step 5. Keep MetalFX's time beside it, with sharpening off in both and the same sizes, and say what each upscaler does that the other does not, where the docs say it.
+
+**2026-11-04T01:28:01Z**
+
+2026-11-03: the first run (82edf212) built the spike and stopped at one fork, the clock of the budgets. The orchestrator settled it: the budgets hold at the clock of a windowed game, and one windowed measurement confirms it. Continuation run 106f1e1a-b3e5-4abc-b8ff-4e6c78f99033 (version 869b0b07) on the same branch and worktree measures it, updates the report, files the follow-ups, and then the review runs.
