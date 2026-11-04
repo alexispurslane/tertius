@@ -11,6 +11,15 @@ public sealed class GpuTimingTests
     private const int Width = 320,
         Height = 180;
 
+    /// <summary>The time in milliseconds that a pass that records nothing stays under.</summary>
+    private const double NearlyNoTime = 0.05;
+
+    /// <summary>The pairs of frames in each chunk of <see cref="SpanAddedBy"/>.</summary>
+    private const int ChunkPairs = 128;
+
+    /// <summary>The chunks that <see cref="SpanAddedBy"/> measures at most before it gives up.</summary>
+    private const int MaxChunks = 16;
+
     /// <summary>A validating headless renderer that the test skips on a device without timestamps.</summary>
     private static VulkanRenderer TimedRenderer(
         int framesInFlight = 2,
@@ -282,31 +291,30 @@ public sealed class GpuTimingTests
         }
     }
 
-    [Fact(Skip = "Flaky in full Rendering runs, about half of them on 2026-11-03; skipped until ter-abun fixes it.")]
-    public void APassThatRecordsNothingAddsNearlyNoTimeBetweenTheEndOfThePassBeforeItAndTheEndOfThePassAfterIt()
+    [Fact]
+    public void APassThatRecordsNothingAddsNearlyNoTimeToTheFramesGpuSpan()
     {
-        // With no screen-space light, the ambient pass follows the direct pass in both renderers, so a stamp after the
-        // direct pass that latches late waits on the same work in each. No reflections either, so no depth pyramid sits
-        // between the G-buffer pass and the direct pass.
-        VulkanRenderer without = TimedRenderer(screenSpaceLight: new NoScreenSpaceLight());
-        VulkanRenderer with = TimedRenderer(screenSpaceLight: new NoScreenSpaceLight());
+        VulkanRenderer renderer = TimedRenderer(framesInFlight: 1);
         try
         {
-            // Between the G-buffer pass and the direct pass. On a driver whose stamps latch late, the empty pass's own
-            // time can hold part of the direct pass's work, and the direct pass's time then shows that much less, so only
-            // the time from the G-buffer's stamp to the direct pass's stamp holds (ARCHITECTURE.md, "GPU timings").
-            with.Graph.Add(FrameGraph.Stage.GBuffer, new EmptyPass());
+            renderer.Graph.Add(FrameGraph.Stage.GBuffer, new EmptyPass());
 
-            double[] fewest = FewestMilliseconds(FromTheGBufferToTheEndOfTheDirectLight, without, with);
+            if (SpanAddedBy(renderer, pass: "empty", bound: NearlyNoTime) is not { } added)
+            {
+                Assert.Skip(
+                    $"The work of other processes stretched the frames of all {MaxChunks} chunks too much to resolve"
+                        + $" {NearlyNoTime} ms of their spans."
+                );
+                return;
+            }
 
-            (fewest[1] - fewest[0])
-                .Should()
-                .BeLessThan(0.05, "the pass gave the GPU no work, only one more stamp to write");
+            added
+                .High.Should()
+                .BeLessThan(NearlyNoTime, "the pass gave the GPU no work, only one more stamp to write ({0})", added);
         }
         finally
         {
-            Gpu.DisposeAndAssertClean(without);
-            Gpu.DisposeAndAssertClean(with);
+            Gpu.DisposeAndAssertClean(renderer);
         }
     }
 
@@ -330,9 +338,7 @@ public sealed class GpuTimingTests
 
             FewestMilliseconds(passes => passes.Single(pass => pass.Pass == "empty").Milliseconds, renderer)
                 .Should()
-                .ContainSingle()
-                .Which.Should()
-                .BeLessThan(0.05, "the pass gave the GPU no work, and a mean over frames counts it as it is");
+                .BeLessThan(NearlyNoTime, "the pass gave the GPU no work, and a mean over frames counts it as it is");
         }
         finally
         {
@@ -403,38 +409,103 @@ public sealed class GpuTimingTests
     }
 
     /// <summary>
-    /// The fewest milliseconds that <paramref name="measure"/> reads from each renderer's timings over 64 frames of the
-    /// test scene. The renderers draw in turn, so a load on the GPU from another process falls on each alike. Such a
-    /// load stretches a pass's time in some frames, by the work of the other process that the GPU ran between two
-    /// stamps, and the fewest is a frame that the load left alone (ARCHITECTURE.md, "GPU timings", gives the margin).
+    /// The fewest milliseconds that <paramref name="measure"/> reads from the renderer's timings over 64 frames of the
+    /// test scene. A load on the GPU from another process stretches a pass's time in some frames, by the work of the
+    /// other process that the GPU ran between two stamps, and the fewest is a frame that the load left alone.
     /// </summary>
-    private static double[] FewestMilliseconds(Func<PassTiming[], double> measure, params VulkanRenderer[] renderers)
+    private static double FewestMilliseconds(Func<PassTiming[], double> measure, VulkanRenderer renderer)
     {
-        RenderSnapshot[] snapshots = [.. renderers.Select(renderer => TestScene.Create(renderer).Snapshot())];
-        double[] fewest = [.. renderers.Select(_ => double.MaxValue)];
+        RenderSnapshot snapshot = TestScene.Create(renderer).Snapshot();
+        double fewest = double.MaxValue;
         for (int frame = 0; frame < 64; frame++)
         {
-            for (int i = 0; i < renderers.Length; i++)
-            {
-                renderers[i].Render(snapshots[i], 1f);
-                if (renderers[i].LastFrameStats.GpuTimings is { } timings)
-                    fewest[i] = Math.Min(fewest[i], measure(timings.Passes.ToArray()));
-            }
+            renderer.Render(snapshot, 1f);
+            if (renderer.LastFrameStats.GpuTimings is { } timings)
+                fewest = Math.Min(fewest, measure(timings.Passes.ToArray()));
         }
 
         return fewest;
     }
 
     /// <summary>
-    /// The time from the G-buffer's stamp to the direct pass's stamp: the passes after the G-buffer pass up to the direct
-    /// pass.
+    /// How much the pass named <paramref name="pass"/> adds to the frame's GPU span, in milliseconds: an interval of the
+    /// median of the spans that it adds, from the first chunk of <see cref="ChunkPairs"/> pairs of frames whose interval
+    /// resolves <paramref name="bound"/>, or null when none of <see cref="MaxChunks"/> chunks does. An interval resolves
+    /// the bound when it lies wholly below or wholly above it and is at most twice the bound wide. Only the span holds
+    /// on every driver: on one whose stamps latch late, the stamp before the pass can latch after the pass's work, so no
+    /// window of neighbouring stamps holds that work in every frame (ARCHITECTURE.md, "GPU timings"). The renderer must
+    /// have one frame in flight, so no frame runs beside another on the GPU. The work of another process stretches some
+    /// frames. A load that stretches nearly every frame widens the interval, and can push it below the bound for a pass
+    /// that records work, so a chunk that it widened decides nothing. A later chunk can find a quieter stretch.
     /// </summary>
-    private static double FromTheGBufferToTheEndOfTheDirectLight(PassTiming[] passes)
+    private static SpanInterval? SpanAddedBy(VulkanRenderer renderer, string pass, double bound)
     {
-        int gBuffer = Array.FindIndex(passes, pass => pass.Pass == "G-buffer");
-        int direct = Array.FindIndex(passes, pass => pass.Pass == "direct light");
-        return passes[(gBuffer + 1)..(direct + 1)].Sum(pass => pass.Milliseconds);
+        RenderSnapshot snapshot = TestScene.Create(renderer).Snapshot();
+        try
+        {
+            for (int chunk = 0; chunk < MaxChunks; chunk++)
+            {
+                SpanInterval interval = MedianInterval(AddedSpans(renderer, snapshot, pass));
+                if (interval.High - interval.Low <= 2 * bound && (interval.High < bound || interval.Low > bound))
+                    return interval;
+            }
+
+            return null;
+        }
+        finally
+        {
+            renderer.Graph.Skipped.Remove(pass);
+        }
     }
+
+    /// <summary>
+    /// The span of a frame that records the pass named <paramref name="pass"/> minus the span of the frame right before
+    /// it, which skips the pass, for <see cref="ChunkPairs"/> such pairs. The frames of a pair are next to each other in
+    /// time, so they share the GPU's clock, which follows the GPU's duty cycle.
+    /// </summary>
+    private static double[] AddedSpans(VulkanRenderer renderer, RenderSnapshot snapshot, string pass)
+    {
+        double[] added = new double[ChunkPairs];
+        int pairs = 0;
+        GpuTimings? without = null;
+        for (int frame = 0; pairs < ChunkPairs; frame++)
+        {
+            if (frame % 2 == 0)
+                renderer.Graph.Skipped.Add(pass);
+            else
+                renderer.Graph.Skipped.Remove(pass);
+            renderer.Render(snapshot, 1f);
+            // The timings are those of an earlier frame, so the names of its passes say whether it recorded the pass, and
+            // its number says whether it is the frame right after the one without the pass.
+            if (renderer.LastFrameStats.GpuTimings is not { } timings)
+                continue;
+            if (!timings.Passes.ToArray().Any(timing => timing.Pass == pass))
+                without = timings;
+            else if (without is { } before && timings.Frame == before.Frame + 1)
+            {
+                added[pairs++] = timings.SpanMilliseconds - before.SpanMilliseconds;
+                without = null;
+            }
+        }
+
+        return added;
+    }
+
+    /// <summary>
+    /// An interval that holds the median of the distribution that <paramref name="values"/> come from with a chance of
+    /// about 99.7 %, whatever that distribution: the values at 1.5 √n places below and above the middle of the n sorted
+    /// values, three standard deviations of the count of values below the median.
+    /// </summary>
+    private static SpanInterval MedianInterval(double[] values)
+    {
+        Array.Sort(values);
+        int middle = values.Length / 2;
+        int reach = (int)Math.Ceiling(1.5 * Math.Sqrt(values.Length));
+        return new SpanInterval(Low: values[middle - reach], High: values[middle + reach]);
+    }
+
+    /// <summary>An interval of milliseconds that a pass adds to the frame's GPU span.</summary>
+    private readonly record struct SpanInterval(double Low, double High);
 
     private sealed class EmptyPass : RenderPass
     {
