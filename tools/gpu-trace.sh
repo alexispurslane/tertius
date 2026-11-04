@@ -98,8 +98,6 @@ if [[ "$counters" -eq 1 ]]; then
   instruments=(--instrument "Metal GPU Counters")
 fi
 record_code=0
-load=$(uptime | sed 's/.*load averages*: *//')
-echo "Load averages at the start (1, 5 and 15 minutes): $load"
 # The recording takes the GPU lock (tools/README.md, "The GPU lock") and runs beside gpu-clock through
 # tools/gpu-clock.sh. The demo must be the process that xctrace launches: with a parent between them, the trace's list
 # of encoders stays empty. So gpu-clock samples outside xctrace, and xctrace passes the demo's output on to its own
@@ -125,9 +123,11 @@ fi
 grep -E '^GPU frame span' "$out/run.log" || true
 python3 -I tools/gpu_clock.py record "$out/run.log" "$out/run/gpu-timings.json"
 
-python3 -I tools/gpu-trace.py report "$out/run.trace" "$out/run/gpu-timings.json" "$out" "${window[@]}" "${pairing[@]}"
+# The report takes the load at the start from the lock's line uptime-start in run.log, which comes after any wait for the
+# lock.
+python3 -I tools/gpu-trace.py report "$out/run.trace" "$out/run/gpu-timings.json" "$out" --log "$out/run.log" \
+  "${window[@]}" "${pairing[@]}"
 if [[ "$keep" -eq 0 ]]; then
   rm -rf "$out/export"
 fi
-printf 'Load averages at the start: %s\n\n%s\n' "$load" "$(cat "$out/passes.md")" > "$out/passes.md"
 echo "$out/passes.md"

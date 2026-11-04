@@ -485,10 +485,18 @@ It prints the same two readings of the 10th percentile, and the least, median an
 It also checks the clocks (see "The GPU clock of a timed run"):
 
 - For each build, it prints the median of its runs' clocks with the 10th and 90th percentile of the runs, and the median of its run medians converted to the windowed clock, an estimate.
-- A round in which a build's clock and the reference's clock differ by more than 3 % does not compare. The paired reading leaves such a round out, and a line counts the rounds at the same clock, at different clocks and unchecked. A build with no round at the same clock gets no paired reading: the table says `refused`.
+- A round in which a build's clock and the reference's clock differ by more than 3 % does not compare. The paired reading leaves such a round out, and a line counts the rounds at the same clock, at different clocks and unchecked.
+- A round with an unknown clock stays in the paired reading, unchecked, so that the tool works where `gpu-clock` cannot run. The last column of the paired table counts these rounds.
+- A build whose checked rounds all ran at different clocks gets no paired reading, even with unchecked rounds: the table says `refused`.
 - The pooled reading mixes every round. The line above the tables marks it `INVALID` when the medians of the two builds' clocks differ by more than 3 %.
 
-On 2026-11-04 two rounds of one build against a byte copy of it ran at 886.6 to 1008.5 MHz, and the tool refused both rounds. FSR's timing test waits for each frame, so its clock moves from run to run.
+On 2026-11-04 two rounds of one build against a byte copy of it ran at 886.6 to 1008.5 MHz, and the tool refused both rounds. FSR's timing test waits for each frame, so its clock moves from run to run, and the tool refuses nearly every round. Ticket `ter-q58r` gives the comparison of FSR builds a held clock, from FSR's batched measurement. Until then, a refused comparison of FSR builds has no result.
+
+`tools/test_fsr3_timing.py` tests the per-round decision of `analyze.py` on small synthetic out folders. It uses the Python standard library only:
+
+```bash
+nix develop --command python3 -I tools/test_fsr3_timing.py
+```
 
 The rotation gives each build the same predecessor in most runs. So an effect of one run on the next mixes with the effect of the build. A Williams design, an order that gives each build every predecessor equally often, removes this. The tool does not use one yet.
 
@@ -519,7 +527,7 @@ The timed span is the part of a run that the measurement times, without its setu
    bash tools/gpu-clock.sh <command> [arguments]
    ```
 
-3. `tools/gpu_clock.py` reads the log. `span_clock` averages the samples between each `timed-start` and the next `timed-end`. Each sample weighs by the share of its 100 ms in which the GPU was not off. A sample covers the 100 ms before its line, so the first sample of a span holds part of the work before it.
+3. `tools/gpu_clock.py` reads the log. `span_clock` averages the samples between each `timed-start` and the next `timed-end`. A span that no `timed-end` closes, as in a run that failed inside it, does not count. Each sample weighs by the share of its 100 ms in which the GPU was not off. A sample covers the 100 ms before its line, so the first sample of a span holds part of the work before it. The window summary of `tools/gpu-calibration/analyze.py` uses the same parser of samples and the same mean, `samples` and `clock_of`.
 
 The record has the span's mean clock in MHz, its spread as the 10th and 90th percentile of the samples' clocks, and the number of samples. A sample in which the GPU was off does not count. A headless demo run keeps the record in its `gpu-timings.json` as the entry `gpuClock`:
 
@@ -541,13 +549,20 @@ Two runs compare when the higher clock of their spans exceeds the lower one by a
 - Five runs of one build of FSR's batched measurement ran at 1241.0 to 1272.4 MHz over their timed spans, 2.5 % apart. Their medians did not follow those clocks: the run at 1272.4 MHz was the slowest. So 3 % holds the spread of one build at a held clock.
 - Seven headless runs of the deck from one build ran at 748 to 990 MHz. Their frame span fell from 11.80 to 9.61 ms as the clock rose. A difference of that size is the clock, not the build.
 
-A comparison at different clocks prints `INVALID` with both clocks and their difference. A comparison with an unknown clock prints `UNCHECKED`. Each tool also prints each time converted to the windowed clock, 1296 MHz, as an estimate, by the report's rule:
+A comparison at different clocks prints `INVALID` with both clocks and their difference. Its runs do not compare: run them again, for example in interleaved rounds, until a pair falls within the tolerance. A comparison with an unknown clock prints `UNCHECKED`. Each tool also prints each time converted to the windowed clock, 1296 MHz, as an estimate, by the report's rule:
 
 ```text
 time at the windowed clock = measured time × the span's clock / 1296 MHz
 ```
 
-The rule is an estimate within about 15 %. It holds best for a pass bound by its ALU work or its cached reads, and a pass bound by DRAM bandwidth gains less (gpu-calibration.md, "The rule that converts a headless time to the windowed clock"). Use the estimates to compare two runs at different clocks, and measure at the windowed clock near a budget's limit.
+The rule is an estimate within about 15 %. It holds best for a pass bound by its ALU work or its cached reads, and a pass bound by DRAM bandwidth gains less (gpu-calibration.md, "The rule that converts a headless time to the windowed clock"). Use an estimate to hold a time against a budget, such as those of docs/plans/temporal-renderer.md, section 11. Near a budget's limit, measure at the windowed clock.
+
+Do not compare two builds by their estimates. The estimates of one build spread by about 8 % between runs at different clocks:
+
+- Four FSR timing runs of one build and its byte copy on 2026-11-04 gave estimates of 1.893 to 2.058 ms, 8.7 % apart. Their raw medians were 5.1 % apart. In one round, the estimate reversed the sign of the raw difference.
+- The seven headless deck runs of one build in ter-3ug8 gave estimates of 6.81 to 7.34 ms, 7.8 % apart.
+
+So a difference between two builds' estimates below about 8 % says nothing about their cost.
 
 ### A timed demo run
 
@@ -578,7 +593,7 @@ python3 -I tools/gpu_clock.py compare captures/gpu-base/gpu-timings.json capture
 
 `tools/gpu-calibration/window.sh` times no span. Its clock is the windowed clock over the steady span of a window run (see "GPU calibration"), and the launcher's line says that the clock of the timed span is unknown.
 
-`tools/test_gpu_clock.py` tests `tools/gpu_clock.py` on synthetic logs: the average between the markers, the unknown cases, the tolerance and the conversion. It uses the Python standard library only:
+`tools/test_gpu_clock.py` tests `tools/gpu_clock.py` on synthetic logs: the average between the markers, the unknown cases, the tolerance and the conversion. It also runs `tools/gpu-clock.sh` without `gpu-clock`, for its unknown case and its exit code. It uses the Python standard library only:
 
 ```bash
 nix develop --command python3 -I tools/test_gpu_clock.py
@@ -686,7 +701,7 @@ The script builds the demo in Release, and traces the built binary, so the trace
 - `run.log`: the uptime at the start and the end of the recording, xctrace's messages, `gpu-clock`'s samples and the demo's printed lines.
 - `passes.md`: the table, which the script also prints. `passes.json` holds every counter of every pass, and the summary of each pass's shared time.
 
-The table has one row per pass, a row for the encoders before the first pass (the uploads and the exposure's readback copy), a row for those after the last pass, and the frame's span. For each, it gives the frames, the mean, median and 95th percentile of the busy time and of the time alone in milliseconds, the two highest limiters, and the read and write bandwidth in GB/s. A limiter is the share of the time in which one GPU unit was busy or stalled, such as the ALU, texture sampling or the last-level cache. The highest limiter is the unit that bounds the pass. The first line of `passes.md` gives the load averages at the start. Measure on a quiet machine: the counters sample the whole GPU, not one process.
+The table has one row per pass, a row for the encoders before the first pass (the uploads and the exposure's readback copy), a row for those after the last pass, and the frame's span. For each, it gives the frames, the mean, median and 95th percentile of the busy time and of the time alone in milliseconds, the two highest limiters, and the read and write bandwidth in GB/s. A limiter is the share of the time in which one GPU unit was busy or stalled, such as the ALU, texture sampling or the last-level cache. The highest limiter is the unit that bounds the pass. A line of `passes.md` gives the load averages when the recording started. `gpu-trace.py report --log` reads them from the line `uptime-start` that `tools/gpu-lock.sh` writes into `run.log` after any wait for the lock. Measure on a quiet machine: the counters sample the whole GPU, not one process.
 
 How the script reads the trace:
 
@@ -715,7 +730,7 @@ To read a window of a trace that you recorded before, run the report again with 
 nix develop --command python3 -I tools/gpu-trace.py report captures/gpu-trace/demo-exit-399/run.trace captures/gpu-trace/demo-exit-399/run/gpu-timings.json captures/gpu-trace/demo-exit-399/window --window reflections bloom
 ```
 
-The new `passes.md` has no line with the load averages, because only `gpu-trace.sh` writes that line. A new folder keeps the first `passes.md` with its load line. The report exports the trace's tables again into the new folder and keeps them there. For a trace with counters, that export takes more than a gigabyte. Delete the `export` folder after the report.
+The new `passes.md` gives the load averages at the start as `unknown`, unless you also pass `--log` with the trace's `run.log`. A new folder keeps the first `passes.md` with its load line. The report exports the trace's tables again into the new folder and keeps them there. For a trace with counters, that export takes more than a gigabyte. Delete the `export` folder after the report.
 
 ### The paired mode
 

@@ -9,6 +9,9 @@ of the import path.
 """
 
 import importlib.util
+import os
+import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -21,8 +24,8 @@ def sample(t: float, active: float, mhz: float) -> str:
     return f"sample t={t:.3f} active={active:.3f} mhz={mhz:.1f} states=0,0,0,0,0,1"
 
 
-def known(mhz: float) -> "gpu_clock.Clock":
-    return gpu_clock.Clock(mhz=mhz, p10_mhz=mhz, p90_mhz=mhz, samples=10, unknown=None)
+def known(mhz: float) -> "gpu_clock.Known":
+    return gpu_clock.Known(mhz=mhz, p10_mhz=mhz, p90_mhz=mhz, samples=10)
 
 
 class SpanClock(unittest.TestCase):
@@ -64,44 +67,69 @@ class SpanClock(unittest.TestCase):
         self.assertAlmostEqual(clock.mhz, (1296.0 + 972.0) / 2)
         self.assertEqual(clock.samples, 2)
 
+    def test_the_samples_of_a_span_that_never_closes_do_not_count(self):
+        log = "\n".join([
+            "timed-start", sample(0.1, 1.0, 1296.0), "timed-end",
+            "timed-start", sample(0.2, 1.0, 648.0), sample(0.3, 1.0, 648.0),
+        ])
+        clock = gpu_clock.span_clock(log)
+        self.assertEqual(clock.mhz, 1296.0)
+        self.assertEqual(clock.samples, 1)
+
     def test_a_log_without_markers_has_an_unknown_clock(self):
         clock = gpu_clock.span_clock(sample(0.1, 1.0, 648.0))
-        self.assertIsNone(clock.mhz)
-        self.assertIn("timed-start", clock.unknown)
+        self.assertIsInstance(clock, gpu_clock.Unknown)
+        self.assertIn("timed-start", clock.reason)
 
     def test_a_log_without_samples_of_gpu_clock_has_an_unknown_clock(self):
         clock = gpu_clock.span_clock("timed-start\nfirst frame\ntimed-end")
-        self.assertIsNone(clock.mhz)
-        self.assertIn("no sample", clock.unknown)
+        self.assertIsInstance(clock, gpu_clock.Unknown)
+        self.assertIn("no sample", clock.reason)
 
     def test_a_span_shorter_than_a_sample_has_an_unknown_clock(self):
         clock = gpu_clock.span_clock("\n".join([sample(0.1, 1.0, 648.0), "timed-start", "timed-end", sample(0.2, 1.0, 648.0)]))
-        self.assertIsNone(clock.mhz)
-        self.assertIn("timed span", clock.unknown)
+        self.assertIsInstance(clock, gpu_clock.Unknown)
+        self.assertIn("timed span", clock.reason)
 
     def test_a_system_where_gpu_clock_cannot_run_gives_its_reason(self):
         log = "\n".join(["clock unknown: gpu-clock reads IOReport, which only macOS has", "timed-start", "timed-end"])
         clock = gpu_clock.span_clock(log)
-        self.assertIsNone(clock.mhz)
-        self.assertEqual(clock.unknown, "gpu-clock reads IOReport, which only macOS has")
+        self.assertIsInstance(clock, gpu_clock.Unknown)
+        self.assertEqual(clock.reason, "gpu-clock reads IOReport, which only macOS has")
+
+
+class ClockOfSamples(unittest.TestCase):
+    """samples and clock_of: the one parser of gpu-clock's sample lines and the one mean over chosen samples, which the
+    timed span and the window summary of tools/gpu-calibration/analyze.py both use."""
+
+    def test_each_sample_line_gives_its_line_its_time_its_active_share_and_its_clock(self):
+        found = gpu_clock.samples("\n".join(["first frame", sample(0.1, 0.5, 972.0)]))
+        self.assertEqual(found, [gpu_clock.Sample(line=1, t=0.1, active=0.5, mhz=972.0)])
+
+    def test_the_clock_of_samples_weighs_each_sample_by_its_active_share(self):
+        found = gpu_clock.samples("\n".join([sample(0.1, 1.0, 1296.0), sample(0.2, 0.25, 648.0)]))
+        self.assertAlmostEqual(gpu_clock.clock_of(found).mhz, (1296.0 + 0.25 * 648.0) / 1.25)
+
+    def test_samples_without_active_time_have_an_unknown_clock(self):
+        self.assertIsInstance(gpu_clock.clock_of(gpu_clock.samples(sample(0.1, 0.0, 0.0))), gpu_clock.Unknown)
 
 
 class Record(unittest.TestCase):
     """The record in JSON: a known clock keeps its mean, spread and samples, and an unknown clock keeps its reason."""
 
     def test_a_known_clock_reads_back_as_it_was_written(self):
-        clock = gpu_clock.Clock(mhz=1257.25, p10_mhz=1241.0, p90_mhz=1272.0, samples=7, unknown=None)
+        clock = gpu_clock.Known(mhz=1257.25, p10_mhz=1241.0, p90_mhz=1272.0, samples=7)
         self.assertEqual(gpu_clock.from_json(gpu_clock.to_json(clock)), clock)
 
     def test_an_unknown_clock_reads_back_with_its_reason(self):
-        clock = gpu_clock.Clock.of_unknown("the log has no sample of gpu-clock")
+        clock = gpu_clock.Unknown("the log has no sample of gpu-clock")
         self.assertEqual(gpu_clock.from_json(gpu_clock.to_json(clock)), clock)
 
     def test_a_file_without_a_record_has_an_unknown_clock(self):
-        self.assertIsNone(gpu_clock.from_json(None).mhz)
+        self.assertIsInstance(gpu_clock.from_json(None), gpu_clock.Unknown)
 
     def test_the_line_of_an_unknown_clock_says_unknown_and_why(self):
-        line = gpu_clock.describe(gpu_clock.Clock.of_unknown("gpu-clock is not built"))
+        line = gpu_clock.Unknown("gpu-clock is not built").describe()
         self.assertIn("unknown", line)
         self.assertIn("gpu-clock is not built", line)
 
@@ -125,7 +153,7 @@ class Comparison(unittest.TestCase):
         )
 
     def test_an_unknown_clock_leaves_the_comparison_unchecked(self):
-        check = gpu_clock.compare(known(1296.0), gpu_clock.Clock.of_unknown("not recorded"))
+        check = gpu_clock.compare(known(1296.0), gpu_clock.Unknown("not recorded"))
         self.assertEqual(check.verdict, gpu_clock.UNCHECKED)
         self.assertIsNone(check.difference)
 
@@ -134,6 +162,12 @@ class Comparison(unittest.TestCase):
         self.assertIn("INVALID", line)
         self.assertIn("800.0", line)
         self.assertIn("1050.0", line)
+
+    def test_the_line_of_a_comparison_at_different_clocks_says_that_the_runs_must_run_again(self):
+        line = gpu_clock.compare(known(800.0), known(1050.0)).line()
+        self.assertIn("do not compare", line)
+        self.assertIn("run them again", line)
+        self.assertNotIn("Compare the estimates", line)
 
 
 class Windowed(unittest.TestCase):
@@ -146,7 +180,7 @@ class Windowed(unittest.TestCase):
         self.assertAlmostEqual(gpu_clock.windowed_ms(1.991, known(1257.0)), 1.991 * 1257.0 / 1296.0)
 
     def test_a_time_at_an_unknown_clock_has_no_estimate(self):
-        self.assertIsNone(gpu_clock.windowed_ms(2.0, gpu_clock.Clock.of_unknown("not recorded")))
+        self.assertIsNone(gpu_clock.windowed_ms(2.0, gpu_clock.Unknown("not recorded")))
 
 
 class TimingsComparison(unittest.TestCase):
@@ -172,6 +206,31 @@ class TimingsComparison(unittest.TestCase):
     def test_runs_without_a_record_compare_unchecked(self):
         lines = gpu_clock.compare_timings(self.timings(10.0, None), self.timings(9.0, None))
         self.assertIn("UNCHECKED", lines[0])
+
+
+class Launcher(unittest.TestCase):
+    """tools/gpu-clock.sh: it runs the command beside gpu-clock, or alone where gpu-clock cannot run, and exits with the
+    command's code."""
+
+    @staticmethod
+    def launch(*command: str) -> subprocess.CompletedProcess:
+        with tempfile.TemporaryDirectory() as empty:
+            # A folder without gpu-clock, as on a checkout where nobody built it.
+            env = {**os.environ, "GPU_CALIBRATION_BIN": empty}
+            return subprocess.run(
+                ["bash", str(Path(__file__).with_name("gpu-clock.sh")), *command],
+                env=env, capture_output=True, text=True, check=False,
+            )
+
+    def test_without_gpu_clock_the_command_still_runs_and_the_clock_is_unknown_with_the_reason(self):
+        result = self.launch("bash", "-c", "echo timed-start; echo the work; echo timed-end")
+        lines = result.stdout.splitlines()
+        self.assertIn("the work", lines)
+        self.assertTrue(lines[-1].startswith("GPU clock over the timed span: unknown ("), lines[-1])
+        self.assertIn("gpu-clock", lines[-1])
+
+    def test_the_exit_code_is_the_commands(self):
+        self.assertEqual(self.launch("bash", "-c", "echo timed-start; echo timed-end; exit 3").returncode, 3)
 
 
 if __name__ == "__main__":

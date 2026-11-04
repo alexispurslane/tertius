@@ -33,3 +33,15 @@ Found in ter-3ug8 (docs/research/temporal-renderer/gpu-calibration.md). The GPU'
 - Found: xctrace's list of encoders stays empty when a process sits between xctrace and the traced process. So gpu-trace.sh and fsr-trace.sh run gpu-clock outside xctrace, with `--target-stdout -`.
 
 The real machine, under the lock: two FSR timing rounds of one build against a byte copy ran at 886.6, 913.8, 1008.5 and 954.8 MHz over their spans, and analyze.py refused both rounds. One timed demo run of the deck at 1280 x 720 ran at 1035.9 MHz (p10 743.0, p90 1294.0, 17 samples) over its span and 1055.1 MHz over the whole run. A short gpu-trace.sh run ran at 1253.2 MHz.
+
+**2026-11-04T15:08:33Z**
+
+2026-11-04, the review fix:
+
+- The estimate at the windowed clock is for budget checks only. One build's estimates spread by about 8 % between runs at different clocks (FSR rounds of one build and its byte copy: 1.893 to 2.058 ms; ter-3ug8's seven deck runs: 6.81 to 7.34 ms). gpu_clock.ESTIMATE_SPREAD holds it. An INVALID line now says that the runs do not compare and must run again. tools/README.md, docs/plans/rendering-upgrade.md and docs/plans/temporal-renderer.md ('How each ticket measures its part') say the same. The epic's recipe now runs each run through tools/demo-timing.sh and leaves out the pairs at different clocks.
+- One model of a clock: tools/gpu_clock.py's samples() and clock_of() serve the timed span and the window summary of tools/gpu-calibration/analyze.py, whose copy of the parser and the mean is gone. A clock is Known or Unknown, and a build's clock in tools/fsr3-timing/analyze.py is a BuildClock that says 'of the runs'.
+- span_clock leaves out a span that no timed-end closes.
+- gpu-trace.sh takes the load at the start from the lock's uptime-start line, after the wait. A real trace on 2026-11-04 waited 185 s, and passes.md gave the load of that line.
+- fsr3-timing/analyze.py counts the unchecked rounds of each paired reading, and refuses a build whose checked rounds all ran at different clocks, even with unchecked rounds. tools/test_fsr3_timing.py tests it.
+- tests/Tertius.Rendering.Tests/TimedSpan.cs is the one writer of the markers in that project.
+- New ticket ter-q58r: compare FSR builds at a held clock, from FSR's batched measurement, because the timing test's clock moves and the tool refuses nearly every round.

@@ -211,7 +211,7 @@ For a pass whose time follows the clock, an estimate of the time in a window is:
 windowed time = measured time × the run's clock / 1296 MHz
 ```
 
-The run's clock is the clock that `gpu-clock` recorded over the measured run's timed span. A measurement that prints the markers `timed-start` and `timed-end` around its timed work gets that clock from `analyze.py`'s `span_clock`. A run's clock over the whole process holds its setup, which runs at 648 MHz. FSR's batched runs show the difference: 1208 MHz over the whole run, 1257 MHz over the timed span.
+The run's clock is the clock that `gpu-clock` recorded over the measured run's timed span. A measurement that prints the markers `timed-start` and `timed-end` around its timed work gets that clock from `span_clock` of `tools/gpu_clock.py` (tools/README.md, "The GPU clock of a timed run"). A run's clock over the whole process holds its setup, which runs at 648 MHz. FSR's batched runs show the difference: 1208 MHz over the whole run, 1257 MHz over the timed span.
 
 No run of the epic before this spike recorded its clock. For such a run, this report assumes the clock of this spike's runs of the same kind. It gives the range that follows from their spread:
 

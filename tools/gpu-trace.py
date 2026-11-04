@@ -35,6 +35,7 @@ import importlib.util
 import json
 import math
 import random
+import re
 import statistics
 import subprocess
 import sys
@@ -510,13 +511,22 @@ def paired(intervals: dict, starts: "dict[str, int]", passes: list[str], name: s
     return result
 
 
+def load_at_start(log: str) -> str | None:
+    """The 1-, 5- and 15-minute load averages of the line uptime-start that tools/gpu-lock.sh writes into run.log when the
+    recording takes the GPU lock, after any wait for it. None for a log without the line."""
+    match = re.search(r"^uptime-start: .*load averages?: (.*)$", log, re.M)
+    return match[1].strip() if match else None
+
+
 def table(report: dict, has_counters: bool) -> str:
     """The text of passes.md for a report: the header facts of passes.json and the result of summarize."""
     buffers = report["commandBuffers"]
     lines = [
         f"{report['device']}, {report['width']} x {report['height']}: {buffers['frames']} frames,"
         f" {buffers['skipped']} other command buffers.",
-        f"GPU clock over the run's timed span: {gpu_clock.describe(gpu_clock.from_json(report.get('gpuClock')))}",
+        f"GPU clock over the run's timed span: {gpu_clock.from_json(report.get('gpuClock')).describe()}",
+        "Load averages when the recording started, after the wait for the GPU lock (1, 5 and 15 minutes):"
+        f" {report.get('loadAtStart') or 'unknown'}",
         "The busy time of a pass is the GPU time of its encoders, in milliseconds. Read each pass's own time here: on MoltenVK"
         " the pass times of gpu-timings.json hold only for the span and for sums of neighbouring passes (tools/README.md,"
         " \"GPU trace\").",
@@ -716,6 +726,8 @@ def report(args) -> int:
     report = {"device": timings["device"], "width": timings["width"], "height": timings["height"]}
     # gpu-trace.sh records the clock into gpu-timings.json before the report, and a run without it has an unknown clock.
     report["gpuClock"] = gpu_clock.to_json(gpu_clock.from_json(timings.get("gpuClock")))
+    if args.log is not None:
+        report["loadAtStart"] = load_at_start(args.log.read_text())
     report["commandBuffers"] = command_buffers(listed, starts)
     report |= summarize(intervals, starts, passes, counters, args.window)
     if args.paired or args.control:
@@ -742,6 +754,9 @@ def main() -> int:
     reporting.add_argument("timings", type=Path, help="the run's gpu-timings.json, which names the passes")
     reporting.add_argument("out", type=Path)
     reporting.add_argument("--process", default="Tertius.Demo")
+    reporting.add_argument(
+        "--log", type=Path, help="the run.log of tools/gpu-lock.sh, whose line uptime-start gives the load at the start"
+    )
     reporting.add_argument(
         "--window",
         nargs=2,

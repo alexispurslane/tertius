@@ -155,7 +155,7 @@ def main() -> int:
         spec = importlib.util.spec_from_file_location("gpu_clock", Path(__file__).parent.parent / "gpu_clock.py")
         gpu_clock = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(gpu_clock)
-        span = gpu_clock.describe(gpu_clock.span_clock(log.read_text()))
+        span = gpu_clock.span_clock(log.read_text()).describe()
         implied = len(top) / len(frames) * 1296 + (1 - len(top) / len(frames)) * 972
         print(f"The clock over the timed span: {span}. The clock that the clusters imply: {implied:.1f} MHz")
     print("\n| Pass | Busy time of every kept frame, median (p10 to p90), ms | At the top clock, ms |")

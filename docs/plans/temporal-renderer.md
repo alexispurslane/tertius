@@ -1246,8 +1246,8 @@ At a scale of 1, the render-size passes cost 2.25 times as much: 8.9 to 14.2 ms.
 Every measurement runs in Release on the M1 Max, under the GPU lock `/tmp/tertius-gpu-measure.lock`. It follows the recipe of `ter-8bda`, which [environment-map-distances.md](environment-map-distances.md), "The measurement plan", writes out:
 
 1. Build three binaries: the base, which is main at the branch's merge base, a byte copy of the base as the control, and the branch.
-2. Run 7 interleaved rounds of demo-exit's deck and floor windows of 120 frames, in a rotated order of base, control and branch. Record the 1-minute load at each start.
-3. Report the median frame span and each pass's mean from `gpu-timings.json`. The control's distance from the base is the noise.
+2. Run 7 interleaved rounds of demo-exit's deck and floor windows of 120 frames, in a rotated order of base, control and branch. Run each run through `tools/demo-timing.sh`, which records the GPU clock over the run's timed span in `gpu-timings.json` (tools/README.md, "The GPU clock of a timed run"). Record the 1-minute load at each start.
+3. In each round, check the base and control pair and the base and branch pair with `tools/gpu_clock.py compare`. Leave out each pair whose clocks differ by more than 3 %, as `tools/fsr3-timing/analyze.py` does, and say how many pairs you left out. Report the median frame span and each pass's mean from `gpu-timings.json` over the pairs that remain. The control's distance from the base is the noise. Use the estimates at the windowed clock only to hold a figure against the budgets of section 11, not to compare two builds.
 4. For a pass's own time, take three interleaved traces, base, branch and base, with `tools/gpu-trace.sh --no-counters`. For a cost below the drift between runs, use its paired mode.
 
 A ticket that lands before ticket 5 runs at an output of 1280 × 720 under `NoUpscaling`, the budget's render size. After ticket 5, the runs take an output of 1920 × 1080 and `FixedRenderScale(2 / 3)`.

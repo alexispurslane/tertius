@@ -391,11 +391,9 @@ public sealed class Fsr3UpscalerTests
 
         // The first 60 frames warm the caches and the driver's pipelines. The marker lines around the 300 timed frames let
         // tools/gpu_clock.py take gpu-clock's clock over them alone (tools/README.md, "The GPU clock of a timed run").
-        ITestOutputHelper output = TestContext.Current.TestOutputHelper!;
         bench.TimedUpscales(firstDraw: 0, count: 60);
-        output.WriteLine("timed-start");
-        double[] frames = bench.TimedUpscales(firstDraw: 60, count: 300);
-        output.WriteLine("timed-end");
+        double[] frames = TimedSpan.Run(() => bench.TimedUpscales(firstDraw: 60, count: 300));
+        ITestOutputHelper output = TestContext.Current.TestOutputHelper!;
         double[] times = [.. frames.Order()];
 
         double median = times[times.Length / 2];

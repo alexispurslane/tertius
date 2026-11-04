@@ -40,9 +40,7 @@ _spec.loader.exec_module(gpu_clock)
 FREQUENCIES = [388.8, 486.0, 648.0, 777.6, 972.0, 1296.0]
 
 
-def at(values, fraction):
-    ordered = sorted(values)
-    return ordered[min(len(ordered) - 1, int(len(ordered) * fraction))]
+at = gpu_clock.at
 
 
 def spread(values):
@@ -74,22 +72,8 @@ def clock(text):
     return float(match[1]), float(match[2]), [float(share) for share in match[3].split(",")]
 
 
-SAMPLE = re.compile(r"^sample t=([0-9.]+) active=([0-9.]+) mhz=([0-9.]+)")
 PRESENTED = "Performance statistics reporting every"
 STEADY_FROM = 5.0
-
-
-def samples(text):
-    """Yields (line index, t in s, active share, mhz) for each of gpu-clock's sample lines, as numbers."""
-    for index, line in enumerate(text.splitlines()):
-        if match := SAMPLE.match(line):
-            yield index, float(match[1]), float(match[2]), float(match[3])
-
-
-def weighted_clock(found):
-    """The mean clock over the active time of samples (index, t, active, mhz), or None without active time."""
-    active = sum(each[2] for each in found)
-    return sum(each[2] * each[3] for each in found) / active if active > 0 else None
 
 
 def window_summary(log, busy):
@@ -101,11 +85,12 @@ def window_summary(log, busy):
     and steady_busy the mean of the busy samples in the steady span, in percent.
     """
     lines = log.splitlines()
-    found = list(samples(log))
+    found = gpu_clock.samples(log)
     presents = [index for index, line in enumerate(lines) if PRESENTED in line]
-    before_last = [each for each in found if presents and each[0] < presents[-1]]
-    end = before_last[-1][1] if before_last else float("inf")
-    steady = [each for each in found if STEADY_FROM <= each[1] <= end]
+    before_last = [each for each in found if presents and each.line < presents[-1]]
+    end = before_last[-1].t if before_last else float("inf")
+    steady = [each for each in found if STEADY_FROM <= each.t <= end]
+    steady_clock = gpu_clock.clock_of(steady)
     busy_values = []
     for line in busy.splitlines():
         if match := re.match(r"^busy t=([0-9.]+) percent=([0-9]+)", line):
@@ -120,8 +105,8 @@ def window_summary(log, busy):
         "swapchain": f"{swapchain[1]}x{swapchain[2]}" if swapchain else None,
         "run_mhz": run[1] if run else None,
         "steady_samples": len(steady),
-        "steady_mhz": weighted_clock(steady),
-        "steady_active": statistics.mean(each[2] for each in steady) if steady else None,
+        "steady_mhz": None if isinstance(steady_clock, gpu_clock.Unknown) else steady_clock.mhz,
+        "steady_active": statistics.mean(each.active for each in steady) if steady else None,
         "steady_busy": statistics.mean(busy_values) if busy_values else None,
         "fps": 60 * (len(elapsed) - 1) / (elapsed[-1] - elapsed[0]) if len(elapsed) > 1 else None,
         "frame_ms": float(frame[-1]) if frame else None,
@@ -221,8 +206,8 @@ def upscalers(folder):
         times[name] += [float(value) for value in frames[1].split()]
         if (found := clock(text)) is not None:
             run_clocks[name].append(found[1])
-        if (span := gpu_clock.span_clock(text).mhz) is not None:
-            span_clocks[name].append(span)
+        if isinstance(span := gpu_clock.span_clock(text), gpu_clock.Known):
+            span_clocks[name].append(span.mhz)
     print("| Kind | Frames or batches | Median (p10 to p90), ms | Run medians, ms | Clock of the whole run, MHz | Clock over the timed span, MHz |")
     print("|---|---:|---|---|---|---|")
     for name in sorted(times):
@@ -277,8 +262,8 @@ def rounds(folder) -> int:
                 first[api].append(times[0])
         if (found := clock(text)) is not None:
             clocks[name].append(found)
-        if (span := gpu_clock.span_clock(text).mhz) is not None:
-            span_clocks[name].append(span)
+        if isinstance(span := gpu_clock.span_clock(text), gpu_clock.Known):
+            span_clocks[name].append(span.mhz)
         if match := re.search(r"GPU frame span: mean ([0-9.]+) ms, median ([0-9.]+) ms", text):
             spans.append((name, float(match[1]), float(match[2])))
         if match := re.search(r"(FSR 3.1|MetalFX temporal) from .*?median ([0-9.]+) ms", text):
