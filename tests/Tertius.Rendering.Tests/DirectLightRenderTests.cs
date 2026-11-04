@@ -18,10 +18,11 @@ public sealed class DirectLightRenderTests
     private const double Tick = 1.0 / 60.0;
 
     /// <summary>
-    /// A validating headless renderer with the default direct light, a fixed exposure and no screen-space light, map,
-    /// bloom or impostors, so that the HDR image depends only on the frame's G-buffer and its direct light.
+    /// A validating headless renderer with the default direct light, a fixed exposure of <paramref name="stops"/> and no
+    /// screen-space light, map, bloom or impostors, so that the HDR image depends only on the frame's G-buffer and its
+    /// direct light.
     /// </summary>
-    private static VulkanRenderer DefaultDirectLight() =>
+    private static VulkanRenderer DefaultDirectLight(float stops = 0) =>
         VulkanRenderer.CreateHeadless(
             new()
             {
@@ -30,7 +31,7 @@ public sealed class DirectLightRenderTests
                 Height = Height,
                 Impostors = false,
                 ScreenSpaceLight = new NoScreenSpaceLight(),
-                Exposure = new FixedExposure(0),
+                Exposure = new FixedExposure(stops),
                 Bloom = new NoBloom(),
                 AntiAliasing = AntiAliasing.None,
                 EnvironmentMap = new NoEnvironmentMap(),
@@ -101,6 +102,41 @@ public sealed class DirectLightRenderTests
 
             brighter.Should().NotEqual(first, "the brighter lamp lights the wall more");
             renderer.ReadHdr().Should().Equal(first, "the frame's direct light holds no light of the brighter frame");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void TheDirectLightIsPreExposedSoOneStopMoreDoublesEveryLitPixel()
+    {
+        float[] atZero = LitWall(stops: 0);
+        float[] atOne = LitWall(stops: 1);
+
+        int lit = 0;
+        for (int i = 0; i < atZero.Length; i++)
+        {
+            if (i % 4 == 3 || atZero[i] < 1e-3f)
+                continue;
+            lit++;
+            atOne[i].Should().BeApproximately(2 * atZero[i], 2e-3f * atZero[i], $"channel {i} of the HDR image");
+        }
+
+        lit.Should().BeGreaterThan(Width * Height, "the lamps light the whole wall");
+    }
+
+    /// <summary>The HDR image of the wall with two lamps of 40 W/sr, at a fixed exposure of <paramref name="stops"/>.</summary>
+    private static float[] LitWall(float stops)
+    {
+        VulkanRenderer renderer = DefaultDirectLight(stops);
+        try
+        {
+            RenderSnapshot snapshot = Wall(renderer);
+            Light(snapshot, secondIntensity: 40);
+            renderer.Render(snapshot, 1f);
+            return renderer.ReadHdr();
         }
         finally
         {

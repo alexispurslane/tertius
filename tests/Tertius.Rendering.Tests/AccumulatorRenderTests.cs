@@ -345,4 +345,21 @@ public sealed class AccumulatorRenderTests
                 );
         }
     }
+
+    [Fact]
+    public void ARendererWithEveryFeatureOnHasRoomInItsDescriptorPoolForASignalOfTwoParts()
+    {
+        VulkanRenderer renderer = VulkanRenderer.CreateHeadless(new() { Validation = true, Width = Width, Height = Height });
+        try
+        {
+            renderer
+                .Invoking(it => it.CreateSignal(parameters: Parameters, name: "test", parts: 2))
+                .Should()
+                .NotThrow("the shared pool holds the direct light's read set and a signal's sets beside it");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
 }
