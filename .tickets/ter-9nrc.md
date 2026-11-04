@@ -1,6 +1,6 @@
 ---
 id: ter-9nrc
-status: in_progress
+status: closed
 deps: [ter-nmbm]
 links: []
 created: 2026-11-03T19:30:31Z
@@ -137,3 +137,7 @@ Answers to the survivors:
 - C08, judgment call: the shared pool keeps 3 free sets beside a renderer with every feature on and a signal of two parts (65 + 5 of 73 sets, measured with a probe test, not kept), so one set fewer still fits. The free sets exist on main too.
 - C09, C10 and C11, judgment call: the per-type descriptor counts of the pool are bounds that the spec lets a driver exceed, and MoltenVK allocates past them, so no test on this machine sees a count one too small.
 - C17, equivalent: the pass loads the image with DontCare and writes every pixel, so keeping the old contents changes only the cost of the layout transition.
+
+**2026-11-04T16:46:30Z**
+
+2026-11-04: merged into main as 39b5e56dd, after the full Checked (10206 passed, 20 skipped) and Release (10193 passed, 20 skipped) suites passed on the merged tree.
