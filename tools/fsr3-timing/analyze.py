@@ -63,21 +63,26 @@ def load(folder):
     return sorted(rounds), starts
 
 
-def run_times(folder, r, b):
-    """The mean frame times in ms of the batches of one run, in their order, and the frames in each batch."""
+@dataclass(frozen=True)
+class Run:
+    """One run of FSR's batched measurement: the mean frame time in ms of each batch in their order, the frames in each
+    batch, and the GPU clock over the timed span."""
+
+    times: list
+    batch_size: int
+    clock: object
+
+
+def read_run(folder, r, b):
+    """The Run of round r of build b, from its log. A missing log raises FileNotFoundError, and a log without the
+    batched measurement's summary and frame times, such as a per-frame run's, raises ValueError. Both name the log."""
     log = Path(f"{folder}/{r}-{b}.log")
     text = log.read_text()
     size = re.search(r"in batches of (\d+) ", text)
     times = re.search(r"frame times, ms: (.*)", text)
     if not size or not times:
         raise ValueError(f"{log} holds no frame times of FSR's batched measurement")
-    return [float(t) for t in times[1].split()], int(size[1])
-
-
-def run_clock(folder, r, b):
-    """The clock of the timed span of one run, or an unknown clock for a run without a log."""
-    log = Path(f"{folder}/{r}-{b}.log")
-    return gpu_clock.span_clock(log.read_text()) if log.exists() else gpu_clock.Unknown(f"{log} is missing")
+    return Run(times=[float(t) for t in times[1].split()], batch_size=int(size[1]), clock=gpu_clock.span_clock(text))
 
 
 @dataclass(frozen=True)
@@ -111,12 +116,12 @@ def build_clock(clocks):
 def main(folder, reference, others):
     rounds, starts = load(folder)
     builds = [reference, *others]
-    runs = {(r, b): run_times(folder, r, b) for r in rounds for b in builds}
-    times = {run: batches for run, (batches, _) in runs.items()}
-    clocks = {(r, b): run_clock(folder, r, b) for r in rounds for b in builds}
+    runs = {(r, b): read_run(folder, r, b) for r in rounds for b in builds}
+    times = {key: run.times for key, run in runs.items()}
+    clocks = {key: run.clock for key, run in runs.items()}
     print(
         f"{len(rounds)} rounds, batches per run {sorted({len(t) for t in times.values()})}, frames per batch"
-        f" {sorted({size for _, size in runs.values()})}"
+        f" {sorted({run.batch_size for run in runs.values()})}"
     )
     print(f"1-minute load at the run starts: least {min(starts)}, median {statistics.median(starts)}, most {max(starts)}")
     print(

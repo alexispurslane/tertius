@@ -84,11 +84,31 @@ class BatchedTimes(unittest.TestCase):
         lines = analyze_rounds(SAME, SAME)
         self.assertEqual(lines[0], "2 rounds, batches per run [11], frames per batch [8]")
 
-    def test_a_run_whose_log_holds_no_batched_times_is_refused_with_the_path_of_its_log(self):
+    def test_a_log_of_the_per_frame_measurement_is_refused_with_the_path_of_its_log(self):
+        # The per-frame test prints a line of frame times too, but its summary names no batch size.
+        prefix = "    Tertius.Rendering.Tests.Fsr3UpscalerTests.PerFrame [OUTPUT] "
+        per_frame = (
+            f"{prefix}FSR 3.1 from 1280 x 720 to 1920 x 1080 on Apple M1 Max: median 1.000 ms, 10th percentile 1.000 ms,"
+            f" 90th percentile 1.000 ms over 300 frames\n{prefix}frame times, ms: " + " ".join(["1.0000"] * 300) + "\n"
+        )
         with tempfile.TemporaryDirectory() as folder:
             write_rounds(folder, SAME, SAME)
-            Path(folder, "1-other.log").write_text("FSR 3.1 from 1280 x 720 to 1920 x 1080: median 1.000 ms\n")
+            Path(folder, "1-other.log").write_text(per_frame)
             with self.assertRaisesRegex(ValueError, "1-other.log"):
+                analyze_folder(folder)
+
+    def test_a_log_without_any_frame_times_is_refused_with_the_path_of_its_log(self):
+        with tempfile.TemporaryDirectory() as folder:
+            write_rounds(folder, SAME, SAME)
+            Path(folder, "1-other.log").write_text("timed-start\ntimed-end\n")
+            with self.assertRaisesRegex(ValueError, "1-other.log"):
+                analyze_folder(folder)
+
+    def test_a_missing_log_stops_the_tool_with_the_path_of_the_log(self):
+        with tempfile.TemporaryDirectory() as folder:
+            write_rounds(folder, SAME, SAME)
+            Path(folder, "1-other.log").unlink()
+            with self.assertRaisesRegex(FileNotFoundError, "1-other.log"):
                 analyze_folder(folder)
 
 

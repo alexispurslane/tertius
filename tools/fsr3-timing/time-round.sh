@@ -2,7 +2,8 @@
 # Tool code (tools/README.md, "FSR 3.1 timing"): one round of the FSR timing. It runs FSR's batched measurement once
 # from each copy under captures/fsr-builds, in an order that rotates by one build per round, each run under the GPU lock
 # through tools/gpu-lock.sh and beside gpu-clock through tools/gpu-clock.sh. The measurement submits 8 frames per
-# command buffer, so the GPU does not idle between frames and its clock holds from run to run. It prints the markers of
+# command buffer and keeps two command buffers on the queue, so the GPU does not idle between frames and its clock holds
+# from run to run. It prints the markers of
 # its 150 timed batches, so each run's log holds the GPU clock over them, and the mean frame time of each batch, which
 # analyze.py reads from the log and compares only between runs at the same clock.
 # Run it from the worktree root, with the builds in the order of the first round:
