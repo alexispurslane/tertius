@@ -42,3 +42,7 @@ It starts after ter-sftw, because the profiling spike measures where the walk's 
 **2026-11-04T17:30:08Z**
 
 2026-11-04: the budget recalculation (ter-gayt's note of today) gives the two dispatches 2.94 to 3.76 ms under 12.0 ms on the deck. V6 at 10 % own rays takes 3.90 to 3.93 ms there, so the climb's goal is a cut of about 4 to 25 %, not 35 to 55 %.
+
+**2026-11-04T18:24:14Z**
+
+2026-11-04: the user widened the mandate ("spare no expense": unrolling, hard-coded and pre-calculated values, a Mac-only Metal path chosen by platform, papers, anything). Run 19acc6a3 was stopped only to widen the brief; its harness (tools/walk-hill-climb, uncommitted) and logs (/private/tmp/ter-dzxf.vv9W25) stay. Continuation run 24378142-987f-40a2-89ed-2bfd0c891caa (version 869b0b07, GPT 6.1 SOL at xhigh) on the same worktree, diffuse cap 62 by the user's decision. Settled: the gate stays for the main line; approximations are a second track reported as options with tile bias and FLIP; the SPIR-V path stays the portable reference; a Mac-only path must pass the same gate with the platform choice in one place, and its adoption is the user's fork. A survey researcher (GPT 6.1 SOL, xhigh) writes /private/tmp/dzxf-survey.md for the climber.
