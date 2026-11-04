@@ -51,6 +51,14 @@ PixelPlane samplePlane(vec2 center, float centerW, float planeDistance, float po
     return plane;
 }
 
+// The inverse view depth, in 1/m, of the surface point at distanceToEye m along the view ray through a position on the
+// screen: the ray's length over the distance, because the ray's forward part is 1. The one rule of a depth sample's w:
+// a pixel's plane and the finest level (depth_pyramid_finest.comp) both call it.
+float inverseDepthAlong(vec2 position, float distanceToEye)
+{
+    return length(viewRayThrough(position)) / distanceToEye;
+}
+
 // The plane of a pixel inside the image, or false for a pixel that sees the sky.
 bool pixelPlane(ivec2 pixel, out PixelPlane plane)
 {
@@ -62,7 +70,7 @@ bool pixelPlane(ivec2 pixel, out PixelPlane plane)
     vec3 centerRay = viewRayThrough(center);
     vec3 n = octDecode(texelFetch(gbufferNormal, pixel, 0).ba);
     // The view ray changes by cameraRight · 2 / W across a pixel and by −cameraUp · 2 / H down one.
-    plane = samplePlane(center, length(centerRay) / distanceToEye, dot(n, normalize(centerRay) * distanceToEye),
+    plane = samplePlane(center, inverseDepthAlong(center, distanceToEye), dot(n, normalize(centerRay) * distanceToEye),
         distanceToEye, vec2(dot(n, frame.cameraRight.xyz) * 2.0 * frame.viewport.z,
             -dot(n, frame.cameraUp.xyz) * 2.0 * frame.viewport.w));
     return true;

@@ -227,7 +227,6 @@ internal readonly record struct ScreenRay(
         // The cell that the walk stands in, at its level: the pixel past the origin's pixel to start with.
         Vector2 cell = Floor(Start) + travel * crossed;
         int top = Math.Min(pyramid.TopLevel, WalkTopLevel);
-        const float backShare = 1 / (1 + CellBounds.ThicknessShare);
         int level = 0;
         // Whether a descent solved s as a slab's entry, rather than a crossing reaching it on a cell's edge.
         bool solved = false;
@@ -238,15 +237,10 @@ internal readonly record struct ScreenRay(
             (float cellExit, crossed) = CellExit(level, cell, travel);
             float exit = MathF.Max(cellExit, s);
             (int x, int y) = ((int)cell.X, (int)cell.Y);
-            CellBounds bounds =
-                level == 0 ? new(pyramid.Finest(x, y), pyramid.Finest(x, y)) : pyramid.Bounds(level, x, y);
-            float near = bounds.Near;
-            float back = bounds.Far * backShare;
+            (float near, float back) = WalkSlab(pyramid: pyramid, level: level, x: x, y: y);
             float inW = InverseDepthAt(s);
-            float outW = InverseDepthAt(exit);
-            bool inFront = near <= 0 || MathF.Min(inW, outW) > near;
-            bool behind = !inFront && MathF.Max(inW, outW) < back;
-            bool meetsSlab = !inFront && !behind;
+            bool meetsSlab = MeetsWalkSlab(near: near, back: back, inW: inW, outW: InverseDepthAt(exit));
+
             // GLSL's clamp, which never throws: exit can lie a rounding below s.
             float entry = meetsSlab ? MathF.Min(MathF.Max(SlabEntry(s: s, inW: inW, low: back, high: near), s), exit) : s;
             if (meetsSlab && level > 0)
@@ -275,6 +269,25 @@ internal readonly record struct ScreenRay(
             }
         }
         return s >= End ? new RayLeftTheSegment(EndsAt, maxSteps) : new RayOutOfSteps(maxSteps);
+    }
+
+    /// <summary>The slab of a cell of the two-depth walk: from its far bound times 1 / (1 + κ) to its near bound, and at
+    /// the finest level from a pixel's center w over 1 + κ to w.</summary>
+    private static (float Near, float Back) WalkSlab(DepthPyramid pyramid, int level, int x, int y)
+    {
+        // A product by the share, as the shader takes it, not a quotient, which rounds otherwise.
+        const float backShare = 1 / (1 + CellBounds.ThicknessShare);
+        CellBounds bounds = level == 0 ? CellBounds.OfSurface(pyramid.Finest(x, y)) : pyramid.Bounds(level, x, y);
+        return (bounds.Near, bounds.Far * backShare);
+    }
+
+    /// <summary>Whether the ray's inverse depths over a cell, from inW to outW, meet the cell's slab: neither in front
+    /// of it, nor behind it. A cell without a surface has a near bound of 0, which no ray meets.</summary>
+    private static bool MeetsWalkSlab(float near, float back, float inW, float outW)
+    {
+        bool inFront = near <= 0 || MathF.Min(inW, outW) > near;
+        bool behind = MathF.Max(inW, outW) < back;
+        return !inFront && !behind;
     }
 
     /// <summary>

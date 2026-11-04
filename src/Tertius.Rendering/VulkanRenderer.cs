@@ -1189,6 +1189,17 @@ public sealed unsafe class VulkanRenderer : IRenderer
     }
 
     /// <summary>
+    /// The last frame's finest level of the depth pyramid: each pixel's center w in 1/m, 0 for sky, row by row from the
+    /// top. A test hook, like <see cref="ReadDepthPyramidLevel"/>.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">Reflections are off.</exception>
+    internal float[] ReadDepthFinest()
+    {
+        ReflectionTargets pyramids = targets.Reflections ?? throw new InvalidOperationException("Reflections are off.");
+        return ReadLevel(image: pyramids.DepthFinest, layer: 0, mip: 0).Values;
+    }
+
+    /// <summary>
     /// The last frame's half-resolution trace of the reflections: for each texel, the radiance and the coverage of its
     /// representative pixel's ray, times the ray's fade, or a negative coverage for no ray. A test hook, like
     /// <see cref="ReadRadiancePyramidLevel"/>.

@@ -131,6 +131,42 @@ public sealed class PyramidRenderTests
     }
 
     [Fact]
+    public void EachTexelOfTheFinestLevelHoldsOneOverTheViewDepthOfItsPixelsCenterAndSkyHoldsZero()
+    {
+        VulkanRenderer renderer = Gpu.Headless(reflections: ConeTracedReflections.Default);
+        try
+        {
+            renderer.Render(Scene(renderer), 1f);
+            CameraView camera = renderer.LastScene.Camera;
+            float[] distance = renderer.ReadDistance();
+            float[] finest = renderer.ReadDepthFinest();
+
+            int surfaces = 0;
+            var wrong = new List<string>();
+            for (int y = 0; y < Height; y++)
+            for (int x = 0; x < Width; x++)
+            {
+                float distanceToEye = distance[y * Width + x];
+                float expected = distanceToEye <= 0
+                    ? 0
+                    : camera.ViewRayThrough(new(x + 0.5f, y + 0.5f)).Length() / distanceToEye;
+                if (distanceToEye > 0)
+                    surfaces++;
+                float texel = finest[y * Width + x];
+                if (MathF.Abs(texel - expected) > InverseDepthTolerance * expected)
+                    wrong.Add($"({x}, {y}): {texel}, not {expected}");
+            }
+
+            surfaces.Should().BeInRange(Width * Height / 4, Width * Height - 1, "the premise: floor, boxes and sky");
+            wrong.Should().BeEmpty();
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
     public void ACellOfOnlySkyHoldsTheEmptyBounds()
     {
         VulkanRenderer renderer = Gpu.Headless(reflections: ConeTracedReflections.Default);

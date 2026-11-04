@@ -67,12 +67,23 @@ internal sealed unsafe class ReflectionTargets : IDisposable
         for (int i = 0; i < radianceLevelSets.Length; i++)
             radianceLevelSets[i] = layouts.AllocatePyramidLevelSet();
         DepthTailSet = layouts.AllocateDepthTailSet();
+        DepthFinestSet = layouts.AllocatePyramidLevelSet();
         TraceSet = layouts.AllocateReflectionSet();
         Create(extent: extent, hdr: hdr, resolution: resolution);
     }
 
     /// <summary>The depth pyramid image, RG32F: mip m holds level m + 1, for m from 0 to <see cref="TopLevel"/> − 1, padded.</summary>
     public GpuImage DepthImage { get; private set; }
+
+    /// <summary>
+    /// The depth pyramid's finest level, R32F at the screen's size: the inverse view depth w of each pixel's center, 0
+    /// for sky (docs/plans/temporal-renderer.md, decision 46). Only <see cref="DepthPyramidPass"/> writes it.
+    /// </summary>
+    public GpuImage DepthFinest { get; private set; }
+
+    /// <summary>Set 3 of <see cref="DescriptorLayouts.PyramidLayout"/> for the finest level's dispatch: its image at
+    /// binding 1, as a level set holds its level.</summary>
+    public DescriptorSet DepthFinestSet { get; }
 
     /// <summary>The radiance pyramid, RGBA16F: mip k holds level k, from the screen's size to 1 × 1.</summary>
     public GpuImage RadianceImage { get; private set; }
@@ -156,7 +167,7 @@ internal sealed unsafe class ReflectionTargets : IDisposable
     /// Makes the images for a screen of <paramref name="extent"/> and a trace at <paramref name="resolution"/>, and writes
     /// every set in use. The device must be idle.
     /// </summary>
-    [MemberNotNull(nameof(DepthImage), nameof(RadianceImage))]
+    [MemberNotNull(nameof(DepthImage), nameof(DepthFinest), nameof(RadianceImage))]
     internal void Create(Extent2D extent, GpuImage hdr, TraceResolution resolution)
     {
         TopLevel = DepthPyramid.LevelCount((int)extent.Width, (int)extent.Height);
@@ -166,6 +177,7 @@ internal sealed unsafe class ReflectionTargets : IDisposable
             mipLevels: (uint)TopLevel,
             name: "depth pyramid"
         );
+        DepthFinest = CreateImage(extent: extent, format: Format.R32Sfloat, mipLevels: 1, name: "depth pyramid finest");
         RadianceImage = CreateImage(
             extent: extent,
             format: RadianceFormat,
@@ -184,6 +196,7 @@ internal sealed unsafe class ReflectionTargets : IDisposable
         depthMipViews = MipViews(DepthImage);
         radianceMipViews = MipViews(RadianceImage);
         WriteLevelSets(hdr);
+        layouts.WriteStorageImage(set: DepthFinestSet, binding: 1, image: DepthFinest);
         WriteDepthTailSet();
         WriteTraceSet(hdr);
     }
@@ -262,6 +275,7 @@ internal sealed unsafe class ReflectionTargets : IDisposable
         depthMipViews = [];
         radianceMipViews = [];
         DepthImage.Dispose();
+        DepthFinest.Dispose();
         RadianceImage.Dispose();
         switch (Trace)
         {
