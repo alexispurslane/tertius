@@ -28,3 +28,7 @@ Build ticket 4 of epic ter-89xq. Design: docs/plans/temporal-renderer.md, sectio
 **2026-11-04T18:20:05Z**
 
 2026-11-04, the user's decision on the budget: full rays at the first build (every 2x2 block's ray plus 10 % own rays per kind), no ray limit now; the build measures the real frame at the top clock and reports it, and a ray limit comes only if the measured frame stays over 12 ms after the hill-climb (ter-dzxf) lands. Diffuse cap 62 steps (at least V1's image in both views at V1's diffuse time), reflection cap 256. The stop rule of this ticket's body (1.7 ms for the whole tracer) is replaced by this rule. The design update ter-jxjx runs first.
+
+**2026-11-04T18:51:06Z**
+
+2026-11-04, the user's answers to the plan's open forks of ticket 4 (docs/plans/temporal-renderer.md, 'Open forks of ticket 4'): fork 1, design A, a busy headless film (a timed film keeps two frames in flight; the span's recorded clock shows whether the GPU reached the top clock). Fork 2, design A, a C# copy of the two-depth walk in ScreenRay, held against a march over the flat slabs on 1,000,000 random rays, with GPU tests pinning the shader (and any later Mac-only shader) to it. Frames after a reset (known limit 21): no bound at the first build; part 7 measures them and reports, and a limit comes with the ray-limit ticket if needed. The build records these answers in the plan's forks section.
