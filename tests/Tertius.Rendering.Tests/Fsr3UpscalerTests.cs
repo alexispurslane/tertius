@@ -835,33 +835,9 @@ public sealed class Fsr3UpscalerTests
             var queries = new QueryPool[batchesInFlight];
             var fences = new Fence[batchesInFlight];
             var commandBuffers = new CommandBuffer[batchesInFlight];
-            var info = new QueryPoolCreateInfo
-            {
-                SType = StructureType.QueryPoolCreateInfo,
-                QueryType = QueryType.Timestamp,
-                QueryCount = stampCount,
-            };
-            var fenceInfo = new FenceCreateInfo { SType = StructureType.FenceCreateInfo };
             try
             {
-                for (int slot = 0; slot < batchesInFlight; slot++)
-                {
-                    vk.CreateQueryPool(
-                            device: Device.Device,
-                            pCreateInfo: &info,
-                            pAllocator: null,
-                            pQueryPool: out queries[slot]
-                        )
-                        .Check("vkCreateQueryPool");
-                    vk.CreateFence(
-                            device: Device.Device,
-                            pCreateInfo: &fenceInfo,
-                            pAllocator: null,
-                            pFence: out fences[slot]
-                        )
-                        .Check("vkCreateFence");
-                }
-
+                CreateSlots(stampCount, queries, fences);
                 double[] times = new double[batches];
                 // Batch n goes into slot n % batchesInFlight. Before a batch takes its slot, the batch before it in that
                 // slot finishes, so its sets, which this batch's upscales write again, are free, and its stamps are read.
@@ -880,26 +856,12 @@ public sealed class Fsr3UpscalerTests
                     QueryPool stamps = queries[slot];
                     commandBuffers[slot] = Start(
                         commandBuffer =>
-                        {
-                            vk.CmdResetQueryPool(
+                            RecordBatch(
                                 commandBuffer: commandBuffer,
-                                queryPool: stamps,
-                                firstQuery: 0,
-                                queryCount: stampCount
-                            );
-                            for (int frame = 0; frame <= batchSize; frame++)
-                            {
-                                vk.CmdWriteTimestamp2(
-                                    commandBuffer: commandBuffer,
-                                    stage: PipelineStageFlags2.AllCommandsBit,
-                                    queryPool: stamps,
-                                    query: (uint)frame
-                                );
-                                int draw = firstDraw + frame;
-                                if (frame < batchSize)
-                                    Upscaler.Record(commandBuffer, Barriers, Inputs(draw, reset: draw == 0));
-                            }
-                        },
+                                stamps: stamps,
+                                firstDraw: firstDraw,
+                                batchSize: batchSize
+                            ),
                         fences[slot]
                     );
                 }
@@ -915,6 +877,66 @@ public sealed class Fsr3UpscalerTests
                     vk.DestroyQueryPool(Device.Device, queries[slot], null);
                     vk.DestroyFence(Device.Device, fences[slot], null);
                 }
+            }
+        }
+
+        /// <summary>
+        /// Creates a pool of <paramref name="stampCount"/> timestamps and an unsignaled fence for each slot of
+        /// <paramref name="queries"/> and <paramref name="fences"/>.
+        /// </summary>
+        private void CreateSlots(uint stampCount, QueryPool[] queries, Fence[] fences)
+        {
+            Vk vk = Device.Vk;
+            var info = new QueryPoolCreateInfo
+            {
+                SType = StructureType.QueryPoolCreateInfo,
+                QueryType = QueryType.Timestamp,
+                QueryCount = stampCount,
+            };
+            var fenceInfo = new FenceCreateInfo { SType = StructureType.FenceCreateInfo };
+            for (int slot = 0; slot < queries.Length; slot++)
+            {
+                vk.CreateQueryPool(
+                        device: Device.Device,
+                        pCreateInfo: &info,
+                        pAllocator: null,
+                        pQueryPool: out queries[slot]
+                    )
+                    .Check("vkCreateQueryPool");
+                vk.CreateFence(
+                        device: Device.Device,
+                        pCreateInfo: &fenceInfo,
+                        pAllocator: null,
+                        pFence: out fences[slot]
+                    )
+                    .Check("vkCreateFence");
+            }
+        }
+
+        /// <summary>
+        /// Records one batch: the upscales of <paramref name="batchSize"/> draws from <paramref name="firstDraw"/>, with a
+        /// stamp of <paramref name="stamps"/> before each and one after the last.
+        /// </summary>
+        private void RecordBatch(CommandBuffer commandBuffer, QueryPool stamps, int firstDraw, int batchSize)
+        {
+            Vk vk = Device.Vk;
+            vk.CmdResetQueryPool(
+                commandBuffer: commandBuffer,
+                queryPool: stamps,
+                firstQuery: 0,
+                queryCount: (uint)batchSize + 1
+            );
+            for (int frame = 0; frame <= batchSize; frame++)
+            {
+                vk.CmdWriteTimestamp2(
+                    commandBuffer: commandBuffer,
+                    stage: PipelineStageFlags2.AllCommandsBit,
+                    queryPool: stamps,
+                    query: (uint)frame
+                );
+                int draw = firstDraw + frame;
+                if (frame < batchSize)
+                    Upscaler.Record(commandBuffer, Barriers, Inputs(draw, reset: draw == 0));
             }
         }
 
