@@ -1,6 +1,6 @@
 ---
 id: ter-nt65
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-11-04T14:47:45Z
@@ -32,3 +32,7 @@ ter-9nrc removed ReSTIR DI and its light keys (FrameHistory's light remap, Prepa
 **2026-11-04T21:54:47Z**
 
 2026-11-04, for the hardening brief: merge main into the branch before the Stryker run, so that the run uses the Stryker lock of ter-s4fg (its record). A run.py from before ter-s4fg stops after 60 s on a lock with a record and prints rm -r; nobody follows that advice while another run holds the lock.
+
+**2026-11-04T21:59:59Z**
+
+2026-11-04: closed without a merge, by the user's decision (design A). The review of run 397dccea found that ShadowTiles follows a light from frame to frame by its slot alone, so a new lamp in a reused slot inherits a holder's layers and margin; the fix needs the generation that this ticket removed. The light keeps its generation, and ter-f17s makes the renderer's frame-to-frame state key by the whole entity. The run was stopped in its fix stage. Branch ter-nt65-light-generation stays as a record at b1793cb26.
