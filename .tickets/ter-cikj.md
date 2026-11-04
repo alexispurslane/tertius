@@ -48,3 +48,28 @@ Scope: 1. In flake.nix, add Mesa to the Darwin dev shell and an environment vari
 - The per-type half of the pool rule moves to ter-byim. Both drivers gave more prefilter sets than the shared pool's size of samplers holds, so a miscounted type size passes on both Mac drivers.
 - Docs: the span on KosmicKrisp and FSR's figure there can err either way, not only low. The recommendation's deck figure is approximate. The span table has 9 rounds for MoltenVK and the control and 8 for KosmicKrisp. The empty-pass test of GpuTimingTests passes on KosmicKrisp without a check of its claim. ARCHITECTURE.md's Descriptor pools section now follows the allocator's last paragraph.
 - NoReflections and TraceResolution.Full again gave identical frames on KosmicKrisp, in 7 of 7 pairs each. The 2-pixel difference of the first run's scratch variant 9 has no saved mapping to a setting, so this rerun replaces it.
+
+**2026-11-04T13:37:55Z**
+
+2026-11-04: the hardening.
+- Coverage on the changed lines of src/ against main, Rendering tests in Debug and Release: 14 of 14 lines and 2 of 2 branches covered. The changed lines of src/ are all in DescriptorLayouts.cs. The branch changes no C# in Core, Simulation or Physics, so no Stryker run applies. The flake.nix lines are configuration with no mutable code: a wrong ICD path fails every test of a KosmicKrisp run.
+- Mutation testing with tools/mutate.py, on MoltenVK (the default) and, for the driver-keyed and refusal mutants, on KosmicKrisp (VK_ICD_FILENAMES=$TERTIUS_KOSMICKRISP_ICD). One row per mutant, with the result over both drivers. The change column names the result of each driver where they differ. The first C05 and C08 runs listed only EnvironmentMapPlumbingTests and DescriptorLayoutsTests, which make no full renderer, so they were rerun with GpuTimingTests and DeviceTests. The first C09 (the field set to null!) failed the style analyzer and was replaced by a mutant that compiles.
+
+| id | place | change | result | killed by | s |
+|---|---|---|---|---|---:|
+| C01 | src/Tertius.Rendering/VulkanRenderer.cs:216 | StampsLatchLate keyed to OperatingSystem.IsMacOS() [MoltenVK: survived, KosmicKrisp: killed] | killed | GpuTimingTests.TheRendererSaysThatItsStampsLatchLateOnMoltenVkAndOnNoOtherDriver | 13.2 |
+| C02 | src/Tertius.Rendering/VulkanRenderer.cs:216 | StampsLatchLate == -> != | killed | GpuTimingTests.TheRendererSaysThatItsStampsLatchLateOnMoltenVkAndOnNoOtherDriver | 8.3 |
+| C03 | src/Tertius.Rendering/Frame/DescriptorLayouts.cs:1340 | remove the refusal at MaxSets [MoltenVK: survived, KosmicKrisp: killed] | killed | EnvironmentMapPlumbingTests.AMapThatCannotGetItsDescriptorSetsReleasesTheImagesAndBuffersItMade | 4.5 |
+| C04 | src/Tertius.Rendering/Frame/DescriptorLayouts.cs:1340 | refusal == -> > (one set past maxSets) | survived |  | 4.8 |
+| C05 | src/Tertius.Rendering/Frame/DescriptorLayouts.cs:1340 | refusal one set early | killed | GpuTimingTests.TheRendererSaysThatItsStampsLatchLateOnMoltenVkAndOnNoOtherDriver, GpuTimingTests.NoFrameHasGpuTimingsBeforeTheFirstFrameSlotIsReused, GpuTimingTests.WithVisibilityBitmaskLightTheFourOcclusionPassesRunBetweenTheDirectAndTheAmbientPass | 4.5 |
+| C06 | src/Tertius.Rendering/Frame/DescriptorLayouts.cs:1351 | remove Given++ [MoltenVK: survived, KosmicKrisp: killed] | killed | EnvironmentMapPlumbingTests.AMapThatCannotGetItsDescriptorSetsReleasesTheImagesAndBuffersItMade | 4.5 |
+| C07 | src/Tertius.Rendering/Frame/DescriptorLayouts.cs:1329 | pool records maxSets + 1 | survived |  | 4.6 |
+| C08 | src/Tertius.Rendering/Frame/DescriptorLayouts.cs:838 | shared pool maxSets one short | survived |  | 9.6 |
+| C09 | src/Tertius.Rendering/Frame/DescriptorLayouts.cs:123 | a bogus pool handle before the constructor makes one | killed | DescriptorLayoutsTests.ALayoutThatNeedsMoreSampledImagesInAStageThanTheDeviceAllowsIsRefusedBeforeItIsMade | 4.4 |
+9 rows: killed 6, timeout 0, survived 3, no-coverage 0, build-failed 0, no-tests 0, no-mutant 0, removed 0
+
+- C01, C03 and C06 survive on MoltenVK and die on KosmicKrisp. Judgment call, as the orchestrator settled for C03: MoltenVK refuses the 62nd set and keys the same flag value as macOS, so no MoltenVK test can tell our refusal or our driver key from the driver's own behavior. The KosmicKrisp suite guards both rules, and no machinery is added to make them testable on MoltenVK.
+- C04 and C07 (one set past maxSets) survive on both drivers. Judgment call: the plumbing test fills the pool until any refusal, so it passes with a limit one higher. A test that pins the exact count of sets that fit needs the pool's private maxSets, and ter-byim's per-type refusal moves that point for the shared pool. ter-byim's ledger makes every driver refuse at one point, so its tests can pin the count.
+- C08 survives on MoltenVK. Judgment call: the shared pool's count holds the sets of the largest pyramids (a 16,384 px side) and the largest environment map. The test renderers are far smaller and never reach it, and a test at 16,384 px costs more than this one count is worth. The line is unchanged by this branch.
+- No new tests: every survivor has a judgment call.
+- Decision 2 of the orchestrator: the standalone reproduction of ter-gyfe stays in ter-gyfe, and this ticket closes without it. The user declined the Mesa bug reports for now (2026-11-04), and a standalone reproduction serves only such a report.
