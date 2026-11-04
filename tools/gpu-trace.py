@@ -31,6 +31,7 @@ passes.md. tools/test_gpu_trace.py tests them and the pure functions below them.
 
 import argparse
 import bisect
+import importlib.util
 import json
 import math
 import random
@@ -40,6 +41,12 @@ import sys
 import xml.etree.ElementTree as ET
 from collections import defaultdict
 from pathlib import Path
+
+# The record of the GPU clock over the run's timed span. python3 -I leaves the script's folder out of the import path,
+# so the module loads by its path.
+_spec = importlib.util.spec_from_file_location("gpu_clock", Path(__file__).with_name("gpu_clock.py"))
+gpu_clock = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(gpu_clock)
 
 STAMP = "Record GPU Counter Sample BlitEncoder"
 BEFORE = "(before the first pass)"
@@ -509,6 +516,7 @@ def table(report: dict, has_counters: bool) -> str:
     lines = [
         f"{report['device']}, {report['width']} x {report['height']}: {buffers['frames']} frames,"
         f" {buffers['skipped']} other command buffers.",
+        f"GPU clock over the run's timed span: {gpu_clock.describe(gpu_clock.from_json(report.get('gpuClock')))}",
         "The busy time of a pass is the GPU time of its encoders, in milliseconds. Read each pass's own time here: on MoltenVK"
         " the pass times of gpu-timings.json hold only for the span and for sums of neighbouring passes (tools/README.md,"
         " \"GPU trace\").",
@@ -706,6 +714,8 @@ def report(args) -> int:
     counters = counter_means(info, export(args.trace, "gpu-counter-value", exports), intervals) if has_counters else {}
 
     report = {"device": timings["device"], "width": timings["width"], "height": timings["height"]}
+    # gpu-trace.sh records the clock into gpu-timings.json before the report, and a run without it has an unknown clock.
+    report["gpuClock"] = gpu_clock.to_json(gpu_clock.from_json(timings.get("gpuClock")))
     report["commandBuffers"] = command_buffers(listed, starts)
     report |= summarize(intervals, starts, passes, counters, args.window)
     if args.paired or args.control:

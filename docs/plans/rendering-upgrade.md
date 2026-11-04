@@ -51,25 +51,25 @@ Bring the renderer to its intended look in one epic: a PBR BRDF, an HDR pipeline
 
 The renderer times each pass on the GPU (ARCHITECTURE.md, "GPU timings"), and a headless run of the demo writes the summary of those times. A headless run never turns on the validation layers, so it measures the renderer alone. Measure in a Release build, at 1920x1080, with a script whose frames show the feature. `scripts/demo-exit.json` films 3,879 frames in about 33 s. The renderer never reads the last 2 of them (`FramesInFlight`), so each pass reports 3,877 frames. `--video none` keeps the run short, because the PNG encode of each frame takes far longer than its draw. It draws, waits for and reads back each frame as `--video <file.mkv>` does, then drops it, so the run writes only `gpu-timings.json`, `exposure.json` and its log, and its GPU times compare with those of the earlier runs that wrote a video.
 
-1. In the checkout of the branch, run the script at 1080p:
+1. In the checkout of the branch, run the script at 1080p, under the GPU lock and beside `gpu-clock` (tools/README.md, "The GPU clock of a timed run"):
 
    ```sh
-   nix develop --command dotnet run --project src/Tertius.Demo -c Release -- --script scripts/demo-exit.json --headless --out captures/gpu-branch --size 1920x1080 --video none
+   nix develop --command bash tools/demo-timing.sh captures/gpu-branch scripts/demo-exit.json --size 1920x1080
    ```
 
-   The run writes `captures/gpu-branch/gpu-timings.json` and prints one line per pass, such as `GPU G-buffer: mean 0.859 ms, median 0.861 ms, p95 1.086 ms over 3877 frames`, then one line for the frame's GPU span, `GPU frame span: ...`. The span is the time from the start of the frame's first pass to the end of its last pass. The file holds it as the entry `frame`, beside `passes`.
+   The run writes `captures/gpu-branch/gpu-timings.json` and prints one line per pass, such as `GPU G-buffer: mean 0.859 ms, median 0.861 ms, p95 1.086 ms over 3877 frames`, then one line for the frame's GPU span, `GPU frame span: ...`, and one for the GPU clock over the run's timed span. The span is the time from the start of the frame's first pass to the end of its last pass. The file holds it as the entry `frame`, beside `passes` and the clock's entry `gpuClock`.
 
 2. Make a checkout of the base, the commit of main that the branch starts from, beside the repository, and run the same script there into its own folder:
 
    ```sh
    git worktree add ../tertius-base "$(git merge-base main HEAD)"
-   (cd ../tertius-base && nix develop --command dotnet run --project src/Tertius.Demo -c Release -- --script scripts/demo-exit.json --headless --out "$OLDPWD/captures/gpu-base" --size 1920x1080 --video none)
+   (cd ../tertius-base && nix develop --command bash "$OLDPWD/tools/demo-timing.sh" "$OLDPWD/captures/gpu-base" scripts/demo-exit.json --size 1920x1080)
    git worktree remove ../tertius-base
    ```
 
    A base from before `--video none` (ticket `ter-j1mf`) refuses it. Give that base `--video "$OLDPWD/captures/gpu-base/run.mkv"`, and delete the video after the run: it holds 550 to 690 MB that nobody reads.
 
-3. Compare the two files pass by pass: the difference of the means is the feature's cost per frame, and the 95th percentiles show its worst frames. The difference of the frame spans is the feature's cost to the whole frame, and the 95th percentile of the span shows the worst frames as a whole. A new pass appears only in the branch's file. On MoltenVK, a pass's time can hold part of the next pass's work (ARCHITECTURE.md, "GPU timings"), so compare there the spans and the sums of neighbouring passes, and take a single pass's cost from a trace of each build (tools/README.md, "GPU trace"). Run each build twice, and trust a difference only when it is larger than the difference between the two runs of one build.
+3. Compare the two files with `python3 -I tools/gpu_clock.py compare captures/gpu-base/gpu-timings.json captures/gpu-branch/gpu-timings.json`. It first checks the two clocks: two runs compare only when their clocks differ by at most 3 %. At different clocks it prints `INVALID`, and then only its estimates at the windowed clock compare. Compare the two files pass by pass: the difference of the means is the feature's cost per frame, and the 95th percentiles show its worst frames. The difference of the frame spans is the feature's cost to the whole frame, and the 95th percentile of the span shows the worst frames as a whole. A new pass appears only in the branch's file. On MoltenVK, a pass's time can hold part of the next pass's work (ARCHITECTURE.md, "GPU timings"), so compare there the spans and the sums of neighbouring passes, and take a single pass's cost from a trace of each build (tools/README.md, "GPU trace"). Run each build twice, and trust a difference only when it is larger than the difference between the two runs of one build.
 
 Run one measurement at a time, with no other build or test on the machine, because the GPU and the CPU are shared. The base must hold the GPU timings, so a branch that starts before them has no base to compare with.
 

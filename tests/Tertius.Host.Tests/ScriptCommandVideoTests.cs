@@ -201,7 +201,14 @@ public sealed class ScriptCommandVideoTests : IDisposable
         int code = Run(script, "--video", Video);
 
         code.Should().Be(ScriptCommand.Ok, error.ToString());
-        string[] lines = output.ToString().Split(Environment.NewLine);
+        // The markers of the timed span come before the files (ScriptCommand.TimedStart).
+        string[] lines =
+        [
+            .. output
+                .ToString()
+                .Split(Environment.NewLine)
+                .Where(line => line is not (ScriptCommand.TimedStart or ScriptCommand.TimedEnd)),
+        ];
         lines[..3].Should().Equal(Path.Combine(Out, "start.json"), Path.Combine(Out, "end.json"), Video);
         lines[3..]
             .Should()

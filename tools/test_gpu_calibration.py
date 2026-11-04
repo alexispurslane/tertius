@@ -59,25 +59,6 @@ class WindowSummary(unittest.TestCase):
         self.assertAlmostEqual(analyze.window_summary(log, busy)["steady_busy"], 95.0)
 
 
-class SpanClock(unittest.TestCase):
-    """span_clock: the clock over a measurement's timed span, from gpu-clock's samples between the marker lines that the
-    measurement prints."""
-
-    def test_only_the_samples_between_the_markers_count(self):
-        log = "\n".join([
-            sample(0.1, 1.0, 648.0),
-            "    Some.Test [OUTPUT] timed-start",
-            sample(0.2, 1.0, 1296.0),
-            sample(0.3, 0.5, 1200.0),
-            "    Some.Test [OUTPUT] timed-end",
-            sample(0.4, 1.0, 648.0),
-        ])
-        self.assertAlmostEqual(analyze.span_clock(log), (1296.0 + 0.5 * 1200.0) / 1.5)
-
-    def test_a_log_without_markers_has_no_span_clock(self):
-        self.assertIsNone(analyze.span_clock(sample(0.1, 1.0, 648.0)))
-
-
 class PooledProbes(unittest.TestCase):
     """pooled_probes: the dispatch times of each probe name pooled over logs, with the share of the peak at the pooled
     median, from the work that each probe line implies (its rate times its median)."""

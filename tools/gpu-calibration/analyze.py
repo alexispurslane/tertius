@@ -14,7 +14,8 @@ nearest rank:
 
 - Probes: each probe's dispatch times of each API and MoltenVK setting, its rate at the median and its share of the peak,
   and the range of the per-run medians.
-- Clock: gpu-clock's mean clock over the active time of each run kind, and the share of the active time in each state.
+- Clock: gpu-clock's mean clock over the active time of each run kind, over the whole run and over the timed span
+  (tools/gpu_clock.py), and the share of the active time of the whole run in each state.
 - Pulse: the short FMA probe beside the demo, against a sixteenth of the sustained FMA probe's median.
 - Upscalers: FSR 3.1's timing test and MetalFX, run as two of the twelve runs of each round, the pooled frames and the
   per-round difference of the run medians. The upscaler table of the report comes from "upscalers", from runs of their
@@ -23,11 +24,18 @@ nearest rank:
 - Load: the 1-minute load at the start and the end of the runs.
 """
 
+import importlib.util
 import re
 import statistics
 import sys
 from collections import defaultdict
 from pathlib import Path
+
+# The record of the clock over a timed span. python3 -I leaves the script's folder out of the import path, so the
+# module loads by its path.
+_spec = importlib.util.spec_from_file_location("gpu_clock", Path(__file__).parent.parent / "gpu_clock.py")
+gpu_clock = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(gpu_clock)
 
 FREQUENCIES = [388.8, 486.0, 648.0, 777.6, 972.0, 1296.0]
 
@@ -119,17 +127,6 @@ def window_summary(log, busy):
         "frame_ms": float(frame[-1]) if frame else None,
         "drawable_ms": float(drawable[-1]) if drawable else None,
     }
-
-
-def span_clock(log):
-    """The mean clock over the active time of gpu-clock's samples between a measurement's marker lines, "timed-start"
-    and "timed-end", or None when the log has no such span."""
-    lines = log.splitlines()
-    starts = [index for index, line in enumerate(lines) if line.rstrip().endswith("timed-start")]
-    ends = [index for index, line in enumerate(lines) if line.rstrip().endswith("timed-end")]
-    if not starts or not ends:
-        return None
-    return weighted_clock([each for each in samples(log) if starts[0] < each[0] < ends[-1]])
 
 
 def pooled_probes(texts):
@@ -224,7 +221,7 @@ def upscalers(folder):
         times[name] += [float(value) for value in frames[1].split()]
         if (found := clock(text)) is not None:
             run_clocks[name].append(found[1])
-        if (span := span_clock(text)) is not None:
+        if (span := gpu_clock.span_clock(text).mhz) is not None:
             span_clocks[name].append(span)
     print("| Kind | Frames or batches | Median (p10 to p90), ms | Run medians, ms | Clock of the whole run, MHz | Clock over the timed span, MHz |")
     print("|---|---:|---|---|---|---|")
@@ -262,6 +259,7 @@ def rounds(folder) -> int:
     probes = defaultdict(list)
     medians = defaultdict(list)
     clocks = defaultdict(list)
+    span_clocks = defaultdict(list)
     loads = []
     spans = []
     pulses = []
@@ -279,6 +277,8 @@ def rounds(folder) -> int:
                 first[api].append(times[0])
         if (found := clock(text)) is not None:
             clocks[name].append(found)
+        if (span := gpu_clock.span_clock(text).mhz) is not None:
+            span_clocks[name].append(span)
         if match := re.search(r"GPU frame span: mean ([0-9.]+) ms, median ([0-9.]+) ms", text):
             spans.append((name, float(match[1]), float(match[2])))
         if match := re.search(r"(FSR 3.1|MetalFX temporal) from .*?median ([0-9.]+) ms", text):
@@ -303,12 +303,13 @@ def rounds(folder) -> int:
     print("\nFirst dispatch after 10 s of idle, ms:", {api: spread(values) for api, values in first.items()})
 
     print("\n## Clock\n")
-    print("| Run | Runs | Mean clock over the active time, MHz | Active time (ms) | Share of the active time at " + ", ".join(f"{f:.0f}" for f in FREQUENCIES) + " MHz |")
-    print("|---|---:|---|---|---|")
+    print("| Run | Runs | Mean clock over the active time, MHz | Clock over the timed span, MHz | Active time (ms) | Share of the active time at " + ", ".join(f"{f:.0f}" for f in FREQUENCIES) + " MHz |")
+    print("|---|---:|---|---|---|---|")
     for name, found in sorted(clocks.items()):
         shares = [statistics.mean(states[i] for _, _, states in found) for i in range(len(FREQUENCIES))]
         print(
-            f"| {name} | {len(found)} | {spread([mhz for _, mhz, _ in found])} | {spread([active for active, _, _ in found])} | "
+            f"| {name} | {len(found)} | {spread([mhz for _, mhz, _ in found])} | {spread(span_clocks[name]) if span_clocks[name] else ''} | "
+            f"{spread([active for active, _, _ in found])} | "
             + ", ".join(f"{share:.3f}" for share in shares)
             + " |"
         )

@@ -171,6 +171,16 @@ class Table(unittest.TestCase):
     def test_the_window_row_names_its_two_passes_and_gives_the_window_in_the_busy_columns(self):
         self.assertEqual(self.row("a end to b start")[1:8], ["1", "1.000", "1.000", "1.000", "", "", ""])
 
+    def test_the_text_gives_the_clock_over_the_runs_timed_span(self):
+        report = {"device": "Test GPU", "width": 64, "height": 32, "commandBuffers": {"frames": 2, "skipped": 0}}
+        report |= gpu_trace.summarize(_two_frames(), _first_starts(_two_frames()), ["a", "b", "c"], {})
+        report["gpuClock"] = {"meanMhz": 1257.0, "p10Mhz": 1241.0, "p90Mhz": 1272.0, "samples": 7}
+        lines = gpu_trace.table(report, has_counters=False).splitlines()
+        self.assertIn("GPU clock over the run's timed span: 1257.0 MHz (p10 1241.0, p90 1272.0 MHz, 7 samples)", lines)
+
+    def test_the_text_of_a_run_without_a_clock_says_that_its_clock_is_unknown(self):
+        self.assertTrue(any(line.startswith("GPU clock over the run's timed span: unknown") for line in self.lines))
+
     def test_a_line_below_the_table_counts_the_frames_without_a_window(self):
         self.assertTrue(any(line.startswith("1 frames have no window from a to b") for line in self.lines))
 

@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Tool code (tools/README.md, "GPU calibration"): one round of the calibration runs. Each run takes the GPU lock alone
-# through tools/gpu-lock.sh, which records uptime at its start and its end, and runs beside gpu-clock, which samples the GPU's
-# clock every 100 ms. The order of the runs rotates by one run per round, so that the load of the machine and the
-# warmth of the GPU fall on every run alike. Run it from the worktree root, in the dev shell, after the builds of
+# through tools/gpu-lock.sh, which records uptime at its start and its end, and runs beside gpu-clock through
+# tools/gpu-clock.sh, which samples the GPU's clock every 100 ms and prints the clock over the run's timed span. The
+# order of the runs rotates by one run per round, so that the load of the machine and the warmth of the GPU fall on
+# every run alike. Run it from the worktree root, in the dev shell, after the builds of
 # tools/README.md, "GPU calibration", which put the binaries into $GPU_CALIBRATION_BIN, by default
 # captures/gpu-calibration/bin, and the deck's script into captures/gpu-calibration/deck-120.json:
 #   nix develop --command bash tools/gpu-calibration/rounds.sh <round> <out folder>
@@ -49,25 +50,28 @@ for ((i = 0; i < n; i++)); do
     name=${names[$(((i + round) % n))]}
     case $name in
         # The cold runs wait 10 s with the lock held, so that no other run wakes the GPU first.
-        cold-metal) run "$name" bash -c "sleep 10 && $bin/gpu-clock 100 $bin/probes cold 30" ;;
-        cold-vulkan) run "$name" bash -c "sleep 10 && $bin/gpu-clock 100 $tests -noColor -showLiveOutput \
+        cold-metal) run "$name" bash -c "sleep 10 && bash tools/gpu-clock.sh $bin/probes cold 30" ;;
+        cold-vulkan) run "$name" bash -c "sleep 10 && bash tools/gpu-clock.sh $tests -noColor -showLiveOutput \
             -method Tertius.Rendering.Tests.GpuCalibrationTests.TheFmaProbeReportsEachDispatchFromTheFirstAfterIdle" ;;
-        demo) run "$name" "$bin/gpu-clock" 100 "$demo" --script "$deck" --headless --out "$out/$round-demo" \
+        demo) run "$name" bash tools/gpu-clock.sh "$demo" --script "$deck" --headless --out "$out/$round-demo" \
             --size 1280x720 --video none ;;
-        demo-pulse) run "$name" "$bin/gpu-clock" 100 bash -c \
+        demo-pulse) run "$name" bash tools/gpu-clock.sh bash -c \
             "$(declare -f demo_run demo_with_pulse); bin=$bin demo=$demo deck=$deck demo_with_pulse $out/$round-demo-pulse" ;;
-        sustained-metal) run "$name" "$bin/gpu-clock" 100 "$bin/probes" sustain 8 30 ;;
-        sustained-vulkan) run "$name" "$bin/gpu-clock" 100 "$tests" -noColor -showLiveOutput \
+        sustained-metal) run "$name" bash tools/gpu-clock.sh "$bin/probes" sustain 8 30 ;;
+        sustained-vulkan) run "$name" bash tools/gpu-clock.sh "$tests" -noColor -showLiveOutput \
             -method Tertius.Rendering.Tests.GpuCalibrationTests.TheFmaProbeReportsItsTimeAfterSecondsOfFullLoad ;;
-        probes-metal) run "$name" bash -c "for p in fma fma-rolled texture-cached texture-stream bandwidth; do $bin/probes \$p 30 || exit 1; done" ;;
-        probes-vulkan) run "$name" "$tests" -noColor -showLiveOutput \
+        probes-metal) run "$name" bash tools/gpu-clock.sh bash -c \
+            "for p in fma fma-rolled texture-cached texture-stream bandwidth; do $bin/probes \$p 30 || exit 1; done" ;;
+        probes-vulkan) run "$name" bash tools/gpu-clock.sh "$tests" -noColor -showLiveOutput \
             -method Tertius.Rendering.Tests.GpuCalibrationTests.EachProbeReportsItsGpuTimeAndItsShareOfThePeak ;;
-        probes-vulkan-fastmath-never) run "$name" env MVK_CONFIG_FAST_MATH_ENABLED=0 "$tests" -noColor -showLiveOutput \
+        probes-vulkan-fastmath-never) run "$name" env MVK_CONFIG_FAST_MATH_ENABLED=0 bash tools/gpu-clock.sh "$tests" \
+            -noColor -showLiveOutput \
             -method Tertius.Rendering.Tests.GpuCalibrationTests.EachProbeReportsItsGpuTimeAndItsShareOfThePeak ;;
-        probes-vulkan-no-argument-buffers) run "$name" env MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS=0 "$tests" -noColor \
-            -showLiveOutput -method Tertius.Rendering.Tests.GpuCalibrationTests.EachProbeReportsItsGpuTimeAndItsShareOfThePeak ;;
-        metalfx) run "$name" "$bin/metalfx" matched ;;
-        fsr) run "$name" "$tests" -noColor -showLiveOutput \
+        probes-vulkan-no-argument-buffers) run "$name" env MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS=0 bash tools/gpu-clock.sh \
+            "$tests" -noColor -showLiveOutput \
+            -method Tertius.Rendering.Tests.GpuCalibrationTests.EachProbeReportsItsGpuTimeAndItsShareOfThePeak ;;
+        metalfx) run "$name" bash tools/gpu-clock.sh "$bin/metalfx" matched ;;
+        fsr) run "$name" bash tools/gpu-clock.sh "$tests" -noColor -showLiveOutput \
             -method Tertius.Rendering.Tests.Fsr3UpscalerTests.AnUpscaleFrom1280x720To1920x1080ReportsItsGpuTime ;;
     esac
 done

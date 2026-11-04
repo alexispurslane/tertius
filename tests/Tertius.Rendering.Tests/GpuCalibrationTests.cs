@@ -15,7 +15,7 @@ public sealed class GpuCalibrationTests
     // "GPU calibration").
     private const string TimingVariable = "TERTIUS_GPU_CALIBRATION";
 
-    // The marker lines of a measurement's timed span, which tools/gpu-calibration/analyze.py finds in gpu-clock's log.
+    // The marker lines of a measurement's timed span, which tools/gpu_clock.py finds in gpu-clock's log.
     private const string TimedStart = "timed-start";
     private const string TimedEnd = "timed-end";
 
@@ -107,7 +107,7 @@ public sealed class GpuCalibrationTests
                 probe: probe,
                 peak: peak,
                 label: "",
-                times: [.. Enumerable.Range(0, 30).Select(_ => bench.Time(probe))]
+                times: TimedSpan(() => bench.Time(probe), count: 30)
             );
         }
 
@@ -127,7 +127,7 @@ public sealed class GpuCalibrationTests
             probe: probe,
             peak: PeakFlops,
             label: "-cold",
-            times: [.. Enumerable.Range(0, 30).Select(_ => bench.Time(probe))]
+            times: TimedSpan(() => bench.Time(probe), count: 30)
         );
 
         probe.Check().Should().BeNull();
@@ -147,7 +147,7 @@ public sealed class GpuCalibrationTests
             probe: probe,
             peak: PeakFlops,
             label: "-sustained",
-            times: [.. Enumerable.Range(0, 30).Select(_ => bench.Time(probe))]
+            times: TimedSpan(() => bench.Time(probe), count: 30)
         );
 
         probe.Check().Should().BeNull();
@@ -166,7 +166,7 @@ public sealed class GpuCalibrationTests
         bench.FillPattern();
 
         // The first 8 batches warm the caches and the driver, as the 60 frames of the timing test do. The marker lines
-        // around the timed batches let tools/gpu-calibration/analyze.py take gpu-clock's clock over them alone.
+        // around the timed batches let tools/gpu_clock.py take gpu-clock's clock over them alone.
         BatchedFrameTimes(bench: bench, firstBatch: 0, batches: 8, batchSize: Batch);
         ITestOutputHelper output = TestContext.Current.TestOutputHelper!;
         output.WriteLine(TimedStart);
@@ -252,6 +252,17 @@ public sealed class GpuCalibrationTests
         }
 
         vk.DestroyQueryPool(bench.Device.Device, queries, null);
+        return times;
+    }
+
+    // count timed dispatches between the marker lines of the timed span, from which tools/gpu_clock.py takes
+    // gpu-clock's clock over them alone.
+    private static (double Gpu, double Wall)[] TimedSpan(Func<(double Gpu, double Wall)> time, int count)
+    {
+        ITestOutputHelper output = TestContext.Current.TestOutputHelper!;
+        output.WriteLine(TimedStart);
+        (double Gpu, double Wall)[] times = [.. Enumerable.Range(0, count).Select(_ => time())];
+        output.WriteLine(TimedEnd);
         return times;
     }
 
