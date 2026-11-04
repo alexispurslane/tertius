@@ -1,3 +1,5 @@
+using Silk.NET.Vulkan;
+
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
@@ -19,6 +21,12 @@ public sealed class GpuTimingTests
 
     /// <summary>The chunks that <see cref="SpanAddedBy"/> measures at most before it gives up.</summary>
     private const int MaxChunks = 16;
+
+    /// <summary>
+    /// The bytes that the fill pass writes: 128 MiB. It added about 0.43 ms to the span on the development Mac (Apple M1
+    /// Max), and a desktop GPU that writes 1 TB/s takes about 0.13 ms, still well above <see cref="NearlyNoTime"/>.
+    /// </summary>
+    private const ulong FillBytes = 128ul << 20;
 
     /// <summary>A validating headless renderer that the test skips on a device without timestamps.</summary>
     private static VulkanRenderer TimedRenderer(
@@ -299,23 +307,70 @@ public sealed class GpuTimingTests
         {
             renderer.Graph.Add(FrameGraph.Stage.GBuffer, new EmptyPass());
 
-            if (SpanAddedBy(renderer, pass: "empty", bound: NearlyNoTime) is not { } added)
-            {
-                Assert.Skip(
-                    $"The work of other processes stretched the frames of all {MaxChunks} chunks too much to resolve"
-                        + $" {NearlyNoTime} ms of their spans."
-                );
-                return;
-            }
-
-            added
+            SpanAddedBy(renderer, "empty")
                 .High.Should()
-                .BeLessThan(NearlyNoTime, "the pass gave the GPU no work, only one more stamp to write ({0})", added);
+                .BeLessThan(NearlyNoTime, "the pass gave the GPU no work, only one more stamp to write");
         }
         finally
         {
             Gpu.DisposeAndAssertClean(renderer);
         }
+    }
+
+    [Fact]
+    public void APassThatFillsABufferAddsMoreThanNearlyNoTimeToTheFramesGpuSpan()
+    {
+        VulkanRenderer renderer = TimedRenderer(framesInFlight: 1);
+        try
+        {
+            renderer.Graph.Add(FrameGraph.Stage.GBuffer, new FillPass(renderer.Allocator, FillBytes));
+
+            SpanAddedBy(renderer, "fill")
+                .Low.Should()
+                .BeGreaterThan(NearlyNoTime, "the span holds the work of every pass, and the fill is GPU work");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void TheFirstNarrowChunkThatLiesWhollyOnOneSideOfTheBoundDecidesHowMuchAPassAddsToTheSpan()
+    {
+        SpanInterval[] chunks =
+        [
+            new(Low: -0.4, High: 0.03),
+            new(Low: 0.03, High: 0.07),
+            new(Low: 0.06, High: 0.12),
+            new(Low: -0.02, High: 0.03),
+        ];
+
+        DecidingInterval(chunks)
+            .Should()
+            .Be(chunks[2], "the first chunk is too wide and the second lies across the bound, so neither decides");
+    }
+
+    [Fact]
+    public void WhenNoChunkDecidesAChunkAtMostTheBoundWideThatLiesAcrossItConcludesThatThePassAddsAboutTheBound()
+    {
+        SpanInterval[] chunks = [new(Low: -0.4, High: 0.3), new(Low: 0.02, High: 0.09), new(Low: 0.03, High: 0.07)];
+
+        SpanInterval added = DecidingInterval(chunks);
+
+        added.Should().Be(chunks[2], "it is the narrowest chunk");
+        added.Concludes.Should().BeTrue("a pass that adds about the bound must fail, not skip");
+    }
+
+    [Fact]
+    public void AChunkWiderThanTheBoundThatLiesAcrossItConcludesNothing()
+    {
+        // The narrowest chunks of a run of the empty pass beside one demo render (2026-11-04).
+        SpanInterval[] chunks = [new(Low: 0.0063, High: 0.0698), new(Low: -0.0001, High: 0.0881)];
+
+        DecidingInterval(chunks)
+            .Concludes.Should()
+            .BeFalse("the work of another process can spread the pairs of a pass that adds less than the bound");
     }
 
     [Fact]
@@ -428,29 +483,37 @@ public sealed class GpuTimingTests
     }
 
     /// <summary>
-    /// How much the pass named <paramref name="pass"/> adds to the frame's GPU span, in milliseconds: an interval of the
-    /// median of the spans that it adds, from the first chunk of <see cref="ChunkPairs"/> pairs of frames whose interval
-    /// resolves <paramref name="bound"/>, or null when none of <see cref="MaxChunks"/> chunks does. An interval resolves
-    /// the bound when it lies wholly below or wholly above it and is at most twice the bound wide. Only the span holds
-    /// on every driver: on one whose stamps latch late, the stamp before the pass can latch after the pass's work, so no
-    /// window of neighbouring stamps holds that work in every frame (ARCHITECTURE.md, "GPU timings"). The renderer must
-    /// have one frame in flight, so no frame runs beside another on the GPU. The work of another process stretches some
-    /// frames. A load that stretches nearly every frame widens the interval, and can push it below the bound for a pass
-    /// that records work, so a chunk that it widened decides nothing. A later chunk can find a quieter stretch.
+    /// How much the pass named <paramref name="pass"/> adds to the frame's GPU span, in milliseconds, as an interval of
+    /// the median of the spans that it adds. It measures chunks of <see cref="ChunkPairs"/> pairs of frames
+    /// (<see cref="AddedSpans"/>), at most <see cref="MaxChunks"/> of them, and returns the interval of the first chunk
+    /// that <see cref="SpanInterval.Decides"/>. If no chunk does, it returns the narrowest interval, and when that one
+    /// <see cref="SpanInterval.Concludes"/>, it lies across the bound: the pass adds about the bound, and a caller's
+    /// assertion on either side fails. Otherwise the test skips, because the work of other processes stretched the frames
+    /// too much to resolve the bound.
+    /// <para>
+    /// Only the span holds on every driver: on one whose stamps latch late, the stamp before the pass can latch after the
+    /// pass's work, so a window that starts at that stamp can miss the work (ARCHITECTURE.md, "GPU timings"). The
+    /// renderer must have one frame in flight, so no frame runs beside another on the GPU.
+    /// </para>
     /// </summary>
-    private static SpanInterval? SpanAddedBy(VulkanRenderer renderer, string pass, double bound)
+    private static SpanInterval SpanAddedBy(VulkanRenderer renderer, string pass)
     {
         RenderSnapshot snapshot = TestScene.Create(renderer).Snapshot();
         try
         {
-            for (int chunk = 0; chunk < MaxChunks; chunk++)
+            SpanInterval added = DecidingInterval(
+                Enumerable.Range(0, MaxChunks).Select(_ => MedianInterval(AddedSpans(renderer, snapshot, pass)))
+            );
+            if (!added.Concludes)
             {
-                SpanInterval interval = MedianInterval(AddedSpans(renderer, snapshot, pass));
-                if (interval.High - interval.Low <= 2 * bound && (interval.High < bound || interval.Low > bound))
-                    return interval;
+                Assert.Skip(
+                    $"The work of other processes stretched the frames too much to resolve {NearlyNoTime} ms of their"
+                        + $" spans: no interval of {MaxChunks} chunks decided, and the narrowest, {added}, is more than"
+                        + " that wide."
+                );
             }
 
-            return null;
+            return added;
         }
         finally
         {
@@ -459,33 +522,66 @@ public sealed class GpuTimingTests
     }
 
     /// <summary>
-    /// The span of a frame that records the pass named <paramref name="pass"/> minus the span of the frame right before
-    /// it, which skips the pass, for <see cref="ChunkPairs"/> such pairs. The frames of a pair are next to each other in
-    /// time, so they share the GPU's clock, which follows the GPU's duty cycle.
+    /// The first of <paramref name="chunks"/> that <see cref="SpanInterval.Decides"/>, or the narrowest of them if none
+    /// does. It reads no chunk after the one that decides, so a caller can measure each chunk on demand.
+    /// </summary>
+    private static SpanInterval DecidingInterval(IEnumerable<SpanInterval> chunks)
+    {
+        var narrowest = new SpanInterval(Low: double.NegativeInfinity, High: double.PositiveInfinity);
+        foreach (SpanInterval interval in chunks)
+        {
+            if (interval.Decides)
+                return interval;
+            if (interval.Width < narrowest.Width)
+                narrowest = interval;
+        }
+
+        return narrowest;
+    }
+
+    /// <summary>
+    /// What the pass named <paramref name="pass"/> adds to the span of a frame, for <see cref="ChunkPairs"/> pairs of
+    /// frames: the span of a frame that records the pass minus the span of a frame next to it in time that skips it. The
+    /// frames alternate in runs of two of each kind, and a pair is the last frame of a run and the first frame of the
+    /// next run. So both frames of a pair follow a frame of the same kind, and what a frame leaves behind for the next
+    /// frame, such as the work of another process that it delayed or a raised clock, lands in both frames of the pair.
+    /// The frames of a pair share the GPU's clock, which follows the GPU's duty cycle. Fails if the pairs do not form
+    /// within <c>4 * ChunkPairs + 8</c> frames.
     /// </summary>
     private static double[] AddedSpans(VulkanRenderer renderer, RenderSnapshot snapshot, string pass)
     {
+        const int maxFrames = 4 * ChunkPairs + 8;
         double[] added = new double[ChunkPairs];
         int pairs = 0;
-        GpuTimings? without = null;
+        // The last two frames that the timer reported. The timings are those of an earlier frame, so the names of its
+        // passes say whether it recorded the pass.
+        ReportedFrame? older = null,
+            newer = null;
         for (int frame = 0; pairs < ChunkPairs; frame++)
         {
-            if (frame % 2 == 0)
+            if (frame == maxFrames)
+                Assert.Fail($"Only {pairs} of {ChunkPairs} pairs of frames formed in {maxFrames} frames.");
+            if (frame % 4 < 2)
                 renderer.Graph.Skipped.Add(pass);
             else
                 renderer.Graph.Skipped.Remove(pass);
             renderer.Render(snapshot, 1f);
-            // The timings are those of an earlier frame, so the names of its passes say whether it recorded the pass, and
-            // its number says whether it is the frame right after the one without the pass.
             if (renderer.LastFrameStats.GpuTimings is not { } timings)
                 continue;
-            if (!timings.Passes.ToArray().Any(timing => timing.Pass == pass))
-                without = timings;
-            else if (without is { } before && timings.Frame == before.Frame + 1)
+
+            var latest = new ReportedFrame(
+                Frame: timings.Frame,
+                RecordsThePass: timings.Passes.ToArray().Any(timing => timing.Pass == pass),
+                SpanMilliseconds: timings.SpanMilliseconds
+            );
+            if (older is { } first && newer is { } last && latest.EndsARunThat(last, first))
             {
-                added[pairs++] = timings.SpanMilliseconds - before.SpanMilliseconds;
-                without = null;
+                added[pairs++] = latest.RecordsThePass
+                    ? latest.SpanMilliseconds - last.SpanMilliseconds
+                    : last.SpanMilliseconds - latest.SpanMilliseconds;
             }
+
+            (older, newer) = (newer, latest);
         }
 
         return added;
@@ -504,13 +600,86 @@ public sealed class GpuTimingTests
         return new SpanInterval(Low: values[middle - reach], High: values[middle + reach]);
     }
 
+    /// <summary>A frame whose timings the timer reported: its number, whether it recorded the measured pass, and its span.</summary>
+    private readonly record struct ReportedFrame(long Frame, bool RecordsThePass, double SpanMilliseconds)
+    {
+        /// <summary>
+        /// Whether this frame and <paramref name="last"/> form a pair of <see cref="AddedSpans"/>: three frames in a row,
+        /// <paramref name="first"/>, <paramref name="last"/> and this one, where <paramref name="last"/> is of the same
+        /// kind as <paramref name="first"/> and this one is of the other kind.
+        /// </summary>
+        public bool EndsARunThat(ReportedFrame last, ReportedFrame first) =>
+            Frame == last.Frame + 1
+            && last.Frame == first.Frame + 1
+            && last.RecordsThePass == first.RecordsThePass
+            && RecordsThePass != last.RecordsThePass;
+    }
+
     /// <summary>An interval of milliseconds that a pass adds to the frame's GPU span.</summary>
-    private readonly record struct SpanInterval(double Low, double High);
+    private readonly record struct SpanInterval(double Low, double High)
+    {
+        public double Width => High - Low;
+
+        /// <summary>
+        /// Whether the interval resolves <see cref="NearlyNoTime"/>: it is at most twice the bound wide, and it lies
+        /// wholly below or wholly above the bound. A wider interval decides nothing. The work of another process stretches
+        /// some frames, which widens the interval of their chunk, and a load that stretches nearly every frame can push the
+        /// median of a pass that records work below the bound. Beside one demo render, the intervals of the empty pass
+        /// were 0.03 to 0.9 ms wide. Beside three, more than 95 % of the frames were stretched, and the intervals were 0.2
+        /// to 4 ms wide.
+        /// </summary>
+        public bool Decides => Width <= 2 * NearlyNoTime && (High < NearlyNoTime || Low > NearlyNoTime);
+
+        /// <summary>
+        /// Whether a test can conclude from the interval: it <see cref="Decides"/>, or it is at most
+        /// <see cref="NearlyNoTime"/> wide. An interval that narrow lies across the bound only for a pass that adds about
+        /// the bound. A wider interval across the bound can come from a load that spread the pairs of a pass that adds
+        /// less. On the development Mac (2026-11-04), none of 9 intervals of the empty pass that were at most the bound
+        /// wide lay across it, and 28 of 47 such intervals of fills of 4 KiB to 4 MiB did. Beside one demo render, 4
+        /// intervals of the empty pass 0.06 to 0.09 ms wide lay across it.
+        /// </summary>
+        public bool Concludes => Decides || Width <= NearlyNoTime;
+    }
 
     private sealed class EmptyPass : RenderPass
     {
         public override string Name => "empty";
 
         public override void Record(FrameContext context) { }
+    }
+
+    /// <summary>A pass that fills a buffer of GPU memory in every frame that records it: GPU work of a known size.</summary>
+    private sealed class FillPass(DeviceAllocator allocator, ulong bytes) : RenderPass
+    {
+        private GpuBuffer? buffer;
+
+        public override string Name => "fill";
+
+        public override void Record(FrameContext context)
+        {
+            buffer ??= GpuBuffer.Create(
+                device: context.Device,
+                allocator: allocator,
+                size: bytes,
+                usage: BufferUsageFlags.TransferDstBit,
+                memoryUsage: MemoryUsage.GpuOnly,
+                name: "fill"
+            );
+            context.Barriers.Buffer(buffer, BufferUse.TransferDestination);
+            context.Barriers.Flush(context.Vk, context.CommandBuffer);
+            context.Vk.CmdFillBuffer(
+                commandBuffer: context.CommandBuffer,
+                dstBuffer: buffer.Handle,
+                dstOffset: 0,
+                size: bytes,
+                data: 7
+            );
+        }
+
+        public override void Dispose()
+        {
+            buffer?.Dispose();
+            base.Dispose();
+        }
     }
 }

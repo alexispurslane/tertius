@@ -66,3 +66,24 @@ Red: with the empty pass made to fill 32 MiB, the test failed alone at 0.117 ms 
 Green, the acceptance: 20 full Checked runs of Tertius.Rendering.Tests in a row, each beside lamp-hall-4 rendered headless in a loop (88 to 102 demo runs during each run). Each run held the GPU lock and released it after the run. The one-minute load was 4.2 to 19.5. All 20 passed the test, none skipped it, and each ran 2,562 tests with no failure.
 
 Also tried and dropped: a permanent test that a 128 MiB fill exceeds the bound. Under a load it read -0.10 ms once, because the frame after a long pass meets the work that the other process could not run during it.
+
+**2026-11-04T18:50:00Z**
+
+2026-11-04 (ter-abun, the review's fix stage). Evidence in /private/tmp/abun2 on the development Mac, not committed.
+
+What changed:
+- The frames run in runs of two of each kind, not one by one. A pair is the last frame of a run and the first frame of the next run, so both frames of a pair follow a frame of the same kind. Beside one demo render, over 32 chunks of each order, the chunk medians of a 128 MiB fill went down to −0.01 ms when the frames alternated one by one, and down to 0.10 ms in runs of two. The empty pass read chunk medians of 0.007 ms (one by one) and 0.020 ms (runs of two) there.
+- The end rule. A chunk still decides when its interval is at most 0.1 ms wide and lies wholly on one side of 0.05 ms. If none of 16 chunks decides, the narrowest interval now fails the test when it is at most 0.05 ms wide: it then lies across the bound, so the pass adds about the bound. Otherwise the test skips. The pure function `DecidingInterval` holds the rule, and three CPU tests pin it on made-up intervals. One of them failed under the old end rule (no decision, a skip) before the fix.
+- Why 0.05 ms and not the review's 0.1 ms for the end rule: with 0.1 ms, the empty pass failed once in 10 runs beside one demo render. In that run no chunk decided, and the four narrowest intervals were 0.06 to 0.09 ms wide and lay across the bound ([0.0063, 0.0698] ms the narrowest). None of 9 intervals of the empty pass that were at most 0.05 ms wide lay across the bound. Of fills of 4 KiB to 4 MiB, 28 of 47 such intervals did.
+- `AddedSpans` fails after 4 · 128 + 8 frames when the pairs do not form, with the number of pairs. Checked by a hand mutant (`Frame == last.Frame + 2`): both span tests failed with "Only 0 of 128 pairs of frames formed in 520 frames."
+- A permanent test, `APassThatFillsABufferAddsMoreThanNearlyNoTimeToTheFramesGpuSpan`: a pass that fills 128 MiB must give an interval wholly above 0.05 ms. Alone it read [0.39, 0.47] ms. It kills the two hand mutants of the review: every pair value set to 0 (read 0.0) and the sign swapped (read −0.44 ms). The empty-pass test passed both mutants. 128 MiB and not 32 MiB, so that a desktop GPU that writes 1 TB/s still takes about 0.13 ms.
+
+The real fill sizes on MoltenVK: no fill adds about the bound alone. A fill of 4 KiB added 0.05 to 0.1 ms (a barrier and an encoder of its own), 1 to 12 MiB added 0.06 to 0.11 ms. All of them failed the empty-pass test, under both end rules (10 runs of 10 each with 4 KiB). So the review's predicted skip of a pass at the bound did not show with a real pass on this Mac, and the CPU tests pin the rule instead.
+
+Red, with the empty pass made to fill 16 MiB: failed 4 runs of 4 alone and 4 of 4 beside one demo render, at intervals from [0.054, 0.101] to [0.134, 0.189] ms.
+
+Beside one demo render, both span tests passed 10 runs of 10 with no skip. Beside three demo renders, each skipped once in three runs, and neither failed.
+
+Green, the acceptance: 20 full Checked runs of Tertius.Rendering.Tests in a row, with `--no-build` on one build whose test assembly had the SHA-256 9e824185…8bacd before and after the 20 runs. Each ran beside lamp-hall-4 rendered headless in a loop (89 to 100 demo runs during each run). Each run took the GPU lock through the queue protocol of tools/gpu-lock.sh and released it after the run. The one-minute load was 2.8 to 24.3. All 20 passed: 2,566 tests succeeded in each, and the two skips were the FSR timing test and the test for a driver whose stamps latch on time. Neither span test skipped.
+
+Open: under a load that stretches nearly every frame (three demo renders), the span tests skip, and a skip passes the hook. That choice waits for the user (skip, fail, or more chunks under a longer time limit).
