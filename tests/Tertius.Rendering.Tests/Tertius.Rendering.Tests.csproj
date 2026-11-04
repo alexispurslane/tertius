@@ -44,4 +44,25 @@
       <EmbeddedResource Include="@(_ReferenceSpirv)" LogicalName="Tertius.Rendering.Shaders.%(_ReferenceSpirv.Filename)%(_ReferenceSpirv.Extension)" WithCulture="false" />
     </ItemGroup>
   </Target>
+
+  <!-- The probes of GpuCalibrationTests, compiled with the engine's flags, and embedded under the engine's resource
+       names for a ShaderLibrary of this assembly. -->
+  <ItemGroup>
+    <CalibrationShader Include="Shaders/*.comp" />
+    <CalibrationShaderInclude Include="Shaders/*.glsl" />
+  </ItemGroup>
+
+  <Target Name="CompileCalibrationShaders" BeforeTargets="BeforeBuild"
+          Inputs="@(CalibrationShader);@(CalibrationShaderInclude);$(MSBuildProjectFullPath)"
+          Outputs="@(CalibrationShader->'$(IntermediateOutputPath)calibration-shaders/%(Filename)%(Extension).spv')">
+    <MakeDir Directories="$(IntermediateOutputPath)calibration-shaders" />
+    <Exec Command="&quot;$(Glslc)&quot; --target-env=vulkan1.3 -O -Werror -o &quot;$(IntermediateOutputPath)calibration-shaders/%(CalibrationShader.Filename)%(CalibrationShader.Extension).spv&quot; &quot;%(CalibrationShader.FullPath)&quot;" />
+  </Target>
+
+  <Target Name="EmbedCalibrationShaders" DependsOnTargets="CompileCalibrationShaders" BeforeTargets="BeforeBuild">
+    <ItemGroup>
+      <_CalibrationSpirv Include="@(CalibrationShader->'$(IntermediateOutputPath)calibration-shaders/%(Filename)%(Extension).spv')" />
+      <EmbeddedResource Include="@(_CalibrationSpirv)" LogicalName="Tertius.Rendering.Shaders.%(_CalibrationSpirv.Filename)%(_CalibrationSpirv.Extension)" WithCulture="false" />
+    </ItemGroup>
+  </Target>
 </Project>

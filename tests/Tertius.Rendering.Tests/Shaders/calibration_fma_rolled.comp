@@ -1,0 +1,13 @@
+#version 460
+// The FMA probe with one step in each pass of its loop, as most loops of the engine's shaders are written.
+#include "calibration_fma.glsl"
+
+void main()
+{
+    FMA_START
+    for (uint i = 0u; i < constants.iterations; i++)
+    {
+        FMA_STEP
+    }
+    FMA_END
+}
