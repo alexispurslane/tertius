@@ -1,6 +1,6 @@
 ---
 id: ter-s4fg
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-11-04T20:39:56Z
@@ -84,3 +84,7 @@ One JSON list and a script ran the 30 recorded mutants serially. Before each run
 30 rows: killed 30, timeout 0, survived 0, no-coverage 0, syntax-failed 0, no-tests 0. Mutation score 30/30 (100%). Each row has a named failing test, not only a nonzero process status.
 
 Final full suites after the last test change: test_stryker.py 85 tests OK in 4.064 s; test_gpu_lock.py 39 tests OK in 74.020 s. Final coverage runs: 85 OK in 3.970 s and 39 OK in 74.298 s. Both also passed under the final coverage wrapper. No Stryker run, GPU work or .NET test suite ran. All lock paths were test-owned paths under /private/tmp; no test or mutant took, removed or edited the real GPU lock, real GPU queue or real Stryker lock. The scratch runner, mutation list, logs and coverage are removed after integration; this note retains the full result table.
+
+**2026-11-04T22:48:36Z**
+
+2026-11-04: merged into main as c778a3dc6f20ce544ba7693547a13f3fe9b58046 after hardening commit 08ad044f63eec9ddac862e0bb0105ee071a13b85. The only merge conflict was this ticket: all six notes from both sides remain in UTC timestamp order. The merged lock code, tool docs and both test files exactly match the tested branch. Changed-line coverage is 41/42 for tools/gpu-lock.sh (line 85 is the explained Bash trace attribution) and 66/66 for tools/stryker/run.py. All 30 recorded mutants are killed, with no timeout or remaining survivor. Final suites: test_stryker.py 85 OK in 4.064 s; test_gpu_lock.py 39 OK in 74.020 s. No GPU work, Stryker run or .NET test suite ran, and the real GPU lock, GPU queue and Stryker lock were untouched. Closing after the merge.
