@@ -341,6 +341,14 @@ internal sealed class FrameGraph : IDisposable
         DirectLight,
 
         /// <summary>
+        /// The screen tracer's four passes and the two indirect accumulations, under <see cref="ScreenTrace"/>: after the
+        /// direct pass, whose images a hit reads, and after the surface test, whose pass bits the plan and a hit's history
+        /// read. Each accumulation follows the resolve, which writes its sample (docs/plans/temporal-renderer.md, "The
+        /// frame's order").
+        /// </summary>
+        ScreenTrace,
+
+        /// <summary>
         /// The occlusion passes, under <see cref="VisibilityBitmaskLight"/>: after the G-buffer pass, whose distance and
         /// normals they read, and after the direct pass, whose diffuse light the bounce light's depth pass copies for its
         /// sectors. Before the composite, which reads their estimate target.

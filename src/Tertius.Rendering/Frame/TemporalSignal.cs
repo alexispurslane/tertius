@@ -12,9 +12,9 @@ namespace Tertius.Rendering;
 /// </summary>
 /// <remarks>
 /// <para>
-/// No signal of the renderer accumulates today: the direct light keeps one frame (docs/plans/temporal-renderer.md, decision
-/// 29), so the composite reads the direct pass's images. The screen tracer's signals (ter-gayt) are the next users, and
-/// until then only the accumulator's tests make a signal (<see cref="VulkanRenderer.CreateSignal"/>).
+/// The screen tracer's two signals, under <see cref="ScreenTrace"/>, are the renderer's only signals: the direct light keeps
+/// one frame (docs/plans/temporal-renderer.md, decision 29). The accumulator's tests make signals of their own
+/// (<see cref="VulkanRenderer.CreateSignal(SignalParameters, string, int)"/>).
 /// </para>
 /// <para>
 /// Each part owns a sample, a slow history and two fast histories, which alternate by the parity of the drawn frames

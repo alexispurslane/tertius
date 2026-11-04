@@ -68,13 +68,6 @@ vec3 strandOf(uint direction, vec3 n, vec4 vertexTangent)
     return (direction & 1u) == 0u ? axis : -axis;
 }
 
-// n_f: across the strand toward the eye. A strand along the line of sight takes the card's normal, which is across it.
-// HairFiber.FiberNormal is the C# copy.
-vec3 fiberNormal(vec3 strand, vec3 V, vec3 cardNormal)
-{
-    return normalizedOr(V - strand * dot(strand, V), cardNormal);
-}
-
 // Whether a texel of alpha `alpha`, the base color's alpha times its map's, is covered under a cutout or fringed material
 // of cutoff `cutoff`: the core. The alpha lies in [0, 1], from ShaderInput.Fraction and a UNORM map, and the cutoff in
 // (0, 1], so the comparison sees finite values.

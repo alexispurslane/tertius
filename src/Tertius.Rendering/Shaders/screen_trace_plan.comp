@@ -1,0 +1,65 @@
+#version 460
+// The ray plan of the screen tracer (docs/plans/temporal-renderer.md, section 6, "The ray budget"): one invocation per
+// pixel decides, for each kind that the pixel starts, whether it traces a ray of its own, writes the plan's bits and
+// lists the pixel in the kind's own-ray list. A block's chosen pixel traces the block's ray instead. Another pixel traces
+// its own ray while its history of the kind is shorter than FullRateFrames, or where the block's ray does not fit it.
+#extension GL_GOOGLE_include_directive : require
+#include "screen_trace.glsl"
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+// The length of the pixel's history of the kind at its place in the last frame, in frames: the slow history's alpha,
+// through the taps, the pass bits and the weights of the accumulator's reprojection of the surface place. The specular
+// signal's plan reads the surface place alone, because the reflected place needs this frame's hit distance.
+float historyLengthOf(ivec2 pixel, uint kind)
+{
+    uint bits = imageLoad(surfaceTest, pixel).r;
+    Reprojection r = reprojectionOf(lastPlaceAt(pixel), kind == KindDiffuse ? bits & 0xFu : (bits >> 4) & 0xFu);
+    vec4 lengths = vec4(0.0);
+    for (uint tap = 0u; tap < 4u; tap++)
+        if (r.weights[tap] > 0.0)
+            lengths[tap] = kind == KindDiffuse ? imageLoad(slowDiffuse, tapTexel(r, tap)).a
+                : imageLoad(slowSpecular, tapTexel(r, tap)).a;
+    return reprojectedLength(r, lengths);
+}
+
+// Whether the block's ray from its chosen pixel c fits the pixel p: c's plane passes p's surface point within the
+// thickness, and their geometric normals lie within 25°.
+bool fits(TracingPixel p, TracingPixel c)
+{
+    return abs(dot(p.point - c.point, c.s.geometricNormal)) <= ThicknessShare * p.viewDepth
+        && dot(p.s.geometricNormal, c.s.geometricNormal) >= SameNormalCosine;
+}
+
+void main()
+{
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    if (any(greaterThanEqual(vec2(pixel), frame.viewport.xy)))
+        return;
+    uint plan = 0u;
+    if (tracedSurface(pixel))
+    {
+        TracingPixel p = tracingPixelAt(pixel);
+        for (uint kind = KindReflection; kind <= KindDiffuse; kind++)
+        {
+            ivec2 chosen;
+            TracingPixel c;
+            // A pixel that starts the kind gives its block a chosen pixel.
+            if (!startsKind(p, kind) || !chosenPixelOf(pixel / 2, kind, chosen, c) || all(equal(chosen, pixel)))
+                continue;
+            if (historyLengthOf(pixel, kind) >= FullRateFrames && fits(p, c))
+                continue;
+            if (kind == KindReflection)
+            {
+                plan |= PlanOwnReflection;
+                APPEND_OWN_RAY(reflectionOwnRays, pixel)
+            }
+            else
+            {
+                plan |= PlanOwnDiffuse;
+                APPEND_OWN_RAY(diffuseOwnRays, pixel)
+            }
+        }
+    }
+    imageStore(rayPlan, pixel, uvec4(plan));
+}

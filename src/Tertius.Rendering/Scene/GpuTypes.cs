@@ -777,6 +777,36 @@ internal struct AccumulatePushConstants
         };
 }
 
+/// <summary>The push constants of the screen tracer's four passes, screen_trace.glsl (<see cref="ScreenTracePass"/>).</summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct ScreenTracePushConstants
+{
+    /// <summary>The draw's index since the last reset (<see cref="FrameHistory.PendingFrame.DrawIndex"/>), the second value of every draw.</summary>
+    public uint DrawIndex;
+
+    public float MaxRoughness;
+
+    /// <summary><see cref="ScreenTrace.MaxRoughness"/> − <see cref="ScreenTrace.HandOverWidth"/>.</summary>
+    public float HandOverStart;
+
+    public uint ReflectionSteps;
+    public uint DiffuseSteps;
+
+    /// <summary>
+    /// The push constants of a draw of index <paramref name="drawIndex"/> under <paramref name="trace"/>. The index wraps
+    /// at 2^32 draws, more than two years at 60 frames per second, which changes only the random numbers.
+    /// </summary>
+    public static ScreenTracePushConstants Of(ScreenTrace trace, long drawIndex) =>
+        new()
+        {
+            DrawIndex = unchecked((uint)drawIndex),
+            MaxRoughness = trace.MaxRoughness,
+            HandOverStart = trace.HandOverStart,
+            ReflectionSteps = (uint)trace.ReflectionSteps,
+            DiffuseSteps = (uint)trace.DiffuseSteps,
+        };
+}
+
 /// <summary>The push constants of the depth pyramid's tail, depth_pyramid_tail.comp (<see cref="DepthPyramidTail"/>).</summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct DepthTailPushConstants

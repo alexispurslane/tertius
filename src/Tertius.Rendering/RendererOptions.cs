@@ -80,6 +80,12 @@ public sealed class RendererOptions
     public BloomSetting Bloom { get; set; } = Rendering.Bloom.Default;
 
     /// <summary>
+    /// The screen tracer, which gives the two indirect signals their samples (docs/plans/temporal-renderer.md, section 6),
+    /// or <see cref="NoScreenTrace"/>. Off by default until the composite reads its signals (ter-gayt, part 6).
+    /// </summary>
+    public ScreenTraceSetting ScreenTrace { get; set; }
+
+    /// <summary>
     /// Reflections of what is on the screen in glossy surfaces, or <see cref="NoReflections"/>. On by default. The
     /// pyramids take about 33 MB at 1920 × 1080 (docs/plans/screen-space-reflections.md, "Images").
     /// </summary>

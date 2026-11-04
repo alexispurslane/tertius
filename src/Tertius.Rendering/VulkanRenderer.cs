@@ -100,6 +100,9 @@ public sealed unsafe class VulkanRenderer : IRenderer
     private readonly OcclusionImages? occlusionImages;
     private readonly SurfaceHistory surfaceHistory;
     private readonly SignalScratch signalScratch;
+
+    // The screen tracer's images and its two signals, under ScreenTrace, or null.
+    private readonly ScreenTraceImages? screenTrace;
     private readonly BarrierBatch barriers = new();
     private readonly GpuTimer timer;
     private readonly ExposureSetting exposureSetting;
@@ -187,6 +190,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             occlusionImages = AddOcclusionPasses(shaders, options.ScreenSpaceLight);
             AddPassesAfterGeometry(shaders, options);
             AddReflectionPasses(shaders, options.Reflections);
+            screenTrace = AddScreenTracePasses(shaders, options.ScreenTrace);
             AddScatterPasses(shaders);
             Own(Graph);
             timer = Own(new GpuTimer(device, options.FramesInFlight));
@@ -395,7 +399,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 : null
         )
         ?? options.EnvironmentMap.Problem
-        ?? options.Subsurface.Problem;
+        ?? options.Subsurface.Problem
+        ?? options.ScreenTrace.Problem;
 
     /// <summary>The checks of <paramref name="options"/> that need the device's limits, after <see cref="CheckOptions"/>.</summary>
     private static void CheckOptionsOnDevice(RendererOptions options, VulkanDevice device)
@@ -915,6 +920,13 @@ public sealed unsafe class VulkanRenderer : IRenderer
         targets.Resize(extent);
         surfaceHistory.Resize(targets);
         signalScratch.Resize();
+        if (screenTrace is { } tracer)
+        {
+            tracer.Diffuse.Resize();
+            tracer.Specular.Resize();
+            tracer.Resize();
+        }
+
         occlusionImages?.Resize(targets);
         ScatterImages?.Resize(targets);
     }
@@ -1051,16 +1063,24 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// </summary>
     internal float[] ReadImage(GpuImage image) => ReadLevel(image: image, layer: 0, mip: 0).Values;
 
+    /// <summary>The first level of layer <paramref name="layer"/> of <paramref name="image"/>, as <see cref="ReadImage"/> reads the first layer. A test hook.</summary>
+    internal float[] ReadImageLayer(GpuImage image, int layer) => ReadLevel(image: image, layer: layer, mip: 0).Values;
+
     /// <summary>
     /// A signal of <paramref name="parts"/> parts with <paramref name="parameters"/> at the size of the render targets, whose
-    /// sets bind the targets and the surface history, and which the renderer owns. A test hook until the screen tracer's
-    /// signals (ter-gayt): the renderer makes no signal of its own, and it resizes none.
+    /// sets bind the targets and the surface history, and which the renderer owns. A test hook: the renderer resizes only
+    /// the screen tracer's signals.
     /// </summary>
     internal TemporalSignal CreateSignal(SignalParameters parameters, string name, int parts)
     {
         // The pipelines keep no reference to the shader modules, so the library goes with this call.
         using var shaders = new ShaderLibrary(device, ShaderLibrary.EngineShaders);
-        return Own(
+        return CreateSignal(shaders: shaders, parameters: parameters, name: name, parts: parts);
+    }
+
+    /// <summary>A signal as <see cref="CreateSignal(SignalParameters, string, int)"/> makes it, from <paramref name="shaders"/>.</summary>
+    private TemporalSignal CreateSignal(ShaderLibrary shaders, SignalParameters parameters, string name, int parts) =>
+        Own(
             new TemporalSignal(
                 device: device,
                 allocator: Allocator,
@@ -1074,6 +1094,28 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 parts: parts
             )
         );
+
+    /// <summary>The screen tracer's two signals. A test hook.</summary>
+    /// <exception cref="InvalidOperationException">The setting is <see cref="NoScreenTrace"/>.</exception>
+    internal (TemporalSignal Diffuse, TemporalSignal Specular) ScreenTraceSignals =>
+        screenTrace is { } tracer
+            ? (tracer.Diffuse, tracer.Specular)
+            : throw new InvalidOperationException("The screen tracer is off.");
+
+    /// <summary>The screen tracer's images. A test hook.</summary>
+    /// <exception cref="InvalidOperationException">The setting is <see cref="NoScreenTrace"/>.</exception>
+    internal ScreenTraceImages ScreenTraceImages =>
+        screenTrace ?? throw new InvalidOperationException("The screen tracer is off.");
+
+    /// <summary>
+    /// The counts of the last frame's own-ray lists of the screen tracer: the pixels that traced their own reflection ray
+    /// and their own diffuse ray. A test hook: it waits for the device to be idle and submits its own copy.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The setting is <see cref="NoScreenTrace"/>.</exception>
+    internal (int Reflection, int Diffuse) ReadOwnRayCounts()
+    {
+        GpuBuffer[] lists = ScreenTraceImages.OwnRays;
+        return (OwnRayList.Pixels(ReadBufferWords(lists[0])).Length, OwnRayList.Pixels(ReadBufferWords(lists[1])).Length);
     }
 
     /// <summary>
@@ -1286,24 +1328,30 @@ public sealed unsafe class VulkanRenderer : IRenderer
             FullTrace => throw new InvalidOperationException("The trace runs at full resolution."),
             null => throw new UnreachableException("The targets always hold a trace."),
         };
+        return OwnRayList.Pixels(ReadBufferWords(ownRays));
+    }
+
+    /// <summary>The words of <paramref name="buffer"/>. A test hook: it waits for the device to be idle and submits its own copy.</summary>
+    private uint[] ReadBufferWords(GpuBuffer buffer)
+    {
         using var readback = GpuBuffer.Create(
             device: device,
             allocator: Allocator,
-            size: ownRays.Size,
+            size: buffer.Size,
             usage: BufferUsageFlags.TransferDstBit,
             memoryUsage: MemoryUsage.Readback,
-            name: "own rays readback"
+            name: "buffer readback"
         );
         SubmitAndWait(commandBuffer =>
         {
             var local = new BarrierBatch();
-            local.Buffer(ownRays, BufferUse.TransferSource);
+            local.Buffer(buffer, BufferUse.TransferSource);
             local.Buffer(readback, BufferUse.TransferDestination);
             local.Flush(device.Vk, commandBuffer);
-            var region = new BufferCopy(srcOffset: 0, dstOffset: 0, size: ownRays.Size);
+            var region = new BufferCopy(srcOffset: 0, dstOffset: 0, size: buffer.Size);
             device.Vk.CmdCopyBuffer(
                 commandBuffer: commandBuffer,
-                srcBuffer: ownRays.Handle,
+                srcBuffer: buffer.Handle,
                 dstBuffer: readback.Handle,
                 regionCount: 1,
                 pRegions: &region
@@ -1311,7 +1359,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             local.Buffer(readback, BufferUse.HostRead);
             local.Flush(device.Vk, commandBuffer);
         });
-        return OwnRayList.Pixels(new ReadOnlySpan<uint>(readback.Mapped, (int)(ownRays.Size / sizeof(uint))));
+        return new ReadOnlySpan<uint>(readback.Mapped, (int)(buffer.Size / sizeof(uint))).ToArray();
     }
 
     /// <summary>
@@ -1520,6 +1568,9 @@ public sealed unsafe class VulkanRenderer : IRenderer
 
         /// <summary>An 8-bit unsigned integer, read as its value.</summary>
         Uint8,
+
+        /// <summary>A 16-bit unsigned integer, read as its value.</summary>
+        Uint16,
     }
 
     /// <summary>
@@ -1540,6 +1591,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             EstimatePacking.Format => (EstimatePacking.HalvesPerTexel, StoredChannel.Half),
             Format.R8G8B8A8Uint => (4, StoredChannel.Uint8),
             Format.R8Uint => (1, StoredChannel.Uint8),
+            Format.R16G16B16A16Uint => (4, StoredChannel.Uint16),
             _ => throw new ArgumentException(
                 $"{image.Name} has the format {image.Format}, which no hook reads.",
                 nameof(image)
@@ -1555,7 +1607,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 * stored switch
                 {
                     StoredChannel.Float => 4,
-                    StoredChannel.Half or StoredChannel.Snorm16 => 2,
+                    StoredChannel.Half or StoredChannel.Snorm16 or StoredChannel.Uint16 => 2,
                     StoredChannel.Uint8 => 1,
                 }
             ),
@@ -1601,6 +1653,11 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 var bytes = new ReadOnlySpan<byte>(buffer.Mapped, count);
                 for (int i = 0; i < count; i++)
                     values[i] = bytes[i];
+                break;
+            case StoredChannel.Uint16:
+                var words = new ReadOnlySpan<ushort>(buffer.Mapped, count);
+                for (int i = 0; i < count; i++)
+                    values[i] = words[i];
                 break;
             default:
                 throw new UnreachableException();
@@ -1807,10 +1864,13 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 extent: extent,
                 glowLevels: GlowLevelsOf(options.Bloom),
                 smaaTables: smaaTables,
-                reflections: options.Reflections switch
+                // The screen tracer walks the depth pyramid, which the reflections' targets build until part 6 of ter-gayt
+                // moves it, so the tracer alone makes them at the default resolution.
+                reflections: (options.Reflections, options.ScreenTrace) switch
                 {
-                    NoReflections => null,
-                    ConeTracedReflections on => on.Resolution,
+                    (ConeTracedReflections on, _) => on.Resolution,
+                    (NoReflections, ScreenTrace) => ConeTracedReflections.Default.Resolution,
+                    (NoReflections, NoScreenTrace) => null,
                 },
                 subsurface: options.Subsurface is SeparableSubsurface
             )
@@ -2141,12 +2201,15 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// </summary>
     private void AddReflectionPasses(ShaderLibrary shaders, ReflectionSetting reflections)
     {
-        if (targets.Reflections is not { } pyramids || reflections is not ConeTracedReflections setting)
+        if (targets.Reflections is not { } pyramids)
             return;
+        // Under the reflections or the screen tracer, which both walk the depth pyramid.
         Graph.Add(
             FrameGraph.Stage.DepthPyramid,
             new DepthPyramidPass(device: device, shaders: shaders, layouts: layouts, targets: pyramids)
         );
+        if (reflections is not ConeTracedReflections setting)
+            return;
         Graph.Add(
             FrameGraph.Stage.Reflections,
             new RadiancePyramidPass(device: device, shaders: shaders, layouts: layouts, targets: pyramids)
@@ -2172,6 +2235,58 @@ public sealed unsafe class VulkanRenderer : IRenderer
                     step: step
                 )
             );
+    }
+
+    /// <summary>
+    /// The screen tracer's images under <see cref="ScreenTrace"/>, with its two signals, and its four passes and the two
+    /// accumulations in <see cref="FrameGraph.Stage.ScreenTrace"/>; null under <see cref="NoScreenTrace"/>. The renderer
+    /// owns them.
+    /// </summary>
+    private ScreenTraceImages? AddScreenTracePasses(ShaderLibrary shaders, ScreenTraceSetting setting)
+    {
+        if (setting is not ScreenTrace trace)
+            return null;
+        ReflectionTargets pyramids = targets.Reflections ?? throw new UnreachableException("The tracer makes the pyramid.");
+        TemporalSignal diffuse = CreateSignal(
+            shaders: shaders,
+            parameters: SignalParameters.Diffuse,
+            name: "indirect diffuse",
+            parts: 1
+        );
+        TemporalSignal specular = CreateSignal(
+            shaders: shaders,
+            parameters: SignalParameters.Specular(trace.HandOverStart),
+            name: "indirect specular",
+            parts: 1
+        );
+        ScreenTraceImages images = Own(
+            new ScreenTraceImages(
+                device: device,
+                allocator: Allocator,
+                layouts: layouts,
+                targets: targets,
+                surfaces: surfaceHistory,
+                pyramids: pyramids,
+                diffuse: diffuse,
+                specular: specular
+            )
+        );
+        foreach (ScreenTraceStep step in Enum.GetValues<ScreenTraceStep>())
+            Graph.Add(
+                FrameGraph.Stage.ScreenTrace,
+                new ScreenTracePass(
+                    device: device,
+                    shaders: shaders,
+                    layouts: layouts,
+                    images: images,
+                    setting: trace,
+                    constants: ShadingConstants,
+                    step: step
+                )
+            );
+        Graph.Add(FrameGraph.Stage.ScreenTrace, new AccumulatePass(diffuse));
+        Graph.Add(FrameGraph.Stage.ScreenTrace, new AccumulatePass(specular));
+        return images;
     }
 
     /// <summary>The bloom levels that <paramref name="bloom"/> builds: 0 for <see cref="NoBloom"/>.</summary>

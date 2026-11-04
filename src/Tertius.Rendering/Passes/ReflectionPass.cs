@@ -96,7 +96,18 @@ internal sealed unsafe class ReflectionPass : RenderPass
             Constants = constants,
         }.Create(device, shaders);
         if (step == ReflectionStep.Upsample)
-            ownRays = new OwnRayDispatch(device: device, shaders: shaders, layouts: layouts, constants: constants);
+            ownRays = new OwnRayDispatch(
+                device: device,
+                shaders: shaders,
+                pipeline: new ComputePipelineDesc
+                {
+                    Name = "reflection own rays",
+                    Shader = "reflection_own_rays.comp",
+                    Layout = layouts.ReflectionLayout,
+                    // The own rays add their deltas, whose fallback reads the map while it is on.
+                    Constants = constants,
+                }
+            );
     }
 
     public override string Name { get; }
@@ -105,7 +116,8 @@ internal sealed unsafe class ReflectionPass : RenderPass
     {
         Vk vk = context.Vk;
         CommandBuffer commandBuffer = context.CommandBuffer;
-        ownRays?.Clear(context, UpsampledTrace().OwnRays);
+        if (ownRays is not null)
+            OwnRayDispatch.Clear(context, UpsampledTrace().OwnRays);
         DeclareUses(context);
         context.BeginComputePass(pipeline: pipeline, layout: layouts.ReflectionLayout, passSet: targets.TraceSet);
         var push = ReflectionPushConstants.For(setting);
@@ -124,7 +136,12 @@ internal sealed unsafe class ReflectionPass : RenderPass
             groupCountY: (extent.Height + GroupSize - 1) / GroupSize,
             groupCountZ: 1
         );
-        ownRays?.Trace(context, UpsampledTrace().OwnRays);
+        if (ownRays is null)
+            return;
+        // The own rays write only pixels that the upsample left, but the validation layers' hazard tracking sees one image,
+        // so the HDR image takes a barrier in the dispatch's flush, which drains nothing more than the list's barrier.
+        context.Barriers.Image(context.Targets.Hdr, ImageUse.StorageCompute);
+        ownRays.Trace(context, UpsampledTrace().OwnRays);
     }
 
     public override void Dispose()

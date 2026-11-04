@@ -17,6 +17,13 @@ vec3 normalizedOr(vec3 v, vec3 fallback)
     return lengthSq >= SmallestNormal ? v * inversesqrt(lengthSq) : fallback;
 }
 
+// n_f: across a hair's strand toward the eye. A strand along the line of sight takes the card's normal, which is across
+// it. HairFiber.FiberNormal is the C# copy. Here, so that the compute passes, which include no material.glsl, read it too.
+vec3 fiberNormal(vec3 strand, vec3 V, vec3 cardNormal)
+{
+    return normalizedOr(V - strand * dot(strand, V), cardNormal);
+}
+
 // n, or −n where it faces away from `direction`: the normal of the side of a surface that `direction` sees.
 vec3 turnedToward(vec3 n, vec3 direction)
 {

@@ -66,7 +66,8 @@ internal static class Gpu
         LocalShadowSetting localShadows = default,
         bool deformation = true,
         SubsurfaceSetting subsurface = default,
-        bool capturesInFlight = false
+        bool capturesInFlight = false,
+        ScreenTraceSetting screenTrace = default
     ) =>
         VulkanRenderer.CreateHeadless(
             new()
@@ -88,6 +89,7 @@ internal static class Gpu
                 Deformation = deformation,
                 Subsurface = subsurface,
                 CapturesInFlight = capturesInFlight,
+                ScreenTrace = screenTrace,
             }
         );
 

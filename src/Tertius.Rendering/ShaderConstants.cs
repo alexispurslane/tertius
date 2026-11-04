@@ -26,6 +26,9 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
     /// <summary>The constant_id of writesMotion in mesh.vert.</summary>
     public const uint WritesMotionId = 4;
 
+    /// <summary>The constant_id of rayKind in screen_trace_block_rays.comp and screen_trace_own_rays.comp.</summary>
+    public const uint RayKindId = 5;
+
     /// <summary>
     /// True in the cutout pipeline of an opaque pass, whose material sample discards a texel below its material's cutoff
     /// (docs/plans/skin-and-hair.md, "The cutout test"); false in the solid pipelines, which keep their early depth writes.
@@ -57,6 +60,12 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
     public SubsurfaceSetting Subsurface { get; init; }
 
     /// <summary>
+    /// The ray kind of a pipeline of the screen tracer's rays: 0 reflection rays, 1 diffuse rays (screen_trace.glsl), which
+    /// only <see cref="ScreenTracePass"/> sets.
+    /// </summary>
+    public uint RayKind { get; init; }
+
+    /// <summary>
     /// The specialization info of <paramref name="constants"/>, filled into <paramref name="storage"/>, or null for a
     /// pipeline whose shaders declare none.
     /// </summary>
@@ -80,6 +89,7 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
             (ScatterTapsPerSideId, (uint)tapsPerSide),
             (DropsFibersId, values.DropsFibers ? 1u : 0u),
             (WritesMotionId, values.WritesMotion ? 1u : 0u),
+            (RayKindId, values.RayKind),
         ];
         for (int i = 0; i < rows.Length; i++)
         {
@@ -108,7 +118,7 @@ internal struct SpecializationStorage
     /// The number of constants: one per field of <see cref="ShaderConstants"/>, the subsurface setting's being its taps per
     /// side. <see cref="ShaderConstants.Specialization"/> writes one row per constant, and a row past this count throws.
     /// </summary>
-    public const int Count = 5;
+    public const int Count = 6;
 
     public SpecializationValues Data;
     public SpecializationEntries Entries;

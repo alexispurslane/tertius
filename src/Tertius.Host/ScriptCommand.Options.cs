@@ -104,8 +104,8 @@ public static partial class ScriptCommand
                 options.EnvironmentMap = new NoEnvironmentMap();
             if (SubsurfaceOff)
                 options.Subsurface = new NoSubsurface();
-            if (CapturesInFlight)
-                options.CapturesInFlight = true;
+            // Without an if: a branch more would take this function past CC 10.
+            options.CapturesInFlight |= CapturesInFlight;
         }
     }
 }
