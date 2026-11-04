@@ -15,10 +15,6 @@ public sealed class GpuCalibrationTests
     // "GPU calibration").
     private const string TimingVariable = "TERTIUS_GPU_CALIBRATION";
 
-    // The marker lines of a measurement's timed span, which tools/gpu-calibration/analyze.py finds in gpu-clock's log.
-    private const string TimedStart = "timed-start";
-    private const string TimedEnd = "timed-end";
-
     // The peaks of the 24-core Apple M1 Max, the GPU of the development Mac (gpu-calibration.md, "The peaks"): 3,072 FP32
     // lanes, 192 texture units, and Apple's memory bandwidth, at the GPU's highest clock of 1,296 MHz.
     private const double PeakFlops = 3072 * 2 * 1.296e9;
@@ -107,7 +103,7 @@ public sealed class GpuCalibrationTests
                 probe: probe,
                 peak: peak,
                 label: "",
-                times: [.. Enumerable.Range(0, 30).Select(_ => bench.Time(probe))]
+                times: TimedSpan.Run(() => Times(bench, probe, count: 30))
             );
         }
 
@@ -127,7 +123,7 @@ public sealed class GpuCalibrationTests
             probe: probe,
             peak: PeakFlops,
             label: "-cold",
-            times: [.. Enumerable.Range(0, 30).Select(_ => bench.Time(probe))]
+            times: TimedSpan.Run(() => Times(bench, probe, count: 30))
         );
 
         probe.Check().Should().BeNull();
@@ -147,7 +143,7 @@ public sealed class GpuCalibrationTests
             probe: probe,
             peak: PeakFlops,
             label: "-sustained",
-            times: [.. Enumerable.Range(0, 30).Select(_ => bench.Time(probe))]
+            times: TimedSpan.Run(() => Times(bench, probe, count: 30))
         );
 
         probe.Check().Should().BeNull();
@@ -166,12 +162,10 @@ public sealed class GpuCalibrationTests
         bench.FillPattern();
 
         // The first 8 batches warm the caches and the driver, as the 60 frames of the timing test do. The marker lines
-        // around the timed batches let tools/gpu-calibration/analyze.py take gpu-clock's clock over them alone.
+        // around the timed batches let tools/gpu_clock.py take gpu-clock's clock over them alone.
         BatchedFrameTimes(bench: bench, firstBatch: 0, batches: 8, batchSize: Batch);
+        double[] frames = TimedSpan.Run(() => BatchedFrameTimes(bench: bench, firstBatch: 8, batches: 37, batchSize: Batch));
         ITestOutputHelper output = TestContext.Current.TestOutputHelper!;
-        output.WriteLine(TimedStart);
-        double[] frames = BatchedFrameTimes(bench: bench, firstBatch: 8, batches: 37, batchSize: Batch);
-        output.WriteLine(TimedEnd);
 
         double[] sorted = [.. frames.Order()];
         CultureInfo inv = CultureInfo.InvariantCulture;
@@ -254,6 +248,10 @@ public sealed class GpuCalibrationTests
         vk.DestroyQueryPool(bench.Device.Device, queries, null);
         return times;
     }
+
+    // The times of count dispatches of probe, one after another.
+    private static (double Gpu, double Wall)[] Times(CalibrationBench bench, CalibrationProbe probe, int count) =>
+        [.. Enumerable.Range(0, count).Select(_ => bench.Time(probe))];
 
     private static void SkipUnlessMeasuring() =>
         Assert.SkipUnless(

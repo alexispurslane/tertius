@@ -128,6 +128,12 @@ func halton(_ index: Int, _ base: Int) -> Float {
 let phases = Int((8 * pow(Float(output.width) / Float(render.width), 2)).rounded(.up))
 var times: [Double] = []
 for frame in 0..<360 {
+    // The marker lines around the 300 timed frames, flushed at once, for the clock over the timed span
+    // (tools/gpu_clock.py). Swift buffers stdout when it is not a terminal.
+    if frame == 60 {
+        print("timed-start")
+        fflush(stdout)
+    }
     let phase = frame % phases + 1
     scaler.jitterOffsetX = halton(phase, 2) - 0.5
     scaler.jitterOffsetY = halton(phase, 3) - 0.5
@@ -140,6 +146,8 @@ for frame in 0..<360 {
     if frame >= 60 { times.append((buffer.gpuEndTime - buffer.gpuStartTime) * 1e3) }
     if gap > 0 { Thread.sleep(forTimeInterval: gap) }
 }
+print("timed-end")
+fflush(stdout)
 
 let sorted = times.sorted()
 print(

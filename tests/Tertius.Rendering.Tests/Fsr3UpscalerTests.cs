@@ -389,12 +389,14 @@ public sealed class Fsr3UpscalerTests
             Assert.Skip($"{bench.Device.DeviceName} writes no timestamps on its queue.");
         bench.FillPattern();
 
-        // The first frames warm the caches and the driver's pipelines.
-        double[] frames = [.. bench.TimedUpscales(count: 360).Skip(60)];
+        // The first 60 frames warm the caches and the driver's pipelines. The marker lines around the 300 timed frames let
+        // tools/gpu_clock.py take gpu-clock's clock over them alone (tools/README.md, "The GPU clock of a timed run").
+        bench.TimedUpscales(firstDraw: 0, count: 60);
+        double[] frames = TimedSpan.Run(() => bench.TimedUpscales(firstDraw: 60, count: 300));
+        ITestOutputHelper output = TestContext.Current.TestOutputHelper!;
         double[] times = [.. frames.Order()];
 
         double median = times[times.Length / 2];
-        ITestOutputHelper output = TestContext.Current.TestOutputHelper!;
         output.WriteLine(
             $"FSR 3.1 from 1280 x 720 to 1920 x 1080 on {bench.Device.DeviceName}: median {median:F3} ms, "
                 + $"10th percentile {times[times.Length / 10]:F3} ms, 90th percentile {times[times.Length * 9 / 10]:F3} ms "
@@ -617,10 +619,11 @@ public sealed class Fsr3UpscalerTests
         }
 
         /// <summary>
-        /// The GPU time in ms of each of <paramref name="count"/> upscales, the first of which resets, by timestamps around
-        /// Record: every command before the second stamp, from the first.
+        /// The GPU time in ms of each of <paramref name="count"/> upscales, by timestamps around Record: every command
+        /// before the second stamp, from the first. The upscales continue the bench's draws from
+        /// <paramref name="firstDraw"/>, and only draw 0 resets the accumulation.
         /// </summary>
-        public double[] TimedUpscales(int count)
+        public double[] TimedUpscales(int firstDraw, int count)
         {
             Vk vk = Device.Vk;
             var info = new QueryPoolCreateInfo
@@ -641,7 +644,7 @@ public sealed class Fsr3UpscalerTests
                 double[] times = new double[count];
                 for (int index = 0; index < count; index++)
                 {
-                    int draw = index;
+                    int draw = firstDraw + index;
                     Submit(commandBuffer =>
                     {
                         vk.CmdResetQueryPool(

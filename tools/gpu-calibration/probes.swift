@@ -14,7 +14,8 @@
 //   probes dump-msl                   the kernels' source, for xcrun metal
 //
 // Each timed probe prints one line "probe=<name> ... median=<ms> p10=<ms> p90=<ms> rate=<unit/s> share=<of peak>",
-// then "check=pass" or "check=FAIL ..." and exits 1 on a failed check. Every size matches the Vulkan probe's.
+// then "check=pass" or "check=FAIL ..." and exits 1 on a failed check. Every size matches the Vulkan probe's. The timed
+// dispatches of each probe run between the lines "timed-start" and "timed-end", for the clock over the timed span.
 
 import Foundation
 import Metal
@@ -492,10 +493,26 @@ let arguments = CommandLine.arguments
 let command = arguments.count > 1 ? arguments[1] : ""
 func argument(_ index: Int, _ fallback: Int) -> Int { arguments.count > index ? Int(arguments[index])! : fallback }
 
+/// Prints a marker line and flushes stdout at once, so that the line falls between gpu-clock's samples in the order in
+/// which it happened. Swift buffers stdout when it is not a terminal.
+func marker(_ line: String) {
+    print(line)
+    fflush(stdout)
+}
+
+/// `count` timed dispatches between the marker lines timed-start and timed-end, from which tools/gpu_clock.py takes
+/// gpu-clock's clock over the timed span.
+func timedSpan(_ probe: Probe, _ count: Int) -> [Double] {
+    marker("timed-start")
+    let times = (0..<count).map { _ in timed(probe) }
+    marker("timed-end")
+    return times
+}
+
 /// Warm-up of 5 dispatches, then `count` timed ones.
 func measure(_ probe: Probe, count: Int) {
     for _ in 0..<5 { _ = timed(probe) }
-    report(probe, (0..<count).map { _ in timed(probe) })
+    report(probe, timedSpan(probe, count))
 }
 
 switch command {
@@ -512,7 +529,7 @@ case "bandwidth":
 case "cold":
     // No warm-up: the first dispatch is the first GPU work after the caller's idle wait.
     let probe = fmaProbe(iterations: fmaIterations)
-    report(probe, (0..<argument(2, 30)).map { _ in timed(probe) }, label: "-cold")
+    report(probe, timedSpan(probe, argument(2, 30)), label: "-cold")
 case "sustain":
     // Three command buffers in flight keep the GPU busy without a gap between dispatches.
     let probe = fmaProbe(iterations: fmaIterations)
@@ -529,7 +546,7 @@ case "sustain":
         if inFlight.count >= 3 { inFlight.removeFirst().waitUntilCompleted() }
     }
     inFlight.forEach { $0.waitUntilCompleted() }
-    report(probe, (0..<argument(3, 30)).map { _ in timed(probe) }, label: "-sustained")
+    report(probe, timedSpan(probe, argument(3, 30)), label: "-sustained")
 case "pulse":
     // A short probe every period, timed alone: its GPU time is the clock-limited time of 2^20 x 64 x 16 FMAs.
     let probe = fmaProbe(iterations: pulseIterations)

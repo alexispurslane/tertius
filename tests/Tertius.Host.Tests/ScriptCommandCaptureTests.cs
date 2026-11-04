@@ -330,6 +330,80 @@ public sealed class ScriptCommandCaptureTests : IDisposable
     }
 
     [Fact]
+    public void AHeadlessFilmPrintsTheMarkersOfItsTimedSpanOnceEachBeforeTheFilesAndTheGpuTimings()
+    {
+        string script = ScriptFile(
+            """{ "scene": "lit-box", "window": { "width": 160, "height": 90 }, "steps": [ { "do": "film", "name": "box", "frames": 6, "every": 1 }, { "do": "dump", "name": "end" } ] }"""
+        );
+
+        int code = ScriptCommand.Run(
+            args: ["--script", script, "--headless", "--out", Out, "--video", "none"],
+            scenes: [LitBoxScene],
+            output: output,
+            error: error
+        );
+
+        code.Should().Be(ScriptCommand.Ok, error.ToString());
+        string[] lines = output.ToString().Split(Environment.NewLine);
+        lines
+            .Where(line => line is ScriptCommand.TimedStart or ScriptCommand.TimedEnd)
+            .Should()
+            .Equal(
+                [ScriptCommand.TimedStart, ScriptCommand.TimedEnd],
+                "tools/gpu_clock.py takes gpu-clock's samples between the two lines as the clock of the timed frames"
+            );
+        Array
+            .IndexOf(lines, ScriptCommand.TimedEnd)
+            .Should()
+            .BeLessThan(
+                Array.IndexOf(lines, Path.Combine(Out, "end.json")),
+                "the timed span ends when the script's frames end, before the run writes its files"
+            );
+    }
+
+    [Fact]
+    public void AScriptWithDumpsOnlyPrintsNoMarkersOfATimedSpan()
+    {
+        string script = ScriptFile("""{ "scene": "lit-box", "steps": [ { "do": "dump", "name": "only" } ] }""");
+
+        int code = ScriptCommand.Run(
+            args: ["--script", script, "--headless", "--out", Out],
+            scenes: [LitBoxScene],
+            output: output,
+            error: error
+        );
+
+        code.Should().Be(ScriptCommand.Ok, error.ToString());
+        output.ToString().Should().NotContain(ScriptCommand.TimedStart).And.NotContain(ScriptCommand.TimedEnd);
+    }
+
+    [Fact]
+    public void AFilmOfOneFrameStillPrintsBothMarkersSoThatEveryTimedStartHasItsEnd()
+    {
+        string script = ScriptFile(
+            """{ "scene": "lit-box", "window": { "width": 160, "height": 90 }, "steps": [ { "do": "film", "name": "box", "frames": 1, "every": 1 } ] }"""
+        );
+
+        int code = ScriptCommand.Run(
+            args: ["--script", script, "--headless", "--out", Out, "--video", "none"],
+            scenes: [LitBoxScene],
+            output: output,
+            error: error
+        );
+
+        code.Should().Be(ScriptCommand.Ok, error.ToString());
+        output
+            .ToString()
+            .Split(Environment.NewLine)
+            .Where(line => line is ScriptCommand.TimedStart or ScriptCommand.TimedEnd)
+            .Should()
+            .Equal(
+                [ScriptCommand.TimedStart, ScriptCommand.TimedEnd],
+                "tools/gpu_clock.py leaves out a span that no timed-end closes, and the first shown frame opens the span"
+            );
+    }
+
+    [Fact]
     public void AHeadlessFilmOnADriverWhoseStampsLatchLateSaysBetweenThePassTimesAndTheSpanThatOnlySumsOfPassesHold()
     {
         string script = ScriptFile(

@@ -17,6 +17,10 @@
 // Each sample line: "sample t=<s> active=<share of the interval not OFF> mhz=<mean clock over the active time>
 // states=<share of the active time in each state>". The summary line "run active_ms=... mhz=..." gives the mean clock
 // over all active time of the run, and "states=" its split. The command's output goes to stdout unchanged.
+//
+// Where IOReport or the I/O registry gives no GPU clock, such as on a driver or a machine without these channels, it
+// prints "clock unknown: <reason>" and runs the command alone, so that a timing tool still works and its record says
+// that the clock is unknown (tools/gpu_clock.py reads the line).
 
 #include <CoreFoundation/CoreFoundation.h>
 #include <IOKit/IOKitLib.h>
@@ -91,6 +95,15 @@ static void states(const int64_t *ticks, int states, int64_t active) {
     printf("\n");
 }
 
+// Prints why the clock is unknown and runs the command in this process. Returns only when the command cannot start.
+static int runAlone(char **command, const char *reason) {
+    printf("clock unknown: %s\n", reason);
+    fflush(stdout);
+    execvp(command[0], command);
+    perror("execvp");
+    return 1;
+}
+
 static double now(void) {
     struct timespec t;
     clock_gettime(CLOCK_MONOTONIC, &t);
@@ -105,26 +118,17 @@ int main(int argc, char **argv) {
     int interval = atoi(argv[1]);
     double mhz[MaxStates] = {0};
     int count = frequencies(mhz);
-    if (count < 2) {
-        fprintf(stderr, "The I/O registry gives no GPU frequencies (pmgr, voltage-states9).\n");
-        return 1;
-    }
+    if (count < 2) return runAlone(&argv[2], "the I/O registry gives no GPU frequencies (pmgr, voltage-states9)");
     printf("frequencies_mhz=");
     for (int s = 1; s < count; s++) printf("%s%.1f", s > 1 ? "," : "", mhz[s]);
     printf("\n");
 
     CFDictionaryRef channels = IOReportCopyChannelsInGroup(CFSTR("GPU Stats"), CFSTR("GPU Performance States"), 0, 0, 0);
-    if (channels == NULL) {
-        fprintf(stderr, "IOReport gives no channel of GPU Performance States.\n");
-        return 1;
-    }
+    if (channels == NULL) return runAlone(&argv[2], "IOReport gives no channel of GPU Performance States");
     CFMutableDictionaryRef wanted = CFDictionaryCreateMutableCopy(kCFAllocatorDefault, 0, channels);
     CFMutableDictionaryRef subscribed = NULL;
     IOReportSubscriptionRef subscription = IOReportCreateSubscription(NULL, wanted, &subscribed, 0, NULL);
-    if (subscription == NULL) {
-        fprintf(stderr, "IOReport refused the subscription.\n");
-        return 1;
-    }
+    if (subscription == NULL) return runAlone(&argv[2], "IOReport refused the subscription");
 
     fflush(stdout);
     pid_t child;

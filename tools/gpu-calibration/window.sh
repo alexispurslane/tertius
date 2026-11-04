@@ -15,7 +15,8 @@
 #   steady_busy: the mean busy share, in percent, over the busy samples of the steady span.
 #   fps: the presented frames per second between MoltenVK's first and last log of every 60 frames.
 #   frame_ms, drawable_ms: MoltenVK's mean frame interval and mean wait for a drawable over the whole run.
-# The binaries of gpu-clock come from $GPU_CALIBRATION_BIN, by default captures/gpu-calibration/bin.
+# gpu-clock runs through tools/gpu-clock.sh, from $GPU_CALIBRATION_BIN, by default captures/gpu-calibration/bin. A window
+# run times no span: its clock is the steady clock above, and the launcher's line of the timed span says unknown.
 set -uo pipefail
 
 script=${1:?usage: window.sh <script> <width>x<height> <out folder> <name>}
@@ -44,9 +45,8 @@ measured_run() {
     return "$code"
 }
 
-bin=${GPU_CALIBRATION_BIN:-captures/gpu-calibration/bin}
 bash tools/gpu-lock.sh "$log" bash -c "$(declare -f measured_run); measured_run \"\$@\"" window "$busy" \
-    "$bin/gpu-clock" 100 env MVK_CONFIG_PERFORMANCE_TRACKING=1 \
+    bash tools/gpu-clock.sh env MVK_CONFIG_PERFORMANCE_TRACKING=1 \
     MVK_CONFIG_PERFORMANCE_LOGGING_FRAME_COUNT=60 MVK_CONFIG_LOG_LEVEL=3 \
     src/Tertius.Demo/bin/Release/net11.0/Tertius.Demo --script "$script" --out "$out/$name" --size "$size"
 code=$?

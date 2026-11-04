@@ -20,6 +20,9 @@
 #   --control <pass>  adds the paired table's control, for a run whose frames all run <pass>
 #                     (give --paired or --control once, not both)
 # Arguments after the script go to the demo's headless run, such as --screen-space-light off.
+# The recording takes the GPU lock through tools/gpu-lock.sh and runs beside gpu-clock through tools/gpu-clock.sh. The
+# clock over the run's timed span goes into gpu-timings.json as "gpuClock" and into passes.md. <out>/run.log holds the
+# lock's uptime lines, xctrace's messages, gpu-clock's samples and the demo's output.
 # Writes <out>/run.trace (open it in Instruments), <out>/run (the run's gpu-timings.json and exposure.json; --video none
 # draws each capture and writes no image),
 # <out>/passes.md (the table, also printed) and <out>/passes.json (every counter of every pass).
@@ -95,21 +98,22 @@ if [[ "$counters" -eq 1 ]]; then
   instruments=(--instrument "Metal GPU Counters")
 fi
 record_code=0
-load=$(uptime | sed 's/.*load averages*: *//')
-echo "Load averages at the start (1, 5 and 15 minutes): $load"
-"$xcrun" xctrace record --template "Metal System Trace" "${instruments[@]}" --no-prompt --output "$out/run.trace" \
-  "${env_args[@]}" --target-stdout "$out/run.log" \
+# The recording takes the GPU lock (tools/README.md, "The GPU lock") and runs beside gpu-clock through
+# tools/gpu-clock.sh. The demo must be the process that xctrace launches: with a parent between them, the trace's list
+# of encoders stays empty. So gpu-clock samples outside xctrace, and xctrace passes the demo's output on to its own
+# stdout (--target-stdout -), which keeps the demo's markers in order between gpu-clock's samples in run.log.
+bash tools/gpu-lock.sh "$out/run.log" bash tools/gpu-clock.sh "$xcrun" xctrace record --template "Metal System Trace" \
+  "${instruments[@]}" --no-prompt --output "$out/run.trace" "${env_args[@]}" --target-stdout - \
   --launch -- "$demo" --script "$traced" --headless --out "$out/run" --size "$size" --video none "${demo_options[@]}" \
-  > "$out/record.log" 2>&1 || record_code=$?
+  || record_code=$?
 if [[ "$record_code" -ne 0 ]]; then
-  # xctrace saves the trace and exits with a code other than 0 when the demo fails, and the demo's errors go to run.log.
+  # xctrace saves the trace and exits with a code other than 0 when the demo fails.
   if [[ -e "$out/run.trace" ]]; then
     echo "The demo run failed (xctrace exited with $record_code). The end of $out/run.log:" >&2
-    tail -20 "$out/run.log" >&2
   else
-    echo "xctrace recorded no trace (exit code $record_code). The end of $out/record.log:" >&2
-    tail -20 "$out/record.log" >&2
+    echo "xctrace recorded no trace (exit code $record_code). The end of $out/run.log:" >&2
   fi
+  tail -20 "$out/run.log" >&2
   exit 1
 fi
 if [[ ! -f "$out/run/gpu-timings.json" ]]; then
@@ -117,10 +121,13 @@ if [[ ! -f "$out/run/gpu-timings.json" ]]; then
   exit 1
 fi
 grep -E '^GPU frame span' "$out/run.log" || true
+python3 -I tools/gpu_clock.py record "$out/run.log" "$out/run/gpu-timings.json"
 
-python3 -I tools/gpu-trace.py report "$out/run.trace" "$out/run/gpu-timings.json" "$out" "${window[@]}" "${pairing[@]}"
+# The report takes the load at the start from the lock's line uptime-start in run.log, which comes after any wait for the
+# lock.
+python3 -I tools/gpu-trace.py report "$out/run.trace" "$out/run/gpu-timings.json" "$out" --log "$out/run.log" \
+  "${window[@]}" "${pairing[@]}"
 if [[ "$keep" -eq 0 ]]; then
   rm -rf "$out/export"
 fi
-printf 'Load averages at the start: %s\n\n%s\n' "$load" "$(cat "$out/passes.md")" > "$out/passes.md"
 echo "$out/passes.md"

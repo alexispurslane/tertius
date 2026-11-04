@@ -110,6 +110,22 @@ def _first_starts(intervals):
     return first
 
 
+class LoadAtStart(unittest.TestCase):
+    """load_at_start: the load averages of the lock helper's line uptime-start in run.log, which it writes when the
+    recording takes the lock, after any wait."""
+
+    def test_the_load_comes_from_the_line_that_the_lock_helper_writes_when_the_run_starts(self):
+        log = "\n".join([
+            "uptime-start:  10:12:01  up 3 days  2:01,  4 users,  load average: 3.79, 5.73, 8.05",
+            "waited: 212s",
+            "uptime-end:  10:14:30  up 3 days  2:03,  4 users,  load average: 6.10, 6.00, 8.00",
+        ])
+        self.assertEqual(gpu_trace.load_at_start(log), "3.79, 5.73, 8.05")
+
+    def test_a_log_without_the_line_has_no_load(self):
+        self.assertIsNone(gpu_trace.load_at_start("the demo's output"))
+
+
 class Summarize(unittest.TestCase):
     """summarize: the statistics of each pass over the frames, in milliseconds, in the order of the frame graph."""
 
@@ -170,6 +186,26 @@ class Table(unittest.TestCase):
 
     def test_the_window_row_names_its_two_passes_and_gives_the_window_in_the_busy_columns(self):
         self.assertEqual(self.row("a end to b start")[1:8], ["1", "1.000", "1.000", "1.000", "", "", ""])
+
+    def test_the_text_gives_the_clock_over_the_runs_timed_span(self):
+        report = {"device": "Test GPU", "width": 64, "height": 32, "commandBuffers": {"frames": 2, "skipped": 0}}
+        report |= gpu_trace.summarize(_two_frames(), _first_starts(_two_frames()), ["a", "b", "c"], {})
+        report["gpuClock"] = {"meanMhz": 1257.0, "p10Mhz": 1241.0, "p90Mhz": 1272.0, "samples": 7}
+        lines = gpu_trace.table(report, has_counters=False).splitlines()
+        self.assertIn("GPU clock over the run's timed span: 1257.0 MHz (p10 1241.0, p90 1272.0 MHz, 7 samples)", lines)
+
+    def test_the_text_gives_the_load_when_the_recording_started_after_the_wait_for_the_lock(self):
+        report = {"device": "Test GPU", "width": 64, "height": 32, "commandBuffers": {"frames": 2, "skipped": 0}}
+        report |= gpu_trace.summarize(_two_frames(), _first_starts(_two_frames()), ["a", "b", "c"], {})
+        report["loadAtStart"] = "3.79, 5.73, 8.05"
+        lines = gpu_trace.table(report, has_counters=False).splitlines()
+        self.assertIn(
+            "Load averages when the recording started, after the wait for the GPU lock (1, 5 and 15 minutes): 3.79, 5.73, 8.05",
+            lines,
+        )
+
+    def test_the_text_of_a_run_without_a_clock_says_that_its_clock_is_unknown(self):
+        self.assertTrue(any(line.startswith("GPU clock over the run's timed span: unknown") for line in self.lines))
 
     def test_a_line_below_the_table_counts_the_frames_without_a_window(self):
         self.assertTrue(any(line.startswith("1 frames have no window from a to b") for line in self.lines))
