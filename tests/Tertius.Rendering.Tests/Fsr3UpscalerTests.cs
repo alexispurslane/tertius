@@ -445,6 +445,41 @@ public sealed class Fsr3UpscalerTests
     }
 
     [Fact]
+    public void ATimedBatchReportsTheTimeOfOneOfItsUpscalesNotOfTheWholeBatch()
+    {
+        using var bench = new Fsr3Bench(
+            largestRenderSize: LargestRenderSize,
+            outputSize: OutputSize,
+            validation: true,
+            framesInFlight: 16
+        );
+        if (!bench.Device.Timestamps.Supported)
+            Assert.Skip($"{bench.Device.DeviceName} writes no timestamps on its queue.");
+        bench.FillPattern();
+        // A batch of 2 and a batch of 16 take turns, so that a change of the GPU's clock reaches both alike. Pair n
+        // upscales draws 32n and 32n + 1 in the small batch and draws 32n + 16 to 32n + 31 in the large one, so no draw
+        // repeats.
+        var small = new List<double>();
+        var large = new List<double>();
+        for (int pair = 0; pair < 9; pair++)
+        {
+            small.Add(bench.TimedUpscales(firstBatch: 16 * pair, batches: 1, batchSize: 2, batchesInFlight: 1)[0]);
+            large.Add(bench.TimedUpscales(firstBatch: 2 * pair + 1, batches: 1, batchSize: 16, batchesInFlight: 1)[0]);
+        }
+
+        double smallMedian = small.Order().ElementAt(small.Count / 2);
+        large
+            .Order()
+            .ElementAt(large.Count / 2)
+            .Should()
+            .BeLessThan(
+                3 * smallMedian,
+                "an upscale took 0.8 to 1.4 times as long in a batch of 16 as in a batch of 2, and the span of the batch of "
+                    + "16 is about 8 times as long"
+            );
+    }
+
+    [Fact]
     public void TheGeneratorMarksEveryPixelWhoseColorDiffersFromTheOpaqueOnlyColorWithAmdsBinaryValue()
     {
         using var bench = new Fsr3Bench(LargestRenderSize, OutputSize);
