@@ -13,7 +13,9 @@ tags: [tests, flaky, rendering]
 
 Found in ter-izsu (2026-10-26): GpuTimingTests.APassThatRecordsNothingReportsTheTimeItTookWhichIsNearlyZero failed once while other agents built and traced on the machine: the empty pass took 0.127 ms against the test's bound of 0.05 ms. A pass's stamp time includes any idle time before it (ARCHITECTURE.md, 'GPU timings'), so a busy GPU can stretch it. Find a bound or a measure (for example the fewest of several frames, as Allocations.Fewest does for the allocation tests) that holds under load and still fails when an empty pass records work.
 
-ter-35w5's acceptance: the test passes in 20 runs of the Rendering tests in a row while another process renders, and still fails when the empty pass is made to record a dispatch.
+## Acceptance Criteria
+
+The test passes in 20 runs of the Rendering tests in a row while another process renders, and still fails when the empty pass is made to record a dispatch.
 
 
 ## Notes
@@ -40,4 +42,4 @@ Probes of the fix stage, 24 runs each, at loads of 5 to 18: 128 frames in place 
 
 Options to design: the paired median of one renderer with a bound set from that measure, a window that ends at a fragment pass's stamp, or the frame span as the window.
 
-ter-35w5's acceptance: the test passes in 20 runs of the Rendering tests in a row while another process renders, and still fails when the empty pass is made to record a dispatch.
+ter-35w5's acceptance was the same as this ticket's.

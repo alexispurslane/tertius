@@ -99,8 +99,26 @@ Bias, history error and sample error, 1280 x 720, Release (DirectLightBiasMeasur
 GPU time (section 11's recipe, 7 interleaved rounds, base c6572ca3d, a byte-copy control, biased c11b3cbe8, unbiased b20714c0c, loads 3.7 to 11.8): the deck's direct light 1.39 -> 2.42 ms at 1280 x 720 and 2.77 -> 4.73 ms at 1920 x 1080; its mean span 11.42 -> 12.84 and 17.85 -> 20.04 ms (base 11.67 and 15.53). Traces with the warm-up correction: direct light 1.85 to 1.87 -> 3.23 to 3.30 ms and 3.03 -> 5.15 to 5.16 ms. ter-9nrc holds the cost.
 
 Screenshots, 1280 x 720, headless Release (/private/tmp/nmbm3/shots, base = c6572ca3d, before = c11b3cbe8, branch = b20714c0c):
-- base-demo-exit-deck/deck.png and branch-demo-exit-deck/deck.png: the glasshouse frame's lamp shadows on the deck's floor are back in the branch, close to the base, under a fine sparkle; before-demo-exit-deck/deck.png has them washed out.
-- base-lamp-hall-64-still/hall.png and branch-lamp-hall-64-still/hall.png: the pillars' shadows on the floor come back in part, weaker than the base's, under a fine grain; before-... shows them fainter.
+- base-demo-exit-deck/deck.png and branch-demo-exit-deck/deck.png: the glasshouse frame's lamp shadows on the deck's floor are back in the branch, but softer and lower in contrast than the base's, with a sparkle of single bright pixels on the floor, the walls and the glass that neither the base nor the biased build has. before-demo-exit-deck/deck.png has the shadows washed out. (Caption corrected by the fix stage.)
+- base-lamp-hall-64-still/hall.png and branch-lamp-hall-64-still/hall.png: the pillars' shadows on the floor come back only faintly, much weaker than the base's, under a bright grain. before-... shows almost none. (Caption corrected by the fix stage.)
 - base-cabin/cabin.png and branch-cabin/cabin.png: the sunlit cabin, the same in both.
 
 Measurement files: /private/tmp/nmbm3 (builds.txt names every export; runs.txt, summary.md, traces.txt, traces.md, bias/, analysis/).
+
+**2026-11-04T02:58:29Z**
+
+2026-11-03, the fix stage of the continuation (review: changes required, 5 low findings).
+
+Done:
+- One surface per pixel and one full-shadow test (25f1f9485): both passes build a pixel's surface with resampledSurfaceAt(pixel), from the ray through the pixel's center, and tileFullyShadowed and tileShadow's early 0 call one predicate, fullyShadowed. So the domain equality that the unbiased combine needs no longer rests on four separate pieces of code. The comment of Z and ARCHITECTURE.md now name the neighbors without a choice.
+- The red run, reproduced and kept: c11b3cbe8 (the biased combine) with the slats test fails at -0.1021 against the bound 0.05 (/private/tmp/nmbm4/red.log). The final build passes it.
+- DirectLightBiasMeasurement reports the sample bias. On 25f1f9485 it repeats the unbiased rows within 0.002: hall -0.0136, 0.1225, 0.4185, +0.0039, deck -0.0469, 0.0805, 0.2703, -0.0295, cabin -0.0042, 0.0252, 0.0302, +0.0000.
+- The hall re-measured on the final build (ter-9nrc's note): it saves about 1.5 to 2.2 ms of the frame at 1280 x 720, not the first build's 4 ms.
+- The deck's sparkle counted: 0.21 % of the pixels above 4 times their exact light (1.85 % of the light, brightest 437 times), against 0.07 % biased and 0.13 % without neighbors.
+- Docs: ARCHITECTURE.md 'ReSTIR DI' (Z, the one surface rule, the sparkle, the timed-out trace at 1920 x 1080, the hall's table), section 7 of the design doc (a dated note, item 3 of 'The bias', the cost model's Z sentence), ter-abun's acceptance restored.
+
+Screenshots of 25f1f9485 beside the base, 1280 x 720, headless Release (/private/tmp/nmbm4/shots): the deck's frame shadows are back but softer than the base's, with a sparkle of bright pixels. The hall's pillar shadows come back only faintly, under a bright grain. The cabin is the same as the base.
+
+For the user before the merge: the unbiased combine brings the thin shadows back at a cost of about 1.0 to 2.1 ms more direct light on the deck (4.9 ms for light candidates and direct light at 1280 x 720, against a budget of 0.6 to 1.3 ms) and a new sparkle of bright single pixels.
+
+For the hardening stage: lock in the hashed seed (for example on the deck in DirectLightBiasTests) and the domain equality (a light's p-hat' is above 0 exactly where the candidates pass can keep it, for example on the slats scene).
