@@ -20,13 +20,13 @@ layout(location = 1) out vec4 outSpecular;  // its specular sample
 #ifdef RESAMPLED
 layout(location = 2) out uvec2 outReservoir;  // R1
 
-// The pass's constant in the random numbers.
+// The stream of the combine's choices in the random numbers.
 const uint DirectStream = 0x2u;
 
 // The radius of the disk of the spatial neighbors, in pixels at a render width of 1,280.
 const float NeighborRadius = 16.0;
 
-// The constant of the neighbors' places in the random numbers.
+// The stream of the neighbors' places in the random numbers.
 const uint NeighborStream = 0x3u;
 
 // The place of neighbor i of `neighbors` on the disk around the pixel, turned by `turn`, from the next number of `places`.

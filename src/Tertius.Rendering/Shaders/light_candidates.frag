@@ -14,7 +14,7 @@ layout(location = 0) out uvec2 outReservoir;
 // The cap of M of the last frame's reservoir: 20 times the candidates.
 const float HistoryCandidates = 20.0;
 
-// The pass's constant in the random numbers.
+// The stream of the pass's numbers.
 const uint CandidatesStream = 0x1u;
 
 // The texel of the last frame's image that holds the most bilinear weight among the 2 × 2 that pass the surface test

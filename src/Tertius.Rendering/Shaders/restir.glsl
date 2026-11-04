@@ -62,18 +62,20 @@ uvec3 pcg3d(uvec3 v)
     return v;
 }
 
-// A stream of random numbers of one pixel in one draw of one pass: pcg3d of the pixel and the draw index, with a pass's
-// constant and a counter in the third word. So each pixel, draw and pass takes its own numbers, the same on every run.
+// A stream of random numbers of one pixel in one draw of one stream of a pass: pcg3d of the seed plus a counter in the third
+// word. The seed hashes the pixel and the draw index, and then the stream's constant, so each pixel, draw and stream takes
+// its own numbers, the same on every run. Seeds that differ in a few low bits of one word gave correlated numbers: two
+// streams of the direct pass, 0x2 and 0x3 in the third word, measured a bias of +0.46 on demo-exit's deck (2026-11-03).
 struct RandomStream
 {
     uvec3 seed;
     uint counter;
 };
 
-RandomStream randomStream(ivec2 pixel, uint pass)
+RandomStream randomStream(ivec2 pixel, uint stream)
 {
     RandomStream r;
-    r.seed = uvec3(uvec2(pixel), resampled.drawIndex * 0x9E3779B9u ^ pass);
+    r.seed = pcg3d(uvec3(uvec2(pixel), resampled.drawIndex)) ^ pcg3d(uvec3(stream, 0x9E3779B9u, 0x85EBCA6Bu));
     r.counter = 0u;
     return r;
 }
