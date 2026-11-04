@@ -1,6 +1,6 @@
 ---
 id: ter-gmv8
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-11-03T23:31:32Z
@@ -79,3 +79,7 @@ Triage:
 - C15, C16, C17 (weaker invariant checks in AssertInvariants): judgment call. No sequence of calls on the allocator's interface makes a block or a dedicated allocation whose pointer disagrees with its type, or fewer live allocations than dedicated ones. So a weaker check cannot be told apart from the real one while the allocator is correct.
 - C22 (drop .Check("vkMapMemory") in VulkanDeviceMemory.Map): judgment call. No test can make the real driver refuse vkMapMemory. The test double tests the failure path itself (AnAllocationWhoseMappingFailsFreesItsMemoryBeforeItThrows), and .Check is the one line that turns the driver's result into the exception that the path needs.
 - C20 (dropped): judgment call. Without the name, the parameter is unused, which the analyzers refuse. A memory name shows only in validation messages and GPU debuggers, which no test reads.
+
+**2026-11-04T01:15:26Z**
+
+2026-11-03: merged into main as ad28a16e3.
