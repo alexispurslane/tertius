@@ -13,7 +13,7 @@ internal static class FrameHistoryTesting
 /// <summary>
 /// The still rule of <see cref="FrameHistory"/> (docs/plans/temporal-renderer.md, decision 32 and section 10, "The still
 /// rule"): which headless draws are stills, how many draws a still takes, which of them resets, how far each adapts the
-/// exposure and which refreshes every face of the map, and the warm-up count that the options give. No GPU needed.
+/// exposure and which refreshes every face of the map, and the warm-up count that the exposure gives. No GPU needed.
 /// </summary>
 public sealed class StillRuleTests
 {
@@ -143,86 +143,16 @@ public sealed class StillRuleTests
             .Equal(true, false, false, false);
 
     [Fact]
-    public void TheWarmUpCountIsWarmUpFramesUnderResampledLights() =>
+    public void AStillUnderAFixedExposureTakesNoWarmUpDraw() =>
         StillRule
-            .For(new RendererOptions { DirectLight = ResampledLights.Default, WarmUpFrames = 12 }, headless: true)
+            .For(new RendererOptions { Exposure = new FixedExposure(0) }, headless: true)
             .WarmUpDraws.Should()
-            .Be(12, "the direct history then holds more than one frame");
+            .Be(0, "no history holds more than one frame, and the exposure needs no draw to adapt in");
 
     [Fact]
-    public void TheWarmUpCountIsZeroUnderEveryLightWithAFixedExposure() =>
+    public void AStillUnderAnAutomaticExposureTakesOneWarmUpDraw() =>
         StillRule
-            .For(
-                new RendererOptions { DirectLight = new EveryLight(), Exposure = new FixedExposure(0) },
-                headless: true
-            )
-            .WarmUpDraws.Should()
-            .Be(0, "no history then holds more than one frame");
-
-    [Fact]
-    public void TheWarmUpCountIsOneUnderEveryLightWithAnAutomaticExposure() =>
-        StillRule
-            .For(
-                new RendererOptions { DirectLight = new EveryLight(), Exposure = AutoExposure.Default },
-                headless: true
-            )
+            .For(new RendererOptions { Exposure = AutoExposure.Default }, headless: true)
             .WarmUpDraws.Should()
             .Be(1, "the exposure needs a draw to adapt in, today's metering draw");
-
-    [Fact]
-    public void RendererOptionsDefaultToThirtyTwoWarmUpFramesAndResampledLightsOfFourCandidatesAndTwoNeighbors()
-    {
-        var options = new RendererOptions();
-
-        options.WarmUpFrames.Should().Be(32);
-        (options.DirectLight is ResampledLights { Candidates: 4, SpatialNeighbors: 2 }).Should().BeTrue();
-    }
-
-    [Fact]
-    public void TheDefaultValueOfTheDirectLightSettingIsEveryLight() =>
-        (default(DirectLightSetting) is EveryLight).Should().BeTrue("the zero case is the exact loop");
-
-    [Theory]
-    [InlineData(0, 2, "Candidates")]
-    [InlineData(DirectLightSetting.MaxCandidates + 1, 2, "Candidates")]
-    [InlineData(4, -1, "SpatialNeighbors")]
-    [InlineData(4, DirectLightSetting.MaxSpatialNeighbors + 1, "SpatialNeighbors")]
-    public void ResampledLightsOutsideTheirRangeAreRefused(int candidates, int neighbors, string field) =>
-        new DirectLightSetting(new ResampledLights(Candidates: candidates, SpatialNeighbors: neighbors))
-            .Problem.Should()
-            .Contain(field);
-
-    [Fact]
-    public void TheDefaultAndTheLimitsOfResampledLightsAreAccepted()
-    {
-        new DirectLightSetting(ResampledLights.Default).Problem.Should().BeNull();
-        new DirectLightSetting(new ResampledLights(Candidates: 1, SpatialNeighbors: 0)).Problem.Should().BeNull();
-        new DirectLightSetting(
-            new ResampledLights(
-                Candidates: DirectLightSetting.MaxCandidates,
-                SpatialNeighbors: DirectLightSetting.MaxSpatialNeighbors
-            )
-        )
-            .Problem.Should()
-            .BeNull();
-        new DirectLightSetting(new EveryLight()).Problem.Should().BeNull();
-    }
-
-    [Theory]
-    [InlineData(0)]
-    [InlineData(257)]
-    public void AWarmUpCountOutsideOneTo256IsRefusedAtCreation(int warmUpFrames)
-    {
-        Action create = () =>
-            VulkanRenderer.CreateHeadless(
-                new RendererOptions
-                {
-                    Width = 64,
-                    Height = 64,
-                    WarmUpFrames = warmUpFrames,
-                }
-            );
-
-        create.Should().Throw<ArgumentOutOfRangeException>().WithMessage("*WarmUpFrames*");
-    }
 }

@@ -82,7 +82,6 @@ internal sealed unsafe class FrameResources : IDisposable
         Outlines = StorageArray<GpuOutline>(allocator, "outlines", 16);
         Puffs = StorageArray<GpuPuff>(allocator, "puffs", 256);
         Motions = StorageArray<GpuMotion>(allocator, "motion rows", 1024);
-        LightTable = StorageArray<UInt4>(allocator, "light table", 64);
 
         Poses = StorageArray<Vector4>(allocator, "pose rows", 256);
         DeformJobs = StorageArray<GpuDeformJob>(allocator, "deform jobs", 16);
@@ -118,9 +117,6 @@ internal sealed unsafe class FrameResources : IDisposable
 
     /// <summary>The motion rows of the frame's placed instances, which the G-buffer reads (<see cref="PreparedScene.Motions"/>).</summary>
     public HostArray<GpuMotion> Motions { get; }
-
-    /// <summary>ReSTIR's light table, which its two passes read (<see cref="LightTable.Packed"/>).</summary>
-    public HostArray<UInt4> LightTable { get; }
 
     /// <summary>The pose rows of the frame's deform jobs, which the deform pass reads.</summary>
     public HostArray<Vector4> Poses { get; }
@@ -170,8 +166,6 @@ internal sealed unsafe class FrameResources : IDisposable
             layouts.WriteBuffer(set: FrameSet, binding: 7, type: DescriptorType.StorageBuffer, buffer: Puffs.Buffer);
         if (Motions.Write(scene.MotionSpan))
             WriteMotions(Motions);
-        if (LightTable.Write(scene.LightTable.Packed()))
-            WriteLightTable(LightTable);
         if (ShadowTiles?.Write(scene.ShadowTiles.AsSpan(0, scene.ShadowTileCount)) == true)
             WriteShadowTiles(ShadowTiles);
         if (Poses.Write(scene.Poses))
@@ -186,14 +180,6 @@ internal sealed unsafe class FrameResources : IDisposable
             binding: DescriptorLayouts.MotionsBinding,
             type: DescriptorType.StorageBuffer,
             buffer: motions.Buffer
-        );
-
-    private void WriteLightTable(HostArray<UInt4> table) =>
-        layouts.WriteBuffer(
-            set: FrameSet,
-            binding: DescriptorLayouts.LightTableBinding,
-            type: DescriptorType.StorageBuffer,
-            buffer: table.Buffer
         );
 
     /// <summary>
@@ -345,7 +331,6 @@ internal sealed unsafe class FrameResources : IDisposable
         layouts.WriteBuffer(set: FrameSet, binding: 6, type: DescriptorType.StorageBuffer, buffer: Outlines.Buffer);
         layouts.WriteBuffer(set: FrameSet, binding: 7, type: DescriptorType.StorageBuffer, buffer: Puffs.Buffer);
         WriteMotions(Motions);
-        WriteLightTable(LightTable);
 
         // The tables never change, so their bindings are written once.
         layouts.WriteImage(set: FrameSet, binding: 8, arrayElement: 0, image: tables.Dfg);
@@ -447,7 +432,6 @@ internal sealed unsafe class FrameResources : IDisposable
         Outlines.Dispose();
         Puffs.Dispose();
         Motions.Dispose();
-        LightTable.Dispose();
 
         Poses.Dispose();
         DeformJobs.Dispose();

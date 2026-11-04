@@ -37,8 +37,6 @@ namespace Tertius.Host;
 /// it off.</item>
 /// <item><c>--subsurface on|off</c> keeps the headless renderer's default <see cref="SeparableSubsurface"/>, or turns the
 /// skin scatter off.</item>
-/// <item><c>--direct-light resampled|every</c> keeps the headless renderer's default <see cref="ResampledLights"/>, or
-/// takes every light exactly (<see cref="EveryLight"/>), the reference of ReSTIR's bias.</item>
 /// <item><c>--scene &lt;name&gt; [--speed &lt;factor&gt;] [--record &lt;file&gt;]</c> runs a scene live in a window until you close it.
 /// With <c>--record</c>, the command writes your session to the file as a script that replays it.</item>
 /// </list>
@@ -85,7 +83,7 @@ public static partial class ScriptCommand
     public const string ExposureFile = "exposure.json";
 
     private const string Usage =
-        "Usage: --script <file> --headless --out <folder> [--video none|<file.mkv> [--fps <rate>]] [--size <width>x<height>] [--tone-curve aces|hable] [--screen-space-light off|<meters>] [--screen-space-light-steps <count>] [--bloom on|off] [--reflections on|off] [--anti-aliasing off|smaa] [--local-shadows off|on] [--local-shadow-tiles <count>] [--cascaded-lights <count>] [--environment-map on|off] [--subsurface on|off] [--direct-light resampled|every]  |  --script <file> --out <folder> [--speed <factor>] [--size <width>x<height>]  |  --scene <name> [--speed <factor>] [--record <file>]";
+        "Usage: --script <file> --headless --out <folder> [--video none|<file.mkv> [--fps <rate>]] [--size <width>x<height>] [--tone-curve aces|hable] [--screen-space-light off|<meters>] [--screen-space-light-steps <count>] [--bloom on|off] [--reflections on|off] [--anti-aliasing off|smaa] [--local-shadows off|on] [--local-shadow-tiles <count>] [--cascaded-lights <count>] [--environment-map on|off] [--subsurface on|off]  |  --script <file> --out <folder> [--speed <factor>] [--size <width>x<height>]  |  --scene <name> [--speed <factor>] [--record <file>]";
 
     // The value of --video that draws the captures and drops them (Discard), for a run that only times its frames.
     private const string NoVideo = "none";
@@ -115,7 +113,6 @@ public static partial class ScriptCommand
         ("--cascaded-lights", (_, count) => CascadedLightsProblem(count)),
         ("--environment-map", (_, value) => OnOffProblem("--environment-map", value)),
         ("--subsurface", (_, value) => OnOffProblem("--subsurface", value)),
-        ("--direct-light", (_, value) => DirectLightProblem(value)),
     ];
 
     // The options that choose the run, each with the problem when a run that does not take it is given it. A command line
@@ -835,7 +832,6 @@ public static partial class ScriptCommand
             CascadedLights = CascadedLightsOf(given.Value("--cascaded-lights")),
             EnvironmentMapOff = given.Value("--environment-map") == "off",
             SubsurfaceOff = given.Value("--subsurface") == "off",
-            EveryLight = given.Value("--direct-light") == "every",
         };
 
     private static string? SpeedProblem(string speed) =>
@@ -896,9 +892,6 @@ public static partial class ScriptCommand
             return "--local-shadow-tiles sets the budget of local shadows, so leave out --local-shadows off.";
         return null;
     }
-
-    private static string? DirectLightProblem(string light) =>
-        light is "resampled" or "every" ? null : $"--direct-light needs resampled or every, not '{light}'.";
 
     private static string? CascadedLightsProblem(string count) =>
         CascadedLightsOf(count) is null

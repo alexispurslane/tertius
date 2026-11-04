@@ -33,12 +33,12 @@ internal sealed class OcclusionDepthPass(
         barriers.Image(targets.Distance, ImageUse.SampledCompute);
         barriers.Image(targets.Normal, ImageUse.SampledCompute);
         // The bounce source: the glow and the light mark of the G-buffer pass, the material that gives the diffuse factor,
-        // and the accumulation of the direct signal.
+        // and the direct pass's diffuse light.
         barriers.Image(targets.Emissive, ImageUse.SampledCompute);
         barriers.Image(targets.Shading, ImageUse.SampledCompute);
         barriers.Image(targets.BaseColor, ImageUse.SampledCompute);
         barriers.Image(targets.Specular, ImageUse.SampledCompute);
-        barriers.Image(images.DirectDiffuse, ImageUse.StorageCompute);
+        barriers.Image(targets.DirectDiffuse, ImageUse.StorageCompute);
 
         // Discarded, and still after the last frame's upsample read it.
         barriers.Image(images.ViewDepth, ImageUse.StorageCompute, discard: true);

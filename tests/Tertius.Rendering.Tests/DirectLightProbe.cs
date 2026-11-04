@@ -4,10 +4,9 @@ namespace Tertius.Rendering.Tests;
 
 /// <summary>
 /// A test pass after the composite that writes each pixel's direct light and emission, pre-exposed and capped, into an
-/// image of its own: the direct signal's slow histories times their material factors, as the direct image held the light
-/// before the direct signal. Sky pixels get 0. It draws Shaders/direct_light_probe.frag, the composite without the ambient
-/// light. A probe of the diffuse part draws Shaders/direct_diffuse_probe.frag: the diffuse factor times the diffuse history
-/// alone, as the diffuse image held it, the bounce source's light.
+/// image of its own: the direct light's two images times their material factors. Sky pixels get 0. It draws
+/// Shaders/direct_light_probe.frag, the composite without the ambient light. A probe of the diffuse part draws
+/// Shaders/direct_diffuse_probe.frag: the diffuse factor times the diffuse image alone, the bounce source's light.
 /// </summary>
 internal sealed unsafe class DirectLightProbe : RenderPass
 {
@@ -71,18 +70,18 @@ internal sealed unsafe class DirectLightProbe : RenderPass
     public override void Record(FrameContext context)
     {
         GpuImage target = image ?? throw new InvalidOperationException("Prepare makes the image.");
-        TemporalSignal direct = renderer.DirectSignal;
-        foreach (GpuImage gbuffer in context.Targets.GBuffer)
+        RenderTargets targets = context.Targets;
+        foreach (GpuImage gbuffer in targets.GBuffer)
             context.Barriers.Image(gbuffer, ImageUse.SampledFragment);
-        for (int part = 0; part < direct.Parts; part++)
-            context.Barriers.Image(direct.Slow(part), ImageUse.StorageFragment);
+        context.Barriers.Image(targets.DirectDiffuse, ImageUse.StorageFragment);
+        context.Barriers.Image(targets.DirectSpecular, ImageUse.StorageFragment);
         context.Barriers.Image(target, ImageUse.ColorAttachment, discard: true);
         context.Barriers.Buffer(context.Exposure.Buffer, BufferUse.ShaderRead);
         context.Barriers.Flush(context.Vk, context.CommandBuffer);
         context.DrawSceneFullScreen(
             pipeline: pipeline,
             layout: context.Layouts.CompositeLayout,
-            passSet: direct.ReadSet,
+            passSet: targets.DirectSet,
             targets: [(target, AttachmentLoadOp.DontCare)]
         );
     }

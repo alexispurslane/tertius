@@ -5,8 +5,8 @@ namespace Tertius.Rendering;
 
 /// <summary>
 /// The composite (docs/plans/temporal-renderer.md, section 9, "The composite"): one fullscreen pass over all depth ranges
-/// that writes the HDR image. At each lit pixel it multiplies the direct signal's slow histories back by their material
-/// factors (decision 18), adds today's ambient light, which the estimate target dims and brightens, and the emission, and
+/// that writes the HDR image. At each lit pixel it multiplies the direct light's two images back by their material factors
+/// (decision 18), adds today's ambient light, which the estimate target dims and brightens, and the emission, and
 /// caps the sum at the surfaces' share. Sky pixels get the sky and the stars, and an impostor's pixels its baked light.
 /// Under the scatter it also writes the diffuse image, D and the skin mask at skin pixels and 0 elsewhere.
 /// </summary>
@@ -14,7 +14,6 @@ internal sealed unsafe class CompositePass : RenderPass
 {
     private readonly VulkanDevice device;
     private readonly DescriptorLayouts layouts;
-    private readonly TemporalSignal direct;
     private readonly bool scatter;
     private readonly Pipeline pipeline;
 
@@ -24,13 +23,11 @@ internal sealed unsafe class CompositePass : RenderPass
         ShaderLibrary shaders,
         DescriptorLayouts layouts,
         ShaderConstants constants,
-        TemporalSignal direct,
         bool scatter
     )
     {
         this.device = device;
         this.layouts = layouts;
-        this.direct = direct;
         this.scatter = scatter;
         pipeline = new GraphicsPipelineDesc
         {
@@ -54,8 +51,9 @@ internal sealed unsafe class CompositePass : RenderPass
             barriers.Image(image, ImageUse.SampledFragment);
         // After the upsample's write, or the clear's under NoScreenSpaceLight.
         barriers.Image(targets.Estimate, ImageUse.SampledFragment);
-        for (int part = 0; part < direct.Parts; part++)
-            barriers.Image(direct.Slow(part), ImageUse.StorageFragment);
+        // After the direct pass's write.
+        barriers.Image(targets.DirectDiffuse, ImageUse.StorageFragment);
+        barriers.Image(targets.DirectSpecular, ImageUse.StorageFragment);
         barriers.Image(targets.Hdr, ImageUse.ColorAttachment, discard: true);
         barriers.Buffer(context.Exposure.Buffer, BufferUse.ShaderRead);
         if (!scatter)
@@ -64,7 +62,7 @@ internal sealed unsafe class CompositePass : RenderPass
             context.DrawSceneFullScreen(
                 pipeline: pipeline,
                 layout: layouts.CompositeLayout,
-                passSet: direct.ReadSet,
+                passSet: targets.DirectSet,
                 targets: [(targets.Hdr, AttachmentLoadOp.DontCare)]
             );
             return;
@@ -78,7 +76,7 @@ internal sealed unsafe class CompositePass : RenderPass
         context.DrawSceneFullScreen(
             pipeline: pipeline,
             layout: layouts.CompositeLayout,
-            passSet: direct.ReadSet,
+            passSet: targets.DirectSet,
             targets: [(targets.Hdr, AttachmentLoadOp.DontCare), (diffuse, AttachmentLoadOp.DontCare)]
         );
     }

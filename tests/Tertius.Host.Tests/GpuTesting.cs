@@ -81,8 +81,7 @@ public static class GpuTesting
     /// A validating headless renderer with no impostors, as a scripted run makes one, with no screen-space light, so that
     /// the tests see the ambient light in full, and no environment map. The exposure is fixed at 0 stops unless asked
     /// for, so that a pixel does not depend on the frames before it. Reflections and the skin scatter are off, as in the
-    /// renderer tests' fixtures. Local shadows are off, as the impostors are. The direct light takes every light exactly
-    /// (<see cref="EveryLight"/>), so that a still draws once under the fixed exposure, as before the still rule.
+    /// renderer tests' fixtures. Local shadows are off, as the impostors are. A still draws once under the fixed exposure.
     /// </summary>
     public static VulkanRenderer Headless(int width, int height, ExposureSetting exposure = default) =>
         VulkanRenderer.CreateHeadless(
@@ -100,7 +99,6 @@ public static class GpuTesting
                 Reflections = new NoReflections(),
                 EnvironmentMap = new NoEnvironmentMap(),
                 Subsurface = new NoSubsurface(),
-                DirectLight = new EveryLight(),
             }
         );
 

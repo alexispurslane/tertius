@@ -40,15 +40,6 @@ internal readonly record struct KeptPlacement(
 );
 
 /// <summary>
-/// The identity of a light from frame to frame: its entity's slot and generation (docs/plans/temporal-renderer.md, "The
-/// reservoirs"). An entity carries at most one light.
-/// </summary>
-internal readonly record struct LightKey(uint Slot, uint Generation);
-
-/// <summary>A light of a drawn frame, as the history keeps it: its key and its index in that frame's light list.</summary>
-internal readonly record struct KeptLight(LightKey Key, int Index);
-
-/// <summary>
 /// Which headless draws are stills, and how many warm-up draws a still takes (docs/plans/temporal-renderer.md, decision 32):
 /// the input of <see cref="FrameHistory"/>'s still rule.
 /// </summary>
@@ -60,17 +51,12 @@ internal readonly record struct StillRule(bool Headless, int WarmUpDraws)
     public static StillRule Window => new(Headless: false, WarmUpDraws: 0);
 
     /// <summary>
-    /// The rule of a renderer of <paramref name="options"/>: <see cref="RendererOptions.WarmUpFrames"/> where some history
-    /// holds more than one frame, else 0, and at least 1 under <see cref="AutoExposure"/>, so that the exposure has a draw to
-    /// adapt in (section 10, "The still rule").
+    /// The rule of a renderer of <paramref name="options"/>: 1 warm-up draw under <see cref="AutoExposure"/>, so that the
+    /// exposure has a draw to adapt in, and else 0, because no history of the renderer holds more than one frame
+    /// (section 10, "The still rule"). The screen tracer's signals will hold more (ter-gayt).
     /// </summary>
-    public static StillRule For(RendererOptions options, bool headless)
-    {
-        int warmUp = SignalParameters.Direct(options).Cap > 1 ? options.WarmUpFrames : 0;
-        if (options.Exposure is AutoExposure)
-            warmUp = Math.Max(warmUp, 1);
-        return new(Headless: headless, WarmUpDraws: warmUp);
-    }
+    public static StillRule For(RendererOptions options, bool headless) =>
+        new(Headless: headless, WarmUpDraws: options.Exposure is AutoExposure ? 1 : 0);
 }
 
 /// <summary>The camera of a drawn frame, as the batch interpolated it, which the next frame's motion vectors need.</summary>
@@ -102,13 +88,11 @@ internal readonly record struct PreviousView(
 );
 
 /// <summary>A drawn frame, as the history records it.</summary>
-/// <param name="LightCount">The count of the frame's light list, which the remap of the next frame covers.</param>
 internal readonly record struct DrawnFrame(
     DrawnCamera Camera,
     Extent2D RenderSize,
     Extent2D OutputSize,
-    long CameraCuts,
-    int LightCount
+    long CameraCuts
 );
 
 /// <summary>
@@ -116,7 +100,7 @@ internal readonly record struct DrawnFrame(
 /// frame history"). DrawsOf gives the draws of a snapshot at a clock step: 1, or for a headless still also its warm-up
 /// draws. Begin derives one draw's pending state: whether it resets every history, its draw index since the last reset,
 /// its exposure step, whether it refreshes every face of the map, the parity of the images that alternate, and the record
-/// relative to this draw's eye. The batch writes the draw's camera, placements and light keys into the pending state.
+/// relative to this draw's eye. The batch writes the draw's camera and placements into the pending state.
 /// Drew commits it after the submission. A draw that throws before Drew leaves the record, the count of drawn frames and
 /// so every parity as they were. No other owner keeps a copy of these values.
 /// </summary>
@@ -126,8 +110,6 @@ internal readonly record struct DrawnFrame(
 /// <item>A record exists exactly when at least one frame was drawn.</item>
 /// <item>The draw index of the last drawn frame is below the count of drawn frames.</item>
 /// <item>The keys of the placement history, and of the pending placements, rise strictly.</item>
-/// <item>The keys of the kept lights, and of the pending lights, rise strictly by slot.</item>
-/// <item>Every kept light's index lies below the light count of the drawn frame.</item>
 /// </list>
 /// </remarks>
 /// <example>
@@ -135,7 +117,7 @@ internal readonly record struct DrawnFrame(
 /// <code>
 /// for (int draw = 0; draw &lt; history.DrawsOf(step); draw++)
 /// PendingFrame pending = history.Begin(snapshot, step, draw, outputSize, renderSize);
-/// batcher.Prepare(..., frame: pending, ...);   // writes the camera, the placements and the light keys
+/// batcher.Prepare(..., frame: pending, ...);   // writes the camera and the placements
 /// graph.Record(context);                       // the passes read pending.Reset and pending.Parity
 /// output.SubmitAndPresent(frame);
 /// history.Drew(pending);
@@ -152,7 +134,6 @@ internal sealed class FrameHistory
     private readonly StillRule rule;
     private readonly PendingFrame pending;
     private List<KeptPlacement> drawnPlacements = [];
-    private List<KeptLight> drawnLights = [];
     private DrawnFrame? drawn;
     private long lastDrawIndex;
 
@@ -160,8 +141,6 @@ internal sealed class FrameHistory
     // change.
     private Derivation derived;
     private List<KeptPlacement> pendingPlacements = [];
-    private List<KeptLight> pendingLights = [];
-    private int pendingLightCount;
     private DrawnCamera? pendingCamera;
     private bool armed;
 
@@ -215,8 +194,6 @@ internal sealed class FrameHistory
         );
         pendingCamera = null;
         pendingPlacements.Clear();
-        pendingLights.Clear();
-        pendingLightCount = 0;
         armed = true;
         return pending;
     }
@@ -264,15 +241,12 @@ internal sealed class FrameHistory
             Camera: camera,
             RenderSize: derived.RenderSize,
             OutputSize: derived.OutputSize,
-            CameraCuts: derived.CameraCuts,
-            LightCount: pendingLightCount
+            CameraCuts: derived.CameraCuts
         );
 
-        // The lists change places, so a draw copies no placement or light and allocates none.
+        // The lists change places, so a draw copies no placement and allocates none.
         (drawnPlacements, pendingPlacements) = (pendingPlacements, drawnPlacements);
         pendingPlacements.Clear();
-        (drawnLights, pendingLights) = (pendingLights, drawnLights);
-        pendingLights.Clear();
 
         lastDrawIndex = derived.DrawIndex;
         DrawnFrames++;
@@ -287,19 +261,6 @@ internal sealed class FrameHistory
         Contract.Invariant(DrawnFrames == 0 || lastDrawIndex < DrawnFrames);
         Contract.Invariant(KeysRise(DrawnPlacements));
         Contract.Invariant(KeysRise(CollectionsMarshal.AsSpan(pendingPlacements)));
-        Contract.Invariant(KeysRise(CollectionsMarshal.AsSpan(drawnLights)));
-        Contract.Invariant(KeysRise(CollectionsMarshal.AsSpan(pendingLights)));
-        int lightCount = drawn?.LightCount ?? 0;
-        foreach (KeptLight light in drawnLights)
-            Contract.Invariant(light.Index >= 0 && light.Index < lightCount);
-    }
-
-    private static bool KeysRise(ReadOnlySpan<KeptLight> lights)
-    {
-        for (int i = 1; i < lights.Length; i++)
-            if (lights[i - 1].Key.Slot >= lights[i].Key.Slot)
-                return false;
-        return true;
     }
 
     private static bool KeysRise(ReadOnlySpan<KeptPlacement> placements)
@@ -379,16 +340,6 @@ internal sealed class FrameHistory
             history.derived.Continued.HasValue ? history.DrawnPlacements : [];
 
         /// <summary>
-        /// The light keys that this draw joins: the last drawn frame's keyed lights, keys rising, with their indices in its
-        /// light list, or none where the draw continues no frame.
-        /// </summary>
-        public ReadOnlySpan<KeptLight> PreviousLights =>
-            history.derived.Continued.HasValue ? CollectionsMarshal.AsSpan(history.drawnLights) : [];
-
-        /// <summary>The count of the light list of the last drawn frame that this draw continues, or 0.</summary>
-        public int PreviousLightCount => history.derived.Continued?.LightCount ?? 0;
-
-        /// <summary>
         /// The last drawn frame's camera relative to <paramref name="current"/>, this draw's camera. Where this draw
         /// continues no frame, the last camera is this one, at this eye: a point then has no motion of the camera.
         /// </summary>
@@ -421,21 +372,6 @@ internal sealed class FrameHistory
                 history.armed && (placements.Count == 0 || placements[^1].Key.Order < placement.Key.Order)
             );
             placements.Add(placement);
-        }
-
-        /// <summary>
-        /// Writes the count of the draw's light list, and appends its keyed lights. The keys rise strictly by slot, in the
-        /// order of the list. Once per draw.
-        /// </summary>
-        public void WriteLights(int count, ReadOnlySpan<KeptLight> keyed)
-        {
-            Contract.Requires(history.armed && history.pendingLights.Count == 0 && KeysRise(keyed));
-            history.pendingLightCount = count;
-            foreach (KeptLight light in keyed)
-            {
-                Contract.Requires(light.Index >= 0 && light.Index < count);
-                history.pendingLights.Add(light);
-            }
         }
     }
 }

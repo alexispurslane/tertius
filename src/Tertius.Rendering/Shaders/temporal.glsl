@@ -1,6 +1,6 @@
 // What the temporal signals share (docs/plans/temporal-renderer.md, sections 1 and 8): the material factors, by which a
 // producer divides its light and the composite multiplies it back in (decision 18), and the test of a neighbor's surface,
-// which ReSTIR's spatial reuse and the accumulator's fix and clamp read.
+// which the accumulator's fix and clamp read.
 #ifndef TERTIUS_TEMPORAL_GLSL
 #define TERTIUS_TEMPORAL_GLSL
 
