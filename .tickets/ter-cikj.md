@@ -25,3 +25,7 @@ Scope: 1. In flake.nix, add Mesa to the Darwin dev shell and an environment vari
 **2026-11-04T11:54:12Z**
 
 2026-11-04: the first run (8d2999f3) stopped at two forks. The orchestrator settled the StampsLatchLate test as option (b): key the test to the driver. The default driver waits for the user, and MoltenVK stays the default meanwhile. Continuation run bf033fe9-e9d5-4e63-bb51-2a0e06668abf on the same branch and worktree applies (b), recounts both drivers' suites, and then the review runs.
+
+**2026-11-04T12:03:08Z**
+
+2026-11-04: the user decided to keep MoltenVK as the dev shell's default, with KosmicKrisp beside it, and not to report ter-dgen or ter-gyfe to Mesa for now.

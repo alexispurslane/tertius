@@ -35,3 +35,7 @@ The GPU lock (mkdir /tmp/tertius-gpu-measure.lock) holds for every timed run. Pe
 **2026-11-03T22:48:42Z**
 
 2026-11-03: launched as workflow run ab3b5db2-ede2-4783-9178-8555202ba759, version 869b0b07-3413-4b06-8707-a88a91bf6e91 (Opus high builder, Opus xhigh reviewer), branch ter-sftw-profiling-spike from 9e0f48be1, the lean trace spike's last commit. The builder first merges main (ac3370c14 or later) for FSR's host and the motion vectors. The report goes to docs/research/temporal-renderer/profiling-spike.md.
+
+**2026-11-04T12:03:08Z**
+
+2026-11-04: the user did not pick the diffuse walk. They asked for V1 against V6 at the GPU's top clock and for a measured explanation of why the two-depth walk helps reflection rays but not diffuse rays. Continuation run 8e00fb0c-11e1-4439-982e-94c073115992 (version 869b0b07) on the same branch measures it in the batched form with the clock recorded, tests the two candidate causes alone, and compares at equal image quality. The Metal toolchain choice is settled: it is installed (approved in ter-3ug8).
