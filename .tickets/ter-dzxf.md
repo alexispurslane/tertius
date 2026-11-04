@@ -38,3 +38,7 @@ It starts after ter-sftw, because the profiling spike measures where the walk's 
 **2026-11-04T17:28:07Z**
 
 2026-11-04: started as a workflow, run 19acc6a3-4a97-4598-94eb-a12c17619eca (version 869b0b07), builder GPT 6.1 SOL at xhigh, branch ter-dzxf-walk-hill-climb from the profiling spike's 3c9fda2a3. Settled: start from V6 for both kinds at the diffuse cap of 64; the harness runs V6's real walk on the spike's dumps; the gate is the same hit texel and kind on every ray; objective at the top clock with gpu-clock; every kept change portable with its reason; the target comes from the budget recalculation (running).
+
+**2026-11-04T17:30:08Z**
+
+2026-11-04: the budget recalculation (ter-gayt's note of today) gives the two dispatches 2.94 to 3.76 ms under 12.0 ms on the deck. V6 at 10 % own rays takes 3.90 to 3.93 ms there, so the climb's goal is a cut of about 4 to 25 %, not 35 to 55 %.
