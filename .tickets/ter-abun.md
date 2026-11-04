@@ -107,3 +107,48 @@ Beside one demo render, both span tests passed 10 runs of 10 with no skip. Besid
 Green, the acceptance: 20 full Checked runs of Tertius.Rendering.Tests in a row, with `--no-build` on one build whose test assembly had the SHA-256 9e824185…8bacd before and after the 20 runs. Each ran beside lamp-hall-4 rendered headless in a loop (89 to 100 demo runs during each run). Each run took the GPU lock through the queue protocol of tools/gpu-lock.sh and released it after the run. The one-minute load was 2.8 to 24.3. All 20 passed: 2,566 tests succeeded in each, and the two skips were the FSR timing test and the test for a driver whose stamps latch on time. Neither span test skipped.
 
 Open: under a load that stretches nearly every frame (three demo renders), the span tests skip, and a skip passes the hook. That choice waits for the user (skip, fail, or more chunks under a longer time limit).
+
+**2026-11-04T19:55:11Z**
+
+2026-11-04 (ter-abun, the hardening).
+
+Decision 1: the skip stays. Under a load that stretches nearly every frame, such as three demo renders, the span tests skip. The user asked on 2026-11-04 to skip this test while it was flaky, and the orchestrator told the user that the skip stays for a load under which no measure of 0.05 ms holds. So the end rule of the fix stage is final: a chunk at most 0.1 ms wide wholly on one side of the bound decides, a narrowest interval at most 0.05 ms wide fails the test, and any other result skips.
+
+The merge of main (88e4dbda6). Main brought ter-9nrc, ter-qk78 and ter-q58r. GpuTimingTests.cs had two conflicts. Both were main's edits of the old empty-pass test (the composite instead of the ambient pass, `FromTheGBufferToTheEndOfTheDirectPass`) and of its helper. The branch replaces that test, so the branch's side stays, and no skip of a span test remains. Main's renames of the passes in the other tests merged without a conflict. In ARCHITECTURE.md, "GPU timings", the branch's text of the empty pass stays, and main's limit of 40 passes (`GpuTimer.MaxPasses`) replaces the old 31. Main's new bullet on `timed-start` merged without a conflict. After the merge, the full Checked run passed: 10,218 tests succeeded, 0 failed, 19 skipped.
+
+The 10 + 10 runs. On the merged code, both span tests ran 10 times each, beside lamp-hall-4 rendered headless in a loop (39 demo runs during the 10 runs), under tools/gpu-lock.sh. The one-minute load was 5.5 to 20.3. APassThatRecordsNothingAddsNearlyNoTimeToTheFramesGpuSpan: 10 passed, 0 failed, 0 skipped. APassThatFillsABufferAddsMoreThanNearlyNoTimeToTheFramesGpuSpan: 10 passed, 0 failed, 0 skipped.
+
+Coverage. The changed lines are test code, so a copy of tools/coverage/changed-lines.py that reads tests/ measured them, with the test assembly in the coverage (IncludeTestAssembly). The runs were one Debug run of GpuTimingTests on MoltenVK (17 passed, 1 skipped) and one Debug run on KosmicKrisp of the test for a driver whose stamps latch on time (1 passed). KosmicKrisp's stamps do not latch late, so that test runs there and covers `FewestMilliseconds`. The union: 139/145 lines and 45/48 branches of the changed lines. What no run reached:
+- Lines 518-522 and the branch at 516 (now 557-563): the skip of `SpanAddedBy`. Only a load that stretches nearly every frame reaches it, as three demo renders did in the fix stage. The CPU test AChunkWiderThanTheBoundThatLiesAcrossItConcludesNothing pins the decision that leads to it.
+- Line 572 and the branch at 571 (now 612-613): the `Assert.Fail` when the pairs do not form in 520 frames. Only a timer that stops reporting consecutive frames reaches it. The mutants M03, M04 and M07 below reach it, and each failed with that message.
+- The branch at 690 (now 731): `buffer?.Dispose()` of a fill pass that never recorded. No test disposes a fill pass before its first frame, and the null branch has no behavior to test.
+
+Mutation. The decision logic is test code in GpuTimingTests.cs, so tools/mutate.py ran a list of 16 mutants against tests/Tertius.Rendering.Tests, class GpuTimingTests, under tools/gpu-lock.sh. The first run, on 88e4dbda6, gave killed 9 and survived 7 (M05, M06, M09, M10, M13, M14 and M15). Commit 038267c9b added three CPU tests. The final run, on 038267c9b:
+
+| id | place | change | result | killed by | s |
+|---|---|---|---|---|---:|
+| M01 | tests/Tertius.Rendering.Tests/GpuTimingTests.cs:629 | every pair value 0 | killed | GpuTimingTests.APassThatFillsABufferAddsMoreThanNearlyNoTimeToTheFramesGpuSpan | 15.2 |
+| M02 | tests/Tertius.Rendering.Tests/GpuTimingTests.cs:630 | the two spans swapped | killed | GpuTimingTests.APassThatFillsABufferAddsMoreThanNearlyNoTimeToTheFramesGpuSpan | 10.5 |
+| M03 | tests/Tertius.Rendering.Tests/GpuTimingTests.cs:662 | last.Frame + 2 | killed | GpuTimingTests.APassThatRecordsNothingAddsNearlyNoTimeToTheFramesGpuSpan, GpuTimingTests.APassThatFillsABufferAddsMoreThanNearlyNoTimeToTheFramesGpuSpan | 11.7 |
+| M04 | tests/Tertius.Rendering.Tests/GpuTimingTests.cs:614 | frames alternate one by one | killed | GpuTimingTests.APassThatRecordsNothingAddsNearlyNoTimeToTheFramesGpuSpan, GpuTimingTests.APassThatFillsABufferAddsMoreThanNearlyNoTimeToTheFramesGpuSpan | 13.5 |
+| M05 | tests/Tertius.Rendering.Tests/GpuTimingTests.cs:664 | pair ignores the kind of the frame before | survived |  | 10.2 |
+| M06 | tests/Tertius.Rendering.Tests/GpuTimingTests.cs:665 | pair ignores the kind of the latest frame | survived |  | 11.7 |
+| M07 | tests/Tertius.Rendering.Tests/GpuTimingTests.cs:663 | first.Frame + 2 | killed | GpuTimingTests.APassThatRecordsNothingAddsNearlyNoTimeToTheFramesGpuSpan, GpuTimingTests.APassThatFillsABufferAddsMoreThanNearlyNoTimeToTheFramesGpuSpan | 11.8 |
+| M08 | tests/Tertius.Rendering.Tests/GpuTimingTests.cs:681 | Decides has no width rule | killed | GpuTimingTests.TheFirstNarrowChunkThatLiesWhollyOnOneSideOfTheBoundDecidesHowMuchAPassAddsToTheSpan, GpuTimingTests.AChunkMoreThanTwiceTheBoundWideDecidesNothingEvenWhenItLiesWhollyAboveTheBound | 10.2 |
+| M09 | tests/Tertius.Rendering.Tests/GpuTimingTests.cs:681 | Decides width 2 -> 3 bounds | killed | GpuTimingTests.AChunkMoreThanTwiceTheBoundWideDecidesNothingEvenWhenItLiesWhollyAboveTheBound | 14.9 |
+| M10 | tests/Tertius.Rendering.Tests/GpuTimingTests.cs:681 | Decides ignores an interval wholly below | killed | GpuTimingTests.ANarrowChunkThatLiesWhollyBelowTheBoundDecidesThatThePassAddsNearlyNoTime | 21.1 |
+| M11 | tests/Tertius.Rendering.Tests/GpuTimingTests.cs:681 | Decides ignores an interval wholly above | killed | GpuTimingTests.TheFirstNarrowChunkThatLiesWhollyOnOneSideOfTheBoundDecidesHowMuchAPassAddsToTheSpan | 19.0 |
+| M12 | tests/Tertius.Rendering.Tests/GpuTimingTests.cs:691 | Concludes only when Decides | killed | GpuTimingTests.WhenNoChunkDecidesAChunkAtMostTheBoundWideThatLiesAcrossItConcludesThatThePassAddsAboutTheBound | 10.7 |
+| M13 | tests/Tertius.Rendering.Tests/GpuTimingTests.cs:649 | median interval reach 1.5 -> 0.5 sqrt n | killed | GpuTimingTests.TheIntervalOfAChunksMedianHoldsTheMedianOfASkewedDistributionInNearlyEveryChunk | 10.9 |
+| M14 | tests/Tertius.Rendering.Tests/GpuTimingTests.cs:650 | interval low end at the median | killed | GpuTimingTests.TheIntervalOfAChunksMedianHoldsTheMedianOfASkewedDistributionInNearlyEveryChunk | 10.3 |
+| M15 | tests/Tertius.Rendering.Tests/GpuTimingTests.cs:603 | frame limit 520 -> 264 | survived |  | 10.4 |
+| M16 | tests/Tertius.Rendering.Tests/GpuTimingTests.cs:585 | narrowest keeps the widest | killed | GpuTimingTests.WhenNoChunkDecidesAChunkAtMostTheBoundWideThatLiesAcrossItConcludesThatThePassAddsAboutTheBound | 10.6 |
+16 rows: killed 13, timeout 0, survived 3, no-coverage 0, build-failed 0, no-tests 0, no-mutant 0, removed 0
+
+The answers:
+- M09, M10, M13 and M14: killed by the new tests of 038267c9b. Each survived the first run on 88e4dbda6, and the second run on the committed tests shows it killed. AChunkMoreThanTwiceTheBoundWideDecidesNothingEvenWhenItLiesWhollyAboveTheBound kills M09: a chunk 0.12 ms wide wholly above the bound decides nothing. ANarrowChunkThatLiesWhollyBelowTheBoundDecidesThatThePassAddsNearlyNoTime kills M10. TheIntervalOfAChunksMedianHoldsTheMedianOfASkewedDistributionInNearlyEveryChunk kills M13 and M14: over 1000 seeded chunks of 128 values of an exponential distribution, the interval must hold the median ln 2 at least 990 times. The exact chance is 99.74 % for a reach of 1.5 √128, 70.9 % for M13 and 46.4 % for M14.
+- M05: equivalent. The frames run in runs of two, so in three consecutive reported frames, the latest frame differs in kind from the frame before it exactly when the two frames before it are of the same kind. The check that M05 removes always agrees with the check that stays.
+- M06: equivalent, by the same argument in the other direction.
+- M15: judgment call. With one frame in flight and runs of two, 128 pairs form in about 259 frames when the timer reports every frame, so a limit of 264 frames also holds on this Mac. The limit of 520 frames is a margin for frames whose timings are not available. No test can make the timer drop a frame, and the limit only changes how soon a broken frame order fails.
+
+New tests (commit 038267c9b): ANarrowChunkThatLiesWhollyBelowTheBoundDecidesThatThePassAddsNearlyNoTime, AChunkMoreThanTwiceTheBoundWideDecidesNothingEvenWhenItLiesWhollyAboveTheBound, TheIntervalOfAChunksMedianHoldsTheMedianOfASkewedDistributionInNearlyEveryChunk.
