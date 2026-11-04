@@ -21,6 +21,9 @@ public sealed class TimedSpanTests
         output
             .Output.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries)
             .Should()
-            .Equal(["timed-start", "the timed work", "timed-end"], "gpu_clock.py averages the samples between the two lines");
+            .Equal(
+                ["timed-start", "the timed work", "timed-end"],
+                "gpu_clock.py averages the samples between the two lines"
+            );
     }
 }

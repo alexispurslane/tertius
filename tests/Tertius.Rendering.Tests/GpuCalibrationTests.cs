@@ -164,7 +164,9 @@ public sealed class GpuCalibrationTests
         // The first 8 batches warm the caches and the driver, as the 60 frames of the timing test do. The marker lines
         // around the timed batches let tools/gpu_clock.py take gpu-clock's clock over them alone.
         BatchedFrameTimes(bench: bench, firstBatch: 0, batches: 8, batchSize: Batch);
-        double[] frames = TimedSpan.Run(() => BatchedFrameTimes(bench: bench, firstBatch: 8, batches: 37, batchSize: Batch));
+        double[] frames = TimedSpan.Run(() =>
+            BatchedFrameTimes(bench: bench, firstBatch: 8, batches: 37, batchSize: Batch)
+        );
         ITestOutputHelper output = TestContext.Current.TestOutputHelper!;
 
         double[] sorted = [.. frames.Order()];
