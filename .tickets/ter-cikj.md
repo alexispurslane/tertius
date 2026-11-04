@@ -1,6 +1,6 @@
 ---
 id: ter-cikj
-status: open
+status: in_progress
 deps: [ter-gmv8]
 links: [ter-wwu7]
 created: 2026-11-03T23:31:32Z
@@ -15,3 +15,9 @@ Khronos deprecated MoltenVK (github.com/KhronosGroup/MoltenVK README: 'Khronos h
 
 Scope: 1. In flake.nix, add Mesa to the Darwin dev shell and an environment variable that names its KosmicKrisp ICD, so that a run picks the driver by VK_ICD_FILENAMES without a store path in scripts. 2. Run the full Checked and Release suites under KosmicKrisp. Sort each failure: a defect of ours against the Vulkan spec (fix it, red test first), a KosmicKrisp defect (a ticket, with a minimal reproduction), or a legitimate difference (for example the snapshot tolerance). 3. Time the two drivers in alternating locked runs on the views that the spikes use (the deck, the floor, the 16- and 64-lamp halls), with a byte-copy control, and FSR's timing test. 4. Report, and recommend: switch the dev shell's default driver to KosmicKrisp, keep MoltenVK, or keep both for comparison. The switch is a fork for the user if the drivers differ in speed or correctness.
 
+
+## Notes
+
+**2026-11-04T01:19:27Z**
+
+2026-11-03: started as a workflow, run 8d2999f3-bb50-4002-9ba1-cbabdbdd0c91 (version 869b0b07-3413-4b06-8707-a88a91bf6e91), branch ter-cikj-kosmickrisp from 3018644d9. The run also sorts ter-wwu7, the KosmicKrisp timing failure.
