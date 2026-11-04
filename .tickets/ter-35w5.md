@@ -1,6 +1,6 @@
 ---
 id: ter-35w5
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-11-03T22:42:15Z
@@ -21,3 +21,9 @@ Options to design: the paired median of one renderer with a bound set from that 
 ## Acceptance Criteria
 
 The test passes in 20 runs of the Rendering tests in a row while another process renders, and still fails when the empty pass is made to record a dispatch.
+
+## Notes
+
+**2026-11-04T00:14:37Z**
+
+2026-11-03: closed as a duplicate of ter-abun, which main reopened. Its findings, measures and acceptance moved into a note on ter-abun (ter-nmbm's continuation).

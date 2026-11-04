@@ -83,3 +83,24 @@ Checks of the fix stage: the full Checked suite passed (10,124 of 10,139, 15 ski
 **2026-11-03T22:50:15Z**
 
 2026-11-03: the first run (46d28d1d-5d6f-4186-b518-019afd9643f0) ended at the fork after its fix stage, head 253e5f149. The continuation that builds the visibility-aware combine is workflow run 5af508ba-4e08-4585-9c48-f5b9a8ae3478 (version 869b0b07-3413-4b06-8707-a88a91bf6e91), on the same worktree. It first merges main for the motion vectors' far-depth fix.
+
+**2026-11-04T02:13:37Z**
+
+2026-11-03: the continuation (workflow run 5af508ba-4e08-4585-9c48-f5b9a8ae3478) built the visibility-aware combine of ter-t8z7.
+
+Done:
+- Merge of main c6572ca3d (c11b3cbe8). The branch reads only the surface test image from the surface history, so no shader changed. Main's 11 new surface tests and one frame history test now step one tick between their frames, because a second draw of the same time is a still under this branch's still rule.
+- The red test UnderTheSpatialReuseTheStripesThatOneOfTwoLampsShadowsKeepTheOthersLight (slats, ResampledLights(4, 2), bound 0.05): -0.102 on the biased combine, -0.003 on the final build.
+- Bitterli's unbiased spatial combine (af4cef60d): p-hat' = the luminance of the light's shaded light at the pixel, W = sum w / (Z p-hat'(y)), Z = the M of the reservoirs whose surface can choose y. Every visibility test goes through pathVisibility. The temporal reuse keeps 1 / M, which equals 1 / Z in a still. ARCHITECTURE.md, 'ReSTIR DI', has the proof.
+- The combine reuses each shaded light for the shade (1f14fadb9), walks its neighbors again for Z instead of arrays indexed at run time (1021dbe1b, half the added cost), and the random streams hash their seed (b20714c0c), because streams 0x2 and 0x3 in the low bits of one seed word gave correlated numbers: +0.46 on the deck's samples.
+
+Bias, history error and sample error, 1280 x 720, Release (DirectLightBiasMeasurement), unbiased b20714c0c / biased c11b3cbe8 / no neighbors b20714c0c: hall -0.014 / -0.022 / -0.030, 0.123 / 0.123 / 0.379, 0.419 / 0.419 / 0.471; deck -0.047 / -0.107 / -0.014, 0.080 / 0.104 / 0.214, 0.270 / 0.265 / 0.290; cabin -0.004 / -0.004 / -0.004, 0.025 / 0.079 / 0.037, 0.030 / 0.074 / 0.030. The deck's samples outside one hot spot next to a lamp measure +0.000 (biased -0.079); the hot spot, 17 % of the deck's light, -0.18 under every spatial combine: ticket ter-x31x.
+
+GPU time (section 11's recipe, 7 interleaved rounds, base c6572ca3d, a byte-copy control, biased c11b3cbe8, unbiased b20714c0c, loads 3.7 to 11.8): the deck's direct light 1.39 -> 2.42 ms at 1280 x 720 and 2.77 -> 4.73 ms at 1920 x 1080; its mean span 11.42 -> 12.84 and 17.85 -> 20.04 ms (base 11.67 and 15.53). Traces with the warm-up correction: direct light 1.85 to 1.87 -> 3.23 to 3.30 ms and 3.03 -> 5.15 to 5.16 ms. ter-9nrc holds the cost.
+
+Screenshots, 1280 x 720, headless Release (/private/tmp/nmbm3/shots, base = c6572ca3d, before = c11b3cbe8, branch = b20714c0c):
+- base-demo-exit-deck/deck.png and branch-demo-exit-deck/deck.png: the glasshouse frame's lamp shadows on the deck's floor are back in the branch, close to the base, under a fine sparkle; before-demo-exit-deck/deck.png has them washed out.
+- base-lamp-hall-64-still/hall.png and branch-lamp-hall-64-still/hall.png: the pillars' shadows on the floor come back in part, weaker than the base's, under a fine grain; before-... shows them fainter.
+- base-cabin/cabin.png and branch-cabin/cabin.png: the sunlit cabin, the same in both.
+
+Measurement files: /private/tmp/nmbm3 (builds.txt names every export; runs.txt, summary.md, traces.txt, traces.md, bias/, analysis/).

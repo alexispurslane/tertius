@@ -367,7 +367,7 @@ public sealed class ResampledLightsRenderTests
 
     /// <summary>
     /// The spatial reuse's combine tests the visibility of a neighbor's light at this pixel: today's stripes measured a
-    /// bias of 0.011 (2026-11-03), and the biased combine before it, which took a neighbor's light with no such test,
+    /// bias of −0.003 (2026-11-03), and the biased combine before it, which took a neighbor's light with no such test,
     /// −0.102.
     /// </summary>
     [Fact]
