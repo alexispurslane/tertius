@@ -1,0 +1,17 @@
+{
+  "scene": "lamp-hall-16",
+  "window": {
+    "width": 1280,
+    "height": 720
+  },
+  "steps": [
+    {
+      "do": "run",
+      "ticks": 10
+    },
+    {
+      "do": "capture",
+      "name": "hall"
+    }
+  ]
+}

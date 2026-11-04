@@ -1,0 +1,40 @@
+{
+  "scene": "demo-exit",
+  "window": {
+    "width": 1280,
+    "height": 720
+  },
+  "steps": [
+    {
+      "do": "camera",
+      "entity": "cabin-camera"
+    },
+    {
+      "do": "post",
+      "to": {
+        "kind": "entity",
+        "id": "person"
+      },
+      "event": "LeaveShip",
+      "payload": null
+    },
+    {
+      "do": "run",
+      "ticks": 2916
+    },
+    {
+      "do": "camera",
+      "entity": "follow-camera"
+    },
+    {
+      "do": "run",
+      "ticks": 140
+    },
+    {
+      "do": "film",
+      "name": "floor",
+      "frames": 120,
+      "every": 1
+    }
+  ]
+}
