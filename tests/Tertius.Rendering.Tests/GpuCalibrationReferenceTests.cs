@@ -15,7 +15,20 @@ public sealed class GpuCalibrationReferenceTests
         {
             float full = CalibrationReference.Fma(id, iterations: 1024);
             float skipped = CalibrationReference.Fma(id, iterations: 1024 - 8);
-            MathF.Abs(full - skipped).Should().BeGreaterThan(1e-5f * MathF.Abs(full));
+            MathF.Abs(full - skipped).Should().BeGreaterThan(CalibrationReference.FmaTolerance * MathF.Abs(full));
+        }
+    }
+
+    [Fact]
+    public void TheFmaProbesCheckAcceptsTheResultOfADriverThatRoundsEachProductBeforeItsAdd()
+    {
+        // GLSL lets a driver compute an fma() that no precise variable consumes as a product and an add with two
+        // roundings. The check must pass on such a driver too, such as one of the Linux drivers.
+        for (int id = 0; id < 1024; id++)
+        {
+            float fused = CalibrationReference.Fma(id, iterations: 1024);
+            float unfused = UnfusedFma(id, iterations: 1024);
+            MathF.Abs(fused - unfused).Should().BeLessThanOrEqualTo(CalibrationReference.FmaTolerance * MathF.Abs(fused));
         }
     }
 
@@ -59,5 +72,25 @@ public sealed class GpuCalibrationReferenceTests
         }
 
         (even, repeated, visits).Should().Be((true, false, (long)corners * corners));
+    }
+
+    // CalibrationReference.Fma with each step rounded after its product and after its add.
+    private static float UnfusedFma(int id, uint iterations)
+    {
+        float start = 1f + (id & 1023) * (1f / 1024f);
+        Span<float> components = stackalloc float[4];
+        for (int chain = 0; chain < CalibrationReference.Chains; chain++)
+        {
+            float x = start + (chain % 4) * 0.125f + (chain / 4) * 0.5f;
+            for (uint step = 0; step < iterations; step++)
+            {
+                float product = x * CalibrationReference.A;
+                x = product + CalibrationReference.B;
+            }
+
+            components[chain % 4] += x;
+        }
+
+        return components[0] + components[1] + components[2] + components[3];
     }
 }

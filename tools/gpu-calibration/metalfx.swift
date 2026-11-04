@@ -5,7 +5,7 @@
 // by its GPU start and end times, as FSR's test times each frame alone by timestamps around Record.
 //
 // Build (outside the dev shell, with Xcode's command line tools):
-//   xcrun swiftc -O -o captures/3ug8/bin/metalfx tools/gpu-calibration/metalfx.swift -framework Metal -framework MetalFX
+//   xcrun swiftc -O -o captures/gpu-calibration/bin/metalfx tools/gpu-calibration/metalfx.swift -framework Metal -framework MetalFX
 // Run:
 //   metalfx [matched|minimal] [gap ms]
 // "matched" (the default) gives MetalFX FSR's inputs. "minimal" leaves out the reactive mask and the exposure texture.

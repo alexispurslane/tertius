@@ -2,7 +2,8 @@
 # Tool code (tools/README.md, "GPU calibration"): counts the work in each probe at three levels, so that a compiler
 # that removed or folded work shows. Run it from the worktree root, after the Release build of the test project, the
 # builds of probes and kernel-code, and a run of the Vulkan probes with MVK_CONFIG_SHADER_DUMP_DIR=<dump folder>. Run it
-# outside the dev shell, whose environment hides Xcode's Metal toolchain from xcrun. It takes spirv-dis from the shell:
+# outside the dev shell, whose environment hides Xcode's Metal toolchain from xcrun. It takes spirv-dis from the shell,
+# and the binaries from $GPU_CALIBRATION_BIN, by default captures/gpu-calibration/bin:
 #   bash tools/gpu-calibration/count.sh <dump folder> <out folder>
 # 1. SPIR-V, the glslc output that the engine's device gets: FMAs, samples, loads and loops, by spirv-dis.
 # 2. AIR, Apple's intermediate code, compiled by xcrun metal from the native kernels and from MoltenVK's MSL: the calls
@@ -14,12 +15,13 @@ set -euo pipefail
 dump=${1:?dump folder of MoltenVK}
 out=${2:?out folder}
 mkdir -p "$out"
-spirv=tests/Tertius.Rendering.Tests/obj/Release/net11.0/calibration-shaders
+spirv=tests/Tertius.Rendering.Tests/obj/Release/net11.0/test-shaders
 toolchain=$(dirname "$(xcrun --find metal)")
+bin=${GPU_CALIBRATION_BIN:-captures/gpu-calibration/bin}
 
 echo "## SPIR-V (glslc --target-env=vulkan1.3 -O)"
-nix develop --command bash -c "for module in $spirv/*.spv; do spirv-dis \$module -o $out/\$(basename \$module).txt; done"
-for module in "$spirv"/*.spv; do
+nix develop --command bash -c "for module in $spirv/calibration_*.spv; do spirv-dis \$module -o $out/\$(basename \$module).txt; done"
+for module in "$spirv"/calibration_*.spv; do
     text="$out/$(basename "$module").txt"
     printf '%s: Fma %s, ImageSampleExplicitLod %s, OpLoad of uvec4 %s, LoopMerge %s, float-controls modes %s\n' \
         "$(basename "$module")" "$(grep -c 'Fma ' "$text" || true)" "$(grep -c 'OpImageSampleExplicitLod' "$text" || true)" \
@@ -38,7 +40,7 @@ air() {
 }
 
 echo "## AIR of the native kernels (tools/gpu-calibration/probes.swift)"
-captures/3ug8/bin/probes dump-msl > "$out/native.metal"
+$bin/probes dump-msl > "$out/native.metal"
 air "$out/native.metal" "$out/native.ll"
 echo "## AIR of MoltenVK's MSL"
 for msl in "$dump"/*.metal; do
@@ -54,9 +56,9 @@ code_size() {
 }
 
 echo "## Native code of the native kernels"
-for kernel in $(captures/3ug8/bin/kernel-code "$out/native.metal" "$out/native-code"); do code_size "$kernel"; done
+for kernel in $($bin/kernel-code "$out/native.metal" "$out/native-code"); do code_size "$kernel"; done
 echo "## Native code of MoltenVK's MSL"
 for msl in "$dump"/*.metal; do
     echo "$(basename "$msl"):"
-    for kernel in $(captures/3ug8/bin/kernel-code "$msl" "$out/$(basename "$msl" .metal)-code"); do code_size "$kernel"; done
+    for kernel in $($bin/kernel-code "$msl" "$out/$(basename "$msl" .metal)-code"); do code_size "$kernel"; done
 done

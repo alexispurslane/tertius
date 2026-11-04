@@ -2,7 +2,7 @@
 // compile options, fast math as MoltenVK's default, and serializes each kernel alone into a binary archive, which holds
 // this GPU's native code. Apple ships no disassembler for that code (metal-objdump has no instruction printer for AGX),
 // so count.sh compares the sizes of the native code of the kernels.
-//   xcrun swiftc -O -o captures/3ug8/bin/kernel-code tools/gpu-calibration/kernel-code.swift -framework Metal
+//   xcrun swiftc -O -o captures/gpu-calibration/bin/kernel-code tools/gpu-calibration/kernel-code.swift -framework Metal
 //   kernel-code <source.metal> <out folder>     writes <out folder>/<kernel>.bin for each kernel
 
 import Foundation

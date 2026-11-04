@@ -15,6 +15,10 @@ public sealed class GpuCalibrationTests
     // "GPU calibration").
     private const string TimingVariable = "TERTIUS_GPU_CALIBRATION";
 
+    // The marker lines of a measurement's timed span, which tools/gpu-calibration/analyze.py finds in gpu-clock's log.
+    private const string TimedStart = "timed-start";
+    private const string TimedEnd = "timed-end";
+
     // The peaks of the 24-core Apple M1 Max, the GPU of the development Mac (gpu-calibration.md, "The peaks"): 3,072 FP32
     // lanes, 192 texture units, and Apple's memory bandwidth, at the GPU's highest clock of 1,296 MHz.
     private const double PeakFlops = 3072 * 2 * 1.296e9;
@@ -161,18 +165,23 @@ public sealed class GpuCalibrationTests
         using var bench = new Fsr3UpscalerTests.Fsr3Bench(new(1280, 720), new(1920, 1080), validation: false);
         bench.FillPattern();
 
-        // The first 8 batches warm the caches and the driver, as the 60 frames of the timing test do.
-        double[] frames = [.. BatchedFrameTimes(bench, batches: 45, batchSize: Batch).Skip(8)];
+        // The first 8 batches warm the caches and the driver, as the 60 frames of the timing test do. The marker lines
+        // around the timed batches let tools/gpu-calibration/analyze.py take gpu-clock's clock over them alone.
+        BatchedFrameTimes(bench: bench, firstBatch: 0, batches: 8, batchSize: Batch);
+        ITestOutputHelper output = TestContext.Current.TestOutputHelper!;
+        output.WriteLine(TimedStart);
+        double[] frames = BatchedFrameTimes(bench: bench, firstBatch: 8, batches: 37, batchSize: Batch);
+        output.WriteLine(TimedEnd);
 
         double[] sorted = [.. frames.Order()];
         CultureInfo inv = CultureInfo.InvariantCulture;
-        TestContext.Current.TestOutputHelper!.WriteLine(
+        output.WriteLine(
             string.Create(
                 inv,
                 $"FSR 3.1 in batches of {Batch} from 1280 x 720 to 1920 x 1080 on {bench.Device.DeviceName}: median {sorted[sorted.Length / 2]:F3} ms, 10th percentile {sorted[sorted.Length / 10]:F3} ms, 90th percentile {sorted[sorted.Length * 9 / 10]:F3} ms over {sorted.Length} batches"
             )
         );
-        TestContext.Current.TestOutputHelper!.WriteLine(
+        output.WriteLine(
             "frame times, ms: " + string.Join(' ', frames.Select(time => time.ToString("F4", inv)))
         );
         sorted[0].Should().BePositive();
@@ -180,9 +189,15 @@ public sealed class GpuCalibrationTests
 
     /// <summary>
     /// The mean GPU time in ms of a frame of FSR in each of <paramref name="batches"/> submissions of
-    /// <paramref name="batchSize"/> frames, by the span of the batch's timestamps.
+    /// <paramref name="batchSize"/> frames, by the span of the batch's timestamps. The batches continue the bench's
+    /// draws after <paramref name="firstBatch"/> batches, and only the first draw of all resets the accumulation.
     /// </summary>
-    private static unsafe double[] BatchedFrameTimes(Fsr3UpscalerTests.Fsr3Bench bench, int batches, int batchSize)
+    private static unsafe double[] BatchedFrameTimes(
+        Fsr3UpscalerTests.Fsr3Bench bench,
+        int firstBatch,
+        int batches,
+        int batchSize
+    )
     {
         Vk vk = bench.Device.Vk;
         var info = new QueryPoolCreateInfo
@@ -208,7 +223,7 @@ public sealed class GpuCalibrationTests
                         queryPool: queries,
                         query: (uint)frame
                     );
-                    int draw = batch * batchSize + frame;
+                    int draw = (firstBatch + batch) * batchSize + frame;
                     if (frame < batchSize)
                         bench.Upscaler.Record(commandBuffer, bench.Barriers, bench.Inputs(draw, reset: draw == 0));
                 }

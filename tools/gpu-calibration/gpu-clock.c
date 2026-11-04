@@ -3,7 +3,7 @@
 // the GPU clock of each sample and of the whole run.
 //
 // Build (outside the dev shell, with Xcode's command line tools):
-//   xcrun clang -O2 -o captures/3ug8/bin/gpu-clock tools/gpu-calibration/gpu-clock.c -framework CoreFoundation \
+//   xcrun clang -O2 -o captures/gpu-calibration/bin/gpu-clock tools/gpu-calibration/gpu-clock.c -framework CoreFoundation \
 //     -framework IOKit -lIOReport
 // Run:
 //   gpu-clock <interval ms> <command> [arguments]

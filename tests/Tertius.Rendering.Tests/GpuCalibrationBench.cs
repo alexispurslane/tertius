@@ -77,6 +77,12 @@ internal static class CalibrationReference
     /// <summary>The independent chains of one invocation: four vec4.</summary>
     public const int Chains = 16;
 
+    /// <summary>
+    /// The largest relative difference from <see cref="Fma"/> that the check accepts. One dropped pass of 8 steps moves a
+    /// result by at least 3.7e-4 of it, and a driver that rounds each product before its add by at most 3.4e-5.
+    /// </summary>
+    public const float FmaTolerance = 1e-4f;
+
     /// <summary>The FMA probe's result for invocation <paramref name="id"/> after <paramref name="iterations"/> steps.</summary>
     public static float Fma(int id, uint iterations)
     {
@@ -257,7 +263,7 @@ internal sealed unsafe class CalibrationBench : IDisposable
                     for (int id = 0; id < invocations; id += Math.Max(1, invocations / 1024))
                     {
                         float expected = CalibrationReference.Fma(id, iterations);
-                        if (MathF.Abs(values[id] - expected) > 1e-5f * MathF.Abs(expected))
+                        if (MathF.Abs(values[id] - expected) > CalibrationReference.FmaTolerance * MathF.Abs(expected))
                             return $"invocation {id}: {values[id]} against {expected} on the CPU";
                     }
 

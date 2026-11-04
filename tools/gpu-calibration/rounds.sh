@@ -1,19 +1,20 @@
 #!/usr/bin/env bash
 # Tool code (tools/README.md, "GPU calibration"): one round of the calibration runs. Each run takes the GPU lock alone
-# through locked.sh, which records uptime at its start and its end, and runs beside gpu-clock, which samples the GPU's
+# through tools/gpu-lock.sh, which records uptime at its start and its end, and runs beside gpu-clock, which samples the GPU's
 # clock every 100 ms. The order of the runs rotates by one run per round, so that the load of the machine and the
 # warmth of the GPU fall on every run alike. Run it from the worktree root, in the dev shell, after the builds of
-# tools/README.md, "GPU calibration":
+# tools/README.md, "GPU calibration", which put the binaries into $GPU_CALIBRATION_BIN, by default
+# captures/gpu-calibration/bin, and the deck's script into captures/gpu-calibration/deck-120.json:
 #   nix develop --command bash tools/gpu-calibration/rounds.sh <round> <out folder>
 # It writes <out>/<round>-<run>.log for each run, and one line per run to stdout, which analyze.py does not need.
 set -uo pipefail
 
 round=${1:?round number}
 out=${2:?out folder}
-bin=captures/3ug8/bin
+bin=${GPU_CALIBRATION_BIN:-captures/gpu-calibration/bin}
 tests=tests/Tertius.Rendering.Tests/bin/Release/net11.0/Tertius.Rendering.Tests
 demo=src/Tertius.Demo/bin/Release/net11.0/Tertius.Demo
-deck=captures/3ug8/deck-120.json
+deck=captures/gpu-calibration/deck-120.json
 mkdir -p "$out"
 
 # The demo's headless run of 120 frames of the deck at 1280 x 720, as the spikes' timed runs ran it.
@@ -36,7 +37,7 @@ run() {
     local name=$1
     shift
     local log="$out/$round-$name.log"
-    bash tools/gpu-calibration/locked.sh "$log" "$@"
+    bash tools/gpu-lock.sh "$log" "$@"
     echo "round=$round run=$name exit=$? $(head -1 "$log")"
 }
 

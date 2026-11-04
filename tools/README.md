@@ -449,7 +449,7 @@ rmdir /tmp/tertius-gpu-measure.lock
    cp -R captures/fsr-builds/base captures/fsr-builds/control
    ```
 
-4. Run at least 5 rounds, more on a busy machine. Each run takes and releases the GPU lock, `/tmp/tertius-gpu-measure.lock`, and records `uptime` at its start. The order of the builds rotates by one build per round:
+4. Run at least 5 rounds, more on a busy machine. Each run takes and releases the GPU lock through `tools/gpu-lock.sh` (see "The GPU lock"), and records `uptime` at its start. The order of the builds rotates by one build per round:
 
    ```bash
    mkdir -p /private/tmp/fsr-timing
@@ -473,60 +473,103 @@ It prints the same two readings of the 10th percentile, and the least, median an
 
 The rotation gives each build the same predecessor in most runs. So an effect of one run on the next mixes with the effect of the build. A Williams design, an order that gives each build every predecessor equally often, removes this. The tool does not use one yet.
 
+## The GPU lock
+
+Every timed run on the development Mac takes the GPU lock, the directory `/tmp/tertius-gpu-measure.lock`, so that two timed runs never share the GPU. `mkdir` takes it, and `rmdir` releases it. `tools/gpu-lock.sh` is the one helper of the lock for every timing tool:
+
+```bash
+bash tools/gpu-lock.sh <log> <command> [arguments]
+```
+
+It waits for the lock and runs the command with its output in the log. When the command ends, it removes the lock. It also removes the lock after a failure or a signal. It never removes a lock that it did not make. The log gets the uptime at the start and the end, and the seconds that the run waited. The exit code is the command's.
+
+The waiters take turns in the order in which they came. Each waiter writes a ticket into `/tmp/tertius-gpu-measure.queue`, a file named by its start time and its process id. It tries `mkdir` only while its ticket is the oldest ticket of a live process, every 0.1 s. Without the order, a loop of runs that tried every 0.1 s won nearly every release against a waiter that tried every 5 s. On 2026-11-03 that went on for more than 20 minutes. A run that takes the lock by hand with `mkdir` has no ticket, and it competes with the oldest waiter only.
+
+`tools/gpu-calibration/` and `tools/fsr3-timing/time-round.sh` take the lock through the helper.
+
 ## GPU calibration
 
 `tools/gpu-calibration/` holds tool code that measures what the development Mac's GPU can do, apart from the engine's passes. Ticket `ter-3ug8` wrote it, and `docs/research/temporal-renderer/gpu-calibration.md` holds its results. It does not ship, and no engine code depends on it. It runs only on macOS.
 
 | File | What it does |
 |---|---|
-| `probes.swift` | The native Metal probes: FMAs in an unrolled and a rolled loop, cached and streamed texture samples, and buffer reads. Each checks its result against the CPU. It also times the FMA probe cold, after a sustained load, and as a short pulse every 20 ms. |
+| `probes.swift` | The native Metal probes: FMAs in an unrolled and a rolled loop, cached and streamed texture samples, and buffer reads. Each checks its result against the CPU. It also times the FMA probe cold, after a sustained load and as a short pulse every 20 ms. `fma-variants` times seven variants of chains and steps per pass. |
 | `metalfx.swift` | Times Apple's MetalFX temporal upscaler from 1280 × 720 to 1920 × 1080 on the inputs of FSR's timing test. Each frame has its own command buffer, with an optional gap after it. |
 | `gpu-clock.c` | Samples the GPU's performance states through IOReport while a command runs, and prints the mean clock over the active time. It needs no root. |
 | `kernel-code.swift` | Serializes each kernel of a Metal source file into a binary archive with this GPU's native code. |
 | `count.sh` | Counts the FMAs, samples and loads of each probe in SPIR-V, in AIR and in the size of the native code. |
-| `locked.sh` | Runs one command under the GPU lock, records uptime at its start and its end, and removes the lock on any exit. It tries the lock every 0.1 s. |
-| `rounds.sh` | One round of the calibration runs in a rotated order, each under `locked.sh` and beside `gpu-clock`. |
-| `window.sh` | One run of the Release demo in a window, under `locked.sh` and beside `gpu-clock`, with the GPU's busy share and MoltenVK's log of the frame rate. It prints one summary line. |
+| `rounds.sh` | One round of the calibration runs in a rotated order, each under `tools/gpu-lock.sh` and beside `gpu-clock`. |
+| `upscalers.sh` | One round of the upscaler runs in a rotated order: FSR's timing test, FSR's batched measurement, and MetalFX without and with a gap, each under the lock and beside `gpu-clock`. |
+| `window.sh` | One run of the Release demo in a window, under the lock and beside `gpu-clock`. It records the GPU's busy share and MoltenVK's log of the frame rate, and prints one summary line from `analyze.py window`. |
 | `window-deck.json`, `window-lamp-hall-16.json` | The scripts of the window runs: the deck camera of demo-exit for 1,119 ticks, and lamp-hall-16 for 1,080 ticks, each with one capture at the end. |
-| `analyze.py` | The tables of the rounds: probes, clocks, the pulse, the upscalers and the demo's frame spans. |
+| `fsr-trace.sh` | A Metal System Trace of FSR's batched measurement under the lock and beside `gpu-clock`, then `fsr-passes.py` on it. |
+| `fsr-passes.py` | The GPU time of each of FSR's passes from the trace. It keeps the frames that no other process overlapped, and gives the times of every kept frame and of the frames at the top clock. |
+| `work.py` | The counted work of compute and fragment shaders from MoltenVK's MSL: lane operations, texture reads and the loops left after an unroll. `work.py fsr` adds the roofline of each of FSR's passes against its time from `fsr-passes.py`. |
+| `analyze.py` | The tables: `rounds` for the rounds, `upscalers` for the upscaler runs, `windows` and `window` for the window runs, and `probes` for any folder of probe logs. |
 
-The Vulkan twins of the probes are `GpuCalibrationTests` in `tests/Tertius.Rendering.Tests`. Their checks against the CPU run in every test run. Their measurements run only with `TERTIUS_GPU_CALIBRATION=1`, as FSR's timing test runs only with `TERTIUS_FSR_TIMING=1`.
+The Vulkan twins of the probes are `GpuCalibrationTests` in `tests/Tertius.Rendering.Tests`. Their checks against the CPU run in every test run. Their measurements run only with `TERTIUS_GPU_CALIBRATION=1`, as FSR's timing test runs only with `TERTIUS_FSR_TIMING=1`. FSR's batched measurement prints the lines `timed-start` and `timed-end` around its timed batches. `analyze.py upscalers` then takes `gpu-clock`'s clock over that span alone, because the clock over the whole run holds the setup at 648 MHz.
 
-The native tools use Xcode's command line tools outside the dev shell, because the dev shell hides Xcode's Metal toolchain from `xcrun`. `count.sh` also needs the Metal toolchain component (`xcodebuild -downloadComponent MetalToolchain`). Build them from the worktree root:
+`tools/test_gpu_calibration.py` tests the summaries of `analyze.py`, the frames of `fsr-passes.py` and the counts of `work.py` on synthetic logs and AIR. It uses the Python standard library only:
 
 ```bash
-mkdir -p captures/3ug8/bin
-xcrun swiftc -O -o captures/3ug8/bin/probes tools/gpu-calibration/probes.swift -framework Metal
-xcrun swiftc -O -o captures/3ug8/bin/metalfx tools/gpu-calibration/metalfx.swift -framework Metal -framework MetalFX
-xcrun swiftc -O -o captures/3ug8/bin/kernel-code tools/gpu-calibration/kernel-code.swift -framework Metal
-xcrun clang -O2 -o captures/3ug8/bin/gpu-clock tools/gpu-calibration/gpu-clock.c -framework CoreFoundation -framework IOKit -lIOReport
+nix develop --command python3 -I tools/test_gpu_calibration.py
+```
+
+The tools' inputs live in one folder, `captures/gpu-calibration`, which git ignores. Its `bin/` holds the native binaries, and the scripts read it from `GPU_CALIBRATION_BIN`, which defaults to `captures/gpu-calibration/bin`. The native tools use Xcode's command line tools outside the dev shell, because the dev shell hides Xcode's Metal toolchain from `xcrun`. `count.sh` and `work.py` also need the Metal toolchain component (`xcodebuild -downloadComponent MetalToolchain`). Build them from the worktree root:
+
+```bash
+mkdir -p captures/gpu-calibration/bin
+xcrun swiftc -O -o captures/gpu-calibration/bin/probes tools/gpu-calibration/probes.swift -framework Metal
+xcrun swiftc -O -o captures/gpu-calibration/bin/metalfx tools/gpu-calibration/metalfx.swift -framework Metal -framework MetalFX
+xcrun swiftc -O -o captures/gpu-calibration/bin/kernel-code tools/gpu-calibration/kernel-code.swift -framework Metal
+xcrun clang -O2 -o captures/gpu-calibration/bin/gpu-clock tools/gpu-calibration/gpu-clock.c -framework CoreFoundation -framework IOKit -lIOReport
 ```
 
 Then build the Release test project and demo, and the 120 frames of demo-exit's deck, in the dev shell:
 
 ```bash
 nix develop --command bash -c 'dotnet build tests/Tertius.Rendering.Tests -c Release && dotnet build src/Tertius.Demo -c Release'
-nix develop --command python3 -I tools/gpu-trace.py trim scripts/demo-exit.json 399 120 captures/3ug8/deck-120.json
+nix develop --command python3 -I tools/gpu-trace.py trim scripts/demo-exit.json 399 120 captures/gpu-calibration/deck-120.json
 ```
 
 Run at least 5 rounds, then the tables:
 
 ```bash
-for round in $(seq 0 6); do nix develop --command bash tools/gpu-calibration/rounds.sh $round captures/3ug8/rounds; done
-python3 -I tools/gpu-calibration/analyze.py captures/3ug8/rounds
+for round in $(seq 0 6); do nix develop --command bash tools/gpu-calibration/rounds.sh $round captures/gpu-calibration/rounds; done
+python3 -I tools/gpu-calibration/analyze.py rounds captures/gpu-calibration/rounds
+for round in $(seq 0 4); do nix develop --command bash tools/gpu-calibration/upscalers.sh $round captures/gpu-calibration/upscalers; done
+python3 -I tools/gpu-calibration/analyze.py upscalers captures/gpu-calibration/upscalers
+```
+
+To time the variants of the FMA probe, run them under the lock beside `gpu-clock`, then pool the rounds:
+
+```bash
+for round in $(seq 0 6); do bash tools/gpu-lock.sh captures/gpu-calibration/variants/$round-variants.log captures/gpu-calibration/bin/gpu-clock 100 captures/gpu-calibration/bin/probes fma-variants 30; done
+python3 -I tools/gpu-calibration/analyze.py probes captures/gpu-calibration/variants
 ```
 
 To count the work in each probe, dump MoltenVK's MSL from a run of the Vulkan checks, then count outside the dev shell:
 
 ```bash
-nix develop --command bash -c 'MVK_CONFIG_SHADER_DUMP_DIR=$PWD/captures/3ug8/mvk-dump tests/Tertius.Rendering.Tests/bin/Release/net11.0/Tertius.Rendering.Tests -class Tertius.Rendering.Tests.GpuCalibrationTests'
-bash tools/gpu-calibration/count.sh captures/3ug8/mvk-dump captures/3ug8/counts
+nix develop --command bash -c 'MVK_CONFIG_SHADER_DUMP_DIR=$PWD/captures/gpu-calibration/mvk-dump tests/Tertius.Rendering.Tests/bin/Release/net11.0/Tertius.Rendering.Tests -class Tertius.Rendering.Tests.GpuCalibrationTests'
+bash tools/gpu-calibration/count.sh captures/gpu-calibration/mvk-dump captures/gpu-calibration/counts
 ```
 
-To measure the windowed clock, run the demo in a window. Each run opens a window on the display for about 20 s. The window sizes of the report are `1920x1080` and `1080x1920`, and macOS makes a window smaller if it does not fit on the display:
+To hold each of FSR's passes against its roofline, follow these steps. Trace FSR's batched measurement three times. Dump the MSL of FSR's shaders. Count outside the dev shell:
 
 ```bash
-nix develop --command bash tools/gpu-calibration/window.sh tools/gpu-calibration/window-deck.json 1080x1920 captures/3ug8/window 1-deck-portrait
+for trace in 0 1 2; do nix develop --command bash tools/gpu-calibration/fsr-trace.sh captures/gpu-calibration/fsr-trace/$trace; done
+nix develop --command bash -c 'MVK_CONFIG_SHADER_DUMP_DIR=$PWD/captures/gpu-calibration/fsr-dump TERTIUS_GPU_CALIBRATION=1 tests/Tertius.Rendering.Tests/bin/Release/net11.0/Tertius.Rendering.Tests -method Tertius.Rendering.Tests.GpuCalibrationTests.FsrReportsItsGpuTimePerFrameWhenEightFramesShareASubmission'
+python3 -I tools/gpu-calibration/work.py fsr captures/gpu-calibration/fsr-dump captures/gpu-calibration/fsr-counts src/Tertius.Rendering/obj/Release/net11.0/shaders captures/gpu-calibration/fsr-trace/0 captures/gpu-calibration/fsr-trace/1 captures/gpu-calibration/fsr-trace/2
+```
+
+`work.py count <dump> <out>` counts any MSL dump, such as one from a headless demo run with `MVK_CONFIG_SHADER_DUMP_DIR`. Match a dumped `.spv` to its engine shader by its hash against `src/Tertius.Rendering/obj/Release/net11.0/shaders`.
+
+To measure the windowed clock, run the demo in a window. Each run opens a window on the display for about 20 s. The window sizes of the report are `1920x1080` and `1080x1920`. If a window does not fit on the display, macOS makes it smaller:
+
+```bash
+nix develop --command bash tools/gpu-calibration/window.sh tools/gpu-calibration/window-deck.json 1080x1920 captures/gpu-calibration/window 1-deck-portrait
+python3 -I tools/gpu-calibration/analyze.py windows captures/gpu-calibration/window
 ```
 
 `gpu-clock 100 <command>` works beside any run, such as a timed demo run. Its clock is the mean over the time that the GPU was not off, which includes short idle times between command buffers.
