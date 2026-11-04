@@ -26,8 +26,17 @@ const uint DirectStream = 0x2u;
 // The radius of the disk of the spatial neighbors, in pixels at a render width of 1,280.
 const float NeighborRadius = 16.0;
 
-// DirectLightSetting.MaxSpatialNeighbors.
-const uint MaxSpatialNeighbors = 8u;
+// The constant of the neighbors' places in the random numbers.
+const uint NeighborStream = 0x3u;
+
+// The place of neighbor i of `neighbors` on the disk around the pixel, turned by `turn`, from the next number of `places`.
+ivec2 neighborPlace(ivec2 pixel, uint i, float turn, inout RandomStream places)
+{
+    float radius = NeighborRadius * frame.viewport.x / 1280.0;
+    float angle = 2.0 * PI * (turn + float(i) / float(resampled.neighbors));
+    vec2 offset = radius * sqrt(nextRandom(places)) * vec2(cos(angle), sin(angle));
+    return clamp(pixel + ivec2(round(offset)), ivec2(0), textureSize(gbufferDistance, 0) - 1);
+}
 
 // The surface of another pixel of the G-buffer, as the candidates pass saw it there.
 ResampledSurface surfaceAtPixel(ivec2 pixel)
@@ -68,40 +77,39 @@ Reservoir spatialReuse(ivec2 pixel, ResampledSurface surface, inout RandomStream
     chosen = ownLight;
     addReservoir(c, own, own.light, visibleTarget(ownLight), own.M, random);
 
-    // The neighbors that the combine takes, the M of each, and its choice or NoLight, for Z.
-    ivec2 taken[MaxSpatialNeighbors];
-    float takenM[MaxSpatialNeighbors];
-    uint takenLight[MaxSpatialNeighbors];
-    uint count = 0u;
+    // The neighbors' places take their own stream, so that the test of Z walks them again: bit i of `taken` marks a
+    // neighbor that the combine took.
+    RandomStream places = randomStream(pixel, NeighborStream);
+    float turn = nextRandom(places);
+    RandomStream placesAgain = places;
+    uint taken = 0u;
     SurfaceKey key = surfaceKeyAt(pixel);
-    ivec2 last = textureSize(gbufferDistance, 0) - 1;
-    float radius = NeighborRadius * frame.viewport.x / 1280.0;
-    float turn = nextRandom(random);
     for (uint i = 0u; i < resampled.neighbors; i++)
     {
-        float angle = 2.0 * PI * (turn + float(i) / float(resampled.neighbors));
-        vec2 offset = radius * sqrt(nextRandom(random)) * vec2(cos(angle), sin(angle));
-        ivec2 neighbor = clamp(pixel + ivec2(round(offset)), ivec2(0), last);
+        ivec2 neighbor = neighborPlace(pixel, i, turn, places);
         if (neighbor == pixel || !sameSurface(key, surfaceKeyAt(neighbor)))
             continue;
         // A neighbor without a choice still stands for its M candidates. One with the pixel's own choice takes its light.
         Reservoir other = unpackReservoir(texelFetch(readReservoirs, neighbor, 0).xy);
-        uint light = holdsChoice(other) ? other.light : NoLight;
-        DirectTerms otherLight = light == own.light && holdsChoice(own) ? ownLight : reusedLight(other, surface);
+        bool ownChoice = holdsChoice(other) && holdsChoice(own) && other.light == own.light;
+        DirectTerms otherLight = ownChoice ? ownLight : reusedLight(other, surface);
         if (addReservoir(c, other, other.light, visibleTarget(otherLight), other.M, random))
             chosen = otherLight;
-        taken[count] = neighbor;
-        takenM[count] = other.M;
-        takenLight[count] = light;
-        count++;
+        taken |= 1u << i;
     }
 
     // Z: a visibility test of the kept light at the surface of each neighbor whose own choice is another light.
     float Z = own.M;
-    if (c.chosenTarget > 0.0)
-        for (uint i = 0u; i < count; i++)
-            if (takenLight[i] == c.r.light || visibleTarget(shadedLight(c.r.light, surfaceAtPixel(taken[i]))) > 0.0)
-                Z += takenM[i];
+    for (uint i = 0u; i < resampled.neighbors; i++)
+    {
+        ivec2 neighbor = neighborPlace(pixel, i, turn, placesAgain);
+        if ((taken & (1u << i)) == 0u || c.chosenTarget <= 0.0)
+            continue;
+        Reservoir other = unpackReservoir(texelFetch(readReservoirs, neighbor, 0).xy);
+        if ((holdsChoice(other) && other.light == c.r.light)
+            || visibleTarget(shadedLight(c.r.light, surfaceAtPixel(neighbor))) > 0.0)
+            Z += other.M;
+    }
     return finishCombining(c, Z);
 }
 #endif

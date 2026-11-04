@@ -848,39 +848,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             name: name
         );
 
-    /// <summary>
-    /// The sampled images of the shared pool: 21 for the G-buffer, post and atlas sets, five per frame set for the tables,
-    /// the specular map, the irradiance cube and the distance cube, one per glow source set, two for the meter set, one per
-    /// pyramid level set, one for the depth tail set, two for the reflection set, one for the prefilter set, one for the
-    /// shadow bounds set, two for each surface test set and one for each reservoir set.
-    /// </summary>
-    private static uint SharedSampledImages(uint frames, uint glowSourceSets) =>
-        21 + 5 * frames + glowSourceSets + 2 + PyramidLevelSets + 1 + 2 + 1 + 1 + 2 * SurfaceTestSets + ReservoirSets;
-
-    /// <summary>
-    /// The storage images of the shared pool: those of each of the two occlusion sets, one per pyramid level set, the depth
-    /// tail set's mips, three for the reflection set, four per environment levels set, three for the scatter set, one for
-    /// the shadow bounds set, four per surface test set, seven per signal set, two per signal read set and two per
-    /// reservoir set.
-    /// </summary>
-    private static uint SharedStorageImages =>
-        2 * OcclusionImages.StorageImages
-        + PyramidLevelSets
-        + DepthPyramidTail.Mips
-        + 3
-        + 4 * EnvironmentLevelsSets
-        + 3
-        + 1
-        + 4 * SurfaceTestSets
-        + SignalSetImages * SignalSets
-        + 2 * SignalReadSets
-        + 2 * ReservoirSets;
-
-    /// <summary>The shared pool, which holds <paramref name="glowSourceSets"/> glow source sets, and the pool of the texture sets.</summary>
-    private (DescriptorPool Shared, DescriptorPool Textures) CreatePools(uint framesInFlight, uint glowSourceSets)
-    {
-        uint frames = framesInFlight;
-        Span<DescriptorPoolSize> sizes =
+    /// <summary>The sizes of the shared pool, which holds <paramref name="glowSourceSets"/> glow source sets.</summary>
+    private static DescriptorPoolSize[] SharedPoolSizes(uint frames, uint glowSourceSets) =>
         [
             // One per frame set, and the scatter set's kernel.
             new(DescriptorType.UniformBuffer, frames + 1),
@@ -890,17 +859,45 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             // Three per frame set (the material sampler and the immutable linear clamp and environment samplers), the
             // immutable samplers of the G-buffer, atlas, post, reflection and prefilter sets, and one per glow source set.
             new(DescriptorType.Sampler, 3 * frames + 5 + glowSourceSets),
-            new(DescriptorType.SampledImage, SharedSampledImages(frames, glowSourceSets)),
-            new(DescriptorType.StorageImage, SharedStorageImages),
+            // 21 for the G-buffer, post and atlas sets, five per frame set for the tables, the specular map, the irradiance
+            // cube and the distance cube, one per glow source set, two for the meter set, one per pyramid level set, one for
+            // the depth tail set, two for the reflection set, one for the prefilter set, one for the shadow bounds set, two
+            // for each surface test set and one for each reservoir set.
+            new(
+                DescriptorType.SampledImage,
+                21 + 5 * frames + glowSourceSets + 2 + PyramidLevelSets + 1 + 2 + 1 + 1 + 2 * SurfaceTestSets + ReservoirSets
+            ),
+            // Those of each of the two occlusion sets, one per pyramid level set, the depth tail set's mips, three for the
+            // reflection set, four per environment levels set, three for the scatter set, one for the shadow bounds set and
+            // four per surface test set, seven per signal set, two per signal read set and two per reservoir set.
+            new(
+                DescriptorType.StorageImage,
+                2 * OcclusionImages.StorageImages
+                    + PyramidLevelSets
+                    + DepthPyramidTail.Mips
+                    + 3
+                    + 4 * EnvironmentLevelsSets
+                    + 3
+                    + 1
+                    + 4 * SurfaceTestSets
+                    + SignalSetImages * SignalSets
+                    + 2 * SignalReadSets
+                    + 2 * ReservoirSets
+            ),
             // The SMAA set.
             new(DescriptorType.CombinedImageSampler, SmaaBindings),
         ];
+
+    /// <summary>The shared pool, which holds <paramref name="glowSourceSets"/> glow source sets, and the pool of the texture sets.</summary>
+    private (DescriptorPool Shared, DescriptorPool Textures) CreatePools(uint framesInFlight, uint glowSourceSets)
+    {
+        uint frames = framesInFlight;
         // The frame sets, the deform sets, the G-buffer, post, atlas, meter, exposure, SMAA, reflection, prefilter,
         // scatter and shadow bounds sets, the two occlusion sets, the glow source sets, the pyramid level sets, the depth tail set,
         // the environment levels sets, the surface test sets, the signal sets, the signal read sets and the reservoir sets.
         // The reflection sets exist even with reflections off: they cost nothing per frame.
         DescriptorPool shared = CreatePool(
-            sizes: sizes,
+            sizes: SharedPoolSizes(frames, glowSourceSets),
             maxSets: 2 * frames
                 + 13
                 + glowSourceSets
