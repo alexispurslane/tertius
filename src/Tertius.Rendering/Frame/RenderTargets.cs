@@ -135,10 +135,12 @@ internal sealed class RenderTargets : IDisposable
         hdrStorage = reflections is not null || subsurface;
         diffuse = subsurface;
         CheckFormats(device: device, reflections: reflections is not null, diffuse: diffuse);
+
         GBufferSet = layouts.AllocateGBufferSet();
         PostSet = layouts.AllocatePostSet();
         MeterSet = layouts.AllocateMeterSet();
         DirectSet = layouts.AllocateSignalReadSet();
+
         Glow = new GpuImage[glowLevels];
         GlowSources = glowLevels == 0 ? [] : new DescriptorSet[glowLevels + 1];
         for (int i = 0; i < GlowSources.Length; i++)

@@ -158,7 +158,9 @@ public sealed unsafe class VulkanRenderer : IRenderer
             uploads = CreateUploads();
 
             targets = CreateTargets(options);
-            surfaceHistory = CreateSurfaceHistory();
+            surfaceHistory = Own(
+                new SurfaceHistory(device: device, allocator: Allocator, layouts: layouts, targets: targets)
+            );
 
             // Before every pass, whose shading constants say whether the scatter is on.
             ScatterImages = CreateScatterImages(options.Subsurface);
@@ -1005,14 +1007,6 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// waits for the device to be idle and submits its own copy.
     /// </summary>
     internal float[] ReadHdr() => ReadLevel(image: targets.Hdr, layer: 0, mip: 0).Values;
-
-    /// <summary>
-    /// The direct light of <paramref name="part"/> after the last frame, 0 the diffuse and 1 the specular, RGBA per pixel,
-    /// row by row from the top: rgb the light divided by its material factor and pre-exposed, a 1, and 0 for sky and
-    /// impostors. A test hook: it waits for the device to be idle and submits its own copy.
-    /// </summary>
-    internal float[] ReadDirectLight(int part) =>
-        ReadLevel(image: part == 0 ? targets.DirectDiffuse : targets.DirectSpecular, layer: 0, mip: 0).Values;
 
     /// <summary>
     /// The first level of the first layer of <paramref name="image"/>, row by row from the top, as floats: a test's own
@@ -1973,10 +1967,6 @@ public sealed unsafe class VulkanRenderer : IRenderer
             maxTextureSize: (int)device.Properties.Limits.MaxImageDimension2D,
             deformBytesLimit: device.Properties.Limits.MaxStorageBufferRange
         );
-
-    /// <summary>The images of the surface test at the targets' size, which the renderer owns.</summary>
-    private SurfaceHistory CreateSurfaceHistory() =>
-        Own(new SurfaceHistory(device: device, allocator: Allocator, layouts: layouts, targets: targets));
 
     /// <summary>The store of the deformed copies, which the renderer owns, at most one storage buffer's range in size.</summary>
     private DeformStore CreateDeformStore() =>
