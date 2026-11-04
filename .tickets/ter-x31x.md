@@ -1,6 +1,6 @@
 ---
 id: ter-x31x
-status: in_progress
+status: closed
 deps: [ter-nmbm]
 links: []
 created: 2026-11-04T00:13:46Z
@@ -36,3 +36,7 @@ On demo-exit's deck at frame 120, a small panel next to a lamp holds a bright ho
 **2026-11-04T13:21:24Z**
 
 2026-11-04: started as workflow run f6f0e448-d204-493b-b7e6-c7a7e504a0bc (version 869b0b07), branch ter-x31x-direct-hot-spot from 023d50777.
+
+**2026-11-04T13:42:24Z**
+
+2026-11-04: obsolete. After reading the ReSTIR paper (Bitterli et al. 2020, which targets thousands of lights with ray-traced visibility and a denoiser, and never compares against shading every light), the user removed light sampling from the renderer: every light of the main view is shaded exactly (ter-9nrc), and tile light lists keep the cost in check (new ticket). So the hot spot loss and the sparkle of ReSTIR have no code left to fix. The workflow run f6f0e448 was stopped in its build stage. Its worktree /Users/alexispurslane/.t3/worktrees/tertius/ter-x31x-direct-hot-spot holds uncommitted diagnostics only (DirectLightPass.cs, RendererOptions.cs, VulkanRenderer.cs, X31xDiagnostic.cs) and scratch data in /private/tmp/x31x; nothing was committed on the branch.
