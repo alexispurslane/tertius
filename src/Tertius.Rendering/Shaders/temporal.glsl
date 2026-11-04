@@ -69,6 +69,37 @@ bool sameSurface(SurfaceKey pixel, SurfaceKey neighbor)
         && dot(neighbor.normal, pixel.normal) >= SameNormalCosine && neighbor.model == pixel.model;
 }
 
+// The light of both indirect signals at a surface, demodulated and pre-exposed.
+struct IndirectLight
+{
+    vec3 diffuse;
+    vec3 specular;
+};
+
+// The environment's closed form at a surface, with every direction open (docs/plans/temporal-renderer.md, section 8,
+// "The zero cases"): the irradiance term at the shading normal and the specular term along the lobe's dominant direction,
+// from the map while it is on and from the hemisphere while it is off, pre-exposed. A pixel without a sample and without
+// a history takes it, and so does a tracer's hit whose surface has no history.
+IndirectLight closedForm(ShadingInput s, vec3 V)
+{
+    IndirectLight light;
+    if (environmentMapOn)
+    {
+        light.diffuse = environmentDiffuse(s.map, s.normal);
+        light.specular = environmentSpecular(
+            s.map, ambientSpecularDirection(s, V), flooredRoughness(s.roughness), s.reflectionFootprint);
+    }
+    else
+    {
+        light.diffuse = mix(frame.ambientGround.rgb, frame.ambientSky.rgb, s.skyFraction);
+        light.specular = mix(frame.ambientGround.rgb, frame.ambientSky.rgb, s.lobeSkyFraction);
+    }
+    float k = exposureScale();
+    light.diffuse = exposed(light.diffuse, k);
+    light.specular = exposed(light.specular, k);
+    return light;
+}
+
 // Whether every channel of a sample is finite: isnan and isinf test it, because a clamp or a min of NaN has no defined
 // result in Vulkan.
 bool finiteSample(vec3 v)

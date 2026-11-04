@@ -1,7 +1,7 @@
 // The reprojection of the temporal signals (docs/plans/temporal-renderer.md, section 8, "The surface test"): a point's
-// place in the last drawn frame's image, and the surface test of the 2 × 2 texels of the last surface history around a
-// place. Needs frame.glsl and octahedral.glsl, the last surface history bound as lastSurfaceHistory and the last device
-// depth as lastDeviceDepth.
+// place in the last drawn frame's image, the surface test of the 2 × 2 texels of the last surface history around a
+// place, and the bilinear weights of those taps, by which every reader of a history reprojects it. Needs frame.glsl and
+// octahedral.glsl.
 #ifndef TERTIUS_SIGNALS_GLSL
 #define TERTIUS_SIGNALS_GLSL
 
@@ -33,7 +33,8 @@ vec3 lastViewRayThrough(vec2 place)
 // top left of the place, tap 1 the one right of it, taps 2 and 3 the row below. lastPoint is the pixel's point in the last
 // frame, relative to the last frame's eye, normal its geometric normal and roughness its roughness. A tap outside the
 // last frame's image, or one that held no surface, fails both tests.
-uint surfaceTaps(vec2 place, vec3 lastPoint, vec3 normal, float roughness)
+uint surfaceTaps(texture2D lastSurfaceHistory, texture2D lastDeviceDepth, vec2 place, vec3 lastPoint, vec3 normal,
+    float roughness)
 {
     ivec2 size = ivec2(frame.previousViewport.xy);
     ivec2 first = ivec2(floor(place * frame.previousViewport.xy - 0.5));
@@ -58,6 +59,48 @@ uint surfaceTaps(vec2 place, vec3 lastPoint, vec3 normal, float roughness)
             bits |= 1u << (tap + 4u);
     }
     return bits;
+}
+
+// The least sum of the passing taps' bilinear weights that holds a history (section 8, "The surface test").
+const float LeastHistoryWeight = 0.05;
+
+// The taps of a place in the last frame's image: the first of its 2 × 2 texels, at the top left of the place, and the
+// bilinear weight of each tap, in the order of surfaceTaps, times its pass bit. A failing tap holds no weight.
+struct Reprojection
+{
+    ivec2 first;
+    vec4 weights;
+};
+
+// The reprojection of a place through the pass bits of its taps: bit i for tap i.
+Reprojection reprojectionOf(vec2 place, uint bits)
+{
+    vec2 texelPlace = place * frame.previousViewport.xy - 0.5;
+    Reprojection r;
+    r.first = ivec2(floor(texelPlace));
+    vec2 f = texelPlace - vec2(r.first);
+    vec4 passes = vec4(uvec4(bits, bits >> 1, bits >> 2, bits >> 3) & 1u);
+    r.weights = vec4((1.0 - f.x) * (1.0 - f.y), f.x * (1.0 - f.y), (1.0 - f.x) * f.y, f.x * f.y) * passes;
+    return r;
+}
+
+// Whether a reprojection holds a history: the sum of its weights reaches LeastHistoryWeight.
+bool holdsHistory(Reprojection r)
+{
+    return dot(r.weights, vec4(1.0)) >= LeastHistoryWeight;
+}
+
+// The texel of tap `tap` of a reprojection.
+ivec2 tapTexel(Reprojection r, uint tap)
+{
+    return r.first + ivec2(tap & 1u, tap >> 1);
+}
+
+// The history length at a place, from the last slow history's lengths at its four taps: their weighted mean, or 0 where
+// the reprojection holds no history. The ray plan reads a signal's length through it, as the accumulation does.
+float reprojectedLength(Reprojection r, vec4 tapLengths)
+{
+    return holdsHistory(r) ? dot(r.weights, tapLengths) / dot(r.weights, vec4(1.0)) : 0.0;
 }
 
 #endif

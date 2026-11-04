@@ -6,10 +6,9 @@ namespace Tertius.Rendering.Tests;
 
 /// <summary>
 /// The accumulator of a signal (docs/plans/temporal-renderer.md, section 8): a constant sample stays constant, a step of the
-/// sample reaches the history within the bound of the anti-lag, and a sample that is not finite counts as no sample. The
-/// renderer makes no signal until the screen tracer's (ter-gayt), so the test makes one of two parts with a cap of 16
-/// frames, the parameter set that the direct signal had under ReSTIR, and a test pass, its producer, writes a chosen sample
-/// into both parts in each frame. The camera stands still before a wall that fills the view, and each frame steps one tick,
+/// sample reaches the history within the bound of the anti-lag, a sample that is not finite counts as no sample, a pixel
+/// without a sample or a history takes the closed form, and the specular signal's cap and own tests. The test makes a
+/// signal of two parts, and a test pass, its producer, writes a chosen sample into both parts in each frame. The camera stands still before a wall that fills the view, and each frame steps one tick,
 /// so each frame continues the last one.
 /// </summary>
 [Collection(GpuCollection.Name)]
@@ -21,27 +20,34 @@ public sealed class AccumulatorRenderTests
     /// <summary>The step of each frame after the first: one tick, which continues the last frame.</summary>
     private const double Tick = 1.0 / 60.0;
 
-    /// <summary>The test signal's parameter set: a history of 16 frames and a fast history of 4.</summary>
-    private static readonly SignalParameters Parameters = new(
-        Cap: 16,
-        FastCap: 4,
-        HistoryFixFrames: 4,
-        ClampSigmas: 2,
-        AntiLagShare: 0.5f
-    );
+    /// <summary>The test signal's parameter set: a diffuse signal with a history of 16 frames and a fast history of 4.
+    /// </summary>
+    private static readonly SignalParameters Parameters = SignalParameters.Diffuse with { Cap = 16, SmoothCap = 16 };
+
+    /// <summary>The ambient light of the scenes, the same from the sky and from the ground, so that the environment's
+    /// closed form is this light in every direction.</summary>
+    private static readonly Vector3 Ambient = new(0.2f, 0.3f, 0.4f);
 
     /// <summary>
     /// The renderer with the test signal and its producer and accumulation after the direct pass, under
     /// <paramref name="exposure"/>, the fixed exposure of the tests without it.
     /// </summary>
     private static (VulkanRenderer Renderer, SamplePass Sample, RenderSnapshot Scene) Accumulating(
-        ExposureSetting exposure = default
+        ExposureSetting exposure = default,
+        SignalParameters? parameters = null,
+        float roughness = 0.5f
     )
     {
         VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height, exposure: exposure);
         MeshId cube = renderer.CreateMesh(Primitives.Box(new(0.5f)));
-        MaterialId white = renderer.CreateMaterial(MaterialDesc.Color(Vector4.One, roughness: 0.5f));
+        MaterialId white = renderer.CreateMaterial(MaterialDesc.Color(Vector4.One, roughness: roughness));
         RenderSnapshot scene = Gpu.Snapshot(new(0.3f, 1f, 0.4f));
+        scene.Ambient = new()
+        {
+            SkyColor = Ambient,
+            GroundColor = Ambient,
+            Intensity = 1f,
+        };
         scene.Instances.Add(
             Gpu.Instance(
                 mesh: cube,
@@ -52,7 +58,9 @@ public sealed class AccumulatorRenderTests
                 entity: 1
             )
         );
-        var sample = new SamplePass(renderer.CreateSignal(parameters: Parameters, name: "test", parts: 2));
+        var sample = new SamplePass(
+            renderer.CreateSignal(parameters: parameters ?? Parameters, name: "test", parts: 2)
+        );
         renderer.Graph.Add(FrameGraph.Stage.DirectLight, sample);
         renderer.Graph.Add(FrameGraph.Stage.DirectLight, new AccumulatePass(sample.Signal));
         return (renderer, sample, scene);
@@ -239,20 +247,116 @@ public sealed class AccumulatorRenderTests
         }
     }
 
-    [Fact]
-    public void APixelWithoutAHistoryAndWithANaNSampleTakesTheClosedFormZero()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void APixelWithoutASampleAndWithoutAHistoryTakesTheEnvironmentsClosedForm(bool specular)
     {
-        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating();
+        // The ambient light is the same in every direction, so its irradiance term and its specular term are both that
+        // light, pre-exposed.
+        SignalParameters parameters = specular ? SignalParameters.Specular(0.4f) : Parameters;
+        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(parameters: parameters);
         try
         {
             sample.Value = new(x: float.NaN, y: float.NaN, z: float.NaN, w: 1f);
 
             renderer.Render(scene, 1f);
 
-            for (int part = 0; part < 2; part++)
-                CenterOf(renderer, sample, part)
-                    .Light.Should()
-                    .Be(Vector3.Zero, "the still's first draw reset every history");
+            float scale = MathF.Pow(2, renderer.ReadExposureStops().Stops);
+            Vector3 closedForm = CenterOf(renderer, sample, part: 0).Light;
+            closedForm.X.Should().BeApproximately(Ambient.X * scale, 2e-3f * Ambient.X * scale);
+            closedForm.Y.Should().BeApproximately(Ambient.Y * scale, 2e-3f * Ambient.Y * scale);
+            closedForm.Z.Should().BeApproximately(Ambient.Z * scale, 2e-3f * Ambient.Z * scale);
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Theory]
+    [InlineData(0.05f, 4f)]
+    [InlineData(0.4f, 18f)]
+    [InlineData(0.8f, 32f)]
+    public void TheSpecularSignalsCapFollowsTheRoughness(float roughness, float cap)
+    {
+        // 4 frames up to a roughness of 0.1, then linear to 32 frames at 0.7.
+        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
+            parameters: SignalParameters.Specular(0.4f),
+            roughness: roughness
+        );
+        try
+        {
+            sample.Value = new(x: 1f, y: 1f, z: 1f, w: 0f);
+            renderer.Render(scene, 1f);
+
+            Continue(renderer, scene, frames: 40);
+
+            CenterOf(renderer, sample, part: 0).Length.Should().BeApproximately(cap, 1e-3f);
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Theory]
+    [InlineData(4.5f, 1f)]
+    [InlineData(3.5f, 4f)]
+    public void ASpecularTapWhoseHitDistanceDiffersByMoreThanHalfOfTheLargerFails(float hitDistance, float length)
+    {
+        // The history holds a hit distance of 2 m. Against 4.5 m the tap fails, and the history starts again; against
+        // 3.5 m, within half of 3.5 m, it passes, and the history of a mirror keeps its cap of 4.
+        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
+            parameters: SignalParameters.Specular(0.4f),
+            roughness: 0.05f
+        );
+        try
+        {
+            sample.Value = new(x: 1f, y: 1f, z: 1f, w: 2f);
+            renderer.Render(scene, 1f);
+            Continue(renderer, scene, frames: 10);
+
+            sample.Value = new(x: 1f, y: 1f, z: 1f, w: hitDistance);
+            Continue(renderer, scene, frames: 1);
+
+            CenterOf(renderer, sample, part: 0).Length.Should().Be(length);
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Theory]
+    [InlineData(true, 4f)]
+    [InlineData(false, 1f)]
+    public void AMirrorPixelWhoseSurfaceLeftTheLastImageKeepsItsHistoryThroughTheReflectedPoint(
+        bool specular,
+        float length
+    )
+    {
+        // The camera steps 1 m to the right along a mirror 20 m away, whose hits lie 20 m behind it. The mirror's points
+        // move 1.56 px to the left, the reflected points 40 m away 0.78 px. So the surface point of the column before the
+        // last lay past the last image's edge, and its reflected point inside it. The diffuse signal has the surface
+        // place alone.
+        SignalParameters parameters = specular ? SignalParameters.Specular(0.4f) : Parameters;
+        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
+            parameters: parameters with { Cap = 4, SmoothCap = 4 },
+            roughness: 0.05f
+        );
+        try
+        {
+            sample.Value = new(x: 1f, y: 1f, z: 1f, w: 20f);
+            renderer.Render(scene, 1f);
+            Continue(renderer, scene, frames: 6);
+
+            scene.Camera.PreviousPosition = scene.Camera.Position;
+            scene.Camera.Position += new Vector3(1f, 0, 0);
+            Continue(renderer, scene, frames: 1);
+
+            float[] history = HistoryOf(renderer, sample, part: 0);
+            history[4 * (Height / 2 * Width + Width - 2) + 3].Should().Be(length);
         }
         finally
         {

@@ -748,19 +748,32 @@ internal struct SurfaceTestPushConstants
 internal struct AccumulatePushConstants
 {
     public float Cap;
+    public float SmoothCap;
     public float FastCap;
     public float HistoryFixFrames;
     public float ClampSigmas;
     public float AntiLagShare;
 
-    public static AccumulatePushConstants Of(SignalParameters parameters) =>
+    /// <summary>The signal's light: 0 diffuse, 1 specular (<see cref="SignalLight"/>).</summary>
+    public uint Light;
+
+    public float ReflectedPlaceBelow;
+
+    /// <summary>1 in a frame that resets every history, where no reprojection holds one; 0 otherwise.</summary>
+    public uint Reset;
+
+    public static AccumulatePushConstants Of(SignalParameters parameters, bool reset) =>
         new()
         {
             Cap = parameters.Cap,
+            SmoothCap = parameters.SmoothCap,
             FastCap = parameters.FastCap,
             HistoryFixFrames = parameters.HistoryFixFrames,
             ClampSigmas = parameters.ClampSigmas,
             AntiLagShare = parameters.AntiLagShare,
+            Light = (uint)parameters.Light,
+            ReflectedPlaceBelow = parameters.ReflectedPlaceBelow,
+            Reset = reset ? 1u : 0u,
         };
 }
 

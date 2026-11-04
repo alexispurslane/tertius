@@ -99,6 +99,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
     private readonly ImpostorAtlas? impostorAtlas;
     private readonly OcclusionImages? occlusionImages;
     private readonly SurfaceHistory surfaceHistory;
+    private readonly SignalScratch signalScratch;
     private readonly BarrierBatch barriers = new();
     private readonly GpuTimer timer;
     private readonly ExposureSetting exposureSetting;
@@ -161,6 +162,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             surfaceHistory = Own(
                 new SurfaceHistory(device: device, allocator: Allocator, layouts: layouts, targets: targets)
             );
+            signalScratch = Own(new SignalScratch(device: device, allocator: Allocator, targets: targets));
 
             // Before every pass, whose shading constants say whether the scatter is on.
             ScatterImages = CreateScatterImages(options.Subsurface);
@@ -878,6 +880,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             return;
         targets.Resize(extent);
         surfaceHistory.Resize(targets);
+        signalScratch.Resize();
         occlusionImages?.Resize(targets);
         ScatterImages?.Resize(targets);
     }
@@ -1031,6 +1034,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 shaders: shaders,
                 targets: targets,
                 surfaces: surfaceHistory,
+                scratch: signalScratch,
                 parameters: parameters,
                 name: name,
                 parts: parts

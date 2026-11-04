@@ -60,7 +60,8 @@ void main()
     vec2 place = center * frame.viewport.zw + motion.xy;
     uint bits = 0u;
     if (pass.reset == 0u && all(greaterThanEqual(place, vec2(0.0))) && all(lessThanEqual(place, vec2(1.0))))
-        bits = surfaceTaps(place, lastViewRayThrough(place) * (depth * motion.z), normal, roughness);
+        bits = surfaceTaps(lastSurfaceHistory, lastDeviceDepth, place, lastViewRayThrough(place) * (depth * motion.z),
+            normal, roughness);
     imageStore(surfaceTest, pixel, uvec4(bits));
     // The device depth holds the view depth: a half float holds at most 65,504 m.
     imageStore(surfaceHistory, pixel, vec4(0.0, octEncode(normal), roughness));

@@ -65,8 +65,9 @@ namespace Tertius.Rendering;
 /// and this frame's device depth as storage images (docs/plans/temporal-renderer.md, "The surface test"). Two, one per parity of the drawn frames,
 /// rewritten on resize.</description></item>
 /// <item><term>signal</term><description>set 3 of <see cref="AccumulateLayout"/>: one part of a signal's images, the
-/// surface test image and the motion target, as storage images for the compute stage
-/// (<see cref="TemporalSignal"/>). One per part and parity, rewritten on resize.</description></item>
+/// surface test image and the motion target, as storage images for the compute stage, and the last surface history and
+/// the last device depth as sampled images (<see cref="TemporalSignal"/>). One per part and parity, rewritten on
+/// resize.</description></item>
 /// <item><term>signal read</term><description>set 3 of <see cref="CompositeLayout"/>: the two parts of a light as storage
 /// images for the fragment stage, the direct light's images (<see cref="RenderTargets.DirectSet"/>) or a signal's slow
 /// histories (<see cref="TemporalSignal.ReadSet"/>). Rewritten on resize.</description></item>
@@ -87,19 +88,22 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     private const uint SurfaceTestSets = 2;
 
     /// <summary>
-    /// The signal sets: one per part and parity of a signal of two parts (<see cref="TemporalSignal"/>). The renderer makes
-    /// no signal until the screen tracer's (ter-gayt), so only the accumulator's tests take them today.
+    /// The signal sets: one per part and parity of the screen tracer's two signals of one part, and of a test's signal of
+    /// two parts (<see cref="TemporalSignal"/>).
     /// </summary>
-    private const uint SignalSets = 4;
+    private const uint SignalSets = 8;
 
     /// <summary>The storage images of a signal set.</summary>
     private const uint SignalSetImages = 7;
 
+    /// <summary>The sampled images of a signal set: the last surface history and the last device depth.</summary>
+    private const uint SignalSetSampledImages = 2;
+
     /// <summary>The most parts of a signal: the images of the signal read set.</summary>
     public const int SignalReadParts = 2;
 
-    /// <summary>The signal read sets: the direct light's and that of the one signal of <see cref="SignalSets"/>.</summary>
-    private const uint SignalReadSets = 2;
+    /// <summary>The signal read sets: the direct light's, the screen tracer's two signals' and a test's signal's.</summary>
+    private const uint SignalReadSets = 4;
 
     /// <summary>
     /// The storage buffers of the frame set: bindings 1 to 4, 6, 7, 11, 15, 17 and 18, which the vertex stage all sees. The
@@ -125,9 +129,9 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
 
     /// <summary>
     /// The pyramid level sets of the largest pyramids: levels 1 to 14 of the depth pyramid and 0 to 14 of the radiance
-    /// pyramid, for a 16,384 px side (<see cref="DepthPyramid.MaxLevels"/>).
+    /// pyramid, for a 16,384 px side (<see cref="DepthPyramid.MaxLevels"/>), and the depth pyramid's finest level.
     /// </summary>
-    public const uint PyramidLevelSets = 2 * DepthPyramid.MaxLevels + 1;
+    public const uint PyramidLevelSets = 2 * DepthPyramid.MaxLevels + 2;
 
     /// <summary>
     /// The levels sets of the largest map: one per dispatch of the downsample of its radiance map and of its distance cube,
@@ -842,11 +846,21 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             new(DescriptorType.Sampler, 3 * frames + 5 + glowSourceSets),
             // 21 for the G-buffer, post and atlas sets, five per frame set for the tables, the specular map, the irradiance
             // cube and the distance cube, one per glow source set, two for the meter set, one per pyramid level set, one for
-            // the depth tail set, two for the reflection set, one for the prefilter set, one for the shadow bounds set and two
-            // for each surface test set.
+            // the depth tail set, two for the reflection set, one for the prefilter set, one for the shadow bounds set, two
+            // for each surface test set and two for each signal set.
             new(
                 DescriptorType.SampledImage,
-                21 + 5 * frames + glowSourceSets + 2 + PyramidLevelSets + 1 + 2 + 1 + 1 + 2 * SurfaceTestSets
+                21
+                    + 5 * frames
+                    + glowSourceSets
+                    + 2
+                    + PyramidLevelSets
+                    + 1
+                    + 2
+                    + 1
+                    + 1
+                    + 2 * SurfaceTestSets
+                    + SignalSetSampledImages * SignalSets
             ),
             // Those of each of the two occlusion sets, one per pyramid level set, the depth tail set's mips, three for the
             // reflection set, four per environment levels set, three for the scatter set, one for the shadow bounds set and
@@ -1076,9 +1090,13 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// <summary>The layouts of the signal set and the signal read set (<see cref="SignalSet"/>).</summary>
     private (DescriptorSetLayout Signal, DescriptorSetLayout SignalRead) CreateTemporalSetLayouts()
     {
-        Span<DescriptorSetLayoutBinding> signal = stackalloc DescriptorSetLayoutBinding[(int)SignalSetImages];
+        Span<DescriptorSetLayoutBinding> signal = stackalloc DescriptorSetLayoutBinding[
+            (int)(SignalSetImages + SignalSetSampledImages)
+        ];
         for (uint binding = 0; binding < SignalSetImages; binding++)
             signal[(int)binding] = StorageImage(binding);
+        for (uint binding = SignalSetImages; binding < SignalSetImages + SignalSetSampledImages; binding++)
+            signal[(int)binding] = Image(binding: binding, stages: ShaderStageFlags.ComputeBit);
         Span<DescriptorSetLayoutBinding> read =
         [
             StorageImage(binding: 0, stages: ShaderStageFlags.FragmentBit),
