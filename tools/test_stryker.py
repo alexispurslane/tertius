@@ -19,6 +19,7 @@ import threading
 import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
 TOOLS = Path(__file__).resolve().parent
 
@@ -516,18 +517,103 @@ class ComparingRuns(unittest.TestCase):
         self.assertEqual(len(compare.differences(self._rows("killed"), other)), 2)
 
 
+# Each lock test gets a fresh folder under /private/tmp, never the real lock /tmp/tertius-stryker.lock.
+SCRATCH = "/private/tmp" if os.path.isdir("/private/tmp") else None
+# The time that a test gives a run to stop on a lock that it must wait for.
+SETTLE = 1.0
+# A start time that no live process has.
+NEVER_STARTED = "Thu Jan 1 00:00:00 1970"
+
+
+def start_time(pid):
+    """The start time of the process pid as the record holds it: in UTC, with its spaces squeezed."""
+    out = subprocess.run(["ps", "-o", "lstart=", "-p", str(pid)], env={**os.environ, "TZ": "UTC0", "LC_ALL": "C"},
+                         capture_output=True, text=True, check=False).stdout
+    return " ".join(out.split())
+
+
+def read_record(path):
+    holder = Path(path) / "holder"
+    if not holder.exists():
+        return {}
+    return dict(line.split("=", 1) for line in holder.read_text().splitlines() if "=" in line)
+
+
 class TheLock(unittest.TestCase):
-    """Lock: one Stryker run at a time on the machine, through a folder that mkdir makes or refuses atomically."""
+    """Lock: one Stryker run at a time on the machine, through a folder that mkdir makes or refuses atomically. The
+    folder holds the holder's record, in the format of the GPU lock (tools/README.md, "The record of a machine lock")."""
 
     def setUp(self):
-        self.dir = tempfile.TemporaryDirectory()
+        self.dir = tempfile.TemporaryDirectory(dir=SCRATCH, prefix="stryker-lock-test-")
         self.addCleanup(self.dir.cleanup)
         self.path = Path(self.dir.name) / "stryker.lock"
+        assert str(self.path) != str(run.LOCK_PATH)
 
-    def test_inside_the_block_the_lock_folder_names_this_process_and_after_it_the_folder_is_gone(self):
+    def write_record(self, pid, start, token="someone-else", label="another run"):
+        self.path.mkdir()
+        (self.path / "holder").write_text(f"pid={pid}\nstart={start}\ntoken={token}\nlabel={label}\n")
+
+    def sleeper(self):
+        process = subprocess.Popen(["sleep", "60"])
+        self.addCleanup(process.wait)
+        self.addCleanup(process.kill)
+        return process
+
+    def dead_pid(self):
+        process = subprocess.Popen(["true"])
+        process.wait()
+        return process.pid
+
+    def waiting_run(self):
+        """A run that waits for the lock in a thread. Its list gets "took" or the message with which it stopped. The
+        end of the test removes the lock, so that a run that still waits takes it, releases it and ends."""
+        outcome = []
+
+        def acquire():
+            try:
+                with run.Lock(self.path, poll=0.01, say=lambda _: None):
+                    outcome.append("took")
+            except SystemExit as stop:
+                outcome.append(str(stop))
+
+        thread = threading.Thread(target=acquire, daemon=True)
+        self.addCleanup(thread.join, 10)
+        self.addCleanup(lambda: subprocess.run(["rm", "-rf", str(self.path)], check=False))
+        thread.start()
+        return outcome
+
+    def test_inside_the_block_the_lock_folder_holds_the_record_of_this_process_and_after_it_the_folder_is_gone(self):
         with run.Lock(self.path, poll=0.01):
-            self.assertIn(str(os.getpid()), (self.path / "owner").read_text())
+            record = read_record(self.path)
+            self.assertEqual(record.get("pid"), str(os.getpid()))
+            self.assertEqual(record.get("start"), start_time(os.getpid()))
+            self.assertRegex(record.get("token", ""), r"\S{8,}")
+            self.assertEqual(record.get("label"), os.getcwd())
+        self.assertEqual(os.listdir(self.dir.name), [])
+
+    def test_a_newline_in_the_runs_folder_cannot_split_the_holders_record(self):
+        folder = Path(self.dir.name) / "run\ntoken=foreign"
+        folder.mkdir()
+        self.addCleanup(os.chdir, os.getcwd())
+        os.chdir(folder)
+        with run.Lock(self.path, poll=0.01) as lock:
+            self.assertEqual(len((self.path / "holder").read_text().splitlines()), 4)
+            self.assertTrue(lock.held())
         self.assertFalse(self.path.exists())
+
+    def test_a_run_whose_ps_gives_no_start_time_removes_the_lock_and_stops(self):
+        with mock.patch.object(run, "start_of", lambda pid: ""):
+            with self.assertRaises(SystemExit) as stop:
+                with run.Lock(self.path, poll=0.01):
+                    self.fail("the run went on without a record")
+        self.assertIn("record", str(stop.exception))
+        self.assertEqual(os.listdir(self.dir.name), [])
+
+    def test_two_runs_get_different_tokens(self):
+        with run.Lock(self.path, poll=0.01):
+            token = read_record(self.path)["token"]
+        with run.Lock(self.path, poll=0.01):
+            self.assertNotEqual(read_record(self.path)["token"], token)
 
     def test_an_exception_inside_the_block_still_releases_the_lock(self):
         with self.assertRaises(RuntimeError):
@@ -552,39 +638,171 @@ class TheLock(unittest.TestCase):
         thread.join(timeout=5)
         self.assertEqual(order, ["first released", "second"])
 
+    def test_a_release_keeps_its_record_until_the_public_lock_name_is_free_for_the_next_run(self):
+        first = run.Lock(self.path, poll=0.01)
+        second = run.Lock(self.path, poll=0.01)
+        self.addCleanup(first.release)
+        self.addCleanup(second.release)
+        first.acquire()
+        remove = run.shutil.rmtree
+
+        def delete_released(folder):
+            self.assertFalse(self.path.exists())
+            self.assertEqual(read_record(Path(folder)).get("token"), first.token)
+            second.acquire()
+            remove(folder)
+
+        with mock.patch.object(run.shutil, "rmtree", side_effect=delete_released):
+            first.release()
+        self.assertTrue(second.held())
+        second.release()
+        self.assertEqual(os.listdir(self.dir.name), [])
+
     def test_a_release_leaves_a_lock_that_another_process_holds(self):
-        self.path.mkdir()
-        (self.path / "owner").write_text(f"{os.getppid()} another run\n")
+        self.write_record(os.getppid(), start_time(os.getppid()))
         lock = run.Lock(self.path, poll=0.01)
         lock.release()
-        self.assertTrue((self.path / "owner").exists())
+        self.assertEqual(read_record(self.path).get("token"), "someone-else")
 
-    def test_a_lock_folder_without_an_owner_for_more_than_a_minute_stops_the_run_with_the_command_that_removes_it(self):
-        # A run that died between its mkdir and its owner file, or a mkdir by hand.
-        self.path.mkdir()
-        old = time.time() - 2 * run.STALE_SECONDS
-        os.utime(self.path, (old, old))
-        with self.assertRaises(SystemExit) as stop:
-            with run.Lock(self.path, poll=0.01):
-                pass
-        self.assertIn("rm -r", str(stop.exception))
+    def test_a_release_leaves_a_lock_that_another_run_of_this_process_took_since(self):
+        # The first run's lock was removed by hand, and a second run took it. Both runs have this process id.
+        first = run.Lock(self.path, poll=0.01)
+        first.acquire()
+        subprocess.run(["rm", "-r", str(self.path)], check=True)
+        second = run.Lock(self.path, poll=0.01)
+        second.acquire()
+        self.assertFalse(first.held())
+        first.release()
+        self.assertTrue(second.held())
+        second.release()
+        self.assertEqual(os.listdir(self.dir.name), [])
+
+    def test_a_lock_folder_without_a_complete_record_for_more_than_a_minute_stops_the_run_with_the_command_that_removes_it(self):
+        # A run that died between its mkdir and its record, or a mkdir by hand. A record that lacks its pid, start or
+        # token counts as no record.
+        for lacks in [None, "pid", "start", "token"]:
+            with self.subTest(lacks=lacks):
+                subprocess.run(["rm", "-rf", str(self.path)], check=True)
+                record = {"pid": self.dead_pid(), "start": NEVER_STARTED, "token": "someone-else"}
+                if lacks is None:
+                    self.path.mkdir()
+                else:
+                    record[lacks] = ""
+                    self.write_record(**record)
+                old = time.time() - 2 * run.STALE_SECONDS
+                os.utime(self.path, (old, old))
+                with self.assertRaises(SystemExit) as stop:
+                    with run.Lock(self.path, poll=0.01):
+                        pass
+                self.assertIn("no complete record", str(stop.exception))
+                self.assertIn(f"rm -r {self.path}", str(stop.exception))
+                self.assertTrue(self.path.exists())
 
     def test_a_stryker_run_without_the_lock_of_this_process_is_refused_before_it_starts(self):
-        with tempfile.TemporaryDirectory() as folder:
+        with tempfile.TemporaryDirectory(dir=SCRATCH) as folder:
             with self.assertRaises(RuntimeError):
                 run.run_module(folder, "Core", Path(folder), run.Lock(self.path))
             self.assertEqual(os.listdir(folder), [])
 
-    def test_a_lock_whose_owner_process_is_gone_stops_the_run_with_the_command_that_removes_it(self):
-        process = subprocess.Popen([sys.executable, "-c", "pass"])
-        process.wait()
-        self.path.mkdir()
-        (self.path / "owner").write_text(f"{process.pid} a run that died\n")
-        with self.assertRaises(SystemExit) as stop:
-            with run.Lock(self.path, poll=0.01):
-                pass
-        self.assertIn("rm -r", str(stop.exception))
+    def test_a_lock_whose_holder_process_is_gone_stops_the_run_with_the_command_that_removes_it(self):
+        self.write_record(self.dead_pid(), NEVER_STARTED, label="a run that died")
+        outcome = self.waiting_run()
+        self.assertTrue(wait_for(lambda: outcome))
+        self.assertIn("a run that died", outcome[0])
+        self.assertIn(f"rm -r {self.path}", outcome[0])
+        self.assertEqual(read_record(self.path).get("token"), "someone-else")
+
+    def test_a_reused_process_id_with_another_start_time_stops_the_run_with_the_command_that_removes_it(self):
+        self.write_record(self.sleeper().pid, NEVER_STARTED)
+        outcome = self.waiting_run()
+        self.assertTrue(wait_for(lambda: outcome))
+        self.assertIn(f"rm -r {self.path}", outcome[0])
         self.assertTrue(self.path.exists())
+
+    def test_a_live_holder_is_waited_for_when_ps_gives_nothing_and_judged_gone_once_its_process_ends(self):
+        holder = self.sleeper()
+        self.write_record(holder.pid, start_time(holder.pid))
+        with mock.patch.object(run, "start_of", lambda pid: ""):
+            outcome = self.waiting_run()
+            time.sleep(SETTLE)
+            self.assertEqual(outcome, [])
+            holder.kill()
+            holder.wait()
+            self.assertTrue(wait_for(lambda: outcome))
+        self.assertIn(f"rm -r {self.path}", outcome[0])
+
+    def test_a_live_holder_in_another_time_zone_is_waited_for(self):
+        held, release = Path(self.dir.name) / "held", Path(self.dir.name) / "release"
+        script = ("import importlib.util, os, sys, time\n"
+                  "spec = importlib.util.spec_from_file_location('run', sys.argv[1])\n"
+                  "run = importlib.util.module_from_spec(spec)\n"
+                  "spec.loader.exec_module(run)\n"
+                  "with run.Lock(sys.argv[2], poll=0.01):\n"
+                  "    open(sys.argv[3], 'w').close()\n"
+                  "    while not os.path.exists(sys.argv[4]):\n"
+                  "        time.sleep(0.02)\n")
+        holder = subprocess.Popen([sys.executable, "-I", "-c", script, str(TOOLS / "stryker" / "run.py"), str(self.path),
+                                   str(held), str(release)], env={**os.environ, "TZ": "Asia/Tokyo"})
+        self.addCleanup(holder.wait, 10)
+        self.addCleanup(release.touch)
+        self.assertTrue(wait_for(held.exists))
+        self.assertEqual(read_record(self.path).get("start"), start_time(holder.pid))
+        with mock.patch.dict(os.environ, {"TZ": "America/Los_Angeles"}):
+            outcome = self.waiting_run()
+            time.sleep(SETTLE)
+            self.assertEqual(outcome, [])
+            release.touch()
+            self.assertTrue(wait_for(lambda: outcome))
+        self.assertEqual(outcome, ["took"])
+
+    def test_a_lock_of_a_run_before_ter_s4fg_counts_as_held_while_its_process_runs(self):
+        # The run.py of a worktree from before ter-s4fg writes the file owner (pid, folder, local time) and no record.
+        holder = self.sleeper()
+        self.path.mkdir()
+        (self.path / "owner").write_text(f"{holder.pid} /some/worktree 2026-11-04T12:00:00\n")
+        old = time.time() - 2 * run.STALE_SECONDS
+        os.utime(self.path, (old, old))
+        outcome = self.waiting_run()
+        time.sleep(SETTLE)
+        self.assertEqual(outcome, [])
+        holder.kill()
+        holder.wait()
+        self.assertTrue(wait_for(lambda: outcome))
+        self.assertIn(f"rm -r {self.path}", outcome[0])
+        self.assertTrue((self.path / "owner").exists())
+
+    def test_the_waiting_message_names_the_holder_of_the_lock(self):
+        holder = self.sleeper()
+        old_owner = f"process {holder.pid} of a run.py from before ter-s4fg"
+        for case, writes, named in [
+            ("record", lambda: self.write_record(holder.pid, start_time(holder.pid), label="/other/worktree"),
+             f"/other/worktree (process {holder.pid})"),
+            ("owner of a run.py before ter-s4fg", lambda: (self.path.mkdir(), (self.path / "owner").write_text(
+                f"{holder.pid} /some/worktree 2026-11-04T12:00:00\n")), old_owner),
+            ("nothing yet", self.path.mkdir, "a run that is starting"),
+        ]:
+            with self.subTest(case=case):
+                subprocess.run(["rm", "-rf", str(self.path)], check=True)
+                writes()
+                said = []
+                waiter = threading.Thread(target=lambda: run.Lock(self.path, poll=0.01, say=said.append).acquire(),
+                                          daemon=True)
+                waiter.start()
+                self.assertTrue(wait_for(lambda: said))
+                self.assertEqual(said[0], f"waiting for the Stryker lock {self.path}, held by {named}")
+                # The waiter takes the empty path, gets its own record, and the thread ends.
+                subprocess.run(["rm", "-rf", str(self.path)], check=True)
+                waiter.join(10)
+                subprocess.run(["rm", "-rf", str(self.path)], check=True)
+
+
+def wait_for(condition, timeout=10.0):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if condition():
+            return True
+        time.sleep(0.02)
+    return condition()
 
 
 if __name__ == "__main__":
