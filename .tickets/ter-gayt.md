@@ -1,6 +1,6 @@
 ---
 id: ter-gayt
-status: open
+status: in_progress
 deps: [ter-nmbm, ter-toaw, ter-8hbi, ter-jz2y, ter-sftw, ter-3ug8, ter-jxjx]
 links: [ter-dzxf]
 created: 2026-11-03T14:53:48Z
@@ -32,3 +32,7 @@ Build ticket 4 of epic ter-89xq. Design: docs/plans/temporal-renderer.md, sectio
 **2026-11-04T18:51:06Z**
 
 2026-11-04, the user's answers to the plan's open forks of ticket 4 (docs/plans/temporal-renderer.md, 'Open forks of ticket 4'): fork 1, design A, a busy headless film (a timed film keeps two frames in flight; the span's recorded clock shows whether the GPU reached the top clock). Fork 2, design A, a C# copy of the two-depth walk in ScreenRay, held against a march over the flat slabs on 1,000,000 random rays, with GPU tests pinning the shader (and any later Mac-only shader) to it. Frames after a reset (known limit 21): no bound at the first build; part 7 measures them and reports, and a limit comes with the ray-limit ticket if needed. The build records these answers in the plan's forks section.
+
+**2026-11-04T19:08:48Z**
+
+2026-11-04: started as a workflow, run 5fb9756d-2153-4e58-ae8b-648f521b25a6 (version 869b0b07, Opus high builder, Opus xhigh reviewer), branch ter-gayt-screen-tracer from 86c3c497f. One builder works through the plan's eight parts in order; no measured value stops the work; the hill-climb's change comes after this ticket.
