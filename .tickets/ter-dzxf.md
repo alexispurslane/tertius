@@ -1,6 +1,6 @@
 ---
 id: ter-dzxf
-status: open
+status: in_progress
 deps: [ter-sftw]
 links: [ter-gayt]
 created: 2026-11-04T01:51:17Z
@@ -34,3 +34,7 @@ It starts after ter-sftw, because the profiling spike measures where the walk's 
 **2026-11-04T12:20:46Z**
 
 2026-11-04: with the user's 12 ms target (ter-89xq's note), the two trace dispatches get 1.36 to 2.05 ms if the rest of the frame stays as estimated, against V6's 2.92 to 3.16 ms at 10 % own rays at the windowed clock. So the climb's goal is a cut of about 35 to 55 % in the dispatches, at the correctness gate. Candidates named so far: the unrolled step loop (the calibration probe went from 41 % to 77 to 93 % of the FP32 peak), the 0.85 ms of our own code in V1's walk whose cause is unknown, GLSL forms that MoltenVK translates better (the words form recovered the record reads), persistent lanes, and whatever the profiling continuation leaves open of the level 0 layout and the diffuse cap with V6.
+
+**2026-11-04T17:28:07Z**
+
+2026-11-04: started as a workflow, run 19acc6a3-4a97-4598-94eb-a12c17619eca (version 869b0b07), builder GPT 6.1 SOL at xhigh, branch ter-dzxf-walk-hill-climb from the profiling spike's 3c9fda2a3. Settled: start from V6 for both kinds at the diffuse cap of 64; the harness runs V6's real walk on the spike's dumps; the gate is the same hit texel and kind on every ray; objective at the top clock with gpu-clock; every kept change portable with its reason; the target comes from the budget recalculation (running).
