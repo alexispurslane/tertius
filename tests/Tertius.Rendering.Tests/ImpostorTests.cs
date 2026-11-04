@@ -71,7 +71,7 @@ public sealed class ImpostorTests(ITestOutputHelper output)
         {
             var assets = Assets.Create(renderer);
             var key = new ImpostorKey(
-                EntityIndex: 7,
+                Entity: new(Index: 7, Generation: 0),
                 Part: 0,
                 Mesh: assets.Sphere.Value,
                 Material: MaterialStore.Slot(assets.Red)
@@ -191,7 +191,7 @@ public sealed class ImpostorTests(ITestOutputHelper output)
                 manager
                     .Status(
                         new(
-                            EntityIndex: 4,
+                            Entity: new(Index: 4, Generation: 0),
                             Part: part,
                             Mesh: assets.Sphere.Value,
                             Material: MaterialStore.Slot(assets.Red)
@@ -506,7 +506,7 @@ public sealed class ImpostorTests(ITestOutputHelper output)
                 manager
                     .Status(
                         new(
-                            EntityIndex: (uint)index,
+                            Entity: new(Index: (uint)index, Generation: 0),
                             Part: 0,
                             Mesh: assets.Sphere.Value,
                             Material: MaterialStore.Slot(materials[index])
@@ -1102,7 +1102,12 @@ public sealed class ImpostorTests(ITestOutputHelper output)
             renderer.LastFrameStats.Impostors.Should().Be(1, "a ball 12 m away is about 50 px high");
             ImpostorStatus status = renderer
                 .Impostors!.Status(
-                    new(EntityIndex: 1, Part: 0, Mesh: sphere.Value, Material: MaterialStore.Slot(gray))
+                    new(
+                        Entity: new(Index: 1, Generation: 0),
+                        Part: 0,
+                        Mesh: sphere.Value,
+                        Material: MaterialStore.Slot(gray)
+                    )
                 )!
                 .Value;
             return (renderer.ReadImpostorTile(status.Tile).Rgba, renderer.LastFrameStats.Lights);

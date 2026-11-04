@@ -5,14 +5,15 @@ using System.Runtime.InteropServices;
 namespace Tertius.Rendering;
 
 /// <summary>
-/// Identifies one impostor: the entity and its render part (<see cref="RenderInstance.Part"/>), and the mesh and the
-/// resolved material slot it is drawn with. Two parts of one entity are separate impostors even when they share a
-/// mesh and a material. A part that changes its mesh or material gets a new key, so it never draws an old capture.
+/// Identifies one impostor: the entity, its slot and generation, and its render part (<see cref="RenderInstance.Part"/>),
+/// and the mesh and the resolved material slot it is drawn with. Two parts of one entity are separate impostors even when
+/// they share a mesh and a material. A part that changes its mesh or material gets a new key, so it never draws an old
+/// capture, and a new entity in the slot of a destroyed one gets a new key, so it never takes the old one's state.
 /// </summary>
-internal readonly record struct ImpostorKey(uint EntityIndex, ushort Part, int Mesh, uint Material)
+internal readonly record struct ImpostorKey(Entity Entity, ushort Part, int Mesh, uint Material)
 {
     public static ImpostorKey Of(in PreparedInstance instance) =>
-        new(EntityIndex: instance.Entity.Index, Part: instance.Part, Mesh: instance.Mesh, Material: instance.Material);
+        new(Entity: instance.Entity, Part: instance.Part, Mesh: instance.Mesh, Material: instance.Material);
 }
 
 /// <summary>A capture that <see cref="ImpostorPass"/> renders this frame: one object alone, into one atlas tile.</summary>
@@ -100,7 +101,7 @@ internal readonly record struct ImpostorStatus(bool Impostor, int Tile, long Cap
 /// <para>Projected height h: the diameter in pixels of the bounding sphere's image at the center of the screen,
 /// H · tan(asin(r / d)) / tan(fov / 2), where H is the output height and d the distance to the eye. It does not
 /// change when the camera only turns. An eye inside the sphere gives an infinite height.</para>
-/// <para>Hysteresis, per key (entity index, part, mesh and resolved material; see <see cref="ImpostorKey"/>): an
+/// <para>Hysteresis, per key (entity, part, mesh and resolved material; see <see cref="ImpostorKey"/>): an
 /// object becomes an impostor when h drops below <see cref="EnterHeight"/> and returns to geometry when h rises
 /// above <see cref="ExitHeight"/>.
 /// <see cref="RenderFlags.NoImpostor"/> and <see cref="RenderFlags.Celestial"/> objects, and those of a glass or fringed

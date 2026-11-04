@@ -107,9 +107,14 @@ public sealed class ImpostorManagerTests
         return radius * MathF.Sqrt(1 + tangent * tangent) / tangent;
     }
 
-    /// <summary>The key of a ball: its entity and part, the sphere mesh, and its material's slot.</summary>
+    /// <summary>The key of a ball: its entity, of generation 0 as Gpu.Instance makes it, its part, the sphere mesh, and its material's slot.</summary>
     private static ImpostorKey Key(uint entity, ushort part = 0, MaterialId? material = null) =>
-        new(EntityIndex: entity, Part: part, Mesh: Sphere, Material: MaterialStore.Slot(material ?? BallMaterial));
+        new(
+            Entity: new(Index: entity, Generation: 0),
+            Part: part,
+            Mesh: Sphere,
+            Material: MaterialStore.Slot(material ?? BallMaterial)
+        );
 
     private static RenderInstance Ball(
         uint entity,
@@ -338,6 +343,23 @@ public sealed class ImpostorManagerTests
         harness.Manager.Draws.Length.Should().Be(1);
         scene.VisibleCount.Should().Be(1);
         harness.Manager.Captures.Length.Should().Be(1);
+    }
+
+    [Fact]
+    public void AnInstanceInTheSlotOfADestroyedOneWithTheSamePartMeshAndMaterialGetsItsOwnImpostorState()
+    {
+        var harness = new Harness();
+        RenderSnapshot first = Snapshot();
+        first.Instances.Add(Ball(entity: 1, position: new(0, 0, -DistanceFor(150))) with { EntityGeneration = 1 });
+        harness.Run(first);
+        harness.Manager.Draws.Length.Should().Be(1, "the old ball draws as an impostor below 200 px");
+        RenderSnapshot second = Snapshot();
+        second.Instances.Add(Ball(entity: 1, position: new(0, 0, -DistanceFor(250))) with { EntityGeneration = 2 });
+
+        PreparedScene scene = harness.Run(second);
+
+        harness.Manager.Draws.Length.Should().Be(0, "the new ball's own state starts as geometry, above 200 px");
+        scene.VisibleCount.Should().Be(1);
     }
 
     [Fact]
@@ -1255,7 +1277,7 @@ public sealed class ImpostorManagerTests
             [
                 .. harness
                     .Manager.Captures.ToArray()
-                    .Select(capture => (int)harness.Manager.TileOwner(capture.Tile)!.Value.EntityIndex)
+                    .Select(capture => (int)harness.Manager.TileOwner(capture.Tile)!.Value.Entity.Index)
                     .Order(),
             ];
         }
@@ -1413,7 +1435,7 @@ public sealed class ImpostorManagerTests
         harness.Manager.Captures.Length.Should().Be(4);
 
         uint[] CapturedEntities() =>
-            [.. harness.Manager.Captures.ToArray().Select(c => harness.Manager.TileOwner(c.Tile)!.Value.EntityIndex)];
+            [.. harness.Manager.Captures.ToArray().Select(c => harness.Manager.TileOwner(c.Tile)!.Value.Entity.Index)];
 
         CapturedEntities().Should().Equal(5u, 4u, 3u, 2u);
         harness.Run(Scene(0.05f));

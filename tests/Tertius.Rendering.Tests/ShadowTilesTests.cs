@@ -437,6 +437,51 @@ public sealed class ShadowTilesTests
     }
 
     [Fact]
+    public void ALampInTheSlotOfADestroyedHolderRanksAsAChallenger()
+    {
+        var tiles = new ShadowTiles(layers: 1, tileSize: TileSize);
+        Frame(tiles, [Spot(entity: 1, intensity: 1), Spot(entity: 2, intensity: 0.5f)]);
+        PreparedLight[] lights =
+        [
+            Spot(entity: 1, intensity: 1) with
+            {
+                Entity = new(Index: 1, Generation: 2),
+            },
+            Spot(entity: 2, intensity: 1.9f),
+        ];
+
+        Frame(tiles, lights);
+
+        lights
+            .Select(light => light.Shadow)
+            .Should()
+            .Equal(
+                [NoSlot, Tiles(first: 0, count: 1)],
+                "the new lamp in the holder's slot ranks at its own 1 W/sr, below the challenger's 1.9 W/sr"
+            );
+    }
+
+    [Fact]
+    public void AHolderWithAGenerationAboveOneKeepsItsMarginFromFrameToFrame()
+    {
+        var tiles = new ShadowTiles(layers: 1, tileSize: TileSize);
+        PreparedLight holder = Spot(entity: 1, intensity: 1) with { Entity = new(Index: 1, Generation: 7) };
+        PreparedLight[] lights = [holder, Spot(entity: 2, intensity: 0.5f)];
+        Frame(tiles, lights);
+        lights[1].RadiantIntensity = new(1.9f);
+
+        Frame(tiles, lights);
+
+        lights
+            .Select(light => light.Shadow)
+            .Should()
+            .Equal(
+                [Tiles(first: 0, count: 1), NoSlot],
+                "the same lamp still holds the tile, so it ranks at twice its 1 W/sr, above the challenger's 1.9 W/sr"
+            );
+    }
+
+    [Fact]
     public void AChallengerMoreThanTwiceAsBrightTakesTheTilesInTheFirstFrameItIs()
     {
         var tiles = new ShadowTiles(layers: 1, tileSize: TileSize);
@@ -652,6 +697,63 @@ public sealed class ShadowTilesTests
     }
 
     [Fact]
+    public void ALampInTheSlotOfADestroyedOneKeepsNoneOfItsLayers()
+    {
+        var tiles = new ShadowTiles(layers: 3, tileSize: TileSize);
+        Frame(tiles, [Spot(entity: 1), Spot(entity: 2)]);
+
+        List<TileView> views = Frame(
+            tiles,
+            [
+                Spot(entity: 3, intensity: 9),
+                Spot(entity: 1) with
+                {
+                    Entity = new(Index: 1, Generation: 2),
+                },
+                Spot(entity: 2),
+            ]
+        ).Views;
+
+        views
+            .Select(view => view.Layer)
+            .Should()
+            .Equal(
+                [0, 2, 1],
+                "the new lamp in slot 1 takes a free layer after the brighter new light, and only lamp 2 keeps its layer"
+            );
+    }
+
+    [Fact]
+    public void ALampWithAGenerationAboveOneKeepsItsLayersFromFrameToFrame()
+    {
+        var tiles = new ShadowTiles(layers: 3, tileSize: TileSize);
+        PreparedLight lamp = Spot(entity: 1) with { Entity = new(Index: 1, Generation: 7) };
+        Frame(tiles, [lamp, Spot(entity: 2)]);
+
+        List<TileView> views = Frame(tiles, [Spot(entity: 3, intensity: 9), lamp, Spot(entity: 2)]).Views;
+
+        views.Select(view => view.Layer).Should().Equal([2, 0, 1], "the lamp that stays keeps layer 0");
+    }
+
+    [Fact]
+    public void ALampInTheSlotOfADestroyedOneDrawsItsTileAgain()
+    {
+        var tiles = new ShadowTiles(layers: 1, tileSize: TileSize);
+        PreparedInstance[] casters = [Caster(entity: 7, position: new(10, 0, 0))];
+        Frame(tiles, [Spot(entity: 1)], casters);
+
+        List<TileDraw> draws = Frame(
+            tiles,
+            [Spot(entity: 1) with { Entity = new(Index: 1, Generation: 2) }],
+            casters
+        ).Draws;
+
+        draws
+            .Should()
+            .Equal([new TileDraw(View: 0, First: 0, Count: 1)], "the tile of the old lamp is not the new lamp's");
+    }
+
+    [Fact]
     public void ALightNewToTheBudgetTakesTheLowestFreeLayers()
     {
         var tiles = new ShadowTiles(layers: 8, tileSize: TileSize);
@@ -760,6 +862,7 @@ public sealed class ShadowTilesTests
 
     [Theory]
     [InlineData("entity")]
+    [InlineData("entity in the slot of a destroyed one")]
     [InlineData("part")]
     [InlineData("mesh")]
     [InlineData("material")]
@@ -768,6 +871,7 @@ public sealed class ShadowTilesTests
                 change switch
                 {
                     "entity" => caster with { Entity = new(Index: 8, Generation: 1) },
+                    "entity in the slot of a destroyed one" => caster with { Entity = new(Index: 7, Generation: 2) },
                     "part" => caster with { Part = 1 },
                     "mesh" => caster with { Mesh = 3 },
                     // A cutout material shadows only its core (docs/plans/skin-and-hair.md, "The cutout test").

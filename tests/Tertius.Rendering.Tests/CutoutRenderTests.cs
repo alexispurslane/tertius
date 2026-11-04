@@ -486,7 +486,14 @@ public sealed class CutoutRenderTests
 
             renderer.LastFrameStats.ImpostorCaptures.Should().Be(1, "a 2 m card 6 m away covers fewer than 200 pixels");
             int tile = renderer
-                .Impostors!.Status(new(EntityIndex: 0, Part: 0, Mesh: plane.Value, Material: MaterialStore.Slot(card)))!
+                .Impostors!.Status(
+                    new(
+                        Entity: new(Index: 0, Generation: 0),
+                        Part: 0,
+                        Mesh: plane.Value,
+                        Material: MaterialStore.Slot(card)
+                    )
+                )!
                 .Value.Tile;
             (float[] rgba, _) = renderer.ReadImpostorTile(tile);
             const int size = ImpostorAtlas.TileSize;

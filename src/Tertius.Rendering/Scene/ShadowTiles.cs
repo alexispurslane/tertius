@@ -251,13 +251,15 @@ internal sealed class ShadowTiles
     internal void AssertInvariants()
     {
         // One record per layer, so a layer belongs to at most one light by the form of the array.
-        foreach (IGrouping<uint, TileRecord> held in records.OfType<TileRecord>().GroupBy(record => record.LightEntity.Index))
+        foreach (
+            IGrouping<Entity, TileRecord> held in records.OfType<TileRecord>().GroupBy(record => record.LightEntity)
+        )
             Contract.Invariant(held.Count() is 1 or CubeFaces.Count);
 
         Contract.Invariant(drawnTiles.Select(tile => tile.Layer).Distinct().Count() == drawnTiles.Count);
         foreach ((int layer, Entity lightEntity, MainViewTier tier) in drawnTiles)
             Contract.Invariant(
-                records[layer] is { } record && record.LightEntity.Index == lightEntity.Index && record.Tier == tier
+                records[layer] is { } record && record.LightEntity == lightEntity && record.Tier == tier
             );
 
         // Each view's layer holds a record, so as many records as views leave none on a layer without a view.
@@ -378,7 +380,7 @@ internal sealed class ShadowTiles
         if (Held(entity) != tileCounts[light])
             return;
         for (int layer = 0; layer < Layers; layer++)
-            if (records[layer]?.LightEntity.Index == entity.Index)
+            if (records[layer]?.LightEntity == entity)
                 layerLights[layer] = light;
     }
 
@@ -393,7 +395,7 @@ internal sealed class ShadowTiles
     {
         // All the records of one light name its one tier of the last submitted frame.
         foreach (TileRecord? record in records)
-            if (record?.LightEntity.Index == light.Entity.Index)
+            if (record?.LightEntity == light.Entity)
                 return record.Tier is not MainViewTier.FaceOnly || light.Tier is MainViewTier.FaceOnly;
         return false;
     }
@@ -403,7 +405,7 @@ internal sealed class ShadowTiles
     {
         int held = 0;
         foreach (TileRecord? record in records)
-            if (record?.LightEntity.Index == entity.Index)
+            if (record?.LightEntity == entity)
                 held++;
         return held;
     }
@@ -516,7 +518,7 @@ internal sealed class ShadowTiles
         long originFrameId
     )
     {
-        bool sameTile = record.LightEntity.Index == light.Entity.Index && record.Frustum.Aim == frustum.Aim;
+        bool sameTile = record.LightEntity == light.Entity && record.Frustum.Aim == frustum.Aim;
         bool sameProjection = record.Frustum.Near == frustum.Near && record.Frustum.TanHalf == frustum.TanHalf;
         if (!sameTile || record.OriginFrameId != originFrameId || !sameProjection)
             return true;
@@ -535,7 +537,7 @@ internal sealed class ShadowTiles
             // A deformed copy's frame mesh changes with the jobs before it, so the record names its static mesh. The
             // material decides which texels cast: a cutout casts only its core.
             bool sameCaster =
-                was.Entity.Index == now.Entity.Index
+                was.Entity == now.Entity
                 && was.Part == now.Part
                 && was.Mesh == deformed.SourceOf(now.Mesh)
                 && was.Material == now.Material;

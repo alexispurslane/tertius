@@ -107,7 +107,7 @@ public struct RenderInstance
     /// </summary>
     public uint EntityGeneration;
 
-    /// <summary>Which of the entity's render parts this is, 0 for the first. The renderer keys impostor state on (EntityIndex, Part, Mesh, Material), so a part that changes its mesh or material gets a new capture.</summary>
+    /// <summary>Which of the entity's render parts this is, 0 for the first. The renderer keys impostor state on the entity (EntityIndex with EntityGeneration), Part, Mesh and Material, so a part that changes its mesh or material gets a new capture.</summary>
     public ushort Part;
 
     /// <summary>

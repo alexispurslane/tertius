@@ -454,7 +454,9 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
                 placement: placement,
                 materials: materials,
                 maps: scene.MapCount,
-                holdsLight: lightHolders.Contains(new(Index: instance.EntityIndex, Generation: instance.EntityGeneration))
+                holdsLight: lightHolders.Contains(
+                    new(Index: instance.EntityIndex, Generation: instance.EntityGeneration)
+                )
             ) with
             {
                 PlacedIndex = scene.PlacedCount - 1,
