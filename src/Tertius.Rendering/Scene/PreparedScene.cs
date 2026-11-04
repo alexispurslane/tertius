@@ -447,6 +447,12 @@ internal sealed class PreparedScene
     public int LightCount;
 
     /// <summary>
+    /// ReSTIR's light table of the frame: the sampled lights' alias table, the exact lights and the remap of the last
+    /// frame's light indices (docs/plans/temporal-renderer.md, section 7). The batch fills it after the shadow slots.
+    /// </summary>
+    public readonly LightTable LightTable = new();
+
+    /// <summary>
     /// The place in <see cref="Lights"/> of the sun of the snapshot's atmosphere (<see cref="RenderAtmosphere.Sun"/>), whose
     /// light takes the air's tint, or null when the list holds no such sun (docs/plans/atmosphere.md, "The sun's tint").
     /// </summary>

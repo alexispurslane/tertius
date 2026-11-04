@@ -527,11 +527,13 @@ public sealed class BatcherDeformTests
         SceneBatcher batcher = Batchers.Default();
         // Outside the frame, whose allocations the test counts.
         MaterialInfo[] materials = MaterialSlots.Of(8);
-        var history = new FrameHistory();
+        var history = new FrameHistory(StillRule.Window);
         // Each frame continues the one before, so the join of the placement history runs as in a window's frames.
         void Frame()
         {
             FrameHistory.PendingFrame frame = history.Begin(
+                step: FrameHistoryTesting.FilmStep,
+                draw: 0,
                 snapshot: snapshot,
                 outputSize: new(1600, 900),
                 renderSize: new(1600, 900)

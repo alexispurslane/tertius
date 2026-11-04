@@ -21,15 +21,16 @@
   </ItemGroup>
   <!-- The test shaders, each compiled with the engine's flags plus its own Flags, and embedded under the engine's resource
        names for a ShaderLibrary of this assembly. glslc comes from shaderc in the Nix dev shell.
-       - The reference of AmbientSkipsTests: the ambient pass's two stages from src, built with TERTIUS_EVERY_AMBIENT_TERM,
+       - The reference of AmbientSkipsTests: the composite's two stages from src, built with TERTIUS_EVERY_AMBIENT_TERM,
          which computes every term that the engine's build skips (environment.glsl).
+       - The probe of DirectLightProbe, with the same flags.
        - The probes of GpuCalibrationTests. -->
   <PropertyGroup>
     <Glslc Condition="'$(Glslc)' == ''">glslc</Glslc>
     <EngineShaders>$(MSBuildProjectDirectory)/../../src/Tertius.Rendering/Shaders</EngineShaders>
   </PropertyGroup>
   <ItemGroup>
-    <TestShader Include="$(EngineShaders)/lighting.vert;$(EngineShaders)/ambient.frag;$(EngineShaders)/ambient_scatter.frag"
+    <TestShader Include="$(EngineShaders)/lighting.vert;$(EngineShaders)/composite.frag;$(EngineShaders)/composite_scatter.frag;Shaders/direct_light_probe.frag;Shaders/direct_diffuse_probe.frag"
                 Flags="-DTERTIUS_EVERY_AMBIENT_TERM -I &quot;$(EngineShaders)&quot;" />
     <TestShader Include="Shaders/*.comp" Flags="" />
     <TestShaderInclude Include="$(EngineShaders)/*.glsl;Shaders/*.glsl" />

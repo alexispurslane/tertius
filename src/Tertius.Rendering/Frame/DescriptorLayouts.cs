@@ -11,8 +11,8 @@ namespace Tertius.Rendering;
 /// buffer (binding 11), which every frame's set shares, and the environment map's specular map (binding 12, partially
 /// bound), its sampler (binding 13, immutable) and its irradiance cube (binding 14, partially bound), which stay empty
 /// with the map off, the tile views of the local shadows (binding 15, partially bound), empty without the atlas, the
-/// motion rows (binding 17) and the kept deformed positions of the last drawn frame (binding 18, partially bound), empty
-/// without the deformation. One per frame in flight.</description></item>
+/// motion rows (binding 17), the kept deformed positions of the last drawn frame (binding 18, partially bound), empty
+/// without the deformation, and ReSTIR's light table (binding 19). One per frame in flight.</description></item>
 /// <item><term>set 1, textures</term>
 /// <description>the bindless texture array: variable count, partially bound, update-after-bind. One per frame in flight.</description>
 /// </item>
@@ -20,9 +20,9 @@ namespace Tertius.Rendering;
 /// <description>the G-buffer targets for the direct, ambient and transparent passes (rewritten on resize),
 /// the shadow cascades of every cascade set (binding 5) and their comparison sampler (binding 6, immutable), which the vertex stage also reads
 /// for the lit puffs, the estimate target (binding 7), the local shadow atlas (binding 8, partially bound), which the
-/// comparison sampler also reads and which stays empty without the atlas, the direct image (binding 9), the shading
-/// target (binding 10) and the atlas's bounds (binding 11, partially bound), empty without the atlas. The estimate target
-/// and the direct image are rewritten on resize. One.</description></item>
+/// comparison sampler also reads and which stays empty without the atlas, the shading target (binding 10) and the atlas's
+/// bounds (binding 11, partially bound), empty without the atlas. Binding 9 is free. The estimate target is rewritten on
+/// resize. One.</description></item>
 /// <item><term>set 3, impostor atlas</term><description>the impostor atlas's color and depth-offset arrays and their
 /// sampler (immutable), for the billboards in the G-buffer pass. One, written once.</description></item>
 /// <item><term>post</term><description>the HDR image for tone mapping, and the summed bloom levels (binding 1) with the
@@ -64,9 +64,17 @@ namespace Tertius.Rendering;
 /// the last device depth as sampled images, and the motion target, this frame's surface history, the surface test image
 /// and this frame's device depth as storage images (docs/plans/temporal-renderer.md, "The surface test"). Two, one per parity of the drawn frames,
 /// rewritten on resize.</description></item>
+/// <item><term>signal</term><description>set 3 of <see cref="AccumulateLayout"/>: one part of a signal's images, the
+/// surface test image and the motion target, as storage images for the compute stage
+/// (<see cref="TemporalSignal"/>). One per part and parity, rewritten on resize.</description></item>
+/// <item><term>signal read</term><description>set 3 of <see cref="CompositeLayout"/>: the slow histories of a signal's two
+/// parts as storage images for the fragment stage. One per signal, rewritten on resize.</description></item>
+/// <item><term>reservoir</term><description>set 3 of <see cref="ReservoirLayout"/>: the reservoirs that a pass reads as
+/// a sampled image, and the surface test image and the motion target as storage images, for the fragment stage
+/// (<see cref="LightReservoirs"/>). Two, rewritten on resize.</description></item>
 /// </list>
 /// Every pass that draws meshes or reads the G-buffer uses <see cref="SceneLayout"/>, so sets 0 and 1 stay bound
-/// across pipeline changes. <see cref="ImpostorLayout"/> and <see cref="AmbientScatterLayout"/> add set 3 and are
+/// across pipeline changes. <see cref="ImpostorLayout"/>, <see cref="CompositeLayout"/> and <see cref="ReservoirLayout"/> add set 3 and are
 /// compatible with it for sets 0 to 2. The
 /// compute layouts of the reflections, <see cref="PyramidLayout"/> and <see cref="ReflectionLayout"/>, and of the
 /// occlusion, <see cref="OcclusionLayout"/>, and of the skin scatter, <see cref="ScatterLayout"/>, take sets 0 to 2 too, whose bindings that their shaders read include the
@@ -80,11 +88,29 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// <summary>The surface test sets: one per parity of the drawn frames (<see cref="SurfaceHistory"/>).</summary>
     private const uint SurfaceTestSets = 2;
 
+    /// <summary>The signal sets: one per part and parity of the direct signal's two parts (<see cref="TemporalSignal"/>).</summary>
+    private const uint SignalSets = 4;
+
+    /// <summary>The storage images of a signal set.</summary>
+    private const uint SignalSetImages = 7;
+
+    /// <summary>The most parts of a signal: the slow histories of the signal read set.</summary>
+    public const int SignalReadParts = 2;
+
+    /// <summary>The signal read sets: one for the direct signal.</summary>
+    private const uint SignalReadSets = 1;
+
+    /// <summary>The reservoir sets: one for each of the two passes of ReSTIR (<see cref="LightReservoirs"/>).</summary>
+    private const uint ReservoirSets = 2;
+
     /// <summary>
-    /// The storage buffers of the frame set: bindings 1 to 4, 6, 7, 11, 15, 17 and 18, which the vertex stage all sees. The
-    /// fragment stage sees all but binding 18.
+    /// The storage buffers that one stage of the frame set sees: bindings 1 to 4, 6, 7, 11, 15, 17 and 18 the vertex stage,
+    /// and the same but binding 18, with binding 19, the fragment stage. The set holds 11.
     /// </summary>
     public const uint FrameSetStorageBuffers = 10;
+
+    /// <summary>The binding of ReSTIR's light table in the frame set.</summary>
+    public const uint LightTableBinding = 19;
 
     /// <summary>
     /// The storage buffers of the deform set: the region's window, the deform vertices, the deltas, the pose rows, the job
@@ -159,9 +185,15 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         ScatterSet = CreateScatterSetLayout();
         ShadowBoundsSet = CreateShadowBoundsSetLayout();
         SurfaceTestSet = CreateSurfaceTestSetLayout();
+        (SignalSet, SignalReadSet, ReservoirSet) = CreateTemporalSetLayouts();
 
-        (SceneLayout, ImpostorLayout, AmbientScatterLayout, OverlayLayout, PostLayout, BloomLayout, SmaaLayout) =
+        (SceneLayout, ImpostorLayout, CompositeLayout, OverlayLayout, PostLayout, BloomLayout, SmaaLayout) =
             CreateGraphicsLayouts();
+        ReservoirLayout = CreatePipelineLayout(
+            sets: [FrameSet, TextureSet, GBufferSet, ReservoirSet],
+            push: new(ShaderStageFlags.FragmentBit, 0, (uint)Unsafe.SizeOf<ResampledPushConstants>()),
+            name: "reservoir layout"
+        );
         (
             ExposureLayout,
             EnvironmentPrefilterLayout,
@@ -177,6 +209,10 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         SurfaceTestLayout = ComputeLayout<SurfaceTestPushConstants>(
             sets: [FrameSet, TextureSet, GBufferSet, SurfaceTestSet],
             name: "surface test layout"
+        );
+        AccumulateLayout = ComputeLayout<AccumulatePushConstants>(
+            sets: [FrameSet, TextureSet, GBufferSet, SignalSet],
+            name: "accumulate layout"
         );
 
         (pool, texturePool) = CreatePools(framesInFlight: (uint)framesInFlight, glowSourceSets: (uint)glowLevels + 1);
@@ -251,18 +287,14 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// <summary>Sets 0 to 2 plus <see cref="DrawPushConstants"/> for the vertex and fragment stages.</summary>
     public PipelineLayout SceneLayout { get; }
 
+    /// <summary>Sets 0 to 2 of <see cref="SceneLayout"/> and the signal read set of the direct signal, with the draw push constants, for the composite.</summary>
+    public PipelineLayout CompositeLayout { get; }
+
     /// <summary>
     /// <see cref="SceneLayout"/> plus the atlas set as set 3, for impostor billboards. The two have the same push
     /// constants and sets 0 to 2, so binding set 3 with this layout keeps the scene sets bound.
     /// </summary>
     public PipelineLayout ImpostorLayout { get; }
-
-    /// <summary>
-    /// <see cref="SceneLayout"/> plus the scatter set as set 3, for the ambient pass under the skin scatter, which adds to
-    /// the diffuse image at skin pixels. Compatible with <see cref="SceneLayout"/> for sets 0 to 2, as
-    /// <see cref="ImpostorLayout"/> is.
-    /// </summary>
-    public PipelineLayout AmbientScatterLayout { get; }
 
     /// <summary>
     /// Sets 0 to 2, as in <see cref="SceneLayout"/>, plus <see cref="OutlinePushConstants"/> for the fragment stage, for
@@ -334,7 +366,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     public PipelineLayout ReflectionLayout { get; }
 
     /// <summary>
-    /// Set 3 of <see cref="ScatterLayout"/> and <see cref="AmbientScatterLayout"/>: the diffuse image, the row image and the HDR image as storage images (bindings 0
+    /// Set 3 of <see cref="ScatterLayout"/>: the diffuse image, the row image and the HDR image as storage images (bindings 0
     /// to 2), and the kernel as a uniform buffer (binding 3) (Shaders/skin_scatter.glsl).
     /// </summary>
     public DescriptorSetLayout ScatterSet { get; }
@@ -366,6 +398,28 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
 
     /// <summary>Sets 0 to 2 of <see cref="SceneLayout"/>, the surface test set and <see cref="SurfaceTestPushConstants"/>.</summary>
     public PipelineLayout SurfaceTestLayout { get; }
+
+    /// <summary>
+    /// One part of a signal's images for its accumulation, all storage images for the compute stage: 0 the sample, 1 the
+    /// slow history, 2 the last frame's fast history, 3 this frame's, 4 the scratch, 5 the surface test image and 6 the
+    /// motion target (docs/plans/temporal-renderer.md, "Images").
+    /// </summary>
+    public DescriptorSetLayout SignalSet { get; }
+
+    /// <summary>The slow histories of a signal's two parts, storage images for the fragment stage, which the composite reads.</summary>
+    public DescriptorSetLayout SignalReadSet { get; }
+
+    /// <summary>
+    /// The reservoirs that a pass of ReSTIR reads, a sampled image (0), and the surface test image (1) and the motion target
+    /// (2), storage images, all for the fragment stage.
+    /// </summary>
+    public DescriptorSetLayout ReservoirSet { get; }
+
+    /// <summary>Sets 0 to 2 of <see cref="SceneLayout"/>, the signal set and <see cref="AccumulatePushConstants"/>, for both dispatches of an accumulation.</summary>
+    public PipelineLayout AccumulateLayout { get; }
+
+    /// <summary>Sets 0 to 2 of <see cref="SceneLayout"/>, the reservoir set and <see cref="ResampledPushConstants"/> for the fragment stage, for ReSTIR's two passes.</summary>
+    public PipelineLayout ReservoirLayout { get; }
 
     /// <summary>
     /// The storage buffers, storage images and sampled images that each shader stage of <paramref name="layout"/> sees,
@@ -408,6 +462,12 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     public DescriptorSet AllocateShadowBoundsSet() => Allocate(pool, ShadowBoundsSet, null);
 
     public DescriptorSet AllocateSurfaceTestSet() => Allocate(pool, SurfaceTestSet, null);
+
+    public DescriptorSet AllocateSignalSet() => Allocate(pool, SignalSet, null);
+
+    public DescriptorSet AllocateSignalReadSet() => Allocate(pool, SignalReadSet, null);
+
+    public DescriptorSet AllocateReservoirSet() => Allocate(pool, ReservoirSet, null);
 
     public DescriptorSet AllocateTextureSet()
     {
@@ -630,8 +690,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
 
     /// <summary>
     /// The layout of the G-buffer set: five G-buffer images, the shadow cascades, <paramref name="shadowSampler"/> as an
-    /// immutable sampler, the estimate target, the local shadow atlas, partially bound, the direct image and the shading
-    /// target, the sixth G-buffer image, and the atlas's bounds, partially bound. The sampler
+    /// immutable sampler, the estimate target, the local shadow atlas, partially bound, the shading target, the sixth
+    /// G-buffer image, at binding 10, and the atlas's bounds, partially bound. The sampler
     /// is immutable because portability implementations may not allow updating comparison sampler descriptors
     /// (VkPhysicalDevicePortabilitySubsetFeaturesKHR::mutableComparisonSamplers).
     /// </summary>
@@ -656,18 +716,17 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             // The lit puffs sample the tiles in the vertex stage, as they do the cascades. The reflections' and the
             // occlusion passes' compute shaders declare the atlas but never use it.
             Image(binding: ShadowAtlas.AtlasBinding, stages: graphics),
-            // Compute too, for the occlusion passes that gather the bounce from the direct image
-            // (docs/plans/screen-space-illumination.md, "Push constants and sets").
-            Image(binding: RenderTargets.DirectBinding, stages: shading),
             // The reflections' compute passes read each pixel's surface, its model included, and the occlusion sectors
             // pass reads a receiver's model, because a hair receiver's own card blocks nothing.
             Image(binding: RenderTargets.ShadingBinding, stages: shading),
             // Every stage that samples the tiles reads their bounds first.
             Image(binding: ShadowAtlas.BoundsBinding, stages: graphics),
         ];
+        // The flags follow the bindings' order in the list, which skips binding 9.
         Span<DescriptorBindingFlags> flags = stackalloc DescriptorBindingFlags[gbuffer.Length];
-        flags[(int)ShadowAtlas.AtlasBinding] = DescriptorBindingFlags.PartiallyBoundBit;
-        flags[(int)ShadowAtlas.BoundsBinding] = DescriptorBindingFlags.PartiallyBoundBit;
+        for (int i = 0; i < gbuffer.Length; i++)
+            if (gbuffer[i].Binding is ShadowAtlas.AtlasBinding or ShadowAtlas.BoundsBinding)
+                flags[i] = DescriptorBindingFlags.PartiallyBoundBit;
         return CreateLayout(bindings: gbuffer, name: "g-buffer set", bindingFlags: flags);
     }
 
@@ -675,7 +734,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     private (
         PipelineLayout Scene,
         PipelineLayout Impostor,
-        PipelineLayout AmbientScatter,
+        PipelineLayout Composite,
         PipelineLayout Overlay,
         PipelineLayout Post,
         PipelineLayout Bloom,
@@ -687,10 +746,10 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         ReadOnlySpan<DescriptorSetLayout> sceneSets = [FrameSet, TextureSet, GBufferSet, AtlasSet];
         PipelineLayout sceneLayout = CreatePipelineLayout(sets: sceneSets[..3], push: drawPush, name: "scene layout");
         PipelineLayout impostorLayout = CreatePipelineLayout(sets: sceneSets, push: drawPush, name: "impostor layout");
-        PipelineLayout ambientScatterLayout = CreatePipelineLayout(
-            sets: [FrameSet, TextureSet, GBufferSet, ScatterSet],
+        PipelineLayout compositeLayout = CreatePipelineLayout(
+            sets: [FrameSet, TextureSet, GBufferSet, SignalReadSet],
             push: drawPush,
-            name: "ambient scatter layout"
+            name: "composite layout"
         );
         PipelineLayout overlayLayout = CreatePipelineLayout(
             sets: sceneSets[..3],
@@ -712,7 +771,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             push: new(graphics, 0, (uint)Unsafe.SizeOf<SmaaPushConstants>()),
             name: "smaa layout"
         );
-        return (sceneLayout, impostorLayout, ambientScatterLayout, overlayLayout, postLayout, bloomLayout, smaaLayout);
+        return (sceneLayout, impostorLayout, compositeLayout, overlayLayout, postLayout, bloomLayout, smaaLayout);
     }
 
     /// <summary>
@@ -789,31 +848,28 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             name: name
         );
 
-    /// <summary>The shared pool, which holds <paramref name="glowSourceSets"/> glow source sets, and the pool of the texture sets.</summary>
-    private (DescriptorPool Shared, DescriptorPool Textures) CreatePools(uint framesInFlight, uint glowSourceSets)
-    {
-        uint frames = framesInFlight;
-        Span<DescriptorPoolSize> sizes =
+    /// <summary>The sizes of the shared pool, which holds <paramref name="glowSourceSets"/> glow source sets.</summary>
+    private static DescriptorPoolSize[] SharedPoolSizes(uint frames, uint glowSourceSets) =>
         [
             // One per frame set, and the scatter set's kernel.
             new(DescriptorType.UniformBuffer, frames + 1),
             // Those of each frame set and each deform set, the two of the exposure set and the own-ray list of the
             // reflection set.
-            new(DescriptorType.StorageBuffer, (FrameSetStorageBuffers + DeformSetStorageBuffers) * frames + 3),
+            new(DescriptorType.StorageBuffer, (FrameSetStorageBuffers + 1 + DeformSetStorageBuffers) * frames + 3),
             // Three per frame set (the material sampler and the immutable linear clamp and environment samplers), the
             // immutable samplers of the G-buffer, atlas, post, reflection and prefilter sets, and one per glow source set.
             new(DescriptorType.Sampler, 3 * frames + 5 + glowSourceSets),
             // 21 for the G-buffer, post and atlas sets, five per frame set for the tables, the specular map, the irradiance
             // cube and the distance cube, one per glow source set, two for the meter set, one per pyramid level set, one for
-            // the depth tail set, two for the reflection set, one for the prefilter set, one for the shadow bounds set and
-            // two for each surface test set.
+            // the depth tail set, two for the reflection set, one for the prefilter set, one for the shadow bounds set, two
+            // for each surface test set and one for each reservoir set.
             new(
                 DescriptorType.SampledImage,
-                21 + 5 * frames + glowSourceSets + 2 + PyramidLevelSets + 1 + 2 + 1 + 1 + 2 * SurfaceTestSets
+                21 + 5 * frames + glowSourceSets + 2 + PyramidLevelSets + 1 + 2 + 1 + 1 + 2 * SurfaceTestSets + ReservoirSets
             ),
             // Those of each of the two occlusion sets, one per pyramid level set, the depth tail set's mips, three for the
             // reflection set, four per environment levels set, three for the scatter set, one for the shadow bounds set and
-            // four per surface test set.
+            // four per surface test set, seven per signal set, two per signal read set and two per reservoir set.
             new(
                 DescriptorType.StorageImage,
                 2 * OcclusionImages.StorageImages
@@ -824,17 +880,33 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
                     + 3
                     + 1
                     + 4 * SurfaceTestSets
+                    + SignalSetImages * SignalSets
+                    + 2 * SignalReadSets
+                    + 2 * ReservoirSets
             ),
             // The SMAA set.
             new(DescriptorType.CombinedImageSampler, SmaaBindings),
         ];
+
+    /// <summary>The shared pool, which holds <paramref name="glowSourceSets"/> glow source sets, and the pool of the texture sets.</summary>
+    private (DescriptorPool Shared, DescriptorPool Textures) CreatePools(uint framesInFlight, uint glowSourceSets)
+    {
+        uint frames = framesInFlight;
         // The frame sets, the deform sets, the G-buffer, post, atlas, meter, exposure, SMAA, reflection, prefilter,
         // scatter and shadow bounds sets, the two occlusion sets, the glow source sets, the pyramid level sets, the depth tail set,
-        // the environment levels sets and the surface test sets. The reflection sets exist even with reflections off: they
-        // cost nothing per frame.
+        // the environment levels sets, the surface test sets, the signal sets, the signal read sets and the reservoir sets.
+        // The reflection sets exist even with reflections off: they cost nothing per frame.
         DescriptorPool shared = CreatePool(
-            sizes: sizes,
-            maxSets: 2 * frames + 13 + glowSourceSets + PyramidLevelSets + EnvironmentLevelsSets + SurfaceTestSets,
+            sizes: SharedPoolSizes(frames, glowSourceSets),
+            maxSets: 2 * frames
+                + 13
+                + glowSourceSets
+                + PyramidLevelSets
+                + EnvironmentLevelsSets
+                + SurfaceTestSets
+                + SignalSets
+                + SignalReadSets
+                + ReservoirSets,
             flags: 0,
             name: "descriptor pool"
         );
@@ -980,12 +1052,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     {
         Span<DescriptorSetLayoutBinding> scatter =
         [
-            new(
-                binding: 0,
-                descriptorType: DescriptorType.StorageImage,
-                descriptorCount: 1,
-                stageFlags: ShaderStageFlags.FragmentBit | ShaderStageFlags.ComputeBit
-            ),
+            StorageImage(binding: 0),
             StorageImage(binding: 1),
             StorageImage(binding: 2),
             new(
@@ -1027,14 +1094,36 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         return CreateLayout(bindings: surface, name: "surface test set");
     }
 
-    /// <summary>A binding of one storage image for the compute stage.</summary>
-    private static DescriptorSetLayoutBinding StorageImage(uint binding) =>
-        new(
-            binding: binding,
-            descriptorType: DescriptorType.StorageImage,
-            descriptorCount: 1,
-            stageFlags: ShaderStageFlags.ComputeBit
+    /// <summary>The layouts of the signal set, the signal read set and the reservoir set (<see cref="SignalSet"/>).</summary>
+    private (DescriptorSetLayout Signal, DescriptorSetLayout SignalRead, DescriptorSetLayout Reservoir) CreateTemporalSetLayouts()
+    {
+        Span<DescriptorSetLayoutBinding> signal = stackalloc DescriptorSetLayoutBinding[(int)SignalSetImages];
+        for (uint binding = 0; binding < SignalSetImages; binding++)
+            signal[(int)binding] = StorageImage(binding);
+        Span<DescriptorSetLayoutBinding> read =
+        [
+            StorageImage(binding: 0, stages: ShaderStageFlags.FragmentBit),
+            StorageImage(binding: 1, stages: ShaderStageFlags.FragmentBit),
+        ];
+        Span<DescriptorSetLayoutBinding> reservoir =
+        [
+            Image(binding: 0, stages: ShaderStageFlags.FragmentBit),
+            StorageImage(binding: 1, stages: ShaderStageFlags.FragmentBit),
+            StorageImage(binding: 2, stages: ShaderStageFlags.FragmentBit),
+        ];
+        return (
+            CreateLayout(bindings: signal, name: "signal set"),
+            CreateLayout(bindings: read, name: "signal read set"),
+            CreateLayout(bindings: reservoir, name: "reservoir set")
         );
+    }
+
+    /// <summary>A binding of one storage image for the compute stage.</summary>
+    private static DescriptorSetLayoutBinding StorageImage(uint binding) => StorageImage(binding, ShaderStageFlags.ComputeBit);
+
+    /// <summary>A binding of one storage image for <paramref name="stages"/>.</summary>
+    private static DescriptorSetLayoutBinding StorageImage(uint binding, ShaderStageFlags stages) =>
+        new(binding: binding, descriptorType: DescriptorType.StorageImage, descriptorCount: 1, stageFlags: stages);
 
     private Sampler CreateShadowSampler()
     {
@@ -1118,6 +1207,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             StorageBuffer(binding: MotionsBinding, stages: graphics),
             // The last drawn frame's kept positions, which the G-buffer's vertex stage reads.
             StorageBuffer(binding: KeptPositionsBinding, stages: ShaderStageFlags.VertexBit),
+            // ReSTIR's light table, which its two fragment passes read.
+            StorageBuffer(binding: LightTableBinding, stages: ShaderStageFlags.FragmentBit),
         ];
         Span<DescriptorBindingFlags> flags = stackalloc DescriptorBindingFlags[frame.Length];
         foreach (uint binding in (ReadOnlySpan<uint>)[12, 14, ShadowAtlas.TileViewsBinding, 16, KeptPositionsBinding])

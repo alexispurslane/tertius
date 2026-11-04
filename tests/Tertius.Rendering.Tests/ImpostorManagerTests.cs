@@ -50,7 +50,7 @@ public sealed class ImpostorManagerTests
         public readonly ImpostorManager Manager;
 
         private readonly DeformRegion region;
-        private readonly FrameHistory history = new();
+        private readonly FrameHistory history = new(StillRule.Window);
 
         public Harness(int tiles = 64, DeformRegion region = default)
         {
@@ -64,6 +64,8 @@ public sealed class ImpostorManagerTests
         {
             FrameHistory.PendingFrame frame = history.Begin(
                 snapshot: snapshot,
+                step: FrameHistoryTesting.FilmStep,
+                draw: 0,
                 outputSize: new(Width, Height),
                 renderSize: new(Width, Height)
             );

@@ -161,6 +161,8 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
         // After the lights, which take the cascade sets, and before the far shadows, which follow what each set draws.
         FitCascadeSets(snapshot, scene);
         CollectFarShadows(scene);
+        // After the far lights' slots, which say which lights are exact, and before the processors, which add no light.
+        scene.LightTable.Fill(scene.LightSpan, frame);
         foreach (IInstanceProcessor processor in Processors)
             processor.Process(scene);
         Batch(scene, scene.Meshes);
@@ -1079,6 +1081,7 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
     {
         (
             uint entity,
+            uint generation,
             Vector3 position,
             Vector3 color,
             double intensity,
@@ -1090,6 +1093,7 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
         {
             PointRenderLight point => (
                 point.EntityIndex,
+                point.EntityGeneration,
                 Vector3.Lerp(point.PreviousPosition, point.Position, alpha),
                 point.Color,
                 LightUnits.PointIntensity(point.Power),
@@ -1100,6 +1104,7 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
             ),
             SpotRenderLight spot => (
                 spot.EntityIndex,
+                spot.EntityGeneration,
                 Vector3.Lerp(spot.PreviousPosition, spot.Position, alpha),
                 spot.Color,
                 LightUnits.SpotIntensity(spot.Power, spot.OuterConeAngle),
@@ -1118,6 +1123,7 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
         PreparedLight prepared = new()
         {
             EntityIndex = entity,
+            EntityGeneration = generation,
             Position = relative,
             RadiantIntensity = LightUnits.RadiantIntensity(color, intensity),
             Radius = radius,

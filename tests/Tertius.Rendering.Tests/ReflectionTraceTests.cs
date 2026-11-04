@@ -85,8 +85,7 @@ public sealed class ReflectionTraceTests
                 glowLevels: 0,
                 smaaTables: null,
                 reflections: resolution,
-                subsurface: false,
-                diffuse: false
+                subsurface: false
             );
         }
 

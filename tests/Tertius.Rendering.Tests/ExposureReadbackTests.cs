@@ -137,6 +137,8 @@ public sealed class ExposureReadbackTests
                 Height = Height,
                 Impostors = false,
                 Exposure = new FixedExposure(-2),
+                // The exact loop, so that each still draws once and the frames keep their numbers.
+                DirectLight = new EveryLight(),
             },
             (device, allocator, extent) => made = new(device: device, allocator: allocator, extent: extent, bgra: false)
         );

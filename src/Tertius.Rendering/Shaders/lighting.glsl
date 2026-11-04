@@ -338,9 +338,51 @@ bool viewKeeps(uint view, GpuLight light)
     return view == MainView ? light.inMainView != 0u : light.map <= view;
 }
 
+// The path from a surface point to light `index` of the list, before its shadows: the light's irradiance there, and what
+// its shadow lookup takes, L the unit direction toward the light, d its distance, the geometric normal turned toward the
+// light and the sine of its angle with L.
+struct LightPath
+{
+    vec3 irradiance;
+    vec3 L;
+    float d;
+    vec3 shadowNormal;
+    float sinTheta;
+};
+
+// The path from a surface point to light `index`, or false where the point takes none of its light. `fiber` as in respond,
+// `tinted` as in lightIrradiance. A surface's geometric normal faces every light that it takes (takesLight), so only a
+// fiber's turns. The sine of the angle to the light is the same on both sides of a card.
+bool lightPath(uint index, bool fiber, bool tinted, ShadingInput s, vec3 position, out LightPath p)
+{
+    p.irradiance = lightIrradiance(index, tinted, position, p.L, p.d);
+    float geometricNdotL = dot(s.geometricNormal, p.L);
+    if (p.irradiance == vec3(0.0) || !takesLight(fiber, s, p.L, geometricNdotL))
+        return false;
+    p.shadowNormal = fiber && geometricNdotL < 0.0 ? -s.geometricNormal : s.geometricNormal;
+    p.sinTheta = sqrt(max(1.0 - geometricNdotL * geometricNdotL, 0.0));
+    return true;
+}
+
+// The share of light `index` that its shadows let through at a point, along the path that lightPath gave there.
+float pathVisibility(uint index, LightPath p, vec3 position, uint shadowMaps)
+{
+    return lightVisibility(lights[index], position, p.L, p.d, p.shadowNormal, p.sinTheta, shadowMaps);
+}
+
+// The light of light `index` along its path before its shadows, in its two parts: its irradiance times the response,
+// plain radiance. `fiber` as in respond.
+DirectTerms pathLight(uint index, bool fiber, ShadingInput s, SurfaceLobes lobes, vec3 V, LightPath p)
+{
+    DirectTerms terms = respond(fiber, s, lobes, V, p.L, lightSineAt(lights[index], p.d));
+    terms.diffuse *= p.irradiance;
+    terms.specular *= p.irradiance;
+    return terms;
+}
+
 // directLight for one model: a fiber's light if `fiber`, else a surface's. `fiber` as in respond, `tinted` as in
 // lightIrradiance. directLight is the one caller, and it passes constants, so each copy of the loop holds one model's
-// code and only the tint that it needs.
+// code and only the tint that it needs. A light's response is evaluated only where its shadows let some of it through.
 DirectTerms modelLight(
     bool fiber, bool tinted, ShadingInput s, SurfaceLobes lobes, vec3 position, vec3 V, uint shadowMaps, uint view)
 {
@@ -349,26 +391,17 @@ DirectTerms modelLight(
     sum.specular = vec3(0.0);
     for (uint i = 0u; i < frame.counts.x; i++)
     {
-        GpuLight light = lights[i];
-        if (!viewKeeps(view, light))
+        if (!viewKeeps(view, lights[i]))
             continue;
-        vec3 L;
-        float d;
-        vec3 irradiance = lightIrradiance(i, tinted, position, L, d);
-        float geometricNdotL = dot(s.geometricNormal, L);
-        if (irradiance == vec3(0.0) || !takesLight(fiber, s, L, geometricNdotL))
+        LightPath p;
+        if (!lightPath(i, fiber, tinted, s, position, p))
             continue;
-        // A surface's geometric normal faces every light that it takes (takesLight), so only a fiber's turns. The sine
-        // of the angle to the light is the same on both sides of a card.
-        vec3 shadowNormal = fiber && geometricNdotL < 0.0 ? -s.geometricNormal : s.geometricNormal;
-        float sinTheta = sqrt(max(1.0 - geometricNdotL * geometricNdotL, 0.0));
-        float visibility = lightVisibility(light, position, L, d, shadowNormal, sinTheta, shadowMaps);
+        float visibility = pathVisibility(i, p, position, shadowMaps);
         if (visibility > 0.0)
         {
-            DirectTerms terms = respond(fiber, s, lobes, V, L, lightSineAt(light, d));
-            vec3 weight = irradiance * visibility;
-            sum.diffuse += terms.diffuse * weight;
-            sum.specular += terms.specular * weight;
+            DirectTerms terms = pathLight(i, fiber, s, lobes, V, p);
+            sum.diffuse += terms.diffuse * visibility;
+            sum.specular += terms.specular * visibility;
         }
     }
     return sum;
@@ -378,8 +411,8 @@ DirectTerms modelLight(
 // shadowMaps says: a face of map i passes i, and every other caller MainView. The lights add in the order of the list,
 // so the sum rounds the same way on every run. A light adds only where takesLight says. A hair card's shadow lookups
 // take its geometric normal turned toward the light, the side that the light sees (docs/plans/skin-and-hair.md,
-// decision 27). The result is plain radiance: no ambient light, no emission and no exposure. The direct pass writes it
-// into the direct image (Shaders/direct_pass.glsl).
+// decision 27). The result is plain radiance: no ambient light, no emission and no exposure. Under EveryLight the direct
+// pass divides it by its material factors into the direct signal's samples (Shaders/direct_pass.glsl).
 //
 // A pixel has one model, so directLight chooses the model once per pixel, before the loop over the lights, and each
 // model has a loop of its own. Chosen per light inside one loop, the hair's code made the direct pass of demo-exit's deck

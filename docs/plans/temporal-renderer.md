@@ -863,9 +863,13 @@ The light remap. A light's index changes from frame to frame, because the list k
 
 "Direct light", one invocation per pixel:
 
-1. The spatial reuse. Read 2 neighbors' reservoirs from R0 (`SpatialNeighbors`). They lie on a disk of radius 16 pixels at a render width of 1,280, scaled with the width and turned by the draw index. Combine only a neighbor whose surface is like this pixel's: a view depth within 10 %, normals within 25° and the same shading model.
+1. The spatial reuse. Read 2 neighbors' reservoirs from R0 (`SpatialNeighbors`). They lie on a disk of radius 16 pixels at a render width of 1,280, scaled with the width and turned by the draw index. Combine only a neighbor whose surface is like this pixel's: a view depth within 10 %, normals within 25° and the same shading model. The combine is Bitterli's unbiased one (2026-11-03, below).
 2. Shade the chosen light: its exact unshadowed contribution in two parts, times its visibility with the frame's taps, times W. Add the light of every exact light, with the frame's taps. Divide each part by its factor. Write the direct signal's sample, pre-exposed and capped.
-3. Write R1, with W 0 where the visibility of step 2 is 0.
+3. Write R1. The combine keeps only a light that the pixel sees, so R1 needs no visibility test of its own.
+
+Note of 2026-11-03 (`ter-nmbm`, which built the design of `ter-t8z7`): the first build combined the neighbors with Bitterli's biased weights, 1 / M, and no visibility test of a neighbor's light at this pixel. Thin lamp shadows then lost most of their contrast: the deck's glasshouse frame and the hall's pillars, a bias of −0.107 on the deck. The user chose the unbiased combine before the merge. Each reused light's target at this pixel is p̂ times its visibility there, and W = Σ w / (Z · p̂'(y)), where Z adds the M of the reservoirs whose surface can choose the kept light: one visibility test of it at each neighbor's surface. Every test goes through the shading's rule of a light's visibility, so a light with atlas tiles ends at the tile's bounds wherever its 5 × 5 texels agree, and only pixels near a shadow edge take the gathers. No pass over screen tiles is needed for that. The temporal reuse keeps 1 / M: its last reservoir lies on the same surface, so in a still it can choose every light that the pixel sees. ARCHITECTURE.md, "ReSTIR DI", gives the proof and the measures.
+
+Note of 2026-11-03, the fix stage of `ter-nmbm`: the proof needs a light's p̂' to be above 0 at a surface exactly where the candidates pass can keep that light there. Two choices keep this true by construction. Both passes build a pixel's surface with one function, `resampledSurfaceAt(pixel)`, from the ray through the pixel's center, so the test of Z at a neighbor sees the surface that the neighbor's own pass saw. The target's test of the shadow tile's bounds and the early 0 of the tile's filter call one predicate, `fullyShadowed`. The combine's cost leaves the hall's saving smaller than the first build's: about 2 ms of the frame at 1280 × 720, against about 4 ms before. On the deck, the combine adds about 1.4 ms of direct light and a sparkle of single bright pixels.
 
 Under `EveryLight` there is no candidates pass, and "direct light" loops over every light as today, into the same two-part sample.
 
@@ -886,9 +890,9 @@ The tiles of the local atlas compute their quarter from 4 gathers with exact wei
 
 ReSTIR's choices here trade bias for speed. Each is measured against `EveryLight`:
 
-1. Combining without a visibility test of the neighbor's light at this pixel, with weights 1 / M (Bitterli's biased variant). It darkens or brightens the edges of contact shadows a little.
+1. The temporal reuse's weights 1 / M (Bitterli's biased variant). In a still they equal the unbiased 1 / Z, so only a light whose visibility changed since the last frame takes a bias. The spatial reuse takes the unbiased combine (note of 2026-11-03 above): its first build, with weights 1 / M and no visibility test of the neighbor's light at this pixel, washed out thin lamp shadows.
 2. The cap of M at 80: a higher cap adds correlation and lag, a lower one adds noise.
-3. The visibility reuse, which removes shadowed choices. It cuts noise inside shadows, and adds a little bias at their edges.
+3. The visibility reuse, which removes shadowed choices. It cuts noise inside shadows. Under the unbiased spatial combine it adds no bias of its own: it makes the lights that a reservoir can hold the lights that its surface sees, and Z counts exactly those (note of 2026-11-03 above). In a moving view, a light whose visibility changed takes the bias of item 1.
 4. The surface test of the neighbors, which keeps light from crossing edges.
 
 Ticket 3 measures the bias: the mean relative error of the accumulated direct light against `EveryLight`, per view. It measures it on demo-exit's films, on `lamp-hall-64`, and on the cabin of `cabin-light`, which its lamps light under the star.
@@ -897,7 +901,7 @@ Ticket 3 measures the bias: the mean relative error of the accumulated direct li
 
 Today's loop costs each pixel one unshadowed evaluation for each light in reach, plus a shadow lookup of 16 taps for each shadowed light. On `lamp-hall-64` at 1080p, the direct pass takes 11.8 ms with 64 shadowed lamps. Without shadows, it takes 6.42 ms (ARCHITECTURE.md, "The scenes and the cost of the shadows"). So one light costs about 0.10 ms per frame unshadowed and 0.084 ms more with shadows, at 1080p.
 
-ReSTIR costs each pixel about 8 unshadowed evaluations: 4 candidates, 1 temporal, 2 spatial and the final shade. It adds 2 visibility tests with a quarter of the taps each. This cost does not grow with the number of sampled lights. Each exact light adds one exact evaluation and a quarter of its shadow lookup.
+ReSTIR costs each pixel about 8 unshadowed evaluations: 4 candidates, 1 temporal, 2 spatial and the final shade. It adds 2 visibility tests with a quarter of the taps each. This cost does not grow with the number of sampled lights. Each exact light adds one exact evaluation and a quarter of its shadow lookup. The unbiased combine (2026-11-03) evaluates each of the 3 combined lights at this pixel with its shadows, and the pass shades the kept light with that same evaluation. It adds a visibility test and an evaluation of the kept light at the surface of each combined neighbor whose reservoir does not hold that light, also a neighbor without a choice, with that neighbor's G-buffer reads. So a pixel takes 1 to 5 visibility tests in place of 1. A test ends at the bounds of the light's shadow tile wherever its filter agrees. ARCHITECTURE.md, "ReSTIR DI", has the measured cost.
 
 | View | Today at 1080p | Today, scaled to 1280 × 720 | ReSTIR at 1280 × 720, estimated |
 |---|---|---|---|

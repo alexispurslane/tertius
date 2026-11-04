@@ -3,35 +3,44 @@ using Silk.NET.Vulkan;
 namespace Tertius.Rendering;
 
 /// <summary>
-/// One fullscreen pass over all depth ranges that writes the direct image: the light of each light, shadowed by its slot's
-/// cascades and occluder spheres or by its atlas tiles, plus the emission, pre-exposed and capped. No ambient light
-/// (docs/plans/screen-space-illumination.md, "The direct pass"). Sky pixels get 0. When the targets hold the diffuse image,
-/// it also writes that: the diffuse part and the skin mask (docs/plans/skin-and-hair.md, "The diffuse light D").
+/// "Direct light" (docs/plans/temporal-renderer.md, section 7, "The two passes"): one fullscreen pass over all depth
+/// ranges that writes the direct signal's sample of each lit pixel in its two parts, the diffuse and the specular light,
+/// each divided by its material factor and pre-exposed. Sky and impostor pixels get 0. Under <see cref="EveryLight"/>,
+/// which keeps no reservoirs, it takes every light with its shadows. Under <see cref="ResampledLights"/> it reuses the
+/// neighbors' reservoirs of R0, shades the chosen light and every exact light, and writes R1.
 /// </summary>
 internal sealed unsafe class DirectLightPass : RenderPass
 {
     private readonly VulkanDevice device;
+    private readonly DescriptorLayouts layouts;
+    private readonly TemporalSignal signal;
+    private readonly LightReservoirs? reservoirs;
     private readonly Pipeline pipeline;
 
-    /// <param name="diffuse">True when the targets hold the diffuse image.</param>
+    /// <param name="reservoirs">The reservoirs, which hold the setting of <see cref="ResampledLights"/>, or null under
+    /// <see cref="EveryLight"/>.</param>
     public DirectLightPass(
         VulkanDevice device,
         ShaderLibrary shaders,
         DescriptorLayouts layouts,
         ShaderConstants constants,
-        bool diffuse
+        TemporalSignal signal,
+        LightReservoirs? reservoirs
     )
     {
         this.device = device;
+        this.layouts = layouts;
+        this.signal = signal;
+        this.reservoirs = reservoirs;
         pipeline = new GraphicsPipelineDesc
         {
             Name = "direct light",
             VertexShader = "lighting.vert",
-            FragmentShader = diffuse ? "direct_diffuse.frag" : "direct.frag",
-            Layout = layouts.SceneLayout,
-            ColorFormats = diffuse
-                ? [RenderTargets.DirectFormat, RenderTargets.DiffuseFormat]
-                : [RenderTargets.DirectFormat],
+            FragmentShader = reservoirs is null ? "direct_every.frag" : "direct_resampled.frag",
+            Layout = reservoirs is null ? layouts.SceneLayout : layouts.ReservoirLayout,
+            ColorFormats = reservoirs is null
+                ? [TemporalSignal.SignalFormat, TemporalSignal.SignalFormat]
+                : [TemporalSignal.SignalFormat, TemporalSignal.SignalFormat, LightReservoirs.ReservoirFormat],
             CullMode = CullModeFlags.None,
             Constants = constants,
         }.Create(device, shaders);
@@ -43,32 +52,56 @@ internal sealed unsafe class DirectLightPass : RenderPass
     {
         RenderTargets targets = context.Targets;
         BarrierBatch barriers = context.Barriers;
+        // Not the motion target, which the pass does not read: the accumulation reads it next, as a storage image.
         foreach (GpuImage image in targets.GBuffer)
-            barriers.Image(image, ImageUse.SampledFragment);
+            if (image != targets.Motion)
+                barriers.Image(image, ImageUse.SampledFragment);
         // Always, even in a frame without shadow maps: the descriptor promises this layout whenever the shader runs.
         barriers.Image(context.Shadows.Image, ImageUse.SampledFragment);
         context.ShadowAtlas?.DeclareSampled(barriers, ImageUse.SampledFragment);
-        // Discarded, and still after the last frame's ambient pass read it.
-        barriers.Image(targets.Direct, ImageUse.ColorAttachment, discard: true);
         barriers.Buffer(context.Exposure.Buffer, BufferUse.ShaderRead);
-        // The renderer makes the pass and the targets from the same options, so the image is there exactly when the
-        // pipeline draws it.
-        if (targets.Diffuse is { } diffuse)
+        // Discarded, and still after the last frame's accumulation read them: the pass writes every pixel.
+        barriers.Image(signal.Sample(0), ImageUse.ColorAttachment, discard: true);
+        barriers.Image(signal.Sample(1), ImageUse.ColorAttachment, discard: true);
+        if (reservoirs is null)
         {
-            // Discarded, and still after the last frame's readers, the copy and the scatter passes: the pass writes every
-            // pixel.
-            barriers.Image(diffuse, ImageUse.ColorAttachment, discard: true);
             barriers.Flush(context.Vk, context.CommandBuffer);
             context.DrawSceneFullScreen(
                 pipeline,
-                [(targets.Direct, AttachmentLoadOp.DontCare), (diffuse, AttachmentLoadOp.DontCare)]
+                [(signal.Sample(0), AttachmentLoadOp.DontCare), (signal.Sample(1), AttachmentLoadOp.DontCare)]
             );
             return;
         }
 
+        barriers.Image(reservoirs.R0, ImageUse.SampledFragment);
+        // Discarded, and still after this frame's candidates read it.
+        barriers.Image(reservoirs.R1, ImageUse.ColorAttachment, discard: true);
         barriers.Flush(context.Vk, context.CommandBuffer);
-        context.DrawSceneFullScreen(pipeline, [(targets.Direct, AttachmentLoadOp.DontCare)]);
+        context.DrawSceneFullScreen(
+            pipeline: pipeline,
+            layout: layouts.ReservoirLayout,
+            passSet: reservoirs.DirectSet,
+            push: ResampledPush.Of(reservoirs.Setting, context.History.DrawIndex),
+            targets:
+            [
+                (signal.Sample(0), AttachmentLoadOp.DontCare),
+                (signal.Sample(1), AttachmentLoadOp.DontCare),
+                (reservoirs.R1, AttachmentLoadOp.DontCare),
+            ]
+        );
     }
 
     public override void Dispose() => device.Vk.DestroyPipeline(device.Device, pipeline, null);
+}
+
+/// <summary>The push constants of ReSTIR's passes for one draw.</summary>
+internal static class ResampledPush
+{
+    public static ResampledPushConstants Of(ResampledLights setting, long drawIndex) =>
+        new()
+        {
+            DrawIndex = unchecked((uint)drawIndex),
+            Candidates = (uint)setting.Candidates,
+            Neighbors = (uint)setting.SpatialNeighbors,
+        };
 }

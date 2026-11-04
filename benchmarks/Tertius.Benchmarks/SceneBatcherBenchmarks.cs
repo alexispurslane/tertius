@@ -67,7 +67,7 @@ public class SceneBatcherBenchmarks
         JobCapacity: 1 << 10
     );
 
-    private readonly FrameHistory history = new();
+    private readonly FrameHistory history = new(StillRule.Window);
     private readonly SceneBatcher batcher = new(
         cascadedLights: 1,
         shadowMapSize: ShadowMap.DefaultSize,
@@ -122,6 +122,8 @@ public class SceneBatcherBenchmarks
         // Each call continues the one before, so the join finds every key of the last frame, as a window's frames do.
         FrameHistory.PendingFrame frame = history.Begin(
             snapshot: snapshot,
+            step: 1f / 60f,
+            draw: 0,
             outputSize: new(Width, Height),
             renderSize: new(Width, Height)
         );

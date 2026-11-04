@@ -49,7 +49,9 @@ internal static class Gpu
     /// is off unless asked for, so the hemisphere lights the tests. Local shadows are off unless asked for, as the
     /// impostors are (docs/plans/local-light-shadows.md, "Decisions"). One far light has a cascade set unless asked for,
     /// the renderer's default. The deformation is on unless asked for, the renderer's default. The skin scatter is off
-    /// unless asked for, because the zero case of the setting is off (docs/plans/skin-and-hair.md, decision 29).
+    /// unless asked for, because the zero case of the setting is off (docs/plans/skin-and-hair.md, decision 29). The direct
+    /// light is the exact loop unless asked for, the zero case, so that a frame's direct light depends on its snapshot alone
+    /// (docs/plans/temporal-renderer.md, "The settings").
     /// </summary>
     public static VulkanRenderer Headless(
         int width = 640,
@@ -65,7 +67,8 @@ internal static class Gpu
         int cascadedLights = 1,
         LocalShadowSetting localShadows = default,
         bool deformation = true,
-        SubsurfaceSetting subsurface = default
+        SubsurfaceSetting subsurface = default,
+        DirectLightSetting directLight = default
     ) =>
         VulkanRenderer.CreateHeadless(
             new()
@@ -86,6 +89,7 @@ internal static class Gpu
                 CascadedLights = cascadedLights,
                 Deformation = deformation,
                 Subsurface = subsurface,
+                DirectLight = directLight,
             }
         );
 
@@ -603,7 +607,9 @@ internal static class Batchers
     /// prepares one frame.
     /// </summary>
     public static FrameHistory.PendingFrame FirstFrame() =>
-        new FrameHistory().Begin(
+        new FrameHistory(StillRule.Window).Begin(
+            step: FrameHistoryTesting.FilmStep,
+            draw: 0,
             snapshot: new RenderSnapshot(),
             outputSize: new Silk.NET.Vulkan.Extent2D(1600, 900),
             renderSize: new Silk.NET.Vulkan.Extent2D(1600, 900)

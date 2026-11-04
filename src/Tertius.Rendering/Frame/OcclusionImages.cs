@@ -23,21 +23,25 @@ internal sealed class OcclusionImages : IDisposable
     private readonly VulkanDevice device;
     private readonly DeviceAllocator allocator;
     private readonly DescriptorLayouts layouts;
+    private readonly TemporalSignal direct;
 
     /// <exception cref="NotSupportedException">
     /// A format is not a storage image on the device, or the device binds fewer than <see cref="StorageImages"/> storage
     /// images in one stage.
     /// </exception>
+    /// <param name="direct">The direct signal, whose diffuse part's slow history the depth pass reads as the bounce source.</param>
     public OcclusionImages(
         VulkanDevice device,
         DeviceAllocator allocator,
         DescriptorLayouts layouts,
-        RenderTargets targets
+        RenderTargets targets,
+        TemporalSignal direct
     )
     {
         this.device = device;
         this.allocator = allocator;
         this.layouts = layouts;
+        this.direct = direct;
         CheckDevice(device);
         SetAToB = layouts.AllocateOcclusionSet();
         SetBToA = layouts.AllocateOcclusionSet();
@@ -61,8 +65,14 @@ internal sealed class OcclusionImages : IDisposable
     public GpuImage ViewDepth { get; private set; }
 
     /// <summary>
+    /// The direct signal's diffuse slow history, demodulated, which the depth pass multiplies by each pixel's diffuse factor
+    /// for the bounce source, as the composite does (docs/plans/temporal-renderer.md, decision 25).
+    /// </summary>
+    public GpuImage DirectDiffuse => direct.Slow(0);
+
+    /// <summary>
     /// The bounce source at each texel's representative pixel, which the depth pass copies for the near steps: rgb the
-    /// pixel's diffuse direct light, plus its emission where its entity holds no light, pre-exposed
+    /// pixel's accumulated diffuse direct light, plus its emission where its entity holds no light, pre-exposed
     /// (docs/plans/screen-space-illumination.md, "The bounce source").
     /// </summary>
     public GpuImage Source { get; private set; }
@@ -101,7 +111,10 @@ internal sealed class OcclusionImages : IDisposable
     /// <summary>Set 3 with term B as the denoise source and term A as its destination: for the last denoise dispatch.</summary>
     public DescriptorSet SetBToA { get; }
 
-    /// <summary>Recreates the images at the half of the targets' size and rewrites both sets. The device must be idle.</summary>
+    /// <summary>
+    /// Recreates the images at the half of the targets' size and rewrites both sets. The device must be idle, and the direct
+    /// signal already resized, because the sets point at its image.
+    /// </summary>
     public void Resize(RenderTargets targets)
     {
         // Always, even at the same half size: the sets point at the targets, which a resize recreates.
@@ -144,15 +157,7 @@ internal sealed class OcclusionImages : IDisposable
         layouts.WriteStorageImage(set: set, binding: 5, image: denoiseDestination);
         layouts.WriteStorageImage(set: set, binding: 6, image: Source);
         layouts.WriteStorageImage(set: set, binding: 7, image: DepthAndNormal);
-        layouts.WriteStorageImage(
-            set: set,
-            binding: 8,
-            image: targets.Diffuse
-                ?? throw new ArgumentException(
-                    "The targets of the screen-space light hold the diffuse image.",
-                    nameof(targets)
-                )
-        );
+        layouts.WriteStorageImage(set: set, binding: 8, image: DirectDiffuse);
         layouts.WriteStorageImage(set: set, binding: 9, image: Continuation);
     }
 

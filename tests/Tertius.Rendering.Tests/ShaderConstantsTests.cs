@@ -18,14 +18,14 @@ public sealed class ShaderConstantsTests
     /// </summary>
     private static readonly Dictionary<string, Dictionary<uint, Declared>> DeclaredByShader = new()
     {
-        ["ambient.frag"] = new() { [ShaderConstants.EnvironmentMapId] = False },
+        ["composite.frag"] = new() { [ShaderConstants.EnvironmentMapId] = False },
         ["environment_face.frag"] = new()
         {
             [ShaderConstants.CutoutAlphaId] = False,
             [ShaderConstants.DropsFibersId] = False,
         },
         ["skin_scatter_rows.comp"] = new() { [ShaderConstants.ScatterTapsPerSideId] = new(Type: "int", Default: 1) },
-        ["direct.frag"] = new() { [ShaderConstants.DropsFibersId] = False },
+        ["direct_every.frag"] = new() { [ShaderConstants.DropsFibersId] = False },
         ["gbuffer.frag"] = new()
         {
             [ShaderConstants.EnvironmentMapId] = False,

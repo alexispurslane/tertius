@@ -1,0 +1,88 @@
+#version 460
+// The temporal dispatch of an accumulation (docs/plans/temporal-renderer.md, section 8, "The model", steps 1 and 2): one
+// invocation per pixel reprojects the last frame's slow and fast histories through the surface test, rescales them by the
+// exposure ratio and blends the sample in. It writes the slow history into the scratch image, so that the spatial
+// dispatch reads the neighbors' results while it writes the slow history, and this frame's fast history.
+#extension GL_GOOGLE_include_directive : require
+#include "accumulate.glsl"
+
+// The least sum of the passing taps' bilinear weights that holds a history.
+const float LeastHistoryWeight = 0.05;
+
+// The closed form of the direct signal: a pixel without a history and without a finite sample takes it as its sample.
+const vec3 ClosedForm = vec3(0.0);
+
+void main()
+{
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    if (!insideImages(pixel))
+        return;
+    if (texelFetch(gbufferDistance, pixel, 0).r <= 0.0)
+    {
+        // The sky: no signal, and no reader reads it.
+        imageStore(scratch, pixel, vec4(0.0));
+        imageStore(fastHistory, pixel, vec4(0.0));
+        return;
+    }
+
+    // Step 1: the bilinear weights of the previous place over the 2 × 2 texels of the last frame's images around it, times
+    // the pass bits. A failing tap and a tap outside the last image hold no weight: the surface test fails it.
+    uint bits = imageLoad(surfaceTest, pixel).r & 0xFu;
+    vec2 place = (vec2(pixel) + 0.5) * frame.viewport.zw + imageLoad(motionTarget, pixel).xy;
+    vec2 texelPlace = place * frame.previousViewport.xy - 0.5;
+    ivec2 first = ivec2(floor(texelPlace));
+    vec2 f = texelPlace - vec2(first);
+    vec4 slow = vec4(0.0);
+    vec3 fast = vec3(0.0);
+    float sum = 0.0;
+    for (uint tap = 0u; tap < 4u; tap++)
+    {
+        if ((bits & (1u << tap)) == 0u)
+            continue;
+        ivec2 offset = ivec2(tap & 1u, tap >> 1);
+        vec2 axes = mix(1.0 - f, f, vec2(offset));
+        float weight = axes.x * axes.y;
+        ivec2 texel = first + offset;
+        slow += weight * imageLoad(slowHistory, texel);
+        fast += weight * imageLoad(lastFast, texel).rgb;
+        sum += weight;
+    }
+
+    float historyLength = 0.0;
+    if (sum >= LeastHistoryWeight)
+    {
+        // Both histories hold pre-exposed light: the ratio 2^(S − S_last) keeps them in this frame's scale. A rise of more
+        // than about one stop takes a history at MaxRadiance past the largest half float, so `exposed` caps the product at
+        // MaxRadiance before it. Its bounds hold for a ratio of at most 2^64, and two exposures can lie 128 stops apart.
+        float ratio = exp2(clamp(exposureStops - previousStops, -64.0, 64.0));
+        historyLength = slow.a / sum;
+        slow.rgb = exposed(slow.rgb / sum, ratio);
+        fast = exposed(fast / sum, ratio);
+    }
+    else
+    {
+        slow.rgb = vec3(0.0);
+        fast = vec3(0.0);
+    }
+
+    // Step 2. A sample that is not finite counts as no sample: the pixel keeps its history and its length. Without a
+    // history, it takes the closed form.
+    vec3 sampled = imageLoad(sampleImage, pixel).rgb;
+    bool hasSample = finiteSample(sampled);
+    if (!hasSample && historyLength == 0.0)
+    {
+        sampled = ClosedForm;
+        hasSample = true;
+    }
+    if (hasSample)
+    {
+        historyLength = min(historyLength + 1.0, parameters.cap);
+        // The weight 1 / length, written as a step toward the sample, so that a sample equal to the history leaves it
+        // exact. A length of 1 takes the sample itself.
+        slow.rgb = historyLength <= 1.0 ? sampled : slow.rgb + (sampled - slow.rgb) / historyLength;
+        float fastLength = min(historyLength, parameters.fastCap);
+        fast = fastLength <= 1.0 ? sampled : fast + (sampled - fast) / fastLength;
+    }
+    imageStore(scratch, pixel, vec4(slow.rgb, historyLength));
+    imageStore(fastHistory, pixel, vec4(fast, 0.0));
+}

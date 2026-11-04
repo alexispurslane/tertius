@@ -41,6 +41,8 @@ public sealed class FrameHistoryTests
     )
     {
         FrameHistory.PendingFrame pending = history.Begin(
+            step: FrameHistoryTesting.FilmStep,
+            draw: 0,
             snapshot: snapshot,
             outputSize: output ?? Output,
             renderSize: renderSize ?? output ?? Output
@@ -53,9 +55,9 @@ public sealed class FrameHistoryTests
     [Fact]
     public void TheFirstDrawResetsEveryHistory()
     {
-        var history = new FrameHistory();
+        var history = new FrameHistory(StillRule.Window);
 
-        FrameHistory.PendingFrame pending = history.Begin(snapshot: Snapshot(), outputSize: Output, renderSize: Output);
+        FrameHistory.PendingFrame pending = history.Begin(step: FrameHistoryTesting.FilmStep, draw: 0, snapshot: Snapshot(), outputSize: Output, renderSize: Output);
 
         pending.Reset.Should().BeTrue();
         pending.DrawIndex.Should().Be(0);
@@ -64,10 +66,10 @@ public sealed class FrameHistoryTests
     [Fact]
     public void ADrawOfTheSameCutAfterADrawnFrameContinuesIt()
     {
-        var history = new FrameHistory();
+        var history = new FrameHistory(StillRule.Window);
         Draw(history: history, snapshot: Snapshot());
 
-        FrameHistory.PendingFrame pending = history.Begin(snapshot: Snapshot(), outputSize: Output, renderSize: Output);
+        FrameHistory.PendingFrame pending = history.Begin(step: FrameHistoryTesting.FilmStep, draw: 0, snapshot: Snapshot(), outputSize: Output, renderSize: Output);
 
         pending.Reset.Should().BeFalse();
         pending.DrawIndex.Should().Be(1);
@@ -76,10 +78,12 @@ public sealed class FrameHistoryTests
     [Fact]
     public void ADrawWhoseSnapshotCountsAnotherCutResets()
     {
-        var history = new FrameHistory();
+        var history = new FrameHistory(StillRule.Window);
         Draw(history: history, snapshot: Snapshot(cuts: 1));
 
         FrameHistory.PendingFrame pending = history.Begin(
+            step: FrameHistoryTesting.FilmStep,
+            draw: 0,
             snapshot: Snapshot(cuts: 2),
             outputSize: Output,
             renderSize: Output
@@ -93,10 +97,12 @@ public sealed class FrameHistoryTests
     public void ADrawAfterASkippedSnapshotThatHeldACutResets()
     {
         // The builder counted a cut in a snapshot that the renderer never drew, and the snapshot after it counts no new cut.
-        var history = new FrameHistory();
+        var history = new FrameHistory(StillRule.Window);
         Draw(history: history, snapshot: Snapshot(cuts: 1));
 
         FrameHistory.PendingFrame pending = history.Begin(
+            step: FrameHistoryTesting.FilmStep,
+            draw: 0,
             snapshot: Snapshot(cuts: 2),
             outputSize: Output,
             renderSize: Output
@@ -113,10 +119,12 @@ public sealed class FrameHistoryTests
     [InlineData(1280, 1080)]
     public void ADrawAtAnotherOutputSizeResets(int width, int height)
     {
-        var history = new FrameHistory();
+        var history = new FrameHistory(StillRule.Window);
         Draw(history: history, snapshot: Snapshot());
 
         FrameHistory.PendingFrame pending = history.Begin(
+            step: FrameHistoryTesting.FilmStep,
+            draw: 0,
             snapshot: Snapshot(),
             outputSize: new((uint)width, (uint)height),
             renderSize: new((uint)width, (uint)height)
@@ -128,10 +136,12 @@ public sealed class FrameHistoryTests
     [Fact]
     public void ADrawAtAnotherRenderSizeDoesNotReset()
     {
-        var history = new FrameHistory();
+        var history = new FrameHistory(StillRule.Window);
         Draw(history: history, snapshot: Snapshot(), renderSize: new(1280, 720));
 
         FrameHistory.PendingFrame pending = history.Begin(
+            step: FrameHistoryTesting.FilmStep,
+            draw: 0,
             snapshot: Snapshot(),
             outputSize: Output,
             renderSize: new(960, 540)
@@ -144,13 +154,15 @@ public sealed class FrameHistoryTests
     [Fact]
     public void TheDrawIndexCountsTheDrawnFramesSinceTheLastReset()
     {
-        var history = new FrameHistory();
+        var history = new FrameHistory(StillRule.Window);
         Draw(history: history, snapshot: Snapshot(cuts: 1));
         Draw(history: history, snapshot: Snapshot(cuts: 1));
         Draw(history: history, snapshot: Snapshot(cuts: 2));
         Draw(history: history, snapshot: Snapshot(cuts: 2));
 
         FrameHistory.PendingFrame pending = history.Begin(
+            step: FrameHistoryTesting.FilmStep,
+            draw: 0,
             snapshot: Snapshot(cuts: 2),
             outputSize: Output,
             renderSize: Output
@@ -163,11 +175,13 @@ public sealed class FrameHistoryTests
     [Fact]
     public void ADrawThatThrowsBeforeDrewDoesNotConsumeItsCut()
     {
-        var history = new FrameHistory();
+        var history = new FrameHistory(StillRule.Window);
         Draw(history: history, snapshot: Snapshot(cuts: 1));
-        history.Begin(snapshot: Snapshot(cuts: 2), outputSize: Output, renderSize: Output);
+        history.Begin(step: FrameHistoryTesting.FilmStep, draw: 0, snapshot: Snapshot(cuts: 2), outputSize: Output, renderSize: Output);
 
         FrameHistory.PendingFrame again = history.Begin(
+            step: FrameHistoryTesting.FilmStep,
+            draw: 0,
             snapshot: Snapshot(cuts: 2),
             outputSize: Output,
             renderSize: Output
@@ -179,13 +193,13 @@ public sealed class FrameHistoryTests
     [Fact]
     public void ADrawThatThrowsBeforeDrewLeavesTheDrawIndexAndTheParityAsTheyWere()
     {
-        var history = new FrameHistory();
+        var history = new FrameHistory(StillRule.Window);
         Draw(history: history, snapshot: Snapshot());
-        FrameHistory.PendingFrame thrown = history.Begin(snapshot: Snapshot(), outputSize: Output, renderSize: Output);
+        FrameHistory.PendingFrame thrown = history.Begin(step: FrameHistoryTesting.FilmStep, draw: 0, snapshot: Snapshot(), outputSize: Output, renderSize: Output);
         thrown.Write(CameraOf(Snapshot()));
         int thrownParity = thrown.Parity;
 
-        FrameHistory.PendingFrame again = history.Begin(snapshot: Snapshot(), outputSize: Output, renderSize: Output);
+        FrameHistory.PendingFrame again = history.Begin(step: FrameHistoryTesting.FilmStep, draw: 0, snapshot: Snapshot(), outputSize: Output, renderSize: Output);
 
         again.DrawIndex.Should().Be(1);
         again.DrawnFrames.Should().Be(1);
@@ -195,9 +209,11 @@ public sealed class FrameHistoryTests
     [Fact]
     public void ACommitOfADrawWhoseBatchWroteNoCameraThrowsAndCommitsNothing()
     {
-        var history = new FrameHistory();
+        var history = new FrameHistory(StillRule.Window);
         Draw(history: history, snapshot: Snapshot(cuts: 1));
         FrameHistory.PendingFrame pending = history.Begin(
+            step: FrameHistoryTesting.FilmStep,
+            draw: 0,
             snapshot: Snapshot(cuts: 2),
             outputSize: Output,
             renderSize: Output
@@ -207,7 +223,7 @@ public sealed class FrameHistoryTests
 
         history.DrawnFrames.Should().Be(1);
         history
-            .Begin(snapshot: Snapshot(cuts: 2), outputSize: Output, renderSize: Output)
+            .Begin(step: FrameHistoryTesting.FilmStep, draw: 0, snapshot: Snapshot(cuts: 2), outputSize: Output, renderSize: Output)
             .Reset.Should()
             .BeTrue("the commit that threw kept the count of 1 cut");
     }
@@ -215,10 +231,10 @@ public sealed class FrameHistoryTests
     [Fact]
     public void TheCountOfDrawnFramesGrowsOnlyWithACommittedDraw()
     {
-        var history = new FrameHistory();
+        var history = new FrameHistory(StillRule.Window);
         Draw(history: history, snapshot: Snapshot());
         Draw(history: history, snapshot: Snapshot());
-        history.Begin(snapshot: Snapshot(), outputSize: Output, renderSize: Output).Write(CameraOf(Snapshot()));
+        history.Begin(step: FrameHistoryTesting.FilmStep, draw: 0, snapshot: Snapshot(), outputSize: Output, renderSize: Output).Write(CameraOf(Snapshot()));
 
         history.DrawnFrames.Should().Be(2, "the third draw threw before Drew");
     }
@@ -226,7 +242,7 @@ public sealed class FrameHistoryTests
     [Fact]
     public void ACommittedDrawKeepsTheParityOfTheImagesThatItWrote()
     {
-        var history = new FrameHistory();
+        var history = new FrameHistory(StillRule.Window);
         Draw(history: history, snapshot: Snapshot());
 
         FrameHistory.PendingFrame drawn = Draw(history: history, snapshot: Snapshot());
@@ -237,15 +253,15 @@ public sealed class FrameHistoryTests
     [Fact]
     public void ADrawThatThrowsBeforeDrewLeavesThePlacementHistoryAsItWas()
     {
-        var history = new FrameHistory();
-        FrameHistory.PendingFrame first = history.Begin(snapshot: Snapshot(), outputSize: Output, renderSize: Output);
+        var history = new FrameHistory(StillRule.Window);
+        FrameHistory.PendingFrame first = history.Begin(step: FrameHistoryTesting.FilmStep, draw: 0, snapshot: Snapshot(), outputSize: Output, renderSize: Output);
         first.Write(CameraOf(Snapshot()));
         first.Place(Placement(slot: 3));
         history.Drew(first);
-        FrameHistory.PendingFrame thrown = history.Begin(snapshot: Snapshot(), outputSize: Output, renderSize: Output);
+        FrameHistory.PendingFrame thrown = history.Begin(step: FrameHistoryTesting.FilmStep, draw: 0, snapshot: Snapshot(), outputSize: Output, renderSize: Output);
         thrown.Place(Placement(slot: 5));
 
-        FrameHistory.PendingFrame again = history.Begin(snapshot: Snapshot(), outputSize: Output, renderSize: Output);
+        FrameHistory.PendingFrame again = history.Begin(step: FrameHistoryTesting.FilmStep, draw: 0, snapshot: Snapshot(), outputSize: Output, renderSize: Output);
 
         again.PreviousPlacements.ToArray().Select(p => p.Key.Slot).Should().Equal(3u);
     }
@@ -253,10 +269,10 @@ public sealed class FrameHistoryTests
     [Fact]
     public void TheParityAlternatesWithEachDrawnFrame()
     {
-        var history = new FrameHistory();
+        var history = new FrameHistory(StillRule.Window);
         int firstParity = Draw(history: history, snapshot: Snapshot()).Parity;
 
-        FrameHistory.PendingFrame second = history.Begin(snapshot: Snapshot(), outputSize: Output, renderSize: Output);
+        FrameHistory.PendingFrame second = history.Begin(step: FrameHistoryTesting.FilmStep, draw: 0, snapshot: Snapshot(), outputSize: Output, renderSize: Output);
 
         second.Parity.Should().Be(1 - firstParity);
     }
@@ -264,14 +280,14 @@ public sealed class FrameHistoryTests
     [Fact]
     public void ThePreviousEyeAfterAStepOfTenKilometersFarFromTheFramesOriginIsExactToAMillimeter()
     {
-        var history = new FrameHistory();
+        var history = new FrameHistory(StillRule.Window);
         var start = new Double3(6.4e6, 0, 0);
         RenderSnapshot before = Snapshot(origin: start);
-        FrameHistory.PendingFrame first = history.Begin(snapshot: before, outputSize: Output, renderSize: Output);
+        FrameHistory.PendingFrame first = history.Begin(step: FrameHistoryTesting.FilmStep, draw: 0, snapshot: before, outputSize: Output, renderSize: Output);
         first.Write(CameraOf(before, offset: new(0.25f, 0, 0)));
         history.Drew(first);
         RenderSnapshot after = Snapshot(origin: start + new Double3(10_000.0004, 0, 0));
-        FrameHistory.PendingFrame pending = history.Begin(snapshot: after, outputSize: Output, renderSize: Output);
+        FrameHistory.PendingFrame pending = history.Begin(step: FrameHistoryTesting.FilmStep, draw: 0, snapshot: after, outputSize: Output, renderSize: Output);
 
         PreviousView previous = pending.PreviousViewOf(CameraOf(after, offset: new(0.25f, 0, 0)));
 
@@ -283,12 +299,14 @@ public sealed class FrameHistoryTests
     [Fact]
     public void AResetByTheOutputSizeKeepsThePreviousCamera()
     {
-        var history = new FrameHistory();
+        var history = new FrameHistory(StillRule.Window);
         RenderSnapshot before = Snapshot();
-        FrameHistory.PendingFrame first = history.Begin(snapshot: before, outputSize: Output, renderSize: Output);
+        FrameHistory.PendingFrame first = history.Begin(step: FrameHistoryTesting.FilmStep, draw: 0, snapshot: before, outputSize: Output, renderSize: Output);
         first.Write(CameraOf(before, offset: new(0, 2, 0)));
         history.Drew(first);
         FrameHistory.PendingFrame pending = history.Begin(
+            step: FrameHistoryTesting.FilmStep,
+            draw: 0,
             snapshot: Snapshot(),
             outputSize: new(1920, 1080),
             renderSize: new(1920, 1080)
@@ -302,8 +320,10 @@ public sealed class FrameHistoryTests
     [Fact]
     public void ADrawInAnotherFrameOfTheCameraContinuesNoPreviousCameraOrPlacement()
     {
-        var history = new FrameHistory();
+        var history = new FrameHistory(StillRule.Window);
         FrameHistory.PendingFrame first = history.Begin(
+            step: FrameHistoryTesting.FilmStep,
+            draw: 0,
             snapshot: Snapshot(frameId: 7),
             outputSize: Output,
             renderSize: Output
@@ -312,7 +332,7 @@ public sealed class FrameHistoryTests
         first.Place(Placement(slot: 3));
         history.Drew(first);
         RenderSnapshot elsewhere = Snapshot(cuts: 2, frameId: 9);
-        FrameHistory.PendingFrame pending = history.Begin(snapshot: elsewhere, outputSize: Output, renderSize: Output);
+        FrameHistory.PendingFrame pending = history.Begin(step: FrameHistoryTesting.FilmStep, draw: 0, snapshot: elsewhere, outputSize: Output, renderSize: Output);
 
         PreviousView previous = pending.PreviousViewOf(CameraOf(elsewhere));
 
@@ -323,9 +343,9 @@ public sealed class FrameHistoryTests
     [Fact]
     public void TheFirstDrawSeesItsOwnCameraAsThePreviousOne()
     {
-        var history = new FrameHistory();
+        var history = new FrameHistory(StillRule.Window);
         RenderSnapshot snapshot = Snapshot();
-        FrameHistory.PendingFrame pending = history.Begin(snapshot: snapshot, outputSize: Output, renderSize: Output);
+        FrameHistory.PendingFrame pending = history.Begin(step: FrameHistoryTesting.FilmStep, draw: 0, snapshot: snapshot, outputSize: Output, renderSize: Output);
         DrawnCamera camera = CameraOf(snapshot) with { Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.3f) };
 
         PreviousView previous = pending.PreviousViewOf(camera);
@@ -347,9 +367,11 @@ public sealed class FrameHistoryTests
     [Fact]
     public void ThePreviousCameraIsTheDrawnFramesCamera()
     {
-        var history = new FrameHistory();
+        var history = new FrameHistory(StillRule.Window);
         RenderSnapshot before = Snapshot();
         FrameHistory.PendingFrame first = history.Begin(
+            step: FrameHistoryTesting.FilmStep,
+            draw: 0,
             snapshot: before,
             outputSize: Output,
             renderSize: new(640, 360)
@@ -363,7 +385,7 @@ public sealed class FrameHistoryTests
         };
         first.Write(drawn);
         history.Drew(first);
-        FrameHistory.PendingFrame pending = history.Begin(snapshot: Snapshot(), outputSize: Output, renderSize: Output);
+        FrameHistory.PendingFrame pending = history.Begin(step: FrameHistoryTesting.FilmStep, draw: 0, snapshot: Snapshot(), outputSize: Output, renderSize: Output);
 
         PreviousView previous = pending.PreviousViewOf(CameraOf(Snapshot()));
 
@@ -384,10 +406,12 @@ public sealed class FrameHistoryTests
     [Fact]
     public void TheRecordKeepsItsInvariantsThroughDrawsResetsAndDrawsThatThrow()
     {
-        var history = new FrameHistory();
+        var history = new FrameHistory(StillRule.Window);
         Draw(history: history, snapshot: Snapshot(cuts: 1));
-        history.Begin(snapshot: Snapshot(cuts: 2), outputSize: Output, renderSize: Output).Place(Placement(slot: 1));
+        history.Begin(step: FrameHistoryTesting.FilmStep, draw: 0, snapshot: Snapshot(cuts: 2), outputSize: Output, renderSize: Output).Place(Placement(slot: 1));
         FrameHistory.PendingFrame pending = history.Begin(
+            step: FrameHistoryTesting.FilmStep,
+            draw: 0,
             snapshot: Snapshot(cuts: 2),
             outputSize: Output,
             renderSize: Output

@@ -4,8 +4,8 @@ using Silk.NET.Vulkan;
 namespace Tertius.Rendering;
 
 /// <summary>
-/// The screen-sized images shared by all frames in flight: the G-buffer, the depth buffer, the direct image, the estimate
-/// target, the HDR target, the bloom levels, under the skin scatter or the screen-space light, the diffuse image, when SMAA is on, the images of SMAA (<see cref="SmaaTargets"/>), and under
+/// The screen-sized images shared by all frames in flight: the G-buffer, the depth buffer, the estimate target, the HDR
+/// target, the bloom levels, under the skin scatter, the diffuse image, when SMAA is on, the images of SMAA (<see cref="SmaaTargets"/>), and under
 /// <see cref="ConeTracedReflections"/>, the pyramids of the reflections (<see cref="ReflectionTargets"/>).
 /// Sharing is safe because every use goes through <see cref="BarrierBatch"/>, and barriers order against earlier
 /// submissions on the queue. Resizing recreates everything; the caller makes sure the device is idle.
@@ -33,12 +33,11 @@ namespace Tertius.Rendering;
 /// it to 0, and the surface test writes the sky's motion. It is also a storage image, for the surface test.
 /// </description></item>
 /// </list>
-/// The depth buffer is D32_SFLOAT with reversed Z (1 near, 0 far, cleared to 0, compare GREATER). The direct image and the
-/// estimate target are R16G16B16A16_SFLOAT (docs/plans/screen-space-illumination.md, "Images and buffers"): the direct
-/// light of each pixel, and the bounce G in rgb with the occlusion V in a, (0, 0, 0, 1) under NoScreenSpaceLight.
-/// The diffuse image is R16G16B16A16_SFLOAT too: the diffuse part of the direct light of each lit pixel, which the
-/// bounce light sends on, and the skin mask, whose pixels the skin scatter spreads (docs/plans/skin-and-hair.md, "The
-/// diffuse light D").
+/// The depth buffer is D32_SFLOAT with reversed Z (1 near, 0 far, cleared to 0, compare GREATER). The estimate target holds
+/// the bounce G in rgb with the occlusion V in a, (0, 0, 0, 1) under NoScreenSpaceLight
+/// (docs/plans/screen-space-illumination.md, "Images and buffers"). The diffuse image is R16G16B16A16_SFLOAT: the diffuse
+/// light D of each skin pixel, which the composite writes, and the skin mask, whose pixels the skin scatter spreads
+/// (docs/plans/skin-and-hair.md, "The diffuse light D").
 /// Each bloom level is an HDR image half the size of the one before, rounded up, from half the output's size. Every color
 /// target can be copied out, for the read hooks of <see cref="VulkanRenderer"/>. Under reflections or the skin scatter
 /// the HDR target is also a storage image, which the trace and the scatter's columns pass write; without both it is not,
@@ -55,7 +54,6 @@ internal sealed class RenderTargets : IDisposable
     public const Format MotionFormat = Format.R16G16B16A16Sfloat;
     public const Format DepthFormat = Format.D32Sfloat;
     public const Format HdrFormat = Format.R16G16B16A16Sfloat;
-    public const Format DirectFormat = Format.R16G16B16A16Sfloat;
     public const Format EstimateFormat = EstimatePacking.Format;
     public const Format DiffuseFormat = Format.R16G16B16A16Sfloat;
 
@@ -69,18 +67,12 @@ internal sealed class RenderTargets : IDisposable
     public const uint EstimateBinding = 7;
 
     /// <summary>
-    /// The binding of the direct image in the G-buffer set. Binding 8 is the lights' shadow atlas
-    /// (docs/plans/screen-space-illumination.md, "Push constants and sets").
-    /// </summary>
-    public const uint DirectBinding = 9;
-
-    /// <summary>
     /// The binding of the shading target in the G-buffer set. The other G-buffer targets take the bindings of their
-    /// attachments, 0 to 4, and 5 to 9 are taken (Shaders/gbuffer_inputs.glsl).
+    /// attachments, 0 to 4, 5 to 8 are taken and 9 is free (Shaders/gbuffer_inputs.glsl).
     /// </summary>
     public const uint ShadingBinding = 10;
 
-    // The upsample pass writes the target as a storage image, the clear as a transfer, and the ambient pass samples it.
+    // The upsample pass writes the target as a storage image, the clear as a transfer, and the composite samples it.
     // VulkanRenderer.ReadEstimate copies it out.
     private const FormatFeatureFlags EstimateFeatures =
         FormatFeatureFlags.SampledImageBit
@@ -107,7 +99,7 @@ internal sealed class RenderTargets : IDisposable
     // True under reflections or the skin scatter, whose compute passes write the HDR target as a storage image.
     private readonly bool hdrStorage;
 
-    // True under the skin scatter or the screen-space light, which read the diffuse image.
+    // True under the skin scatter, which reads the diffuse image.
     private readonly bool diffuse;
 
     // True from the creation of the estimate target until the first frame after it records the clear to (0, 0, 0, 1).
@@ -116,8 +108,10 @@ internal sealed class RenderTargets : IDisposable
     /// <param name="glowLevels">The bloom levels, 0 without bloom.</param>
     /// <param name="smaaTables">The SMAA tables when SMAA is on, or null when it is off.</param>
     /// <param name="reflections">The resolution of the reflections' trace, to make their images, or null under <see cref="NoReflections"/>.</param>
-    /// <param name="subsurface">True under <see cref="SeparableSubsurface"/>, whose columns pass writes the HDR target.</param>
-    /// <param name="diffuse">True under the skin scatter or the screen-space light, which read the diffuse image.</param>
+    /// <param name="subsurface">
+    /// True under <see cref="SeparableSubsurface"/>, whose columns pass writes the HDR target and which reads the diffuse
+    /// image.
+    /// </param>
     public RenderTargets(
         VulkanDevice device,
         DeviceAllocator allocator,
@@ -126,8 +120,7 @@ internal sealed class RenderTargets : IDisposable
         int glowLevels,
         SmaaTables? smaaTables,
         TraceResolution? reflections,
-        bool subsurface,
-        bool diffuse
+        bool subsurface
     )
     {
         if (reflections is { } traced)
@@ -136,7 +129,7 @@ internal sealed class RenderTargets : IDisposable
         this.allocator = allocator;
         this.layouts = layouts;
         hdrStorage = reflections is not null || subsurface;
-        this.diffuse = diffuse;
+        diffuse = subsurface;
         CheckFormats(device: device, reflections: reflections is not null, diffuse: diffuse);
         GBufferSet = layouts.AllocateGBufferSet();
         PostSet = layouts.AllocatePostSet();
@@ -175,9 +168,6 @@ internal sealed class RenderTargets : IDisposable
     public GpuImage Depth { get; private set; }
     public GpuImage Hdr { get; private set; }
 
-    /// <summary>The direct light of each pixel, pre-exposed, 0 for sky. The direct pass writes it.</summary>
-    public GpuImage Direct { get; private set; }
-
     /// <summary>
     /// The estimate of each pixel: rgb the bounce, pre-exposed, a the occlusion. Cleared to (0, 0, 0, 1) in the first
     /// frame after each creation.
@@ -185,9 +175,8 @@ internal sealed class RenderTargets : IDisposable
     public GpuImage Estimate { get; private set; }
 
     /// <summary>
-    /// The diffuse image, or null without the skin scatter and the screen-space light. After the direct pass: rgb the
-    /// diffuse part of each lit pixel's direct light, pre-exposed, a 1 at skin, else 0. The ambient pass adds D's ambient part at
-    /// skin under the scatter.
+    /// The diffuse image, or null without the skin scatter. After the composite: rgb the diffuse light D of each skin pixel,
+    /// pre-exposed, a 1 at skin, and 0 elsewhere.
     /// </summary>
     public GpuImage? Diffuse { get; private set; }
 
@@ -260,7 +249,6 @@ internal sealed class RenderTargets : IDisposable
         nameof(Motion),
         nameof(Depth),
         nameof(Hdr),
-        nameof(Direct),
         nameof(Estimate)
     )]
     private void Create(Extent2D extent)
@@ -297,7 +285,6 @@ internal sealed class RenderTargets : IDisposable
             readable: true,
             extraUsage: hdrStorage ? ImageUsageFlags.StorageBit : 0
         );
-        Direct = ColorTarget(extent: extent, format: DirectFormat, name: "direct", readable: true);
         Estimate = GpuImage.Create(
             device: device,
             allocator: allocator,
@@ -322,12 +309,11 @@ internal sealed class RenderTargets : IDisposable
     private void WriteSets()
     {
         // The first five targets' bindings are their attachments' indices; the shading target came after the bindings
-        // 5 to 9 were taken. No shading pass reads the motion target, so the set holds none.
+        // 5 to 9 were taken, and binding 9 is free since the direct image went. No shading pass reads the motion target, so the set holds none.
         for (int i = 0; i < 5; i++)
             layouts.WriteImage(set: GBufferSet, binding: (uint)i, arrayElement: 0, image: GBuffer[i]);
         layouts.WriteImage(set: GBufferSet, binding: ShadingBinding, arrayElement: 0, image: Shading);
         layouts.WriteImage(set: GBufferSet, binding: EstimateBinding, arrayElement: 0, image: Estimate);
-        layouts.WriteImage(set: GBufferSet, binding: DirectBinding, arrayElement: 0, image: Direct);
 
         layouts.WriteImage(set: PostSet, binding: 0, arrayElement: 0, image: Hdr);
         layouts.WriteImage(set: MeterSet, binding: 0, arrayElement: 0, image: Hdr);
@@ -335,9 +321,8 @@ internal sealed class RenderTargets : IDisposable
     }
 
     /// <summary>
-    /// The diffuse image at <paramref name="extent"/>. The direct pass draws it, the bounce light's copy and the scatter
-    /// passes read it as a storage image, the ambient pass adds to it at skin pixels as a storage image, and the read hook
-    /// copies it.
+    /// The diffuse image at <paramref name="extent"/>. The composite draws it, the scatter passes read it as a storage
+    /// image, and the read hook copies it.
     /// </summary>
     private GpuImage DiffuseImage(Extent2D extent) =>
         GpuImage.Create(
@@ -457,7 +442,7 @@ internal sealed class RenderTargets : IDisposable
     private static void CheckFormats(VulkanDevice device, bool reflections, bool diffuse)
     {
         CheckMotionTarget(device);
-        foreach (Format format in (Format[])[.. GBufferFormats, HdrFormat, DirectFormat])
+        foreach (Format format in (Format[])[.. GBufferFormats, HdrFormat])
         {
             FormatFeatureFlags features = device.FormatProperties(format).OptimalTilingFeatures;
             if (
@@ -527,7 +512,6 @@ internal sealed class RenderTargets : IDisposable
             image.Dispose();
         Depth?.Dispose();
         Hdr?.Dispose();
-        Direct?.Dispose();
         Estimate?.Dispose();
         Diffuse?.Dispose();
         foreach (GpuImage? level in Glow)

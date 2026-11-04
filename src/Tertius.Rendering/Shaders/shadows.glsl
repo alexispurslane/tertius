@@ -221,13 +221,19 @@ float farShadowVisibility(vec3 position, vec3 L, float angularRadius, uvec3 rang
     return visibility;
 }
 
-// The share of a near light that its atlas tiles let through at a world position (docs/plans/local-light-shadows.md,
-// "Sampling"): the one tile of a spot light, or the tile of the cube face of a point light that holds the direction from
-// the light to the position. The filter of the cascades' 4 × 4 PCF taps, computed from gathers, with the normal offset at
-// the receiver's distance and the casters' slope-scaled bias, as the cascades take them. Texels past the tile clamp to
-// its edge. The tile's bounds skip the gathers where every comparison agrees. L is the unit direction toward the light
-// and d its distance; geometricNormal and sinTheta are as in cascadeShadow.
-float tileShadow(GpuLight light, vec3 position, vec3 L, float d, vec3 geometricNormal, float sinTheta)
+// Where a lookup of a near light's atlas tile falls (tileLookupOf): its reversed depth, its tile's layer, the filter's first
+// texel and its place within it, and the bounds of the window that holds the filter's 5 × 5 texels.
+struct TileLookup
+{
+    vec3 ndc;
+    float layer;
+    vec2 first;
+    vec2 f;
+    vec2 bounds;   // the least (x) and the greatest (y) reversed depth of the window (shadow_bounds.comp)
+};
+
+// The lookup of tileShadow, with the normal offset at the receiver's distance and the casters' slope-scaled bias.
+TileLookup tileLookupOf(GpuLight light, vec3 position, vec3 L, float d, vec3 geometricNormal, float sinTheta)
 {
     // A point light's six views follow the cube faces in layer order (ShadowTiles.AddViews).
     uint view = light.shadow.y + (light.shadow.z > 1u ? cubeFaceOf(-L) : 0u);
@@ -236,30 +242,62 @@ float tileShadow(GpuLight light, vec3 position, vec3 L, float d, vec3 geometricN
     vec4 clip = tile.viewProj * vec4(lookup, 1.0);
     // The near plane floors the divisor, which is the lookup's depth along the view axis: a lookup nearer the light than
     // the near plane gets the depth 1, nearest the light, which no clamped caster passes, so the floor changes no result.
-    vec3 ndc = clip.xyz / max(clip.w, tile.near);
-    vec2 uv = ndc.xy * 0.5 + 0.5;
+    TileLookup t;
+    t.ndc = clip.xyz / max(clip.w, tile.near);
+    vec2 uv = t.ndc.xy * 0.5 + 0.5;
     float size = float(textureSize(shadowAtlas, 0).x);
-    float layer = float(tile.layer);
+    t.layer = float(tile.layer);
 
     // The filter of the cascades' 4 × 4 bilinear taps at −1.5 to 1.5 texels, computed exactly: it weighs the 5 × 5 texels
     // from texel `first` by (1 − f, 1, 1, 1, f) along each axis, f the lookup's place within its texel. The hardware's
     // filter rounds f to the device's sub-texel precision, which Vulkan lets be as coarse as 4 bits.
     vec2 corner = uv * size - 2.0;
-    vec2 first = floor(corner);
-    vec2 f = corner - first;
+    t.first = floor(corner);
+    t.f = corner - t.first;
 
     // The bounds texel at floor(first / 2) holds the least (x) and the greatest (y) reversed depth of texels 2k to 2k + 5,
     // which hold the 5 × 5 (shadow_bounds.comp). Below the least, every one of them lies nearer the light than the
     // lookup, every comparison fails and the filter gives 0; at the greatest or above, none does, every one passes and it
-    // gives 1. So the bounds decide those pixels
-    // with the filter's own result. The clamp comes before the conversion to int, which is undefined for a float out of
-    // range; the gathers' texels clamp to the tile's edge as the bounds' do.
+    // gives 1. So the bounds decide those pixels with the filter's own result. The clamp comes before the conversion to
+    // int, which is undefined for a float out of range; the gathers' texels clamp to the tile's edge as the bounds' do.
     vec2 lastWindow = vec2(textureSize(shadowBounds, 0).xy - 1);
     ivec2 window = ivec2(clamp(floor(corner * 0.5), vec2(0.0), lastWindow));
-    vec2 bounds = texelFetch(shadowBounds, ivec3(window, int(tile.layer)), 0).rg;
-    if (ndc.z < bounds.x)
+    t.bounds = texelFetch(shadowBounds, ivec3(window, int(tile.layer)), 0).rg;
+    return t;
+}
+
+// Whether the lookup's bounds show every tap of the filter shadowed. tileShadow returns 0 exactly there, and ReSTIR's
+// target of the light is 0 exactly there, so this one test keeps the two in step: the unbiased combine of the spatial
+// reuse needs a light's target and its visibility to be above 0 at the same surfaces (ARCHITECTURE.md, "ReSTIR DI").
+bool fullyShadowed(TileLookup t)
+{
+    return t.ndc.z < t.bounds.x;
+}
+
+// Whether the bounds of a near light's tile show it fully shadowed at a world position: every tap of the filter is
+// shadowed, so tileShadow gives exactly 0 (docs/plans/temporal-renderer.md, "The model": ReSTIR's target of the light).
+bool tileFullyShadowed(GpuLight light, vec3 position, vec3 L, float d, vec3 geometricNormal, float sinTheta)
+{
+    return fullyShadowed(tileLookupOf(light, position, L, d, geometricNormal, sinTheta));
+}
+
+// The share of a near light that its atlas tiles let through at a world position (docs/plans/local-light-shadows.md,
+// "Sampling"): the one tile of a spot light, or the tile of the cube face of a point light that holds the direction from
+// the light to the position. The filter of the cascades' 4 × 4 PCF taps, computed from gathers, with the normal offset at
+// the receiver's distance and the casters' slope-scaled bias, as the cascades take them. Texels past the tile clamp to
+// its edge. The tile's bounds skip the gathers where every comparison agrees. L is the unit direction toward the light
+// and d its distance; geometricNormal and sinTheta are as in cascadeShadow.
+float tileShadow(GpuLight light, vec3 position, vec3 L, float d, vec3 geometricNormal, float sinTheta)
+{
+    TileLookup t = tileLookupOf(light, position, L, d, geometricNormal, sinTheta);
+    vec3 ndc = t.ndc;
+    vec2 first = t.first;
+    vec2 f = t.f;
+    float size = float(textureSize(shadowAtlas, 0).x);
+    float layer = t.layer;
+    if (fullyShadowed(t))
         return 0.0;
-    if (ndc.z >= bounds.y)
+    if (ndc.z >= t.bounds.y)
         return 1.0;
 
     // Nine gathers of 2 × 2 comparisons read the 5 × 5 texels and one unweighted column and row beyond them.

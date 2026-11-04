@@ -371,6 +371,17 @@ public sealed class ScriptCommandTests : IDisposable
     )]
     [InlineData("--subsurface applies to a headless run", "--scene", "no-such-scene", "--subsurface", "off")]
     [InlineData(
+        "--direct-light needs resampled or every, not 'fast'",
+        "--script",
+        "script.json",
+        "--headless",
+        "--out",
+        "out",
+        "--direct-light",
+        "fast"
+    )]
+    [InlineData("--direct-light applies to a headless run", "--scene", "no-such-scene", "--direct-light", "every")]
+    [InlineData(
         "--subsurface needs on or off, not 'waxy'",
         "--script",
         "script.json",
@@ -676,6 +687,35 @@ public sealed class ScriptCommandTests : IDisposable
 
         code.Should().Be(ScriptCommand.ToolError, "the test's renderer cannot start");
         EnvironmentMapSetting expected = off ? new NoEnvironmentMap() : new RendererOptions().EnvironmentMap;
+        settings.Should().Equal(expected);
+    }
+
+    [Theory]
+    [InlineData(new string[0], false)]
+    [InlineData(new[] { "--direct-light", "resampled" }, false)]
+    [InlineData(new[] { "--direct-light", "every" }, true)]
+    public void TheDirectLightOptionEveryTakesEveryLightExactlyAndResampledKeepsTheRenderersDefault(
+        string[] directLight,
+        bool every
+    )
+    {
+        string script = ScriptFile("""{ "scene": "probes", "steps": [ { "do": "capture", "name": "front" } ] }""");
+        var settings = new List<DirectLightSetting>();
+
+        int code = ScriptCommand.Run(
+            args: ["--script", script, "--headless", "--out", Out, .. directLight],
+            scenes: Scenes,
+            output: output,
+            error: error,
+            createRenderer: options =>
+            {
+                settings.Add(options.DirectLight);
+                throw new InvalidOperationException("the test stops at the renderer's options");
+            }
+        );
+
+        code.Should().Be(ScriptCommand.ToolError, "the test's renderer cannot start");
+        DirectLightSetting expected = every ? new EveryLight() : new RendererOptions().DirectLight;
         settings.Should().Equal(expected);
     }
 
