@@ -1,6 +1,6 @@
 # Spike: what the development Mac's GPU can do, and at which clock our runs measure it (ter-3ug8)
 
-This spike separates the speed of the machine from the speed of our code. It runs compute kernels of a known amount of work, natively in Metal and through the engine's Vulkan device on MoltenVK. It records the GPU's clock during our timed runs. It times Apple's own temporal upscaler beside FSR 3.1. Then it restates the epic's measured pass times against what the machine predicts.
+This spike separates the speed of the machine from the speed of our code. It runs compute kernels of a known amount of work, natively in Metal and through the engine's Vulkan device on MoltenVK. It records the GPU's clock during our timed runs and during runs of the demo in a window. It times Apple's own temporal upscaler beside FSR 3.1. Then it restates the epic's measured pass times against what the machine predicts, at the clock of a window run.
 
 ## Terms
 
@@ -10,6 +10,7 @@ This spike separates the speed of the machine from the speed of our code. It run
 - The clock: the GPU's frequency. The GPU switches between six performance states, from 388.8 MHz to 1296 MHz.
 - The sustained clock: the clock after several seconds of full load, 1293 MHz.
 - The run's clock: the mean clock over the GPU's active time during a timed run.
+- The windowed clock: the mean clock of a run of the demo in a window, from 5 s after its start. When the GPU limits the frame rate, it is 1296 MHz.
 - A lane-cycle: one cycle of one of the GPU's 3,072 FP32 lanes.
 - A rolled loop: a loop with one step of its work in each pass. An unrolled loop holds several steps in each pass.
 
@@ -18,9 +19,10 @@ This spike separates the speed of the machine from the speed of our code. It run
 1. This Mac has the 24-core M1 Max GPU, not the 32-core one. Its peaks are 7.96 TFLOPS, 248.8 Gtexel/s and 400 GB/s.
 2. The machine reaches its peaks. The FMA probe reaches 96.7 % of the FP32 peak natively and 95.6 % through MoltenVK. Buffer reads reach 88 % and 87 % of 400 GB/s. MoltenVK adds no work per access, except about 7 % on cached texture samples.
 3. A rolled loop of dependent FMAs reaches only 41 % of the peak, natively and through MoltenVK alike. Eight steps per pass reach 97 %. Apple's compiler causes this, not MoltenVK.
-4. Our timed runs measure at a low clock. A headless run of the deck at 1280 × 720 runs at a mean of 800 MHz, with or without a trace. That is 0.62 of the sustained clock. At 1920 × 1080 it runs at about 1050 MHz, 0.81. A pass whose time follows the clock takes 0.62 or 0.81 of its measured time at the sustained clock.
-5. FSR 3.1's 2.8 ms comes mostly from the clock. FSR's timing test waits for each frame, and its GPU runs at about 820 MHz. With eight frames per submission, FSR takes 1.98 ms at about 1190 MHz. MetalFX takes 2.55 ms. At an equal duty cycle, FSR takes 0.77 to 1.02 times MetalFX's time.
-6. Two passes are slow beyond the machine. The lean walk takes 2.3 to 2.7 times what the machine predicts. Light candidates with direct light on the deck take 1.7 to 3.6 times their budget, even at the sustained clock. Accumulate direct is near what its reads cost, so its budget was too tight.
+4. Our timed runs measure at a low clock. A headless run of the deck at 1280 × 720 runs at a mean of 800 MHz, with or without a trace. That is 0.62 of the sustained clock. At 1920 × 1080 it runs at about 1050 MHz, 0.81.
+5. A game in a window runs at the top clock. The demo in a window keeps two frames in flight. When the GPU limits its frame rate, the windowed clock is 1296 MHz, 1.00 of the sustained clock, on the deck and on lamp-hall-16. So every budget below holds at the windowed clock. A pass whose time follows the clock takes its measured time × the run's clock / 1296 MHz in a window: 0.62 of a headless 720p time, 0.81 of a headless 1080p time.
+6. FSR 3.1's 2.8 ms comes mostly from the clock. FSR's timing test waits for each frame, and its GPU runs at about 820 MHz. With eight frames per submission, FSR takes 1.98 ms at about 1190 MHz. MetalFX takes 2.55 ms. At an equal duty cycle, FSR takes 0.77 to 1.02 times MetalFX's time.
+7. Two passes are slow beyond the machine. The lean walk takes 2.3 to 2.7 times what the machine predicts. Light candidates with direct light on the deck take 1.7 to 3.6 times their budget, even at the windowed clock. Accumulate direct is near what its reads cost, so its budget was too tight.
 
 ## The machine and its peaks
 
@@ -118,7 +120,75 @@ At 1280 × 720, the clock-limited throughput between frames is 800 / 1293 = 0.62
 Two more consequences:
 
 - The clock moves with the duty cycle of the GPU. A change that shortens the frame lowers the share of active time, and the governor can then lower the clock. The fix stage of the direct light (ter-9nrc's note) saw unchanged passes run 10 to 25 % faster in one build's traces. Comparisons between builds hold only at the same clock, so a timed run records its clock.
-- A real game that keeps frames in flight keeps the GPU busier than the headless runs. Its clock is likely higher. This spike did not measure a window run.
+- A real game keeps frames in flight, so it keeps the GPU busier than the headless runs. The next section measures its clock.
+
+## The clock of a window run
+
+The headless demo waits for each frame, so its clock is not the clock of a game. This section runs the demo in a window, as a player sees it, beside `gpu-clock`.
+
+### How the window path presents
+
+The code of the window path sets these terms:
+
+- `WindowHost` plays a script on the wall clock, 60 ticks per second. Its render thread draws the latest state again and again. It does not wait for a frame, and it reads no frame back, except for a capture.
+- `RendererOptions.FramesInFlight` is 2: the CPU records a frame while the GPU runs the frame before it.
+- `RendererOptions.VSync` is true, so `SwapchainTarget.ChoosePresentMode` takes FIFO: each image waits for its turn on the display.
+
+  ```csharp
+  private PresentModeKHR ChoosePresentMode()
+  {
+      if (vsync)
+          return PresentModeKHR.FifoKhr;
+      ...
+  ```
+
+- The swapchain has `capabilities.MinImageCount + 1` images. MoltenVK logs "Created 3 swapchain images". With FIFO, MoltenVK keeps the layer's display sync on (`MVKSwapchain.mm`, line 506).
+- A script in the window uses the renderer's default options, with no impostors, as a headless run does.
+
+### The display
+
+The Mac has one display, 1080 × 1920 pixels in portrait, at a scale of 1. macOS reports 60 Hz for it. CoreGraphics gives it the vendor "unkn" and the model "virt", so it is a virtual display.
+
+A window of 1920 × 1080 does not fit on it. With `--size 1920x1080`, macOS made the window 1080 × 1080, 0.56 of the pixels of 1920 × 1080. So each view ran in two sizes. The second size, `--size 1080x1920`, became 1080 × 1858, the largest window below the menu bar. It holds 0.97 of the pixels of 1920 × 1080.
+
+The presents never passed 120 per second: MoltenVK logged each 60 frames 0.500 s apart. So the display path caps the frame rate at 120 Hz, although macOS reports 60 Hz. This spike did not find why. The virtual display's compositor is the likely cause.
+
+### The measurement
+
+The runs used `tools/gpu-calibration/window.sh` with the scripts `window-deck.json` and `window-lamp-hall-16.json`. The deck script shows the deck camera of demo-exit for 1,119 ticks, the ticks of the headless deck runs and 600 more. The hall script shows lamp-hall-16 for 1,080 ticks. Each run ends with one capture, which shows the intended view.
+
+Beside each run, `gpu-clock` sampled the clock every 100 ms. A second sampler read the GPU's busy share every 0.5 s: "Device Utilization %" of the I/O registry's `AGXAccelerator`. The busy share differs from gpu-clock's active share. The active share is the time that the GPU is not off, and in every window run it was 0.998 to 1.000. MoltenVK's performance log (`MVK_CONFIG_PERFORMANCE_TRACKING=1`) gave the frame rate and the wait for a drawable. Every figure is over the samples from 5 s after the start, except the wait for a drawable, which is MoltenVK's mean over the whole run.
+
+| View | Window | Runs | Windowed clock, MHz | Share of 1293 MHz | Busy share, % | Frames per second | Wait for a drawable, ms |
+|---|---|---:|---|---|---|---|---|
+| Deck | 1080 × 1858 | 2 | 1296.0, 1296.0 | 1.00 | 99.8, 100.0 | 93.9, 93.2 | 0.10, 0.10 |
+| lamp-hall-16 | 1080 × 1858 | 2 | 1296.0, 1296.0 | 1.00 | 95.5, 100.0 | 83.7, 112.0 | 0.12, 0.07 |
+| Deck | 1080 × 1080 | 3 | 1171.0, 1178.8, 1190.1 | 0.91 to 0.92 | not sampled, 95.9, 96.0 | 119.8, 119.2, 118.4 | 5.61, 5.20, 5.19 |
+| lamp-hall-16 | 1080 × 1080 | 2 | 1037.1, 1078.1 | 0.80 to 0.83 | 88.9, 89.3 | 119.9, 119.9 | 7.36, 7.38 |
+
+The busy share of 95.5 % holds one sample of 0 % near the end of the run, between samples of 100 %. The first deck run at 1080 × 1080 ran before the busy sampler existed. The rate of lamp-hall-16 at 1080 × 1858 varied between its two runs, but its clock did not.
+
+What the table shows:
+
+- At 1080 × 1858, the GPU limits the frame rate. The CPU waits about 0.1 ms for a drawable, and the GPU is busy 95 to 100 % of the time. The windowed clock is the top state, 1296 MHz, in all four runs.
+- At 1080 × 1080, the cap of 120 frames per second limits the frame rate. The CPU waits 5 to 7 ms for each drawable, and the GPU has slack in each frame. The governor then lowers the clock, to 0.91 of the sustained clock on the deck and to 0.80 to 0.83 on lamp-hall-16.
+- A frame that the display cap limits already fits in its time. Its clock is lower, but no budget binds it then. A budget binds a frame only when the GPU limits the frame rate, and then the GPU runs at 1296 MHz.
+
+So the budgets of section 11 of the design hold at the windowed clock, 1296 MHz. That is the sustained clock of 1293 MHz within 0.3 %. The column "At the windowed clock" of the table of passes below uses 1293 MHz.
+
+### The rule that converts a headless time to the windowed clock
+
+For a pass whose time follows the clock, the time in a window is:
+
+```text
+windowed time = measured time × the run's clock / 1296 MHz
+```
+
+The run's clock is the clock that `gpu-clock` recorded beside the measured run. Take that run's own clock, not a mean: the deck at 1280 × 720 ran at 748 to 990 MHz, the 10th to the 90th percentile of seven runs. For a headless deck run at 800 MHz, the factor is 0.62. At 1050 MHz, as at 1920 × 1080, it is 0.81.
+
+The rule holds for a pass bound by its ALU work or by its cached reads, because those run on the GPU's clock. A pass bound by DRAM bandwidth gains less, because the memory does not run on the GPU's clock. Its windowed time lies between the converted time and the measured time.
+
+Context: the deck at 1080 × 1858 takes 10.7 ms per frame in the window. The headless deck at 1920 × 1080 has a frame span of 16.0 ms at 1022 MHz, and the rule converts that to 12.6 ms. The frame interval of a window and the frame span of a headless run measure different spans, and this spike did not split the remaining difference.
 
 ## MetalFX against FSR
 
@@ -167,13 +237,13 @@ Other defaults that can add work per access:
 
 ## The epic's passes against the machine
 
-Each prediction is a lower bound of the work at the run's clock: the probes' measured rates, scaled by the run's clock over 1296 MHz. A multiple near 1 means the pass runs as fast as the machine lets it. The texture rate is the cached probe's 152.8 Gtexel/s through Vulkan. A 64-bit texel, such as RGBA16F, can take two cycles per fetch, so a prediction from fetches can be up to two times too low.
+The column "At the windowed clock" converts each measured time by the rule of the section before: the run's clock over 1293 MHz. It is the time to hold against the budget. The measured time at the run's clock stays as context. Each prediction is a lower bound of the work at the run's clock: the probes' measured rates, scaled by the run's clock over 1296 MHz. A multiple does not depend on the clock, because the measured time and its prediction come from the same run. A multiple near 1 means the pass runs as fast as the machine lets it. The texture rate is the cached probe's 152.8 Gtexel/s through Vulkan. A 64-bit texel, such as RGBA16F, can take two cycles per fetch, so a prediction from fetches can be up to two times too low.
 
-| Pass | Measured, ms | Where and how | Budget of section 11, ms | At the sustained clock, ms | Prediction at the run's clock, ms | Measured over the prediction |
+| Pass | Measured, ms | Where and how | Budget of section 11, ms | At the windowed clock, ms | Prediction at the run's clock, ms | Measured over the prediction |
 |---|---|---|---|---|---|---|
 | Lean walk V1, with miss reads, both kinds | 5.93 to 5.96 | Deck, 720p, trace, 800 MHz (lean-trace-spike.md) | About 1.1 for both dispatches | 3.67 to 3.69 | 2.59 | 2.3 |
 | Lean walk V5c, with miss reads | 2.67 to 2.81 | The same | About 1.1 | 1.65 to 1.74 | 1.05 | 2.5 to 2.7 |
-| FSR 3.1 | 2.8 | FSR's timing test, 820 MHz (ter-7m38) | 1.0 to 2.0 | 1.98, measured in batches | MetalFX at the same duty cycle: 2.75 | 1.02 |
+| FSR 3.1 | 2.8 | FSR's timing test, 820 MHz (ter-7m38) | 1.0 to 2.0 | 1.82 (1.98 measured in batches at 1192 MHz) | MetalFX at the same duty cycle: 2.75 | 1.02 |
 | Light candidates + direct light | 1.63 + 1.90 = 3.53 | Deck, 720p, trace, 800 MHz (ter-9nrc) | 0.6 to 1.3 | 2.19 | No work model | |
 | Light candidates + direct light | 0.83 + 0.82 = 1.66 | lamp-hall-64, 720p, trace (ter-nmbm) | 0.6 to 1.3 | 1.03 | No work model | |
 | Accumulate direct | 1.18 | Deck, 720p, trace (ter-9nrc) | 0.15 to 0.30 | 0.73 | 0.74 | 1.6 |
@@ -193,20 +263,21 @@ How each prediction follows:
 
 For section 11 of the design:
 
-1. State the clock of every budget. The budget's times came from runs at 0.62 (720p) to 0.81 (1080p) of the top clock. At the top clock, a pass that follows the clock takes that share of its measured time.
-2. FSR 3.1's estimate of 1.0 to 2.0 ms holds at the top clock: 1.98 ms. At the clock of a headless run, plan 2.8 ms. FSR needs no work in our code. It runs as fast as Apple's own upscaler.
-3. Accumulate direct's estimate of 0.15 to 0.30 ms was too tight for this machine. Its reads alone take 0.46 ms at the top clock and 0.74 ms at the run's clock. Fewer reads lower it: one surface key image, as ter-9nrc proposes, removes most of the 48 reads of surface keys per pixel.
-4. The depth pyramid's estimate of 0.53 ms at 720p came from a timer that holds part of the direct light's work. Its trace time scales to about 0.17 ms at 720p.
-5. Bloom's estimate holds. Bloom runs within 1.4 to 2.1 times its read count.
+1. State every budget at the windowed clock, 1296 MHz, the clock of a game whose GPU limits its frame rate. The budget's times came from headless runs at 0.62 (720p) to 0.81 (1080p) of that clock. Convert each such time by the rule: the measured time × the run's clock / 1296 MHz.
+2. FSR 3.1's estimate of 1.0 to 2.0 ms holds at the windowed clock: 1.82 ms. Its batches measured 1.98 ms at 1192 MHz, and its timing test 2.8 ms at about 820 MHz. FSR needs no work in our code. It runs as fast as Apple's own upscaler.
+3. Accumulate direct's estimate of 0.15 to 0.30 ms was too tight for this machine. Its reads alone take 0.46 ms at the windowed clock, and 0.74 ms at the clock of its headless run. Fewer reads lower it: one surface key image, as ter-9nrc proposes, removes most of the 48 reads of surface keys per pixel.
+4. The depth pyramid's estimate of 0.53 ms at 720p came from a timer that holds part of the direct light's work. Its trace time scales to 0.13 to 0.14 ms at 720p at the windowed clock, by its count of pixels. At the clock of its trace, that is 0.16 to 0.17 ms.
+5. Bloom's estimate of 0.47 ms with the tone map holds. Bloom takes 0.25 to 0.37 ms at the windowed clock, within 1.4 to 2.1 times its read count.
 6. The lean walk is slow beyond the machine: 2.3 to 2.7 times what a rolled loop of 40 operations per step predicts. The profiling spike (ter-sftw) owns its instruction count. The rolled loop's 41 % is a cause that this spike can name: the walk's step loop, unrolled two to four times, gains on this GPU and costs nothing elsewhere.
-7. Light candidates and direct light on the deck take 2.19 ms at the top clock, against 0.6 to 1.3 ms. That gap is in our code. ter-9nrc lists the candidates to measure.
+7. Light candidates and direct light on the deck take 2.19 ms at the windowed clock, against 0.6 to 1.3 ms. That gap is in our code. ter-9nrc lists the candidates to measure.
 
 For the method of every ticket's timing:
 
-- Run `gpu-clock 100` beside each timed run, and compare builds only at the same clock.
+- Run `gpu-clock 100` beside each timed run, and compare builds only at the same clock. ter-qk78 builds this into the timing tools.
+- Convert a headless time to the windowed clock by the rule above before you hold it against a budget.
 - A probe of the machine's clock must not wait for each frame, or it measures its own low duty cycle. FSR's timing test is such a test, so a batch of frames is the better measure of FSR's cost.
 
-One decision is open, because this spike did not measure it. The budget can hold at the clock of headless runs or at the top clock, which a GPU-bound windowed game likely reaches. A window run with its clock will settle it.
+The first run of this spike left one decision open: the budget was to hold either at the clock of headless runs or at the top clock. The window runs settle it. When the GPU limits the frame rate, a window run reaches 1296 MHz, 1.00 of the sustained clock, on both views. So section 11's budgets hold at the windowed clock, and the headless figures above are context.
 
 ## Method
 
@@ -215,7 +286,8 @@ One decision is open, because this spike did not measure it. The budget can hold
 - The lock: every timed run took `/tmp/tertius-gpu-measure.lock` through `tools/gpu-calibration/locked.sh`. It waits while another run holds the lock, records uptime at the start and the end, and removes the lock on any exit.
 - The load: other agents built and tested on the machine. The 1-minute load at the starts and ends of the runs of the main rounds was 4.86 to 26.48, median 11.13.
 - The rounds: 7 rounds of 12 runs, from 18:38 to 18:47 on 2026-11-03. Each round rotated the order by one run. The upscaler rounds ran 7 rounds of 4 runs, from 19:14 to 19:20. The argument buffer runs and the clocks at 1080p and under a trace ran after them.
-- Raw data: `captures/3ug8/` (git ignores it): `rounds/`, `upscalers/`, `extra/`, `clock-extra/`, `counts/`, `mvk-dump/` and `analysis.md`.
+- The window runs: 2 rounds of 4 runs, each round in a rotated order, from 21:12 to 21:25 on 2026-11-03, after one first deck run at 20:47. A window opened on the display for each run. The 1-minute load at the starts and ends of the 8 runs of the rounds was 3.50 to 20.52, median 6.12.
+- Raw data: `captures/3ug8/` (git ignores it): `rounds/`, `upscalers/`, `extra/`, `clock-extra/`, `counts/`, `mvk-dump/`, `window/` and `analysis.md`.
 
 To repeat the runs, follow tools/README.md, "GPU calibration".
 
@@ -226,4 +298,6 @@ To repeat the runs, follow tools/README.md, "GPU calibration".
 - The predictions count reads and operations from the shaders' source. They assume full caches for the cached reads and one cycle per fetch. They are lower bounds.
 - The clock at 1080p rests on two runs, and the clock under a trace on one.
 - The light candidates and the direct light have no work model here. They draw full-screen triangles with shadow lookups, and this spike did not count those.
-- No window run was measured, so the clock of a real game stays open.
+- The window runs ran on a virtual display whose present caps at 120 frames per second. A window of 1920 × 1080 did not fit on it, so the GPU-limited runs used 1080 × 1858, 0.97 of the pixels.
+- On a display of 60 Hz, a frame that the GPU draws in less than 16.7 ms leaves the GPU slack, and its clock can drop as in the runs at 1080 × 1080. Such a frame fits its time already. This spike did not measure a physical display.
+- Each row of the window table rests on two or three runs.

@@ -16,15 +16,16 @@ trap '[ "$held" = 1 ] && rmdir "$lock"' EXIT
 # A signal ends the script through exit, so that the trap above also runs for a killed or timed-out run.
 trap 'exit 130' INT
 trap 'exit 143' TERM
-waited=0
+# It tries every 0.1 s. Another session's loop of runs takes the lock again within milliseconds of releasing it, and a
+# wait of 5 s between tries lost every such gap for more than 20 minutes on 2026-11-03.
+started=$EPOCHSECONDS
 until mkdir "$lock" 2> /dev/null; do
-    sleep 5
-    waited=$((waited + 5))
+    sleep 0.1
 done
 held=1
 {
     echo "uptime-start: $(uptime)"
-    echo "waited: ${waited}s"
+    echo "waited: $((EPOCHSECONDS - started))s"
 } > "$log"
 "$@" >> "$log" 2>&1
 code=$?

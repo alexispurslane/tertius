@@ -1,0 +1,10 @@
+{
+  "scene": "demo-exit",
+  "window": { "width": 1920, "height": 1080 },
+  "steps": [
+    { "do": "camera", "entity": "deck-camera" },
+    { "do": "post", "to": { "kind": "entity", "id": "person" }, "event": "LeaveShip", "payload": null },
+    { "do": "run", "ticks": 1119 },
+    { "do": "capture", "name": "deck" }
+  ]
+}

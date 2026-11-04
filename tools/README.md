@@ -484,8 +484,10 @@ The rotation gives each build the same predecessor in most runs. So an effect of
 | `gpu-clock.c` | Samples the GPU's performance states through IOReport while a command runs, and prints the mean clock over the active time. It needs no root. |
 | `kernel-code.swift` | Serializes each kernel of a Metal source file into a binary archive with this GPU's native code. |
 | `count.sh` | Counts the FMAs, samples and loads of each probe in SPIR-V, in AIR and in the size of the native code. |
-| `locked.sh` | Runs one command under the GPU lock, records uptime at its start and its end, and removes the lock on any exit. |
+| `locked.sh` | Runs one command under the GPU lock, records uptime at its start and its end, and removes the lock on any exit. It tries the lock every 0.1 s. |
 | `rounds.sh` | One round of the calibration runs in a rotated order, each under `locked.sh` and beside `gpu-clock`. |
+| `window.sh` | One run of the Release demo in a window, under `locked.sh` and beside `gpu-clock`, with the GPU's busy share and MoltenVK's log of the frame rate. It prints one summary line. |
+| `window-deck.json`, `window-lamp-hall-16.json` | The scripts of the window runs: the deck camera of demo-exit for 1,119 ticks, and lamp-hall-16 for 1,080 ticks, each with one capture at the end. |
 | `analyze.py` | The tables of the rounds: probes, clocks, the pulse, the upscalers and the demo's frame spans. |
 
 The Vulkan twins of the probes are `GpuCalibrationTests` in `tests/Tertius.Rendering.Tests`. Their checks against the CPU run in every test run. Their measurements run only with `TERTIUS_GPU_CALIBRATION=1`, as FSR's timing test runs only with `TERTIUS_FSR_TIMING=1`.
@@ -519,6 +521,12 @@ To count the work in each probe, dump MoltenVK's MSL from a run of the Vulkan ch
 ```bash
 nix develop --command bash -c 'MVK_CONFIG_SHADER_DUMP_DIR=$PWD/captures/3ug8/mvk-dump tests/Tertius.Rendering.Tests/bin/Release/net11.0/Tertius.Rendering.Tests -class Tertius.Rendering.Tests.GpuCalibrationTests'
 bash tools/gpu-calibration/count.sh captures/3ug8/mvk-dump captures/3ug8/counts
+```
+
+To measure the windowed clock, run the demo in a window. Each run opens a window on the display for about 20 s. The window sizes of the report are `1920x1080` and `1080x1920`, and macOS makes a window smaller if it does not fit on the display:
+
+```bash
+nix develop --command bash tools/gpu-calibration/window.sh tools/gpu-calibration/window-deck.json 1080x1920 captures/3ug8/window 1-deck-portrait
 ```
 
 `gpu-clock 100 <command>` works beside any run, such as a timed demo run. Its clock is the mean over the time that the GPU was not off, which includes short idle times between command buffers.

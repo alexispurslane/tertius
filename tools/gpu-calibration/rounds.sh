@@ -33,26 +33,6 @@ demo_with_pulse() {
 }
 
 run() {
-    "$demo" --script "$deck" --headless --out "$1" --size 1280x720 --video none
-}
-
-# The demo's run, with the short FMA probe every 20 ms beside it until the demo ends.
-demo_with_pulse() {
-    "$bin/probes" pulse 20 600 > "$1.pulse" 2>&1 &
-    local pulse=$!
-    demo_run "$1"
-    local code=$?
-    kill "$pulse"
-    wait "$pulse" 2> /dev/null
-    return "$code"
-}
-
-# The cold runs wait 10 s with the lock held, so that no other run wakes the GPU first.
-cold_metal() { sleep 10 && "$bin/gpu-clock" 100 "$bin/probes" cold 30; }
-cold_vulkan() { sleep 10 && "$bin/gpu-clock" 100 "$tests" -noColor -showLiveOutput \
-    -method Tertius.Rendering.Tests.GpuCalibrationTests.TheFmaProbeReportsEachDispatchFromTheFirstAfterIdle; }
-
-run() {
     local name=$1
     shift
     local log="$out/$round-$name.log"
