@@ -378,6 +378,32 @@ public sealed class ScriptCommandCaptureTests : IDisposable
     }
 
     [Fact]
+    public void AFilmOfOneFrameStillPrintsBothMarkersSoThatEveryTimedStartHasItsEnd()
+    {
+        string script = ScriptFile(
+            """{ "scene": "lit-box", "window": { "width": 160, "height": 90 }, "steps": [ { "do": "film", "name": "box", "frames": 1, "every": 1 } ] }"""
+        );
+
+        int code = ScriptCommand.Run(
+            args: ["--script", script, "--headless", "--out", Out, "--video", "none"],
+            scenes: [LitBoxScene],
+            output: output,
+            error: error
+        );
+
+        code.Should().Be(ScriptCommand.Ok, error.ToString());
+        output
+            .ToString()
+            .Split(Environment.NewLine)
+            .Where(line => line is ScriptCommand.TimedStart or ScriptCommand.TimedEnd)
+            .Should()
+            .Equal(
+                [ScriptCommand.TimedStart, ScriptCommand.TimedEnd],
+                "tools/gpu_clock.py leaves out a span that no timed-end closes, and the first shown frame opens the span"
+            );
+    }
+
+    [Fact]
     public void AHeadlessFilmOnADriverWhoseStampsLatchLateSaysBetweenThePassTimesAndTheSpanThatOnlySumsOfPassesHold()
     {
         string script = ScriptFile(
