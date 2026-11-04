@@ -350,16 +350,21 @@ TracedRay traceFrom(ivec2 pixel, TracingPixel p, uint kind)
 }
 
 // The half bits of log2 of a density: a reflection ray's density passes 65,504, the largest half float, at the roughness
-// floor below an n·v of about 0.3, and its logarithm stays near 17 there. A density of 0, a diffuse ray along its pixel's
-// plane, codes as the least half, whose density underflows to 0.
+// floor below an n·v of about 0.3, and its logarithm stays near 17 there. A density below LeastDensity, such as a diffuse
+// ray along its pixel's plane, codes as ZeroDensityCode, which decodes to exactly 0. Both ends test for it: the Vulkan
+// spec leaves log2 of 0 undefined, and exp2's error at −65,504 allows a denormal, which the resolve's weights would
+// divide by. A hair pixel's diffuse ray can have a density of 0 above its card, where hairResponse is not 0.
+const float LeastDensity = 7.888609052210118e-31;  // 2^-100, a normal float
+const uint ZeroDensityCode = 0xFBFFu;              // the half bits of −65,504, the least half
+
 uint densityCodeOf(float density)
 {
-    return packHalf2x16(vec2(max(log2(density), -65504.0), 0.0)) & 0xffffu;
+    return density >= LeastDensity ? packHalf2x16(vec2(log2(density), 0.0)) & 0xffffu : ZeroDensityCode;
 }
 
 float densityOfCode(uint code)
 {
-    return exp2(unpackHalf2x16(code).x);
+    return code == ZeroDensityCode ? 0.0 : exp2(unpackHalf2x16(code).x);
 }
 
 // A ray's record: its light and hit distance, and its direction, density and RayTraced.
@@ -369,10 +374,15 @@ struct RayRecord
     uvec4 ray;
 };
 
+// The farthest hit distance that a record holds, in m: the largest half float, past which a GPU that is not Metal stores
+// infinity. A farther hit, such as a planet's, stores it. At 1080p and 60°, its reflected place then lies about 2 px off
+// the true one when the camera moves 117 m per frame, an orbit's speed. The same-hit test compares capped distances alike.
+const float MostHitDistance = 65504.0;
+
 RayRecord recordOf(TracedRay traced)
 {
     RayRecord record;
-    record.light = vec4(traced.light, traced.distance);
+    record.light = vec4(traced.light, min(traced.distance, MostHitDistance));
     record.ray = uvec4(directionCodeOf(traced.direction), densityCodeOf(traced.density), traced.traced ? RayTraced : 0u);
     return record;
 }

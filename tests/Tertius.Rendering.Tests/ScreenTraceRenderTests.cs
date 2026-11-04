@@ -133,6 +133,44 @@ public sealed class ScreenTraceRenderTests
     private static readonly Vector3 GlowingPanelCenter = new(0, -0.5f, -12);
 
     [Fact]
+    public void AHitFartherThanTheLargestHalfFloatStoresTheLargestHalfFloatAsItsDistance()
+    {
+        // A glowing wall 100 km ahead and 15 km up, whose mirror image the floor shows about 10 m ahead. Metal saturates a
+        // half float store at 65,504, and so does KosmicKrisp on the same GPU, so only another driver, which stores
+        // infinity, can fail this without the cap.
+        var wallCenter = new Vector3(0, 15_000, -100_000);
+        VulkanRenderer renderer = Tracing();
+        try
+        {
+            RenderSnapshot scene = Dark();
+            scene.Instances.Add(Floor(renderer, Mirror()));
+            scene.Instances.Add(
+                Gpu.Instance(
+                    mesh: renderer.CreateMesh(Primitives.Box(new(0.5f))),
+                    material: Glow(renderer, new(4f)),
+                    position: wallCenter,
+                    scale: new(40_000, 20_000, 100),
+                    radius: 23_000,
+                    chainDepth: TestChains.CamerasFrame
+                )
+            );
+
+            Draw(renderer, scene, frames: 1);
+
+            float[] sample = renderer.ReadImage(renderer.ScreenTraceSignals.Specular.Sample(0));
+            (int X, int Y) shown = MirrorPixel(wallCenter);
+            At(sample, shown).X.Should().BeGreaterThan(2f, "the mirror image of the wall shows its glow");
+            sample[4 * (shown.Y * Width + shown.X) + 3]
+                .Should()
+                .Be(65_504f, "a hit about 100 km away stores the largest half float, not an infinity");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
     public void AMirrorFloorShowsNoGlowOfAPanelWhoseEntityHoldsALight()
     {
         var glow = new Vector3(4f);

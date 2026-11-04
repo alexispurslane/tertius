@@ -1241,6 +1241,14 @@ What the spike's times leave out:
 
 Ticket 4 measures each of these in the real frame (section 14, "The parts of ticket 4", part 7).
 
+Measured on 2026-11-04 (`ter-gayt`, part 7). The note on `ter-gayt` holds the report. All 42 runs ran at the top clock, 1295.7 to 1296.0 MHz, so no pair was left out:
+
+- The median frame span at 1280 × 720 under `NoUpscaling` was 17.15 ms on the deck, against 17.15 ms for its byte copy, and 13.58 ms on the floor. As "The frame before ticket 5" builds it, the deck's frame is 19.15 to 19.21 ms, 7.2 ms above 12.0 ms, and the floor's 15.59 to 15.65 ms.
+- A trace of the deck gave the tracer's passes 11.80 ms in sum: the reflection rays 8.27 ms, the diffuse rays 1.03 ms, the plan 0.32 ms, the resolve 0.24 ms, the depth pyramid with its finest level 0.27 ms, and the two accumulations 0.51 and 1.16 ms.
+- The ray plan gave own reflection rays to 59 % of the deck's pixels in a converged frame, and to 37 % of the floor's on average, from 31 to 63 %. Own diffuse rays went to about 1.2 % on both. The spike's 10 % held for the diffuse rays, not for the reflection rays. Section 6, "The ray budget", names two causes that keep a pixel at its own reflection ray in every frame: a roughness below about 0.19, whose specular cap of 4 stays below `FullRateFrames`, and an anti-lag that cuts the history below 8 frames. Part 7 did not split the deck's share between them. On a flat floor of roughness 0.38, the own reflection rays fell from 81,220 to 2,133 pixels in 12 frames, so the plan's rule works where the block's ray fits.
+- In the 8 frames after a camera cut, 70.5 % of the pixels traced own rays of both kinds, and the deck's mean frame span over the cuts was 21.9 ms, with a p95 of 30.6 ms (`scripts/demo-exit-deck-cuts.json`).
+- The 64-lamp hall was not timed.
+
 ### The frame before ticket 5
 
 Until ticket 5, a frame draws at its output size under `NoUpscaling`, with SMAA and the post passes at the render size. So ticket 4 holds this sum against 12.0 ms: its measured span at 1280 × 720, less bloom to capture with SMAA, plus FSR's 1.93 to 1.99 ms and the output passes' 0.40 ms. From ticket 5, a run measures the frame whole.
@@ -1267,7 +1275,7 @@ A figure near a budget's limit needs a run at the top clock, not an estimate (gp
 | 1 | FSR's dispatches from 1280 × 720 to 1920 × 1080, by GPU timestamps around `Record` in its GPU test | 1.0 to 2.0 ms |
 | 2 | The G-buffer with the motion target, and the surface test | 0.22 ms and 0.10 ms |
 | 3 | Light candidates, direct light and accumulate direct, on demo-exit and `lamp-hall-64`. ReSTIR's bias against `EveryLight`, also in the cabin of `cabin-light` | 0.6 to 1.3 ms, and 0.15 to 0.30 ms. Changed on 2026-11-04: `ter-9nrc` removed the sampling and measured the frame span and the sum of the passes around the direct pass against the base, with the GPU clock beside each run (section 7, "The cost") |
-| 4 | The real frame on demo-exit's deck at the top clock, and each pass of the tracer and of the two accumulations. The own-ray share of each kind, and the frames after a camera cut (section 14, "The parts of ticket 4", part 7) | 12.0 ms for the frame ("The frame before ticket 5"). 2.94 to 3.76 ms for the two trace passes, 0.6 ms for the plan and the resolve, and 0.20 to 0.40 ms for the accumulations. Changed on 2026-11-04 (decision 43): the first version held the tracer against 0.8 to 1.7 ms |
+| 4 | The real frame on demo-exit's deck at the top clock, and each pass of the tracer and of the two accumulations. The own-ray share of each kind, and the frames after a camera cut (section 14, "The parts of ticket 4", part 7) | 12.0 ms for the frame ("The frame before ticket 5"). 2.94 to 3.76 ms for the two trace passes, 0.6 ms for the plan and the resolve, and 0.20 to 0.40 ms for the accumulations. Changed on 2026-11-04 (decision 43): the first version held the tracer against 0.8 to 1.7 ms. Measured on 2026-11-04 (`ter-gayt`): the frame 19.15 to 19.21 ms, the two trace passes 9.30 ms, the plan and the resolve 0.56 ms, and the accumulations 1.66 ms ("The trace against its room") |
 | 8 | The corrected read's cost in the screen trace and the transparent pass | 0.2 to 0.6 ms |
 | 9 | The trace dispatch alone, at the budget's ray counts, over today's frame at 1280 × 720 | The trace's part of 0.8 to 1.7 ms. Done: about 10.0 ms at 10 % own rays (trace-timing-spike.md) |
 | 5 | The frame, and the controller's scale in a window run of demo-exit that logs it | 12.0 ms at `FixedRenderScale(2 / 3)`, and a scale of about 0.74 to 0.77 at the controller's 15.0 ms. Changed on 2026-11-04 (decision 42): the first version gave 7.4 to 10.7 ms and a scale of about 0.86 to 1 |
@@ -1285,9 +1293,10 @@ Memory, at an output of 1920 × 1080 with the largest render scale of 1. An RGBA
 | Motion target, device depth, opaque-only image, reactive mask | RGBA16F, R32F, RGBA16F, R8_UNORM | 44 |
 | Block rays and the own-ray lists | Quarter size, and a buffer per kind | 33. Changed on 2026-11-04 (`ter-jxjx`): a list per kind, 8.3 MB each |
 | The depth pyramid's finest level | 1 × R32F | 8 (decision 40) |
+| The own rays' records and the ray plan | 2 × RGBA16F and 2 × RGBA16UI, each of 2 layers, and 1 × R8_UINT | 68. Added on 2026-11-04 (`ter-gayt`): the first version left out the full-size records of the own rays |
 | FSR's own images and the output HDR image | AMD's list | About 140, which ticket 1 measures |
 | Deleted: occlusion, radiance pyramid, reflection and SMAA images | | About −70 |
-| Total | | About +0.5 GB |
+| Total | | About +0.57 GB |
 
 The kept positions add 24 MB per buffer in `rigs-crowd` and less than 1 MB in demo-exit.
 
@@ -1552,7 +1561,7 @@ Done when: under design A of fork 2, the CPU tests of section 10's row of the C#
   - `Frame/ScreenTraceImages.cs`, new. The pyramid image and the finest level move here from `ReflectionTargets`, which binds them from the new owner until part 6. The owner also holds the block rays' records and the two own-ray lists.
   - `Passes/ScreenTracePass.cs`, new: the four passes. `Passes/DepthPyramidPass.cs` reads its images from the new owner.
   - `Shaders/screen_trace.glsl`, new: the ray kinds, the randomness, the rules of a ray's start and of its hit point, the hit's light, the misses and the record.
-  - `Shaders/screen_trace_plan.comp`, `Shaders/screen_trace_rays.comp` and `Shaders/screen_trace_resolve.comp`, new. The rays' kernel serves both kinds and both dispatches of a kind, by specialization constants.
+  - `Shaders/screen_trace_plan.comp`, `Shaders/screen_trace_rays.comp` and `Shaders/screen_trace_resolve.comp`, new. The rays' kernel serves both kinds and both dispatches of a kind, by specialization constants. Changed on 2026-11-04 (`ter-gayt`): the block rays and the own rays have separate kernels, `screen_trace_block_rays.comp` and `screen_trace_own_rays.comp`, each for both kinds by a specialization constant. Each kernel's loop then holds only its own dispatch's reads.
   - `Shaders/own_rays.glsl`, new: the own-ray list's GLSL, moved from `reflection_own_rays.glsl`, which includes it until part 6. `Passes/OwnRayDispatch.cs` takes the pipeline and the layout.
   - `ScreenTraceSetting.cs`, new: `ScreenTrace` and `NoScreenTrace`. `RendererOptions.cs` gains `ScreenTrace`, and the old settings stay until part 6.
   - `Frame/DescriptorLayouts.cs`, `Frame/FrameGraph.cs`, `ShaderConstants.cs`, `VulkanRenderer.cs`, and the new `ScreenTraceRenderTests.cs`.
@@ -1597,7 +1606,11 @@ When `ter-dzxf` reports, its winning change replaces the step and the loop of `w
 
 Added on 2026-11-04 (`ter-jxjx`). The results and the decisions above leave two questions open. Each has two designs, and the user chooses. Part 4 waits for fork 1, and part 1 waits for fork 2.
 
+Settled on 2026-11-04: the user chose design A of both forks. Ticket 4 timed its frame with a busy headless film, `--in-flight 2`, and `ScreenRay.Walk` is the C# copy of the walk.
+
 #### Fork 1: how ticket 4 keeps the GPU at its top clock
+
+Settled on 2026-11-04: design A. `RendererOptions.CapturesInFlight` keeps two frames in flight, and the Host's `--in-flight 2` sets it. All 42 runs of part 7 recorded a span clock of 1295.7 to 1296.0 MHz.
 
 A headless film waits for each frame, so the GPU idles between frames. At 1280 × 720 it then runs at about 800 MHz ([gpu-calibration.md](../research/temporal-renderer/gpu-calibration.md), "The clock under our runs"). Decision 43 asks for the frame at the top clock. No tool measures a real frame there today. The profiling spike repeated the trace alone, and a window run writes no times of passes.
 
@@ -1618,6 +1631,8 @@ nix develop --command bash tools/gpu-calibration/window.sh captures/gayt/deck-b 
 Both designs share the GPU lock and the record of the span's clock of `ter-qk78`. They also share the interleaved rounds with a byte copy as the control, and the deck's view from frame 399.
 
 #### Fork 2: the C# copy of the walk
+
+Settled on 2026-11-04: design A. `ScreenRay.Walk` and `DepthPyramid`'s finest level are the copy. Part 6 deleted `ScreenRay.Trace` and `ScreenRay.MeetPixel` with `traceRay`.
 
 Today's trace has a C# copy, `ScreenRay.Trace` with `ScreenRay.MeetPixel`, as production code. CPU tests hold it against a march through every pixel on 1,000,000 random rays. GPU tests pin the shader to it (ARCHITECTURE.md, "The depth pyramid and the trace"). The two-depth walk replaces `traceRay`, so that copy loses its shader.
 
@@ -1650,13 +1665,16 @@ The design keeps to the Vulkan spec and to what the desktop Linux drivers (NVIDI
 | Storage images of RGBA16F, RG32UI and R32F | The histories, the device depth, and the reservoirs until their removal on 2026-11-04 (`ter-9nrc`) | The spec requires storage support for these formats. |
 | Storage images of R8_UINT | The surface test image | `shaderStorageImageExtendedFormats`, which the four drivers offer. Each owner tests the format at the creation of its images, as `OcclusionImages` does. |
 | No subgroup operations and no 16-bit math in FSR | Section 5 | `FFX_SPD_NO_WAVE_OPERATIONS=1` and `FFX_HALF=0`. |
-| NaN | The accumulators | `isnan` and `isinf` test each sample. No pass relies on a clamp of NaN. |
-| The half float range | Every history and sample | Each holds demodulated light capped at `MaxRadiance`, 32,256. The HDR image stays at or below 64,512, as today (section 1). Both lie below the half float maximum of 65,504. No pass blends history in fixed function. |
+| NaN | The accumulators | `isnan` and `isinf` test each sample. No pass relies on a clamp of NaN. Without `SignedZeroInfNanPreserve`, a driver may fold both tests to false (`ter-dbzx`). |
+| The half float range | Every history and sample | Each holds demodulated light capped at `MaxRadiance`, 32,256. The HDR image stays at or below 64,512, as today (section 1). Both lie below the half float maximum of 65,504. No pass blends history in fixed function. Added on 2026-11-04 (`ter-gayt`): the resolve caps each sample after its ray weights, which reach 4, and a record holds a hit distance of at most 65,504 m. |
 | A blend with two sources | The transparent pass, as today | The reactive mask comes from AMD's generator, and FSR gets no transparency and composition mask. So the pass needs no second output (section 9). |
 | Two submissions per frame | The frame's two parts (decision 37) | Core Vulkan 1.0. The second part's semaphore wait is the one that today's single submission holds. |
 | Timestamps | The controller | `timestampComputeAndGraphics`, which the four drivers and MoltenVK offer. If a device has no timestamps, the controller holds the largest scale. |
 | Indirect dispatch and image copies | The tracer's own rays, the opaque-only copy | Core Vulkan 1.0. |
 | A storage image of R32F | The depth pyramid's finest level | The spec requires storage support for R32F. |
+| 15 storage images in one compute stage | The tracer's set | `maxPerStageDescriptorStorageImages`, which NVIDIA, RADV and ANV give as a million or more, and lavapipe as its descriptor maximum. The renderer refuses a device below 15 at start. |
+| Storage images of R8_UINT and RG32F, and RGBA16UI | The ray plan, the pyramid's bounds, and the records' rays | `shaderStorageImageExtendedFormats` for the first two. The spec requires storage support for RGBA16UI. |
+| log2 of a density of 0 | The records' density code | The spec leaves its value undefined, so a density below 2^−100 takes a code of its own, which decodes to exactly 0. |
 | The words form | The trace kernel's reads from buffers | Plain GLSL: `uintBitsToFloat` of a word of a `uvec4` load. It relies on no behavior of MoltenVK. It only keeps MoltenVK's code from a read at each step (decision 44). |
 | No subgroup operations in the walk | The trace | The two-depth walk uses none. The vote exit of the lean trace spike needed them, and the design leaves it out. Each change of the hill-climb keeps to core Vulkan, and an unrolled loop must cost no time on the other drivers (`ter-dzxf`). |
 
@@ -1673,7 +1691,7 @@ Ticket 1 lists the SPIR-V capabilities of AMD's modules and the storage images t
 7. In the hand-over band, from `MaxRoughness` − `HandOverWidth` to `MaxRoughness`, the specular sample blends two estimators. A reflection miss blurs a little past its lobe (section 6).
 8. A star of one pixel can fall between samples at render scales below 1 (section 5).
 9. Two GPUs or drivers give images that differ in their last bits (section 10).
-10. The design takes about 0.5 GB more memory at a 1080p output (section 11).
+10. The design takes about 0.57 GB more memory at a 1080p output (section 11).
 11. Under `NoUpscaling`, the main view takes all 16 shadow taps. So the GPU tests with the zero cases do not see the noise of the stochastic taps. Ticket 5's tests cover the taps under `Fsr3Upscaling`.
 12. The screen shows many bounces, and the map's faces hold one. A wall that leaves the screen falls back to the map's single bounce. If the camera turns away from a bright room's walls, the room dims a little. Its indirect light then loses up to the share g that the later bounces hold. Only `ter-13rm` closes this gap, because `ter-bsxh` closed without its work.
 13. The clamp leaves the settled light a little low. The model of section 6 takes a skewed noise of 100 % per sample. The settled light is then 0.4 % low for one bounce, 0.5 % at g = 0.5 and 0.6 % at g = 0.8.
@@ -1684,7 +1702,11 @@ Ticket 1 lists the SPIR-V capabilities of AMD's modules and the storage images t
 18. From ticket 4, a cabin's panel lamp shows in the paint as a dark panel around the small highlight of its light. The panel lights of `ter-80o1` end it (`ter-m24j`, decision 39).
 19. A far light without a cascade set is a sampled light, and its target leaves out its far shadows. If a planet eclipses such a light while near lamps light the view, ReSTIR wastes some samples on it, and the lamps' noise settles more slowly (decision 28). Removed on 2026-11-04 (`ter-9nrc`).
 20. The two-depth walk's flat slabs and its facing test give images that differ from today's trace. Take the caps of decision 41. On the deck, the tile bias is then −6.2 % for the reflection light and −7.5 % for the diffuse light. On the floor view it is +1.6 % and +0.8 % (section 6, "The traversal").
-21. For 8 frames after a reset, such as a camera cut, every lit pixel traces own rays of both kinds. On the deck, such a frame spends an estimated 10 ms in the trace, about 6 ms more than a converged frame. Until a ray limit or the controller bounds it, a cut shows as a few long frames (section 6, "The ray budget").
+21. For 8 frames after a reset, such as a camera cut, every lit pixel traces own rays of both kinds. On the deck, such a frame spends an estimated 10 ms in the trace, about 6 ms more than a converged frame. Until a ray limit or the controller bounds it, a cut shows as a few long frames (section 6, "The ray budget"). Measured on 2026-11-04 (`ter-gayt`): the deck's mean frame span over 15 cuts was 21.9 ms against 17.15 ms converged, with a p95 of 30.6 ms.
+22. A ray's hit shows the light before the passes after the composite: no haze along the ray and no skin scatter (`ter-x8bz`).
+23. Near a vanishing point, the rounding of a ray's inverse depth passes the slab of a far surface. On a floor that reflects a planet, the walk misses the planet on 209 of 3,613 test rays (`ter-186q`).
+24. The slow history's clamp cuts rare bright samples, so a small glowing shape takes less than its share of a pixel's diffuse light (`ter-18hc`).
+25. The ray plan gives own reflection rays to 59 % of the deck's pixels in a converged frame, not the 10 % of the profiling spike, so the reflection rays take 8.3 ms (section 11, "The trace against its room").
 
 ## Sources
 

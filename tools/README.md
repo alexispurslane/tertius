@@ -96,7 +96,7 @@ The table has one Markdown row per mutant, then one summary line with the count 
 ```
 | id | place | change | result | killed by | s |
 |---|---|---|---|---|---:|
-| S09 | src/Tertius.Rendering/Shaders/reflection_own_rays.glsl:31 | entry packing y << 15 | killed | ReflectionRenderTests.AtHalfRes..., ReflectionShaderTests.TheOwnRay... | 41.2 |
+| S09 | src/Tertius.Rendering/Shaders/own_rays.glsl:27 | entry packing y << 15 | killed | ScreenTraceRenderTests.AFrameAfterOne..., ScreenTraceRenderTests.TheOwnRay... | 41.2 |
 | Core-4489 | src/Tertius.Core/Unions/Result.cs:44 | holds != Holds.Nothing -> holds == Holds.Nothing | killed | ResultTests.TheDefaultResultHoldsNeitherCase | - |
 16 rows: killed 10, timeout 0, survived 5, no-coverage 0, build-failed 1, no-tests 0, no-mutant 0, removed 0
 ```
@@ -130,9 +130,9 @@ Write the list as a JSON array outside the repository, for example `/tmp/<ticket
 
 ```json
 [
- {"id": "S09", "file": "src/Tertius.Rendering/Shaders/reflection_own_rays.glsl", "line": 31,
+ {"id": "S09", "file": "src/Tertius.Rendering/Shaders/own_rays.glsl", "line": 27,
   "original": "uint(pixel.y) << 16", "replacement": "uint(pixel.y) << 15",
-  "project": "tests/Tertius.Rendering.Tests", "class": ["ReflectionRenderTests", "ReflectionShaderTests"],
+  "project": "tests/Tertius.Rendering.Tests", "class": ["ScreenTraceRenderTests"],
   "note": "entry packing y << 15"}
 ]
 ```

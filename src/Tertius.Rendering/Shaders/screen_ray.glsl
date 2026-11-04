@@ -117,7 +117,7 @@ float floatBelow(float x)
 }
 
 // The parameters where the image reaches the line x = edge.x and the line y = edge.y, or still on an axis where the
-// image stands still (ScreenRay.EdgeParameters). The walk and the level-0 test take every pixel's edges from here.
+// image stands still (ScreenRay.EdgeParameters). The walk takes every cell's edges from here.
 vec2 edgeParameters(ScreenRay ray, RayReciprocals inverse, vec2 edge, float still)
 {
     vec2 offset = edge - ray.start;

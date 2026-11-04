@@ -74,7 +74,8 @@ void main()
     RayRecord diffuse = recordAt(pixel, KindDiffuse, plan);
     WeighedRay diffuseRay = weighedRayOf(p, diffuse);
     vec3 diffuseLight = diffuseRay.brings ? diffuse.light.rgb * diffuseWeightOf(p, diffuseRay) : vec3(0.0);
-    imageStore(diffuseSample, pixel, vec4(diffuseLight, 1.0));
+    // Capped as the specular sample is: a light at MaxRadiance times a weight of up to 4 passes the largest half float.
+    imageStore(diffuseSample, pixel, vec4(min(diffuseLight, vec3(MaxRadiance)), 1.0));
 
     // The share of the diffuse ray's estimate in the specular sample: 0 below the hand-over band, 1 above it.
     float handOver = clamp((sqrt(p.alpha) - trace.handOverStart) / (trace.maxRoughness - trace.handOverStart), 0.0, 1.0);
