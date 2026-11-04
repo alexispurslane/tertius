@@ -1077,59 +1077,66 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
         int maps
     )
     {
-        (
-            Entity entity,
-            Vector3 position,
-            Vector3 color,
-            double intensity,
-            float radius,
-            bool castsShadow,
-            LightSpread spread,
-            ushort chainDepth
-        ) = light switch
+        LightCase lit = light switch
         {
-            PointRenderLight point => (
-                point.Entity,
-                Vector3.Lerp(point.PreviousPosition, point.Position, alpha),
-                point.Color,
-                LightUnits.PointIntensity(point.Power),
-                point.Radius,
-                point.CastsShadow,
-                new LightSpread(new EveryDirection()),
-                point.ChainDepth
+            PointRenderLight point => new(
+                Entity: point.Entity,
+                Position: Vector3.Lerp(point.PreviousPosition, point.Position, alpha),
+                Color: point.Color,
+                Intensity: LightUnits.PointIntensity(point.Power),
+                Radius: point.Radius,
+                CastsShadow: point.CastsShadow,
+                Spread: new LightSpread(new EveryDirection()),
+                ChainDepth: point.ChainDepth
             ),
-            SpotRenderLight spot => (
-                spot.Entity,
-                Vector3.Lerp(spot.PreviousPosition, spot.Position, alpha),
-                spot.Color,
-                LightUnits.SpotIntensity(spot.Power, spot.OuterConeAngle),
-                spot.Radius,
-                spot.CastsShadow,
-                new LightSpread(SpreadOf(spot, alpha)),
-                spot.ChainDepth
+            SpotRenderLight spot => new(
+                Entity: spot.Entity,
+                Position: Vector3.Lerp(spot.PreviousPosition, spot.Position, alpha),
+                Color: spot.Color,
+                Intensity: LightUnits.SpotIntensity(spot.Power, spot.OuterConeAngle),
+                Radius: spot.Radius,
+                CastsShadow: spot.CastsShadow,
+                Spread: new LightSpread(SpreadOf(spot, alpha)),
+                ChainDepth: spot.ChainDepth
             ),
             null => throw new UnreachableException("A light that shines holds a case."),
         };
-        Vector3 relative = position - camera.Offset;
-        float reach = (float)LightUnits.Reach(PeakChannel(color) * intensity, cutoffIrradiance);
+        Vector3 relative = lit.Position - camera.Offset;
+        float reach = (float)LightUnits.Reach(PeakChannel(lit.Color) * lit.Intensity, cutoffIrradiance);
         double distance = Math.Sqrt(
             (double)relative.X * relative.X + (double)relative.Y * relative.Y + (double)relative.Z * relative.Z
         );
         PreparedLight prepared = new()
         {
-            Entity = entity,
+            Entity = lit.Entity,
             Position = relative,
-            RadiantIntensity = LightUnits.RadiantIntensity(color, intensity),
-            Radius = radius,
+            RadiantIntensity = LightUnits.RadiantIntensity(lit.Color, lit.Intensity),
+            Radius = lit.Radius,
             Reach = reach,
             Distance = distance,
-            CastsShadow = castsShadow,
-            Spread = spread,
-            Map = EnvironmentChain.MapOf(chainDepth, maps),
+            CastsShadow = lit.CastsShadow,
+            Spread = lit.Spread,
+            Map = EnvironmentChain.MapOf(lit.ChainDepth, maps),
         };
         (prepared.Tier, prepared.RankDistance) = camera.TierAndRankDistance(light: prepared, reach: prepared.Reach);
         return prepared;
     }
+
+    /// <summary>
+    /// The values of a light that its case decides, before <see cref="Prepared(in RenderLight, float, double, in CameraView, int)"/>
+    /// makes them relative to the eye: its entity, its place at alpha relative to the render origin, its color, its radiant
+    /// intensity in W/sr before the color, its radius in m, whether it casts shadows, its spread and its chain depth.
+    /// </summary>
+    private readonly record struct LightCase(
+        Entity Entity,
+        Vector3 Position,
+        Vector3 Color,
+        double Intensity,
+        float Radius,
+        bool CastsShadow,
+        LightSpread Spread,
+        ushort ChainDepth
+    );
 
     /// <summary>
     /// The cone of a spot light at alpha: its unit axes, a zero axis taken as straight down (−Y) and a zero previous axis
