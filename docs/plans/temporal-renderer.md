@@ -800,7 +800,7 @@ The user's decision of 2026-11-04 and its reasons:
 3. On demo-exit's deck, the sampling cost 2.9 ms more than the loop.
 4. It kept a second direct path and the sparkle bug `ter-x31x`, which closed as obsolete.
 
-A short-lived rule of the same day, "exact lights when they are few", kept both paths and chose one per frame. The user replaced it with the removal. Tile light lists come next (`ter-69s8`), so that each pixel loops only over the lights near it.
+A short-lived rule of the same day, "exact lights when they are few", kept both paths and chose one per frame. The user replaced it with the removal. The same day, the user deferred tile light lists (`ter-69s8`), because every lamp's reach covers the whole of `lamp-hall-64`, so a tile list cannot drop a lamp there. The user chose a runtime cap on the lights that the main view keeps (`ter-bqun`) as the next step.
 
 Two designs for the direct light's image:
 
@@ -826,16 +826,16 @@ The tiles of the local atlas compute their quarter from 4 gathers with exact wei
 
 ### The cost
 
-The loop costs each pixel one unshadowed evaluation for each light in reach, plus a shadow lookup for each shadowed light. Ticket `ter-9nrc` measured the removal in Release, in 5 rounds interleaved with the base `badb6ac67`, under the GPU lock, with `gpu-clock` beside each run. Each time below is the mean over the rounds, converted to the windowed clock of 1296 MHz (time × the run's clock / 1296). "The changed passes" are light candidates, direct light, accumulate direct and composite.
+The loop costs each pixel one unshadowed evaluation for each light in reach, plus a shadow lookup for each shadowed light. Ticket `ter-9nrc` measured the removal in Release, in 5 rounds interleaved with the base `badb6ac67`, under the GPU lock, with `gpu-clock` beside each run. Each time below is the mean over the rounds, converted to the windowed clock of 1296 MHz (time × the run's clock / 1296). On MoltenVK the timer cannot split the direct pass from its neighbours, so the table gives the sum of the neighbouring passes from the end of "surface test" through "composite": the depth pyramid, the light passes, the occlusion passes and the composite.
 
-| View | Size | Base, ReSTIR: span, changed passes, ms | After: span, changed passes, ms |
+| View | Size | Base, ReSTIR: span, neighbouring passes, ms | After: span, neighbouring passes, ms |
 |---|---|---|---|
-| demo-exit's deck, from frame 399 | 1280 × 720 | 10.29, 4.34 | 7.10, 1.59 |
-| demo-exit's deck | 1920 × 1080 | 19.49, 9.95 | 13.08, 3.90 |
-| `lamp-hall-64`'s film | 1280 × 720 | 5.92, 2.10 | 6.90, 2.38 |
-| `lamp-hall-64`'s film | 1920 × 1080 | 10.43, 4.69 | 12.38, 5.83 |
+| demo-exit's deck, from frame 399 | 1280 × 720 | 10.29, 6.53 | 7.10, 3.71 |
+| demo-exit's deck | 1920 × 1080 | 19.49, 13.72 | 13.08, 7.56 |
+| `lamp-hall-64`'s film | 1280 × 720 | 5.92, 3.74 | 6.90, 4.77 |
+| `lamp-hall-64`'s film | 1920 × 1080 | 10.43, 7.33 | 12.38, 9.23 |
 
-So the deck's frame takes 3.2 ms less at 1280 × 720 and 6.4 ms less at 1920 × 1080. The hall's frame takes 1.0 ms and 2.0 ms more, where the loop pays for 64 shadowed lamps at every pixel. Tile light lists address that cost. ARCHITECTURE.md, "The direct light", holds the runs.
+So the deck's frame takes 3.2 ms less at 1280 × 720 and 6.4 ms less at 1920 × 1080. The hall's frame takes 1.0 ms and 2.0 ms more, where the loop pays for 64 shadowed lamps at every pixel. Every lamp's reach covers the whole hall, so tile light lists cannot lower that cost there. The runtime light cap of `ter-bqun` bounds it. ARCHITECTURE.md, "The removal of ReSTIR DI", holds the runs.
 
 ## 8. The accumulator
 
@@ -1146,9 +1146,9 @@ The estimate below is for a render size of 1280 × 720, the headless default. A 
 | Shadow maps and local shadows | 0.91 | Fixed | 0.91 | Unchanged |
 | Environment faces and prefilter | 0.97 | Fixed | 0.97 | Unchanged |
 | G-buffer | 0.42 | Render | 0.22 | The share, plus a seventh target |
-| Surface test | New | Render | 0.10 | About 12 reads per pixel, in one pass |
+| Surface test | New | Render | 0.10 | About 12 reads per pixel, in one pass. Since 2026-11-04 (`ter-9nrc`) no pass reads it until the tracer, but it runs in every frame: its own timer time was about 0.13 ms on the deck at the windowed clock |
 | Depth pyramid | 1.19 | Render | 0.53 | The share |
-| Light candidates and direct light | 4.21 | Render | 0.6 to 1.3 | Section 7, with the star's exact light. Changed on 2026-11-04 (`ter-9nrc`): direct light alone, the loop over every light. Measured at the windowed clock: 1.46 ms on the deck and 2.30 ms on `lamp-hall-64` |
+| Light candidates and direct light | 4.21 | Render | 0.6 to 1.3 | Section 7, with the star's exact light. Changed on 2026-11-04 (`ter-9nrc`): direct light alone, the loop over every light. On MoltenVK the timer does not split it from its neighbours. At the windowed clock, the passes from the depth pyramid through the composite took 3.71 ms on the deck and 4.77 ms on `lamp-hall-64`, against 6.53 and 3.74 ms under ReSTIR (section 7, "The cost") |
 | Accumulate direct | New | Render | 0.15 to 0.30 | Two dispatches of two parts. Removed on 2026-11-04 (`ter-9nrc`), so 0 |
 | Screen trace | 4.40, the occlusion and reflection passes | Render | 0.8 to 1.7 | A guess, which ticket 4 measures |
 | Accumulate diffuse and specular | New | Render | 0.20 to 0.40 | Two signals of one part |
@@ -1182,7 +1182,7 @@ A ticket that lands before ticket 5 runs at an output of 1280 × 720 under `NoUp
 |---|---|---|
 | 1 | FSR's dispatches from 1280 × 720 to 1920 × 1080, by GPU timestamps around `Record` in its GPU test | 1.0 to 2.0 ms |
 | 2 | The G-buffer with the motion target, and the surface test | 0.22 ms and 0.10 ms |
-| 3 | Light candidates, direct light and accumulate direct, on demo-exit and `lamp-hall-64`. ReSTIR's bias against `EveryLight`, also in the cabin of `cabin-light` | 0.6 to 1.3 ms, and 0.15 to 0.30 ms. Changed on 2026-11-04: `ter-9nrc` removed the sampling and measured the direct pass and the frame span against the base, with the GPU clock beside each run (section 7, "The cost") |
+| 3 | Light candidates, direct light and accumulate direct, on demo-exit and `lamp-hall-64`. ReSTIR's bias against `EveryLight`, also in the cabin of `cabin-light` | 0.6 to 1.3 ms, and 0.15 to 0.30 ms. Changed on 2026-11-04: `ter-9nrc` removed the sampling and measured the frame span and the sum of the passes around the direct pass against the base, with the GPU clock beside each run (section 7, "The cost") |
 | 4 | The screen trace and the two accumulations, against the passes that it deletes | 0.8 to 1.7 ms, and 0.20 to 0.40 ms |
 | 8 | The corrected read's cost in the screen trace and the transparent pass | 0.2 to 0.6 ms |
 | 9 | The trace dispatch alone, at the budget's ray counts, over today's frame at 1280 × 720 | The trace's part of 0.8 to 1.7 ms |

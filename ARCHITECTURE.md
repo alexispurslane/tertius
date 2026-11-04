@@ -900,7 +900,7 @@ A capture is a one-shot request. `IRenderer.CaptureNextFrame(sink)` takes an `IC
 
 ### The frame history
 
-The temporal renderer's first part (docs/plans/temporal-renderer.md, sections 3 and 8, ticket `ter-ohqr`) gives each pixel a motion vector and tests whether its surface was on screen in the last drawn frame. No pass of the frame reads them yet. The screen tracer (`ter-gayt`) and its accumulation will (see "The direct light"). One change shows on screen: the batcher interpolates each instance's scale (see "The render snapshot"), so a growing object grows smoothly between ticks instead of in steps.
+The temporal renderer's first part (docs/plans/temporal-renderer.md, sections 3 and 8, ticket `ter-ohqr`) gives each pixel a motion vector and tests whether its surface was on screen in the last drawn frame. No pass of the frame reads them yet: only tests do, since `ter-9nrc` removed the direct light's history. The screen tracer (`ter-gayt`) and its accumulation will (see "The direct light"), and FSR will read the motion and the device depth. Until then the pass "surface test" runs in every frame with no reader. Its own timer time was about 0.13 ms on demo-exit's deck at 1280 × 720 and 0.36 ms at 1920 × 1080, at the windowed clock (`ter-9nrc`'s runs). On MoltenVK a single pass's timer time is an estimate (see "GPU timings"). One change shows on screen: the batcher interpolates each instance's scale (see "The render snapshot"), so a growing object grows smoothly between ticks instead of in steps.
 
 `FrameHistory` holds the record of the last drawn frame: its camera, its render and output size, its count of camera cuts, its placement history, and the count of drawn frames. The renderer numbers its frames by that count (`FrameHistory.DrawnFrames`), and keeps no count of its own: the frame slots, the deferred releases, the GPU timer and the exposure take the same number as the parity of the images that alternate. The renderer calls the history at two points of each frame:
 
@@ -1568,16 +1568,18 @@ From `ter-nmbm` to `ter-9nrc`, the default `ResampledLights` shaded one light pe
 
 The image. At 1280 × 720, headless in Release, the images of `lamp-hall-64`'s still, demo-exit's deck and the cabin of `cabin-light` are byte for byte the base's images under `--direct-light every`. Against the base's default, ReSTIR, the FLIP means are 0.018 for the hall, 0.022 for the deck and 0.013 for the cabin: ReSTIR's grain on the hall's floor and on the deck's floor and glass, which the exact loop does not have.
 
-The cost. 5 rounds interleaved with the base `badb6ac67`, headless in Release on the Apple M1 Max, with `tools/gpu-lock.sh` and `gpu-clock` beside each run (2026-11-04). The windows are demo-exit's deck from frame 399 (`time-deck`) and `lamp-hall-64`'s film from frame 1, 120 frames each. "every" is the base under `--direct-light every`. Each cell is the mean over the rounds, in ms, converted to the windowed clock of 1296 MHz (time × the run's mean clock / 1296). The changed passes are light candidates, direct light, accumulate direct and composite.
+The cost. 5 rounds interleaved with the base `badb6ac67`, headless in Release on the Apple M1 Max, with `tools/gpu-lock.sh` and `gpu-clock` beside each run (2026-11-04). The windows are demo-exit's deck from frame 399 (`time-deck`) and `lamp-hall-64`'s film from frame 1, 120 frames each. "every" is the base under `--direct-light every`. Each cell is the mean over the rounds, in ms, converted to the windowed clock of 1296 MHz (time × the run's mean clock / 1296).
 
-| Window and size | Span: base, every, branch | Direct light: base, every, branch | Changed passes: base, every, branch | Mean clock in MHz: base, every, branch |
-|---|---|---|---|---|
-| Deck, 1280 × 720 | 10.29, 7.55, 7.10 | 1.84, 1.46, 1.46 | 4.34, 1.98, 1.59 | 1052, 797, 814 |
-| Deck, 1920 × 1080 | 19.49, 14.60, 13.08 | 4.35, 3.56, 3.44 | 9.95, 5.18, 3.90 | 1286, 1180, 1088 |
-| Hall, 1280 × 720 | 5.92, 7.25, 6.90 | 0.71, 2.31, 2.30 | 2.10, 2.69, 2.38 | 925, 897, 903 |
-| Hall, 1920 × 1080 | 10.43, 13.31, 12.38 | 1.68, 5.55, 5.57 | 4.69, 6.54, 5.83 | 1003, 1154, 1118 |
+On MoltenVK the timer cannot split the direct pass from its neighbours: the depth pyramid's stamp takes part of the next pass's time (see "GPU timings"). So the table gives the frame span and the sum of the neighbouring passes from the end of "surface test" through "composite". The sum holds the depth pyramid, the light candidates, the direct light, the accumulation, the four occlusion passes and the composite, whichever the build runs. The depth pyramid and the occlusion passes do the same work in all three builds, so the sum's differences come from the light passes. `tools/gpu-trace.sh` gives the time of one pass.
 
-At the windowed clock, the branch's span spreads by at most 0.43 ms over its 5 rounds, and its direct pass by at most 0.20 ms. The runs without the conversion, with their ranges, are in the ticket's note. So the deck's frame takes 3.2 ms less at 1280 × 720 and 6.4 ms less at 1920 × 1080 than under ReSTIR. The hall's frame takes 1.0 ms and 2.0 ms more, because the loop shades 64 shadowed lamps at every pixel. Tile light lists (`ter-69s8`) come next for that cost. The removal of the history alone, every against branch, saves 0.3 to 1.3 ms of the changed passes. The composite's own time rose a little, 0.08 to 0.13 ms on the deck at 1280 × 720, which on MoltenVK can be the direct pass's late stamp (see "GPU timings").
+| Window and size | Span: base, every, branch | Depth pyramid through composite: base, every, branch | Mean clock in MHz: base, every, branch |
+|---|---|---|---|
+| Deck, 1280 × 720 | 10.29, 7.55, 7.10 | 6.53, 4.15, 3.71 | 1052, 797, 814 |
+| Deck, 1920 × 1080 | 19.49, 14.60, 13.08 | 13.72, 9.03, 7.56 | 1286, 1180, 1088 |
+| Hall, 1280 × 720 | 5.92, 7.25, 6.90 | 3.74, 5.13, 4.77 | 925, 897, 903 |
+| Hall, 1920 × 1080 | 10.43, 13.31, 12.38 | 7.33, 10.06, 9.23 | 1003, 1154, 1118 |
+
+At the windowed clock, the branch's span spreads by at most 0.43 ms over its 5 rounds, and its sum of neighbouring passes by at most 0.28 ms. The runs without the conversion, with their ranges, are in the ticket's note. So the deck's frame takes 3.2 ms less at 1280 × 720 and 6.4 ms less at 1920 × 1080 than under ReSTIR, and the neighbouring passes 2.8 ms and 6.2 ms less. The hall's frame takes 1.0 ms and 2.0 ms more, and its neighbouring passes 1.0 ms and 1.9 ms more, because the loop shades 64 shadowed lamps at every pixel. Every lamp's reach covers the whole hall, so tile light lists (`ter-69s8`) cannot drop a lamp there, and the user deferred them. The runtime cap on the lights that the main view keeps (`ter-bqun`) bounds that cost. The removal of the history alone, every against branch, saves 0.4 to 1.5 ms of the neighbouring passes.
 
 #### Hair
 
@@ -2748,7 +2750,7 @@ The first draw of a still resets every history (`FrameHistory.Begin`), and it dr
 
 Under `FixedExposure`, a still is one draw, so the exact tests see one frame. Under `AutoExposure`, it is two draws: the one warm-up draw is the metering draw of the renderer before the still rule.
 
-0.09 s is 5.4 ticks at 60 Hz. It is longer than the longest step of the demo's real-time films (4 ticks), and shorter than the shortest step of its time-lapse films (6 ticks) and than the shortest run before a capture (30 ticks). It lies between two whole ticks, so no step of whole ticks lies on it. A time-lapse film draws each of its frames as a still, so each frame adapts toward its own view and settles its history: 33 draws per frame under the defaults. A view more than about 13 stops darker than the exposure before it puts many pixels in the first bin in the first warm-up draw. Under `AutoExposure`, whose one warm-up draw is the metering draw, the shown draw can then still be short of the target, and later frames finish the approach.
+0.09 s is 5.4 ticks at 60 Hz. It is longer than the longest step of the demo's real-time films (4 ticks), and shorter than the shortest step of its time-lapse films (6 ticks) and than the shortest run before a capture (30 ticks). It lies between two whole ticks, so no step of whole ticks lies on it. A time-lapse film draws each of its frames as a still, so each frame adapts toward its own view: 2 draws per frame under the defaults, the one warm-up draw under `AutoExposure` and the shown draw. A view more than about 13 stops darker than the exposure before it puts many pixels in the first bin in the warm-up draw. The shown draw can then still be short of the target, and later frames finish the approach.
 
 #### The reach from the exposure
 

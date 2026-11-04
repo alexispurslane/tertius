@@ -349,8 +349,8 @@ internal sealed class RenderTargets : IDisposable
     }
 
     /// <summary>
-    /// A direct light image at <paramref name="extent"/>. The direct pass draws it, the composite and the occlusion's depth
-    /// pass read it as a storage image, and the read hook copies it.
+    /// A direct light image at <paramref name="extent"/>. The direct pass draws it, and the composite and the occlusion's
+    /// depth pass read it as a storage image.
     /// </summary>
     private GpuImage DirectImage(Extent2D extent, string name) =>
         GpuImage.Create(
@@ -358,7 +358,7 @@ internal sealed class RenderTargets : IDisposable
             allocator: allocator,
             extent: extent,
             format: DirectFormat,
-            usage: ImageUsageFlags.ColorAttachmentBit | ImageUsageFlags.StorageBit | ImageUsageFlags.TransferSrcBit,
+            usage: ImageUsageFlags.ColorAttachmentBit | ImageUsageFlags.StorageBit,
             mipLevels: 1,
             name: name
         );
