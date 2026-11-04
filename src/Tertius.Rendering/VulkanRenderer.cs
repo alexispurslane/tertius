@@ -29,17 +29,20 @@ namespace Tertius.Rendering;
 /// the impostor billboards in that range.</item>
 /// <item>The depth pyramid (<see cref="DepthPyramidPass"/>), under <see cref="ConeTracedReflections"/>: the min-max
 /// inverse depth of the distance target, level by level, and its small mips in one dispatch (<see cref="DepthPyramidTail"/>).</item>
-/// <item>The direct pass (<see cref="DirectLightPass"/>): one fullscreen pass into the direct image, the light of each
-/// light of the list that the main view keeps, shadowed by its cascade set and far shadows, its far shadows alone, or
-/// its atlas tiles, plus the emission, pre-exposed and capped.</item>
+/// <item>The surface test (<see cref="SurfaceTestPass"/>): the pass bits of each pixel's last place, this frame's surface
+/// history and FSR's device depth.</item>
+/// <item>The direct pass (<see cref="DirectLightPass"/>): one fullscreen pass into the direct light's two images, the
+/// diffuse and the specular light of every light that the main view keeps, each divided by its material factor and
+/// pre-exposed.</item>
 /// <item>The occlusion passes (<see cref="OcclusionDepthPass"/> to <see cref="OcclusionUpsamplePass"/>), under
 /// <see cref="VisibilityBitmaskLight"/>: the estimate of the light around each pixel, the bounce of the direct light of
 /// the surfaces that block its hemisphere within the radius, and the share that nothing blocks there, in the estimate
 /// target.</item>
-/// <item>The ambient pass (<see cref="AmbientLightPass"/>): one fullscreen pass into the HDR target, the direct image plus
-/// the ambient light with the estimate target applied, capped.</item>
+/// <item>The composite (<see cref="CompositePass"/>): one fullscreen pass into the HDR target, the direct light's
+/// images times their material factors plus the ambient light with the estimate target applied and the emission,
+/// capped.</item>
 /// <item>The skin scatter (<see cref="SkinScatterPass"/>), under <see cref="SeparableSubsurface"/>: the diffuse light of
-/// skin pixels, which the direct and ambient passes write into the diffuse image, summed along the rows and then the
+/// skin pixels, which the composite writes into the diffuse image, summed along the rows and then the
 /// columns, and the difference added to the lit image at skin pixels.</item>
 /// <item>The radiance pyramid (<see cref="RadiancePyramidPass"/>), under <see cref="ConeTracedReflections"/>: the lit
 /// image without the glow of an entity that holds a light, times the surface coverage, and its 13-tap downsamples.</item>
@@ -61,9 +64,9 @@ namespace Tertius.Rendering;
 /// <item>Capture readback, when requested. After the GPU finishes the frame, <see cref="Render"/> hands the pixels to
 /// the capture's <see cref="ICaptureSink"/>.</item>
 /// </list>
-/// <para>A headless frame under <see cref="AutoExposure"/> whose step is at least <see cref="MeteringStepSeconds"/>, or
-/// 0, is drawn twice: a metering draw, then the shown draw (docs/plans/auto-exposure.md, "The metering draw"). The same
-/// long step makes the environment map draw all six faces once, in the metering draw if there is one.</para>
+/// <para>A headless frame whose step is 0, endless or at least <see cref="FrameHistory.MeteringStepSeconds"/> is a still:
+/// it resets every history and draws its warm-up draws before the shown draw, the first of which adapts the exposure and
+/// draws all six faces of the environment map (docs/plans/temporal-renderer.md, "The still rule").</para>
 /// <para>Threading: the Create methods, <see cref="Resize"/> and <see cref="CaptureNextFrame"/> may be called from
 /// any thread. <see cref="Render"/> and <see cref="Dispose"/> belong to the render thread.</para>
 /// <para>Ids: each Create method numbers its ids from 0, and none of them is ever None. On an instance,
@@ -73,13 +76,6 @@ namespace Tertius.Rendering;
 /// </remarks>
 public sealed unsafe class VulkanRenderer : IRenderer
 {
-    /// <summary>
-    /// The shortest step, in s, after which a headless renderer under <see cref="AutoExposure"/> draws a metering draw
-    /// before the shown draw (docs/plans/auto-exposure.md, "A headless still after a long step"). It is 5.4 ticks at
-    /// 60 Hz, so that no step of whole ticks lies on it.
-    /// </summary>
-    internal const float MeteringStepSeconds = 0.09f;
-
     private readonly VulkanDevice device;
     private readonly ValidationLog log;
     private readonly bool headless;
@@ -121,7 +117,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
     private FrameClock clock;
 
     /// <summary>The record of the last drawn frame, whose count of drawn frames numbers every frame of the renderer.</summary>
-    private readonly FrameHistory history = new();
+    private readonly FrameHistory history;
     private bool disposed;
 
     private VulkanRenderer(
@@ -136,6 +132,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
         clock = headless ? FrameClock.Film : FrameClock.Window;
         exposureSetting = options.Exposure;
         deformation = options.Deformation;
+        history = new(StillRule.For(options, headless));
         log = device.Log;
         try
         {
@@ -144,9 +141,12 @@ public sealed unsafe class VulkanRenderer : IRenderer
             releases = Own(new DeferredReleases());
             ShaderLibrary shaders = Own(new ShaderLibrary(device, ShaderLibrary.EngineShaders));
 
-            int glowLevels = GlowLevelsOf(options.Bloom);
             layouts = Own(
-                new DescriptorLayouts(device: device, framesInFlight: options.FramesInFlight, glowLevels: glowLevels)
+                new DescriptorLayouts(
+                    device: device,
+                    framesInFlight: options.FramesInFlight,
+                    glowLevels: GlowLevelsOf(options.Bloom)
+                )
             );
             output = Own(createOutput(device, Allocator));
             geometry = Own(new GeometryStore(device, Allocator));
@@ -157,14 +157,10 @@ public sealed unsafe class VulkanRenderer : IRenderer
             BrdfTableImages = Own(new BrdfTableImages(device, Allocator));
             uploads = CreateUploads();
 
-            targets = CreateTargets(
-                glowLevels: glowLevels,
-                antiAliasing: options.AntiAliasing,
-                reflections: options.Reflections,
-                subsurface: options.Subsurface,
-                screenSpaceLight: options.ScreenSpaceLight
+            targets = CreateTargets(options);
+            surfaceHistory = Own(
+                new SurfaceHistory(device: device, allocator: Allocator, layouts: layouts, targets: targets)
             );
-            surfaceHistory = CreateSurfaceHistory();
 
             // Before every pass, whose shading constants say whether the scatter is on.
             ScatterImages = CreateScatterImages(options.Subsurface);
@@ -341,6 +337,21 @@ public sealed unsafe class VulkanRenderer : IRenderer
     private static void CheckOptions(RendererOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
+        CheckCounts(options);
+        if (!Enum.IsDefined(options.ToneCurve))
+            throw new ArgumentOutOfRangeException(nameof(options), $"ToneCurve {options.ToneCurve} is not a curve.");
+        if (SettingsProblem(options) is { } problem)
+            throw new ArgumentOutOfRangeException(nameof(options), problem);
+        if (!Enum.IsDefined(options.AntiAliasing))
+            throw new ArgumentOutOfRangeException(
+                nameof(options),
+                $"AntiAliasing {options.AntiAliasing} is not an anti-aliasing."
+            );
+    }
+
+    /// <summary>Refuses a count or a size of <paramref name="options"/> outside its range.</summary>
+    private static void CheckCounts(RendererOptions options)
+    {
         if (options.FramesInFlight is < 1 or > 4)
             throw new ArgumentOutOfRangeException(nameof(options), "FramesInFlight must be 1 to 4.");
         if (options.Width < 0 || options.Height < 0)
@@ -357,15 +368,6 @@ public sealed unsafe class VulkanRenderer : IRenderer
             );
         if (options.Impostors && options.ImpostorTiles < 1)
             throw new ArgumentOutOfRangeException(nameof(options), "ImpostorTiles must be at least 1.");
-        if (!Enum.IsDefined(options.ToneCurve))
-            throw new ArgumentOutOfRangeException(nameof(options), $"ToneCurve {options.ToneCurve} is not a curve.");
-        if (SettingsProblem(options) is { } problem)
-            throw new ArgumentOutOfRangeException(nameof(options), problem);
-        if (!Enum.IsDefined(options.AntiAliasing))
-            throw new ArgumentOutOfRangeException(
-                nameof(options),
-                $"AntiAliasing {options.AntiAliasing} is not an anti-aliasing."
-            );
     }
 
     /// <summary>The first problem of the settings in <paramref name="options"/> that are unions, in their order there, or null.</summary>
@@ -471,44 +473,21 @@ public sealed unsafe class VulkanRenderer : IRenderer
             snapshotTime: snapshot.Time,
             wallSeconds: Stopwatch.GetTimestamp() / (double)Stopwatch.Frequency
         );
-        // A headless still can follow a long step, or a camera cut at the tick of the frame before it, and would show
-        // the exposure and the map of the view before it (docs/plans/auto-exposure.md, "A headless still after a long
-        // step", and docs/plans/environment-map.md, "Which faces a frame draws"). A window's steps are frame times, and
-        // a refresh would make a slow frame slower still.
-        bool atTheTickBefore = step == 0;
-        bool longStep = headless && (atTheTickBefore || step >= MeteringStepSeconds);
-        bool metering = exposureSetting is AutoExposure && longStep;
-        if (metering)
-        {
-            // A still at the tick before has no time to adapt in, so it settles on its own view.
-            float meteringStep = atTheTickBefore ? float.PositiveInfinity : step;
-            // The metering draw refreshes the map, so that the meter measures the scene lit by the still's own map.
-            bool drawn = DrawFrame(
-                snapshot: snapshot,
-                alpha: alpha,
-                exposureStep: meteringStep,
-                longStep: true,
-                takeCapture: false
-            );
-            if (!drawn)
+        // A draw that continues the last frame is 1 draw, and a headless still adds its warm-up draws before the shown draw
+        // (docs/plans/temporal-renderer.md, "The still rule"). Only the shown draw takes the capture.
+        int draws = history.DrawsOf(step);
+        for (int draw = 0; draw < draws; draw++)
+            if (!DrawFrame(snapshot: snapshot, alpha: alpha, step: step, draw: draw, takeCapture: draw == draws - 1))
                 return;
-            // The metering draw adapted the exposure for the whole step, so the shown draw moves it by none, and it drew
-            // every face of the same snapshot, so the shown draw draws its faces in turn.
-            clock = next;
-            step = 0;
-            longStep = false;
-        }
-
-        if (DrawFrame(snapshot: snapshot, alpha: alpha, exposureStep: step, longStep: longStep, takeCapture: true))
-            clock = next;
+        clock = next;
     }
 
     /// <summary>
-    /// Draws one frame: waits for its slot, records and submits it, and hands over the capture when
-    /// <paramref name="takeCapture"/> and one is asked for. Returns false when the output skipped the frame. A
-    /// <paramref name="longStep"/> refreshes every face of the environment map.
+    /// Draws draw <paramref name="draw"/> of <paramref name="snapshot"/> after a clock step of <paramref name="step"/> s:
+    /// waits for its slot, derives its pending state, records and submits it, and hands over the capture when
+    /// <paramref name="takeCapture"/> and one is asked for. Returns false when the output skipped the frame.
     /// </summary>
-    private bool DrawFrame(RenderSnapshot snapshot, float alpha, float exposureStep, bool longStep, bool takeCapture)
+    private bool DrawFrame(RenderSnapshot snapshot, float alpha, float step, int draw, bool takeCapture)
     {
         FrameResources frame = frames[FrameNumber % frames.Length];
         Fence fence = frame.Fence;
@@ -521,23 +500,27 @@ public sealed unsafe class VulkanRenderer : IRenderer
             return false;
         }
 
-        if (image.Extent.Width != targets.Extent.Width || image.Extent.Height != targets.Extent.Height)
-        {
-            // The swapchain changed size on its own (out of date). The targets are shared by frames in flight.
-            device.WaitIdle();
-            ResizeTargets(image.Extent);
-        }
+        MatchTargetsTo(image);
 
+        // The draw's one choke point of the history: its reset, its draw index, its exposure step, its refresh of the map's
+        // faces and the last frame's state. After the acquire, which can change the output size.
+        FrameHistory.PendingFrame pending = history.Begin(
+            snapshot: snapshot,
+            step: step,
+            draw: draw,
+            outputSize: targets.Extent,
+            renderSize: targets.Extent
+        );
         ICaptureSink? sink = takeCapture ? Interlocked.Exchange(ref pendingCapture, null) : null;
         GpuBuffer? capture = sink != null ? CaptureBuffer(image.Extent) : null;
         // After the output gave the frame an image, so a skipped frame leaves the map's frame as it is, and before
         // batching, which prepares the faces' views.
-        EnvironmentDraw environment = EnvironmentDrawFor(snapshot: snapshot, longStep: longStep);
+        EnvironmentDraw environment = EnvironmentDrawFor(snapshot: snapshot, everyFace: pending.RefreshesEveryFace);
         RecordFrame(
             frame: frame,
             snapshot: snapshot,
             alpha: alpha,
-            exposureStep: exposureStep,
+            pending: pending,
             environment: environment,
             image: image,
             capture: capture
@@ -546,7 +529,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
         // Reset only now: if anything above threw, the fence stays signaled and the next frame does not hang.
         device.Vk.ResetFences(device.Device, 1, &fence).Check("vkResetFences");
         output.SubmitAndPresent(frame);
-        CommitDrawnFrame(frame: frame, snapshot: snapshot, exposureStep: exposureStep);
+        CommitDrawnFrame(frame: frame, snapshot: snapshot, pending: pending);
 
         if (sink != null && capture != null)
         {
@@ -566,21 +549,31 @@ public sealed unsafe class VulkanRenderer : IRenderer
         return true;
     }
 
+    /// <summary>Resizes the targets to the output's <paramref name="image"/> when the swapchain changed size on its own (out of date).</summary>
+    private void MatchTargetsTo(GpuImage image)
+    {
+        if (image.Extent.Width == targets.Extent.Width && image.Extent.Height == targets.Extent.Height)
+            return;
+        // The targets are shared by frames in flight.
+        device.WaitIdle();
+        ResizeTargets(image.Extent);
+    }
+
     /// <summary>
     /// Commits the frame that <paramref name="frame"/>'s slot just submitted to each owner of state that describes the last
     /// drawn frame. Only after the submission, so that a frame that threw before it leaves the maps' drawn chain, the frame
     /// history, the slot's readback, the tiles' records and the exposure's steps as they were.
     /// </summary>
-    private void CommitDrawnFrame(FrameResources frame, RenderSnapshot snapshot, float exposureStep)
+    private void CommitDrawnFrame(FrameResources frame, RenderSnapshot snapshot, FrameHistory.PendingFrame pending)
     {
         long number = FrameNumber;
         environmentMap?.Drew(served: Served(snapshot), slot: frame.Index);
         keptPositions?.Drew(releases: releases, frame: number);
         localShadows?.Tiles.Drew();
-        Exposure.Drew(frame: number, step: exposureStep);
+        Exposure.Drew(frame: number, step: pending.ExposureStep);
         frame.Number = number;
         // Last, because it advances the frame number that the commits above name.
-        history.Drew(context.History);
+        history.Drew(pending);
     }
 
     /// <summary>
@@ -630,13 +623,13 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// readings. It writes the served chain, and changes no state of the maps but a growth, so a frame that throws before
     /// its submission leaves the maps' drawn chain as it was.
     /// </summary>
-    private EnvironmentDraw EnvironmentDrawFor(RenderSnapshot snapshot, bool longStep)
+    private EnvironmentDraw EnvironmentDrawFor(RenderSnapshot snapshot, bool everyFace)
     {
         if (environmentMap is not { } map)
             return new(new WithoutMap());
         Span<long> served = servedChain.AsSpan(0, EnvironmentChain.Maps(snapshot.Chain.Count));
         EnvironmentChain.Serve(snapshot.Chain, served);
-        ReadOnlyMemory<FaceMask> faces = map.FacesFor(frame: FrameNumber, served: served, longStep: longStep);
+        ReadOnlyMemory<FaceMask> faces = map.FacesFor(frame: FrameNumber, served: served, longStep: everyFace);
         return new(new WithMap(Faces: faces, Irradiance: map.ReadingsOf(served.Length)));
     }
 
@@ -652,7 +645,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
         FrameResources frame,
         RenderSnapshot snapshot,
         float alpha,
-        float exposureStep,
+        FrameHistory.PendingFrame pending,
         EnvironmentDraw environment,
         GpuImage image,
         GpuBuffer? capture
@@ -661,15 +654,9 @@ public sealed unsafe class VulkanRenderer : IRenderer
         CommandBuffer commandBuffer = BeginCommands(frame);
         Upload(frame, commandBuffer);
         DeformRegion region = ReserveRegion(snapshot, commandBuffer);
-        // Before the frame graph, whose ambient pass reads the target, and whose occlusion passes overwrite it.
+        // Before the frame graph, whose composite reads the target, and whose occlusion passes overwrite it.
         targets.RecordEstimateClear(vk: device.Vk, commandBuffer: commandBuffer, barriers: barriers);
         frame.UpdateSharedDescriptors(materials: materials, textures: textures, geometry: geometry, deforms: deforms);
-        // The frame's one choke point of the history: its reset, its draw index and the last frame's state.
-        FrameHistory.PendingFrame pending = history.Begin(
-            snapshot: snapshot,
-            outputSize: targets.Extent,
-            renderSize: targets.Extent
-        );
         // After ReserveRegion, which can replace the kept buffers, so that the sets name this frame's buffers.
         if (keptPositions is { } kept)
             frame.UpdateKeptPositions(kept: kept, parity: pending.Parity);
@@ -677,7 +664,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
         Batcher.Prepare(
             snapshot: snapshot,
             alpha: alpha,
-            highestStops: Exposure.HighestStops(frame: FrameNumber, step: exposureStep),
+            highestStops: Exposure.HighestStops(frame: FrameNumber, step: pending.ExposureStep),
             width: (int)targets.Extent.Width,
             height: (int)targets.Extent.Height,
             meshes: geometry.Meshes,
@@ -687,15 +674,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             frame: pending,
             scene: LastScene
         );
-        SetContext(
-            frame: frame,
-            history: pending,
-            snapshot: snapshot,
-            alpha: alpha,
-            exposureStep: exposureStep,
-            image: image,
-            capture: capture
-        );
+        SetContext(frame: frame, history: pending, snapshot: snapshot, alpha: alpha, image: image, capture: capture);
         Graph.Prepare(context);
         frame.Write(LastScene);
 
@@ -758,7 +737,6 @@ public sealed unsafe class VulkanRenderer : IRenderer
         FrameHistory.PendingFrame history,
         RenderSnapshot snapshot,
         float alpha,
-        float exposureStep,
         GpuImage image,
         GpuBuffer? capture
     )
@@ -767,7 +745,6 @@ public sealed unsafe class VulkanRenderer : IRenderer
         context.History = history;
         context.Snapshot = snapshot;
         context.Alpha = alpha;
-        context.ExposureStep = exposureStep;
         context.Scene = LastScene;
 
         context.Output = image;
@@ -900,9 +877,9 @@ public sealed unsafe class VulkanRenderer : IRenderer
         if (extent.Width == targets.Extent.Width && extent.Height == targets.Extent.Height)
             return;
         targets.Resize(extent);
+        surfaceHistory.Resize(targets);
         occlusionImages?.Resize(targets);
         ScatterImages?.Resize(targets);
-        surfaceHistory.Resize(targets);
     }
 
     /// <summary>
@@ -1032,10 +1009,54 @@ public sealed unsafe class VulkanRenderer : IRenderer
     internal float[] ReadHdr() => ReadLevel(image: targets.Hdr, layer: 0, mip: 0).Values;
 
     /// <summary>
-    /// The direct image of the last frame, RGBA per pixel, row by row from the top: the pre-exposed direct light, 0 for
-    /// sky. A test hook: it waits for the device to be idle and submits its own copy.
+    /// The first level of the first layer of <paramref name="image"/>, row by row from the top, as floats: a test's own
+    /// image. A test hook: it waits for the device to be idle and submits its own copy.
     /// </summary>
-    internal float[] ReadDirect() => ReadLevel(image: targets.Direct, layer: 0, mip: 0).Values;
+    internal float[] ReadImage(GpuImage image) => ReadLevel(image: image, layer: 0, mip: 0).Values;
+
+    /// <summary>
+    /// A signal of <paramref name="parts"/> parts with <paramref name="parameters"/> at the size of the render targets, whose
+    /// sets bind the targets and the surface history, and which the renderer owns. A test hook until the screen tracer's
+    /// signals (ter-gayt): the renderer makes no signal of its own, and it resizes none.
+    /// </summary>
+    internal TemporalSignal CreateSignal(SignalParameters parameters, string name, int parts)
+    {
+        // The pipelines keep no reference to the shader modules, so the library goes with this call.
+        using var shaders = new ShaderLibrary(device, ShaderLibrary.EngineShaders);
+        return Own(
+            new TemporalSignal(
+                device: device,
+                allocator: Allocator,
+                layouts: layouts,
+                shaders: shaders,
+                targets: targets,
+                surfaces: surfaceHistory,
+                parameters: parameters,
+                name: name,
+                parts: parts
+            )
+        );
+    }
+
+    /// <summary>
+    /// The exposure buffer: the stops that the next frame uses, and the stops that the frame before it used, which its
+    /// histories hold. A test hook: it waits for the device to be idle and submits its own copy.
+    /// </summary>
+    internal (float Stops, float PreviousStops) ReadExposureStops()
+    {
+        GpuBuffer exposure = Exposure.Buffer;
+        using var buffer = GpuBuffer.Create(
+            device: device,
+            allocator: Allocator,
+            size: exposure.Size,
+            usage: BufferUsageFlags.TransferDstBit,
+            memoryUsage: MemoryUsage.Readback,
+            name: "exposure readback"
+        );
+        SubmitAndWait(commandBuffer => CopyBuffer(commandBuffer: commandBuffer, source: exposure, buffer: buffer));
+        ReadOnlySpan<float> stops = new(buffer.Mapped, 2);
+        return (stops[0], stops[1]);
+    }
 
     /// <summary>
     /// The motion target of the last frame, RGBA per pixel, row by row from the top: xy the last drawn frame's place of the
@@ -1069,11 +1090,10 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// The diffuse image of the last frame, RGBA per pixel, row by row from the top, as <see cref="RenderTargets.Diffuse"/>
     /// says. A test hook: it waits for the device to be idle and submits its own copy.
     /// </summary>
-    /// <exception cref="InvalidOperationException">The skin scatter and the screen-space light are off.</exception>
+    /// <exception cref="InvalidOperationException">The skin scatter is off.</exception>
     internal float[] ReadDiffuse() =>
         ReadLevel(
-            image: targets.Diffuse
-                ?? throw new InvalidOperationException("The skin scatter and the screen-space light are off."),
+            image: targets.Diffuse ?? throw new InvalidOperationException("The skin scatter is off."),
             layer: 0,
             mip: 0
         ).Values;
@@ -1715,18 +1735,12 @@ public sealed unsafe class VulkanRenderer : IRenderer
         };
 
     /// <summary>
-    /// The screen-sized images at the output's size, or 1 × 1 before a window has one, and the SMAA tables when
-    /// <paramref name="antiAliasing"/> is SMAA. The renderer owns both.
+    /// The screen-sized images of <paramref name="options"/> at the output's size, or 1 × 1 before a window has one, and the
+    /// SMAA tables when its anti-aliasing is SMAA. The renderer owns both.
     /// </summary>
-    private RenderTargets CreateTargets(
-        int glowLevels,
-        AntiAliasing antiAliasing,
-        ReflectionSetting reflections,
-        SubsurfaceSetting subsurface,
-        ScreenSpaceLightSetting screenSpaceLight
-    )
+    private RenderTargets CreateTargets(RendererOptions options)
     {
-        SmaaTables? smaaTables = antiAliasing switch
+        SmaaTables? smaaTables = options.AntiAliasing switch
         {
             AntiAliasing.None => null,
             AntiAliasing.Smaa => Own(new SmaaTables(device, Allocator)),
@@ -1738,15 +1752,14 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 allocator: Allocator,
                 layouts: layouts,
                 extent: extent,
-                glowLevels: glowLevels,
+                glowLevels: GlowLevelsOf(options.Bloom),
                 smaaTables: smaaTables,
-                reflections: reflections switch
+                reflections: options.Reflections switch
                 {
                     NoReflections => null,
                     ConeTracedReflections on => on.Resolution,
                 },
-                subsurface: subsurface is SeparableSubsurface,
-                diffuse: subsurface is SeparableSubsurface || screenSpaceLight is VisibilityBitmaskLight
+                subsurface: options.Subsurface is SeparableSubsurface
             )
         );
     }
@@ -1900,7 +1913,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
     }
 
     /// <summary>The constants of the shading pipelines: the map is the ambient light exactly when the renderer has one.</summary>
-    private ShaderConstants ShadingConstants => new(EnvironmentMap: environmentMap is not null);
+    internal ShaderConstants ShadingConstants => new(EnvironmentMap: environmentMap is not null);
 
     /// <summary>
     /// The cascades' shadow map and, under <see cref="LocalShadowAtlas"/>, the local shadow atlas with its bounds, which the
@@ -1954,10 +1967,6 @@ public sealed unsafe class VulkanRenderer : IRenderer
             maxTextureSize: (int)device.Properties.Limits.MaxImageDimension2D,
             deformBytesLimit: device.Properties.Limits.MaxStorageBufferRange
         );
-
-    /// <summary>The images of the surface test at the targets' size, which the renderer owns.</summary>
-    private SurfaceHistory CreateSurfaceHistory() =>
-        Own(new SurfaceHistory(device: device, allocator: Allocator, layouts: layouts, targets: targets));
 
     /// <summary>The store of the deformed copies, which the renderer owns, at most one storage buffer's range in size.</summary>
     private DeformStore CreateDeformStore() =>
@@ -2075,7 +2084,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// <summary>
     /// Adds the passes of <see cref="ConeTracedReflections"/> over the targets' pyramids, which the targets make only
     /// under that setting: the depth pyramid after the G-buffer, then the radiance pyramid and the trace after the
-    /// ambient pass.
+    /// composite.
     /// </summary>
     private void AddReflectionPasses(ShaderLibrary shaders, ReflectionSetting reflections)
     {
@@ -2121,36 +2130,28 @@ public sealed unsafe class VulkanRenderer : IRenderer
         };
 
     /// <summary>
-    /// Adds the direct pass and the ambient pass. The direct pass writes the diffuse image too under
-    /// <see cref="SeparableSubsurface"/> or <see cref="VisibilityBitmaskLight"/>, and the ambient pass adds to it under
-    /// <see cref="SeparableSubsurface"/>.
+    /// Adds the direct pass and the composite, which writes the diffuse image too under <see cref="SeparableSubsurface"/>.
     /// </summary>
     private void AddLightingPasses(ShaderLibrary shaders)
     {
         Graph.Add(
             FrameGraph.Stage.DirectLight,
-            new DirectLightPass(
-                device: device,
-                shaders: shaders,
-                layouts: layouts,
-                constants: ShadingConstants,
-                diffuse: targets.Diffuse is not null
-            )
+            new DirectLightPass(device: device, shaders: shaders, layouts: layouts, constants: ShadingConstants)
         );
         Graph.Add(
-            FrameGraph.Stage.AmbientLight,
-            new AmbientLightPass(
+            FrameGraph.Stage.Composite,
+            new CompositePass(
                 device: device,
                 shaders: shaders,
                 layouts: layouts,
                 constants: ShadingConstants,
-                scatter: ScatterImages
+                scatter: ScatterImages is not null
             )
         );
     }
 
     /// <summary>
-    /// Adds the passes from the direct and the ambient pass to the readback to the graph, each in its own stage, the exposure pass only under
+    /// Adds the passes from the direct pass and the composite to the readback to the graph, each in its own stage, the exposure pass only under
     /// <see cref="AutoExposure"/>, the bloom pass only with a <see cref="Bloom"/>, and the three SMAA passes when SMAA is
     /// on.
     /// </summary>

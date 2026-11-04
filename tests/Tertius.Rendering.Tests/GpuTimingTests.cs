@@ -151,10 +151,10 @@ public sealed class GpuTimingTests
                         "occlusion sectors",
                         "occlusion denoise",
                         "occlusion upsample",
-                        "ambient light",
+                        "composite",
                     ],
-                    "the occlusion passes read the finished G-buffer and the direct image, no pass of theirs reads the "
-                        + "depth pyramid, and the ambient pass reads their estimate target"
+                    "the occlusion passes read the finished G-buffer and the direct light, no pass of theirs reads the "
+                        + "depth pyramid, and the composite reads their estimate target"
                 );
         }
         finally
@@ -164,7 +164,7 @@ public sealed class GpuTimingTests
     }
 
     [Fact]
-    public void WithNoScreenSpaceLightTheFrameHasTheDirectAndTheAmbientPassAndNoOcclusionPass()
+    public void WithNoScreenSpaceLightTheFrameHasTheDirectPassAndTheCompositeAndNoOcclusionPass()
     {
         VulkanRenderer renderer = TimedRenderer(screenSpaceLight: new NoScreenSpaceLight());
         try
@@ -179,8 +179,8 @@ public sealed class GpuTimingTests
                 .Take(4)
                 .Should()
                 .Equal(
-                    ["G-buffer", "surface test", "direct light", "ambient light"],
-                    "the ambient pass reads the cleared estimate target"
+                    ["G-buffer", "surface test", "direct light", "composite"],
+                    "the composite reads the cleared estimate target"
                 );
             passes.Should().NotContain(pass => pass.StartsWith("occlusion"));
         }
@@ -191,7 +191,7 @@ public sealed class GpuTimingTests
     }
 
     [Fact]
-    public void UnderSeparableSubsurfaceTheTwoScatterPassesRunRightAfterTheAmbientPass()
+    public void UnderSeparableSubsurfaceTheTwoScatterPassesRunRightAfterTheComposite()
     {
         VulkanRenderer renderer = TimedRenderer(subsurface: SeparableSubsurface.Default);
         try
@@ -202,12 +202,12 @@ public sealed class GpuTimingTests
 
             string[] passes = [.. renderer.LastFrameStats.GpuTimings!.Value.Passes.ToArray().Select(pass => pass.Pass)];
             passes
-                .SkipWhile(pass => pass != "ambient light")
+                .SkipWhile(pass => pass != "composite")
                 .Take(3)
                 .Should()
                 .Equal(
-                    ["ambient light", "scatter rows", "scatter columns"],
-                    "the scatter blurs the diffuse light that the ambient pass completes"
+                    ["composite", "scatter rows", "scatter columns"],
+                    "the scatter blurs the diffuse light that the composite writes"
                 );
         }
         finally
@@ -289,7 +289,7 @@ public sealed class GpuTimingTests
                         .BeInRange(0, 1_000, "{0} is a time on a counter that only grows", pass.Pass)
                 );
             passes
-                .Where(pass => pass.Pass is "shadow maps" or "G-buffer" or "direct light" or "ambient light")
+                .Where(pass => pass.Pass is "shadow maps" or "G-buffer" or "direct light" or "composite")
                 .Should()
                 .AllSatisfy(pass => pass.Milliseconds.Should().BePositive("{0} draws the reference scene", pass.Pass));
         }
@@ -402,17 +402,26 @@ public sealed class GpuTimingTests
     }
 
     [Fact]
-    public void OnMacOsWhereVulkanRunsOnMoltenVkTheRendererSaysThatItsStampsLatchLate()
+    public void TheRendererSaysThatItsStampsLatchLateOnMoltenVkAndOnNoOtherDriver()
     {
+        // The Mac has two drivers, MoltenVK and KosmicKrisp, so the operating system does not name the driver. A device of
+        // the test's own reads it.
+        DriverId driver;
+        using (var probe = VulkanDevice.Create(validation: false, surfaceExtensions: [], createSurface: null))
+        {
+            driver = probe.Driver;
+        }
+
         VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
         try
         {
             renderer
                 .StampsLatchLate.Should()
                 .Be(
-                    OperatingSystem.IsMacOS(),
-                    "MoltenVK samples each stamp in an encoder of its own that the next pass's work can delay, and the"
-                        + " desktop drivers of Linux latch a stamp when the work before it ends"
+                    driver == DriverId.Moltenvk,
+                    "MoltenVK samples each stamp in an encoder of its own that the next pass's work can delay, the"
+                        + " desktop drivers of Linux latch a stamp when the work before it ends, and KosmicKrisp's stamps"
+                        + " read their encoder's start, early rather than late (ter-dgen)"
                 );
         }
         finally
@@ -433,7 +442,7 @@ public sealed class GpuTimingTests
                 Bloom = new NoBloom(),
                 Height = Height,
                 Impostors = false,
-                // A fixed exposure draws no metering draw, so each Render draws one frame.
+                // A fixed exposure draws no warm-up draw, so each Render draws one frame.
                 Exposure = new FixedExposure(0),
                 AntiAliasing = AntiAliasing.None,
             },

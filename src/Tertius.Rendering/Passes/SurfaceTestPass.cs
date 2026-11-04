@@ -7,6 +7,9 @@ namespace Tertius.Rendering;
 /// dispatch, right after the G-buffer, writes the surface test image, this frame's surface history, FSR's device depth
 /// and the motion of the sky (Shaders/surface_test.comp). A frame that resets (<see cref="FrameHistory.PendingFrame.Reset"/>) fails
 /// every tap, because the last surface history belongs to another camera, size or no frame at all.
+/// NOTE: since ter-9nrc removed the direct light's history, no pass of the frame reads what this pass writes. Only tests
+/// do, until the screen tracer (ter-gayt) and FSR read it. The pass still runs in every frame, at about 0.13 ms on
+/// demo-exit's deck at 1280 x 720 and 0.36 ms at 1920 x 1080 at the windowed clock (ARCHITECTURE.md, "The frame history").
 /// </summary>
 internal sealed unsafe class SurfaceTestPass : RenderPass
 {

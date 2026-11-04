@@ -159,7 +159,7 @@ public sealed class SkinScatterRenderTests
     }
 
     [Fact]
-    public void TheDiffuseImageHoldsDOfSkinTheDirectDiffuseLightOfOtherLitPixelsAndTheSkinMask()
+    public void TheDiffuseImageHoldsDOfSkinZeroAtOtherPixelsAndTheSkinMask()
     {
         VulkanRenderer renderer = Scattering();
         try
@@ -175,12 +175,10 @@ public sealed class SkinScatterRenderTests
             float[] diffuse = renderer.ReadDiffuse();
 
             // D = the Lambert term of the sun plus the diffuse term of the even ambient light, with the diffuse color in
-            // both: the normal faces the camera, and the occlusion is 1 under no screen-space light. A standard pixel
-            // keeps the direct part alone, the bounce light's source (docs/plans/screen-space-illumination.md, "The
-            // bounce source").
+            // both: the normal faces the camera, and the occlusion is 1 under no screen-space light. The composite writes
+            // D at skin alone: the bounce source reads the direct light (docs/plans/temporal-renderer.md, section 9).
             Double3 sun = Of(Gpu.StarIrradianceRgb(snapshot)) * Vector3.Dot(toSun, Vector3.UnitZ);
             Double3 expected = SkinColor * sun / Math.PI + SkinColor * 0.4;
-            Double3 direct = SkinColor * sun / Math.PI;
             int skin = Height / 2 * Width + 80;
             ShouldBeNear(
                 actual: Rgb(diffuse, skin),
@@ -191,13 +189,9 @@ public sealed class SkinScatterRenderTests
             diffuse[skin * 4 + 3].Should().Be(1, "the alpha of a skin pixel is the mask");
             int standard = Height / 2 * Width + 240;
             int sky = 2 * Width + 160;
-            ShouldBeNear(
-                actual: Rgb(diffuse, standard),
-                expected: direct,
-                tolerance: HalfRounding * direct.X,
-                because: "the direct diffuse light of a standard pixel"
-            );
-            diffuse[standard * 4 + 3].Should().Be(0, "a standard pixel does not scatter");
+            diffuse[(standard * 4)..(standard * 4 + 4)]
+                .Should()
+                .AllBeEquivalentTo(0f, "a standard pixel does not scatter, so the composite writes it no D");
             diffuse[(sky * 4)..(sky * 4 + 4)].Should().AllBeEquivalentTo(0f, "the sky has no diffuse light");
         }
         finally

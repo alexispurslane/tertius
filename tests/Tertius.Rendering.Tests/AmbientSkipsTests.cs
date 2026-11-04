@@ -4,10 +4,10 @@ using Tertius.Testing;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The ambient pass skips the work of the map's terms that add nothing to the image (docs/plans/environment-map.md,
+/// The composite skips the work of the map's terms that add nothing to the image (docs/plans/environment-map.md,
 /// "Cost"): the footprint where the lobe alone ends the stars' fade, and the reflected stars where the lobe sees no open
 /// sky. The reference is the same pass built by this project with TERTIUS_EVERY_AMBIENT_TERM, which computes every term:
-/// ambient.frag without the skin scatter, and ambient_scatter.frag, the default renderer's pass, under it.
+/// composite.frag without the skin scatter, and composite_scatter.frag, the default renderer's pass, under it.
 /// </summary>
 [Collection(GpuCollection.Name)]
 public sealed class AmbientSkipsTests
@@ -38,11 +38,12 @@ public sealed class AmbientSkipsTests
                 Width = Width,
                 Height = Height,
                 Impostors = false,
+                // A fixed exposure, whose still draws once: the test compares the composite's ambient terms alone.
                 Exposure = new FixedExposure(ExposureStops),
                 Bloom = new NoBloom(),
                 EnvironmentMap = SceneEnvironmentMap.Default with { FaceSize = 64 },
                 // The scene has no skin, so the scatter changes no pixel: under it, the pass draws from
-                // ambient_scatter.frag, which also adds to the diffuse image at skin, and without it from ambient.frag.
+                // composite_scatter.frag, which also writes the diffuse image, and without it from composite.frag.
                 Subsurface = scatter ? SeparableSubsurface.Default : new NoSubsurface(),
             }
         );
@@ -91,7 +92,7 @@ public sealed class AmbientSkipsTests
     }
 
     /// <summary>
-    /// The HDR image of the scene's second draw, by the engine's ambient pass or by the reference, with the skin scatter
+    /// The HDR image of the scene's second draw, by the engine's composite or by the reference, with the skin scatter
     /// on or off.
     /// </summary>
     private static float[] HdrOfStarsInMetal(bool reference, bool scatter)
@@ -101,10 +102,10 @@ public sealed class AmbientSkipsTests
         {
             if (reference)
             {
-                renderer.Graph.Skipped.Add("ambient light");
+                renderer.Graph.Skipped.Add("composite");
                 renderer.Graph.Add(
-                    FrameGraph.Stage.AmbientLight,
-                    new EveryTermAmbientPass(scatter: renderer.ScatterImages)
+                    FrameGraph.Stage.Composite,
+                    new EveryTermCompositePass(scatter: renderer.ScatterImages is not null)
                 );
             }
 
@@ -120,8 +121,8 @@ public sealed class AmbientSkipsTests
     }
 
     /// <param name="scatter">
-    /// True for the skin scatter, whose ambient pass is ambient_scatter.frag, false for ambient.frag. Both include
-    /// ambient_pass.glsl, but each is its own compiled shader.
+    /// True for the skin scatter, whose composite is composite_scatter.frag, false for composite.frag. Both include
+    /// composite_pass.glsl, but each is its own compiled shader.
     /// </param>
     [Theory]
     [InlineData(false)]
@@ -139,23 +140,23 @@ public sealed class AmbientSkipsTests
     }
 
     /// <summary>
-    /// The ambient pass with the shaders of this project's build, which computes every term: an
-    /// <see cref="AmbientLightPass"/> under another name, made at its first frame from the frame's device and layouts.
+    /// The composite with the shaders of this project's build, which computes every term: a
+    /// <see cref="CompositePass"/> under another name, made at its first frame from the frame's device and layouts.
     /// </summary>
-    /// <param name="scatter">The renderer's scatter images under the skin scatter, else null.</param>
-    private sealed class EveryTermAmbientPass(ScatterImages? scatter) : RenderPass
+    /// <param name="scatter">True under the skin scatter.</param>
+    private sealed class EveryTermCompositePass(bool scatter) : RenderPass
     {
         private ShaderLibrary? shaders;
-        private AmbientLightPass? pass;
+        private CompositePass? pass;
 
-        public override string Name => "ambient light, every term";
+        public override string Name => "composite, every term";
 
         public override void Prepare(FrameContext context)
         {
             if (pass is not null)
                 return;
-            shaders = new ShaderLibrary(context.Device, typeof(EveryTermAmbientPass).Assembly);
-            pass = new AmbientLightPass(
+            shaders = new ShaderLibrary(context.Device, typeof(EveryTermCompositePass).Assembly);
+            pass = new CompositePass(
                 device: context.Device,
                 shaders: shaders,
                 layouts: context.Layouts,

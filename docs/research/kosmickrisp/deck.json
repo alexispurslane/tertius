@@ -1,0 +1,36 @@
+{
+  "scene": "demo-exit",
+  "window": {
+    "width": 1280,
+    "height": 720
+  },
+  "steps": [
+    {
+      "do": "camera",
+      "entity": "cabin-camera"
+    },
+    {
+      "do": "post",
+      "to": {
+        "kind": "entity",
+        "id": "person"
+      },
+      "event": "LeaveShip",
+      "payload": null
+    },
+    {
+      "do": "run",
+      "ticks": 399
+    },
+    {
+      "do": "camera",
+      "entity": "deck-camera"
+    },
+    {
+      "do": "film",
+      "name": "deck",
+      "frames": 120,
+      "every": 1
+    }
+  ]
+}

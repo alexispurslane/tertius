@@ -28,6 +28,7 @@ internal sealed class OcclusionImages : IDisposable
     /// A format is not a storage image on the device, or the device binds fewer than <see cref="StorageImages"/> storage
     /// images in one stage.
     /// </exception>
+    /// <param name="targets">The render targets, whose direct diffuse image the depth pass reads as the bounce source.</param>
     public OcclusionImages(
         VulkanDevice device,
         DeviceAllocator allocator,
@@ -101,7 +102,10 @@ internal sealed class OcclusionImages : IDisposable
     /// <summary>Set 3 with term B as the denoise source and term A as its destination: for the last denoise dispatch.</summary>
     public DescriptorSet SetBToA { get; }
 
-    /// <summary>Recreates the images at the half of the targets' size and rewrites both sets. The device must be idle.</summary>
+    /// <summary>
+    /// Recreates the images at the half of the targets' size and rewrites both sets. The device must be idle, and the targets
+    /// already resized, because the sets point at them.
+    /// </summary>
     public void Resize(RenderTargets targets)
     {
         // Always, even at the same half size: the sets point at the targets, which a resize recreates.
@@ -144,15 +148,7 @@ internal sealed class OcclusionImages : IDisposable
         layouts.WriteStorageImage(set: set, binding: 5, image: denoiseDestination);
         layouts.WriteStorageImage(set: set, binding: 6, image: Source);
         layouts.WriteStorageImage(set: set, binding: 7, image: DepthAndNormal);
-        layouts.WriteStorageImage(
-            set: set,
-            binding: 8,
-            image: targets.Diffuse
-                ?? throw new ArgumentException(
-                    "The targets of the screen-space light hold the diffuse image.",
-                    nameof(targets)
-                )
-        );
+        layouts.WriteStorageImage(set: set, binding: 8, image: targets.DirectDiffuse);
         layouts.WriteStorageImage(set: set, binding: 9, image: Continuation);
     }
 

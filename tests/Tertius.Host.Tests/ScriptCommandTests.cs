@@ -679,6 +679,15 @@ public sealed class ScriptCommandTests : IDisposable
         settings.Should().Equal(expected);
     }
 
+    [Fact]
+    public void TheDirectLightOptionIsUnknownBecauseTheRendererTakesEveryLightExactly()
+    {
+        int code = Run("--script", "script.json", "--headless", "--out", "out", "--direct-light", "every");
+
+        code.Should().Be(ScriptCommand.CommandLineError);
+        error.ToString().Should().Contain("Unknown option '--direct-light'");
+    }
+
     [Theory]
     [InlineData("off", AntiAliasing.None)]
     [InlineData("smaa", AntiAliasing.Smaa)]

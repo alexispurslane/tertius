@@ -31,7 +31,7 @@ Hold the whole frame to a fixed budget of GPU time, once every feature of the ep
 
 ### Made by the user, later
 
-8. Superseded by the user on 2026-11-02: the renderer is temporal, by [temporal-renderer.md](temporal-renderer.md) and epic `ter-89xq`. The decision as it stood until then, kept as history: no technique blends a pixel's estimate with results from earlier frames: no temporal accumulation, no TAA and no temporal upscaling (user, 2026-10-25). The user wants each frame's image from that frame alone, as a design challenge. So the image has no grain that settles over frames, no ghosting and no smearing. Every other technique of "The techniques" is allowed, half-resolution reflections included.
+8. Superseded by the user on 2026-11-02: the renderer is temporal, by [temporal-renderer.md](temporal-renderer.md) and epic `ter-89xq`. Ticket `ter-nmbm` (2026-11-03) built the first accumulation: the direct signal, whose history averages the noise of ReSTIR DI over frames. The decision as it stood until then, kept as history: no technique blends a pixel's estimate with results from earlier frames: no temporal accumulation, no TAA and no temporal upscaling (user, 2026-10-25). The user wants each frame's image from that frame alone, as a design challenge. So the image has no grain that settles over frames, no ghosting and no smearing. Every other technique of "The techniques" is allowed, half-resolution reflections included.
 
 ## The techniques
 

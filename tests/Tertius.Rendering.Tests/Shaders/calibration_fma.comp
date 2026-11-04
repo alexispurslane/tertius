@@ -1,0 +1,14 @@
+#version 460
+// The FMA probe with eight steps in each pass of its loop, so that the loop costs little beside its FMAs. The count of
+// steps is a multiple of 8.
+#include "calibration_fma.glsl"
+
+void main()
+{
+    FMA_START
+    for (uint i = 0u; i < constants.iterations / 8u; i++)
+    {
+        FMA_STEP FMA_STEP FMA_STEP FMA_STEP FMA_STEP FMA_STEP FMA_STEP FMA_STEP
+    }
+    FMA_END
+}

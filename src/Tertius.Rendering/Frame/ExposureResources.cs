@@ -23,7 +23,10 @@ namespace Tertius.Rendering;
 /// </remarks>
 internal sealed unsafe class ExposureResources : IDisposable
 {
-    /// <summary>The size of the exposure buffer: <c>exposureStops</c> at offset 0, and padding to 16 bytes.</summary>
+    /// <summary>
+    /// The size of the exposure buffer: <c>exposureStops</c> at offset 0, <c>previousStops</c> at offset 4, the stops that
+    /// the frame before used, and padding to 16 bytes.
+    /// </summary>
     private const ulong ExposureBytes = 16;
 
     /// <summary>The size of the histogram: one <c>uint</c> count per bin.</summary>

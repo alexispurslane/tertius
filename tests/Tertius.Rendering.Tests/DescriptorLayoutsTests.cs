@@ -122,13 +122,13 @@ public sealed class DescriptorLayoutsTests
             .DescriptorsOf(layouts.SceneLayout)
             .SampledImages.Most.Should()
             .Be(
-                16,
-                "the fragment stage sees the frame set's two tables, specular map, irradiance cube and distance cube, and the G-buffer set's eleven images"
+                15,
+                "the fragment stage sees the frame set's two tables, specular map, irradiance cube and distance cube, and the G-buffer set's ten images"
             );
         layouts
             .DescriptorsOf(layouts.ImpostorLayout)
             .SampledImages.Most.Should()
-            .Be(18, "the impostor atlas set adds two images to the fragment stage");
+            .Be(17, "the impostor atlas set adds two images to the fragment stage");
     }
 
     [Fact]
@@ -151,7 +151,7 @@ public sealed class DescriptorLayoutsTests
     /// ARCHITECTURE.md, "Required device features", states.
     /// </summary>
     [Fact]
-    public void TheLayoutsNeedOfAStageTenStorageBuffersTenStorageImagesAndEighteenSampledImages()
+    public void TheLayoutsNeedOfAStageTenStorageBuffersTenStorageImagesAndSeventeenSampledImages()
     {
         using var device = VulkanDevice.Create(validation: true, surfaceExtensions: [], createSurface: null);
         using var layouts = new DescriptorLayouts(device: device, framesInFlight: 2, glowLevels: 0);
@@ -168,12 +168,12 @@ public sealed class DescriptorLayoutsTests
         all.Max(counts => counts.StorageImages.Most).Should().Be(10, "the depth tail's compute stage writes ten mips");
         all.Max(counts => counts.SampledImages.Most)
             .Should()
-            .Be(18, "the impostor layout's fragment stage sees eighteen");
+            .Be(17, "the impostor layout's fragment stage sees seventeen");
     }
 
     /// <summary>
-    /// A device whose stages see 17 sampled images makes the scene layout, which needs 16, and is refused at the
-    /// impostor layout, which needs 18, before vkCreatePipelineLayout: no validation message reports a layout above the
+    /// A device whose stages see 16 sampled images makes the scene layout, which needs 15, and is refused at the
+    /// impostor layout, which needs 17, before vkCreatePipelineLayout: no validation message reports a layout above the
     /// limit, and the refusal destroys the samplers and layouts that the constructor made before it.
     /// </summary>
     [Fact]
@@ -183,7 +183,7 @@ public sealed class DescriptorLayoutsTests
         try
         {
             PhysicalDeviceProperties properties = device.Properties;
-            properties.Limits.MaxPerStageDescriptorSampledImages = 17;
+            properties.Limits.MaxPerStageDescriptorSampledImages = 16;
             Report(device, properties);
 
             Action create = () => new DescriptorLayouts(device: device, framesInFlight: 2, glowLevels: 0).Dispose();
@@ -191,7 +191,7 @@ public sealed class DescriptorLayoutsTests
             create
                 .Should()
                 .Throw<NotSupportedException>()
-                .WithMessage("The impostor layout: * 18 sampled images, above the device*limit of 17 sampled images *");
+                .WithMessage("The impostor layout: * 17 sampled images, above the device*limit of 16 sampled images *");
         }
         finally
         {

@@ -1,0 +1,143 @@
+---
+id: ter-9nrc
+status: closed
+deps: [ter-nmbm]
+links: []
+created: 2026-11-03T19:30:31Z
+type: task
+priority: 1
+assignee: Alexis Purslane
+parent: ter-89xq
+tags: [rendering, temporal, performance]
+---
+# Remove the direct light sampling: the exact loop is the only direct path
+
+Ticket ter-nmbm measured the new passes in Release on the M1 Max with Metal traces (tools/gpu-trace.sh --no-counters, 120 frames, interleaved with the base 2d0ea65e8; ARCHITECTURE.md, "ReSTIR DI", holds the table). At 1280 x 720, light candidates + direct light took about 1.66 ms on lamp-hall-64's film and 3.15 ms on demo-exit's deck from frame 399, against the budget of 0.6 to 1.3 ms (docs/plans/temporal-renderer.md, section 14, ticket 3). accumulate direct took about 0.67 ms on the hall and 1.15 ms on the deck, against 0.15 to 0.30 ms. The frame span still fell on the hall (11.7 to 8.0 ms) and held on the deck. Candidates to measure: one accumulation dispatch for both parts, so that the 3 x 3 surface keys (surfaceKeyAt reads the distance, the normals and the shading target, and builds a view ray) are read once per pixel and not once per part and loop; a surface key image that the surface test writes; the direct pass's shadow lookups of the exact star on the deck; and the light candidates' four unshadowed evaluations. Find the cause with a trace with counters before a change.
+
+
+## Notes
+
+**2026-11-03T22:13:22Z**
+
+2026-11-03, the fix stage of ter-nmbm: the deck's traces counted the first still's 32 warm-up draws. Without them (a trace of the still alone, subtracted), at 1280 x 720 light candidates take 1.63 ms, direct light 1.90 ms and accumulate direct 1.18 ms. In the same traces every unchanged pass ran 10 to 25 % faster than in the base's, likely the GPU's clock, so the 720p span hides about 1.6 ms of added work, and the 1080p span shows about 2.0 ms. The interleaved timer runs with a control are in ARCHITECTURE.md, 'ReSTIR DI'. ReSTIR's visibility test no longer evaluates the response (lighting.glsl, pathVisibility).
+
+**2026-11-04T02:13:20Z**
+
+2026-11-03, ter-nmbm's continuation built the unbiased spatial combine (ter-t8z7), which adds to the direct light pass. Acceptance view of this ticket: demo-exit's deck (the time-deck window from frame 399, and its traces), at 1280 x 720 and 1920 x 1080. Interleaved timers, 7 rounds, means in ms, base c6572ca3d / biased combine c11b3cbe8 / unbiased b20714c0c: deck 1280 x 720 direct light 2.39 / 1.39 / 2.42, the changed passes 2.56 / 4.20 / 5.55, mean span 11.67 / 11.42 / 12.84; deck 1920 x 1080 direct light 4.16 / 2.77 / 4.73, changed passes 4.61 / 8.22 / 10.41, mean span 15.53 / 17.85 / 20.04. Traces with the warm-up correction: 1280 x 720 light candidates 1.60 to 1.66, direct light 3.23 to 3.30 (biased 1.85 to 1.87), accumulate direct 1.22 to 1.23; 1920 x 1080 2.54, 5.15 to 5.16 (biased 3.03), 2.40. So light candidates + direct light take about 4.9 ms at 1280 x 720 against the budget of 0.6 to 1.3 ms. The combine's own cost is the direct pass's 1.0 to 1.4 ms at 1280 x 720 and 2.0 to 2.1 ms at 1920 x 1080: a visibility test and an evaluation of the kept light at each neighbor whose own choice is another light, with that neighbor's G-buffer reads, and each combined light's shadow lookup at the pixel. Arrays of the neighbors indexed at run time doubled that cost and are gone. Candidates to measure next with counters: the neighbors' G-buffer reads for Z, the shadow lookups' gathers near edges, and the occupancy of the direct pass. Runs and traces: /private/tmp/nmbm3 (runs.txt, summary.md, traces.txt, traces.md).
+
+**2026-11-04T02:58:15Z**
+
+2026-11-03, the fix stage of ter-nmbm's continuation: the hall, lamp-hall-64's film from frame 1, re-measured on the final build 25f1f9485 against the base c6572ca3d, 3 interleaved traces each, warm-up corrected. At 1280 x 720 the branch's light candidates + direct light + accumulate direct + composite take 3.51 to 3.77 ms (1.13-1.21, 1.47-1.58, 0.72-0.77, 0.19-0.21) against the base's direct + ambient light of 5.21 to 5.98 ms, and the frame mean 9.29 to 9.71 ms against 10.77 to 11.92 ms. At 1920 x 1080: 6.33 to 6.88 ms against 7.89 to 8.89 ms, and the frame 13.88 to 14.83 against 14.82 to 16.31 ms. So the hall's saving fell from about 4 ms (first build, biased combine) to about 1.5 to 2.2 ms at 1280 x 720. The deck stays this ticket's acceptance view: there the four passes cost about 4.9 ms + 1.2 ms against a budget of 0.6 to 1.3 + 0.15 to 0.30 ms. Files: /private/tmp/nmbm4 (builds.txt, traces.txt, traces.md).
+
+**2026-11-04T13:20:55Z**
+
+2026-11-04, the user's decision (see ter-89xq's note of the same day): the first change of this ticket is the rule 'exact lights when they are few'. One model: each light of the main view is exact or sampled, and LightTable decides once per frame on the CPU. A light is exact when it holds a cascade set (as today) or when the main view keeps at most N lights. A frame with no sampled light runs no light candidates pass and no reservoir reuse, and the direct pass shades every light exactly, as EveryLight does now; EveryLight becomes the same rule with no limit. N comes from measurement: the light count at which the two costs cross, from a sweep of a scene with n lamps (n = 1, 2, 3, ... 16) plus demo-exit's deck and lamp-hall-64, at 1280 x 720 under the GPU lock with gpu-clock beside each run. The switch when the count crosses N: an exact frame's sample is already the converged light, so its history can count as full length; measure whether the switch needs a margin against flicker. Left out until a scene needs it: a per-tile or per-pixel count (the renderer has one light list per frame and no tile light lists). The invariant 'every exact light holds a cascade set' becomes 'every light with a cascade set is exact'. Expected on the deck, from the old measurements: the exact loop took 3.35 to 3.63 ms with the old ambient pass, against 6.34 to 6.49 ms for the four sampled passes (headless, 1280 x 720), about 1.3 to 2.0 ms at the windowed clock. The other candidates of this ticket (one accumulation dispatch for both parts, a surface key image, the combine's neighbor reads) stay, for scenes that sample. The user's frame target is 12 ms (ter-89xq). Priority 1.
+
+**2026-11-04T13:42:24Z**
+
+2026-11-04, the user's decision, which replaces the exact-when-few rule of the note above: remove ReSTIR DI. Every light of the main view is shaded exactly, by today's EveryLight path, and it is the only direct path. Reasons: the ReSTIR paper (Bitterli et al. 2020) targets 7,500 to 3.4 million emissive triangles with ray-traced visibility, 32 candidates and a denoiser, and never compares against shading every light; our scenes have tens of lights. In lamp-hall-64, sampling saved 1.5 to 2.2 ms headless at 1280 x 720 (about 0.9 to 1.4 ms at the windowed clock) but put grain over the whole floor, and on demo-exit's deck it cost 2.9 ms more. It also kept a second lighting path and the sparkle bug (ter-x31x, closed as obsolete). The user also chose to build tile light lists now (a new ticket after this one), so that each pixel loops only over the lights near it. This ticket's scope: delete the sampling (ResampledLights and the DirectLightSetting union, the light candidates pass, the reservoirs, the light table's sampling parts, the combine and its shaders, the host option), keep the exact loop, drop the direct signal's history if the image stays the same, measure the cost, and update ARCHITECTURE.md and docs/plans/temporal-renderer.md section 7.
+
+**2026-11-04T14:03:53Z**
+
+2026-11-04, build brief (orchestrator) for workflow run ter-9nrc-remove-light-sampling.
+
+Read first: this ticket's note of 2026-11-04 (the user's decision; it replaces the exact-when-few rule), .tickets/ter-89xq.md's notes of 2026-11-04, ARCHITECTURE.md sections "The direct signal", "ReSTIR DI" and "The order of a rendered frame", and docs/plans/temporal-renderer.md sections 7, 8 and 11 and decisions 28 and 29. Do not reopen the decision. Tile light lists come later in ter-69s8, not here.
+
+Scope:
+1. Delete the sampling: ResampledLights, the DirectLightSetting union and RendererOptions.DirectLight (one behavior needs no setting), the light candidates pass, LightReservoirs, the light table's sampling parts (keep only what the exact loop needs), the spatial combine, their shaders and descriptor bindings, and the host's --direct-light option. Delete or rewrite the tests that only test sampling. Keep every test of the exact loop.
+2. The direct history (settled by the orchestrator): the exact loop keeps one frame (decision 29), so its history equals its sample. Remove the direct signal's accumulation dispatches and its TemporalSignal images, and let the composite and the occlusion depth pass read the direct sample, if the image stays the same. Compare the final images of demo-exit's deck, the cabin and lamp-hall-64 before and after, bit for bit or by FLIP, and explain any difference. Keep TemporalSignal, AccumulatePass and their shaders, because the design gives them to ter-gayt's indirect signals; if they become unused until then, say so in a comment that names ter-gayt. Keep the still rule.
+3. Measure: the deck (time-deck window) and lamp-hall-64's film, at 1280 x 720 and 1920 x 1080, Release, interleaved with the base build in at least 5 rounds, under the GPU lock, with tools/gpu-calibration's gpu-clock beside each run. Report pass times and the frame span with clock and spread, and their estimate at the windowed clock (docs/research/temporal-renderer/gpu-calibration.md).
+4. Screenshots of the deck, the cabin and lamp-hall-64 before and after, from the headless demo, under /private/tmp/9nrc/shots. Look at each and name them in the report.
+5. Docs last: ARCHITECTURE.md (remove "ReSTIR DI", update "The direct signal", the frame order, GPU timings, memory figures), docs/plans/temporal-renderer.md section 7 (the user's decision and reasons; mark decisions 28 and 29 changed, with the date) and section 11, tools/README.md where it names the removed option, and a dated note in this ticket with what was removed, the image comparison and the times.
+
+Red-green TDD for changed behavior (for example the composite reading the sample). Project rules: one store per state, no parallel mechanism, no dead option.
+
+Required checks at the end: nix develop --command dotnet test --solution Tertius.slnx -c Checked just before the last commit, then -c Release. Leave GpuTimingTests' empty-pass skip alone. Coverage and mutation testing stay with the orchestrator. Do not merge and do not close the ticket.
+
+Rules: read CLAUDE.md, STYLE.md and tests/STYLE.md first. Builds and tests run in the dev shell. GPU lock for every timed run: mkdir /tmp/tertius-gpu-measure.lock, wait and retry if it exists, rmdir only your own; screenshots need no lock. Put the base build under /private/tmp/9nrc, not in the repository. Run long commands in the foreground and poll logs in steps under ten minutes. The final message is the stage's JSON report and nothing else. Run every rm as its own command. GNU sed. A ticket that tk creates in a worktree gets renamed to the ter- prefix. Portable Vulkan only.
+
+For the reviewer: no sampling code, setting, binding, shader or test remains; the exact loop's tests survive; the image comparison holds; the direct light has one store; the accumulator stays for ter-gayt; each timed number has clock, spread and lock; the docs match the code.
+
+**2026-11-04T14:03:53Z**
+
+2026-11-04: started as workflow run 95057274-a8ee-48d7-8958-8eac557eb750 (version 869b0b07, title 'ter-9nrc: remove light sampling'), branch ter-9nrc-remove-light-sampling from badb6ac67. The brief is the note above; the run read it from /private/tmp/ter-9nrc-brief.md. The base predates the KosmicKrisp merge (a6aedea6c), which also changed DescriptorLayouts.cs (the shared pool's set counts, including the reservoir sets), so expect a conflict there at integration.
+
+**2026-11-04T14:48:16Z**
+
+2026-11-04, the build of this ticket (branch ter-9nrc-remove-light-sampling, base badb6ac67).
+
+Removed: ResampledLights and the DirectLightSetting union with RendererOptions.DirectLight; the light candidates pass (LightCandidatesPass, light_candidates.frag); LightReservoirs, the reservoir set and layout, and reservoirs.glsl; LightTable, its frame set binding 19 and restir.glsl; direct_resampled.frag, direct_every.frag and direct_pass.glsl, replaced by one direct.frag; the light keys and the light remap of FrameHistory, and PreparedLight.EntityGeneration; tileFullyShadowed in shadows.glsl; the host's --direct-light option; the direct signal's TemporalSignal, its two accumulation dispatches ('accumulate direct'), SignalParameters.Direct and the test hooks ReadDirectSample, ReadDirectHistory and ReadCandidateReservoirs; RendererOptions.WarmUpFrames, because no history holds more than one frame until ter-gayt (a still now takes 1 warm-up draw under AutoExposure and 0 otherwise); the tests ResampledLightsRenderTests, LightTableTests, DirectLightBiasTests and DirectLightViews. The direct light now lives in two RGBA16F images of RenderTargets (DirectDiffuse, DirectSpecular, read through DirectSet), which the composite and the occlusion depth pass read. TemporalSignal, AccumulatePass and their shaders stay for ter-gayt; AccumulatorRenderTests drives a signal of its own through the test hook CreateSignal. New test: DirectLightRenderTests (a frame after a frame of other light shows the first frame's image). New ticket ter-nt65: the snapshot's unused light generation.
+
+Images, headless Release at 1280 x 720, PNGs in /private/tmp/9nrc/shots: the branch is byte for byte the base under --direct-light every for lamp-hall-64's still, demo-exit's deck and the cabin of cabin-light (FLIP mean 0, max 0). Against the base's default (ReSTIR): FLIP mean 0.01755, max 0.3643, 3486 of 921600 pixels above 0.1 on the hall; 0.02246, 0.3293, 6332 on the deck; 0.01326, 0.1480, 84 on the cabin. The differences are ReSTIR's grain and sparkles on the hall floor and the deck's floor and glass. Heat maps: shots/flip-base-*.png, text in shots/flip.txt.
+
+Times: 5 interleaved rounds of base (badb6ac67, ReSTIR), every (badb6ac67 with --direct-light every) and branch, 60 runs, tools/gpu-lock.sh and gpu-clock beside each, 09:18 to 09:38. Windows: demo-exit time-deck (from frame 399) and lamp-hall-64's film (from frame 1), 120 frames, Release. On MoltenVK the depth pyramid's stamp takes part of the direct pass's time, so the numbers are the frame span and the sum of the neighbouring passes from the end of 'surface test' through 'composite' (depth pyramid, light candidates, direct light, accumulate direct, the four occlusion passes, composite, whichever the build runs). Means over the rounds in ms, with the range; the last two numbers are at the windowed clock (time x clock / 1296 MHz).
+deck 720p: base clock 1052 (953-1090) MHz, span 12.70 (12.21-13.80), neighbours 8.07 (7.76-8.81), at 1296: span 10.29, neighbours 6.53. every 797 MHz, 12.33, 6.79, 7.55, 4.15. branch 814 (770-887) MHz, 11.33 (10.70-11.82), 5.92 (5.50-6.21), 7.10 (7.03-7.32), 3.71 (3.69-3.76).
+deck 1080p: base 1286 MHz, 19.65, 13.84, 19.49, 13.72. every 1180, 16.05, 9.92, 14.60, 9.03. branch 1088, 15.59, 9.01, 13.08, 7.56.
+hall 720p: base 925, 8.30, 5.25, 5.92, 3.74. every 897, 10.47, 7.41, 7.25, 5.13. branch 903, 9.92, 6.85, 6.90, 4.77.
+hall 1080p: base 1003, 13.54, 9.52, 10.43, 7.33. every 1154, 14.95, 11.30, 13.31, 10.06. branch 1118, 14.41, 10.74, 12.38 (12.15-12.58), 9.23 (9.06-9.34).
+So at the windowed clock the deck's span falls by 3.2 ms at 720p and 6.4 ms at 1080p, and the hall's rises by 1.0 and 2.0 ms (64 shadowed lamps at every pixel). Every lamp's reach covers the whole hall, so tile light lists cannot drop a lamp there; the user deferred them (ter-69s8), and the runtime light cap (ter-bqun) bounds the cost. The history's removal alone (every against branch) saves 0.44, 1.47, 0.36 and 0.83 ms of the neighbouring passes. The surface test pass, which no pass reads until ter-gayt, took by its own timer time about 0.13 ms on the deck at 720p and 0.36 ms at 1080p at the windowed clock. Two rounds waited about 4 minutes on the GPU lock that another session held. Files: /private/tmp/9nrc (runs.txt, runs/, summary.md, windowed.txt, fix/neighbours.py, fix/neighbours.txt).
+
+**2026-11-04T16:28:39Z**
+
+2026-11-04, the hardening of this ticket (branch head cb65ffce7).
+
+Coverage: Checked, tests/Tertius.Rendering.Tests (2596 passed) and tests/Tertius.Host.Tests (1975 passed), tools/coverage/changed-lines.py against main. Changed C# lines covered 63/66 = 95.5%, branches 7/10. Uncovered: RenderTargets.cs 520-522, the NotSupportedException when RGBA16F is not a color attachment and a storage image, with the false side of the branch on 519. No test reaches it, because the Vulkan spec's required formats give RGBA16F both features on every device. Partial branches on RenderTargets.cs 556-557: the null side of `DirectDiffuse?.Dispose()` and `DirectSpecular?.Dispose()`, which runs only when Create threw before these images, as for the other targets. The Host changes are deletions and the usage text, so they have no coverable changed line.
+
+Mutation testing: tools/mutate.py, Checked, under tools/gpu-lock.sh, three runs (37 mutants, then S08, C08, C21 and C22 again, then C21). No changed line lies in Core, Simulation or Physics, so no Stryker run applies. Deleted code got no mutants. The first run's C21 (`Headless: true`) and C22 (`parts: 1`) did not build (IDE0060, an unused parameter), so they became `!headless` and `Math.Min(parts, 1)`.
+
+| id | place | change | result | killed by | s |
+|---|---|---|---|---|---:|
+| S01 | src/Tertius.Rendering/Shaders/direct.frag:19 | no clamp of the pixel to the image | survived |  | 9.5 |
+| S02 | src/Tertius.Rendering/Shaders/direct.frag:22 | sky test <= -> < | survived |  | 14.3 |
+| S03 | src/Tertius.Rendering/Shaders/direct.frag:22 | impostors shaded | survived |  | 43.9 |
+| S04 | src/Tertius.Rendering/Shaders/direct.frag:24 | sky diffuse 1 | survived |  | 24.6 |
+| S05 | src/Tertius.Rendering/Shaders/direct.frag:25 | sky specular 1 | survived |  | 18.4 |
+| S06 | src/Tertius.Rendering/Shaders/direct.frag:32 | position at half the distance | killed | DirectLightRenderTests.AFrameAfterAFrameOfOtherLightShowsTheSameImageAsTheFirstFrameOfItsLight, LightUnitsRenderTests.ASecondStarCastsFarShadowsOnly, LightUnitsRenderTests.ASpotLightLightsTheSquareOnItsAxisByTheIntensityOfItsCone | 9.7 |
+| S07 | src/Tertius.Rendering/Shaders/direct.frag:33 | view vector flipped | killed | LightUnitsRenderTests.ASecondStarCastsFarShadowsOnly, LightUnitsRenderTests.ASpotLightLightsTheSquareOnItsAxisByTheIntensityOfItsCone, LightUnitsRenderTests.APointLightLightsASquareByItsPowerOverFourPiDSquared | 9.9 |
+| S08 | src/Tertius.Rendering/Shaders/direct.frag:38 | no pre-exposure | killed | DirectLightRenderTests.TheDirectLightIsPreExposedSoOneStopMoreDoublesEveryLitPixel | 13.8 |
+| S09 | src/Tertius.Rendering/Shaders/direct.frag:39 | diffuse output takes the specular light | killed | LightUnitsRenderTests.ASecondStarCastsFarShadowsOnly, LightUnitsRenderTests.AFarStarLightsAsTheSunDidForTheSameIrradiance, LightUnitsRenderTests.ASpotLightLightsTheSquareOnItsAxisByTheIntensityOfItsCone | 9.6 |
+| S10 | src/Tertius.Rendering/Shaders/direct.frag:40 | specular divided by the diffuse factor | killed | SphereLightRenderTests.ASurfaceInsideALightsSphereSeesTheLightWithTheSineOfOne, SphereLightRenderTests.AMirrorShowsTheDiscOfASizedLightAtTheLightsAngularSize(light: "lamp"), SphereLightRenderTests.AMirrorShowsTheDiscOfASizedLightAtTheLightsAngularSize(light: "sun") | 11.1 |
+| S11 | src/Tertius.Rendering/Shaders/direct.frag:40 | no specular light | killed | LightUnitsRenderTests.WithinItsReachALampFadesByTheSquareOfItsWindow, BrdfRenderTests.AHighlightBrighterThanTheHdrTargetHoldsShowsWhite, BrdfRenderTests.AMetalShowsAHighlightInItsBaseColorAndNoDiffuseLight | 9.3 |
+| S12 | src/Tertius.Rendering/Shaders/composite_pass.glsl:71 | composite diffuse reads the specular image | killed | LightUnitsRenderTests.ASecondStarCastsFarShadowsOnly, LightUnitsRenderTests.AFarStarLightsAsTheSunDidForTheSameIrradiance, LightUnitsRenderTests.ASpotLightLightsTheSquareOnItsAxisByTheIntensityOfItsCone | 18.6 |
+| S13 | src/Tertius.Rendering/Shaders/composite_pass.glsl:72 | composite specular reads the diffuse image | killed | BrdfRenderTests.AHighlightBrighterThanTheHdrTargetHoldsShowsWhite, BrdfRenderTests.AMetalShowsAHighlightInItsBaseColorAndNoDiffuseLight, BrdfRenderTests.ASmoothMetalReflectsTheSunWithTheLobeOfTheRoughnessFloor | 18.3 |
+| S14 | src/Tertius.Rendering/Shaders/occlusion_depth.comp:29 | bounce source without the direct light | killed | BounceLightRenderTests.TheDepthPassCopiesTheDiffuseLightTheViewDepthAndTheGeometricNormalOfEachTexelsRepresentativePixel, BounceLightRenderTests.ASceneWithNoDirectLightGetsNoBounce, AmbientOcclusionRenderTests.UnderTheEnvironmentMapAnInnerCornerLosesTheMapsLightAlongTheDirectionsThatItsWallsHide | 24.5 |
+| C01 | src/Tertius.Rendering/Frame/RenderTargets.cs:313 | one image for both parts | killed | LightUnitsRenderTests.ASecondStarCastsFarShadowsOnly, LightUnitsRenderTests.AFarStarLightsAsTheSunDidForTheSameIrradiance, LightUnitsRenderTests.ASpotLightLightsTheSquareOnItsAxisByTheIntensityOfItsCone | 8.6 |
+| C02 | src/Tertius.Rendering/Frame/RenderTargets.cs:343 | direct set binding 0 -> specular | killed | LightUnitsRenderTests.ASecondStarCastsFarShadowsOnly, LightUnitsRenderTests.AFarStarLightsAsTheSunDidForTheSameIrradiance, LightUnitsRenderTests.ASpotLightLightsTheSquareOnItsAxisByTheIntensityOfItsCone | 8.6 |
+| C03 | src/Tertius.Rendering/Frame/RenderTargets.cs:344 | direct set binding 1 -> diffuse | killed | BrdfRenderTests.AHighlightBrighterThanTheHdrTargetHoldsShowsWhite, BrdfRenderTests.AMetalShowsAHighlightInItsBaseColorAndNoDiffuseLight, BrdfRenderTests.ASmoothMetalReflectsTheSunWithTheLobeOfTheRoughnessFloor | 9.0 |
+| C04 | src/Tertius.Rendering/Frame/RenderTargets.cs:361 | direct image without storage usage | killed | DirectLightRenderTests.AFrameAfterAFrameOfOtherLightShowsTheSameImageAsTheFirstFrameOfItsLight | 5.0 |
+| C05 | src/Tertius.Rendering/Frame/RenderTargets.cs:518 | direct format not checked | survived |  | 7.8 |
+| C06 | src/Tertius.Rendering/Frame/RenderTargets.cs:519 | format check inverted | killed | DirectLightRenderTests.AFrameAfterAFrameOfOtherLightShowsTheSameImageAsTheFirstFrameOfItsLight | 4.6 |
+| C07 | src/Tertius.Rendering/Frame/RenderTargets.cs:556 | direct diffuse image leaks | killed | DirectLightRenderTests.AFrameAfterAFrameOfOtherLightShowsTheSameImageAsTheFirstFrameOfItsLight | 5.2 |
+| C08 | src/Tertius.Rendering/Frame/DescriptorLayouts.cs:102 | one signal read set in the pool | survived |  | 7.9 |
+| C09 | src/Tertius.Rendering/Frame/DescriptorLayouts.cs:865 | pool storage images: one per signal read set | survived |  | 6.8 |
+| C10 | src/Tertius.Rendering/Frame/DescriptorLayouts.cs:839 | pool storage buffers one fewer | survived |  | 33.4 |
+| C11 | src/Tertius.Rendering/Frame/DescriptorLayouts.cs:849 | pool sampled images: one per surface test set | survived |  | 9.3 |
+| C12 | src/Tertius.Rendering/Passes/CompositePass.cs:55 | no barrier before the composite reads direct diffuse | killed | DirectLightRenderTests.AFrameAfterAFrameOfOtherLightShowsTheSameImageAsTheFirstFrameOfItsLight | 4.7 |
+| C13 | src/Tertius.Rendering/Passes/CompositePass.cs:56 | no barrier before the composite reads direct specular | killed | DirectLightRenderTests.AFrameAfterAFrameOfOtherLightShowsTheSameImageAsTheFirstFrameOfItsLight | 4.8 |
+| C14 | src/Tertius.Rendering/Passes/OcclusionDepthPass.cs:41 | no barrier before the depth pass reads direct diffuse | killed | BounceLightRenderTests.ALampsGlowingPanelBouncesOnlyItsLight, BounceLightRenderTests.TheDepthPassCopiesTheDiffuseLightTheViewDepthAndTheGeometricNormalOfEachTexelsRepresentativePixel, BounceLightRenderTests.AWallBeyondTheRadiusGivesTheFloorNoBounceAndLeavesItOpen | 12.5 |
+| C15 | src/Tertius.Rendering/Frame/OcclusionImages.cs:151 | bounce source reads the specular image | killed | BounceLightRenderTests.ALampsGlowingPanelBouncesOnlyItsLight, BounceLightRenderTests.TheDepthPassCopiesTheDiffuseLightTheViewDepthAndTheGeometricNormalOfEachTexelsRepresentativePixel, BounceLightRenderTests.AWallBeyondTheRadiusGivesTheFloorNoBounceAndLeavesItOpen | 18.1 |
+| C16 | src/Tertius.Rendering/Passes/DirectLightPass.cs:30 | pipeline with one color format | killed | DirectLightRenderTests.AFrameAfterAFrameOfOtherLightShowsTheSameImageAsTheFirstFrameOfItsLight | 24.0 |
+| C17 | src/Tertius.Rendering/Passes/DirectLightPass.cs:52 | direct diffuse kept, not discarded | survived |  | 9.7 |
+| C18 | src/Tertius.Rendering/Passes/DirectLightPass.cs:57 | attachments swapped | killed | LightUnitsRenderTests.ASecondStarCastsFarShadowsOnly, LightUnitsRenderTests.AFarStarLightsAsTheSunDidForTheSameIrradiance, LightUnitsRenderTests.ASpotLightLightsTheSquareOnItsAxisByTheIntensityOfItsCone | 12.0 |
+| C19 | src/Tertius.Rendering/Frame/FrameHistory.cs:59 | no warm-up draw under auto exposure | killed | StillRuleTests.AStillUnderAnAutomaticExposureTakesOneWarmUpDraw | 6.9 |
+| C20 | src/Tertius.Rendering/Frame/FrameHistory.cs:59 | a warm-up draw under fixed exposure | killed | StillRuleTests.AStillUnderAFixedExposureTakesNoWarmUpDraw | 4.5 |
+| C21 | src/Tertius.Rendering/Frame/FrameHistory.cs:59 | headless flag inverted | killed | StillRuleTests.AWindowedRendererDrawsEachSnapshotOnceEvenAfterAStepOfZero | 6.6 |
+| C22 | src/Tertius.Rendering/VulkanRenderer.cs:1036 | CreateSignal makes at most one part | killed | AccumulatorRenderTests.UntilItsCapTheSlowHistoryIsTheMeanOfItsSamples, AccumulatorRenderTests.APixelWhoseSampleIsInfiniteKeepsItsHistoryAndItsLength, AccumulatorRenderTests.APixelWithoutAHistoryAndWithANaNSampleTakesTheClosedFormZero | 6.5 |
+| H01 | src/Tertius.Host/ScriptCommand.cs:115 | the old option is accepted again | killed | ScriptCommandTests.TheDirectLightOptionIsUnknownBecauseTheRendererTakesEveryLightExactly | 9.7 |
+37 rows: killed 26, timeout 0, survived 11, no-coverage 0, build-failed 0, no-tests 0, no-mutant 0, removed 0
+
+New tests, each red on its mutant first: DirectLightRenderTests.TheDirectLightIsPreExposedSoOneStopMoreDoublesEveryLitPixel kills S08, and StillRuleTests.AWindowedRendererDrawsEachSnapshotOnceEvenAfterAStepOfZero kills C21. A test that a renderer with every feature on has room in its pool for a signal of two parts did not kill C08, so it was removed (see C08).
+
+Answers to the survivors:
+- S01, judgment call: the clamp changes only helper invocations of a 2 × 2 quad past the last column or row at an odd size. The spec leaves their fetch undefined, but their outputs reach no pixel, and no test device shows a difference. The clamp keeps the shader inside the spec.
+- S02, equivalent: the G-buffer clears every target to 0, so a sky pixel also has base color alpha 0, and the second test of the same `if` returns 0 for it.
+- S03, equivalent: every reader of the direct images skips a pixel whose base color alpha is 0. The composite returns the impostor's emission before it reads them, and occlusion_depth.comp selects 0 there.
+- S04 and S05, equivalent: the composite returns the sky before it reads the direct images, and occlusion_depth.comp selects 0 at a sky pixel, whose base color alpha is 0.
+- C05, judgment call: the Vulkan spec requires RGBA16F as a color attachment and a storage image on every device, so no device fails the check that the mutant drops. The coverage gap above is the same check.
+- C08, judgment call: the shared pool keeps 3 free sets beside a renderer with every feature on and a signal of two parts (65 + 5 of 73 sets, measured with a probe test, not kept), so one set fewer still fits. The free sets exist on main too.
+- C09, C10 and C11, judgment call: the per-type descriptor counts of the pool are bounds that the spec lets a driver exceed, and MoltenVK allocates past them, so no test on this machine sees a count one too small.
+- C17, equivalent: the pass loads the image with DontCare and writes every pixel, so keeping the old contents changes only the cost of the layout transition.
+
+**2026-11-04T16:46:30Z**
+
+2026-11-04: merged into main as 39b5e56dd, after the full Checked (10206 passed, 20 skipped) and Release (10193 passed, 20 skipped) suites passed on the merged tree.

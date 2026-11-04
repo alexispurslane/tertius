@@ -1,6 +1,6 @@
 ---
 id: ter-dzxf
-status: open
+status: in_progress
 deps: [ter-sftw]
 links: [ter-gayt]
 created: 2026-11-04T01:51:17Z
@@ -23,3 +23,26 @@ Scope:
 
 It starts after ter-sftw, because the profiling spike measures where the walk's time goes and tests the two-depth walk, and its answer picks the kernel that the climb starts from.
 
+
+## Notes
+
+**2026-11-04T03:25:10Z**
+
+2026-11-03 (ter-3ug8's review fix): ter-scm7, "Unroll the lean walk's step loop two to four times, and measure it at a recorded clock", is folded into this ticket, whose step 4 already names an unrolled step loop. Its data, now from the variants of the native FMA probe (probes fma-variants, 7 rounds, docs/research/temporal-renderer/gpu-calibration.md, "The variants of the FMA probe"): with 4 float4 chains, 1, 2, 4 and 8 steps per pass of the loop reach 0.41, 0.77, 0.93 and 0.97 of the FP32 peak. A rolled loop with 2 to 16 float4 chains stays at 0.37 to 0.45, so more chains do not help. The first run's figures of 0.58, about 0.80 and 0.84 came from scratch kernels without logs and are withdrawn. The unrolled loop must not cost time on other Vulkan drivers. The lean walk V5c takes 2.4 to 3.3 times an estimate of its work at the rolled loop's rate (40 operations per step, ter-sftw's estimate). Time each variant at the clock over its timed span (ter-qk78).
+
+
+**2026-11-04T12:20:46Z**
+
+2026-11-04: with the user's 12 ms target (ter-89xq's note), the two trace dispatches get 1.36 to 2.05 ms if the rest of the frame stays as estimated, against V6's 2.92 to 3.16 ms at 10 % own rays at the windowed clock. So the climb's goal is a cut of about 35 to 55 % in the dispatches, at the correctness gate. Candidates named so far: the unrolled step loop (the calibration probe went from 41 % to 77 to 93 % of the FP32 peak), the 0.85 ms of our own code in V1's walk whose cause is unknown, GLSL forms that MoltenVK translates better (the words form recovered the record reads), persistent lanes, and whatever the profiling continuation leaves open of the level 0 layout and the diffuse cap with V6.
+
+**2026-11-04T17:28:07Z**
+
+2026-11-04: started as a workflow, run 19acc6a3-4a97-4598-94eb-a12c17619eca (version 869b0b07), builder GPT 6.1 SOL at xhigh, branch ter-dzxf-walk-hill-climb from the profiling spike's 3c9fda2a3. Settled: start from V6 for both kinds at the diffuse cap of 64; the harness runs V6's real walk on the spike's dumps; the gate is the same hit texel and kind on every ray; objective at the top clock with gpu-clock; every kept change portable with its reason; the target comes from the budget recalculation (running).
+
+**2026-11-04T17:30:08Z**
+
+2026-11-04: the budget recalculation (ter-gayt's note of today) gives the two dispatches 2.94 to 3.76 ms under 12.0 ms on the deck. V6 at 10 % own rays takes 3.90 to 3.93 ms there, so the climb's goal is a cut of about 4 to 25 %, not 35 to 55 %.
+
+**2026-11-04T18:24:14Z**
+
+2026-11-04: the user widened the mandate ("spare no expense": unrolling, hard-coded and pre-calculated values, a Mac-only Metal path chosen by platform, papers, anything). Run 19acc6a3 was stopped only to widen the brief; its harness (tools/walk-hill-climb, uncommitted) and logs (/private/tmp/ter-dzxf.vv9W25) stay. Continuation run 24378142-987f-40a2-89ed-2bfd0c891caa (version 869b0b07, GPT 6.1 SOL at xhigh) on the same worktree, diffuse cap 62 by the user's decision. Settled: the gate stays for the main line; approximations are a second track reported as options with tile bias and FLIP; the SPIR-V path stays the portable reference; a Mac-only path must pass the same gate with the platform choice in one place, and its adoption is the user's fork. A survey researcher (GPT 6.1 SOL, xhigh) writes /private/tmp/dzxf-survey.md for the climber.

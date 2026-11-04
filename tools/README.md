@@ -53,6 +53,17 @@ Start Rider with the script every time. When the flake changes the SDK, the scri
 
 The build copies the Jolt library and the Vulkan loader next to each output, from `TERTIUS_JOLTC_DIR` and `TERTIUS_VULKAN_DIR`. macOS removes `DYLD_*` variables from Rider, because Rider has the hardened runtime, so a test that Rider starts never sees `DYLD_FALLBACK_LIBRARY_PATH`. The loader finds MoltenVK through `VK_ICD_FILENAMES`, which Rider keeps.
 
+## Vulkan drivers
+
+On the Mac, the dev shell offers two Vulkan drivers. MoltenVK is the default: the shell sets `VK_ICD_FILENAMES` to its ICD manifest. KosmicKrisp is LunarG's Mesa driver for Apple GPUs, from the pinned nixpkgs' `mesa`. The shell sets `TERTIUS_KOSMICKRISP_ICD` to its ICD manifest. To run a command on KosmicKrisp, set `VK_ICD_FILENAMES` from that variable for the command alone:
+
+```bash
+nix develop --command bash -c 'VK_ICD_FILENAMES=$TERTIUS_KOSMICKRISP_ICD dotnet test --solution Tertius.slnx -c Checked'
+nix develop --command bash -c 'VK_ICD_FILENAMES=$TERTIUS_KOSMICKRISP_ICD dotnet run --project src/Tertius.Demo -c Release -- --script scripts/lamp-hall-16.json --headless --out <folder>'
+```
+
+`vulkaninfo --summary` names the driver of a shell. On Linux the variable is empty, and the loader finds the system's drivers. [docs/research/kosmickrisp.md](../docs/research/kosmickrisp.md) compares the two drivers, and lists the tests that fail on KosmicKrisp and why.
+
 ## Coverage on changed lines
 
 1. Run every test project with coverage, in both build configurations:
@@ -435,6 +446,10 @@ rmdir /tmp/tertius-gpu-measure.lock
 
 `tools/fsr3-timing/` holds tool code that times builds of FSR's passes against each other (ticket `ter-7m38`, `src/Tertius.Rendering/ThirdParty/Fsr3/README.md`, "The 16-bit and subgroup builds"). It does not ship. The method runs each build once per round, in many rounds, so that the load of the machine falls on every build alike.
 
+Each run is FSR's batched measurement, `Fsr3UpscalerTests.AnUpscaleFrom1280x720To1920x1080ReportsItsGpuTimePerFrameWhenEightFramesShareASubmission`, which runs only with `TERTIUS_FSR_TIMING=1`. It upscales from 1280 × 720 to 1920 × 1080, 8 frames per command buffer, so that the GPU does not idle between frames. First it runs 60 batches of warm-up, about 1 s on the development Mac, so that the GPU's governor reaches its clock under full load. Then it times 150 batches, about 2.4 s. A frame time is the span of a batch's timestamps over 8. Two batches wait on the queue at once, so that the GPU runs one batch while the CPU records the next. The upscaler of the measurement has 16 frames in flight, so that no frame writes a descriptor set that a command buffer on the queue binds.
+
+The batched measurement holds the GPU clock from run to run, and the per-frame measurement does not. On 2026-11-04, 14 runs of the batched measurement from one build and its byte copy ran at 1295.9 to 1296.0 MHz over their timed spans. A comparison holds only at the same clock (see "The GPU clock of a timed run"). The per-frame measurement, `AnUpscaleFrom1280x720To1920x1080ReportsItsGpuTime`, waits for each frame. So its clock moved from 886.6 to 1008.5 MHz over four runs of one build, and `analyze.py` refused nearly every round. It stays for the calibration rounds of `tools/gpu-calibration/`, which measure FSR with the GPU idle between frames.
+
 1. If a build uses `FFX_HALF=1`, enable its two device features in `src/Tertius.Rendering/Vulkan/VulkanDevice.cs` for every build of the comparison. Add `ShaderFloat16 = true` to `EnabledVulkan12Features` and `ShaderInt16 = true` to `EnabledCoreFeatures`. The engine does not enable them, and the validation layer refuses a 16-bit module without them. Revert the change after the builds. Two fixtures of `DeviceFeatureTests` fail while it stands. The quad operations of the subgroup builds need no enabled feature.
 2. Build each variant into its own copy of the Release test build under `captures/fsr-builds`. The arguments are `FFX_HALF` in AMD's four 16-bit passes, subgroup operations in the pyramids, and the name of the copy:
 
@@ -449,7 +464,7 @@ rmdir /tmp/tertius-gpu-measure.lock
    cp -R captures/fsr-builds/base captures/fsr-builds/control
    ```
 
-4. Run at least 5 rounds, more on a busy machine. Each run takes and releases the GPU lock, `/tmp/tertius-gpu-measure.lock`, and records `uptime` at its start. The order of the builds rotates by one build per round:
+4. Run at least 5 rounds, more on a busy machine. Each run takes and releases the GPU lock through `tools/gpu-lock.sh` (see "The GPU lock"), and records `uptime` at its start. It runs beside `gpu-clock` through `tools/gpu-clock.sh`, so its log holds the clock over the measurement's 150 timed batches (see "The GPU clock of a timed run"). The log also holds the frame time of each batch, which `analyze.py` reads. The order of the builds rotates by one build per round:
 
    ```bash
    mkdir -p /private/tmp/fsr-timing
@@ -464,14 +479,220 @@ rmdir /tmp/tertius-gpu-measure.lock
 
 `build-variant.sh` builds the test project, writes the variant's modules over the engine's in `obj`, and builds again. The modules are then newer than their sources, so the build embeds them without compiling them again. At the end, the script touches the csproj and builds again, so that `obj` and `bin` hold the engine's modules. The script prints the SPIR-V capabilities of each module.
 
-`analyze.py` prints two readings of "the build's median minus the reference's", each with the 90 % interval of 2,000 resamples of the rounds:
+`analyze.py` reads the frame time of each batch from the line `frame times, ms: ...` of each run's log, and the frames per batch from the line of the median. Below, a frame is the mean frame of one batch. A log without the two lines, such as the log of a per-frame run, stops the tool with a `ValueError` that names the log. The first line of the output counts the batches of each run and the frames of each batch. It prints two readings of "the build's median minus the reference's", each with the 90 % interval of 2,000 resamples of the rounds:
 
 - The pooled frame median is the median of all frames of a build. A resample pools the frames of the rounds that it draws.
 - The paired run median is the median over the rounds of the run median of the build minus the run median of the reference in the same round. A resample draws these per-round differences.
 
 It prints the same two readings of the 10th percentile, and the least, median and most 1-minute load at the run starts. The frame times of FSR on the M1 Max have several modes, so the two readings can disagree, as they did in `ter-7m38`.
 
+It also checks the clocks (see "The GPU clock of a timed run"):
+
+- For each build, it prints the median of its runs' clocks with the 10th and 90th percentile of the runs, and the median of its run medians converted to the windowed clock, an estimate.
+- A round in which a build's clock and the reference's clock differ by more than 3 % does not compare. The paired reading leaves such a round out, and a line counts the rounds at the same clock, at different clocks and unchecked.
+- A round with an unknown clock stays in the paired reading, unchecked, so that the tool works where `gpu-clock` cannot run. The last column of the paired table counts these rounds.
+- A build whose checked rounds all ran at different clocks gets no paired reading, even with unchecked rounds: the table says `refused`.
+- The pooled reading mixes every round. The line above the tables marks it `INVALID` when the medians of the two builds' clocks differ by more than 3 %.
+
+On 2026-11-04 (ticket `ter-q58r`), 7 rounds of the engine's build against its byte copy ran at a 1-minute load of 3.0 to 6.5. Every round ran at the same clock, and `analyze.py` found no difference. The paired median of the control minus the base was +0.001 ms, with a 90 % interval of −0.002 to +0.006 ms.
+
+The two batches in flight keep the clock when another process holds the CPU. An earlier form of the measurement waited for each batch before it recorded the next. In 3 of its 24 runs, the GPU's busy share fell to a mean of 0.917 to 0.962 over the timed span, and the clock fell to between 791 and 1013 MHz at its lowest sample. The busy share is the share of the time in which the GPU is not off. Work from another process can only raise it. So the measuring process stopped feeding the GPU, most likely because other processes took the CPU between two batches. Then the GPU's governor lowered the clock. With two batches in flight, a stall of the CPU shorter than one batch, about 16 ms, leaves the GPU busy.
+
+If a round still fails the check, compare the busy share of `gpu-clock`'s samples between the timed-start and timed-end markers of the two logs. A busy share below about 0.99 means that the measuring process did not feed the GPU. Look for CPU load from other processes, and run the round again.
+
+`tools/test_fsr3_timing.py` tests the reading of the batches from the logs and the per-round decision of `analyze.py` on small synthetic out folders. It uses the Python standard library only:
+
+```bash
+nix develop --command python3 -I tools/test_fsr3_timing.py
+```
+
 The rotation gives each build the same predecessor in most runs. So an effect of one run on the next mixes with the effect of the build. A Williams design, an order that gives each build every predecessor equally often, removes this. The tool does not use one yet.
+
+## The GPU lock
+
+Every timed run on the development Mac takes the GPU lock, the directory `/tmp/tertius-gpu-measure.lock`, so that two timed runs never share the GPU. `mkdir` takes it, and `rmdir` releases it. `tools/gpu-lock.sh` is the one helper of the lock for every timing tool:
+
+```bash
+bash tools/gpu-lock.sh <log> <command> [arguments]
+```
+
+It waits for the lock and runs the command with its output in the log. When the command ends, it removes the lock. It also removes the lock after a failure or a signal. It never removes a lock that it did not make. The log gets the uptime at the start and the end, and the seconds that the run waited. The exit code is the command's.
+
+The waiters take turns in the order in which they came. Each waiter writes a ticket into `/tmp/tertius-gpu-measure.queue`, a file named by its start time and its process id. It tries `mkdir` only while its ticket is the oldest ticket of a live process, every 0.1 s. Without the order, a loop of runs that tried every 0.1 s won nearly every release against a waiter that tried every 5 s. On 2026-11-03 that went on for more than 20 minutes. A run that takes the lock by hand with `mkdir` has no ticket, and it competes with the oldest waiter only.
+
+Every timing tool takes the lock through the helper: `tools/gpu-trace.sh`, `tools/demo-timing.sh`, `tools/fsr3-timing/time-round.sh` and the scripts of `tools/gpu-calibration/`. No tool holds a copy of the lock's logic.
+
+## The GPU clock of a timed run
+
+The GPU's clock on the development Mac moves with the GPU's duty cycle, from 648 to 1296 MHz in our runs (docs/research/temporal-renderer/gpu-calibration.md, "The clock under our runs"). A pass whose time follows the clock takes a time inversely proportional to the clock. So every timing tool records the clock over its timed span beside its times, and a comparison of two runs holds only at the same clock.
+
+The timed span is the part of a run that the measurement times, without its setup. The setup runs at a low clock: FSR's batched measurement ran at 1208 MHz over the whole run and at 1257 MHz over its timed batches. Three parts record the clock of the span:
+
+1. The timed work prints the line `timed-start` before its timed work and `timed-end` after it. A headless demo run prints `timed-start` when its first shown frame has finished, and `timed-end` when the script's steps end. FSR's timing test, FSR's batched measurement, the Vulkan probes, `probes.swift` and `metalfx.swift` print them around their timed frames or dispatches.
+2. `tools/gpu-clock.sh` runs the work beside `gpu-clock`, which samples the clock every 100 ms, so the log holds the samples and the markers in the order in which they happened. At the end it prints the line `GPU clock over the timed span: ...`. It is the one launcher of `gpu-clock` for every tool:
+
+   ```bash
+   bash tools/gpu-clock.sh <command> [arguments]
+   ```
+
+3. `tools/gpu_clock.py` reads the log. `span_clock` averages the samples between each `timed-start` and the next `timed-end`. A span that no `timed-end` closes, as in a run that failed inside it, does not count. Each sample weighs by the share of its 100 ms in which the GPU was not off. A sample covers the 100 ms before its line, so the first sample of a span holds part of the work before it. The window summary of `tools/gpu-calibration/analyze.py` uses the same parser of samples and the same mean, `samples` and `clock_of`.
+
+The record has the span's mean clock in MHz, its spread as the 10th and 90th percentile of the samples' clocks, and the number of samples. A sample in which the GPU was off does not count. A headless demo run keeps the record in its `gpu-timings.json` as the entry `gpuClock`:
+
+```json
+"gpuClock": { "meanMhz": 1035.9, "p10Mhz": 743.0, "p90Mhz": 1294.0, "samples": 17 }
+```
+
+The clock is unknown in four cases, and the record then says why, as `{ "unknown": "<reason>" }` or as `unknown (<reason>)` in the printed line. The tool still runs the work and reports its times:
+
+- The system is not macOS, such as Linux. `gpu-clock` reads IOReport, which only macOS has.
+- `gpu-clock` is not built in `$GPU_CALIBRATION_BIN` (see "GPU calibration").
+- IOReport gives no GPU clock, such as on another machine. `gpu-clock` then prints `clock unknown: <reason>` and runs the command alone.
+- The log has no marker or no sample in the timed span, such as a span shorter than 100 ms.
+
+### Comparing two runs
+
+Two runs compare when the higher clock of their spans exceeds the lower one by at most 3 %. A pass whose time follows the clock then differs by at most 3 % because of the clock. The tolerance comes from the calibration runs of 2026-11-03 (`captures/3ug8/upscalers-2` of ter-3ug8):
+
+- Five runs of one build of FSR's batched measurement ran at 1241.0 to 1272.4 MHz over their timed spans, 2.5 % apart. Their medians did not follow those clocks: the run at 1272.4 MHz was the slowest. So 3 % holds the spread of one build at a held clock.
+- Seven headless runs of the deck from one build ran at 748 to 990 MHz. Their frame span fell from 11.80 to 9.61 ms as the clock rose. A difference of that size is the clock, not the build.
+
+A comparison at different clocks prints `INVALID` with both clocks and their difference. Its runs do not compare: run them again, for example in interleaved rounds, until a pair falls within the tolerance. A comparison with an unknown clock prints `UNCHECKED`. Each tool also prints each time converted to the windowed clock, 1296 MHz, as an estimate, by the report's rule:
+
+```text
+time at the windowed clock = measured time × the span's clock / 1296 MHz
+```
+
+The rule is an estimate within about 15 %. It holds best for a pass bound by its ALU work or its cached reads, and a pass bound by DRAM bandwidth gains less (gpu-calibration.md, "The rule that converts a headless time to the windowed clock"). Use an estimate to hold a time against a budget, such as those of docs/plans/temporal-renderer.md, section 11. Near a budget's limit, measure at the windowed clock.
+
+Do not compare two builds by their estimates. The estimates of one build spread by about 8 % between runs at different clocks:
+
+- Four FSR timing runs of one build and its byte copy on 2026-11-04 gave estimates of 1.893 to 2.058 ms, 8.7 % apart. Their raw medians were 5.1 % apart. In one round, the estimate reversed the sign of the raw difference.
+- The seven headless deck runs of one build in ter-3ug8 gave estimates of 6.81 to 7.34 ms, 7.8 % apart.
+
+So a difference between two builds' estimates below about 8 % says nothing about their cost.
+
+### A timed demo run
+
+`tools/demo-timing.sh` builds the demo in Release and runs the built binary headless with `--video none`, under the lock and beside `gpu-clock`. It writes the run's output to `<out>/run.log` and the record into `<out>/gpu-timings.json`, and it prints the GPU lines of the run, the clock last:
+
+```bash
+nix develop --command bash tools/demo-timing.sh captures/gpu-branch scripts/demo-exit.json --size 1920x1080
+```
+
+`tools/gpu_clock.py compare` compares two such runs. It prints the check of the two clocks, then the mean frame span and the mean of each pass of each run, with their difference and their estimates at the windowed clock:
+
+```bash
+python3 -I tools/gpu_clock.py compare captures/gpu-base/gpu-timings.json captures/gpu-branch/gpu-timings.json
+```
+
+`python3 -I tools/gpu_clock.py record <log> <gpu-timings.json>` writes the record of any log into a `gpu-timings.json`, for a demo run that a tool other than `demo-timing.sh` ran beside `gpu-clock`. A `gpu-timings.json` without the entry has an unknown clock.
+
+### What each tool records
+
+| Tool | The timed span | Where the record goes | Comparison |
+|---|---|---|---|
+| `tools/demo-timing.sh` | The demo's frames after the first | `gpu-timings.json` and the printed lines | `tools/gpu_clock.py compare` |
+| `tools/gpu-trace.sh` | The demo's frames after the first | `run/gpu-timings.json`, `passes.md` and `passes.json` | None: the paired mode compares frames of one trace |
+| `tools/fsr3-timing/time-round.sh` | FSR's 150 timed batches | Each run's log and its line in `rounds.log` | `tools/fsr3-timing/analyze.py` checks each round |
+| `tools/gpu-calibration/rounds.sh` | Each probe's timed dispatches, or the demo's or FSR's timed frames | Each run's log | `analyze.py rounds` prints the clock of each run kind |
+| `tools/gpu-calibration/upscalers.sh` | Each upscaler's timed frames or batches | Each run's log | `analyze.py upscalers` prints the clock of each kind |
+| `tools/gpu-calibration/fsr-trace.sh` | FSR's timed batches | `run.log` and `passes.md` | None |
+
+`tools/gpu-calibration/window.sh` times no span. Its clock is the windowed clock over the steady span of a window run (see "GPU calibration"), and the launcher's line says that the clock of the timed span is unknown.
+
+`tools/test_gpu_clock.py` tests `tools/gpu_clock.py` on synthetic logs: the average between the markers, the unknown cases, the tolerance and the conversion. It also runs `tools/gpu-clock.sh` without `gpu-clock`, for its unknown case and its exit code. It uses the Python standard library only:
+
+```bash
+nix develop --command python3 -I tools/test_gpu_clock.py
+```
+
+## GPU calibration
+
+`tools/gpu-calibration/` holds tool code that measures what the development Mac's GPU can do, apart from the engine's passes. Ticket `ter-3ug8` wrote it, and `docs/research/temporal-renderer/gpu-calibration.md` holds its results. It does not ship, and no engine code depends on it. It runs only on macOS.
+
+| File | What it does |
+|---|---|
+| `probes.swift` | The native Metal probes: FMAs in an unrolled and a rolled loop, cached and streamed texture samples, and buffer reads. Each checks its result against the CPU. It also times the FMA probe cold, after a sustained load and as a short pulse every 20 ms. `fma-variants` times seven variants of chains and steps per pass. |
+| `metalfx.swift` | Times Apple's MetalFX temporal upscaler from 1280 × 720 to 1920 × 1080 on the inputs of FSR's timing test. Each frame has its own command buffer, with an optional gap after it. |
+| `gpu-clock.c` | Samples the GPU's performance states through IOReport while a command runs, and prints the mean clock over the active time. It needs no root. Where IOReport gives no GPU clock, it prints `clock unknown: <reason>` and runs the command alone. The tools start it through `tools/gpu-clock.sh`. |
+| `kernel-code.swift` | Serializes each kernel of a Metal source file into a binary archive with this GPU's native code. |
+| `count.sh` | Counts the FMAs, samples and loads of each probe in SPIR-V, in AIR and in the size of the native code. |
+| `rounds.sh` | One round of the calibration runs in a rotated order, each under `tools/gpu-lock.sh` and beside `gpu-clock` through `tools/gpu-clock.sh`. |
+| `upscalers.sh` | One round of the upscaler runs in a rotated order: FSR's timing test, FSR's batched measurement, and MetalFX without and with a gap, each under the lock and beside `gpu-clock`. |
+| `window.sh` | One run of the Release demo in a window, under the lock and beside `gpu-clock`. It records the GPU's busy share and MoltenVK's log of the frame rate, and prints one summary line from `analyze.py window`. |
+| `window-deck.json`, `window-lamp-hall-16.json` | The scripts of the window runs: the deck camera of demo-exit for 1,119 ticks, and lamp-hall-16 for 1,080 ticks, each with one capture at the end. |
+| `fsr-trace.sh` | A Metal System Trace of FSR's batched measurement under the lock and beside `gpu-clock`, then `fsr-passes.py` on it. |
+| `fsr-passes.py` | The GPU time of each of FSR's passes from the trace. It skips the warm-up batches, whose count it reads from the measurement's line `warm-up batches: N` in `run.log`. It keeps the frames that no other process overlapped, and gives the times of every kept frame and of the frames at the top clock. |
+| `work.py` | The counted work of compute and fragment shaders from MoltenVK's MSL: lane operations, texture reads and the loops left after an unroll. `work.py fsr` adds the roofline of each of FSR's passes against its time from `fsr-passes.py`. |
+| `analyze.py` | The tables: `rounds` for the rounds, `upscalers` for the upscaler runs, `windows` and `window` for the window runs, and `probes` for any folder of probe logs. |
+
+The Vulkan twins of the probes are `GpuCalibrationTests` in `tests/Tertius.Rendering.Tests`. Their checks against the CPU run in every test run. Their measurements run only with `TERTIUS_GPU_CALIBRATION=1`, as FSR's two measurements in `Fsr3UpscalerTests`, per frame and in batches, run only with `TERTIUS_FSR_TIMING=1`. Every measurement of the rounds prints the lines `timed-start` and `timed-end` around its timed work, and runs beside `gpu-clock` through `tools/gpu-clock.sh`. `analyze.py upscalers` and `analyze.py rounds` then give `gpu-clock`'s clock over that span beside the clock over the whole run, because the whole run holds the setup at 648 MHz (see "The GPU clock of a timed run"). The rebuilt `probes` and `metalfx` print the markers. A binary built before 2026-11-04 does not, and its span clock is unknown.
+
+`tools/test_gpu_calibration.py` tests the summaries of `analyze.py`, the frames of `fsr-passes.py` and the counts of `work.py` on synthetic logs and AIR. `tools/test_gpu_clock.py` tests the clock of the timed span. It uses the Python standard library only:
+
+```bash
+nix develop --command python3 -I tools/test_gpu_calibration.py
+```
+
+The tools' inputs live in one folder, `captures/gpu-calibration`, which git ignores. Its `bin/` holds the native binaries, and the scripts read it from `GPU_CALIBRATION_BIN`, which defaults to `captures/gpu-calibration/bin`. The native tools use Xcode's command line tools outside the dev shell, because the dev shell hides Xcode's Metal toolchain from `xcrun`. `count.sh` and `work.py` also need the Metal toolchain component (`xcodebuild -downloadComponent MetalToolchain`). Build them from the worktree root:
+
+```bash
+mkdir -p captures/gpu-calibration/bin
+xcrun swiftc -O -o captures/gpu-calibration/bin/probes tools/gpu-calibration/probes.swift -framework Metal
+xcrun swiftc -O -o captures/gpu-calibration/bin/metalfx tools/gpu-calibration/metalfx.swift -framework Metal -framework MetalFX
+xcrun swiftc -O -o captures/gpu-calibration/bin/kernel-code tools/gpu-calibration/kernel-code.swift -framework Metal
+xcrun clang -O2 -o captures/gpu-calibration/bin/gpu-clock tools/gpu-calibration/gpu-clock.c -framework CoreFoundation -framework IOKit -lIOReport
+```
+
+Then build the Release test project and demo, and the 120 frames of demo-exit's deck, in the dev shell:
+
+```bash
+nix develop --command bash -c 'dotnet build tests/Tertius.Rendering.Tests -c Release && dotnet build src/Tertius.Demo -c Release'
+nix develop --command python3 -I tools/gpu-trace.py trim scripts/demo-exit.json 399 120 captures/gpu-calibration/deck-120.json
+```
+
+Run at least 5 rounds, then the tables:
+
+```bash
+for round in $(seq 0 6); do nix develop --command bash tools/gpu-calibration/rounds.sh $round captures/gpu-calibration/rounds; done
+python3 -I tools/gpu-calibration/analyze.py rounds captures/gpu-calibration/rounds
+for round in $(seq 0 4); do nix develop --command bash tools/gpu-calibration/upscalers.sh $round captures/gpu-calibration/upscalers; done
+python3 -I tools/gpu-calibration/analyze.py upscalers captures/gpu-calibration/upscalers
+```
+
+To time the variants of the FMA probe, run them under the lock beside `gpu-clock`, then pool the rounds:
+
+```bash
+for round in $(seq 0 6); do bash tools/gpu-lock.sh captures/gpu-calibration/variants/$round-variants.log bash tools/gpu-clock.sh captures/gpu-calibration/bin/probes fma-variants 30; done
+python3 -I tools/gpu-calibration/analyze.py probes captures/gpu-calibration/variants
+```
+
+To count the work in each probe, dump MoltenVK's MSL from a run of the Vulkan checks, then count outside the dev shell:
+
+```bash
+nix develop --command bash -c 'MVK_CONFIG_SHADER_DUMP_DIR=$PWD/captures/gpu-calibration/mvk-dump tests/Tertius.Rendering.Tests/bin/Release/net11.0/Tertius.Rendering.Tests -class Tertius.Rendering.Tests.GpuCalibrationTests'
+bash tools/gpu-calibration/count.sh captures/gpu-calibration/mvk-dump captures/gpu-calibration/counts
+```
+
+To hold each of FSR's passes against its roofline, follow these steps. Trace FSR's batched measurement three times. Dump the MSL of FSR's shaders. Count outside the dev shell:
+
+```bash
+for trace in 0 1 2; do nix develop --command bash tools/gpu-calibration/fsr-trace.sh captures/gpu-calibration/fsr-trace/$trace; done
+nix develop --command bash -c 'MVK_CONFIG_SHADER_DUMP_DIR=$PWD/captures/gpu-calibration/fsr-dump TERTIUS_FSR_TIMING=1 tests/Tertius.Rendering.Tests/bin/Release/net11.0/Tertius.Rendering.Tests -method Tertius.Rendering.Tests.Fsr3UpscalerTests.AnUpscaleFrom1280x720To1920x1080ReportsItsGpuTimePerFrameWhenEightFramesShareASubmission'
+python3 -I tools/gpu-calibration/work.py fsr captures/gpu-calibration/fsr-dump captures/gpu-calibration/fsr-counts src/Tertius.Rendering/obj/Release/net11.0/shaders captures/gpu-calibration/fsr-trace/0 captures/gpu-calibration/fsr-trace/1 captures/gpu-calibration/fsr-trace/2
+```
+
+`work.py count <dump> <out>` counts any MSL dump, such as one from a headless demo run with `MVK_CONFIG_SHADER_DUMP_DIR`. Match a dumped `.spv` to its engine shader by its hash against `src/Tertius.Rendering/obj/Release/net11.0/shaders`.
+
+To measure the windowed clock, run the demo in a window. Each run opens a window on the display for about 20 s. The window sizes of the report are `1920x1080` and `1080x1920`. If a window does not fit on the display, macOS makes it smaller:
+
+```bash
+nix develop --command bash tools/gpu-calibration/window.sh tools/gpu-calibration/window-deck.json 1080x1920 captures/gpu-calibration/window 1-deck-portrait
+python3 -I tools/gpu-calibration/analyze.py windows captures/gpu-calibration/window
+```
+
+`bash tools/gpu-clock.sh <command>` runs `gpu-clock` beside any run, such as a timed demo run. Its clock is the mean over the time that the GPU was not off, which includes short idle times between command buffers.
 
 ## GPU trace
 
@@ -481,13 +702,14 @@ The rotation gives each build the same predecessor in most runs. So an effect of
 nix develop --command bash -c 'bash tools/gpu-trace.sh --start 399 --frames 120 scripts/demo-exit.json'
 ```
 
-The script builds the demo in Release, and traces the built binary, so the trace holds no build. It keeps the frames from `--start` (counted from 0 over the script's captures and film frames, default 0) for `--frames` frames (default 120, and 0 keeps every frame to the end of the script). The frames before `--start` become run steps of the same ticks, so the world reaches the same state without a render. Frame 399 is the first frame of demo-exit's deck camera. The size is 1920x1080 unless `--size` gives another. `--window FROM TO` adds the window row of the table (see below). `--paired PASS` and `--control PASS` add the paired table (see "The paired mode" below). Arguments after the script go to the demo's headless run, such as `--screen-space-light off` (ARCHITECTURE.md, "Host and scripted runs"). The output goes to `captures/gpu-trace/<script>-<start>`, which git ignores, or to `--out <dir>`:
+The script builds the demo in Release, and traces the built binary, so the trace holds no build. The recording takes the GPU lock (see "The GPU lock") and runs beside `gpu-clock` (see "The GPU clock of a timed run"). The first lines of `passes.md` give the clock over the run's timed span. xctrace launches the demo itself, because a process between them leaves the trace's list of encoders empty. So `gpu-clock` samples outside xctrace, and xctrace passes the demo's output on to `run.log`. It keeps the frames from `--start` (counted from 0 over the script's captures and film frames, default 0) for `--frames` frames (default 120, and 0 keeps every frame to the end of the script). The frames before `--start` become run steps of the same ticks, so the world reaches the same state without a render. Frame 399 is the first frame of demo-exit's deck camera. The size is 1920x1080 unless `--size` gives another. `--window FROM TO` adds the window row of the table (see below). `--paired PASS` and `--control PASS` add the paired table (see "The paired mode" below). Arguments after the script go to the demo's headless run, such as `--screen-space-light off` (ARCHITECTURE.md, "Host and scripted runs"). The output goes to `captures/gpu-trace/<script>-<start>`, which git ignores, or to `--out <dir>`:
 
 - `run.trace`: the trace. Open it in Instruments to see the timeline and the counters.
-- `run/`: the run's `gpu-timings.json` and `exposure.json`, and its printed lines in `run.log`. The run passes `--video none`, so it draws and times each frame as the cost recipe does (docs/plans/rendering-upgrade.md, "Measuring the cost of a feature") and writes no image.
+- `run/`: the run's `gpu-timings.json`, with the clock over the run's timed span as `gpuClock`, and `exposure.json`. The run passes `--video none`, so it draws and times each frame as the cost recipe does (docs/plans/rendering-upgrade.md, "Measuring the cost of a feature") and writes no image.
+- `run.log`: the uptime at the start and the end of the recording, xctrace's messages, `gpu-clock`'s samples and the demo's printed lines.
 - `passes.md`: the table, which the script also prints. `passes.json` holds every counter of every pass, and the summary of each pass's shared time.
 
-The table has one row per pass, a row for the encoders before the first pass (the uploads and the exposure's readback copy), a row for those after the last pass, and the frame's span. For each, it gives the frames, the mean, median and 95th percentile of the busy time and of the time alone in milliseconds, the two highest limiters, and the read and write bandwidth in GB/s. A limiter is the share of the time in which one GPU unit was busy or stalled, such as the ALU, texture sampling or the last-level cache. The highest limiter is the unit that bounds the pass. The first line of `passes.md` gives the load averages at the start. Measure on a quiet machine: the counters sample the whole GPU, not one process.
+The table has one row per pass, a row for the encoders before the first pass (the uploads and the exposure's readback copy), a row for those after the last pass, and the frame's span. For each, it gives the frames, the mean, median and 95th percentile of the busy time and of the time alone in milliseconds, the two highest limiters, and the read and write bandwidth in GB/s. A limiter is the share of the time in which one GPU unit was busy or stalled, such as the ALU, texture sampling or the last-level cache. The highest limiter is the unit that bounds the pass. A line of `passes.md` gives the load averages when the recording started. `gpu-trace.py report --log` reads them from the line `uptime-start` that `tools/gpu-lock.sh` writes into `run.log` after any wait for the lock. Measure on a quiet machine: the counters sample the whole GPU, not one process.
 
 How the script reads the trace:
 
@@ -503,7 +725,7 @@ How the script reads the trace:
 - A pass between FROM and TO costs the frame the difference of the window with and without the pass. `--paired` gives that difference for one trace whose frames alternate (see "The paired mode" below).
 - The counters come from the instrument "Metal GPU Counters", which records the counter set "Performance Limiters" headless (tables `gpu-counter-info` and `gpu-counter-value`). The script averages each counter over the samples that fall inside a pass's intervals. A sample comes about every 10 µs, so a pass of 0.05 ms has a few samples per frame, and its limiters are rough.
 - The counter instrument also records Instruments' shader timeline, and both slow the GPU a little. So take the frame span and the timer's pass times from `gpu-timings.json` of a run without the trace, each pass's own busy time from a trace with `--no-counters`, and the limiters from a trace with counters. `--no-counters` records a smaller trace with times only.
-- The trace counts every frame's command buffer, and the metering draws too: under `AutoExposure`, the first frame after the run steps that replace the frames before `--start`, and each still after a long step, draw once more to meter the exposure (ARCHITECTURE.md, "The metering draw"), and `gpu-timings.json` leaves those draws out. So the trace's frame count can be larger than the file's: 121 against 120 on demo-exit's deck. For a script of stills after long steps, half of the trace's frames are metering draws.
+- The trace counts every frame's command buffer, and the warm-up draws of the stills too: the first frame after the run steps that replace the frames before `--start`, and each still after a long step, draw their warm-up draws first (ARCHITECTURE.md, "The still rule"), and `gpu-timings.json` leaves those draws out. So the trace's frame count can be larger than the file's: 121 against 120 on `lamp-hall-64`'s film from frame 1 under `AutoExposure`, whose still takes one warm-up draw. Until `ter-9nrc` it was 152 against 120 under `ResampledLights`, whose still took 32. For a script of stills after long steps, most of the trace's frames are warm-up draws.
 - The exported counters of 120 frames take more than a gigabyte of XML. A trace of 120 frames at 1080p takes about two minutes in all, and about 80 MB. The script deletes the exported tables after the report, unless `--keep-exports` is given.
 
 What the trace does not give headless: the counters per draw or per dispatch, and the shader costs per line. In Instruments, open `run.trace`, select a frame's encoder on the GPU track, and read the counters and the shader timeline in the detail pane below it.
@@ -516,7 +738,7 @@ To read a window of a trace that you recorded before, run the report again with 
 nix develop --command python3 -I tools/gpu-trace.py report captures/gpu-trace/demo-exit-399/run.trace captures/gpu-trace/demo-exit-399/run/gpu-timings.json captures/gpu-trace/demo-exit-399/window --window reflections bloom
 ```
 
-The new `passes.md` has no line with the load averages, because only `gpu-trace.sh` writes that line. A new folder keeps the first `passes.md` with its load line. The report exports the trace's tables again into the new folder and keeps them there. For a trace with counters, that export takes more than a gigabyte. Delete the `export` folder after the report.
+The new `passes.md` gives the load averages at the start as `unknown`, unless you also pass `--log` with the trace's `run.log`. A new folder keeps the first `passes.md` with its load line. The report exports the trace's tables again into the new folder and keeps them there. For a trace with counters, that export takes more than a gigabyte. Delete the `export` folder after the report.
 
 ### The paired mode
 

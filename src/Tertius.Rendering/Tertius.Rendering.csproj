@@ -22,6 +22,7 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Tertius.Rendering.Tests" />
     <InternalsVisibleTo Include="Tertius.Benchmarks" />
+    <InternalsVisibleTo Include="Tertius.Host.Tests" />
   </ItemGroup>
 
   <!-- GLSL 4.60 shaders. Each stage file becomes one SPIR-V module, embedded as Tertius.Rendering.Shaders.<file>.spv.

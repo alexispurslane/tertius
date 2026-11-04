@@ -24,8 +24,8 @@ layout(set = 3, binding = 6, rgba16f) uniform image2D occlusionSource;  // half:
 // half: x the bits of the texel's view depth, y the octahedral world geometric normal at pixel 2t, the normals target's ba
 // as packSnorm2x16 packs it (OcclusionImages.DepthAndNormal)
 layout(set = 3, binding = 7, rg32ui) uniform uimage2D occlusionDepthAndNormal;
-// full: rgb the diffuse part of each lit pixel's direct light, pre-exposed (RenderTargets.Diffuse)
-layout(set = 3, binding = 8, rgba16f) uniform readonly image2D diffuseImage;
+// full: rgb the diffuse direct light of each lit pixel, demodulated and pre-exposed (RenderTargets.DirectDiffuse)
+layout(set = 3, binding = 8, rgba16f) uniform readonly image2D directDiffuse;
 // half: the continuation flags of each texel's plane, bits 0 to 3 for the left, upper, right and lower neighbor
 // (continuationFlags in texel_surface.glsl, OcclusionImages.Continuation)
 layout(set = 3, binding = 9, r8ui) uniform uimage2D occlusionContinuation;

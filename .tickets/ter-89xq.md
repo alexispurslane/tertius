@@ -71,3 +71,23 @@ On 2026-11-03 the user cleared the open tickets of the pre-temporal renderer, to
 **2026-11-03T16:31:49Z**
 
 2026-11-03: the user asked for ter-7m38 at high priority: FSR 3.1's 16-bit build, kept only if it is faster on the M1 Max. It starts when ter-k63u merges, and ter-s7c6 waits for it.
+
+**2026-11-04T12:20:46Z**
+
+2026-11-04, the user: aim for 12 ms frames, not 15 (the budget decision of 2026-10-25 in docs/plans/rendering-performance.md, 12 ms with 4.7 ms of headroom for heavier scenes, still holds). The orchestrator's reading, which the user can correct: section 11's budget is 12.0 ms of GPU time per frame on demo-exit at the windowed clock (1296 MHz), 1920 x 1080 output from 1280 x 720 rendering. The controller's limit of 15.0 ms (60 Hz times 0.9) stays as the runtime limit for heavier scenes. By the trace budget facts (ter-gayt's note of the same day), the frame without the tracer is 9.34 to 10.02 ms, so at 12.0 ms the two trace dispatches get 1.36 to 2.05 ms, against V6's 2.92 to 3.16 ms at 10 % own rays. Against section 11's allowances, the two large overruns are the trace dispatches (3.16 against 1.1) and the direct signal (light candidates with direct light 3.06 against 1.3, accumulate direct 0.76 against 0.30, upper ends at the windowed clock). Section 11 changes with the budget decision after ter-sftw.
+
+**2026-11-04T12:32:02Z**
+
+2026-11-04, the user approved the rule 'exact lights when they are few, sampled lights above some count' for the direct light cost ticket (ter-9nrc, filed on the direct light branch), and left its design to the orchestrator. The orchestrator settled: one model, each light of the main view is exact or sampled, and the light table decides once per frame on the CPU. A light is exact when it holds a cascade set (as today) or when the main view keeps at most N lights. A frame with no sampled light runs no light candidates pass and no reservoir reuse, and the direct pass shades every light exactly, as EveryLight does today. N comes from measurement: the light count at which the two costs cross, from a sweep of n lamps plus the deck and lamp-hall-64. EveryLight becomes the same rule with no limit. The ticket also handles the switch between the two cases when the count crosses N: an exact frame's sample is already the converged light, so its history can count as full length, and the ticket measures whether the switch needs a margin against flicker. Left out until a scene needs it: a per-tile or per-pixel count, because the renderer has one light list per frame and no tile light lists, and building them adds a second culling structure. Expected gain on the deck, from the old measurements: the exact loop took 3.35 to 3.63 ms with the old ambient pass, against 6.34 to 6.49 ms for the four sampled passes (headless, 1280 x 720), so about 1.3 to 2.0 ms at the windowed clock. The sparkle bug (ter-x31x) stays, because sampled scenes keep it; its measurements force ResampledLights with no exact limit. When the direct light branch merges, ter-9nrc gets this note and priority 1.
+
+**2026-11-04T13:42:29Z**
+
+2026-11-04, the user, after the orchestrator read the ReSTIR paper: remove the direct light sampling (ReSTIR DI) from the renderer, and shade every light of the main view exactly. The exact-when-few rule of the earlier note is replaced. ter-9nrc removes the sampling. ter-x31x (the sparkle and hot spot of ReSTIR) is closed as obsolete. The user also chose to build tile light lists now (ter-69s8, after ter-9nrc), over a light budget alone. Section 7 of docs/plans/temporal-renderer.md changes with ter-9nrc.
+
+**2026-11-04T14:24:28Z**
+
+2026-11-04, the user: the scene light budget is enforced at runtime by a cap of N lights that the main view keeps, by the shadow budgets' rank, with a fade at the cut (ter-bqun, after ter-9nrc). Tile light lists (ter-69s8) stay deferred.
+
+**2026-11-04T18:20:05Z**
+
+2026-11-04: the user chose full rays at the screen tracer's first build and a diffuse cap of 62 steps. The two trace dispatches get an estimated 2.94 to 3.76 ms under 12.0 ms on the deck after ter-9nrc; V6 at 10 % own rays takes 3.90 ms there, so the deck frame is an estimated 12.1 to 13.0 ms until the hill-climb lands. Design update ter-jxjx precedes ter-gayt.

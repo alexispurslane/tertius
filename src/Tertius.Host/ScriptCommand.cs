@@ -71,6 +71,16 @@ public static partial class ScriptCommand
     /// </summary>
     public const string GpuTimingsFile = "gpu-timings.json";
 
+    /// <summary>
+    /// The line that a headless run with a renderer prints when its first shown frame has finished, the start of its timed
+    /// span. tools/gpu_clock.py takes the GPU clock of gpu-clock's samples between this line and <see cref="TimedEnd"/>
+    /// (tools/README.md, "The GPU clock of a timed run").
+    /// </summary>
+    public const string TimedStart = "timed-start";
+
+    /// <summary>The line that a headless run prints when the script's steps end, after <see cref="TimedStart"/>.</summary>
+    public const string TimedEnd = "timed-end";
+
     /// <summary>The line after the pass times of a run whose renderer's stamps latch late (ARCHITECTURE.md, "GPU timings").</summary>
     public const string LateStampsNote =
         "On MoltenVK a pass's GPU time can hold part of the next pass's work: only the span and the sums of neighbouring passes"
@@ -388,7 +398,8 @@ public static partial class ScriptCommand
                 target: target,
                 startVideo: startVideo,
                 readings: readings,
-                scriptPath: run.Script
+                scriptPath: run.Script,
+                output: output
             );
             if (started.Problem is { Code: var code, Message: var message })
             {
@@ -414,6 +425,8 @@ public static partial class ScriptCommand
                 outputFolder: run.Out,
                 playback: playback
             );
+            if (readings.Exposures.Count > 0)
+                output.WriteLine(TimedEnd);
             playback?.Finish();
             WriteFiles(result: result, outputFolder: run.Out, target: target, output: output);
             if (renderer != null)
@@ -457,7 +470,8 @@ public static partial class ScriptCommand
 
     /// <summary>
     /// The playback that draws the captures into <paramref name="target"/> and adds each shown frame to
-    /// <paramref name="readings"/>, or why it cannot start: the video's ffmpeg or folder.
+    /// <paramref name="readings"/>, or why it cannot start: the video's ffmpeg or folder. It writes
+    /// <see cref="TimedStart"/> to <paramref name="output"/> when the first shown frame has finished.
     /// </summary>
     private static Result<HeadlessPlayback, RunFailure> StartPlayback(
         VulkanRenderer renderer,
@@ -465,7 +479,8 @@ public static partial class ScriptCommand
         CaptureTarget target,
         Func<VideoFile, ScriptWindow, FfmpegVideoSink> startVideo,
         FrameReadings readings,
-        string scriptPath
+        string scriptPath,
+        TextWriter output
     )
     {
         try
@@ -475,7 +490,14 @@ public static partial class ScriptCommand
                 size: size,
                 target: target,
                 startVideo: startVideo,
-                rendered: () => readings.Add(renderer.LastFrameStats)
+                rendered: () =>
+                {
+                    readings.Add(renderer.LastFrameStats);
+                    // The timed span starts after the first shown frame, which holds the creation of the pipelines and
+                    // the warm-up draws of a still at the GPU's low clock.
+                    if (readings.Exposures.Count == 1)
+                        output.WriteLine(TimedStart);
+                }
             );
         }
         // Only a video target starts a tool, ffmpeg. Process.Start throws a Win32Exception when ffmpeg is not on the

@@ -39,6 +39,26 @@ internal readonly record struct KeptPlacement(
     KeptCopy? Copy
 );
 
+/// <summary>
+/// Which headless draws are stills, and how many warm-up draws a still takes (docs/plans/temporal-renderer.md, decision 32):
+/// the input of <see cref="FrameHistory"/>'s still rule.
+/// </summary>
+/// <param name="Headless">Whether the renderer draws headless: a window never draws a still.</param>
+/// <param name="WarmUpDraws">The warm-up draws before a still's shown draw.</param>
+internal readonly record struct StillRule(bool Headless, int WarmUpDraws)
+{
+    /// <summary>A window's rule: no draw is a still.</summary>
+    public static StillRule Window => new(Headless: false, WarmUpDraws: 0);
+
+    /// <summary>
+    /// The rule of a renderer of <paramref name="options"/>: 1 warm-up draw under <see cref="AutoExposure"/>, so that the
+    /// exposure has a draw to adapt in, and else 0, because no history of the renderer holds more than one frame
+    /// (section 10, "The still rule"). The screen tracer's signals will hold more (ter-gayt).
+    /// </summary>
+    public static StillRule For(RendererOptions options, bool headless) =>
+        new(Headless: headless, WarmUpDraws: options.Exposure is AutoExposure ? 1 : 0);
+}
+
 /// <summary>The camera of a drawn frame, as the batch interpolated it, which the next frame's motion vectors need.</summary>
 /// <param name="EyeInFrame">The eye's position in the camera's semantic frame, in m: the render origin plus the eye's offset.</param>
 /// <param name="FrameId">The id of the camera's frame, <see cref="RenderSnapshot.OriginFrameId"/>.</param>
@@ -77,11 +97,12 @@ internal readonly record struct DrawnFrame(
 
 /// <summary>
 /// The record of the last drawn frame, and the rules that relate each draw to it (docs/plans/temporal-renderer.md, "The
-/// frame history"). Begin derives one draw's pending state: whether it resets every history, its draw index since the last
-/// reset, the parity of the images that alternate, and the record relative to this draw's eye. The batch writes the draw's
-/// camera and placements into the pending state. Drew commits it after the submission. A draw that throws before Drew
-/// leaves the record, the count of drawn frames and so every parity as they were. No other owner keeps a copy of these
-/// values: the renderer numbers its frames by <see cref="DrawnFrames"/>.
+/// frame history"). DrawsOf gives the draws of a snapshot at a clock step: 1, or for a headless still also its warm-up
+/// draws. Begin derives one draw's pending state: whether it resets every history, its draw index since the last reset,
+/// its exposure step, whether it refreshes every face of the map, the parity of the images that alternate, and the record
+/// relative to this draw's eye. The batch writes the draw's camera and placements into the pending state.
+/// Drew commits it after the submission. A draw that throws before Drew leaves the record, the count of drawn frames and
+/// so every parity as they were. No other owner keeps a copy of these values.
 /// </summary>
 /// <remarks>
 /// Invariants, checked by <see cref="AssertInvariants"/>:
@@ -94,7 +115,8 @@ internal readonly record struct DrawnFrame(
 /// <example>
 /// One draw, as the renderer runs it:
 /// <code>
-/// PendingFrame pending = history.Begin(snapshot, outputSize, renderSize);
+/// for (int draw = 0; draw &lt; history.DrawsOf(step); draw++)
+/// PendingFrame pending = history.Begin(snapshot, step, draw, outputSize, renderSize);
 /// batcher.Prepare(..., frame: pending, ...);   // writes the camera and the placements
 /// graph.Record(context);                       // the passes read pending.Reset and pending.Parity
 /// output.SubmitAndPresent(frame);
@@ -103,6 +125,13 @@ internal readonly record struct DrawnFrame(
 /// </example>
 internal sealed class FrameHistory
 {
+    /// <summary>
+    /// The shortest clock step, in s, after which a headless draw is a still (docs/plans/auto-exposure.md, "A headless still
+    /// after a long step"). It is 5.4 ticks at 60 Hz, so that no step of whole ticks lies on it.
+    /// </summary>
+    public const float MeteringStepSeconds = 0.09f;
+
+    private readonly StillRule rule;
     private readonly PendingFrame pending;
     private List<KeptPlacement> drawnPlacements = [];
     private DrawnFrame? drawn;
@@ -115,8 +144,10 @@ internal sealed class FrameHistory
     private DrawnCamera? pendingCamera;
     private bool armed;
 
-    public FrameHistory()
+    public FrameHistory(StillRule rule)
     {
+        Contract.Requires(rule.WarmUpDraws >= 0);
+        this.rule = rule;
         pending = new(this);
     }
 
@@ -130,22 +161,30 @@ internal sealed class FrameHistory
     internal ReadOnlySpan<KeptPlacement> DrawnPlacements => CollectionsMarshal.AsSpan(drawnPlacements);
 
     /// <summary>
-    /// The one choke point of the resets: derives the pending state of a draw of <paramref name="snapshot"/> at
-    /// <paramref name="outputSize"/> and <paramref name="renderSize"/>, and changes no record. The draw resets when it is
-    /// the first drawn frame, when the snapshot's count of camera cuts differs from the drawn frame's, or when the output
-    /// size changed. A change of the render size resets nothing.
+    /// The draws of a snapshot after a clock step of <paramref name="step"/> s: the warm-up draws and the shown draw of a
+    /// still, or 1. A headless draw is a still when its step is 0, endless, or at least <see cref="MeteringStepSeconds"/>.
     /// </summary>
+    public int DrawsOf(float step) => IsStill(step) ? rule.WarmUpDraws + 1 : 1;
+
+    /// <summary>
+    /// The one choke point of the resets and the still rule: derives the pending state of draw <paramref name="draw"/> of
+    /// <paramref name="snapshot"/> after a clock step of <paramref name="step"/> s, at <paramref name="outputSize"/> and
+    /// <paramref name="renderSize"/>, and changes no record. The draw resets when it is the first drawn frame, when the
+    /// snapshot's count of camera cuts differs from the drawn frame's, when the output size changed, or when it is the
+    /// first draw of a still. A change of the render size resets nothing.
+    /// </summary>
+    /// <param name="draw">The draw of the snapshot, from 0 to <see cref="DrawsOf"/> − 1. The last one is the shown draw.</param>
     /// <returns>The history's one pending state, armed for this draw. The next Begin arms it again.</returns>
-    public PendingFrame Begin(RenderSnapshot snapshot, Extent2D outputSize, Extent2D renderSize)
+    public PendingFrame Begin(RenderSnapshot snapshot, float step, int draw, Extent2D outputSize, Extent2D renderSize)
     {
-        bool reset =
-            drawn is not { } last
-            || last.CameraCuts != snapshot.CameraCuts
-            || last.OutputSize.Width != outputSize.Width
-            || last.OutputSize.Height != outputSize.Height;
+        Contract.Requires(draw >= 0 && draw < DrawsOf(step));
+        bool still = IsStill(step);
+        bool reset = Resets(snapshot: snapshot, outputSize: outputSize, firstOfAStill: still && draw == 0);
         derived = new(
             Reset: reset,
             DrawIndex: reset ? 0 : lastDrawIndex + 1,
+            ExposureStep: still ? StillExposureStep(step, draw) : step,
+            RefreshesEveryFace: still && draw == 0,
             DrawnFrames: DrawnFrames,
             RenderSize: renderSize,
             OutputSize: outputSize,
@@ -157,6 +196,35 @@ internal sealed class FrameHistory
         pendingPlacements.Clear();
         armed = true;
         return pending;
+    }
+
+    /// <summary>
+    /// Whether a draw of <paramref name="snapshot"/> at <paramref name="outputSize"/> resets every history: the first drawn
+    /// frame, a change of the count of camera cuts or of the output size, or <paramref name="firstOfAStill"/>.
+    /// </summary>
+    private bool Resets(RenderSnapshot snapshot, Extent2D outputSize, bool firstOfAStill) =>
+        drawn is not { } last
+        || last.CameraCuts != snapshot.CameraCuts
+        || last.OutputSize.Width != outputSize.Width
+        || last.OutputSize.Height != outputSize.Height
+        || firstOfAStill;
+
+    /// <summary>Whether a draw after a clock step of <paramref name="step"/> s is a still: the rule of decision 32.</summary>
+    private bool IsStill(float step) => rule.Headless && (step == 0 || step >= MeteringStepSeconds);
+
+    /// <summary>
+    /// The exposure step of draw <paramref name="draw"/> of a still after <paramref name="step"/> s (section 10, "The still
+    /// rule"): each warm-up draw adapts by its share of the step, or by an endless step after a step of 0 or an endless one,
+    /// and the shown draw by none. A still without warm-up draws adapts by its step in its one draw.
+    /// </summary>
+    private float StillExposureStep(float step, int draw)
+    {
+        int warmUp = rule.WarmUpDraws;
+        if (warmUp == 0)
+            return step;
+        if (draw == warmUp)
+            return 0;
+        return step == 0 || float.IsPositiveInfinity(step) ? float.PositiveInfinity : step / warmUp;
     }
 
     /// <summary>
@@ -175,9 +243,11 @@ internal sealed class FrameHistory
             OutputSize: derived.OutputSize,
             CameraCuts: derived.CameraCuts
         );
-        // The two lists change places, so a draw copies no placement and allocates none.
+
+        // The lists change places, so a draw copies no placement and allocates none.
         (drawnPlacements, pendingPlacements) = (pendingPlacements, drawnPlacements);
         pendingPlacements.Clear();
+
         lastDrawIndex = derived.DrawIndex;
         DrawnFrames++;
         armed = false;
@@ -204,9 +274,13 @@ internal sealed class FrameHistory
     /// <summary>What <see cref="Begin"/> derived for the pending draw.</summary>
     /// <param name="DrawnFrames">The frames drawn before the draw, which stays the draw's own after <see cref="Drew"/>.</param>
     /// <param name="Continued">The drawn frame that the draw continues, or null where it continues none.</param>
+    /// <param name="ExposureStep">The step in s by which the draw's adapt step moves the exposure.</param>
+    /// <param name="RefreshesEveryFace">Whether the draw refreshes every face of the environment map.</param>
     private readonly record struct Derivation(
         bool Reset,
         long DrawIndex,
+        float ExposureStep,
+        bool RefreshesEveryFace,
         long DrawnFrames,
         Extent2D RenderSize,
         Extent2D OutputSize,
@@ -233,6 +307,15 @@ internal sealed class FrameHistory
 
         /// <summary>The draw's index among the drawn frames since the last reset: 0 for a draw that resets.</summary>
         public long DrawIndex => history.derived.DrawIndex;
+
+        /// <summary>
+        /// The step in s by which the draw's adapt step moves the exposure: the clock step, or for a draw of a still its share
+        /// of the still rule (docs/plans/temporal-renderer.md, "The still rule").
+        /// </summary>
+        public float ExposureStep => history.derived.ExposureStep;
+
+        /// <summary>Whether the draw refreshes every face of the environment map: the first draw of a still.</summary>
+        public bool RefreshesEveryFace => history.derived.RefreshesEveryFace;
 
         /// <summary>
         /// The frames drawn before this draw: <see cref="FrameHistory.DrawnFrames"/> at its <see cref="Begin"/>, also after

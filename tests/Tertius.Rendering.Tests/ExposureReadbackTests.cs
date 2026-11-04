@@ -136,6 +136,7 @@ public sealed class ExposureReadbackTests
                 Width = Width,
                 Height = Height,
                 Impostors = false,
+                // A fixed exposure, so that each still draws once and the frames keep their numbers.
                 Exposure = new FixedExposure(-2),
             },
             (device, allocator, extent) => made = new(device: device, allocator: allocator, extent: extent, bgra: false)

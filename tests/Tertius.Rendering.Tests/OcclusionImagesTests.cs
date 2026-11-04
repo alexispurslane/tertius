@@ -131,7 +131,10 @@ public sealed class OcclusionImagesTests
             .BeEmpty("the layout must hold every binding and push constant of the shader, and the device its features");
     }
 
-    /// <summary>A validating headless device with the descriptor layouts and the render targets of one output size.</summary>
+    /// <summary>
+    /// A validating headless device with the descriptor layouts and the render targets of one output size, whose direct
+    /// diffuse image the occlusion images bind.
+    /// </summary>
     private sealed class Plumbing : IDisposable
     {
         public Plumbing(uint width, uint height)
@@ -147,8 +150,7 @@ public sealed class OcclusionImagesTests
                 glowLevels: 0,
                 smaaTables: null,
                 reflections: null,
-                subsurface: false,
-                diffuse: true
+                subsurface: false
             );
         }
 

@@ -18,7 +18,7 @@ public sealed class ShaderConstantsTests
     /// </summary>
     private static readonly Dictionary<string, Dictionary<uint, Declared>> DeclaredByShader = new()
     {
-        ["ambient.frag"] = new() { [ShaderConstants.EnvironmentMapId] = False },
+        ["composite.frag"] = new() { [ShaderConstants.EnvironmentMapId] = False },
         ["environment_face.frag"] = new()
         {
             [ShaderConstants.CutoutAlphaId] = False,

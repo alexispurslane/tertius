@@ -55,32 +55,33 @@ public sealed class FrameGraphTests
     }
 
     [Fact]
-    public void TheOcclusionPassesRunAfterTheDirectPassAndBeforeTheAmbientPass()
+    public void TheOcclusionPassesRunAfterTheDirectPassAndBeforeTheComposite()
     {
         using var graph = new FrameGraph();
-        graph.Add(FrameGraph.Stage.AmbientLight, new NamedPass("ambient light"));
+        graph.Add(FrameGraph.Stage.Composite, new NamedPass("composite"));
         graph.Add(FrameGraph.Stage.AmbientOcclusion, new NamedPass("occlusion depth"));
         graph.Add(FrameGraph.Stage.AmbientOcclusion, new NamedPass("occlusion sectors"));
         graph.Add(FrameGraph.Stage.DirectLight, new NamedPass("direct light"));
+        graph.Add(FrameGraph.Stage.SurfaceTest, new NamedPass("surface test"));
         graph.Add(FrameGraph.Stage.GBuffer, new NamedPass("G-buffer"));
 
         graph
             .Passes.Select(pass => pass.Name)
             .Should()
             .Equal(
-                ["G-buffer", "direct light", "occlusion depth", "occlusion sectors", "ambient light"],
-                "the occlusion passes read the finished G-buffer and the direct image, and the ambient pass reads their "
+                ["G-buffer", "surface test", "direct light", "occlusion depth", "occlusion sectors", "composite"],
+                "the occlusion passes read the finished G-buffer and the direct light, and the composite reads their "
                     + "estimate target"
             );
     }
 
     [Fact]
-    public void TheDepthPyramidFollowsTheGBufferAndTheReflectionsComeBetweenTheAmbientAndTheTransparentPass()
+    public void TheDepthPyramidFollowsTheGBufferAndTheReflectionsComeBetweenTheCompositeAndTheTransparentPass()
     {
         using var graph = new FrameGraph();
         graph.Add(FrameGraph.Stage.Transparent, new NamedPass("transparent"));
         graph.Add(FrameGraph.Stage.Reflections, new NamedPass("radiance pyramid"));
-        graph.Add(FrameGraph.Stage.AmbientLight, new NamedPass("ambient light"));
+        graph.Add(FrameGraph.Stage.Composite, new NamedPass("composite"));
         graph.Add(FrameGraph.Stage.AmbientOcclusion, new NamedPass("occlusion depth"));
         graph.Add(FrameGraph.Stage.DirectLight, new NamedPass("direct light"));
         graph.Add(FrameGraph.Stage.DepthPyramid, new NamedPass("depth pyramid"));
@@ -95,7 +96,7 @@ public sealed class FrameGraphTests
                     "depth pyramid",
                     "direct light",
                     "occlusion depth",
-                    "ambient light",
+                    "composite",
                     "radiance pyramid",
                     "transparent",
                 ],
@@ -104,22 +105,22 @@ public sealed class FrameGraphTests
     }
 
     [Fact]
-    public void TheScatterRunsAfterTheAmbientLightAndBeforeTheReflections()
+    public void TheScatterRunsAfterTheCompositeAndBeforeTheReflections()
     {
         using var graph = new FrameGraph();
         graph.Add(FrameGraph.Stage.Transparent, new NamedPass("transparent"));
         graph.Add(FrameGraph.Stage.Reflections, new NamedPass("radiance pyramid"));
         graph.Add(FrameGraph.Stage.SkinScatter, new NamedPass("scatter rows"));
         graph.Add(FrameGraph.Stage.SkinScatter, new NamedPass("scatter columns"));
-        graph.Add(FrameGraph.Stage.AmbientLight, new NamedPass("ambient light"));
+        graph.Add(FrameGraph.Stage.Composite, new NamedPass("composite"));
         graph.Add(FrameGraph.Stage.DirectLight, new NamedPass("direct light"));
 
         graph
             .Passes.Select(pass => pass.Name)
             .Should()
             .Equal(
-                ["direct light", "ambient light", "scatter rows", "scatter columns", "radiance pyramid", "transparent"],
-                "the scatter blurs the diffuse light that both lighting passes wrote, and a mirror shows the scattered skin"
+                ["direct light", "composite", "scatter rows", "scatter columns", "radiance pyramid", "transparent"],
+                "the scatter blurs the diffuse light that the composite wrote, and a mirror shows the scattered skin"
             );
     }
 

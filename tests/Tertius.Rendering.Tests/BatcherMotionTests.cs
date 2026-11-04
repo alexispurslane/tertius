@@ -23,14 +23,20 @@ public sealed class BatcherMotionTests
 
     private static readonly Extent2D Size = new(Width, Height);
 
-    private readonly FrameHistory history = new();
+    private readonly FrameHistory history = new(StillRule.Window);
     private readonly SceneBatcher batcher = Batchers.Default();
 
     /// <summary>Batches <paramref name="snapshot"/> as the frame after the ones drawn so far, and commits it as drawn.</summary>
     private PreparedScene Draw(RenderSnapshot snapshot, float alpha = 1f)
     {
         var scene = new PreparedScene();
-        FrameHistory.PendingFrame pending = history.Begin(snapshot: snapshot, outputSize: Size, renderSize: Size);
+        FrameHistory.PendingFrame pending = history.Begin(
+            step: FrameHistoryTesting.FilmStep,
+            draw: 0,
+            snapshot: snapshot,
+            outputSize: Size,
+            renderSize: Size
+        );
         batcher.Prepare(
             snapshot: snapshot,
             alpha: alpha,

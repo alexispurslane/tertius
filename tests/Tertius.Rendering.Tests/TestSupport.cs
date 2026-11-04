@@ -603,7 +603,9 @@ internal static class Batchers
     /// prepares one frame.
     /// </summary>
     public static FrameHistory.PendingFrame FirstFrame() =>
-        new FrameHistory().Begin(
+        new FrameHistory(StillRule.Window).Begin(
+            step: FrameHistoryTesting.FilmStep,
+            draw: 0,
             snapshot: new RenderSnapshot(),
             outputSize: new Silk.NET.Vulkan.Extent2D(1600, 900),
             renderSize: new Silk.NET.Vulkan.Extent2D(1600, 900)
