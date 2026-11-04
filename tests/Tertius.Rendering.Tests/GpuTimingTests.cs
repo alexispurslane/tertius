@@ -374,6 +374,47 @@ public sealed class GpuTimingTests
     }
 
     [Fact]
+    public void ANarrowChunkThatLiesWhollyBelowTheBoundDecidesThatThePassAddsNearlyNoTime()
+    {
+        SpanInterval[] chunks = [new(Low: -0.02, High: 0.03), new(Low: 0.06, High: 0.12)];
+
+        DecidingInterval(chunks).Should().Be(chunks[0], "it is the first chunk, and it lies wholly below the bound");
+    }
+
+    [Fact]
+    public void AChunkMoreThanTwiceTheBoundWideDecidesNothingEvenWhenItLiesWhollyAboveTheBound()
+    {
+        // The work of another process stretches some frames, and a load can push a wide chunk's median either way
+        // (ARCHITECTURE.md, "GPU timings").
+        SpanInterval[] chunks = [new(Low: 0.06, High: 0.18), new(Low: 0.07, High: 0.11)];
+
+        DecidingInterval(chunks).Should().Be(chunks[1], "the first chunk is 0.12 ms wide");
+    }
+
+    [Fact]
+    public void TheIntervalOfAChunksMedianHoldsTheMedianOfASkewedDistributionInNearlyEveryChunk()
+    {
+        // An exponential distribution of mean 1, whose median is ln 2. It is skewed, as the spans are when the work of
+        // another process stretches some frames.
+        var random = new Random(17);
+        double median = Math.Log(2);
+        int held = 0;
+        for (int chunk = 0; chunk < 1000; chunk++)
+        {
+            double[] values = [.. Enumerable.Range(0, ChunkPairs).Select(_ => -Math.Log(1 - random.NextDouble()))];
+            SpanInterval interval = MedianInterval(values);
+            if (interval.Low < median && median < interval.High)
+                held++;
+        }
+
+        held.Should()
+            .BeGreaterThanOrEqualTo(
+                990,
+                "the interval holds the median with a chance of about 99.7 %, whatever the distribution of the values"
+            );
+    }
+
+    [Fact]
     public void OnADriverWhoseStampsLatchWhenTheWorkBeforeThemEndsAPassThatRecordsNothingReportsNearlyNoTimeOfItsOwn()
     {
         VulkanRenderer renderer = TimedRenderer();
