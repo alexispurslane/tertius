@@ -104,7 +104,6 @@ public sealed unsafe class VulkanRenderer : IRenderer
     private readonly ImpostorAtlas? impostorAtlas;
     private readonly OcclusionImages? occlusionImages;
     private readonly SurfaceHistory surfaceHistory;
-    private readonly LightReservoirs? reservoirs;
     private readonly BarrierBatch barriers = new();
     private readonly GpuTimer timer;
     private readonly ExposureSetting exposureSetting;
@@ -165,7 +164,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
 
             targets = CreateTargets(options);
             // Before the occlusion images, whose bounce source reads the direct signal's slow diffuse history.
-            (surfaceHistory, DirectSignal, reservoirs) = CreateHistories(shaders, options);
+            (surfaceHistory, DirectSignal, Reservoirs) = CreateHistories(shaders, options);
 
             // Before every pass, whose shading constants say whether the scatter is on.
             ScatterImages = CreateScatterImages(options.Subsurface);
@@ -233,7 +232,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
     internal TemporalSignal DirectSignal { get; }
 
     /// <summary>ReSTIR's reservoirs under <see cref="ResampledLights"/>, else null. A test hook.</summary>
-    internal LightReservoirs? Reservoirs => reservoirs;
+    internal LightReservoirs? Reservoirs { get; }
 
     internal SceneBatcher Batcher { get; }
 
@@ -691,14 +690,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             frame: pending,
             scene: LastScene
         );
-        SetContext(
-            frame: frame,
-            history: pending,
-            snapshot: snapshot,
-            alpha: alpha,
-            image: image,
-            capture: capture
-        );
+        SetContext(frame: frame, history: pending, snapshot: snapshot, alpha: alpha, image: image, capture: capture);
         Graph.Prepare(context);
         frame.Write(LastScene);
 
@@ -905,7 +897,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
         // before the occlusion images, whose set binds its slow diffuse history.
         surfaceHistory.Resize(targets);
         DirectSignal.Resize();
-        reservoirs?.Resize();
+        Reservoirs?.Resize();
         occlusionImages?.Resize(targets);
         ScatterImages?.Resize(targets);
     }
@@ -1062,7 +1054,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// </summary>
     internal (int Light, int M, float W)[] ReadCandidateReservoirs()
     {
-        LightReservoirs held = reservoirs ?? throw new InvalidOperationException("Only ResampledLights keeps reservoirs.");
+        LightReservoirs held =
+            Reservoirs ?? throw new InvalidOperationException("Only ResampledLights keeps reservoirs.");
         float[] texels = ReadLevel(image: held.R0, layer: 0, mip: 0).Values;
         var read = new (int Light, int M, float W)[texels.Length / 2];
         for (int pixel = 0; pixel < read.Length; pixel++)
@@ -2220,7 +2213,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// </summary>
     private void AddLightingPasses(ShaderLibrary shaders)
     {
-        if (reservoirs is { } held)
+        if (Reservoirs is { } held)
             Graph.Add(
                 FrameGraph.Stage.LightCandidates,
                 new LightCandidatesPass(
@@ -2240,13 +2233,10 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 layouts: layouts,
                 constants: ShadingConstants,
                 signal: DirectSignal,
-                reservoirs: reservoirs
+                reservoirs: Reservoirs
             )
         );
-        Graph.Add(
-            FrameGraph.Stage.AccumulateDirect,
-            new AccumulatePass(DirectSignal)
-        );
+        Graph.Add(FrameGraph.Stage.AccumulateDirect, new AccumulatePass(DirectSignal));
         Graph.Add(
             FrameGraph.Stage.Composite,
             new CompositePass(

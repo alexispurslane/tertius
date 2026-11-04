@@ -191,9 +191,12 @@ public sealed class LightTableTests
     public void ALightWhoseIndexInTheListDoesNotFitAReservoirIsNotSampled()
     {
         // A reservoir holds a light's index in the list in 16 bits, and NoLight is the largest of them.
-        PreparedLight[] lights = new PreparedLight[LightTable.NoLight + 2];
+        var lights = new PreparedLight[LightTable.NoLight + 2];
         for (int i = 0; i < lights.Length; i++)
-            lights[i] = Light(slot: (uint)i + 1, tier: i is 0 or >= LightTable.NoLight ? MainViewTier.InView : MainViewTier.FaceOnly);
+            lights[i] = Light(
+                slot: (uint)i + 1,
+                tier: i is 0 or >= LightTable.NoLight ? MainViewTier.InView : MainViewTier.FaceOnly
+            );
 
         LightTable table = Draw(new FrameHistory(StillRule.Window), lights);
 

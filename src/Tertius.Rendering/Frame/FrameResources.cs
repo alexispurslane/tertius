@@ -119,7 +119,7 @@ internal sealed unsafe class FrameResources : IDisposable
     /// <summary>The motion rows of the frame's placed instances, which the G-buffer reads (<see cref="PreparedScene.Motions"/>).</summary>
     public HostArray<GpuMotion> Motions { get; }
 
-    /// <summary>ReSTIR's light table, which its two passes read (<see cref="Rendering.LightTable.Packed"/>).</summary>
+    /// <summary>ReSTIR's light table, which its two passes read (<see cref="LightTable.Packed"/>).</summary>
     public HostArray<UInt4> LightTable { get; }
 
     /// <summary>The pose rows of the frame's deform jobs, which the deform pass reads.</summary>

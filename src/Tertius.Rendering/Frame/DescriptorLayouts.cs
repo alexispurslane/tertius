@@ -865,7 +865,17 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             // for each surface test set and one for each reservoir set.
             new(
                 DescriptorType.SampledImage,
-                21 + 5 * frames + glowSourceSets + 2 + PyramidLevelSets + 1 + 2 + 1 + 1 + 2 * SurfaceTestSets + ReservoirSets
+                21
+                    + 5 * frames
+                    + glowSourceSets
+                    + 2
+                    + PyramidLevelSets
+                    + 1
+                    + 2
+                    + 1
+                    + 1
+                    + 2 * SurfaceTestSets
+                    + ReservoirSets
             ),
             // Those of each of the two occlusion sets, one per pyramid level set, the depth tail set's mips, three for the
             // reflection set, four per environment levels set, three for the scatter set, one for the shadow bounds set and
@@ -1095,7 +1105,11 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     }
 
     /// <summary>The layouts of the signal set, the signal read set and the reservoir set (<see cref="SignalSet"/>).</summary>
-    private (DescriptorSetLayout Signal, DescriptorSetLayout SignalRead, DescriptorSetLayout Reservoir) CreateTemporalSetLayouts()
+    private (
+        DescriptorSetLayout Signal,
+        DescriptorSetLayout SignalRead,
+        DescriptorSetLayout Reservoir
+    ) CreateTemporalSetLayouts()
     {
         Span<DescriptorSetLayoutBinding> signal = stackalloc DescriptorSetLayoutBinding[(int)SignalSetImages];
         for (uint binding = 0; binding < SignalSetImages; binding++)
@@ -1119,7 +1133,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     }
 
     /// <summary>A binding of one storage image for the compute stage.</summary>
-    private static DescriptorSetLayoutBinding StorageImage(uint binding) => StorageImage(binding, ShaderStageFlags.ComputeBit);
+    private static DescriptorSetLayoutBinding StorageImage(uint binding) =>
+        StorageImage(binding, ShaderStageFlags.ComputeBit);
 
     /// <summary>A binding of one storage image for <paramref name="stages"/>.</summary>
     private static DescriptorSetLayoutBinding StorageImage(uint binding, ShaderStageFlags stages) =>

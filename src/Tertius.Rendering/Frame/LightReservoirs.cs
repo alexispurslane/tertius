@@ -45,7 +45,9 @@ internal sealed class LightReservoirs : IDisposable
         Setting = setting;
         const FormatFeatureFlags needed = FormatFeatureFlags.ColorAttachmentBit | FormatFeatureFlags.SampledImageBit;
         if ((device.FormatProperties(ReservoirFormat).OptimalTilingFeatures & needed) != needed)
-            throw new NotSupportedException($"{ReservoirFormat} cannot be a sampled color attachment on {device.DeviceName}.");
+            throw new NotSupportedException(
+                $"{ReservoirFormat} cannot be a sampled color attachment on {device.DeviceName}."
+            );
         CandidatesSet = layouts.AllocateReservoirSet();
         DirectSet = layouts.AllocateReservoirSet();
         (R0, R1) = Create();

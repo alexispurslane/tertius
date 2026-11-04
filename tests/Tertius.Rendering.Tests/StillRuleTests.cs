@@ -100,7 +100,7 @@ public sealed class StillRuleTests
         FrameHistory history = Headless(warmUpDraws: 3);
         DrawAll(history, step: FrameHistoryTesting.FilmStep);
 
-        var draws = DrawAll(history, step: 1f);
+        (bool Reset, long DrawIndex, float ExposureStep, bool RefreshesEveryFace)[] draws = DrawAll(history, step: 1f);
 
         draws.Select(d => d.Reset).Should().Equal(true, false, false, false);
         draws.Select(d => d.DrawIndex).Should().Equal(0, 1, 2, 3);
@@ -108,7 +108,10 @@ public sealed class StillRuleTests
 
     [Fact]
     public void EachWarmUpDrawAdaptsTheExposureByTheStillsStepOverTheWarmUpCountAndTheShownDrawByNone() =>
-        DrawAll(Headless(warmUpDraws: 4), step: 2f).Select(d => d.ExposureStep).Should().Equal(0.5f, 0.5f, 0.5f, 0.5f, 0f);
+        DrawAll(Headless(warmUpDraws: 4), step: 2f)
+            .Select(d => d.ExposureStep)
+            .Should()
+            .Equal(0.5f, 0.5f, 0.5f, 0.5f, 0f);
 
     [Theory]
     [InlineData(0f)]
@@ -134,7 +137,10 @@ public sealed class StillRuleTests
 
     [Fact]
     public void OnlyTheFirstDrawOfAStillRefreshesEveryFaceOfTheMap() =>
-        DrawAll(Headless(warmUpDraws: 3), step: 1f).Select(d => d.RefreshesEveryFace).Should().Equal(true, false, false, false);
+        DrawAll(Headless(warmUpDraws: 3), step: 1f)
+            .Select(d => d.RefreshesEveryFace)
+            .Should()
+            .Equal(true, false, false, false);
 
     [Fact]
     public void TheWarmUpCountIsWarmUpFramesUnderResampledLights() =>
@@ -146,14 +152,20 @@ public sealed class StillRuleTests
     [Fact]
     public void TheWarmUpCountIsZeroUnderEveryLightWithAFixedExposure() =>
         StillRule
-            .For(new RendererOptions { DirectLight = new EveryLight(), Exposure = new FixedExposure(0) }, headless: true)
+            .For(
+                new RendererOptions { DirectLight = new EveryLight(), Exposure = new FixedExposure(0) },
+                headless: true
+            )
             .WarmUpDraws.Should()
             .Be(0, "no history then holds more than one frame");
 
     [Fact]
     public void TheWarmUpCountIsOneUnderEveryLightWithAnAutomaticExposure() =>
         StillRule
-            .For(new RendererOptions { DirectLight = new EveryLight(), Exposure = AutoExposure.Default }, headless: true)
+            .For(
+                new RendererOptions { DirectLight = new EveryLight(), Exposure = AutoExposure.Default },
+                headless: true
+            )
             .WarmUpDraws.Should()
             .Be(1, "the exposure needs a draw to adapt in, today's metering draw");
 
@@ -202,7 +214,14 @@ public sealed class StillRuleTests
     public void AWarmUpCountOutsideOneTo256IsRefusedAtCreation(int warmUpFrames)
     {
         Action create = () =>
-            VulkanRenderer.CreateHeadless(new RendererOptions { Width = 64, Height = 64, WarmUpFrames = warmUpFrames });
+            VulkanRenderer.CreateHeadless(
+                new RendererOptions
+                {
+                    Width = 64,
+                    Height = 64,
+                    WarmUpFrames = warmUpFrames,
+                }
+            );
 
         create.Should().Throw<ArgumentOutOfRangeException>().WithMessage("*WarmUpFrames*");
     }

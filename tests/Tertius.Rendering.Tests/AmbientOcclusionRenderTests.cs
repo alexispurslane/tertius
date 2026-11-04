@@ -332,7 +332,7 @@ public sealed class AmbientOcclusionRenderTests(ITestOutputHelper output)
             VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: setting);
             try
             {
-                DirectLightProbe probe = DirectLightProbe.On(renderer);
+                var probe = DirectLightProbe.On(renderer);
                 RenderSnapshot snapshot = Gpu.Snapshot(new(0.4f, 0.8f, 0.45f), starIrradiance: 3);
                 // A white ambient light too, which the occlusion dims, so that only the direct light stays the same.
                 snapshot.Ambient = new()

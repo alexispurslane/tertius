@@ -40,7 +40,7 @@ public sealed class DirectLightBiasTests
             height: 180
         );
 
-        DirectError error = DirectError.Of(exact, resampled);
+        var error = DirectError.Of(exact, resampled);
 
         TestContext.Current.TestOutputHelper?.WriteLine(error.ToString());
         error.Pixels.Should().BeGreaterThan(320 * 180 / 3, "the lamps light the hall's floor, walls and pillars");
@@ -79,7 +79,7 @@ public sealed class DirectLightBiasTests
             height: 720
         );
 
-        DirectError error = DirectError.Of(exact, resampled);
+        var error = DirectError.Of(exact, resampled);
 
         TestContext.Current.TestOutputHelper?.WriteLine(error.ToString());
         Math.Abs(error.SampleBias)
@@ -133,7 +133,7 @@ public sealed class DirectLightBiasMeasurement
                 width: 1280,
                 height: 720
             );
-            DirectError error = DirectError.Of(exact, resampled);
+            var error = DirectError.Of(exact, resampled);
             report.AppendLine(
                 CultureInfo.InvariantCulture,
                 $"| {view} | {error.Pixels} | {error.Bias:+0.0000;-0.0000} | {error.HistoryError:0.0000} | {error.SampleError:0.0000} | {error.SampleBias:+0.0000;-0.0000} |"

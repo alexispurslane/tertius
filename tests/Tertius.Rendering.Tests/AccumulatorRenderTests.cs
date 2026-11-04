@@ -278,7 +278,11 @@ public sealed class AccumulatorRenderTests
 
             CenterOf(renderer, part: 0)
                 .Light.X.Should()
-                .BeApproximately(history.light.X * ratio, 2e-3f * history.light.X, "the history holds light at the frame's exposure");
+                .BeApproximately(
+                    history.light.X * ratio,
+                    2e-3f * history.light.X,
+                    "the history holds light at the frame's exposure"
+                );
         }
         finally
         {
@@ -298,7 +302,12 @@ public sealed class AccumulatorRenderTests
             for (int part = 0; part < signal.Parts; part++)
                 context.Barriers.Image(signal.Sample(part), ImageUse.TransferDestination, discard: true);
             context.Barriers.Flush(context.Vk, context.CommandBuffer);
-            var color = new ClearColorValue(float32_0: Value.X, float32_1: Value.Y, float32_2: Value.Z, float32_3: Value.W);
+            var color = new ClearColorValue(
+                float32_0: Value.X,
+                float32_1: Value.Y,
+                float32_2: Value.Z,
+                float32_3: Value.W
+            );
             var whole = new ImageSubresourceRange(
                 aspectMask: ImageAspectFlags.ColorBit,
                 baseMipLevel: 0,

@@ -431,7 +431,7 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
         VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: VisibilityBitmaskLight.Default);
         try
         {
-            DirectLightProbe diffuseProbe = DirectLightProbe.On(renderer, diffuseOnly: true);
+            var diffuseProbe = DirectLightProbe.On(renderer, diffuseOnly: true);
             renderer.Render(RedWallWithANormalMappedSphere(renderer), 1f);
             float[] diffuse = diffuseProbe.Read();
             float[] normals = renderer.ReadNormals();
@@ -488,7 +488,7 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
         VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: VisibilityBitmaskLight.Default);
         try
         {
-            DirectLightProbe probe = DirectLightProbe.On(renderer);
+            var probe = DirectLightProbe.On(renderer);
             RenderSnapshot snapshot = GlowingPanel(renderer, glow, entity: PanelEntity);
             snapshot.Lights.Add(
                 Gpu.Lamp(
@@ -525,7 +525,7 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
         VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: VisibilityBitmaskLight.Default);
         try
         {
-            DirectLightProbe probe = DirectLightProbe.On(renderer);
+            var probe = DirectLightProbe.On(renderer);
             renderer.Render(GlowingPanel(renderer, glow: 5, entity: PanelEntity), 1f);
             float[] direct = probe.Read();
             float[] source = renderer.ReadOcclusionSource().Rgba;
@@ -554,7 +554,7 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
         VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: VisibilityBitmaskLight.Default);
         try
         {
-            DirectLightProbe probe = DirectLightProbe.On(renderer);
+            var probe = DirectLightProbe.On(renderer);
             RenderSnapshot snapshot = GlowingPanel(renderer, glow: 5, entity: 0);
             snapshot.Lights.Add(
                 Gpu.Lamp(
@@ -601,7 +601,7 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
         VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: VisibilityBitmaskLight.Default);
         try
         {
-            DirectLightProbe probe = DirectLightProbe.On(renderer);
+            var probe = DirectLightProbe.On(renderer);
             RenderSnapshot snapshot = RedWall(renderer, CornerView);
             snapshot.Instances.Add(
                 Gpu.Instance(
@@ -638,7 +638,7 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
         VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: VisibilityBitmaskLight.Default);
         try
         {
-            DirectLightProbe probe = DirectLightProbe.On(renderer);
+            var probe = DirectLightProbe.On(renderer);
             RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, starIrradiance: 0);
             // Bright, but below the cap on its own: the cap binds only on the sum of the two passes.
             snapshot.Ambient = new()
@@ -794,7 +794,7 @@ public sealed class BounceLightRenderTests(ITestOutputHelper output)
         VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: VisibilityBitmaskLight.Default);
         try
         {
-            DirectLightProbe probe = DirectLightProbe.On(renderer);
+            var probe = DirectLightProbe.On(renderer);
             RenderSnapshot snapshot = SunlitFloor(renderer);
             // From the eye to 8 m along the side plane, past the measured floor's 6.5 m.
             Vector3 face = along * 4 - inward * 0.02f;

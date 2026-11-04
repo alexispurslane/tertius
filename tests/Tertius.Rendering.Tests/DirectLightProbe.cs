@@ -90,8 +90,7 @@ internal sealed unsafe class DirectLightProbe : RenderPass
     public override void Dispose()
     {
         image?.Dispose();
-        if (device is not null)
-            device.Vk.DestroyPipeline(device.Device, pipeline, null);
+        device?.Vk.DestroyPipeline(device.Device, pipeline, null);
         shaders?.Dispose();
         base.Dispose();
     }

@@ -242,7 +242,6 @@ internal sealed class FrameContext
     /// <summary>The interpolation factor of this frame.</summary>
     public float Alpha { get; set; }
 
-
     public PreparedScene Scene { get; set; } = null!;
 
     /// <summary>

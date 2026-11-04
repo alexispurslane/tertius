@@ -106,7 +106,10 @@ public sealed class AmbientSkipsTests
                 renderer.Graph.Skipped.Add("composite");
                 renderer.Graph.Add(
                     FrameGraph.Stage.Composite,
-                    new EveryTermCompositePass(direct: renderer.DirectSignal, scatter: renderer.ScatterImages is not null)
+                    new EveryTermCompositePass(
+                        direct: renderer.DirectSignal,
+                        scatter: renderer.ScatterImages is not null
+                    )
                 );
             }
 

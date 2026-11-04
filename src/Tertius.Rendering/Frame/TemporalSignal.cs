@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using Silk.NET.Vulkan;
 
 namespace Tertius.Rendering;
@@ -77,8 +76,8 @@ internal sealed unsafe class TemporalSignal : IDisposable
         this.parts = new PartImages[parts];
         sets = new DescriptorSet[parts, 2];
         for (int part = 0; part < parts; part++)
-            for (int parity = 0; parity < 2; parity++)
-                sets[part, parity] = layouts.AllocateSignalSet();
+        for (int parity = 0; parity < 2; parity++)
+            sets[part, parity] = layouts.AllocateSignalSet();
         ReadSet = layouts.AllocateSignalReadSet();
 
         temporal = CreatePipeline(shaders, "temporal");
@@ -186,7 +185,7 @@ internal sealed unsafe class TemporalSignal : IDisposable
     private void Dispatch(FrameContext context, Pipeline pipeline, DescriptorSet set)
     {
         context.BeginComputePass(pipeline: pipeline, layout: layouts.AccumulateLayout, passSet: set);
-        AccumulatePushConstants push = AccumulatePushConstants.Of(Parameters);
+        var push = AccumulatePushConstants.Of(Parameters);
         context.Vk.CmdPushConstants(
             commandBuffer: context.CommandBuffer,
             layout: layouts.AccumulateLayout,
@@ -210,9 +209,17 @@ internal sealed unsafe class TemporalSignal : IDisposable
         for (int part = 0; part < parts.Length; part++)
         {
             parts[part] = new PartImages(
-                Sample: CreateImage(extent, $"{Name} sample {part}", ImageUsageFlags.ColorAttachmentBit | ImageUsageFlags.TransferDstBit),
+                Sample: CreateImage(
+                    extent,
+                    $"{Name} sample {part}",
+                    ImageUsageFlags.ColorAttachmentBit | ImageUsageFlags.TransferDstBit
+                ),
                 Slow: CreateImage(extent, $"{Name} slow history {part}", 0),
-                Fasts: [CreateImage(extent, $"{Name} fast history {part}.0", 0), CreateImage(extent, $"{Name} fast history {part}.1", 0)],
+                Fasts:
+                [
+                    CreateImage(extent, $"{Name} fast history {part}.0", 0),
+                    CreateImage(extent, $"{Name} fast history {part}.1", 0),
+                ],
                 Scratch: CreateImage(extent, $"{Name} scratch {part}", 0)
             );
             for (int parity = 0; parity < 2; parity++)
@@ -259,8 +266,8 @@ internal sealed unsafe class TemporalSignal : IDisposable
     private void DestroyImages()
     {
         foreach (PartImages images in parts)
-            foreach (GpuImage image in images.All)
-                image.Dispose();
+        foreach (GpuImage image in images.All)
+            image.Dispose();
     }
 
     // The pool of the layouts frees the sets.

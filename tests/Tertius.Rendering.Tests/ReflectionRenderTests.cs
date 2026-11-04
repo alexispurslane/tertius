@@ -731,13 +731,7 @@ public sealed class ReflectionRenderTests
             renderer
                 .Graph.Passes.Select(pass => pass.Name)
                 .Should()
-                .ContainInOrder([
-                    "composite",
-                    "radiance pyramid",
-                    "reflection trace",
-                    "reflections",
-                    "transparent",
-                ]);
+                .ContainInOrder(["composite", "radiance pyramid", "reflection trace", "reflections", "transparent"]);
         }
         finally
         {

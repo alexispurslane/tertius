@@ -74,7 +74,11 @@ public sealed class ResampledLightsRenderTests
     /// The demodulated direct light of the shown draw of one still of <paramref name="build"/>, both parts added, per
     /// pixel: the samples if <paramref name="samples"/>, else the slow histories.
     /// </summary>
-    private static Vector3[] DirectOf(DirectLightSetting setting, Func<VulkanRenderer, RenderSnapshot> build, bool samples)
+    private static Vector3[] DirectOf(
+        DirectLightSetting setting,
+        Func<VulkanRenderer, RenderSnapshot> build,
+        bool samples
+    )
     {
         VulkanRenderer renderer = Gpu.Headless(
             width: Width,
@@ -102,7 +106,8 @@ public sealed class ResampledLightsRenderTests
     }
 
     /// <summary>A wall 8 m ahead that fills the view, lit by one lamp of entity 2, with no star.</summary>
-    private static RenderSnapshot OneLamp(VulkanRenderer renderer) => OneLamp(renderer, star: false, lamp: new(1, 0.5f, -5));
+    private static RenderSnapshot OneLamp(VulkanRenderer renderer) =>
+        OneLamp(renderer, star: false, lamp: new(1, 0.5f, -5));
 
     /// <summary>
     /// A wall 8 m ahead that fills the view, lit by one lamp of entity 2 at <paramref name="lamp"/>, and, if
@@ -111,7 +116,9 @@ public sealed class ResampledLightsRenderTests
     private static RenderSnapshot OneLamp(VulkanRenderer renderer, bool star, Vector3 lamp)
     {
         MeshId cube = renderer.CreateMesh(Primitives.Box(new(0.5f)));
-        MaterialId paint = renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.8f, y: 0.6f, z: 0.4f, w: 1f), roughness: 0.4f));
+        MaterialId paint = renderer.CreateMaterial(
+            MaterialDesc.Color(new(x: 0.8f, y: 0.6f, z: 0.4f, w: 1f), roughness: 0.4f)
+        );
         RenderSnapshot snapshot = Gpu.Snapshot(new(0.3f, 1f, 0.4f), starIrradiance: 20f);
         if (!star)
             snapshot.Lights.Clear();
@@ -126,11 +133,10 @@ public sealed class ResampledLightsRenderTests
             )
         );
         snapshot.Lights.Add(
-            Gpu.Lamp(position: lamp, color: Vector3.One, intensity: 40, chainDepth: TestChains.CamerasFrame)
-                with
-                {
-                    EntityIndex = 2,
-                }
+            Gpu.Lamp(position: lamp, color: Vector3.One, intensity: 40, chainDepth: TestChains.CamerasFrame) with
+            {
+                EntityIndex = 2,
+            }
         );
         return snapshot;
     }
@@ -142,7 +148,9 @@ public sealed class ResampledLightsRenderTests
     private static RenderSnapshot LitBox(VulkanRenderer renderer)
     {
         MeshId cube = renderer.CreateMesh(Primitives.Box(new(0.5f)));
-        MaterialId wall = renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.7f, y: 0.7f, z: 0.65f, w: 1f), roughness: 0.6f));
+        MaterialId wall = renderer.CreateMaterial(
+            MaterialDesc.Color(new(x: 0.7f, y: 0.7f, z: 0.65f, w: 1f), roughness: 0.6f)
+        );
         RenderSnapshot snapshot = Gpu.Snapshot(new(0.3f, 1f, 0.4f), starIrradiance: 1000f);
         (Vector3 Position, Vector3 Scale)[] walls =
         [
@@ -183,7 +191,9 @@ public sealed class ResampledLightsRenderTests
     private static RenderSnapshot ShadowedWall(VulkanRenderer renderer, bool slats)
     {
         MeshId cube = renderer.CreateMesh(Primitives.Box(new(0.5f)));
-        MaterialId paint = renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.7f, y: 0.7f, z: 0.7f, w: 1f), roughness: 0.6f));
+        MaterialId paint = renderer.CreateMaterial(
+            MaterialDesc.Color(new(x: 0.7f, y: 0.7f, z: 0.7f, w: 1f), roughness: 0.6f)
+        );
         RenderSnapshot snapshot = Gpu.Snapshot(new(0.3f, 1f, 0.4f));
         snapshot.Lights.Clear();
         snapshot.Instances.Add(
@@ -211,7 +221,12 @@ public sealed class ResampledLightsRenderTests
         Vector3[] lamps = [new(0, 8, -4), new(0, -8, -4)];
         for (int i = 0; i < lamps.Length; i++)
             snapshot.Lights.Add(
-                Gpu.Lamp(position: lamps[i], color: Vector3.One, intensity: 40, chainDepth: TestChains.CamerasFrame) with
+                Gpu.Lamp(
+                    position: lamps[i],
+                    color: Vector3.One,
+                    intensity: 40,
+                    chainDepth: TestChains.CamerasFrame
+                ) with
                 {
                     EntityIndex = (uint)(20 + i),
                     CastsShadow = true,
@@ -236,7 +251,11 @@ public sealed class ResampledLightsRenderTests
     [Fact]
     public void ALightWithACascadeSetStaysExactBesideASampledLamp()
     {
-        Vector3[] exact = DirectOf(new EveryLight(), r => OneLamp(r, star: true, lamp: new(1, 0.5f, -5)), samples: true);
+        Vector3[] exact = DirectOf(
+            new EveryLight(),
+            r => OneLamp(r, star: true, lamp: new(1, 0.5f, -5)),
+            samples: true
+        );
 
         Vector3[] resampled = DirectOf(
             ResampledLights.Default,
@@ -262,7 +281,11 @@ public sealed class ResampledLightsRenderTests
 
         Vector3[] resampled = DirectOf(ResampledLights.Default, LitBox, samples: false);
 
-        (double bias, int lit) = BiasOf(exact, resampled, pixel => exact[pixel].X + exact[pixel].Y + exact[pixel].Z > 1e-3f);
+        (double bias, int lit) = BiasOf(
+            exact,
+            resampled,
+            pixel => exact[pixel].X + exact[pixel].Y + exact[pixel].Z > 1e-3f
+        );
         lit.Should().BeGreaterThan(exact.Length / 2, "the lamps light most of the box");
         bias.Should().BeInRange(-BiasBound, BiasBound, "the star's cascade set makes it an exact light");
     }
@@ -274,7 +297,11 @@ public sealed class ResampledLightsRenderTests
 
         Vector3[] resampled = DirectOf(ResampledLights.Default, LitBox, samples: true);
 
-        double error = SampleErrorOf(exact, resampled, pixel => exact[pixel].X + exact[pixel].Y + exact[pixel].Z > 1e-3f);
+        double error = SampleErrorOf(
+            exact,
+            resampled,
+            pixel => exact[pixel].X + exact[pixel].Y + exact[pixel].Z > 1e-3f
+        );
         TestContext.Current.TestOutputHelper?.WriteLine($"The box's sample error: {error:0.0000}.");
         error.Should().BeLessThan(SampleErrorBound, "no candidate goes to the star, whose light the box shadows");
     }
@@ -302,7 +329,12 @@ public sealed class ResampledLightsRenderTests
             (int light, int m, float w) = renderer.ReadCandidateReservoirs()[Height / 2 * Width + Width / 2];
 
             w.Should().Be(0, "no candidate found light");
-            m.Should().Be(4 + 80, "the 4 candidates of this frame, and the last frame's reservoir capped at 80 (light {0})", light);
+            m.Should()
+                .Be(
+                    4 + 80,
+                    "the 4 candidates of this frame, and the last frame's reservoir capped at 80 (light {0})",
+                    light
+                );
         }
         finally
         {
@@ -356,7 +388,10 @@ public sealed class ResampledLightsRenderTests
         Vector3[] exact = DirectOf(new EveryLight(), renderer => ShadowedWall(renderer, slats: true), samples: false);
 
         Vector3[] resampled = DirectOf(
-            ResampledLights.Default with { SpatialNeighbors = 0 },
+            ResampledLights.Default with
+            {
+                SpatialNeighbors = 0,
+            },
             renderer => ShadowedWall(renderer, slats: true),
             samples: false
         );
@@ -387,7 +422,6 @@ public sealed class ResampledLightsRenderTests
         TestContext.Current.TestOutputHelper?.WriteLine($"The stripes' bias: {bias:0.0000}.");
         shadowed.Should().BeGreaterThan(Width * 4, "the slats shadow stripes across the wall from the upper lamp");
         bias.Should().BeInRange(-BiasBound, BiasBound, "the stripes hold the lower lamp's light alone");
-    
     }
 
     /// <summary>

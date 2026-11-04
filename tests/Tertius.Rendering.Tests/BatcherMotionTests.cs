@@ -30,7 +30,13 @@ public sealed class BatcherMotionTests
     private PreparedScene Draw(RenderSnapshot snapshot, float alpha = 1f)
     {
         var scene = new PreparedScene();
-        FrameHistory.PendingFrame pending = history.Begin(step: FrameHistoryTesting.FilmStep, draw: 0, snapshot: snapshot, outputSize: Size, renderSize: Size);
+        FrameHistory.PendingFrame pending = history.Begin(
+            step: FrameHistoryTesting.FilmStep,
+            draw: 0,
+            snapshot: snapshot,
+            outputSize: Size,
+            renderSize: Size
+        );
         batcher.Prepare(
             snapshot: snapshot,
             alpha: alpha,

@@ -128,7 +128,7 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
         VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: setting);
         try
         {
-            DirectLightProbe diffuseProbe = DirectLightProbe.On(renderer, diffuseOnly: true);
+            var diffuseProbe = DirectLightProbe.On(renderer, diffuseOnly: true);
             // The term that the sector pass leaves, before the blur overwrites it.
             renderer.Graph.Skipped.UnionWith(["occlusion denoise", "occlusion upsample"]);
             renderer.Render(CornerWithBoxes(renderer), 1f);
@@ -258,7 +258,7 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
         VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: setting, environmentMap: SceneEnvironmentMap.Default);
         try
         {
-            DirectLightProbe diffuseProbe = DirectLightProbe.On(renderer, diffuseOnly: true);
+            var diffuseProbe = DirectLightProbe.On(renderer, diffuseOnly: true);
             // The term that the sector pass leaves, before the blur overwrites it.
             renderer.Graph.Skipped.UnionWith(["occlusion denoise", "occlusion upsample"]);
             // The faces draw the map in the first frame, and the sector pass reads it after them.
@@ -316,7 +316,7 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
         VulkanRenderer renderer = Gpu.Headless(screenSpaceLight: setting);
         try
         {
-            DirectLightProbe diffuseProbe = DirectLightProbe.On(renderer, diffuseOnly: true);
+            var diffuseProbe = DirectLightProbe.On(renderer, diffuseOnly: true);
             renderer.Graph.Skipped.UnionWith(["occlusion denoise", "occlusion upsample"]);
             RenderSnapshot scene = Corner(renderer, Matte(renderer), LitCorner());
             scene.Instances.Add(
@@ -384,7 +384,7 @@ public sealed class BounceLightShaderTests(ITestOutputHelper output)
         );
         try
         {
-            DirectLightProbe probe = DirectLightProbe.On(renderer);
+            var probe = DirectLightProbe.On(renderer);
             renderer.Render(Corner(renderer, renderer.CreateMaterial(desc), LitCorner()), 1f);
             float[] estimate = renderer.ReadEstimate();
             float[] direct = probe.Read();

@@ -21,7 +21,7 @@ internal static class DirectLightViews
     /// </summary>
     public static DirectView Measure(string script, string capture, DirectLightSetting setting, int width, int height)
     {
-        Script parsed = Script.Parse(File.ReadAllText(Path.Combine(RepositoryRoot(), "scripts", script + ".json")));
+        var parsed = Script.Parse(File.ReadAllText(Path.Combine(RepositoryRoot(), "scripts", script + ".json")));
         RendererOptions options = GpuTesting.LikeAScriptedRunOptions(width, height);
         options.Validation = false;
         options.DirectLight = setting;
@@ -37,7 +37,7 @@ internal static class DirectLightViews
     /// <summary>The luminance of both parts of a direct signal image, per pixel, divided by <paramref name="scale"/>.</summary>
     private static double[] LuminanceOf(float[] diffuse, float[] specular, double scale)
     {
-        var light = new double[diffuse.Length / 4];
+        double[] light = new double[diffuse.Length / 4];
         for (int pixel = 0; pixel < light.Length; pixel++)
         {
             int at = 4 * pixel;
