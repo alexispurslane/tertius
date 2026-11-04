@@ -1,7 +1,7 @@
 ---
 id: ter-69s8
 status: open
-deps: [ter-9nrc, ter-bqun]
+deps: [ter-9nrc]
 links: []
 created: 2026-11-04T13:42:25Z
 type: feature
@@ -56,3 +56,7 @@ The user's decision of 2026-11-04: with light sampling removed (ter-9nrc), every
 **2026-11-04T21:30:33Z**
 
 2026-11-04, the user's decisions: (1) design (a), even loss: every tile drops its faintest lights up to the same fraction e of its light; e is 2 % or more, the smallest value for which the mean over tiles of the kept lights is at most the budget B of lights per pixel. (2) A temporal controller sets e: it changes e slowly from frame to frame from the last frames' counts, as the rest of the temporal renderer does (the accumulations, dynamic resolution), not a per-frame search. Left to the design (after the measurement of the earlier note): the estimate of a light's light at a tile and what e then guarantees per pixel; the fade around the cut; the controller's rate and how it treats a camera cut; B's default by the cost rule; the readers without tiles (lit puffs, impostor captures) and whether the view cap then goes; the step at tile edges. Dynamic resolution owns the pixel count and this controller owns the lights per pixel, so the two never set one number.
+
+**2026-11-04T21:34:44Z**
+
+2026-11-04, the user's decisions: no view cap (ter-bqun is closed without a merge); this ticket's budget is the only light budget of the main view, so its design covers every reader (direct pass, glass and fringes, lit puffs, impostor captures; environment faces keep their own loop). The user's concern for the design: the fraction controller and the automatic exposure must not drive each other into oscillation; the design analyses the loop and the acceptance includes a step film that logs both per frame.

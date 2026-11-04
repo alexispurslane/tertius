@@ -1,6 +1,6 @@
 ---
 id: ter-bqun
-status: in_progress
+status: closed
 deps: [ter-9nrc]
 links: []
 created: 2026-11-04T14:24:28Z
@@ -32,3 +32,7 @@ The user's decision of 2026-11-04: enforce the scene light budget at runtime. Wi
 **2026-11-04T20:44:09Z**
 
 2026-11-04: third run started, workflow 7706e0a3-237f-4811-b62c-bd43146c2120 (version 869b0b07), on the same branch from head ad82397e4: the user's rule A for the target share, the per-light rate limit (1/F per frame) keyed by slot and generation, the bound of M lights with a share above 0, no cap margin, K at least 22, M by the cost rule; it merges main first. The second run (b4b63382) ended ready: its fix round made MainViewFade the one stored state and merged the drop loops, and recorded the jump as ter-53u3, which this run absorbs.
+
+**2026-11-04T21:34:44Z**
+
+2026-11-04, the user's decision: the view cap is not merged. The per-tile light budget (ter-69s8, even loss with a slow controller of the fraction) replaces it, so the redesign would throw the cap away (CLAUDE.md: design first then). Third run 7706e0a3 ended blocked at its cost fork before the stop: at the windowed clock the direct group costs 2.27 to 2.28 ms on the deck, 2.28 ms on spin-station at K = M = 20, 2.33 and 2.37 ms at 22, 2.53 ms at 24, and 1.95 ms (22) and 2.20 ms (28) in the hall; the windowed correction compared the deck at about 780 MHz with the station at about 1045 MHz, which can bias it. The branch ter-bqun-runtime-light-cap (head e8b1c7e79) stays as a record: LightRank shared with ShadowTiles, the share through GpuLight and viewShare, the one compaction pass DropLightsThatNoViewKeeps, the per-light rate limit keyed by slot and generation, and 33 cap tests. Closed without a merge.

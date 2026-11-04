@@ -1,7 +1,7 @@
 ---
 id: ter-nt65
 status: open
-deps: [ter-bqun]
+deps: []
 links: []
 created: 2026-11-04T14:47:45Z
 type: chore
@@ -20,3 +20,7 @@ ter-9nrc removed ReSTIR DI and its light keys (FrameHistory's light remap, Prepa
 **2026-11-04T20:36:03Z**
 
 2026-11-04: on hold behind ter-bqun. The user chose a per-light rate limit on the main view's share, kept from frame to frame per light. That state needs a light's identity, and the snapshot's EntityGeneration with the slot is that key (a reused slot must not inherit another light's share). If ter-bqun keys its state by slot and generation, this ticket is void and closes as such; if it keys by slot alone, this ticket proceeds.
+
+**2026-11-04T21:34:44Z**
+
+2026-11-04: no longer on hold. The view cap with its per-light memory is not merged, so the light's generation has no reader again; this ticket proceeds as written.
