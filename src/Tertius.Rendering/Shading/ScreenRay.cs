@@ -23,7 +23,7 @@ internal enum SegmentEnd
 }
 
 /// <summary>
-/// The image of a reflected ray on the screen: the C# copy of ScreenRay in reflection.glsl, in 32-bit floats as the GPU
+/// The image of a ray on the screen: the C# copy of ScreenRay in screen_ray.glsl, in 32-bit floats as the GPU
 /// computes (docs/plans/screen-space-reflections.md, "The ray's image on the screen" and "The trace through the
 /// pyramid"). At the parameter s from 0 to End, the image is at Start + s · Step in pixels, with the inverse depth
 /// StartInverseDepth + s · StepInverseDepth in 1/m.
@@ -53,8 +53,13 @@ internal readonly record struct ScreenRay(
     /// </summary>
     public const float SurfaceFadeCosine = 0.05f;
 
+    /// <summary>The highest level that the two-depth walk climbs to: cells of 256 pixels, as the lean walk V1 did
+    /// (docs/research/temporal-renderer/profiling-spike.md, "V6, the two-depth walk").</summary>
+    public const int WalkTopLevel = 8;
+
     /// <summary>The parameter of a segment that no limit ends. Not infinity, as in the shader.</summary>
     private const float NoEnd = 1e30f;
+
 
     /// <summary>The image of the ray from origin along the unit direction, both in the camera-relative axes.</summary>
     /// <param name="origin">The ray's origin, camera-relative.</param>
@@ -203,6 +208,100 @@ internal readonly record struct ScreenRay(
             level--;
         }
         return s >= End ? new RayLeftTheSegment(EndsAt, maxSteps) : new RayOutOfSteps(maxSteps);
+    }
+
+    /// <summary>
+    /// The two-depth walk, as walkScreen in screen_walk.glsl walks it (docs/plans/temporal-renderer.md, section 6, "The
+    /// traversal"). A step reads one cell: the bounds of a level above 0, or a pixel's center w at the finest level. A
+    /// ray that passes in front of the cell's slab or behind it crosses the cell and goes up a level, one that meets the
+    /// slab of a level above 0 goes down a level to where it enters it, and one that meets a pixel's flat slab hits,
+    /// unless the pixel's surface faces away from the ray.
+    /// </summary>
+    /// <param name="pyramid">The depth pyramid of the frame.</param>
+    /// <param name="direction">The ray's unit direction, camera-relative, which the facing test reads.</param>
+    /// <param name="maxSteps">The step cap: a walk that reaches it ends as <see cref="RayOutOfSteps"/>, a miss.</param>
+    public RayTrace Walk(DepthPyramid pyramid, Vector3 direction, int maxSteps)
+    {
+        var travel = new Vector2(MathF.Sign(Step.X), MathF.Sign(Step.Y));
+        (float s, Vector2 crossed) = CellExit(level: 0, cell: Floor(Start), travel: travel);
+        // The cell that the walk stands in, at its level: the pixel past the origin's pixel to start with.
+        Vector2 cell = Floor(Start) + travel * crossed;
+        int top = Math.Min(pyramid.TopLevel, WalkTopLevel);
+        const float backShare = 1 / (1 + CellBounds.ThicknessShare);
+        int level = 0;
+        // Whether a descent solved s as a slab's entry, rather than a crossing reaching it on a cell's edge.
+        bool solved = false;
+        for (int steps = 0; steps < maxSteps; steps++)
+        {
+            if (s >= End)
+                return new RayLeftTheSegment(EndsAt, steps);
+            (float cellExit, crossed) = CellExit(level, cell, travel);
+            float exit = MathF.Max(cellExit, s);
+            (int x, int y) = ((int)cell.X, (int)cell.Y);
+            CellBounds bounds =
+                level == 0 ? new(pyramid.Finest(x, y), pyramid.Finest(x, y)) : pyramid.Bounds(level, x, y);
+            float near = bounds.Near;
+            float back = bounds.Far * backShare;
+            float inW = InverseDepthAt(s);
+            float outW = InverseDepthAt(exit);
+            bool inFront = near <= 0 || MathF.Min(inW, outW) > near;
+            bool behind = !inFront && MathF.Max(inW, outW) < back;
+            bool meetsSlab = !inFront && !behind;
+            // GLSL's clamp, which never throws: exit can lie a rounding below s.
+            float entry = meetsSlab ? MathF.Min(MathF.Max(SlabEntry(s: s, inW: inW, low: back, high: near), s), exit) : s;
+            if (meetsSlab && level > 0)
+            {
+                level--;
+                solved = solved || entry > s;
+                cell = ChildAt(parent: cell, level: level, s: entry, travel: travel, leaving: solved);
+                s = entry;
+                continue;
+            }
+            if (meetsSlab && Vector3.Dot(pyramid.GeometricNormal(x, y), direction) < 0)
+                return new RayHit(
+                    Position: Vector2.Clamp(Start + Step * entry, cell, cell + Vector2.One),
+                    Pixel: (x, y),
+                    EntryShare: back < near ? EntryShare(inW, back, near) : 0,
+                    Steps: steps + 1
+                );
+            // Across the cell and up a level: in front of its slab, behind it, or past a surface that faces away.
+            s = exit;
+            solved = false;
+            cell += travel * crossed;
+            if (level < top)
+            {
+                level++;
+                cell = Floor(cell / 2);
+            }
+        }
+        return s >= End ? new RayLeftTheSegment(EndsAt, maxSteps) : new RayOutOfSteps(maxSteps);
+    }
+
+    /// <summary>
+    /// The cell of a level, inside its parent of the level above, where the image stands at s, by the parameters where
+    /// the image reaches the parent's center lines, which the crossings compare too. At an s that a descent solved as a
+    /// slab's entry, the walk stands in the cell whose stretch of the image reaches the entry, so an entry on a center
+    /// line stands in the cell that the image leaves there. At an s that a crossing reached, it stands in the cell that
+    /// the image enters, so that a walk that crossed a cell does not go back to it.
+    /// </summary>
+    private Vector2 ChildAt(Vector2 parent, int level, float s, Vector2 travel, bool leaving)
+    {
+        float side = 1 << level;
+        float reached = leaving ? MathF.BitDecrement(s) : s;
+        Vector2 center = EdgeParameters(edge: (parent * 2 + Vector2.One) * side, still: NoEnd);
+        return new(
+            ChildAlong(parent: parent.X, start: Start.X / side, travel: travel.X, passedCenter: center.X <= reached),
+            ChildAlong(parent: parent.Y, start: Start.Y / side, travel: travel.Y, passedCenter: center.Y <= reached)
+        );
+    }
+
+    /// <summary>On one axis, the child of a parent cell: the second along the direction of travel where the image
+    /// passed the center line, and where the image stands still the child that holds its start.</summary>
+    private static float ChildAlong(float parent, float start, float travel, bool passedCenter)
+    {
+        if (travel == 0)
+            return Math.Clamp(MathF.Floor(start), parent * 2, parent * 2 + 1);
+        return parent * 2 + (passedCenter == travel > 0 ? 1 : 0);
     }
 
     /// <summary>

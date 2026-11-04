@@ -298,9 +298,13 @@ internal sealed class DepthPyramid
     /// bounds of <see cref="surfaces"/>.</summary>
     private readonly CellBounds[][] levels;
 
-    private DepthPyramid(PixelSurface?[] surfaces, int width, int height)
+    /// <summary>The unit geometric normal of each pixel, camera-relative, row by row from the top.</summary>
+    private readonly Vector3[] geometricNormals;
+
+    private DepthPyramid(PixelSurface?[] surfaces, Vector3[] geometricNormals, int width, int height)
     {
         this.surfaces = surfaces;
+        this.geometricNormals = geometricNormals;
         int topLevel = LevelCount(width, height);
         levels = new CellBounds[topLevel + 1][];
         levels[0] = [.. surfaces.Select(surface => surface?.Bounds ?? CellBounds.Empty)];
@@ -349,7 +353,7 @@ internal sealed class DepthPyramid
 
     /// <summary>
     /// A pyramid over surfaces that face the eye's forward axis, each at one inverse depth given row by row from the
-    /// top, 0 for sky.
+    /// top, 0 for sky. Their geometric normal is +Z, toward the eye of a camera that looks along −Z.
     /// </summary>
     /// <exception cref="ArgumentException">The span does not hold width × height values.</exception>
     public static DepthPyramid FromInverseDepths(ReadOnlySpan<float> inverseDepths, int width, int height)
@@ -363,7 +367,12 @@ internal sealed class DepthPyramid
         for (int index = 0; index < inverseDepths.Length; index++)
             if (inverseDepths[index] > 0)
                 surfaces[index] = PixelSurface.FacingTheEye(index % width, index / width, inverseDepths[index]);
-        return new(surfaces, width, height);
+        return new(
+            surfaces: surfaces,
+            geometricNormals: [.. Enumerable.Repeat(Vector3.UnitZ, inverseDepths.Length)],
+            width: width,
+            height: height
+        );
     }
 
     /// <summary>The pyramid of a frame, as the GPU builds it from the distance target and the geometric normals.</summary>
@@ -393,13 +402,28 @@ internal sealed class DepthPyramid
                 geometricNormals: geometricNormals,
                 camera: camera
             );
-        return new(surfaces, camera.Width, camera.Height);
+        return new(
+            surfaces: surfaces,
+            geometricNormals: geometricNormals.ToArray(),
+            width: camera.Width,
+            height: camera.Height
+        );
     }
 
     /// <summary>The surface of a pixel of level 0, or null for a pixel that sees the sky or lies outside the screen.
     /// </summary>
     public PixelSurface? Surface(int x, int y) =>
         x < 0 || y < 0 || x >= Width || y >= Height ? null : surfaces[y * Width + x];
+
+    /// <summary>The finest level of the two-depth walk at a pixel: the inverse view depth w of its center, in 1/m, or
+    /// 0 for a pixel that sees the sky or lies outside the screen (docs/plans/temporal-renderer.md, decision 40).
+    /// </summary>
+    public float Finest(int x, int y) => Surface(x, y)?.CenterInverseDepth ?? 0;
+
+    /// <summary>The unit geometric normal of a pixel, camera-relative, which the walk's facing test reads, or the zero
+    /// vector outside the screen.</summary>
+    public Vector3 GeometricNormal(int x, int y) =>
+        x < 0 || y < 0 || x >= Width || y >= Height ? Vector3.Zero : geometricNormals[y * Width + x];
 
     /// <summary>The bounds of a cell, or <see cref="CellBounds.Empty"/> for a cell outside its level: no surface lies
     /// beyond the screen's edges.</summary>
