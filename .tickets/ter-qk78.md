@@ -45,3 +45,35 @@ The real machine, under the lock: two FSR timing rounds of one build against a b
 - fsr3-timing/analyze.py counts the unchecked rounds of each paired reading, and refuses a build whose checked rounds all ran at different clocks, even with unchecked rounds. tools/test_fsr3_timing.py tests it.
 - tests/Tertius.Rendering.Tests/TimedSpan.cs is the one writer of the markers in that project.
 - New ticket ter-q58r: compare FSR builds at a held clock, from FSR's batched measurement, because the timing test's clock moves and the tool refuses nearly every round.
+
+**2026-11-04T15:52:54Z**
+
+2026-11-04, the hardening:
+
+Coverage. The changed C# lines of src/ against main, in Debug and Release: 12/12 lines and 4/4 branches, all in src/Tertius.Host/ScriptCommand.cs. coverage.py is not in the dev shell, so the Python tools were measured with the standard library's `trace` module over tools/test_gpu_clock.py, test_fsr3_timing.py, test_gpu_trace.py and test_gpu_calibration.py (151 tests, then 152). The changed executable lines that no test ran:
+
+- tools/gpu_clock.py `record()`: now tested by `Record.test_recording_a_log_writes_its_spans_clock_into_the_timings_and_keeps_the_runs_times`, red on a copy whose `record()` dropped the run's entries.
+- tools/gpu_clock.py `main()`: the command line, which gpu-clock.sh, demo-timing.sh and gpu-trace.sh run in a subprocess, outside the trace. The build's real runs ran `span` and `record`.
+- tools/fsr3-timing/analyze.py: no changed line left out.
+- tools/gpu-calibration/analyze.py (the clock columns of the `upscalers` and `rounds` reports), tools/gpu-calibration/fsr-passes.py (the clock line of a trace) and tools/gpu-trace.py (`report()` and its argument parser): report code over the folders of real runs and xctrace exports, which no test reached before this ticket either. The clock that they print comes from `gpu_clock.span_clock`, `to_json` and `from_json`, which tools/test_gpu_clock.py tests.
+
+Mutation. The branch changes no C# in Core, Simulation or Physics, so no Stryker run applies. tools/mutate.py runs only `dotnet test` on a project with a .csproj, so the Python tools have no mutation run, and their decision logic (the span's closing rule, the tolerance, the windowed estimate and the unknown case) stays tested by tools/test_gpu_clock.py alone. The Host list, the final run:
+
+| id | place | change | result | killed by | s |
+|---|---|---|---|---|---:|
+| H01 | src/Tertius.Host/ScriptCommand.cs:431 | timed-end guard > 0 -> >= 0 | killed | ScriptCommandCaptureTests.AScriptWithDumpsOnlyPrintsNoMarkersOfATimedSpan | 17.3 |
+| H02 | src/Tertius.Host/ScriptCommand.cs:431 | timed-end guard > 0 -> > 1 | killed | ScriptCommandCaptureTests.AFilmOfOneFrameStillPrintsBothMarkersSoThatEveryTimedStartHasItsEnd | 17.1 |
+| H03 | src/Tertius.Host/ScriptCommand.cs:432 | no timed-end line | killed | ScriptCommandCaptureTests.AFilmOfOneFrameStillPrintsBothMarkersSoThatEveryTimedStartHasItsEnd, ScriptCommandCaptureTests.AHeadlessFilmPrintsTheMarkersOfItsTimedSpanOnceEachBeforeTheFilesAndTheGpuTimings | 16.2 |
+| H04 | src/Tertius.Host/ScriptCommand.cs:501 | timed-start on every frame | killed | ScriptCommandCaptureTests.AHeadlessFilmPrintsTheMarkersOfItsTimedSpanOnceEachBeforeTheFilesAndTheGpuTimings | 17.5 |
+| H05 | src/Tertius.Host/ScriptCommand.cs:501 | timed-start after the second frame | killed | ScriptCommandCaptureTests.AFilmOfOneFrameStillPrintsBothMarkersSoThatEveryTimedStartHasItsEnd | 16.9 |
+| H06 | src/Tertius.Host/ScriptCommand.cs:502 | no timed-start line | killed | ScriptCommandCaptureTests.AFilmOfOneFrameStillPrintsBothMarkersSoThatEveryTimedStartHasItsEnd, ScriptCommandCaptureTests.AHeadlessFilmPrintsTheMarkersOfItsTimedSpanOnceEachBeforeTheFilesAndTheGpuTimings | 16.9 |
+| H07 | src/Tertius.Host/ScriptCommand.cs:405 | playback writes timed-start nowhere | killed | ScriptCommandCaptureTests.AFilmOfOneFrameStillPrintsBothMarkersSoThatEveryTimedStartHasItsEnd, ScriptCommandCaptureTests.AHeadlessFilmPrintsTheMarkersOfItsTimedSpanOnceEachBeforeTheFilesAndTheGpuTimings | 16.7 |
+| H08 | src/Tertius.Host/ScriptCommand.cs:81 | start marker text | survived |  | 19.1 |
+| H09 | src/Tertius.Host/ScriptCommand.cs:84 | end marker text | survived |  | 19.1 |
+9 rows: killed 7, timeout 0, survived 2, no-coverage 0, build-failed 0, no-tests 0, no-mutant 0, removed 0
+
+The answers:
+
+- H02 and H05 survived the first run: no test filmed a single frame. The new test `AFilmOfOneFrameStillPrintsBothMarkersSoThatEveryTimedStartHasItsEnd` kills both.
+- H06 first deleted the line, which left `output` unused and failed the build (IDE0060). Its final form writes an empty string instead.
+- H08 and H09, judgment call: the marker text is a contract with tools/gpu_clock.py's START and END, which no .NET test can read. A wrong text shows on the first timed run, because every tool then prints the clock as unknown with the reason that the log has no marker.
