@@ -848,6 +848,34 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             name: name
         );
 
+    /// <summary>
+    /// The sampled images of the shared pool: 21 for the G-buffer, post and atlas sets, five per frame set for the tables,
+    /// the specular map, the irradiance cube and the distance cube, one per glow source set, two for the meter set, one per
+    /// pyramid level set, one for the depth tail set, two for the reflection set, one for the prefilter set, one for the
+    /// shadow bounds set, two for each surface test set and one for each reservoir set.
+    /// </summary>
+    private static uint SharedSampledImages(uint frames, uint glowSourceSets) =>
+        21 + 5 * frames + glowSourceSets + 2 + PyramidLevelSets + 1 + 2 + 1 + 1 + 2 * SurfaceTestSets + ReservoirSets;
+
+    /// <summary>
+    /// The storage images of the shared pool: those of each of the two occlusion sets, one per pyramid level set, the depth
+    /// tail set's mips, three for the reflection set, four per environment levels set, three for the scatter set, one for
+    /// the shadow bounds set, four per surface test set, seven per signal set, two per signal read set and two per
+    /// reservoir set.
+    /// </summary>
+    private static uint SharedStorageImages =>
+        2 * OcclusionImages.StorageImages
+        + PyramidLevelSets
+        + DepthPyramidTail.Mips
+        + 3
+        + 4 * EnvironmentLevelsSets
+        + 3
+        + 1
+        + 4 * SurfaceTestSets
+        + SignalSetImages * SignalSets
+        + 2 * SignalReadSets
+        + 2 * ReservoirSets;
+
     /// <summary>The shared pool, which holds <paramref name="glowSourceSets"/> glow source sets, and the pool of the texture sets.</summary>
     private (DescriptorPool Shared, DescriptorPool Textures) CreatePools(uint framesInFlight, uint glowSourceSets)
     {
@@ -862,31 +890,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             // Three per frame set (the material sampler and the immutable linear clamp and environment samplers), the
             // immutable samplers of the G-buffer, atlas, post, reflection and prefilter sets, and one per glow source set.
             new(DescriptorType.Sampler, 3 * frames + 5 + glowSourceSets),
-            // 21 for the G-buffer, post and atlas sets, five per frame set for the tables, the specular map, the irradiance
-            // cube and the distance cube, one per glow source set, two for the meter set, one per pyramid level set, one for
-            // the depth tail set, two for the reflection set, one for the prefilter set, one for the shadow bounds set, two
-            // for each surface test set and one for each reservoir set.
-            new(
-                DescriptorType.SampledImage,
-                21 + 5 * frames + glowSourceSets + 2 + PyramidLevelSets + 1 + 2 + 1 + 1 + 2 * SurfaceTestSets + ReservoirSets
-            ),
-            // Those of each of the two occlusion sets, one per pyramid level set, the depth tail set's mips, three for the
-            // reflection set, four per environment levels set, three for the scatter set, one for the shadow bounds set and
-            // four per surface test set, seven per signal set, two per signal read set and two per reservoir set.
-            new(
-                DescriptorType.StorageImage,
-                2 * OcclusionImages.StorageImages
-                    + PyramidLevelSets
-                    + DepthPyramidTail.Mips
-                    + 3
-                    + 4 * EnvironmentLevelsSets
-                    + 3
-                    + 1
-                    + 4 * SurfaceTestSets
-                    + SignalSetImages * SignalSets
-                    + 2 * SignalReadSets
-                    + 2 * ReservoirSets
-            ),
+            new(DescriptorType.SampledImage, SharedSampledImages(frames, glowSourceSets)),
+            new(DescriptorType.StorageImage, SharedStorageImages),
             // The SMAA set.
             new(DescriptorType.CombinedImageSampler, SmaaBindings),
         ];

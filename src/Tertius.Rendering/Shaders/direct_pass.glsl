@@ -36,10 +36,15 @@ ResampledSurface surfaceAtPixel(ivec2 pixel)
     return resampledSurfaceAt(pixel, direction, texelFetch(gbufferDistance, pixel, 0).r);
 }
 
-// p̂ · V at the surface of a reused reservoir's choice, or 0 for a reservoir without a choice.
-float reusedTarget(Reservoir r, ResampledSurface surface)
+// The light of a reused reservoir's choice at the surface with its shadows, or none for a reservoir without a choice.
+DirectTerms reusedLight(Reservoir r, ResampledSurface surface)
 {
-    return holdsChoice(r) ? visibleTarget(r.light, surface) : 0.0;
+    if (holdsChoice(r))
+        return shadedLight(r.light, surface);
+    DirectTerms none;
+    none.diffuse = vec3(0.0);
+    none.specular = vec3(0.0);
+    return none;
 }
 
 // Step 1, the spatial reuse: Bitterli's unbiased combine (Bitterli and others 2020, algorithm 6) of the pixel's reservoir
@@ -52,17 +57,21 @@ float reusedTarget(Reservoir r, ResampledSurface surface)
 // for the kept light y. Each r_i chose its light from the lights with p̂'_{q_i} > 0: its candidates had p̂_{q_i} > 0, and
 // the visibility reuse emptied a shadowed choice. So Z counts the candidates whose source could give y, and the estimate
 // f_q(y) · W is unbiased where each W_i is (ARCHITECTURE.md, "ReSTIR DI"). r_0 always counts, since y's weight at q is
-// above 0. A neighbor's light that q does not see has a weight of 0, so it never takes the choice from a light that q
-// sees, and the reservoir written to R1 holds a light that q sees.
-Reservoir spatialReuse(ivec2 pixel, ResampledSurface surface, inout RandomStream random)
+// above 0, and so does a neighbor whose own choice is y, since its pass found y's p̂' above 0. A neighbor's light that q
+// does not see has a weight of 0, so it never takes the choice from a light that q sees, and the reservoir written to R1
+// holds a light that q sees. `chosen` is the kept light's light at q with its shadows, f_q(y), which p̂'_q(y) measures.
+Reservoir spatialReuse(ivec2 pixel, ResampledSurface surface, inout RandomStream random, out DirectTerms chosen)
 {
     Combining c = startCombining();
     Reservoir own = unpackReservoir(texelFetch(readReservoirs, pixel, 0).xy);
-    addReservoir(c, own, own.light, reusedTarget(own, surface), own.M, random);
+    DirectTerms ownLight = reusedLight(own, surface);
+    chosen = ownLight;
+    addReservoir(c, own, own.light, visibleTarget(ownLight), own.M, random);
 
-    // The neighbors that the combine takes, and the M of each, for Z.
+    // The neighbors that the combine takes, the M of each, and its choice or NoLight, for Z.
     ivec2 taken[MaxSpatialNeighbors];
     float takenM[MaxSpatialNeighbors];
+    uint takenLight[MaxSpatialNeighbors];
     uint count = 0u;
     SurfaceKey key = surfaceKeyAt(pixel);
     ivec2 last = textureSize(gbufferDistance, 0) - 1;
@@ -75,19 +84,23 @@ Reservoir spatialReuse(ivec2 pixel, ResampledSurface surface, inout RandomStream
         ivec2 neighbor = clamp(pixel + ivec2(round(offset)), ivec2(0), last);
         if (neighbor == pixel || !sameSurface(key, surfaceKeyAt(neighbor)))
             continue;
-        // A neighbor without a choice still stands for its M candidates.
+        // A neighbor without a choice still stands for its M candidates. One with the pixel's own choice takes its light.
         Reservoir other = unpackReservoir(texelFetch(readReservoirs, neighbor, 0).xy);
-        addReservoir(c, other, other.light, reusedTarget(other, surface), other.M, random);
+        uint light = holdsChoice(other) ? other.light : NoLight;
+        DirectTerms otherLight = light == own.light && holdsChoice(own) ? ownLight : reusedLight(other, surface);
+        if (addReservoir(c, other, other.light, visibleTarget(otherLight), other.M, random))
+            chosen = otherLight;
         taken[count] = neighbor;
         takenM[count] = other.M;
+        takenLight[count] = light;
         count++;
     }
 
-    // Z: one visibility test of the kept light at each neighbor's surface.
+    // Z: a visibility test of the kept light at the surface of each neighbor whose own choice is another light.
     float Z = own.M;
     if (c.chosenTarget > 0.0)
         for (uint i = 0u; i < count; i++)
-            if (visibleTarget(c.r.light, surfaceAtPixel(taken[i])) > 0.0)
+            if (takenLight[i] == c.r.light || visibleTarget(shadedLight(c.r.light, surfaceAtPixel(taken[i]))) > 0.0)
                 Z += takenM[i];
     return finishCombining(c, Z);
 }
@@ -125,7 +138,8 @@ void main()
 #ifdef RESAMPLED
     ResampledSurface surface = resampledSurfaceAt(pixel, direction, distanceToEye);
     RandomStream random = randomStream(pixel, DirectStream);
-    Reservoir r = spatialReuse(pixel, surface, random);
+    DirectTerms chosen;
+    Reservoir r = spatialReuse(pixel, surface, random, chosen);
     // Step 2: the chosen light, its exact light times its visibility times W, and every exact light. The combine kept only
     // a light that the pixel sees, so R1 needs no visibility test of its own.
     DirectTerms direct;
@@ -133,7 +147,6 @@ void main()
     direct.specular = vec3(0.0);
     if (holdsChoice(r))
     {
-        DirectTerms chosen = shadedLight(r.light, surface);
         direct.diffuse = chosen.diffuse * r.W;
         direct.specular = chosen.specular * r.W;
     }
