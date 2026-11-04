@@ -1,6 +1,6 @@
 ---
 id: ter-qk78
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-11-04T01:46:03Z
@@ -81,3 +81,7 @@ The answers:
 - H02 and H05 survived the first run: no test filmed a single frame. The new test `AFilmOfOneFrameStillPrintsBothMarkersSoThatEveryTimedStartHasItsEnd` kills both.
 - H06 first deleted the line, which left `output` unused and failed the build (IDE0060). Its final form writes an empty string instead.
 - H08 and H09, judgment call: the marker text is a contract with tools/gpu_clock.py's START and END, which no .NET test can read. A wrong text shows on the first timed run, because every tool then prints the clock as unknown with the reason that the log has no marker.
+
+**2026-11-04T16:11:12Z**
+
+2026-11-04: closed. Merged into main as c63212780.
