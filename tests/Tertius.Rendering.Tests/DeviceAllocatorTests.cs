@@ -263,7 +263,10 @@ public sealed unsafe class DeviceAllocatorTests
             .Live.Should()
             .ContainSingle()
             .Which.Should()
-            .Be(new LiveMemory(Type: 0, Mapped: true), "the CPU sees GPU writes without an invalidate only in coherent memory");
+            .Be(
+                new LiveMemory(Type: 0, Mapped: true),
+                "the CPU sees GPU writes without an invalidate only in coherent memory"
+            );
     }
 
     [Fact]
