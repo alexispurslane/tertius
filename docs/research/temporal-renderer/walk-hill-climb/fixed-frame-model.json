@@ -1,0 +1,162 @@
+[
+  {
+    "view": "deck-10",
+    "kind": "reflection",
+    "diffuseCap": 62,
+    "simdSteps": 1141625,
+    "laneSteps": 36532000,
+    "operationEstimate": 1461280000,
+    "predictedRolledMs": 0.8952067963966677,
+    "predictedFlopMs": 0.44760339819833384
+  },
+  {
+    "view": "deck-10",
+    "kind": "reflection",
+    "diffuseCap": 64,
+    "simdSteps": 1141625,
+    "laneSteps": 36532000,
+    "operationEstimate": 1461280000,
+    "predictedRolledMs": 0.8952067963966677,
+    "predictedFlopMs": 0.44760339819833384
+  },
+  {
+    "view": "deck-10",
+    "kind": "diffuse",
+    "diffuseCap": 62,
+    "simdSteps": 558367,
+    "laneSteps": 17867744,
+    "operationEstimate": 714709760,
+    "predictedRolledMs": 0.43784424244705406,
+    "predictedFlopMs": 0.21892212122352703
+  },
+  {
+    "view": "deck-10",
+    "kind": "diffuse",
+    "diffuseCap": 64,
+    "simdSteps": 572961,
+    "laneSteps": 18334752,
+    "operationEstimate": 733390080,
+    "predictedRolledMs": 0.4492881473953628,
+    "predictedFlopMs": 0.2246440736976814
+  },
+  {
+    "view": "deck-25",
+    "kind": "reflection",
+    "diffuseCap": 62,
+    "simdSteps": 1668639,
+    "laneSteps": 53396448,
+    "operationEstimate": 2135857920,
+    "predictedRolledMs": 1.3084655412526347,
+    "predictedFlopMs": 0.6542327706263174
+  },
+  {
+    "view": "deck-25",
+    "kind": "reflection",
+    "diffuseCap": 64,
+    "simdSteps": 1668639,
+    "laneSteps": 53396448,
+    "operationEstimate": 2135857920,
+    "predictedRolledMs": 1.3084655412526347,
+    "predictedFlopMs": 0.6542327706263174
+  },
+  {
+    "view": "deck-25",
+    "kind": "diffuse",
+    "diffuseCap": 62,
+    "simdSteps": 799388,
+    "laneSteps": 25580416,
+    "operationEstimate": 1023216640,
+    "predictedRolledMs": 0.6268411873933555,
+    "predictedFlopMs": 0.31342059369667774
+  },
+  {
+    "view": "deck-25",
+    "kind": "diffuse",
+    "diffuseCap": 64,
+    "simdSteps": 820652,
+    "laneSteps": 26260864,
+    "operationEstimate": 1050434560,
+    "predictedRolledMs": 0.6435153819130784,
+    "predictedFlopMs": 0.3217576909565392
+  },
+  {
+    "view": "floor-10",
+    "kind": "reflection",
+    "diffuseCap": 62,
+    "simdSteps": 891986,
+    "laneSteps": 28543552,
+    "operationEstimate": 1141742080,
+    "predictedRolledMs": 0.6994520350296096,
+    "predictedFlopMs": 0.3497260175148048
+  },
+  {
+    "view": "floor-10",
+    "kind": "reflection",
+    "diffuseCap": 64,
+    "simdSteps": 891986,
+    "laneSteps": 28543552,
+    "operationEstimate": 1141742080,
+    "predictedRolledMs": 0.6994520350296096,
+    "predictedFlopMs": 0.3497260175148048
+  },
+  {
+    "view": "floor-10",
+    "kind": "diffuse",
+    "diffuseCap": 62,
+    "simdSteps": 597996,
+    "laneSteps": 19135872,
+    "operationEstimate": 765434880,
+    "predictedRolledMs": 0.46891937669376693,
+    "predictedFlopMs": 0.23445968834688347
+  },
+  {
+    "view": "floor-10",
+    "kind": "diffuse",
+    "diffuseCap": 64,
+    "simdSteps": 614052,
+    "laneSteps": 19649664,
+    "operationEstimate": 785986560,
+    "predictedRolledMs": 0.48150971093044265,
+    "predictedFlopMs": 0.24075485546522132
+  },
+  {
+    "view": "floor-25",
+    "kind": "reflection",
+    "diffuseCap": 62,
+    "simdSteps": 1307722,
+    "laneSteps": 41847104,
+    "operationEstimate": 1673884160,
+    "predictedRolledMs": 1.0254519848439225,
+    "predictedFlopMs": 0.5127259924219613
+  },
+  {
+    "view": "floor-25",
+    "kind": "reflection",
+    "diffuseCap": 64,
+    "simdSteps": 1307722,
+    "laneSteps": 41847104,
+    "operationEstimate": 1673884160,
+    "predictedRolledMs": 1.0254519848439225,
+    "predictedFlopMs": 0.5127259924219613
+  },
+  {
+    "view": "floor-25",
+    "kind": "diffuse",
+    "diffuseCap": 62,
+    "simdSteps": 860847,
+    "laneSteps": 27547104,
+    "operationEstimate": 1101884160,
+    "predictedRolledMs": 0.6750343458295694,
+    "predictedFlopMs": 0.3375171729147847
+  },
+  {
+    "view": "floor-25",
+    "kind": "diffuse",
+    "diffuseCap": 64,
+    "simdSteps": 884432,
+    "laneSteps": 28301824,
+    "operationEstimate": 1132072960,
+    "predictedRolledMs": 0.693528555655927,
+    "predictedFlopMs": 0.3467642778279635
+  }
+]

@@ -1,0 +1,242 @@
+[
+  {
+    "view": "deck",
+    "kind": "reflection",
+    "diffuseCap": 54,
+    "reference": "v0",
+    "meanFlip": 0.03168,
+    "maxFlip": 0.72447,
+    "referencePath": "/Users/alexispurslane/.t3/worktrees/tertius/ter-sftw-profiling-spike/captures/sftw/top/caps/deck-10-v0/converged/reflection-1024.png",
+    "candidatePath": "/Users/alexispurslane/.t3/worktrees/tertius/ter-sftw-profiling-spike/captures/sftw/top/caps/deck-10-v6-d54/converged/reflection-1024.png"
+  },
+  {
+    "view": "deck",
+    "kind": "reflection",
+    "diffuseCap": 54,
+    "reference": "v1",
+    "meanFlip": 0.0047,
+    "maxFlip": 0.40659,
+    "referencePath": "/Users/alexispurslane/.t3/worktrees/tertius/ter-sftw-profiling-spike/captures/sftw/top/caps/deck-10-v1/converged/reflection-1024.png",
+    "candidatePath": "/Users/alexispurslane/.t3/worktrees/tertius/ter-sftw-profiling-spike/captures/sftw/top/caps/deck-10-v6-d54/converged/reflection-1024.png"
+  },
+  {
+    "view": "deck",
+    "kind": "reflection",
+    "diffuseCap": 62,
+    "reference": "v0",
+    "meanFlip": 0.03168,
+    "maxFlip": 0.72447,
+    "referencePath": "/Users/alexispurslane/.t3/worktrees/tertius/ter-sftw-profiling-spike/captures/sftw/top/caps/deck-10-v0/converged/reflection-1024.png",
+    "candidatePath": "/Users/alexispurslane/.t3/worktrees/tertius/ter-sftw-profiling-spike/captures/sftw/top/caps/deck-10-v6-d62/converged/reflection-1024.png"
+  },
+  {
+    "view": "deck",
+    "kind": "reflection",
+    "diffuseCap": 62,
+    "reference": "v1",
+    "meanFlip": 0.0047,
+    "maxFlip": 0.40659,
+    "referencePath": "/Users/alexispurslane/.t3/worktrees/tertius/ter-sftw-profiling-spike/captures/sftw/top/caps/deck-10-v1/converged/reflection-1024.png",
+    "candidatePath": "/Users/alexispurslane/.t3/worktrees/tertius/ter-sftw-profiling-spike/captures/sftw/top/caps/deck-10-v6-d62/converged/reflection-1024.png"
+  },
+  {
+    "view": "deck",
+    "kind": "reflection",
+    "diffuseCap": 64,
+    "reference": "v0",
+    "meanFlip": 0.03168,
+    "maxFlip": 0.72447,
+    "referencePath": "/Users/alexispurslane/.t3/worktrees/tertius/ter-sftw-profiling-spike/captures/sftw/top/caps/deck-10-v0/converged/reflection-1024.png",
+    "candidatePath": "/Users/alexispurslane/.t3/worktrees/tertius/ter-sftw-profiling-spike/captures/sftw/top/caps/deck-10-v6-d64/converged/reflection-1024.png"
+  },
+  {
+    "view": "deck",
+    "kind": "reflection",
+    "diffuseCap": 64,
+    "reference": "v1",
+    "meanFlip": 0.0047,
+    "maxFlip": 0.40659,
+    "referencePath": "/Users/alexispurslane/.t3/worktrees/tertius/ter-sftw-profiling-spike/captures/sftw/top/caps/deck-10-v1/converged/reflection-1024.png",
+    "candidatePath": "/Users/alexispurslane/.t3/worktrees/tertius/ter-sftw-profiling-spike/captures/sftw/top/caps/deck-10-v6-d64/converged/reflection-1024.png"
+  },
+  {
+    "view": "deck",
+    "kind": "diffuse",
+    "diffuseCap": 54,
+    "reference": "v0",
+    "meanFlip": 0.05074,
+    "maxFlip": 0.98254,
+    "referencePath": "/Users/alexispurslane/.t3/worktrees/tertius/ter-sftw-profiling-spike/captures/sftw/top/caps/deck-10-v0/converged/diffuse-1024.png",
+    "candidatePath": "/Users/alexispurslane/.t3/worktrees/tertius/ter-sftw-profiling-spike/captures/sftw/top/caps/deck-10-v6-d54/converged/diffuse-1024.png"
+  },
+  {
+    "view": "deck",
+    "kind": "diffuse",
+    "diffuseCap": 54,
+    "reference": "v1",
+    "meanFlip": 0.01932,
+    "maxFlip": 0.53089,
+    "referencePath": "/Users/alexispurslane/.t3/worktrees/tertius/ter-sftw-profiling-spike/captures/sftw/top/caps/deck-10-v1/converged/diffuse-1024.png",
+    "candidatePath": "/Users/alexispurslane/.t3/worktrees/tertius/ter-sftw-profiling-spike/captures/sftw/top/caps/deck-10-v6-d54/converged/diffuse-1024.png"
+  },
+  {
+    "view": "deck",
+    "kind": "diffuse",
+    "diffuseCap": 62,
+    "reference": "v0",
+    "meanFlip": 0.03959,
+    "maxFlip": 0.98247,
+    "referencePath": "/Users/alexispurslane/.t3/worktrees/tertius/ter-sftw-profiling-spike/captures/sftw/top/caps/deck-10-v0/converged/diffuse-1024.png",
+    "candidatePath": "/Users/alexispurslane/.t3/worktrees/tertius/ter-sftw-profiling-spike/captures/sftw/top/caps/deck-10-v6-d62/converged/diffuse-1024.png"
+  },
+  {
+    "view": "deck",
+    "kind": "diffuse",
+    "diffuseCap": 62,
+    "reference": "v1",
+    "meanFlip": 0.01775,
+    "maxFlip": 0.78947,
+    "referencePath": "/Users/alexispurslane/.t3/worktrees/tertius/ter-sftw-profiling-spike/captures/sftw/top/caps/deck-10-v1/converged/diffuse-1024.png",
+    "candidatePath": "/Users/alexispurslane/.t3/worktrees/tertius/ter-sftw-profiling-spike/captures/sftw/top/caps/deck-10-v6-d62/converged/diffuse-1024.png"
+  },
+  {
+    "view": "deck",
+    "kind": "diffuse",
+    "diffuseCap": 64,
+    "reference": "v0",
+    "meanFlip": 0.03767,
+    "maxFlip": 0.98246,
+    "referencePath": "/Users/alexispurslane/.t3/worktrees/tertius/ter-sftw-profiling-spike/captures/sftw/top/caps/deck-10-v0/converged/diffuse-1024.png",
+    "candidatePath": "/Users/alexispurslane/.t3/worktrees/tertius/ter-sftw-profiling-spike/captures/sftw/top/caps/deck-10-v6-d64/converged/diffuse-1024.png"
+  },
+  {
+    "view": "deck",
+    "kind": "diffuse",
+    "diffuseCap": 64,
+    "reference": "v1",
+    "meanFlip": 0.01783,
+    "maxFlip": 0.81228,
+    "referencePath": "/Users/alexispurslane/.t3/worktrees/tertius/ter-sftw-profiling-spike/captures/sftw/top/caps/deck-10-v1/converged/diffuse-1024.png",
+    "candidatePath": "/Users/alexispurslane/.t3/worktrees/tertius/ter-sftw-profiling-spike/captures/sftw/top/caps/deck-10-v6-d64/converged/diffuse-1024.png"
+  },
+  {
+    "view": "floor",
+    "kind": "reflection",
+    "diffuseCap": 54,
+    "reference": "v0",
+    "meanFlip": 0.02235,
+    "maxFlip": 0.39093,
+    "referencePath": "/Users/alexispurslane/.t3/worktrees/tertius/ter-sftw-profiling-spike/captures/sftw/top/caps/floor-10-v0/converged/reflection-1024.png",
+    "candidatePath": "/Users/alexispurslane/.t3/worktrees/tertius/ter-sftw-profiling-spike/captures/sftw/top/caps/floor-10-v6-d54/converged/reflection-1024.png"
+  },
+  {
+    "view": "floor",
+    "kind": "reflection",
+    "diffuseCap": 54,
+    "reference": "v1",
+    "meanFlip": 0.00233,
+    "maxFlip": 0.20499,
+    "referencePath": "/Users/alexispurslane/.t3/worktrees/tertius/ter-sftw-profiling-spike/captures/sftw/top/caps/floor-10-v1/converged/reflection-1024.png",
+    "candidatePath": "/Users/alexispurslane/.t3/worktrees/tertius/ter-sftw-profiling-spike/captures/sftw/top/caps/floor-10-v6-d54/converged/reflection-1024.png"
+  },
+  {
+    "view": "floor",
+    "kind": "reflection",
+    "diffuseCap": 62,
+    "reference": "v0",
+    "meanFlip": 0.02235,
+    "maxFlip": 0.39093,
+    "referencePath": "/Users/alexispurslane/.t3/worktrees/tertius/ter-sftw-profiling-spike/captures/sftw/top/caps/floor-10-v0/converged/reflection-1024.png",
+    "candidatePath": "/Users/alexispurslane/.t3/worktrees/tertius/ter-sftw-profiling-spike/captures/sftw/top/caps/floor-10-v6-d62/converged/reflection-1024.png"
+  },
+  {
+    "view": "floor",
+    "kind": "reflection",
+    "diffuseCap": 62,
+    "reference": "v1",
+    "meanFlip": 0.00233,
+    "maxFlip": 0.20499,
+    "referencePath": "/Users/alexispurslane/.t3/worktrees/tertius/ter-sftw-profiling-spike/captures/sftw/top/caps/floor-10-v1/converged/reflection-1024.png",
+    "candidatePath": "/Users/alexispurslane/.t3/worktrees/tertius/ter-sftw-profiling-spike/captures/sftw/top/caps/floor-10-v6-d62/converged/reflection-1024.png"
+  },
+  {
+    "view": "floor",
+    "kind": "reflection",
+    "diffuseCap": 64,
+    "reference": "v0",
+    "meanFlip": 0.02235,
+    "maxFlip": 0.39093,
+    "referencePath": "/Users/alexispurslane/.t3/worktrees/tertius/ter-sftw-profiling-spike/captures/sftw/top/caps/floor-10-v0/converged/reflection-1024.png",
+    "candidatePath": "/Users/alexispurslane/.t3/worktrees/tertius/ter-sftw-profiling-spike/captures/sftw/top/caps/floor-10-v6-d64/converged/reflection-1024.png"
+  },
+  {
+    "view": "floor",
+    "kind": "reflection",
+    "diffuseCap": 64,
+    "reference": "v1",
+    "meanFlip": 0.00233,
+    "maxFlip": 0.20499,
+    "referencePath": "/Users/alexispurslane/.t3/worktrees/tertius/ter-sftw-profiling-spike/captures/sftw/top/caps/floor-10-v1/converged/reflection-1024.png",
+    "candidatePath": "/Users/alexispurslane/.t3/worktrees/tertius/ter-sftw-profiling-spike/captures/sftw/top/caps/floor-10-v6-d64/converged/reflection-1024.png"
+  },
+  {
+    "view": "floor",
+    "kind": "diffuse",
+    "diffuseCap": 54,
+    "reference": "v0",
+    "meanFlip": 0.02313,
+    "maxFlip": 0.27441,
+    "referencePath": "/Users/alexispurslane/.t3/worktrees/tertius/ter-sftw-profiling-spike/captures/sftw/top/caps/floor-10-v0/converged/diffuse-1024.png",
+    "candidatePath": "/Users/alexispurslane/.t3/worktrees/tertius/ter-sftw-profiling-spike/captures/sftw/top/caps/floor-10-v6-d54/converged/diffuse-1024.png"
+  },
+  {
+    "view": "floor",
+    "kind": "diffuse",
+    "diffuseCap": 54,
+    "reference": "v1",
+    "meanFlip": 0.01763,
+    "maxFlip": 0.213,
+    "referencePath": "/Users/alexispurslane/.t3/worktrees/tertius/ter-sftw-profiling-spike/captures/sftw/top/caps/floor-10-v1/converged/diffuse-1024.png",
+    "candidatePath": "/Users/alexispurslane/.t3/worktrees/tertius/ter-sftw-profiling-spike/captures/sftw/top/caps/floor-10-v6-d54/converged/diffuse-1024.png"
+  },
+  {
+    "view": "floor",
+    "kind": "diffuse",
+    "diffuseCap": 62,
+    "reference": "v0",
+    "meanFlip": 0.01556,
+    "maxFlip": 0.27437,
+    "referencePath": "/Users/alexispurslane/.t3/worktrees/tertius/ter-sftw-profiling-spike/captures/sftw/top/caps/floor-10-v0/converged/diffuse-1024.png",
+    "candidatePath": "/Users/alexispurslane/.t3/worktrees/tertius/ter-sftw-profiling-spike/captures/sftw/top/caps/floor-10-v6-d62/converged/diffuse-1024.png"
+  },
+  {
+    "view": "floor",
+    "kind": "diffuse",
+    "diffuseCap": 62,
+    "reference": "v1",
+    "meanFlip": 0.00841,
+    "maxFlip": 0.15981,
+    "referencePath": "/Users/alexispurslane/.t3/worktrees/tertius/ter-sftw-profiling-spike/captures/sftw/top/caps/floor-10-v1/converged/diffuse-1024.png",
+    "candidatePath": "/Users/alexispurslane/.t3/worktrees/tertius/ter-sftw-profiling-spike/captures/sftw/top/caps/floor-10-v6-d62/converged/diffuse-1024.png"
+  },
+  {
+    "view": "floor",
+    "kind": "diffuse",
+    "diffuseCap": 64,
+    "reference": "v0",
+    "meanFlip": 0.01422,
+    "maxFlip": 0.27439,
+    "referencePath": "/Users/alexispurslane/.t3/worktrees/tertius/ter-sftw-profiling-spike/captures/sftw/top/caps/floor-10-v0/converged/diffuse-1024.png",
+    "candidatePath": "/Users/alexispurslane/.t3/worktrees/tertius/ter-sftw-profiling-spike/captures/sftw/top/caps/floor-10-v6-d64/converged/diffuse-1024.png"
+  },
+  {
+    "view": "floor",
+    "kind": "diffuse",
+    "diffuseCap": 64,
+    "reference": "v1",
+    "meanFlip": 0.00643,
+    "maxFlip": 0.16072,
+    "referencePath": "/Users/alexispurslane/.t3/worktrees/tertius/ter-sftw-profiling-spike/captures/sftw/top/caps/floor-10-v1/converged/diffuse-1024.png",
+    "candidatePath": "/Users/alexispurslane/.t3/worktrees/tertius/ter-sftw-profiling-spike/captures/sftw/top/caps/floor-10-v6-d64/converged/diffuse-1024.png"
+  }
+]

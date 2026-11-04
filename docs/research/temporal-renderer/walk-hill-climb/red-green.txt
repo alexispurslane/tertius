@@ -1,0 +1,307 @@
+===== table-red.log =====
+FFFF.
+======================================================================
+FAIL: test_a_run_more_than_three_percent_from_the_top_clock_cannot_win (test_table.TimedRunSelectionTests.test_a_run_more_than_three_percent_from_the_top_clock_cannot_win)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/alexispurslane/.t3/worktrees/tertius/ter-dzxf-walk-hill-climb/tools/walk-hill-climb/test_table.py", line 19, in test_a_run_more_than_three_percent_from_the_top_clock_cannot_win
+    self.assertEqual(select_runs([measurement("cold", clock=1200.0)]), [])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [{'label': 'cold', 'times': [3.0], 'gpuClo[41 chars]rue}] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+{'label': 'cold', 'times': [3.0], 'gpuClock': {'meanMhz': 1200.0}, 'gatePassed': True}
+
++ []
+- [{'gatePassed': True,
+-   'gpuClock': {'meanMhz': 1200.0},
+-   'label': 'cold',
+-   'times': [3.0]}]
+
+======================================================================
+FAIL: test_a_run_without_a_recorded_clock_cannot_win (test_table.TimedRunSelectionTests.test_a_run_without_a_recorded_clock_cannot_win)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/alexispurslane/.t3/worktrees/tertius/ter-dzxf-walk-hill-climb/tools/walk-hill-climb/test_table.py", line 16, in test_a_run_without_a_recorded_clock_cannot_win
+    self.assertEqual(select_runs([sample]), [])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [{'label': 'unknown', 'times': [3.0], 'gpu[50 chars]rue}] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+{'label': 'unknown', 'times': [3.0], 'gpuClock': {'unknown': 'no samples'}, 'gatePassed': True}
+
++ []
+- [{'gatePassed': True,
+-   'gpuClock': {'unknown': 'no samples'},
+-   'label': 'unknown',
+-   'times': [3.0]}]
+
+======================================================================
+FAIL: test_a_slow_contended_run_does_not_set_the_spread (test_table.TimedRunSelectionTests.test_a_slow_contended_run_does_not_set_the_spread)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/alexispurslane/.t3/worktrees/tertius/ter-dzxf-walk-hill-climb/tools/walk-hill-climb/test_table.py", line 23, in test_a_slow_contended_run_does_not_set_the_spread
+    self.assertEqual([sample["label"] for sample in select_runs(samples)], ["fast", "near"])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['slow', 'fast', 'near'] != ['fast', 'near']
+
+First differing element 0:
+'slow'
+'fast'
+
+First list contains 1 additional elements.
+First extra element 2:
+'near'
+
+- ['slow', 'fast', 'near']
+?  --------
+
++ ['fast', 'near']
+
+======================================================================
+FAIL: test_one_changed_ray_rejects_the_variant_even_if_its_other_round_is_fast (test_table.TimedRunSelectionTests.test_one_changed_ray_rejects_the_variant_even_if_its_other_round_is_fast)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/alexispurslane/.t3/worktrees/tertius/ter-dzxf-walk-hill-climb/tools/walk-hill-climb/test_table.py", line 26, in test_one_changed_ray_rejects_the_variant_even_if_its_other_round_is_fast
+    self.assertEqual(select_runs([measurement("correct"), measurement("wrong", gate=False)]), [])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [{'label': 'correct', 'times': [3.0], 'gpu[134 chars]lse}] != []
+
+First list contains 2 additional elements.
+First extra element 0:
+{'label': 'correct', 'times': [3.0], 'gpuClock': {'meanMhz': 1296.0}, 'gatePassed': True}
+
++ []
+- [{'gatePassed': True,
+-   'gpuClock': {'meanMhz': 1296.0},
+-   'label': 'correct',
+-   'times': [3.0]},
+-  {'gatePassed': False,
+-   'gpuClock': {'meanMhz': 1296.0},
+-   'label': 'wrong',
+-   'times': [3.0]}]
+
+----------------------------------------------------------------------
+Ran 5 tests in 0.001s
+
+FAILED (failures=4)
+
+===== tools-green.log =====
+..............
+----------------------------------------------------------------------
+Ran 14 tests in 0.000s
+
+OK
+
+===== gate-cap-red.log =====
+F......F....F.....
+======================================================================
+FAIL: test_a_changed_step_count_keeps_an_identical_hit (test_gate.ExactGateTests.test_a_changed_step_count_keeps_an_identical_hit)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/alexispurslane/.t3/worktrees/tertius/ter-dzxf-walk-hill-climb/tools/walk-hill-climb/test_gate.py", line 38, in test_a_changed_step_count_keeps_an_identical_hit
+    self.assertEqual(result["differences"], [])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [{'slot': 0, 'reason': 'step count'}] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+{'slot': 0, 'reason': 'step count'}
+
+- [{'reason': 'step count', 'slot': 0}]
++ []
+
+======================================================================
+FAIL: test_a_lower_cap_requires_verified_reference_step_counts (test_gate.ExactGateTests.test_a_lower_cap_requires_verified_reference_step_counts)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/alexispurslane/.t3/worktrees/tertius/ter-dzxf-walk-hill-climb/tools/walk-hill-climb/test_gate.py", line 53, in test_a_lower_cap_requires_verified_reference_step_counts
+    with self.assertRaises(ValueError):
+         ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_the_lower_cap_excludes_a_reference_hit_after_the_cap (test_gate.ExactGateTests.test_the_lower_cap_excludes_a_reference_hit_after_the_cap)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/alexispurslane/.t3/worktrees/tertius/ter-dzxf-walk-hill-climb/tools/walk-hill-climb/test_gate.py", line 42, in test_the_lower_cap_excludes_a_reference_hit_after_the_cap
+    self.assertEqual(result["differences"], [])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [{'slot': 0, 'reason': 'hit kind'}] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+{'slot': 0, 'reason': 'hit kind'}
+
+- [{'reason': 'hit kind', 'slot': 0}]
++ []
+
+----------------------------------------------------------------------
+Ran 18 tests in 0.001s
+
+FAILED (failures=3)
+
+===== gate-cap-green.log =====
+..................
+----------------------------------------------------------------------
+Ran 18 tests in 0.001s
+
+OK
+
+===== native-red.log =====
+Running tests from /Users/alexispurslane/.t3/worktrees/tertius/ter-dzxf-walk-hill-climb/tests/Tertius.Rendering.Tests/bin/Release/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64)
+failed Tertius.Rendering.Tests.SolShaderModuleTests.AMacModuleCarriesTheMetalSourceAsANulTerminatedPayload (69ms)
+  from /Users/alexispurslane/.t3/worktrees/tertius/ter-dzxf-walk-hill-climb/tests/Tertius.Rendering.Tests/bin/Release/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64)
+  Expected BinaryPrimitives.ReadUInt32LittleEndian(code) to be 429261842u, but found 119734787u (difference of -309527055).
+    at AwesomeAssertions.Execution.LateBoundTestFramework.Throw(String message)
+    at AwesomeAssertions.Numeric.NumericAssertionsBase`3.Be(T expected, String because, Object[] becauseArgs)
+    at Tertius.Rendering.Tests.SolShaderModuleTests.AMacModuleCarriesTheMetalSourceAsANulTerminatedPayload() in /Users/alexispurslane/.t3/worktrees/tertius/ter-dzxf-walk-hill-climb/tests/Tertius.Rendering.Tests/SolShaderModuleTests.cs:14
+    at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+    at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+failed Tertius.Rendering.Tests.SolShaderModuleTests.AMetalSourceModuleKeepsWholeUintWordsEvenWithAnOddSourceLength (9ms)
+  from /Users/alexispurslane/.t3/worktrees/tertius/ter-dzxf-walk-hill-climb/tests/Tertius.Rendering.Tests/bin/Release/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64)
+  Expected code to be equal to {0x12, 0x04, 0x96, 0x19, 0x61, 0x62, 0x63, 0x00}, but {0x03, 0x02, 0x23, 0x07} contains 4 item(s) less.
+    at AwesomeAssertions.Execution.LateBoundTestFramework.Throw(String message)
+    at AwesomeAssertions.Execution.GivenSelector`1.FailWith(String message, Func`2[] args)
+    at AwesomeAssertions.Execution.GivenSelectorExtensions.AssertCollectionsHaveSameCount[T](GivenSelector`1 givenSelector, Int32 length)
+    at AwesomeAssertions.Collections.GenericCollectionAssertions`3.<>c__DisplayClass104_0`1.<AssertSubjectEquality>b__0(AssertionChain chain)
+    at AwesomeAssertions.Execution.AssertionChain.WithExpectation(String message, Action`1 chain, Object[] args)
+    at AwesomeAssertions.Collections.GenericCollectionAssertions`3.AssertSubjectEquality[TExpectation](IEnumerable`1 expectation, Func`3 equalityComparison, String because, Object[] becauseArgs)
+    at AwesomeAssertions.Collections.GenericCollectionAssertions`3.Equal(T[] elements)
+    at Tertius.Rendering.Tests.SolShaderModuleTests.AMetalSourceModuleKeepsWholeUintWordsEvenWithAnOddSourceLength() in /Users/alexispurslane/.t3/worktrees/tertius/ter-dzxf-walk-hill-climb/tests/Tertius.Rendering.Tests/SolShaderModuleTests.cs:37
+    at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+    at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+/Users/alexispurslane/.t3/worktrees/tertius/ter-dzxf-walk-hill-climb/tests/Tertius.Rendering.Tests/bin/Release/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64) failed with 2 error(s) [+2/x2/?0] (829ms)
+Exit code: 2
+
+Test run summary: Failed!
+  total: 4
+  failed: 2
+  succeeded: 2
+  skipped: 0
+  duration: 1s 255ms
+Test run completed with non-success exit code: 2 (see: https://aka.ms/testingplatform/exitcodes)
+
+===== native-green.log =====
+Running tests from /Users/alexispurslane/.t3/worktrees/tertius/ter-dzxf-walk-hill-climb/tests/Tertius.Rendering.Tests/bin/Release/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64)
+/Users/alexispurslane/.t3/worktrees/tertius/ter-dzxf-walk-hill-climb/tests/Tertius.Rendering.Tests/bin/Release/net11.0/Tertius.Rendering.Tests.dll (net11.0|arm64) passed [+4/x0/?0] (731ms)
+
+Test run summary: Passed!
+  total: 4
+  failed: 0
+  succeeded: 4
+  skipped: 0
+  duration: 1s 097ms
+
+===== table-native-red.log =====
+.............E.....
+======================================================================
+ERROR: test_a_native_round_keeps_its_timing_without_a_spirv_translation (test_table.TimedRunSelectionTests.test_a_native_round_keeps_its_timing_without_a_spirv_translation)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/alexispurslane/.t3/worktrees/tertius/ter-dzxf-walk-hill-climb/tools/walk-hill-climb/test_table.py", line 45, in test_a_native_round_keeps_its_timing_without_a_spirv_translation
+    rows = collect([stage])
+  File "/Users/alexispurslane/.t3/worktrees/tertius/ter-dzxf-walk-hill-climb/tools/walk-hill-climb/table.py", line 34, in collect
+    run["loopReads"] = (path.parent / "loop-reads.txt").read_text().splitlines()[-1]
+                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^
+IndexError: list index out of range
+
+----------------------------------------------------------------------
+Ran 19 tests in 0.003s
+
+FAILED (errors=1)
+
+===== table-native-green.log =====
+...................
+----------------------------------------------------------------------
+Ran 19 tests in 0.003s
+
+OK
+
+===== order-red.log =====
+FFFF
+======================================================================
+FAIL: test_a_projected_length_key_needs_no_future_step_counts (test_order.RayOrderingTests.test_a_projected_length_key_needs_no_future_step_counts)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/alexispurslane/.t3/worktrees/tertius/ter-dzxf-walk-hill-climb/tools/walk-hill-climb/test_order.py", line 34, in test_a_projected_length_key_needs_no_future_step_counts
+    self.assertEqual(permutation, [2, 0, 3, 1])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [0, 1, 2, 3] != [2, 0, 3, 1]
+
+First differing element 0:
+0
+2
+
+- [0, 1, 2, 3]
++ [2, 0, 3, 1]
+
+======================================================================
+FAIL: test_ordering_rejects_a_missing_reference_instead_of_losing_a_ray (test_order.RayOrderingTests.test_ordering_rejects_a_missing_reference_instead_of_losing_a_ray)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/alexispurslane/.t3/worktrees/tertius/ter-dzxf-walk-hill-climb/tools/walk-hill-climb/test_order.py", line 39, in test_ordering_rejects_a_missing_reference_instead_of_losing_a_ray
+    with self.assertRaises(ValueError):
+         ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_the_oracle_groups_long_walks_before_short_walks_and_inactive_slots (test_order.RayOrderingTests.test_the_oracle_groups_long_walks_before_short_walks_and_inactive_slots)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/alexispurslane/.t3/worktrees/tertius/ter-dzxf-walk-hill-climb/tools/walk-hill-climb/test_order.py", line 28, in test_the_oracle_groups_long_walks_before_short_walks_and_inactive_slots
+    self.assertEqual(permutation, [2, 0, 3, 1])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [0, 1, 2, 3] != [2, 0, 3, 1]
+
+First differing element 0:
+0
+2
+
+- [0, 1, 2, 3]
++ [2, 0, 3, 1]
+
+======================================================================
+FAIL: test_the_oracle_requires_one_verified_step_count_for_every_slot (test_order.RayOrderingTests.test_the_oracle_requires_one_verified_step_count_for_every_slot)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/alexispurslane/.t3/worktrees/tertius/ter-dzxf-walk-hill-climb/tools/walk-hill-climb/test_order.py", line 43, in test_the_oracle_requires_one_verified_step_count_for_every_slot
+    with self.assertRaises(ValueError):
+         ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.001s
+
+FAILED (failures=4)
+
+===== order-green.log =====
+.......................
+----------------------------------------------------------------------
+Ran 23 tests in 0.003s
+
+OK
+
+
+===== cap62-split-red.log =====
+r1 deck-10 split-cap+cap62: waiting for GPU lock
+GATE FAILED: /private/tmp/ter-dzxf.vv9W25/cap62-split-red/r1/deck-10/split-cap+cap62
+median 5.377349 ms; {'meanMhz': 1290.755862283896, 'p10Mhz': 1296.0, 'p90Mhz': 1296.0, 'samples': 61}; gate False
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    import json; from pathlib import Path; result = json.loads(Path("/private/tmp/ter-dzxf.vv9W25/cap62-split-red/r1/deck-10/split-cap+cap62/measurement.json").read_text()); assert result["gatePassed"], "the split constant-cap probe must preserve cap-62 hit identity"
+                                                                                                                                                                                     ~~~~~~^^^^^^^^^^^^^^
+AssertionError: the split constant-cap probe must preserve cap-62 hit identity
+
+===== cap62-split-green.log =====
+r1 deck-10 split-cap+cap62: waiting for GPU lock
+median 3.826614 ms; {'meanMhz': 1284.291848617176, 'p10Mhz': 1296.0, 'p90Mhz': 1296.0, 'samples': 44}; gate True
+
+===== final-python.log =====
+.......................
+----------------------------------------------------------------------
+Ran 23 tests in 0.003s
+
+OK

@@ -1,0 +1,453 @@
+[
+  {
+    "variant": "baseline",
+    "validated": true,
+    "capabilities": [
+      "Shader"
+    ],
+    "spirvSha256": "8e0e4d7c70c459b4776a620e834971848131cca549faa63df1992d4e965be153"
+  },
+  {
+    "variant": "baseline+cap62",
+    "validated": true,
+    "capabilities": [
+      "Shader"
+    ],
+    "spirvSha256": "16c874ade30dd8f00ae4c848aaf24ec819b24407735d51e8f32adbccc0f7ac81"
+  },
+  {
+    "variant": "bounds-predicate+loop-predicate+facing",
+    "validated": true,
+    "capabilities": [
+      "Shader"
+    ],
+    "spirvSha256": "e2dca277d507bf6cf7f4d9a89a6752c42f39df8fc5ab824fa86f26e4d13287c3"
+  },
+  {
+    "variant": "bounds-predicate+loop-predicate+facing+cap62",
+    "validated": true,
+    "capabilities": [
+      "Shader"
+    ],
+    "spirvSha256": "2b766c3289adedfb917a50b0dbbbaf5d318054ac84adb877d47e7d87ef22d356"
+  },
+  {
+    "variant": "coherent",
+    "validated": true,
+    "capabilities": [
+      "Shader",
+      "GroupNonUniform",
+      "GroupNonUniformVote"
+    ],
+    "spirvSha256": "5c07486e1442219cf0651bd47ab82540e7d3c7a81ba80a990cbc2db2d66307db"
+  },
+  {
+    "variant": "facing",
+    "validated": true,
+    "capabilities": [
+      "Shader"
+    ],
+    "spirvSha256": "3fa2fd7543924a50b681b462fae148224554341995b2686495dab88017d08a03"
+  },
+  {
+    "variant": "fold-slab",
+    "validated": true,
+    "capabilities": [
+      "Shader"
+    ],
+    "spirvSha256": "0f3053b42df112ae7dc0df60a0699b8973e874a61266c8c4ac36462c073af4e5"
+  },
+  {
+    "variant": "live",
+    "validated": true,
+    "capabilities": [
+      "Shader"
+    ],
+    "spirvSha256": "301d351eb9e8b9f1f7fb7581981915f6ee3436ed47eb5747b006408b840e7e4b"
+  },
+  {
+    "variant": "loop-predicate",
+    "validated": true,
+    "capabilities": [
+      "Shader"
+    ],
+    "spirvSha256": "940b053e77abd3cae64097132ea2b4fc3fa68039ecfafe668473e87050b0f494"
+  },
+  {
+    "variant": "mask2",
+    "validated": true,
+    "capabilities": [
+      "Shader"
+    ],
+    "spirvSha256": "c2ccc51cb00839abdcab64148ae334d1257c5b6a7fd22a6a5cb9713a9048db33"
+  },
+  {
+    "variant": "mask4",
+    "validated": true,
+    "capabilities": [
+      "Shader"
+    ],
+    "spirvSha256": "c91b967c8488c8275737edc62389ed24315148a348fc3a701961002eb92a3aa9"
+  },
+  {
+    "variant": "one-image",
+    "validated": true,
+    "capabilities": [
+      "Shader"
+    ],
+    "spirvSha256": "107f6d6884f8da36b2eddecae5d0c940bc17432506e51f7351df21077a3b325b"
+  },
+  {
+    "variant": "one-image+bounds-predicate",
+    "validated": true,
+    "capabilities": [
+      "Shader"
+    ],
+    "spirvSha256": "49b8a6c0410161040beaace9d59e94eb6567b62259845c6ae8b6fb6c9a1dd8a2"
+  },
+  {
+    "variant": "one-image+bounds-predicate+fixed-state",
+    "validated": true,
+    "capabilities": [
+      "Shader"
+    ],
+    "spirvSha256": "ea8aa0c38c469dcf31d0653dc94bde2ea44ac5b193e9d0771c832f1bfdfded7e"
+  },
+  {
+    "variant": "one-image+bounds-predicate+flat-blocks",
+    "validated": true,
+    "capabilities": [
+      "Shader"
+    ],
+    "spirvSha256": "2d6966db0d660406f6a41d685972ba4c1eba5d3f3c3e704bce879319111b3600"
+  },
+  {
+    "variant": "one-image+bounds-predicate+for-loop",
+    "validated": true,
+    "capabilities": [
+      "Shader"
+    ],
+    "spirvSha256": "d380c1a8235091f22b833bcf19b61748c57f4ecebf40309e905fedfe7801d66b"
+  },
+  {
+    "variant": "one-image+bounds-predicate+initial-miss",
+    "validated": true,
+    "capabilities": [
+      "Shader"
+    ],
+    "spirvSha256": "2e14773e6a3c30fe5c0d2f9b74822747f450491916bd67f780957a0aa6117b8a"
+  },
+  {
+    "variant": "one-image+bounds-predicate+inline-step",
+    "validated": true,
+    "capabilities": [
+      "Shader"
+    ],
+    "spirvSha256": "c931de5e589574ab6c24ecbce746500d9ecc5e8625b06b9fd66cd3a81babf8ff"
+  },
+  {
+    "variant": "one-image+bounds-predicate+inline-step+for-loop",
+    "validated": true,
+    "capabilities": [
+      "Shader"
+    ],
+    "spirvSha256": "c76017186ad9febc74b274cb0035d87bc95c8a9159edff39a79a07feba48cdbc"
+  },
+  {
+    "variant": "one-image+bounds-predicate+level-table",
+    "validated": true,
+    "capabilities": [
+      "Shader"
+    ],
+    "spirvSha256": "ecaccfe4c91a8af1a166db397c3baf377dc652ddcdffdec9715233ef4e56b876"
+  },
+  {
+    "variant": "one-image+bounds-predicate+local-result",
+    "validated": true,
+    "capabilities": [
+      "Shader"
+    ],
+    "spirvSha256": "41844c757ffc6ad9c72d8d080f4d682fef85853fdcfcc63ddfc473d5def70676"
+  },
+  {
+    "variant": "one-image+bounds-predicate+loop-end",
+    "validated": true,
+    "capabilities": [
+      "Shader"
+    ],
+    "spirvSha256": "567b4a0fb606bd51ca5e231ab84332d92bf31a03ccaddf9008e7a9ae1aed6a10"
+  },
+  {
+    "variant": "one-image+bounds-predicate+loop-predicate",
+    "validated": true,
+    "capabilities": [
+      "Shader"
+    ],
+    "spirvSha256": "dff88c5d800e10da86978a1781f0be44730657a0b8b196fc60d85c2aeb62f0ef"
+  },
+  {
+    "variant": "one-image+bounds-predicate+loop-predicate+facing",
+    "validated": true,
+    "capabilities": [
+      "Shader"
+    ],
+    "spirvSha256": "0e0e8aadff8de7f75dd01bea49dac587ef561a14e5ba4fd383d666e59068f678"
+  },
+  {
+    "variant": "one-image+bounds-predicate+loop-predicate+facing+cap62",
+    "validated": true,
+    "capabilities": [
+      "Shader"
+    ],
+    "spirvSha256": "cc740f100a67ce3f76d7db204e563174ecf724101e0fdea3baba5035079a7b6a"
+  },
+  {
+    "variant": "one-image+bounds-predicate+loop-predicate+facing+edge-select",
+    "validated": true,
+    "capabilities": [
+      "Shader"
+    ],
+    "spirvSha256": "1e0227d199d437e455c4767b1f8402ef5160de0c2a680090175568354d26c71e"
+  },
+  {
+    "variant": "one-image+bounds-predicate+loop-predicate+facing+flat-blocks",
+    "validated": true,
+    "capabilities": [
+      "Shader"
+    ],
+    "spirvSha256": "9ff22126c71eab565e14a6e2d09218b3fa1db186bbeea53e990cf15462c5efcc"
+  },
+  {
+    "variant": "one-image+bounds-predicate+loop-predicate+facing+pair",
+    "validated": true,
+    "capabilities": [
+      "Shader"
+    ],
+    "spirvSha256": "e4a6d81f4552cbeb651375e789075889d1ca66a0b3c657bd03b48c1a0e37f133"
+  },
+  {
+    "variant": "one-image+bounds-predicate+loop-predicate+facing+slab-predicate",
+    "validated": true,
+    "capabilities": [
+      "Shader"
+    ],
+    "spirvSha256": "c3cb06c5ab5f24ec637d1b553b50c8da412b5732c961f416aa0a2e362b46e569"
+  },
+  {
+    "variant": "one-image+bounds-predicate+loop-predicate+facing+slab-select",
+    "validated": true,
+    "capabilities": [
+      "Shader"
+    ],
+    "spirvSha256": "c21217134262e3d4802a49e9e9238b590edeb47599f101de6120ca5ac7aa9f6e"
+  },
+  {
+    "variant": "one-image+bounds-predicate+loop-predicate+inline-step",
+    "validated": true,
+    "capabilities": [
+      "Shader"
+    ],
+    "spirvSha256": "65eeec3c35379f9fc4cf762dd4566160903e806d25e4158e7e13db71277428a6"
+  },
+  {
+    "variant": "one-image+bounds-predicate+loop-predicate+live",
+    "validated": true,
+    "capabilities": [
+      "Shader"
+    ],
+    "spirvSha256": "a8b54f4aaa9ca193063656cc394ed822a4453cb4967efd0cee841cf9c1a166a5"
+  },
+  {
+    "variant": "one-image+bounds-predicate+metal",
+    "validated": true,
+    "capabilities": [
+      "Shader"
+    ],
+    "spirvSha256": "49b8a6c0410161040beaace9d59e94eb6567b62259845c6ae8b6fb6c9a1dd8a2"
+  },
+  {
+    "variant": "one-image+bounds-predicate+slab-predicate",
+    "validated": true,
+    "capabilities": [
+      "Shader"
+    ],
+    "spirvSha256": "af4cec256c48992236626d4ab2480e7391a5e52a64ee7688ca2f126f7ca1fc6f"
+  },
+  {
+    "variant": "one-image+bounds-predicate+split-cap",
+    "validated": true,
+    "capabilities": [
+      "Shader"
+    ],
+    "spirvSha256": "4285d1c83be9a9709cccf5391e430a5a23c99cb3a1fdbbd4130c038030fd2e26"
+  },
+  {
+    "variant": "one-image+bounds-predicate+u2+loop-predicate+facing",
+    "validated": true,
+    "capabilities": [
+      "Shader"
+    ],
+    "spirvSha256": "f1fdac4c20f2a23a4b053eec6596c770763a2954a1decec8293cf6515c8a8969"
+  },
+  {
+    "variant": "one-image+bounds-predicate+u2+loop-predicate+facing+cap62",
+    "validated": true,
+    "capabilities": [
+      "Shader"
+    ],
+    "spirvSha256": "523a4ad15ffc9e41eaedae7a96f835e12da888ae1d88ead3e51189dfbe0e4603"
+  },
+  {
+    "variant": "one-image+bounds-predicate+u4+loop-predicate+facing",
+    "validated": true,
+    "capabilities": [
+      "Shader"
+    ],
+    "spirvSha256": "1e844c7caaf7af49d63a8e330f8e167a4cce9bdbc98f58fef13c5730ae28deab"
+  },
+  {
+    "variant": "one-image+bounds-predicate+u4+loop-predicate+facing+cap62",
+    "validated": true,
+    "capabilities": [
+      "Shader"
+    ],
+    "spirvSha256": "00cfac276e32ee8b991a8fc4a36add139993a2c107b469307054ba0779d38b95"
+  },
+  {
+    "variant": "one-image+edge-select",
+    "validated": true,
+    "capabilities": [
+      "Shader"
+    ],
+    "spirvSha256": "0da6ef28af73fc35d04b67fa82a3c997da6108a6500d25a355d1a2c3651decf9"
+  },
+  {
+    "variant": "one-image+facing+metal",
+    "validated": true,
+    "capabilities": [
+      "Shader"
+    ],
+    "spirvSha256": "a240184036bbeec5840a7f51c692a0f214cf6953c2382847946901226f47b803"
+  },
+  {
+    "variant": "one-image+facing+metal+cap62",
+    "validated": true,
+    "capabilities": [
+      "Shader"
+    ],
+    "spirvSha256": "1d729ce6042e10d18a71a59eca7bde5540e2bebc99722b82e54356a6c63c1bbf"
+  },
+  {
+    "variant": "one-image+fma",
+    "validated": true,
+    "capabilities": [
+      "Shader"
+    ],
+    "spirvSha256": "c71225aba1edb80a9af1a0d0e9469536fe7fcce23c1d06fdc15e8ad83d7e1b4b"
+  },
+  {
+    "variant": "one-image+int-bounds",
+    "validated": true,
+    "capabilities": [
+      "Shader"
+    ],
+    "spirvSha256": "e7f0eb179495db07f8c0771c36f9fc602f03353867cc67e43d4e566cf1ba61a1"
+  },
+  {
+    "variant": "one-image+loop-predicate",
+    "validated": true,
+    "capabilities": [
+      "Shader"
+    ],
+    "spirvSha256": "b02ae99b977dc5502b85d35692e1dd9ca790b24908ba88e668b039ae782ac102"
+  },
+  {
+    "variant": "one-image+slab-select",
+    "validated": true,
+    "capabilities": [
+      "Shader"
+    ],
+    "spirvSha256": "617143b15844dc792eecbed9e3dc22e52ea33b96591915922c626f85bc11abea"
+  },
+  {
+    "variant": "ray-state",
+    "validated": true,
+    "capabilities": [
+      "Shader",
+      "ImageQuery"
+    ],
+    "spirvSha256": "2dd7e539af2a066f5f589a2c02da1e0aebfc36c8df31d6dca37f76c0f4eca8f9"
+  },
+  {
+    "variant": "split-cap+cap62",
+    "validated": true,
+    "capabilities": [
+      "Shader"
+    ],
+    "spirvSha256": "78bd3efa695b717c2b6dc513cd5baf94906007b9c7d22163d03502238825a472"
+  },
+  {
+    "variant": "step-predicates",
+    "validated": true,
+    "capabilities": [
+      "Shader"
+    ],
+    "spirvSha256": "546d2609af1a0c13a832450b2813304bf90d7a14d3e64f05ddf916575a7d6bd1"
+  },
+  {
+    "variant": "trace-caller",
+    "validated": true,
+    "capabilities": [
+      "Shader",
+      "GroupNonUniform",
+      "GroupNonUniformBallot"
+    ],
+    "spirvSha256": "82090aefb19b2419936e89ecf802106cfa6aa1c1a545a39a6f3c9044aad4fe57"
+  },
+  {
+    "variant": "trace-caller+frozen",
+    "validated": true,
+    "capabilities": [
+      "Shader",
+      "GroupNonUniform",
+      "GroupNonUniformBallot"
+    ],
+    "spirvSha256": "66608ba3490385fdf4e3ebe29907529b3814ea2df7396260b1219d3b6b5aad29"
+  },
+  {
+    "variant": "trace-caller+no-v1",
+    "validated": true,
+    "capabilities": [
+      "Shader",
+      "GroupNonUniform",
+      "GroupNonUniformBallot"
+    ],
+    "spirvSha256": "bf92ec8916a653e0f2b6af849bde2789abdf87d982a368591ff982c1588e6952"
+  },
+  {
+    "variant": "trace-caller+no-vote",
+    "validated": true,
+    "capabilities": [
+      "Shader",
+      "GroupNonUniform",
+      "GroupNonUniformBallot"
+    ],
+    "spirvSha256": "5bd4e29a30ae9bad839584b9c850c6c57f068207b5d10f7c1f2f34ac263f33fb"
+  },
+  {
+    "variant": "u2",
+    "validated": true,
+    "capabilities": [
+      "Shader"
+    ],
+    "spirvSha256": "ae62e8a490c91ab8d8c9fc6cd22f13a7fcd7fb1e7b3d83221bb6667bea55cf01"
+  },
+  {
+    "variant": "u4",
+    "validated": true,
+    "capabilities": [
+      "Shader"
+    ],
+    "spirvSha256": "cf4b4175c6055224ca0a96e65be2c9542eb30ac845c122885dc8b68b6cfc6e4b"
+  }
+]
