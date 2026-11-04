@@ -151,11 +151,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             ShaderLibrary shaders = Own(new ShaderLibrary(device, ShaderLibrary.EngineShaders));
 
             layouts = Own(
-                new DescriptorLayouts(
-                    device: device,
-                    framesInFlight: options.FramesInFlight,
-                    glowLevels: GlowLevelsOf(options.Bloom)
-                )
+                new DescriptorLayouts(device, options.FramesInFlight, glowLevels: GlowLevelsOf(options.Bloom))
             );
             output = Own(createOutput(device, Allocator));
             geometry = Own(new GeometryStore(device, Allocator));
@@ -347,6 +343,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
     private static void CheckOptions(RendererOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
+        CheckSizes(options);
         CheckCounts(options);
         if (!Enum.IsDefined(options.ToneCurve))
             throw new ArgumentOutOfRangeException(nameof(options), $"ToneCurve {options.ToneCurve} is not a curve.");
@@ -359,8 +356,10 @@ public sealed unsafe class VulkanRenderer : IRenderer
             );
     }
 
-    /// <summary>Refuses a count or a size of <paramref name="options"/> outside its range.</summary>
-    private static void CheckCounts(RendererOptions options)
+    /// <summary>
+    /// Refuses a size of <paramref name="options"/> outside its range: the frames in flight, the screen and the shadow map.
+    /// </summary>
+    private static void CheckSizes(RendererOptions options)
     {
         if (options.FramesInFlight is < 1 or > 4)
             throw new ArgumentOutOfRangeException(nameof(options), "FramesInFlight must be 1 to 4.");
@@ -371,6 +370,14 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 nameof(options),
                 $"ShadowMapSize must be at least {ShadowMap.MinimumSize}."
             );
+    }
+
+    /// <summary>
+    /// Refuses a count of <paramref name="options"/> outside its range: the cascaded lights, the impostor tiles and the
+    /// warm-up draws.
+    /// </summary>
+    private static void CheckCounts(RendererOptions options)
+    {
         if (options.CascadedLights is < 0 or > RendererOptions.MaxCascadedLights)
             throw new ArgumentOutOfRangeException(
                 nameof(options),

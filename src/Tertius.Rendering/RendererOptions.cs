@@ -89,7 +89,10 @@ public sealed class RendererOptions
     /// </summary>
     public int WarmUpFrames { get; set; } = DefaultWarmUpFrames;
 
-    /// <summary>The default of <see cref="WarmUpFrames"/>.</summary>
+    /// <summary>
+    /// The warm-up draws of a still unless the options give another count: the design's count
+    /// (docs/plans/temporal-renderer.md, section 10, "The still rule").
+    /// </summary>
     public const int DefaultWarmUpFrames = 32;
 
     /// <summary>The most warm-up draws: far past the signals' longest history, it bounds the time of a still.</summary>
