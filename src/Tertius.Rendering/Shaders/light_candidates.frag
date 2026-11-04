@@ -8,7 +8,6 @@
 #include "restir.glsl"
 #include "reservoirs.glsl"
 
-layout(location = 0) in vec3 inRay;
 layout(location = 0) out uvec2 outReservoir;
 
 // The cap of M of the last frame's reservoir: 20 times the candidates.
@@ -57,7 +56,7 @@ void main()
         return;
     }
 
-    ResampledSurface surface = resampledSurfaceAt(pixel, normalize(inRay), distanceToEye);
+    ResampledSurface surface = resampledSurfaceAt(pixel);
     RandomStream random = randomStream(pixel, CandidatesStream);
     Combining c = startCombining();
 

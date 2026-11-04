@@ -75,8 +75,8 @@ public sealed class DirectLightBiasMeasurement
             ? path
             : throw new InvalidOperationException($"Set {Variable} to the file of the report.");
         var report = new StringBuilder();
-        report.AppendLine("| View | Pixels | Bias | History error | Sample error |");
-        report.AppendLine("|---|---:|---:|---:|---:|");
+        report.AppendLine("| View | Pixels | Bias | History error | Sample error | Sample bias |");
+        report.AppendLine("|---|---:|---:|---:|---:|---:|");
         foreach ((string script, string capture, string view) in Views)
         {
             DirectView exact = DirectLightViews.Measure(
@@ -96,7 +96,7 @@ public sealed class DirectLightBiasMeasurement
             DirectError error = DirectError.Of(exact, resampled);
             report.AppendLine(
                 CultureInfo.InvariantCulture,
-                $"| {view} | {error.Pixels} | {error.Bias:+0.0000;-0.0000} | {error.HistoryError:0.0000} | {error.SampleError:0.0000} |"
+                $"| {view} | {error.Pixels} | {error.Bias:+0.0000;-0.0000} | {error.HistoryError:0.0000} | {error.SampleError:0.0000} | {error.SampleBias:+0.0000;-0.0000} |"
             );
         }
 

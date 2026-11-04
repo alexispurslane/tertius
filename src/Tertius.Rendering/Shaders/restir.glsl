@@ -184,12 +184,16 @@ struct ResampledSurface
     bool tinted;
 };
 
-ResampledSurface resampledSurfaceAt(ivec2 pixel, vec3 direction, float distanceToEye)
+// The surface of a lit pixel of the G-buffer. Every pass that reads a pixel's surface builds it here, from the ray through
+// the pixel's center: the candidates pass for its own pixel, and the direct pass for its own pixel and for its neighbors.
+// So a light's p̂' at a neighbor's surface in the test of Z is the p̂' that the neighbor's candidates pass saw.
+ResampledSurface resampledSurfaceAt(ivec2 pixel)
 {
+    vec3 direction = normalize(viewRayThrough(vec2(pixel) + 0.5));
     ResampledSurface surface;
     surface.s = materialAt(pixel);
     surface.V = -direction;
-    surface.position = direction * distanceToEye;
+    surface.position = direction * texelFetch(gbufferDistance, pixel, 0).r;
     surface.lobes = lobesOf(surface.s, surface.V);
     surface.fiber = !dropsFibers && surface.s.model == ShadingHair;
     surface.tinted = frame.counts.y != NoAirSun;

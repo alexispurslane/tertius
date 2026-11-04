@@ -38,13 +38,6 @@ ivec2 neighborPlace(ivec2 pixel, uint i, float turn, inout RandomStream places)
     return clamp(pixel + ivec2(round(offset)), ivec2(0), textureSize(gbufferDistance, 0) - 1);
 }
 
-// The surface of another pixel of the G-buffer, as the candidates pass saw it there.
-ResampledSurface surfaceAtPixel(ivec2 pixel)
-{
-    vec3 direction = normalize(viewRayThrough(vec2(pixel) + 0.5));
-    return resampledSurfaceAt(pixel, direction, texelFetch(gbufferDistance, pixel, 0).r);
-}
-
 // The light of a reused reservoir's choice at the surface with its shadows, or none for a reservoir without a choice.
 DirectTerms reusedLight(Reservoir r, ResampledSurface surface)
 {
@@ -98,7 +91,8 @@ Reservoir spatialReuse(ivec2 pixel, ResampledSurface surface, inout RandomStream
         taken |= 1u << i;
     }
 
-    // Z: a visibility test of the kept light at the surface of each neighbor whose own choice is another light.
+    // Z: a visibility test of the kept light at the surface of each taken neighbor whose reservoir does not hold it, also
+    // one without a choice, since such a reservoir still stands for M candidates over the lights that its surface sees.
     float Z = own.M;
     for (uint i = 0u; i < resampled.neighbors; i++)
     {
@@ -107,7 +101,7 @@ Reservoir spatialReuse(ivec2 pixel, ResampledSurface surface, inout RandomStream
             continue;
         Reservoir other = unpackReservoir(texelFetch(readReservoirs, neighbor, 0).xy);
         if ((holdsChoice(other) && other.light == c.r.light)
-            || visibleTarget(shadedLight(c.r.light, surfaceAtPixel(neighbor))) > 0.0)
+            || visibleTarget(shadedLight(c.r.light, resampledSurfaceAt(neighbor))) > 0.0)
             Z += other.M;
     }
     return finishCombining(c, Z);
@@ -128,7 +122,6 @@ void main()
     // A helper invocation of a 2 × 2 quad can lie past the image's last column or row when the size is odd, and a fetch
     // there is undefined, so every read stays inside the image.
     ivec2 pixel = min(ivec2(gl_FragCoord.xy), textureSize(gbufferDistance, 0) - 1);
-    vec3 direction = normalize(inRay);
     float distanceToEye = texelFetch(gbufferDistance, pixel, 0).r;
     // Sky and impostors: no direct light. An impostor's light, ambient light included, is baked into its emission.
     if (distanceToEye <= 0.0 || texelFetch(gbufferBaseColor, pixel, 0).a == 0.0)
@@ -137,14 +130,11 @@ void main()
         return;
     }
 
-    // The position comes from the ray and the stored distance, so it does not depend on the projection of the
-    // depth range that drew the pixel.
-    vec3 position = direction * distanceToEye;
-    vec3 V = -direction;
-    ShadingInput s = materialAt(pixel);
-    SurfaceLobes lobes = lobesOf(s, V);
 #ifdef RESAMPLED
-    ResampledSurface surface = resampledSurfaceAt(pixel, direction, distanceToEye);
+    // The pixel's surface as its candidates pass saw it, which the combine's weights and the factors share.
+    ResampledSurface surface = resampledSurfaceAt(pixel);
+    ShadingInput s = surface.s;
+    SurfaceLobes lobes = surface.lobes;
     RandomStream random = randomStream(pixel, DirectStream);
     DirectTerms chosen;
     Reservoir r = spatialReuse(pixel, surface, random, chosen);
@@ -166,6 +156,13 @@ void main()
     }
     outReservoir = packReservoir(r);
 #else
+    // The position comes from the ray and the stored distance, so it does not depend on the projection of the
+    // depth range that drew the pixel.
+    vec3 direction = normalize(inRay);
+    vec3 position = direction * distanceToEye;
+    vec3 V = -direction;
+    ShadingInput s = materialAt(pixel);
+    SurfaceLobes lobes = lobesOf(s, V);
     DirectTerms direct = directLight(s, lobes, position, V, ShadowMapsMainView, MainView);
 #endif
     MaterialFactors factors = materialFactors(s, lobes);

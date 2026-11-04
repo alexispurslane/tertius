@@ -85,8 +85,15 @@ internal sealed record DirectView(double[] History, double[] Sample);
 /// <param name="Bias">The relative error of the view's summed history: (Σ ReSTIR − Σ exact) / Σ exact.</param>
 /// <param name="HistoryError">The mean over the pixels of |ReSTIR − exact| / exact, of the accumulated histories.</param>
 /// <param name="SampleError">The same of a single draw's samples: the noise before the accumulation.</param>
+/// <param name="SampleBias">The relative error of the single draw's summed samples: the bias before the accumulation.</param>
 /// <param name="Pixels">The pixels compared.</param>
-internal readonly record struct DirectError(double Bias, double HistoryError, double SampleError, int Pixels)
+internal readonly record struct DirectError(
+    double Bias,
+    double HistoryError,
+    double SampleError,
+    double SampleBias,
+    int Pixels
+)
 {
     public static DirectError Of(DirectView exact, DirectView resampled)
     {
@@ -94,6 +101,8 @@ internal readonly record struct DirectError(double Bias, double HistoryError, do
         double floor = 1e-3 * mean;
         double exactSum = 0,
             resampledSum = 0,
+            exactSamples = 0,
+            resampledSamples = 0,
             historyError = 0,
             sampleError = 0;
         int pixels = 0;
@@ -104,6 +113,8 @@ internal readonly record struct DirectError(double Bias, double HistoryError, do
                 continue;
             exactSum += reference;
             resampledSum += resampled.History[pixel];
+            exactSamples += exact.Sample[pixel];
+            resampledSamples += resampled.Sample[pixel];
             historyError += Math.Abs(resampled.History[pixel] - reference) / reference;
             sampleError += Math.Abs(resampled.Sample[pixel] - exact.Sample[pixel]) / reference;
             pixels++;
@@ -113,6 +124,7 @@ internal readonly record struct DirectError(double Bias, double HistoryError, do
             Bias: (resampledSum - exactSum) / exactSum,
             HistoryError: historyError / pixels,
             SampleError: sampleError / pixels,
+            SampleBias: (resampledSamples - exactSamples) / exactSamples,
             Pixels: pixels
         );
     }
