@@ -60,7 +60,6 @@ internal readonly record struct ScreenRay(
     /// <summary>The parameter of a segment that no limit ends. Not infinity, as in the shader.</summary>
     private const float NoEnd = 1e30f;
 
-
     /// <summary>The image of the ray from origin along the unit direction, both in the camera-relative axes.</summary>
     /// <param name="origin">The ray's origin, camera-relative.</param>
     /// <param name="direction">The ray's unit direction.</param>
@@ -181,7 +180,9 @@ internal readonly record struct ScreenRay(
             bool meetsSlab = MeetsWalkSlab(near: near, back: back, inW: inW, outW: InverseDepthAt(exit));
 
             // GLSL's clamp, which never throws: exit can lie a rounding below s.
-            float entry = meetsSlab ? MathF.Min(MathF.Max(SlabEntry(s: s, inW: inW, low: back, high: near), s), exit) : s;
+            float entry = meetsSlab
+                ? MathF.Min(MathF.Max(SlabEntry(s: s, inW: inW, low: back, high: near), s), exit)
+                : s;
             if (meetsSlab && level > 0)
             {
                 level--;

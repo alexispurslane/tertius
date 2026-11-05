@@ -272,3 +272,228 @@ All final build, test and formatting commands ran through the Nix dev shell, one
 | Staged whitespace | Pass | 0 | Not applicable | `staged-whitespace.log` |
 
 The 21 remaining skips predate this continuation. No snapshot failed, changed or was re-approved. Coverage and mutation testing were not run; the parent owns those checks after visual acceptance. Completion of this fix stage is not a claim that the ticket is merged or that the earlier acceptance gaps are closed.
+
+### Real-deck history diagnosis, November 4, 2026
+
+Diagnostic only, from clean `aaa5e776c4b33b985ca1a7cf0b9caea008b30a60`. Artifacts, commands, masks, external probe patches, and full measurements: `/private/tmp/gayt-history-diagnosis/manifest.md` and `report.md`. No renderer-policy or tracked instrumentation changes.
+
+The real deck at 1280 by 720 and fixed exposure 1.57 reproduces the approved-A image byte-for-byte. Three interior roughness-0.38 paint masks contain 54,400 pixels. Observed draws 33–97 and 161–192 give 97 observations per pixel. A frozen continuation advances only its capture clock. Observed, unobserved-control, and external-probe screenshots match byte-for-byte at draws 65, 97, and 192.
+
+| Measurement | Floor-left | Floor-center | Wall |
+| --- | ---: | ---: | ---: |
+| Mean reflected slow length, frames | 16.414 | 16.486 | 16.460 |
+| At reflected maximum of 17.078 stored frames | 79.448% | 80.021% | 79.649% |
+| Reflection-motion candidate hit-distance rejection | 48.945% | 53.984% | 32.781% |
+| Actual reflected color changed by spatial limiter | 5.962% | 6.892% | 6.741% |
+| Diffuse share of linear-image variance, static draws 66–97 | 81.606% | 88.780% | 99.555% |
+| Display temporal standard deviation, draws 66–97 / 161–192, 0–255 code values | 1.318 / 1.289 | 1.098 / 1.082 | 1.573 / 1.541 |
+
+Surface-motion history remains valid at every measured pixel. Neither receiving-surface rejection, leaving the image, missing finite samples, nor failure of both candidates causes any history loss in these masks. The reflected-distance veto affects only its candidate. Fast effective length is 4 for both signals. Mean diffuse slow length is 31.66–31.83, with an unchanged maximum of 32. Short-history spatial repair runs in 0% of the observed transitions. An approximate replay that dims previous slow and fast light by 1% predicts final-history dimming of about 0.93% reflected and 0.96% diffuse. Stored length is therefore not the only evidence that old light survives.
+
+Supported explanation: noisy indirect samples, nearly all shared across 2 by 2 pixels, enter bounded temporal averages. The averages reduce but retain variance, and the steady-state short-history repair is inactive. Most measured linear-image variance is diffuse light. The limiter has a smaller measurable effect, not an established sole cause. A next narrow experiment is a display-space decomposition with one indirect signal held at its measured mean while replaying the other through unchanged post passes. No fix is selected or authorized.
+
+The real-deck recognizable-reflection criterion, moving-camera trail acceptance, changed-line coverage, mutation testing, and Linux-driver validation remain pending. Existing rare-emitter bias remains with `ter-18hc`; no new out-of-scope defect or duplicate ticket was established. The ticket stays open. No merge, push, commit, new implementation workflow, or whole-suite rerun occurred.
+
+## Parent scope reconciliation, 2026-11-05
+
+The branch implementation/fix notes and the pre-existing diagnostic note above remain intact. The following parent decisions are carried forward from the latest root-note snapshot against its preserved common base. This worker owns local hardening only; the parent owns integration and ticket closure.
+
+
+**2026-11-04T23:36:53Z**
+
+2026-11-04 Sol handoff: prior workflow 5fb9756d-2153-4e58-ae8b-648f521b25a6 completed build and review; all members terminal and cleanup complete. Preserve clean branch ter-gayt-screen-tracer at ee8070bb17d08c6ee4f8da82fd8bb55ffa3c5d60, prior measurements and review. Continue ONLY fix in workflow 95692eb7-33aa-4609-9830-abbb8525f3b2, version 54c27845-ff8e-40aa-8627-5dd6304cee16, Codex gpt-6.1-sol reasoningEffort=xhigh. No rerun of build or review, no reset or new checkout. Diagnose sameHit history-reset hypothesis before changing the rule; any new rule remains a user fork. Migration inventory and tested continuation source: /private/tmp/tertius-sol-handoff-20261104/.
+
+**2026-11-05T01:07:48Z**
+
+User approved design A in the takeover thread: separate surface-motion and reflection-motion history validation. A raw reflection-ray distance mismatch must not veto otherwise valid surface-motion history; retain distance validation for the reflection-motion candidate. Reuse existing surface checks, local-light selection and fast/slow accumulation, strengthening lighting validation only where motion tests show a correctness gap. No distance-stabilization filter (design B), no new ray budget, no FSR workaround. Continue from clean e31dffe7dc32bd796b752f3c7ab5d9015a139fe9 on ter-gayt-screen-tracer. Request red-green GPU regressions and matched real-renderer before/after captures before visual acceptance. Preserve completed build/review/fix work and original measurements. Parent retains coverage/mutations and merge decisions; ticket remains open. For future user-visible design choices, use the ask-user-question tool when available.
+
+**2026-11-05T01:10:35Z**
+
+Approved-A fix continuation launched: workflow 4f18d006-7d67-4219-9599-efb101107e65, version 54c27845-ff8e-40aa-8627-5dd6304cee16, provider codex / gpt-6.1-sol / reasoningEffort=xhigh. Attaches preserved ter-gayt-screen-tracer at e31dffe7dc32bd796b752f3c7ab5d9015a139fe9; no repeated build/review and no reset. First request with deliveryThreadId=bd9cdc24-a81f-41f6-8461-9275aa80c44f was rejected FORBIDDEN (Delivery destination is not authorized), without a returned run. Explicit retry without automatic delivery admitted this run. Current phase fix; member mcp:launch:a6568589077da7f00d197b2c5e26a143c0472f8fef1d0df99ddb68928f28faaa. Results remain in workflow status; matched captures/logs requested under /private/tmp/gayt-history-a. No automatic completion delivery to this takeover thread is configured.
+
+**2026-11-05T12:13:08Z**
+
+2026-11-05: user explicitly requests History Rule A integration after visual acceptance and validation, without waiting for continuing noise/filter research. Validation workflow e9b5b21a-8e33-4575-a49a-30e816436d4b (version 077df081-6e60-4160-b9a4-b89ea970421a) attaches aaa5e776c on the preserved tracer branch. Because A rests on the unmerged tracer, validation covers the actual branch scope. The ongoing diagnostic thread has been steered to keep further work external and not edit tracked files during validation/integration. Remaining grain and identifiable-paint-reflection acceptance must remain explicit follow-up work rather than being claimed fixed. Parent owns visual acceptance and merge.
+
+**2026-11-05T12:22:53Z**
+
+2026-11-05 parent visual inspection for the approved A change: inspected matched fixed-exposure front and actual-deck images, plus the after low-angle and moving-camera images. The front retains recognizable box/bar/sphere reflections and the deck retains its structure; no new gross still-image regression is apparent. This accepts A as the narrow receiving-surface history correction, not as a noise cure. Grain remains strong, especially in the moving view's panes. The existing 0.67-second sequence cannot establish universal absence of trails. The original real-deck rough-paint identifiable-reflection quality criterion remains unfulfilled and is now tracked explicitly in ter-icn3. This is a scope transfer under the user's instruction to integrate A independently of ongoing noise ideas, not a claim that the criterion passed. Merge still waits for validation/hardening and integration checks.
+
+## Parent-commissioned hardening, 2026-11-05
+
+Local hardening is complete for the delivered tracer and approved History Rule A. This does not close the ticket or authorize this worker to merge it. The parent owns integration, its combined checks, and ticket closure. No denoising, light-budget, renderer-policy, algorithm, or limit change is included.
+
+### Scope, preservation, and tested identity
+
+- Attached the existing `/Users/alexispurslane/.t3/worktrees/tertius/ter-gayt-screen-tracer`, branch `ter-gayt-screen-tracer`, at expected HEAD `aaa5e776c4b33b985ca1a7cf0b9caea008b30a60`. Checked the path, branch, HEAD, and initial working diff before writing. The only tracked edit at entry was the diagnostic note in this ticket; that entire entry ticket is preserved as an exact prefix.
+- The whole-tracer scope remains original review base `86c3c497f2c3ac2d42a3efd46c8082ff83e9987b`, not only A's final eight-file fix. Coverage and mutation comparisons are pinned to immutable initial-main `f703caf174af14d5350e410ce2b26acfcc42e5fe`, whose merge base with this branch is the original review base. Later independent parent merges do not narrow that scope. Parent main is now `64ab730a0e0300942212d9b2d96e74f0bfcd3ec5`; it was not imported. Parent will reconcile the new Entity API and run affected combined checks.
+- Prior implementation/review/fix work in workflow `4f18d006-7d67-4219-9599-efb101107e65`, commits, measurements, probes, and captures were reused, not repeated. This hardening belongs to workflow `e9b5b21a-8e33-4575-a49a-30e816436d4b`. No child agents or workflows were started.
+- Semantically reconciled the latest parent `.tickets/ter-gayt.md` notes against `/private/tmp/tertius-integration-20261105/root-notes/ter-gayt.base.md`, preserving both sides. `.tickets/ter-icn3.md` is the exact supplied parent snapshot. Snapshot hashes and prefix-preservation evidence are external.
+- The exact final code/test tree tested is `4cce74b01137f78d7775194652680ad6a039c966`, as calculated by `tools/code-tree.sh`, before and after final validation. Starting Git HEAD was `aaa5e776c4b33b985ca1a7cf0b9caea008b30a60`. The hardening commit containing this note has that exact tested code tree; only ticket/evidence prose changes follow the full suites. Its exact resulting commit is recorded in the external `final-state.json`, avoiding a self-referencing commit hash in this note. The final branch is not claimed to have been tested against the parent's later combined main.
+- Before the final code freeze, ran `tools/cleanup.sh` through Nix on all 76 ticket-touched C# files, after mutant restoration and before official Stryker. Six production files have only equivalent syntax or formatting changes: `DepthPyramidImages.cs`, `ScreenTraceImages.cs`, `CompositePass.cs`, `OwnRayDispatch.cs`, `ScreenTraceSetting.cs`, and `ScreenRay.cs`. Exact changes are in `cleanup-production.diff`. This implements the parent's explicit early-hook-cleanup request, not a production redesign. No substantive production change was made.
+
+All evidence below is under `/private/tmp/tertius-hardening-20261105/ter-gayt` unless an absolute path says otherwise. Final code freeze was `2026-11-05T08:17:07-05:00`; final validation checks completed at `2026-11-05T09:17:16-05:00`. All build, test, coverage, mutation, and cleanup commands ran through Nix, serially in this worker's heavy slot. No Checked build/test or commit occurred during official Stryker.
+
+### Finite behavior ledger and added tests
+
+`evidence-ledger.md` accounts for all 103 changed production paths: 14 added, 43 deleted, and 46 modified. It names C# orchestration, GLSL behavior, non-executable edits, removed paths, existing tests, and deliberate faults separately. It is a finite fault-based ledger, not exhaustive statement-level shader coverage.
+
+| Behavior | Evidence and decisions pinned |
+| --- | --- |
+| History Rule A | A01-A09 all killed by existing real-shader accumulator regressions: independent rough/smooth surface history; reflected distance validation; surface fallback; receiving normal, roughness, and depth; mirror reflected-location fallback; changed-light response; same-surface current-light comparison. |
+| Two-depth walk | CPU million-ray and exact binary-boundary reference tests reused. New actual-shader probes reject slab backs and backfaces and distinguish entering/leaving a child at an exact tie. W01-W07 all killed. |
+| Pyramid ownership | Existing depth/padding/resize tests reused. New 1x1, 2x1, and 2x2 real-renderer cases exercise the no-tail allocation path. P01-P04 all killed. |
+| Sampling, sharing, and resolve | Existing record, density, own-ray, and convergence tests reused. New converged-block tests reject normal/depth discontinuities. A probe inspects actual `recordOf` before half conversion; controlled records feed the actual embedded production resolve shader to test its radiance cap. R01-R14 all killed. |
+| Accumulation and repair | A new isolated-neighbor test establishes short-history spatial repair. Existing finite-sample, clamping, step-light, and parity tests reused. T01-T03 and L03 killed. No estimator or cap was retuned. |
+| Lifecycle and capture | A new isolated two-frame populated-surface/sky test verifies own-ray header clearing without overflowing a mutated list. L01-L04, H01-H03 killed; existing resize/history reset/capture completion tests reused. |
+| Descriptor, barrier, switch, and deletion | D01 killed; D02 equivalent for the specific redundant declaration, as explained in its row. Existing frame-graph and resource-use tests reused. Replacement tracer/composite and CLI off behavior are tested. Removed sector/cone/radiance-pyramid entry points have no surviving production references; an orphan unreferenced deleted helper has no behavior to execute or mutate. Builds check the remaining callers. |
+
+New test files are `ScreenTraceHardeningTests.cs`, `OwnRayResetRenderTests.cs`, and four shader probes. `ScreenTraceProbe.cs` now declares its real record/history/sample resource uses. The test project embeds the engine's actual `screen_trace_resolve.comp`; it does not test a copied resolve implementation. Test fixtures and observables are bounded and deterministic. No extended soak or MTBF claim is made.
+
+### Final suites and checks
+
+| Final run | Passed | Skipped | Failed |
+| --- | ---: | ---: | ---: |
+| Full solution Checked | 9876 | 21 existing | 0 |
+| Full solution Release | 9863 | 21 existing | 0 |
+| Coverage Checked Rendering | 2283 | 8 | 0 |
+| Coverage Release Rendering | 2282 | 8 | 0 |
+| Coverage Checked Host | 1964 | 5 | 0 |
+| Coverage Release Host | 1964 | 5 | 0 |
+
+Final full suites ran once after the last code/test change: `nix develop --command dotnet test --solution Tertius.slnx -c Checked`, then Release, through `run-final-validation.sh`. Checked took 4m27.880s; Release took 4m16.577s. Logs are `final-validation/solution-Checked.log` and `solution-Release.log`. The later documentation-only changes and commit do not invalidate the exact code-tree identity.
+
+The explicit Release benchmark build passed with zero warnings and errors; benchmark timings were not run or claimed. CSharpier checked all 76 ticket-touched C# files successfully. Owned-file and full-scope production/test whitespace checks passed. The blanket original-base whitespace check exits 2 solely for extra EOF blank lines in six unrelated ticket files already present at entry: `ter-12xp`, `ter-186q`, `ter-18hc`, `ter-76e7`, `ter-dbzx`, and `ter-x8bz`. The identical entry-HEAD check is preserved as `whitespace-inherited-at-entry.log`; those files were not changed. This is a reported inherited warning, not a clean blanket-check claim. The initial validation script stopped at this check after both suites, benchmark, and formatting passed; its closeout verified the unchanged tree and clean owned/code scope without repeating the suites.
+
+### Changed-line C# coverage
+
+Read `tools/coverage/run.sh` and `changed-lines.py`; used targeted Rendering/Host coverage in both configurations rather than unrelated-module coverage. Final comparison command: `nix develop --command python3 -I tools/coverage/changed-lines.py --base f703caf174af14d5350e410ce2b26acfcc42e5fe /private/tmp/tertius-hardening-20261105/ter-gayt/coverage-final/Checked /private/tmp/tertius-hardening-20261105/ter-gayt/coverage-final/Release`.
+
+Initial changed C# coverage was 810/814 lines and 194/206 branches. Final changed C# coverage is 814/816 lines and 190/202 branches. Mechanical cleanup changed syntax and mapped branch populations, so those denominators are not a fixed-population before/after score. Counts below are covered/total changed mapped lines and branches, merged across the final Checked/Release reports. These measure CPU execution only, never shader execution. Deleted files, declarations, and changes with no instrumented sequence point have no invented runtime percentage; their ledger rows state the evidence kind.
+
+| Affected file under `src/` | Changed lines | Changed branches |
+| --- | ---: | ---: |
+| Tertius.Host/ScriptCommand.Options.cs | 5/5 | 4/4 |
+| Tertius.Host/ScriptCommand.cs | 9/9 | 8/8 |
+| Tertius.Host/Scripting/Playback.cs | 12/12 | 6/6 |
+| Tertius.Rendering/Frame/DepthPyramidImages.cs | 86/86 | 20/20 |
+| Tertius.Rendering/Frame/DescriptorLayouts.cs | 70/70 | 10/10 |
+| Tertius.Rendering/Frame/FrameHistory.cs | 3/3 | 2/2 |
+| Tertius.Rendering/Frame/RenderTargets.cs | 17/18 | 18/20 |
+| Tertius.Rendering/Frame/ScreenTraceImages.cs | 103/103 | 10/10 |
+| Tertius.Rendering/Frame/SignalParameters.cs | 20/20 | 0/0 |
+| Tertius.Rendering/Frame/SignalScratch.cs | 25/25 | 4/4 |
+| Tertius.Rendering/Frame/TemporalSignal.cs | 22/22 | 0/0 |
+| Tertius.Rendering/Passes/CompositePass.cs | 23/23 | 14/14 |
+| Tertius.Rendering/Passes/DepthPyramidPass.cs | 37/37 | 0/0 |
+| Tertius.Rendering/Passes/ImpostorPass.cs | 2/2 | 0/0 |
+| Tertius.Rendering/Passes/OwnRayDispatch.cs | 5/5 | 0/0 |
+| Tertius.Rendering/Passes/ScreenTracePass.cs | 132/132 | 19/20 |
+| Tertius.Rendering/RendererOptions.cs | 2/2 | 0/0 |
+| Tertius.Rendering/Scene/GpuTypes.cs | 13/13 | 0/0 |
+| Tertius.Rendering/Scene/ImpostorManager.cs | 1/1 | 0/0 |
+| Tertius.Rendering/ScreenTraceSetting.cs | 14/14 | 16/16 |
+| Tertius.Rendering/ShaderConstants.cs | 2/2 | 0/0 |
+| Tertius.Rendering/Shading/DepthPyramid.cs | 16/16 | 6/10 |
+| Tertius.Rendering/Shading/MaterialSample.cs | 1/1 | 0/0 |
+| Tertius.Rendering/Shading/ScreenRay.cs | 39/39 | 19/20 |
+| Tertius.Rendering/Vulkan/ResourceState.cs | 1/1 | 0/0 |
+| Tertius.Rendering/Vulkan/VulkanDevice.cs | 1/1 | 0/0 |
+| Tertius.Rendering/VulkanRenderer.cs | 153/154 | 34/38 |
+
+Remaining uncovered behavior was inspected per location, not hidden by the pooled count:
+
+- `RenderTargets.cs:444` rejects unavailable sampled/storage format support; current hardware supports the formats, so this device-dependent rejection was source-assessed, not executed. The partial guards at 215/443 are oversized-allocation and device-format guards. Public option tests reject unsafe sizes before allocation. Judgment: do not allocate an unsafe image or substitute a fake Vulkan device for a coverage number.
+- `VulkanRenderer.cs:1106` and partial 1097/1104/1203 are disabled-tracer diagnostic-read guards, not missing production rendering behavior. Existing switch tests exercise legal disabled rendering. Judgment: no private diagnostic-only throw assertion solely for coverage.
+- `VulkanRenderer.cs:1985` and `ScreenTracePass.cs:157` guard a missing owned pyramid while the tracer is enabled. Normal construction/resize creates both together; failed construction cannot render. Judgment: do not corrupt private ownership state to cover an unreachable consistency throw. Legal lifecycle/resize behavior is tested.
+- `DepthPyramid.cs:426` has unvisited combinations of out-of-image geometric-normal bounds checks; `ScreenRay.cs:195` has one unvisited slab/facing short-circuit combination. Judgment: the CPU million-ray/tie reference tests and W01-W05 cover meaningful slab/facing/boundary decisions; no assertion is added merely for a short-circuit combination. The no-tail allocation gap is now fully covered and P04 killed.
+
+The initial implicit Release Host coverage build failed without useful diagnostics. An explicit diagnostic build and no-build retry passed; the cause remains unknown and the failed attempt is preserved, not counted as evidence. Final Host coverage was rebuilt/rerun and passed in both configurations. `coverage-review.md` and the full Cobertura reports preserve details.
+
+### Official Core mutation result
+
+Ran the prescribed changed-line entry point with the immutable comparison: `nix develop --command python3 -I tools/stryker/changed.py f703caf174af14d5350e410ce2b26acfcc42e5fe /private/tmp/tertius-hardening-20261105/ter-gayt/stryker-final`. It used only the official locking wrapper, concurrency 1 at nice 20, and four xunit threads per host. No Checked output was built/tested or committed during it.
+
+`stryker-final/results.json` reports `official: true`, no problems, zero Dubious tests, and zero changed-scope executable mutants. Its sole unmutated changed line is `src/Tertius.Core/Seams/RenderSeam.cs:492`, `void FinishCaptures();`: an interface declaration with no executable body. Explicit no-mutant judgment: no implementation exists on that line to mutate; actual completion behavior is killed by listed L04/H03 in Rendering/Host. Other Core changes are documentation; no Simulation/Physics production behavior changed. A mutation score percentage for zero executable mutants would be meaningless.
+
+Core wall time was 2163s (2170s overall). Initial CPU run: 4616 tests in 27s; per-test capture: 2075s. Schemata compilation needed nine tries, eight removing unrelated generated mutants that failed compilation; there is no changed-scope build-failed row. The wrapper observed up to four assembly test-server processes, while official concurrency remained one; it did not run four independent Stryker campaigns. Peak/mean one-minute load was 25.2/6.9. The wrapper accepted validity; no NOT VALID or infrastructure timeout is counted as a kill.
+
+### Listed mutations and triage
+
+The deliberate original 46-row fault list is finite. It includes A and the whole branch's key depth, walk, sampling/share/resolve, accumulation/repair, lifecycle/reset, capture, descriptor/barrier, and switch/deletion decisions. Every listed command used `nix develop --command python3 -I tools/mutate.py <list.json> <out>`. The runner alone applied, built, tested, restored, and touched mutations. No mutant was manually edited/build-tested/restored. Only the 14 affected invalid/surviving/timeout rows were rerun after test-only additions; unchanged behavior reuses valid initial results. The mechanical cleanup preserves the relevant decisions and assertions.
+
+Initial result: 31 killed, 12 survived, one timeout, two invalid build failures. Final result: 45 killed, one equivalent; zero unresolved non-equivalent survivors, timeouts, build failures, or no-coverage rows. The non-equivalent tested fault denominator is 45, all killed; no exhaustive shader mutation score is claimed. The following exact table includes evidence paths and all dispositions.
+
+| ID | Represented fault | Initial result | Final result | Evidence / disposition |
+| --- | --- | --- | --- | --- |
+| A01 | Reapply raw hit-distance rejection to surface history at rough and smooth receivers | killed | killed | AccumulatorRenderTests.IndependentSmoothReflectionDistancesDoNotRestartAnUnchangedLightsHistory; AccumulatorRenderTests.OneBrightSampleDoesNotRestartAnOtherwiseUnchangedRoughReflectionsHistory; AccumulatorRenderTests.ARejectedReflectedLocationDoesNotDiscardUnchangedLightAtTheSurfaceLocation(hitDistance: 4.5, length: 4); listed-initial/A01.test.log |
+| A02 | Drop the reflected candidate hit-distance gate | killed | killed | AccumulatorRenderTests.AMirrorPixelWhoseSurfaceLeftTheLastImageKeepsItsHistoryThroughTheReflectedPoint(specular: True, roughness: 0.0500000007, hitDistance: 41, length: 1); listed-initial/A02.test.log |
+| A03 | Let reflected failure destroy the surface fallback | killed | killed | AccumulatorRenderTests.IndependentSmoothReflectionDistancesDoNotRestartAnUnchangedLightsHistory; AccumulatorRenderTests.OneBrightSampleDoesNotRestartAnOtherwiseUnchangedRoughReflectionsHistory; AccumulatorRenderTests.ARejectedReflectedLocationDoesNotDiscardUnchangedLightAtTheSurfaceLocation(hitDistance: 4.5, length: 4); listed-initial/A03.test.log |
+| A04 | Accept a wrong receiver normal | killed | killed | AccumulatorRenderTests.AReceiverWhoseNormalOrRoughnessChangedDoesNotKeepOldReflectedLight(turn: 0.600000024, roughness: 0.379999995); listed-initial/A04.test.log |
+| A05 | Accept a wrong receiver roughness | killed | killed | AccumulatorRenderTests.AReceiverWhoseNormalOrRoughnessChangedDoesNotKeepOldReflectedLight(turn: 0, roughness: 0.0500000007); AccumulatorRenderTests.AReceiverWhoseNormalOrRoughnessChangedDoesNotKeepOldReflectedLight(turn: 0, roughness: 0.800000012); listed-initial/A05.test.log |
+| A06 | Accept a newly uncovered receiver at another depth | killed | killed | AccumulatorRenderTests.AnUncoveredReceiverDoesNotInheritTheOccludersReflectedLight; listed-initial/A06.test.log |
+| A07 | Lose mirror reflected-location fallback | killed | killed | AccumulatorRenderTests.AMirrorPixelWhoseSurfaceLeftTheLastImageKeepsItsHistoryThroughTheReflectedPoint(specular: True, roughness: 0.0500000007, hitDistance: 39, length: 4); AccumulatorRenderTests.AMirrorPixelWhoseSurfaceLeftTheLastImageKeepsItsHistoryThroughTheReflectedPoint(specular: True, roughness: 0.0500000007, hitDistance: 20, length: 4); AccumulatorRenderTests.AMirrorPixelWhoseSurfaceLeftTheLastImageKeepsItsHistoryThroughTheReflectedPoint(specular: True, roughness: 0.379999995, hitDistance: 20, length: 4); listed-initial/A07.test.log |
+| A08 | Allow changed light to persist in slow history | killed | killed | AccumulatorRenderTests.AfterAStepOfTheSampleTheHistoryReachesNinetyPercentOfTheStepWithinTenFrames; AccumulatorRenderTests.AStepOfTheSampleShortensTheHistoryByTheClampsMoveOverHalfTheMeansLight; AccumulatorRenderTests.AChangedReflectedLightReplacesNinetyPercentOfTheOldLightWithinTenFrames(roughness: 0.379999995, before: 1, after: 0); listed-initial/A08.test.log |
+| A09 | Include different-surface neighbors in current-light comparison | killed | killed | AccumulatorRenderTests.LightOnANeighboringSurfaceDoesNotChooseTheReceiversReflectionHistory; listed-initial/A09.test.log |
+| W01 | Treat a ray behind a flat slab as a possible hit | build-failed | killed | ScreenWalkTests+RandomRays.OnRaysOfBinaryFractionsWhoseEntriesAndCrossingsTieWithCellEdgesTheWalkFindsTheHitOfTheMarch; ScreenWalkTests+RandomRays.AtACapOf4096TheTwoDepthWalkFindsTheHitOfAMarchOverTheFlatSlabsOnAMillionRandomRays; listed-targeted-3/W01.test.log |
+| W02 | CPU child selection loses the leaving-cell rule at a solved tie | build-failed | killed | ScreenWalkTests+RandomRays.OnRaysOfBinaryFractionsWhoseEntriesAndCrossingsTieWithCellEdgesTheWalkFindsTheHitOfTheMarch; listed-targeted-3/W02.test.log |
+| W03 | Shader ignores the far bound in the two-depth walk | survived | killed | ScreenTraceHardeningTests.TheShaderWalkRejectsSlabBacksAndBackfacesAndDistinguishesTheTwoSidesOfATie(channel: 0, expected: 2); listed-targeted-3/W03.test.log |
+| W04 | Shader child selection loses the leaving-cell rule at a solved tie | survived | killed | ScreenTraceHardeningTests.TheShaderWalkRejectsSlabBacksAndBackfacesAndDistinguishesTheTwoSidesOfATie(channel: 2, expected: 0); listed-targeted-3/W04.test.log |
+| W05 | Shader accepts the back of a surface as a hit | survived | killed | ScreenTraceHardeningTests.TheShaderWalkRejectsSlabBacksAndBackfacesAndDistinguishesTheTwoSidesOfATie(channel: 1, expected: 2); listed-targeted-3/W05.test.log |
+| W06 | A hair receiver hits its own card rather than the distinct card | killed | killed | ScreenTraceRecordTests.AHairReceiversWalkPassesItsOwnCardAndHitsAnotherCard; listed-initial/W06.test.log |
+| W07 | Ignore selected walk caps and stop every ray after one cell | killed | killed | ScreenTraceRenderTests.AHitFartherThanTheLargestHalfFloatStoresTheLargestHalfFloatAsItsDistance; ScreenTraceRenderTests.AMirrorFloorShowsAGlowingPanelAtThePlaceOfItsMirrorImage; ScreenTraceRenderTests.AGlowingPanelBesideAFloorPixelTakesItsShareOfThePixelsDiffuseLight; listed-initial/W07.test.log |
+| P01 | Finest level stores inverse radial distance rather than inverse view depth | killed | killed | PyramidRenderTests.EachTexelOfTheFinestLevelHoldsOneOverTheViewDepthOfItsPixelsCenterAndSkyHoldsZero; listed-initial/P01.test.log |
+| P02 | Coarse bounds discard the farthest child surface | killed | killed | PyramidRenderTests.EachDepthPyramidCellHoldsTheBoundsOfThePixelsUnderIt(level: 9); PyramidRenderTests.EachDepthPyramidCellHoldsTheBoundsOfThePixelsUnderIt(level: 10); PyramidRenderTests.EachDepthPyramidCellHoldsTheBoundsOfThePixelsUnderIt(level: 5); listed-initial/P02.test.log |
+| P03 | CPU finest level uses plane-corner bounds rather than flat center depth | killed | killed | DepthPyramidTests.TheFinestLevelHoldsTheInverseDepthOfEachPixelsCenter; listed-initial/P03.test.log |
+| P04 | Reject a valid tiny screen whose depth pyramid has no tail dispatch | survived | killed | PyramidRenderTests.ATinyScreenBuildsItsFinestDepthWithoutATail(width: 1, height: 1); PyramidRenderTests.ATinyScreenBuildsItsFinestDepthWithoutATail(width: 2, height: 1); PyramidRenderTests.ATinyScreenBuildsItsFinestDepthWithoutATail(width: 2, height: 2); listed-targeted-3/P04.test.log |
+| R01 | Zero density decodes as positive | killed | killed | ScreenTraceRecordTests.DensityCodesPreserveTheirDensityAndDecodeAZeroDensityAsExactlyZero; listed-initial/R01.test.log |
+| R02 | Recorded density belongs to the unquantized direction | killed | killed | ScreenTraceRenderTests.TheReflectionSampleOfAMirrorFloorHoldsTheGlowOfThePixelThatTheCSharpWalkHits; listed-initial/R02.test.log |
+| R03 | Short histories share block rays before eight valid frames | killed | killed | ScreenTraceRenderTests.AfterItsHistoryFillsAPixelInsideASurfaceSharesItsBlocksDiffuseRay; ScreenTraceRenderTests.AMirrorFloorShowsAGlowingPanelAtThePlaceOfItsMirrorImage; ScreenTraceRenderTests.TheReflectionSampleOfAMirrorFloorHoldsTheGlowOfThePixelThatTheCSharpWalkHits; listed-initial/R03.test.log |
+| R04 | Converged coplanar pixels never share block rays | killed | killed | ScreenTraceRenderTests.AfterItsHistoryFillsAPixelInsideASurfaceSharesItsBlocksDiffuseRay; listed-initial/R04.test.log |
+| R05 | Resolve uses a block record where the pixel traced an own ray | killed | killed | ScreenTraceRenderTests.AMirrorFloorShowsAGlowingPanelAtThePlaceOfItsMirrorImage; ScreenTraceRenderTests.TheReflectionSampleOfAMirrorFloorHoldsTheGlowOfThePixelThatTheCSharpWalkHits; ScreenTraceRenderTests.TheCompositeShowsTheTracersReflectionAndWithoutTheTracerTheClosedForm(tracer: True); listed-initial/R05.test.log |
+| R06 | Diffuse resolve loses half the incident-light estimate | killed | killed | ScreenTraceRenderTests.UnderAUniformEnvironmentWithNoBlockerBothIndirectSignalsConvergeToItsLight; ScreenTraceRenderTests.AGlowingPanelBesideAFloorPixelTakesItsShareOfThePixelsDiffuseLight; listed-initial/R06.test.log |
+| R07 | Rough surfaces lose the specular estimate from diffuse rays | survived | killed | ScreenTraceRenderTests.ASurfaceAboveTheReflectionLimitReceivesSpecularLightFromItsDiffuseRays; listed-targeted-3/R07.test.log |
+| R08 | Double count emission when the hit entity already holds a light | killed | killed | ScreenTraceRenderTests.AMirrorFloorShowsNoGlowOfAPanelWhoseEntityHoldsALight; ScreenTraceRenderTests.AnImpostorsGlowReachesAMirrorOnlyWhenItsEntityHoldsNoLight(holdsLight: True); listed-initial/R08.test.log |
+| R09 | Drop previous indirect light and later bounces | killed | killed | ScreenTraceRenderTests.InAClosedBoxTheDiffuseLightRisesWithNoOvershootTowardTheSumOfTheBounces; listed-initial/R09.test.log |
+| R10 | Remove diffuse half-float overflow cap; Mac saturation may mask fault | survived | killed | ScreenTraceHardeningTests.TheDiffuseResolveCapsAWeightedRayBeforeHalfFloatStorage; listed-targeted-3/R10.test.log |
+| R11 | Remove finite distance cap; Mac saturation may mask fault | survived | killed | ScreenTraceHardeningTests.ARecordedHitCapsItsDistanceBeforeHalfFloatStorage; listed-targeted-3/R11.test.log |
+| R12 | Bypass the replacement tracer and always use the closed form | killed | killed | ScreenTraceRenderTests.TheCompositeShowsTheTracersReflectionAndWithoutTheTracerTheClosedForm(tracer: True); listed-initial/R12.test.log |
+| R13 | Share block rays across a change of geometric normal | survived | killed | ScreenTraceHardeningTests.AConvergedPixelKeepsItsOwnRayAcrossAnIncompatibleSurface(normalBreak: True); listed-targeted-3/R13.test.log |
+| R14 | Share block rays across a receiver-plane depth break | survived | killed | ScreenTraceHardeningTests.AConvergedPixelKeepsItsOwnRayAcrossAnIncompatibleSurface(normalBreak: False); listed-targeted-3/R14.test.log |
+| T01 | Disable same-surface short-history repair | survived | killed | AccumulatorRenderTests.AShortHistoryRepairsAnIsolatedSampleFromItsSameSurfaceNeighbors; listed-targeted-3/T01.test.log |
+| T02 | Treat NaN as valid sample light | killed | killed | AccumulatorRenderTests.WhenTheExposureMovesBetweenTwoFramesTheHistoryTakesTheNewExposureInThatFrame; AccumulatorRenderTests.APixelWithoutASampleAndWithoutAHistoryTakesTheEnvironmentsClosedForm(specular: False); AccumulatorRenderTests.APixelWithoutASampleAndWithoutAHistoryTakesTheEnvironmentsClosedForm(specular: True); listed-initial/T02.test.log |
+| T03 | Changed light does not shorten slow history by its lag | killed | killed | AccumulatorRenderTests.AStepOfTheSampleShortensTheHistoryByTheClampsMoveOverHalfTheMeansLight; listed-initial/T03.test.log |
+| L01 | Headless tracer stills skip history warm-up | killed | killed | StillRuleTests.AStillUnderTheTracerTakesTheWarmUpCountOfTheOptions(automaticExposure: True); StillRuleTests.AStillUnderTheTracerTakesTheWarmUpCountOfTheOptions(automaticExposure: False); ScreenTraceRenderTests.AStillUnderTheTracerDrawsItsWarmUpDrawsAndThenTheShownDraw(warmUpFrames: 3); listed-initial/L01.test.log |
+| L02 | Keep stale own-ray dispatch counts from the previous frame | timeout | killed | OwnRayResetRenderTests.ASkyFrameClearsTheOwnRayCountsOfThePreviousSurfaceFrame; listed-lifecycle-final/L02.test.log |
+| L03 | Read current rather than previous fast history | killed | killed | AccumulatorRenderTests.AfterAStepOfTheSampleTheHistoryReachesNinetyPercentOfTheStepWithinTenFrames; AccumulatorRenderTests.TheSpecularSignalsCapFollowsTheRoughness(roughness: 0.400000006, cap: 18); AccumulatorRenderTests.TheSpecularSignalsCapFollowsTheRoughness(roughness: 0.800000012, cap: 32); listed-initial/L03.test.log |
+| L04 | FinishCaptures drops remaining captures in flight | killed | killed | CapturesInFlightTests.FinishCapturesHandsOverEachCaptureInFlightOnceInTheOrderDrawn; CapturesInFlightTests.AtEachHandOverTheRenderersReadingsAreThoseThatACaptureThatWaitsSees; CapturesInFlightTests.ACaptureInFlightReachesItsSinkAtFinishCapturesWithThePixelsOfACaptureThatWaits; listed-initial/L04.test.log |
+| D01 | Omit a storage-image descriptor | killed | killed | DescriptorLayoutsTests.TheLayoutsNeedOfAStageTenStorageBuffersFifteenStorageImagesAndSixteenSampledImages; listed-initial/D01.test.log |
+| D02 | Drop indirect-command visibility declaration | survived | equivalent (survived) | Equivalent in the current call graph: ScreenTraceRaysPass declares BOTH lists ComputeIndirectRead before Trace; BarrierBatch.Buffer retains the earlier read stage/access union. The mutant removes only Trace's redundant declaration, not indirect visibility. |
+| H01 | In-flight override loses selected frame count | killed | killed | ScriptCommandOptionsTests.AnExplicitInFlightCountReplacesAThreeFrameRenderer(count: 2, captures: True); listed-initial/H01.test.log |
+| H02 | Screen-trace off leaves tracer on | survived | killed | ScriptCommandCaptureTests.TheScreenTraceOptionTurnsTheHeadlessRenderersTracerOffAndOnKeepsTheRenderersDefault(screenTrace: ["--screen-trace", "off"], off: True); listed-targeted-3/H02.test.log |
+| H03 | Playback does not drain remaining captures before output | killed | killed | ScriptCommandCaptureTests.AFilmWithTwoFramesInFlightWritesTheImagesAndTheReadingsOfAFilmThatWaitsForEachFrame; ScriptCommandCaptureTests.TheInFlightOptionSetsTheRenderersFrameCountAndWhetherCapturesWait(inFlight: ["--in-flight", "2"], kept: True, frames: 2); listed-initial/H03.test.log |
+
+Final: 46 faults, 45 killed, 1 equivalent. No unresolved survivor, timeout, build-failed or no-coverage result is counted as successful evidence.
+
+#### Invalid and missing-evidence attempts retained
+
+- Initial W01/W02 replacements failed compilation under IDE0060 because they removed parameter uses. These were not kills. Corrected viable replacements preserve the parameter uses; the wildcard class filter includes the nested million-ray and exact-binary-tie CPU tests. Both corrected faults are killed.
+- Initial H02 selected the wrong Host class. The corrected filter selects ScriptCommandCaptureTests and is killed by the existing CLI off behavior test. No new production or CLI behavior was needed.
+- Initial L02 produced an IndexOutOfRange failure after stale own-ray counts overflowed a list, then its broad test host timed out. That timeout is missing evidence, not a clean kill. The bounded populated-surface then sky test is the final evidence; its runner log supplies the exact result. The first targeted rerun still included many-frame sharing tests in the same class and timed out again. Moving the two-frame lifecycle test to its own class eliminated the overflow/hang and produced a clean assertion failure in 6.9 seconds.
+- listed-targeted stopped at a baseline with invalid fixture premises: the normal break coincided with a 2x2 block boundary, and quantized roughness 0.5 exceeded the reflection limit. No mutants ran. The joined plane now meets the actual front wall, and the wall uses roughness 0.3.
+- listed-targeted-2 stopped at a proposed roughness-1 white-furnace assertion: the existing normal-mapped floor returned mean specular 0.4494953 for input 0.5, outside a proposed 1% unit-mean tolerance. This is not accepted energy-accuracy evidence. The final additional test checks the narrower hand-over decision: an above-limit surface retains a nonzero specular estimate (within half to one-and-a-half times input). The original roughness-0.3 1% convergence test is unchanged. No estimator or limit was retuned.
+- Parent-required tools/cleanup.sh ran on all 76 ticket-touched C# files after mutation restoration, before the final freeze. Production differences are get-only auto-property substitutions, primary-constructor syntax, an equivalent negated pattern and formatting. The existing mutation decisions/assertions remain equivalent; their valid evidence is reused rather than rerunning all faults for whitespace. cleanup-production.diff preserves the exact six-file production delta. No production policy changed.
+
+Detailed replacements, classes, timings and failure logs remain in mutants-initial.json, mutants.json, listed-initial/results.json and listed-targeted-3/results.json. The 46 rows are finite fault-based evidence, not a shader coverage percentage or proof of all possible faults.
+
+### Visual acceptance, portability, and limits
+
+- The parent accepts A as the narrow receiving-surface history correction after inspecting matched fixed-exposure front/deck stills and the after low/moving views. This is not a claim that all grain is fixed. `/private/tmp/gayt-history-a/manifest.md` and `/private/tmp/gayt-history-diagnosis/report.md` preserve the visual evidence. No new captures or policy changes were requested by the final steering, so the existing bounded evidence was reused.
+- The actual roughness-0.38 deck's recognizable-lamp/reflection/noise criterion is still unmet. The approximately 0.67-second motion sequence does not establish long-motion trail absence. `.tickets/ter-icn3.md`, dependent on this ticket, retains those acceptance items, changed-light response, and the independent denoising investigation. Merging A must not erase them. Denoising and light-budget work do not gate A under the user's decision.
+- A proposed new roughness-1 furnace fixture produced mean specular 0.4494953 for uniform input 0.5 on the existing normal-mapped floor, not the proposed 1% accuracy. It is not accepted energy-accuracy evidence. The final narrower regression only proves that above-reflection-limit surfaces retain a specular estimate from diffuse rays, bounded between half and one-and-a-half times the input. The existing roughness-0.3 1% convergence test is unchanged. No estimator or limit was retuned, and no new production defect was established from that fixture.
+- `portability-assessment.md` checks Vulkan indirect-command stage/access unions, transfer clearing, image declarations, descriptor counts/limits, explicit storage formats/features, and finite half-float bounds against pinned official Khronos Vulkan-Docs v1.3.296 source chapters. No source-level Vulkan correctness or portability blocker was found by this bounded assessment. This cannot exclude driver-specific failures. Linux runtime remains explicitly deferred under `ter-cgif`, dependent on `ter-s7c6` and `ter-kzj3`, as the user decided. No Linux, lavapipe, RADV, ANV, or NVIDIA runtime check ran here.
+- CPU coverage is not shader coverage. The finite GLSL fault probes are not exhaustive shader coverage. No screenshot supplies GPU timing. Prior measured timings, rare-emitter limitations (`ter-18hc`), earlier red/green evidence, and detailed notes remain intact. The original eight-part historical TDD logs were not independently reconstructed; current green is not proof of historical red. No extended soak, quantified reliability, universal long-motion acceptance, or all-noise-fixed claim is made.
+
+### Evidence locations and handoff
+
+The bounded external evidence root is `/private/tmp/tertius-hardening-20261105/ter-gayt`. It includes `evidence-ledger.md`, `coverage-review.md`, `coverage-final/`, `final-mutant-outcomes.md/json`, `listed-initial/`, `listed-targeted-3/`, `listed-lifecycle-final/`, `stryker-final/`, `portability-assessment.md`, `cleanup-production.diff`, `final-validation/`, and `final-state.json`. Invalid baselines and timeouts remain preserved separately and are not passed off as kills. Disk remained about 13 GB free after the final suites. Processes are completed before handoff; no watchers or renderer runs are left behind. Parent receives one ordinary queued completion event, not forbidden workflow-service delivery.

@@ -145,14 +145,20 @@ public sealed class StillRuleTests
     [Fact]
     public void AStillUnderAFixedExposureAndNoTracerTakesNoWarmUpDraw() =>
         StillRule
-            .For(new RendererOptions { Exposure = new FixedExposure(0), ScreenTrace = new NoScreenTrace() }, headless: true)
+            .For(
+                new RendererOptions { Exposure = new FixedExposure(0), ScreenTrace = new NoScreenTrace() },
+                headless: true
+            )
             .WarmUpDraws.Should()
             .Be(0, "no history holds more than one frame, and the exposure needs no draw to adapt in");
 
     [Fact]
     public void AStillUnderAnAutomaticExposureAndNoTracerTakesOneWarmUpDraw() =>
         StillRule
-            .For(new RendererOptions { Exposure = AutoExposure.Default, ScreenTrace = new NoScreenTrace() }, headless: true)
+            .For(
+                new RendererOptions { Exposure = AutoExposure.Default, ScreenTrace = new NoScreenTrace() },
+                headless: true
+            )
             .WarmUpDraws.Should()
             .Be(1, "the exposure needs a draw to adapt in, today's metering draw");
 

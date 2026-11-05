@@ -33,7 +33,12 @@ internal sealed unsafe class DepthPyramidImages : IDisposable
     private ImageView[] depthMipViews = [];
 
     /// <summary>Allocates the sets for the largest pyramid, and makes the images for a screen of <paramref name="extent"/>.</summary>
-    public DepthPyramidImages(VulkanDevice device, DeviceAllocator allocator, DescriptorLayouts layouts, Extent2D extent)
+    public DepthPyramidImages(
+        VulkanDevice device,
+        DeviceAllocator allocator,
+        DescriptorLayouts layouts,
+        Extent2D extent
+    )
     {
         this.device = device;
         this.allocator = allocator;

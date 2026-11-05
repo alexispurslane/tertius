@@ -568,7 +568,13 @@ public sealed class AtmosphereRenderTests
             RenderSnapshot snapshot = Scene(HighSun);
             snapshot.Instances.Add(ReflectionTesting.Floor(renderer, ReflectionTesting.Mirror()));
             // A wide glowing wall 3 km ahead, which the floor mirrors on screen.
-            AddGlow(renderer: renderer, snapshot: snapshot, position: new(0, 200, -3000), halfSize: 1500, rotation: FacingPlusZ);
+            AddGlow(
+                renderer: renderer,
+                snapshot: snapshot,
+                position: new(0, 200, -3000),
+                halfSize: 1500,
+                rotation: FacingPlusZ
+            );
             Air(snapshot, HazeOnly);
             // The floor pixel that mirrors the wall's point 100 m up, 44 m ahead on the floor.
             Vector2 mirrored = Gpu.Project(

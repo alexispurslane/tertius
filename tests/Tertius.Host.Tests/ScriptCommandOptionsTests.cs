@@ -15,7 +15,7 @@ public sealed class ScriptCommandOptionsTests
     [InlineData(2, true)]
     public void AnExplicitInFlightCountReplacesAThreeFrameRenderer(int count, bool captures)
     {
-        var renderer = new Tertius.Rendering.RendererOptions { FramesInFlight = 3, CapturesInFlight = true };
+        var renderer = new RendererOptions { FramesInFlight = 3, CapturesInFlight = true };
         var overrides = new ScriptCommand.RendererOverrides { FramesInFlight = count };
 
         overrides.ApplyTo(renderer);

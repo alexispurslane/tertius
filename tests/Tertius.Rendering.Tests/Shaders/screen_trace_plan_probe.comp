@@ -1,0 +1,24 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#include "screen_trace.glsl"
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+void main()
+{
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    if (any(greaterThanEqual(vec2(pixel), frame.viewport.xy)))
+        return;
+    ivec2 chosen;
+    TracingPixel source;
+    if (!tracedSurface(pixel) || !chosenPixelOf(pixel / 2, KindDiffuse, chosen, source))
+    {
+        imageStore(specularSample, pixel, vec4(0.0));
+        return;
+    }
+    TracingPixel receiver = tracingPixelAt(pixel);
+    float history = all(equal(chosen, pixel)) ? 0.0 : imageLoad(slowDiffuse, pixel).a;
+    imageStore(specularSample, pixel, vec4(float((imageLoad(rayPlan, pixel).r & PlanOwnDiffuse) != 0u),
+        abs(dot(receiver.point - source.point, source.s.geometricNormal)) / receiver.viewDepth,
+        dot(receiver.s.geometricNormal, source.s.geometricNormal), history));
+}

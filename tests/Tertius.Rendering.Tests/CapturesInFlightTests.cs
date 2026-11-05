@@ -19,7 +19,9 @@ public sealed class CapturesInFlightTests
 
         Capture inFlight = CaptureOfTheFirstFrame(capturesInFlight: true);
 
-        inFlight.Rgba.Should().Equal(waited.Rgba, "both draw the same frame, and only the time of the hand-over differs");
+        inFlight
+            .Rgba.Should()
+            .Equal(waited.Rgba, "both draw the same frame, and only the time of the hand-over differs");
     }
 
     [Fact]
@@ -164,7 +166,8 @@ public sealed class CapturesInFlightTests
     }
 
     /// <summary>A sink that adds the frames of the renderer's readings to <paramref name="readings"/> at each hand-over.</summary>
-    private sealed class ReadingSink(VulkanRenderer renderer, List<(long? Timings, long? Exposure)> readings) : ICaptureSink
+    private sealed class ReadingSink(VulkanRenderer renderer, List<(long? Timings, long? Exposure)> readings)
+        : ICaptureSink
     {
         public void Take(in CapturedImage image) =>
             readings.Add((renderer.LastFrameStats.GpuTimings?.Frame, renderer.LastFrameStats.Exposure?.Frame));

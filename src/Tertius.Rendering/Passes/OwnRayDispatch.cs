@@ -7,17 +7,12 @@ namespace Tertius.Rendering;
 /// appends to it, and the indirect dispatch of the pipeline that traces each listed pixel. The screen tracer's plan
 /// records the clears, and each ray kind's pass the dispatch (<see cref="ScreenTraceKernel"/>).
 /// </summary>
-internal sealed unsafe class OwnRayDispatch : IDisposable
+/// <param name="pipeline">The pipeline that traces the listed pixels, in workgroups of OwnRayGroupSize invocations.</param>
+internal sealed unsafe class OwnRayDispatch(VulkanDevice device, ShaderLibrary shaders, ComputePipelineDesc pipeline)
+    : IDisposable
 {
-    private readonly VulkanDevice device;
-    private readonly Pipeline pipeline;
-
-    /// <param name="pipeline">The pipeline that traces the listed pixels, in workgroups of OwnRayGroupSize invocations.</param>
-    public OwnRayDispatch(VulkanDevice device, ShaderLibrary shaders, ComputePipelineDesc pipeline)
-    {
-        this.device = device;
-        this.pipeline = pipeline.Create(device, shaders);
-    }
+    private readonly VulkanDevice device = device;
+    private readonly Pipeline pipeline = pipeline.Create(device, shaders);
 
     /// <summary>Sets the header of <paramref name="list"/> to <see cref="OwnRayList.EmptyHeader"/>, before a dispatch appends to it.</summary>
     public static void Clear(FrameContext context, GpuBuffer list)

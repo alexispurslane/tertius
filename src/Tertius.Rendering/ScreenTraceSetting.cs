@@ -54,7 +54,7 @@ public readonly partial struct ScreenTraceSetting
     private static string? ProblemOf(ScreenTrace trace)
     {
         // The band must lie inside the roughness range. The negated comparison also refuses NaN.
-        if (!(trace.MaxRoughness is >= ScreenTrace.HandOverWidth and <= 1))
+        if (trace.MaxRoughness is not (>= ScreenTrace.HandOverWidth and <= 1))
             return $"ScreenTrace.MaxRoughness must lie from {ScreenTrace.HandOverWidth} to 1, not {trace.MaxRoughness}.";
         if (trace.ReflectionSteps is < 1 or > ScreenTrace.MaxStepsLimit)
             return $"ScreenTrace.ReflectionSteps must be 1 to {ScreenTrace.MaxStepsLimit}, not {trace.ReflectionSteps}.";

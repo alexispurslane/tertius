@@ -293,7 +293,7 @@ public sealed class HairRenderTests
     {
         // The same strand, +Y, and a card turned 40° about it.
         Quaternion turned = CardWith(normal: new(MathF.Sin(0.7f), 0, MathF.Cos(0.7f)), strand: Vector3.UnitY);
-        Vector3 ShownAhead(bool hair, Quaternion rotation)
+        static Vector3 ShownAhead(bool hair, Quaternion rotation)
         {
             VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
             try

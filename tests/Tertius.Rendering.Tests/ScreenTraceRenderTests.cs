@@ -86,6 +86,36 @@ public sealed class ScreenTraceRenderTests
     }
 
     [Fact]
+    public void ASurfaceAboveTheReflectionLimitReceivesSpecularLightFromItsDiffuseRays()
+    {
+        const float light = 0.5f;
+        VulkanRenderer renderer = Tracing();
+        try
+        {
+            RenderSnapshot scene = Gray(light);
+            scene.Instances.Add(Floor(renderer, WhiteFloor(roughness: 1)));
+
+            Draw(renderer, scene, frames: 40);
+
+            Vector3 specularLight = MeanOver(
+                renderer.ReadImage(renderer.ScreenTraceSignals.Specular.Slow(0)),
+                MiddleOfTheFloor
+            );
+            specularLight
+                .X.Should()
+                .BeInRange(
+                    0.5f * light,
+                    1.5f * light,
+                    "a surface without reflection rays must retain a specular estimate from its diffuse rays"
+                );
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
     public void AMirrorFloorShowsAGlowingPanelAtThePlaceOfItsMirrorImage()
     {
         var glow = new Vector3(4f);
@@ -619,7 +649,7 @@ public sealed class ScreenTraceRenderTests
             float[] distance = renderer.ReadDistance();
             DepthPyramid pyramid = PyramidOf(renderer);
             CameraView camera = renderer.LastScene.Camera;
-            RecordedRays rays = RecordedRays.Read(renderer, kind: 0);
+            var rays = RecordedRays.Read(renderer, kind: 0);
             int compared = 0;
             int misses = 0;
             for (int y = 232; y < Height - 40; y += 4)

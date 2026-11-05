@@ -321,5 +321,4 @@ public sealed class ScreenRayTests
             .BeApproximately(0.5f, 1e-5f);
         ScreenRay.SurfaceFade(FloorNormal, FloorNormal).Should().Be(1);
     }
-
 }

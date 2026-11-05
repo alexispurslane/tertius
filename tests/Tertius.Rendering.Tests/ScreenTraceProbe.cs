@@ -1,5 +1,3 @@
-using Silk.NET.Vulkan;
-
 namespace Tertius.Rendering.Tests;
 
 internal sealed class ScreenTraceProbe(VulkanRenderer renderer, string shader) : RenderPass
@@ -40,7 +38,11 @@ internal sealed class ScreenTraceProbe(VulkanRenderer renderer, string shader) :
         DepthPyramidImages pyramid = context.Targets.Pyramid!;
         context.Barriers.Image(pyramid.DepthFinest, ImageUse.SampledComputeGeneral);
         context.Barriers.Image(pyramid.DepthImage, ImageUse.SampledComputeGeneral);
-        context.Barriers.Image(renderer.ScreenTraceSignals.Specular.Sample(0), ImageUse.StorageCompute, discard: true);
+        foreach (GpuImage image in renderer.ScreenTraceImages.Records)
+            context.Barriers.Image(image, ImageUse.StorageCompute);
+        context.Barriers.Image(renderer.ScreenTraceSignals.Diffuse.Sample(0), ImageUse.StorageCompute);
+        context.Barriers.Image(renderer.ScreenTraceSignals.Specular.Sample(0), ImageUse.StorageCompute);
+        kernel!.DeclareHistories(context.Barriers, context.History.Parity, slow: true);
         kernel!.Record(context, side: 1);
     }
 

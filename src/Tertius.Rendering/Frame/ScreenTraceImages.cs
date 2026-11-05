@@ -32,8 +32,6 @@ internal sealed class ScreenTraceImages : IDisposable
     private readonly RenderTargets targets;
     private readonly SurfaceHistory surfaces;
     private readonly DepthPyramidImages pyramid;
-    private readonly TemporalSignal diffuse;
-    private readonly TemporalSignal specular;
 
     /// <param name="pyramid">The depth pyramid and its finest level.</param>
     /// <param name="diffuse">The diffuse signal, of one part, whose sample the resolve writes.</param>
@@ -55,8 +53,8 @@ internal sealed class ScreenTraceImages : IDisposable
         this.targets = targets;
         this.surfaces = surfaces;
         this.pyramid = pyramid;
-        this.diffuse = diffuse;
-        this.specular = specular;
+        Diffuse = diffuse;
+        Specular = specular;
         Sets = [layouts.AllocateScreenTraceSet(), layouts.AllocateScreenTraceSet()];
         Create();
     }
@@ -89,10 +87,10 @@ internal sealed class ScreenTraceImages : IDisposable
     public GpuImage Motion => targets.Motion;
 
     /// <summary>The diffuse signal.</summary>
-    public TemporalSignal Diffuse => diffuse;
+    public TemporalSignal Diffuse { get; }
 
     /// <summary>The specular signal.</summary>
-    public TemporalSignal Specular => specular;
+    public TemporalSignal Specular { get; }
 
     /// <summary>The images that the tracer writes and reads again: the plan and the four record images.</summary>
     public IEnumerable<GpuImage> Records => [Plan, BlockLight, BlockRay, OwnLight, OwnRay];
@@ -126,8 +124,8 @@ internal sealed class ScreenTraceImages : IDisposable
     private void WriteSet(int parity)
     {
         DescriptorSet set = Sets[parity];
-        (GpuImage diffuseSample, GpuImage lastFastDiffuse, GpuImage slowDiffuse) = diffuse.HitImages(part: 0, parity);
-        (GpuImage specularSample, GpuImage lastFastSpecular, GpuImage slowSpecular) = specular.HitImages(
+        (GpuImage diffuseSample, GpuImage lastFastDiffuse, GpuImage slowDiffuse) = Diffuse.HitImages(part: 0, parity);
+        (GpuImage specularSample, GpuImage lastFastSpecular, GpuImage slowSpecular) = Specular.HitImages(
             part: 0,
             parity
         );

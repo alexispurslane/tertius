@@ -19,7 +19,7 @@ public sealed class ScreenTraceRecordTests
         );
         try
         {
-            ScreenTraceProbe probe = ScreenTraceProbe.On(renderer, "screen_trace_density_probe.comp");
+            var probe = ScreenTraceProbe.On(renderer, "screen_trace_density_probe.comp");
             renderer.Render(Dark(), 1f);
 
             float[] values = probe.Read();
@@ -77,7 +77,7 @@ public sealed class ScreenTraceRecordTests
                         chainDepth: TestChains.CamerasFrame
                     )
                 );
-            ScreenTraceProbe probe = ScreenTraceProbe.On(renderer, "screen_trace_hair_probe.comp");
+            var probe = ScreenTraceProbe.On(renderer, "screen_trace_hair_probe.comp");
             renderer.Render(scene, 1f);
 
             byte[] shading = renderer.ReadShading();

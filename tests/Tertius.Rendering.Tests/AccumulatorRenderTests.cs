@@ -93,6 +93,30 @@ public sealed class AccumulatorRenderTests
     }
 
     [Fact]
+    public void AShortHistoryRepairsAnIsolatedSampleFromItsSameSurfaceNeighbors()
+    {
+        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating();
+        try
+        {
+            sample.Samples = (column, row) =>
+                new Vector4(new Vector3(column == Width / 2 + 4 && row == Height / 2 ? 9 : 0), 1);
+
+            renderer.Render(scene, 1f);
+
+            for (int part = 0; part < 2; part++)
+            {
+                (Vector3 light, float length) = CenterOf(renderer, sample, part);
+                light.Should().Be(Vector3.One, "one of the nine equally weighted surface samples holds light 9");
+                length.Should().Be(1);
+            }
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
     public void AConstantSampleStaysConstant()
     {
         (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating();
@@ -716,7 +740,7 @@ public sealed class AccumulatorRenderTests
                 name: "accumulator test samples"
             );
             uploads.Add(staging);
-            staging.Write<Half>(texels);
+            staging.Write(texels);
             var region = new BufferImageCopy
             {
                 ImageSubresource = new(

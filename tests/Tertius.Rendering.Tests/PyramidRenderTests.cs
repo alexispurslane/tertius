@@ -1,5 +1,4 @@
 using System.Numerics;
-using Silk.NET.Vulkan;
 using Tertius.Testing;
 
 namespace Tertius.Rendering.Tests;
@@ -21,6 +20,30 @@ public sealed class PyramidRenderTests
     /// pixel may differ from the C# copy's by that much.
     /// </summary>
     private const float InverseDepthTolerance = 1e-6f;
+
+    [Theory]
+    [InlineData(1, 1)]
+    [InlineData(2, 1)]
+    [InlineData(2, 2)]
+    public void ATinyScreenBuildsItsFinestDepthWithoutATail(int width, int height)
+    {
+        VulkanRenderer renderer = Gpu.Headless(
+            width: width,
+            height: height,
+            screenTrace: ScreenTrace.Default,
+            warmUpFrames: 0
+        );
+        try
+        {
+            renderer.Render(Gpu.Snapshot(Vector3.UnitY), 1f);
+
+            renderer.ReadDepthFinest().Should().Equal(new float[width * height]);
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
 
     // At 640 × 360 the depth image is 512 × 256, and levels 5 to 10 are the tail, which one workgroup builds
     // (DepthPyramidTail.FirstMip).
@@ -146,9 +169,8 @@ public sealed class PyramidRenderTests
             for (int x = 0; x < Width; x++)
             {
                 float distanceToEye = distance[y * Width + x];
-                float expected = distanceToEye <= 0
-                    ? 0
-                    : camera.ViewRayThrough(new(x + 0.5f, y + 0.5f)).Length() / distanceToEye;
+                float expected =
+                    distanceToEye <= 0 ? 0 : camera.ViewRayThrough(new(x + 0.5f, y + 0.5f)).Length() / distanceToEye;
                 if (distanceToEye > 0)
                     surfaces++;
                 float texel = finest[y * Width + x];

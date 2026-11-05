@@ -159,7 +159,7 @@ public sealed class ScreenWalkTests
         private static int NudgedV6Steps(ScreenRay ray, DepthPyramid pyramid, Vector3 direction)
         {
             Vector2 travel = new(MathF.Sign(ray.Step.X), MathF.Sign(ray.Step.Y));
-            Vector2 farSide = Vector2.Max(travel, Vector2.Zero);
+            var farSide = Vector2.Max(travel, Vector2.Zero);
             float Exit(Vector2 cell, int level)
             {
                 Vector2 edge = (cell + farSide) * (1 << level);
@@ -199,7 +199,7 @@ public sealed class ScreenWalkTests
                     level--;
                     continue;
                 }
-                Vector2 hit = Vector2.Clamp(ray.Start + ray.Step * entry, cell, cell + Vector2.One);
+                var hit = Vector2.Clamp(ray.Start + ray.Step * entry, cell, cell + Vector2.One);
                 if (
                     meets
                     && Vector3.Dot(
