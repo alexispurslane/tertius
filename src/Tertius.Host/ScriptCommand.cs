@@ -654,7 +654,7 @@ public static partial class ScriptCommand
         TextWriter output
     )
     {
-        var summarized = timings.Runs(runs);
+        Result<IReadOnlyList<RunSummary>, string> summarized = timings.Runs(runs);
         if (summarized.Problem is { } problem)
             return problem;
         if (timings.Frame() is not { } frame)

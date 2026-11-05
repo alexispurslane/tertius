@@ -61,7 +61,7 @@ internal sealed class GpuTimingSummary
     // A loop, not FindIndex: a lambda that captures the name would allocate for each pass of each frame.
     private List<PassSample> SamplesOf(string pass)
     {
-        foreach ((string name, var samples) in passes)
+        foreach ((string name, List<PassSample>? samples) in passes)
             if (name == pass)
                 return samples;
         var times = new List<PassSample>(FramesPerPass);
@@ -117,11 +117,11 @@ internal sealed class GpuTimingSummary
             return "--gpu-run cannot select passes: no GPU timings were recorded. Use a script that captures frames and a renderer that supports timestamps.";
         foreach (string run in runs)
         {
-            var parsed = ReadRun(run);
+            Result<(string First, string Last), string> parsed = ReadRun(run);
             if (parsed.Problem is { } syntaxProblem)
                 return syntaxProblem;
             (string first, string last) = parsed.Ok ?? throw new UnreachableException();
-            var summed = SumRun(first, last);
+            Result<SpanSummary, string> summed = SumRun(first, last);
             if (summed.Problem is { } problem)
                 return problem;
             summaries.Add(new(first, last, summed.Ok ?? throw new UnreachableException()));
@@ -131,10 +131,10 @@ internal sealed class GpuTimingSummary
 
     private Result<SpanSummary, string> SumRun(string first, string last)
     {
-        var firstRead = EndpointSamples(first);
+        Result<List<PassSample>, string> firstRead = EndpointSamples(first);
         if (firstRead.Problem is { } firstProblem)
             return firstProblem;
-        var lastRead = EndpointSamples(last);
+        Result<List<PassSample>, string> lastRead = EndpointSamples(last);
         if (lastRead.Problem is { } lastProblem)
             return lastProblem;
         List<PassSample> firstSamples = firstRead.Ok ?? throw new UnreachableException();
@@ -143,7 +143,7 @@ internal sealed class GpuTimingSummary
             if (firstSamples[frame].Order > lastSamples[frame].Order)
                 return $"--gpu-run '{first}..{last}' is reversed in frame {spans[frame].Frame}: '{first}' must be recorded before '{last}'.";
         double[] sums = new double[spans.Count];
-        foreach ((_, var samples) in passes)
+        foreach ((_, List<PassSample>? samples) in passes)
         foreach (PassSample sample in samples)
             if (
                 sample.Order >= firstSamples[sample.FrameIndex].Order
