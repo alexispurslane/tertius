@@ -46,6 +46,7 @@ float reflectionFootprintAt(ivec2 pixel)
 ShadingInput materialAt(ivec2 pixel)
 {
     ShadingInput s;
+    s.position = normalize(viewRayThrough(vec2(pixel) + 0.5)) * texelFetch(gbufferDistance, pixel, 0).r;
     vec4 baseColor = texelFetch(gbufferBaseColor, pixel, 0);
     s.baseColor = baseColor.rgb;
     s.map = mapOfCode(baseColor.a);

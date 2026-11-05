@@ -44,6 +44,7 @@ const float IrradianceLimit = 18446744073709551616.0;
 
 struct ShadingInput
 {
+    vec3 position;
     vec3 baseColor;
     vec3 normal;              // shading normal, after normal mapping
     vec3 geometricNormal;     // interpolated vertex normal: the surface the shadow map sees
@@ -284,7 +285,8 @@ AmbientTerms environmentAmbient(ShadingInput s, SurfaceLobes lobes, vec3 V)
     AmbientTerms terms;
     terms.diffuse = lobes.diffuseColor * environmentDiffuse(s.map, s.normal);
     vec3 incoming = environmentSpecular(
-        s.map, ambientSpecularDirection(s, V), flooredRoughness(s.roughness), s.reflectionFootprint);
+        s.map, s.position, ambientSpecularDirection(s, V), s.geometricNormal,
+        flooredRoughness(s.roughness), s.reflectionFootprint);
     terms.specular = specularWeight(lobes) * incoming;
     return terms;
 }
@@ -491,6 +493,7 @@ vec3 scatteredLight(vec3 albedo, vec3 position, uint map)
 ShadingInput forwardShading(SurfaceSample s, vec3 position, vec4 hemisphere, uint map, vec3 V)
 {
     ShadingInput shading;
+    shading.position = position;
     shading.baseColor = s.baseColor.rgb;
     shading.normal = s.normal;
     shading.geometricNormal = s.geometricNormal;

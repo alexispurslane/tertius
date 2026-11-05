@@ -33,6 +33,7 @@ public sealed class MapSearchTests
             field: ref sky,
             position: new(x, y, z),
             direction: direction,
+            geometricNormal: MirrorNormal(position: new(x, y, z), direction: direction),
             alpha: 0.25,
             faceSize: FaceSize
         );
@@ -55,6 +56,7 @@ public sealed class MapSearchTests
             field: ref planet,
             position: position,
             direction: direction,
+            geometricNormal: MirrorNormal(position: position, direction: direction),
             alpha: MirrorAlpha,
             faceSize: FaceSize
         );
@@ -76,6 +78,7 @@ public sealed class MapSearchTests
             field: ref scene,
             position: position,
             direction: direction,
+            geometricNormal: MirrorNormal(position: position, direction: direction),
             alpha: MirrorAlpha,
             faceSize: FaceSize
         );
@@ -97,6 +100,7 @@ public sealed class MapSearchTests
             field: ref scene,
             position: new(0, -1.5, -4),
             direction: new Double3(0, 0.5, -1).Normalized(),
+            geometricNormal: MirrorNormal(position: new(0, -1.5, -4), direction: new Double3(0, 0.5, -1).Normalized()),
             alpha: MirrorAlpha,
             faceSize: FaceSize
         );
@@ -122,6 +126,7 @@ public sealed class MapSearchTests
             field: ref scene,
             position: position,
             direction: direction,
+            geometricNormal: MirrorNormal(position: position, direction: direction),
             alpha: MirrorAlpha,
             faceSize: FaceSize
         );
@@ -155,6 +160,7 @@ public sealed class MapSearchTests
             field: ref scene,
             position: onTheFloor,
             direction: mirrored,
+            geometricNormal: MirrorNormal(position: onTheFloor, direction: mirrored),
             alpha: MirrorAlpha,
             faceSize: FaceSize
         );
@@ -181,6 +187,7 @@ public sealed class MapSearchTests
             field: ref scene,
             position: onTheFloor,
             direction: mirrored,
+            geometricNormal: MirrorNormal(position: onTheFloor, direction: mirrored),
             alpha: 0.6 * 0.6,
             faceSize: FaceSize
         );
@@ -188,6 +195,94 @@ public sealed class MapSearchTests
         hit.Found.Should().BeTrue("decision C: a rough floor beside a wall reflects the wall's base");
         Double3 meeting = onTheFloor + distanceToWall / -mirrored.Z * mirrored;
         Angle(hit.Direction, meeting).Should().BeLessThan(1e-9, "the clearance is linear in the sweep on a plane");
+    }
+
+    [Theory]
+    [InlineData(0.02)]
+    [InlineData(0.05)]
+    public void ARoughFloorsRayFindsTheBaseOfAWallNearerThanTheNearSample(double distanceToWall)
+    {
+        // The floor point of the test above, but distanceToWall m from the wall's base: the ray meets the wall nearer than
+        // |x| / 63, the ray's length at the near sample, so the near sample and the first even sample both lie behind it.
+        var onTheFloor = new Double3(0, -1.5, -4.08);
+        var wall = new Plane(Normal: new(0, 0, -1), Offset: -onTheFloor.Z + distanceToWall);
+        var scene = new Scene(new Plane(Normal: new(0, -1, 0), Offset: 1.5), wall);
+        Double3 mirrored = new Double3(0, 1.5, -4.08).Normalized();
+        Double3 nearPoint = onTheFloor + onTheFloor.Length / 63 * mirrored;
+
+        MapHit hit = MapSearch.Hit(
+            field: ref scene,
+            position: onTheFloor,
+            direction: mirrored,
+            geometricNormal: MirrorNormal(position: onTheFloor, direction: mirrored),
+            alpha: 0.6 * 0.6,
+            faceSize: FaceSize
+        );
+
+        hit.Found.Should().BeTrue("decision 20's near entry: the ray entered the wall before the near sample");
+        scene.Nearest(hit.Direction)!.Value.Surface.Should().BeSameAs(wall);
+        Angle(hit.Direction, nearPoint).Should().BeLessThan(1e-12, "the hit is the near sample's place");
+        hit.Reach.Should().BeApproximately((nearPoint - onTheFloor).Length / nearPoint.Length, 1e-12);
+    }
+
+    [Fact]
+    public void AShadedPointThatLiesALittleBehindItsOwnFloorFindsTheWallThatItsRayMeets()
+    {
+        // The filter can put a shaded point a little behind its own surface. Here it lies 5 cm below the floor, so the near
+        // sample lies behind the floor too, but the first even sample, 0.6 m up the ray, lies in front of it.
+        var farWall = new Plane(Normal: new(0, 0, -1), Offset: 9);
+        var scene = new Scene(new Plane(Normal: new(0, -1, 0), Offset: 1.5), farWall);
+        var belowTheFloor = new Double3(0, -1.55, -4.08);
+        Double3 mirrored = new Double3(0, 1.55, -4.08).Normalized();
+
+        MapHit hit = MapSearch.Hit(
+            field: ref scene,
+            position: belowTheFloor,
+            direction: mirrored,
+            geometricNormal: MirrorNormal(position: belowTheFloor, direction: mirrored),
+            alpha: 0.6 * 0.6,
+            faceSize: FaceSize
+        );
+
+        hit.Found.Should().BeTrue();
+        scene
+            .Nearest(hit.Direction)!
+            .Value.Surface.Should()
+            .BeSameAs(farWall, "a near entry needs the first even sample behind too, and the ray comes out in front");
+    }
+
+    [Theory]
+    [InlineData(0, -0.2, -1)]
+    [InlineData(0, -0.05, -1)]
+    [InlineData(0.3, -0.1, -1)]
+    public void ARayIntoItsOwnSurfaceFindsNothingAndReadsTheMapAlongItsOwnDirection(
+        double alongX,
+        double alongY,
+        double alongZ
+    )
+    {
+        // A normal map tilts the floor's shading normal, so that the lobe's direction d points below the floor, whose
+        // geometric normal is up. The near sample lies just behind the floor and the first even sample behind it too, as
+        // for a ray that enters a wall nearer than the near sample.
+        var onTheFloor = new Double3(0, -1.5, -4.08);
+        var scene = new Scene(
+            new Plane(Normal: new(0, -1, 0), Offset: 1.5),
+            new Plane(Normal: new(0, 0, -1), Offset: 9)
+        );
+        Double3 direction = new Double3(alongX, alongY, alongZ).Normalized();
+
+        MapHit hit = MapSearch.Hit(
+            field: ref scene,
+            position: onTheFloor,
+            direction: direction,
+            geometricNormal: Double3.UnitY,
+            alpha: 0.6 * 0.6,
+            faceSize: FaceSize
+        );
+
+        hit.Found.Should().BeFalse("a ray that points into its own surface takes no search, as SSR traces no such ray");
+        hit.Direction.Should().Be(direction, "the read without a hit is today's read, bit for bit");
+        hit.Reach.Should().Be(1);
     }
 
     [Fact]
@@ -216,6 +311,7 @@ public sealed class MapSearchTests
             field: ref scene,
             position: onTheFloor,
             direction: mirrored,
+            geometricNormal: MirrorNormal(position: onTheFloor, direction: mirrored),
             alpha: MirrorAlpha,
             faceSize: FaceSize
         );
@@ -246,6 +342,7 @@ public sealed class MapSearchTests
             field: ref scene,
             position: hidden,
             direction: direction,
+            geometricNormal: MirrorNormal(position: hidden, direction: direction),
             alpha: MirrorAlpha,
             faceSize: FaceSize
         );
@@ -267,6 +364,7 @@ public sealed class MapSearchTests
             field: ref scene,
             position: new(0, 0, -5),
             direction: Double3.UnitZ,
+            geometricNormal: MirrorNormal(position: new(0, 0, -5), direction: Double3.UnitZ),
             alpha: MirrorAlpha,
             faceSize: FaceSize
         );
@@ -285,6 +383,7 @@ public sealed class MapSearchTests
             field: ref scene,
             position: new(0, 0, -5),
             direction: Double3.UnitZ,
+            geometricNormal: MirrorNormal(position: new(0, 0, -5), direction: Double3.UnitZ),
             alpha: MirrorAlpha,
             faceSize: FaceSize
         );
@@ -311,6 +410,7 @@ public sealed class MapSearchTests
             field: ref scene,
             position: new(-1.5, 0, -3.6),
             direction: Double3.UnitX,
+            geometricNormal: MirrorNormal(position: new(-1.5, 0, -3.6), direction: Double3.UnitX),
             alpha: MirrorAlpha,
             faceSize: FaceSize
         );
@@ -333,6 +433,7 @@ public sealed class MapSearchTests
             field: ref scene,
             position: position,
             direction: direction,
+            geometricNormal: MirrorNormal(position: position, direction: direction),
             alpha: MirrorAlpha,
             faceSize: FaceSize
         );
@@ -355,6 +456,7 @@ public sealed class MapSearchTests
             field: ref nearWall,
             position: position,
             direction: direction,
+            geometricNormal: MirrorNormal(position: position, direction: direction),
             alpha: roughness * roughness,
             faceSize: FaceSize
         );
@@ -362,6 +464,7 @@ public sealed class MapSearchTests
             field: ref farWall,
             position: position,
             direction: direction,
+            geometricNormal: MirrorNormal(position: position, direction: direction),
             alpha: roughness * roughness,
             faceSize: FaceSize
         );
@@ -381,6 +484,7 @@ public sealed class MapSearchTests
             field: ref sky,
             position: new(0, -1.5, -4),
             direction: Double3.UnitY,
+            geometricNormal: MirrorNormal(position: new(0, -1.5, -4), direction: Double3.UnitY),
             alpha: 0.37 * 0.37,
             faceSize: FaceSize
         );
@@ -397,6 +501,7 @@ public sealed class MapSearchTests
             field: ref scene,
             position: new(0, 0, -5),
             direction: Double3.UnitZ,
+            geometricNormal: MirrorNormal(position: new(0, 0, -5), direction: Double3.UnitZ),
             alpha: 0.81,
             faceSize: FaceSize
         );
@@ -414,6 +519,7 @@ public sealed class MapSearchTests
             field: ref sky,
             position: new(0, -1.5, -4),
             direction: new Double3(0, 1.5, -4).Normalized(),
+            geometricNormal: MirrorNormal(position: new(0, -1.5, -4), direction: new Double3(0, 1.5, -4).Normalized()),
             alpha: alpha,
             faceSize: FaceSize
         );
@@ -427,8 +533,8 @@ public sealed class MapSearchTests
         levels[^1]
             .Should()
             .BeApproximately(
-                Math.Log2(MapSearch.ConeWidthPerAlpha * alpha * FaceSize / 2),
-                1e-9,
+                Math.Log2(MapSearchCone.OfAlpha(alpha).TanHalfAngle * FaceSize / 2),
+                1e-6,
                 "at the ray's end the eye sees the lobe's own width"
             );
     }
@@ -438,21 +544,24 @@ public sealed class MapSearchTests
     {
         Scene sky = Scene.Sky;
 
+        // A ray back toward the eye: near t = 1/2 it passes the eye, where its reach t / |1 − 2t| grows without bound.
         MapSearch.Hit(
             field: ref sky,
-            position: new(0, -1.5, -4),
-            direction: new Double3(0, 1.5, -4).Normalized(),
+            position: new(0, 0, -4),
+            direction: new(0, 0, 1),
+            geometricNormal: MirrorNormal(position: new(0, 0, -4), direction: new(0, 0, 1)),
             alpha: 1,
             faceSize: FaceSize
         );
 
         double lastLevel = Math.Log2(FaceSize);
         sky.Reads.Should().OnlyContain(read => read.Level <= lastLevel, "the chain ends at 1 × 1, level log₂ W");
-        sky.Reads[^1].Level.Should().Be(lastLevel, "the lobe at the ray's end is wider than a whole face");
+        sky.Reads.Should()
+            .Contain(read => read.Level == lastLevel, "near the eye the lobe's cone is wider than a whole face");
     }
 
     [Fact]
-    public void AtTheRaysEndTheReadsTexelSpansTheFullWidthOfTheGgxLobeAtHalfItsPeak()
+    public void AtTheRaysEndTheReadsTexelSideIsTheRadiusOfTheLobesCone()
     {
         const double alpha = 0.04;
         Scene sky = Scene.Sky;
@@ -461,20 +570,71 @@ public sealed class MapSearchTests
             field: ref sky,
             position: new(0, -1.5, -4),
             direction: new Double3(0, 1.5, -4).Normalized(),
+            geometricNormal: MirrorNormal(position: new(0, -1.5, -4), direction: new Double3(0, 1.5, -4).Normalized()),
             alpha: alpha,
             faceSize: FaceSize
         );
 
-        // GGX D(θ) ∝ 1 / ((α² − 1) cos² θ + 1)² falls to half its peak where sin² θ = α² (√2 − 1) / (1 − α²). The
-        // reflected direction turns by twice the half vector's angle, on both sides of the central ray.
-        double halfVector = Math.Asin(alpha * Math.Sqrt((Math.Sqrt(2) - 1) / (1 - alpha * alpha)));
-        double fullWidth = 4 * halfVector;
+        // Uludag's cone holds the share 1 − ξ of the GGX half vectors, ξ = 0.244: tan θ_c = α √((1 − ξ) / ξ).
+        double tanHalfAngle = alpha * Math.Sqrt((1 - 0.244) / 0.244);
         sky.Reads[^1]
             .Level.Should()
             .BeApproximately(
-                Math.Log2(fullWidth * FaceSize / 2),
-                0.01,
-                "at a reach of 1 the read's texel, 2 / W rad at a face's center, spans the lobe's full width"
+                Math.Log2(tanHalfAngle * FaceSize / 2),
+                1e-4,
+                "at a reach of 1 the read's texel side, 2 / W rad at a face's center, is the cone's radius"
+            );
+    }
+
+    /// <param name="alpha">α, the floored roughness squared, from the floor's 0.002 to 1.</param>
+    [Theory]
+    [InlineData(0.002)]
+    [InlineData(0.04)]
+    [InlineData(0.1444)]
+    [InlineData(0.5)]
+    [InlineData(1.0)]
+    public void TheSearchReadsAtEachReachTheLevelThatTheMapSearchConeGivesForThatReach(double alpha)
+    {
+        Scene sky = Scene.Sky;
+        var position = new Double3(0, -1.5, -4);
+        Double3 direction = new Double3(0, 1.5, -4).Normalized();
+
+        MapSearch.Hit(
+            field: ref sky,
+            position: position,
+            direction: direction,
+            geometricNormal: MirrorNormal(position: position, direction: direction),
+            alpha: alpha,
+            faceSize: FaceSize
+        );
+
+        // The point at the sweep t lies |x| t / (1 − t) along the ray and |x| |L(t)| / (1 − t) from the eye, so the
+        // ratio of the ray's length to the hit's distance is t / |L(t)|, the reach.
+        double[] sweeps =
+        [
+            MapSearch.NearSample,
+            .. Enumerable.Range(1, MapSearch.Samples).Select(k => (double)k / MapSearch.Samples),
+        ];
+        Double3 toPoint = position / position.Length;
+        var cone = MapSearchCone.OfAlpha(alpha);
+        double[] expected =
+        [
+            .. sweeps.Select(sweep =>
+                (double)
+                    cone.Level(
+                        rayLength: (float)sweep,
+                        hitDistance: (float)((1 - sweep) * toPoint + sweep * direction).Length,
+                        pixelAngle: 2f / FaceSize,
+                        topLevel: (int)Math.Log2(FaceSize)
+                    )
+            ),
+        ];
+        sky.Reads.Select(read => read.Level)
+            .Should()
+            .Equal(
+                expected,
+                (read, cones) => Math.Abs(read - cones) < 1e-5,
+                "one cone and one level rule serve SSR and the map"
             );
     }
 
@@ -513,6 +673,7 @@ public sealed class MapSearchTests
             field: ref kept,
             position: position,
             direction: direction,
+            geometricNormal: MirrorNormal(position: position, direction: direction),
             alpha: MirrorAlpha,
             faceSize: FaceSize
         );
@@ -520,6 +681,7 @@ public sealed class MapSearchTests
             field: ref flushed,
             position: position,
             direction: direction,
+            geometricNormal: MirrorNormal(position: position, direction: direction),
             alpha: MirrorAlpha,
             faceSize: FaceSize
         );
@@ -527,6 +689,13 @@ public sealed class MapSearchTests
         keptHit.Found.Should().BeTrue("a device that keeps the subnormal finds the surface");
         Angle(keptHit.Direction, flushedHit.Direction).Should().BeLessThan(0.01 * 2.0 / FaceSize);
     }
+
+    /// <summary>
+    /// n_g of a mirror at <paramref name="position"/> that reflects the eye's view ray into the unit
+    /// <paramref name="direction"/>: the unit vector along d − x̂, which d leaves.
+    /// </summary>
+    private static Double3 MirrorNormal(Double3 position, Double3 direction) =>
+        (direction - position.Normalized()).Normalized();
 
     /// <summary>The angle between two directions, which need not be unit, in rad.</summary>
     private static double Angle(Double3 a, Double3 b) => Math.Atan2(Double3.Cross(a, b).Length, Double3.Dot(a, b));

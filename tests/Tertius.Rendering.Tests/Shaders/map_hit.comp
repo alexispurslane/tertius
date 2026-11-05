@@ -1,0 +1,31 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+// mapHit of environment.glsl for each ray of a buffer (MapSearchShaderTests): the shader's search pinned to its C# twin,
+// MapSearch.Hit. Sets 0 to 2 are the scene's, as in every compute pass; set 3 holds the rays.
+#include "environment.glsl"
+
+layout(local_size_x = 64) in;
+
+// One ray in, and its hit out (MapSearchShaderTests.MapRay).
+struct MapRay
+{
+    vec4 positionMap;      // in: xyz the shaded point relative to the eye, in m; w the map
+    vec4 directionAlpha;   // in: xyz the unit direction d; w α
+    vec4 geometricNormal;  // in: xyz the unit geometric normal n_g of the shaded point's surface
+    vec4 hitReach;         // out: xyz MapHit.direction; w MapHit.reach
+    vec4 found;            // out: x 1 where MapHit.found, else 0
+};
+
+layout(set = 3, binding = 0, std430) buffer RayBlock { MapRay rays[]; };
+
+void main()
+{
+    uint index = gl_GlobalInvocationID.x;
+    if (index >= uint(rays.length()))
+        return;
+    MapRay ray = rays[index];
+    MapHit hit = mapHit(
+        uint(ray.positionMap.w), ray.positionMap.xyz, ray.directionAlpha.xyz, ray.geometricNormal.xyz, ray.directionAlpha.w);
+    rays[index].hitReach = vec4(hit.direction, hit.reach);
+    rays[index].found = vec4(hit.found ? 1.0 : 0.0);
+}

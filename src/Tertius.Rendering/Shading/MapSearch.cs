@@ -1,3 +1,5 @@
+using System.Numerics;
+
 namespace Tertius.Rendering;
 
 /// <summary>
@@ -48,12 +50,6 @@ internal static class MapSearch
     /// <summary>K, the regula falsi steps in the first bracket, before the last secant place.</summary>
     public const int SecantSteps = 3;
 
-    /// <summary>
-    /// θ / α: the full width at half maximum of the GGX lobe about its central ray, in rad per unit of α. GGX falls to
-    /// half its peak at a half vector 0.644 α from the normal, and the reflected direction turns by twice that.
-    /// </summary>
-    public const double ConeWidthPerAlpha = 2.57;
-
     // The shortest lookup vector that the search reads, 2⁻¹⁰. A shorter one passes through the eye's neighborhood, which
     // lies in front of every stored surface, and a cube read along a zero vector is undefined.
     private const double ShortestLookup = 1.0 / 1024;
@@ -74,18 +70,57 @@ internal static class MapSearch
     /// (docs/plans/environment-map-distances.md, "The search"). Without a hit, d itself with a reach of 1.
     /// </summary>
     /// <param name="position">The shaded point x relative to the eye, in m, not at the eye.</param>
-    /// <param name="alpha">α, the floored roughness squared, which sets the cone that chooses each read's level.</param>
+    /// <param name="geometricNormal">
+    /// n_g, the unit geometric normal of the shaded point's surface. A ray with d · n_g ≤ 0 points into that surface and
+    /// finds no hit, as the screen tracer takes no such ray (docs/plans/skin-and-hair.md, decision 35).
+    /// </param>
+    /// <param name="alpha">α, the floored roughness squared, which sets the lobe's <see cref="MapSearchCone"/> that chooses each read's level.</param>
     /// <param name="faceSize">W, the face size of level 0 in texels, a power of two.</param>
-    public static MapHit Hit<TField>(ref TField field, Double3 position, Double3 direction, double alpha, int faceSize)
+    public static MapHit Hit<TField>(
+        ref TField field,
+        Double3 position,
+        Double3 direction,
+        Double3 geometricNormal,
+        double alpha,
+        int faceSize
+    )
         where TField : struct, IInverseDistanceField
     {
-        var ray = new SweptRay(position: position, direction: direction, alpha: alpha, faceSize: faceSize);
+        // A ray that points into its own surface, as a normal map can turn d, would find that surface at once, which no
+        // sample can see (docs/plans/environment-map-distances.md, "Error cases"). The screen tracer skips such rays too.
+        if (Double3.Dot(direction, geometricNormal) <= 0)
+            return new MapHit(Found: false, Direction: direction, Reach: 1);
+        return March(
+            field: ref field,
+            ray: new SweptRay(position: position, direction: direction, alpha: alpha, faceSize: faceSize),
+            direction: direction
+        );
+    }
+
+    /// <summary>
+    /// The march of <paramref name="ray"/>: the near sample, then the even samples, until the near entry or the first
+    /// bracket, which <see cref="Refined"/> narrows. Without a hit, <paramref name="direction"/> d with a reach of 1.
+    /// </summary>
+    private static MapHit March<TField>(ref TField field, SweptRay ray, Double3 direction)
+        where TField : struct, IInverseDistanceField
+    {
         // The last sample in front, null before the first one.
         Sample? front = null;
+        // Whether the near sample lies inside the thickness of its stored surface: behind it, by at most the share κ of
+        // the surface's distance D that a surface fills behind it, as for SSR's trace (CellBounds.ThicknessShare). The
+        // clearance is (1 − t)(1 − |p| / D) for the point p, so c + κ (1 − t) ≥ 0 means |p| ≤ (1 + κ) D.
+        bool nearInSlab = false;
         for (int k = 0; k <= Samples; k++)
         {
             double sweep = k == 0 ? NearSample : (double)k / Samples;
             var sample = new Sample(sweep, ray.Clearance(ref field, sweep));
+            // The near entry: a near sample just behind its surface and a first even sample behind too mean that the ray
+            // entered a surface nearer than the near sample. A shaded point that the filter puts a little behind its own
+            // surface has its first even sample in front, and the point beside a nearer object lies beyond the slab.
+            if (k == 1 && nearInSlab && sample.Clearance < 0)
+                return ray.HitAt(NearSample);
+            if (k == 0)
+                nearInSlab = sample.Clearance < 0 && sample.Clearance + CellBounds.ThicknessShare * (1 - sweep) >= 0;
             // A sample with c = 0 counts as in front, so the sky at t = 1 is never a crossing.
             if (sample.Clearance >= 0)
                 front = sample;
@@ -114,10 +149,7 @@ internal static class MapSearch
             else
                 back = sample;
         }
-        double hit = Sample.SecantPlace(front, back);
-        Double3 lookup = ray.Lookup(hit);
-        // The floor keeps the division finite where the hit lies at the eye, which a ray through the eye can approach.
-        return new MapHit(Found: true, Direction: lookup, Reach: hit / Math.Max(lookup.Length, ShortestLookup));
+        return ray.HitAt(Sample.SecantPlace(front, back));
     }
 
     /// <summary>The clearance c of the ray at the sweep t.</summary>
@@ -143,14 +175,25 @@ internal static class MapSearch
         // x̂, the eye's unit direction to the shaded point.
         private readonly Double3 toPoint = position / position.Length;
 
-        // θ W / 2: the cone's full width at a reach of 1, in level-0 texels at a face's center, 2 / W rad each.
-        private readonly double coneTexels = ConeWidthPerAlpha * alpha * faceSize / 2;
+        // The cone of the accepted distance-cube search (docs/plans/temporal-renderer.md, section 14, ticket 8).
+        private readonly MapSearchCone cone = MapSearchCone.OfAlpha(alpha);
+
+        // 2 / W, a level-0 texel's angle at a face's center, in rad.
+        private readonly float texelAngle = 2f / faceSize;
 
         // λmax, the last level, at 1 × 1.
-        private readonly double lastLevel = Math.Log2(faceSize);
+        private readonly int lastLevel = BitOperations.Log2((uint)faceSize);
 
         /// <summary>L(t) = (1 − t) x̂ + t d: the eye's direction to the ray's point at the sweep t, not unit.</summary>
         public Double3 Lookup(double sweep) => (1 - sweep) * toPoint + sweep * direction;
+
+        /// <summary>The hit at the sweep t, with no read: its direction L(t) and its reach t / |L(t)|.</summary>
+        public MapHit HitAt(double sweep)
+        {
+            Double3 lookup = Lookup(sweep);
+            // The floor keeps the division finite where the hit lies at the eye, which a ray through the eye can approach.
+            return new MapHit(Found: true, Direction: lookup, Reach: sweep / Math.Max(lookup.Length, ShortestLookup));
+        }
 
         /// <summary>
         /// c(t) = (1 − t) − 0.001 |x| |L(t)| w(L(t), λ(t)): above 0 where the ray's point at t lies in front of the stored
@@ -164,10 +207,14 @@ internal static class MapSearch
             // In front, with no read: the limit of c as |L| goes to 0, because w is bounded.
             if (length < ShortestLookup)
                 return 1 - sweep;
-            double reach = sweep / length;
-            // The level whose texel spans the cone's cross-section θ ρ(t) as the eye sees it. The max keeps level 0 for
-            // a cross-section narrower than a texel, and keeps log₂(0) out.
-            double level = Math.Min(Math.Log2(Math.Max(coneTexels * reach, 1)), lastLevel);
+            // The level whose texel side is the cone's radius as the eye sees it, ρ(t) tan θ_c. The ray's point lies
+            // |x| t / (1 − t) along the ray and |x| |L(t)| / (1 − t) from the eye, so t and |L(t)| stand for both.
+            double level = cone.Level(
+                rayLength: (float)sweep,
+                hitDistance: (float)length,
+                pixelAngle: texelAngle,
+                topLevel: lastLevel
+            );
             return 1 - sweep - KilometersPerMeter * distance * length * field.At(lookup, level);
         }
     }

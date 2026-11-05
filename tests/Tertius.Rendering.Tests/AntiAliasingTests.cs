@@ -309,6 +309,7 @@ public sealed class AntiAliasingTests
                 Bloom = new NoBloom(),
                 AntiAliasing = AntiAliasing.Smaa,
                 ScreenTrace = new NoScreenTrace(),
+                EnvironmentMap = new NoEnvironmentMap(),
             },
             (device, allocator, extent) => new UnormOutput(device: device, allocator: allocator, extent: extent)
         );

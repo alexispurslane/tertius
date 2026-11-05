@@ -1,5 +1,7 @@
 # Environment maps that know their distances
 
+Implementation note (2026-11-05, `ter-7tnv`): temporal-renderer.md section 6, decision 35 and section 14 item 8 supersede this document's old reflection-pipeline scope, including decision 8. The accepted S + Q2 read from `570fdbbf8` now serves reflection misses and every specular reader of the current tracer and forward passes. Ordinary diffuse misses stay directional. The accepted cone is the radius rule in `specular_cone.glsl` and `MapSearchCone`, not this document's earlier 2.57-alpha full-width proposal. No deleted reflection or occlusion pass is restored. The acceptance misses and the unresolved tracer grain remain limits, not tuning targets for this ticket.
+
 Ticket `ter-jw7g`, epic `ter-b2da`. The user chose this design on 2026-11-02: design A, "the map knows its distances". This document records the settled design, its internal decisions with their reasons, the open questions for the user, and the order of the work.
 
 This design extends three existing designs:
