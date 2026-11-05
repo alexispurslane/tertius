@@ -968,8 +968,12 @@ The rules:
 
 1. A miss has an infinite hit distance. Its reflected place is the last frame's place of the view direction, as for the sky. A camera that only moves then keeps a mirror's reflection of the sky.
 2. In the hand-over band and above, from `MaxRoughness` − `HandOverWidth`, only the surface place counts. There the sample's hit distance belongs to a diffuse ray, not to the lobe.
-3. The hit distance test applies to the taps of both places. If a tap's stored hit distance and this frame's differ by at most half of the larger one, the tap passes. Two misses count as equal.
-4. If both places pass, compare their fast histories with the mean of this frame's specular samples over the 3 × 3 pixels. Take the place whose fast history lies nearer in luminance. If one place passes, take it. If neither passes, the pixel has no history.
+3. Validate the two places separately. The surface place follows the receiving surface, so its taps keep the plane, geometric-normal and roughness tests without a hit-distance test. The reflected place follows the reflected image. Its taps also test hit distance: stored and current distances must differ by at most half of the larger one. Two misses count as equal. A failed reflected place never rejects a valid surface place.
+4. If both places pass, compare their fast histories with the mean of this frame's finite specular samples over the 3 × 3 pixels. Include only neighbors that pass `sameSurface`. Take the place whose fast history lies nearer in luminance. If one place passes, take it. If neither passes, the pixel has no history.
+
+Rule 3 follows the user's approved design A of the `ter-gayt` continuation. History estimates reflected light, not the identity of one random ray hit. Independent rays can hit different depths under unchanged light, even on a smooth receiver. A surface history therefore never takes the single-ray distance veto. The reflected place keeps its existing roughness eligibility from rule 2, not a new near-mirror cutoff.
+
+The luminance comparison chooses between valid places; it does not establish that their light is still current. The existing blend, fast history and spatial clamp provide the response to changed light. No new image, distance filter, ray count or cap is added. A short mirror history still takes new samples at its existing weight even when its length is too short for the spatial clamp. GPU tests pin the existing ten-frame bound for replacing 90% of a light step, including a real glowing panel that moves or stops emitting. This bound does not promise an instant noise-free image or cover every moving scene. A single bright sample must not restart otherwise useful rough history, and neighboring samples are not treated as independent evidence.
 
 The reflected place is exact only for a flat mirror that does not move. On a curved or a moving mirror, the surface place wins the comparison, or both fail.
 

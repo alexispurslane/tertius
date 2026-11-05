@@ -109,6 +109,44 @@ public sealed class ScreenTraceRenderTests
         }
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void AChangedGlowingPanelLosesNinetyPercentOfItsOldMirrorImageWithinTenFrames(bool moves)
+    {
+        VulkanRenderer renderer = Tracing();
+        try
+        {
+            RenderSnapshot scene = GlowingPanelOverAMirror(renderer, new(4f));
+            Draw(renderer, scene, frames: 40);
+            (int X, int Y) shown = MirrorPixel(GlowingPanelCenter);
+            float before = At(renderer.ReadImage(renderer.ScreenTraceSignals.Specular.Slow(0)), shown).X;
+            before.Should().BeGreaterThan(3.2f);
+            RenderInstance panel = scene.Instances[1];
+            if (moves)
+            {
+                panel.PreviousPosition = panel.Position;
+                panel.Position += new Vector3(4, 0, 0);
+            }
+            else
+                panel.Material = Glow(renderer, Vector3.Zero);
+            scene.Instances[1] = panel;
+
+            Draw(renderer, scene, frames: 10);
+
+            float after = At(renderer.ReadImage(renderer.ScreenTraceSignals.Specular.Slow(0)), shown).X;
+            after.Should().BeLessThan(0.1f * before);
+            if (moves)
+                At(renderer.ReadImage(renderer.ScreenTraceSignals.Specular.Slow(0)), MirrorPixel(panel.Position))
+                    .X.Should()
+                    .BeGreaterThan(3.2f);
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
     /// <summary>
     /// A dark scene with a mirror floor and a glowing panel 12 m ahead, at <see cref="GlowingPanelCenter"/>. With
     /// <paramref name="holdsLight"/>, the panel's entity holds a lamp at its center, so that it shows its glow to the

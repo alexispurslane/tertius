@@ -59,7 +59,8 @@ public sealed class AccumulatorRenderTests
             )
         );
         var sample = new SamplePass(
-            renderer.CreateSignal(parameters: parameters ?? Parameters, name: "test", parts: 2)
+            renderer.CreateSignal(parameters: parameters ?? Parameters, name: "test", parts: 2),
+            renderer.Allocator
         );
         renderer.Graph.Add(FrameGraph.Stage.DirectLight, sample);
         renderer.Graph.Add(FrameGraph.Stage.DirectLight, new AccumulatePass(sample.Signal));
@@ -301,12 +302,13 @@ public sealed class AccumulatorRenderTests
     }
 
     [Theory]
-    [InlineData(4.5f, 1f)]
+    [InlineData(4.5f, 4f)]
     [InlineData(3.5f, 4f)]
-    public void ASpecularTapWhoseHitDistanceDiffersByMoreThanHalfOfTheLargerFails(float hitDistance, float length)
+    public void ARejectedReflectedLocationDoesNotDiscardUnchangedLightAtTheSurfaceLocation(
+        float hitDistance,
+        float length
+    )
     {
-        // The history holds a hit distance of 2 m. Against 4.5 m the tap fails, and the history starts again; against
-        // 3.5 m, within half of 3.5 m, it passes, and the history of a mirror keeps its cap of 4.
         (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
             parameters: SignalParameters.Specular(0.4f),
             roughness: 0.05f
@@ -328,9 +330,7 @@ public sealed class AccumulatorRenderTests
         }
     }
 
-    [Fact(
-        Skip = "ter-gayt: reproduced at history length 1 after 12 frames; section 8 rule 3 needs the user's decision"
-    )]
+    [Fact]
     public void IndependentRoughReflectionDistancesDoNotRestartAnUnchangedLightsHistory()
     {
         (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
@@ -348,8 +348,8 @@ public sealed class AccumulatorRenderTests
             renderer.ReadSurfaceTest()[Height / 2 * Width + Width / 2].Should().Be(255);
             CenterOf(renderer, sample, part: 0)
                 .Length.Should()
-                .BeGreaterThanOrEqualTo(
-                    8f,
+                .Be(
+                    12f,
                     "independent reflection rays at roughness 0.38 see two depths, but the camera, surface and light never change"
                 );
         }
@@ -359,11 +359,143 @@ public sealed class AccumulatorRenderTests
         }
     }
 
+    [Fact]
+    public void IndependentSmoothReflectionDistancesDoNotRestartAnUnchangedLightsHistory()
+    {
+        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
+            parameters: SignalParameters.Specular(0.4f),
+            roughness: 0.05f
+        );
+        try
+        {
+            for (int frame = 0; frame < 12; frame++)
+            {
+                sample.Value = new(x: 1f, y: 1f, z: 1f, w: frame % 2 == 0 ? 2f : 8f);
+                Continue(renderer, scene, frames: 1);
+            }
+
+            CenterOf(renderer, sample, part: 0).Length.Should().Be(4f);
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
     [Theory]
-    [InlineData(true, 4f)]
-    [InlineData(false, 1f)]
+    [InlineData(0.05f, 1f, 0f)]
+    [InlineData(0.05f, 0f, 1f)]
+    [InlineData(0.38f, 1f, 0f)]
+    [InlineData(0.38f, 0f, 1f)]
+    public void AChangedReflectedLightReplacesNinetyPercentOfTheOldLightWithinTenFrames(
+        float roughness,
+        float before,
+        float after
+    )
+    {
+        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
+            parameters: SignalParameters.Specular(0.4f),
+            roughness: roughness
+        );
+        try
+        {
+            sample.Value = new(x: before, y: before, z: before, w: 2f);
+            renderer.Render(scene, 1f);
+            Continue(renderer, scene, frames: 40);
+
+            sample.Value = new(x: after, y: after, z: after, w: 8f);
+            Continue(renderer, scene, frames: 10);
+
+            CenterOf(renderer, sample, part: 0).Light.X.Should().BeApproximately(after, 0.1f);
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Theory]
+    [InlineData(0.6f, 0.38f)]
+    [InlineData(0f, 0.05f)]
+    [InlineData(0f, 0.8f)]
+    public void AReceiverWhoseNormalOrRoughnessChangedDoesNotKeepOldReflectedLight(float turn, float roughness)
+    {
+        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
+            parameters: SignalParameters.Specular(0.4f),
+            roughness: 0.38f
+        );
+        try
+        {
+            sample.Value = new(x: 1f, y: 1f, z: 1f, w: 2f);
+            renderer.Render(scene, 1f);
+            Continue(renderer, scene, frames: 12);
+            RenderInstance receiver = scene.Instances[0];
+            receiver.Material = renderer.CreateMaterial(MaterialDesc.Color(Vector4.One, roughness: roughness));
+            receiver.PreviousRotation = receiver.Rotation;
+            receiver.Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitY, turn);
+            scene.Instances[0] = receiver;
+            sample.Value = new(x: 4f, y: 4f, z: 4f, w: 2f);
+
+            Continue(renderer, scene, frames: 1);
+
+            CenterOf(renderer, sample, part: 0).Length.Should().Be(1f);
+            CenterOf(renderer, sample, part: 0).Light.Should().Be(new Vector3(4f));
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void AnUncoveredReceiverDoesNotInheritTheOccludersReflectedLight()
+    {
+        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
+            parameters: SignalParameters.Specular(0.4f),
+            roughness: 0.38f
+        );
+        try
+        {
+            MeshId cube = renderer.CreateMesh(Primitives.Box(new(0.5f)));
+            MaterialId paint = renderer.CreateMaterial(MaterialDesc.Color(Vector4.One, roughness: 0.38f));
+            scene.Instances.Add(
+                Gpu.Instance(
+                    mesh: cube,
+                    material: paint,
+                    position: new(0, 0, -6),
+                    scale: new(60, 40, 1),
+                    chainDepth: TestChains.CamerasFrame,
+                    entity: 2
+                )
+            );
+            sample.Value = new(x: 1f, y: 1f, z: 1f, w: 2f);
+            renderer.Render(scene, 1f);
+            Continue(renderer, scene, frames: 12);
+            scene.Instances.RemoveAt(1);
+            sample.Value = new(x: 4f, y: 4f, z: 4f, w: 2f);
+
+            Continue(renderer, scene, frames: 1);
+
+            CenterOf(renderer, sample, part: 0).Length.Should().Be(1f);
+            CenterOf(renderer, sample, part: 0).Light.Should().Be(new Vector3(4f));
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Theory]
+    [InlineData(true, 0.05f, 20f, 4f)]
+    [InlineData(true, 0.05f, 39f, 4f)]
+    [InlineData(true, 0.05f, 41f, 1f)]
+    [InlineData(false, 0.05f, 20f, 1f)]
+    [InlineData(true, 0.38f, 20f, 4f)]
+    [InlineData(true, 0.45f, 20f, 1f)]
     public void AMirrorPixelWhoseSurfaceLeftTheLastImageKeepsItsHistoryThroughTheReflectedPoint(
         bool specular,
+        float roughness,
+        float hitDistance,
         float length
     )
     {
@@ -378,7 +510,7 @@ public sealed class AccumulatorRenderTests
                 Cap = 4,
                 SmoothCap = 4,
             },
-            roughness: 0.05f
+            roughness: roughness
         );
         try
         {
@@ -388,10 +520,78 @@ public sealed class AccumulatorRenderTests
 
             scene.Camera.PreviousPosition = scene.Camera.Position;
             scene.Camera.Position += new Vector3(1f, 0, 0);
+            sample.Value = new(x: 1f, y: 1f, z: 1f, w: hitDistance);
             Continue(renderer, scene, frames: 1);
 
             float[] history = HistoryOf(renderer, sample, part: 0);
             history[4 * (Height / 2 * Width + Width - 2) + 3].Should().Be(length);
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void LightOnANeighboringSurfaceDoesNotChooseTheReceiversReflectionHistory()
+    {
+        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
+            parameters: SignalParameters.Specular(0.4f),
+            roughness: 0.05f
+        );
+        try
+        {
+            sample.Samples = (column, _) => new Vector4(column >= 37 ? Vector3.One : new Vector3(4f), 20f);
+            renderer.Render(scene, 1f);
+            Continue(renderer, scene, frames: 40);
+            MeshId cube = renderer.CreateMesh(Primitives.Box(new(0.5f)));
+            MaterialId paint = renderer.CreateMaterial(MaterialDesc.Color(Vector4.One, roughness: 0.05f));
+            scene.Instances.Add(
+                Gpu.Instance(
+                    mesh: cube,
+                    material: paint,
+                    position: new(7.1f, 0, -6),
+                    scale: new(5.8f, 40, 1),
+                    chainDepth: TestChains.CamerasFrame,
+                    entity: 2
+                )
+            );
+            scene.Camera.PreviousPosition = scene.Camera.Position;
+            scene.Camera.Position += new Vector3(4f, 0, 0);
+            sample.Samples = (column, _) => new Vector4(column > Width / 2 ? new Vector3(100f) : Vector3.One, 20f);
+
+            Continue(renderer, scene, frames: 1);
+
+            float[] distances = renderer.ReadDistance();
+            distances[Height / 2 * Width + Width / 2].Should().BeInRange(19f, 20f);
+            distances[Height / 2 * Width + Width / 2 + 1].Should().BeInRange(5f, 6f);
+            CenterOf(renderer, sample, part: 0).Light.X.Should().BeApproximately(1f, 0.1f);
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void OneBrightSampleDoesNotRestartAnOtherwiseUnchangedRoughReflectionsHistory()
+    {
+        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
+            parameters: SignalParameters.Specular(0.4f),
+            roughness: 0.38f
+        );
+        try
+        {
+            sample.Value = new(x: 1f, y: 1f, z: 1f, w: 2f);
+            renderer.Render(scene, 1f);
+            Continue(renderer, scene, frames: 12);
+            sample.Samples = (column, row) =>
+                new Vector4(column == Width / 2 && row == Height / 2 ? new Vector3(20f) : Vector3.One, 8f);
+
+            Continue(renderer, scene, frames: 1);
+
+            CenterOf(renderer, sample, part: 0).Length.Should().BeGreaterThanOrEqualTo(8f);
+            CenterOf(renderer, sample, part: 0).Light.X.Should().BeLessThan(3f);
         }
         finally
         {
@@ -445,10 +645,15 @@ public sealed class AccumulatorRenderTests
         }
     }
 
-    /// <summary>The producer of <paramref name="signal"/>: it clears the sample of each part to <see cref="Value"/>.</summary>
-    private sealed unsafe class SamplePass(TemporalSignal signal) : RenderPass
+    /// <summary>The producer of <paramref name="signal"/>: it clears each part to <see cref="Value"/> or uploads
+    /// <see cref="Samples"/> per pixel. Uploads stay alive until the pass is disposed.</summary>
+    private sealed unsafe class SamplePass(TemporalSignal signal, DeviceAllocator allocator) : RenderPass
     {
+        private readonly List<GpuBuffer> uploads = [];
+
         public Vector4 Value { get; set; }
+
+        public Func<int, int, Vector4>? Samples { get; set; }
 
         /// <summary>The signal whose samples the pass writes.</summary>
         public TemporalSignal Signal => signal;
@@ -460,6 +665,11 @@ public sealed class AccumulatorRenderTests
             for (int part = 0; part < signal.Parts; part++)
                 context.Barriers.Image(signal.Sample(part), ImageUse.TransferDestination, discard: true);
             context.Barriers.Flush(context.Vk, context.CommandBuffer);
+            if (Samples is { } samples)
+            {
+                Upload(context, samples);
+                return;
+            }
             var color = new ClearColorValue(
                 float32_0: Value.X,
                 float32_1: Value.Y,
@@ -482,6 +692,57 @@ public sealed class AccumulatorRenderTests
                     rangeCount: 1,
                     pRanges: &whole
                 );
+        }
+
+        private void Upload(FrameContext context, Func<int, int, Vector4> samples)
+        {
+            var texels = new Half[4 * Width * Height];
+            for (int row = 0; row < Height; row++)
+            for (int column = 0; column < Width; column++)
+            {
+                Vector4 value = samples(column, row);
+                int at = 4 * (row * Width + column);
+                texels[at] = (Half)value.X;
+                texels[at + 1] = (Half)value.Y;
+                texels[at + 2] = (Half)value.Z;
+                texels[at + 3] = (Half)value.W;
+            }
+            var staging = GpuBuffer.Create(
+                device: context.Device,
+                allocator: allocator,
+                size: (ulong)(texels.Length * sizeof(Half)),
+                usage: BufferUsageFlags.TransferSrcBit,
+                memoryUsage: MemoryUsage.Upload,
+                name: "accumulator test samples"
+            );
+            uploads.Add(staging);
+            staging.Write<Half>(texels);
+            var region = new BufferImageCopy
+            {
+                ImageSubresource = new(
+                    aspectMask: ImageAspectFlags.ColorBit,
+                    mipLevel: 0,
+                    baseArrayLayer: 0,
+                    layerCount: 1
+                ),
+                ImageExtent = new(Width, Height, 1),
+            };
+            for (int part = 0; part < signal.Parts; part++)
+                context.Vk.CmdCopyBufferToImage(
+                    commandBuffer: context.CommandBuffer,
+                    srcBuffer: staging.Handle,
+                    dstImage: signal.Sample(part).Handle,
+                    dstImageLayout: ImageLayout.TransferDstOptimal,
+                    regionCount: 1,
+                    pRegions: &region
+                );
+        }
+
+        public override void Dispose()
+        {
+            foreach (GpuBuffer upload in uploads)
+                upload.Dispose();
+            base.Dispose();
         }
     }
 }

@@ -1556,9 +1556,9 @@ The accumulator. `TemporalSignal` owns the images of one signal of one or more p
 
 | Image | Writer | Holds |
 |---|---|---|
-| The sample | The signal's sample pass | This frame's light of the part, demodulated and pre-exposed, with 1 in a |
+| The sample | The signal's sample pass | This frame's light of the part, demodulated and pre-exposed. For specular, a holds hit distance in m, or 0 for a miss |
 | The slow history | The spatial dispatch | The accumulated light, in rgb as the sample holds it, and the history length in frames in a |
-| Two fast histories, by the parity of the drawn frames | The temporal dispatch | The light accumulated over at most `FastCap` frames |
+| Two fast histories, by the parity of the drawn frames | The temporal dispatch | The light accumulated over at most `FastCap` frames; for specular, a holds the current sample's hit distance in m, or 0 for a miss |
 | The scratch image | The temporal dispatch | The slow history before the fix and the clamp |
 
 The accumulation runs two compute dispatches of 8 × 8 per part:
@@ -1566,7 +1566,9 @@ The accumulation runs two compute dispatches of 8 × 8 per part:
 1. The temporal dispatch (`accumulate_temporal.comp`) reprojects the last frame's slow and fast histories with the bilinear weights of the 2 × 2 texels around the pixel's previous place. Only the taps that pass the surface test count, and a sum of their weights below 0.05 is no history. The histories hold pre-exposed light, so they take the factor 2^(S − S_last) of the exposure's change. A sample that is not finite is no sample, and a pixel with neither takes 0, the closed form. Then the length grows by 1, up to `Cap`. The sample blends into the slow history with the weight 1 / length, and into the fast history with 1 / min(length, `FastCap`).
 2. The spatial dispatch (`accumulate_spatial.comp`) reads the scratch image. A history shorter than `HistoryFixFrames` takes the mean of the 3 × 3 pixels 2^(`HistoryFixFrames` − 1 − ⌊length⌋) apart that show the same surface, each weighted by its length. A history longer than `FastCap` is clamped into mean ± `ClampSigmas` · σ of the fast histories of the 3 × 3 pixels around it. The clamp's move over the mean's luminance shortens the length, to `FastCap` at a move of `AntiLagShare`. The dispatch writes the slow history.
 
-`sameSurface` in `temporal.glsl` holds the test of a neighbor: a view depth within 10 %, normals within 25° and the same shading model. Invariants, which `TemporalSignal.AssertInvariants` checks: every image of every part has the targets' size, the signal sets hold one set per part and parity, and the cap and the fast cap are at least 1.
+The specular signal estimates reflected light, not the identity of a random ray hit. Its surface-motion place follows the receiver and keeps the plane, geometric-normal and roughness tests, without a hit-distance veto. Below `ReflectedPlaceBelow`, its reflection-motion place also competes, with the same surface tests and its existing hit-distance test. Only this second place requires stored and current hit distances to differ by at most half of the larger distance; two misses match. Its rejection cannot remove a valid surface-motion place. Among valid places, the fast history nearer the current local sample mean in luminance wins. The mean includes only finite samples on the same surface. The blend, roughness-dependent caps and shared spatial repair and clamp remain the response to changed lighting, including short mirror histories. `AccumulatorRenderTests` and `ScreenTraceRenderTests` check retention under independent distances and the existing ten-frame response bound for changed light and a moving or extinguished panel. No second denoiser or history image is added.
+
+`sameSurface` in `temporal.glsl` holds the test of a neighbor: a view depth within 10 %, normals within 25° and the same shading model. Both the local sample comparison and the spatial dispatch use it. Invariants, which `TemporalSignal.AssertInvariants` checks: every image of every part has the targets' size, the signal sets hold one set per part and parity, and the cap and the fast cap are at least 1.
 
 #### The removal of ReSTIR DI
 

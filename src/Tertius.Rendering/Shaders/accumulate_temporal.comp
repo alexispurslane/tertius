@@ -1,8 +1,8 @@
 #version 460
 // The temporal dispatch of an accumulation (docs/plans/temporal-renderer.md, section 8, "The model", steps 1 and 2): one
 // invocation per pixel reprojects the last frame's slow and fast histories through the surface test, rescales them by the
-// exposure ratio and blends the sample in. The specular signal also tests the reflected point's place and the taps' hit
-// distances (section 8, "The specular signal's own tests"). It writes the slow history into the scratch image, so that
+// exposure ratio and blends the sample in. The specular signal also tests the reflected point's place and that place's
+// hit distances (section 8, "The specular signal's own tests"). It writes the slow history into the scratch image, so that
 // the spatial dispatch reads the neighbors' results while it writes the slow history, and this frame's fast history.
 #extension GL_GOOGLE_include_directive : require
 #include "accumulate.glsl"
@@ -39,26 +39,27 @@ uint sameHitBits(Reprojection r, uint bits, float hitDistance)
     return kept;
 }
 
-// The reprojection of a place through the taps of `bits`, with the specular signal's hit distance test.
-Reprojection placeOf(vec2 place, uint bits, bool ownTests, float hitDistance)
+// The reflected place's reprojection through the taps of `bits`, with its hit distance test.
+Reprojection reflectedReprojectionOf(vec2 place, uint bits, float hitDistance)
 {
     Reprojection r = reprojectionOf(place, bits);
-    return ownTests ? reprojectionOf(place, sameHitBits(r, bits, hitDistance)) : r;
+    return reprojectionOf(place, sameHitBits(r, bits, hitDistance));
 }
 
 HISTORY_READER(lastFastAt, lastFast)
 HISTORY_READER(lastSlowAt, slowHistory)
 
-// The mean luminance of this frame's finite samples over the 3 × 3 pixels around the pixel.
+// The mean luminance of this frame's finite samples on the same surface over the 3 × 3 pixels around the pixel.
 float meanSampleLuminance(ivec2 pixel)
 {
+    SurfaceKey key = surfaceKeyAt(pixel);
     float sum = 0.0;
     float count = 0.0;
     for (int y = -1; y <= 1; y++)
         for (int x = -1; x <= 1; x++)
         {
             ivec2 neighbor = pixel + ivec2(x, y);
-            if (!insideImages(neighbor))
+            if (!insideImages(neighbor) || !sameSurface(key, surfaceKeyAt(neighbor)))
                 continue;
             vec3 sampled = imageLoad(sampleImage, neighbor).rgb;
             if (!finiteSample(sampled))
@@ -88,11 +89,11 @@ Reprojection historyPlaceOf(ivec2 pixel, float roughness, bool hasSample, float 
     vec4 motion = imageLoad(motionTarget, pixel);
     vec2 surfacePlace = (vec2(pixel) + 0.5) * frame.viewport.zw + motion.xy;
     bool specular = parameters.light == SpecularLight;
-    bool ownTests = specular && hasSample && roughness < parameters.reflectedPlaceBelow;
+    bool tryReflected = specular && hasSample && roughness < parameters.reflectedPlaceBelow;
     // The specular signal takes the taps that pass the specular test, bits 4 to 7.
     uint surfaceBits = specular ? (bits >> 4) & 0xFu : bits & 0xFu;
-    Reprojection surface = placeOf(surfacePlace, surfaceBits, ownTests, hitDistance);
-    if (!ownTests || parameters.reset != 0u)
+    Reprojection surface = reprojectionOf(surfacePlace, surfaceBits);
+    if (!tryReflected || parameters.reset != 0u)
         return surface;
 
     vec3 viewRay = viewRayThrough(vec2(pixel) + 0.5);
@@ -106,7 +107,7 @@ Reprojection historyPlaceOf(ivec2 pixel, float roughness, bool hasSample, float 
     uint reflectedBits = inside
         ? (surfaceTaps(lastSurfaceHistory, lastDeviceDepth, reflectedPlace, lastPoint, normal, roughness) >> 4) & 0xFu
         : 0u;
-    Reprojection reflected = placeOf(reflectedPlace, reflectedBits, ownTests, hitDistance);
+    Reprojection reflected = reflectedReprojectionOf(reflectedPlace, reflectedBits, hitDistance);
     if (!holdsHistory(reflected))
         return surface;
     if (!holdsHistory(surface))

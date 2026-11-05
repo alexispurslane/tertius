@@ -205,3 +205,70 @@ The four length reports were inspected against their callers and roles. They rem
 | `ScreenTraceRenderTests.TheReflectionSampleOfAMirrorFloorHoldsTheGlowOfThePixelThatTheCSharpWalkHits` | 64 lines | One equivalence check now includes both CPU hits and CPU misses. Keeping the miss assertion beside the hit assertion makes its formerly missing case explicit; extracting only a few assertions to meet 60 lines would hide the core comparison. |
 
 The small pass types separate genuinely different frame operations; the shared kernel hides Vulkan pipeline and binding details. The descriptor-set change removes two competing writers, rather than adding a wrapper around them. These are source-and-caller reasons for the design, independent of the pooled metric movement. No branching or artificial state access was added to raise a metric.
+
+## Approved A continuation, 2026-11-04
+
+The user approved A after the engine-source comparison: history estimates reflected light, not the identity of one random hit. This settles finding 1 and supersedes the historical fork above. It does not choose distance stabilization or a new near-mirror cutoff.
+
+This fix stage verified the preserved checkout path, branch, clean status and HEAD `e31dffe7dc32bd796b752f3c7ab5d9015a139fe9` before any write. T3 also confirmed that this thread is attached to that checkout. The original review base remains `86c3c497f2c3ac2d42a3efd46c8082ff83e9987b`. All eight original parts, fixes `a42d23595` and `e31dffe7d`, prior measurements and `/private/tmp/gayt-fix/history-red.log` remain preserved. The parent inspected the stopped workflow `95692eb7-33aa-4609-9830-abbb8525f3b2`; this continuation started no agent or workflow and repeated no completed workflow stage.
+
+### The history contract
+
+The surface-motion place is the receiver's previous image position. It keeps the plane, geometric-normal and roughness gates, without a single-ray hit-distance veto. The reflection-motion place is the reflected virtual point's previous image position. It keeps its existing roughness eligibility and hit-distance gate. Rejecting it cannot reject a valid surface-motion place.
+
+The existing fast-history comparison chooses among valid places. Its current-light mean now includes only finite samples on the same surface, through the existing `sameSurface` predicate. The fast and slow histories, roughness-dependent caps, spatial repair and spatial clamp stay shared and unchanged. A numerically nearer luminance is not treated as proof that old light is current: the response tests below exercise the actual accumulated output. They found no need for another lighting threshold to meet the existing ten-frame response bound.
+
+The change adds no history image, distance filter, parallel denoiser or library. It changes no numerical threshold, ray count, ray cap, budget, FSR rule, traversal or hill-climb. The reflected-place helper no longer takes a boolean that could apply its distance test to the surface place. The owner and stores of temporal state do not change. These are concrete scope and ownership properties, not claims from metric movement.
+
+Section 8 rules 3 and 4 of `docs/plans/temporal-renderer.md`, `ARCHITECTURE.md` and the `SignalParameters.ReflectedPlaceBelow` documentation now describe this contract.
+
+### Red and green evidence
+
+The explicit skip on `IndependentRoughReflectionDistancesDoNotRestartAnUnchangedLightsHistory` is removed. `/private/tmp/gayt-history-a/history-a-red.log` reran it before implementation and again found length 1 after 12 unchanged-light frames. `/private/tmp/gayt-history-a/history-a-complete-red.log` records five intended failures before any shader edit. The first test-helper build errors and an incorrect boundary-scene setup are retained in separate logs; neither is counted as valid red evidence.
+
+| Behavior | Before A | After A |
+| --- | --- | --- |
+| Unchanged light at roughness 0.38, independent 2 m and 8 m hits over 12 frames | Length 1 | Exactly 12 frames retained |
+| The same unchanged light on a smooth receiver | Length 1 | Existing cap of 4 retained |
+| Reflected-place distance rejection with a valid surface place | Length 1 | Existing cap of 4 retained |
+| Light on a different neighboring surface cannot choose the receiver's history | Receiver light 3.2441406 instead of 1 | Receiver light within 0.1 of 1 |
+| One bright sample with an unrelated distance change | Length 1 | At least 8 history frames retained, output below 3 for a sample of 20 |
+
+The old both-candidate distance-invalidation test is replaced by the new surface-retention behavior test. The reflected-place fallback test still accepts 20 m and 39 m against stored 20 m, and rejects 41 m when the surface place leaves the image. It also checks fallback at roughness 0.38 and its existing ineligible roughness case. The receiver-normal and receiver-roughness tests keep the same entity and mesh, so a missing motion history cannot hide a broken gate. The uncovered-receiver test checks rejection of the nearer occluder's old depth through actual light and history length.
+
+Four light-step cases cover rising and falling light at roughness 0.05 and 0.38. Two real-tracer cases move a glowing panel or stop its emission. Each reaches at least 90% replacement of the old mirror light within ten renderer frames, using the existing response-time bound. This is not an instant noise-free guarantee. The core batch passes 34 cases, and the final focused suites include those cases.
+
+### Matched captures
+
+Exact scripts, commands, settings, frame counts, logs and image captions are in `/private/tmp/gayt-history-a/manifest.md`. The controlled pairs are in `/private/tmp/gayt-history-a/{before,after}/fixed`. The earlier automatic-exposure captures are retained separately and are not used as the matched comparison.
+
+Both fixed-exposure baselines finished before any production code or shader changed. Both use the real Demo scenes and Host runner at 1280 × 720, synchronous captures, default tracer settings and the same deterministic draw-index sequence. A temporary program uses the Host's existing renderer factory to set fixed exposure, because the public Demo CLI has no fixed-exposure flag. Its source remains beside the manifest, outside the repository. The same scripts and factory produce the final pairs. Exposure is -6.8 stops for reflections and 1.57 stops for the deck. Each selected still follows 65 renderer draws since reset, including 32 hidden warm-up draws. The moving follow-camera sequence covers 40 consecutive frames, about 0.67 s of game time.
+
+| Caption | Matching old-rule image | Final image |
+| --- | --- | --- |
+| Front: the box, bar and sphere remain reflected; substantial rough-surface speckling remains. | `/private/tmp/gayt-history-a/before/fixed/reflections/front-000032.png` | `/private/tmp/gayt-history-a/after/fixed/reflections/front-000032.png` |
+| Low: the colored reflections remain visible, but coarse grain is still strong. | `/private/tmp/gayt-history-a/before/fixed/reflections/low-000032.png` | `/private/tmp/gayt-history-a/after/fixed/reflections/low-000032.png` |
+| Deck: the actual roughness-0.38 paint remains grainy; an identifiable reflected lamp or corridor is not established. | `/private/tmp/gayt-history-a/before/fixed/deck/deck-000032.png` | `/private/tmp/gayt-history-a/after/fixed/deck/deck-000032.png` |
+| Moving camera: the last of 40 frames retains pane grain; no obvious new long trail is visible in this short sequence. | `/private/tmp/gayt-history-a/before/fixed/deck/moving-000039.png` | `/private/tmp/gayt-history-a/after/fixed/deck/moving-000039.png` |
+
+All eight selected fixed-exposure images were opened at full size. Eight contact sheets were opened to inspect every saved frame of the controlled sequences. No snapshot reference was changed or re-approved.
+
+### Remaining limits and ownership
+
+The captures do not establish the roughness-0.38 identifiable-reflection criterion of section 14 item 4. They do not show that all grain has the fixed defect as its cause, nor prove the absence of trails in every scene. The parent still owns visual acceptance, changed-line coverage, mutation testing and integration. The earlier portability gaps, original eight parts' missing red-first evidence, unmeasured hall, unresolved attribution of the deck's 59% own-reflection share and prior frame-budget measurements remain as recorded above. No new GPU timing comparison or Linux-driver run is claimed. This stage does not merge, push, close the ticket, publish a PR or remove a worktree.
+
+### Final continuation checks
+
+All final build, test and formatting commands ran through the Nix dev shell, one heavy command at a time. The final focused and full solution runs include the fixture correction that keeps the receiver's entity and mesh during normal and roughness changes. All final commands exited successfully.
+
+| Check | Passed | Failed | Skipped | Evidence below `/private/tmp/gayt-history-a` |
+| --- | ---: | ---: | ---: | --- |
+| Focused Rendering, Checked | 276 | 0 | 0 | `focused-checked-final.log` |
+| Focused Rendering, Release | 276 | 0 | 0 | `focused-release-final.log` |
+| Full solution, Checked | 9,862 | 0 | 21 | `full-checked-final.log`, 9,883 total |
+| Full solution, Release | 9,849 | 0 | 21 | `full-release-final.log`, 9,870 total |
+| Release benchmark compilation | Pass | 0 errors | Not applicable | `benchmark-build.log`, 0 warnings |
+| CSharpier, three changed C# files | Pass | 0 | Not applicable | `format-check-final.log` |
+| Staged whitespace | Pass | 0 | Not applicable | `staged-whitespace.log` |
+
+The 21 remaining skips predate this continuation. No snapshot failed, changed or was re-approved. Coverage and mutation testing were not run; the parent owns those checks after visual acceptance. Completion of this fix stage is not a claim that the ticket is merged or that the earlier acceptance gaps are closed.

@@ -32,7 +32,7 @@ layout(push_constant, std430) uniform AccumulatePush
     float clampSigmas;   // the box's half width, in standard deviations
     float antiLagShare;  // the clamp's move at which the length falls to the fast cap, as a share of the mean's luminance
     uint light;          // SignalLight: DiffuseLight or SpecularLight
-    float reflectedPlaceBelow;   // the roughness below which the specular signal's own tests apply, 0 for none
+    float reflectedPlaceBelow;   // the roughness below which the reflected place competes, with its distance test, 0 for none
     uint reset;          // 1 in a frame that resets every history
 } parameters;
 
@@ -45,7 +45,7 @@ const uint SpecularLight = 1u;
 const float SmoothRoughness = 0.1;
 const float RoughRoughness = 0.7;
 
-// A pixel's floored roughness, by which its caps and the specular signal's own tests go.
+// A pixel's floored roughness, by which its caps and the reflected place's eligibility go.
 float roughnessAt(ivec2 pixel)
 {
     return flooredRoughness(texelFetch(gbufferSpecular, pixel, 0).g);

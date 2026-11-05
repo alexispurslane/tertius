@@ -27,8 +27,8 @@ internal enum SignalLight
 /// <param name="ClampSigmas">The half width of the clamp's box, in standard deviations of the fast history.</param>
 /// <param name="AntiLagShare">The clamp's move, as a share of the mean, at which the length falls to the fast cap.</param>
 /// <param name="Light">The signal's light, which chooses its closed form.</param>
-/// <param name="ReflectedPlaceBelow">The roughness below which the reflected point's place competes with the surface
-/// place, and a tap's hit distance must match (section 8, "The specular signal's own tests"). 0 for none.</param>
+/// <param name="ReflectedPlaceBelow">Below this roughness, the reflected place competes and tests hit distances.
+/// The surface place never does. 0 disables it.</param>
 internal readonly record struct SignalParameters(
     int Cap,
     int SmoothCap,
