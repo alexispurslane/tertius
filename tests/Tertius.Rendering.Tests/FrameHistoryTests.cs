@@ -325,7 +325,7 @@ public sealed class FrameHistoryTests
             renderSize: Output
         );
 
-        again.PreviousPlacements.ToArray().Select(p => p.Key.Slot).Should().Equal(3u);
+        again.PreviousPlacements.ToArray().Select(p => p.Key.Entity.Index).Should().Equal(3u);
     }
 
     [Fact]
@@ -538,7 +538,7 @@ public sealed class FrameHistoryTests
 
     private static KeptPlacement Placement(uint slot) =>
         new(
-            Key: new(Slot: slot, Generation: 1, Part: 0),
+            Key: new(Entity: new(Index: slot, Generation: 1), Part: 0),
             Row0: Vector4.UnitX,
             Row1: Vector4.UnitY,
             Row2: Vector4.UnitZ,

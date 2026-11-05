@@ -60,7 +60,8 @@ public sealed class BatcherMotionTests
         uint slot = 3,
         uint generation = 1,
         int mesh = 0,
-        Double3 origin = default
+        Double3 origin = default,
+        ushort part = 0
     )
     {
         RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY);
@@ -74,6 +75,7 @@ public sealed class BatcherMotionTests
             entity: slot
         );
         instance.EntityGeneration = generation;
+        instance.Part = part;
         snapshot.Instances.Add(instance);
         return snapshot;
     }
@@ -151,6 +153,94 @@ public sealed class BatcherMotionTests
         PreparedScene scene = Draw(WithInstance(position: new(0, 0, -10), generation: 2));
 
         ((MotionKind)scene.Motions[0].Kind).Should().Be(MotionKind.New);
+    }
+
+    [Theory]
+    [InlineData(0u, uint.MaxValue)]
+    [InlineData(uint.MaxValue, 1u)]
+    public void AnInstanceInAReusedSlotStartsItsOwnMotionHistory(uint oldGeneration, uint newGeneration)
+    {
+        Draw(WithInstance(position: new(0, 0, -10), generation: oldGeneration));
+        PreparedScene replacement = Draw(WithInstance(position: new(2, 0, -10), generation: newGeneration));
+
+        PreparedScene continued = Draw(WithInstance(position: new(3, 0, -10), generation: newGeneration));
+
+        ((MotionKind)replacement.Motions[0].Kind).Should().Be(MotionKind.New);
+        TranslationOf(replacement.Motions[0]).Should().Be(new Vector3(2, 0, -10));
+        ((MotionKind)continued.Motions[0].Kind).Should().Be(MotionKind.Moved);
+        TranslationOf(continued.Motions[0]).Should().Be(new Vector3(2, 0, -10));
+    }
+
+    [Fact]
+    public void RenderPartsOfTheSameEntityKeepTheirOwnPreviousRows()
+    {
+        RenderSnapshot first = WithInstance(position: new(0, 0, -10), part: 0);
+        first.Instances.Add(WithInstance(position: new(4, 0, -10), part: ushort.MaxValue).Instances[0]);
+        Draw(first);
+        RenderSnapshot second = WithInstance(position: new(1, 0, -10), part: 0);
+        second.Instances.Add(WithInstance(position: new(5, 0, -10), part: ushort.MaxValue).Instances[0]);
+
+        PreparedScene scene = Draw(second);
+
+        ((MotionKind)scene.Motions[0].Kind).Should().Be(MotionKind.Moved);
+        TranslationOf(scene.Motions[0]).Should().Be(new Vector3(0, 0, -10));
+        ((MotionKind)scene.Motions[1].Kind).Should().Be(MotionKind.Moved);
+        TranslationOf(scene.Motions[1]).Should().Be(new Vector3(4, 0, -10));
+    }
+
+    [Fact]
+    public void ARenderPartThatTheLastFrameDidNotDrawIsNew()
+    {
+        Draw(WithInstance(position: new(0, 0, -10), part: 0));
+
+        PreparedScene scene = Draw(WithInstance(position: new(1, 0, -10), part: 1));
+
+        ((MotionKind)scene.Motions[0].Kind).Should().Be(MotionKind.New);
+        TranslationOf(scene.Motions[0]).Should().Be(new Vector3(1, 0, -10));
+    }
+
+    [Fact]
+    public void SlotOrderFindsMotionWhenGenerationsRunInTheOppositeOrder()
+    {
+        RenderSnapshot first = WithInstance(
+            position: new(0, 0, -10),
+            slot: 0,
+            generation: uint.MaxValue,
+            part: ushort.MaxValue
+        );
+        first.Instances.Add(WithInstance(position: new(4, 0, -10), slot: uint.MaxValue, generation: 0).Instances[0]);
+        Draw(first);
+        RenderSnapshot second = WithInstance(
+            position: new(1, 0, -10),
+            slot: 0,
+            generation: uint.MaxValue,
+            part: ushort.MaxValue
+        );
+        second.Instances.Add(WithInstance(position: new(5, 0, -10), slot: uint.MaxValue, generation: 0).Instances[0]);
+
+        PreparedScene scene = Draw(second);
+
+        ((MotionKind)scene.Motions[0].Kind).Should().Be(MotionKind.Moved);
+        TranslationOf(scene.Motions[0]).Should().Be(new Vector3(0, 0, -10));
+        ((MotionKind)scene.Motions[1].Kind).Should().Be(MotionKind.Moved);
+        TranslationOf(scene.Motions[1]).Should().Be(new Vector3(4, 0, -10));
+        history.Invoking(h => h.AssertInvariants()).Should().NotThrow();
+    }
+
+    [Theory]
+    [InlineData(1u, 2u)]
+    [InlineData(2u, 1u)]
+    public void AnotherGenerationOfTheSameSlotAndPartIsStillInTheCamerasFrame(uint generation, uint duplicateGeneration)
+    {
+        RenderSnapshot snapshot = WithInstance(position: new(0, 0, -10), generation: generation);
+        snapshot.Instances.Add(WithInstance(position: new(4, 0, -10), generation: duplicateGeneration).Instances[0]);
+
+        PreparedScene scene = Draw(snapshot);
+
+        ((MotionKind)scene.Motions[1].Kind).Should().Be(MotionKind.Still);
+        TranslationOf(scene.Motions[1]).Should().Be(new Vector3(4, 0, -10));
+        history.DrawnPlacements.Length.Should().Be(1, "a duplicate slot and part cannot enter the placement history");
+        history.Invoking(h => h.AssertInvariants()).Should().NotThrow();
     }
 
     [Fact]
