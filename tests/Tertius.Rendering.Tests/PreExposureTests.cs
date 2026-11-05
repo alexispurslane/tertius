@@ -322,7 +322,12 @@ public sealed class PreExposureTests
                     renderer.Render(snapshot, 1f);
                 ImpostorStatus status = renderer
                     .Impostors!.Status(
-                        new(EntityIndex: 1, Part: 0, Mesh: sphere.Value, Material: MaterialStore.Slot(material))
+                        new(
+                            Entity: new(Index: 1, Generation: 0),
+                            Part: 0,
+                            Mesh: sphere.Value,
+                            Material: MaterialStore.Slot(material)
+                        )
                     )!
                     .Value;
                 status.Impostor.Should().BeTrue("the sphere is far enough to be a billboard");

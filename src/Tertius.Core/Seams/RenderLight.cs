@@ -6,12 +6,12 @@ namespace Tertius;
 /// A point light of the snapshot: a sphere that sends its power the same in every direction. Its places follow the
 /// rules of the position of a <see cref="RenderInstance"/> (docs/plans/local-light-shadows.md, "Light data").
 /// </summary>
-/// <param name="EntityIndex">The slot of the entity that carries the light.</param>
-/// <param name="EntityGeneration">
-/// The generation of the entity that carries the light. With <paramref name="EntityIndex"/>, it identifies the light from
-/// tick to tick, so a lamp that reuses a destroyed lamp's slot gets a new key (docs/plans/temporal-renderer.md, "The key of
-/// an object").
+/// <param name="EntityIndex">
+/// The slot of the entity that carries the light. It names the light within one snapshot. A new entity can take the slot
+/// of a destroyed one, so the renderer follows the light from frame to frame by <see cref="Entity"/>, the slot with
+/// <paramref name="EntityGeneration"/>.
 /// </param>
+/// <param name="EntityGeneration">The generation of the entity in <paramref name="EntityIndex"/>. Live generations start at 1.</param>
 /// <param name="Position">The place of the light, relative to the render origin, in the axes of the camera's frame, in meters.</param>
 /// <param name="PreviousPosition">The place at the previous snapshot, relative to the same origin, as an instance's.</param>
 /// <param name="Color">Linear RGB that scales the power per channel.</param>
@@ -29,13 +29,20 @@ public readonly record struct PointRenderLight(
     float Radius,
     bool CastsShadow,
     ushort ChainDepth
-);
+)
+{
+    /// <summary>
+    /// The entity that carries the light: <see cref="EntityIndex"/> with <see cref="EntityGeneration"/>. The renderer
+    /// names the light by it, within one snapshot and from frame to frame.
+    /// </summary>
+    public Entity Entity => new(Index: EntityIndex, Generation: EntityGeneration);
+}
 
 /// <summary>
 /// A spot light of the snapshot: a sphere that sends its power through a cone around one axis. Its places and axes follow
 /// the rules of the position of a <see cref="RenderInstance"/> (docs/plans/local-light-shadows.md, "Light data").
 /// </summary>
-/// <param name="EntityIndex">The slot of the entity that carries the light.</param>
+/// <param name="EntityIndex">As for <see cref="PointRenderLight"/>: the slot names the light within one snapshot.</param>
 /// <param name="EntityGeneration">As for <see cref="PointRenderLight"/>.</param>
 /// <param name="Position">The place of the light, relative to the render origin, in the axes of the camera's frame, in meters.</param>
 /// <param name="PreviousPosition">The place at the previous snapshot, relative to the same origin, as an instance's.</param>
@@ -65,7 +72,11 @@ public readonly record struct SpotRenderLight(
     float InnerConeAngle,
     float OuterConeAngle,
     ushort ChainDepth
-);
+)
+{
+    /// <summary>As for <see cref="PointRenderLight.Entity"/>.</summary>
+    public Entity Entity => new(Index: EntityIndex, Generation: EntityGeneration);
+}
 
 /// <summary>
 /// One light of a <see cref="RenderSnapshot"/>: a <see cref="PointRenderLight"/> or a <see cref="SpotRenderLight"/>.

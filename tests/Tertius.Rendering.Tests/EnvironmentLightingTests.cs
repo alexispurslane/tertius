@@ -541,7 +541,8 @@ public sealed class EnvironmentLightingTests
         public MaterialId Clay { get; } =
             renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.7f, y: 0.5f, z: 0.3f, w: 1), roughness: 0.5f));
 
-        public ImpostorKey Key => new(EntityIndex: 1, Part: 0, Mesh: Sphere.Value, Material: MaterialStore.Slot(Clay));
+        public ImpostorKey Key =>
+            new(Entity: new(Index: 1, Generation: 0), Part: 0, Mesh: Sphere.Value, Material: MaterialStore.Slot(Clay));
 
         /// <summary>
         /// The dome of <paramref name="dome"/> and the clay sphere 12 m ahead, about 26 px high, so it is a billboard

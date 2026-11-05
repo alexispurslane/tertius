@@ -107,7 +107,13 @@ public struct RenderInstance
     /// </summary>
     public uint EntityGeneration;
 
-    /// <summary>Which of the entity's render parts this is, 0 for the first. The renderer keys impostor state on (EntityIndex, Part, Mesh, Material), so a part that changes its mesh or material gets a new capture.</summary>
+    /// <summary>
+    /// The entity of the object: <see cref="EntityIndex"/> with <see cref="EntityGeneration"/>. The renderer follows the
+    /// object from frame to frame by it, never by the slot alone.
+    /// </summary>
+    public readonly Entity Entity => new(Index: EntityIndex, Generation: EntityGeneration);
+
+    /// <summary>Which of the entity's render parts this is, 0 for the first. The renderer keys impostor state on <see cref="Entity"/>, Part, Mesh and Material, so a part that changes its mesh or material gets a new capture.</summary>
     public ushort Part;
 
     /// <summary>

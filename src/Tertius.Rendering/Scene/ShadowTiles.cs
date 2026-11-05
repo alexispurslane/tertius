@@ -96,10 +96,10 @@ internal sealed class ShadowTiles
     private readonly List<(int Layer, TileRecord Record)> drawnRecords = [];
 
     /// <summary>The layer of each view of the frame in flight, its light's entity, and its light's tier.</summary>
-    private readonly List<(int Layer, uint LightEntity, MainViewTier Tier)> frameTiles = [];
+    private readonly List<(int Layer, Entity LightEntity, MainViewTier Tier)> frameTiles = [];
 
     /// <summary>The layer of each view of the last submitted frame, its light's entity and tier, for AssertInvariants.</summary>
-    private readonly List<(int Layer, uint LightEntity, MainViewTier Tier)> drawnTiles = [];
+    private readonly List<(int Layer, Entity LightEntity, MainViewTier Tier)> drawnTiles = [];
 
     public ShadowTiles(int layers, int tileSize)
     {
@@ -189,7 +189,7 @@ internal sealed class ShadowTiles
         }
 
         // Every view's layer now holds a record, a kept one or the one that the frame drew (AssertInvariants).
-        foreach ((int layer, uint _, MainViewTier tier) in frameTiles)
+        foreach ((int layer, Entity _, MainViewTier tier) in frameTiles)
             if (records[layer] is { } kept)
                 kept.Tier = tier;
 
@@ -251,11 +251,13 @@ internal sealed class ShadowTiles
     internal void AssertInvariants()
     {
         // One record per layer, so a layer belongs to at most one light by the form of the array.
-        foreach (IGrouping<uint, TileRecord> held in records.OfType<TileRecord>().GroupBy(record => record.LightEntity))
+        foreach (
+            IGrouping<Entity, TileRecord> held in records.OfType<TileRecord>().GroupBy(record => record.LightEntity)
+        )
             Contract.Invariant(held.Count() is 1 or CubeFaces.Count);
 
         Contract.Invariant(drawnTiles.Select(tile => tile.Layer).Distinct().Count() == drawnTiles.Count);
-        foreach ((int layer, uint lightEntity, MainViewTier tier) in drawnTiles)
+        foreach ((int layer, Entity lightEntity, MainViewTier tier) in drawnTiles)
             Contract.Invariant(
                 records[layer] is { } record && record.LightEntity == lightEntity && record.Tier == tier
             );
@@ -364,7 +366,7 @@ internal sealed class ShadowTiles
         Array.Fill(layerLights, NoLight);
         for (int light = 0; light < lights.Length; light++)
             if (tileCounts[light] > 0)
-                Keep(light: light, entity: lights[light].EntityIndex);
+                Keep(light: light, entity: lights[light].Entity);
 
         // New lights take layers in list order, the snapshot's order, which every run shares.
         for (int light = 0; light < lights.Length; light++)
@@ -373,7 +375,7 @@ internal sealed class ShadowTiles
     }
 
     /// <summary>Gives <paramref name="light"/> the layers that its entity held, when they are as many as its tiles now.</summary>
-    private void Keep(int light, uint entity)
+    private void Keep(int light, Entity entity)
     {
         if (Held(entity) != tileCounts[light])
             return;
@@ -393,13 +395,13 @@ internal sealed class ShadowTiles
     {
         // All the records of one light name its one tier of the last submitted frame.
         foreach (TileRecord? record in records)
-            if (record?.LightEntity == light.EntityIndex)
+            if (record?.LightEntity == light.Entity)
                 return record.Tier is not MainViewTier.FaceOnly || light.Tier is MainViewTier.FaceOnly;
         return false;
     }
 
     /// <summary>How many layers the light of <paramref name="entity"/> holds in <see cref="records"/>.</summary>
-    private int Held(uint entity)
+    private int Held(Entity entity)
     {
         int held = 0;
         foreach (TileRecord? record in records)
@@ -458,7 +460,7 @@ internal sealed class ShadowTiles
             // The faces take the light's layers in ascending order, so a light that keeps its layers keeps its faces.
             TileAim aim = cone ? new(new ConeAim()) : new(new FaceAim((CubeFace)face++));
             views.Add(new(Layer: layer, Light: light, Aim: aim));
-            frameTiles.Add((layer, LightEntity: lights[light].EntityIndex, lights[light].Tier));
+            frameTiles.Add((layer, LightEntity: lights[light].Entity, lights[light].Tier));
             var frustum = TileFrustum.Of(light: lights[light], aim: aim, tileSize: TileSize);
             CollectSeen(frustum: frustum, light: lights[light], placed: placed);
             ReadOnlySpan<int> seen = CollectionsMarshal.AsSpan(tileCasters);
@@ -516,7 +518,7 @@ internal sealed class ShadowTiles
         long originFrameId
     )
     {
-        bool sameTile = record.LightEntity == light.EntityIndex && record.Frustum.Aim == frustum.Aim;
+        bool sameTile = record.LightEntity == light.Entity && record.Frustum.Aim == frustum.Aim;
         bool sameProjection = record.Frustum.Near == frustum.Near && record.Frustum.TanHalf == frustum.TanHalf;
         if (!sameTile || record.OriginFrameId != originFrameId || !sameProjection)
             return true;
@@ -535,7 +537,7 @@ internal sealed class ShadowTiles
             // A deformed copy's frame mesh changes with the jobs before it, so the record names its static mesh. The
             // material decides which texels cast: a cutout casts only its core.
             bool sameCaster =
-                was.EntityIndex == now.EntityIndex
+                was.Entity == now.Entity
                 && was.Part == now.Part
                 && was.Mesh == deformed.SourceOf(now.Mesh)
                 && was.Material == now.Material;
@@ -579,7 +581,7 @@ internal sealed class ShadowTiles
     )
     {
         TileRecord record = spareRecords.TryPop(out TileRecord? spare) ? spare : new();
-        record.LightEntity = light.EntityIndex;
+        record.LightEntity = light.Entity;
         record.OriginFrameId = originFrameId;
         record.Frustum = frustum;
         record.Casters.Clear();
@@ -590,7 +592,7 @@ internal sealed class ShadowTiles
             ReadOnlySpan<Vector4> pose = deformed.PoseOf(caster.Mesh);
             record.Casters.Add(
                 new(
-                    EntityIndex: caster.EntityIndex,
+                    Entity: caster.Entity,
                     Part: caster.Part,
                     Mesh: deformed.SourceOf(caster.Mesh),
                     Material: caster.Material,
@@ -664,7 +666,7 @@ internal sealed class ShadowTiles
     /// relative to the light, and its pose rows, TileRecord.Poses from PoseStart, PoseCount of them, none for a static mesh.
     /// </summary>
     private readonly record struct RecordedCaster(
-        uint EntityIndex,
+        Entity Entity,
         ushort Part,
         int Mesh,
         uint Material,
@@ -780,7 +782,7 @@ internal sealed class ShadowTiles
     /// <summary>What a layer holds: the tile of the frame that drew it, and its casters in list order.</summary>
     private sealed class TileRecord
     {
-        public uint LightEntity;
+        public Entity LightEntity;
 
         /// <summary>The tier of the light of <see cref="LightEntity"/> in the last submitted frame, which Drew sets.</summary>
         public MainViewTier Tier;
