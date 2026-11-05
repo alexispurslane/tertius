@@ -1,5 +1,7 @@
 # Corrected environment reads in the tracer
 
+Historical search evidence, superseded on November 5, 2026. The user selected automatic semantic-frame box projection instead of the distance-cube search described here. See [automatic-box-projection.md](automatic-box-projection.md) for the replacement. The images, search-quality limits and +2.762/+2.175 ms measurements below are preserved; none is a measured box-projection result.
+
 Ticket `ter-7tnv`, 2026-11-05. Review base: `34c28466e641a864fd6a915c029e08f07b3b9ccc`.
 The work stays on `ter-7tnv-corrected-environment-misses` in
 `/Users/alexispurslane/.t3/worktrees/tertius/ter-7tnv-corrected-environment-misses`.

@@ -25,11 +25,7 @@ internal ref struct MotionJoin(FrameHistory.PendingFrame frame, Vector3 previous
     /// </summary>
     public PlacementKey? Identify(in RenderInstance instance)
     {
-        var key = new PlacementKey(
-            Slot: instance.EntityIndex,
-            Generation: instance.EntityGeneration,
-            Part: instance.Part
-        );
+        var key = new PlacementKey(instance.Entity, instance.Part);
         if (any && key.Order <= highest)
             return null;
         any = true;

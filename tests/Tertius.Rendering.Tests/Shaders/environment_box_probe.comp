@@ -1,0 +1,43 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#include "screen_trace.glsl"
+#include "environment_box.glsl"
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+void main()
+{
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    if (any(greaterThanEqual(vec2(pixel), frame.viewport.xy)))
+        return;
+    int scenario = pixel.x;
+    vec3 minimum = vec3(-2.0, -2.0, -4.0);
+    vec3 maximum = vec3(2.0, 2.0, 4.0);
+    vec3 position = vec3(1.0, 1.0, -1.0);
+    vec3 direction = vec3(0.0, 0.0, -1.0);
+    if (scenario == 1) position.z = 8.0;
+    if (scenario == 2) position.z = -4.0;
+    if (scenario == 3) { position = vec3(0.0); direction = vec3(1.0, 0.0, 0.0); }
+    if (scenario == 4) position.x = 3.0;
+    if (scenario == 5) position.z = -8.0;
+    if (scenario == 6) maximum = minimum;
+    if (scenario == 7) maximum.x = minimum.x;
+    if (scenario == 8) minimum.x = uintBitsToFloat(0x7fc00000u);
+    if (scenario == 9) maximum.z = uintBitsToFloat(0x7f800000u);
+    if (scenario == 10) { minimum = vec3(-2.0, -2.0, 0.0); position = vec3(0.0, 0.0, 1.0); }
+    if (scenario == 11) { position.x = uintBitsToFloat(0x7fc00000u); }
+    if (scenario == 12) position.x = 2.0;
+    if (scenario == 13) minimum.x = 3.0;
+    if (scenario == 14) direction = vec3(0.0);
+    if (scenario == 15) direction.x = uintBitsToFloat(0x7fc00000u);
+    if (scenario == 16) { minimum *= 1e30; maximum *= 1e30; position *= 1e30; }
+    if (scenario == 17) { minimum *= 1e-30; maximum *= 1e-30; position *= 1e-30; }
+    if (scenario == 18)
+    {
+        position = inMapAxes(0u, vec3(-1.0, 1.0, -1.0));
+        direction = inMapAxes(0u, vec3(-1.0, 0.0, 0.0));
+    }
+    if (scenario == 19) { position = vec3(3.0, 3.0, 0.0); direction = vec3(-1.0, -0.1, -1.0); }
+    vec3 lookup = boxProjectedDirection(minimum, maximum, position, direction);
+    imageStore(specularSample, pixel, vec4(normalize(lookup), 1.0));
+}

@@ -2137,7 +2137,7 @@ public sealed class BatcherTests
     [Fact]
     public void TheFrameConstantsMatchTheShadersFrameBlock()
     {
-        Unsafe.SizeOf<GpuFrameConstants>().Should().Be(2416);
+        Unsafe.SizeOf<GpuFrameConstants>().Should().Be(3760);
         ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.Counts))).Should().Be(304);
         ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.RootRotation))).Should().Be(384);
         ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.CascadeSets))).Should().Be(400);

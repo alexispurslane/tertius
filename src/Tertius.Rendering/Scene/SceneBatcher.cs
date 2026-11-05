@@ -434,6 +434,7 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
         ReadOnlySpan<MeshInfo> meshes = scene.Meshes;
         FrameMeshCursor frameMeshes = FrameMeshes(snapshot, scene);
         CollectLightHolders(snapshot);
+        bool fitsMaps = scene.Ambient.TryGetValue(out MapAmbient _);
         var join = new MotionJoin(frame: frame, previousEye: scene.PreviousView.Eye);
         for (int index = 0; index < instances.Length; index++)
         {
@@ -459,10 +460,29 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
             {
                 PlacedIndex = scene.PlacedCount - 1,
             };
+            if (fitsMaps && DrawsInMaps(placed))
+                EncloseInMap(placed, scene);
             bool visible = (instance.Flags & RenderFlags.Visible) != 0;
             if (visible && !camera.Culls(placement.Position, placement.Radius))
                 scene.AddVisible() = placed with { Depth = Vector3.Dot(placement.Position, camera.Forward) };
         }
+    }
+
+    /// <summary>Encloses the complete scaled mesh sphere in its assigned map only, independent of its culling radius.</summary>
+    private static void EncloseInMap(in PreparedInstance instance, PreparedScene scene)
+    {
+        var center = Vector3.Transform(instance.Position, Quaternion.Conjugate(scene.MapAxes[instance.Map]));
+        var extent = new Vector3(MeshExtent(instance.Scale, scene.Meshes[instance.Mesh]));
+        ref GpuMapBox box = ref scene.MapBoxes[instance.Map];
+        Vector3 minimum = center - extent;
+        Vector3 maximum = center + extent;
+        if (box.Minimum.W != 0)
+        {
+            minimum = Vector3.Min(minimum, new(box.Minimum.X, box.Minimum.Y, box.Minimum.Z));
+            maximum = Vector3.Max(maximum, new(box.Maximum.X, box.Maximum.Y, box.Maximum.Z));
+        }
+        box.Minimum = new(minimum, 1);
+        box.Maximum = new(maximum, 0);
     }
 
     /// <summary>
@@ -1460,6 +1480,7 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
                 w: camera.RootRotation.W
             ),
             Atmosphere = scene.Atmosphere,
+            MapBoxes = scene.MapBoxes,
         };
         WriteMotionConstants(scene);
         for (int map = 0; map < scene.MapCount; map++)

@@ -5,13 +5,11 @@ using Tertius.Testing;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// The corrected read (docs/plans/environment-map-distances.md, "The corrected read, on the GPU"): every reader of the
-/// ambient specular term reads its map where the lobe's central ray ends, and a ray that meets no stored surface reads
-/// the map as before. The camera sits at the origin and looks down −Z, a floor lies 1 m below it, and a wall stands 4 m
-/// ahead, facing it. Only emission and the map light the scenes. The screen tracer is off unless a test names it.
+/// Automatic enclosure lookup in real specular readers. The box predicts a capture direction, not a geometry hit
+/// (docs/plans/semantic-frame-box-projection.md). The camera looks down −Z and the floor lies 1 m below it.
 /// </summary>
 [Collection(GpuCollection.Name)]
-public sealed class MapSearchRenderTests
+public sealed class EnvironmentBoxRenderTests
 {
     private const int Width = 320,
         Height = 180;
@@ -59,37 +57,68 @@ public sealed class MapSearchRenderTests
     }
 
     [Fact]
-    public void AMirrorFloorShowsANearWallsStripeWhereARayTraceFindsIt()
+    public void EqualSpecularDirectionsAtDifferentReceivingPositionsReadTheirFittedBoxIntersections()
     {
-        (float[] hdr, CameraView camera) = Render(scene: renderer => StripeAboveAFloor(renderer, glass: false));
+        VulkanRenderer renderer = Renderer(ScreenTrace.Default, new FixedExposure(0));
+        try
+        {
+            var probe = ScreenTraceProbe.On(renderer, "environment_box_specular_probe.comp");
+            RenderSnapshot snapshot = StripeAboveAFloor(renderer, glass: false);
+            snapshot.Time += 1.0 / 60;
+            renderer.Render(snapshot, 1f);
+            float[] actual = probe.Read();
+            float[] expected = renderer.ReadImage(renderer.ScreenTraceSignals.Diffuse.Sample(0));
+
+            expected[0].Should().BeLessThan(0.05f);
+            expected[4].Should().BeGreaterThan(1, "the other receiving point projects onto the captured stripe");
+            actual[0].Should().BeApproximately(expected[0], 0.005f);
+            actual[4].Should().BeApproximately(expected[4], 0.005f);
+            (actual[4] - actual[0])
+                .Should()
+                .BeGreaterThan(1, "only the receiving position changes, not the ray direction");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void AMirrorFloorPlacesTheCapturedStripeByItsFittedBox()
+    {
+        (float[] hdr, CameraView camera, GpuMapBox box) = Render(scene: renderer =>
+            StripeAboveAFloor(renderer, glass: false)
+        );
 
         foreach (int column in Columns)
-            StripeAngle(hdr, camera, column)
+            StripeAngle(hdr: hdr, camera: camera, column: column, box: box)
                 .Should()
                 .BeLessThan(
                     TexelAngle,
-                    "the floor reflects the stripe where the floor's rays meet it, in column {0}",
+                    "the floor samples the captured stripe within one cube texel of the analytic box direction, in column {0}",
                     column
                 );
     }
 
     [Fact]
-    public void AGlassPaneReflectsTheNearWallWhereARayTraceFindsIt()
+    public void AGlassPanePlacesTheCapturedStripeByItsFittedBox()
     {
-        (float[] hdr, CameraView camera) = Render(scene: renderer => StripeAboveAFloor(renderer, glass: true));
+        (float[] hdr, CameraView camera, GpuMapBox box) = Render(scene: renderer =>
+            StripeAboveAFloor(renderer, glass: true)
+        );
 
         foreach (int column in Columns)
-            StripeAngle(hdr, camera, column)
+            StripeAngle(hdr: hdr, camera: camera, column: column, box: box)
                 .Should()
                 .BeLessThan(
                     TexelAngle,
-                    "the pane reflects the stripe where the pane's rays meet it, in column {0}",
+                    "the pane uses the same enclosure lookup as opaque specular readers, in column {0}",
                     column
                 );
     }
 
     [Fact]
-    public void AReflectionThatLeavesTheScreenFindsTheStripeBehindTheCamera()
+    public void AReflectionThatLeavesTheScreenPlacesTheCapturedStripeByItsFittedBox()
     {
         VulkanRenderer renderer = Renderer(ScreenTrace.Default, new FixedExposure(0));
         try
@@ -108,13 +137,37 @@ public sealed class MapSearchRenderTests
                 Vector3 ray = renderer.LastScene.Camera.ViewRayThrough(new(column + 0.5f, row + 0.5f));
                 Vector3 point = ray * (WallZ / ray.Z);
                 var direction = Vector3.Reflect(Vector3.Normalize(ray), Vector3.UnitZ);
-                Vector3 met = point + direction * ((-WallZ - point.Z) / direction.Z);
+                Vector3 lookup = BoxLookup(point, direction, renderer.LastScene.Constants.MapBoxes[0]);
+                Vector3 met = lookup * (-WallZ / lookup.Z);
                 var stripe = new Vector3(met.X, Math.Clamp(met.Y, 1.35f, 1.65f), -WallZ);
                 float angle = MathF.Acos(
                     Math.Clamp(Vector3.Dot(Vector3.Normalize(met), Vector3.Normalize(stripe)), -1, 1)
                 );
-                angle.Should().BeLessThan(TexelAngle, "the off-screen stripe is placed by the receiving point's ray");
+                angle
+                    .Should()
+                    .BeLessThan(TexelAngle, "the off-screen stripe is placed by the receiving point's box lookup");
             }
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void ABoxLookupDoesNotRecordItsProxyDistanceAsAScreenHit()
+    {
+        VulkanRenderer renderer = Renderer(ScreenTrace.Default, new FixedExposure(0));
+        try
+        {
+            RenderSnapshot snapshot = MirrorFacingTheCamera(renderer);
+            renderer.Render(snapshot, 1f);
+            float[] records = renderer.ReadImageLayer(renderer.ScreenTraceImages.BlockLight, 0);
+            int[] bright = [.. Enumerable.Range(0, records.Length / 4).Where(pixel => records[4 * pixel] > 0.5f)];
+
+            bright.Should().NotBeEmpty("the off-screen stripe supplies real corrected reflection misses");
+            foreach (int pixel in bright)
+                records[4 * pixel + 3].Should().Be(0, "an enclosure is not a real reflected geometry hit");
         }
         finally
         {
@@ -171,14 +224,14 @@ public sealed class MapSearchRenderTests
     }
 
     [Fact]
-    public void ARoughFloorBelowABrightOpeningIsBrightestWhereItsCentralRayMeetsTheOpening()
+    public void ARoughFloorPlacesTheCapturedOpeningByItsFittedBox()
     {
         // The demo's paint, 0.38, which the G-buffer holds as 97 / 255. The opening's middle stands 2 m above the eye.
         const float roughness = 97 / 255f,
             openingHeight = 2,
             openingHalfHeight = 0.4f,
             openingHalfWidth = 1;
-        (float[] hdr, CameraView camera) = Render(scene: renderer =>
+        (float[] hdr, CameraView camera, GpuMapBox box) = Render(scene: renderer =>
         {
             RenderSnapshot snapshot = Dark(verticalFovDegrees: 90, pitchDown: 20 * MathF.PI / 180);
             AddFloor(renderer, snapshot, Metal(renderer, roughness));
@@ -195,11 +248,17 @@ public sealed class MapSearchRenderTests
         });
 
         int row = BrightestFloorRow(hdr, camera, Width / 2);
-        Vector3 met = WallPointOf(camera, (Width / 2, row), roughness)!.Value;
+        (Vector3 Point, Vector3 Central) ray = FloorRayOf(camera, (Width / 2, row), roughness)!.Value;
+        Vector3 lookup = BoxLookup(ray.Point, ray.Central, box);
+        Vector3 met = lookup * (WallZ / lookup.Z);
         MathF
             .Abs(met.Y - openingHeight)
             .Should()
-            .BeLessThan(openingHalfHeight, "the brightest floor pixel's central ray meets the opening, at {0}", met);
+            .BeLessThan(
+                openingHalfHeight,
+                "the brightest floor pixel's box lookup samples the captured opening, at {0}",
+                met
+            );
     }
 
     private static VulkanRenderer Renderer(ScreenTraceSetting screenTrace, ExposureSetting exposure) =>
@@ -249,7 +308,7 @@ public sealed class MapSearchRenderTests
     /// The HDR image of the scene's second draw, by the engine's ambient pass or, with <paramref name="build"/>, by
     /// that test build's, and the camera of the draw.
     /// </summary>
-    private static (float[] Hdr, CameraView Camera) Render(
+    private static (float[] Hdr, CameraView Camera, GpuMapBox Box) Render(
         Func<VulkanRenderer, RenderSnapshot> scene,
         ScreenTraceSetting screenTrace = default,
         ExposureSetting exposure = default,
@@ -266,7 +325,7 @@ public sealed class MapSearchRenderTests
             renderer.Render(snapshot, 1f);
             snapshot.Time += 1.0 / 60;
             renderer.Render(snapshot, 1f);
-            return (renderer.ReadHdr(), renderer.LastScene.Camera);
+            return (renderer.ReadHdr(), renderer.LastScene.Camera, renderer.LastScene.Constants.MapBoxes[0]);
         }
         finally
         {
@@ -430,13 +489,18 @@ public sealed class MapSearchRenderTests
         return (point, new((float)central.X, (float)central.Y, (float)central.Z));
     }
 
-    /// <summary>Where a floor point's central ray meets the wall's plane.</summary>
-    private static Vector3 WallPointOf((Vector3 Point, Vector3 Central) ray) =>
-        ray.Point + ray.Central * ((WallZ - ray.Point.Z) / ray.Central.Z);
-
-    /// <summary>Where the central ray of the floor point that a pixel shows meets the wall's plane; null off the floor.</summary>
-    private static Vector3? WallPointOf(CameraView camera, (int X, int Y) pixel, float roughness) =>
-        FloorRayOf(camera, pixel, roughness) is { } ray ? WallPointOf(ray) : null;
+    private static Vector3 BoxLookup(Vector3 point, Vector3 direction, GpuMapBox box)
+    {
+        float exit = float.MaxValue;
+        for (int axis = 0; axis < 3; axis++)
+        {
+            if (direction[axis] == 0)
+                continue;
+            float boundary = direction[axis] > 0 ? box.Maximum[axis] : box.Minimum[axis];
+            exit = MathF.Min(exit, (boundary - point[axis]) / direction[axis]);
+        }
+        return point + exit * direction;
+    }
 
     /// <summary>The row of the brightest floor pixel of a column, at least half a meter in front of the wall.</summary>
     private static int BrightestFloorRow(float[] hdr, CameraView camera, int column)
@@ -457,12 +521,17 @@ public sealed class MapSearchRenderTests
     }
 
     /// <summary>
-    /// The angle, as the eye sees it, from the stripe 1.5 m above the eye to where the brightest floor pixel of a column
-    /// reflects, by a ray trace of the floor's mirror rays.
+    /// The angle from the captured stripe to the brightest pixel's analytic box lookup, in capture-eye axes.
     /// </summary>
-    private static float StripeAngle(float[] hdr, CameraView camera, int column)
+    private static float StripeAngle(float[] hdr, CameraView camera, int column, GpuMapBox box)
     {
-        Vector3 seen = WallPointOf(camera, (column, BrightestFloorRow(hdr, camera, column)), roughness: 0)!.Value;
+        (Vector3 Point, Vector3 Central) ray = FloorRayOf(
+            camera,
+            (column, BrightestFloorRow(hdr, camera, column)),
+            roughness: 0
+        )!.Value;
+        Vector3 lookup = BoxLookup(ray.Point, ray.Central, box);
+        Vector3 seen = lookup * (WallZ / lookup.Z);
         var stripe = new Vector3(seen.X, 1.5f, WallZ);
         return MathF.Acos(Math.Clamp(Vector3.Dot(Vector3.Normalize(seen), Vector3.Normalize(stripe)), -1, 1));
     }

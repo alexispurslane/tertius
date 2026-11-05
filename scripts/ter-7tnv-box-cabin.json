@@ -1,0 +1,12 @@
+{
+  "scene": "demo-surface",
+  "window": { "width": 1280, "height": 720 },
+  "steps": [
+    { "do": "run", "ticks": 1000 },
+    { "do": "camera", "entity": "cabin-camera" },
+    { "do": "capture", "name": "cabin" },
+    { "do": "dump", "name": "cabin" },
+    { "do": "run", "ticks": 1 },
+    { "do": "capture", "name": "cabin-next" }
+  ]
+}

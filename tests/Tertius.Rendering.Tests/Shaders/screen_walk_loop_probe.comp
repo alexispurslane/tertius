@@ -1,0 +1,17 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#include "screen_trace.glsl"
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+void main()
+{
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    ScreenWalk walk = screenWalkOf(ScreenRay(vec2(pixel) + 0.5, vec2(1.0, 0.0), frame.viewport.z, 0.0, frame.viewport.x),
+        vec3(0.0, 0.0, -1.0), NoCard);
+    vec2 hit;
+    ivec2 hitPixel;
+    float share;
+    uint result = walkScreen(depthFinest, depthPyramid, walk, 62u, hit, hitPixel, share);
+    imageStore(specularSample, pixel, vec4(hit, share, float(result)));
+}

@@ -166,6 +166,12 @@ struct GpuPuff
     uint map;                 // the puff's map, whose mean radiance is a lit puff's ambient light
 };                            // std430: 36 bytes of members, a stride of 48
 
+struct GpuMapBox
+{
+    vec4 minimum;
+    vec4 maximum;
+};
+
 layout(set = 0, binding = 0, std140) uniform FrameBlock
 {
     mat4 rangeViewProj[3];    // far, middle, near: clip space from world space
@@ -198,6 +204,7 @@ layout(set = 0, binding = 0, std140) uniform FrameBlock
     vec4 previousCameraForward; // xyz the last frame's unit forward
     vec4 previousViewport;    // the last frame's render size: width, height, 1 / width, 1 / height
     vec4 previousRootRotation; // the last frame's root axes in world axes, as a quaternion (xyz, w)
+    GpuMapBox mapBoxes[42];
 } frame;
 
 layout(set = 0, binding = 1, std430) readonly buffer InstanceBlock { GpuInstance instances[]; };

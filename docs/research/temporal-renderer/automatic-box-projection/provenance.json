@@ -1,0 +1,1383 @@
+{
+  "date": "2026-11-05",
+  "worktree": "/Users/alexispurslane/.t3/worktrees/tertius/ter-7tnv-corrected-environment-misses",
+  "branch": "ter-7tnv-corrected-environment-misses",
+  "originalReviewBase": "34c28466e641a864fd6a915c029e08f07b3b9ccc",
+  "ticketParent": "a541601534246e87dad7e4c74b51da3f5c693eee",
+  "authorizedPrerequisite": "7d9f6e6739b8fcd1b96fcd307c6434e3d4a8ebaf",
+  "controlCodeTree": "6fc8947dc81ba55c7f45ee59dece54d1b0ae8d13",
+  "boxCodeTree": "cda9d325a704aa321e2f921a7d3b60144373705d",
+  "finalTestCodeTree": "cda9d325a704aa321e2f921a7d3b60144373705d",
+  "controlMeaning": "Integrated prerequisite, discarded search and passive appended frame constants; not pristine original main.",
+  "captures": [
+    {
+      "view": "terminal",
+      "script": "scripts/ter-7tnv-terminal.json",
+      "scriptSha256": "c9399ec2da2fb75e491f69551c1de3d97e77ed64405b3dcebb6c753fcbb39d00",
+      "scriptSource": {
+        "scene": "demo-surface",
+        "window": {
+          "width": 1280,
+          "height": 720
+        },
+        "steps": [
+          {
+            "do": "run",
+            "ticks": 30
+          },
+          {
+            "do": "camera",
+            "entity": "terminal-camera"
+          },
+          {
+            "do": "run",
+            "ticks": 284
+          },
+          {
+            "do": "capture",
+            "name": "terminal"
+          },
+          {
+            "do": "dump",
+            "name": "terminal"
+          },
+          {
+            "do": "run",
+            "ticks": 1
+          },
+          {
+            "do": "capture",
+            "name": "terminal-next"
+          }
+        ]
+      },
+      "settings": {
+        "Width": 1280,
+        "Height": 720,
+        "WarmUpFrames": 32,
+        "Validation": false,
+        "Impostors": false,
+        "CapturesInFlight": false,
+        "ScreenTrace": "ScreenTraceSetting(ScreenTrace { MaxRoughness = 0.5, ReflectionSteps = 256, DiffuseSteps = 62 })",
+        "Exposure": "ExposureSetting(AutoExposure { MinStops = -14, MaxStops = 10, CompensationStops = 0, DarkShare = 0.1, BrightShare = 0.1, IntoDarkSeconds = 3, IntoLightSeconds = 1 })",
+        "EnvironmentMap": "EnvironmentMapSetting(SceneEnvironmentMap { FaceSize = 128, FacesPerFrame = 1 })",
+        "Bloom": "BloomSetting(Bloom { Threshold = 1, Knee = 0.5, Strength = 0.25, Levels = 6 })",
+        "AntiAliasing": "Smaa",
+        "Subsurface": "SubsurfaceSetting(SeparableSubsurface { TapsPerSide = 8 })"
+      },
+      "toneCurve": "AcesFitted (default; no CLI override)",
+      "source": "cda9d325a704aa321e2f921a7d3b60144373705d",
+      "firstDraw": {
+        "Number": 0,
+        "DrawIndex": 0,
+        "Reset": true,
+        "SnapshotSeconds": 5.233333333333333,
+        "ExposureStep": "Infinity",
+        "MapCount": 3,
+        "Chain": [
+          {
+            "FrameId": 4294967298,
+            "Axes": [
+              0,
+              0,
+              0,
+              1
+            ]
+          },
+          {
+            "FrameId": 4294967297,
+            "Axes": [
+              0,
+              -0.9470375,
+              0,
+              0.3211229
+            ]
+          },
+          {
+            "FrameId": 4294967296,
+            "Axes": [
+              0.065227434,
+              -0.92729485,
+              0.19236507,
+              0.31442854
+            ]
+          }
+        ],
+        "Boxes": [
+          {
+            "Map": 0,
+            "Minimum": [
+              -695853250,
+              -701553200,
+              -152725800000.0,
+              1
+            ],
+            "Maximum": [
+              695546800,
+              689846850,
+              -151334400000.0,
+              0
+            ]
+          },
+          {
+            "Map": 1,
+            "Minimum": [
+              152564.45,
+              395228.12,
+              -230810910,
+              1
+            ],
+            "Maximum": [
+              262599400,
+              120179816,
+              -199551.78,
+              0
+            ]
+          },
+          {
+            "Map": 2,
+            "Minimum": [
+              -6371019,
+              -12742004,
+              -6371008,
+              1
+            ],
+            "Maximum": [
+              6370983,
+              246.428,
+              6370994,
+              0
+            ]
+          }
+        ]
+      },
+      "lastDraw": {
+        "Number": 33,
+        "DrawIndex": 33,
+        "Reset": false,
+        "SnapshotSeconds": 5.25,
+        "ExposureStep": 0.016666668,
+        "MapCount": 3,
+        "Chain": [
+          {
+            "FrameId": 4294967298,
+            "Axes": [
+              0,
+              0,
+              0,
+              1
+            ]
+          },
+          {
+            "FrameId": 4294967297,
+            "Axes": [
+              0,
+              -0.94703776,
+              0,
+              0.32112238
+            ]
+          },
+          {
+            "FrameId": 4294967296,
+            "Axes": [
+              0.06522732,
+              -0.927295,
+              0.1923651,
+              0.314428
+            ]
+          }
+        ],
+        "Boxes": [
+          {
+            "Map": 0,
+            "Minimum": [
+              -695843900,
+              -701543000,
+              -152725780000.0,
+              1
+            ],
+            "Maximum": [
+              695556160,
+              689857100,
+              -151334390000.0,
+              0
+            ]
+          },
+          {
+            "Map": 1,
+            "Minimum": [
+              152486.88,
+              395232.9,
+              -230810940,
+              1
+            ],
+            "Maximum": [
+              262599440,
+              120179840,
+              -199450.28,
+              0
+            ]
+          },
+          {
+            "Map": 2,
+            "Minimum": [
+              -6371019,
+              -12742004,
+              -6371008,
+              1
+            ],
+            "Maximum": [
+              6370983,
+              246.428,
+              6370994,
+              0
+            ]
+          }
+        ]
+      },
+      "draws": 34,
+      "warmUpDraws": 32,
+      "resets": 1,
+      "snapshotDeltaSeconds": 0.016666666666666607,
+      "receivingGroupExtentMeters": [
+        12742002,
+        12742250.428,
+        12742002
+      ],
+      "exposures": {
+        "control": [
+          {
+            "frame": 0,
+            "capture": "terminal",
+            "stops": -2.9894981
+          },
+          {
+            "frame": 1,
+            "capture": "terminal-next",
+            "stops": -2.9894981
+          }
+        ],
+        "box": [
+          {
+            "frame": 0,
+            "capture": "terminal",
+            "stops": -2.96673
+          },
+          {
+            "frame": 1,
+            "capture": "terminal-next",
+            "stops": -2.96673
+          }
+        ]
+      },
+      "images": [
+        {
+          "name": "terminal",
+          "sha256": {
+            "control": "da9c0532e558adfe2463da2ebd0b25128ed7180b1d0a256200eece880504224c",
+            "box": "d33b15e63825eaa947480a6efc83498fe7c24b3e17f15b6c84c62c7c4a087e89"
+          },
+          "controlEqualsBox": false
+        },
+        {
+          "name": "terminal-next",
+          "sha256": {
+            "control": "b16fa14e454539308af3edc3c260626c6b75288848d0e265be807b731d864d4d",
+            "box": "af16229075ddd92bdf5efe5ed0ab0ee6fc9c5afa55fc67af27d805b4259bcab9"
+          },
+          "controlEqualsBox": false
+        }
+      ],
+      "snapshotSha256": "af1760f4bf5936afdcdfe090bf9646c4b53646659b7861b92585a7851aaa4ee5",
+      "historySha256": {
+        "control": "986f3fa0039bdeb6544fd68ba308bf3c82b8d9b021411d86bc37e31d358fec8c",
+        "box": "e201d50607bd887399dc48e4e0b547c334f9c5c03988d1b63be6f36ec9a72e82"
+      }
+    },
+    {
+      "view": "floor",
+      "script": "scripts/ter-7tnv-floor.json",
+      "scriptSha256": "f3e8ae2684fc7edd6596488266cc66e3806aef31917a6b8d83c45e420f4bc9fc",
+      "scriptSource": {
+        "scene": "demo-exit",
+        "window": {
+          "width": 1280,
+          "height": 720
+        },
+        "steps": [
+          {
+            "do": "camera",
+            "entity": "cabin-camera"
+          },
+          {
+            "do": "post",
+            "to": {
+              "kind": "entity",
+              "id": "person"
+            },
+            "event": "LeaveShip",
+            "payload": null
+          },
+          {
+            "do": "run",
+            "ticks": 2916
+          },
+          {
+            "do": "camera",
+            "entity": "follow-camera"
+          },
+          {
+            "do": "run",
+            "ticks": 251
+          },
+          {
+            "do": "capture",
+            "name": "floor"
+          },
+          {
+            "do": "dump",
+            "name": "floor"
+          },
+          {
+            "do": "run",
+            "ticks": 1
+          },
+          {
+            "do": "capture",
+            "name": "floor-next"
+          }
+        ]
+      },
+      "settings": {
+        "Width": 1280,
+        "Height": 720,
+        "WarmUpFrames": 32,
+        "Validation": false,
+        "Impostors": false,
+        "CapturesInFlight": false,
+        "ScreenTrace": "ScreenTraceSetting(ScreenTrace { MaxRoughness = 0.5, ReflectionSteps = 256, DiffuseSteps = 62 })",
+        "Exposure": "ExposureSetting(AutoExposure { MinStops = -14, MaxStops = 10, CompensationStops = 0, DarkShare = 0.1, BrightShare = 0.1, IntoDarkSeconds = 3, IntoLightSeconds = 1 })",
+        "EnvironmentMap": "EnvironmentMapSetting(SceneEnvironmentMap { FaceSize = 128, FacesPerFrame = 1 })",
+        "Bloom": "BloomSetting(Bloom { Threshold = 1, Knee = 0.5, Strength = 0.25, Levels = 6 })",
+        "AntiAliasing": "Smaa",
+        "Subsurface": "SubsurfaceSetting(SeparableSubsurface { TapsPerSide = 8 })"
+      },
+      "toneCurve": "AcesFitted (default; no CLI override)",
+      "source": "cda9d325a704aa321e2f921a7d3b60144373705d",
+      "firstDraw": {
+        "Number": 0,
+        "DrawIndex": 0,
+        "Reset": true,
+        "SnapshotSeconds": 52.78333333333333,
+        "ExposureStep": "Infinity",
+        "MapCount": 2,
+        "Chain": [
+          {
+            "FrameId": 4294967297,
+            "Axes": [
+              0,
+              0,
+              0,
+              1
+            ]
+          },
+          {
+            "FrameId": 4294967296,
+            "Axes": [
+              -0.47602487,
+              0.060578246,
+              0.52287704,
+              -0.7045072
+            ]
+          }
+        ],
+        "Boxes": [
+          {
+            "Map": 0,
+            "Minimum": [
+              -6302067,
+              -13140985,
+              -6461161,
+              1
+            ],
+            "Maximum": [
+              6439933,
+              -398985,
+              6280839,
+              0
+            ]
+          },
+          {
+            "Map": 1,
+            "Minimum": [
+              -3.90493,
+              -109.76588,
+              -102.259125,
+              1
+            ],
+            "Maximum": [
+              199.08276,
+              109.93435,
+              100.72858,
+              0
+            ]
+          }
+        ]
+      },
+      "lastDraw": {
+        "Number": 33,
+        "DrawIndex": 33,
+        "Reset": false,
+        "SnapshotSeconds": 52.8,
+        "ExposureStep": 0.016666668,
+        "MapCount": 2,
+        "Chain": [
+          {
+            "FrameId": 4294967297,
+            "Axes": [
+              0,
+              0,
+              0,
+              1
+            ]
+          },
+          {
+            "FrameId": 4294967296,
+            "Axes": [
+              -0.477388,
+              0.06241686,
+              0.5216328,
+              -0.70434666
+            ]
+          }
+        ],
+        "Boxes": [
+          {
+            "Map": 0,
+            "Minimum": [
+              -6301989,
+              -13140984,
+              -6461263,
+              1
+            ],
+            "Maximum": [
+              6440011,
+              -398984,
+              6280737,
+              0
+            ]
+          },
+          {
+            "Map": 1,
+            "Minimum": [
+              -3.9049072,
+              -109.7661,
+              -102.268715,
+              1
+            ],
+            "Maximum": [
+              199.0828,
+              109.93413,
+              100.71899,
+              0
+            ]
+          }
+        ]
+      },
+      "draws": 34,
+      "warmUpDraws": 32,
+      "resets": 1,
+      "snapshotDeltaSeconds": 0.01666666666666572,
+      "receivingGroupExtentMeters": [
+        202.98769000000001,
+        219.70022999999998,
+        202.987705
+      ],
+      "exposures": {
+        "control": [
+          {
+            "frame": 0,
+            "capture": "floor",
+            "stops": 3.7050846
+          },
+          {
+            "frame": 1,
+            "capture": "floor-next",
+            "stops": 3.7050846
+          }
+        ],
+        "box": [
+          {
+            "frame": 0,
+            "capture": "floor",
+            "stops": 3.6925075
+          },
+          {
+            "frame": 1,
+            "capture": "floor-next",
+            "stops": 3.6925075
+          }
+        ]
+      },
+      "images": [
+        {
+          "name": "floor",
+          "sha256": {
+            "control": "379d666d8d251e752503314e98a43fed34e41665757e5e97649f3ac41ec0b299",
+            "box": "9c99a55542a8f9285d3eccacb2e478bc1d6490e911930e6769746ea21b34fe99"
+          },
+          "controlEqualsBox": false
+        },
+        {
+          "name": "floor-next",
+          "sha256": {
+            "control": "9987adfec84b9400cdc6e091a842b51f8ca3998cb169c0983d9376743b6d2cb3",
+            "box": "a2c523def45c1150849678a44530a3df1697693b692c827ff9a631892b0153fa"
+          },
+          "controlEqualsBox": false
+        }
+      ],
+      "snapshotSha256": "e8422f3de923affb3a662fac4e1178c081c78ee5548dac8f29b9acd3af411200",
+      "historySha256": {
+        "control": "37cc09d3c161091aa377e06210522d9102e2c56c34369eab703146a068dc81e4",
+        "box": "f2b7f58acc4e9dea9d9424a371d9c43614f9d0438eee6c4893b86e066907eead"
+      }
+    },
+    {
+      "view": "cabin",
+      "script": "scripts/ter-7tnv-box-cabin.json",
+      "scriptSha256": "1a783f26c5d787c4e3e712c6384adf06b8819cbcca956eabaaa67124d364057d",
+      "scriptSource": {
+        "scene": "demo-surface",
+        "window": {
+          "width": 1280,
+          "height": 720
+        },
+        "steps": [
+          {
+            "do": "run",
+            "ticks": 1000
+          },
+          {
+            "do": "camera",
+            "entity": "cabin-camera"
+          },
+          {
+            "do": "capture",
+            "name": "cabin"
+          },
+          {
+            "do": "dump",
+            "name": "cabin"
+          },
+          {
+            "do": "run",
+            "ticks": 1
+          },
+          {
+            "do": "capture",
+            "name": "cabin-next"
+          }
+        ]
+      },
+      "settings": {
+        "Width": 1280,
+        "Height": 720,
+        "WarmUpFrames": 32,
+        "Validation": false,
+        "Impostors": false,
+        "CapturesInFlight": false,
+        "ScreenTrace": "ScreenTraceSetting(ScreenTrace { MaxRoughness = 0.5, ReflectionSteps = 256, DiffuseSteps = 62 })",
+        "Exposure": "ExposureSetting(AutoExposure { MinStops = -14, MaxStops = 10, CompensationStops = 0, DarkShare = 0.1, BrightShare = 0.1, IntoDarkSeconds = 3, IntoLightSeconds = 1 })",
+        "EnvironmentMap": "EnvironmentMapSetting(SceneEnvironmentMap { FaceSize = 128, FacesPerFrame = 1 })",
+        "Bloom": "BloomSetting(Bloom { Threshold = 1, Knee = 0.5, Strength = 0.25, Levels = 6 })",
+        "AntiAliasing": "Smaa",
+        "Subsurface": "SubsurfaceSetting(SeparableSubsurface { TapsPerSide = 8 })"
+      },
+      "toneCurve": "AcesFitted (default; no CLI override)",
+      "source": "cda9d325a704aa321e2f921a7d3b60144373705d",
+      "firstDraw": {
+        "Number": 0,
+        "DrawIndex": 0,
+        "Reset": true,
+        "SnapshotSeconds": 16.666666666666668,
+        "ExposureStep": "Infinity",
+        "MapCount": 4,
+        "Chain": [
+          {
+            "FrameId": 4294967300,
+            "Axes": [
+              0,
+              0,
+              0,
+              1
+            ]
+          },
+          {
+            "FrameId": 4294967298,
+            "Axes": [
+              0,
+              0,
+              0,
+              1
+            ]
+          },
+          {
+            "FrameId": 4294967297,
+            "Axes": [
+              0,
+              -0.94717133,
+              0,
+              0.3207281
+            ]
+          },
+          {
+            "FrameId": 4294967296,
+            "Axes": [
+              0.06514724,
+              -0.92742586,
+              0.19239223,
+              0.31404197
+            ]
+          }
+        ],
+        "Boxes": [
+          {
+            "Map": 0,
+            "Minimum": [
+              -696187840,
+              -701543000,
+              -152725820000.0,
+              1
+            ],
+            "Maximum": [
+              695212200,
+              689857100,
+              -151334420000.0,
+              0
+            ]
+          },
+          {
+            "Map": 1,
+            "Minimum": [
+              99293.09,
+              397916.97,
+              -230818770,
+              1
+            ],
+            "Maximum": [
+              262591150,
+              120184070,
+              -129908.82,
+              0
+            ]
+          },
+          {
+            "Map": 2,
+            "Minimum": [
+              -6370998.5,
+              -12742004,
+              -6371008,
+              1
+            ],
+            "Maximum": [
+              6371003.5,
+              246.808,
+              6370994,
+              0
+            ]
+          },
+          {
+            "Map": 3,
+            "Minimum": [
+              -6.431552,
+              -9.931552,
+              -15.531552,
+              1
+            ],
+            "Maximum": [
+              11.031552,
+              7.5315523,
+              1.9315519,
+              0
+            ]
+          }
+        ]
+      },
+      "lastDraw": {
+        "Number": 33,
+        "DrawIndex": 33,
+        "Reset": false,
+        "SnapshotSeconds": 16.683333333333334,
+        "ExposureStep": 0.016666668,
+        "MapCount": 4,
+        "Chain": [
+          {
+            "FrameId": 4294967300,
+            "Axes": [
+              0,
+              0,
+              0,
+              1
+            ]
+          },
+          {
+            "FrameId": 4294967298,
+            "Axes": [
+              0,
+              0,
+              0,
+              1
+            ]
+          },
+          {
+            "FrameId": 4294967297,
+            "Axes": [
+              0,
+              -0.9471715,
+              0,
+              0.32072753
+            ]
+          },
+          {
+            "FrameId": 4294967296,
+            "Axes": [
+              0.065147124,
+              -0.92742604,
+              0.19239227,
+              0.3140414
+            ]
+          }
+        ],
+        "Boxes": [
+          {
+            "Map": 0,
+            "Minimum": [
+              -696187100,
+              -701549100,
+              -152725820000.0,
+              1
+            ],
+            "Maximum": [
+              695213000,
+              689850940,
+              -151334420000.0,
+              0
+            ]
+          },
+          {
+            "Map": 1,
+            "Minimum": [
+              99215.44,
+              397920.03,
+              -230818750,
+              1
+            ],
+            "Maximum": [
+              262591120,
+              120184070,
+              -129807.24,
+              0
+            ]
+          },
+          {
+            "Map": 2,
+            "Minimum": [
+              -6370998.5,
+              -12742004,
+              -6371008,
+              1
+            ],
+            "Maximum": [
+              6371003.5,
+              246.808,
+              6370994,
+              0
+            ]
+          },
+          {
+            "Map": 3,
+            "Minimum": [
+              -6.431552,
+              -9.931552,
+              -15.531552,
+              1
+            ],
+            "Maximum": [
+              11.031552,
+              7.5315523,
+              1.9315519,
+              0
+            ]
+          }
+        ]
+      },
+      "draws": 34,
+      "warmUpDraws": 32,
+      "resets": 1,
+      "snapshotDeltaSeconds": 0.01666666666666572,
+      "receivingGroupExtentMeters": [
+        17.463104,
+        17.4631043,
+        17.4631039
+      ],
+      "exposures": {
+        "control": [
+          {
+            "frame": 0,
+            "capture": "cabin",
+            "stops": -8.356823
+          },
+          {
+            "frame": 1,
+            "capture": "cabin-next",
+            "stops": -8.356823
+          }
+        ],
+        "box": [
+          {
+            "frame": 0,
+            "capture": "cabin",
+            "stops": -8.340269
+          },
+          {
+            "frame": 1,
+            "capture": "cabin-next",
+            "stops": -8.340269
+          }
+        ]
+      },
+      "images": [
+        {
+          "name": "cabin",
+          "sha256": {
+            "control": "264da539b805ff3d0efc5b210ed875ef29a18a8d168e650167c47dee2904e8a1",
+            "box": "ccd64c38a95105aeb75af87e1ed05d2a7cde56302657c868cfbbf16be94f9da8"
+          },
+          "controlEqualsBox": false
+        },
+        {
+          "name": "cabin-next",
+          "sha256": {
+            "control": "120e12d1faf32f8b3d1608548418185bfaab56ef71257cc01d1b1bedbd9c9edf",
+            "box": "97779fa1c71d9d9837e039d39501e3300848f72077accd4bffce7940df0adb4f"
+          },
+          "controlEqualsBox": false
+        }
+      ],
+      "snapshotSha256": "150621127f81f03dfc82d40915b902b40c2f54928143e78dba450c2b196dcbee",
+      "historySha256": {
+        "control": "f2be9a4bedb9217b8a4b302501fce97f8e825ec47ae4b002029315d8f262a5dd",
+        "box": "d8732b6e48dc3a99ce982af7e3a7c33fd38f22bbc1b13126cecec32055968182"
+      }
+    }
+  ],
+  "timings": [
+    {
+      "view": "deck",
+      "script": "captures/ter-7tnv/deck-120.json",
+      "scriptSha256": "c51f4ffa5ff04cd36de7859fea225aa762c1995a346660f149af429fd478f9cc",
+      "scriptSource": {
+        "scene": "demo-exit",
+        "window": {
+          "width": 1280,
+          "height": 720
+        },
+        "steps": [
+          {
+            "do": "camera",
+            "entity": "cabin-camera"
+          },
+          {
+            "do": "post",
+            "to": {
+              "kind": "entity",
+              "id": "person"
+            },
+            "event": "LeaveShip",
+            "payload": null
+          },
+          {
+            "do": "run",
+            "ticks": 399
+          },
+          {
+            "do": "camera",
+            "entity": "deck-camera"
+          },
+          {
+            "do": "film",
+            "name": "deck",
+            "frames": 120,
+            "every": 1
+          }
+        ]
+      },
+      "options": [
+        "--size",
+        "1280x720",
+        "--in-flight",
+        "2",
+        "--video",
+        "none"
+      ],
+      "pairs": [
+        {
+          "round": 1,
+          "order": [
+            "control",
+            "box"
+          ],
+          "control": {
+            "device": "Apple M1 Max",
+            "width": 1280,
+            "height": 720,
+            "frame": {
+              "frames": 120,
+              "meanMs": 14.019436099999998,
+              "medianMs": 14.0213335,
+              "p95Ms": 14.337417
+            },
+            "gpuClock": {
+              "meanMhz": 1296.0,
+              "p10Mhz": 1296.0,
+              "p90Mhz": 1296.0,
+              "samples": 16
+            },
+            "stampsLatchLate": true,
+            "warning": "On MoltenVK a pass's GPU time can hold part of the next pass's work: only the span and the sums of neighbouring passes hold. Individual pass times are omitted; raw per-pass JSON values are not valid alone. Read each pass's own time from a trace (tools/README.md, \"GPU trace\").",
+            "reportSha256": "a551bb2472b627b8186947bf76c7a27dee163de811879ac3fff7d066b37a99cf"
+          },
+          "box": {
+            "device": "Apple M1 Max",
+            "width": 1280,
+            "height": 720,
+            "frame": {
+              "frames": 120,
+              "meanMs": 11.689197624999997,
+              "medianMs": 11.6794375,
+              "p95Ms": 11.975208
+            },
+            "gpuClock": {
+              "meanMhz": 1296.0,
+              "p10Mhz": 1296.0,
+              "p90Mhz": 1296.0,
+              "samples": 13
+            },
+            "stampsLatchLate": true,
+            "warning": "On MoltenVK a pass's GPU time can hold part of the next pass's work: only the span and the sums of neighbouring passes hold. Individual pass times are omitted; raw per-pass JSON values are not valid alone. Read each pass's own time from a trace (tools/README.md, \"GPU trace\").",
+            "reportSha256": "6c8d945872453d8224144591c0fb0d729576278a4945ed6c5ba8cdd40a775768"
+          },
+          "clockDifferenceFraction": 0.0,
+          "boxMinusControlMeanMs": -2.3302384750000016
+        },
+        {
+          "round": 2,
+          "order": [
+            "box",
+            "control"
+          ],
+          "control": {
+            "device": "Apple M1 Max",
+            "width": 1280,
+            "height": 720,
+            "frame": {
+              "frames": 120,
+              "meanMs": 14.094219741666661,
+              "medianMs": 14.101270499999998,
+              "p95Ms": 14.45875
+            },
+            "gpuClock": {
+              "meanMhz": 1296.0,
+              "p10Mhz": 1296.0,
+              "p90Mhz": 1296.0,
+              "samples": 16
+            },
+            "stampsLatchLate": true,
+            "warning": "On MoltenVK a pass's GPU time can hold part of the next pass's work: only the span and the sums of neighbouring passes hold. Individual pass times are omitted; raw per-pass JSON values are not valid alone. Read each pass's own time from a trace (tools/README.md, \"GPU trace\").",
+            "reportSha256": "e2bbf6ffc3e8f0424375363ba1a89c9a7821d801295d37f48eeb42c424de36c9"
+          },
+          "box": {
+            "device": "Apple M1 Max",
+            "width": 1280,
+            "height": 720,
+            "frame": {
+              "frames": 120,
+              "meanMs": 11.739325691666664,
+              "medianMs": 11.7243125,
+              "p95Ms": 12.037625
+            },
+            "gpuClock": {
+              "meanMhz": 1296.0,
+              "p10Mhz": 1296.0,
+              "p90Mhz": 1296.0,
+              "samples": 13
+            },
+            "stampsLatchLate": true,
+            "warning": "On MoltenVK a pass's GPU time can hold part of the next pass's work: only the span and the sums of neighbouring passes hold. Individual pass times are omitted; raw per-pass JSON values are not valid alone. Read each pass's own time from a trace (tools/README.md, \"GPU trace\").",
+            "reportSha256": "7342f0de8e7ed352e304db91a807d7909a047f11ee09e79728a89e00ba3b5853"
+          },
+          "clockDifferenceFraction": 0.0,
+          "boxMinusControlMeanMs": -2.354894049999997
+        },
+        {
+          "round": 3,
+          "order": [
+            "control",
+            "box"
+          ],
+          "control": {
+            "device": "Apple M1 Max",
+            "width": 1280,
+            "height": 720,
+            "frame": {
+              "frames": 120,
+              "meanMs": 14.098396175,
+              "medianMs": 14.0825,
+              "p95Ms": 14.518625
+            },
+            "gpuClock": {
+              "meanMhz": 1296.0,
+              "p10Mhz": 1296.0,
+              "p90Mhz": 1296.0,
+              "samples": 15
+            },
+            "stampsLatchLate": true,
+            "warning": "On MoltenVK a pass's GPU time can hold part of the next pass's work: only the span and the sums of neighbouring passes hold. Individual pass times are omitted; raw per-pass JSON values are not valid alone. Read each pass's own time from a trace (tools/README.md, \"GPU trace\").",
+            "reportSha256": "6072fcb43e1d3f4bd3ff26b264689a31cab14ad5d345af1019ab598f2b141671"
+          },
+          "box": {
+            "device": "Apple M1 Max",
+            "width": 1280,
+            "height": 720,
+            "frame": {
+              "frames": 120,
+              "meanMs": 11.7211903,
+              "medianMs": 11.701083,
+              "p95Ms": 12.008875
+            },
+            "gpuClock": {
+              "meanMhz": 1296.0,
+              "p10Mhz": 1296.0,
+              "p90Mhz": 1296.0,
+              "samples": 13
+            },
+            "stampsLatchLate": true,
+            "warning": "On MoltenVK a pass's GPU time can hold part of the next pass's work: only the span and the sums of neighbouring passes hold. Individual pass times are omitted; raw per-pass JSON values are not valid alone. Read each pass's own time from a trace (tools/README.md, \"GPU trace\").",
+            "reportSha256": "3ac17326e565644783ccc0b142d967c5e4b2b3df0d9228440bcbc849bf0de4c7"
+          },
+          "clockDifferenceFraction": 0.0,
+          "boxMinusControlMeanMs": -2.3772058749999996
+        }
+      ],
+      "medianControlRunMeanMs": 14.094219741666661,
+      "medianBoxRunMeanMs": 11.7211903,
+      "medianPairedBoxMinusControlMs": -2.354894049999997,
+      "limits": "Three matched pairs, whole-frame spans only, against the discarded-search control. No own-pass cost, universal speed promise or final budget acceptance."
+    },
+    {
+      "view": "floor",
+      "script": "captures/ter-7tnv/floor-120.json",
+      "scriptSha256": "aff23d6a438ee8c767a28867e825e05a19ba16ce197845269d4ca6b6c443faa1",
+      "scriptSource": {
+        "scene": "demo-exit",
+        "window": {
+          "width": 1280,
+          "height": 720
+        },
+        "steps": [
+          {
+            "do": "camera",
+            "entity": "cabin-camera"
+          },
+          {
+            "do": "post",
+            "to": {
+              "kind": "entity",
+              "id": "person"
+            },
+            "event": "LeaveShip",
+            "payload": null
+          },
+          {
+            "do": "run",
+            "ticks": 399
+          },
+          {
+            "do": "camera",
+            "entity": "deck-camera"
+          },
+          {
+            "do": "run",
+            "ticks": 740
+          },
+          {
+            "do": "camera",
+            "entity": "spoke-camera"
+          },
+          {
+            "do": "run",
+            "ticks": 561
+          },
+          {
+            "do": "camera",
+            "entity": "slide-camera"
+          },
+          {
+            "do": "run",
+            "ticks": 1008
+          },
+          {
+            "do": "camera",
+            "entity": "wheel-camera"
+          },
+          {
+            "do": "run",
+            "ticks": 208
+          },
+          {
+            "do": "camera",
+            "entity": "follow-camera"
+          },
+          {
+            "do": "film",
+            "name": "floor",
+            "frames": 120,
+            "every": 1
+          }
+        ]
+      },
+      "options": [
+        "--size",
+        "1280x720",
+        "--in-flight",
+        "2",
+        "--video",
+        "none"
+      ],
+      "pairs": [
+        {
+          "round": 1,
+          "order": [
+            "control",
+            "box"
+          ],
+          "control": {
+            "device": "Apple M1 Max",
+            "width": 1280,
+            "height": 720,
+            "frame": {
+              "frames": 120,
+              "meanMs": 12.819723949999997,
+              "medianMs": 12.854354,
+              "p95Ms": 13.362417
+            },
+            "gpuClock": {
+              "meanMhz": 1296.0,
+              "p10Mhz": 1296.0,
+              "p90Mhz": 1296.0,
+              "samples": 15
+            },
+            "stampsLatchLate": true,
+            "warning": "On MoltenVK a pass's GPU time can hold part of the next pass's work: only the span and the sums of neighbouring passes hold. Individual pass times are omitted; raw per-pass JSON values are not valid alone. Read each pass's own time from a trace (tools/README.md, \"GPU trace\").",
+            "reportSha256": "492ecfdb2e2d952360ef8ed263b29a6ea8f2e7c9f83ee03e53b89cbf1ea8cf66"
+          },
+          "box": {
+            "device": "Apple M1 Max",
+            "width": 1280,
+            "height": 720,
+            "frame": {
+              "frames": 120,
+              "meanMs": 10.833757958333335,
+              "medianMs": 10.831104,
+              "p95Ms": 11.171667
+            },
+            "gpuClock": {
+              "meanMhz": 1296.0,
+              "p10Mhz": 1296.0,
+              "p90Mhz": 1296.0,
+              "samples": 13
+            },
+            "stampsLatchLate": true,
+            "warning": "On MoltenVK a pass's GPU time can hold part of the next pass's work: only the span and the sums of neighbouring passes hold. Individual pass times are omitted; raw per-pass JSON values are not valid alone. Read each pass's own time from a trace (tools/README.md, \"GPU trace\").",
+            "reportSha256": "6e0cdb42e10e14a89dcc728d9f315e36bbb069e6d052216a54e72fd916980325"
+          },
+          "clockDifferenceFraction": 0.0,
+          "boxMinusControlMeanMs": -1.9859659916666619
+        },
+        {
+          "round": 2,
+          "order": [
+            "box",
+            "control"
+          ],
+          "control": {
+            "device": "Apple M1 Max",
+            "width": 1280,
+            "height": 720,
+            "frame": {
+              "frames": 120,
+              "meanMs": 12.836719750000004,
+              "medianMs": 12.8730835,
+              "p95Ms": 13.3665
+            },
+            "gpuClock": {
+              "meanMhz": 1296.0,
+              "p10Mhz": 1296.0,
+              "p90Mhz": 1296.0,
+              "samples": 15
+            },
+            "stampsLatchLate": true,
+            "warning": "On MoltenVK a pass's GPU time can hold part of the next pass's work: only the span and the sums of neighbouring passes hold. Individual pass times are omitted; raw per-pass JSON values are not valid alone. Read each pass's own time from a trace (tools/README.md, \"GPU trace\").",
+            "reportSha256": "cde7f71c3b7f4207e1167db266747935dac87ee6f1c5cef284901df1cfd84d1c"
+          },
+          "box": {
+            "device": "Apple M1 Max",
+            "width": 1280,
+            "height": 720,
+            "frame": {
+              "frames": 120,
+              "meanMs": 10.858042391666674,
+              "medianMs": 10.856958500000001,
+              "p95Ms": 11.1765
+            },
+            "gpuClock": {
+              "meanMhz": 1296.0,
+              "p10Mhz": 1296.0,
+              "p90Mhz": 1296.0,
+              "samples": 13
+            },
+            "stampsLatchLate": true,
+            "warning": "On MoltenVK a pass's GPU time can hold part of the next pass's work: only the span and the sums of neighbouring passes hold. Individual pass times are omitted; raw per-pass JSON values are not valid alone. Read each pass's own time from a trace (tools/README.md, \"GPU trace\").",
+            "reportSha256": "6496005fa7011863f23297368b8cc4c2c5d3ed51999a0225c50cb2acdb83cf4f"
+          },
+          "clockDifferenceFraction": 0.0,
+          "boxMinusControlMeanMs": -1.9786773583333304
+        },
+        {
+          "round": 3,
+          "order": [
+            "control",
+            "box"
+          ],
+          "control": {
+            "device": "Apple M1 Max",
+            "width": 1280,
+            "height": 720,
+            "frame": {
+              "frames": 120,
+              "meanMs": 12.843637524999997,
+              "medianMs": 12.866792,
+              "p95Ms": 13.407958
+            },
+            "gpuClock": {
+              "meanMhz": 1296.0,
+              "p10Mhz": 1296.0,
+              "p90Mhz": 1296.0,
+              "samples": 14
+            },
+            "stampsLatchLate": true,
+            "warning": "On MoltenVK a pass's GPU time can hold part of the next pass's work: only the span and the sums of neighbouring passes hold. Individual pass times are omitted; raw per-pass JSON values are not valid alone. Read each pass's own time from a trace (tools/README.md, \"GPU trace\").",
+            "reportSha256": "fdae111369823933b7347b2fd86407ee63d1a2734372533e34b2b494e3b5a462"
+          },
+          "box": {
+            "device": "Apple M1 Max",
+            "width": 1280,
+            "height": 720,
+            "frame": {
+              "frames": 120,
+              "meanMs": 10.854061849999995,
+              "medianMs": 10.8331665,
+              "p95Ms": 11.190166
+            },
+            "gpuClock": {
+              "meanMhz": 1296.0,
+              "p10Mhz": 1296.0,
+              "p90Mhz": 1296.0,
+              "samples": 13
+            },
+            "stampsLatchLate": true,
+            "warning": "On MoltenVK a pass's GPU time can hold part of the next pass's work: only the span and the sums of neighbouring passes hold. Individual pass times are omitted; raw per-pass JSON values are not valid alone. Read each pass's own time from a trace (tools/README.md, \"GPU trace\").",
+            "reportSha256": "244331f0cc256c2a8f41df6bb8eee9344581aa1bd43cd177cdff2ab2aae477ea"
+          },
+          "clockDifferenceFraction": 0.0,
+          "boxMinusControlMeanMs": -1.989575675000001
+        }
+      ],
+      "medianControlRunMeanMs": 12.836719750000004,
+      "medianBoxRunMeanMs": 10.854061849999995,
+      "medianPairedBoxMinusControlMs": -1.9859659916666619,
+      "limits": "Three matched pairs, whole-frame spans only, against the discarded-search control. No own-pass cost, universal speed promise or final budget acceptance."
+    }
+  ],
+  "checks": {
+    "Checked": {
+      "passed": 9990,
+      "skipped": 20,
+      "failed": 0,
+      "logSha256": "3160cb9bba8a0110a6fbe6ebd8b59190c1225b5a67ca1380078709b8cf68efc9"
+    },
+    "Release": {
+      "passed": 9977,
+      "skipped": 20,
+      "failed": 0,
+      "logSha256": "2225f2da4bc78db1dd93b58565257c58826db576a24a937893109ed472db878f"
+    },
+    "solution-Checked": {
+      "warnings": 0,
+      "errors": 0,
+      "logSha256": "945874c2f7170b52aa1ae43b3c152c443401806f64992919915c0ab346a368c2"
+    },
+    "solution-Release": {
+      "warnings": 0,
+      "errors": 0,
+      "logSha256": "04cc5de3836727af5bdc8a48bcdb95e1e746ed273085ebf693caa28b80034769"
+    },
+    "benchmark": {
+      "warnings": 0,
+      "errors": 0,
+      "logSha256": "f46b670c6201c29f402a0a7883581da55d13bee342a0df9f7c7a9114881ce984"
+    },
+    "focused": {
+      "boxCases": 37,
+      "deformationCases": 30,
+      "failed": 0,
+      "logSha256": "56536f0b1bd6e553840fe331b2ea2580c23887d441c260dbbda43c6d8d769ef4"
+    },
+    "Vulkan13": {
+      "modules": 89,
+      "linuxExecution": false
+    },
+    "coverageAndMutation": "Not run; parent-owned."
+  },
+  "rendererSha256": {
+    "control": "b4e9bd12960c3b81dd36f8c2006cd41db18765e9bc472c1f8b7437e6d7c3d4ba",
+    "box": "694e7a5f9591ac811d0679690fbaf982e0381441f68b36d427335469c667e091"
+  },
+  "instrumentation": {
+    "BoxCaptureObserver.cs": {
+      "sha256": "4ee1e898b59361dfd2af4b63d768cd6ebafcaf32cc4cb95cdb25f6404e164e5e",
+      "source": "using System.Text.Json;\nusing Tertius.Demo;\nusing Tertius.Rendering;\n\nnamespace Tertius.Host.Tests;\n\npublic sealed class BoxCaptureObserver\n{\n    private static readonly JsonSerializerOptions HistoryJson = new()\n    {\n        NumberHandling = System.Text.Json.Serialization.JsonNumberHandling.AllowNamedFloatingPointLiterals\n    };\n\n    [Fact]\n    public void WarmedCapturesAdvanceTheirSnapshotClockAndKeepTheirDrawHistory()\n    {\n        string checkout = Environment.GetEnvironmentVariable(\"TERTIUS_BOX_ROOT\")\n            ?? throw new InvalidOperationException(\"TERTIUS_BOX_ROOT is required.\");\n        string variant = Environment.GetEnvironmentVariable(\"TERTIUS_BOX_VARIANT\")\n            ?? throw new InvalidOperationException(\"TERTIUS_BOX_VARIANT is required.\");\n        string root = Path.Combine(checkout, \"captures/ter-7tnv-box\");\n        foreach (string view in new[] { \"terminal\", \"floor\", \"cabin\" })\n        {\n            var probe = new ObservationPass();\n            using var output = new StringWriter();\n            using var error = new StringWriter();\n            string script = view == \"cabin\" ? \"ter-7tnv-box-cabin.json\" : $\"ter-7tnv-{view}.json\";\n            int code = ScriptCommand.Run(\n                args: [\"--script\", Path.Combine(checkout, \"scripts\", script), \"--headless\", \"--out\",\n                    Path.Combine(root, $\"{variant}-observed-{view}\")],\n                scenes: DemoScenes.All, output: output, error: error,\n                createRenderer: options =>\n                {\n                    File.WriteAllText(Path.Combine(root, $\"{variant}-{view}-settings.json\"), JsonSerializer.Serialize(new\n                    {\n                        options.Width, options.Height, options.WarmUpFrames, options.Validation,\n                        options.Impostors, options.CapturesInFlight,\n                        ScreenTrace = options.ScreenTrace.ToString(), Exposure = options.Exposure.ToString(),\n                        EnvironmentMap = options.EnvironmentMap.ToString(), Bloom = options.Bloom.ToString(),\n                        AntiAliasing = options.AntiAliasing.ToString(), Subsurface = options.Subsurface.ToString()\n                    }));\n                    VulkanRenderer renderer = VulkanRenderer.CreateHeadless(options);\n                    renderer.Graph.Add(FrameGraph.Stage.Composite, probe);\n                    return renderer;\n                }\n            );\n            File.WriteAllText(Path.Combine(root, $\"{variant}-{view}-history.json\"), JsonSerializer.Serialize(probe.Rows, HistoryJson));\n            code.Should().Be(ScriptCommand.Ok, error.ToString());\n            probe.Indices.Should().Equal(Enumerable.Range(0, 34).Select(index => (long)index));\n            probe.Resets.Count(reset => reset).Should().Be(1);\n            probe.Times.Distinct().Should().HaveCount(2);\n            (probe.Times[^1] - probe.Times[0]).Should().BeApproximately(1.0 / 60, 1e-10);\n        }\n    }\n\n    private sealed class ObservationPass : RenderPass\n    {\n        public override string Name => \"box capture history evidence\";\n        public List<object> Rows { get; } = [];\n        public List<long> Indices { get; } = [];\n        public List<bool> Resets { get; } = [];\n        public List<double> Times { get; } = [];\n\n        public override void Record(FrameContext context)\n        {\n            Indices.Add(context.History.DrawIndex);\n            Resets.Add(context.History.Reset);\n            Times.Add(context.Snapshot.Time);\n            Rows.Add(new\n            {\n                context.Number, context.History.DrawIndex, context.History.Reset,\n                SnapshotSeconds = context.Snapshot.Time, context.History.ExposureStep,\n                context.Scene.MapCount,\n                Chain = context.Snapshot.Chain.Select(frame => new\n                {\n                    frame.FrameId,\n                    Axes = new[] { frame.Rotation.X, frame.Rotation.Y, frame.Rotation.Z, frame.Rotation.W }\n                }).ToArray(),\n                Boxes = Enumerable.Range(0, context.Scene.MapCount).Select(map =>\n                {\n                    GpuMapBox box = context.Scene.Constants.MapBoxes[map];\n                    return new\n                    {\n                        Map = map,\n                        Minimum = new[] { box.Minimum.X, box.Minimum.Y, box.Minimum.Z, box.Minimum.W },\n                        Maximum = new[] { box.Maximum.X, box.Maximum.Y, box.Maximum.Z, box.Maximum.W }\n                    };\n                }).ToArray()\n            });\n        }\n    }\n}\n"
+    },
+    "observer.targets": {
+      "sha256": "b4b1a8097f2fe0249576b4b7fa6e076dc9ced8ca83163082530292e4120a732f",
+      "source": "<Project>\n  <ItemGroup Condition=\"'$(MSBuildProjectName)' == 'Tertius.Host.Tests'\">\n    <Compile Include=\"$(MSBuildThisFileDirectory)BoxCaptureObserver.cs\" />\n  </ItemGroup>\n</Project>\n"
+    },
+    "capture.sh": {
+      "sha256": "d88b5c4a3a97dbd0fca6bb173629d7541a6aa354d9d840c8fc490aab73f5bb42",
+      "source": "set -euo pipefail\nroot=$(pwd -P)\nevidence=\"$root/captures/ter-7tnv-box\"\nbash tools/code-tree.sh > \"$evidence/box-code-tree.txt\"\ndotnet build tests/Tertius.Host.Tests -c Release -m:1 -v minimal -nologo \\\n    -p:CustomAfterMicrosoftCommonTargets=\"$evidence/observer.targets\" > \"$evidence/logs/observer-build.log\" 2>&1\ndotnet build src/Tertius.Demo -c Release -m:1 -v minimal -nologo > \"$evidence/logs/box-build.log\" 2>&1\nmkdir -p \"$evidence/observer-bin\" \"$evidence/box-bin\"\ncp -R tests/Tertius.Host.Tests/bin/Release/net11.0/. \"$evidence/observer-bin/\"\ncp -R src/Tertius.Demo/bin/Release/net11.0/. \"$evidence/box-bin/\"\nshasum -a 256 \"$evidence/BoxCaptureObserver.cs\" \"$evidence/observer.targets\" \"$evidence/capture.sh\" \\\n    \"$evidence/control-bin/Tertius.Rendering.dll\" \"$evidence/box-bin/Tertius.Rendering.dll\" > \"$evidence/capture-inputs.sha256\"\nfor variant in control box; do\n    test \"$(df -k . | awk 'NR == 2 { print $4 }')\" -ge 5242880\n    cp \"$evidence/$variant-bin/Tertius.Rendering.dll\" \"$evidence/observer-bin/Tertius.Rendering.dll\"\n    TERTIUS_BOX_ROOT=\"$root\" TERTIUS_BOX_VARIANT=\"$variant\" \\\n        dotnet \"$evidence/observer-bin/Tertius.Host.Tests.dll\" -class Tertius.Host.Tests.BoxCaptureObserver \\\n        > \"$evidence/logs/$variant-observer.log\" 2>&1\n    for view in terminal floor cabin; do\n        script=\"scripts/ter-7tnv-$view.json\"\n        if [[ \"$view\" == cabin ]]; then script=scripts/ter-7tnv-box-cabin.json; fi\n        bash tools/gpu-clock.sh \"$evidence/$variant-bin/Tertius.Demo\" --script \"$script\" \\\n            --headless --out \"$evidence/$variant-$view\" > \"$evidence/logs/$variant-$view-clock.log\" 2>&1\n        for image in \"$evidence/$variant-$view/\"*.png; do\n            cmp \"$image\" \"$evidence/$variant-observed-$view/$(basename \"$image\")\"\n        done\n        echo \"$variant $view: CLI and observer images match byte for byte\"\n    done\ndone\n"
+    },
+    "timing.sh": {
+      "sha256": "328c4c614282ca37b26ca33d7af8bd4935f87f046e1480c61e4c9856a1b753a8",
+      "source": "set -euo pipefail\nroot=$(pwd -P)\nevidence=\"$root/captures/ter-7tnv-box\"\nbash tools/code-tree.sh > \"$evidence/timing-code-tree.txt\"\ncmp \"$evidence/box-code-tree.txt\" \"$evidence/timing-code-tree.txt\"\nfor round in 1 2 3; do\n    variants=\"control box\"\n    if [[ \"$round\" == 2 ]]; then variants=\"box control\"; fi\n    for view in deck floor; do\n        for variant in $variants; do\n            if [[ -f \"$evidence/timing-$round-$view-$variant/gpu-timings.json\" ]]; then\n                echo \"retaining completed round=$round view=$view variant=$variant\"\n                continue\n            fi\n            available=$(df -k . | awk 'NR == 2 { print $4 }')\n            test \"$available\" -ge 5242880\n            printf 'round=%s view=%s variant=%s availableKiB=%s\\n' \"$round\" \"$view\" \"$variant\" \"$available\"\n            uptime\n            memory_pressure | tail -1\n            TERTIUS_TIMING_BINARY=\"$evidence/$variant-bin/Tertius.Demo\" \\\n                bash captures/ter-7tnv-box/demo-timing-binary.sh \\\n                \"$evidence/timing-$round-$view-$variant\" \"captures/ter-7tnv/$view-120.json\" \\\n                --size 1280x720 --in-flight 2 > \"$evidence/logs/timing-$round-$view-$variant.log\" 2>&1\n            tail -4 \"$evidence/logs/timing-$round-$view-$variant.log\"\n        done\n        python3 -I tools/gpu_clock.py compare \\\n            \"$evidence/timing-$round-$view-control/gpu-timings.json\" \\\n            \"$evidence/timing-$round-$view-box/gpu-timings.json\" \\\n            > \"$evidence/logs/compare-$round-$view.log\"\n        head -5 \"$evidence/logs/compare-$round-$view.log\"\n    done\ndone\n"
+    },
+    "readiness.sh": {
+      "sha256": "7e6461226952c5335dee3acf923cd0f3c26557b00a65e634e692b9970ea3ad66",
+      "source": "set -euo pipefail\nroot=$(pwd -P)\nevidence=\"$root/captures/ter-7tnv-box\"\nbash tools/code-tree.sh > \"$evidence/final-code-tree.txt\"\nbash tools/code-tree.sh --staged > \"$evidence/staged-code-tree.txt\"\ncmp \"$evidence/final-code-tree.txt\" \"$evidence/staged-code-tree.txt\"\ncmp \"$evidence/final-code-tree.txt\" \"$evidence/box-code-tree.txt\"\nfor variant in control box; do\n    for view in terminal floor cabin; do\n        for image in \"$evidence/$variant-$view/\"*.png; do\n            cmp \"$image\" \"$root/captures/ter-7tnv-box-before-reset-grouping/$variant-$view/$(basename \"$image\")\"\n        done\n    done\ndone\necho 'All final capture PNGs also equal the inspected pre-grouping images'\ncapacity() {\n    test \"$(df -k . | awk 'NR == 2 { print $4 }')\" -ge 5242880\n    date '+%Y-%m-%d %H:%M:%S %Z'\n    df -h .\n    uptime\n    memory_pressure | tail -1\n}\nfor configuration in Checked Release; do\n    capacity\n    dotnet build Tertius.slnx -c \"$configuration\" -m:1 -p:BuildInParallel=false -v minimal -nologo \\\n        > \"$evidence/logs/solution-$configuration.log\" 2>&1\n    tail -5 \"$evidence/logs/solution-$configuration.log\"\n    capacity\n    dotnet test --solution Tertius.slnx -c \"$configuration\" --no-build --max-parallel-test-modules 1 \\\n        > \"$evidence/logs/full-$configuration.log\" 2>&1\n    tail -12 \"$evidence/logs/full-$configuration.log\"\n    if [[ \"$configuration\" == Checked ]]; then\n        capacity\n        dotnet test --project tests/Tertius.Rendering.Tests -c Checked --no-build --filter-class '*EnvironmentBox*' \\\n            > \"$evidence/logs/final-focused.log\" 2>&1\n        capacity\n        dotnet test --project tests/Tertius.Rendering.Tests -c Checked --no-build --filter-class '*BatcherDeformTests*' \\\n            >> \"$evidence/logs/final-focused.log\" 2>&1\n        tail -8 \"$evidence/logs/final-focused.log\"\n    fi\ndone\ncapacity\ndotnet build benchmarks/Tertius.Benchmarks -c Release -m:1 -p:BuildInParallel=false -v minimal -nologo \\\n    > \"$evidence/logs/benchmark.log\" 2>&1\ntail -5 \"$evidence/logs/benchmark.log\"\nrg --files --hidden --no-ignore src/Tertius.Rendering/obj/Release tests/Tertius.Rendering.Tests/obj/Release \\\n    | rg '\\.spv$' | sort > \"$evidence/validated-modules.txt\"\nwhile IFS= read -r module; do\n    spirv-val --target-env vulkan1.3 \"$module\"\ndone < \"$evidence/validated-modules.txt\"\nprintf 'Vulkan 1.3 validation passed for %s compiled modules\\n' \"$(wc -l < \"$evidence/validated-modules.txt\")\"\nshasum -a 256 src/Tertius.Rendering/bin/Release/net11.0/Tertius.Rendering.dll \\\n    \"$evidence/box-bin/Tertius.Rendering.dll\" > \"$evidence/final-renderer.sha256\"\ncmp src/Tertius.Rendering/bin/Release/net11.0/Tertius.Rendering.dll \"$evidence/box-bin/Tertius.Rendering.dll\"\nbash tools/code-tree.sh > \"$evidence/checked-code-tree.txt\"\ncmp \"$evidence/final-code-tree.txt\" \"$evidence/checked-code-tree.txt\"\ngit diff --check\ngit diff --cached --check\n"
+    },
+    "timingAdapter": {
+      "sha256": "89e842f7488b3be9c42ce17269309a722e4e539b0744f5832b37a58d47111d9f",
+      "source": "#!/usr/bin/env bash\n# Tool code (tools/README.md, \"The GPU clock of a timed run\"): one timed headless run of the Release demo, under the GPU\n# lock through tools/gpu-lock.sh and beside gpu-clock through tools/gpu-clock.sh. Run it inside the dev shell:\n#   nix develop --command bash tools/demo-timing.sh <out folder> <script.json> [demo options]\n#   nix develop --command bash tools/demo-timing.sh captures/gpu-branch scripts/demo-exit.json --size 1920x1080\n#   nix develop --command bash tools/demo-timing.sh captures/deck deck-120.json --size 1280x720 --in-flight 2\n# Run it from the checkout whose demo it times. It builds the demo in Release and runs the built binary with --headless\n# --out <out folder> --video none and the demo options, so the run holds no build. The run's output goes to\n# <out folder>/run.log. The script writes the clock over the run's timed span into <out folder>/gpu-timings.json as\n# \"gpuClock\", and prints the report's warning and the GPU lines of the run: valid pass times, the frame span, requested\n# range sums and the clock. tools/gpu_clock.py compare compares two such runs. A demo from before ter-qk78 prints no\n# markers, so its clock is unknown.\n# With --in-flight 2, the demo keeps two frames on the GPU, so that the GPU does not idle between frames and can reach\n# its top clock.\nset -uo pipefail\n\nusage=\"usage: tools/demo-timing.sh <out folder> <script.json> [demo options]\"\nout=$(realpath -m \"${1:?$usage}\")\nscript=$(realpath \"${2:?$usage}\")\nshift 2\n# The tools come from this script's checkout, and the demo from the checkout of the working directory, so that a\n# checkout of an older base, which lacks these tools, runs its own demo with them.\ntools=\"$(pwd)/tools\"\ncd \"$(git rev-parse --show-toplevel)\"\nmkdir -p \"$out\"\n\nbash \"$tools/gpu-lock.sh\" \"$out/run.log\" bash -c 'set -e; available=$(df -k . | awk '\"'\"'NR == 2 { print $4 }'\"'\"'); printf \"post-queue availableKiB=%s\\n\" \"$available\"; test \"$available\" -ge 5242880; exec bash \"$@\"' bash \"$tools/gpu-clock.sh\" \"${TERTIUS_TIMING_BINARY:?}\" \\\n    --script \"$script\" --headless --out \"$out\" --video none \"$@\"\ncode=$?\nif [[ \"$code\" -ne 0 ]]; then\n    echo \"The demo run failed (exit code $code). The end of $out/run.log:\" >&2\n    tail -20 \"$out/run.log\" >&2\n    exit \"$code\"\nfi\nif [[ ! -f \"$out/gpu-timings.json\" ]]; then\n    echo \"The run wrote no gpu-timings.json: its renderer times no pass, or the script shows no frame. See $out/run.log.\" >&2\n    exit 1\nfi\npython3 -I \"$tools/gpu_clock.py\" record \"$out/run.log\" \"$out/gpu-timings.json\" > /dev/null\npython3 -I - \"$out/gpu-timings.json\" <<'PY'\nimport json\nimport sys\n\nwith open(sys.argv[1]) as timings:\n    warning = json.load(timings).get(\"warning\")\nif warning:\n    print(warning)\nPY\ngrep -E '^GPU ' \"$out/run.log\"\n"
+    }
+  }
+}
