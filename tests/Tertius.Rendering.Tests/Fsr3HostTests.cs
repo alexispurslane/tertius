@@ -93,6 +93,8 @@ public sealed class Fsr3HostTests
         ["r_frame_info"] = Fsr3Slot.FrameInfo,
         ["rw_frame_info"] = Fsr3Slot.FrameInfo,
         ["cbFSR3Upscaler"] = Fsr3Slot.Constants,
+        ["cbRCAS"] = Fsr3Slot.RcasConstants,
+        ["r_rcas_input"] = Fsr3Slot.RcasInput,
         ["cbSPD"] = Fsr3Slot.SpdConstants,
         ["cbGenerateReactive"] = Fsr3Slot.ReactiveConstants,
         ["s_LinearClamp"] = Fsr3Slot.LinearClamp,
@@ -133,6 +135,18 @@ public sealed class Fsr3HostTests
                 .JitterOffset(index: golden.Index, phaseCount: golden.PhaseCount)
                 .Should()
                 .Be(new Vector2(golden.X, golden.Y), $"AMD's offset of index {golden.Index} of {golden.PhaseCount}");
+    }
+
+    [Theory]
+    [InlineData(1u)]
+    [InlineData(2u)]
+    public void AnOutputNarrowerThanTheMinimumActiveWidthStillHasAJitterPhase(uint outputWidth)
+    {
+        int phases = Fsr3Upscaler.JitterPhaseCount(renderWidth: 8, outputWidth: outputWidth);
+        phases.Should().Be(1);
+        Vector2 jitter = Fsr3Upscaler.JitterOffset(index: 3, phaseCount: phases);
+        float.IsFinite(jitter.X).Should().BeTrue();
+        float.IsFinite(jitter.Y).Should().BeTrue();
     }
 
     [Fact]

@@ -21,7 +21,8 @@ const float BEHIND_ALPHA = 0.3;
 
 void main()
 {
-    float opaqueDistance = texelFetch(gbufferDistance, ivec2(gl_FragCoord.xy), 0).r;
+    ivec2 pixel = clamp(ivec2(gl_FragCoord.xy * frame.outputViewport.zw * frame.viewport.xy - frame.renderParams.yz), ivec2(0), ivec2(frame.viewport.xy) - 1);
+    float opaqueDistance = texelFetch(gbufferDistance, pixel, 0).r;
     bool behind = opaqueDistance > 0.0 && length(inWorld) > opaqueDistance;
     // The record holds the display color. An sRGB output encodes in hardware, so the shader gives it linear values.
     // On a UNORM output the shader encodes, so the hardware blends a dimmed ring on encoded values, not in linear light.

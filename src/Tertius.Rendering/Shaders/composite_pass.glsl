@@ -40,7 +40,7 @@ void main()
 {
     // A helper invocation of a 2 × 2 quad can lie past the image's last column or row when the size is odd, and a fetch
     // there is undefined, so every read stays inside the image.
-    ivec2 pixel = min(ivec2(gl_FragCoord.xy), textureSize(gbufferDistance, 0) - 1);
+    ivec2 pixel = min(ivec2(gl_FragCoord.xy), ivec2(frame.viewport.xy) - 1);
     vec3 direction = normalize(inRay);
     if (texelFetch(gbufferDistance, pixel, 0).r <= 0.0)
     {

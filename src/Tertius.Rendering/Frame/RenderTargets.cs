@@ -5,8 +5,8 @@ namespace Tertius.Rendering;
 
 /// <summary>
 /// The screen-sized images shared by all frames in flight: the G-buffer, the depth buffer, the direct light's two images,
-/// the HDR target, the bloom levels, under the skin scatter, the diffuse image, when SMAA is on, the images of SMAA
-/// (<see cref="SmaaTargets"/>), and under <see cref="ScreenTrace"/>, the depth pyramid (<see cref="DepthPyramidImages"/>).
+/// the HDR target, the output-size bloom levels, under the skin scatter, the diffuse image, under FSR the upscale
+/// targets, and under <see cref="ScreenTrace"/>, the depth pyramid (<see cref="DepthPyramidImages"/>).
 /// Sharing is safe because every use goes through <see cref="BarrierBatch"/>, and barriers order against earlier
 /// submissions on the queue. Resizing recreates everything; the caller makes sure the device is idle.
 /// </summary>
@@ -85,13 +85,13 @@ internal sealed class RenderTargets : IDisposable
     private readonly VulkanDevice device;
     private readonly DeviceAllocator allocator;
     private readonly DescriptorLayouts layouts;
+    private readonly UpscalingSetting upscaling;
 
     // True under the skin scatter, whose columns pass writes the HDR target as a storage image and which reads the
     // diffuse image.
     private readonly bool diffuse;
 
     /// <param name="glowLevels">The bloom levels, 0 without bloom.</param>
-    /// <param name="smaaTables">The SMAA tables when SMAA is on, or null when it is off.</param>
     /// <param name="depthPyramid">True under <see cref="ScreenTrace"/>, whose rays walk the depth pyramid.</param>
     /// <param name="subsurface">
     /// True under <see cref="SeparableSubsurface"/>, whose columns pass writes the HDR target and which reads the diffuse
@@ -103,7 +103,7 @@ internal sealed class RenderTargets : IDisposable
         DescriptorLayouts layouts,
         Extent2D extent,
         int glowLevels,
-        SmaaTables? smaaTables,
+        UpscalingSetting upscaling,
         bool depthPyramid,
         bool subsurface
     )
@@ -113,6 +113,14 @@ internal sealed class RenderTargets : IDisposable
         this.device = device;
         this.allocator = allocator;
         this.layouts = layouts;
+        this.upscaling = upscaling;
+        if (upscaling is Fsr3Upscaling)
+            Upscale = new(
+                device: device,
+                allocator: allocator,
+                largestRenderSize: upscaling.RenderExtent(extent, upscaling.LargestScale),
+                outputSize: extent
+            );
         diffuse = subsurface;
         CheckFormats(device: device, depthPyramid: depthPyramid, diffuse: diffuse);
 
@@ -126,12 +134,13 @@ internal sealed class RenderTargets : IDisposable
             GlowSources[i] = layouts.AllocateGlowSourceSet();
         Create(extent);
         if (depthPyramid)
-            Pyramid = new(device: device, allocator: allocator, layouts: layouts, extent: extent);
-        if (smaaTables is not null)
-            Smaa = new(device: device, allocator: allocator, layouts: layouts, tables: smaaTables, extent: extent);
+            Pyramid = new(device: device, allocator: allocator, layouts: layouts, extent: Extent);
     }
 
     public Extent2D Extent { get; private set; }
+    public Extent2D OutputExtent { get; private set; }
+    public UpscaleTargets? Upscale { get; }
+    public GpuImage PostHdr => Upscale?.Output ?? Hdr;
     public GpuImage BaseColor { get; private set; }
     public GpuImage Normal { get; private set; }
     public GpuImage Specular { get; private set; }
@@ -161,9 +170,6 @@ internal sealed class RenderTargets : IDisposable
     /// pre-exposed, a 1 at skin, and 0 elsewhere.
     /// </summary>
     public GpuImage? Diffuse { get; private set; }
-
-    /// <summary>The images of SMAA, or null when SMAA is off.</summary>
-    public SmaaTargets? Smaa { get; }
 
     /// <summary>The depth pyramid, or null under <see cref="NoScreenTrace"/>.</summary>
     public DepthPyramidImages? Pyramid { get; }
@@ -196,15 +202,14 @@ internal sealed class RenderTargets : IDisposable
     /// </exception>
     public void Resize(Extent2D extent)
     {
-        if (extent.Width == Extent.Width && extent.Height == Extent.Height)
+        if (extent.Width == OutputExtent.Width && extent.Height == OutputExtent.Height)
             return;
         // Before anything is destroyed, so that a refused size leaves every target as it was.
         if (Pyramid is not null)
             CheckTracedScreen(device: device, extent: extent);
         DestroyImages();
         Create(extent);
-        Pyramid?.Create(extent);
-        Smaa?.Resize(extent);
+        Pyramid?.Create(Extent);
     }
 
     /// <summary>The screen tracer's limits on the screen: the depth pyramid's levels, and the own-ray lists' range.</summary>
@@ -232,7 +237,10 @@ internal sealed class RenderTargets : IDisposable
     )]
     private void Create(Extent2D extent)
     {
+        OutputExtent = extent;
+        extent = upscaling.RenderExtent(extent, upscaling.LargestScale);
         Extent = extent;
+        Upscale?.Resize(extent, OutputExtent);
         BaseColor = ColorTarget(extent: extent, format: BaseColorFormat, name: "g-buffer base color");
         Normal = ColorTarget(extent: extent, format: NormalFormat, name: "g-buffer normal", readable: true);
         Specular = ColorTarget(extent: extent, format: SpecularFormat, name: "g-buffer specular");
@@ -270,7 +278,7 @@ internal sealed class RenderTargets : IDisposable
 
         GBuffer = [BaseColor, Normal, Specular, Emissive, Distance, Shading, Motion];
         WriteSets();
-        CreateGlow(extent);
+        CreateGlow(OutputExtent);
     }
 
     /// <summary>Points the G-buffer, direct, post and meter sets at the targets that <see cref="Create"/> made.</summary>
@@ -281,7 +289,7 @@ internal sealed class RenderTargets : IDisposable
         for (int i = 0; i < 5; i++)
             layouts.WriteImage(set: GBufferSet, binding: (uint)i, arrayElement: 0, image: GBuffer[i]);
         layouts.WriteImage(set: GBufferSet, binding: ShadingBinding, arrayElement: 0, image: Shading);
-        layouts.WriteImage(set: PostSet, binding: 0, arrayElement: 0, image: Hdr);
+        layouts.WriteImage(set: PostSet, binding: 0, arrayElement: 0, image: PostHdr);
         layouts.WriteImage(set: MeterSet, binding: 0, arrayElement: 0, image: Hdr);
         layouts.WriteImage(set: MeterSet, binding: 1, arrayElement: 0, image: Distance);
     }
@@ -321,7 +329,7 @@ internal sealed class RenderTargets : IDisposable
     {
         if (Glow.Length == 0)
             return;
-        layouts.WriteImage(set: GlowSources[0], binding: 0, arrayElement: 0, image: Hdr);
+        layouts.WriteImage(set: GlowSources[0], binding: 0, arrayElement: 0, image: PostHdr);
         Extent2D level = extent;
         for (int i = 0; i < Glow.Length; i++)
         {
@@ -461,7 +469,7 @@ internal sealed class RenderTargets : IDisposable
 
     public void Dispose()
     {
-        Smaa?.Dispose();
+        Upscale?.Dispose();
         DestroyImages();
     }
 }

@@ -24,13 +24,26 @@ public sealed class ScriptCommandOptionsTests
         renderer.CapturesInFlight.Should().Be(captures);
     }
 
+    [Fact]
+    public void TheRemovedSmaaOptionIsRefusedRatherThanSilentlyIgnored()
+    {
+        ScriptCommand.RunOptions? options = ScriptCommand.ReadOptions(
+            ["--script", "s.json", "--headless", "--out", "o", "--anti-aliasing", "smaa"],
+            out string? problem
+        );
+
+        options.Should().BeNull();
+        problem.Should().NotBeNull();
+    }
+
     // Each option of the headless renderer, with a value that a headless run takes.
     private static readonly string[][] RendererOptions =
     [
         ["--tone-curve", "hable"],
         ["--screen-trace", "off"],
         ["--bloom", "off"],
-        ["--anti-aliasing", "smaa"],
+        ["--upscaling", "fsr3"],
+        ["--render-scale", "0.5"],
         ["--local-shadows", "off"],
         ["--local-shadow-tiles", "8"],
         ["--cascaded-lights", "2"],
@@ -67,7 +80,7 @@ public sealed class ScriptCommandOptionsTests
                     "off",
                     "--bloom",
                     "off",
-                    "--anti-aliasing",
+                    "--upscaling",
                     "off",
                     "--local-shadows",
                     "on",
@@ -495,7 +508,7 @@ public sealed class ScriptCommandOptionsTests
                 "off",
                 "--bloom",
                 "off",
-                "--anti-aliasing",
+                "--upscaling",
                 "off",
                 "--local-shadows",
                 "on",
@@ -518,7 +531,7 @@ public sealed class ScriptCommandOptionsTests
             ToneCurve = ToneCurve.Hable,
             ScreenTraceOff = true,
             BloomOff = true,
-            AntiAliasing = AntiAliasing.None,
+            Upscaling = new NoUpscaling(),
             LocalShadows = LocalShadowAtlas.Default with { Tiles = 8 },
             CascadedLights = 2,
             EnvironmentMapOff = true,

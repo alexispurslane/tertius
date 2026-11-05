@@ -4,6 +4,8 @@ using Silk.NET.Core.Contexts;
 using Silk.NET.Maths;
 using Silk.NET.Vulkan;
 using Silk.NET.Windowing;
+using Matrix4x4 = System.Numerics.Matrix4x4;
+using Vector2 = System.Numerics.Vector2;
 
 namespace Tertius.Rendering;
 
@@ -52,10 +54,7 @@ namespace Tertius.Rendering;
 /// which writes the exposure of the next frame.</item>
 /// <item>Bloom (<see cref="BloomPass"/>), when <see cref="RendererOptions.Bloom"/> is on: the glow of the bright light
 /// in the bloom levels.</item>
-/// <item>Tone mapping into the swapchain image or the offscreen output, or, with SMAA on, into the SMAA tone-mapped image,
-/// with the glow added before the tone curve.</item>
-/// <item>SMAA, when it is on (<see cref="SmaaPass"/>): edge detection, blending weights, and neighborhood blending into the
-/// output.</item>
+/// <item>Tone mapping into the swapchain image or the offscreen output, with the glow added before the tone curve.</item>
 /// <item>The overlay (<see cref="OutlinePass"/>): the frame outlines of the snapshot, blended over the output image.</item>
 /// <item>Capture readback, when requested. After the GPU finishes the frame, <see cref="Render"/> hands the pixels to
 /// the capture's <see cref="ICaptureSink"/>.</item>
@@ -125,6 +124,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
 
     /// <summary>The record of the last drawn frame, whose count of drawn frames numbers every frame of the renderer.</summary>
     private readonly FrameHistory history;
+    private readonly UpscalingSetting upscaling;
+    private readonly UpscalePass? upscalePass;
     private bool disposed;
 
     private VulkanRenderer(
@@ -136,6 +137,9 @@ public sealed unsafe class VulkanRenderer : IRenderer
     {
         this.device = device;
         this.headless = headless;
+        upscaling = headless ? options.Upscaling.ForHeadless() : options.Upscaling;
+        if (upscaling is Fsr3Upscaling { RenderScale: FrameTimeTarget target })
+            ScaleController = new(target);
         capturesInFlight = options.CapturesInFlight;
         captureBuffers = new GpuBuffer?[options.FramesInFlight];
         slotCaptures = new SlotCapture?[options.FramesInFlight];
@@ -176,6 +180,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             ShadingConstants = new(EnvironmentMap: environmentMap is not null)
             {
                 ScreenTraceOn = options.ScreenTrace is ScreenTrace,
+                TemporalShadows = upscaling is Fsr3Upscaling,
             };
             (ShadowMap, shadowAtlas) = CreateShadowImages(options);
             // After the shadow map, whose size and depth format shape the cascade boxes that the batcher fits.
@@ -185,6 +190,19 @@ public sealed unsafe class VulkanRenderer : IRenderer
             (impostorAtlas, Impostors, localShadows) = AddPassesThroughGeometry(shaders, options);
             // Before the composite, which reads the tracer's signals.
             screenTrace = AddScreenTracePasses(shaders, options.ScreenTrace);
+            if (upscaling is Fsr3Upscaling fsr)
+            {
+                upscalePass = new(
+                    device: device,
+                    allocator: Allocator,
+                    shaders: shaders,
+                    targets: targets,
+                    surfaces: surfaceHistory,
+                    framesInFlight: options.FramesInFlight,
+                    sharpness: fsr.Sharpness
+                );
+                Graph.Add(FrameGraph.Stage.Upscale, upscalePass);
+            }
             compositePass = AddPassesAfterGeometry(shaders, options);
             AddScatterPasses(shaders);
             Own(Graph);
@@ -223,6 +241,9 @@ public sealed unsafe class VulkanRenderer : IRenderer
     public bool StampsLatchLate => device.Driver == DriverId.Moltenvk;
 
     internal ShadowMap ShadowMap { get; }
+    internal RenderScaleController? ScaleController { get; }
+    internal long DrawnFrames => history.DrawnFrames;
+    internal (long DrawIndex, bool Reset) LastDraw => (context.History.DrawIndex, context.History.Reset);
 
     /// <summary>The BRDF tables on the GPU. A test hook.</summary>
     internal BrdfTableImages BrdfTableImages { get; }
@@ -272,7 +293,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// </summary>
     internal static VulkanRenderer CreateOffscreen(
         RendererOptions options,
-        Func<VulkanDevice, DeviceAllocator, Extent2D, IOutputTarget> createOutput
+        Func<VulkanDevice, DeviceAllocator, Extent2D, IOutputTarget> createOutput,
+        bool headless = true
     )
     {
         CheckOptions(options);
@@ -287,7 +309,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             options: options,
             device: device,
             createOutput: (d, a) => createOutput(d, a, extent),
-            headless: true
+            headless: headless
         );
     }
 
@@ -354,11 +376,6 @@ public sealed unsafe class VulkanRenderer : IRenderer
             throw new ArgumentOutOfRangeException(nameof(options), $"ToneCurve {options.ToneCurve} is not a curve.");
         if (SettingsProblem(options) is { } problem)
             throw new ArgumentOutOfRangeException(nameof(options), problem);
-        if (!Enum.IsDefined(options.AntiAliasing))
-            throw new ArgumentOutOfRangeException(
-                nameof(options),
-                $"AntiAliasing {options.AntiAliasing} is not an anti-aliasing."
-            );
     }
 
     /// <summary>
@@ -405,6 +422,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
         ?? options.EnvironmentMap.Problem
         ?? options.Subsurface.Problem
         ?? options.ScreenTrace.Problem
+        ?? options.Upscaling.Problem
         ?? (
             options.ScreenTrace is ScreenTrace ? DepthPyramidImages.ScreenProblem(options.Width, options.Height) : null
         );
@@ -548,8 +566,11 @@ public sealed unsafe class VulkanRenderer : IRenderer
             snapshot: snapshot,
             step: step,
             draw: draw,
-            outputSize: targets.Extent,
-            renderSize: targets.Extent
+            outputSize: targets.OutputExtent,
+            renderSize: upscaling.RenderExtent(
+                targets.OutputExtent,
+                ScaleController?.Next(FrameNumber) ?? upscaling.LargestScale
+            )
         );
         ICaptureSink? sink = takeCapture ? Interlocked.Exchange(ref pendingCapture, null) : null;
         GpuBuffer? capture = sink != null ? CaptureBuffer(slot: frame.Index, extent: image.Extent) : null;
@@ -593,7 +614,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// <summary>Resizes the targets to the output's <paramref name="image"/> when the swapchain changed size on its own (out of date).</summary>
     private void MatchTargetsTo(GpuImage image)
     {
-        if (image.Extent.Width == targets.Extent.Width && image.Extent.Height == targets.Extent.Height)
+        if (image.Extent.Width == targets.OutputExtent.Width && image.Extent.Height == targets.OutputExtent.Height)
             return;
         // The targets are shared by frames in flight.
         device.WaitIdle();
@@ -658,6 +679,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
         // A fence also covers every earlier submission, so all frames up to this slot's last one are done.
         releases.Collect(frame.Number);
         timer.Collect(frame.Index, frame.Number);
+        if (timer.Latest is { } timings)
+            ScaleController?.Measure(timings);
         Exposure.Collect(frame.Index, frame.Number);
         environmentMap?.Collect(frame.Index, frame.Number);
         frame.Staging.Reset();
@@ -714,8 +737,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
             snapshot: snapshot,
             alpha: alpha,
             highestStops: Exposure.HighestStops(frame: FrameNumber, step: pending.ExposureStep),
-            width: (int)targets.Extent.Width,
-            height: (int)targets.Extent.Height,
+            width: (int)pending.RenderSize.Width,
+            height: (int)pending.RenderSize.Height,
             meshes: geometry.Meshes,
             materials: materials.Infos,
             environment: environment,
@@ -723,6 +746,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             frame: pending,
             scene: LastScene
         );
+        ApplyRenderProjection(pending);
         SetContext(frame: frame, history: pending, snapshot: snapshot, alpha: alpha, image: image, capture: capture);
         Graph.Prepare(context);
         frame.Write(LastScene);
@@ -730,8 +754,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
         // Before every pass, so the reading is the exposure that all of this frame's passes use.
         Exposure.RecordReadback(commandBuffer: commandBuffer, barriers: barriers, slot: frame.Index);
         Graph.Record(context);
-        output.FinishRecording(barriers, commandBuffer);
-        device.Vk.EndCommandBuffer(commandBuffer).Check("vkEndCommandBuffer");
+        output.FinishRecording(barriers, context.CommandBuffer);
+        device.Vk.EndCommandBuffer(context.CommandBuffer).Check("vkEndCommandBuffer");
     }
 
     /// <summary>
@@ -791,6 +815,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
     )
     {
         context.Frame = frame;
+        context.CommandBuffer = frame.CommandBuffer;
         context.History = history;
         context.Snapshot = snapshot;
         context.Alpha = alpha;
@@ -801,6 +826,40 @@ public sealed unsafe class VulkanRenderer : IRenderer
         context.EncodeSrgb = output.EncodeSrgbInShader;
         context.CaptureBuffer = capture;
         context.IndirectDrawCalls = 0;
+    }
+
+    private void ApplyRenderProjection(FrameHistory.PendingFrame pending)
+    {
+        Vector2 jitter = upscaling is Fsr3Upscaling ? pending.Jitter : Vector2.Zero;
+        float bias =
+            upscaling is Fsr3Upscaling
+                ? MathF.Log2(pending.RenderSize.Width / (float)targets.OutputExtent.Width) - 1
+                : 0;
+        LastScene.Constants.RenderParams = new(x: bias, y: jitter.X, z: jitter.Y, w: pending.DrawIndex % 4);
+        Vector2 previousJitter = Vector2.Zero;
+        if (upscaling is Fsr3Upscaling && !pending.Reset)
+        {
+            int phases = Fsr3Upscaler.JitterPhaseCount(pending.PreviousRenderSize.Width, targets.OutputExtent.Width);
+            previousJitter = Fsr3Upscaler.JitterOffset((int)((pending.DrawIndex - 1) % phases), phases);
+        }
+        LastScene.Constants.PreviousJitter = new(previousJitter, 0, 0);
+        Extent2D outputSize = targets.OutputExtent;
+        LastScene.Constants.OutputViewport = new(
+            x: outputSize.Width,
+            y: outputSize.Height,
+            z: 1f / outputSize.Width,
+            w: 1f / outputSize.Height
+        );
+        var shift = Matrix4x4.CreateTranslation(
+            -2 * jitter.X / pending.RenderSize.Width,
+            -2 * jitter.Y / pending.RenderSize.Height,
+            0
+        );
+        for (int range = 0; range < DepthRanges.Count; range++)
+            LastScene.RangeViewProjection[range] *= shift;
+        LastScene.Constants.FarViewProj = LastScene.RangeViewProjection[DepthRanges.Far];
+        LastScene.Constants.MiddleViewProj = LastScene.RangeViewProjection[DepthRanges.Middle];
+        LastScene.Constants.NearViewProj = LastScene.RangeViewProjection[DepthRanges.Near];
     }
 
     /// <summary>Records the uploads that the Create methods queued, and the built-in defaults before the first frame.</summary>
@@ -844,7 +903,6 @@ public sealed unsafe class VulkanRenderer : IRenderer
             // The first frame always comes here, because it makes the built-in defaults, and the tables go with them.
             BrdfTableImages.Upload(commandBuffer: commandBuffer, staging: frame.Staging, barriers: barriers);
             ScatterImages?.Upload(commandBuffer: commandBuffer, staging: frame.Staging, barriers: barriers);
-            targets.Smaa?.Tables.Upload(commandBuffer: commandBuffer, staging: frame.Staging, barriers: barriers);
             // Frame 0 is the first drawn frame, because the frame number counts submitted frames.
             if (FrameNumber == 0)
                 Exposure.RecordSeed(commandBuffer: commandBuffer, barriers: barriers);
@@ -925,7 +983,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// </exception>
     internal void ResizeTargets(Extent2D extent)
     {
-        if (extent.Width == targets.Extent.Width && extent.Height == targets.Extent.Height)
+        if (extent.Width == targets.OutputExtent.Width && extent.Height == targets.OutputExtent.Height)
             return;
         targets.Resize(extent);
         surfaceHistory.Resize(targets);
@@ -939,6 +997,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
 
         ScatterImages?.Resize(targets);
         compositePass.Resize(targets);
+        upscalePass?.Resize();
     }
 
     /// <summary>
@@ -1145,6 +1204,26 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// a last place (<see cref="RenderTargets.Motion"/>). A test hook, like <see cref="ReadDistance"/>.
     /// </summary>
     internal float[] ReadMotion() => ReadLevel(image: targets.Motion, layer: 0, mip: 0).Values;
+
+    /// <summary>The FSR exposure ratio recorded before adaptation, or an error without FSR. A test hook.</summary>
+    internal float ReadFsrExposureRatio()
+    {
+        GpuBuffer constants = upscalePass?.Constants ?? throw new InvalidOperationException("FSR is off.");
+        uint[] words = ReadBufferWords(constants);
+        int word = (int)Marshal.OffsetOf<Fsr3Constants>(nameof(Fsr3Constants.DeltaPreExposure)) / sizeof(uint);
+        return BitConverter.UInt32BitsToSingle(words[word]);
+    }
+
+    /// <summary>The reactive mask as bytes from 0 to 255, or an error without FSR. A test hook.</summary>
+    internal byte[] ReadReactiveMask() =>
+        [
+            .. ReadLevel(
+                image: targets.Upscale?.Reactive ?? throw new InvalidOperationException("FSR is off."),
+                layer: 0,
+                mip: 0
+            )
+                .Values.Select(value => (byte)value),
+        ];
 
     /// <summary>
     /// The surface test image of the last frame, one byte per pixel, row by row from the top: bit i set where tap i passed
@@ -1443,7 +1522,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             Format.R32G32Uint => (2, StoredChannel.Float),
             Format.R16G16B16A16SNorm => (4, StoredChannel.Snorm16),
             Format.R8G8B8A8Uint => (4, StoredChannel.Uint8),
-            Format.R8Uint => (1, StoredChannel.Uint8),
+            Format.R8Uint or Format.R8Unorm => (1, StoredChannel.Uint8),
             Format.R16G16B16A16Uint => (4, StoredChannel.Uint16),
             _ => throw new ArgumentException(
                 $"{image.Name} has the format {image.Format}, which no hook reads.",
@@ -1698,16 +1777,10 @@ public sealed unsafe class VulkanRenderer : IRenderer
         };
 
     /// <summary>
-    /// The screen-sized images of <paramref name="options"/> at the output's size, or 1 × 1 before a window has one, and the
-    /// SMAA tables when its anti-aliasing is SMAA. The renderer owns both.
+    /// The render-sized images and output-sized post images of <paramref name="options"/>, owned by the renderer.
     /// </summary>
     private RenderTargets CreateTargets(RendererOptions options)
     {
-        SmaaTables? smaaTables = options.AntiAliasing switch
-        {
-            AntiAliasing.None => null,
-            AntiAliasing.Smaa => Own(new SmaaTables(device, Allocator)),
-        };
         Extent2D extent = output.Extent.Width > 0 && output.Extent.Height > 0 ? output.Extent : new(1, 1);
         return Own(
             new RenderTargets(
@@ -1716,7 +1789,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 layouts: layouts,
                 extent: extent,
                 glowLevels: GlowLevelsOf(options.Bloom),
-                smaaTables: smaaTables,
+                upscaling: upscaling,
                 depthPyramid: options.ScreenTrace is ScreenTrace,
                 subsurface: options.Subsurface is SeparableSubsurface
             )
@@ -2087,8 +2160,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
 
     /// <summary>
     /// Adds the passes from the direct pass and the composite to the readback to the graph, each in its own stage, the exposure pass only under
-    /// <see cref="AutoExposure"/>, the bloom pass only with a <see cref="Bloom"/>, and the three SMAA passes when SMAA is
-    /// on.
+    /// <see cref="AutoExposure"/>, the bloom pass only with a <see cref="Bloom"/>, and FSR only under <see cref="Fsr3Upscaling"/>.
     /// </summary>
     private CompositePass AddPassesAfterGeometry(ShaderLibrary shaders, RendererOptions options)
     {
@@ -2099,10 +2171,12 @@ public sealed unsafe class VulkanRenderer : IRenderer
             new TransparentPass(device: device, shaders: shaders, layouts: layouts, constants: ShadingConstants)
         );
         if (options.Exposure is AutoExposure auto)
-            Graph.Add(
-                FrameGraph.Stage.Exposure,
-                new ExposurePass(device: device, shaders: shaders, layouts: layouts, setting: auto)
-            );
+        {
+            var exposure = new ExposurePass(device: device, shaders: shaders, layouts: layouts, setting: auto);
+            Graph.Add(FrameGraph.Stage.Exposure, exposure);
+            if (upscaling is Fsr3Upscaling)
+                Graph.Add(FrameGraph.Stage.ExposureAdapt, new ExposureAdaptPass(exposure));
+        }
         if (options.Bloom is Bloom on)
             Graph.Add(
                 FrameGraph.Stage.Bloom,
@@ -2116,23 +2190,9 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 layouts: layouts,
                 outputFormat: output.Format,
                 curve: options.ToneCurve,
-                bloom: options.Bloom,
-                smaa: targets.Smaa
+                bloom: options.Bloom
             )
         );
-        if (targets.Smaa is { } smaa)
-            foreach (SmaaStep step in (SmaaStep[])[SmaaStep.Edges, SmaaStep.Weights, SmaaStep.Blending])
-                Graph.Add(
-                    FrameGraph.Stage.AntiAliasing,
-                    new SmaaPass(
-                        device: device,
-                        shaders: shaders,
-                        layouts: layouts,
-                        targets: smaa,
-                        step: step,
-                        outputFormat: output.Format
-                    )
-                );
         Graph.Add(
             FrameGraph.Stage.Overlay,
             new OutlinePass(device: device, shaders: shaders, layouts: layouts, outputFormat: output.Format)

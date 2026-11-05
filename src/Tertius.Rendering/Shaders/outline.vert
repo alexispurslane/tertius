@@ -70,7 +70,9 @@ vec3 ringPoint(int k)
 // The near range's projection, infinite reversed-Z: a point is in front of the near plane where w - z >= 0.
 vec4 project(vec3 p)
 {
-    return frame.rangeViewProj[2] * vec4(p, 1.0);
+    vec4 clip = frame.rangeViewProj[2] * vec4(p, 1.0);
+    clip.xy += 2.0 * frame.renderParams.yz * frame.viewport.zw * clip.w;
+    return clip;
 }
 
 float front(vec4 clip)
@@ -117,7 +119,7 @@ void main()
     ring = gl_VertexIndex / (VERTICES_PER_SEGMENT * SEGMENTS);
     outline = outlines[gl_InstanceIndex];
     outColor = outline.color;
-    halfViewport = frame.viewport.xy * 0.5;
+    halfViewport = frame.outputViewport.xy * 0.5;
     if (!ringExists())
     {
         collapse();

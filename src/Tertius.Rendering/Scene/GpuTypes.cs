@@ -448,7 +448,7 @@ internal struct GpuPuff
     public uint Map;
 }
 
-/// <summary>The frame uniform block (std140). 2,320 bytes.</summary>
+/// <summary>The frame uniform block (std140). 3,808 bytes.</summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct GpuFrameConstants
 {
@@ -466,6 +466,9 @@ internal struct GpuFrameConstants
     public Vector4 AmbientSky;
     public Vector4 AmbientGround;
     public Vector4 Viewport;
+    public Vector4 RenderParams;
+    public Vector4 OutputViewport;
+    public Vector4 PreviousJitter;
 
     /// <summary>
     /// x: the most pre-exposed light that one puff adds to a pixel, <see cref="ShaderInput.PuffRadianceCap"/> of the puffs
@@ -692,17 +695,6 @@ internal struct ExposureAdaptPushConstants
 
     /// <summary>f(Δt, IntoLightSeconds): the share when it falls.</summary>
     public float IntoLightFactor;
-}
-
-/// <summary>The push constants of the three SMAA passes (Shaders/smaa.glsl).</summary>
-[StructLayout(LayoutKind.Sequential)]
-internal struct SmaaPushConstants
-{
-    /// <summary>1 / width, 1 / height, width and height of the output, in pixels: the header's SMAA_RT_METRICS.</summary>
-    public Vector4 Metrics;
-
-    /// <summary>1 when the output format is UNORM and the blending pass must apply the sRGB curve itself.</summary>
-    public uint EncodeSrgb;
 }
 
 /// <summary>The push constants of the outline pass (Shaders/outline.frag).</summary>

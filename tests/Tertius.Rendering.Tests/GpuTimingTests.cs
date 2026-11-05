@@ -128,6 +128,32 @@ public sealed class GpuTimingTests
     }
 
     [Fact]
+    public void TwoPassesWithTheSameLabelKeepTheirOwnMeasuredStages()
+    {
+        VulkanRenderer renderer = TimedRenderer(framesInFlight: 1);
+        try
+        {
+            renderer.Graph.Add(FrameGraph.Stage.GBuffer, new EmptyPass());
+            renderer.Graph.Add(FrameGraph.Stage.Exposure, new EmptyPass());
+            RenderSnapshot scene = TestScene.Create(renderer).Snapshot();
+
+            for (int draw = 0; draw < 3; draw++)
+                renderer.Render(scene, 1);
+
+            renderer
+                .LastFrameStats.GpuTimings!.Value.Passes.ToArray()
+                .Where(pass => pass.Pass == "empty")
+                .Select(pass => pass.Stage)
+                .Should()
+                .Equal(FrameGraph.Stage.GBuffer, FrameGraph.Stage.Exposure);
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
     public void UnderTheScreenTracerItsPassesRunBetweenTheDirectPassAndTheComposite()
     {
         VulkanRenderer renderer = TimedRenderer(screenTrace: ScreenTrace.Default);
@@ -246,8 +272,8 @@ public sealed class GpuTimingTests
     [Fact]
     public void WithEverySettingOnTheFrameGraphHoldsNoMorePassesThanTheGpuTimerCanTime()
     {
-        // Every pass that a setting adds, each with the most passes it can add: the three SMAA passes and the tracer's
-        // seven among them.
+        // Every pass that a setting adds, each with the most passes it can add: FSR and the tracer's
+        // six among them.
         using var renderer = VulkanRenderer.CreateHeadless(
             new()
             {
@@ -260,7 +286,7 @@ public sealed class GpuTimingTests
                 Exposure = AutoExposure.Default,
                 Bloom = Bloom.Default,
                 ScreenTrace = ScreenTrace.Default,
-                AntiAliasing = AntiAliasing.Smaa,
+                Upscaling = new Fsr3Upscaling(new FixedRenderScale(1), 0),
                 EnvironmentMap = SceneEnvironmentMap.Default,
                 Deformation = true,
                 Subsurface = SeparableSubsurface.Default,
@@ -488,7 +514,7 @@ public sealed class GpuTimingTests
                 // A fixed exposure and no tracer draw no warm-up draw, so each Render draws one frame.
                 Exposure = new FixedExposure(0),
                 ScreenTrace = new NoScreenTrace(),
-                AntiAliasing = AntiAliasing.None,
+                Upscaling = new NoUpscaling(),
             },
             (device, allocator, extent) => made = new(device: device, allocator: allocator, extent: extent, bgra: false)
         );

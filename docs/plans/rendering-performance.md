@@ -46,6 +46,7 @@ A profile chooses from these, by the limiter of each pass:
 | Async compute | Compute passes run on a second queue beside raster passes that leave the GPU idle, such as the shadow maps. A device with one queue family runs them on one queue as today. |
 | Caching | A result is computed again only when its inputs change, and it is the same result that a new computation gives: a shadow tile, a face of the environment map. |
 | Clustered lights | Each tile or cluster of the screen holds a list of the lights that reach it. |
+| Temporal upscaling and dynamic resolution | FSR 3.1 reconstructs output pixels from jittered render pixels and history. The window's controller changes render size to follow GPU cost. [temporal-renderer.md](temporal-renderer.md), sections 4 and 5, replaces decision 8. |
 
 Two existing mechanisms reuse results of earlier frames without a blend, and decision 8 does not change them. The environment map redraws one face per frame, so a reflection can show surroundings up to 83 ms old at 60 Hz ([environment-map.md](environment-map.md), decision 3, a user decision). The automatic exposure follows the view over time on purpose, as an eye does ([auto-exposure.md](auto-exposure.md)).
 
@@ -96,6 +97,6 @@ Part 2c's follow-up, `ter-fhlb` (2026-10-27), worked on the environment map's am
 ## Out of scope
 
 - A check of the budget before each merge (decision 3).
-- Temporal accumulation, TAA and temporal upscaling (decision 8).
-- Dynamic resolution and quality presets. A preset waits until a user needs one.
+- Temporal policy outside [temporal-renderer.md](temporal-renderer.md). That design supersedes decision 8 and includes dynamic resolution.
+- Quality presets. A preset waits until a user needs one.
 - The CPU side of the frame. The demo's CPU takes about 2.2 ms per frame ([blue-danube-demo.md](blue-danube-demo.md)), well under the GPU's time.

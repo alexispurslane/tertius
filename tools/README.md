@@ -154,7 +154,7 @@ The script works in this order:
 1. It reads the whole list and refuses to start on any error. Every file must exist, git must track it, and the file must have no uncommitted change. The file must belong to a project: a folder above it must have a `.csproj`. The original text must start on its line, and the ids must be unique. The exit code is 2.
 2. It builds each distinct pair of test project and classes once, and runs it without a mutant. If a baseline fails or runs zero tests, the run stops before any change, because a failing baseline makes every mutant look killed.
 3. For each mutant, it applies the mutant and builds only its test project in Checked, with a plain incremental build. It makes sure that the build wrote a new assembly of the mutated file's project into the test project's output. Then it runs only the mutant's classes in Checked with `--no-build`, under a timeout of 120 s. At last it restores the exact original bytes and touches the file, so that the next build compiles it again. The restore also runs on a failure, an exception, Ctrl-C, SIGTERM and SIGHUP.
-4. After the last mutant, it builds each test project once more, so that the output holds no mutant. It makes sure that git shows every mutated file unchanged, and it prints the table.
+4. After the last mutant, it verifies the starting source and Git state, then builds each test project once more, so that the output holds no mutant. It verifies the starting state again and prints the table. An unexpected source or Git change fails the run without overwriting that change or building corrupted source.
 
 A GLSL mutant reaches the tests through the build: the target `CompileGlslShaders` in `src/Tertius.Rendering/Tertius.Rendering.csproj` compiles a stage again when the stage or an include is newer than its `.spv`. The build then embeds the new SPIR-V in `Tertius.Rendering.dll`. Step 3 makes sure that this new assembly reached the test project's output.
 
@@ -162,8 +162,9 @@ The options:
 
 - `--only C01,S03` runs only these ids.
 - `--keep-going` goes on after a no-tests result. Without it, the run stops there, because the list has an error.
+- `--allow-staged` admits tracked regular files with exactly one stage-0 entry, only when their worktree bytes and executable mode equal their staged version. The default still rejects uncommitted mutated files. Unstaged changes, unresolved stages, symlinks and other unsupported modes remain errors. This permits a resolved pending merge without an early commit.
 
-The folder gets `results.json` (every row, with its original, replacement and classes) and, for each mutant, `<id>.build.log` and `<id>.test.log`. The exit code is 0 when every mutant ran, and 1 when the run stopped early or git shows a mutated file changed. If a run dies by SIGKILL, its mutant stays in the file, and the next run refuses the file until you restore it with `git restore <file>`.
+The folder gets `inputs.json` (the source SHA256 hashes, executable modes, all semantic staged entries, HEAD and pending merge metadata), `results.json` (every row, with its original, replacement and classes) and, for each mutant, `<id>.build.log` and `<id>.test.log`. Both admission modes use the same byte-exact restoration and final baseline check. Git index refreshes may change index-file bytes without changing semantic entries. The runner never rewrites the index or merge metadata. The exit code is 0 when every mutant ran, and 1 when the run stopped early or its starting state changed. If SIGKILL leaves a mutant behind, it differs from its staged bytes and neither mode admits it. Inspect the saved baseline and recover only that run's source change; do not restore a pending merge input from HEAD.
 
 A mutant of the Rendering GPU tests takes about 40 s: about 10 s of build and 30 s of tests. On ter-hxca's replay of 15 ter-rjts mutants, the three runs took 763 s in all, including 7 baselines.
 
@@ -444,6 +445,8 @@ TERTIUS_FSR_TIMING=1 bash tools/gpu-lock.sh captures/fsr-timing-test.log nix dev
 ```
 
 ## FSR 3.1 timing
+
+The maximum-allocation measurement is `Fsr3UpscalerTests.TheMaximumWindowAllocationReportsItsGpuTimeAtEachActiveSize`, gated by `TERTIUS_FSR_TIMING=1`. It allocates 1920 × 1080 internally and outputs 1920 × 1080. Its active sizes are 960 × 536, 1280 × 720 and 1920 × 1080. The smallest size follows the per-axis rounding to eight pixels. It shares the existing batched timing procedure: 60 warm-up batches, 150 timed batches, eight frames per batch and two batches queued. Run it in Release under `tools/gpu-lock.sh` and `tools/gpu-clock.sh`. The normal test `TheLargestWindowAllocationHandlesTheControllersActiveSizesUnderValidation` checks the same size transitions with Vulkan validation. The older 1280 × 720 allocation measurement keeps its original entry point for existing timing tools.
 
 `tools/fsr3-timing/` holds tool code that times builds of FSR's passes against each other (ticket `ter-7m38`, `src/Tertius.Rendering/ThirdParty/Fsr3/README.md`, "The 16-bit and subgroup builds"). It does not ship. The method runs each build once per round, in many rounds, so that the load of the machine falls on every build alike.
 

@@ -30,8 +30,7 @@ internal sealed class FrameContext
     public long Number { get; set; }
 
     /// <summary>
-    /// The output format stores linear values, so the pass that writes the output applies the sRGB curve: the tone map
-    /// with SMAA off, the SMAA blending with SMAA on.
+    /// The output format is UNORM, so the tone map applies the sRGB curve.
     /// </summary>
     public bool EncodeSrgb { get; set; }
 
@@ -41,9 +40,9 @@ internal sealed class FrameContext
     /// <summary>vkCmdDrawIndexedIndirect calls recorded this frame.</summary>
     public int IndirectDrawCalls { get; set; }
 
-    public CommandBuffer CommandBuffer => Frame.CommandBuffer;
+    public CommandBuffer CommandBuffer { get; set; }
     public Vk Vk => Device.Vk;
-    public Extent2D Extent => Targets.Extent;
+    public Extent2D Extent => History.RenderSize;
 
     /// <summary>Binds sets 0 to 2 of <see cref="DescriptorLayouts.SceneLayout"/> for this frame.</summary>
     public void BindSceneSets() => BindSceneSets(PipelineBindPoint.Graphics, Layouts.SceneLayout);
@@ -118,7 +117,7 @@ internal sealed class FrameContext
             dynamicOffsetCount: 0,
             pDynamicOffsets: null
         );
-        SetFullViewport();
+        SetViewport(target.Extent);
     }
 
     /// <summary>
@@ -286,7 +285,7 @@ internal abstract class RenderPass : IDisposable
 /// <see cref="Stage.GBuffer"/> through <see cref="Stage.Readback"/>, the screen tracer's passes and the depth pyramid
 /// (under <see cref="ScreenTrace"/>), the skin scatter (<see cref="SkinScatterPass"/>, under
 /// <see cref="SeparableSubsurface"/>), the exposure pass
-/// (<see cref="ExposurePass"/>, under <see cref="AutoExposure"/>), SMAA (<see cref="SmaaPass"/>, when it is on) and the overlay (<see cref="OutlinePass"/>) included. Draws
+/// (<see cref="ExposurePass"/>, under <see cref="AutoExposure"/>), FSR and the overlay (<see cref="OutlinePass"/>) included. Draws
 /// that belong inside the G-buffer pass's depth ranges, such as impostor billboards, go through
 /// <see cref="GeometryPass.RangeDrawers"/>.
 /// </summary>
@@ -371,6 +370,8 @@ internal sealed class FrameGraph : IDisposable
 
         /// <summary>The exposure's meter and adapt step, under <see cref="AutoExposure"/>: after every writer of the HDR image, before the tone map reads it.</summary>
         Exposure,
+        Upscale,
+        ExposureAdapt,
 
         /// <summary>
         /// After every pass that writes the HDR image, so that all bright light glows, and before the tone map, which adds the
@@ -379,12 +380,6 @@ internal sealed class FrameGraph : IDisposable
         /// </summary>
         Bloom,
         ToneMap,
-
-        /// <summary>
-        /// The three SMAA passes, when SMAA is on. They follow the tone map, because SMAA finds edges in the display-encoded
-        /// image, and precede the overlay, so that they never blend its outlines.
-        /// </summary>
-        AntiAliasing,
 
         /// <summary>Debug drawing over the output image, such as frame outlines, before the readback so a capture holds it.</summary>
         Overlay,
@@ -411,15 +406,38 @@ internal sealed class FrameGraph : IDisposable
     {
         int slot = context.Frame.Index;
         context.Timer.Begin(context.CommandBuffer, slot);
-        foreach ((_, _, RenderPass pass) in passes)
+        bool output = false;
+        foreach ((Stage stage, _, RenderPass pass) in passes)
         {
+            if (!output && stage >= Stage.ToneMap)
+            {
+                BeginOutput(context);
+                output = true;
+            }
             if (Skipped.Contains(pass.Name))
                 continue;
             context.Device.BeginLabel(context.CommandBuffer, pass.Name);
             pass.Record(context);
             context.Device.EndLabel(context.CommandBuffer);
-            context.Timer.After(commandBuffer: context.CommandBuffer, slot: slot, pass: pass.Name);
+            context.Timer.After(
+                commandBuffer: context.CommandBuffer,
+                slot: slot,
+                pass: new(pass.Name, 0) { Stage = stage }
+            );
         }
+    }
+
+    private static unsafe void BeginOutput(FrameContext context)
+    {
+        context.Barriers.Flush(context.Vk, context.CommandBuffer);
+        context.Vk.EndCommandBuffer(context.CommandBuffer).Check("vkEndCommandBuffer");
+        context.CommandBuffer = context.Frame.OutputCommandBuffer;
+        var begin = new CommandBufferBeginInfo
+        {
+            SType = StructureType.CommandBufferBeginInfo,
+            Flags = CommandBufferUsageFlags.OneTimeSubmitBit,
+        };
+        context.Vk.BeginCommandBuffer(context.CommandBuffer, &begin).Check("vkBeginCommandBuffer");
     }
 
     public void Dispose()

@@ -24,7 +24,7 @@ const float DeviceDepthNear = 0.05;
 // x right tan h − y up tan v, in world axes. Its component along the last frame's forward is 1.
 vec3 lastViewRayThrough(vec2 place)
 {
-    vec2 ndc = place * 2.0 - 1.0;
+    vec2 ndc = (place + frame.previousJitter.xy * frame.previousViewport.zw) * 2.0 - 1.0;
     return frame.previousCameraForward.xyz + ndc.x * frame.previousCameraRight.xyz - ndc.y * frame.previousCameraUp.xyz;
 }
 

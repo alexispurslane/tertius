@@ -14,7 +14,7 @@ public sealed class ScriptCommandCaptureTests : IDisposable
     /// shadows after the cascades, the environment map's faces and prefilter after them, the surface test after the
     /// G-buffer, the depth pyramid before the direct pass, the screen tracer's passes and its two accumulations between the
     /// direct pass and the composite, the skin scatter's two passes after the composite, the atmosphere's haze before the
-    /// transparent pass, SMAA after the tone map. A pass that records nothing, such as the haze without an atmosphere, still
+    /// transparent pass, FSR before the output-sized bloom and tone map. A pass that records nothing, such as the haze without an atmosphere, still
     /// takes its timestamps.
     /// </summary>
     private static readonly string[] FramePasses =
@@ -40,11 +40,10 @@ public sealed class ScriptCommandCaptureTests : IDisposable
         "haze",
         "transparent",
         "exposure",
+        "FSR 3.1",
+        "exposure adapt",
         "bloom",
         "tone map",
-        "SMAA edges",
-        "SMAA weights",
-        "SMAA blending",
         "outlines",
         "capture",
     ];
@@ -753,26 +752,26 @@ public sealed class ScriptCommandCaptureTests : IDisposable
     }
 
     [Theory]
-    [InlineData(new string[0], AntiAliasing.Smaa)]
-    [InlineData(new[] { "--anti-aliasing", "off" }, AntiAliasing.None)]
-    public void TheAntiAliasingOptionChoosesTheAntiAliasingOfTheHeadlessRendererWhichIsTheRenderersDefaultWithoutIt(
-        string[] antiAliasing,
-        AntiAliasing expected
+    [InlineData(new string[0], true)]
+    [InlineData(new[] { "--upscaling", "off" }, false)]
+    public void TheUpscalingOptionChoosesTheUpscalingOfTheHeadlessRendererWhichIsTheRenderersDefaultWithoutIt(
+        string[] upscaling,
+        bool expected
     )
     {
         string script = ScriptFile(
             """{ "scene": "lit-box", "window": { "width": 160, "height": 90 }, "steps": [ { "do": "capture", "name": "front" } ] }"""
         );
-        var chosen = new List<AntiAliasing>();
+        var chosen = new List<bool>();
 
         int code = ScriptCommand.Run(
-            args: ["--script", script, "--headless", "--out", Out, .. antiAliasing],
+            args: ["--script", script, "--headless", "--out", Out, .. upscaling],
             scenes: [LitBoxScene],
             output: output,
             error: error,
             createRenderer: options =>
             {
-                chosen.Add(options.AntiAliasing);
+                chosen.Add(options.Upscaling is Fsr3Upscaling);
                 return VulkanRenderer.CreateHeadless(options);
             }
         );

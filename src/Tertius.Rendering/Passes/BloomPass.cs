@@ -50,7 +50,7 @@ internal sealed unsafe class BloomPass : RenderPass
         Draw(
             context: context,
             pipeline: prefilter,
-            source: targets.Hdr,
+            source: targets.PostHdr,
             sourceSet: targets.GlowSources[0],
             target: levels[0],
             add: false

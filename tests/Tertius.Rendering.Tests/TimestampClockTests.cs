@@ -44,7 +44,11 @@ public sealed class TimestampClockTests
         ulong[] results = [1_000_000, 1, 1_250_000, 1, 1_250_000, 1, 4_250_000, 1];
         var timings = new PassTiming[3];
 
-        double? span = clock.Fill(results: results, passes: ["shadow maps", "probe", "G-buffer"], timings: timings);
+        double? span = clock.Fill(
+            results: results,
+            passes: [new("shadow maps", 0), new("probe", 0), new("G-buffer", 0)],
+            timings: timings
+        );
 
         span.Should().NotBeNull();
         timings
@@ -61,7 +65,7 @@ public sealed class TimestampClockTests
 
         double? span = clock.Fill(
             results: results,
-            passes: ["shadow maps", "probe", "G-buffer"],
+            passes: [new("shadow maps", 0), new("probe", 0), new("G-buffer", 0)],
             timings: new PassTiming[3]
         );
 
@@ -75,7 +79,11 @@ public sealed class TimestampClockTests
         ulong last = (1UL << 36) - 500;
         ulong[] results = [last, 1, last + 250, 1, 1_500, 1];
 
-        double? span = clock.Fill(results: results, passes: ["lighting", "bloom"], timings: new PassTiming[2]);
+        double? span = clock.Fill(
+            results: results,
+            passes: [new("lighting", 0), new("bloom", 0)],
+            timings: new PassTiming[2]
+        );
 
         span.Should()
             .NotBeNull()
@@ -89,7 +97,11 @@ public sealed class TimestampClockTests
         // The stamp after the last pass is not written yet, so its result reads as a timestamp of 0.
         ulong[] results = [1_000_000, 1, 1_250_000, 1, 0, 0];
 
-        double? span = clock.Fill(results: results, passes: ["shadow maps", "G-buffer"], timings: new PassTiming[2]);
+        double? span = clock.Fill(
+            results: results,
+            passes: [new("shadow maps", 0), new("G-buffer", 0)],
+            timings: new PassTiming[2]
+        );
 
         span.Should().BeNull("a result that is not available gives no span, never one read from a timestamp of 0");
     }
@@ -102,9 +114,24 @@ public sealed class TimestampClockTests
         var earlier = new PassTiming("lighting", 0.5);
         PassTiming[] timings = [earlier];
 
-        double? span = clock.Fill(results: results, passes: ["lighting"], timings: timings);
+        double? span = clock.Fill(results: results, passes: [new("lighting", 0)], timings: timings);
 
         span.Should().BeNull("a result that is not available is no timing, never a time of 0");
         timings.Should().Equal(earlier);
+    }
+
+    [Fact]
+    public void TimestampConversionPreservesTheGraphsStageIndependentlyOfItsLabel()
+    {
+        var clock = new TimestampClock(ValidBits: 64, Period: 1f);
+        ulong[] results = [1_000_000, 1, 4_000_000, 1];
+        PassTiming[] passes = [new("any diagnostic label", 0) { Stage = FrameGraph.Stage.GBuffer }];
+        var timings = new PassTiming[1];
+
+        clock.Fill(results: results, passes: passes, timings: timings);
+
+        timings[0].Stage.Should().Be(FrameGraph.Stage.GBuffer);
+        timings[0].Pass.Should().Be("any diagnostic label");
+        timings[0].Milliseconds.Should().Be(3);
     }
 }

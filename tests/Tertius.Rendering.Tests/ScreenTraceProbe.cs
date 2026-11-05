@@ -15,6 +15,12 @@ internal sealed class ScreenTraceProbe(VulkanRenderer renderer, string shader) :
 
     public float[] Read() => renderer.ReadImage(renderer.ScreenTraceSignals.Specular.Sample(0));
 
+    public void InvalidateImages()
+    {
+        kernel?.Dispose();
+        kernel = null;
+    }
+
     public override void Prepare(FrameContext context)
     {
         if (kernel is not null)

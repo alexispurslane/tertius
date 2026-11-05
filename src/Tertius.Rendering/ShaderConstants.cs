@@ -11,6 +11,9 @@ namespace Tertius.Rendering;
 /// <param name="EnvironmentMap">True while the setting is <see cref="SceneEnvironmentMap"/>: the map is the ambient light.</param>
 internal readonly record struct ShaderConstants(bool EnvironmentMap)
 {
+    public bool MainView { get; init; }
+    public bool TemporalShadows { get; init; }
+
     /// <summary>The constant_id of environmentMapOn in environment.glsl.</summary>
     public const uint EnvironmentMapId = 0;
 
@@ -31,6 +34,12 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
 
     /// <summary>The constant_id of screenTraceOn in temporal.glsl.</summary>
     public const uint ScreenTraceOnId = 6;
+
+    /// <summary>The constant_id of temporalShadows in shadows.glsl.</summary>
+    public const uint TemporalShadowsId = 7;
+
+    /// <summary>The constant_id of mainView in material.glsl.</summary>
+    public const uint MainViewId = 8;
 
     /// <summary>
     /// True in the cutout pipeline of an opaque pass, whose material sample discards a texel below its material's cutoff
@@ -100,6 +109,8 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
             (WritesMotionId, values.WritesMotion ? 1u : 0u),
             (RayKindId, values.RayKind),
             (ScreenTraceOnId, values.ScreenTraceOn ? 1u : 0u),
+            (MainViewId, values.MainView ? 1u : 0u),
+            (TemporalShadowsId, values.TemporalShadows ? 1u : 0u),
         ];
         for (int i = 0; i < rows.Length; i++)
         {
@@ -128,7 +139,7 @@ internal struct SpecializationStorage
     /// The number of constants: one per field of <see cref="ShaderConstants"/>, the subsurface setting's being its taps per
     /// side. <see cref="ShaderConstants.Specialization"/> writes one row per constant, and a row past this count throws.
     /// </summary>
-    public const int Count = 7;
+    public const int Count = 9;
 
     public SpecializationValues Data;
     public SpecializationEntries Entries;

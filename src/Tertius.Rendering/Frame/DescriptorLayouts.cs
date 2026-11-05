@@ -38,8 +38,6 @@ namespace Tertius.Rendering;
 /// <item><term>environment levels</term><description>four level views of the radiance map or the specular map as storage
 /// images. One per dispatch of the map's mips and of its specular levels with the map on, which the pool holds for the
 /// largest map, rewritten when the map's images grow.</description></item>
-/// <item><term>SMAA</term><description>the inputs of the three SMAA passes, each with its immutable sampler. One when SMAA
-/// is on, its screen-sized images rewritten on resize.</description></item>
 /// <item><term>pyramid level</term><description>set 3 of <see cref="PyramidLayout"/>: the level that one dispatch of the
 /// depth pyramid's build reads and the level that it writes. One per level, and one for the finest level, rewritten on
 /// resize.</description></item>
@@ -78,9 +76,6 @@ namespace Tertius.Rendering;
 /// </summary>
 internal sealed unsafe class DescriptorLayouts : IDisposable
 {
-    /// <summary>The bindings of <see cref="SmaaSet"/>.</summary>
-    private const uint SmaaBindings = 6;
-
     /// <summary>The surface test sets: one per parity of the drawn frames (<see cref="SurfaceHistory"/>).</summary>
     private const uint SurfaceTestSets = 2;
 
@@ -174,7 +169,6 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         this.device = device;
 
         LinearClampSampler = CreateLevelZeroSampler(Filter.Linear, "linear clamp sampler");
-        PointSampler = CreateLevelZeroSampler(Filter.Nearest, "point sampler");
         EnvironmentSampler = CreateTrilinearClampSampler("environment sampler");
 
         FrameSet = CreateFrameSetLayout(LinearClampSampler, EnvironmentSampler);
@@ -188,7 +182,6 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
 
         (MeterSet, ExposureSet) = CreateExposureSetLayouts();
         (EnvironmentPrefilterSet, EnvironmentLevelsSet) = CreateEnvironmentSetLayouts(EnvironmentSampler);
-        SmaaSet = CreateSmaaSetLayout();
         (PyramidLevelSet, DepthTailSet) = CreatePyramidSetLayouts();
         DeformSet = CreateDeformSetLayout();
         ScatterSet = CreateScatterSetLayout();
@@ -199,7 +192,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         (SignalSet, LightSet) = CreateTemporalSetLayouts();
         ScreenTraceSet = CreateScreenTraceSetLayout();
 
-        (SceneLayout, ImpostorLayout, CompositeLayout, OverlayLayout, PostLayout, BloomLayout, SmaaLayout) =
+        (SceneLayout, ImpostorLayout, CompositeLayout, OverlayLayout, PostLayout, BloomLayout) =
             CreateGraphicsLayouts();
         (
             ExposureLayout,
@@ -269,23 +262,9 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
 
     /// <summary>
     /// Linear filtering, clamped to the edge, one level and no anisotropy: the immutable sampler of the BRDF tables (frame
-    /// set, binding 10), the post set (binding 2), every glow source set (binding 1) and every binding of the SMAA set but
-    /// the edge pass's color.
+    /// set, binding 10), the post set (binding 2) and every glow source set (binding 1).
     /// </summary>
     public Sampler LinearClampSampler { get; }
-
-    /// <summary>Point sampling, clamped to the edge, one level, for the color that the SMAA edge pass reads.</summary>
-    public Sampler PointSampler { get; }
-
-    /// <summary>
-    /// The inputs of the SMAA passes, combined image samplers for the fragment stage: 0 the tone-mapped image as sRGB-encoded
-    /// values (point), 1 the edges, 2 the area table, 3 the search table, 4 the tone-mapped image as linear values, 5 the
-    /// weights.
-    /// </summary>
-    public DescriptorSetLayout SmaaSet { get; }
-
-    /// <summary>The SMAA set plus <see cref="SmaaPushConstants"/> for the vertex and fragment stages.</summary>
-    public PipelineLayout SmaaLayout { get; }
 
     /// <summary>The impostor atlas: color and depth offset (2D arrays) and <see cref="AtlasSampler"/>.</summary>
     public DescriptorSetLayout AtlasSet { get; }
@@ -431,8 +410,6 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     public DescriptorSet AllocateEnvironmentPrefilterSet() => Allocate(pool, EnvironmentPrefilterSet, null);
 
     public DescriptorSet AllocateEnvironmentLevelsSet() => Allocate(pool, EnvironmentLevelsSet, null);
-
-    public DescriptorSet AllocateSmaaSet() => Allocate(pool, SmaaSet, null);
 
     public DescriptorSet AllocatePyramidLevelSet() => Allocate(pool, PyramidLevelSet, null);
 
@@ -717,8 +694,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         PipelineLayout Composite,
         PipelineLayout Overlay,
         PipelineLayout Post,
-        PipelineLayout Bloom,
-        PipelineLayout Smaa
+        PipelineLayout Bloom
     ) CreateGraphicsLayouts()
     {
         const ShaderStageFlags graphics = ShaderStageFlags.VertexBit | ShaderStageFlags.FragmentBit;
@@ -746,12 +722,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             push: new(ShaderStageFlags.FragmentBit, 0, (uint)Unsafe.SizeOf<BloomPushConstants>()),
             name: "bloom layout"
         );
-        PipelineLayout smaaLayout = CreatePipelineLayout(
-            sets: [SmaaSet],
-            push: new(graphics, 0, (uint)Unsafe.SizeOf<SmaaPushConstants>()),
-            name: "smaa layout"
-        );
-        return (sceneLayout, impostorLayout, compositeLayout, overlayLayout, postLayout, bloomLayout, smaaLayout);
+        return (sceneLayout, impostorLayout, compositeLayout, overlayLayout, postLayout, bloomLayout);
     }
 
     /// <summary>
@@ -857,15 +828,13 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
                     + LightSetImages
                     + ScreenTraceStorageImages * ScreenTraceSets
             ),
-            // The SMAA set.
-            new(DescriptorType.CombinedImageSampler, SmaaBindings),
         ];
 
     /// <summary>The shared pool, which holds <paramref name="glowSourceSets"/> glow source sets, and the pool of the texture sets.</summary>
     private (SetPool Shared, SetPool Textures) CreatePools(uint framesInFlight, uint glowSourceSets)
     {
         uint frames = framesInFlight;
-        // The frame sets, the deform sets, the G-buffer, post, atlas, meter, exposure, SMAA, prefilter, scatter, shadow
+        // The frame sets, the deform sets, the G-buffer, post, atlas, meter, exposure, prefilter, scatter, shadow
         // bounds and light sets, the glow source sets, the pyramid level sets, the depth tail set, the environment levels
         // sets, the surface test sets, the signal sets and the screen tracer sets. The tracer's sets exist even with the
         // tracer off: they cost nothing per frame.
@@ -1192,30 +1161,6 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         return sampler;
     }
 
-    /// <summary>
-    /// The layout of the SMAA set (<see cref="SmaaSet"/>). Every binding has an immutable sampler: point for binding 0,
-    /// which the header allows as an option and which gives the linear values at the texel centers that the edge pass
-    /// reads, and linear for the others.
-    /// </summary>
-    private DescriptorSetLayout CreateSmaaSetLayout()
-    {
-        Sampler* samplers = stackalloc Sampler[(int)SmaaBindings];
-        Span<DescriptorSetLayoutBinding> bindings = stackalloc DescriptorSetLayoutBinding[(int)SmaaBindings];
-        for (uint binding = 0; binding < SmaaBindings; binding++)
-        {
-            samplers[binding] = binding == 0 ? PointSampler : LinearClampSampler;
-            bindings[(int)binding] = new(
-                binding: binding,
-                descriptorType: DescriptorType.CombinedImageSampler,
-                descriptorCount: 1,
-                stageFlags: ShaderStageFlags.FragmentBit,
-                pImmutableSamplers: &samplers[binding]
-            );
-        }
-
-        return CreateLayout(bindings: bindings, name: "smaa set");
-    }
-
     /// <summary>A sampler of level 0 only, clamped to the edge, with no anisotropy.</summary>
     private Sampler CreateLevelZeroSampler(Filter filter, string name)
     {
@@ -1418,7 +1363,6 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         vk.DestroySampler(device.Device, AtlasSampler, null);
         vk.DestroySampler(device.Device, LinearClampSampler, null);
         vk.DestroySampler(device.Device, EnvironmentSampler, null);
-        vk.DestroySampler(device.Device, PointSampler, null);
     }
 }
 

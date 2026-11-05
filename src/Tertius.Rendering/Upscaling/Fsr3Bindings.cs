@@ -75,6 +75,7 @@ internal enum Fsr3Slot
     SpdMip4,
     SpdMip5,
     SpdAtomic,
+    RcasInput,
     FrameInfo,
 
     /// <summary>The engine's exposure buffer, which the exposure step reads.</summary>
@@ -82,6 +83,7 @@ internal enum Fsr3Slot
     Constants,
     SpdConstants,
     ReactiveConstants,
+    RcasConstants,
 
     /// <summary>AMD's linear clamp sampler, immutable in the set layout.</summary>
     LinearClamp,
@@ -97,6 +99,15 @@ internal readonly record struct Fsr3Binding(uint Binding, Fsr3Slot Slot, Descrip
 /// </summary>
 internal static class Fsr3Bindings
 {
+    private static readonly Fsr3Binding[] Rcas =
+    [
+        Sampled(0, Fsr3Slot.InputExposure),
+        Sampled(1, Fsr3Slot.RcasInput),
+        Storage(2, Fsr3Slot.UpscaledOutput),
+        Uniform(3, Fsr3Slot.Constants),
+        Uniform(4, Fsr3Slot.RcasConstants),
+    ];
+
     // AMD's Vulkan backend shifts sampler bindings by 1000 (ffx_vk.cpp, SAMPLER_BINDING_SHIFT): s_LinearClamp is 1001.
     private const uint LinearClampBinding = 1001;
 
@@ -217,6 +228,7 @@ internal static class Fsr3Bindings
             Fsr3Pass.PrepareReactivity => PrepareReactivity,
             Fsr3Pass.LumaInstability => LumaInstability,
             Fsr3Pass.Accumulate => Accumulate,
+            Fsr3Pass.Rcas => Rcas,
         };
 
     /// <summary>

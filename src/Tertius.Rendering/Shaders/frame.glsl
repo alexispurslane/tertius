@@ -181,6 +181,9 @@ layout(set = 0, binding = 0, std140) uniform FrameBlock
     vec4 ambientSky;          // rgb sky color × intensity
     vec4 ambientGround;       // rgb ground color × intensity
     vec4 viewport;            // width, height, 1 / width, 1 / height
+    vec4 renderParams;
+    vec4 outputViewport;
+    vec4 previousJitter;
     vec4 params;              // x the most pre-exposed light that one puff adds to a pixel, y time in seconds, z angular size of one pixel
     uvec4 counts;             // x lights, y the place in the list of the atmosphere's sun, whose light takes the air's tint,
                               // or NoAirSun; z cascades of each drawn cascade set (0: no set this frame); w unused

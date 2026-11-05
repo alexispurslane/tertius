@@ -1022,6 +1022,7 @@ public sealed class EnvironmentLightingTests
                     Impostors = false,
                     ToneCurve = ToneCurve.Hable,
                     Exposure = new FixedExposure(exposureStops),
+                    Upscaling = new NoUpscaling(),
                     Bloom = new NoBloom(),
                     EnvironmentMap = SmallMap,
                     // The map's closed form, which a ray's miss also takes, with no noise of the tracer's samples.

@@ -10,6 +10,7 @@ void main()
     // One triangle that covers the screen: (-1,-1), (3,-1), (-1,3).
     vec2 ndc = vec2((gl_VertexIndex << 1) & 2, gl_VertexIndex & 2) * 2.0 - 1.0;
     // Vulkan NDC has +y down, so screen up is -ndc.y.
-    outRay = frame.cameraForward.xyz + ndc.x * frame.cameraRight.xyz - ndc.y * frame.cameraUp.xyz;
+    vec2 rayNdc = ndc + 2.0 * frame.renderParams.yz * frame.viewport.zw;
+    outRay = frame.cameraForward.xyz + rayNdc.x * frame.cameraRight.xyz - rayNdc.y * frame.cameraUp.xyz;
     gl_Position = vec4(ndc, 0.0, 1.0);
 }

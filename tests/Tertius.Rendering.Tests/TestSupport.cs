@@ -43,7 +43,7 @@ internal static class Gpu
     /// A validating headless renderer. Impostors are off unless asked for, so that the geometry, lighting and shadow tests
     /// see every object as geometry; the impostor tests turn them on with a small atlas. The exposure is fixed, at 0 stops
     /// unless asked for, so that a pixel does not depend on the frames before it. Anti-aliasing is off unless asked for, so
-    /// that the pixel tests keep their values (docs/plans/anti-aliasing.md, "Decisions"). The screen tracer is off unless
+    /// that the pixel tests keep their native values (docs/plans/temporal-renderer.md, section 4). The screen tracer is off unless
     /// asked for, because the zero case of the setting is off (docs/plans/temporal-renderer.md, section 8). The environment map
     /// is off unless asked for, so the hemisphere lights the tests. Local shadows are off unless asked for, as the
     /// impostors are (docs/plans/local-light-shadows.md, "Decisions"). One far light has a cascade set unless asked for,
@@ -57,7 +57,7 @@ internal static class Gpu
         bool impostors = false,
         int impostorTiles = 16,
         ExposureSetting exposure = default,
-        AntiAliasing antiAliasing = AntiAliasing.None,
+        UpscalingSetting upscaling = default,
         EnvironmentMapSetting? environmentMap = null,
         int cascadedLights = 1,
         LocalShadowSetting localShadows = default,
@@ -78,7 +78,7 @@ internal static class Gpu
                 ImpostorTiles = impostorTiles,
                 Exposure = exposure,
                 Bloom = new NoBloom(),
-                AntiAliasing = antiAliasing,
+                Upscaling = upscaling,
                 LocalShadows = localShadows,
                 EnvironmentMap = environmentMap ?? new NoEnvironmentMap(),
                 CascadedLights = cascadedLights,

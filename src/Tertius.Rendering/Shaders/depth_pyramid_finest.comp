@@ -17,7 +17,7 @@ void main()
     ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
     if (any(greaterThanEqual(pixel, imageSize(destination))))
         return;
-    float distanceToEye = texelFetch(gbufferDistance, pixel, 0).r;
+    float distanceToEye = all(lessThan(pixel, ivec2(frame.viewport.xy))) ? texelFetch(gbufferDistance, pixel, 0).r : 0.0;
     float w = distanceToEye <= 0.0 ? 0.0 : inverseDepthAlong(vec2(pixel) + 0.5, distanceToEye);
     imageStore(destination, pixel, vec4(w));
 }

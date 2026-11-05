@@ -26,23 +26,20 @@
   </ItemGroup>
 
   <!-- GLSL 4.60 shaders. Each stage file becomes one SPIR-V module, embedded as Tertius.Rendering.Shaders.<file>.spv.
-       Files ending in .glsl, and the SMAA reference header, are includes. A change to any include recompiles every stage. -->
+       Files ending in .glsl are includes. A change to any include recompiles every stage. -->
   <ItemGroup>
     <GlslShader Include="Shaders/*.vert;Shaders/*.frag;Shaders/*.comp" />
-    <GlslInclude Include="Shaders/*.glsl;ThirdParty/Smaa/SMAA.hlsl" />
+    <GlslInclude Include="Shaders/*.glsl" />
     <None Include="@(GlslShader);@(GlslInclude)" />
   </ItemGroup>
 
-  <!-- The two SMAA tables, as raw texels (ThirdParty/Smaa/README.md), embedded as Tertius.Rendering.Smaa.<file>. -->
-  <ItemGroup>
-    <EmbeddedResource Include="ThirdParty/Smaa/*.bin" LogicalName="Tertius.Rendering.Smaa.%(Filename)%(Extension)" WithCulture="false" />
-  </ItemGroup>
 
   <!-- AMD's FSR 3.1.4 passes that the engine dispatches, compiled by glslang with the portable defines and checked by
        spirv-val, embedded as Tertius.Rendering.Shaders.<file>.spv. The sharpening and debug passes stay out. -->
   <ItemGroup>
     <Fsr3Shader Include="ThirdParty/Fsr3/sdk/src/backends/vk/shaders/fsr3upscaler/*.glsl"
                 Exclude="ThirdParty/Fsr3/sdk/src/backends/vk/shaders/fsr3upscaler/ffx_fsr3upscaler_rcas_pass.glsl;ThirdParty/Fsr3/sdk/src/backends/vk/shaders/fsr3upscaler/ffx_fsr3upscaler_debug_view_pass.glsl" />
+    <Fsr3Shader Include="Shaders/fsr_rcas.glsl" />
     <Fsr3Include Include="ThirdParty/Fsr3/sdk/include/FidelityFX/gpu/**/*.h" />
     <None Include="@(Fsr3Shader);@(Fsr3Include)" />
   </ItemGroup>
@@ -66,7 +63,7 @@
           Inputs="@(GlslShader);@(GlslInclude);$(MSBuildProjectFullPath)"
           Outputs="@(GlslShader->'$(IntermediateOutputPath)shaders/%(Filename)%(Extension).spv')">
     <MakeDir Directories="$(IntermediateOutputPath)shaders" />
-    <Exec Command="&quot;$(Glslc)&quot; --target-env=vulkan1.3 -O -Werror -I &quot;$(MSBuildProjectDirectory)/Shaders&quot; -I &quot;$(MSBuildProjectDirectory)/ThirdParty/Smaa&quot; -o &quot;$(IntermediateOutputPath)shaders/%(GlslShader.Filename)%(GlslShader.Extension).spv&quot; &quot;%(GlslShader.FullPath)&quot;" />
+    <Exec Command="&quot;$(Glslc)&quot; --target-env=vulkan1.3 -O -Werror -I &quot;$(MSBuildProjectDirectory)/Shaders&quot; -o &quot;$(IntermediateOutputPath)shaders/%(GlslShader.Filename)%(GlslShader.Extension).spv&quot; &quot;%(GlslShader.FullPath)&quot;" />
   </Target>
 
   <Target Name="EmbedGlslShaders" DependsOnTargets="CompileGlslShaders" BeforeTargets="BeforeBuild">

@@ -940,7 +940,7 @@ public sealed class ImpostorTests(ITestOutputHelper output)
                         Width = 64,
                         Height = 64,
                         ImpostorTiles = 0,
-                        AntiAliasing = AntiAliasing.None,
+                        Upscaling = new NoUpscaling(),
                     }
                 )
             )
@@ -955,7 +955,7 @@ public sealed class ImpostorTests(ITestOutputHelper output)
                         Width = 64,
                         Height = 64,
                         ImpostorTiles = 1_000_000,
-                        AntiAliasing = AntiAliasing.None,
+                        Upscaling = new NoUpscaling(),
                     }
                 )
             )

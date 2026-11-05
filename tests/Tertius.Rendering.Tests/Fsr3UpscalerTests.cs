@@ -16,6 +16,21 @@ public sealed class Fsr3UpscalerTests
     private static readonly Extent2D LargestRenderSize = new(64, 48);
     private static readonly Extent2D OutputSize = new(96, 72);
 
+    [Fact]
+    public void SharpeningChangesAnEdgeWithoutChangingTheInputOrTheRenderSize()
+    {
+        using var plain = new Fsr3Bench(LargestRenderSize, OutputSize);
+        using var sharpened = new Fsr3Bench(LargestRenderSize, OutputSize);
+        plain.FillPattern();
+        sharpened.FillPattern();
+        plain.Upscale(index: 0, reset: true);
+        Fsr3Inputs inputs = sharpened.Inputs(index: 0, reset: true);
+        inputs = inputs with { Frame = inputs.Frame with { Sharpness = 1 } };
+        sharpened.Submit(command => sharpened.Upscaler.Record(command, sharpened.Barriers, inputs));
+        sharpened.ReadOutput().Should().NotEqual(plain.ReadOutput());
+        sharpened.Device.Log.Snapshot().Should().BeEmpty();
+    }
+
     // The variable that turns on the measurement of FSR's GPU time.
     private const string TimingVariable = "TERTIUS_FSR_TIMING";
 
@@ -32,6 +47,32 @@ public sealed class Fsr3UpscalerTests
             bench.Upscale(index, reset: index == 0);
 
         ShouldAllBeTheConstant(bench.ReadOutput());
+    }
+
+    [Theory]
+    [InlineData(96u, 72u)]
+    [InlineData(95u, 73u)]
+    public void SharpeningWritesPositiveFiniteColorIncludingTheOutputBorders(uint width, uint height)
+    {
+        using var bench = new Fsr3Bench(LargestRenderSize, new(width, height));
+        bench.Fill(Constant);
+        Fsr3Inputs inputs = bench.Inputs(index: 0, reset: true);
+        inputs = inputs with { Frame = inputs.Frame with { Sharpness = 1 } };
+
+        bench.Submit(command => bench.Upscaler.Record(command, bench.Barriers, inputs));
+
+        bench
+            .ReadOutput()
+            .Should()
+            .OnlyContain(pixel =>
+                float.IsFinite(pixel.X)
+                && pixel.X > 0
+                && float.IsFinite(pixel.Y)
+                && pixel.Y > 0
+                && float.IsFinite(pixel.Z)
+                && pixel.Z > 0
+            );
+        bench.Device.Log.Snapshot().Should().BeEmpty();
     }
 
     [Fact]
@@ -567,7 +608,17 @@ public sealed class Fsr3UpscalerTests
     }
 
     [Fact]
-    public void AnUpscaleFrom1280x720To1920x1080ReportsItsGpuTimePerFrameWhenEightFramesShareASubmission()
+    public void AnUpscaleFrom1280x720To1920x1080ReportsItsGpuTimePerFrameWhenEightFramesShareASubmission() =>
+        MeasureBatchedUpscale(largestSize: new(1280, 720), activeSize: new(1280, 720));
+
+    [Theory]
+    [InlineData(1280u, 720u)]
+    [InlineData(960u, 536u)]
+    [InlineData(1920u, 1080u)]
+    public void TheMaximumWindowAllocationReportsItsGpuTimeAtEachActiveSize(uint activeWidth, uint activeHeight) =>
+        MeasureBatchedUpscale(largestSize: new(1920, 1080), activeSize: new(activeWidth, activeHeight));
+
+    private static void MeasureBatchedUpscale(Extent2D largestSize, Extent2D activeSize)
     {
         // A measurement, not a check: it runs only on request, in a Release build under the GPU lock, and it is the
         // measurement of tools/fsr3-timing/time-round.sh (tools/README.md, "FSR 3.1 timing"). FSR's frames run back to
@@ -586,11 +637,14 @@ public sealed class Fsr3UpscalerTests
         const int TimedBatches = 150;
         const int InFlight = 2;
         using var bench = new Fsr3Bench(
-            largestRenderSize: new Extent2D(1280, 720),
+            largestRenderSize: largestSize,
             outputSize: new Extent2D(1920, 1080),
             validation: false,
             framesInFlight: Batch * InFlight
-        );
+        )
+        {
+            RenderSize = activeSize,
+        };
         if (!bench.Device.Timestamps.Supported)
             Assert.Skip($"{bench.Device.DeviceName} writes no timestamps on its queue.");
         bench.FillPattern();
@@ -617,12 +671,31 @@ public sealed class Fsr3UpscalerTests
         output.WriteLine(
             string.Create(
                 inv,
-                $"FSR 3.1 in batches of {Batch} from 1280 x 720 to 1920 x 1080 on {bench.Device.DeviceName}: median {sorted[sorted.Length / 2]:F3} ms, 10th percentile {sorted[sorted.Length / 10]:F3} ms, 90th percentile {sorted[sorted.Length * 9 / 10]:F3} ms over {sorted.Length} batches"
+                $"FSR 3.1 in batches of {Batch}, maximum {largestSize.Width} x {largestSize.Height}, active {activeSize.Width} x {activeSize.Height}, output 1920 x 1080 on {bench.Device.DeviceName}: median {sorted[sorted.Length / 2]:F3} ms, 10th percentile {sorted[sorted.Length / 10]:F3} ms, 90th percentile {sorted[sorted.Length * 9 / 10]:F3} ms over {sorted.Length} batches"
             )
         );
         // Every batch's frame time in the order of the batches, for tools/fsr3-timing/analyze.py.
         output.WriteLine("frame times, ms: " + string.Join(' ', frames.Select(time => time.ToString("F4", inv))));
         sorted[0].Should().BePositive();
+    }
+
+    [Fact]
+    public void TheLargestWindowAllocationHandlesTheControllersActiveSizesUnderValidation()
+    {
+        using var bench = new Fsr3Bench(new Extent2D(1920, 1080), new Extent2D(1920, 1080));
+        bench.FillPattern();
+        Extent2D[] sizes = [new(1920, 1080), new(1280, 720), new(960, 536), new(1920, 1080)];
+        for (int frame = 0; frame < sizes.Length; frame++)
+        {
+            bench.RenderSize = sizes[frame];
+            bench.Upscale(frame, reset: frame == 0);
+        }
+
+        bench
+            .ReadOutput()
+            .Should()
+            .OnlyContain(pixel => float.IsFinite(pixel.X) && float.IsFinite(pixel.Y) && float.IsFinite(pixel.Z));
+        bench.Device.Log.Snapshot().Should().BeEmpty();
     }
 
     // The mean over the pixels of the summed absolute differences of red, green and blue.

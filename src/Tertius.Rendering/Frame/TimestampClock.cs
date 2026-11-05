@@ -29,16 +29,16 @@ internal readonly record struct TimestampClock(uint ValidBits, float Period)
     /// is not available, which is no timing, never a time of 0.
     /// </summary>
     /// <param name="results">A timestamp and its availability for each query: one before the first pass, one after each pass.</param>
-    /// <param name="passes">The name of each pass, in recording order.</param>
+    /// <param name="passes">The label and stage of each pass, in recording order.</param>
     /// <param name="timings">One entry per pass.</param>
     /// <returns>The frame's GPU span in milliseconds, or null when the frame has no timings.</returns>
-    public double? Fill(ReadOnlySpan<ulong> results, ReadOnlySpan<string> passes, Span<PassTiming> timings)
+    public double? Fill(ReadOnlySpan<ulong> results, ReadOnlySpan<PassTiming> passes, Span<PassTiming> timings)
     {
         for (int query = 0; query <= passes.Length; query++)
             if (results[2 * query + 1] == 0)
                 return null;
         for (int pass = 0; pass < passes.Length; pass++)
-            timings[pass] = new(passes[pass], Milliseconds(results[2 * pass], results[2 * pass + 2]));
+            timings[pass] = passes[pass] with { Milliseconds = Milliseconds(results[2 * pass], results[2 * pass + 2]) };
         return Milliseconds(results[0], results[2 * passes.Length]);
     }
 }

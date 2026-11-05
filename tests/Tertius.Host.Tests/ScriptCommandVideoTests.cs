@@ -301,7 +301,7 @@ public sealed class ScriptCommandVideoTests : IDisposable
         // A folder at the path of the video: ffmpeg reads the first frame, cannot open its output, and exits.
         Directory.CreateDirectory(Video);
 
-        int code = Run(path, "--video", Video);
+        int code = Run(path, "--video", Video, "--upscaling", "off");
 
         code.Should().Be(ScriptCommand.FileError);
         error

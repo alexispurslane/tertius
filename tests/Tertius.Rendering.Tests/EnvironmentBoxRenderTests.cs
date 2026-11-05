@@ -117,6 +117,84 @@ public sealed class EnvironmentBoxRenderTests
         }
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ARotatedMapKeepsItsReceivingPositionsWhenTheOutputSizeChanges(bool fsr)
+    {
+        VulkanRenderer renderer = Gpu.Headless(
+            width: 160,
+            height: 96,
+            exposure: new FixedExposure(0),
+            upscaling: fsr ? new Fsr3Upscaling(new FixedRenderScale(2f / 3), 0) : new NoUpscaling(),
+            environmentMap: SmallMap,
+            screenTrace: ScreenTrace.Default,
+            warmUpFrames: 0
+        );
+        try
+        {
+            var probe = ScreenTraceProbe.On(renderer, "environment_box_rotated_probe.comp");
+            RenderSnapshot snapshot = TurnedStripe(renderer);
+            foreach (
+                (int width, int height, int renderWidth, int renderHeight) in new[]
+                {
+                    (160, 96, fsr ? 104 : 160, fsr ? 64 : 96),
+                    (192, 112, fsr ? 128 : 192, fsr ? 72 : 112),
+                }
+            )
+            {
+                probe.InvalidateImages();
+                renderer.Resize(width, height);
+                for (int draw = 0; draw < 7; draw++)
+                {
+                    snapshot.Time += 1.0 / 60;
+                    renderer.Render(snapshot, 1);
+                    renderer.LastDraw.Should().Be(((long)draw, draw == 0));
+                }
+                snapshot.Time += 1.0 / 60;
+                Capture image = Gpu.RenderAndCapture(
+                    renderer: renderer,
+                    snapshot: snapshot,
+                    name: "rotated box resize"
+                );
+                (image.Width, image.Height).Should().Be((width, height));
+                renderer.LastDraw.Should().Be((7L, false));
+                (renderer.LastScene.Camera.Width, renderer.LastScene.Camera.Height)
+                    .Should()
+                    .Be((renderWidth, renderHeight));
+                float[] actual = probe.Read();
+                float[] expected = renderer.ReadImage(renderer.ScreenTraceSignals.Diffuse.Sample(0));
+                expected[0].Should().BeLessThan(0.05f);
+                expected[4].Should().BeGreaterThan(1);
+                actual[0].Should().BeApproximately(expected[0], 0.005f);
+                actual[4].Should().BeApproximately(expected[4], 0.005f);
+            }
+            renderer.DrawnFrames.Should().Be(16);
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    private static RenderSnapshot TurnedStripe(VulkanRenderer renderer)
+    {
+        RenderSnapshot snapshot = StripeAboveAFloor(renderer, glass: false);
+        var turn = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, MathF.PI / 2);
+        TestChains.UnderTurnedRoot(snapshot, turn);
+        for (int index = 0; index < snapshot.Instances.Count; index++)
+        {
+            RenderInstance instance = snapshot.Instances[index];
+            instance.Position = Vector3.Transform(instance.Position, turn);
+            instance.PreviousPosition = instance.Position;
+            instance.Rotation = Quaternion.Concatenate(instance.Rotation, turn);
+            instance.PreviousRotation = instance.Rotation;
+            instance.ChainDepth = TestChains.Root;
+            snapshot.Instances[index] = instance;
+        }
+        return snapshot;
+    }
+
     [Fact]
     public void AMirrorFloorPlacesTheCapturedStripeByItsFittedBox()
     {

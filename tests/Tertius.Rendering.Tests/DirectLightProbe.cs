@@ -11,16 +11,16 @@ namespace Tertius.Rendering.Tests;
 internal sealed unsafe class DirectLightProbe : RenderPass
 {
     private readonly VulkanRenderer renderer;
-    private readonly bool diffuseOnly;
+    private readonly string fragmentShader;
     private VulkanDevice? device;
     private ShaderLibrary? shaders;
     private Pipeline pipeline;
     private GpuImage? image;
 
-    private DirectLightProbe(VulkanRenderer renderer, bool diffuseOnly)
+    private DirectLightProbe(VulkanRenderer renderer, string fragmentShader)
     {
         this.renderer = renderer;
-        this.diffuseOnly = diffuseOnly;
+        this.fragmentShader = fragmentShader;
     }
 
     public override string Name => "test direct light probe";
@@ -31,7 +31,17 @@ internal sealed unsafe class DirectLightProbe : RenderPass
     /// </summary>
     public static DirectLightProbe On(VulkanRenderer renderer, bool diffuseOnly = false)
     {
-        var probe = new DirectLightProbe(renderer, diffuseOnly);
+        var probe = new DirectLightProbe(
+            renderer,
+            diffuseOnly ? "direct_diffuse_probe.frag" : "direct_light_probe.frag"
+        );
+        renderer.Graph.Add(FrameGraph.Stage.Composite, probe);
+        return probe;
+    }
+
+    public static DirectLightProbe ViewRaysOn(VulkanRenderer renderer)
+    {
+        var probe = new DirectLightProbe(renderer, "upscale_view_ray_probe.frag");
         renderer.Graph.Add(FrameGraph.Stage.Composite, probe);
         return probe;
     }
@@ -50,7 +60,7 @@ internal sealed unsafe class DirectLightProbe : RenderPass
         {
             Name = "test direct light probe",
             VertexShader = "lighting.vert",
-            FragmentShader = diffuseOnly ? "direct_diffuse_probe.frag" : "direct_light_probe.frag",
+            FragmentShader = fragmentShader,
             Layout = context.Layouts.CompositeLayout,
             ColorFormats = [RenderTargets.HdrFormat],
             CullMode = CullModeFlags.None,

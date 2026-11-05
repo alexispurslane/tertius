@@ -39,7 +39,7 @@ internal sealed unsafe class TransparentPass : RenderPass
             Blend = BlendMode.Transmittance,
             VertexInput = VertexInput.Mesh,
             DepthClamp = true,
-            Constants = constants,
+            Constants = constants with { MainView = true },
         };
         pipeline = SidedPipeline.Create(device: device, shaders: shaders, desc: glass);
         try
@@ -89,6 +89,7 @@ internal sealed unsafe class TransparentPass : RenderPass
 
     public override void Record(FrameContext context)
     {
+        CopyOpaque(context);
         PreparedScene scene = context.Scene;
         bool any = false;
         foreach (List<TransparentRun> runs in scene.Transparent)
@@ -130,6 +131,30 @@ internal sealed unsafe class TransparentPass : RenderPass
         vk.CmdBeginRendering(commandBuffer, &rendering);
         DrawRuns(context: context, scene: scene, vk: vk, commandBuffer: commandBuffer);
         vk.CmdEndRendering(commandBuffer);
+    }
+
+    private static void CopyOpaque(FrameContext context)
+    {
+        if (context.Targets.Upscale is not { } images)
+            return;
+        context.Barriers.Image(context.Targets.Hdr, ImageUse.TransferSource);
+        context.Barriers.Image(images.OpaqueOnly, ImageUse.TransferDestination, discard: true);
+        context.Barriers.Flush(context.Vk, context.CommandBuffer);
+        var copy = new ImageCopy
+        {
+            SrcSubresource = new(aspectMask: ImageAspectFlags.ColorBit, mipLevel: 0, baseArrayLayer: 0, layerCount: 1),
+            DstSubresource = new(aspectMask: ImageAspectFlags.ColorBit, mipLevel: 0, baseArrayLayer: 0, layerCount: 1),
+            Extent = new(context.Extent.Width, context.Extent.Height, 1),
+        };
+        context.Vk.CmdCopyImage(
+            commandBuffer: context.CommandBuffer,
+            srcImage: context.Targets.Hdr.Handle,
+            srcImageLayout: ImageLayout.TransferSrcOptimal,
+            dstImage: images.OpaqueOnly.Handle,
+            dstImageLayout: ImageLayout.TransferDstOptimal,
+            regionCount: 1,
+            pRegions: &copy
+        );
     }
 
     /// <summary>Draws the transparent runs of each depth range, from far to near, in the order of the scene.</summary>

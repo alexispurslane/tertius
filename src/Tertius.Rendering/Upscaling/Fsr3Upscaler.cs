@@ -16,6 +16,7 @@ internal enum Fsr3Pass
     PrepareReactivity,
     LumaInstability,
     Accumulate,
+    Rcas,
 }
 
 /// <summary>One of FSR's own images: AMD's name, its format, its size and its mip levels.</summary>
@@ -160,6 +161,7 @@ internal sealed unsafe class Fsr3Upscaler : IDisposable
     private readonly ImageView[] spdLevelViews;
     private readonly GpuBuffer spdConstants;
     private readonly GpuBuffer reactiveConstants;
+    private readonly GpuBuffer rcasConstants;
     private readonly Sampler linearClamp;
     private readonly DescriptorPool pool;
     private readonly FsrPipeline[] pipelines;
@@ -212,6 +214,11 @@ internal sealed unsafe class Fsr3Upscaler : IDisposable
         ];
 
         (Constants, spdConstants, reactiveConstants) = CreateConstantBuffers();
+        rcasConstants = CreateBuffer(
+            size: 16,
+            usage: BufferUsageFlags.UniformBufferBit,
+            name: "FSR3UPSCALER RCAS constants"
+        );
         linearClamp = CreateLinearClamp(device);
         pool = CreatePool(device, framesInFlight);
         pipelines =
@@ -282,6 +289,8 @@ internal sealed unsafe class Fsr3Upscaler : IDisposable
             Clear(frame, clears[index]);
         foreach (Fsr3Pass pass in UpscalePasses)
             RecordPass(frame, pass);
+        if (inputs.Frame.Sharpness > 0)
+            RecordPass(frame, Fsr3Pass.Rcas);
         executions++;
     }
 
@@ -293,6 +302,7 @@ internal sealed unsafe class Fsr3Upscaler : IDisposable
         device.Vk.DestroyDescriptorPool(device.Device, pool, null);
         device.Vk.DestroySampler(device.Device, linearClamp, null);
         reactiveConstants.Dispose();
+        rcasConstants.Dispose();
         spdConstants.Dispose();
         Constants.Dispose();
         foreach (ImageView view in spdLevelViews)
@@ -306,7 +316,13 @@ internal sealed unsafe class Fsr3Upscaler : IDisposable
     /// rounded down, such as 18 from 1280 to 1920.
     /// </summary>
     public static int JitterPhaseCount(uint renderWidth, uint outputWidth) =>
-        (int)(8f * MathF.Pow((float)outputWidth / renderWidth, 2f));
+        Math.Max(1, (int)(8f * MathF.Pow((float)outputWidth / renderWidth, 2f)));
+
+    /// <summary>Pads only FSR's internal allocation to fit its six-level pyramid, without changing the active size.</summary>
+    internal static Extent2D AllocationSize(Extent2D renderSize) =>
+        Math.Max(renderSize.Width, renderSize.Height) >= SmallestLargestSide
+            ? renderSize
+            : new(Math.Max(renderSize.Width, SmallestLargestSide), renderSize.Height);
 
     /// <summary>
     /// AMD's jitter of draw <paramref name="index"/> in a sequence of <paramref name="phaseCount"/> phases, in render
@@ -333,6 +349,7 @@ internal sealed unsafe class Fsr3Upscaler : IDisposable
             Fsr3Pass.PrepareReactivity => Covering(render),
             Fsr3Pass.LumaInstability => Covering(render),
             Fsr3Pass.Accumulate => Covering(new((uint)constants.UpscaleSizeX, (uint)constants.UpscaleSizeY)),
+            Fsr3Pass.Rcas => (((uint)constants.UpscaleSizeX + 15) / 16, ((uint)constants.UpscaleSizeY + 15) / 16),
         };
     }
 
@@ -413,6 +430,7 @@ internal sealed unsafe class Fsr3Upscaler : IDisposable
             Fsr3Pass.PrepareReactivity => "ffx_fsr3upscaler_prepare_reactivity_pass.glsl",
             Fsr3Pass.LumaInstability => "ffx_fsr3upscaler_luma_instability_pass.glsl",
             Fsr3Pass.Accumulate => "ffx_fsr3upscaler_accumulate_pass.glsl",
+            Fsr3Pass.Rcas => "fsr_rcas.glsl",
         };
 
     // The lists of Clears, at the index that it computes from its three flags.
@@ -649,6 +667,9 @@ internal sealed unsafe class Fsr3Upscaler : IDisposable
             Fsr3Slot.ReactiveMask => inputs.Reactive,
             Fsr3Slot.TransparencyAndCompositionMask => Image(Fsr3Image.DefaultReactivityMask),
             Fsr3Slot.UpscaledOutput => inputs.Output,
+            Fsr3Slot.RcasInput => Image(
+                Fsr3Bindings.Written(Fsr3Image.InternalUpscaled1, Fsr3Image.InternalUpscaled2, odd)
+            ),
             Fsr3Slot.ReconstructedPreviousNearestDepth => Image(Fsr3Image.ReconstructedPrevNearestDepth),
             Fsr3Slot.DilatedMotionVectors => Image(Fsr3Image.DilatedVelocity),
             Fsr3Slot.DilatedDepth => Image(Fsr3Image.DilatedDepth),
@@ -691,6 +712,7 @@ internal sealed unsafe class Fsr3Upscaler : IDisposable
             or Fsr3Slot.Constants
             or Fsr3Slot.SpdConstants
             or Fsr3Slot.ReactiveConstants
+            or Fsr3Slot.RcasConstants
             or Fsr3Slot.LinearClamp => throw new UnreachableException($"{slot} holds no image."),
         };
 
@@ -702,6 +724,7 @@ internal sealed unsafe class Fsr3Upscaler : IDisposable
             Fsr3Slot.Constants => Constants,
             Fsr3Slot.SpdConstants => spdConstants,
             Fsr3Slot.ReactiveConstants => reactiveConstants,
+            Fsr3Slot.RcasConstants => rcasConstants,
             // The image slots come first in Fsr3Slot.
             <= Fsr3Slot.FrameInfo or Fsr3Slot.LinearClamp => throw new UnreachableException($"{slot} holds no buffer."),
         };
@@ -751,11 +774,16 @@ internal sealed unsafe class Fsr3Upscaler : IDisposable
         frame.Barriers.Buffer(Constants, BufferUse.TransferDestination);
         frame.Barriers.Buffer(spdConstants, BufferUse.TransferDestination);
         frame.Barriers.Buffer(reactiveConstants, BufferUse.TransferDestination);
+        frame.Barriers.Buffer(rcasConstants, BufferUse.TransferDestination);
         frame.Barriers.Flush(device.Vk, frame.CommandBuffer);
 
         WriteAllButTheRatio(frame);
         Update(frame: frame, buffer: spdConstants, data: new Span<byte>(&spd, sizeof(Fsr3SpdConstants)), offset: 0);
         Fsr3ReactiveConstants reactive = Fsr3ReactiveConstants.Sample;
+        float sharpening = MathF.Pow(2, -(2 - 2 * frame.Inputs.Frame.Sharpness));
+        uint half = BitConverter.HalfToUInt16Bits((Half)sharpening);
+        uint* rcas = stackalloc uint[] { BitConverter.SingleToUInt32Bits(sharpening), half | (half << 16), 0, 0 };
+        Update(frame: frame, buffer: rcasConstants, data: new Span<byte>(rcas, 16), offset: 0);
         Update(
             frame: frame,
             buffer: reactiveConstants,
