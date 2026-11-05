@@ -1,6 +1,6 @@
 ---
 id: ter-rgg9
-status: in_progress
+status: closed
 deps: [ter-gayt]
 links: []
 created: 2026-11-04T20:36:02Z
@@ -24,7 +24,7 @@ Preserved launch-ter-rgg9.md from /private/tmp/tertius-integration-20261105/ bef
 ```markdown
 ---
 id: ter-rgg9
-status: in_progress
+status: closed
 deps: [ter-gayt]
 links: []
 created: 2026-11-04T20:36:02Z
@@ -129,3 +129,7 @@ The fresh combined run completed successfully through the normal Nix dev shell a
 | Release | 9,957 | 20 | 0 | Passed, zero warnings/errors |
 
 All sixteen full-suite test records match the combined code/test/build-input identity `a60dc7a1e0dc37d804f799cce0e89a4d53ce5281`. The twelve added boundary/segment cases pass in both configurations. Current production shaders remain byte-identical to delivered commit `a3d5cf545f32503bbc26666c122ec55003bcf8c1`; only Entity reconciliation and parent tests changed code inputs. Whitespace checks pass. The complete log and per-module outputs are retained under `/private/tmp/tertius-integration-20261105/merge-rgg9/combined-lock.log` and `combined/`. Ticket prose written after the run does not change the tested inputs. Normal commit hooks, main integration, closure and push follow; none is claimed by this validation receipt alone.
+
+### Merged locally and closed
+
+Normal merge commit `82368c7035b61a2750ac5ee2e6e7417aa4648db8` passed its hooks. All three applicable Checked build stamps and the full Rendering test record matched staged inputs, so the hook reused them rather than repeating the suites. Main was fast-forwarded to that commit before `tk close ter-rgg9`. This closure changes ticket prose only. The root checkout remains on main; its ter-69s8, ter-7tnv and ter-s7c6 overlays were checked byte for byte against the saved snapshots and left untouched. The ter-rgg9 root overlay was cleared only after its complete bytes were verified inside the committed ticket. A normal push follows; no push is claimed by this local-merge receipt.
