@@ -60,6 +60,23 @@ The final full command, `nix develop --command bash -c 'bash tools/gpu-lock.sh c
 
 The 21 skips per configuration are recorded in the module logs; they include existing platform/known-defect checks and gated profiling/evidence tests. They are not claimed as passes. Raw red/green logs, cleanup logs, build logs, exact staged filenames and source identity are preserved under the worktree's ignored `captures/ter-s7c6/` folder. Thin frame-graph adapters (`UpscalePass`, `ExposureAdaptPass`) deliberately retain algorithm and pipeline ownership in `Fsr3Upscaler` and `ExposurePass`; they do not duplicate those owners.
 
+### Commit-hook inspection
+
+The normal commit hook passed. It skipped all five selected builds and both selected test projects because their records matched the staged code tree. No extra test run was needed. Its advisory report contains two method-length findings, three complexity findings and six verbosity findings. The following inspection keeps those findings separate from build or test failures:
+
+| Flagged code | Inspection and retained design |
+|---|---|
+| `VulkanRenderer` constructor and `DrawFrame` | Resource construction and frame submission remain explicit in their owning methods. Their order controls failure cleanup, image acquisition, history updates, fence reset and capture completion. Extracting wrappers solely to meet the line count hides that order without reducing caller knowledge. |
+| `ShaderConstants.Specialization` and `RendererOverrides.ApplyTo` | The branches express independent specialization values and independent user overrides. The specialization table already shares its storage-writing loop. Splitting each option into another method adds navigation without removing a duplicated decision. |
+| `RenderScaleController.Costs` | One bounded scan owns the timestamp range and its fixed/scaling split. Moving its range flags into separate helpers distributes the same boundary decision. The existing tests exercise missing, invalid, delayed and presentation-excluded timings. |
+| `DescriptorLayouts` tuple assignment | The tuple transfers one graphics-layout group into the owner's readonly fields. A one-use record adds a second representation without reducing the constructor's required layout knowledge. |
+| `RenderTargets.Create` and `ExposurePass.Adapt` | The flagged statements describe one target-allocation group and one ordered Vulkan adaptation dispatch. No duplicated operation or separate responsibility was found in those groups. |
+| `ExposureAdaptPass` | This frame-graph adapter schedules the existing exposure owner after FSR. It does not copy exposure state or algorithm behavior. |
+| `RenderScaleController.Next` | The guard rejects a negative public frame argument. The postcondition checks the recorded frame/scale pair after the ring write. They check different facts, so removing either to satisfy the heuristic loses a check. |
+| `VulkanRenderer.CreateTargets` local | `extent` names the output dimensions with a nonzero fallback before target construction. Keeping the named quantity makes the allocation call easier to read. |
+
+The report's 3647 binding errors and 243 unresolved state-access locations describe incomplete source-metric evidence, not compiler errors. Both real solution builds completed with zero warnings and errors. The retained findings are nonblocking observations. No source change followed the final code freeze.
+
 ## Real-renderer evidence and controlled-clock timings
 
 The standalone Release benchmark project compiled separately with zero warnings and errors (`logs/benchmark-build.log`). The final Demo, Rendering tests, Host tests and benchmark output stamps all contain source/test/build-input tree `16c00a286050822cf1ace22e06c78ac4bd0d395b`. The Nix SDK is `11.0.100-rc.1.26425.128`.
