@@ -20,6 +20,8 @@ namespace Tertius.Host;
 /// <item><c>--script &lt;file&gt; --out &lt;folder&gt; [--speed &lt;factor&gt;]</c> plays a script in a window.</item>
 /// <item><c>--size &lt;width&gt;x&lt;height&gt;</c>, such as <c>--size 1920x1080</c>, replaces the size of a script's window
 /// in either run.</item>
+/// <item><c>--gpu-run FIRST..LAST</c> adds the inclusive sum of consecutive passes to a headless timing report.
+/// Repeat it for several runs. Pass names match the recorded names, including spaces and case.</item>
 /// <item><c>--tone-curve aces|hable</c> chooses the headless renderer's <see cref="ToneCurve"/>, ACES fitted without the
 /// option.</item>
 /// <item><c>--screen-space-light off|&lt;meters&gt;</c> turns the headless renderer's screen-space light off, or sets its
@@ -81,10 +83,11 @@ public static partial class ScriptCommand
     /// <summary>The line that a headless run prints when the script's steps end, after <see cref="TimedStart"/>.</summary>
     public const string TimedEnd = "timed-end";
 
-    /// <summary>The line after the pass times of a run whose renderer's stamps latch late (ARCHITECTURE.md, "GPU timings").</summary>
+    /// <summary>Why individual pass times are omitted when the renderer's stamps latch late (ARCHITECTURE.md, "GPU timings").</summary>
     public const string LateStampsNote =
         "On MoltenVK a pass's GPU time can hold part of the next pass's work: only the span and the sums of neighbouring passes"
-        + " hold. Read each pass's own time from a trace (tools/README.md, \"GPU trace\").";
+        + " hold. Individual pass times are omitted; raw per-pass JSON values are not valid alone."
+        + " Read each pass's own time from a trace (tools/README.md, \"GPU trace\").";
 
     /// <summary>
     /// The file in the output folder of a headless run with a renderer that holds the exposure of each shown frame, in the
@@ -93,7 +96,7 @@ public static partial class ScriptCommand
     public const string ExposureFile = "exposure.json";
 
     private const string Usage =
-        "Usage: --script <file> --headless --out <folder> [--video none|<file.mkv> [--fps <rate>]] [--size <width>x<height>] [--tone-curve aces|hable] [--screen-space-light off|<meters>] [--screen-space-light-steps <count>] [--bloom on|off] [--reflections on|off] [--anti-aliasing off|smaa] [--local-shadows off|on] [--local-shadow-tiles <count>] [--cascaded-lights <count>] [--environment-map on|off] [--subsurface on|off]  |  --script <file> --out <folder> [--speed <factor>] [--size <width>x<height>]  |  --scene <name> [--speed <factor>] [--record <file>]";
+        "Usage: --script <file> --headless --out <folder> [--video none|<file.mkv> [--fps <rate>]] [--size <width>x<height>] [--gpu-run FIRST..LAST]... [--tone-curve aces|hable] [--screen-space-light off|<meters>] [--screen-space-light-steps <count>] [--bloom on|off] [--reflections on|off] [--anti-aliasing off|smaa] [--local-shadows off|on] [--local-shadow-tiles <count>] [--cascaded-lights <count>] [--environment-map on|off] [--subsurface on|off]  |  --script <file> --out <folder> [--speed <factor>] [--size <width>x<height>]  |  --scene <name> [--speed <factor>] [--record <file>]";
 
     // The value of --video that draws the captures and drops them (Discard), for a run that only times its frames.
     private const string NoVideo = "none";
@@ -155,6 +158,11 @@ public static partial class ScriptCommand
             Stray: "--size applies to a script, so give --script.",
             ValueProblem: (_, size) => SizeProblem(size)
         ),
+        new(
+            Option: "--gpu-run",
+            Stray: "--gpu-run applies to a headless run, so add --headless.",
+            ValueProblem: (_, run) => GpuTimingSummary.ReadRun(run).Problem
+        ),
         .. HeadlessRendererOptions.Select(renderer => new OptionRule(
             Option: renderer.Option,
             Stray: $"{renderer.Option} applies to a headless run, so add --headless.",
@@ -182,6 +190,7 @@ public static partial class ScriptCommand
         "--video",
         "--fps",
         "--size",
+        "--gpu-run",
         .. HeadlessRendererOptions.Select(renderer => renderer.Option),
     ];
 
@@ -189,8 +198,8 @@ public static partial class ScriptCommand
     /// Runs the command. Returns the exit code. Writes the path of each dump and each captured image, or of the video, to
     /// <paramref name="output"/>, and every problem and the world's log to <paramref name="error"/>. Makes a headless
     /// renderer only for a script with a capture or film step, so a script with dumps only runs on a machine with no GPU.
-    /// A headless renderer that times its passes adds <see cref="GpuTimingsFile"/>, its path, one line for each pass and one
-    /// for the frame's GPU span.
+    /// A headless renderer that times its passes adds <see cref="GpuTimingsFile"/>, its path, the frame's GPU span and
+    /// requested pass-run sums. Individual pass lines are omitted when the renderer's stamps latch late.
     /// Every headless renderer adds <see cref="ExposureFile"/> and its path.
     /// </summary>
     public static int Run(string[] args, IReadOnlyList<Scene> scenes, TextWriter output, TextWriter error) =>
@@ -361,7 +370,7 @@ public static partial class ScriptCommand
         using VulkanRenderer? rendererToDispose = renderer;
         return Play(
             run: run,
-            target: headless.TargetIn(run.Out),
+            headless: headless,
             script: script,
             scene: scene,
             world: world,
@@ -373,12 +382,12 @@ public static partial class ScriptCommand
     }
 
     /// <summary>
-    /// Plays the script in <paramref name="world"/> with a playback on <paramref name="renderer"/>, or with none when it is
-    /// null, then writes the files of the run and the readings of the renderer. Returns the exit code.
+    /// Plays the script in <paramref name="world"/> with the headless capture and timing choices, then writes the files
+    /// and renderer readings. Returns the exit code. A null renderer plays only steps that need no rendering.
     /// </summary>
     private static int Play(
         ScriptRun run,
-        CaptureTarget target,
+        Headless headless,
         Script script,
         Scene scene,
         World world,
@@ -388,7 +397,13 @@ public static partial class ScriptCommand
         TextWriter error
     )
     {
+        CaptureTarget target = headless.TargetIn(run.Out);
         var readings = new FrameReadings();
+        if (renderer is null && readings.Timings.Runs(headless.GpuRuns).Problem is { } timingProblem)
+        {
+            error.WriteLine(timingProblem);
+            return CommandLineError;
+        }
         HeadlessPlayback? playback = null;
         if (renderer != null)
         {
@@ -430,14 +445,22 @@ public static partial class ScriptCommand
             playback?.Finish();
             WriteFiles(result: result, outputFolder: run.Out, target: target, output: output);
             if (renderer != null)
-                WriteReadings(
+            {
+                string? problem = WriteReadings(
                     readings: readings,
                     renderer: renderer,
                     size: script.Window,
                     captures: result.Captures,
+                    gpuRuns: headless.GpuRuns,
                     outputFolder: run.Out,
                     output: output
                 );
+                if (problem is not null)
+                {
+                    error.WriteLine(problem);
+                    return CommandLineError;
+                }
+            }
             return Ok;
         }
         catch (Exception ex)
@@ -449,23 +472,29 @@ public static partial class ScriptCommand
     }
 
     /// <summary>Writes <see cref="GpuTimingsFile"/> and <see cref="ExposureFile"/> from the readings of a run's shown frames.</summary>
-    private static void WriteReadings(
+    private static string? WriteReadings(
         FrameReadings readings,
         VulkanRenderer renderer,
         ScriptWindow size,
         IReadOnlyList<string> captures,
+        IReadOnlyList<string> gpuRuns,
         string outputFolder,
         TextWriter output
     )
     {
-        WriteGpuTimings(
+        string? problem = WriteGpuTimings(
             timings: readings.Timings,
-            renderer: renderer,
+            device: renderer.DeviceName,
+            stampsLatchLate: renderer.StampsLatchLate,
             size: size,
+            runs: gpuRuns,
             outputFolder: outputFolder,
             output: output
         );
+        if (problem is not null)
+            return problem;
         WriteExposures(stops: readings.Exposures, captures: captures, outputFolder: outputFolder, output: output);
+        return null;
     }
 
     /// <summary>
@@ -612,50 +641,72 @@ public static partial class ScriptCommand
 
     /// <summary>
     /// Writes <see cref="GpuTimingsFile"/> into the output folder with the summary of the frames' GPU span and of each pass,
-    /// then its path, one line for each pass, <see cref="LateStampsNote"/> on a renderer whose stamps latch late, and one
-    /// line for the span to <paramref name="output"/>. Writes nothing when no frame was timed.
+    /// then its path, valid console timings and requested run sums. Returns a range error without writing a report.
+    /// Writes nothing when no frame was timed and no runs were requested.
     /// </summary>
-    internal static void WriteGpuTimings(
+    internal static string? WriteGpuTimings(
         GpuTimingSummary timings,
-        VulkanRenderer renderer,
+        string device,
+        bool stampsLatchLate,
         ScriptWindow size,
+        IReadOnlyList<string> runs,
         string outputFolder,
         TextWriter output
     )
     {
+        var summarized = timings.Runs(runs);
+        if (summarized.Problem is { } problem)
+            return problem;
         if (timings.Frame() is not { } frame)
-            return;
+            return null;
         IReadOnlyList<PassSummary> passes = timings.Passes();
+        IReadOnlyList<RunSummary> runSummaries = summarized.Ok ?? throw new UnreachableException();
         string path = Path.Combine(outputFolder, GpuTimingsFile);
         Directory.CreateDirectory(outputFolder);
         File.WriteAllText(
             path,
             JsonSerializer.Serialize(
                 new GpuTimingReport(
-                    Device: renderer.DeviceName,
+                    Device: device,
                     Width: size.Width,
                     Height: size.Height,
                     Frame: frame,
                     Passes: passes
-                ),
+                )
+                {
+                    StampsLatchLate = stampsLatchLate,
+                    Runs = runSummaries,
+                },
                 ReportJson
             )
         );
         output.WriteLine(path);
-        foreach (PassSummary pass in passes)
-            output.WriteLine(
-                FormattableString.Invariant(
-                    $"GPU {pass.Pass}: mean {pass.MeanMs:F3} ms, median {pass.MedianMs:F3} ms, p95 {pass.P95Ms:F3} ms over {pass.Frames} frames"
-                )
-            );
-        if (renderer.StampsLatchLate)
+        if (!stampsLatchLate)
+            foreach (PassSummary pass in passes)
+                WriteTiming(
+                    pass.Pass,
+                    new SpanSummary(
+                        Frames: pass.Frames,
+                        MeanMs: pass.MeanMs,
+                        MedianMs: pass.MedianMs,
+                        P95Ms: pass.P95Ms
+                    ),
+                    output
+                );
+        if (stampsLatchLate)
             output.WriteLine(LateStampsNote);
+        WriteTiming("frame span", frame, output);
+        foreach (RunSummary run in runSummaries)
+            WriteTiming($"run {run.First}..{run.Last}", run.Timing, output);
+        return null;
+    }
+
+    private static void WriteTiming(string name, SpanSummary timing, TextWriter output) =>
         output.WriteLine(
             FormattableString.Invariant(
-                $"GPU frame span: mean {frame.MeanMs:F3} ms, median {frame.MedianMs:F3} ms, p95 {frame.P95Ms:F3} ms over {frame.Frames} frames"
+                $"GPU {name}: mean {timing.MeanMs:F3} ms, median {timing.MedianMs:F3} ms, p95 {timing.P95Ms:F3} ms over {timing.Frames} frames"
             )
         );
-    }
 
     /// <summary>
     /// Writes <see cref="ExposureFile"/> into the output folder with one <see cref="ShownExposure"/> per shown frame, in the
@@ -699,7 +750,17 @@ public static partial class ScriptCommand
         int Height,
         SpanSummary Frame,
         IReadOnlyList<PassSummary> Passes
-    );
+    )
+    {
+        /// <summary>Whether individual pass timings can contain neighbouring work.</summary>
+        public bool StampsLatchLate { get; init; }
+
+        /// <summary>The requested inclusive pass runs, with statistics of their per-frame sums.</summary>
+        public IReadOnlyList<RunSummary> Runs { get; init; } = [];
+
+        /// <summary>Why raw individual pass values cannot be used alone, or null on an ordinary timestamp driver.</summary>
+        public string? Warning => StampsLatchLate ? LateStampsNote : null;
+    }
 
     /// <summary>
     /// The options, or null and the problem for an unknown option, a missing value, an option that the run does not take,
@@ -715,9 +776,12 @@ public static partial class ScriptCommand
     }
 
     /// <summary>The options of a command line as given, before the rules between them: the value of each option, and <c>--headless</c>.</summary>
-    private sealed record GivenOptions(IReadOnlyDictionary<string, string> Values, bool Headless)
+    private sealed record GivenOptions(IReadOnlyDictionary<string, List<string>> Values, bool Headless)
     {
-        public string? Value(string option) => Values.GetValueOrDefault(option);
+        public string? Value(string option) => Values.GetValueOrDefault(option)?.LastOrDefault();
+
+        public IReadOnlyList<string> AllValues(string option) =>
+            Values.TryGetValue(option, out List<string>? values) ? values : Array.Empty<string>();
 
         /// <summary>
         /// The problem with the first option of <see cref="RunChoiceOptions"/> that the command line gives and that a run
@@ -737,12 +801,17 @@ public static partial class ScriptCommand
         {
             foreach (OptionRule rule in OptionRules)
             {
-                if (Value(rule.Option) is not { } value)
+                if (!Values.ContainsKey(rule.Option))
                     continue;
                 if (!taken.Contains(rule.Option))
                     return rule.Stray;
-                if (rule.ValueProblem(this, value) is { } problem)
-                    return problem;
+                IEnumerable<string> checkedValues =
+                    rule.Option == "--gpu-run"
+                        ? AllValues(rule.Option)
+                        : [Value(rule.Option) ?? throw new UnreachableException()];
+                foreach (string value in checkedValues)
+                    if (rule.ValueProblem(this, value) is { } problem)
+                        return problem;
             }
 
             return null;
@@ -767,7 +836,7 @@ public static partial class ScriptCommand
     /// <summary>The options as given, or null and the problem for an unknown option or a missing value.</summary>
     private static GivenOptions? Gather(string[] args, out string? problem)
     {
-        var values = new Dictionary<string, string>();
+        var values = new Dictionary<string, List<string>>();
         bool headless = false;
         problem = null;
         for (int i = 0; i < args.Length; i++)
@@ -791,7 +860,12 @@ public static partial class ScriptCommand
                 return null;
             }
 
-            values[option] = args[++i];
+            if (!values.TryGetValue(option, out List<string>? optionValues))
+            {
+                optionValues = [];
+                values.Add(option, optionValues);
+            }
+            optionValues.Add(args[++i]);
         }
 
         return new(values, headless);
@@ -832,6 +906,9 @@ public static partial class ScriptCommand
                 Video: VideoOf(video: given.Value("--video"), fps: given.Value("--fps")),
                 Renderer: RendererOverridesOf(given)
             )
+            {
+                GpuRuns = given.AllValues("--gpu-run"),
+            }
             : new InWindow(Speed: SpeedOf(given.Value("--speed")) ?? 1);
         return new RunOptions(
             new ScriptRun(Script: script, Out: outFolder, Size: SizeOf(given.Value("--size")), Display: display)

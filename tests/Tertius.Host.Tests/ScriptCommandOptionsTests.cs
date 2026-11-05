@@ -83,6 +83,100 @@ public sealed class ScriptCommandOptionsTests
         problem.Should().BeNull();
     }
 
+    [Fact]
+    public void AHeadlessRunAcceptsSeveralGpuRunsWithPassNamesThatContainSpaces()
+    {
+        ScriptCommand.ReadOptions(
+            [
+                "--script",
+                "s.json",
+                "--headless",
+                "--out",
+                "o",
+                "--gpu-run",
+                "bloom..capture",
+                "--gpu-run",
+                "shadow maps..direct light",
+            ],
+            out string? problem
+        );
+
+        problem.Should().BeNull();
+    }
+
+    [Theory]
+    [InlineData("bloom")]
+    [InlineData("..capture")]
+    [InlineData("bloom..")]
+    [InlineData("bloom..tone map..capture")]
+    [InlineData("bloom...capture")]
+    [InlineData(" ..capture")]
+    public void AMalformedGpuRunExplainsTheInclusiveRangeSyntax(string run)
+    {
+        ScriptCommand.ReadOptions(
+            ["--script", "s.json", "--headless", "--out", "o", "--gpu-run", run],
+            out string? problem
+        );
+
+        problem.Should().Contain("--gpu-run needs FIRST..LAST").And.Contain(run);
+    }
+
+    [Fact]
+    public void AMalformedGpuRunIsNotHiddenByALaterValidGpuRun()
+    {
+        ScriptCommand.ReadOptions(
+            ["--script", "s.json", "--headless", "--out", "o", "--gpu-run", "bloom", "--gpu-run", "bloom..capture"],
+            out string? problem
+        );
+
+        problem.Should().Contain("--gpu-run needs FIRST..LAST").And.Contain("'bloom'");
+    }
+
+    [Theory]
+    [InlineData("--script", "s.json", "--out", "o")]
+    [InlineData("--scene", "drop-box")]
+    public void GpuRunsRequireAHeadlessRun(params string[] args)
+    {
+        ScriptCommand.ReadOptions([.. args, "--gpu-run", "bloom..capture"], out string? problem);
+
+        problem.Should().Be("--gpu-run applies to a headless run, so add --headless.");
+    }
+
+    [Fact]
+    public void AGpuRunWithoutAValueExplainsWhatIsMissing()
+    {
+        ScriptCommand.ReadOptions(["--script", "s.json", "--headless", "--out", "o", "--gpu-run"], out string? problem);
+
+        problem.Should().Be("--gpu-run needs a value.");
+    }
+
+    [Fact]
+    public void AHeadlessRunRetainsEveryRequestedGpuRunInCommandLineOrder()
+    {
+        ScriptCommand.RunOptions? options = ScriptCommand.ReadOptions(
+            [
+                "--script",
+                "s.json",
+                "--headless",
+                "--out",
+                "o",
+                "--gpu-run",
+                "bloom..capture",
+                "--gpu-run",
+                "shadow maps..direct light",
+                "--gpu-run",
+                "bloom..capture",
+            ],
+            out string? problem
+        );
+
+        problem.Should().BeNull();
+        options.Should().NotBeNull();
+        options!.Value.TryGetValue(out ScriptCommand.ScriptRun script).Should().BeTrue();
+        script.Display.TryGetValue(out ScriptCommand.Headless headless).Should().BeTrue();
+        headless.GpuRuns.Should().Equal("bloom..capture", "shadow maps..direct light", "bloom..capture");
+    }
+
     public static TheoryData<string[], string> RefusedChoicesAndFreePlays =>
         new()
         {

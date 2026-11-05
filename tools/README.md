@@ -645,6 +645,21 @@ So a difference between two builds' estimates below about 8 % says nothing about
 nix develop --command bash tools/demo-timing.sh captures/gpu-branch scripts/demo-exit.json --size 1920x1080
 ```
 
+A GPU run is an inclusive range of consecutive recorded passes. Add repeatable `--gpu-run "FIRST..LAST"` options to request their sums:
+
+```bash
+nix develop --command bash tools/demo-timing.sh captures/gpu-branch scripts/demo-exit.json --size 1920x1080 \
+  --gpu-run "bloom..capture" --gpu-run "shadow maps..direct light"
+```
+
+Use exact pass names from `gpu-timings.json`, including case and spaces. The range includes both endpoints and every actual pass between them in each frame. It can overlap another range. Equal endpoints select one pass. Outer whitespace around each endpoint is trimmed. The command rejects malformed ranges, unknown names, reversed ranges, and endpoints missing from any recorded frame. An empty recorded pass still counts. A skipped interior pass has no sample. A missing endpoint never becomes zero, and no frame is silently dropped. A script without rendered frames cannot report requested ranges.
+
+Each frame contributes one range sum in milliseconds. The report then takes the mean, median and nearest-rank p95 across those sums. It never adds pass medians or pass p95 values. The frame span remains the measured GPU time from the first timestamp to the last, including gaps between passes.
+
+On a driver whose GPU timestamps latch late, such as MoltenVK, the console hides individual pass times. It prints the frame span and only the requested range sums. The full run log explains why individual pass times are omitted. Without `--gpu-run`, the frame span is the only timing line before the GPU clock. Other drivers keep their existing individual pass lines and add requested range sums.
+
+`gpu-timings.json` preserves `device`, `width`, `height`, `frame` and raw `passes` with their existing fields. Added `runs` entries hold `first`, `last` and `timing`. The `timing` object holds `frames`, `meanMs`, `medianMs` and `p95Ms`. Added `stampsLatchLate` and `warning` describe whether raw individual pass values are valid alone. When `stampsLatchLate` is true, read the warning before using those values. A range request does not change which frames the run records.
+
 `tools/gpu_clock.py compare` compares two such runs. It prints the check of the two clocks, then the mean frame span and the mean of each pass of each run, with their difference and their estimates at the windowed clock:
 
 ```bash
