@@ -1,6 +1,6 @@
 ---
 id: ter-s7c6
-status: in_progress
+status: closed
 deps: [ter-k63u, ter-gayt, ter-7m38]
 links: []
 created: 2026-11-03T14:53:48Z
@@ -267,7 +267,7 @@ The following is the complete launch note supplied by the parent, preserved verb
 ````text
 ---
 id: ter-s7c6
-status: in_progress
+status: closed
 deps: [ter-k63u, ter-gayt, ter-7m38]
 links: []
 created: 2026-11-03T14:53:48Z
@@ -444,3 +444,22 @@ Root-note additions were merged semantically from `/private/tmp/tertius-integrat
 No controlled FSR timing or capture campaign was repeated because production inputs did not change. Existing `captures/ter-s7c6/review-fix/` evidence remains in place. No standalone noise checkout or dirty prototype was touched. No new noise, brightness, ray, denoising or live-FPS acceptance is claimed. No soak/MTBF estimate was measured. Source type-metric evidence remains incomplete where reported by the normal hook; it is not proof of the design targets.
 
 Linux runtime remains user-deferred in ter-cgif. The real-window dynamic-resolution controller video in ter-570o is parent-owned after integration; fixed headless scaling is not substituted for it. Neither is unfinished work for this hardening stage. Parent owns main integration, ticket closure, pushing and visual acceptance. This worker finishes only the already-prepared normal merge commit on the existing ticket branch, with normal hooks and no bypass, then releases its one heavy allocation after all owned commands have ended.
+
+
+## Root coordination notes retained at integration
+
+**2026-11-05T19:22:49Z**
+
+2026-11-05: parent prepared clean prerequisite main merge on the FSR ticket branch using --no-ff --no-commit 7d9f6e6739b8fcd1b96fcd307c6434e3d4a8ebaf. HEAD remains 96db37df9, MERGE_HEAD7d9f6e673, combined input identity7734caec2c2bf91431eb30766ab17e94b8d22a2b. Main untouched. Reused verified hardening definition077df081-6e60-4160-b9a4-b89ea970421a (source/schema SHA2567e9e66bef16b0ba38ba74d49785c05a3c823a720f20bfd1ab8d7af7ae0c9e669), started combined parent-hardening workflow f3dc9013-181e-405d-8735-657e9826be11, request ter-s7c6-parent-hardening-combined-main-20261105-v1. One codex gpt-6.1-sol/xhigh worker, one heavy allocation; no repeat build/review cycle. Worker preserves staged prerequisites, performs coverage/scripted mutation survivor triage/final Checked+Release checks and normal final branch commit. Parent root notes and post-merge video ticket snapshot supplied with hashes. Main stays7d9f6e673 until result; final root merge/push/closure and video remain parent-owned. No automatic delivery grant; worker explicitly notifies parent through T3.
+
+**2026-11-05T20:02:40Z**
+
+2026-11-05 parent hardening progress checkpoint, NOT final readiness: worker preserves HEAD96db37df9 and pending MERGE_HEAD7d9f6e673 with all staged prerequisite files. Official changed-code classifier confirms no changed Core/Simulation/Physics implementation. Affected Host/Rendering Checked and Release coverage runs passed; these are coverage-stage runs, not a claim of completed final combined solution validation. Initial45 deliberate mutation faults completed; three invalid definitions were corrected/rerun, and behavioral regressions are being added for surviving-fault families without production changes. Final survivor dispositions, final code-input identity and complete final Checked/Release evidence remain outstanding. Focused regression validation is queued normally through GPU lock behind box readiness; existing single heavy allocation retained, one foreground command only. Evidence /private/tmp/tertius-hardening-20261105/ter-s7c6. No new workflow/review/integration action required by this progress report; keep pending merge/prerequisites and root notes preserved.
+
+**2026-11-05T20:26:30Z**
+
+2026-11-05 hardening progress, NOT final readiness: worker reports45 valid deliberate faults,42 killed by real behavioral assertions. Three remaining rows receive explicit separate dispositions: two inactive-bounds faults are redundant with the existing full-allocation zero distance clear; previous-jitter omission in reflected-hit reprojection survives at subpixel precision and is a judgment/remaining precision-test limit, NOT claimed equivalent, NOT a proven production defect, and NOT image-quality acceptance. Added behaviors cover controller identity/stages, real surface reprojection, mip/shadow sampling, output composition/history, one-axis acquired-image changes, option guards and SMAA rejection. No production changes/new production defect reported. Scoped cleanup passed. Final affected-project coverage is running; one final full Checked+Release solution pass and normal pending-merge commit remain. Original HEAD96db37df9, pending main7d9f6e673 merge and all staged prerequisites remain preserved. Existing heavy allocation remains retained, reported free disk7.2GB. Do not describe the campaign as45 kills or complete acceptance; final table/dispositions, exact final input identity, final test records and normal commit still required.
+
+**2026-11-05T21:11:06Z**
+
+2026-11-05 parent integration: independently verified completed/settled hardening workflow f3dc9013-181e-405d-8735-657e9826be11, clean immutable b23b2870c32d81da36962017c415429fafb86801, exact merge parents96db37df965c7b35dae499a2f34410d2c3b35011 and7d9f6e6739b8fcd1b96fcd307c6434e3d4a8ebaf, all16 full-suite records AND assembly stamps and code-input identityba5127acef21489cc12c01efc090351788f7c0ef. Root main fast-forwarded normally to this exact tested combined commit, with no production/test changes or repeated suites. Checked10047passed/Release10034passed,24skips each,0failures. Preserved all unrelated root notes and nohup.out byte-for-byte; original root ticket bytes/patch/checksums archived at /private/tmp/tertius-integration-20261105/fsr-main-20261105-1610, and late FSR notes reconciled above. Closing after verified main integration; this final metadata-only receipt will fast-forward into main and be pushed normally. Known judgment survivor S03, Linux ter-cgif and separate post-merge controller video ter-570o remain explicit limits, not noise/live-FPS acceptance. Main integration does not require noise/box work or another review cycle.
