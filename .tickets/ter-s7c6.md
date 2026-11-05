@@ -154,6 +154,90 @@ From the review of ter-k63u:
 - No GPU test of ter-k63u has motion. The sign and the units of the motion vectors (MotionVectorScale = 1, in units of the render size) are first exercised here.
 - FSR's GPU time of 2.79 ms was measured at a load of 5.5 with a largest render size of 1280 x 720. Measure it again on a quiet machine with the largest render size that this ticket picks.
 
+## Review-fix stage, 2026-11-05
+
+This stage began at `9bbbea67cf35ae54f6dbb49f704ce6d704c45f8e`, with a clean checkout on the supplied ticket branch. The original review base remains `34c28466e641a864fd6a915c029e08f07b3b9ccc`. No other checkout, noise prototype, later main commit or automatic semantic-frame correction was imported. The earlier sentence, "Implementation and required validation are complete.", described the first build stage; this section supersedes it for the review obligations.
+
+### Findings and assessment gaps
+
+| Review item | Resolution and evidence |
+|---|---|
+| Small positive outputs fail FSR construction or resize | Reproduced construction failures at 64 × 64, 7 × 5 and 1 × 1, and the shrink failure. The 64 × 64 default still renders at 40 × 40. Only FSR's internal allocation is padded for its six-level pyramid; the active-size policy is unchanged. Replacement creation now precedes disposal. Shrink-and-restore regressions cover 40 × 32, 7 × 5 and 1 × 1. |
+| Very narrow outputs can give zero jitter phases | Two CPU regressions observed zero phases for output widths one and two with active width eight. The phase count now has a minimum of one. The real default renderer also renders and captures the one-pixel output. |
+| Controller parses diagnostic labels | The renamed-label regression failed before the change: the original scale fell to 0.9267767 while the renamed scale remained one. `FrameGraph.Stage` now travels with each recorded timestamp through conversion and frame-numbered timing storage. No controller decision reads a pass label. The regression and the stage-preserving timestamp-conversion test pass. The selected two-submission model is unchanged. |
+| Solid and cutout variants repeat common rules | Confirmed the duplicated specialization assignments in geometry and impostor capture. Each pass now creates one non-null common configuration and derives its cutout configuration by changing only `CutoutAlpha`. The existing fully opaque cutout-versus-solid HDR regression is retained and passes. No shader or material policy changed. |
+| Reflected motion while the active size changes was not tested | Two real-renderer regressions now move the camera and glowing panel over a mirror while the active size shrinks or grows. They check the new reflected location, rejection of the old location, retained history and no reset, with FSR enabled and Vulkan validation clean. Both pass. |
+| FSR cost at the window's maximum allocation was missing | Two GPU-exclusive Release rounds now allocate 1920 × 1080 for both maximum render size and output. They measure the minimum, fixed-headless and full active sizes at a held GPU clock. The results and validation limits are below; no tracer parameter changed. |
+| Live swapchain behavior was not exercised | A foreground Release probe exercised a real Vulkan window at 640 × 360, 7 × 5, 1 × 1 and 640 × 360. It completed 240 draws, retained frame-numbered stage timings and reported zero validation messages, including disposal. The evidence-only probe is retained in the ignored artifact folder, not added to the engine. This is a resize/synchronization smoke test, not a live-window frame-rate claim. |
+| Complete cohesion and depth evidence was not established | The earlier hook's binding errors are not compiler failures, but they prevent a claim of complete engine-wide metric evidence. Review uses the actual owners and callers instead: one graph stage identity, one common configuration per variant pair, one FSR resource owner and one controller state owner. Thin pass adapters remain justified because they schedule existing owners rather than duplicate their algorithms. No incomplete metric ratio is presented as proof that the design goals are met. |
+| Linux runtime was not exercised | Remains explicitly user-deferred under `ter-cgif`. The new allocation padding and CPU timing metadata add no Vulkan capability requirement. macOS validation does not establish Linux runtime behavior. |
+| Coverage and mutation testing were not run | Remain assigned to the parent. This stage runs neither tool and claims neither result. |
+
+The old architecture sentence, "The exposure buffer gets its second float, `previousStops`, in ticket 5.", was stale after the integration. The architecture now states the shared declaration, frame-zero initialization and adaptation ordering. Source provenance, the portable 32-bit FSR build and the applicability analysis remain unchanged. The FSR measurement still uses HDR input with render-pixel motion, reversed depth and AMD's reactive mask, at the renderer's actual 1080p allocation and active sizes. No denoiser, tracer parameter or light budget was changed.
+
+The first broad red command selected no tests because its method filter combined patterns incorrectly. It is not counted as red evidence. Corrected runs then observed six small-output failures, two zero-phase failures and one renamed-label failure. A first green resize assertion exposed two test assumptions: the live controller can change scale, and the first capture allocates a readback buffer. The resize test now pins the controller's allowed range to one and creates its first capture before counting allocations. These changes preserve the behavior under test rather than loosen its expected result.
+
+All review-fix artifacts are under `captures/ter-s7c6/review-fix/` in this checkout. The source/test/build-input identity after cleanup is `0c0785ceb18618f1ba836b1f18d9d9956e3efb86`. Maximum-allocation timing, final checks and inspected captures are recorded in the stage's final evidence note.
+
+### Final checks and source identity
+
+After `tools/cleanup.sh` processed the 14 touched C# files, the complete validation command was:
+
+```bash
+nix develop --command bash -c 'bash tools/gpu-lock.sh captures/ter-s7c6/review-fix/logs/final-validation.log bash tools/test-all.sh -c Checked,Release -j 1 -o captures/ter-s7c6/review-fix/final-tests'
+```
+
+It finished successfully on 2026-11-05, from 13:49:07 to 14:01:41 EST. Both solution builds had zero warnings and errors. The eight test modules reported:
+
+| Module | Checked passed / skipped | Release passed / skipped |
+|---|---:|---:|
+| Core | 1207 / 0 | 1175 / 0 |
+| Simulation | 2001 / 0 | 2020 / 0 |
+| Physics | 1492 / 8 | 1493 / 8 |
+| Rendering | 2315 / 10 | 2314 / 10 |
+| Host | 2024 / 6 | 2024 / 6 |
+| Unions | 59 / 0 | 59 / 0 |
+| Style | 276 / 0 | 276 / 0 |
+| Slop | 597 / 0 | 597 / 0 |
+| Total | 9971 / 24 | 9958 / 24 |
+
+The three new opt-in timing cases skip in normal suites and passed in both explicit measurement rounds. `nix develop --command dotnet build benchmarks/Tertius.Benchmarks -c Release` also passed with zero warnings and errors. The AMD source-pin check passed: the GLSL equals SDK v1.1.4 apart from the accepted declarations and `pin.diff` fix. No source, test or build input changed after these checks. Demo, Rendering tests, Host tests and benchmark output stamps all match `0c0785ceb18618f1ba836b1f18d9d9956e3efb86` and this worktree's git directory.
+
+### Maximum-allocation FSR measurement
+
+The foreground evidence command held `tools/gpu-lock.sh` from 14:02:38 to 14:05:58 EST. It ran source-pin verification, advancing real-demo captures, two isolated FSR timing rounds and a real-window resize probe, sequentially. The timing runs used `TERTIUS_FSR_TIMING=1`, Release, Apple M1 Max/MoltenVK and `tools/gpu-clock.sh`. Each active size used 60 warm-up batches and 150 timed batches, with eight FSR executions per batch and two batches queued. The 16 descriptor slots match those executions in flight. Timestamps enclose the batch; the reported per-frame cost divides the batch span by eight. There is no swapchain or presentation wait in this isolated measurement.
+
+The maximum render allocation and output are both 1920 × 1080 in every row. The active rectangle is the pixels processed in that execution. At minimum controller scale 0.5, per-axis rounding to eight gives 960 × 536, not 960 × 540.
+
+| Active pixels | Round | Median ms/frame | p10 / p90 ms/frame | Mean GPU MHz | Clock samples |
+|---|---:|---:|---:|---:|---:|
+| 960 × 536 | 1 | 1.710 | 1.697 / 1.723 | 1296.0 | 20 |
+| 960 × 536 | 2 | 1.708 | 1.696 / 1.722 | 1296.0 | 20 |
+| 1280 × 720 | 1 | 1.991 | 1.971 / 2.008 | 1295.9 | 23 |
+| 1280 × 720 | 2 | 1.991 | 1.969 / 2.008 | 1296.0 | 22 |
+| 1920 × 1080 | 1 | 2.905 | 2.893 / 2.917 | 1296.0 | 33 |
+| 1920 × 1080 | 2 | 2.900 | 2.890 / 2.913 | 1296.0 | 33 |
+
+Clock p10 and p90 are 1296.0 MHz for all six closed timed spans. These are controlled-clock, isolated FSR costs at the actual maximum allocation, not a window frame-rate claim or a tracer quality result. The patterned HDR input, reversed depth, zero motion and reactive-mask generation exercise the existing measurement procedure. Validation is disabled for timing, not silently claimed: `TheLargestWindowAllocationHandlesTheControllersActiveSizesUnderValidation` separately exercises full → 720p → minimum → full with finite output and zero validation messages, in both complete test configurations. Reflection motion, exposure transitions and real scene motion have separate behavioral checks.
+
+The raw samples are in `logs/fsr-maximum-1.log` and `logs/fsr-maximum-2.log`. `analyze-evidence.py` extracts each timed span's clock, rather than treating all three spans as one. `maximum-allocation-timings.json` records all six results and the tested code identity. Its SHA-256 is `d27061af18ba31920bd4b7ebee58e4e8ff22070f48f491018f4980e2327ce174`. The run script's SHA-256 is `da7b4a1c2858868f78ee4f7128825382a85c2ff4aca703cf69f2520ad1e90695`.
+
+### Advancing captures and live swapchain evidence
+
+The final-code captures use `scripts/temporal-upscale-validation.json` (SHA-256 `d760a05ff997cc573f92a59083ccbaaacbe08e0422d288284961b00aa37c73fe`), the real demo, headless output 1920 × 1080, two frames in flight and default settings apart from `--upscaling off` or `--upscaling fsr3`. Native active size is 1920 × 1080; FSR active size is 1280 × 720. The actual CLI produced 67 PNGs per mode under `demo-off/` and `demo-fsr3/`. Their clocks varied during capture: native mean 1136.0 MHz, p10/p90 807.7/1296.0 MHz, 107 samples; FSR mean 1050.0 MHz, p10/p90 750.8/1296.0 MHz, 91 samples. These clocks are provenance only. The CLI frame-span summaries are not a controlled performance comparison.
+
+The explicit `FsrScriptEvidence` test also passed at this identity, with validation on. Its `history-proof/off/history.json` and `history-proof/fsr3/history.json` each record 163 drawn frames, draw index 56 at the endpoint, reset false, 32 warm-up frames and zero validation messages. Both modes produced 67 images. Warm-up and films advance real draws; a frozen snapshot time is not counted as history warm-up.
+
+Three final CLI images were inspected and shown:
+
+- `demo-off/deck-still.png`: native deck with sharp structural edges and fine surface grain.
+- `demo-fsr3/deck-still.png`: the same deck reconstructed from 1280 × 720, with softer edges and residual cloudy lighting variation.
+- `demo-fsr3/glass-motion-000023.png`: moving glass with pronounced blue mottling; this one frame does not establish artifact-free motion.
+
+The final real-window probe completed 60 frames at each framebuffer size 640 × 360 → 7 × 5 → 1 × 1 → 640 × 360. Active sizes were 632 × 352 → 8 × 8 → 8 × 8 → 632 × 352. Draw counts reached 60/120/180/240 and frame-numbered timing reads reached 58/118/178/238. Every endpoint had draw index 59 and reset false. Vulkan validation reported zero messages, including disposal. `logs/live-window-final.log` and `window-probe/` preserve this smoke test. The probe source SHA-256 is `519004fa6fa0a3c9c515816be14c0eb8139847cf32d2cb2254abf87f7625fef5`. An initial evidence-only probe used event-driven GLFW polling and waited for input; that process was stopped and its exit awaited before rerunning with continuous event polling. It was not an engine failure.
+
+All required in-scope checks are complete. Native tracer noise, engine-wide metric completeness and Linux runtime are not claimed solved. Coverage, mutation testing, safe import into standalone noise research, integration and ticket closure remain the parent's work. No other checkout or dirty prototype was changed. The ticket remains in progress until integration; this stage commits its completed review fixes without closing it.
+
 ## Preserved parent launch note
 
 The following is the complete launch note supplied by the parent, preserved verbatim before the final commit.

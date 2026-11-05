@@ -58,6 +58,26 @@ public sealed class RenderScaleTests
     }
 
     [Fact]
+    public void DiagnosticPassLabelsDoNotChangeTheMeasuredScale()
+    {
+        var original = new RenderScaleController(FrameTimeTarget.Default);
+        var renamed = new RenderScaleController(FrameTimeTarget.Default);
+        for (long frame = 0; frame < 80; frame++)
+        {
+            float scale = original.Next(frame);
+            renamed.Next(frame).Should().Be(scale);
+            GpuTimings timings = Timings(frame: frame, scale: scale, renderCost: 24, outputWait: 10);
+            original.Measure(timings);
+            renamed.Measure(
+                timings with
+                {
+                    Passes = timings.Passes.ToArray().Select(pass => pass with { Pass = "diagnostic label" }).ToArray(),
+                }
+            );
+        }
+    }
+
+    [Fact]
     public void PresentationWaitsDoNotChangeTheScale()
     {
         var plain = new RenderScaleController(FrameTimeTarget.Default);
@@ -127,12 +147,12 @@ public sealed class RenderScaleTests
             frame,
             new PassTiming[]
             {
-                new("deformation", 1),
-                new("G-buffer", renderCost * scale * scale),
-                new("exposure", 0),
-                new("FSR 3.1", 1.5),
-                new("bloom", 0.5),
-                new("tone map", 0.2 + outputWait),
+                new("deformation", 1) { Stage = FrameGraph.Stage.Deformation },
+                new("G-buffer", renderCost * scale * scale) { Stage = FrameGraph.Stage.GBuffer },
+                new("exposure", 0) { Stage = FrameGraph.Stage.Exposure },
+                new("FSR 3.1", 1.5) { Stage = FrameGraph.Stage.Upscale },
+                new("bloom", 0.5) { Stage = FrameGraph.Stage.Bloom },
+                new("tone map", 0.2 + outputWait) { Stage = FrameGraph.Stage.ToneMap },
             },
             3.2 + renderCost * scale * scale + outputWait
         );

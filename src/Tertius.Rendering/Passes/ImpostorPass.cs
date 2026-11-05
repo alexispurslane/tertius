@@ -51,6 +51,7 @@ internal sealed unsafe class ImpostorPass : RenderPass, IRangeDrawer
         this.layouts = layouts;
         this.atlas = atlas;
         this.manager = manager;
+        ShaderConstants commonConstants = constants with { TemporalShadows = false };
         var capture = new GraphicsPipelineDesc
         {
             Name = "impostor capture",
@@ -63,7 +64,7 @@ internal sealed unsafe class ImpostorPass : RenderPass, IRangeDrawer
             DepthTest = true,
             DepthWrite = true,
             DepthCompare = CompareOp.Greater,
-            Constants = constants with { TemporalShadows = false },
+            Constants = commonConstants,
         };
         capturePipeline = SidedPipeline.Create(device: device, shaders: shaders, desc: capture);
         try
@@ -74,7 +75,7 @@ internal sealed unsafe class ImpostorPass : RenderPass, IRangeDrawer
                 desc: capture with
                 {
                     Name = "impostor capture cutout",
-                    Constants = constants with { CutoutAlpha = true, TemporalShadows = false },
+                    Constants = commonConstants with { CutoutAlpha = true },
                 }
             );
         }

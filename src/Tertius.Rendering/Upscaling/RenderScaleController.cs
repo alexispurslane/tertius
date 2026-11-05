@@ -65,26 +65,21 @@ internal sealed class RenderScaleController
     {
         double span = 0,
             scaling = 0;
-        bool renderPass = false,
-            finishedRender = false,
-            reachedOutput = false;
+        bool reachedOutput = false;
         foreach (PassTiming pass in passes)
         {
-            if (pass.Pass == "tone map")
+            if (pass.Stage >= FrameGraph.Stage.ToneMap)
             {
                 reachedOutput = true;
                 break;
             }
             if (!double.IsFinite(pass.Milliseconds) || pass.Milliseconds < 0)
                 return null;
-            renderPass |= pass.Pass == "G-buffer";
-            finishedRender |= pass.Pass == "FSR 3.1";
             span += pass.Milliseconds;
-            if (renderPass && !finishedRender)
+            if (pass.Stage is >= FrameGraph.Stage.GBuffer and <= FrameGraph.Stage.Exposure)
                 scaling += pass.Milliseconds;
-            finishedRender |= pass.Pass is "exposure" or "FSR 3.1";
         }
-        if (!renderPass || !reachedOutput || scaling <= 0)
+        if (!reachedOutput || scaling <= 0)
             return null;
         return (Fixed: span - scaling, Scaling: scaling);
     }

@@ -419,7 +419,11 @@ internal sealed class FrameGraph : IDisposable
             context.Device.BeginLabel(context.CommandBuffer, pass.Name);
             pass.Record(context);
             context.Device.EndLabel(context.CommandBuffer);
-            context.Timer.After(commandBuffer: context.CommandBuffer, slot: slot, pass: pass.Name);
+            context.Timer.After(
+                commandBuffer: context.CommandBuffer,
+                slot: slot,
+                pass: new(pass.Name, 0) { Stage = stage }
+            );
         }
     }
 

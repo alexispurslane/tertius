@@ -7,6 +7,75 @@ namespace Tertius.Rendering.Tests;
 [Collection(GpuCollection.Name)]
 public sealed class UpscalingRenderTests
 {
+    [Theory]
+    [InlineData(64, 64, 40, 40)]
+    [InlineData(7, 5, 8, 8)]
+    [InlineData(1, 1, 8, 8)]
+    public void SmallHeadlessOutputsKeepTheDefaultActiveScale(int width, int height, int renderWidth, int renderHeight)
+    {
+        var renderer = VulkanRenderer.CreateHeadless(
+            new()
+            {
+                Width = width,
+                Height = height,
+                Validation = true,
+                WarmUpFrames = 0,
+            }
+        );
+        try
+        {
+            Capture image = Gpu.RenderAndCapture(
+                renderer: renderer,
+                snapshot: BoxScene(renderer),
+                name: "small default FSR output"
+            );
+            image.Width.Should().Be(width);
+            image.Height.Should().Be(height);
+            renderer.LastScene.Camera.Width.Should().Be(renderWidth);
+            renderer.LastScene.Camera.Height.Should().Be(renderHeight);
+            float.IsFinite(renderer.LastScene.Constants.RenderParams.X).Should().BeTrue();
+            float.IsFinite(renderer.LastScene.Constants.RenderParams.Y).Should().BeTrue();
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Theory]
+    [InlineData(40, 32)]
+    [InlineData(7, 5)]
+    [InlineData(1, 1)]
+    public void AWindowCanShrinkBelowFsrsAllocationMinimumAndRestore(int width, int height)
+    {
+        VulkanRenderer renderer = WindowRenderer(target: new(1000f / 60, 1, 1));
+        try
+        {
+            RenderSnapshot scene = BoxScene(renderer);
+            Gpu.RenderAndCapture(renderer: renderer, snapshot: scene, name: "initial FSR window");
+            int allocations = renderer.Allocator.LiveAllocations;
+            renderer.Resize(width, height);
+            scene.Time += 1.0 / 60;
+            Capture small = Gpu.RenderAndCapture(renderer: renderer, snapshot: scene, name: "small FSR window");
+            small.Width.Should().Be(width);
+            small.Height.Should().Be(height);
+            renderer.LastScene.Camera.Width.Should().Be(Math.Max(8, width / 8 * 8));
+            renderer.LastScene.Camera.Height.Should().Be(Math.Max(8, height / 8 * 8));
+            renderer.ReadSurfaceTest().Should().OnlyContain(bits => bits == 0);
+            renderer.Resize(160, 96);
+            scene.Time += 1.0 / 60;
+            Capture restored = Gpu.RenderAndCapture(renderer: renderer, snapshot: scene, name: "restored FSR window");
+            restored.Width.Should().Be(160);
+            restored.Height.Should().Be(96);
+            renderer.ReadSurfaceTest().Should().OnlyContain(bits => bits == 0);
+            renderer.Allocator.LiveAllocations.Should().Be(allocations);
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
     [Fact]
     public void FullyOpaqueCutoutPixelsUseTheSameMainViewMipBiasAsSolidPixels()
     {
@@ -175,12 +244,85 @@ public sealed class UpscalingRenderTests
         }
     }
 
-    private static VulkanRenderer WindowRenderer() =>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ReflectedMotionFindsThePanelWhileTheActiveSizeChanges(bool grows)
+    {
+        VulkanRenderer renderer = WindowRenderer(width: 640, height: 360);
+        try
+        {
+            RenderSnapshot scene = ReflectionTesting.Dark();
+            scene.Instances.Add(ReflectionTesting.Floor(renderer, ReflectionTesting.Mirror()));
+            scene.Instances.Add(
+                Gpu.Instance(
+                    mesh: renderer.CreateMesh(Primitives.Box(new(0.5f))),
+                    material: ReflectionTesting.Glow(renderer, new(4f)),
+                    position: new(0, -0.5f, -12),
+                    scale: new(3, 2, 0.2f),
+                    radius: 1.8f,
+                    chainDepth: TestChains.CamerasFrame
+                )
+            );
+            renderer.Render(scene, 1);
+            DriveScale(
+                renderer: renderer,
+                scene: scene,
+                frames: 40,
+                renderMilliseconds: grows ? 100 : 0.01,
+                fixedMilliseconds: 0.01
+            );
+            int beforeWidth = renderer.LastScene.Camera.Width;
+            scene.Camera.PreviousPosition = scene.Camera.Position;
+            scene.Camera.Position += new Vector3(0.3f, 0, 0);
+            RenderInstance panel = scene.Instances[1];
+            panel.PreviousPosition = panel.Position;
+            panel.Position += new Vector3(4, 0, 0);
+            scene.Instances[1] = panel;
+
+            DriveScale(
+                renderer: renderer,
+                scene: scene,
+                frames: 12,
+                renderMilliseconds: grows ? 0.01 : 100,
+                fixedMilliseconds: 0.01
+            );
+
+            CameraView camera = renderer.LastScene.Camera;
+            if (grows)
+                camera.Width.Should().BeGreaterThan(beforeWidth);
+            else
+                camera.Width.Should().BeLessThan(beforeWidth);
+            renderer.LastDraw.Reset.Should().BeFalse();
+            float[] history = renderer.ReadImage(renderer.ScreenTraceSignals.Specular.Slow(0));
+            (int X, int Y) shown = ReflectionTesting.MirrorPixel(
+                panel.Position - scene.Camera.Position,
+                camera.Width,
+                camera.Height
+            );
+            (int X, int Y) old = ReflectionTesting.MirrorPixel(
+                new Vector3(0, -0.5f, -12) - scene.Camera.Position,
+                camera.Width,
+                camera.Height
+            );
+            ReflectionTesting.At(history, shown).X.Should().BeGreaterThan(3.2f);
+            ReflectionTesting.At(history, old).X.Should().BeLessThan(0.4f);
+            history[4 * (shown.Y * 640 + shown.X) + 3]
+                .Should()
+                .BeGreaterThan(1, "the reflected location continues history across an active-size change");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    private static VulkanRenderer WindowRenderer(int width = 160, int height = 96, FrameTimeTarget? target = null) =>
         VulkanRenderer.CreateOffscreen(
             options: new()
             {
-                Width = 160,
-                Height = 96,
+                Width = width,
+                Height = height,
                 FramesInFlight = 1,
                 Validation = true,
                 Impostors = false,
@@ -191,7 +333,7 @@ public sealed class UpscalingRenderTests
                 CascadedLights = 0,
                 Exposure = new FixedExposure(0),
                 Bloom = new NoBloom(),
-                Upscaling = Fsr3Upscaling.Default,
+                Upscaling = new Fsr3Upscaling(target ?? FrameTimeTarget.Default, 0),
                 WarmUpFrames = 0,
             },
             createOutput: (device, allocator, extent) =>
@@ -215,11 +357,11 @@ public sealed class UpscalingRenderTests
                     number,
                     new PassTiming[]
                     {
-                        new("G-buffer", renderMilliseconds),
-                        new("exposure", 0),
-                        new("FSR 3.1", fixedMilliseconds),
-                        new("bloom", fixedMilliseconds),
-                        new("tone map", 100),
+                        new("G-buffer", renderMilliseconds) { Stage = FrameGraph.Stage.GBuffer },
+                        new("exposure", 0) { Stage = FrameGraph.Stage.Exposure },
+                        new("FSR 3.1", fixedMilliseconds) { Stage = FrameGraph.Stage.Upscale },
+                        new("bloom", fixedMilliseconds) { Stage = FrameGraph.Stage.Bloom },
+                        new("tone map", 100) { Stage = FrameGraph.Stage.ToneMap },
                     },
                     100 + renderMilliseconds + 2 * fixedMilliseconds
                 )

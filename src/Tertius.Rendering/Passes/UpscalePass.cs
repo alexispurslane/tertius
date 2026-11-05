@@ -38,8 +38,9 @@ internal sealed class UpscalePass : RenderPass
 
     public void Resize()
     {
+        Fsr3Upscaler replacement = Create();
         upscaler.Dispose();
-        upscaler = Create();
+        upscaler = replacement;
     }
 
     private Fsr3Upscaler Create() =>
@@ -47,7 +48,7 @@ internal sealed class UpscalePass : RenderPass
             device: device,
             allocator: allocator,
             shaders: shaders,
-            maxRenderSize: targets.Extent,
+            maxRenderSize: Fsr3Upscaler.AllocationSize(targets.Extent),
             outputSize: targets.OutputExtent,
             framesInFlight: framesInFlight
         );

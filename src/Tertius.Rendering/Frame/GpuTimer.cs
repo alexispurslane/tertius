@@ -109,7 +109,7 @@ internal sealed unsafe class GpuTimer : IDisposable
         }
 
         if (
-            device.Timestamps.Fill(results: data, passes: queries.PassNames.AsSpan(0, passes), timings: timings)
+            device.Timestamps.Fill(results: data, passes: queries.Descriptions.AsSpan(0, passes), timings: timings)
             is not { } span
         )
             return;
@@ -131,14 +131,14 @@ internal sealed unsafe class GpuTimer : IDisposable
         Stamp(commandBuffer: commandBuffer, slot: slot, query: 0);
     }
 
-    /// <summary>Writes the stamp after the pass named <paramref name="pass"/>, once all work recorded before it has finished.</summary>
-    public void After(CommandBuffer commandBuffer, int slot, string pass)
+    /// <summary>Writes the stamp after <paramref name="pass"/>, once all work recorded before it has finished.</summary>
+    public void After(CommandBuffer commandBuffer, int slot, PassTiming pass)
     {
         if (!Supported)
             return;
         SlotQueries queries = slots[slot];
         int count = queries.Passes;
-        queries.PassNames[count] = pass;
+        queries.Descriptions[count] = pass;
         queries.Passes = count + 1;
         Stamp(commandBuffer: commandBuffer, slot: slot, query: (uint)(count + 1));
     }
@@ -165,8 +165,8 @@ internal sealed unsafe class GpuTimer : IDisposable
     {
         public QueryPool Pool { get; } = pool;
 
-        /// <summary>The name of each pass of the last recording, in recording order. The first <see cref="Passes"/> count.</summary>
-        public string[] PassNames { get; } = new string[MaxPasses];
+        /// <summary>The label and stage of each pass of the last recording, in recording order. The first <see cref="Passes"/> count.</summary>
+        public PassTiming[] Descriptions { get; } = new PassTiming[MaxPasses];
 
         public int Passes { get; set; }
     }

@@ -316,7 +316,13 @@ internal sealed unsafe class Fsr3Upscaler : IDisposable
     /// rounded down, such as 18 from 1280 to 1920.
     /// </summary>
     public static int JitterPhaseCount(uint renderWidth, uint outputWidth) =>
-        (int)(8f * MathF.Pow((float)outputWidth / renderWidth, 2f));
+        Math.Max(1, (int)(8f * MathF.Pow((float)outputWidth / renderWidth, 2f)));
+
+    /// <summary>Pads only FSR's internal allocation to fit its six-level pyramid, without changing the active size.</summary>
+    internal static Extent2D AllocationSize(Extent2D renderSize) =>
+        Math.Max(renderSize.Width, renderSize.Height) >= SmallestLargestSide
+            ? renderSize
+            : new(Math.Max(renderSize.Width, SmallestLargestSide), renderSize.Height);
 
     /// <summary>
     /// AMD's jitter of draw <paramref name="index"/> in a sequence of <paramref name="phaseCount"/> phases, in render

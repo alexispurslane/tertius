@@ -137,6 +137,18 @@ public sealed class Fsr3HostTests
                 .Be(new Vector2(golden.X, golden.Y), $"AMD's offset of index {golden.Index} of {golden.PhaseCount}");
     }
 
+    [Theory]
+    [InlineData(1u)]
+    [InlineData(2u)]
+    public void AnOutputNarrowerThanTheMinimumActiveWidthStillHasAJitterPhase(uint outputWidth)
+    {
+        int phases = Fsr3Upscaler.JitterPhaseCount(renderWidth: 8, outputWidth: outputWidth);
+        phases.Should().Be(1);
+        Vector2 jitter = Fsr3Upscaler.JitterOffset(index: 3, phaseCount: phases);
+        float.IsFinite(jitter.X).Should().BeTrue();
+        float.IsFinite(jitter.Y).Should().BeTrue();
+    }
+
     [Fact]
     public void TheConstantsHaveTheLayoutOfAmdsConstantBuffer()
     {
