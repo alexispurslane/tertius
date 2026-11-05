@@ -200,6 +200,37 @@ public sealed class BatcherMotionTests
     }
 
     [Fact]
+    public void ANewLowerRenderPartDoesNotBorrowAHigherPartsPreviousRows()
+    {
+        Draw(WithInstance(position: new(4, 0, -10), part: 1));
+
+        PreparedScene scene = Draw(WithInstance(position: new(1, 0, -10), part: 0));
+
+        ((MotionKind)scene.Motions[0].Kind).Should().Be(MotionKind.New);
+        TranslationOf(scene.Motions[0]).Should().Be(new Vector3(1, 0, -10));
+    }
+
+    [Theory]
+    [InlineData(0u, 1u)]
+    [InlineData(65535u, 65536u)]
+    public void TheLastRenderPartOfASlotDoesNotHideTheNextSlotsMotion(uint slot, uint nextSlot)
+    {
+        RenderSnapshot first = WithInstance(position: new(0, 0, -10), slot: slot, part: ushort.MaxValue);
+        first.Instances.Add(WithInstance(position: new(4, 0, -10), slot: nextSlot, part: 0).Instances[0]);
+        Draw(first);
+        RenderSnapshot second = WithInstance(position: new(1, 0, -10), slot: slot, part: ushort.MaxValue);
+        second.Instances.Add(WithInstance(position: new(5, 0, -10), slot: nextSlot, part: 0).Instances[0]);
+
+        PreparedScene scene = Draw(second);
+
+        ((MotionKind)scene.Motions[0].Kind).Should().Be(MotionKind.Moved);
+        TranslationOf(scene.Motions[0]).Should().Be(new Vector3(0, 0, -10));
+        ((MotionKind)scene.Motions[1].Kind).Should().Be(MotionKind.Moved);
+        TranslationOf(scene.Motions[1]).Should().Be(new Vector3(4, 0, -10));
+        history.Invoking(record => record.AssertInvariants()).Should().NotThrow();
+    }
+
+    [Fact]
     public void SlotOrderFindsMotionWhenGenerationsRunInTheOppositeOrder()
     {
         RenderSnapshot first = WithInstance(
