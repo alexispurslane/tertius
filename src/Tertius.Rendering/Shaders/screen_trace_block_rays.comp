@@ -1,0 +1,25 @@
+#version 460
+// The block rays of one kind of the screen tracer (docs/plans/temporal-renderer.md, section 6): each 2 × 2 block's ray from
+// its chosen pixel, with the ray's setup, its walk and its light in one invocation (decision 40), into the block's record.
+// screen_trace_own_rays.comp traces the listed pixels' own rays. The two stay separate shaders, so that neither pipeline
+// binds the other's records and the own dispatch needs no barrier after the block dispatch.
+#extension GL_GOOGLE_include_directive : require
+#include "screen_trace.glsl"
+
+// ShaderConstants.RayKind.
+layout(constant_id = 5) const uint rayKind = 0u;
+
+// 8 × 8 blocks per workgroup.
+layout(local_size_x = 8, local_size_y = 8) in;
+
+void main()
+{
+    ivec2 block = ivec2(gl_GlobalInvocationID.xy);
+    if (any(greaterThanEqual(block, ivec2(ceil(frame.viewport.xy * 0.5)))))
+        return;
+    ivec2 chosen;
+    TracingPixel p;
+    RayRecord record = chosenPixelOf(block, rayKind, chosen, p) ? recordOf(traceFrom(chosen, p, rayKind)) : noRay();
+    imageStore(blockLight, ivec3(block, rayKind), record.light);
+    imageStore(blockRay, ivec3(block, rayKind), record.ray);
+}

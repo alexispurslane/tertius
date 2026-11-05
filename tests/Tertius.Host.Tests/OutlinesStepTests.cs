@@ -54,6 +54,8 @@ public sealed class OutlinesStepTests : IDisposable
 
         public void CaptureNextFrame(ICaptureSink sink) => inner.CaptureNextFrame(sink);
 
+        public void FinishCaptures() => inner.FinishCaptures();
+
         public MeshId CreateMesh(MeshData mesh) => inner.CreateMesh(mesh);
 
         public TextureId CreateTexture(TextureData texture) => inner.CreateTexture(texture);

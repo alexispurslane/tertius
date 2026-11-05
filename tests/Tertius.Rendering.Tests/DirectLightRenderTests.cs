@@ -19,7 +19,7 @@ public sealed class DirectLightRenderTests
 
     /// <summary>
     /// A validating headless renderer with the default direct light, a fixed exposure of <paramref name="stops"/> and no
-    /// screen-space light, map, bloom or impostors, so that the HDR image depends only on the frame's G-buffer and its
+    /// screen tracer, map, bloom or impostors, so that the HDR image depends only on the frame's G-buffer and its
     /// direct light.
     /// </summary>
     private static VulkanRenderer DefaultDirectLight(float stops = 0) =>
@@ -30,7 +30,7 @@ public sealed class DirectLightRenderTests
                 Width = Width,
                 Height = Height,
                 Impostors = false,
-                ScreenSpaceLight = new NoScreenSpaceLight(),
+                ScreenTrace = new NoScreenTrace(),
                 Exposure = new FixedExposure(stops),
                 Bloom = new NoBloom(),
                 AntiAliasing = AntiAliasing.None,

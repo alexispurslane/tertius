@@ -28,8 +28,8 @@ void main()
 {
     vec3 V = towardEye(inPosition);
     SurfaceSample s = sampleMaterial(inInstanceWords.x, inTexCoord, inNormal, inTangent, V);
-    // The capture bakes the light of the object's own map. It has no screen around it for the occlusion passes to
-    // search, so it takes no estimate, as a forward surface does.
+    // The capture bakes the light of the object's own map. It has no screen around it for the screen tracer to walk, so
+    // it takes the ambient light with every direction open, as a forward surface does.
     ShadingInput shading = forwardShading(s, inPosition, inHemisphere, inInstanceWords.y, V);
     // A scale of 1: the atlas stores radiance, and the billboard pre-exposes it in the frame that draws it.
     vec3 color = surfaceRadiance(shading, s.emissive, inPosition, V, ShadowMapsNone, 1.0);

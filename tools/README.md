@@ -96,7 +96,7 @@ The table has one Markdown row per mutant, then one summary line with the count 
 ```
 | id | place | change | result | killed by | s |
 |---|---|---|---|---|---:|
-| S09 | src/Tertius.Rendering/Shaders/reflection_own_rays.glsl:31 | entry packing y << 15 | killed | ReflectionRenderTests.AtHalfRes..., ReflectionShaderTests.TheOwnRay... | 41.2 |
+| S09 | src/Tertius.Rendering/Shaders/own_rays.glsl:27 | entry packing y << 15 | killed | ScreenTraceRenderTests.AFrameAfterOne..., ScreenTraceRenderTests.TheOwnRay... | 41.2 |
 | Core-4489 | src/Tertius.Core/Unions/Result.cs:44 | holds != Holds.Nothing -> holds == Holds.Nothing | killed | ResultTests.TheDefaultResultHoldsNeitherCase | - |
 16 rows: killed 10, timeout 0, survived 5, no-coverage 0, build-failed 1, no-tests 0, no-mutant 0, removed 0
 ```
@@ -130,9 +130,9 @@ Write the list as a JSON array outside the repository, for example `/tmp/<ticket
 
 ```json
 [
- {"id": "S09", "file": "src/Tertius.Rendering/Shaders/reflection_own_rays.glsl", "line": 31,
+ {"id": "S09", "file": "src/Tertius.Rendering/Shaders/own_rays.glsl", "line": 27,
   "original": "uint(pixel.y) << 16", "replacement": "uint(pixel.y) << 15",
-  "project": "tests/Tertius.Rendering.Tests", "class": ["ReflectionRenderTests", "ReflectionShaderTests"],
+  "project": "tests/Tertius.Rendering.Tests", "class": ["ScreenTraceRenderTests"],
   "note": "entry packing y << 15"}
 ]
 ```
@@ -664,6 +664,15 @@ On a driver whose GPU timestamps latch late, such as MoltenVK, the console hides
 
 Individual-pass comparisons appear only when neither report has `stampsLatchLate: true` or a nonempty `warning`. If either report identifies unreliable individual times, the comparison omits all individual-pass rows, including for a comparison with an ordinary driver. It retains frame and range rows, explains the omission and shows the reports' warnings. No driver name detection is added. Legacy reports without these fields keep their individual-pass comparisons; reports without `runs` still compare normally:
 
+A headless run waits for each captured frame, so its GPU idles between frames. At 1280 × 720, the deck then runs far below the top clock. The demo option `--in-flight 2` sets `FramesInFlight` to 2 and keeps captures in flight. `--in-flight 1` sets one frame and waits for its capture. Without the option, both defaults stay unchanged. Two frames keep work on the GPU, as a window does, and the film's images and exposures stay the same. Make the 120 frames of the deck from frame 399 with `gpu-trace.py trim` (see "GPU calibration"), and time them:
+
+```bash
+nix develop --command python3 -I tools/gpu-trace.py trim scripts/demo-exit.json 399 120 /private/tmp/deck-120.json
+nix develop --command bash tools/demo-timing.sh captures/deck /private/tmp/deck-120.json --size 1280x720 --in-flight 2
+```
+
+On 2026-11-04 (ter-gayt), one run that waited for each frame ran at 683.0 MHz, with a mean frame span of 13.011 ms. Three runs with `--in-flight 2` ran at 1293.2, 1276.0 and 1275.4 MHz, all within the tolerance of the top clock (see "Comparing two runs"). Their mean frame spans were 7.769, 7.765 and 7.759 ms.
+
 ```bash
 python3 -I tools/gpu_clock.py compare captures/gpu-base/gpu-timings.json captures/gpu-branch/gpu-timings.json
 ```
@@ -688,6 +697,18 @@ python3 -I tools/gpu_clock.py compare captures/gpu-base/gpu-timings.json capture
 ```bash
 nix develop --command python3 -I tools/test_gpu_clock.py
 ```
+
+## The screen walk's buffer reads
+
+After each change to `walkScreen`, dump the final ray kernels with `MVK_CONFIG_SHADER_DUMP_DIR` set to a fresh directory. Run the renderer inside the Nix dev shell. Keep both the block and own ray kernels, for both ray kinds. MoltenVK names the dumps by hash and strips the source names. Match each dumped `.spv` byte for byte with `screen_trace_block_rays.comp.spv` or `screen_trace_own_rays.comp.spv` in the engine's build output, then inspect its sibling `.metal` file. Both ray kinds use each kernel, selected by specialization constant 5.
+
+`tools/sol-walk/loop-reads.py` counts device-buffer accesses inside the unbounded walk loop in a Metal dump. The count must be 0 (temporal-renderer.md, decision 44). Texture fetches and the frame uniform do not count as per-ray buffer inputs. Inspect the file's `device` parameters first. The regex below matches the device-buffer access syntax in MoltenVK's current dumps:
+
+```sh
+nix develop --command python3 -I tools/sol-walk/loop-reads.py /private/tmp/trace-msl/shader-cs-HASH.metal 'm_[0-9]+\)\._m0\['
+```
+
+The directory above is an example, not a shared output directory. Check the actual `device` buffer names in each dump. The array-access regex above is not enough for scalar members such as exposure. Also run with a regex for every device pointer, such as `m_(756|3879|3887)\)`, using that dump's names. An own-ray list read in its outer stride loop is one read per ray, not one read per walk step. The tool recognizes unbounded `for (;;)` and `while` loops, not structured `for (init; condition; step)` loops. Inspect that outer loop separately. A zero count from an older kernel does not check a changed kernel.
 
 ## GPU calibration
 
@@ -784,7 +805,7 @@ python3 -I tools/gpu-calibration/analyze.py windows captures/gpu-calibration/win
 nix develop --command bash -c 'bash tools/gpu-trace.sh --start 399 --frames 120 scripts/demo-exit.json'
 ```
 
-The script builds the demo in Release, and traces the built binary, so the trace holds no build. The recording takes the GPU lock (see "The GPU lock") and runs beside `gpu-clock` (see "The GPU clock of a timed run"). The first lines of `passes.md` give the clock over the run's timed span. xctrace launches the demo itself, because a process between them leaves the trace's list of encoders empty. So `gpu-clock` samples outside xctrace, and xctrace passes the demo's output on to `run.log`. It keeps the frames from `--start` (counted from 0 over the script's captures and film frames, default 0) for `--frames` frames (default 120, and 0 keeps every frame to the end of the script). The frames before `--start` become run steps of the same ticks, so the world reaches the same state without a render. Frame 399 is the first frame of demo-exit's deck camera. The size is 1920x1080 unless `--size` gives another. `--window FROM TO` adds the window row of the table (see below). `--paired PASS` and `--control PASS` add the paired table (see "The paired mode" below). Arguments after the script go to the demo's headless run, such as `--screen-space-light off` (ARCHITECTURE.md, "Host and scripted runs"). The output goes to `captures/gpu-trace/<script>-<start>`, which git ignores, or to `--out <dir>`:
+The script builds the demo in Release, and traces the built binary, so the trace holds no build. The recording takes the GPU lock (see "The GPU lock") and runs beside `gpu-clock` (see "The GPU clock of a timed run"). The first lines of `passes.md` give the clock over the run's timed span. xctrace launches the demo itself, because a process between them leaves the trace's list of encoders empty. So `gpu-clock` samples outside xctrace, and xctrace passes the demo's output on to `run.log`. It keeps the frames from `--start` (counted from 0 over the script's captures and film frames, default 0) for `--frames` frames (default 120, and 0 keeps every frame to the end of the script). The frames before `--start` become run steps of the same ticks, so the world reaches the same state without a render. Frame 399 is the first frame of demo-exit's deck camera. The size is 1920x1080 unless `--size` gives another. `--window FROM TO` adds the window row of the table (see below). `--paired PASS` and `--control PASS` add the paired table (see "The paired mode" below). Arguments after the script go to the demo's headless run, such as `--screen-trace off` (ARCHITECTURE.md, "Host and scripted runs"). The output goes to `captures/gpu-trace/<script>-<start>`, which git ignores, or to `--out <dir>`:
 
 - `run.trace`: the trace. Open it in Instruments to see the timeline and the counters.
 - `run/`: the run's `gpu-timings.json`, with the clock over the run's timed span as `gpuClock`, and `exposure.json`. The run passes `--video none`, so it draws and times each frame as the cost recipe does (docs/plans/rendering-upgrade.md, "Measuring the cost of a feature") and writes no image.

@@ -157,8 +157,6 @@ public sealed class BrdfShaderTests
             ground: white,
             normalSkyShare: 0.5,
             lobeSkyShare: 0.5,
-            occlusion: 1,
-            bounce: Double3.Zero,
             tables: BrdfTables.Shared
         );
 
@@ -296,8 +294,6 @@ public sealed class BrdfShaderTests
             ground: Ground,
             normalSkyShare: normalSky,
             lobeSkyShare: lobeSky,
-            occlusion: 1,
-            bounce: Double3.Zero,
             tables: BrdfTables.Shared
         );
         return (sun + ambient).ToVector3();

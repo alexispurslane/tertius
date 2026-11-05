@@ -4,9 +4,8 @@ using Tertius.Testing;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// Helpers for the GPU tests of the screen-space reflections (docs/plans/screen-space-reflections.md, "GPU tests of the
-/// reflections"): scenes over a floor 1.5 m below the eye, reads of the HDR image, and the C# copy of what the trace does
-/// at a floor pixel. The camera of <see cref="Gpu.Snapshot"/> sits at the origin and looks down −Z with +Y up.
+/// Helpers for the GPU tests of the screen tracer's reflections (docs/plans/temporal-renderer.md, section 6): scenes over
+/// a floor 1.5 m below the eye, reads of the HDR image, and the C# depth pyramid of a frame. The camera of <see cref="Gpu.Snapshot"/> sits at the origin and looks down −Z with +Y up.
 /// </summary>
 /// <remarks>
 /// The G-buffer stores the roughness and the reflectance in 8 bits, so the scenes use values that 8 bits hold exactly,
@@ -28,35 +27,6 @@ internal static class ReflectionTesting
         new(x: 128 / 255f * 2 - 1, y: 1, z: -(128 / 255f * 2 - 1))
     );
 
-    /// <summary>
-    /// The setting of most tests: the renderer's default with the full-resolution trace, which the C# copy of the trace
-    /// describes pixel by pixel.
-    /// </summary>
-    public static ConeTracedReflections Reflections =>
-        ConeTracedReflections.Default with
-        {
-            Resolution = TraceResolution.Full,
-        };
-
-    /// <summary>The renderer's default, traced at <paramref name="resolution"/>.</summary>
-    public static ConeTracedReflections ReflectionsAt(TraceResolution resolution) =>
-        ConeTracedReflections.Default with
-        {
-            Resolution = resolution,
-        };
-
-    /// <summary>
-    /// The renderer's default traced at <paramref name="resolution"/>, with a maximum roughness of 1 of the tests' own:
-    /// the roughness fade is 1 up to a roughness of 0.5, and 0.996 at 128 / 255. The tests of the trace, the cone and the
-    /// blur on rough floors take it, so that what they measure does not depend on the default's maximum, and the tests
-    /// of that maximum take it as the reference of a surface that reflects in full.
-    /// </summary>
-    public static ConeTracedReflections UnfadedReflectionsAt(TraceResolution resolution) =>
-        ReflectionsAt(resolution) with
-        {
-            MaxRoughness = 1,
-        };
-
     /// <summary>A white metal floor of <paramref name="roughness"/>: a mirror at 0, which the BRDF floors to 0.045.</summary>
     public static MaterialDesc Mirror(float roughness = 0) =>
         new(BaseColor: Vector4.One, Roughness: roughness, Model: new StandardShading(Metallic: 1));
@@ -67,10 +37,6 @@ internal static class ReflectionTesting
     /// </summary>
     public static TextureId FlatNormalMap(VulkanRenderer renderer) =>
         renderer.CreateTexture(new(Width: 1, Height: 1, Rgba: [128, 128, 255, 255], Srgb: false));
-
-    /// <summary>A validating headless renderer of 640 × 360 at a fixed exposure of 0 stops, with <paramref name="reflections"/>.</summary>
-    public static VulkanRenderer Headless(ReflectionSetting reflections, bool impostors = false) =>
-        Gpu.Headless(impostors: impostors, reflections: reflections);
 
     /// <summary>No sun and no ambient light: only emission lights the scene, so a metal floor shows only what the trace adds.</summary>
     public static RenderSnapshot Dark()
@@ -121,38 +87,6 @@ internal static class ReflectionTesting
     /// <summary>A black material of reflectance 0 that emits <paramref name="radiance"/>, so it shows that and no light.</summary>
     public static MaterialId Glow(VulkanRenderer renderer, Vector3 radiance) => BrdfTesting.Glow(renderer, radiance);
 
-    /// <summary>Renders the scene that <paramref name="scene"/> builds once at 640 × 360 and 0 stops, with <paramref name="reflections"/>.</summary>
-    /// <returns>The frame's HDR image, and its camera.</returns>
-    public static (float[] Hdr, CameraView Camera) RenderHdr(
-        ReflectionSetting reflections,
-        Func<VulkanRenderer, RenderSnapshot> scene
-    ) => RenderHdr(reflections: reflections, scene: scene, view: new());
-
-    /// <summary>Renders the scene that <paramref name="scene"/> builds once in <paramref name="view"/>, with <paramref name="reflections"/>.</summary>
-    /// <returns>The frame's HDR image, and its camera.</returns>
-    public static (float[] Hdr, CameraView Camera) RenderHdr(
-        ReflectionSetting reflections,
-        Func<VulkanRenderer, RenderSnapshot> scene,
-        TestView view
-    )
-    {
-        VulkanRenderer renderer = Gpu.Headless(
-            width: view.Width,
-            height: view.Height,
-            exposure: new FixedExposure(view.ExposureStops),
-            reflections: reflections
-        );
-        try
-        {
-            renderer.Render(scene(renderer), 1f);
-            return (renderer.ReadHdr(), renderer.LastScene.Camera);
-        }
-        finally
-        {
-            Gpu.DisposeAndAssertClean(renderer);
-        }
-    }
-
     /// <summary>The RGB of a pixel of an RGBA image read row by row from the top.</summary>
     public static Vector3 At(float[] rgba, (int X, int Y) pixel, int width = Width)
     {
@@ -171,16 +105,6 @@ internal static class ReflectionTesting
     public static (int X, int Y) MirrorPixel(Vector3 point, int width = Width, int height = Height) =>
         PixelOf(new(point.X, 2 * FloorHeight - point.Y, point.Z), width, height);
 
-    /// <summary>W at a floor pixel: the compensated specular albedo of the floor's <paramref name="material"/> toward the eye, about its shading normal.</summary>
-    public static Vector3 SpecularWeight(MaterialDesc material, CameraView camera, (int X, int Y) pixel)
-    {
-        Vector3 toView = -Vector3.Normalize(camera.ViewRayThrough(new(pixel.X + 0.5f, pixel.Y + 0.5f)));
-        MaterialSample sample = TestMaterials.SampleOf(material);
-        return sample
-            .CompensatedSpecularAlbedo(normal: FlatMapNormal, toView: toView, tables: BrdfTables.Shared)
-            .ToVector3();
-    }
-
     /// <summary>The C# depth pyramid of the last frame, from its distance target and the geometric normals of its
     /// normals target.</summary>
     public static DepthPyramid PyramidOf(VulkanRenderer renderer)
@@ -195,78 +119,4 @@ internal static class ReflectionTesting
             geometricNormals: geometricNormals
         );
     }
-
-    /// <summary>
-    /// The C# trace of the reflected ray of a floor pixel, as reflection_trace.comp starts it: from the surface point at
-    /// the pixel's distance, along the specular dominant direction of <paramref name="roughness"/> about the shading
-    /// <paramref name="normal"/>. The geometric normal is +Y.
-    /// </summary>
-    /// <returns>The trace, and the surface point of the pixel, camera-relative.</returns>
-    public static (RayTrace Trace, Vector3 Point) TraceFromFloor(
-        CameraView camera,
-        float[] distance,
-        DepthPyramid pyramid,
-        (int X, int Y) pixel,
-        Vector3 normal,
-        float roughness,
-        int maxSteps
-    )
-    {
-        Vector3 viewRay = camera.ViewRayThrough(new(pixel.X + 0.5f, pixel.Y + 0.5f));
-        var toSurface = Vector3.Normalize(viewRay);
-        float distanceToEye = distance[pixel.Y * camera.Width + pixel.X];
-        Vector3 point = toSurface * distanceToEye;
-        var direction = new GgxLobe(roughness)
-            .DominantDirection(normal: normal, mirror: Vector3.Reflect(toSurface, normal))
-            .ToVector3();
-        var ray = ScreenRay.FromSurface(
-            point: point,
-            viewDepth: distanceToEye / viewRay.Length(),
-            geometricNormal: Vector3.UnitY,
-            direction: direction,
-            camera: camera
-        );
-        return (ray.Trace(pyramid, maxSteps), point);
-    }
-
-    /// <summary>
-    /// The width in pixels over which <paramref name="values"/> rises from 10 % to 90 % of its value at
-    /// <paramref name="plateau"/>, scanning from <paramref name="outside"/> toward it, with linear interpolation between
-    /// pixels: the width of a blurred edge.
-    /// </summary>
-    public static float RiseWidth(IReadOnlyList<float> values, int outside, int plateau)
-    {
-        float peak = values[plateau];
-        int direction = Math.Sign(plateau - outside);
-        float Crossing(float share)
-        {
-            float level = share * peak;
-            for (int x = outside + direction; x != plateau + direction; x += direction)
-                if (values[x] >= level)
-                {
-                    float before = values[x - direction];
-                    return x - direction + direction * (level - before) / (values[x] - before);
-                }
-
-            throw new InvalidOperationException($"The values never reach {share:P0} of {peak}.");
-        }
-
-        return MathF.Abs(Crossing(0.9f) - Crossing(0.1f));
-    }
-
-    /// <summary>The green channel of row <paramref name="y"/> of an RGBA image, indexed by x: the light of a white reflection.</summary>
-    public static float[] Row(float[] rgba, int y, int width = Width)
-    {
-        float[] row = new float[width];
-        for (int x = 0; x < width; x++)
-            row[x] = rgba[4 * (y * width + x) + 1];
-        return row;
-    }
 }
-
-/// <summary>The screen of a test's renderer, in pixels, and its fixed exposure in stops.</summary>
-internal sealed record TestView(
-    int Width = ReflectionTesting.Width,
-    int Height = ReflectionTesting.Height,
-    float ExposureStops = 0
-);

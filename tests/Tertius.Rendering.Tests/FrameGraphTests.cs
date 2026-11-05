@@ -55,36 +55,15 @@ public sealed class FrameGraphTests
     }
 
     [Fact]
-    public void TheOcclusionPassesRunAfterTheDirectPassAndBeforeTheComposite()
+    public void TheTracersPassesRunAfterTheDirectPassAndBeforeTheComposite()
     {
         using var graph = new FrameGraph();
         graph.Add(FrameGraph.Stage.Composite, new NamedPass("composite"));
-        graph.Add(FrameGraph.Stage.AmbientOcclusion, new NamedPass("occlusion depth"));
-        graph.Add(FrameGraph.Stage.AmbientOcclusion, new NamedPass("occlusion sectors"));
-        graph.Add(FrameGraph.Stage.DirectLight, new NamedPass("direct light"));
-        graph.Add(FrameGraph.Stage.SurfaceTest, new NamedPass("surface test"));
-        graph.Add(FrameGraph.Stage.GBuffer, new NamedPass("G-buffer"));
-
-        graph
-            .Passes.Select(pass => pass.Name)
-            .Should()
-            .Equal(
-                ["G-buffer", "surface test", "direct light", "occlusion depth", "occlusion sectors", "composite"],
-                "the occlusion passes read the finished G-buffer and the direct light, and the composite reads their "
-                    + "estimate target"
-            );
-    }
-
-    [Fact]
-    public void TheDepthPyramidFollowsTheGBufferAndTheReflectionsComeBetweenTheCompositeAndTheTransparentPass()
-    {
-        using var graph = new FrameGraph();
-        graph.Add(FrameGraph.Stage.Transparent, new NamedPass("transparent"));
-        graph.Add(FrameGraph.Stage.Reflections, new NamedPass("radiance pyramid"));
-        graph.Add(FrameGraph.Stage.Composite, new NamedPass("composite"));
-        graph.Add(FrameGraph.Stage.AmbientOcclusion, new NamedPass("occlusion depth"));
+        graph.Add(FrameGraph.Stage.ScreenTrace, new NamedPass("ray plan"));
+        graph.Add(FrameGraph.Stage.ScreenTrace, new NamedPass("screen trace resolve"));
         graph.Add(FrameGraph.Stage.DirectLight, new NamedPass("direct light"));
         graph.Add(FrameGraph.Stage.DepthPyramid, new NamedPass("depth pyramid"));
+        graph.Add(FrameGraph.Stage.SurfaceTest, new NamedPass("surface test"));
         graph.Add(FrameGraph.Stage.GBuffer, new NamedPass("G-buffer"));
 
         graph
@@ -93,23 +72,23 @@ public sealed class FrameGraphTests
             .Equal(
                 [
                     "G-buffer",
+                    "surface test",
                     "depth pyramid",
                     "direct light",
-                    "occlusion depth",
+                    "ray plan",
+                    "screen trace resolve",
                     "composite",
-                    "radiance pyramid",
-                    "transparent",
                 ],
-                "the depth pyramid describes the finished distance, and the reflections read the lit image before glass"
+                "the depth pyramid describes the finished distance, a hit reads this frame's direct light, and the "
+                    + "composite reads the slow histories that the tracer's samples feed"
             );
     }
 
     [Fact]
-    public void TheScatterRunsAfterTheCompositeAndBeforeTheReflections()
+    public void TheScatterRunsAfterTheCompositeAndBeforeTheTransparentPass()
     {
         using var graph = new FrameGraph();
         graph.Add(FrameGraph.Stage.Transparent, new NamedPass("transparent"));
-        graph.Add(FrameGraph.Stage.Reflections, new NamedPass("radiance pyramid"));
         graph.Add(FrameGraph.Stage.SkinScatter, new NamedPass("scatter rows"));
         graph.Add(FrameGraph.Stage.SkinScatter, new NamedPass("scatter columns"));
         graph.Add(FrameGraph.Stage.Composite, new NamedPass("composite"));
@@ -119,8 +98,8 @@ public sealed class FrameGraphTests
             .Passes.Select(pass => pass.Name)
             .Should()
             .Equal(
-                ["direct light", "composite", "scatter rows", "scatter columns", "radiance pyramid", "transparent"],
-                "the scatter blurs the diffuse light that the composite wrote, and a mirror shows the scattered skin"
+                ["direct light", "composite", "scatter rows", "scatter columns", "transparent"],
+                "the scatter blurs the diffuse light that the composite wrote, and glass draws over the scattered skin"
             );
     }
 

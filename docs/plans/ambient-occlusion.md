@@ -1,5 +1,7 @@
 # Ambient occlusion
 
+Superseded on 2026-11-04 by [the temporal renderer](temporal-renderer.md), section 6. The occlusion passes are deleted. The screen tracer supplies the light from both open and blocked directions instead.
+
 Ticket: `ter-b3h5`, a member of the rendering upgrade epic (`ter-sglu`, [rendering-upgrade.md](rendering-upgrade.md)). The user chose the design on 2026-10-25, in the ticket's last note. This doc fills in the details. The user settled its three open points after the captures, see "Settled forks".
 
 ## Goal

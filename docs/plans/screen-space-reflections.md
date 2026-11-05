@@ -1,5 +1,7 @@
 # Screen-space reflections
 
+Superseded on 2026-11-04 by [the temporal renderer](temporal-renderer.md), section 6. The screen tracer replaces the radiance pyramid and the cone-traced reflections. Decisions 13, 39 and 41 of [screen-space-illumination.md](screen-space-illumination.md) stay in force through that design. Its decision 30 gives way to the temporal renderer's decision 17, many bounces.
+
 Ticket: `ter-jxv9`, a member of the rendering upgrade epic (`ter-sglu`, [rendering-upgrade.md](rendering-upgrade.md)). The user chose the design on 2026-10-25, in the ticket's "Design decisions". This doc fills in the details. Three points are open, see "Open forks".
 
 ## Goal

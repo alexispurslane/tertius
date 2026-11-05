@@ -7,21 +7,21 @@ namespace Tertius.Rendering;
 /// (docs/plans/temporal-renderer.md, section 8, "The accumulator"). Its producer writes the sample of each part in each
 /// frame. <see cref="Accumulate"/> then reprojects the last frame's history through the surface test, rescales it by the
 /// exposure ratio, blends the sample in, fixes short histories from their neighbors and clamps the slow history into the
-/// fast history's box. A pixel whose sample is not finite keeps its history. In a reset frame, the surface test fails
-/// every tap, so every pixel's history starts from its sample.
+/// fast history's box. A pixel whose sample is not finite keeps its history, and one without a history takes the
+/// environment's closed form. In a reset frame, the surface test fails every tap, so every history starts again.
 /// </summary>
 /// <remarks>
 /// <para>
-/// No signal of the renderer accumulates today: the direct light keeps one frame (docs/plans/temporal-renderer.md, decision
-/// 29), so the composite reads the direct pass's images. The screen tracer's signals (ter-gayt) are the next users, and
-/// until then only the accumulator's tests make a signal (<see cref="VulkanRenderer.CreateSignal"/>).
+/// The screen tracer's two signals, under <see cref="ScreenTrace"/>, are the renderer's only signals: the direct light keeps
+/// one frame (docs/plans/temporal-renderer.md, decision 29). The accumulator's tests make signals of their own
+/// (<see cref="VulkanRenderer.CreateSignal(SignalParameters, string, int)"/>).
 /// </para>
 /// <para>
-/// Each part owns a sample, a slow history, two fast histories, which alternate by the parity of the drawn frames
-/// (<see cref="FrameHistory.PendingFrame.Parity"/>), and a scratch image, all RGBA16F at the targets' size. The slow
-/// history holds the length in alpha. The sample is a color attachment of its producer, and every other image stays in
-/// the General layout. The screen tracer's signals will share the scratch images (section 8, "Images"). With one signal,
-/// each part keeps its own.
+/// Each part owns a sample, a slow history and two fast histories, which alternate by the parity of the drawn frames
+/// (<see cref="FrameHistory.PendingFrame.Parity"/>), all RGBA16F at the targets' size. The slow history holds the length
+/// in alpha, and the specular signal's sample and fast history the hit distance, 0 for a miss. The sample is a color
+/// attachment of its producer, and every other image stays in the General layout. The signals share the scratch images
+/// (<see cref="SignalScratch"/>).
 /// </para>
 /// <para>Invariants, checked by <see cref="AssertInvariants"/>:</para>
 /// <list type="bullet">
@@ -43,6 +43,7 @@ internal sealed unsafe class TemporalSignal : IDisposable
     private readonly DescriptorLayouts layouts;
     private readonly RenderTargets targets;
     private readonly SurfaceHistory surfaces;
+    private readonly SignalScratch scratch;
     private readonly Pipeline temporal;
     private readonly Pipeline spatial;
     private readonly PartImages[] parts;
@@ -51,7 +52,8 @@ internal sealed unsafe class TemporalSignal : IDisposable
     private readonly DescriptorSet[,] sets;
 
     /// <param name="targets">The render targets, whose size the images take, and whose motion target the sets bind.</param>
-    /// <param name="surfaces">The surface history, whose test image the sets bind.</param>
+    /// <param name="surfaces">The surface history, whose test image and last images the sets bind.</param>
+    /// <param name="scratch">The scratch images, which every signal shares.</param>
     /// <param name="name">The signal's name in the images' names and the passes' names, such as "indirect diffuse".</param>
     /// <param name="parts">The signal's parts, such as 2 for a diffuse and a specular part.</param>
     /// <exception cref="NotSupportedException">The format is not a color attachment and a storage image on the device.</exception>
@@ -62,19 +64,23 @@ internal sealed unsafe class TemporalSignal : IDisposable
         ShaderLibrary shaders,
         RenderTargets targets,
         SurfaceHistory surfaces,
+        SignalScratch scratch,
         SignalParameters parameters,
         string name,
         int parts
     )
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(parts, 1);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(parts, DescriptorLayouts.SignalReadParts);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(parts, MostParts);
         CheckDevice(device);
+
         this.device = device;
         this.allocator = allocator;
         this.layouts = layouts;
         this.targets = targets;
         this.surfaces = surfaces;
+        this.scratch = scratch;
+
         Name = name;
         Parameters = parameters;
 
@@ -83,7 +89,6 @@ internal sealed unsafe class TemporalSignal : IDisposable
         for (int part = 0; part < parts; part++)
         for (int parity = 0; parity < 2; parity++)
             sets[part, parity] = layouts.AllocateSignalSet();
-        ReadSet = layouts.AllocateSignalReadSet();
 
         temporal = CreatePipeline(shaders, "temporal");
         spatial = CreatePipeline(shaders, "spatial");
@@ -108,17 +113,23 @@ internal sealed unsafe class TemporalSignal : IDisposable
     /// <summary>The signal's parameter set.</summary>
     public SignalParameters Parameters { get; }
 
-    /// <summary>
-    /// Set 3 of <see cref="DescriptorLayouts.CompositeLayout"/>: the slow history of each part as a storage image for the
-    /// fragment stage, which the composite reads.
-    /// </summary>
-    public DescriptorSet ReadSet { get; }
+    /// <summary>The most parts of a signal: the descriptor pool holds the sets of a test's signal of two parts.</summary>
+    public const int MostParts = 2;
 
     /// <summary>The sample of <paramref name="part"/>, which the producer writes in each frame: rgb the light, a 1.</summary>
     public GpuImage Sample(int part) => parts[part].Sample;
 
     /// <summary>The slow history of <paramref name="part"/> after the last accumulation: rgb the light, a the length.</summary>
     public GpuImage Slow(int part) => parts[part].Slow;
+
+    /// <summary>
+    /// The images of <paramref name="part"/> that the screen tracer binds in a frame of <paramref name="parity"/>: the
+    /// sample, which its resolve writes, the fast history that the last drawn frame wrote, which its hits read, and the
+    /// slow history, whose length its ray plan reads before this frame's accumulation. Each pass binds one set of its own,
+    /// because a pipeline gets at most four sets on every driver, so the tracer's set binds these images.
+    /// </summary>
+    public (GpuImage Sample, GpuImage LastFast, GpuImage Slow) HitImages(int part, int parity) =>
+        (parts[part].Sample, parts[part].LastFast(parity), parts[part].Slow);
 
     /// <summary>
     /// Records both dispatches of each part: the temporal dispatch reprojects and blends into the scratch image and this
@@ -135,20 +146,29 @@ internal sealed unsafe class TemporalSignal : IDisposable
         barriers.Image(targets.Shading, ImageUse.SampledCompute);
         barriers.Image(surfaces.Test, ImageUse.StorageCompute);
         barriers.Image(targets.Motion, ImageUse.StorageCompute);
+
+        // The closed form's material, and the last frame's surfaces of the reflected point's surface test.
+        barriers.Image(targets.BaseColor, ImageUse.SampledCompute);
+        barriers.Image(targets.Specular, ImageUse.SampledCompute);
+        barriers.Image(targets.Emissive, ImageUse.SampledCompute);
+        barriers.Image(surfaces.Last(parity), ImageUse.SampledCompute);
+        barriers.Image(surfaces.LastDepth(parity), ImageUse.SampledCompute);
         barriers.Buffer(context.Exposure.Buffer, BufferUse.ShaderRead);
         for (int part = 0; part < parts.Length; part++)
         {
             PartImages images = parts[part];
+            GpuImage scratched = scratch.Part(part);
             barriers.Image(images.Sample, ImageUse.StorageCompute);
             barriers.Image(images.Slow, ImageUse.StorageCompute);
             barriers.Image(images.LastFast(parity), ImageUse.StorageCompute);
             // Discarded: the temporal dispatch writes every pixel of each.
             barriers.Image(images.Fast(parity), ImageUse.StorageCompute, discard: true);
-            barriers.Image(images.Scratch, ImageUse.StorageCompute, discard: true);
+            // After the last signal's spatial dispatch, which read it.
+            barriers.Image(scratched, ImageUse.StorageCompute, discard: true);
             Dispatch(context: context, pipeline: temporal, set: sets[part, parity]);
 
             // The spatial dispatch reads the neighbors' results of the temporal one.
-            barriers.Image(images.Scratch, ImageUse.StorageCompute);
+            barriers.Image(scratched, ImageUse.StorageCompute);
             barriers.Image(images.Fast(parity), ImageUse.StorageCompute);
             barriers.Image(images.Slow, ImageUse.StorageCompute);
             Dispatch(context: context, pipeline: spatial, set: sets[part, parity]);
@@ -163,6 +183,7 @@ internal sealed unsafe class TemporalSignal : IDisposable
     public void Resize()
     {
         Contract.Requires(SameExtent(surfaces.Test.Extent, targets.Extent));
+        Contract.Requires(SameExtent(scratch.Part(0).Extent, targets.Extent));
         DestroyImages();
         Create();
         Contract.Ensures(FitsTargets());
@@ -190,7 +211,7 @@ internal sealed unsafe class TemporalSignal : IDisposable
     private void Dispatch(FrameContext context, Pipeline pipeline, DescriptorSet set)
     {
         context.BeginComputePass(pipeline: pipeline, layout: layouts.AccumulateLayout, passSet: set);
-        var push = AccumulatePushConstants.Of(Parameters);
+        var push = AccumulatePushConstants.Of(Parameters, context.History.Reset);
         context.Vk.CmdPushConstants(
             commandBuffer: context.CommandBuffer,
             layout: layouts.AccumulateLayout,
@@ -224,24 +245,24 @@ internal sealed unsafe class TemporalSignal : IDisposable
                 [
                     CreateImage(extent, $"{Name} fast history {part}.0", 0),
                     CreateImage(extent, $"{Name} fast history {part}.1", 0),
-                ],
-                Scratch: CreateImage(extent, $"{Name} scratch {part}", 0)
+                ]
             );
             for (int parity = 0; parity < 2; parity++)
-                WriteSignalSet(set: sets[part, parity], images: parts[part], parity: parity);
-            layouts.WriteStorageImage(set: ReadSet, binding: (uint)part, image: parts[part].Slow);
+                WriteSignalSet(set: sets[part, parity], images: parts[part], part: part, parity: parity);
         }
     }
 
-    private void WriteSignalSet(DescriptorSet set, PartImages images, int parity)
+    private void WriteSignalSet(DescriptorSet set, PartImages images, int part, int parity)
     {
         layouts.WriteStorageImage(set: set, binding: 0, image: images.Sample);
         layouts.WriteStorageImage(set: set, binding: 1, image: images.Slow);
         layouts.WriteStorageImage(set: set, binding: 2, image: images.LastFast(parity));
         layouts.WriteStorageImage(set: set, binding: 3, image: images.Fast(parity));
-        layouts.WriteStorageImage(set: set, binding: 4, image: images.Scratch);
+        layouts.WriteStorageImage(set: set, binding: 4, image: scratch.Part(part));
         layouts.WriteStorageImage(set: set, binding: 5, image: surfaces.Test);
         layouts.WriteStorageImage(set: set, binding: 6, image: targets.Motion);
+        layouts.WriteImage(set: set, binding: 7, arrayElement: 0, image: surfaces.Last(parity));
+        layouts.WriteImage(set: set, binding: 8, arrayElement: 0, image: surfaces.LastDepth(parity));
     }
 
     /// <summary>
@@ -284,7 +305,7 @@ internal sealed unsafe class TemporalSignal : IDisposable
     }
 
     /// <summary>The images of one part.</summary>
-    private sealed record PartImages(GpuImage Sample, GpuImage Slow, GpuImage[] Fasts, GpuImage Scratch)
+    private sealed record PartImages(GpuImage Sample, GpuImage Slow, GpuImage[] Fasts)
     {
         /// <summary>The fast history that the frame of <paramref name="parity"/> writes.</summary>
         public GpuImage Fast(int parity) => Fasts[parity];
@@ -292,15 +313,14 @@ internal sealed unsafe class TemporalSignal : IDisposable
         /// <summary>The fast history that the last drawn frame wrote.</summary>
         public GpuImage LastFast(int parity) => Fasts[1 - parity];
 
-        public IEnumerable<GpuImage> All => [Sample, Slow, Fasts[0], Fasts[1], Scratch];
+        public IEnumerable<GpuImage> All => [Sample, Slow, Fasts[0], Fasts[1]];
 
         /// <summary>Whether every image has <paramref name="extent"/>.</summary>
         public bool Fit(Extent2D extent) =>
             SameExtent(Sample.Extent, extent)
             && SameExtent(Slow.Extent, extent)
             && SameExtent(Fasts[0].Extent, extent)
-            && SameExtent(Fasts[1].Extent, extent)
-            && SameExtent(Scratch.Extent, extent);
+            && SameExtent(Fasts[1].Extent, extent);
     }
 }
 

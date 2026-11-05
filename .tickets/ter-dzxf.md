@@ -66,3 +66,10 @@ Checks, all foreground in the Nix shell: 23 Python tests pass; all 55 current GL
 **2026-11-04T20:39:50Z**
 
 2026-11-04: closed, report only. The report docs/research/temporal-renderer/walk-hill-climb.md and its records in docs/research/temporal-renderer/walk-hill-climb/ went to main in the close commit. The harness and the native experiment stay on branch ter-dzxf-walk-hill-climb. The user chose portable only (no Metal path). The walk changes go into the engine in ter-rgg9 after ter-gayt, and the one-image pyramid is measured in ter-y3k4.
+
+
+## Port note from ter-gayt, 2026-11-04
+
+The engine port keeps V6's slab tests but replaces its 0.005 px position nudge with `childAt` and `solved` cell tracking. Commit `17ccadd9c` records 978 skipped hits among 1,000,000 random rays with the nudge. Preserve that correctness change when porting the winning walk. The winning changes belong to ter-rgg9 after ter-gayt, not to this fix stage. The ter-gayt fix report records a comparison of mean cell counts, not a new GPU timing claim.
+
+That comparison used 1,000,000 random rays at seed 20261104, a 128 × 96 room and cap 4,096: the port averaged 10.470271 cells and nudged V6 10.454608, about 0.15 % fewer. The port matched the flat-slab march on every ray. This is not the spike's deck input or a measurement of GPU time. Evidence: `/private/tmp/gayt-fix/walk-steps.log` and `ScreenWalkTests.RandomRays`.

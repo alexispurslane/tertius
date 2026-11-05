@@ -1,5 +1,7 @@
 # Bounce light
 
+Superseded on 2026-11-04 by [the temporal renderer](temporal-renderer.md), section 6. The screen tracer replaces the occlusion passes. Decisions 13, 39 and 41 below stay in force through that design. Decision 30, exactly one bounce, gives way to its decision 17, many bounces.
+
 Ticket: `ter-a24f`, a member of the rendering upgrade epic (`ter-sglu`, [rendering-upgrade.md](rendering-upgrade.md)). The design ticket is `ter-zi4i`. The user chose the design on 2026-10-25 in two steps, which the ticket's last two notes record. First: one estimate of the light around each point, gathered in the crease shadowing's slices with masks of sectors, from this frame's direct light, with a blur and nothing carried over between frames. Then, the same day: "near and far". The same estimate continues beyond the crease radius with rays through the reflections' depth pyramid, only in the directions that the near sectors leave open. This doc fills in the details. Its three open points are settled, see "Settled forks".
 
 On 2026-10-26 the user downscoped the bounce light to the near range (decision 40, `ter-ehxp`). The far rays went, and beyond the crease radius an open sector takes the ambient light. The doc describes the near-only design. "Later" holds the far rays and the commits that built them.

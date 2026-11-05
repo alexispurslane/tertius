@@ -18,7 +18,16 @@ public sealed class ShaderConstantsTests
     /// </summary>
     private static readonly Dictionary<string, Dictionary<uint, Declared>> DeclaredByShader = new()
     {
-        ["composite.frag"] = new() { [ShaderConstants.EnvironmentMapId] = False },
+        ["composite.frag"] = new()
+        {
+            [ShaderConstants.EnvironmentMapId] = False,
+            [ShaderConstants.ScreenTraceOnId] = False,
+        },
+        ["screen_trace_block_rays.comp"] = new()
+        {
+            [ShaderConstants.EnvironmentMapId] = False,
+            [ShaderConstants.RayKindId] = new(Type: "uint", Default: 0),
+        },
         ["environment_face.frag"] = new()
         {
             [ShaderConstants.CutoutAlphaId] = False,

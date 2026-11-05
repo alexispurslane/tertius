@@ -129,11 +129,4 @@ internal readonly record struct GgxLobe
         var mix = Double3.Lerp(normal, mirror, towardMirror);
         return mix.LengthSquared >= ShaderInput.SmallestNormal ? mix.Normalized() : normal;
     }
-
-    /// <summary>
-    /// V_s, the share of the ambient specular light that the occlusion <paramref name="occlusion"/> leaves at the view
-    /// cosine <paramref name="nDotV"/> (Lagarde and de Rousiers 2014, section 4.10.2, listing 26).
-    /// </summary>
-    public double SpecularOcclusion(double nDotV, double occlusion) =>
-        Math.Clamp(Math.Pow(nDotV + occlusion, Math.Pow(2, -16 * Alpha - 1)) - 1 + occlusion, 0, 1);
 }

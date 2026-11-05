@@ -1,5 +1,5 @@
-// Jimenez's 13-tap downsample (Call of Duty: Advanced Warfare, SIGGRAPH 2014), which the bloom's down chain and the
-// radiance pyramid of the reflections share, from the 13 bilinear taps a to m at these offsets, in source texels from
+// Jimenez's 13-tap downsample (Call of Duty: Advanced Warfare, SIGGRAPH 2014), which the bloom's down chain takes, from
+// the 13 bilinear taps a to m at these offsets, in source texels from
 // the output pixel's center:
 //   a(-2,-2) b(0,-2) c(2,-2)
 //        d(-1,-1) e(1,-1)

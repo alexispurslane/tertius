@@ -255,6 +255,34 @@ public sealed class DepthPyramidTests
     }
 
     [Fact]
+    public void TheFinestLevelHoldsTheInverseDepthOfEachPixelsCenter()
+    {
+        CameraView camera = FloorCamera;
+
+        float finest = ScreenTesting.Pyramid(camera, Floor).Finest(32, 41);
+
+        float center = FloorInverseDepth(camera, new(32.5f, 41.5f));
+        finest.Should().BeApproximately(center, 1e-5f * center, "the walk's flat slab starts at the center's w");
+    }
+
+    [Fact]
+    public void TheFinestLevelHoldsZeroForSkyAndBeyondTheScreen()
+    {
+        DepthPyramid pyramid = ScreenTesting.Pyramid(FloorCamera, Floor);
+
+        pyramid.Finest(32, 2).Should().Be(0, "the camera sees the sky above the horizon");
+        pyramid.Finest(-1, 41).Should().Be(0, "no surface lies beyond the screen's edge");
+    }
+
+    [Fact]
+    public void APyramidKeepsEachPixelsGeometricNormalForTheWalksFacingTest()
+    {
+        DepthPyramid pyramid = ScreenTesting.Pyramid(FloorCamera, Floor);
+
+        pyramid.GeometricNormal(32, 41).Should().Be(Vector3.UnitY);
+    }
+
+    [Fact]
     public void ALevelAboveZeroBoundsTheSurfacesOfItsPixels()
     {
         CameraView camera = FloorCamera;
