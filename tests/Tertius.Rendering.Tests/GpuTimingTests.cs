@@ -31,7 +31,7 @@ public sealed class GpuTimingTests
     /// <summary>A validating headless renderer that the test skips on a device without timestamps.</summary>
     private static VulkanRenderer TimedRenderer(
         int framesInFlight = 2,
-        ScreenSpaceLightSetting screenSpaceLight = default,
+        ScreenTraceSetting screenTrace = default,
         SubsurfaceSetting subsurface = default
     )
     {
@@ -39,7 +39,7 @@ public sealed class GpuTimingTests
             width: Width,
             height: Height,
             framesInFlight: framesInFlight,
-            screenSpaceLight: screenSpaceLight,
+            screenTrace: screenTrace,
             subsurface: subsurface
         );
         if (!renderer.TimesPasses)
@@ -128,9 +128,9 @@ public sealed class GpuTimingTests
     }
 
     [Fact]
-    public void WithVisibilityBitmaskLightTheFourOcclusionPassesRunBetweenTheDirectAndTheAmbientPass()
+    public void UnderTheScreenTracerItsPassesRunBetweenTheDirectPassAndTheComposite()
     {
-        VulkanRenderer renderer = TimedRenderer(screenSpaceLight: VisibilityBitmaskLight.Default);
+        VulkanRenderer renderer = TimedRenderer(screenTrace: ScreenTrace.Default);
         try
         {
             RenderSnapshot snapshot = TestScene.Create(renderer).Snapshot();
@@ -140,21 +140,24 @@ public sealed class GpuTimingTests
             string[] passes = [.. renderer.LastFrameStats.GpuTimings!.Value.Passes.ToArray().Select(pass => pass.Pass)];
             passes
                 .SkipWhile(pass => pass != "G-buffer")
-                .Take(8)
+                .Take(11)
                 .Should()
                 .Equal(
                     [
                         "G-buffer",
                         "surface test",
+                        "depth pyramid",
                         "direct light",
-                        "occlusion depth",
-                        "occlusion sectors",
-                        "occlusion denoise",
-                        "occlusion upsample",
+                        "ray plan",
+                        "reflection rays",
+                        "diffuse rays",
+                        "screen trace resolve",
+                        "accumulate indirect diffuse",
+                        "accumulate indirect specular",
                         "composite",
                     ],
-                    "the occlusion passes read the finished G-buffer and the direct light, no pass of theirs reads the "
-                        + "depth pyramid, and the composite reads their estimate target"
+                    "the rays read the pyramid and the direct light, the accumulations read the resolve's samples, and "
+                        + "the composite reads the slow histories"
                 );
         }
         finally
@@ -164,9 +167,9 @@ public sealed class GpuTimingTests
     }
 
     [Fact]
-    public void WithNoScreenSpaceLightTheFrameHasTheDirectPassAndTheCompositeAndNoOcclusionPass()
+    public void WithNoScreenTraceTheFrameHasTheDirectPassAndTheCompositeAndNoTracerPass()
     {
-        VulkanRenderer renderer = TimedRenderer(screenSpaceLight: new NoScreenSpaceLight());
+        VulkanRenderer renderer = TimedRenderer(screenTrace: new NoScreenTrace());
         try
         {
             RenderSnapshot snapshot = TestScene.Create(renderer).Snapshot();
@@ -180,9 +183,9 @@ public sealed class GpuTimingTests
                 .Should()
                 .Equal(
                     ["G-buffer", "surface test", "direct light", "composite"],
-                    "the composite reads the cleared estimate target"
+                    "the composite takes the closed forms, so no pass sits between the direct pass and it"
                 );
-            passes.Should().NotContain(pass => pass.StartsWith("occlusion"));
+            passes.Should().NotContain(["depth pyramid", "ray plan", "screen trace resolve"]);
         }
         finally
         {
@@ -243,8 +246,8 @@ public sealed class GpuTimingTests
     [Fact]
     public void WithEverySettingOnTheFrameGraphHoldsNoMorePassesThanTheGpuTimerCanTime()
     {
-        // Every pass that a setting adds, each with the most passes it can add: the half-resolution trace's upsample, the
-        // three SMAA passes and the four occlusion passes among them.
+        // Every pass that a setting adds, each with the most passes it can add: the three SMAA passes and the tracer's
+        // seven among them.
         using var renderer = VulkanRenderer.CreateHeadless(
             new()
             {
@@ -255,9 +258,8 @@ public sealed class GpuTimingTests
                 ImpostorTiles = 4,
                 LocalShadows = LocalShadowAtlas.Default,
                 Exposure = AutoExposure.Default,
-                ScreenSpaceLight = VisibilityBitmaskLight.Default,
                 Bloom = Bloom.Default,
-                Reflections = ConeTracedReflections.Default with { Resolution = TraceResolution.Half },
+                ScreenTrace = ScreenTrace.Default,
                 AntiAliasing = AntiAliasing.Smaa,
                 EnvironmentMap = SceneEnvironmentMap.Default,
                 Deformation = true,
@@ -302,7 +304,7 @@ public sealed class GpuTimingTests
     [Fact]
     public void APassThatRecordsNothingAddsNearlyNoTimeToTheFramesGpuSpan()
     {
-        VulkanRenderer renderer = TimedRenderer(framesInFlight: 1);
+        VulkanRenderer renderer = TimedRenderer(framesInFlight: 1, screenTrace: new NoScreenTrace());
         try
         {
             renderer.Graph.Add(FrameGraph.Stage.GBuffer, new EmptyPass());
@@ -320,7 +322,7 @@ public sealed class GpuTimingTests
     [Fact]
     public void APassThatFillsABufferAddsMoreThanNearlyNoTimeToTheFramesGpuSpan()
     {
-        VulkanRenderer renderer = TimedRenderer(framesInFlight: 1);
+        VulkanRenderer renderer = TimedRenderer(framesInFlight: 1, screenTrace: new NoScreenTrace());
         try
         {
             renderer.Graph.Add(FrameGraph.Stage.GBuffer, new FillPass(renderer.Allocator, FillBytes));
@@ -483,8 +485,9 @@ public sealed class GpuTimingTests
                 Bloom = new NoBloom(),
                 Height = Height,
                 Impostors = false,
-                // A fixed exposure draws no warm-up draw, so each Render draws one frame.
+                // A fixed exposure and no tracer draw no warm-up draw, so each Render draws one frame.
                 Exposure = new FixedExposure(0),
+                ScreenTrace = new NoScreenTrace(),
                 AntiAliasing = AntiAliasing.None,
             },
             (device, allocator, extent) => made = new(device: device, allocator: allocator, extent: extent, bgra: false)

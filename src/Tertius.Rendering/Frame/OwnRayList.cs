@@ -3,8 +3,8 @@ using Silk.NET.Vulkan;
 namespace Tertius.Rendering;
 
 /// <summary>
-/// The layout of the own-ray list of a <see cref="HalfTrace"/> (docs/plans/screen-space-reflections.md, "Rays at
-/// outlines"), which reflection_own_rays.glsl declares: a header of four uints, the own-ray dispatch's
+/// The layout of an own-ray list of the screen tracer, one per ray kind (docs/plans/temporal-renderer.md, section 6, "The
+/// ray budget"), which own_rays.glsl declares: a header of four uints, the own-ray dispatch's
 /// VkDispatchIndirectCommand (x, y, z) and the count, then one pixel per entry, x in the low and y in the high 16 bits.
 /// </summary>
 internal static class OwnRayList

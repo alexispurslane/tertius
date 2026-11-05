@@ -191,7 +191,8 @@ internal sealed unsafe class ImpostorPass : RenderPass, IRangeDrawer
                             axisZ: draw.Toward,
                             origin: draw.Center,
                             material: (uint)draw.Tile,
-                            placedIndex: draw.PlacedIndex
+                            placedIndex: draw.PlacedIndex,
+                            holdsLight: draw.HoldsLight
                         )
                     );
             scene.Impostors[range] = new(first, scene.InstanceCount - first);

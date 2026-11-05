@@ -7,7 +7,7 @@
 #include "motion.glsl"
 
 // Impostor billboards into the G-buffer (ImpostorPass.cs). The capture's lighting is baked, so the pixel is
-// written as emission with base color alpha 0, which tells the direct and ambient passes to add nothing else. The captured relative
+// written as emission with base color alpha 0, which tells the direct light and the composite to add nothing else. The captured relative
 // depth rebuilds the surface point on the ray from the capture's eye through the quad, which gives the depth test
 // and the distance target the object's real shape.
 
@@ -62,8 +62,10 @@ void main()
     // The atlas holds radiance, which the billboard pre-exposes with this frame's exposure.
     outEmissive = vec4(preExposed(color.rgb / coverage), 1.0);
     outDistance = length(world - draw.eye.xyz);
-    // The standard code: the pixel is unlit, which the base color's alpha of 0 says, and holds no strand.
-    outShading = uvec4(0u);
+    // The standard code: the pixel is unlit, which the base color's alpha of 0 says, and holds no strand. Its light mark
+    // is its instance's, so that a lamp's billboard sends no glow to a tracer's hit beside its light
+    // (docs/plans/temporal-renderer.md, decision 36).
+    outShading = uvec4(0u, 0u, lightModelAndCardWords(instance.holdsLight, ShadingStandard, 0u));
     // The billboard moves with its object's center: a turn of the object since the last frame does not move the
     // billboard's point.
     GpuMotion motion = motions[instance.placedIndex];

@@ -1,7 +1,8 @@
-// The depth pyramid (docs/plans/screen-space-reflections.md, "The depth pyramid"). The bounds of a cell are the largest
-// and the smallest inverse view depth of the surfaces of its pixels, in 1/m: (w_near, w_far), or the empty bounds
-// (0, EmptyFar) for a cell with no surface. Level 0 is the distance target with the geometric normals, read through
-// pixelSurface; mip m of the pyramid image holds level m + 1. DepthPyramid, PixelSurface and CellBounds are the C# copy.
+// The depth pyramid (docs/plans/screen-space-reflections.md, "The depth pyramid", and docs/plans/temporal-renderer.md,
+// section 6). The bounds of a cell are the largest and the smallest inverse view depth of the surfaces of its pixels, in
+// 1/m: (w_near, w_far), or the empty bounds (0, EmptyFar) for a cell with no surface. The finest level holds each pixel's
+// center w (depth_pyramid_finest.comp). The bounds of level 1 come from the pixels' surfaces, read through pixelSurface;
+// mip m of the pyramid image holds level m + 1. DepthPyramid, PixelSurface and CellBounds are the C# copy.
 // Change both together.
 #ifndef TERTIUS_DEPTH_PYRAMID_GLSL
 #define TERTIUS_DEPTH_PYRAMID_GLSL
@@ -10,9 +11,8 @@
 #include "octahedral.glsl"
 #include "screen.glsl"
 
-// κ: a surface at view depth z fills the depths from z to z (1 + κ) behind it, along its view ray. The reflections'
-// trace and the bounce light's near steps read it, so both see one thickness of what is solid, as both see one surface
-// of a depth sample (PixelSurface, CellBounds.ThicknessShare).
+// κ: a surface at view depth z fills the depths from z to z (1 + κ) behind it, along its view ray. The screen tracer's
+// walk reads it at every level, so every ray sees one thickness of what is solid (CellBounds.ThicknessShare).
 const float ThicknessShare = 0.1;
 // The share by which the center of a depth sample's edge neighbor may stand off the sample's plane, in inverse depth, and
 // the sample's center off the neighbor's plane, where the neighbor continues the plane (CellBounds.ContinuationShare). Far
@@ -28,8 +28,7 @@ const float EdgeOnShare = 1e-6;
 const float EmptyFar = 1e30;
 
 // The plane of a depth sample that sees a surface: through its center point along its geometric normal, as an inverse
-// depth that is affine in the place on the screen, in units of the sample's grid. A sample is a pixel of level 0, in
-// pixels, or a half-resolution texel of the bounce light's near steps, in texels (texelPlane, sectors.glsl). An edge-on
+// depth that is affine in the place on the screen, in units of the sample's grid. A sample is a pixel, in pixels. An edge-on
 // plane, which holds the sample's view ray to within EdgeOnShare, keeps its center's inverse depth, with no gradient.
 struct PixelPlane
 {
@@ -51,6 +50,14 @@ PixelPlane samplePlane(vec2 center, float centerW, float planeDistance, float po
     return plane;
 }
 
+// The inverse view depth, in 1/m, of the surface point at distanceToEye m along the view ray through a position on the
+// screen: the ray's length over the distance, because the ray's forward part is 1. The one rule of a depth sample's w:
+// a pixel's plane and the finest level (depth_pyramid_finest.comp) both call it.
+float inverseDepthAlong(vec2 position, float distanceToEye)
+{
+    return length(viewRayThrough(position)) / distanceToEye;
+}
+
 // The plane of a pixel inside the image, or false for a pixel that sees the sky.
 bool pixelPlane(ivec2 pixel, out PixelPlane plane)
 {
@@ -62,7 +69,7 @@ bool pixelPlane(ivec2 pixel, out PixelPlane plane)
     vec3 centerRay = viewRayThrough(center);
     vec3 n = octDecode(texelFetch(gbufferNormal, pixel, 0).ba);
     // The view ray changes by cameraRight · 2 / W across a pixel and by −cameraUp · 2 / H down one.
-    plane = samplePlane(center, length(centerRay) / distanceToEye, dot(n, normalize(centerRay) * distanceToEye),
+    plane = samplePlane(center, inverseDepthAlong(center, distanceToEye), dot(n, normalize(centerRay) * distanceToEye),
         distanceToEye, vec2(dot(n, frame.cameraRight.xyz) * 2.0 * frame.viewport.z,
             -dot(n, frame.cameraUp.xyz) * 2.0 * frame.viewport.w));
     return true;
@@ -81,8 +88,8 @@ bool planeHolds(PixelPlane plane, vec2 position, float w)
 // lies there, and one that sees the sky does not. One that sees a surface, whose plane is other, continues it where
 // neither plane is edge-on and each plane holds the other sample's center. Both directions, because a steep plane at a
 // depth edge can pass the far surface's center one sample away by chance, and the far surface's plane never passes back
-// through the near center. The one rule of where a depth sample's plane holds (PixelPlane.ContinuesInto): the pixels of
-// level 0 and the bounce light's near steps both call it, each with planes in its own grid. other is read only for a
+// through the near center. The one rule of where a depth sample's plane holds (PixelPlane.ContinuesInto), which the
+// pixels' surfaces call. other is read only for a
 // neighbor inside the image that sees a surface, so a caller reads no sample beyond the image.
 bool neighborContinues(PixelPlane plane, bool insideImage, bool seesSurface, PixelPlane other)
 {
@@ -104,8 +111,8 @@ bool continuesPlane(PixelPlane plane, ivec2 neighbor)
 // The surface of a depth sample that sees a surface (docs/plans/screen-space-reflections.md, "The pixel's surface"):
 // its plane over the part of its square, one unit of its grid wide, from low to high. Toward each edge neighbor the part
 // reaches the sample's edge where the neighbor continues the plane, and stops at the sample's center line otherwise.
-// Past the part, the surface keeps the plane's value at the part's edge. The pyramid's bounds and the trace's level-0
-// test read the surface of a pixel, and the bounce light's near steps the surface of a half-resolution texel.
+// Past the part, the surface keeps the plane's value at the part's edge. The bounds of level 1 read the surface of each
+// pixel.
 struct PixelSurface
 {
     vec2 center;     // the sample's center, in units of its grid

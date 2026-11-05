@@ -81,7 +81,7 @@ internal sealed unsafe class DirectLightProbe : RenderPass
         context.DrawSceneFullScreen(
             pipeline: pipeline,
             layout: context.Layouts.CompositeLayout,
-            passSet: targets.DirectSet,
+            passSet: renderer.CompositeLightSet,
             targets: [(target, AttachmentLoadOp.DontCare)]
         );
     }

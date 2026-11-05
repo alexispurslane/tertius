@@ -19,7 +19,7 @@
 #   --paired <pass>   adds the paired table, for a run whose frames alternate with and without <pass>
 #   --control <pass>  adds the paired table's control, for a run whose frames all run <pass>
 #                     (give --paired or --control once, not both)
-# Arguments after the script go to the demo's headless run, such as --screen-space-light off.
+# Arguments after the script go to the demo's headless run, such as --screen-trace off.
 # The recording takes the GPU lock through tools/gpu-lock.sh and runs beside gpu-clock through tools/gpu-clock.sh. The
 # clock over the run's timed span goes into gpu-timings.json as "gpuClock" and into passes.md. <out>/run.log holds the
 # lock's uptime lines, xctrace's messages, gpu-clock's samples and the demo's output.

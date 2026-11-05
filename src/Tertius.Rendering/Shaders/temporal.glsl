@@ -69,6 +69,45 @@ bool sameSurface(SurfaceKey pixel, SurfaceKey neighbor)
         && dot(neighbor.normal, pixel.normal) >= SameNormalCosine && neighbor.model == pixel.model;
 }
 
+// The light of both indirect signals at a surface, demodulated and pre-exposed.
+struct IndirectLight
+{
+    vec3 diffuse;
+    vec3 specular;
+};
+
+// ShaderConstants.ScreenTraceOn: whether the screen tracer's signals hold the indirect light, so that the composite reads
+// their slow histories rather than the closed form.
+layout(constant_id = 6) const bool screenTraceOn = false;
+
+// The environment's closed form at a surface, with every direction open (docs/plans/temporal-renderer.md, section 8,
+// "The zero cases"): the irradiance term at the shading normal and the specular term along the lobe's dominant direction,
+// from the map while it is on and from the hemisphere while it is off, pre-exposed. A pixel without a sample and without
+// a history takes it, and so does a tracer's hit whose surface has no history. It is demodulated: the specular term is
+// the incoming light, which the factor W of materialFactors weights again, except at a hair pixel, whose factor is 1, so
+// the term holds the hair's W itself, as the forward passes' ambientTerms weights it.
+IndirectLight closedForm(ShadingInput s, vec3 V)
+{
+    IndirectLight light;
+    if (environmentMapOn)
+    {
+        light.diffuse = environmentDiffuse(s.map, s.normal);
+        light.specular = environmentSpecular(
+            s.map, ambientSpecularDirection(s, V), flooredRoughness(s.roughness), s.reflectionFootprint);
+    }
+    else
+    {
+        light.diffuse = mix(frame.ambientGround.rgb, frame.ambientSky.rgb, s.skyFraction);
+        light.specular = mix(frame.ambientGround.rgb, frame.ambientSky.rgb, s.lobeSkyFraction);
+    }
+    if (s.model == ShadingHair)
+        light.specular *= specularWeight(lobesOf(s, V));
+    float k = exposureScale();
+    light.diffuse = exposed(light.diffuse, k);
+    light.specular = exposed(light.specular, k);
+    return light;
+}
+
 // Whether every channel of a sample is finite: isnan and isinf test it, because a clamp or a min of NaN has no defined
 // result in Vulkan.
 bool finiteSample(vec3 v)

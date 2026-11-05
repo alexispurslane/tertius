@@ -1,0 +1,16 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#include "screen_trace.glsl"
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+void main()
+{
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    if (any(greaterThanEqual(vec2(pixel), frame.viewport.xy)))
+        return;
+    const float distances[4] = float[4](0.0, 32752.0, 65504.0, 131008.0);
+    TracedRay traced = TracedRay(vec3(0.0, 0.0, 1.0), 1.0, vec3(1.0), distances[pixel.x & 3], true);
+    RayRecord record = recordOf(traced);
+    imageStore(specularSample, pixel, vec4(traced.distance / 65504.0, record.light.a / 65504.0, 0.0, 1.0));
+}

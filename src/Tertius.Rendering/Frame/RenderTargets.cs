@@ -5,8 +5,8 @@ namespace Tertius.Rendering;
 
 /// <summary>
 /// The screen-sized images shared by all frames in flight: the G-buffer, the depth buffer, the direct light's two images,
-/// the estimate target, the HDR target, the bloom levels, under the skin scatter, the diffuse image, when SMAA is on, the images of SMAA (<see cref="SmaaTargets"/>), and under
-/// <see cref="ConeTracedReflections"/>, the pyramids of the reflections (<see cref="ReflectionTargets"/>).
+/// the HDR target, the bloom levels, under the skin scatter, the diffuse image, when SMAA is on, the images of SMAA
+/// (<see cref="SmaaTargets"/>), and under <see cref="ScreenTrace"/>, the depth pyramid (<see cref="DepthPyramidImages"/>).
 /// Sharing is safe because every use goes through <see cref="BarrierBatch"/>, and barriers order against earlier
 /// submissions on the queue. Resizing recreates everything; the caller makes sure the device is idle.
 /// </summary>
@@ -35,16 +35,14 @@ namespace Tertius.Rendering;
 /// </list>
 /// The depth buffer is D32_SFLOAT with reversed Z (1 near, 0 far, cleared to 0, compare GREATER). The direct light's images
 /// are R16G16B16A16_SFLOAT: the diffuse and the specular part of each lit pixel's direct light, each divided by its material
-/// factor and pre-exposed, 0 for sky and impostors, which the direct pass draws and the composite and the occlusion's depth
-/// pass read as storage images (docs/plans/temporal-renderer.md, section 7). The estimate target holds
-/// the bounce G in rgb with the occlusion V in a, (0, 0, 0, 1) under NoScreenSpaceLight
-/// (docs/plans/screen-space-illumination.md, "Images and buffers"). The diffuse image is R16G16B16A16_SFLOAT: the diffuse
+/// factor and pre-exposed, 0 for sky and impostors, which the direct pass draws and the composite and the screen tracer
+/// read as storage images (docs/plans/temporal-renderer.md, section 7). The diffuse image is R16G16B16A16_SFLOAT: the diffuse
 /// light D of each skin pixel, which the composite writes, and the skin mask, whose pixels the skin scatter spreads
 /// (docs/plans/skin-and-hair.md, "The diffuse light D").
 /// Each bloom level is an HDR image half the size of the one before, rounded up, from half the output's size. Every color
-/// target can be copied out, for the read hooks of <see cref="VulkanRenderer"/>. Under reflections or the skin scatter
-/// the HDR target is also a storage image, which the trace and the scatter's columns pass write; without both it is not,
-/// so a frame is the frame from before them.
+/// target can be copied out, for the read hooks of <see cref="VulkanRenderer"/>. Under the skin scatter the HDR target is
+/// also a storage image, which the scatter's columns pass writes; without it it is not, so a frame is the frame from before
+/// the scatter.
 /// </remarks>
 internal sealed class RenderTargets : IDisposable
 {
@@ -57,7 +55,6 @@ internal sealed class RenderTargets : IDisposable
     public const Format MotionFormat = Format.R16G16B16A16Sfloat;
     public const Format DepthFormat = Format.D32Sfloat;
     public const Format HdrFormat = Format.R16G16B16A16Sfloat;
-    public const Format EstimateFormat = EstimatePacking.Format;
     public const Format DiffuseFormat = Format.R16G16B16A16Sfloat;
     public const Format DirectFormat = Format.R16G16B16A16Sfloat;
 
@@ -67,22 +64,11 @@ internal sealed class RenderTargets : IDisposable
     /// </summary>
     public const uint RequiredColorAttachments = 8;
 
-    /// <summary>The binding of the estimate target in the G-buffer set (Shaders/gbuffer_inputs.glsl).</summary>
-    public const uint EstimateBinding = 7;
-
     /// <summary>
     /// The binding of the shading target in the G-buffer set. The other G-buffer targets take the bindings of their
-    /// attachments, 0 to 4, 5 to 8 are taken and 9 is free (Shaders/gbuffer_inputs.glsl).
+    /// attachments, 0 to 4, 5, 6 and 8 are taken, and 7 and 9 are free (Shaders/gbuffer_inputs.glsl).
     /// </summary>
     public const uint ShadingBinding = 10;
-
-    // The upsample pass writes the target as a storage image, the clear as a transfer, and the composite samples it.
-    // VulkanRenderer.ReadEstimate copies it out.
-    private const FormatFeatureFlags EstimateFeatures =
-        FormatFeatureFlags.SampledImageBit
-        | FormatFeatureFlags.StorageImageBit
-        | FormatFeatureFlags.TransferDstBit
-        | FormatFeatureFlags.TransferSrcBit;
 
     /// <summary>The G-buffer color formats in attachment order, matching the outputs of Shaders/gbuffer.frag.</summary>
     public static readonly Format[] GBufferFormats =
@@ -100,18 +86,13 @@ internal sealed class RenderTargets : IDisposable
     private readonly DeviceAllocator allocator;
     private readonly DescriptorLayouts layouts;
 
-    // True under reflections or the skin scatter, whose compute passes write the HDR target as a storage image.
-    private readonly bool hdrStorage;
-
-    // True under the skin scatter, which reads the diffuse image.
+    // True under the skin scatter, whose columns pass writes the HDR target as a storage image and which reads the
+    // diffuse image.
     private readonly bool diffuse;
-
-    // True from the creation of the estimate target until the first frame after it records the clear to (0, 0, 0, 1).
-    private bool estimateNeedsClear;
 
     /// <param name="glowLevels">The bloom levels, 0 without bloom.</param>
     /// <param name="smaaTables">The SMAA tables when SMAA is on, or null when it is off.</param>
-    /// <param name="reflections">The resolution of the reflections' trace, to make their images, or null under <see cref="NoReflections"/>.</param>
+    /// <param name="depthPyramid">True under <see cref="ScreenTrace"/>, whose rays walk the depth pyramid.</param>
     /// <param name="subsurface">
     /// True under <see cref="SeparableSubsurface"/>, whose columns pass writes the HDR target and which reads the diffuse
     /// image.
@@ -123,38 +104,29 @@ internal sealed class RenderTargets : IDisposable
         Extent2D extent,
         int glowLevels,
         SmaaTables? smaaTables,
-        TraceResolution? reflections,
+        bool depthPyramid,
         bool subsurface
     )
     {
-        if (reflections is { } traced)
-            CheckReflectedScreen(device: device, extent: extent, resolution: traced);
+        if (depthPyramid)
+            CheckTracedScreen(device: device, extent: extent);
         this.device = device;
         this.allocator = allocator;
         this.layouts = layouts;
-        hdrStorage = reflections is not null || subsurface;
         diffuse = subsurface;
-        CheckFormats(device: device, reflections: reflections is not null, diffuse: diffuse);
+        CheckFormats(device: device, depthPyramid: depthPyramid, diffuse: diffuse);
 
         GBufferSet = layouts.AllocateGBufferSet();
         PostSet = layouts.AllocatePostSet();
         MeterSet = layouts.AllocateMeterSet();
-        DirectSet = layouts.AllocateSignalReadSet();
 
         Glow = new GpuImage[glowLevels];
         GlowSources = glowLevels == 0 ? [] : new DescriptorSet[glowLevels + 1];
         for (int i = 0; i < GlowSources.Length; i++)
             GlowSources[i] = layouts.AllocateGlowSourceSet();
         Create(extent);
-        if (reflections is { } resolution)
-            Reflections = new(
-                device: device,
-                allocator: allocator,
-                layouts: layouts,
-                extent: extent,
-                hdr: Hdr,
-                resolution: resolution
-            );
+        if (depthPyramid)
+            Pyramid = new(device: device, allocator: allocator, layouts: layouts, extent: extent);
         if (smaaTables is not null)
             Smaa = new(device: device, allocator: allocator, layouts: layouts, tables: smaaTables, extent: extent);
     }
@@ -185,12 +157,6 @@ internal sealed class RenderTargets : IDisposable
     public GpuImage DirectSpecular { get; private set; }
 
     /// <summary>
-    /// The estimate of each pixel: rgb the bounce, pre-exposed, a the occlusion. Cleared to (0, 0, 0, 1) in the first
-    /// frame after each creation.
-    /// </summary>
-    public GpuImage Estimate { get; private set; }
-
-    /// <summary>
     /// The diffuse image, or null without the skin scatter. After the composite: rgb the diffuse light D of each skin pixel,
     /// pre-exposed, a 1 at skin, and 0 elsewhere.
     /// </summary>
@@ -199,17 +165,11 @@ internal sealed class RenderTargets : IDisposable
     /// <summary>The images of SMAA, or null when SMAA is off.</summary>
     public SmaaTargets? Smaa { get; }
 
-    /// <summary>The pyramids of the reflections, or null under <see cref="NoReflections"/>.</summary>
-    public ReflectionTargets? Reflections { get; }
+    /// <summary>The depth pyramid, or null under <see cref="NoScreenTrace"/>.</summary>
+    public DepthPyramidImages? Pyramid { get; }
 
-    /// <summary>Set 2: the G-buffer and the estimate target, for the passes that shade surfaces.</summary>
+    /// <summary>Set 2: the G-buffer, for the passes that shade surfaces.</summary>
     public DescriptorSet GBufferSet { get; }
-
-    /// <summary>
-    /// Set 3 of <see cref="DescriptorLayouts.CompositeLayout"/>: <see cref="DirectDiffuse"/> and
-    /// <see cref="DirectSpecular"/> as storage images for the fragment stage, which the composite reads.
-    /// </summary>
-    public DescriptorSet DirectSet { get; }
 
     /// <summary>The HDR image for tone mapping.</summary>
     public DescriptorSet PostSet { get; }
@@ -231,32 +191,28 @@ internal sealed class RenderTargets : IDisposable
 
     /// <summary>Recreates every target at a new size. The device must be idle.</summary>
     /// <exception cref="ArgumentOutOfRangeException">
-    /// Reflections are on, and a side is above <see cref="ReflectionTargets.MaxSide"/>, or the own-ray list passes the
-    /// device's storage buffer range (<see cref="OwnRayList.RangeProblem"/>).
+    /// The screen tracer is on, and a side is above <see cref="DepthPyramidImages.MaxSide"/>, or an own-ray list passes
+    /// the device's storage buffer range (<see cref="OwnRayList.RangeProblem"/>).
     /// </exception>
     public void Resize(Extent2D extent)
     {
         if (extent.Width == Extent.Width && extent.Height == Extent.Height)
             return;
         // Before anything is destroyed, so that a refused size leaves every target as it was.
-        if (Reflections is not null)
-            CheckReflectedScreen(device: device, extent: extent, resolution: Reflections.Resolution);
+        if (Pyramid is not null)
+            CheckTracedScreen(device: device, extent: extent);
         DestroyImages();
         Create(extent);
-        // The trace keeps its resolution across a resize.
-        Reflections?.Create(extent: extent, hdr: Hdr, resolution: Reflections.Resolution);
+        Pyramid?.Create(extent);
         Smaa?.Resize(extent);
     }
 
-    private static void CheckReflectedScreen(VulkanDevice device, Extent2D extent, TraceResolution resolution)
+    /// <summary>The screen tracer's limits on the screen: the depth pyramid's levels, and the own-ray lists' range.</summary>
+    private static void CheckTracedScreen(VulkanDevice device, Extent2D extent)
     {
-        if (ReflectionTargets.ScreenProblem(extent.Width, extent.Height) is { } problem)
+        if (DepthPyramidImages.ScreenProblem(extent.Width, extent.Height) is { } problem)
             throw new ArgumentOutOfRangeException(nameof(extent), problem);
-        // A full-resolution trace binds no own-ray list, so a screen above the range still reflects at full resolution.
-        if (
-            resolution == TraceResolution.Half
-            && OwnRayList.RangeProblem(extent, device.Properties.Limits.MaxStorageBufferRange) is { } range
-        )
+        if (OwnRayList.RangeProblem(extent, device.Properties.Limits.MaxStorageBufferRange) is { } range)
             throw new ArgumentOutOfRangeException(nameof(extent), range);
     }
 
@@ -272,8 +228,7 @@ internal sealed class RenderTargets : IDisposable
         nameof(Depth),
         nameof(Hdr),
         nameof(DirectDiffuse),
-        nameof(DirectSpecular),
-        nameof(Estimate)
+        nameof(DirectSpecular)
     )]
     private void Create(Extent2D extent)
     {
@@ -307,23 +262,10 @@ internal sealed class RenderTargets : IDisposable
             format: HdrFormat,
             name: "hdr",
             readable: true,
-            extraUsage: hdrStorage ? ImageUsageFlags.StorageBit : 0
+            extraUsage: diffuse ? ImageUsageFlags.StorageBit : 0
         );
         DirectDiffuse = DirectImage(extent: extent, name: "direct diffuse");
         DirectSpecular = DirectImage(extent: extent, name: "direct specular");
-        Estimate = GpuImage.Create(
-            device: device,
-            allocator: allocator,
-            extent: extent,
-            format: EstimateFormat,
-            usage: ImageUsageFlags.SampledBit
-                | ImageUsageFlags.StorageBit
-                | ImageUsageFlags.TransferDstBit
-                | ImageUsageFlags.TransferSrcBit,
-            mipLevels: 1,
-            name: "estimate"
-        );
-        estimateNeedsClear = true;
         Diffuse = diffuse ? DiffuseImage(extent) : null;
 
         GBuffer = [BaseColor, Normal, Specular, Emissive, Distance, Shading, Motion];
@@ -339,10 +281,6 @@ internal sealed class RenderTargets : IDisposable
         for (int i = 0; i < 5; i++)
             layouts.WriteImage(set: GBufferSet, binding: (uint)i, arrayElement: 0, image: GBuffer[i]);
         layouts.WriteImage(set: GBufferSet, binding: ShadingBinding, arrayElement: 0, image: Shading);
-        layouts.WriteImage(set: GBufferSet, binding: EstimateBinding, arrayElement: 0, image: Estimate);
-        layouts.WriteStorageImage(set: DirectSet, binding: 0, image: DirectDiffuse);
-        layouts.WriteStorageImage(set: DirectSet, binding: 1, image: DirectSpecular);
-
         layouts.WriteImage(set: PostSet, binding: 0, arrayElement: 0, image: Hdr);
         layouts.WriteImage(set: MeterSet, binding: 0, arrayElement: 0, image: Hdr);
         layouts.WriteImage(set: MeterSet, binding: 1, arrayElement: 0, image: Distance);
@@ -420,35 +358,6 @@ internal sealed class RenderTargets : IDisposable
         );
 
     /// <summary>
-    /// Clears the estimate target to the open estimate, no bounce, full visibility and an open share of 1, if this is the
-    /// first frame since its creation, and does nothing otherwise.
-    /// </summary>
-    public void RecordEstimateClear(Vk vk, CommandBuffer commandBuffer, BarrierBatch barriers)
-    {
-        if (!estimateNeedsClear)
-            return;
-        barriers.Image(Estimate, ImageUse.TransferDestination, discard: true);
-        barriers.Flush(vk, commandBuffer);
-        ClearColorValue openEstimate = EstimatePacking.OpenTexel;
-        var whole = new ImageSubresourceRange(
-            aspectMask: ImageAspectFlags.ColorBit,
-            baseMipLevel: 0,
-            levelCount: 1,
-            baseArrayLayer: 0,
-            layerCount: 1
-        );
-        vk.CmdClearColorImage(
-            commandBuffer: commandBuffer,
-            image: Estimate.Handle,
-            imageLayout: ImageLayout.TransferDstOptimal,
-            pColor: in openEstimate,
-            rangeCount: 1,
-            pRanges: in whole
-        );
-        estimateNeedsClear = false;
-    }
-
-    /// <summary>
     /// Why a device with <paramref name="maxColorAttachments"/> color attachments per pass and
     /// <paramref name="maxFragmentOutputAttachments"/> outputs of a fragment shader cannot draw the G-buffer, or null when
     /// it can. The renderer asks for 8 of each, which every desktop Linux driver, lavapipe and MoltenVK offer, though the
@@ -482,7 +391,7 @@ internal sealed class RenderTargets : IDisposable
             throw new NotSupportedException($"{MotionFormat} cannot be a storage image on {device.DeviceName}.");
     }
 
-    private static void CheckFormats(VulkanDevice device, bool reflections, bool diffuse)
+    private static void CheckFormats(VulkanDevice device, bool depthPyramid, bool diffuse)
     {
         CheckMotionTarget(device);
         foreach (Format format in (Format[])[.. GBufferFormats, HdrFormat])
@@ -506,12 +415,8 @@ internal sealed class RenderTargets : IDisposable
             == 0
         )
             throw new NotSupportedException($"{DepthFormat} cannot be a depth attachment on {device.DeviceName}.");
-        if ((device.FormatProperties(EstimateFormat).OptimalTilingFeatures & EstimateFeatures) != EstimateFeatures)
-            throw new NotSupportedException(
-                $"{EstimateFormat} cannot be sampled, stored, cleared and copied by a transfer on {device.DeviceName}."
-            );
-        if (reflections)
-            CheckReflectionFormats(device);
+        if (depthPyramid)
+            CheckPyramidFormats(device);
         // The spec requires both of RGBA16F on every device (docs/plans/skin-and-hair.md, "Required device features").
         const FormatFeatureFlags drawnAndStored =
             FormatFeatureFlags.ColorAttachmentBit | FormatFeatureFlags.StorageImageBit;
@@ -523,11 +428,10 @@ internal sealed class RenderTargets : IDisposable
     }
 
     /// <summary>
-    /// The builds write both pyramids as storage images and the trace samples them, the radiance pyramid trilinearly, and
-    /// the trace writes the HDR target as a storage image. The depth pyramid's tail binds more storage images in one stage
-    /// than Vulkan guarantees.
+    /// The builds write the depth pyramid as a storage image and the tracer samples it. The depth pyramid's tail binds more
+    /// storage images in one stage than Vulkan guarantees.
     /// </summary>
-    private static void CheckReflectionFormats(VulkanDevice device)
+    private static void CheckPyramidFormats(VulkanDevice device)
     {
         if (
             DepthPyramidTail.StorageImageProblem(device.Properties.Limits.MaxPerStageDescriptorStorageImages) is
@@ -535,27 +439,20 @@ internal sealed class RenderTargets : IDisposable
         )
             throw new NotSupportedException($"{storageImages} ({device.DeviceName})");
         const FormatFeatureFlags pyramid = FormatFeatureFlags.SampledImageBit | FormatFeatureFlags.StorageImageBit;
-        const FormatFeatureFlags radiance = pyramid | FormatFeatureFlags.SampledImageFilterLinearBit;
-        if ((device.FormatProperties(ReflectionTargets.DepthFormat).OptimalTilingFeatures & pyramid) != pyramid)
-            throw new NotSupportedException(
-                $"{ReflectionTargets.DepthFormat} cannot be sampled and stored on {device.DeviceName}."
-            );
-        if ((device.FormatProperties(ReflectionTargets.RadianceFormat).OptimalTilingFeatures & radiance) != radiance)
-            throw new NotSupportedException(
-                $"{ReflectionTargets.RadianceFormat} cannot be stored and filtered linearly on {device.DeviceName}."
-            );
+        foreach (Format format in (Format[])[DepthPyramidImages.DepthFormat, Format.R32Sfloat])
+            if ((device.FormatProperties(format).OptimalTilingFeatures & pyramid) != pyramid)
+                throw new NotSupportedException($"{format} cannot be sampled and stored on {device.DeviceName}.");
     }
 
     private void DestroyImages()
     {
-        Reflections?.DestroyImages();
+        Pyramid?.Dispose();
         foreach (GpuImage image in GBuffer)
             image.Dispose();
         Depth?.Dispose();
         Hdr?.Dispose();
         DirectDiffuse?.Dispose();
         DirectSpecular?.Dispose();
-        Estimate?.Dispose();
         Diffuse?.Dispose();
         foreach (GpuImage? level in Glow)
             level?.Dispose();

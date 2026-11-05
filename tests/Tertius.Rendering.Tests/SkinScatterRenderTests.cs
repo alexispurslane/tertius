@@ -114,8 +114,8 @@ public sealed class SkinScatterRenderTests
     private static Double3 Rgb(float[] image, int pixel) =>
         new(image[pixel * 4], image[pixel * 4 + 1], image[pixel * 4 + 2]);
 
-    private static VulkanRenderer Scattering(ReflectionSetting reflections = default) =>
-        Gpu.Headless(width: Width, height: Height, subsurface: SeparableSubsurface.Default, reflections: reflections);
+    private static VulkanRenderer Scattering() =>
+        Gpu.Headless(width: Width, height: Height, subsurface: SeparableSubsurface.Default);
 
     private static Double3 Of(Vector3 v) => new(v.X, v.Y, v.Z);
 
@@ -603,45 +603,6 @@ public sealed class SkinScatterRenderTests
             float[] standardImage = renderer.ReadHdr();
 
             skinImage.Should().Equal(standardImage, "skin's light in the lighting passes is the standard model's");
-        }
-        finally
-        {
-            Gpu.DisposeAndAssertClean(renderer);
-        }
-    }
-
-    [Fact]
-    public void AMirrorShowsTheScatteredSkin()
-    {
-        VulkanRenderer renderer = Scattering(reflections: ConeTracedReflections.Default);
-        try
-        {
-            RenderSnapshot snapshot = Head(renderer);
-            MeshId floor = renderer.CreateMesh(Primitives.Plane(1));
-            MaterialId mirror = renderer.CreateMaterial(
-                new(BaseColor: Vector4.One, Roughness: 0.05f, Model: new StandardShading(Metallic: 1))
-            );
-            snapshot.Instances.Add(Instance(floor, mirror, new(0, -0.11f, -0.6f)));
-
-            (float[] without, float[] with) = WithoutAndWith(renderer, snapshot);
-            uint[] models = Models(renderer);
-            float[] distances = renderer.ReadDistance();
-
-            double onSkin = 0;
-            double inMirror = 0;
-            for (int pixel = 0; pixel < models.Length; pixel++)
-            {
-                double change = (Rgb(with, pixel) - Rgb(without, pixel)).Length;
-                if (models[pixel] == ShadingCode.Skin)
-                    onSkin += change;
-                else if (distances[pixel] > 0)
-                    inMirror += change;
-            }
-
-            onSkin.Should().BePositive("the scatter changes the skin near its terminator");
-            inMirror
-                .Should()
-                .BeGreaterThan(0.05 * onSkin, "the reflections run after the scatter, so the mirror shows its change");
         }
         finally
         {

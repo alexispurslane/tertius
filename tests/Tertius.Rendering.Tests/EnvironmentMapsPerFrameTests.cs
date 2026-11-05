@@ -126,12 +126,12 @@ public sealed class EnvironmentMapsPerFrameTests
     /// <summary>The time of a draw one step of 60 Hz after the first: not a long step, so its maps draw their faces in turn.</summary>
     private const double Step = 1.0 / 60;
 
-    private static VulkanRenderer Renderer(bool impostors = false, ReflectionSetting reflections = default) =>
+    private static VulkanRenderer Renderer(bool impostors = false, ScreenTraceSetting screenTrace = default) =>
         Gpu.Headless(
             width: Width,
             height: Height,
             impostors: impostors,
-            reflections: reflections,
+            screenTrace: screenTrace,
             environmentMap: SceneEnvironmentMap.Default with
             {
                 FaceSize = EnvironmentScenes.FaceSize,
@@ -854,11 +854,11 @@ public sealed class EnvironmentMapsPerFrameTests
 
     /// <summary>
     /// The colors that a mirror in the room and a mirror outside show, in a new renderer with
-    /// <paramref name="reflections"/>.
+    /// <paramref name="screenTrace"/>.
     /// </summary>
-    private static (Vector3 Inside, Vector3 Outside) Mirrors(ReflectionSetting reflections, string name)
+    private static (Vector3 Inside, Vector3 Outside) Mirrors(ScreenTraceSetting screenTrace, string name)
     {
-        VulkanRenderer renderer = Renderer(reflections: reflections);
+        VulkanRenderer renderer = Renderer(screenTrace: screenTrace);
         try
         {
             MeshId plane = renderer.CreateMesh(Primitives.Plane(1f));
@@ -892,28 +892,17 @@ public sealed class EnvironmentMapsPerFrameTests
     [Fact]
     public void AMirrorInTheRoomAndAMirrorOutsideReflectTheirOwnMaps()
     {
-        (Vector3 inside, Vector3 outside) = Mirrors(new NoReflections(), "maps-mirrors");
+        (Vector3 inside, Vector3 outside) = Mirrors(new NoScreenTrace(), "maps-mirrors");
 
         BlueOverRed(inside).Should().BeLessThan(-0.3f, "the room's mirror reflects the red wall: {0}", inside);
         BlueOverRed(outside).Should().BeGreaterThan(0.3f, "the mirror outside reflects the blue square: {0}", outside);
     }
 
-    /// <summary>The traces of the reflections: one ray per pixel, and one per block of 2 × 2 pixels with the upsample.</summary>
-    public static TheoryData<TraceResolution> Resolutions => [TraceResolution.Full, TraceResolution.Half];
-
-    /// <summary>The reflections of the default setting, traced at <paramref name="resolution"/>.</summary>
-    private static ConeTracedReflections TracedAt(TraceResolution resolution) =>
-        ConeTracedReflections.Default with
-        {
-            Resolution = resolution,
-        };
-
-    [Theory]
-    [MemberData(nameof(Resolutions))]
-    public void TheReflectionsFallBackToTheMapOfTheirPixel(TraceResolution resolution)
+    [Fact]
+    public void TheReflectionsFallBackToTheMapOfTheirPixel()
     {
         // The rays leave the screen toward the camera, so each falls back to its pixel's map.
-        (Vector3 inside, Vector3 outside) = Mirrors(TracedAt(resolution), $"maps-mirrors-traced-{resolution}");
+        (Vector3 inside, Vector3 outside) = Mirrors(ScreenTrace.Default, "maps-mirrors-traced");
 
         BlueOverRed(inside).Should().BeLessThan(-0.3f, "the room's mirror falls back to the room's map: {0}", inside);
         BlueOverRed(outside)
@@ -931,11 +920,10 @@ public sealed class EnvironmentMapsPerFrameTests
     /// <summary>The radiance of the green square, which only the room's map holds.</summary>
     private const float GreenRadiance = 4;
 
-    [Theory]
-    [MemberData(nameof(Resolutions))]
-    public void AHitInTheRoomTakesAwayTheRoomsMapFromItsPixel(TraceResolution resolution)
+    [Fact]
+    public void AHitInTheRoomShowsTheHitInsteadOfTheRoomsMap()
     {
-        VulkanRenderer renderer = Renderer(reflections: TracedAt(resolution));
+        VulkanRenderer renderer = Renderer(screenTrace: ScreenTrace.Default);
         try
         {
             MeshId plane = renderer.CreateMesh(Primitives.Plane(1f));
@@ -975,11 +963,10 @@ public sealed class EnvironmentMapsPerFrameTests
                 )
             );
 
-            Vector3 shown = Shown(renderer, snapshot, $"maps-mirror-hit-{resolution}")
+            Vector3 shown = Shown(renderer, snapshot, "maps-mirror-hit")
                 .Color(Gpu.Project(point: FloorMirror, width: Width, height: Height));
 
-            // The lighting pass added the room's map, the green square. The delta takes away the map of the mirror's own
-            // pixel, so the dark screen replaces the square. Taking away the outside's map, dark there, would leave it green.
+            // The room's map holds the green square there, but the ray's hit is the dark screen.
             shown.Y.Should().BeLessThan(0.1f, "the hit replaces the room's map in the mirror: {0}", shown);
         }
         finally

@@ -10,10 +10,9 @@
 // ambient light at its fiber normal, its shading normal (docs/plans/skin-and-hair.md, "The hair model"). A skin pixel
 // shades as the standard model, with metallic 0. The ambient light comes from one ambient source,
 // the scene environment map while it is on and the hemisphere while it is off, which gives a diffuse and a specular
-// term (docs/plans/environment-map.md, "The one source of the ambient light"). The estimate of the light around each
-// point, the occlusion V, the open share S and the bounce G, applies to the two ambient terms in occludedAmbient alone
-// (docs/plans/screen-space-illumination.md, "The ambient pass"). Every reader of the ambient light reads it through
-// ambientTerms (docs/plans/screen-space-reflections.md, "The one place where SSR reads the ambient light").
+// term (docs/plans/environment-map.md, "The one source of the ambient light"). The forward passes read the ambient
+// light through ambientTerms, with every direction open. The deferred surfaces take their indirect light from the
+// screen tracer's signals, or from the closed form of temporal.glsl (docs/plans/temporal-renderer.md, section 9).
 // lobesRadiance pre-exposes the sum and caps it at MaxRadiance, the surfaces' share of the HDR image (exposure.glsl).
 //
 // A light's shadow slot says how its shadows dim it (shadows.glsl): a far light by its far shadows (a sphere per caster,
@@ -54,9 +53,6 @@ struct ShadingInput
     float skyFraction;        // s_n, the normal's sky share (skyFraction in hemisphere.glsl)
     float lobeSkyFraction;    // s_l, the lobe's sky share (lobeSkyFraction in hemisphere.glsl)
     float reflectionFootprint; // f, in rad, at least p: how far d moves to a neighboring pixel, set by the caller
-    float occlusion;          // V, the unhidden share of the cosine-weighted hemisphere: 1 when nothing hides it
-    vec3 openShare;           // S, per channel: the open directions' share of the ambient source's light, 1 when open
-    vec3 bounce;              // G, the blockers' light, plain radiance: 0 where no estimate exists
     uint map;                 // the environment map that lights the surface, root first; only the map's ambient light reads it
     uint model;               // the shading model's code: ShadingStandard, ShadingSkin or ShadingHair
     vec3 strand;              // T, a hair's unit strand from root to tip; 0 for the other models
@@ -267,25 +263,6 @@ AmbientTerms hemisphereAmbient(ShadingInput s, SurfaceLobes lobes)
     return terms;
 }
 
-// Lagarde and de Rousiers 2014, "Moving Frostbite to Physically Based Rendering 3.0", section 4.10.2,
-// listing 26. The notes call α "roughness".
-float specularOcclusion(float NdotV, float occlusion, float alpha)
-{
-    return clamp(pow(NdotV + occlusion, exp2(-16.0 * alpha - 1.0)) - 1.0 + occlusion, 0.0, 1.0);
-}
-
-// The one place where the estimate applies (docs/plans/screen-space-illumination.md, decision 42): the source's diffuse
-// term times the open share S, the open directions' share of its light, plus the bounce under the diffuse color, and the
-// specular term by V_s. While the map is on, S is the open pieces' share of the map's light. The hemisphere has no
-// direction at the estimate's texels, so S is V there. S lies in [0, 1] and G in [0, c], so the diffuse term never goes
-// below 0. It keeps the terms apart, because SSR replaces the occluded specular term where its ray hits.
-AmbientTerms occludedAmbient(AmbientTerms terms, ShadingInput s, SurfaceLobes lobes)
-{
-    terms.diffuse = terms.diffuse * s.openShare + lobes.diffuseColor * s.bounce;
-    terms.specular *= specularOcclusion(lobes.NdotV, s.occlusion, lobes.alpha);
-    return terms;
-}
-
 // d: the specular dominant direction of the lobe of roughness r₀ about the shading normal, toward which it reflects the
 // ambient light.
 vec3 ambientSpecularDirection(vec3 normal, float roughness, vec3 V)
@@ -312,15 +289,13 @@ AmbientTerms environmentAmbient(ShadingInput s, SurfaceLobes lobes, vec3 V)
     return terms;
 }
 
-// The ambient light of a surface point in its two terms, from the frame's ambient source, the map while it is on and
-// the hemisphere while it is off, then occluded (docs/plans/screen-space-reflections.md, "The one place where SSR
-// reads the ambient light", and docs/plans/environment-map.md, "The one source of the ambient light"). ambientLight
-// and the pass that adds the reflections' delta (the full-resolution trace, or the upsample at half resolution) read
-// the ambient light only through this function. V points from the surface to the eye.
+// The ambient light of a surface point in its two terms, with every direction open, from the frame's ambient source:
+// the map while it is on and the hemisphere while it is off (docs/plans/environment-map.md, "The one source of the
+// ambient light"). ambientLight reads the ambient light only through this function. V points from the surface to the
+// eye.
 AmbientTerms ambientTerms(ShadingInput s, SurfaceLobes lobes, vec3 V)
 {
-    AmbientTerms source = environmentMapOn ? environmentAmbient(s, lobes, V) : hemisphereAmbient(s, lobes);
-    return occludedAmbient(source, s, lobes);
+    return environmentMapOn ? environmentAmbient(s, lobes, V) : hemisphereAmbient(s, lobes);
 }
 
 // The ambient light reflected toward the eye: both terms of ambientTerms.
@@ -512,9 +487,7 @@ vec3 scatteredLight(vec3 albedo, vec3 position, uint map)
 // the fringe of the transparent pass, the environment faces and the impostor captures (docs/plans/skin-and-hair.md, "The
 // fringe"). The reflection's footprint comes from the screen derivatives, so the caller calls this before any discard.
 // The sky shares serve the hemisphere alone, and are 0 while the environment map is on. A forward surface is not in the
-// G-buffer that the occlusion passes read, so it takes no estimate: the occlusion and the open share are 1 and the bounce
-// 0, and the surface behind it takes the estimate at its pixel (docs/plans/screen-space-illumination.md, "The passes
-// that keep V = 1").
+// G-buffer that the screen tracer reads, so it takes the ambient light with every direction open.
 ShadingInput forwardShading(SurfaceSample s, vec3 position, vec4 hemisphere, uint map, vec3 V)
 {
     ShadingInput shading;
@@ -528,9 +501,6 @@ ShadingInput forwardShading(SurfaceSample s, vec3 position, vec4 hemisphere, uin
     shading.reflectionFootprint = reflectionFootprint(ambientSpecularDirection(shading, V));
     shading.skyFraction = environmentMapOn ? 0.0 : skyFraction(hemisphere, position, s.normal);
     shading.lobeSkyFraction = environmentMapOn ? 0.0 : lobeSkyFraction(hemisphere, position, s.normal, V, s.roughness);
-    shading.occlusion = 1.0;
-    shading.openShare = vec3(1.0);
-    shading.bounce = vec3(0.0);
     shading.model = s.model;
     shading.strand = s.strand;
     return shading;

@@ -283,9 +283,9 @@ internal abstract class RenderPass : IDisposable
 /// <see cref="LocalShadowPass"/> under <see cref="LocalShadowAtlas"/>), the environment map's
 /// stages (<see cref="EnvironmentFacePass"/> and <see cref="EnvironmentPrefilterPass"/>, under
 /// <see cref="SceneEnvironmentMap"/>), <see cref="Stage.ImpostorCaptures"/> (<see cref="ImpostorPass"/>, when impostors are on) and
-/// <see cref="Stage.GBuffer"/> through <see cref="Stage.Readback"/>, the occlusion passes (under
-/// <see cref="VisibilityBitmaskLight"/>), the skin scatter (<see cref="SkinScatterPass"/>, under
-/// <see cref="SeparableSubsurface"/>), the pyramid passes (under <see cref="ConeTracedReflections"/>), the exposure pass
+/// <see cref="Stage.GBuffer"/> through <see cref="Stage.Readback"/>, the screen tracer's passes and the depth pyramid
+/// (under <see cref="ScreenTrace"/>), the skin scatter (<see cref="SkinScatterPass"/>, under
+/// <see cref="SeparableSubsurface"/>), the exposure pass
 /// (<see cref="ExposurePass"/>, under <see cref="AutoExposure"/>), SMAA (<see cref="SmaaPass"/>, when it is on) and the overlay (<see cref="OutlinePass"/>) included. Draws
 /// that belong inside the G-buffer pass's depth ranges, such as impostor billboards, go through
 /// <see cref="GeometryPass.RangeDrawers"/>.
@@ -329,8 +329,8 @@ internal sealed class FrameGraph : IDisposable
         SurfaceTest,
 
         /// <summary>
-        /// The depth pyramid, under <see cref="ConeTracedReflections"/>: right after the G-buffer pass, because it describes
-        /// the G-buffer's distance, so every screen-space reader after it can use it. The occlusion passes do not read it.
+        /// The depth pyramid, under <see cref="ScreenTrace"/>: right after the G-buffer pass, because it describes the
+        /// G-buffer's distance, so every screen-space reader after it can use it.
         /// </summary>
         DepthPyramid,
 
@@ -341,36 +341,29 @@ internal sealed class FrameGraph : IDisposable
         DirectLight,
 
         /// <summary>
-        /// The occlusion passes, under <see cref="VisibilityBitmaskLight"/>: after the G-buffer pass, whose distance and
-        /// normals they read, and after the direct pass, whose diffuse light the bounce light's depth pass copies for its
-        /// sectors. Before the composite, which reads their estimate target.
+        /// The screen tracer's four passes and the two indirect accumulations, under <see cref="ScreenTrace"/>: after the
+        /// direct pass, whose images a hit reads, and after the surface test, whose pass bits the plan and a hit's history
+        /// read. Each accumulation follows the resolve, which writes its sample (docs/plans/temporal-renderer.md, "The
+        /// frame's order").
         /// </summary>
-        AmbientOcclusion,
+        ScreenTrace,
 
         /// <summary>
-        /// The composite: after the occlusion passes, whose estimate target it reads, and the direct pass, whose images it
-        /// reads, into the HDR image.
+        /// The composite: after the direct pass and the screen tracer's accumulations, whose images it reads, into the HDR
+        /// image.
         /// </summary>
         Composite,
 
         /// <summary>
         /// The skin scatter's two passes, under <see cref="SeparableSubsurface"/>: after the composite, so that the
-        /// scattered light holds the ambient light, the crease shadowing and the bounce, and before the reflections, so that
-        /// a mirror shows the scattered skin (docs/plans/skin-and-hair.md, decision 18).
+        /// scattered light holds the indirect light (docs/plans/skin-and-hair.md, decision 18). A tracer hit reads the
+        /// histories before this scatter, so reflected skin has no scatter yet (ter-x8bz).
         /// </summary>
         SkinScatter,
 
         /// <summary>
-        /// The radiance pyramid and the reflections, under <see cref="ConeTracedReflections"/>: after the composite,
-        /// whose lit image they read, so that a reflection shows the ambient light and the bounce, and before the
-        /// transparent pass, so glass and puffs neither show in reflections nor lose them
-        /// (docs/plans/screen-space-reflections.md, "The order of a frame").
-        /// </summary>
-        Reflections,
-
-        /// <summary>
-        /// The haze of the atmosphere over the opaque surfaces: after the reflections, so that it covers each surface's
-        /// whole light, and before the transparent pass, whose panes and puffs take their own haze over the hazed image
+        /// The haze of the atmosphere over the opaque surfaces: after the composite and the scatter, so that it covers
+        /// each surface's whole light, and before the transparent pass, whose panes and puffs take their own haze over the hazed image
         /// (docs/plans/atmosphere.md, "The haze").
         /// </summary>
         Haze,

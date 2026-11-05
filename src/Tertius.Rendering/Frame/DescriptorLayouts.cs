@@ -17,12 +17,11 @@ namespace Tertius.Rendering;
 /// <description>the bindless texture array: variable count, partially bound, update-after-bind. One per frame in flight.</description>
 /// </item>
 /// <item><term>set 2, G-buffer</term>
-/// <description>the G-buffer targets for the direct, ambient and transparent passes (rewritten on resize),
-/// the shadow cascades of every cascade set (binding 5) and their comparison sampler (binding 6, immutable), which the vertex stage also reads
-/// for the lit puffs, the estimate target (binding 7), the local shadow atlas (binding 8, partially bound), which the
-/// comparison sampler also reads and which stays empty without the atlas, the shading target (binding 10) and the atlas's
-/// bounds (binding 11, partially bound), empty without the atlas. Binding 9 is free. The estimate target is rewritten on
-/// resize. One.</description></item>
+/// <description>the G-buffer targets for the direct pass, the composite, the screen tracer and the transparent pass
+/// (rewritten on resize), the shadow cascades of every cascade set (binding 5) and their comparison sampler (binding 6,
+/// immutable), which the vertex stage also reads for the lit puffs, the local shadow atlas (binding 8, partially bound),
+/// which the comparison sampler also reads and which stays empty without the atlas, the shading target (binding 10) and
+/// the atlas's bounds (binding 11, partially bound), empty without the atlas. Bindings 7 and 9 are free. One.</description></item>
 /// <item><term>set 3, impostor atlas</term><description>the impostor atlas's color and depth-offset arrays and their
 /// sampler (immutable), for the billboards in the G-buffer pass. One, written once.</description></item>
 /// <item><term>post</term><description>the HDR image for tone mapping, and the summed bloom levels (binding 1) with the
@@ -39,18 +38,13 @@ namespace Tertius.Rendering;
 /// <item><term>environment levels</term><description>four level views of the radiance map or the specular map as storage
 /// images. One per dispatch of the map's mips and of its specular levels with the map on, which the pool holds for the
 /// largest map, rewritten when the map's images grow.</description></item>
-/// <item><term>occlusion</term><description>set 3 of <see cref="OcclusionLayout"/>: the half-resolution images, the
-/// estimate target, the diffuse image, and the source and the destination term of a denoise dispatch, as storage images. Two, one per
-/// direction of the denoise, rewritten on resize.</description></item>
 /// <item><term>SMAA</term><description>the inputs of the three SMAA passes, each with its immutable sampler. One when SMAA
 /// is on, its screen-sized images rewritten on resize.</description></item>
-/// <item><term>pyramid level</term><description>set 3 of <see cref="PyramidLayout"/>: the level that one dispatch of a
-/// pyramid's build reads and the level that it writes. One per level of each pyramid, rewritten on resize.</description></item>
+/// <item><term>pyramid level</term><description>set 3 of <see cref="PyramidLayout"/>: the level that one dispatch of the
+/// depth pyramid's build reads and the level that it writes. One per level, and one for the finest level, rewritten on
+/// resize.</description></item>
 /// <item><term>depth tail</term><description>set 3 of <see cref="DepthTailLayout"/> for the tail of the depth pyramid's
 /// build: the mip before the tail and the tail's mips. One, rewritten on resize.</description></item>
-/// <item><term>reflection</term><description>set 3 of <see cref="ReflectionLayout"/>: both pyramids, their trilinear
-/// sampler (immutable), the HDR image as a storage image and, at half resolution, the trace image and the hit depth image
-/// as storage images at bindings 4 and 5, for the trace and the upsample. One, rewritten on resize.</description></item>
 /// <item><term>scatter</term><description>set 3 of <see cref="ScatterLayout"/>: the diffuse image, the row image and the
 /// HDR image as storage images, and the kernel as a uniform buffer, for the skin scatter's passes. One, allocated under
 /// <see cref="SeparableSubsurface"/> and rewritten on resize.</description></item>
@@ -65,18 +59,22 @@ namespace Tertius.Rendering;
 /// and this frame's device depth as storage images (docs/plans/temporal-renderer.md, "The surface test"). Two, one per parity of the drawn frames,
 /// rewritten on resize.</description></item>
 /// <item><term>signal</term><description>set 3 of <see cref="AccumulateLayout"/>: one part of a signal's images, the
-/// surface test image and the motion target, as storage images for the compute stage
-/// (<see cref="TemporalSignal"/>). One per part and parity, rewritten on resize.</description></item>
-/// <item><term>signal read</term><description>set 3 of <see cref="CompositeLayout"/>: the two parts of a light as storage
-/// images for the fragment stage, the direct light's images (<see cref="RenderTargets.DirectSet"/>) or a signal's slow
-/// histories (<see cref="TemporalSignal.ReadSet"/>). Rewritten on resize.</description></item>
+/// surface test image and the motion target, as storage images for the compute stage, and the last surface history and
+/// the last device depth as sampled images (<see cref="TemporalSignal"/>). One per part and parity, rewritten on
+/// resize.</description></item>
+/// <item><term>screen trace</term><description>set 3 of <see cref="ScreenTraceLayout"/>: the depth pyramid's finest
+/// level and its bounds as sampled images, the tracer's inputs and outputs as storage images, and the own-ray list of each
+/// kind (<see cref="ScreenTraceImages"/>). One per parity of the drawn frames, rewritten on resize.</description></item>
+/// <item><term>light</term><description>set 3 of <see cref="CompositeLayout"/>: the direct light's two images and the two
+/// indirect signals' slow histories as storage images for the fragment stage (<see cref="CompositePass"/>). One,
+/// rewritten on resize.</description></item>
 /// </list>
 /// Every pass that draws meshes or reads the G-buffer uses <see cref="SceneLayout"/>, so sets 0 and 1 stay bound
 /// across pipeline changes. <see cref="ImpostorLayout"/> and <see cref="CompositeLayout"/> add set 3 and are
 /// compatible with it for sets 0 to 2. The
-/// compute layouts of the reflections, <see cref="PyramidLayout"/> and <see cref="ReflectionLayout"/>, and of the
-/// occlusion, <see cref="OcclusionLayout"/>, and of the skin scatter, <see cref="ScatterLayout"/>, take sets 0 to 2 too, whose bindings that their shaders read include the
-/// compute stage (docs/plans/screen-space-reflections.md, "Descriptor sets").
+/// compute layouts of the depth pyramid, <see cref="PyramidLayout"/>, of the screen tracer, <see cref="ScreenTraceLayout"/>,
+/// of the accumulator and of the skin scatter, <see cref="ScatterLayout"/>, take sets 0 to 2 too, whose bindings that their
+/// shaders read include the compute stage (docs/plans/screen-space-reflections.md, "Descriptor sets").
 /// </summary>
 internal sealed unsafe class DescriptorLayouts : IDisposable
 {
@@ -86,20 +84,35 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// <summary>The surface test sets: one per parity of the drawn frames (<see cref="SurfaceHistory"/>).</summary>
     private const uint SurfaceTestSets = 2;
 
+    /// <summary>The screen tracer sets: one per parity of the drawn frames (<see cref="ScreenTraceImages"/>).</summary>
+    private const uint ScreenTraceSets = 2;
+
+    /// <summary>The sampled images of a screen tracer set: the depth pyramid's finest level and its bounds.</summary>
+    private const uint ScreenTraceSampledImages = 2;
+
     /// <summary>
-    /// The signal sets: one per part and parity of a signal of two parts (<see cref="TemporalSignal"/>). The renderer makes
-    /// no signal until the screen tracer's (ter-gayt), so only the accumulator's tests take them today.
+    /// The storage images of a screen tracer set: the direct light's two images, the surface test image, the motion target,
+    /// the two signals' last fast and slow histories, the plan, the four record images and the two samples.
     /// </summary>
-    private const uint SignalSets = 4;
+    private const uint ScreenTraceStorageImages = 15;
+
+    /// <summary>The storage buffers of a screen tracer set: the own-ray list of each kind.</summary>
+    private const uint ScreenTraceStorageBuffers = 2;
+
+    /// <summary>
+    /// The signal sets: one per part and parity of the screen tracer's two signals of one part, and of a test's signal of
+    /// two parts (<see cref="TemporalSignal"/>).
+    /// </summary>
+    private const uint SignalSets = 8;
 
     /// <summary>The storage images of a signal set.</summary>
     private const uint SignalSetImages = 7;
 
-    /// <summary>The most parts of a signal: the images of the signal read set.</summary>
-    public const int SignalReadParts = 2;
+    /// <summary>The sampled images of a signal set: the last surface history and the last device depth.</summary>
+    private const uint SignalSetSampledImages = 2;
 
-    /// <summary>The signal read sets: the direct light's and that of the one signal of <see cref="SignalSets"/>.</summary>
-    private const uint SignalReadSets = 2;
+    /// <summary>The storage images of the light set: the direct light's two images and the two indirect signals' histories.</summary>
+    private const uint LightSetImages = 4;
 
     /// <summary>
     /// The storage buffers of the frame set: bindings 1 to 4, 6, 7, 11, 15, 17 and 18, which the vertex stage all sees. The
@@ -124,10 +137,10 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     public const uint DeformKeptPositionsBinding = 5;
 
     /// <summary>
-    /// The pyramid level sets of the largest pyramids: levels 1 to 14 of the depth pyramid and 0 to 14 of the radiance
-    /// pyramid, for a 16,384 px side (<see cref="DepthPyramid.MaxLevels"/>).
+    /// The pyramid level sets of the largest depth pyramid: levels 1 to 14, for a 16,384 px side
+    /// (<see cref="DepthPyramid.MaxLevels"/>), and the finest level.
     /// </summary>
-    public const uint PyramidLevelSets = 2 * DepthPyramid.MaxLevels + 1;
+    public const uint PyramidLevelSets = DepthPyramid.MaxLevels + 1;
 
     /// <summary>
     /// The levels sets of the largest map: one per dispatch of the downsample of its radiance map and of its distance cube,
@@ -175,24 +188,24 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
 
         (MeterSet, ExposureSet) = CreateExposureSetLayouts();
         (EnvironmentPrefilterSet, EnvironmentLevelsSet) = CreateEnvironmentSetLayouts(EnvironmentSampler);
-        OcclusionSet = CreateOcclusionSetLayout();
         SmaaSet = CreateSmaaSetLayout();
-        (PyramidLevelSet, DepthTailSet, ReflectionSet) = CreateReflectionSetLayouts(AtlasSampler);
+        (PyramidLevelSet, DepthTailSet) = CreatePyramidSetLayouts();
         DeformSet = CreateDeformSetLayout();
         ScatterSet = CreateScatterSetLayout();
         ShadowBoundsSet = CreateShadowBoundsSetLayout();
+
+        // The temporal lighting's sets.
         SurfaceTestSet = CreateSurfaceTestSetLayout();
-        (SignalSet, SignalReadSet) = CreateTemporalSetLayouts();
+        (SignalSet, LightSet) = CreateTemporalSetLayouts();
+        ScreenTraceSet = CreateScreenTraceSetLayout();
 
         (SceneLayout, ImpostorLayout, CompositeLayout, OverlayLayout, PostLayout, BloomLayout, SmaaLayout) =
             CreateGraphicsLayouts();
         (
             ExposureLayout,
             EnvironmentPrefilterLayout,
-            OcclusionLayout,
             PyramidLayout,
             DepthTailLayout,
-            ReflectionLayout,
             DeformLayout,
             ScatterLayout,
             ShadowBoundsLayout
@@ -205,6 +218,10 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         AccumulateLayout = ComputeLayout<AccumulatePushConstants>(
             sets: [FrameSet, TextureSet, GBufferSet, SignalSet],
             name: "accumulate layout"
+        );
+        ScreenTraceLayout = ComputeLayout<ScreenTracePushConstants>(
+            sets: [FrameSet, TextureSet, GBufferSet, ScreenTraceSet],
+            name: "screen trace layout"
         );
 
         (pool, texturePool) = CreatePools(framesInFlight: (uint)framesInFlight, glowSourceSets: (uint)glowLevels + 1);
@@ -279,7 +296,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// <summary>Sets 0 to 2 plus <see cref="DrawPushConstants"/> for the vertex and fragment stages.</summary>
     public PipelineLayout SceneLayout { get; }
 
-    /// <summary>Sets 0 to 2 of <see cref="SceneLayout"/> and the signal read set of the direct light, with the draw push constants, for the composite.</summary>
+    /// <summary>Sets 0 to 2 of <see cref="SceneLayout"/> and the light set, with the draw push constants, for the composite.</summary>
     public PipelineLayout CompositeLayout { get; }
 
     /// <summary>
@@ -312,18 +329,6 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     public PipelineLayout EnvironmentPrefilterLayout { get; }
 
     /// <summary>
-    /// Set 3 of <see cref="OcclusionLayout"/>: the view depth, the edges, term A and the estimate target (bindings 0 to
-    /// 3), the source and the destination term of a denoise dispatch (bindings 4 and 5), the depth pass's copies of
-    /// the bounce source and the geometric normal (bindings 6 and 7), the targets' diffuse image (binding 8), and the
-    /// depth pass's continuation flags of each texel's plane (binding 9), as storage images
-    /// (docs/plans/screen-space-illumination.md, "Push constants and sets").
-    /// </summary>
-    public DescriptorSetLayout OcclusionSet { get; }
-
-    /// <summary>Sets 0 to 2 of <see cref="SceneLayout"/>, the occlusion set and <see cref="OcclusionPushConstants"/>, for the occlusion passes.</summary>
-    public PipelineLayout OcclusionLayout { get; }
-
-    /// <summary>
     /// The level that one dispatch of a pyramid's build reads, a sampled image (binding 0), and the level that it writes,
     /// a storage image (binding 1), for the compute stage.
     /// </summary>
@@ -336,13 +341,6 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     public DescriptorSetLayout DepthTailSet { get; }
 
     /// <summary>
-    /// The trace's set: the depth pyramid and the radiance pyramid, sampled with all their mips (bindings 0 and 1),
-    /// <see cref="AtlasSampler"/> (binding 2, immutable), the HDR image as a storage image (binding 3), and the
-    /// half-resolution trace and its hit depths as storage images (bindings 4 and 5), written only at half resolution.
-    /// </summary>
-    public DescriptorSetLayout ReflectionSet { get; }
-
-    /// <summary>
     /// Sets 0 to 2 of <see cref="SceneLayout"/>, a pyramid level set and <see cref="DepthTailPushConstants"/>, for the
     /// pyramid builds' dispatches of one level, which read no push constants.
     /// </summary>
@@ -353,9 +351,6 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// are the same, so the scene sets that the builds bind stay bound across the two layouts.
     /// </summary>
     public PipelineLayout DepthTailLayout { get; }
-
-    /// <summary>Sets 0 to 2 of <see cref="SceneLayout"/>, the reflection set and <see cref="ReflectionPushConstants"/>, for the trace and the upsample.</summary>
-    public PipelineLayout ReflectionLayout { get; }
 
     /// <summary>
     /// Set 3 of <see cref="ScatterLayout"/>: the diffuse image, the row image and the HDR image as storage images (bindings 0
@@ -398,11 +393,20 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// </summary>
     public DescriptorSetLayout SignalSet { get; }
 
-    /// <summary>The two parts of a light, storage images for the fragment stage, which the composite reads.</summary>
-    public DescriptorSetLayout SignalReadSet { get; }
+    /// <summary>The light set: <see cref="LightSetImages"/> storage images for the fragment stage, which the composite reads.</summary>
+    public DescriptorSetLayout LightSet { get; }
 
     /// <summary>Sets 0 to 2 of <see cref="SceneLayout"/>, the signal set and <see cref="AccumulatePushConstants"/>, for both dispatches of an accumulation.</summary>
     public PipelineLayout AccumulateLayout { get; }
+
+    /// <summary>
+    /// The images and lists of the screen tracer for the compute stage, in the bindings of screen_trace.glsl: 0 the depth
+    /// pyramid's finest level and 1 its bounds, sampled, then 2 to 16 storage images and 17 and 18 the own-ray lists.
+    /// </summary>
+    public DescriptorSetLayout ScreenTraceSet { get; }
+
+    /// <summary>Sets 0 to 2 of <see cref="SceneLayout"/>, the screen tracer set and <see cref="ScreenTracePushConstants"/>, for the tracer's four passes.</summary>
+    public PipelineLayout ScreenTraceLayout { get; }
 
     /// <summary>
     /// The storage buffers, storage images and sampled images that each shader stage of <paramref name="layout"/> sees,
@@ -428,15 +432,11 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
 
     public DescriptorSet AllocateEnvironmentLevelsSet() => Allocate(pool, EnvironmentLevelsSet, null);
 
-    public DescriptorSet AllocateOcclusionSet() => Allocate(pool, OcclusionSet, null);
-
     public DescriptorSet AllocateSmaaSet() => Allocate(pool, SmaaSet, null);
 
     public DescriptorSet AllocatePyramidLevelSet() => Allocate(pool, PyramidLevelSet, null);
 
     public DescriptorSet AllocateDepthTailSet() => Allocate(pool, DepthTailSet, null);
-
-    public DescriptorSet AllocateReflectionSet() => Allocate(pool, ReflectionSet, null);
 
     public DescriptorSet AllocateDeformSet() => Allocate(pool, DeformSet, null);
 
@@ -448,7 +448,9 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
 
     public DescriptorSet AllocateSignalSet() => Allocate(pool, SignalSet, null);
 
-    public DescriptorSet AllocateSignalReadSet() => Allocate(pool, SignalReadSet, null);
+    public DescriptorSet AllocateLightSet() => Allocate(pool, LightSet, null);
+
+    public DescriptorSet AllocateScreenTraceSet() => Allocate(pool, ScreenTraceSet, null);
 
     public DescriptorSet AllocateTextureSet()
     {
@@ -671,7 +673,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
 
     /// <summary>
     /// The layout of the G-buffer set: five G-buffer images, the shadow cascades, <paramref name="shadowSampler"/> as an
-    /// immutable sampler, the estimate target, the local shadow atlas, partially bound, the shading target, the sixth
+    /// immutable sampler, the local shadow atlas, partially bound, the shading target, the sixth
     /// G-buffer image, at binding 10, and the atlas's bounds, partially bound. The sampler
     /// is immutable because portability implementations may not allow updating comparison sampler descriptors
     /// (VkPhysicalDevicePortabilitySubsetFeaturesKHR::mutableComparisonSamplers).
@@ -679,9 +681,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     private DescriptorSetLayout CreateGBufferSetLayout(Sampler shadowSampler)
     {
         const ShaderStageFlags graphics = ShaderStageFlags.VertexBit | ShaderStageFlags.FragmentBit;
-        // Compute shaders read the G-buffer: the pyramid builds and the trace of the reflections, and the occlusion
-        // passes, which read the normals (binding 1), the distance (binding 4) and, in the sectors pass, the shading
-        // target (binding 10).
+        // Compute shaders read the G-buffer: the depth pyramid's builds, the screen tracer and the accumulator.
         const ShaderStageFlags shading = ShaderStageFlags.FragmentBit | ShaderStageFlags.ComputeBit;
         Span<DescriptorSetLayoutBinding> gbuffer =
         [
@@ -693,12 +693,11 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             // The vertex shader of the lit puffs samples the cascades once per puff, at its center.
             Image(binding: 5, stages: graphics),
             ImmutableSampler(binding: 6, stages: graphics, sampler: &shadowSampler),
-            Image(binding: RenderTargets.EstimateBinding, stages: shading),
-            // The lit puffs sample the tiles in the vertex stage, as they do the cascades. The reflections' and the
-            // occlusion passes' compute shaders declare the atlas but never use it.
+            // The lit puffs sample the tiles in the vertex stage, as they do the cascades. The compute shaders that include
+            // the lighting declare the atlas but never use it.
             Image(binding: ShadowAtlas.AtlasBinding, stages: graphics),
-            // The reflections' compute passes read each pixel's surface, its model included, and the occlusion sectors
-            // pass reads a receiver's model, because a hair receiver's own card blocks nothing.
+            // The screen tracer reads each pixel's surface, its model and its light mark included, and a hair receiver's
+            // own card, which its rays pass through.
             Image(binding: RenderTargets.ShadingBinding, stages: shading),
             // Every stage that samples the tiles reads their bounds first.
             Image(binding: ShadowAtlas.BoundsBinding, stages: graphics),
@@ -728,7 +727,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         PipelineLayout sceneLayout = CreatePipelineLayout(sets: sceneSets[..3], push: drawPush, name: "scene layout");
         PipelineLayout impostorLayout = CreatePipelineLayout(sets: sceneSets, push: drawPush, name: "impostor layout");
         PipelineLayout compositeLayout = CreatePipelineLayout(
-            sets: [FrameSet, TextureSet, GBufferSet, SignalReadSet],
+            sets: [FrameSet, TextureSet, GBufferSet, LightSet],
             push: drawPush,
             name: "composite layout"
         );
@@ -756,16 +755,14 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     }
 
     /// <summary>
-    /// The pipeline layouts of the compute passes: the exposure, the environment map's prefilter, the occlusion, the
-    /// pyramids, the trace, the deformation and the skin scatter.
+    /// The pipeline layouts of the compute passes: the exposure, the environment map's prefilter, the depth pyramid, the
+    /// deformation, the skin scatter and the shadow bounds.
     /// </summary>
     private (
         PipelineLayout Exposure,
         PipelineLayout EnvironmentPrefilter,
-        PipelineLayout Occlusion,
         PipelineLayout Pyramid,
         PipelineLayout DepthTail,
-        PipelineLayout Reflection,
         PipelineLayout Deform,
         PipelineLayout Scatter,
         PipelineLayout ShadowBounds
@@ -779,10 +776,6 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             sets: [EnvironmentPrefilterSet, EnvironmentLevelsSet],
             name: "environment prefilter layout"
         );
-        PipelineLayout occlusion = ComputeLayout<OcclusionPushConstants>(
-            sets: [FrameSet, TextureSet, GBufferSet, OcclusionSet],
-            name: "occlusion layout"
-        );
         PipelineLayout pyramid = ComputeLayout<DepthTailPushConstants>(
             sets: [FrameSet, TextureSet, GBufferSet, PyramidLevelSet],
             name: "pyramid layout"
@@ -790,10 +783,6 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         PipelineLayout depthTail = ComputeLayout<DepthTailPushConstants>(
             sets: [FrameSet, TextureSet, GBufferSet, DepthTailSet],
             name: "depth tail layout"
-        );
-        PipelineLayout reflection = ComputeLayout<ReflectionPushConstants>(
-            sets: [FrameSet, TextureSet, GBufferSet, ReflectionSet],
-            name: "reflection layout"
         );
         // The deform set alone, so its compute stage sees six storage buffers, within the ten that the scene layout
         // already needs of every device.
@@ -807,17 +796,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             sets: [ShadowBoundsSet],
             name: "shadow bounds layout"
         );
-        return (
-            exposure,
-            environmentPrefilter,
-            occlusion,
-            pyramid,
-            depthTail,
-            reflection,
-            deform,
-            scatter,
-            shadowBounds
-        );
+        return (exposure, environmentPrefilter, pyramid, depthTail, deform, scatter, shadowBounds);
     }
 
     /// <summary>A layout of <paramref name="sets"/> whose one push constant range is a <typeparamref name="TPush"/> for the compute stage.</summary>
@@ -834,35 +813,49 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         [
             // One per frame set, and the scatter set's kernel.
             new(DescriptorType.UniformBuffer, frames + 1),
-            // Those of each frame set and each deform set, the two of the exposure set and the own-ray list of the
-            // reflection set.
-            new(DescriptorType.StorageBuffer, (FrameSetStorageBuffers + DeformSetStorageBuffers) * frames + 3),
+            // Those of each frame set and each deform set, the two of the exposure set and the two lists of each screen
+            // tracer set.
+            new(
+                DescriptorType.StorageBuffer,
+                (FrameSetStorageBuffers + DeformSetStorageBuffers) * frames
+                    + 2
+                    + ScreenTraceStorageBuffers * ScreenTraceSets
+            ),
             // Three per frame set (the material sampler and the immutable linear clamp and environment samplers), the
-            // immutable samplers of the G-buffer, atlas, post, reflection and prefilter sets, and one per glow source set.
-            new(DescriptorType.Sampler, 3 * frames + 5 + glowSourceSets),
-            // 21 for the G-buffer, post and atlas sets, five per frame set for the tables, the specular map, the irradiance
+            // immutable samplers of the G-buffer, atlas, post and prefilter sets, and one per glow source set.
+            new(DescriptorType.Sampler, 3 * frames + 4 + glowSourceSets),
+            // 20 for the G-buffer, post and atlas sets, five per frame set for the tables, the specular map, the irradiance
             // cube and the distance cube, one per glow source set, two for the meter set, one per pyramid level set, one for
-            // the depth tail set, two for the reflection set, one for the prefilter set, one for the shadow bounds set and two
-            // for each surface test set.
+            // the depth tail set, one for the prefilter set, one for the shadow bounds set, two for each surface test set,
+            // two for each signal set and two for each screen tracer set.
             new(
                 DescriptorType.SampledImage,
-                21 + 5 * frames + glowSourceSets + 2 + PyramidLevelSets + 1 + 2 + 1 + 1 + 2 * SurfaceTestSets
+                20
+                    + 5 * frames
+                    + glowSourceSets
+                    + 2
+                    + PyramidLevelSets
+                    + 1
+                    + 1
+                    + 1
+                    + 2 * SurfaceTestSets
+                    + SignalSetSampledImages * SignalSets
+                    + ScreenTraceSampledImages * ScreenTraceSets
             ),
-            // Those of each of the two occlusion sets, one per pyramid level set, the depth tail set's mips, three for the
-            // reflection set, four per environment levels set, three for the scatter set, one for the shadow bounds set and
-            // four per surface test set, seven per signal set and two per signal read set.
+            // One per pyramid level set, the depth tail set's mips, four per environment levels set, three for the scatter
+            // set, one for the shadow bounds set, four per surface test set, seven per signal set, four for the light set
+            // and fifteen per screen tracer set.
             new(
                 DescriptorType.StorageImage,
-                2 * OcclusionImages.StorageImages
-                    + PyramidLevelSets
+                PyramidLevelSets
                     + DepthPyramidTail.Mips
-                    + 3
                     + 4 * EnvironmentLevelsSets
                     + 3
                     + 1
                     + 4 * SurfaceTestSets
                     + SignalSetImages * SignalSets
-                    + 2 * SignalReadSets
+                    + LightSetImages
+                    + ScreenTraceStorageImages * ScreenTraceSets
             ),
             // The SMAA set.
             new(DescriptorType.CombinedImageSampler, SmaaBindings),
@@ -872,20 +865,20 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     private (SetPool Shared, SetPool Textures) CreatePools(uint framesInFlight, uint glowSourceSets)
     {
         uint frames = framesInFlight;
-        // The frame sets, the deform sets, the G-buffer, post, atlas, meter, exposure, SMAA, reflection, prefilter,
-        // scatter and shadow bounds sets, the two occlusion sets, the glow source sets, the pyramid level sets, the depth tail set,
-        // the environment levels sets, the surface test sets, the signal sets and the signal read sets.
-        // The reflection sets exist even with reflections off: they cost nothing per frame.
+        // The frame sets, the deform sets, the G-buffer, post, atlas, meter, exposure, SMAA, prefilter, scatter, shadow
+        // bounds and light sets, the glow source sets, the pyramid level sets, the depth tail set, the environment levels
+        // sets, the surface test sets, the signal sets and the screen tracer sets. The tracer's sets exist even with the
+        // tracer off: they cost nothing per frame.
         SetPool shared = CreatePool(
             sizes: SharedPoolSizes(frames, glowSourceSets),
             maxSets: 2 * frames
-                + 13
+                + 11
                 + glowSourceSets
                 + PyramidLevelSets
                 + EnvironmentLevelsSets
                 + SurfaceTestSets
                 + SignalSets
-                + SignalReadSets,
+                + ScreenTraceSets,
             flags: 0,
             name: "descriptor pool"
         );
@@ -954,25 +947,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         );
     }
 
-    /// <summary>The layout of the occlusion set, whose bindings the compute stage reads.</summary>
-    private DescriptorSetLayout CreateOcclusionSetLayout()
-    {
-        Span<DescriptorSetLayoutBinding> occlusion =
-            stackalloc DescriptorSetLayoutBinding[OcclusionImages.StorageImages];
-        for (int binding = 0; binding < occlusion.Length; binding++)
-            occlusion[binding] = StorageImage(binding: (uint)binding);
-        return CreateLayout(bindings: occlusion, name: "occlusion set");
-    }
-
-    /// <summary>
-    /// The layouts of the pyramid level set, the depth tail set and the reflection set (docs/plans/screen-space-reflections.md, "Descriptor
-    /// sets"), whose bindings the compute stage reads. <paramref name="mipSampler"/> is the trace's immutable sampler.
-    /// </summary>
-    private (
-        DescriptorSetLayout Level,
-        DescriptorSetLayout DepthTail,
-        DescriptorSetLayout Reflection
-    ) CreateReflectionSetLayouts(Sampler mipSampler)
+    /// <summary>The layouts of the pyramid level set and the depth tail set, whose bindings the compute stage reads.</summary>
+    private (DescriptorSetLayout Level, DescriptorSetLayout DepthTail) CreatePyramidSetLayouts()
     {
         Span<DescriptorSetLayoutBinding> level =
         [
@@ -987,25 +963,9 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
                 DescriptorCount = DepthPyramidTail.Mips,
             },
         ];
-        Span<DescriptorSetLayoutBinding> reflection =
-        [
-            Image(binding: 0, stages: ShaderStageFlags.ComputeBit),
-            Image(binding: 1, stages: ShaderStageFlags.ComputeBit),
-            ImmutableSampler(binding: 2, stages: ShaderStageFlags.ComputeBit, sampler: &mipSampler),
-            StorageImage(binding: 3),
-            StorageImage(binding: 4),
-            StorageImage(binding: 5),
-            new(
-                binding: 6,
-                descriptorType: DescriptorType.StorageBuffer,
-                descriptorCount: 1,
-                stageFlags: ShaderStageFlags.ComputeBit
-            ),
-        ];
         return (
             CreateLayout(bindings: level, name: "pyramid level set"),
-            CreateLayout(bindings: tail, name: "depth tail set"),
-            CreateLayout(bindings: reflection, name: "reflection set")
+            CreateLayout(bindings: tail, name: "depth tail set")
         );
     }
 
@@ -1073,21 +1033,39 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         return CreateLayout(bindings: surface, name: "surface test set");
     }
 
-    /// <summary>The layouts of the signal set and the signal read set (<see cref="SignalSet"/>).</summary>
-    private (DescriptorSetLayout Signal, DescriptorSetLayout SignalRead) CreateTemporalSetLayouts()
+    /// <summary>The layout of the screen tracer set (<see cref="ScreenTraceSet"/>).</summary>
+    private DescriptorSetLayout CreateScreenTraceSetLayout()
     {
-        Span<DescriptorSetLayoutBinding> signal = stackalloc DescriptorSetLayoutBinding[(int)SignalSetImages];
+        const uint lists = ScreenTraceSampledImages + ScreenTraceStorageImages;
+        Span<DescriptorSetLayoutBinding> bindings =
+            stackalloc DescriptorSetLayoutBinding[(int)(lists + ScreenTraceStorageBuffers)];
+        for (uint binding = 0; binding < ScreenTraceSampledImages; binding++)
+            bindings[(int)binding] = Image(binding: binding, stages: ShaderStageFlags.ComputeBit);
+        for (uint binding = ScreenTraceSampledImages; binding < lists; binding++)
+            bindings[(int)binding] = StorageImage(binding);
+        for (uint binding = lists; binding < lists + ScreenTraceStorageBuffers; binding++)
+            bindings[(int)binding] = new(
+                binding: binding,
+                descriptorType: DescriptorType.StorageBuffer,
+                descriptorCount: 1,
+                stageFlags: ShaderStageFlags.ComputeBit
+            );
+        return CreateLayout(bindings: bindings, name: "screen trace set");
+    }
+
+    /// <summary>The layouts of the signal set (<see cref="SignalSet"/>) and the light set (<see cref="LightSet"/>).</summary>
+    private (DescriptorSetLayout Signal, DescriptorSetLayout Light) CreateTemporalSetLayouts()
+    {
+        Span<DescriptorSetLayoutBinding> signal =
+            stackalloc DescriptorSetLayoutBinding[(int)(SignalSetImages + SignalSetSampledImages)];
         for (uint binding = 0; binding < SignalSetImages; binding++)
             signal[(int)binding] = StorageImage(binding);
-        Span<DescriptorSetLayoutBinding> read =
-        [
-            StorageImage(binding: 0, stages: ShaderStageFlags.FragmentBit),
-            StorageImage(binding: 1, stages: ShaderStageFlags.FragmentBit),
-        ];
-        return (
-            CreateLayout(bindings: signal, name: "signal set"),
-            CreateLayout(bindings: read, name: "signal read set")
-        );
+        for (uint binding = SignalSetImages; binding < SignalSetImages + SignalSetSampledImages; binding++)
+            signal[(int)binding] = Image(binding: binding, stages: ShaderStageFlags.ComputeBit);
+        Span<DescriptorSetLayoutBinding> light = stackalloc DescriptorSetLayoutBinding[(int)LightSetImages];
+        for (uint binding = 0; binding < LightSetImages; binding++)
+            light[(int)binding] = StorageImage(binding: binding, stages: ShaderStageFlags.FragmentBit);
+        return (CreateLayout(bindings: signal, name: "signal set"), CreateLayout(bindings: light, name: "light set"));
     }
 
     /// <summary>A binding of one storage image for the compute stage.</summary>
@@ -1137,8 +1115,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     private DescriptorSetLayout CreateFrameSetLayout(Sampler linearClamp, Sampler environment)
     {
         const ShaderStageFlags graphics = ShaderStageFlags.VertexBit | ShaderStageFlags.FragmentBit;
-        // Compute shaders read these bindings: the pyramid builds and the trace of the reflections read the frame
-        // constants, the tables and the exposure, and the occlusion passes read the frame constants (binding 0).
+        // Compute shaders read these bindings: the depth pyramid's builds, the screen tracer and the accumulator read the
+        // frame constants, the tables and the exposure.
         const ShaderStageFlags graphicsAndCompute = graphics | ShaderStageFlags.ComputeBit;
         const ShaderStageFlags shading = ShaderStageFlags.FragmentBit | ShaderStageFlags.ComputeBit;
         Span<DescriptorSetLayoutBinding> frame =

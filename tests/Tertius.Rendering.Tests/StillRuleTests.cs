@@ -143,18 +143,56 @@ public sealed class StillRuleTests
             .Equal(true, false, false, false);
 
     [Fact]
-    public void AStillUnderAFixedExposureTakesNoWarmUpDraw() =>
+    public void AStillUnderAFixedExposureAndNoTracerTakesNoWarmUpDraw() =>
         StillRule
-            .For(new RendererOptions { Exposure = new FixedExposure(0) }, headless: true)
+            .For(
+                new RendererOptions { Exposure = new FixedExposure(0), ScreenTrace = new NoScreenTrace() },
+                headless: true
+            )
             .WarmUpDraws.Should()
             .Be(0, "no history holds more than one frame, and the exposure needs no draw to adapt in");
 
     [Fact]
-    public void AStillUnderAnAutomaticExposureTakesOneWarmUpDraw() =>
+    public void AStillUnderAnAutomaticExposureAndNoTracerTakesOneWarmUpDraw() =>
         StillRule
-            .For(new RendererOptions { Exposure = AutoExposure.Default }, headless: true)
+            .For(
+                new RendererOptions { Exposure = AutoExposure.Default, ScreenTrace = new NoScreenTrace() },
+                headless: true
+            )
             .WarmUpDraws.Should()
             .Be(1, "the exposure needs a draw to adapt in, today's metering draw");
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void AStillUnderTheTracerTakesTheWarmUpCountOfTheOptions(bool automaticExposure) =>
+        StillRule
+            .For(
+                new RendererOptions
+                {
+                    Exposure = automaticExposure ? AutoExposure.Default : new FixedExposure(0),
+                    ScreenTrace = ScreenTrace.Default,
+                    WarmUpFrames = 5,
+                },
+                headless: true
+            )
+            .WarmUpDraws.Should()
+            .Be(5, "the indirect signals hold many frames, and the warm-up draws fill them");
+
+    [Fact]
+    public void AStillUnderTheTracerWithNoWarmUpCountStillTakesTheExposuresDraw() =>
+        StillRule
+            .For(
+                new RendererOptions
+                {
+                    Exposure = AutoExposure.Default,
+                    ScreenTrace = ScreenTrace.Default,
+                    WarmUpFrames = 0,
+                },
+                headless: true
+            )
+            .WarmUpDraws.Should()
+            .Be(1, "the larger need wins: the exposure still needs a draw to adapt in");
 
     [Fact]
     public void AWindowedRendererDrawsEachSnapshotOnceEvenAfterAStepOfZero() =>

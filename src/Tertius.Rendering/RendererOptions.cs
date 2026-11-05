@@ -15,6 +15,14 @@ public sealed class RendererOptions
     /// <summary>How many frames the CPU may record while the GPU still works on earlier ones. 1 to 4.</summary>
     public int FramesInFlight { get; set; } = 2;
 
+    /// <summary>
+    /// Whether a captured frame stays in flight. False: <see cref="VulkanRenderer.Render"/> waits for the captured frame
+    /// and hands its pixels to the sink before it returns, so the GPU idles until the next frame. True: the renderer hands
+    /// them over when it draws the frame's slot again or at <see cref="VulkanRenderer.FinishCaptures"/>, so a run of
+    /// captures keeps <see cref="FramesInFlight"/> frames on the GPU, as a window does. The pixels are the same.
+    /// </summary>
+    public bool CapturesInFlight { get; set; }
+
     /// <summary>Present with FIFO (wait for vertical blank). Otherwise mailbox or immediate. Ignored when headless.</summary>
     public bool VSync { get; set; } = true;
 
@@ -60,22 +68,35 @@ public sealed class RendererOptions
     public ToneCurve ToneCurve { get; set; } = ToneCurve.AcesFitted;
 
     /// <summary>
-    /// Whether the renderer estimates the crease shadowing and the bounce light from the screen: <see cref="VisibilityBitmaskLight"/> or
-    /// <see cref="NoScreenSpaceLight"/>. The default is <see cref="VisibilityBitmaskLight.Default"/>.
-    /// </summary>
-    public ScreenSpaceLightSetting ScreenSpaceLight { get; set; } = VisibilityBitmaskLight.Default;
-
-    /// <summary>
     /// The glow around light brighter than white after the exposure, or <see cref="NoBloom"/>. On by default. The bloom
     /// images take about a third of the HDR image's memory (ARCHITECTURE.md, "Bloom").
     /// </summary>
     public BloomSetting Bloom { get; set; } = Rendering.Bloom.Default;
 
     /// <summary>
-    /// Reflections of what is on the screen in glossy surfaces, or <see cref="NoReflections"/>. On by default. The
-    /// pyramids take about 33 MB at 1920 × 1080 (docs/plans/screen-space-reflections.md, "Images").
+    /// The screen tracer, which gives every lit surface its reflections and its bounce light from what is on the screen
+    /// (docs/plans/temporal-renderer.md, section 6), or <see cref="NoScreenTrace"/>, under which each surface takes the
+    /// environment's closed forms with every direction open. The default is <see cref="ScreenTrace.Default"/>. Its images,
+    /// its two signals and the depth pyramid take about 180 bytes per pixel, about 370 MB at 1920 × 1080 (ARCHITECTURE.md,
+    /// "The screen tracer").
     /// </summary>
-    public ReflectionSetting Reflections { get; set; } = ConeTracedReflections.Default;
+    public ScreenTraceSetting ScreenTrace { get; set; } = Rendering.ScreenTrace.Default;
+
+    /// <summary>
+    /// The warm-up draws of a headless still under <see cref="ScreenTrace"/>, 0 to <see cref="MaxWarmUpFrames"/>: the
+    /// draws of the still's snapshot before the shown one, in which the tracer's signals converge
+    /// (docs/plans/temporal-renderer.md, section 10, "The still rule"). The default is 32.
+    /// </summary>
+    public int WarmUpFrames { get; set; } = DefaultWarmUpFrames;
+
+    /// <summary>
+    /// The warm-up draws of a still unless the options give another count: the design's count
+    /// (docs/plans/temporal-renderer.md, section 10, "The still rule").
+    /// </summary>
+    public const int DefaultWarmUpFrames = 32;
+
+    /// <summary>The most warm-up draws: far past the signals' longest history, it bounds the time of a still.</summary>
+    public const int MaxWarmUpFrames = 1024;
 
     /// <summary>
     /// Whether skin scatters its diffuse light under the surface, or <see cref="NoSubsurface"/>. On by default. The scatter

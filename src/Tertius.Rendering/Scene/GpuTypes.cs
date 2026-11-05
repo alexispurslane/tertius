@@ -191,7 +191,8 @@ internal struct GpuInstance
         Vector3 axisZ,
         Vector3 origin,
         uint material,
-        int placedIndex
+        int placedIndex,
+        bool holdsLight
     ) =>
         new()
         {
@@ -200,6 +201,7 @@ internal struct GpuInstance
             ModelRow2 = new(x: axisX.Z, y: axisY.Z, z: axisZ.Z, w: origin.Z),
             Material = material,
             PlacedIndex = (uint)placedIndex,
+            HoldsLight = holdsLight ? 1u : 0u,
         };
 
     private static float InverseSquare(float s) => s != 0 ? 1f / (s * s) : 0f;
@@ -630,31 +632,6 @@ internal struct DrawPushConstants
     public uint Map;
 }
 
-/// <summary>
-/// The push constants of the occlusion passes (Shaders/occlusion.glsl): the setting. The camera comes from the frame
-/// constants, so the occlusion passes and the lighting passes read the one store. 16 bytes.
-/// </summary>
-[StructLayout(LayoutKind.Sequential)]
-internal struct OcclusionPushConstants
-{
-    public float RadiusMeters;
-    public uint Slices;
-    public uint StepsPerSide;
-
-    /// <summary>1 in the last denoise dispatch, 0 otherwise.</summary>
-    public uint LastDenoise;
-
-    /// <summary>The push constants of one dispatch.</summary>
-    public static OcclusionPushConstants For(VisibilityBitmaskLight setting, bool lastDenoise) =>
-        new()
-        {
-            RadiusMeters = setting.RadiusMeters,
-            Slices = (uint)setting.Slices,
-            StepsPerSide = (uint)setting.StepsPerSide,
-            LastDenoise = lastDenoise ? 1u : 0u,
-        };
-}
-
 /// <summary>The push constants of the tone mapping pass.</summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct ToneMapPushConstants
@@ -748,19 +725,62 @@ internal struct SurfaceTestPushConstants
 internal struct AccumulatePushConstants
 {
     public float Cap;
+    public float SmoothCap;
     public float FastCap;
     public float HistoryFixFrames;
     public float ClampSigmas;
     public float AntiLagShare;
 
-    public static AccumulatePushConstants Of(SignalParameters parameters) =>
+    /// <summary>The signal's light: 0 diffuse, 1 specular (<see cref="SignalLight"/>).</summary>
+    public uint Light;
+
+    public float ReflectedPlaceBelow;
+
+    /// <summary>1 in a frame that resets every history, where no reprojection holds one; 0 otherwise.</summary>
+    public uint Reset;
+
+    public static AccumulatePushConstants Of(SignalParameters parameters, bool reset) =>
         new()
         {
             Cap = parameters.Cap,
+            SmoothCap = parameters.SmoothCap,
             FastCap = parameters.FastCap,
             HistoryFixFrames = parameters.HistoryFixFrames,
             ClampSigmas = parameters.ClampSigmas,
             AntiLagShare = parameters.AntiLagShare,
+            Light = (uint)parameters.Light,
+            ReflectedPlaceBelow = parameters.ReflectedPlaceBelow,
+            Reset = reset ? 1u : 0u,
+        };
+}
+
+/// <summary>The push constants of the screen tracer's four passes, screen_trace.glsl (<see cref="ScreenTraceKernel"/>).</summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct ScreenTracePushConstants
+{
+    /// <summary>The draw's index since the last reset (<see cref="FrameHistory.PendingFrame.DrawIndex"/>), the second value of every draw.</summary>
+    public uint DrawIndex;
+
+    public float MaxRoughness;
+
+    /// <summary><see cref="ScreenTrace.MaxRoughness"/> − <see cref="ScreenTrace.HandOverWidth"/>.</summary>
+    public float HandOverStart;
+
+    public uint ReflectionSteps;
+    public uint DiffuseSteps;
+
+    /// <summary>
+    /// The push constants of a draw of index <paramref name="drawIndex"/> under <paramref name="trace"/>. The index wraps
+    /// at 2^32 draws, more than two years at 60 frames per second, which changes only the random numbers.
+    /// </summary>
+    public static ScreenTracePushConstants Of(ScreenTrace trace, long drawIndex) =>
+        new()
+        {
+            DrawIndex = unchecked((uint)drawIndex),
+            MaxRoughness = trace.MaxRoughness,
+            HandOverStart = trace.HandOverStart,
+            ReflectionSteps = (uint)trace.ReflectionSteps,
+            DiffuseSteps = (uint)trace.DiffuseSteps,
         };
 }
 
@@ -862,23 +882,4 @@ internal struct EnvironmentDownsamplePushConstants
 
     /// <summary>The map whose layers 6 · Map to 6 · Map + 5 the dispatch reads and writes.</summary>
     public uint Map;
-}
-
-/// <summary>
-/// The push constants of reflection_trace.comp, reflection_half_trace.comp and reflection_upsample.comp, which share the
-/// block of reflection_pixel.glsl: the setting of the reflections (docs/plans/screen-space-reflections.md, "Descriptor
-/// sets"). The shaders find the top level with textureQueryLevels, so they carry only the setting.
-/// </summary>
-[StructLayout(LayoutKind.Sequential)]
-internal struct ReflectionPushConstants
-{
-    /// <summary><see cref="ConeTracedReflections.MaxRoughness"/>.</summary>
-    public float MaxRoughness;
-
-    /// <summary><see cref="ConeTracedReflections.MaxSteps"/>.</summary>
-    public uint MaxSteps;
-
-    /// <summary>The push constants of <paramref name="setting"/>, which the renderer has checked.</summary>
-    public static ReflectionPushConstants For(ConeTracedReflections setting) =>
-        new() { MaxRoughness = setting.MaxRoughness, MaxSteps = (uint)setting.MaxSteps };
 }

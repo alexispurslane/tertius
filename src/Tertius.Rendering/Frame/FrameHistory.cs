@@ -51,12 +51,17 @@ internal readonly record struct StillRule(bool Headless, int WarmUpDraws)
     public static StillRule Window => new(Headless: false, WarmUpDraws: 0);
 
     /// <summary>
-    /// The rule of a renderer of <paramref name="options"/>: 1 warm-up draw under <see cref="AutoExposure"/>, so that the
-    /// exposure has a draw to adapt in, and else 0, because no history of the renderer holds more than one frame
-    /// (section 10, "The still rule"). The screen tracer's signals will hold more (ter-gayt).
+    /// The rule of a renderer of <paramref name="options"/> (section 10, "The still rule"): <see
+    /// cref="RendererOptions.WarmUpFrames"/> warm-up draws under <see cref="ScreenTrace"/>, whose signals hold more than
+    /// one frame. Without it, no history holds more than one frame, so a still takes 1 warm-up draw under <see
+    /// cref="AutoExposure"/>, so that the exposure has a draw to adapt in, and else 0. Under both, at least 1.
     /// </summary>
-    public static StillRule For(RendererOptions options, bool headless) =>
-        new(Headless: headless, WarmUpDraws: options.Exposure is AutoExposure ? 1 : 0);
+    public static StillRule For(RendererOptions options, bool headless)
+    {
+        int histories = options.ScreenTrace is ScreenTrace ? options.WarmUpFrames : 0;
+        int exposure = options.Exposure is AutoExposure ? 1 : 0;
+        return new(Headless: headless, WarmUpDraws: Math.Max(histories, exposure));
+    }
 }
 
 /// <summary>The camera of a drawn frame, as the batch interpolated it, which the next frame's motion vectors need.</summary>

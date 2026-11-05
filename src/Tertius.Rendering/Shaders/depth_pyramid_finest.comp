@@ -1,0 +1,23 @@
+#version 460
+// The finest level of the depth pyramid, level 0 of the two-depth walk (docs/plans/temporal-renderer.md, decisions 40
+// and 46): the inverse view depth w of each pixel's center, by the one rule of a depth sample's w (inverseDepthAlong), or
+// 0 for sky. One invocation per pixel. The levels above it hold the bounds of the pixels' surfaces, whose near bound is
+// at least the center's w and whose far bound at most, so each cell's slab holds the flat slab of every pixel under it.
+// DepthPyramid.Finest is the C# copy.
+#extension GL_GOOGLE_include_directive : require
+#extension GL_EXT_samplerless_texture_functions : require
+#include "depth_pyramid.glsl"
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+layout(set = 3, binding = 1, r32f) uniform writeonly image2D destination;   // the finest level, the screen's size
+
+void main()
+{
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    if (any(greaterThanEqual(pixel, imageSize(destination))))
+        return;
+    float distanceToEye = texelFetch(gbufferDistance, pixel, 0).r;
+    float w = distanceToEye <= 0.0 ? 0.0 : inverseDepthAlong(vec2(pixel) + 0.5, distanceToEye);
+    imageStore(destination, pixel, vec4(w));
+}

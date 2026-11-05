@@ -83,6 +83,8 @@ internal struct ImpostorDraw
 
     /// <summary>The object's <see cref="PreparedInstance.PlacedIndex"/>, whose motion row the billboard's motion reads.</summary>
     public int PlacedIndex;
+
+    public bool HoldsLight;
 }
 
 /// <summary>What the manager knows about one key. A test and tooling view.</summary>
@@ -418,6 +420,7 @@ internal sealed partial class ImpostorManager : IInstanceProcessor
             // the center, so a farther range would clip it at its near plane.
             Ranges = DepthRanges.OpaqueMask(instance.Depth, instance.Radius) & ~((1 << containing) - 1),
             PlacedIndex = instance.PlacedIndex,
+            HoldsLight = instance.HoldsLight,
         };
         tileUsed[state.Tile] = Frame;
         state.DrawnFrame = Frame;

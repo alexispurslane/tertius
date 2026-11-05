@@ -1,16 +1,122 @@
 #version 460
 // The temporal dispatch of an accumulation (docs/plans/temporal-renderer.md, section 8, "The model", steps 1 and 2): one
 // invocation per pixel reprojects the last frame's slow and fast histories through the surface test, rescales them by the
-// exposure ratio and blends the sample in. It writes the slow history into the scratch image, so that the spatial
-// dispatch reads the neighbors' results while it writes the slow history, and this frame's fast history.
+// exposure ratio and blends the sample in. The specular signal also tests the reflected point's place and that place's
+// hit distances (section 8, "The specular signal's own tests"). It writes the slow history into the scratch image, so that
+// the spatial dispatch reads the neighbors' results while it writes the slow history, and this frame's fast history.
 #extension GL_GOOGLE_include_directive : require
 #include "accumulate.glsl"
+#include "gbuffer_surface.glsl"
+#include "meter.glsl"
+#include "motion.glsl"
 
-// The least sum of the passing taps' bilinear weights that holds a history.
-const float LeastHistoryWeight = 0.05;
+// The share of the larger of two hit distances by which they may differ for a tap to pass.
+const float HitDistanceShare = 0.5;
 
-// The closed form of a signal: a pixel without a history and without a finite sample takes it as its sample.
-const vec3 ClosedForm = vec3(0.0);
+// The place in the last frame's image of a point relative to this frame's eye, or a place outside it for a point
+// behind the last frame's eye.
+vec2 lastPlaceOf(vec3 clip)
+{
+    return clip.z > 0.0 ? 0.5 * clip.xy / clip.z + 0.5 : NoHistoryMotion;
+}
+
+// Whether two hit distances, in m with 0 for a miss, show the same hit: two misses, or two hits within HitDistanceShare
+// of the larger.
+bool sameHit(float stored, float current)
+{
+    if (stored <= 0.0 || current <= 0.0)
+        return stored <= 0.0 && current <= 0.0;
+    return abs(stored - current) <= HitDistanceShare * max(stored, current);
+}
+
+// The pass bits of a reprojection's taps whose stored hit distance shows the sample's hit.
+uint sameHitBits(Reprojection r, uint bits, float hitDistance)
+{
+    uint kept = 0u;
+    for (uint tap = 0u; tap < 4u; tap++)
+        if ((bits & (1u << tap)) != 0u && sameHit(imageLoad(lastFast, tapTexel(r, tap)).a, hitDistance))
+            kept |= 1u << tap;
+    return kept;
+}
+
+// The reflected place's reprojection through the taps of `bits`, with its hit distance test.
+Reprojection reflectedReprojectionOf(vec2 place, uint bits, float hitDistance)
+{
+    Reprojection r = reprojectionOf(place, bits);
+    return reprojectionOf(place, sameHitBits(r, bits, hitDistance));
+}
+
+HISTORY_READER(lastFastAt, lastFast)
+HISTORY_READER(lastSlowAt, slowHistory)
+
+// The mean luminance of this frame's finite samples on the same surface over the 3 × 3 pixels around the pixel.
+float meanSampleLuminance(ivec2 pixel)
+{
+    SurfaceKey key = surfaceKeyAt(pixel);
+    float sum = 0.0;
+    float count = 0.0;
+    for (int y = -1; y <= 1; y++)
+        for (int x = -1; x <= 1; x++)
+        {
+            ivec2 neighbor = pixel + ivec2(x, y);
+            if (!insideImages(neighbor) || !sameSurface(key, surfaceKeyAt(neighbor)))
+                continue;
+            vec3 sampled = imageLoad(sampleImage, neighbor).rgb;
+            if (!finiteSample(sampled))
+                continue;
+            sum += luminance(sampled);
+            count += 1.0;
+        }
+    return count > 0.0 ? sum / count : 0.0;
+}
+
+// The reflected point's place (section 8, "The specular signal's own tests"): where a flat mirror shows the hit, behind
+// the mirror along the view ray, or for a miss the view direction's place, as for the sky.
+vec2 reflectedPlaceOf(vec3 point, float hitDistance)
+{
+    vec3 toSurface = normalize(point);
+    if (hitDistance <= 0.0)
+        return lastPlaceOf((frame.previousViewProj * vec4(toSurface, 0.0)).xyw);
+    return lastPlaceOf(lastClipOf(point + toSurface * hitDistance - frame.previousEye.xyz));
+}
+
+// The place whose history the pixel reprojects: the surface place, or below reflectedPlaceBelow also the reflected
+// point's place, whichever passes, and of two that pass the one whose fast history lies nearer this frame's samples. A
+// pixel without a sample has no hit distance to test, so it takes the surface place.
+Reprojection historyPlaceOf(ivec2 pixel, float roughness, bool hasSample, float hitDistance)
+{
+    uint bits = imageLoad(surfaceTest, pixel).r;
+    vec4 motion = imageLoad(motionTarget, pixel);
+    vec2 surfacePlace = (vec2(pixel) + 0.5) * frame.viewport.zw + motion.xy;
+    bool specular = parameters.light == SpecularLight;
+    bool tryReflected = specular && hasSample && roughness < parameters.reflectedPlaceBelow;
+    // The specular signal takes the taps that pass the specular test, bits 4 to 7.
+    uint surfaceBits = specular ? (bits >> 4) & 0xFu : bits & 0xFu;
+    Reprojection surface = reprojectionOf(surfacePlace, surfaceBits);
+    if (!tryReflected || parameters.reset != 0u)
+        return surface;
+
+    vec3 viewRay = viewRayThrough(vec2(pixel) + 0.5);
+    float distanceToEye = texelFetch(gbufferDistance, pixel, 0).r;
+    vec3 point = normalize(viewRay) * distanceToEye;
+    // The pixel's last point, as the surface test rebuilds it: the mirror's point in the last frame.
+    vec3 lastPoint = lastViewRayThrough(surfacePlace) * (distanceToEye / length(viewRay) * motion.z);
+    vec3 normal = octDecode(texelFetch(gbufferNormal, pixel, 0).ba);
+    vec2 reflectedPlace = reflectedPlaceOf(point, hitDistance);
+    bool inside = all(greaterThanEqual(reflectedPlace, vec2(0.0))) && all(lessThanEqual(reflectedPlace, vec2(1.0)));
+    uint reflectedBits = inside
+        ? (surfaceTaps(lastSurfaceHistory, lastDeviceDepth, reflectedPlace, lastPoint, normal, roughness) >> 4) & 0xFu
+        : 0u;
+    Reprojection reflected = reflectedReprojectionOf(reflectedPlace, reflectedBits, hitDistance);
+    if (!holdsHistory(reflected))
+        return surface;
+    if (!holdsHistory(surface))
+        return reflected;
+    float mean = meanSampleLuminance(pixel);
+    float surfaceOff = abs(luminance(lastFastAt(surface).rgb) - mean);
+    float reflectedOff = abs(luminance(lastFastAt(reflected).rgb) - mean);
+    return reflectedOff < surfaceOff ? reflected : surface;
+}
 
 void main()
 {
@@ -25,64 +131,51 @@ void main()
         return;
     }
 
-    // Step 1: the bilinear weights of the previous place over the 2 × 2 texels of the last frame's images around it, times
-    // the pass bits. A failing tap and a tap outside the last image hold no weight: the surface test fails it.
-    uint bits = imageLoad(surfaceTest, pixel).r & 0xFu;
-    vec2 place = (vec2(pixel) + 0.5) * frame.viewport.zw + imageLoad(motionTarget, pixel).xy;
-    vec2 texelPlace = place * frame.previousViewport.xy - 0.5;
-    ivec2 first = ivec2(floor(texelPlace));
-    vec2 f = texelPlace - vec2(first);
-    vec4 slow = vec4(0.0);
-    vec3 fast = vec3(0.0);
-    float sum = 0.0;
-    for (uint tap = 0u; tap < 4u; tap++)
-    {
-        if ((bits & (1u << tap)) == 0u)
-            continue;
-        ivec2 offset = ivec2(tap & 1u, tap >> 1);
-        vec2 axes = mix(1.0 - f, f, vec2(offset));
-        float weight = axes.x * axes.y;
-        ivec2 texel = first + offset;
-        slow += weight * imageLoad(slowHistory, texel);
-        fast += weight * imageLoad(lastFast, texel).rgb;
-        sum += weight;
-    }
+    vec4 sample4 = imageLoad(sampleImage, pixel);
+    vec3 sampled = sample4.rgb;
+    bool hasSample = finiteSample(sampled);
+    // The specular signal's sample holds its hit distance in alpha, 0 for a miss.
+    float hitDistance = parameters.light == SpecularLight && hasSample && !isnan(sample4.a) ? sample4.a : 0.0;
+    float roughness = roughnessAt(pixel);
+    float cap = capAt(roughness);
+
+    // Step 1: the bilinear weights of the place over the 2 × 2 texels of the last frame's images around it, times the
+    // pass bits. A failing tap and a tap outside the last image hold no weight: the surface test fails it.
+    Reprojection r = historyPlaceOf(pixel, roughness, hasSample, hitDistance);
+    vec4 slow = lastSlowAt(r);
+    vec3 fast = lastFastAt(r).rgb;
 
     float historyLength = 0.0;
-    if (sum >= LeastHistoryWeight)
+    if (holdsHistory(r))
     {
         // Both histories hold pre-exposed light: the ratio 2^(S − S_last) keeps them in this frame's scale. A rise of more
         // than about one stop takes a history at MaxRadiance past the largest half float, so `exposed` caps the product at
         // MaxRadiance before it. Its bounds hold for a ratio of at most 2^64, and two exposures can lie 128 stops apart.
-        float ratio = exp2(clamp(exposureStops - previousStops, -64.0, 64.0));
-        historyLength = slow.a / sum;
-        slow.rgb = exposed(slow.rgb / sum, ratio);
-        fast = exposed(fast / sum, ratio);
-    }
-    else
-    {
-        slow.rgb = vec3(0.0);
-        fast = vec3(0.0);
+        float ratio = historyRatio(exposureStops, previousStops);
+        // A length above this pixel's cap, from a neighbor of another roughness, is cut to it.
+        historyLength = min(slow.a, cap);
+        slow.rgb = exposed(slow.rgb, ratio);
+        fast = exposed(fast, ratio);
     }
 
     // Step 2. A sample that is not finite counts as no sample: the pixel keeps its history and its length. Without a
     // history, it takes the closed form.
-    vec3 sampled = imageLoad(sampleImage, pixel).rgb;
-    bool hasSample = finiteSample(sampled);
     if (!hasSample && historyLength == 0.0)
     {
-        sampled = ClosedForm;
+        IndirectLight closed = closedForm(withAmbientFootprint(materialAt(pixel), pixel),
+            -normalize(viewRayThrough(vec2(pixel) + 0.5)));
+        sampled = parameters.light == SpecularLight ? closed.specular : closed.diffuse;
         hasSample = true;
     }
     if (hasSample)
     {
-        historyLength = min(historyLength + 1.0, parameters.cap);
+        historyLength = min(historyLength + 1.0, cap);
         // The weight 1 / length, written as a step toward the sample, so that a sample equal to the history leaves it
         // exact. A length of 1 takes the sample itself.
         slow.rgb = historyLength <= 1.0 ? sampled : slow.rgb + (sampled - slow.rgb) / historyLength;
-        float fastLength = min(historyLength, parameters.fastCap);
+        float fastLength = min(historyLength, fastCapOf(cap));
         fast = fastLength <= 1.0 ? sampled : fast + (sampled - fast) / fastLength;
     }
     imageStore(scratch, pixel, vec4(slow.rgb, historyLength));
-    imageStore(fastHistory, pixel, vec4(fast, 0.0));
+    imageStore(fastHistory, pixel, vec4(fast, hitDistance));
 }

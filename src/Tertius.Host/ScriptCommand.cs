@@ -24,12 +24,9 @@ namespace Tertius.Host;
 /// Repeat it for several runs. Pass names match the recorded names, including spaces and case.</item>
 /// <item><c>--tone-curve aces|hable</c> chooses the headless renderer's <see cref="ToneCurve"/>, ACES fitted without the
 /// option.</item>
-/// <item><c>--screen-space-light off|&lt;meters&gt;</c> turns the headless renderer's screen-space light off, or sets its
-/// radius in m. <c>--screen-space-light-steps N</c> gives it N steps on each side of a slice, 1 to 16. Without either
-/// option, the renderer keeps its default.</item>
+/// <item><c>--screen-trace on|off</c> keeps the headless renderer's default <see cref="ScreenTrace"/>, or turns the
+/// screen tracer off, so that every surface takes the environment's closed forms.</item>
 /// <item><c>--bloom on|off</c> keeps the headless renderer's default <see cref="Bloom"/>, or turns it off.</item>
-/// <item><c>--reflections on|off</c> keeps the headless renderer's default <see cref="ConeTracedReflections"/>, or turns
-/// them off.</item>
 /// <item><c>--anti-aliasing off|smaa</c> chooses the headless renderer's <see cref="AntiAliasing"/>, SMAA without the
 /// option.</item>
 /// <item><c>--local-shadows off|on</c> turns the headless renderer's <see cref="RendererOptions.LocalShadows"/> off, or
@@ -39,6 +36,9 @@ namespace Tertius.Host;
 /// it off.</item>
 /// <item><c>--subsurface on|off</c> keeps the headless renderer's default <see cref="SeparableSubsurface"/>, or turns the
 /// skin scatter off.</item>
+/// <item><c>--in-flight 1|2</c> sets the headless renderer's frame count. One waits for each capture, and two keep both
+/// frames in flight, as a window does, so that a timed film keeps the GPU at its top clock
+/// (<see cref="RendererOptions.CapturesInFlight"/>).</item>
 /// <item><c>--scene &lt;name&gt; [--speed &lt;factor&gt;] [--record &lt;file&gt;]</c> runs a scene live in a window until you close it.
 /// With <c>--record</c>, the command writes your session to the file as a script that replays it.</item>
 /// </list>
@@ -96,7 +96,7 @@ public static partial class ScriptCommand
     public const string ExposureFile = "exposure.json";
 
     private const string Usage =
-        "Usage: --script <file> --headless --out <folder> [--video none|<file.mkv> [--fps <rate>]] [--size <width>x<height>] [--gpu-run FIRST..LAST]... [--tone-curve aces|hable] [--screen-space-light off|<meters>] [--screen-space-light-steps <count>] [--bloom on|off] [--reflections on|off] [--anti-aliasing off|smaa] [--local-shadows off|on] [--local-shadow-tiles <count>] [--cascaded-lights <count>] [--environment-map on|off] [--subsurface on|off]  |  --script <file> --out <folder> [--speed <factor>] [--size <width>x<height>]  |  --scene <name> [--speed <factor>] [--record <file>]";
+        "Usage: --script <file> --headless --out <folder> [--video none|<file.mkv> [--fps <rate>]] [--size <width>x<height>] [--gpu-run FIRST..LAST]... [--tone-curve aces|hable] [--screen-trace on|off] [--bloom on|off] [--anti-aliasing off|smaa] [--local-shadows off|on] [--local-shadow-tiles <count>] [--cascaded-lights <count>] [--environment-map on|off] [--subsurface on|off] [--in-flight 1|2]  |  --script <file> --out <folder> [--speed <factor>] [--size <width>x<height>]  |  --scene <name> [--speed <factor>] [--record <file>]";
 
     // The value of --video that draws the captures and drops them (Discard), for a run that only times its frames.
     private const string NoVideo = "none";
@@ -108,24 +108,23 @@ public static partial class ScriptCommand
     };
 
     // The options of the headless renderer, in the order of the usage line, each with the function that gives the problem
-    // with its value, or null for a value that it takes. Two of them also read another option's value:
-    // --screen-space-light-steps and --local-shadow-tiles.
+    // with its value, or null for a value that it takes. One of them also reads another option's value:
+    // --local-shadow-tiles.
     private static readonly (
         string Option,
         Func<GivenOptions, string, string?> ValueProblem
     )[] HeadlessRendererOptions =
     [
         ("--tone-curve", (_, curve) => ToneCurveProblem(curve)),
-        ("--screen-space-light", (_, light) => ScreenSpaceLightProblem(light)),
-        ("--screen-space-light-steps", ScreenSpaceLightStepsProblem),
+        ("--screen-trace", (_, value) => OnOffProblem("--screen-trace", value)),
         ("--bloom", (_, value) => OnOffProblem("--bloom", value)),
-        ("--reflections", (_, value) => OnOffProblem("--reflections", value)),
         ("--anti-aliasing", (_, antiAliasing) => AntiAliasingProblem(antiAliasing)),
         ("--local-shadows", (_, localShadows) => LocalShadowsProblem(localShadows)),
         ("--local-shadow-tiles", LocalShadowTilesProblem),
         ("--cascaded-lights", (_, count) => CascadedLightsProblem(count)),
         ("--environment-map", (_, value) => OnOffProblem("--environment-map", value)),
         ("--subsurface", (_, value) => OnOffProblem("--subsurface", value)),
+        ("--in-flight", (_, count) => InFlightProblem(count)),
     ];
 
     // The options that choose the run, each with the problem when a run that does not take it is given it. A command line
@@ -440,6 +439,8 @@ public static partial class ScriptCommand
                 outputFolder: run.Out,
                 playback: playback
             );
+            // The timed span ends when the GPU finished the frames in flight, which their hand-over waits for.
+            playback?.FinishCaptures();
             if (readings.Exposures.Count > 0)
                 output.WriteLine(TimedEnd);
             playback?.Finish();
@@ -499,8 +500,8 @@ public static partial class ScriptCommand
 
     /// <summary>
     /// The playback that draws the captures into <paramref name="target"/> and adds each shown frame to
-    /// <paramref name="readings"/>, or why it cannot start: the video's ffmpeg or folder. It writes
-    /// <see cref="TimedStart"/> to <paramref name="output"/> when the first shown frame has finished.
+    /// <paramref name="readings"/> when its capture is handed over, or why it cannot start: the video's ffmpeg or folder.
+    /// It writes <see cref="TimedStart"/> to <paramref name="output"/> when the first shown frame has finished.
     /// </summary>
     private static Result<HeadlessPlayback, RunFailure> StartPlayback(
         VulkanRenderer renderer,
@@ -519,7 +520,7 @@ public static partial class ScriptCommand
                 size: size,
                 target: target,
                 startVideo: startVideo,
-                rendered: () =>
+                handedOver: () =>
                 {
                     readings.Add(renderer.LastFrameStats);
                     // The timed span starts after the first shown frame, which holds the creation of the pipelines and
@@ -920,17 +921,16 @@ public static partial class ScriptCommand
         new()
         {
             ToneCurve = ToneCurveOf(given.Value("--tone-curve")),
-            ScreenSpaceLight = ScreenSpaceLightOf(
-                given.Value("--screen-space-light"),
-                given.Value("--screen-space-light-steps")
-            ),
+            ScreenTraceOff = given.Value("--screen-trace") == "off",
             BloomOff = given.Value("--bloom") == "off",
-            ReflectionsOff = given.Value("--reflections") == "off",
             AntiAliasing = AntiAliasingOf(given.Value("--anti-aliasing")),
             LocalShadows = LocalShadowsOf(given.Value("--local-shadows"), given.Value("--local-shadow-tiles")),
             CascadedLights = CascadedLightsOf(given.Value("--cascaded-lights")),
             EnvironmentMapOff = given.Value("--environment-map") == "off",
             SubsurfaceOff = given.Value("--subsurface") == "off",
+            FramesInFlight = given.Value("--in-flight") is { } count
+                ? int.Parse(count, CultureInfo.InvariantCulture)
+                : null,
         };
 
     private static string? SpeedProblem(string speed) =>
@@ -959,19 +959,9 @@ public static partial class ScriptCommand
     private static string? ToneCurveProblem(string curve) =>
         ToneCurveOf(curve) is null ? $"--tone-curve needs aces or hable, not '{curve}'." : null;
 
-    private static string? ScreenSpaceLightProblem(string light) =>
-        light is "off" || RadiusOf(light) is not null
-            ? null
-            : $"--screen-space-light needs off or a radius in m, a positive number such as 0.5, not '{light}'.";
-
-    private static string? ScreenSpaceLightStepsProblem(GivenOptions given, string steps)
-    {
-        if (StepsOf(steps) is null)
-            return $"--screen-space-light-steps needs a whole number from 1 to {ScreenSpaceLightSetting.MaxStepsPerSide}, not '{steps}'.";
-        if (given.Value("--screen-space-light") == "off")
-            return "--screen-space-light-steps sets the steps of the estimate, so leave out --screen-space-light off.";
-        return null;
-    }
+    /// <summary>The problem with the count of <c>--in-flight</c>, which takes 1 or 2, or null.</summary>
+    private static string? InFlightProblem(string count) =>
+        count is "1" or "2" ? null : $"--in-flight needs 1 or 2, not '{count}'.";
 
     /// <summary>The problem with a switch of the headless renderer, such as <c>--bloom</c>, which takes on or off, or null.</summary>
     private static string? OnOffProblem(string option, string value) =>
@@ -1045,40 +1035,6 @@ public static partial class ScriptCommand
             "hable" => ToneCurve.Hable,
             _ => null,
         };
-
-    /// <summary>
-    /// The screen-space light that the two texts give: none for <c>off</c>, else the renderer's default with the radius and
-    /// the steps that are given, and null when neither option is given. The renderer refuses a radius above its limit.
-    /// </summary>
-    private static ScreenSpaceLightSetting? ScreenSpaceLightOf(string? light, string? steps)
-    {
-        if (light == "off")
-            return new NoScreenSpaceLight();
-        if (light is null && steps is null)
-            return null;
-        VisibilityBitmaskLight estimate = VisibilityBitmaskLight.Default;
-        if (RadiusOf(light) is { } radius)
-            estimate = estimate with { RadiusMeters = radius };
-        if (StepsOf(steps) is { } count)
-            estimate = estimate with { StepsPerSide = count };
-        return estimate;
-    }
-
-    /// <summary>The radius in m that the text gives, or null for no text or one that is not a positive finite number.</summary>
-    private static float? RadiusOf(string? text)
-    {
-        bool read = float.TryParse(
-            s: text,
-            style: NumberStyles.Float,
-            provider: CultureInfo.InvariantCulture,
-            result: out float radius
-        );
-        return read && float.IsFinite(radius) && radius > 0 ? radius : null;
-    }
-
-    /// <summary>The steps on each side of a slice that the text gives, or null for no text or one outside 1 to 16.</summary>
-    private static int? StepsOf(string? text) =>
-        WholeNumberOf(text: text, least: 1, most: ScreenSpaceLightSetting.MaxStepsPerSide);
 
     /// <summary>
     /// The local shadows that the two texts give: none for <c>off</c>, the default atlas for <c>on</c> or for a count of

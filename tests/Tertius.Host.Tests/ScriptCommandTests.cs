@@ -302,32 +302,32 @@ public sealed class ScriptCommandTests : IDisposable
     [InlineData("--bloom applies to a headless run", "--scene", "no-such-scene", "--bloom", "off")]
     [InlineData("--bloom needs on or off", "--script", "script.json", "--headless", "--out", "out", "--bloom", "dim")]
     [InlineData(
-        "--reflections needs a value",
+        "--screen-trace needs a value",
         "--script",
         "script.json",
         "--headless",
         "--out",
         "out",
-        "--reflections"
+        "--screen-trace"
     )]
     [InlineData(
-        "--reflections applies to a headless run",
+        "--screen-trace applies to a headless run",
         "--script",
         "script.json",
         "--out",
         "out",
-        "--reflections",
+        "--screen-trace",
         "off"
     )]
-    [InlineData("--reflections applies to a headless run", "--scene", "no-such-scene", "--reflections", "off")]
+    [InlineData("--screen-trace applies to a headless run", "--scene", "no-such-scene", "--screen-trace", "off")]
     [InlineData(
-        "--reflections needs on or off",
+        "--screen-trace needs on or off",
         "--script",
         "script.json",
         "--headless",
         "--out",
         "out",
-        "--reflections",
+        "--screen-trace",
         "mirror"
     )]
     [InlineData(
@@ -371,6 +371,17 @@ public sealed class ScriptCommandTests : IDisposable
     )]
     [InlineData("--subsurface applies to a headless run", "--scene", "no-such-scene", "--subsurface", "off")]
     [InlineData(
+        "--in-flight needs 1 or 2, not '3'",
+        "--script",
+        "script.json",
+        "--headless",
+        "--out",
+        "out",
+        "--in-flight",
+        "3"
+    )]
+    [InlineData("--in-flight applies to a headless run", "--script", "script.json", "--out", "out", "--in-flight", "2")]
+    [InlineData(
         "--subsurface needs on or off, not 'waxy'",
         "--script",
         "script.json",
@@ -389,43 +400,6 @@ public sealed class ScriptCommandTests : IDisposable
         "out",
         "--tone-curve",
         "filmic"
-    )]
-    [InlineData(
-        "--screen-space-light applies to a headless run",
-        "--script",
-        "script.json",
-        "--out",
-        "out",
-        "--screen-space-light",
-        "off"
-    )]
-    [InlineData(
-        "--screen-space-light applies to a headless run",
-        "--scene",
-        "no-such-scene",
-        "--screen-space-light",
-        "off"
-    )]
-    [InlineData(
-        "--screen-space-light-steps applies to a headless run",
-        "--script",
-        "script.json",
-        "--out",
-        "out",
-        "--screen-space-light-steps",
-        "6"
-    )]
-    [InlineData(
-        "--screen-space-light-steps sets the steps of the estimate, so leave out --screen-space-light off",
-        "--script",
-        "script.json",
-        "--headless",
-        "--out",
-        "out",
-        "--screen-space-light",
-        "off",
-        "--screen-space-light-steps",
-        "6"
     )]
     [InlineData(
         "--anti-aliasing needs a value",
@@ -525,37 +499,6 @@ public sealed class ScriptCommandTests : IDisposable
 
         code.Should().Be(ScriptCommand.CommandLineError);
         error.ToString().Should().Contain(rule);
-    }
-
-    [Theory]
-    [InlineData("on")]
-    [InlineData("0")]
-    [InlineData("-1")]
-    [InlineData("NaN")]
-    [InlineData("Infinity")]
-    public void AScreenSpaceLightOptionThatIsNeitherOffNorAPositiveNumberIsAProblem(string value)
-    {
-        int code = Run("--script", "script.json", "--headless", "--out", "out", "--screen-space-light", value);
-
-        code.Should().Be(ScriptCommand.CommandLineError);
-        error.ToString().Should().Contain("--screen-space-light needs off or a radius").And.Contain($"'{value}'");
-    }
-
-    [Theory]
-    [InlineData("0")]
-    [InlineData("17")]
-    [InlineData("2.5")]
-    [InlineData("many")]
-    public void AScreenSpaceLightStepsOptionThatIsNotAWholeNumberFromOneToSixteenIsAProblem(string value)
-    {
-        int code = Run("--script", "script.json", "--headless", "--out", "out", "--screen-space-light-steps", value);
-
-        code.Should().Be(ScriptCommand.CommandLineError);
-        error
-            .ToString()
-            .Should()
-            .Contain("--screen-space-light-steps needs a whole number from 1 to 16")
-            .And.Contain($"'{value}'");
     }
 
     [Theory]
@@ -704,42 +647,6 @@ public sealed class ScriptCommandTests : IDisposable
         ]);
 
         chosen.Renderer.AntiAliasing.Should().Be(antiAliasing);
-    }
-
-    public static TheoryData<string[], ScreenSpaceLightSetting?> ScreenSpaceLightOptions =>
-        new()
-        {
-            { [], null },
-            { ["--screen-space-light", "off"], new NoScreenSpaceLight() },
-            { ["--screen-space-light", "2"], VisibilityBitmaskLight.Default with { RadiusMeters = 2 } },
-            { ["--screen-space-light-steps", "6"], VisibilityBitmaskLight.Default with { StepsPerSide = 6 } },
-            {
-                ["--screen-space-light", "0.5", "--screen-space-light-steps", "16"],
-                VisibilityBitmaskLight.Default with
-                {
-                    RadiusMeters = 0.5f,
-                    StepsPerSide = 16,
-                }
-            },
-        };
-
-    [Theory]
-    [MemberData(nameof(ScreenSpaceLightOptions))]
-    public void TheScreenSpaceLightOptionsTurnTheEstimateOffOrSetItsRadiusAndItsSteps(
-        string[] screenSpaceLight,
-        ScreenSpaceLightSetting? expected
-    )
-    {
-        ScriptCommand.Headless chosen = HeadlessOf([
-            "--script",
-            "s.json",
-            "--headless",
-            "--out",
-            "o",
-            .. screenSpaceLight,
-        ]);
-
-        chosen.Renderer.ScreenSpaceLight.Should().Be(expected);
     }
 
     public static TheoryData<string[], LocalShadowSetting?> LocalShadowOptions =>
