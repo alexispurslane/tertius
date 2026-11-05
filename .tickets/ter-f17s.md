@@ -1,6 +1,6 @@
 ---
 id: ter-f17s
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-11-04T21:59:59Z
@@ -13,6 +13,14 @@ parent: ter-89xq
 
 Found in the review of ter-nt65 on 2026-11-04. ShadowTiles follows a light from frame to frame by its entity slot alone: Keep and Held give a light the layers that its slot held, RanksAsHolder gives it the holder margin (it ranks at twice its rank irradiance), and IsStale matches a tile record by the slot. So a shadow-casting lamp that takes the slot of a destroyed holder before the next submitted frame inherits the old lamp's layers and margin, a share that it did not earn. The cached tile content stays correct, because a record also holds the light's place, aim, projection and origin frame. ImpostorKey (EntityIndex, Part, Mesh, Material) also keys state that lasts from frame to frame by the slot alone. STYLE.md: no member between modules takes or returns a bare slot. RenderInstance and the render lights already carry EntityGeneration beside EntityIndex, and Core has the handle Entity(uint Index, uint Generation). The user's decision of 2026-11-04 (design A): keep the light's generation on the snapshot and make the renderer's frame-to-frame state key by the whole entity, so that the class of bug is impossible; ter-nt65 (the removal of the light's generation) closes without a merge.
 
+
+## Integration, 2026-11-05
+
+Merged exact delivered commit `332b3d6c691eb3b2b5112b4d8ccb1fd55adacc15` into main as `6ce9b55c92bfbf981a9869c6a2670041ef7d326f`. Only ticket history conflicted; every committed main paragraph and both parent coordination notes were preserved. All 19 incoming C# files retained their validated contents, and existing automatic cleanup ran before the final checks without changing them. The combined source, tests and build inputs have code-tree fingerprint `91328f295de6603589fc0eacbd897fba0160936d`.
+
+Both complete solution builds passed with zero warnings/errors, including benchmarks. The combined Checked suite passed 10,282 tests; Release passed 10,269. Each had zero failures and 19 existing skips. Logs, exact commands and code/tree identities are in `/private/tmp/tertius-integration-20261105/merge-f17s/`. Normal merge hooks reused the passing Checked records for the exact staged code, rather than repeating builds or tests. Component coverage and fault dispositions remain the valid evidence recorded below; no official mutation run was repeated for this integration. The closure commit changes ticket prose only and needs no repeated suite.
+
+The advisory metrics still identify existing long GPU scenario tests and `ShadowTiles.IsStale`. This identity fix changes comparisons, not that method's control flow. No unrelated split was added merely to lower a metric after its design review and validation. Follow-up ter-6gf8 remains separate, with its original content and documented EOF whitespace warning preserved at this merge. Tracer/History Rule A, the light budget and denoising were not made integration prerequisites.
 
 ## Notes
 
