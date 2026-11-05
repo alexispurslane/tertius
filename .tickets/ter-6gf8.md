@@ -1,6 +1,6 @@
 ---
 id: ter-6gf8
-status: in_progress
+status: closed
 deps: [ter-f17s]
 links: []
 created: 2026-11-04T22:37:00Z
@@ -207,3 +207,9 @@ The combined canonical code tree is `ea744724a7b4bd3006c35ae437865e7f73c29eba`. 
 Artifacts are `/private/tmp/tertius-integration-20261105/merge-6gf8/summary.json`, `combined/`, `combined-lock.log`, `combined-code-tree.txt`, `hardening-checksums.log` and root-note backups. The GPU wrapper waited 132 seconds and released its owned lock normally. The parent uses the released fourth heavy allocation for this integration only. No new mutation campaign, timing benchmark, screenshot approval, Linux runtime claim or production fix was added. Six inherited unrelated ticket EOF warnings in the imported main history remain untouched; this ticket's six-file whitespace check passes.
 
 This note records combined validation before advancing main. Closure is recorded separately only after main includes this integration. Normal commit and push hooks remain enabled.
+
+## Notes
+
+**2026-11-05T16:49:29Z**
+
+Parent closure: current main now includes integration merge b77a648ec5fc89420e935e144429cb8aec4577ba, with delivered cf526b0b and tracer main 34c28466 as ancestors. Combined Checked 9,955 and Release 9,942 passed with zero failures and 20 existing skips each; both complete builds include benchmarks with zero warnings/errors. All sixteen full-suite records match code tree ea744724a7b4bd3006c35ae437865e7f73c29eba. Complete source/test/build identity is unchanged by this documentation-only closure. Root stays on main and all four unrelated outstanding ticket overlays remain preserved. Normal merge-commit hooks passed using exact-input Checked records. Evidence: /private/tmp/tertius-integration-20261105/merge-6gf8/. This closes only the placement identity refactor, not tracer image quality, FSR acceptance, deferred Linux runtime, or any other ticket.
