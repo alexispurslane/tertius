@@ -1,0 +1,130 @@
+[
+  {
+    "view": "deck-10",
+    "dispatch": "reflection-blocks",
+    "rays": 216798,
+    "changedByPort": 0,
+    "changedSinceV6": 17237,
+    "samples": []
+  },
+  {
+    "view": "deck-10",
+    "dispatch": "reflection-own",
+    "rays": 86065,
+    "changedByPort": 0,
+    "changedSinceV6": 6894,
+    "samples": []
+  },
+  {
+    "view": "deck-10",
+    "dispatch": "diffuse-blocks",
+    "rays": 216798,
+    "changedByPort": 0,
+    "changedSinceV6": 6091,
+    "samples": []
+  },
+  {
+    "view": "deck-10",
+    "dispatch": "diffuse-own",
+    "rays": 86419,
+    "changedByPort": 0,
+    "changedSinceV6": 2337,
+    "samples": []
+  },
+  {
+    "view": "deck-25",
+    "dispatch": "reflection-blocks",
+    "rays": 216798,
+    "changedByPort": 0,
+    "changedSinceV6": 17237,
+    "samples": []
+  },
+  {
+    "view": "deck-25",
+    "dispatch": "reflection-own",
+    "rays": 216544,
+    "changedByPort": 0,
+    "changedSinceV6": 17024,
+    "samples": []
+  },
+  {
+    "view": "deck-25",
+    "dispatch": "diffuse-blocks",
+    "rays": 216798,
+    "changedByPort": 0,
+    "changedSinceV6": 6091,
+    "samples": []
+  },
+  {
+    "view": "deck-25",
+    "dispatch": "diffuse-own",
+    "rays": 216447,
+    "changedByPort": 0,
+    "changedSinceV6": 5953,
+    "samples": []
+  },
+  {
+    "view": "floor-10",
+    "dispatch": "reflection-blocks",
+    "rays": 230400,
+    "changedByPort": 0,
+    "changedSinceV6": 17854,
+    "samples": []
+  },
+  {
+    "view": "floor-10",
+    "dispatch": "reflection-own",
+    "rays": 91632,
+    "changedByPort": 0,
+    "changedSinceV6": 6980,
+    "samples": []
+  },
+  {
+    "view": "floor-10",
+    "dispatch": "diffuse-blocks",
+    "rays": 230400,
+    "changedByPort": 0,
+    "changedSinceV6": 16288,
+    "samples": []
+  },
+  {
+    "view": "floor-10",
+    "dispatch": "diffuse-own",
+    "rays": 91886,
+    "changedByPort": 0,
+    "changedSinceV6": 6608,
+    "samples": []
+  },
+  {
+    "view": "floor-25",
+    "dispatch": "reflection-blocks",
+    "rays": 230400,
+    "changedByPort": 0,
+    "changedSinceV6": 17854,
+    "samples": []
+  },
+  {
+    "view": "floor-25",
+    "dispatch": "reflection-own",
+    "rays": 230320,
+    "changedByPort": 0,
+    "changedSinceV6": 17642,
+    "samples": []
+  },
+  {
+    "view": "floor-25",
+    "dispatch": "diffuse-blocks",
+    "rays": 230400,
+    "changedByPort": 0,
+    "changedSinceV6": 16288,
+    "samples": []
+  },
+  {
+    "view": "floor-25",
+    "dispatch": "diffuse-own",
+    "rays": 230326,
+    "changedByPort": 0,
+    "changedSinceV6": 16666,
+    "samples": []
+  }
+]

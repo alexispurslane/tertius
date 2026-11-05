@@ -56,7 +56,11 @@ vec2 childAt(ScreenWalk walk, vec2 parent, int level, float s, bool leaving)
 // the receiver's own hair card, which the ray passes through.
 bool hitsPixel(ScreenWalk walk, ivec2 pixel)
 {
-    if (dot(octDecode(texelFetch(gbufferNormal, pixel, 0).ba), walk.direction) >= 0.0)
+    vec2 encoded = texelFetch(gbufferNormal, pixel, 0).ba;
+    vec3 normal = vec3(encoded, 1.0 - abs(encoded.x) - abs(encoded.y));
+    if (normal.z < 0.0)
+        normal.xy = (1.0 - abs(normal.yx)) * signNotZero(normal.xy);
+    if (dot(normal, walk.direction) >= 0.0)
         return false;
     if (walk.ownCard == NoCard)
         return true;
@@ -85,10 +89,8 @@ uint walkScreen(texture2D finest, texture2D bounds, ScreenWalk walk, uint cap, o
     const float backShare = 1.0 / (1.0 + ThicknessShare);
     // Whether a descent solved s as a slab's entry, rather than a crossing reaching it on a cell's edge.
     bool solved = false;
-    for (uint steps = 0u; steps < cap; steps++)
+    for (uint steps = 0u; all(bvec2(steps < cap, !(s >= walk.ray.end))); steps++)
     {
-        if (s >= walk.ray.end)
-            return WalkMiss;
         float side = exactPowerOfTwo(level);
         float exit = max(cellExit(walk.ray, walk.inverse, cell, side, walk.farSide, crossed), s);
         // A cell beyond the screen holds no surface. Its fetch would leave the active part.

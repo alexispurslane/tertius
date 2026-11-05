@@ -1,0 +1,99 @@
+{
+  "codeTreeHash": "d22c4fcb51fae5ecf942d661aecdee2341d7b3b8",
+  "checks": [
+    {
+      "name": "Test-first compiled execution probes",
+      "redFailures": 3,
+      "greenPassed": 3,
+      "finalFullSuitesPassed": true
+    },
+    {
+      "name": "Saved-ray identity gate against integrated baseline",
+      "rays": 3038431,
+      "changedHitIdentities": 0
+    },
+    {
+      "name": "Historical cap-62 V6 applicability gate",
+      "changedHitIdentities": 195044,
+      "applicable": false
+    },
+    {
+      "name": "SPIR-V Vulkan 1.3 validation",
+      "extractedModules": 2,
+      "realRayModules": 2,
+      "passed": true
+    },
+    {
+      "name": "Integer-words record accesses in cross-compiled current walks",
+      "before": {
+        "outsideLoop": 5,
+        "insideLoop": 0
+      },
+      "after": {
+        "outsideLoop": 5,
+        "insideLoop": 0
+      }
+    },
+    {
+      "name": "Actual deck history observation",
+      "shownFrames": 120,
+      "distinctSnapshotTimes": 120,
+      "resetsAfterFirstShownFrame": 0
+    },
+    {
+      "name": "Complete Checked solution",
+      "passed": 9948,
+      "skipped": 20,
+      "failed": 0,
+      "duration": "4m 01s 494ms"
+    },
+    {
+      "name": "Complete Release solution",
+      "passed": 9935,
+      "skipped": 20,
+      "failed": 0,
+      "duration": "3m 57s 448ms"
+    },
+    {
+      "name": "Release benchmark compilation",
+      "warnings": 0,
+      "errors": 0,
+      "passed": true
+    },
+    {
+      "name": "C# cleanup",
+      "files": [
+        "tests/Tertius.Rendering.Tests/ScreenWalkExecutionTests.cs"
+      ],
+      "passed": true
+    }
+  ],
+  "logHashes": {
+    "red.log": "29ad7d96e9a5c531bffc1c373121817d09c5e877d7c8c93f92af767da360dab8",
+    "green.log": "20bb83ad7097bba991788d842a25bcb76b9c44bbb7be45fac241eb2940fe041f",
+    "replay-command-valid.log": "b3acf1a5e0a67f984bb201de0b67847290a671569a051272adeed89febb35893",
+    "spirv-validation-final.log": "3861f522630eb962f4b7b47110e7d8875f70b0383eda679c13aa0debb389914a",
+    "history-build.log": "fef1419180dbe8c031e4a63bfc13a98016b94cfc3cf335a88d553b4cba24b2f0",
+    "history-run.log": "8c07bb164cbb4845f0f0424c4300dc35a1ea6dc1ecdce4dd868bbf7b485bebaa",
+    "final-checked-lock.log": "afaa9d92475e9225156183dd12d475a7b7ed5456dc776263144ae71b268624bc",
+    "final-release-lock.log": "910c14e1c6becf6270c9c3157bf920ebe3c2eea58e3f8fb644580894fda14931",
+    "final-benchmarks.log": "d7ab6aede3c2d814b67f5174175d003e4f23beba925022009f889cd02e4a8403",
+    "cleanup-after-1.log": "9f0457a76497d31345e0f0142df42a84693489eabe40efc1be9176d3b0adbbd4"
+  },
+  "unchangedSkips": [
+    "Known far-vanishing-point walk regression, ter-186q.",
+    "A pass-own-time assertion is unavailable on late-latching MoltenVK timestamps.",
+    "Opt-in physics, demo, FSR and GPU calibration measurements."
+  ],
+  "unavailable": [
+    "Linux driver runtime/performance is user-deferred under ter-cgif."
+  ],
+  "parentOwnedNotRun": [
+    "coverage",
+    "mutation testing"
+  ],
+  "temporaryIncludesRemovedFromFinalBuild": [
+    "TraceSpikeSolTool.cs",
+    "HistoryProbeTool.cs"
+  ]
+}

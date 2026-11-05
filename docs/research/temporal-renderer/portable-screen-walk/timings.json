@@ -1,0 +1,213 @@
+{
+  "rounds": [
+    {
+      "variant": "before",
+      "round": 1,
+      "path": "/private/tmp/ter-rgg9-20261105/before-valid",
+      "device": "Apple M1 Max",
+      "width": 1280,
+      "height": 720,
+      "frame": {
+        "frames": 120,
+        "meanMs": 11.299689616666665,
+        "medianMs": 11.277687499999999,
+        "p95Ms": 11.602209
+      },
+      "runs": [
+        {
+          "first": "reflection rays",
+          "last": "screen trace resolve",
+          "timing": {
+            "frames": 120,
+            "meanMs": 3.595018041666665,
+            "medianMs": 3.5965415,
+            "p95Ms": 3.6469169999999997
+          }
+        }
+      ],
+      "gpuClock": {
+        "meanMhz": 1296.0,
+        "p10Mhz": 1296.0,
+        "p90Mhz": 1296.0,
+        "samples": 13
+      },
+      "warning": "On MoltenVK a pass's GPU time can hold part of the next pass's work: only the span and the sums of neighbouring passes hold. Individual pass times are omitted; raw per-pass JSON values are not valid alone. Read each pass's own time from a trace (tools/README.md, \"GPU trace\")."
+    },
+    {
+      "variant": "before",
+      "round": 2,
+      "path": "/private/tmp/ter-rgg9-20261105/before-2",
+      "device": "Apple M1 Max",
+      "width": 1280,
+      "height": 720,
+      "frame": {
+        "frames": 120,
+        "meanMs": 11.315546875,
+        "medianMs": 11.312167,
+        "p95Ms": 11.560875
+      },
+      "runs": [
+        {
+          "first": "reflection rays",
+          "last": "screen trace resolve",
+          "timing": {
+            "frames": 120,
+            "meanMs": 3.603673616666667,
+            "medianMs": 3.6020000000000003,
+            "p95Ms": 3.653042
+          }
+        }
+      ],
+      "gpuClock": {
+        "meanMhz": 1296.0,
+        "p10Mhz": 1296.0,
+        "p90Mhz": 1296.0,
+        "samples": 13
+      },
+      "warning": "On MoltenVK a pass's GPU time can hold part of the next pass's work: only the span and the sums of neighbouring passes hold. Individual pass times are omitted; raw per-pass JSON values are not valid alone. Read each pass's own time from a trace (tools/README.md, \"GPU trace\")."
+    },
+    {
+      "variant": "before",
+      "round": 3,
+      "path": "/private/tmp/ter-rgg9-20261105/before-3",
+      "device": "Apple M1 Max",
+      "width": 1280,
+      "height": 720,
+      "frame": {
+        "frames": 120,
+        "meanMs": 11.333243033333336,
+        "medianMs": 11.302396,
+        "p95Ms": 11.629459
+      },
+      "runs": [
+        {
+          "first": "reflection rays",
+          "last": "screen trace resolve",
+          "timing": {
+            "frames": 120,
+            "meanMs": 3.6080212166666663,
+            "medianMs": 3.6115829999999995,
+            "p95Ms": 3.652584
+          }
+        }
+      ],
+      "gpuClock": {
+        "meanMhz": 1296.0,
+        "p10Mhz": 1296.0,
+        "p90Mhz": 1296.0,
+        "samples": 13
+      },
+      "warning": "On MoltenVK a pass's GPU time can hold part of the next pass's work: only the span and the sums of neighbouring passes hold. Individual pass times are omitted; raw per-pass JSON values are not valid alone. Read each pass's own time from a trace (tools/README.md, \"GPU trace\")."
+    },
+    {
+      "variant": "after",
+      "round": 1,
+      "path": "/private/tmp/ter-rgg9-20261105/after-1",
+      "device": "Apple M1 Max",
+      "width": 1280,
+      "height": 720,
+      "frame": {
+        "frames": 120,
+        "meanMs": 11.159176658333337,
+        "medianMs": 11.140875,
+        "p95Ms": 11.456834
+      },
+      "runs": [
+        {
+          "first": "reflection rays",
+          "last": "screen trace resolve",
+          "timing": {
+            "frames": 120,
+            "meanMs": 3.4681549000000005,
+            "medianMs": 3.4667505,
+            "p95Ms": 3.521458
+          }
+        }
+      ],
+      "gpuClock": {
+        "meanMhz": 1296.0,
+        "p10Mhz": 1296.0,
+        "p90Mhz": 1296.0,
+        "samples": 12
+      },
+      "warning": "On MoltenVK a pass's GPU time can hold part of the next pass's work: only the span and the sums of neighbouring passes hold. Individual pass times are omitted; raw per-pass JSON values are not valid alone. Read each pass's own time from a trace (tools/README.md, \"GPU trace\")."
+    },
+    {
+      "variant": "after",
+      "round": 2,
+      "path": "/private/tmp/ter-rgg9-20261105/after-2",
+      "device": "Apple M1 Max",
+      "width": 1280,
+      "height": 720,
+      "frame": {
+        "frames": 120,
+        "meanMs": 11.17982085,
+        "medianMs": 11.159604,
+        "p95Ms": 11.495875
+      },
+      "runs": [
+        {
+          "first": "reflection rays",
+          "last": "screen trace resolve",
+          "timing": {
+            "frames": 120,
+            "meanMs": 3.468383333333335,
+            "medianMs": 3.469708,
+            "p95Ms": 3.512875
+          }
+        }
+      ],
+      "gpuClock": {
+        "meanMhz": 1296.0,
+        "p10Mhz": 1296.0,
+        "p90Mhz": 1296.0,
+        "samples": 13
+      },
+      "warning": "On MoltenVK a pass's GPU time can hold part of the next pass's work: only the span and the sums of neighbouring passes hold. Individual pass times are omitted; raw per-pass JSON values are not valid alone. Read each pass's own time from a trace (tools/README.md, \"GPU trace\")."
+    },
+    {
+      "variant": "after",
+      "round": 3,
+      "path": "/private/tmp/ter-rgg9-20261105/after-3",
+      "device": "Apple M1 Max",
+      "width": 1280,
+      "height": 720,
+      "frame": {
+        "frames": 120,
+        "meanMs": 11.20827015,
+        "medianMs": 11.185125,
+        "p95Ms": 11.483958
+      },
+      "runs": [
+        {
+          "first": "reflection rays",
+          "last": "screen trace resolve",
+          "timing": {
+            "frames": 120,
+            "meanMs": 3.4851655750000003,
+            "medianMs": 3.4849379999999996,
+            "p95Ms": 3.534792
+          }
+        }
+      ],
+      "gpuClock": {
+        "meanMhz": 1296.0,
+        "p10Mhz": 1296.0,
+        "p90Mhz": 1296.0,
+        "samples": 12
+      },
+      "warning": "On MoltenVK a pass's GPU time can hold part of the next pass's work: only the span and the sums of neighbouring passes hold. Individual pass times are omitted; raw per-pass JSON values are not valid alone. Read each pass's own time from a trace (tools/README.md, \"GPU trace\")."
+    }
+  ],
+  "summary": {
+    "beforeFrameMeanMs": 11.316159841666668,
+    "afterFrameMeanMs": 11.18242255277778,
+    "frameReductionMs": 0.13373728888888792,
+    "frameReductionPercent": 1.1818257320514378,
+    "budgetMs": 12,
+    "afterMarginMs": 0.8175774472222201,
+    "beforeTraceIntervalMeanMs": 3.6022376249999994,
+    "afterTraceIntervalMeanMs": 3.473901269444445,
+    "traceIntervalReductionPercent": 3.562684334450439
+  }
+}
