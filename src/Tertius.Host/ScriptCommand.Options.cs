@@ -99,8 +99,11 @@ public static partial class ScriptCommand
                 options.EnvironmentMap = new NoEnvironmentMap();
             if (SubsurfaceOff)
                 options.Subsurface = new NoSubsurface();
-            options.FramesInFlight = FramesInFlight ?? options.FramesInFlight;
-            options.CapturesInFlight = FramesInFlight is { } count ? count > 1 : options.CapturesInFlight;
+            if (FramesInFlight is { } count)
+            {
+                options.FramesInFlight = count;
+                options.CapturesInFlight = count > 1;
+            }
         }
     }
 }

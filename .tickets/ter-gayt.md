@@ -159,13 +159,49 @@ All on/off front, low and edge images, plus the deck image, were opened before t
 | Check | Result | Evidence |
 |---|---|---|
 | Focused Rendering tests | 39 passed, 1 explicitly skipped, 0 failed | `/private/tmp/gayt-fix/final-focused.log` |
-| Focused Host option and capture tests | 99 passed, 0 failed | `/private/tmp/gayt-fix/host-focused.log` |
+| Focused Host option and capture tests | 99 passed, 0 failed, before and after the hook-driven simplification | `/private/tmp/gayt-fix/host-focused.log`, `/private/tmp/gayt-fix/host-refactor.log` |
 | Million-ray walk comparison | 1 passed, 0 failed | `/private/tmp/gayt-fix/walk-steps.log` |
-| Full Checked solution, final files | 9,844 passed, 22 skipped, 0 failed | `/private/tmp/gayt-fix/checked-final.log` |
-| Full Release solution, final files | 9,831 passed, 22 skipped, 0 failed | `/private/tmp/gayt-fix/release-final.log` |
-| Benchmark Release build | Passed, 0 warnings and 0 errors | `/private/tmp/gayt-fix/benchmark-build.log` |
+| Full Checked solution, final files | 9,844 passed, 22 skipped, 0 failed | `/private/tmp/gayt-fix/checked-post-hook.log` |
+| Full Release solution, final files | 9,831 passed, 22 skipped, 0 failed | `/private/tmp/gayt-fix/release-post-hook.log` |
+| Benchmark Release build, final files | Passed, 0 warnings and 0 errors | `/private/tmp/gayt-fix/benchmark-post-hook.log` |
 | CSharpier on changed C# files | Passed | `/private/tmp/gayt-fix/format.log` |
 | Staged whitespace check | Passed | `git diff --cached --check` |
 | Coverage and mutation testing | Not run; parent-owned | This fix stage's execution boundary |
 
-Every build, test, formatting run and shader inspection command used the Nix dev shell. Both final configurations have code-tree identity `5967e77e8b0ae2c4e87e18634666cf2b03e4487e`, matching the staged code. The final ray SPIR-V files were compared again after the last comment correction and still match the kept fresh dumps byte for byte. The 22 skipped tests include the one newly preserved rough-history regression; the other 21 skips predate this stage. Intermediate shader-format and reference build errors were fixed before the passing focused and full runs. The initial and final solution runs were separated only by a stale composite-set comment correction, not by a behavior change.
+Every build, test, formatting run and shader inspection command used the Nix dev shell. Both final configurations have code-tree identity `83146a66c7d0018ca00ec14e06c0b8c3c3afb73c`, matching the staged code. The final ray SPIR-V files were compared again after the last comment correction and still match the kept fresh dumps byte for byte. The 22 skipped tests include the one newly preserved rough-history regression; the other 21 skips predate this stage. Intermediate shader-format and reference build errors were fixed before the passing focused and full runs. The first suite refresh followed the stale composite-set comment correction. The last refresh followed the behavior-preserving, coupled CLI update described below. All earlier logs remain preserved.
+
+
+### Commit-hook follow-up
+
+The first fix commit is `a42d23595c2e7794033029d82b8084daa32d35fb`; it is preserved, not amended. Its hook recognized the exact full Checked run and skipped both the build and repeated tests. The hook also ran the normal code metrics: erosion 0.1912, verbosity 0.0280, pooled TCC 0.8865 and pooled depth 2.5607. There were 195 included cohesion types, 769 not applicable and 40 incomplete, with 239 unresolved state-access locations and 3,629 binding errors. These ratios describe the counter's complete population, not proof that every type was analyzed.
+
+The hook found CC 11 in the CLI override application. That was a real opportunity to make the update clearer: two separately conditional assignments controlled one coupled change. The follow-up keeps the same tested behavior with one conditional update, rather than adding a helper solely to move branches out of the measured method:
+
+```csharp
+            if (FramesInFlight is { } count)
+            {
+                options.FramesInFlight = count;
+                options.CapturesInFlight = count > 1;
+            }
+```
+
+where
+
+- `FramesInFlight` = the optional CLI frame-count override, 1 or 2 frames, or null when absent.
+- `count` = the requested count after the CLI validates it.
+- `options` = the headless renderer's settings receiving the overrides.
+- `options.FramesInFlight` = the number of frame slots the renderer uses.
+- `options.CapturesInFlight` = whether captures can return while submitted frames are still running; one frame disables this and two enable it.
+
+The focused Host option/capture checks still pass all 99 tests. The full solution suites are refreshed after this behavior-preserving change; their final logs are recorded in the check table. No shader or temporal rule changed in this follow-up.
+
+The four length reports were inspected against their callers and roles. They remain explicit exceptions, not silently dismissed measurements:
+
+| Method | Reported length | Reason to retain its shape |
+|---|---:|---|
+| `VulkanRenderer` constructor | 64 lines | This is the composition root: it makes the resources and registers passes in their lifetime and frame order. Extracting an arbitrary batch would hide that order without removing a caller decision. The new light-set ownership is already below this root in `CompositePass`. |
+| `VulkanRenderer.AddScreenTracePasses` | 74 lines | This one owner creates the two signals and their images and registers the six ordered tracer/accumulation passes. Its local `Kernel` factory already compresses the shared dependency and specialization setup for four kernel creations. Moving it to a renderer-wide helper would expose shaders, images and settings as repeated arguments just to reduce a line count. |
+| `BrdfShaderTests.AGrazingViewReadsTheSchlickPartAtTheTexelOfItsViewCosine` | 64 lines | The test keeps the black material, uniform environment, chosen view cosine and C# comparison in one visible setup, as tests/STYLE.md prefers. Its live hemisphere call lost only the deleted estimate parameters. A setup wrapper would hide the premise, not the removed mechanism. |
+| `ScreenTraceRenderTests.TheReflectionSampleOfAMirrorFloorHoldsTheGlowOfThePixelThatTheCSharpWalkHits` | 64 lines | One equivalence check now includes both CPU hits and CPU misses. Keeping the miss assertion beside the hit assertion makes its formerly missing case explicit; extracting only a few assertions to meet 60 lines would hide the core comparison. |
+
+The small pass types separate genuinely different frame operations; the shared kernel hides Vulkan pipeline and binding details. The descriptor-set change removes two competing writers, rather than adding a wrapper around them. These are source-and-caller reasons for the design, independent of the pooled metric movement. No branching or artificial state access was added to raise a metric.
