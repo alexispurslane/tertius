@@ -1,0 +1,93 @@
+{
+  "observationOnly": true,
+  "source": "/private/tmp/ter-rgg9-20261105/HistoryProbeTool.cs",
+  "sourceSha256": "2639faf66ffba1950124f64212de858734bf2f4e6aba639ae8c01a90f4f035d2",
+  "scriptSha256": "c51f4ffa5ff04cd36de7859fea225aa762c1995a346660f149af429fd478f9cc",
+  "size": [
+    1280,
+    720
+  ],
+  "framesInFlight": 2,
+  "capturesInFlight": true,
+  "retainedPolicy": "Unchanged renderer defaults and History Rule A; observation pass writes no rendering state.",
+  "totalDraws": 152,
+  "initialWarmupDraws": 32,
+  "shownFrames": 120,
+  "resetsAfterFirstShownFrame": 0,
+  "distinctSnapshotTimes": 120,
+  "firstDraw": {
+    "Number": 0,
+    "DrawIndex": 0,
+    "Reset": true,
+    "Parity": 0,
+    "SnapshotSeconds": 6.666666666666667
+  },
+  "firstShownDraw": {
+    "Number": 32,
+    "DrawIndex": 32,
+    "Reset": false,
+    "Parity": 0,
+    "SnapshotSeconds": 6.666666666666667
+  },
+  "nextShownDraw": {
+    "Number": 33,
+    "DrawIndex": 33,
+    "Reset": false,
+    "Parity": 1,
+    "SnapshotSeconds": 6.683333333333334
+  },
+  "lastShownDraw": {
+    "Number": 151,
+    "DrawIndex": 151,
+    "Reset": false,
+    "Parity": 1,
+    "SnapshotSeconds": 8.65
+  },
+  "captureClock": {
+    "meanMhz": 812.6,
+    "p10Mhz": 713.2,
+    "p90Mhz": 947.1,
+    "samples": 136
+  },
+  "captureFrameMeanMs": 16.346,
+  "excludedFromPerformanceComparison": true,
+  "inspection": "Cabin framing, lit floor and reflections remain visible as the person leaves the doorway; fine floor speckle remains.",
+  "captures": [
+    {
+      "frame": 0,
+      "draw": {
+        "Number": 32,
+        "DrawIndex": 32,
+        "Reset": false,
+        "Parity": 0,
+        "SnapshotSeconds": 6.666666666666667
+      },
+      "path": "/private/tmp/ter-rgg9-20261105/screenshots/deck-000000.png",
+      "sha256": "03c177c918015e73b1d64d1a8492c97ad197de802913b891e9c93771319f9b26"
+    },
+    {
+      "frame": 59,
+      "draw": {
+        "Number": 91,
+        "DrawIndex": 91,
+        "Reset": false,
+        "Parity": 1,
+        "SnapshotSeconds": 7.65
+      },
+      "path": "/private/tmp/ter-rgg9-20261105/screenshots/deck-000059.png",
+      "sha256": "236583e14e0d51b75dd9abf9710d6b41b822c35f7980bc1a7c2cf67054b391da"
+    },
+    {
+      "frame": 119,
+      "draw": {
+        "Number": 151,
+        "DrawIndex": 151,
+        "Reset": false,
+        "Parity": 1,
+        "SnapshotSeconds": 8.65
+      },
+      "path": "/private/tmp/ter-rgg9-20261105/screenshots/deck-000119.png",
+      "sha256": "a8dadab61fcf147e2870ca94f0daac18e13aac4bc60f3c861ce6ee6ec68ee46f"
+    }
+  ]
+}

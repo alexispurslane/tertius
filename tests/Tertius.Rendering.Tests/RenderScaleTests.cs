@@ -142,6 +142,140 @@ public sealed class RenderScaleTests
         controller.Next(20).Should().Be(1);
     }
 
+    [Fact]
+    public void ARepeatedMeasurementOfAFinishedFrameDoesNotMoveTheScaleAgain()
+    {
+        var controller = new RenderScaleController(FrameTimeTarget.Default);
+        controller.Next(0);
+        GpuTimings timings = Timings(frame: 0, scale: 1, renderCost: 24, outputWait: 0);
+        controller.Measure(timings);
+        float afterFirst = controller.Next(1);
+
+        controller.Measure(timings);
+
+        controller.Next(2).Should().Be(afterFirst);
+        controller.AssertInvariants();
+    }
+
+    [Fact]
+    public void AStaleMeasurementCannotUseTheScaleOfANewerFrameInTheSameSlot()
+    {
+        var controller = new RenderScaleController(FrameTimeTarget.Default);
+        for (long frame = 0; frame <= 16; frame++)
+            controller.Next(frame);
+
+        controller.Measure(Timings(frame: 0, scale: 1, renderCost: 100, outputWait: 0));
+
+        controller.Next(17).Should().Be(1);
+        controller.AssertInvariants();
+    }
+
+    [Fact]
+    public void DelayingTheSamePerAreaLoadDoesNotChangeTheScaleResponse()
+    {
+        var immediate = new RenderScaleController(FrameTimeTarget.Default);
+        var delayed = new RenderScaleController(FrameTimeTarget.Default);
+        immediate.Next(0);
+        delayed.Next(0);
+        delayed.Next(1);
+        GpuTimings first = Timings(frame: 0, scale: 1, renderCost: 24, outputWait: 0);
+        immediate.Measure(first);
+        delayed.Measure(first);
+        float immediateScale = immediate.Next(1);
+
+        immediate.Measure(Timings(frame: 1, scale: immediateScale, renderCost: 24, outputWait: 0));
+        delayed.Measure(Timings(frame: 1, scale: 1, renderCost: 24, outputWait: 0));
+
+        delayed.Next(2).Should().BeApproximately(immediate.Next(2), 0.000001f);
+        delayed.AssertInvariants();
+    }
+
+    [Theory]
+    [InlineData(double.NaN)]
+    [InlineData(double.PositiveInfinity)]
+    [InlineData(double.NegativeInfinity)]
+    [InlineData(-1)]
+    public void AnInvalidGpuCostDoesNotInfluenceThisOrLaterMeasurements(double milliseconds)
+    {
+        var controller = new RenderScaleController(FrameTimeTarget.Default);
+        var reference = new RenderScaleController(FrameTimeTarget.Default);
+        controller.Next(0);
+        PassTiming[] invalid = Timings(frame: 0, scale: 1, renderCost: 24, outputWait: 0).Passes.ToArray();
+        invalid[1] = invalid[1] with { Milliseconds = milliseconds };
+
+        controller.Measure(new(0, invalid, 0));
+
+        controller.Next(1).Should().Be(1);
+        reference.Next(1);
+        GpuTimings valid = Timings(frame: 1, scale: 1, renderCost: 24, outputWait: 0);
+        controller.Measure(valid);
+        reference.Measure(valid);
+        controller.Next(2).Should().Be(reference.Next(2));
+        controller.AssertInvariants();
+    }
+
+    [Fact]
+    public void AnIncompletePassSpanDoesNotInfluenceLaterMeasurements()
+    {
+        var controller = new RenderScaleController(FrameTimeTarget.Default);
+        controller.Next(0);
+        PassTiming[] incomplete = Timings(frame: 0, scale: 1, renderCost: 100, outputWait: 0).Passes.ToArray()[..^1];
+
+        controller.Measure(new(0, incomplete, 103));
+
+        controller.Next(1).Should().Be(1);
+        controller.AssertInvariants();
+    }
+
+    [Fact]
+    public void AFrameWithoutScalingWorkDoesNotContaminateTheCostModel()
+    {
+        var controller = new RenderScaleController(FrameTimeTarget.Default);
+        var reference = new RenderScaleController(FrameTimeTarget.Default);
+        controller.Next(0);
+        controller.Measure(Timings(frame: 0, scale: 1, renderCost: 0, outputWait: 0));
+        controller.Next(1).Should().Be(1);
+        reference.Next(1);
+        GpuTimings valid = Timings(frame: 1, scale: 1, renderCost: 24, outputWait: 0);
+
+        controller.Measure(valid);
+        reference.Measure(valid);
+
+        controller.Next(2).Should().Be(reference.Next(2));
+        controller.AssertInvariants();
+    }
+
+    [Theory]
+    [InlineData(0, 0.5f, 1)]
+    [InlineData(-1, 0.5f, 1)]
+    [InlineData(float.NaN, 0.5f, 1)]
+    [InlineData(float.PositiveInfinity, 0.5f, 1)]
+    [InlineData(16, 0.49f, 1)]
+    [InlineData(16, 1.01f, 1)]
+    [InlineData(16, float.NaN, 1)]
+    [InlineData(16, 0.5f, 0.49f)]
+    [InlineData(16, 0.5f, 1.01f)]
+    [InlineData(16, 0.5f, float.NaN)]
+    [InlineData(16, 0.75f, 0.5f)]
+    public void AnInvalidFrameBudgetOrScaleRangeIsRefused(float milliseconds, float minimum, float maximum)
+    {
+        Action create = () => _ = new RenderScaleController(new(milliseconds, minimum, maximum));
+
+        create.Should().Throw<ArgumentOutOfRangeException>();
+    }
+
+    [Fact]
+    public void ANegativeFrameNumberIsRejectedBeforeRecordingItsScale()
+    {
+        var controller = new RenderScaleController(FrameTimeTarget.Default);
+
+        Action record = () => controller.Next(-1);
+
+        record.Should().Throw<ArgumentOutOfRangeException>();
+        controller.Next(0).Should().Be(1);
+        controller.AssertInvariants();
+    }
+
     private static GpuTimings Timings(long frame, float scale, double renderCost, double outputWait) =>
         new(
             frame,

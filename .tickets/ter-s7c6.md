@@ -12,6 +12,22 @@ tags: [rendering, fsr]
 ---
 # FSR 3.1 in the frame, with dynamic resolution
 
+## Preserved parent reconciliation notes
+
+## Noise-research import coordination, 2026-11-05
+
+The user explicitly requests importing the completed FSR/dynamic-resolution pipeline into the existing standalone `ter-icn3-unity-noise-research` branch, preserving and reapplying its uncommitted prototypes. This supersedes that branch's earlier no-import boundary, not its lack of production acceptance. At 13:40 EST this workflow is still in its existing fix stage; implementation checkpoint `9bbbea67cf35ae54f6dbb49f704ce6d704c45f8e` is not an approved completed import. Main and origin/main remain `7d9f6e6739b8fcd1b96fcd307c6434e3d4a8ebaf` without FSR. Do not import a dirty fixer checkout or relabel its earlier implementation as ready.
+
+Parent notified the existing noise thread to prepare its full patch/archive and inspect compatibility only. Send that thread a verified immutable completed-fix or integrated-main SHA when available, with the exact validation/acceptance limits. One later bounded build/render allocation is reserved for the prototype comparison after that safe point; it is not permission to build an unfinished FSR state. No noise acceptance, new noise workflow, prototype commit or main write was authorized by this coordination. Box replacement proceeds independently in workflow `cff16030-2068-4f94-9af5-3c99a8d13ae6`.
+
+## User-facing merged-pipeline video, 2026-11-05
+
+The user explicitly wants a section of the real demo video with FSR and dynamic resolution enabled and working after this ticket merges. Follow-up `ter-570o`, parent `ter-89xq`, depends on this ticket only; do not delay it behind box projection, denoising or the final budget/defaults ticket. Show a bounded continuous moving clip, with evidence of actual window-controller-driven internal-resolution changes at fixed output dimensions. A headless fixed-scale render is not sufficient. Retain per-frame dimensions/timing and exact source/settings/history provenance, inspect motion and transitions, and distinguish playback frame rate from measured live performance. This is parent-owned post-merge visual delivery, not extra scope for the active fixer or a claim that the pipeline is already merged.
+
+**2026-11-05T19:20:12Z**
+
+2026-11-05 14:16 EST: existing review-fix workflow is terminal/succeeded; every member settled, cleanup complete. Independently verified clean exact HEAD 96db37df965c7b35dae499a2f34410d2c3b35011, code-input identity 0c0785ceb18618f1ba836b1f18d9d9956e3efb86, all eight Checked and eight Release records match. Approved this immutable COMPLETED checkpoint for the separately user-authorized standalone-noise import/comparison, explicitly not hardened or merged-main acceptance. Assigned that worker one fresh bounded build/render allocation after prior release. Parent is reconciling exact main 7d9f6e673 and commissioning one combined coverage/mutation/final-validation pass, without another routine implementation/review cycle. Parent owns integration and post-merge video ter-570o.
+
 Build ticket 5 of epic ter-89xq. Design: docs/plans/temporal-renderer.md, sections 4, 5 and 9, and decisions 2, 13, 15, 30, 31, 33, 34 and 37. Acceptance: section 14, item 5. It starts from branch experiment-fsr1 at 3be9aef99 (the closed ter-htg7), and the glow's width follows the output size (the closed ter-ch7z). SMAA goes.
 
 ## Implementation and source applicability — 2026-11-05
@@ -281,3 +297,150 @@ From the review of ter-k63u:
 
 2026-11-05: tracer/Rule A merged, closed and pushed at 34c28466e641a864fd6a915c029e08f07b3b9ccc. Started workflow 1d4812ac-3824-42b6-81e8-505ac1cb62a3, version 869b0b07-3413-4b06-8707-a88a91bf6e91, branch ter-s7c6-fsr31-dynamic-resolution, exact local base 34c28466e with startFromOrigin=false. Codex gpt-6.1-sol reasoningEffort=xhigh for build/review/fix. One of four heavy allocations. Settled FSR/dynamic-resolution scope only; no denoising or tracer retuning. Parent owns hardening, integration and closure. Shared launch rules: /private/tmp/tertius-integration-20261105/ready-ticket-rules.md.
 ````
+
+## Parent-commissioned test hardening, 2026-11-05
+
+This is one hardening pass after the completed implementation/review/fix workflow, not another production cycle. The FSR scope is the immutable diff `34c28466e641a864fd6a915c029e08f07b3b9ccc..96db37df965c7b35dae499a2f34410d2c3b35011`, measured on the combined source with prerequisite main `7d9f6e6739b8fcd1b96fcd307c6434e3d4a8ebaf`. Imported Entity identity and portable-screen-walk changes are prerequisites, not new FSR mutation scope. No production source changed in this pass. The initially staged prerequisite diff was compared byte-for-byte with its saved patch before the final commit. The existing prerequisite ARCHITECTURE.md update stays intact; test-only hardening needs no invented engine design change.
+
+Artifact root: `/private/tmp/tertius-hardening-20261105/ter-s7c6`. The final code/test/build-input identity is `ba5127acef21489cc12c01efc090351788f7c0ef`, replacing the initial combined identity `7734caec2c2bf91431eb30766ab17e94b8d22a2b`. The immutable final merge commit, both parents, clean state, sixteen matching test records and allocation release are recorded in `final-manifest.json` under that root. That manifest is the exact final-commit attestation: embedding a commit own hash in its committed ticket would change that hash. The completed normal commit retains the original FSR tip as first parent and the prepared prerequisite as second parent; it does not merge or write main.
+
+### Final full-suite validation
+
+The final code is frozen at the identity above. `nix develop --command bash tools/test-all.sh -c Checked,Release -j 1 -o <root>/final-tests` ran once after focused iteration and scoped cleanup, through `tools/gpu-lock.sh`. Both complete solution builds include the benchmark project, with zero warnings and zero errors. An explicit Release benchmark build also passed with zero warnings and zero errors. All sixteen full-run records and assembly stamps match that identity; filtered mutation runs are not substituted for these records.
+
+| Module | Checked passed / skipped / failed | Release passed / skipped / failed |
+|---|---:|---:|
+| Core | 1207 / 0 / 0 | 1175 / 0 / 0 |
+| Simulation | 2001 / 0 / 0 | 2020 / 0 / 0 |
+| Physics | 1492 / 8 / 0 | 1493 / 8 / 0 |
+| Rendering | 2390 / 10 / 0 | 2389 / 10 / 0 |
+| Host | 2025 / 6 / 0 | 2025 / 6 / 0 |
+| Unions | 59 / 0 / 0 | 59 / 0 / 0 |
+| Style | 276 / 0 / 0 | 276 / 0 / 0 |
+| Slop | 597 / 0 / 0 | 597 / 0 / 0 |
+
+Checked: 10047 passed, 24 skipped, 0 failed (10071 total); Release: 10034 passed, 24 skipped, 0 failed (10058 total).
+
+Logs: `final-tests/{Checked,Release}/{build,Core,Simulation,Physics,Rendering,Host,Unions,Style,Slop}.log`, `logs/final-validation.log`, and `logs/benchmark-release-build.log`. The declared skips remain skips, not passing evidence or performance results. Affected-project final coverage runs separately passed: Checked Rendering 2390/10, Release Rendering 2389/10, and Host 2025/6 in each configuration (passed/skipped, zero failures).
+
+Scoped Roslyn/CSharpier cleanup and the final CSharpier check passed on the seven owned C# files. Code whitespace checks passed. The all-path staged whitespace check reports only the required unchanged ter-570o snapshot blank line at EOF; its mandated SHA256 is preserved rather than silently editing that parent-owned file. All 169 SPIR-V files found under the Checked/Release engine and rendering-test output trees passed `spirv-val --target-env vulkan1.3`; this is module validation, not a Linux runtime run. The unchanged AMD SDK pin check passed. Logs: `logs/cleanup.log` and `logs/shader-format-checks.log`.
+
+### Changed-line and branch coverage
+
+Coverage uses Microsoft CodeCoverage Cobertura from only Host and Rendering, in Checked and Release. `coverage/scope-report.py` maps the original FSR added lines onto the combined source, excluding prerequisite-only lines. The retained standard changed-lines report is a broader original-base comparison and is not used to relabel imported work as FSR. Before: 472/483 instrumented changed C# lines and 158/194 branch outcomes. After: 481/483 lines and 183/194 branch outcomes. The table shows per-file evidence, not just those pooled counts. A `0/0` entry means no instrumented changed lines or branches, not a measured zero-percent result.
+
+| Affected C# file | Before changed lines | After changed lines | Before branches | After branches |
+|---|---:|---:|---:|---:|
+| `Tertius.Host/ScriptCommand.Options.cs` | 4/4 | 4/4 | 4/4 | 4/4 |
+| `Tertius.Host/ScriptCommand.cs` | 19/19 | 19/19 | 14/14 | 14/14 |
+| `Tertius.Rendering/Frame/DescriptorLayouts.cs` | 2/2 | 2/2 | 0/0 | 0/0 |
+| `Tertius.Rendering/Frame/FrameGraph.cs` | 22/22 | 22/22 | 6/6 | 6/6 |
+| `Tertius.Rendering/Frame/FrameHistory.cs` | 6/6 | 6/6 | 4/4 | 4/4 |
+| `Tertius.Rendering/Frame/FrameResources.cs` | 7/7 | 7/7 | 0/0 | 0/0 |
+| `Tertius.Rendering/Frame/GpuTimer.cs` | 3/3 | 3/3 | 0/0 | 0/0 |
+| `Tertius.Rendering/Frame/RenderTargets.cs` | 20/20 | 20/20 | 13/16 | 15/16 |
+| `Tertius.Rendering/Frame/TimestampClock.cs` | 1/1 | 1/1 | 0/0 | 0/0 |
+| `Tertius.Rendering/Frame/UpscaleTargets.cs` | 39/39 | 39/39 | 16/16 | 16/16 |
+| `Tertius.Rendering/GpuTimings.cs` | 0/0 | 0/0 | 0/0 | 0/0 |
+| `Tertius.Rendering/Output/IOutputTarget.cs` | 15/15 | 15/15 | 0/0 | 0/0 |
+| `Tertius.Rendering/Passes/BloomPass.cs` | 1/1 | 1/1 | 0/0 | 0/0 |
+| `Tertius.Rendering/Passes/ExposurePass.cs` | 19/19 | 19/19 | 2/2 | 2/2 |
+| `Tertius.Rendering/Passes/GeometryPass.cs` | 3/3 | 3/3 | 0/0 | 0/0 |
+| `Tertius.Rendering/Passes/ImpostorPass.cs` | 3/3 | 3/3 | 0/0 | 0/0 |
+| `Tertius.Rendering/Passes/OutlinePass.cs` | 1/1 | 1/1 | 0/0 | 0/0 |
+| `Tertius.Rendering/Passes/ToneMapPass.cs` | 5/5 | 5/5 | 0/0 | 0/0 |
+| `Tertius.Rendering/Passes/TransparentPass.cs` | 23/23 | 23/23 | 2/2 | 2/2 |
+| `Tertius.Rendering/Passes/UpscalePass.cs` | 59/60 | 59/60 | 1/2 | 1/2 |
+| `Tertius.Rendering/RendererOptions.cs` | 1/1 | 1/1 | 0/0 | 0/0 |
+| `Tertius.Rendering/Scene/GpuTypes.cs` | 0/0 | 0/0 | 0/0 | 0/0 |
+| `Tertius.Rendering/ShaderConstants.cs` | 2/2 | 2/2 | 0/0 | 0/0 |
+| `Tertius.Rendering/Upscaling/Fsr3Bindings.cs` | 9/9 | 9/9 | 0/0 | 0/0 |
+| `Tertius.Rendering/Upscaling/Fsr3Constants.cs` | 0/0 | 0/0 | 0/0 | 0/0 |
+| `Tertius.Rendering/Upscaling/Fsr3Upscaler.cs` | 24/24 | 24/24 | 4/4 | 4/4 |
+| `Tertius.Rendering/Upscaling/RenderScaleController.cs` | 58/62 | 62/62 | 43/58 | 49/58 |
+| `Tertius.Rendering/UpscalingSetting.cs` | 43/49 | 48/49 | 11/22 | 22/22 |
+| `Tertius.Rendering/VulkanRenderer.cs` | 83/83 | 83/83 | 38/44 | 44/44 |
+
+Every remaining uncovered outcome was inspected:
+
+- `UpscalingSetting.cs:27`: the absent scale source fallback in Largest cannot follow successful settings validation. The public missing-source refusal is now tested and kills C31. No private-state corruption was added to reach the fallback.
+- `UpscalePass.cs:58-59`: an upscale pass without its owned upscale targets is unreachable through valid renderer construction. The guard remains a resource-ownership safety path; its throw and one branch are not claimed covered.
+- `RenderTargets.cs:205`: the internal same-size return is precluded by the renderer resize checks. Both one-axis changes now run through requested-resize and acquired-image-resize paths; the remaining internal no-op branch is not forced through an artificial caller.
+- `RenderScaleController.cs:32,61,89,93,94,99,100`: the nine remaining branch outcomes are failed postconditions/invariants. Valid workloads exercise the checks, but the tests do not corrupt internal state merely to fail a contract. All changed controller executable lines, including invalid/incomplete/zero-cost measurement rejection, are covered.
+- `GpuTimings.cs`, `Scene/GpuTypes.cs` and `Fsr3Constants.cs`: changed declarations/layout data have no instrumented executable added lines. They are not silently counted as covered code. Existing host golden/layout tests, real renderer tests and module validation supply narrower evidence.
+
+Reports and exact uncovered source/branch locations: `coverage/before.json`, `coverage/final.json`, `coverage/final-checked.json`, and `coverage-final/{Checked,Release}/{Rendering,Host}/*.cobertura.xml`. CPU coverage does not measure GLSL execution. Genuine GPU assertions killed the shader faults listed below; there is no invented shader line/branch coverage percentage.
+
+### Deliberate mutation campaign
+
+The required official classifier ran as `nix develop --command python3 -I tools/stryker/changed.py main <root>/official` and reported no changed C# lines in Core, Simulation or Physics. Its output is retained in `official/classifier.log`; no unrelated Stryker campaign was launched, and the imported prerequisite campaigns were not repeated.
+
+One deliberate list, `mutations/list.json`, ran through `nix develop --command python3 -I tools/mutate.py <list.json> <out>` under the normal GPU lock. Initial faults established missing assertions before regressions were added. Only affected faults were rerun with `--only`. No mutant was edited/built/tested/restored by hand. Raw runs are preserved in `mutations/{initial,corrected-faults,regressions,residual}`; each contains results and bounded per-fault build/test logs. `mutations/final.json` combines the evidence with exactly one final outcome per valid fault and keeps every earlier attempt.
+
+Final valid definitions: 45. Real assertion kills: 42. Raw survivors: 3, disposed as two equivalents and one explicit judgment below. Final timeouts, no-coverage reports, no-tests results and build failures: zero. The initial C06, C17 and C20 definitions failed to compile (unused local, unused private helper and nonexistent enum member); each was corrected and rerun, never scored as a kill. This is a deliberate sample of changed behavior families, not exhaustive mutation of every changed line or imported SDK instruction.
+
+| ID | Represented fault | Final outcome | Assertion or disposition |
+|---|---|---|---|
+| C01 | accept a repeated finished-frame measurement | killed | `RenderScaleTests.ARepeatedMeasurementOfAFinishedFrameDoesNotMoveTheScaleAgain` |
+| C02 | accept a stale frame after its slot was overwritten | killed | `RenderScaleTests.AStaleMeasurementCannotUseTheScaleOfANewerFrameInTheSameSlot` |
+| C03 | attribute delayed cost to the current scale | killed | `RenderScaleTests.DelayingTheSamePerAreaLoadDoesNotChangeTheScaleResponse` |
+| C04 | include presentation wait in controller cost | killed | `RenderScaleTests.ASteadyLoadSettlesAtTheGpuTimeTarget`; `RenderScaleTests.MeasurementsUseTheScaleOfTheirFrameRatherThanTheCurrentScale`; `RenderScaleTests.ALoadBeyondTheRangeStopsAtTheMinimumScale` |
+| C05 | accept nonfinite or negative GPU timings | killed | `RenderScaleTests.AnInvalidGpuCostDoesNotInfluenceThisOrLaterMeasurements(milliseconds: NaN)`; `RenderScaleTests.AnInvalidGpuCostDoesNotInfluenceThisOrLaterMeasurements(milliseconds: Infinity)` |
+| C06 | accept timings missing the output boundary | killed | `RenderScaleTests.AnIncompletePassSpanDoesNotInfluenceLaterMeasurements` |
+| C07 | derive scaling cost from diagnostic names | killed | `RenderScaleTests.DiagnosticPassLabelsDoNotChangeTheMeasuredScale` |
+| C08 | do not round the active axis to eight | killed | `RenderScaleTests.EachActiveAxisRoundsDownToEightPixels(width: 1919, height: 1079, scale: 0.666666687, expectedWidth: 1272, expectedHeight: 712)` |
+| C09 | scale native output instead of preserving exact dimensions | killed | `RenderScaleTests.NoUpscalingPreservesTheExactOutputSizeWithoutRounding` |
+| C10 | allow zero jitter phases for tiny outputs | killed | `Fsr3HostTests.AnOutputNarrowerThanTheMinimumActiveWidthStillHasAJitterPhase(outputWidth: 2)`; `Fsr3HostTests.AnOutputNarrowerThanTheMinimumActiveWidthStillHasAJitterPhase(outputWidth: 1)` |
+| C11 | remove small-output internal FSR allocation padding | killed | `UpscalingRenderTests.AWindowCanShrinkBelowFsrsAllocationMinimumAndRestore(width: 7, height: 5)`; `UpscalingRenderTests.AWindowCanShrinkBelowFsrsAllocationMinimumAndRestore(width: 1, height: 1)`; `UpscalingRenderTests.AWindowCanShrinkBelowFsrsAllocationMinimumAndRestore(width: 40, height: 32)` |
+| C12 | remove optional RCAS dispatch | killed | `Fsr3UpscalerTests.SharpeningChangesAnEdgeWithoutChangingTheInputOrTheRenderSize` |
+| C13 | jitter native rendering | killed | `UpscalingRenderTests.NativeRenderingKeepsOddOutputDimensionsAndNoJitter` |
+| C14 | remove main-view material mip bias | killed | `UpscalingRenderTests.MainViewMipBiasPreservesTextureDetailAtHalfResolution` |
+| C15 | drop main-view sampling from cutout geometry | killed | `UpscalingRenderTests.FullyOpaqueCutoutPixelsUseTheSameMainViewMipBiasAsSolidPixels` |
+| C16 | adapt next-frame exposure before FSR reads this frame | killed | `UpscalingRenderTests.FsrReadsThisFramesExposureRatioBeforeAdaptationWritesTheNextFramesExposure` |
+| C17 | omit opaque-only color copy for the reactive mask | killed | `UpscalingRenderTests.TheReactiveMaskMarksGlassThatChangedTheOpaqueColorButNotTheSky` |
+| C18 | discard FSR history on every frame | killed | `UpscalingRenderTests.ContinuingTheSameJitterPhaseUsesEarlierSubpixelSamples` |
+| C19 | postprocess unscaled color rather than FSR output | killed | `UpscalingRenderTests.OutputToneMappingReadsTheFsrReconstructionAtEveryOutputPixel` |
+| C20 | lose authoritative graph stages on real timestamp records | killed | `GpuTimingTests.TwoPassesWithTheSameLabelKeepTheirOwnMeasuredStages` |
+| C21 | omit the output submission | killed | `UpscalingRenderTests.RepeatingAStillRestartsTheJitterWithoutStartingAController`; `UpscalingRenderTests.FullyOpaqueCutoutPixelsUseTheSameMainViewMipBiasAsSolidPixels`; `UpscalingRenderTests.JitterDoesNotAppearInTheMotionOfAStillBox` |
+| C22 | ignore explicit CLI render scale | killed | `ScriptCommandTests.AHeadlessRenderScaleOverridesTheFixedFsrScale(text: "0.5", scale: 0.5)`; `ScriptCommandTests.AHeadlessRenderScaleOverridesTheFixedFsrScale(text: "1", scale: 1)` |
+| C23 | accept a CLI scale below the supported range | killed | `ScriptCommandTests.AHeadlessRenderScaleOutsideTheFiniteRangeIsRefused(text: "0.49")` |
+| C24 | enable FSR for explicit native CLI rendering | killed | `ScriptCommandOptionsTests.AHeadlessScriptRunCarriesItsSizeAndEveryOverrideOfTheRenderer`; `ScriptCommandTests.TheUpscalingOptionCarriesTheChoiceThatItNames(name: "off")` |
+| C25 | restore acceptance of the removed SMAA option | killed | `ScriptCommandOptionsTests.TheRemovedSmaaOptionIsRefusedRatherThanSilentlyIgnored` |
+| C26 | accept a controller target with zero frame budget or invalid bounds | killed | `RenderScaleTests.AnInvalidFrameBudgetOrScaleRangeIsRefused(milliseconds: 16, minimum: 0.5, maximum: NaN)`; `RenderScaleTests.AnInvalidFrameBudgetOrScaleRangeIsRefused(milliseconds: 16, minimum: 1.00999999, maximum: 1)`; `RenderScaleTests.AnInvalidFrameBudgetOrScaleRangeIsRefused(milliseconds: 16, minimum: 0.5, maximum: 1.00999999)` |
+| C27 | accept an invalid negative frame identity | killed | `RenderScaleTests.ANegativeFrameNumberIsRejectedBeforeRecordingItsScale` |
+| C28 | accept a render scale below one half | killed | `UpscalingRenderTests.AHeadlessRendererRefusesAnInvalidFixedScale(scale: 0.49000001)` |
+| C29 | accept a zero frame-time budget | killed | `RenderScaleTests.AnInvalidFrameBudgetOrScaleRangeIsRefused(milliseconds: 0, minimum: 0.5, maximum: 1)` |
+| C30 | accept sharpening above its supported range | killed | `UpscalingRenderTests.AHeadlessRendererRefusesUnsupportedSharpening(sharpness: 1.5)` |
+| C31 | accept FSR without a render-scale source | killed | `UpscalingRenderTests.FsrWithoutAScaleSourceIsRefusedBeforeCreatingARenderer` |
+| C32 | let a frame with no scaling work contaminate the cost model | killed | `RenderScaleTests.AFrameWithoutScalingWorkDoesNotContaminateTheCostModel` |
+| C33 | ignore an output resize that changes only one axis | killed | `UpscalingRenderTests.AnAcquiredImageChangingOnlyOneAxisRecreatesTargetsAndResetsHistory(width: 80, height: 96, renderWidth: 48, renderHeight: 64)`; `UpscalingRenderTests.AnAcquiredImageChangingOnlyOneAxisRecreatesTargetsAndResetsHistory(width: 160, height: 48, renderWidth: 104, renderHeight: 32)` |
+| C34 | keep render allocations on a one-axis output resize | killed | `UpscalingRenderTests.AWindowCanShrinkBelowFsrsAllocationMinimumAndRestore(width: 160, height: 48)`; `UpscalingRenderTests.AWindowCanShrinkBelowFsrsAllocationMinimumAndRestore(width: 80, height: 96)` |
+| S01 | omit current jitter in surface reprojection | killed | `UpscalingRenderTests.SurfaceHistoryFindsTheSameWorldPointWhileTheActiveSizeChanges(grows: False)`; `UpscalingRenderTests.SurfaceHistoryFindsTheSameWorldPointWhileTheActiveSizeChanges(grows: True)` |
+| S02 | normalize previous jitter with current dimensions | killed | `UpscalingRenderTests.SurfaceHistoryFindsTheSameWorldPointWhileTheActiveSizeChanges(grows: False)` |
+| S03 | omit previous jitter in reflected-hit reprojection | judgment | The existing real reflected-hit shrinking/growing tests retain the moving reflection and history but do not distinguish omission of the previous subpixel jitter. No independent reflected subpixel reference or new noise/brightness tolerance is introduced in this test-only pass; that precision is an explicit remaining test limit, not equivalence or shader coverage proof. |
+| S04 | use unjittered shading rays for jittered geometry | killed | `UpscalingRenderTests.FullscreenShadingUsesTheViewRayThroughTheJitteredSurfacePixel` |
+| S05 | ignore material mip bias in the shader | killed | `UpscalingRenderTests.MainViewMipBiasPreservesTextureDetailAtHalfResolution` |
+| S06 | freeze the temporal shadow tap group | killed | `UpscalingRenderTests.EveryPixelUsesEveryTemporalShadowGroupOverFourAdvancingDraws` |
+| S07 | black out locally lit surfaces under temporal shadow filtering | killed | `LocalShadowRenderTests.TheShadowsEdgeIsSoftOverTheFilter(temporal: True)` |
+| S08 | black out cascade-filtered light under FSR | killed | `UpscalingRenderTests.UnoccludedSunlightStaysLitThroughEveryTemporalShadowGroup` |
+| S09 | meter allocated pixels outside the active rectangle | equivalent | GeometryPass.BeginRange clears G-buffer distance to zero over the entire largest allocation before active-rectangle drawing; the extra allocated-pixel meter reads therefore fail its positive-distance test and add no histogram samples. |
+| S10 | keep inactive depth after active-size shrink | equivalent | The full-allocation G-buffer distance clear already makes every inactive distance zero, so expanding the finest-depth source guard still writes the same zero inverse depth outside the active rectangle. |
+| S11 | replace sharpened output with black | killed | `Fsr3UpscalerTests.SharpeningWritesPositiveFiniteColorIncludingTheOutputBorders(width: 96, height: 72)`; `Fsr3UpscalerTests.SharpeningWritesPositiveFiniteColorIncludingTheOutputBorders(width: 95, height: 73)` |
+
+### What the regressions establish and what they do not
+
+The added tests exercise active versus allocated versus output dimensions; tiny output and jitter cases; one-axis output acquisition; physical surface reprojection while active dimensions shrink and grow; continued FSR history and output composition; native zero-jitter output and FSR-only readback refusal; exposure ordering; main-view mip sampling; all four shadow groups, cascade-lit surfaces and a partially lit tile-shadow edge; frame-numbered controller costs and invalid inputs; real stage metadata independent of duplicate diagnostic labels; CLI scale semantics and rejection of the removed SMAA flag. Existing real reflected-hit growing/shrinking tests remain intact. The subpixel reflected-hit precision limit is S03 above, not a hidden equivalence or new noise/brightness acceptance rule.
+
+Several initial test expectations were too strong or tested the wrong setup: the unsharpened half-float constant tolerance did not describe RCAS approximation, four-texel checker contrast was not near unity at that projection, missing headless dimensions could satisfy unrelated argument exceptions, caster-free sunlight skipped cascade sampling, and requested resize did not exercise acquired-image resize. The retained baseline/fault runs exposed these gaps. Tests now check finite positive RCAS border writes, checker variation beyond 8-bit rounding, valid-size invalid-setting refusals, real casters, acquired-image dimension changes, and a partially lit temporal shadow edge. The native full-filter width assertion is preserved; no temporal-filter width or production quality tolerance was invented. No engine fix or tuning was needed.
+
+Pinned SDK algorithms and ABI declarations were not rewritten or exhaustively mutated. Deleted SMAA code, shader files and table assets have no executable lines left to instrument; C25 tests refusal of its removed CLI entry, and native-output tests protect the surviving NoUpscaling path. Shader specialization, forward/impostor/hair/outline variants and resource lifetime paths retain their existing tests and Vulkan module validation; this campaign does not claim every specialization or exceptional resource failure was fault-injected.
+
+The real two-submission path is retained and C21 proves the output submission is needed. C04 and C07 protect controller exclusion of output stages and independence from labels. Ordinary offscreen tests have no acquired-image wait semaphore, so they do not prove a deliberately delayed swapchain-acquire wait gates only the second submission. The original real-window review/fix evidence is preserved, not replaced by a false offscreen timing claim.
+
+### Preserved notes and stage limits
+
+Root-note additions were merged semantically from `/private/tmp/tertius-integration-20261105/root-notes/ter-s7c6.md` (SHA256 `e5257ee461a72a6be16d74a8854e652711d73d17584a04a1e460e5a6b13a33b2`) against its `.base.md` snapshot (`9b3c5f84a06bc6916d7e55cf8f2b3d7303527b9135a4a5ba8c8ae766f84768d6`), without dropping the branch evidence. The preserved original launch block remains verbatim. `.tickets/ter-570o.md` is the parent snapshot unchanged (SHA256 `1597561ad3a0394a3fd814c60dd45de8d590ca85641de68ba243d290242e0d8f`), still open and dependent on this ticket. `checkpoint/preservation.log` records these checks and the unchanged staged prerequisite diff.
+
+No controlled FSR timing or capture campaign was repeated because production inputs did not change. Existing `captures/ter-s7c6/review-fix/` evidence remains in place. No standalone noise checkout or dirty prototype was touched. No new noise, brightness, ray, denoising or live-FPS acceptance is claimed. No soak/MTBF estimate was measured. Source type-metric evidence remains incomplete where reported by the normal hook; it is not proof of the design targets.
+
+Linux runtime remains user-deferred in ter-cgif. The real-window dynamic-resolution controller video in ter-570o is parent-owned after integration; fixed headless scaling is not substituted for it. Neither is unfinished work for this hardening stage. Parent owns main integration, ticket closure, pushing and visual acceptance. This worker finishes only the already-prepared normal merge commit on the existing ticket branch, with normal hooks and no bypass, then releases its one heavy allocation after all owned commands have ended.
