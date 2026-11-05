@@ -238,6 +238,12 @@ The final real-window probe completed 60 frames at each framebuffer size 640 × 
 
 All required in-scope checks are complete. Native tracer noise, engine-wide metric completeness and Linux runtime are not claimed solved. Coverage, mutation testing, safe import into standalone noise research, integration and ticket closure remain the parent's work. No other checkout or dirty prototype was changed. The ticket remains in progress until integration; this stage commits its completed review fixes without closing it.
 
+### Commit-hook assessment
+
+The normal hook accepted the exact staged code identity and reused its successful complete Checked test record; no check was bypassed. It reported one advisory: the reflected-motion scenario is 67 measured lines, above the 60-line guide. The test retains its explicit mirror/panel setup, camera and object movement, scale transition and image/history assertions in one place, following `tests/STYLE.md`'s self-contained setup rule. Shared mirror construction and pixel lookup already use `ReflectionTesting`; extracting the remaining one-use scenario steps would only hide the behavior that this regression must explain. This is a scoped test-readability exception, not a production complexity finding.
+
+The hook's v3 metrics reported erosion 0.1918, verbosity 0.0278, pooled TCC 7582/8553 = 0.8865 and depth 10733/4173 = 2.5720. Cohesion included 194 types, excluded 775 as not applicable and retained 42 as incomplete; source analysis had 3649 binding errors and 243 unresolved state-access locations. These values are partial design signals, not complete engine-wide evidence or proof of the TCC goal. The source/caller assessment remains the evidence for the two design fixes: graph stage metadata removes the controller's independent label parser, and one common configuration removes repeated variant rules. Diagnostic renaming and later common specialization changes no longer need those old coordinated edits. The hook log and metric note are retained under the stage's ignored artifact directory.
+
 ## Preserved parent launch note
 
 The following is the complete launch note supplied by the parent, preserved verbatim before the final commit.
