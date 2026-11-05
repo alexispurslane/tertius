@@ -46,9 +46,9 @@ vec3 boxProjectedDirection(vec3 minimum, vec3 maximum, vec3 position, vec3 direc
             exit = min(exit, max(first, last));
         }
     }
-    if (exit < max(entry, 0.0))
+    if (exit < entry || exit <= 0.0)
         return direction;
-    float distance = entry >= 0.0 ? entry : exit;
+    float distance = entry > 0.0 ? entry : exit;
     precise vec3 lookup = position + distance * along;
     if (!finiteBoxVector(lookup) || largestBoxComponent(lookup) < 1e-20)
         return direction;

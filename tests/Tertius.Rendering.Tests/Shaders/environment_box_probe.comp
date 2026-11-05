@@ -38,6 +38,16 @@ void main()
         direction = inMapAxes(0u, vec3(-1.0, 0.0, 0.0));
     }
     if (scenario == 19) { position = vec3(3.0, 3.0, 0.0); direction = vec3(-1.0, -0.1, -1.0); }
+    if (scenario >= 20 && scenario < 32)
+    {
+        int face = (scenario - 20) % 6;
+        int axis = face / 2;
+        position = vec3(1.0);
+        direction = vec3(0.0);
+        position[axis] = (face & 1) == 0 ? minimum[axis] : maximum[axis];
+        direction[axis] = (face & 1) == 0 ? 1.0 : -1.0;
+        if (scenario >= 26) direction = -direction;
+    }
     vec3 lookup = boxProjectedDirection(minimum, maximum, position, direction);
     imageStore(specularSample, pixel, vec4(normalize(lookup), 1.0));
 }

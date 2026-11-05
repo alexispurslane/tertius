@@ -9,7 +9,7 @@ public sealed class EnvironmentBoxShaderTests
     [Theory]
     [InlineData(0, 1, 1, -4)]
     [InlineData(1, 1, 1, 4)]
-    [InlineData(2, 1, 1, -4)]
+    [InlineData(2, 0, 0, -1)]
     [InlineData(3, 1, 0, 0)]
     [InlineData(4, 0, 0, -1)]
     [InlineData(5, 0, 0, -1)]
@@ -49,6 +49,50 @@ public sealed class EnvironmentBoxShaderTests
                 .Distance(actual, Vector3.Normalize(new(expectedX, expectedY, expectedZ)))
                 .Should()
                 .BeLessThan(1f / 1024 + 0.000001f, "RGBA16F readback can round each component by one half-float step");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Theory]
+    [InlineData(20, 2, 1, 1)]
+    [InlineData(21, -2, 1, 1)]
+    [InlineData(22, 1, 2, 1)]
+    [InlineData(23, 1, -2, 1)]
+    [InlineData(24, 1, 1, 4)]
+    [InlineData(25, 1, 1, -4)]
+    [InlineData(26, -1, 0, 0)]
+    [InlineData(27, 1, 0, 0)]
+    [InlineData(28, 0, -1, 0)]
+    [InlineData(29, 0, 1, 0)]
+    [InlineData(30, 0, 0, -1)]
+    [InlineData(31, 0, 0, 1)]
+    public void ARayStartingOnAnyFaceUsesOnlyAStrictlyForwardIntersection(
+        int scenario,
+        float expectedX,
+        float expectedY,
+        float expectedZ
+    )
+    {
+        VulkanRenderer renderer = Gpu.Headless(
+            width: 64,
+            height: 36,
+            screenTrace: ScreenTrace.Default,
+            warmUpFrames: 0
+        );
+        try
+        {
+            var probe = ScreenTraceProbe.On(renderer, "environment_box_probe.comp");
+            renderer.Render(Gpu.Snapshot(Vector3.UnitY), 1);
+            float[] values = probe.Read();
+            var actual = new Vector3(values[scenario * 4], values[scenario * 4 + 1], values[scenario * 4 + 2]);
+
+            Vector3
+                .Distance(actual, Vector3.Normalize(new(expectedX, expectedY, expectedZ)))
+                .Should()
+                .BeLessThan(1f / 1024 + 0.000001f, "a boundary ray must exit ahead or retain its original direction");
         }
         finally
         {

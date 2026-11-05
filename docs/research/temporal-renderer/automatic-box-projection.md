@@ -1,5 +1,7 @@
 # Automatic semantic-frame box projection
 
+The original implementation record below describes reviewed commit `46a0f4f244bc3b820e1921c97f654ffc06d63ea5`. The final boundary correction and refreshed evidence are in "Boundary review fix" and [review-fix.json](automatic-box-projection/review-fix.json).
+
 Ticket `ter-7tnv`, November 5, 2026. The settled design is [semantic-frame-box-projection.md](../../plans/semantic-frame-box-projection.md). This replaces the distance-cube search, not its receiving-position ownership fix. The [search report](corrected-environment-misses.md) and its images remain historical evidence. In particular, its +2.762 ms deck and +2.175 ms floor differences are not measurements of this replacement.
 
 ## Source and prerequisite
@@ -22,7 +24,7 @@ The appended GPU payload uses two four-component vectors per map. The first vect
 
 ## Shared corrected lookup
 
-`environmentSpecular` is the single corrected specular reader. It turns the receiving position and reflection direction into the selected map's axes. `boxProjectedDirection` intersects that ray with the enclosure analytically. A receiver inside the enclosure uses its forward exit; a receiver outside uses its forward entry. The direction from the existing capture eye to that point selects the existing prefiltered map. The reader does not change the material roughness.
+`environmentSpecular` is the single corrected specular reader. It turns the receiving position and reflection direction into the selected map's axes. `boxProjectedDirection` intersects that ray with the enclosure analytically. A receiver inside the enclosure uses its positive exit. A receiver outside uses its positive entry. An inward boundary ray uses the opposite exit, and an outward boundary ray without a positive intersection stays directional. The direction from the existing capture eye to that point selects the existing prefiltered map. The reader does not change the material roughness.
 
 The slab intersection handles parallel axes explicitly, without division by zero. Finite input checks and coordinate scaling precede intersection. Empty, invalid, degenerate, numerically unusable or non-intersected boxes keep the original finite direction. A zero or non-finite input direction gets finite positive Z. A zero-length or non-finite resulting lookup also falls back. No result depends on a driver turning NaN into a useful value.
 
@@ -81,7 +83,7 @@ Each run mean averages its 120 frame spans. Each middle column is the median of 
 
 The initial timing batch stopped at the 5 GiB free-disk guard after its first pair. No further heavy phase started below that guard. Space recovered without any worker artifact deletion, and the remaining pairs resumed while preserving the first pair. No other worker's outputs, caches or checkout were removed.
 
-## Final validation
+## Implementation validation before boundary review
 
 | Check | Result |
 |---|---|
@@ -98,3 +100,70 @@ The initial timing batch stopped at the 5 GiB free-disk guard after its first pa
 Logs are under `captures/ter-7tnv-box/logs/`: `full-Checked.log`, `full-Release.log`, `solution-Checked.log`, `solution-Release.log`, `benchmark.log`, `final-focused.log`, `cleanup-final.log` and `compare-<round>-<window>.log`. Initial capture instrumentation rejected the still's infinite exposure step as JSON, then its fix hit a serializer-options analyzer; both were corrected in the observer only. The first readiness wrapper finished every build/test/module check but caught a trailing blank line created by `tk` in the follow-up ticket. That whitespace was removed; it did not change the tested code identity. Coverage and mutations were not run.
 
 The first normal commit hook requested clearer grouping in the preparation reset block. Two blank lines now separate environment faces/bounds from the neighboring reset groups. No behavior changed. All captures, focused/full suites, solution/benchmark builds, module validation and matched timing pairs were refreshed on the final identity above. The twelve fresh PNGs also equal the previously inspected images byte for byte. The earlier complete evidence set, identity `5f31543cc9014d5343cd986c063e85ef964ccbd0`, is preserved under `captures/ter-7tnv-box-before-reset-grouping/`, including its provenance. The earlier chart used that earlier set; the final table and provenance use only the refreshed set. No process was cancelled: the queue cleared before the proposed redundant timing cancellation, and every refreshed pair completed.
+
+## Boundary review fix, 2026-11-05
+
+This stage started from clean reviewed commit `46a0f4f244bc3b820e1921c97f654ffc06d63ea5` in the same bound checkout and branch. The original review base and all required ticket/prerequisite commits remain ancestors. No further merge, checkout change, agent, workflow, coverage run or mutation run occurred.
+
+### Boundary finding and behavioral evidence
+
+The reviewed helper selected a zero-parameter entry on a boundary. The worker reproduced the defect on all six faces, with both inward and outward directions. The real `environmentSpecular` reader returned zero radiance instead of `8 ± 0.005` from the opposite bright wall. The original outward-boundary probe also failed its revised directional expectation. The red run had 14 intended failures and 36 passing controls, not compilation failures.
+
+The shared helper now rejects an exit at or behind the receiver. It chooses a positive entry when one exists, or the positive exit otherwise. The helper still returns only a lookup direction. No reader receives a proxy hit distance. All 50 focused cases pass, including unchanged diffuse/sky controls, receiving-position-dependent reads, real advancing history and zero real hit distance for corrected misses.
+
+The old outward probe expected the starting face's direction `(1, 1, -4)`. That expectation accepted a zero-parameter self-intersection. Its replacement expects the original direction `(0, 0, -1)`. The half-float tolerance did not change. No physical-wall or image-quality assertion was weakened in this fix.
+
+### Binding-document finding
+
+The stale live definition read:
+
+> `v`, `r_hit` = the distance-cube search's direction and roughness at its hit. Without a hit they are exactly `R⁻¹ d` and `r`.
+
+The live equation and level expression also used `r_hit`. The Vulkan safety row still asserted `r_hit = min(r sqrt(reach), 1)`. These statements described the retired search. The binding document now defines the box-projected lookup direction and keeps material roughness unchanged. Its safety table covers finite inputs, scaled coordinates, explicit parallel axes, strictly positive intersections and nonzero lookup directions. The temporal-renderer plan states the same boundary rule. `ARCHITECTURE.md` was updated last among the engine documents.
+
+### CPU assessment gap
+
+The CPU probe reuses `SceneBatcherBenchmarks.Prepare`, with 20,000 static unit cubes and no deformed instances. Each condition has three interleaved control/box pairs, 64 warm-up calls and 128 measured calls per run. The control is the integrated discarded-search renderer, not original directional-only main. The probe measures complete one-thread preparation, including fitting and constant writes, not an isolated fitting method.
+
+| Map preparation | Control median (ms) | Fixed-box median (ms) | Median paired difference (ms) |
+|---|---:|---:|---:|
+| Maps disabled | 1.893188 | 1.915792 | +0.022604 |
+| One map, one face | 2.341541 | 2.395396 | +0.050604 |
+| One map, six faces | 2.624937 | 2.681375 | +0.038041 |
+| Four maps, one face | 2.313792 | 2.366833 | +0.030771 |
+| Four maps, 24 faces | 5.203646 | 5.251521 | +0.033541 |
+
+The first two time columns are medians of run medians. The difference column is the median of the three within-pair differences. All 30 measured windows allocate zero managed bytes on the calling thread. The record includes each run's stopwatch frequency and samples' summaries. CPU frequency was not pinned. The maps-disabled difference shows background variation, so these numbers do not isolate fitting cost or establish a fixed budget.
+
+### Refreshed captures and GPU evidence
+
+The worker inspected and showed three fresh warmed real-renderer images: terminal interior/reflection, floor/objects and the four-map nested cabin. Each CLI PNG matches its observer PNG and the corresponding reviewed-box PNG byte for byte. All twelve earlier control/replacement PNGs retain their original hashes. Severe terminal grain, doorway saturation and curved floor-background bands remain. No reference image was replaced or re-approved.
+
+The renderer keeps 1280 × 720 output/rendering, SMAA, 128-texel map faces, one face per frame and 32 warm-up draws. The tracer keeps 256 reflection steps, 62 diffuse steps and maximum reflection roughness 0.5. Auto exposure keeps −14/10 stop limits, zero compensation, 0.1 dark/bright shares and 3/1 second adaptation times. Bloom and all other settings remain unchanged. Each capture records draw indices 0–33 with exactly one initial reset. The next snapshot advances by 1/60 second without resetting. The separate history test verifies actual accumulated history above one.
+
+| View | Snapshot seconds, first → next | Maps | Exposure (stops) | Refreshed image |
+|---|---|---:|---:|---|
+| Terminal | 5.233333333333333 → 5.25 | 3 | −2.96673 | `captures/ter-7tnv-box/boundary-fix-terminal/terminal.png` |
+| Floor | 52.78333333333333 → 52.8 | 2 | 3.6925075 | `captures/ter-7tnv-box/boundary-fix-floor/floor.png` |
+| Nested cabin | 16.666666666666668 → 16.683333333333334 | 4 | −8.340269 | `captures/ter-7tnv-box/boundary-fix-cabin/cabin.png` |
+
+Three fresh matched 120-frame pairs per deck/floor window compare the reviewed box reader with the boundary-fixed box reader. All twelve spans record mean/p10/p90 clocks of 1296 MHz. Every pair passes the 3% clock comparison. The median paired whole-frame GPU differences are +0.004103 ms on deck and +0.007843 ms on floor. The pair ranges are −0.001493 to +0.008243 ms and −0.019458 to +0.018734 ms. These are bounded observations, not a speedup, an isolated pass cost or final budget acceptance. Both variants retain distance producers. Earlier search-versus-box results remain historical measurements of a different comparison.
+
+### Final fix validation and remaining assessment limits
+
+The tested source/test/build-input tree is `10497903e0e39b2839d943b59b6bb380d54d4515`. The final Release Rendering DLL and capture DLL match SHA-256 `6f78de402f668e2944bee803bc24a0f5365f5a09d392729afb15ae5914d1e7ea`. The structured record retains log hashes, all test-output stamps, binary hashes, scripts, capture settings/history, CPU runner source and GPU pairs.
+
+| Required check | Final fix result |
+|---|---|
+| Focused enclosure cases, Checked | 50 passed, zero failed |
+| Complete deformation class, Checked | 30 passed, zero failed |
+| Full Checked solution | 10,003 passed, 20 explicit skips, zero failed; 10,023 total |
+| Full Release solution | 9,990 passed, 20 explicit skips, zero failed; 10,010 total |
+| Checked/Release solution and Release benchmark builds | Passed, zero warnings and errors |
+| Scoped cleanup | Roslyn and CSharpier on the two changed C# test files |
+| Vulkan 1.3 module validation | All 90 retained compiled Release modules passed |
+| Source/capture/final binary identity | Matching code trees and Release Rendering DLL hashes |
+
+All builds, tests, renders and numerical probes ran through Nix. One heavy command ran at a time, with GPU work under the normal queue. The evidence summarizer initially rejected the solution log's module rows between its header and counts. Its parser was corrected. The completed product tests were not waived or reclassified.
+
+The runtime assessment now has fresh worker-executed tests and captures, not only the reviewer's static derivation. This does not claim that the read-only reviewer ran tests. Linux execution remains deferred under `ter-cgif`. Module validation does not establish Linux execution. Changed-line coverage and mutations remain parent-owned and were not run. Final image-quality/frame-budget acceptance, FSR reconciliation, integration, push and closure remain parent-owned. Mixed ancestor radiance, loose/large/sparse enclosures and retained producer costs remain explicit limits. No unresolved implementation fork remains.

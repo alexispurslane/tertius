@@ -84,6 +84,40 @@ public sealed class EnvironmentBoxRenderTests
     }
 
     [Fact]
+    public void AnInwardSpecularRayOnTheBoundaryReadsTheOppositeExitInsteadOfItsStartingFace()
+    {
+        VulkanRenderer renderer = Renderer(ScreenTrace.Default, new FixedExposure(0));
+        try
+        {
+            var probe = ScreenTraceProbe.On(renderer, "environment_box_boundary_specular_probe.comp");
+            RenderSnapshot snapshot = Dark(verticalFovDegrees: 70, pitchDown: 0);
+            MeshId plane = renderer.CreateMesh(Primitives.Plane(1f));
+            foreach (int side in new[] { -1, 1 })
+                snapshot.Instances.Add(
+                    Gpu.Instance(
+                        mesh: plane,
+                        material: BrdfTesting.Glow(renderer, new(side < 0 ? 0 : 8)),
+                        position: new(0, 0, 4 * side),
+                        scale: new(6, 1, 6),
+                        rotation: Quaternion.CreateFromAxisAngle(Vector3.UnitX, -side * MathF.PI / 2),
+                        chainDepth: TestChains.CamerasFrame
+                    )
+                );
+
+            renderer.Render(snapshot, 1);
+            float[] actual = probe.Read();
+
+            actual[0].Should().BeApproximately(8, 0.005f, "the forward exit sees the bright positive-Z wall");
+            actual[1].Should().BeApproximately(8, 0.005f);
+            actual[2].Should().BeApproximately(8, 0.005f);
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
     public void AMirrorFloorPlacesTheCapturedStripeByItsFittedBox()
     {
         (float[] hdr, CameraView camera, GpuMapBox box) = Render(scene: renderer =>
