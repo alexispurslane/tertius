@@ -14,7 +14,7 @@ public sealed class RenderEntityTests
     [Fact]
     public void AnInstanceNamesItsEntityBySlotAndGeneration()
     {
-        RenderInstance instance = RenderInstance.Create(
+        var instance = RenderInstance.Create(
             mesh: new(0),
             material: new(0),
             position: Vector3.Zero,

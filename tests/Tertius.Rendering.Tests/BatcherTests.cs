@@ -1066,6 +1066,47 @@ public sealed class BatcherTests
         drawn.Single(each => each.ModelRow0.W > 0).HoldsLight.Should().Be(0u, "no light carries the screen's entity");
     }
 
+    [Theory]
+    [InlineData(1u)]
+    [InlineData(7u)]
+    [InlineData(65_537u)]
+    public void OnlyTheGpuInstancesOfASpotLightsEntityCarryItsLightHolderMark(uint generation)
+    {
+        RenderSnapshot snapshot = Empty();
+        RenderInstance lamp = Box(new(-2, 0, -10), chainDepth: TestChains.CamerasFrame);
+        lamp.EntityIndex = 7;
+        lamp.EntityGeneration = generation;
+        RenderInstance screen = Box(new(2, 0, -10), chainDepth: TestChains.CamerasFrame);
+        screen.EntityIndex = 8;
+        screen.EntityGeneration = generation + 1;
+        snapshot.Instances.Add(lamp);
+        snapshot.Instances.Add(screen);
+        snapshot.Lights.Add(
+            Gpu.Spot(
+                position: new(-2, 1, -10),
+                direction: -Vector3.UnitY,
+                color: Vector3.One,
+                intensity: 1,
+                innerConeAngle: 0.3f,
+                outerConeAngle: 0.5f,
+                chainDepth: TestChains.CamerasFrame
+            ) with
+            {
+                EntityIndex = 7,
+                EntityGeneration = generation,
+            }
+        );
+
+        PreparedScene scene = Prepare(snapshot: snapshot);
+
+        GpuInstance[] drawn = scene.Instances[..scene.InstanceCount];
+        drawn
+            .Single(each => each.ModelRow0.W < 0)
+            .HoldsLight.Should()
+            .Be(1u, "the spot light carries the lamp's entity");
+        drawn.Single(each => each.ModelRow0.W > 0).HoldsLight.Should().Be(0u, "the screen carries no light");
+    }
+
     /// <summary>
     /// The renderer follows an instance from frame to frame by its whole entity, slot and generation, because a new entity
     /// can take the slot of a destroyed one (ImpostorKey, the shadow tiles' casters). The batcher builds that entity.
@@ -1081,7 +1122,12 @@ public sealed class BatcherTests
 
         PreparedScene scene = Prepare(snapshot: snapshot);
 
-        scene.PlacedSpan.ToArray().Should().ContainSingle().Which.Entity.Should().Be(new Entity(Index: 7, Generation: 4));
+        scene
+            .PlacedSpan.ToArray()
+            .Should()
+            .ContainSingle()
+            .Which.Entity.Should()
+            .Be(new Entity(Index: 7, Generation: 4));
     }
 
     [Fact]
