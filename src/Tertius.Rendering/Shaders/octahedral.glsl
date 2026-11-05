@@ -14,12 +14,17 @@ vec2 octEncode(vec3 n)
     return n.z >= 0.0 ? n.xy : (1.0 - abs(n.yx)) * signNotZero(n.xy);
 }
 
-vec3 octDecode(vec2 e)
+vec3 octDecodeUnnormalized(vec2 e)
 {
     vec3 n = vec3(e, 1.0 - abs(e.x) - abs(e.y));
     if (n.z < 0.0)
         n.xy = (1.0 - abs(n.yx)) * signNotZero(n.xy);
-    return normalize(n);
+    return n;
+}
+
+vec3 octDecode(vec2 encoded)
+{
+    return normalize(octDecodeUnnormalized(encoded));
 }
 
 // The strand's octahedral code in the shading target's R and G (docs/plans/skin-and-hair.md, "The shading target").

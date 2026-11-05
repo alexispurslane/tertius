@@ -8,7 +8,8 @@ Branch: `ter-rgg9-portable-screen-walk`. The parent owns coverage, mutation test
 This port takes only the already-selected two-image bounds, loop and facing changes from
 [walk-hill-climb.md](walk-hill-climb.md). It introduces no new traversal algorithm.
 The bounds and loop conditions use vector Boolean operations instead of scalar short-circuit flow.
-The facing test alone decodes an unnormalized normal. Shading normals remain normalized.
+The facing test alone consumes an unnormalized normal. Shading normals remain normalized.
+Both use the reconstruction and lower-hemisphere folding owned by `octahedral.glsl`.
 The loop retains the original negated end comparison, including its result for an unordered comparison.
 
 The source experiment used a 24-core Apple M1 Max, 1280 × 720 images and about 0.61–0.92 million active rays per view.
@@ -122,7 +123,7 @@ the observation source hash and the three inspected capture hashes.
 Fine floor speckle remains visible. No image-quality improvement or new reference-image approval is claimed.
 All 120 PNG captures remain in the retained scratch folder.
 
-## Final validation
+## Initial implementation validation
 
 The code and build-input tree is `d22c4fcb51fae5ecf942d661aecdee2341d7b3b8`.
 `tools/cleanup.sh` completed on the one changed C# file before the final checks.
@@ -152,3 +153,96 @@ through a temporary Nix shell inside the project dev shell. It installs nothing 
 The initial unmatched-buffer expression and unavailable default-shell command are not accepted as evidence.
 
 Coverage and mutation testing are intentionally absent because the parent owns that pass.
+
+## Review correction: one decoder owner
+
+The review of `1d037b55c7309a5eeed65a630f05f82d5991f661` found duplicated
+octahedral reconstruction and lower-hemisphere folding in `hitsPixel` and `octDecode`.
+No current rendering failure was claimed. The defect was coordinated maintenance:
+a correction in the encoding owner could leave the walk using the old reconstruction.
+
+`octahedral.glsl` now owns both operations in `octDecodeUnnormalized`.
+The facing test calls that function without normalizing its result.
+The shading decoder remains:
+
+```glsl
+vec3 octDecode(vec2 encoded)
+{
+    return normalize(octDecodeUnnormalized(encoded));
+}
+```
+
+where
+
+- `encoded` holds the two stored octahedral direction coordinates, each in [−1, 1].
+- `octDecodeUnnormalized` reconstructs the three-component direction and folds the lower hemisphere.
+- `normalize` scales a nonzero direction to length one.
+- `octDecode` returns that unit direction for existing shading callers.
+
+The reconstruction expression and folding arithmetic keep their original order.
+The bounds and loop predicates, slab and cell tracking, images, words inputs and caps are unchanged.
+This is a behavior-preserving extraction, not a new runtime fix or an algorithm choice.
+The existing behavior tests and compiled-operation probes are unchanged.
+
+The records in the preceding sections describe the initial implementation, not this correction's source identity.
+The correction's separate source, shader, replay, timing and validation evidence is retained in
+`portable-screen-walk/review-fix.json` and `/private/tmp/ter-rgg9-review-fix-20261105`.
+
+### Correction validation and assessment limits
+
+The correction's code/test/build-input tree is `49b4137202ce507ffa92c86f45a662ac0788f508`.
+The three existing compiled-operation probes pass both before and after extraction.
+After stripping debug metadata and compacting identifiers, all 63 production shader modules
+are byte-identical to the reviewed head's modules. This includes normalized shading consumers
+and both real ray kernels; the extraction preserves their instruction and arithmetic order.
+All 82 production/test modules and both extracted replay modules pass Vulkan 1.3 SPIR-V validation.
+Three test-only modules remain byte-different after identifier compaction;
+the production-module equality does not claim binary equality for those probes.
+
+A fresh GPU-locked replay preserves all 3,038,431 active saved-ray hit identities.
+All 32 before/after outcome files are byte-identical to their retained pre-extraction counterparts,
+including their stored hit-entry values. The captured inputs were independently rehashed.
+The historical V6 mismatch remains 195,044 identities; its earlier speed projection still does not apply.
+The finite corpus does not establish universal floating-point equivalence between normalized
+and unnormalized facing for every possible grazing direction.
+
+Fresh whole-frame measurements compare the integrated base against the final shared-decoder port,
+not the extraction against its reviewed predecessor. Three alternating 120-frame runs per build
+use the same 1280 × 720 film, two captures in flight and the project GPU lock.
+Every run has mean, p10 and p90 GPU clocks of 1296 MHz.
+
+| Round | Integrated-base frame mean, ms | Shared-decoder port frame mean, ms | Integrated-base frame p95, ms | Shared-decoder port frame p95, ms |
+|---|---:|---:|---:|---:|
+| 1 | 11.290 | 11.182 | 11.562 | 11.474 |
+| 2 | 11.337 | 11.202 | 11.570 | 11.484 |
+| 3 | 11.324 | 11.203 | 11.622 | 11.490 |
+
+The mean frame span is 11.317 ms before and 11.196 ms after: a 0.121-ms reduction, or 1.07%.
+The final mean is 0.804 ms below the 12-ms budget, and every measured p95 stays below that budget.
+This is not a new speed claim for the decoder extraction; its production instructions are unchanged.
+The neighboring trace interval remains recorded only as an interval, not isolated pass-own GPU cost.
+The results concern this deck stretch on this Mac, not Linux or every possible frame.
+
+Fresh real-renderer captures advance from draw index 32 to 151 over 120 distinct snapshot times,
+with alternating history-image parity and no reset after the first shown frame.
+The final capture run averages 820.1 MHz, with p10 644.0 and p90 942.6 MHz.
+The PNG capture run's 16.292-ms mean frame span is excluded from the top-clock budget comparison.
+The first capture attempt omitted the clock sampler. Its raw evidence remains in `screenshots-unclocked`
+and `history-unclocked.json`; a fresh sampled run supplies the final inspected captures.
+The three final capture paths and one-line inspections are in `review-fix.json`.
+No new image-quality improvement or reference-image approval is claimed.
+
+| Required correction check | Result |
+|---|---|
+| C# cleanup on the ticket's changed test file | Passed; no further source change. |
+| Complete Checked solution under the GPU lock | 9,948 passed, 20 skipped, zero failures; 3m 52s 884ms. |
+| Complete Release solution under the GPU lock | 9,935 passed, 20 skipped, zero failures; 3m 53s 217ms. |
+| Release benchmark compilation | Passed, zero warnings and errors. |
+| Existing CPU reference and real-shader correctness tests | Unchanged; included in both complete suites. |
+| Temporary replay/observation drivers | Absent from the final Checked and Release test assemblies. |
+
+The review's execution-evidence gap is resolved by these fresh builds, tests, validations and GPU dispatches.
+ter-186q remains an existing skipped regression, not a fix supplied by this ticket.
+Linux runtime and performance remain explicitly user-deferred under ter-cgif.
+Coverage, mutation testing, integration, push and ticket closure remain parent-owned and were not performed.
+These are retained scope limits, not silently claimed checks or new design forks.

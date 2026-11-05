@@ -56,10 +56,7 @@ vec2 childAt(ScreenWalk walk, vec2 parent, int level, float s, bool leaving)
 // the receiver's own hair card, which the ray passes through.
 bool hitsPixel(ScreenWalk walk, ivec2 pixel)
 {
-    vec2 encoded = texelFetch(gbufferNormal, pixel, 0).ba;
-    vec3 normal = vec3(encoded, 1.0 - abs(encoded.x) - abs(encoded.y));
-    if (normal.z < 0.0)
-        normal.xy = (1.0 - abs(normal.yx)) * signNotZero(normal.xy);
+    vec3 normal = octDecodeUnnormalized(texelFetch(gbufferNormal, pixel, 0).ba);
     if (dot(normal, walk.direction) >= 0.0)
         return false;
     if (walk.ownCard == NoCard)
