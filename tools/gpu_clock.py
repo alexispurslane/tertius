@@ -9,8 +9,8 @@ Usage:
 A timed run prints the lines "timed-start" and "timed-end" around its timed work, and runs beside gpu-clock
 (tools/gpu-clock.sh), so that its log holds gpu-clock's samples between the two markers. "span" prints the record of the
 log's span. "record" also writes it into a headless demo run's gpu-timings.json as the entry "gpuClock". "compare" prints
-both runs' clocks, whether they compare, and each time of the frame span and of each pass with its estimate at the
-windowed clock.
+both runs' clocks, whether they compare, and the frame span and requested range means with their estimates at the
+windowed clock. Individual pass means appear only when neither report marks them as unreliable.
 
 The clock of a span is the mean clock over the GPU's active time of the samples between the markers: each sample
 weighs by the share of its interval in which the GPU was not off (docs/research/temporal-renderer/gpu-calibration.md,
@@ -219,16 +219,27 @@ def compare(first, second) -> Check:
 
 def compare_timings(reference: dict, other: dict) -> list[str]:
     """The lines that compare two headless runs' gpu-timings.json: the check of their clocks, then a table of the mean
-    frame span and the mean of each pass of either run, each with its estimate at the windowed clock."""
+    frame span, requested ranges and valid individual passes, each with its estimate at the windowed clock.
+    Either report's stampsLatchLate flag or warning suppresses individual-pass rows. Legacy reports without those
+    fields keep their pass rows. Ranges match by both endpoints; a range in only one report has an empty other cell."""
     first, second = from_json(reference.get("gpuClock")), from_json(other.get("gpuClock"))
 
     def estimate(ms, clock):
         value = windowed_ms(ms, clock)
         return "" if value is None else f"{value:.3f}"
 
-    lines = [
-        compare(first, second).line(),
-        "",
+    lines = [compare(first, second).line(), ""]
+    individual_passes_valid = not any(
+        report.get("stampsLatchLate") or report.get("warning") for report in (reference, other)
+    )
+    if not individual_passes_valid:
+        warnings = dict.fromkeys(report["warning"] for report in (reference, other) if report.get("warning"))
+        lines += [
+            "Individual pass comparisons are omitted because at least one report marks those times as unreliable.",
+            *warnings,
+            "",
+        ]
+    lines += [
         f"The estimates convert each mean to the windowed clock, {WINDOWED_MHZ:.0f} MHz: the mean times the run's clock"
         f" over {WINDOWED_MHZ:.0f} MHz. They are estimates, within about {ESTIMATE_ERROR * 100:.0f} %, to hold a time"
         f" against a budget. One build's estimates spread by about {ESTIMATE_SPREAD * 100:.0f} %, so they do not compare"
@@ -238,16 +249,25 @@ def compare_timings(reference: dict, other: dict) -> list[str]:
         "|---|---:|---:|---:|---:|---:|",
     ]
     rows = [("frame span", reference["frame"]["meanMs"], other["frame"]["meanMs"])]
-    # A pass of one run only, such as a new pass, has an empty cell in the other run's column.
-    reference_means = {each["pass"]: each["meanMs"] for each in reference["passes"]}
-    other_means = {each["pass"]: each["meanMs"] for each in other["passes"]}
-    names = list(reference_means) + [name for name in other_means if name not in reference_means]
-    rows += [(name, reference_means.get(name), other_means.get(name)) for name in names]
-    for name, a, b in rows:
-        difference = "" if a is None or b is None else f"{b - a:+.3f}"
+    if individual_passes_valid:
+        reference_means = {each["pass"]: each["meanMs"] for each in reference["passes"]}
+        other_means = {each["pass"]: each["meanMs"] for each in other["passes"]}
+        names = list(reference_means) + [name for name in other_means if name not in reference_means]
+        rows += [(name, reference_means.get(name), other_means.get(name)) for name in names]
+    reference_ranges = {(each["first"], each["last"]): each["timing"]["meanMs"] for each in reference.get("runs", [])}
+    other_ranges = {(each["first"], each["last"]): each["timing"]["meanMs"] for each in other.get("runs", [])}
+    ranges = list(reference_ranges) + [endpoints for endpoints in other_ranges if endpoints not in reference_ranges]
+    rows += [
+        (f"run {first_pass}..{last_pass}", reference_ranges.get((first_pass, last_pass)), other_ranges.get((first_pass, last_pass)))
+        for first_pass, last_pass in ranges
+    ]
+    for name, reference_ms, other_ms in rows:
+        difference = "" if reference_ms is None or other_ms is None else f"{other_ms - reference_ms:+.3f}"
         lines.append(
-            f"| {name} | {'' if a is None else f'{a:.3f}'} | {'' if b is None else f'{b:.3f}'} | {difference} | "
-            f"{'' if a is None else estimate(a, first)} | {'' if b is None else estimate(b, second)} |"
+            f"| {name} | {'' if reference_ms is None else f'{reference_ms:.3f}'} | "
+            f"{'' if other_ms is None else f'{other_ms:.3f}'} | {difference} | "
+            f"{'' if reference_ms is None else estimate(reference_ms, first)} | "
+            f"{'' if other_ms is None else estimate(other_ms, second)} |"
         )
     return lines
 

@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""Tool code. The tests of tools/gpu_clock.py, the record of the GPU clock over a timed span, on synthetic logs of
-gpu-clock and of the measurements' marker lines.
+"""Tool code. GPU clock records, valid timing comparisons and timing-wrapper output, using supplied reports and logs.
 
     nix develop --command python3 -I tools/test_gpu_clock.py
 
@@ -139,12 +138,19 @@ class Record(unittest.TestCase):
             log = Path(folder, "run.log")
             log.write_text("\n".join(["timed-start", sample(0.1, 1.0, 1000.0), sample(0.2, 1.0, 1200.0), "timed-end"]))
             timings = Path(folder, "gpu-timings.json")
-            timings.write_text(json.dumps({"frame": {"meanMs": 7.5}, "passes": []}))
+            original = {
+                "device": "supplied device", "width": 160, "height": 90,
+                "frame": {"frames": 20, "meanMs": 7.5, "medianMs": 7.0, "p95Ms": 10.0},
+                "passes": [{"pass": "capture", "frames": 20, "meanMs": 1.0, "medianMs": 0.5, "p95Ms": 2.0}],
+                "runs": [{"first": "capture", "last": "capture", "timing": {"meanMs": 1.0}}],
+                "stampsLatchLate": True, "warning": "Raw pass values are not valid alone.",
+            }
+            timings.write_text(json.dumps(original))
 
             clock = gpu_clock.record(log, timings)
 
             report = json.loads(timings.read_text())
-            self.assertEqual(report["frame"], {"meanMs": 7.5})
+            self.assertEqual({key: value for key, value in report.items() if key != "gpuClock"}, original)
             self.assertEqual(gpu_clock.from_json(report["gpuClock"]), clock)
             self.assertEqual(clock.mhz, 1100.0)
 
@@ -199,7 +205,7 @@ class Windowed(unittest.TestCase):
 
 
 class TimingsComparison(unittest.TestCase):
-    """compare_timings: the lines that compare two runs' gpu-timings.json, pass by pass and for the frame span."""
+    """compare_timings: frame spans, requested ranges and only valid individual-pass comparisons."""
 
     @staticmethod
     def timings(span: float, clock):
@@ -221,6 +227,195 @@ class TimingsComparison(unittest.TestCase):
     def test_runs_without_a_record_compare_unchecked(self):
         lines = gpu_clock.compare_timings(self.timings(10.0, None), self.timings(9.0, None))
         self.assertIn("UNCHECKED", lines[0])
+
+    def test_legacy_reports_keep_individual_pass_comparisons(self):
+        lines = gpu_clock.compare_timings(self.timings(10.0, known(1296.0)), self.timings(8.0, known(1296.0)))
+        self.assertIn("| G-buffer | 5.000 | 4.000 | -1.000 | 5.000 | 4.000 |", lines)
+
+    def test_ordinary_driver_reports_keep_individual_pass_comparisons(self):
+        reference = self.timings(10.0, known(1296.0))
+        other = self.timings(8.0, known(1296.0))
+        reference.update(stampsLatchLate=False, warning=None)
+        other.update(stampsLatchLate=False, warning=None)
+
+        lines = gpu_clock.compare_timings(reference, other)
+
+        self.assertIn("| G-buffer | 5.000 | 4.000 | -1.000 | 5.000 | 4.000 |", lines)
+
+    def test_a_late_driver_in_either_report_hides_all_individual_pass_comparisons(self):
+        warning = "Individual pass times are omitted because timestamps can include neighbouring work."
+        for reference_late, other_late in [(True, True), (True, False), (False, True)]:
+            with self.subTest(reference_late=reference_late, other_late=other_late):
+                reference = self.timings(10.0, known(1296.0))
+                other = self.timings(8.0, known(1296.0))
+                reference.update(stampsLatchLate=reference_late, warning=warning if reference_late else None)
+                other.update(stampsLatchLate=other_late, warning=warning if other_late else None)
+                reference["passes"].append({"pass": "only reference", "meanMs": 3.0})
+                other["passes"].append({"pass": "only other", "meanMs": 4.0})
+
+                lines = gpu_clock.compare_timings(reference, other)
+
+                rows = [line for line in lines if line.startswith("| ")]
+                self.assertEqual(len(rows), 2, rows)
+                self.assertIn("| frame span | 10.000 | 8.000 | -2.000 | 10.000 | 8.000 |", lines)
+                self.assertIn(warning, "\n".join(lines))
+
+    def test_a_report_warning_without_a_driver_flag_still_prevents_individual_pass_comparisons(self):
+        reference = self.timings(10.0, None)
+        other = self.timings(8.0, None)
+        other["warning"] = "Raw individual pass values are not valid alone."
+
+        lines = gpu_clock.compare_timings(reference, other)
+
+        self.assertFalse(any(line.startswith("| G-buffer |") for line in lines), lines)
+        self.assertIn(other["warning"], "\n".join(lines))
+
+    def test_a_late_driver_flag_without_a_warning_still_explains_omitted_pass_comparisons(self):
+        reference = self.timings(10.0, None)
+        other = self.timings(8.0, None)
+        reference["stampsLatchLate"] = True
+
+        lines = gpu_clock.compare_timings(reference, other)
+
+        self.assertFalse(any(line.startswith("| G-buffer |") for line in lines), lines)
+        self.assertIn("Individual pass comparisons are omitted", "\n".join(lines))
+
+    def test_requested_ranges_use_the_reported_per_frame_aggregate_means(self):
+        for late in [False, True]:
+            with self.subTest(stamps_latch_late=late):
+                reference = self.timings(10.0, known(1296.0))
+                other = self.timings(8.0, known(648.0))
+                reference.update(stampsLatchLate=late, runs=[
+                    {"first": "bloom", "last": "capture", "timing": {"meanMs": 7.5}},
+                    {"first": "shadow maps", "last": "direct light", "timing": {"meanMs": 3.0}},
+                ])
+                other.update(stampsLatchLate=late, runs=[
+                    {"first": "bloom", "last": "capture", "timing": {"meanMs": 6.25}},
+                    {"first": "bloom", "last": "bloom", "timing": {"meanMs": 2.0}},
+                ])
+
+                lines = gpu_clock.compare_timings(reference, other)
+
+                ranges = [line for line in lines if line.startswith("| run ")]
+                self.assertEqual(ranges, [
+                    "| run bloom..capture | 7.500 | 6.250 | -1.250 | 7.500 | 3.125 |",
+                    "| run shadow maps..direct light | 3.000 |  |  | 3.000 |  |",
+                    "| run bloom..bloom |  | 2.000 |  |  | 1.000 |",
+                ])
+
+    def test_a_requested_range_can_be_compared_with_a_legacy_report_without_ranges(self):
+        reference = self.timings(10.0, None)
+        other = self.timings(8.0, None)
+        other["runs"] = [{"first": "bloom", "last": "capture", "timing": {"meanMs": 2.0}}]
+
+        lines = gpu_clock.compare_timings(reference, other)
+
+        self.assertIn("| run bloom..capture |  | 2.000 |  |  |  |", lines)
+        self.assertIn("| G-buffer | 5.000 | 4.000 | -1.000 |  |  |", lines)
+
+    def test_the_comparison_command_keeps_only_valid_rows_and_explanations(self):
+        with tempfile.TemporaryDirectory() as folder:
+            reference = Path(folder, "reference.json")
+            other = Path(folder, "other.json")
+            report = self.timings(10.0, None)
+            report.update(
+                stampsLatchLate=True, warning="Only the frame span and neighbouring sums are valid.",
+                runs=[{"first": "bloom", "last": "capture", "timing": {"meanMs": 3.0}}],
+            )
+            reference.write_text(json.dumps(report))
+            other.write_text(json.dumps(self.timings(8.0, None)))
+
+            result = subprocess.run(
+                ["python3", "-I", str(Path(__file__).with_name("gpu_clock.py")), "compare", str(reference), str(other)],
+                capture_output=True, text=True, check=False, timeout=10,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn(report["warning"], result.stdout)
+            self.assertIn("| frame span | 10.000 | 8.000 | -2.000 |", result.stdout)
+            self.assertIn("| run bloom..capture | 3.000 |  |  |", result.stdout)
+            self.assertNotIn("| G-buffer |", result.stdout)
+
+
+class DemoTiming(unittest.TestCase):
+    """The real timing wrapper forwards report warnings, with external build and renderer commands substituted."""
+
+    @staticmethod
+    def launch(report: dict, log: str, *options: str) -> subprocess.CompletedProcess:
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            commands = root / "commands"
+            commands.mkdir()
+            git = commands / "git"
+            git.write_text('#!/usr/bin/env bash\nprintf "%s\\n" "$DEMO_TEST_ROOT"\n')
+            git.chmod(0o755)
+            dotnet = commands / "dotnet"
+            dotnet.write_text("#!/usr/bin/env bash\nexit 0\n")
+            dotnet.chmod(0o755)
+            demo = root / "src/Tertius.Demo/bin/Release/net11.0/Tertius.Demo"
+            demo.parent.mkdir(parents=True)
+            demo.write_text(
+                '#!/usr/bin/env bash\ncp "$DEMO_TEST_ROOT/report.json" "$DEMO_TEST_ROOT/out/gpu-timings.json"\n'
+                'cat "$DEMO_TEST_ROOT/demo.log"\n'
+            )
+            demo.chmod(0o755)
+            (root / "report.json").write_text(json.dumps(report))
+            (root / "demo.log").write_text(log)
+            script = root / "script.json"
+            script.write_text("{}")
+            env = {
+                **os.environ,
+                "PATH": str(commands) + os.pathsep + os.environ["PATH"],
+                "DEMO_TEST_ROOT": folder,
+                "GPU_CALIBRATION_BIN": str(root / "no-gpu-clock"),
+                "TERTIUS_GPU_LOCK": str(root / "gpu.lock"),
+                "TERTIUS_GPU_QUEUE": str(root / "gpu.queue"),
+            }
+            return subprocess.run(
+                ["bash", str(Path(__file__).with_name("demo-timing.sh").resolve()), str(root / "out"), str(script), *options],
+                env=env, cwd=root, capture_output=True, text=True, check=False, timeout=30,
+            )
+
+    def test_a_late_driver_explanation_reaches_the_terminal_with_or_without_requested_ranges(self):
+        warning = "A pass can include neighbouring work. Individual pass times are omitted; raw values are not valid alone."
+        for requested in [False, True]:
+            with self.subTest(requested_ranges=requested):
+                report = {"frame": {"meanMs": 10.0}, "passes": [], "stampsLatchLate": True, "warning": warning}
+                span = "GPU frame span: mean 10.000 ms"
+                run = "GPU run bloom..capture: mean 3.000 ms"
+                report["runs"] = [{"first": "bloom", "last": "capture", "timing": {"meanMs": 3.0}}] if requested else []
+                log = "\n".join(["timed-start", "timed-end", warning, span, *([run] if requested else [])]) + "\n"
+
+                result = self.launch(report, log, *(["--gpu-run", "bloom..capture"] if requested else []))
+
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(result.stdout.splitlines().count(warning), 1, result.stdout)
+                self.assertIn(span, result.stdout)
+                self.assertEqual(run in result.stdout, requested)
+                self.assertTrue(result.stdout.splitlines()[-1].startswith("GPU clock over the timed span:"))
+
+    def test_an_ordinary_driver_keeps_its_individual_pass_output_without_a_warning(self):
+        report = {"frame": {"meanMs": 10.0}, "passes": [], "stampsLatchLate": False, "warning": None, "runs": []}
+        capture = "GPU capture: mean 3.000 ms"
+        span = "GPU frame span: mean 10.000 ms"
+
+        result = self.launch(report, "\n".join(["timed-start", "timed-end", capture, span]) + "\n")
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.splitlines()[:2], [capture, span])
+        self.assertTrue(result.stdout.splitlines()[-1].startswith("GPU clock over the timed span:"))
+
+    def test_a_legacy_report_without_validity_fields_keeps_its_individual_pass_output(self):
+        report = {"frame": {"meanMs": 10.0}, "passes": []}
+        capture = "GPU capture: mean 3.000 ms"
+        span = "GPU frame span: mean 10.000 ms"
+
+        result = self.launch(report, "\n".join(["timed-start", "timed-end", capture, span]) + "\n")
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stderr, "", "a legacy report needs no warning field")
+        self.assertEqual(result.stdout.splitlines()[:2], [capture, span])
+        self.assertTrue(result.stdout.splitlines()[-1].startswith("GPU clock over the timed span:"))
 
 
 class Launcher(unittest.TestCase):

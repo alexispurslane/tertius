@@ -35,6 +35,9 @@ public static partial class ScriptCommand
     /// <param name="Renderer">The settings that replace the headless renderer's defaults.</param>
     internal readonly record struct Headless(HeadlessVideo? Video, RendererOverrides Renderer)
     {
+        /// <summary>The inclusive FIRST..LAST pass runs requested with repeatable <c>--gpu-run</c>.</summary>
+        public IReadOnlyList<string> GpuRuns { get; init; } = [];
+
         /// <summary>
         /// Where the captures go: the video or the discard of <c>--video</c>, or without the option the PNG files of
         /// <paramref name="outFolder"/>, the output folder of the script run.

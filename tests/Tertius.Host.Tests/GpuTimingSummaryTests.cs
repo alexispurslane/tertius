@@ -33,6 +33,20 @@ public sealed class GpuTimingSummaryTests
     }
 
     [Fact]
+    public void AnOlderFinishedFrameCannotChangeTheRecordedRangeStatistics()
+    {
+        var summary = new GpuTimingSummary();
+        summary.Add(Frame(7, new("bloom", 1), new("capture", 2)));
+        summary.Add(Frame(6, new("bloom", 100), new("capture", 200)));
+        summary.Add(Frame(9, new("bloom", 4), new("capture", 8)));
+
+        var read = summary.Runs(["bloom..capture"]);
+
+        read.Problem.Should().BeNull();
+        read.Ok!.Single().Timing.Should().Be(new SpanSummary(Frames: 2, MeanMs: 7.5, MedianMs: 7.5, P95Ms: 12));
+    }
+
+    [Fact]
     public void ARenderWithNoTimingsAddsNothing()
     {
         var summary = new GpuTimingSummary();
@@ -40,6 +54,36 @@ public sealed class GpuTimingSummaryTests
         summary.Add(null);
 
         summary.Passes().Should().BeEmpty();
+    }
+
+    [Fact]
+    public void ANegativeFrameNumberIsNotAFinishedFrame()
+    {
+        var summary = new GpuTimingSummary();
+
+        summary.Add(Frame(-1, new PassTiming("capture", 1)));
+
+        summary.Frame().Should().BeNull();
+        summary.Passes().Should().BeEmpty();
+    }
+
+    [Fact]
+    public void AGpuRunTrimsOnlyOuterEndpointWhitespace()
+    {
+        var summary = new GpuTimingSummary();
+        summary.Add(Frame(0, new("shadow maps", 2), new("direct light", 3)));
+
+        var read = summary.Runs([" shadow maps .. direct light "]);
+
+        read.Problem.Should().BeNull();
+        read.Ok.Should()
+            .Equal(
+                new RunSummary(
+                    "shadow maps",
+                    "direct light",
+                    new SpanSummary(Frames: 1, MeanMs: 5, MedianMs: 5, P95Ms: 5)
+                )
+            );
     }
 
     [Fact]
@@ -124,6 +168,201 @@ public sealed class GpuTimingSummaryTests
 
     [Fact]
     public void ASummaryOfNoFramesHasNoFrameSummary() => new GpuTimingSummary().Frame().Should().BeNull();
+
+    [Fact]
+    public void AGpuRunIncludesBothEndpointsAndEveryActualPassBetweenThem()
+    {
+        var summary = new GpuTimingSummary();
+        summary.Add(
+            Frame(0, new("before", 100), new("bloom", 1), new("tone map", 2), new("capture", 4), new("after", 200))
+        );
+
+        var read = summary.Runs(["bloom..capture"]);
+        read.Problem.Should().BeNull();
+        var runs = read.Ok!;
+
+        runs.Should()
+            .ContainSingle()
+            .Which.Should()
+            .Be(new RunSummary("bloom", "capture", new SpanSummary(Frames: 1, MeanMs: 7, MedianMs: 7, P95Ms: 7)));
+    }
+
+    [Fact]
+    public void SeveralGpuRunsKeepTheirRequestedOrderAndMayShareEndpoints()
+    {
+        var summary = new GpuTimingSummary();
+        summary.Add(Frame(0, new("bloom", 1), new("tone map", 2), new("capture", 4)));
+
+        var read = summary.Runs(["tone map..capture", "bloom..tone map", "capture..capture"]);
+        read.Problem.Should().BeNull();
+        var runs = read.Ok!;
+
+        runs.Select(run => run.Timing.MeanMs).Should().Equal(6, 3, 4);
+        runs.Select(run => (run.First, run.Last))
+            .Should()
+            .Equal(("tone map", "capture"), ("bloom", "tone map"), ("capture", "capture"));
+    }
+
+    [Fact]
+    public void GpuRunPercentilesSummarizePerFrameSumsRatherThanSumPassPercentiles()
+    {
+        var summary = new GpuTimingSummary();
+        for (int frame = 0; frame < 20; frame++)
+            summary.Add(Frame(frame, new("bloom", frame + 1), new("capture", 20 - frame)));
+
+        var read = summary.Runs(["bloom..capture"]);
+        read.Problem.Should().BeNull();
+        SpanSummary timing = read.Ok!.Single().Timing;
+
+        timing.Should().Be(new SpanSummary(Frames: 20, MeanMs: 21, MedianMs: 21, P95Ms: 21));
+        summary.Passes().Sum(pass => pass.P95Ms).Should().Be(38, "each pass has a different slow frame");
+    }
+
+    [Fact]
+    public void GpuRunMediansSummarizePerFrameSumsRatherThanSumPassMedians()
+    {
+        var summary = new GpuTimingSummary();
+        summary.Add(Frame(0, new("bloom", 1), new("capture", 1)));
+        summary.Add(Frame(1, new("bloom", 1), new("capture", 10)));
+        summary.Add(Frame(2, new("bloom", 10), new("capture", 1)));
+
+        var read = summary.Runs(["bloom..capture"]);
+        read.Problem.Should().BeNull();
+        read.Ok!.Single().Timing.MedianMs.Should().Be(11);
+    }
+
+    [Fact]
+    public void AGpuRunUsesEachFramesActualPassOrderEvenWhenAnInteriorPassIsSkipped()
+    {
+        var summary = new GpuTimingSummary();
+        summary.Add(Frame(0, new("first", 1), new("last", 4)));
+        summary.Add(Frame(1, new("first", 2), new("conditional", 8), new("last", 6)));
+
+        var read = summary.Runs(["first..last"]);
+        read.Problem.Should().BeNull();
+        read.Ok!.Single().Timing.Should().Be(new SpanSummary(Frames: 2, MeanMs: 10.5, MedianMs: 10.5, P95Ms: 16));
+    }
+
+    [Fact]
+    public void AnEmptyRecordedPassIsAnEndpointNotAMissingPass()
+    {
+        var summary = new GpuTimingSummary();
+        summary.Add(Frame(0, new("bloom", 0), new("capture", 4)));
+
+        var read = summary.Runs(["bloom..capture"]);
+        read.Problem.Should().BeNull();
+        read.Ok!.Single().Timing.MeanMs.Should().Be(4);
+    }
+
+    [Theory]
+    [InlineData("unknown..capture", "unknown")]
+    [InlineData("bloom..unknown", "unknown")]
+    public void AnUnknownGpuRunEndpointNamesTheProblemAndTheAvailablePasses(string run, string missing)
+    {
+        var summary = new GpuTimingSummary();
+        summary.Add(Frame(0, new("bloom", 1), new("capture", 4)));
+
+        summary
+            .Runs([run])
+            .Problem.Should()
+            .Contain("--gpu-run")
+            .And.Contain(missing)
+            .And.Contain("Available passes: bloom, capture");
+    }
+
+    [Theory]
+    [InlineData("Bloom..capture", "Bloom")]
+    [InlineData("bloom..Capture", "Capture")]
+    public void AGpuRunEndpointMustMatchTheRecordedPassNameCase(string run, string missing)
+    {
+        var summary = new GpuTimingSummary();
+        summary.Add(Frame(7, new("bloom", 1), new("capture", 4)));
+
+        var read = summary.Runs([run]);
+
+        read.Problem.Should().Contain($"unknown pass '{missing}'").And.Contain("Available passes: bloom, capture");
+    }
+
+    [Fact]
+    public void AReversedGpuRunExplainsTheRequiredFrameOrder()
+    {
+        var summary = new GpuTimingSummary();
+        summary.Add(Frame(7, new("bloom", 1), new("capture", 4)));
+
+        summary
+            .Runs(["capture..bloom"])
+            .Problem.Should()
+            .Contain("capture..bloom")
+            .And.Contain("before")
+            .And.Contain("frame 7");
+    }
+
+    [Theory]
+    [InlineData("bloom")]
+    [InlineData("capture")]
+    public void AGpuRunRejectsAMissingEndpointInAnyRecordedFrameWithoutDiscardingThatFrame(string missing)
+    {
+        var summary = new GpuTimingSummary();
+        summary.Add(Frame(7, new("bloom", 1), new("capture", 4)));
+        summary.Add(Frame(9, new PassTiming(missing == "bloom" ? "capture" : "bloom", 2)));
+
+        summary
+            .Runs(["bloom..capture"])
+            .Problem.Should()
+            .Contain(missing)
+            .And.Contain("frame 9")
+            .And.Contain("not recorded");
+        summary.Frame()!.Value.Frames.Should().Be(2);
+    }
+
+    [Theory]
+    [InlineData("bloom")]
+    [InlineData("capture")]
+    public void AnEndpointFirstRecordedInALaterFrameReportsTheEarlierMissingFrame(string missing)
+    {
+        var summary = new GpuTimingSummary();
+        summary.Add(Frame(7, new PassTiming(missing == "bloom" ? "capture" : "bloom", 2)));
+        summary.Add(Frame(9, new("bloom", 1), new("capture", 4)));
+
+        var read = summary.Runs(["bloom..capture"]);
+
+        read.Problem.Should().Contain($"endpoint '{missing}'").And.Contain("not recorded in frame 7");
+    }
+
+    [Fact]
+    public void AGpuRunRejectsAnOrderThatReversesInALaterFrame()
+    {
+        var summary = new GpuTimingSummary();
+        summary.Add(Frame(7, new("bloom", 1), new("capture", 4)));
+        summary.Add(Frame(9, new("capture", 2), new("bloom", 3)));
+
+        summary.Runs(["bloom..capture"]).Problem.Should().Contain("frame 9").And.Contain("before");
+    }
+
+    [Fact]
+    public void RequestedGpuRunsNeedRecordedFrames()
+    {
+        new GpuTimingSummary().Runs(["bloom..capture"]).Problem.Should().Contain("no GPU timings");
+    }
+
+    [Fact]
+    public void AGpuRunCountsEachFinishedFrameOnceAfterTheRendererRewritesItsStorage()
+    {
+        var summary = new GpuTimingSummary();
+        PassTiming[] storage = [new("bloom", 1), new("capture", 2)];
+        var first = new GpuTimings(Frame: 7, Passes: storage, SpanMilliseconds: 100);
+        summary.Add(first);
+        summary.Add(first);
+        summary.Add(null);
+        storage[0] = new("bloom", 4);
+        storage[1] = new("capture", 8);
+        summary.Add(new GpuTimings(Frame: 9, Passes: storage, SpanMilliseconds: 200));
+
+        var read = summary.Runs(["bloom..capture"]);
+        read.Problem.Should().BeNull();
+        read.Ok!.Single().Timing.Should().Be(new SpanSummary(Frames: 2, MeanMs: 7.5, MedianMs: 7.5, P95Ms: 12));
+        summary.Frame()!.Value.MeanMs.Should().Be(150, "the frame span is not replaced by a run sum");
+    }
 
     [Fact]
     public void TheSummaryKeepsTheTimesOfAFrameAfterTheRendererRewritesItsStorage()

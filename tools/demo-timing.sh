@@ -6,8 +6,9 @@
 # Run it from the checkout whose demo it times. It builds the demo in Release and runs the built binary with --headless
 # --out <out folder> --video none and the demo options, so the run holds no build. The run's output goes to
 # <out folder>/run.log. The script writes the clock over the run's timed span into <out folder>/gpu-timings.json as
-# "gpuClock", and prints the GPU lines of the run: one per pass, the frame span and the clock. tools/gpu_clock.py compare
-# compares two such runs. A demo from before ter-qk78 prints no markers, so its clock is unknown.
+# "gpuClock", and prints the report's warning and the GPU lines of the run: valid pass times, the frame span, requested
+# range sums and the clock. tools/gpu_clock.py compare compares two such runs. A demo from before ter-qk78 prints no
+# markers, so its clock is unknown.
 set -uo pipefail
 
 usage="usage: tools/demo-timing.sh <out folder> <script.json> [demo options]"
@@ -34,4 +35,13 @@ if [[ ! -f "$out/gpu-timings.json" ]]; then
     exit 1
 fi
 python3 -I "$tools/gpu_clock.py" record "$out/run.log" "$out/gpu-timings.json" > /dev/null
+python3 -I - "$out/gpu-timings.json" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1]) as timings:
+    warning = json.load(timings).get("warning")
+if warning:
+    print(warning)
+PY
 grep -E '^GPU ' "$out/run.log"

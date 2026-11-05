@@ -296,7 +296,7 @@ public sealed class ScriptCommandCaptureTests : IDisposable
     }
 
     [Fact]
-    public void AHeadlessFilmPrintsOneLineWithTheGpuTimeOfEachPassThenOneWithTheGpuSpanOfTheFrame()
+    public void AHeadlessFilmPrintsIndividualPassTimesOnlyOnADriverWhoseStampsDoNotLatchLate()
     {
         string script = ScriptFile(
             """{ "scene": "lit-box", "window": { "width": 160, "height": 90 }, "steps": [ { "do": "film", "name": "box", "frames": 6, "every": 1 } ] }"""
@@ -324,7 +324,111 @@ public sealed class ScriptCommandCaptureTests : IDisposable
             .Where(line => line.StartsWith("GPU ", StringComparison.Ordinal))
             .Select(line => line[..line.IndexOf(": mean ", StringComparison.Ordinal)])
             .Should()
-            .Equal([.. FramePasses.Select(pass => "GPU " + pass), "GPU frame span"]);
+            .Equal(
+                made[0].StampsLatchLate
+                    ? ["GPU frame span"]
+                    : [.. FramePasses.Select(pass => "GPU " + pass), "GPU frame span"]
+            );
+    }
+
+    [Fact]
+    public void AHeadlessFilmReportsEveryRequestedGpuRunBesideTheUnchangedRawPasses()
+    {
+        string script = ScriptFile(
+            """{ "scene": "lit-box", "window": { "width": 160, "height": 90 }, "steps": [ { "do": "film", "name": "box", "frames": 3, "every": 1 } ] }"""
+        );
+        var made = new List<VulkanRenderer>();
+
+        int code = ScriptCommand.Run(
+            args:
+            [
+                "--script",
+                script,
+                "--headless",
+                "--out",
+                Out,
+                "--video",
+                "none",
+                "--gpu-run",
+                "bloom..capture",
+                "--gpu-run",
+                "shadow maps..direct light",
+            ],
+            scenes: [LitBoxScene],
+            output: output,
+            error: error,
+            createRenderer: options =>
+            {
+                made.Add(VulkanRenderer.CreateHeadless(options));
+                return made[^1];
+            }
+        );
+
+        if (!made[0].TimesPasses)
+            Assert.Skip($"{made[0].DeviceName} writes no timestamps on its graphics queue.");
+        code.Should().Be(ScriptCommand.Ok, error.ToString());
+        using var json = JsonDocument.Parse(File.ReadAllText(Path.Combine(Out, ScriptCommand.GpuTimingsFile)));
+        JsonElement[] runs = [.. json.RootElement.GetProperty("runs").EnumerateArray()];
+        runs.Select(run => (run.GetProperty("first").GetString(), run.GetProperty("last").GetString()))
+            .Should()
+            .Equal(("bloom", "capture"), ("shadow maps", "direct light"));
+        runs.Should().AllSatisfy(run => run.GetProperty("timing").GetProperty("frames").GetInt32().Should().Be(3));
+        json.RootElement.GetProperty("passes")
+            .EnumerateArray()
+            .Select(pass => pass.GetProperty("pass").GetString())
+            .Should()
+            .Equal(FramePasses);
+        json.RootElement.GetProperty("stampsLatchLate").GetBoolean().Should().Be(made[0].StampsLatchLate);
+        output
+            .ToString()
+            .Should()
+            .Contain("GPU run bloom..capture: mean ")
+            .And.Contain("GPU run shadow maps..direct light: mean ");
+    }
+
+    [Theory]
+    [InlineData("unknown..capture", "unknown pass 'unknown'")]
+    [InlineData("capture..bloom", "is reversed")]
+    public void AnInvalidGpuRunIsACommandLineErrorRatherThanAnInternalFailure(string run, string problem)
+    {
+        string script = ScriptFile(
+            """{ "scene": "lit-box", "window": { "width": 160, "height": 90 }, "steps": [ { "do": "capture", "name": "box" } ] }"""
+        );
+        var made = new List<VulkanRenderer>();
+
+        int code = ScriptCommand.Run(
+            args: ["--script", script, "--headless", "--out", Out, "--video", "none", "--gpu-run", run],
+            scenes: [LitBoxScene],
+            output: output,
+            error: error,
+            createRenderer: options =>
+            {
+                made.Add(VulkanRenderer.CreateHeadless(options));
+                return made[^1];
+            }
+        );
+
+        if (!made[0].TimesPasses)
+            Assert.Skip($"{made[0].DeviceName} writes no timestamps on its graphics queue.");
+        code.Should().Be(ScriptCommand.CommandLineError);
+        error.ToString().Should().Contain("--gpu-run").And.Contain(problem).And.NotContain("The run failed");
+        File.Exists(Path.Combine(Out, ScriptCommand.GpuTimingsFile)).Should().BeFalse();
+    }
+
+    [Fact]
+    public void GpuRunsOnAScriptWithoutRenderedFramesExplainWhyNoTimingsExist()
+    {
+        string script = ScriptFile("""{ "scene": "lit-box", "steps": [ { "do": "dump", "name": "box" } ] }""");
+
+        int code = ScriptCommand.Run(
+            args: ["--script", script, "--headless", "--out", Out, "--gpu-run", "bloom..capture"],
+            scenes: [LitBoxScene],
+            output: output,
+            error: error
+        );
+
+        code.Should().Be(ScriptCommand.CommandLineError);
+        error.ToString().Should().Contain("--gpu-run").And.Contain("no GPU timings");
     }
 
     [Fact]
@@ -402,7 +506,7 @@ public sealed class ScriptCommandCaptureTests : IDisposable
     }
 
     [Fact]
-    public void AHeadlessFilmOnADriverWhoseStampsLatchLateSaysBetweenThePassTimesAndTheSpanThatOnlySumsOfPassesHold()
+    public void AHeadlessFilmExplainsWhyIndividualPassTimesAreOmittedOnlyWhenItsDriverLatchesStampsLate()
     {
         string script = ScriptFile(
             """{ "scene": "lit-box", "window": { "width": 160, "height": 90 }, "steps": [ { "do": "film", "name": "box", "frames": 6, "every": 1 } ] }"""
@@ -426,9 +530,7 @@ public sealed class ScriptCommandCaptureTests : IDisposable
             Assert.Skip($"{made[0].DeviceName} writes no timestamps on its graphics queue.");
         string[] lines = output.ToString().Split(Environment.NewLine);
         int span = Array.FindIndex(lines, line => line.StartsWith("GPU frame span: ", StringComparison.Ordinal));
-        string[] expected = made[0].StampsLatchLate
-            ? [$"GPU {FramePasses[^1]}", ScriptCommand.LateStampsNote]
-            : [$"GPU {FramePasses[^1]}"];
+        string[] expected = made[0].StampsLatchLate ? [ScriptCommand.LateStampsNote] : [$"GPU {FramePasses[^1]}"];
         lines[(span - expected.Length)..span]
             .Select(line =>
                 line.StartsWith("GPU ", StringComparison.Ordinal)
@@ -438,8 +540,10 @@ public sealed class ScriptCommandCaptureTests : IDisposable
             .Should()
             .Equal(
                 expected,
-                "the note follows the last pass's time on a driver whose stamps latch late, and only there"
+                "the note replaces individual pass lines on a driver whose stamps latch late, and only there"
             );
+        if (made[0].StampsLatchLate)
+            output.ToString().Should().Contain("Individual pass times are omitted");
     }
 
     [Fact]
