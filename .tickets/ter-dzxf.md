@@ -46,3 +46,10 @@ It starts after ter-sftw, because the profiling spike measures where the walk's 
 **2026-11-04T18:24:14Z**
 
 2026-11-04: the user widened the mandate ("spare no expense": unrolling, hard-coded and pre-calculated values, a Mac-only Metal path chosen by platform, papers, anything). Run 19acc6a3 was stopped only to widen the brief; its harness (tools/walk-hill-climb, uncommitted) and logs (/private/tmp/ter-dzxf.vv9W25) stay. Continuation run 24378142-987f-40a2-89ed-2bfd0c891caa (version 869b0b07, GPT 6.1 SOL at xhigh) on the same worktree, diffuse cap 62 by the user's decision. Settled: the gate stays for the main line; approximations are a second track reported as options with tile bias and FLIP; the SPIR-V path stays the portable reference; a Mac-only path must pass the same gate with the platform choice in one place, and its adoption is the user's fork. A survey researcher (GPT 6.1 SOL, xhigh) writes /private/tmp/dzxf-survey.md for the climber.
+
+
+## Port note from ter-gayt, 2026-11-04
+
+The engine port keeps V6's slab tests but replaces its 0.005 px position nudge with `childAt` and `solved` cell tracking. Commit `17ccadd9c` records 978 skipped hits among 1,000,000 random rays with the nudge. Preserve that correctness change when porting the winning walk. The winning changes belong to ter-rgg9 after ter-gayt, not to this fix stage. The ter-gayt fix report records a comparison of mean cell counts, not a new GPU timing claim.
+
+That comparison used 1,000,000 random rays at seed 20261104, a 128 × 96 room and cap 4,096: the port averaged 10.470271 cells and nudged V6 10.454608, about 0.15 % fewer. The port matched the flat-slab march on every ray. This is not the spike's deck input or a measurement of GPU time. Evidence: `/private/tmp/gayt-fix/walk-steps.log` and `ScreenWalkTests.RandomRays`.

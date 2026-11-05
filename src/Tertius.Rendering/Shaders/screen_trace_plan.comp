@@ -15,12 +15,7 @@ float historyLengthOf(ivec2 pixel, uint kind)
 {
     uint bits = imageLoad(surfaceTest, pixel).r;
     Reprojection r = reprojectionOf(lastPlaceAt(pixel), kind == KindDiffuse ? bits & 0xFu : (bits >> 4) & 0xFu);
-    vec4 lengths = vec4(0.0);
-    for (uint tap = 0u; tap < 4u; tap++)
-        if (r.weights[tap] > 0.0)
-            lengths[tap] = kind == KindDiffuse ? imageLoad(slowDiffuse, tapTexel(r, tap)).a
-                : imageLoad(slowSpecular, tapTexel(r, tap)).a;
-    return reprojectedLength(r, lengths);
+    return kind == KindDiffuse ? slowDiffuseAt(r).a : slowSpecularAt(r).a;
 }
 
 // Whether the block's ray from its chosen pixel c fits the pixel p: c's plane passes p's surface point within the

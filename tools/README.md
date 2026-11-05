@@ -580,7 +580,7 @@ So a difference between two builds' estimates below about 8 % says nothing about
 nix develop --command bash tools/demo-timing.sh captures/gpu-branch scripts/demo-exit.json --size 1920x1080
 ```
 
-A headless run waits for each captured frame, so its GPU idles between frames. At 1280 × 720, the deck then runs far below the top clock. The demo option `--in-flight 2` keeps two frames on the GPU, as a window does, and the film's images and exposures stay the same. Make the 120 frames of the deck from frame 399 with `gpu-trace.py trim` (see "GPU calibration"), and time them:
+A headless run waits for each captured frame, so its GPU idles between frames. At 1280 × 720, the deck then runs far below the top clock. The demo option `--in-flight 2` sets `FramesInFlight` to 2 and keeps captures in flight. `--in-flight 1` sets one frame and waits for its capture. Without the option, both defaults stay unchanged. Two frames keep work on the GPU, as a window does, and the film's images and exposures stay the same. Make the 120 frames of the deck from frame 399 with `gpu-trace.py trim` (see "GPU calibration"), and time them:
 
 ```bash
 nix develop --command python3 -I tools/gpu-trace.py trim scripts/demo-exit.json 399 120 /private/tmp/deck-120.json
@@ -615,6 +615,18 @@ python3 -I tools/gpu_clock.py compare captures/gpu-base/gpu-timings.json capture
 ```bash
 nix develop --command python3 -I tools/test_gpu_clock.py
 ```
+
+## The screen walk's buffer reads
+
+After each change to `walkScreen`, dump the final ray kernels with `MVK_CONFIG_SHADER_DUMP_DIR` set to a fresh directory. Run the renderer inside the Nix dev shell. Keep both the block and own ray kernels, for both ray kinds. MoltenVK names the dumps by hash and strips the source names. Match each dumped `.spv` byte for byte with `screen_trace_block_rays.comp.spv` or `screen_trace_own_rays.comp.spv` in the engine's build output, then inspect its sibling `.metal` file. Both ray kinds use each kernel, selected by specialization constant 5.
+
+`tools/sol-walk/loop-reads.py` counts device-buffer accesses inside the unbounded walk loop in a Metal dump. The count must be 0 (temporal-renderer.md, decision 44). Texture fetches and the frame uniform do not count as per-ray buffer inputs. Inspect the file's `device` parameters first. The regex below matches the device-buffer access syntax in MoltenVK's current dumps:
+
+```sh
+nix develop --command python3 -I tools/sol-walk/loop-reads.py /private/tmp/trace-msl/shader-cs-HASH.metal 'm_[0-9]+\)\._m0\['
+```
+
+The directory above is an example, not a shared output directory. Check the actual `device` buffer names in each dump. The array-access regex above is not enough for scalar members such as exposure. Also run with a regex for every device pointer, such as `m_(756|3879|3887)\)`, using that dump's names. An own-ray list read in its outer stride loop is one read per ray, not one read per walk step. The tool recognizes unbounded `for (;;)` and `while` loops, not structured `for (init; condition; step)` loops. Inspect that outer loop separately. A zero count from an older kernel does not check a changed kernel.
 
 ## GPU calibration
 

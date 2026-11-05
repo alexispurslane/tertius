@@ -34,7 +34,7 @@ namespace Tertius.Host;
 /// it off.</item>
 /// <item><c>--subsurface on|off</c> keeps the headless renderer's default <see cref="SeparableSubsurface"/>, or turns the
 /// skin scatter off.</item>
-/// <item><c>--in-flight 1|2</c> keeps the headless renderer's default, which waits for each captured frame, or keeps two
+/// <item><c>--in-flight 1|2</c> sets the headless renderer's frame count. One waits for each capture, and two keep both
 /// frames in flight, as a window does, so that a timed film keeps the GPU at its top clock
 /// (<see cref="RendererOptions.CapturesInFlight"/>).</item>
 /// <item><c>--scene &lt;name&gt; [--speed &lt;factor&gt;] [--record &lt;file&gt;]</c> runs a scene live in a window until you close it.
@@ -851,7 +851,9 @@ public static partial class ScriptCommand
             CascadedLights = CascadedLightsOf(given.Value("--cascaded-lights")),
             EnvironmentMapOff = given.Value("--environment-map") == "off",
             SubsurfaceOff = given.Value("--subsurface") == "off",
-            CapturesInFlight = given.Value("--in-flight") == "2",
+            FramesInFlight = given.Value("--in-flight") is { } count
+                ? int.Parse(count, CultureInfo.InvariantCulture)
+                : null,
         };
 
     private static string? SpeedProblem(string speed) =>

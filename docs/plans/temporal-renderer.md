@@ -670,7 +670,7 @@ The caps. A reflection walk takes at most `ReflectionSteps`, 256 steps, and a di
 
 The kernel. A kind's ray setup, walk and shading run in one invocation (decision 40). A walk in a pass of its own runs at a higher occupancy, but it takes the time of the whole trace. Its setup and shading passes then add 0.6 to 0.9 ms (profiling-spike.md, "The parts of the trace"). The kernel reads each per-ray input from a buffer in the words form (decision 44). One kernel source serves both kinds and both dispatches of a kind, by specialization constants.
 
-The one place. `walkScreen` holds the step and the loop to the cap (decision 45). Ticket 4 takes the profiling spike's `twoDepthStep` and `leanWalkOf` from `lean_trace.glsl` on the branch `ter-sftw-profiling-spike`. It keeps their logic, and it adds only the hair rule. It drops the spike's counters and the coarse levels of V4. So the hill-climb's change, which it makes on the spike's walk, ports by hand to this one place. The climb runs at the diffuse cap of 64, and its change does not depend on the cap.
+The one place. `walkScreen` holds the step and the loop to the cap (decision 45). Ticket 4 takes the profiling spike's `twoDepthStep` and `leanWalkOf` from `lean_trace.glsl` on the branch `ter-sftw-profiling-spike`. It keeps their slab tests and adds the hair rule. The port replaces the spike's 0.005 px position nudge with explicit cell tracking through `childAt` and `solved`. The nudge skipped a slab entered within 0.005 px of its far edge on 978 of 1,000,000 random rays (commit `17ccadd9c`). The port removes those missed hits. It drops the spike's counters and the coarse levels of V4. So the hill-climb's change, which it makes on the spike's walk, ports by hand to this one place. The climb uses decision 41's diffuse cap of 62, and its change does not depend on the cap. Its winning changes port in ter-rgg9 after this ticket.
 
 These changes keep the hits, and each waits for a measurement through the hill-climb or a ticket of its own:
 
@@ -1232,6 +1232,8 @@ The profiling spike timed the two-depth walk at the top clock. Each kind's trace
 
 At the caps of decision 41 and 10 % own rays, the trace takes 3.90 ms on the deck. So the deck's frame is an estimated 12.1 to 13.0 ms until the hill-climb lands (`ter-dzxf`). No complete frame of the floor exists after `ter-9nrc`, so the floor's rows hold only against the deck's room. Own rays for 25 % of the pixels fit in no setting. Decision 43 sets what follows: ticket 4 traces full rays, measures the frame and reports it.
 
+The port's cell tracking was compared with the spike's nudged V6 on 2026-11-04 by `ScreenWalkTests.RandomRays`: 1,000,000 random rays, seed 20261104, a 128 × 96 room and a cap of 4,096. The mean was 10.470271 cells for the port and 10.454608 for nudged V6, a difference of 0.015663 cells, about 0.15 %. The port still agreed with the flat-slab march for every ray. This CPU cell-count comparison is not a GPU timing and does not rescale V6's 3.90 ms or attribute the deck's measured 8.27 ms. The log is `/private/tmp/gayt-fix/walk-steps.log`.
+
 What the spike's times leave out:
 
 - The spike's hit read the direct image, the distance and the normal. The design's hit also reads the material, the emission and the light mark. It reads the last frame's fast histories at the hit's previous place too (section 6, "Where a hit's light comes from"). No run measured that cost.
@@ -1247,7 +1249,7 @@ Measured on 2026-11-04 (`ter-gayt`, part 7). The note on `ter-gayt` holds the re
 - A trace of the deck gave the tracer's passes 11.80 ms in sum: the reflection rays 8.27 ms, the diffuse rays 1.03 ms, the plan 0.32 ms, the resolve 0.24 ms, the depth pyramid with its finest level 0.27 ms, and the two accumulations 0.51 and 1.16 ms.
 - The ray plan gave own reflection rays to 59 % of the deck's pixels in a converged frame, and to 37 % of the floor's on average, from 31 to 63 %. Own diffuse rays went to about 1.2 % on both. The spike's 10 % held for the diffuse rays, not for the reflection rays. Section 6, "The ray budget", names two causes that keep a pixel at its own reflection ray in every frame: a roughness below about 0.19, whose specular cap of 4 stays below `FullRateFrames`, and an anti-lag that cuts the history below 8 frames. Part 7 did not split the deck's share between them. On a flat floor of roughness 0.38, the own reflection rays fell from 81,220 to 2,133 pixels in 12 frames, so the plan's rule works where the block's ray fits.
 - In the 8 frames after a camera cut, 70.5 % of the pixels traced own rays of both kinds, and the deck's mean frame span over the cuts was 21.9 ms, with a p95 of 30.6 ms (`scripts/demo-exit-deck-cuts.json`).
-- The 64-lamp hall was not timed.
+- The 64-lamp hall was not timed in part 7. Part 7's enumerated measurement list names only the deck, floor and camera cuts, so the builder left the hall outside those runs. The omission does not establish a hall time or satisfy the broader list above.
 
 ### The frame before ticket 5
 
@@ -1505,7 +1507,7 @@ The parts of stage 1 share one file, `VulkanRenderer.cs`. Part 2 adds one test h
 #### Part 1: the walk
 
 - Files: `Shaders/screen_walk.glsl`, new. `Shaders/screen_ray.glsl`, new: the image of a ray and the cells' geometry, which move from `reflection.glsl`. `Shaders/reflection.glsl` includes `screen_ray.glsl` until part 6 deletes it. Under design A of fork 2, also `Shading/ScreenRay.cs`, `Shading/DepthPyramid.cs` and their CPU tests.
-- Source: `twoDepthStep` and `leanWalkOf` of `lean_trace.glsl` on the branch `ter-sftw-profiling-spike`. The part keeps their logic and adds the hair rule. It drops the spike's counters and V4's coarse levels (section 6, "The traversal").
+- Source: `twoDepthStep` and `leanWalkOf` of `lean_trace.glsl` on the branch `ter-sftw-profiling-spike`. The part keeps their slab tests, adds the hair rule and replaces the position nudge with exact cell tracking, as "The traversal" records. It drops the spike's counters and V4's coarse levels (section 6, "The traversal").
 - Under design A of fork 2, the C# copy of today's trace stays beside the new copy until part 6. Today's reflection tests pin `traceRay` to it.
 
 The part gives part 5 this interface:

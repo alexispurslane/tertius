@@ -41,6 +41,11 @@ layout(set = 3, binding = 16, rgba16f) uniform writeonly image2D specularSample;
 OWN_RAY_LIST(3, 17, reflectionOwnRays);
 OWN_RAY_LIST(3, 18, diffuseOwnRays);
 
+HISTORY_READER(lastFastDiffuseAt, lastFastDiffuse)
+HISTORY_READER(lastFastSpecularAt, lastFastSpecular)
+HISTORY_READER(slowDiffuseAt, slowDiffuse)
+HISTORY_READER(slowSpecularAt, slowSpecular)
+
 // ScreenTracePushConstants.
 layout(push_constant, std430) uniform ScreenTracePush
 {
@@ -247,13 +252,9 @@ vec3 missLightOf(TracingPixel p, ivec2 pixel, uint kind, vec3 direction)
 // frame's exposure.
 vec3 lastFastOf(Reprojection r, uint kind)
 {
-    vec3 fast = vec3(0.0);
-    for (uint tap = 0u; tap < 4u; tap++)
-        if (r.weights[tap] > 0.0)
-            fast += r.weights[tap] * (kind == KindDiffuse ? imageLoad(lastFastDiffuse, tapTexel(r, tap)).rgb
-                : imageLoad(lastFastSpecular, tapTexel(r, tap)).rgb);
+    vec3 fast = kind == KindDiffuse ? lastFastDiffuseAt(r).rgb : lastFastSpecularAt(r).rgb;
     // As the accumulator rescales its histories (accumulate_temporal.comp): within 2^±64 and at most MaxRadiance.
-    return exposed(fast / dot(r.weights, vec4(1.0)), exp2(clamp(exposureStops - previousStops, -64.0, 64.0)));
+    return exposed(fast, historyRatio(exposureStops, previousStops));
 }
 
 // The pixel's place in the last frame's image, from its motion.

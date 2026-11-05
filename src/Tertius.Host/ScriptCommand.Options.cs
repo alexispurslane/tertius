@@ -77,8 +77,8 @@ public static partial class ScriptCommand
         /// <summary>True to turn the renderer's skin scatter off, false to keep its default.</summary>
         public bool SubsurfaceOff { get; init; }
 
-        /// <summary>True to keep the renderer's captures in flight, false to keep its default, which waits for each.</summary>
-        public bool CapturesInFlight { get; init; }
+        /// <summary>The frame count, 1 or 2, or null to keep the renderer's count and capture policy.</summary>
+        public int? FramesInFlight { get; init; }
 
         /// <summary>Replaces the defaults of <paramref name="options"/> with these overrides.</summary>
         public void ApplyTo(RendererOptions options)
@@ -99,8 +99,8 @@ public static partial class ScriptCommand
                 options.EnvironmentMap = new NoEnvironmentMap();
             if (SubsurfaceOff)
                 options.Subsurface = new NoSubsurface();
-            // Without an if: a branch more would take this function past CC 10.
-            options.CapturesInFlight |= CapturesInFlight;
+            options.FramesInFlight = FramesInFlight ?? options.FramesInFlight;
+            options.CapturesInFlight = FramesInFlight is { } count ? count > 1 : options.CapturesInFlight;
         }
     }
 }

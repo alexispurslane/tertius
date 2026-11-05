@@ -46,15 +46,8 @@ Reprojection placeOf(vec2 place, uint bits, bool ownTests, float hitDistance)
     return ownTests ? reprojectionOf(place, sameHitBits(r, bits, hitDistance)) : r;
 }
 
-// The last frame's fast history at a reprojection that holds one, rescaled to its weights.
-vec3 lastFastAt(Reprojection r)
-{
-    vec3 fast = vec3(0.0);
-    for (uint tap = 0u; tap < 4u; tap++)
-        if (r.weights[tap] > 0.0)
-            fast += r.weights[tap] * imageLoad(lastFast, tapTexel(r, tap)).rgb;
-    return fast / dot(r.weights, vec4(1.0));
-}
+HISTORY_READER(lastFastAt, lastFast)
+HISTORY_READER(lastSlowAt, slowHistory)
 
 // The mean luminance of this frame's finite samples over the 3 × 3 pixels around the pixel.
 float meanSampleLuminance(ivec2 pixel)
@@ -119,8 +112,8 @@ Reprojection historyPlaceOf(ivec2 pixel, float roughness, bool hasSample, float 
     if (!holdsHistory(surface))
         return reflected;
     float mean = meanSampleLuminance(pixel);
-    float surfaceOff = abs(luminance(lastFastAt(surface)) - mean);
-    float reflectedOff = abs(luminance(lastFastAt(reflected)) - mean);
+    float surfaceOff = abs(luminance(lastFastAt(surface).rgb) - mean);
+    float reflectedOff = abs(luminance(lastFastAt(reflected).rgb) - mean);
     return reflectedOff < surfaceOff ? reflected : surface;
 }
 
@@ -148,17 +141,8 @@ void main()
     // Step 1: the bilinear weights of the place over the 2 × 2 texels of the last frame's images around it, times the
     // pass bits. A failing tap and a tap outside the last image hold no weight: the surface test fails it.
     Reprojection r = historyPlaceOf(pixel, roughness, hasSample, hitDistance);
-    vec4 slow = vec4(0.0);
-    vec3 fast = vec3(0.0);
-    for (uint tap = 0u; tap < 4u; tap++)
-    {
-        if (r.weights[tap] == 0.0)
-            continue;
-        ivec2 texel = tapTexel(r, tap);
-        slow += r.weights[tap] * imageLoad(slowHistory, texel);
-        fast += r.weights[tap] * imageLoad(lastFast, texel).rgb;
-    }
-    float sum = dot(r.weights, vec4(1.0));
+    vec4 slow = lastSlowAt(r);
+    vec3 fast = lastFastAt(r).rgb;
 
     float historyLength = 0.0;
     if (holdsHistory(r))
@@ -166,11 +150,11 @@ void main()
         // Both histories hold pre-exposed light: the ratio 2^(S − S_last) keeps them in this frame's scale. A rise of more
         // than about one stop takes a history at MaxRadiance past the largest half float, so `exposed` caps the product at
         // MaxRadiance before it. Its bounds hold for a ratio of at most 2^64, and two exposures can lie 128 stops apart.
-        float ratio = exp2(clamp(exposureStops - previousStops, -64.0, 64.0));
+        float ratio = historyRatio(exposureStops, previousStops);
         // A length above this pixel's cap, from a neighbor of another roughness, is cut to it.
-        historyLength = min(slow.a / sum, cap);
-        slow.rgb = exposed(slow.rgb / sum, ratio);
-        fast = exposed(fast / sum, ratio);
+        historyLength = min(slow.a, cap);
+        slow.rgb = exposed(slow.rgb, ratio);
+        fast = exposed(fast, ratio);
     }
 
     // Step 2. A sample that is not finite counts as no sample: the pixel keeps its history and its length. Without a

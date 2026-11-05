@@ -164,7 +164,8 @@ public sealed class AmbientSkipsTests
                 layouts: context.Layouts,
                 constants: new ShaderConstants(EnvironmentMap: true),
                 scatter: scatter,
-                tracer: null
+                tracer: null,
+                targets: context.Targets
             );
         }
 

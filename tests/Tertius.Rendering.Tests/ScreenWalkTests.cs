@@ -55,7 +55,10 @@ public sealed class ScreenWalkTests
         RayTrace walked = RayOf(new(-1, 0.2f, -10.5f), direction, camera)
             .Walk(pyramid: ScreenTesting.Pyramid(camera, wall), direction: direction, maxSteps: Cap);
 
-        walked.TryGetValue(out RayHit _).Should().BeFalse($"the wall faces away from the ray, but the walk gave {walked}");
+        walked
+            .TryGetValue(out RayHit _)
+            .Should()
+            .BeFalse($"the wall faces away from the ray, but the walk gave {walked}");
     }
 
     [Fact]
@@ -77,7 +80,8 @@ public sealed class ScreenWalkTests
         DepthPyramid sky = ScreenTesting.Pyramid(camera, []);
         Vector3 origin = camera.ViewRayThrough(new(0.5f, 8)) * 5;
 
-        RayTrace walked = RayOf(origin, camera.Right, camera).Walk(pyramid: sky, direction: camera.Right, maxSteps: Cap);
+        RayTrace walked = RayOf(origin, camera.Right, camera)
+            .Walk(pyramid: sky, direction: camera.Right, maxSteps: Cap);
 
         walked.TryGetValue(out RayLeftTheSegment left).Should().BeTrue($"the ray crosses the sky, not {walked}");
         left.Steps.Should().BeLessThan(40, "the ray crosses 1,023 px, in cells that grow at each step");
@@ -96,7 +100,10 @@ public sealed class ScreenWalkTests
 
         RayTrace walked = ray.Walk(pyramid: pyramid, direction: Vector3.UnitX, maxSteps: Cap);
 
-        walked.TryGetValue(out RayLeftTheSegment left).Should().BeTrue($"the ray passes behind the block, not {walked}");
+        walked
+            .TryGetValue(out RayLeftTheSegment left)
+            .Should()
+            .BeTrue($"the ray passes behind the block, not {walked}");
         int marched = MarchedPixels(ray);
         marched.Should().BeGreaterThan(400, "the premise: the ray's image crosses most of the screen");
         left.Steps.Should().BeLessThan(marched / 4, "a cell behind every slab in it costs the walk one step");
@@ -104,7 +111,7 @@ public sealed class ScreenWalkTests
 
     /// <summary>The walk over many random rays, against the march over the flat slabs (tests/STYLE.md, "Long tests").
     /// </summary>
-    public sealed class RandomRays
+    public sealed class RandomRays(ITestOutputHelper output)
     {
         [Fact]
         public void AtACapOf4096TheTwoDepthWalkFindsTheHitOfAMarchOverTheFlatSlabsOnAMillionRandomRays()
@@ -113,6 +120,8 @@ public sealed class ScreenWalkTests
             DepthPyramid pyramid = ScreenTesting.Pyramid(camera, RoomScene);
             var random = new Random(20_261_104);
             int hits = 0;
+            long portSteps = 0,
+                spikeSteps = 0;
             var disagreements = new List<string>();
 
             for (int index = 0; index < 1_000_000; index++)
@@ -124,6 +133,13 @@ public sealed class ScreenWalkTests
                 ScreenRay ray = RayOf(origin, direction, camera);
 
                 RayTrace walked = ray.Walk(pyramid: pyramid, direction: direction, maxSteps: Cap);
+                if (walked.TryGetValue(out RayHit found))
+                    portSteps += found.Steps;
+                else if (walked.TryGetValue(out RayLeftTheSegment left))
+                    portSteps += left.Steps;
+                else
+                    portSteps += Cap;
+                spikeSteps += NudgedV6Steps(ray, pyramid, direction);
                 (int X, int Y)? marched = FlatSlabMarch(ray, pyramid, direction)?.Pixel;
 
                 (int X, int Y)? walkedPixel = walked.TryGetValue(out RayHit hit) ? hit.Pixel : null;
@@ -135,6 +151,70 @@ public sealed class ScreenWalkTests
 
             hits.Should().BeGreaterThan(200_000, "most random rays meet a surface of the scene");
             disagreements.Should().BeEmpty();
+            output.WriteLine(
+                $"1,000,000 random rays, seed 20261104, cap {Cap}: port mean {portSteps / 1e6:F6} cells; nudged V6 mean {spikeSteps / 1e6:F6} cells."
+            );
+        }
+
+        private static int NudgedV6Steps(ScreenRay ray, DepthPyramid pyramid, Vector3 direction)
+        {
+            Vector2 travel = new(MathF.Sign(ray.Step.X), MathF.Sign(ray.Step.Y));
+            Vector2 farSide = Vector2.Max(travel, Vector2.Zero);
+            float Exit(Vector2 cell, int level)
+            {
+                Vector2 edge = (cell + farSide) * (1 << level);
+                float horizontal = ray.Step.X != 0 ? (edge.X - ray.Start.X) / ray.Step.X : 1e30f;
+                float vertical = ray.Step.Y != 0 ? (edge.Y - ray.Start.Y) / ray.Step.Y : 1e30f;
+                return MathF.Min(MathF.Min(horizontal, vertical), ray.End);
+            }
+
+            float parameter = Exit(new(MathF.Floor(ray.Start.X), MathF.Floor(ray.Start.Y)), 0);
+            int level = 0;
+            int top = Math.Min(pyramid.TopLevel, ScreenRay.WalkTopLevel);
+            for (int steps = 0; steps < Cap; steps++)
+            {
+                if (parameter >= ray.End)
+                    return steps;
+                Vector2 position = ray.Start + ray.Step * parameter + travel * 0.005f;
+                int side = 1 << level;
+                Vector2 cell = new(MathF.Floor(position.X / side), MathF.Floor(position.Y / side));
+                float exit = MathF.Max(Exit(cell, level), parameter);
+                CellBounds bounds =
+                    level == 0
+                        ? CellBounds.OfSurface(pyramid.Finest((int)cell.X, (int)cell.Y))
+                        : pyramid.Bounds(level, (int)cell.X, (int)cell.Y);
+                float back = bounds.Far * (1 / (1 + CellBounds.ThicknessShare));
+                float inW = ray.StartInverseDepth + ray.StepInverseDepth * parameter;
+                float outW = ray.StartInverseDepth + ray.StepInverseDepth * exit;
+                bool meets = bounds.Near > 0 && MathF.Min(inW, outW) <= bounds.Near && MathF.Max(inW, outW) >= back;
+                float entry = parameter;
+                if (meets && inW > bounds.Near)
+                    entry = (bounds.Near - ray.StartInverseDepth) / ray.StepInverseDepth;
+                else if (meets && inW < back)
+                    entry = (back - ray.StartInverseDepth) / ray.StepInverseDepth;
+                entry = MathF.Min(MathF.Max(entry, parameter), exit);
+                if (meets && level > 0)
+                {
+                    parameter = entry;
+                    level--;
+                    continue;
+                }
+                Vector2 hit = Vector2.Clamp(ray.Start + ray.Step * entry, cell, cell + Vector2.One);
+                if (
+                    meets
+                    && Vector3.Dot(
+                        pyramid.GeometricNormal(
+                            Math.Min((int)MathF.Floor(hit.X), pyramid.Width - 1),
+                            Math.Min((int)MathF.Floor(hit.Y), pyramid.Height - 1)
+                        ),
+                        direction
+                    ) < 0
+                )
+                    return steps + 1;
+                parameter = exit;
+                level = Math.Min(level + 1, top);
+            }
+            return Cap;
         }
 
         [Fact]

@@ -10,6 +10,20 @@ namespace Tertius.Host.Tests;
 /// </summary>
 public sealed class ScriptCommandOptionsTests
 {
+    [Theory]
+    [InlineData(1, false)]
+    [InlineData(2, true)]
+    public void AnExplicitInFlightCountReplacesAThreeFrameRenderer(int count, bool captures)
+    {
+        var renderer = new Tertius.Rendering.RendererOptions { FramesInFlight = 3, CapturesInFlight = true };
+        var overrides = new ScriptCommand.RendererOverrides { FramesInFlight = count };
+
+        overrides.ApplyTo(renderer);
+
+        renderer.FramesInFlight.Should().Be(count);
+        renderer.CapturesInFlight.Should().Be(captures);
+    }
+
     // Each option of the headless renderer, with a value that a headless run takes.
     private static readonly string[][] RendererOptions =
     [
@@ -415,7 +429,7 @@ public sealed class ScriptCommandOptionsTests
             CascadedLights = 2,
             EnvironmentMapOff = true,
             SubsurfaceOff = true,
-            CapturesInFlight = true,
+            FramesInFlight = 2,
         };
         options
             .Should()

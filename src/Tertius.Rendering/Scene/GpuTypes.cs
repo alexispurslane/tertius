@@ -191,7 +191,8 @@ internal struct GpuInstance
         Vector3 axisZ,
         Vector3 origin,
         uint material,
-        int placedIndex
+        int placedIndex,
+        bool holdsLight
     ) =>
         new()
         {
@@ -200,6 +201,7 @@ internal struct GpuInstance
             ModelRow2 = new(x: axisX.Z, y: axisY.Z, z: axisZ.Z, w: origin.Z),
             Material = material,
             PlacedIndex = (uint)placedIndex,
+            HoldsLight = holdsLight ? 1u : 0u,
         };
 
     private static float InverseSquare(float s) => s != 0 ? 1f / (s * s) : 0f;
@@ -752,7 +754,7 @@ internal struct AccumulatePushConstants
         };
 }
 
-/// <summary>The push constants of the screen tracer's four passes, screen_trace.glsl (<see cref="ScreenTracePass"/>).</summary>
+/// <summary>The push constants of the screen tracer's four passes, screen_trace.glsl (<see cref="ScreenTraceKernel"/>).</summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct ScreenTracePushConstants
 {

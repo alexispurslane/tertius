@@ -64,7 +64,7 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
 
     /// <summary>
     /// The ray kind of a pipeline of the screen tracer's rays: 0 reflection rays, 1 diffuse rays (screen_trace.glsl), which
-    /// only <see cref="ScreenTracePass"/> sets.
+    /// only <see cref="ScreenTraceKernel"/> sets.
     /// </summary>
     public uint RayKind { get; init; }
 

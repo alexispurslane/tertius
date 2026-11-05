@@ -1,6 +1,7 @@
 // The two-depth walk of the screen tracer (docs/plans/temporal-renderer.md, section 6, "The traversal", decisions 40
 // and 45): V6 of the profiling spike over the depth pyramid's finest level and its bounds. walkScreen is the one place of
-// the walk's step and loop, for both ray kinds. ScreenRay.Walk is the C# copy. Change both together.
+// the walk's step and loop, for both ray kinds. ScreenRay.Walk copies the geometry, without the hair-card rule.
+// AHairReceiversWalkPassesItsOwnCardAndHitsAnotherCard tests that rule on the GPU. Change both geometry copies together.
 #ifndef TERTIUS_SCREEN_WALK_GLSL
 #define TERTIUS_SCREEN_WALK_GLSL
 

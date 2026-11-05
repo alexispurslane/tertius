@@ -356,8 +356,8 @@ internal sealed class FrameGraph : IDisposable
 
         /// <summary>
         /// The skin scatter's two passes, under <see cref="SeparableSubsurface"/>: after the composite, so that the
-        /// scattered light holds the indirect light (docs/plans/skin-and-hair.md, decision 18). A reflection shows the last
-        /// frame's scattered skin, through the hit's history.
+        /// scattered light holds the indirect light (docs/plans/skin-and-hair.md, decision 18). A tracer hit reads the
+        /// histories before this scatter, so reflected skin has no scatter yet (ter-x8bz).
         /// </summary>
         SkinScatter,
 

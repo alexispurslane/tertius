@@ -35,7 +35,7 @@ namespace Tertius.Rendering;
 /// <item>The direct pass (<see cref="DirectLightPass"/>): one fullscreen pass into the direct light's two images, the
 /// diffuse and the specular light of every light that the main view keeps, each divided by its material factor and
 /// pre-exposed.</item>
-/// <item>The screen tracer (<see cref="ScreenTracePass"/>), under <see cref="ScreenTrace"/>: the ray plan, the
+/// <item>The screen tracer (<see cref="ScreenTraceKernel"/>), under <see cref="ScreenTrace"/>: the ray plan, the
 /// reflection rays and the diffuse rays, each kind's block rays and own rays through the depth pyramid, and the resolve,
 /// which writes the samples of the indirect diffuse and indirect specular signals. Then their accumulations
 /// (<see cref="AccumulatePass"/>).</item>
@@ -98,6 +98,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
 
     // The screen tracer's images and its two signals, under ScreenTrace, or null.
     private readonly ScreenTraceImages? screenTrace;
+    private readonly CompositePass compositePass;
     private readonly BarrierBatch barriers = new();
     private readonly GpuTimer timer;
     private readonly ExposureSetting exposureSetting;
@@ -172,6 +173,10 @@ public sealed unsafe class VulkanRenderer : IRenderer
             ScatterImages = CreateScatterImages(options.Subsurface);
             Exposure = CreateExposure(options);
             environmentMap = CreateEnvironmentMap(options);
+            ShadingConstants = new(EnvironmentMap: environmentMap is not null)
+            {
+                ScreenTraceOn = options.ScreenTrace is ScreenTrace,
+            };
             (ShadowMap, shadowAtlas) = CreateShadowImages(options);
             // After the shadow map, whose size and depth format shape the cascade boxes that the batcher fits.
             Batcher = CreateBatcher(options);
@@ -180,7 +185,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             (impostorAtlas, Impostors, localShadows) = AddPassesThroughGeometry(shaders, options);
             // Before the composite, which reads the tracer's signals.
             screenTrace = AddScreenTracePasses(shaders, options.ScreenTrace);
-            AddPassesAfterGeometry(shaders, options);
+            compositePass = AddPassesAfterGeometry(shaders, options);
             AddScatterPasses(shaders);
             Own(Graph);
             timer = Own(new GpuTimer(device, options.FramesInFlight));
@@ -401,9 +406,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
         ?? options.Subsurface.Problem
         ?? options.ScreenTrace.Problem
         ?? (
-            options.ScreenTrace is ScreenTrace
-                ? DepthPyramidImages.ScreenProblem(options.Width, options.Height)
-                : null
+            options.ScreenTrace is ScreenTrace ? DepthPyramidImages.ScreenProblem(options.Width, options.Height) : null
         );
 
     /// <summary>The checks of <paramref name="options"/> that need the device's limits, after <see cref="CheckOptions"/>.</summary>
@@ -659,7 +662,11 @@ public sealed unsafe class VulkanRenderer : IRenderer
         environmentMap?.Collect(frame.Index, frame.Number);
         frame.Staging.Reset();
         // So that a sink that takes this slot's capture reads the readings of the captured frame.
-        LastFrameStats = LastFrameStats with { GpuTimings = timer.Latest, Exposure = Exposure.Latest };
+        LastFrameStats = LastFrameStats with
+        {
+            GpuTimings = timer.Latest,
+            Exposure = Exposure.Latest,
+        };
     }
 
     /// <summary>
@@ -931,6 +938,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
         }
 
         ScatterImages?.Resize(targets);
+        compositePass.Resize(targets);
     }
 
     /// <summary>
@@ -1095,6 +1103,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
     internal ScreenTraceImages ScreenTraceImages =>
         screenTrace ?? throw new InvalidOperationException("The screen tracer is off.");
 
+    internal DescriptorSet CompositeLightSet => compositePass.LightSet;
+
     /// <summary>
     /// The counts of the last frame's own-ray lists of the screen tracer: the pixels that traced their own reflection ray
     /// and their own diffuse ray. A test hook: it waits for the device to be idle and submits its own copy.
@@ -1103,7 +1113,10 @@ public sealed unsafe class VulkanRenderer : IRenderer
     internal (int Reflection, int Diffuse) ReadOwnRayCounts()
     {
         GpuBuffer[] lists = ScreenTraceImages.OwnRays;
-        return (OwnRayList.Pixels(ReadBufferWords(lists[0])).Length, OwnRayList.Pixels(ReadBufferWords(lists[1])).Length);
+        return (
+            OwnRayList.Pixels(ReadBufferWords(lists[0])).Length,
+            OwnRayList.Pixels(ReadBufferWords(lists[1])).Length
+        );
     }
 
     /// <summary>
@@ -1859,9 +1872,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
     }
 
     /// <summary>The constants of the shading pipelines: the map is the ambient light exactly when the renderer has one.</summary>
-    internal ShaderConstants ShadingConstants =>
-        // The targets make the depth pyramid exactly under ScreenTrace, before any pass.
-        new(EnvironmentMap: environmentMap is not null) { ScreenTraceOn = targets.Pyramid is not null };
+    internal ShaderConstants ShadingConstants { get; }
 
     /// <summary>
     /// The cascades' shadow map and, under <see cref="LocalShadowAtlas"/>, the local shadow atlas with its bounds, which the
@@ -2000,19 +2011,45 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 specular: specular
             )
         );
-        foreach (ScreenTraceStep step in Enum.GetValues<ScreenTraceStep>())
+        ScreenTraceKernel Kernel(string name, string shader, uint kind = 0) =>
+            new(
+                device: device,
+                shaders: shaders,
+                layouts: layouts,
+                images: images,
+                setting: trace,
+                constants: ShadingConstants with
+                {
+                    RayKind = kind,
+                },
+                name: name,
+                shader: shader
+            );
+        Graph.Add(
+            FrameGraph.Stage.ScreenTrace,
+            new ScreenTracePlanPass(Kernel("ray plan", "screen_trace_plan.comp"), images)
+        );
+        foreach (int kind in (int[])[0, 1])
+        {
+            ScreenTraceKernel kernel = Kernel(
+                kind == 0 ? "reflection rays" : "diffuse rays",
+                "screen_trace_block_rays.comp",
+                (uint)kind
+            );
             Graph.Add(
                 FrameGraph.Stage.ScreenTrace,
-                new ScreenTracePass(
-                    device: device,
-                    shaders: shaders,
-                    layouts: layouts,
+                new ScreenTraceRaysPass(
+                    kernel: kernel,
                     images: images,
-                    setting: trace,
-                    constants: ShadingConstants,
-                    step: step
+                    ownRays: kernel.CreateOwnRays(shaders),
+                    kind: kind
                 )
             );
+        }
+        Graph.Add(
+            FrameGraph.Stage.ScreenTrace,
+            new ScreenTraceResolvePass(Kernel("screen trace resolve", "screen_trace_resolve.comp"), images)
+        );
         Graph.Add(FrameGraph.Stage.ScreenTrace, new AccumulatePass(diffuse));
         Graph.Add(FrameGraph.Stage.ScreenTrace, new AccumulatePass(specular));
         return images;
@@ -2029,23 +2066,23 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// <summary>
     /// Adds the direct pass and the composite, which writes the diffuse image too under <see cref="SeparableSubsurface"/>.
     /// </summary>
-    private void AddLightingPasses(ShaderLibrary shaders)
+    private CompositePass AddLightingPasses(ShaderLibrary shaders)
     {
         Graph.Add(
             FrameGraph.Stage.DirectLight,
             new DirectLightPass(device: device, shaders: shaders, layouts: layouts, constants: ShadingConstants)
         );
-        Graph.Add(
-            FrameGraph.Stage.Composite,
-            new CompositePass(
-                device: device,
-                shaders: shaders,
-                layouts: layouts,
-                constants: ShadingConstants,
-                scatter: ScatterImages is not null,
-                tracer: screenTrace
-            )
+        var composite = new CompositePass(
+            device: device,
+            shaders: shaders,
+            layouts: layouts,
+            constants: ShadingConstants,
+            scatter: ScatterImages is not null,
+            tracer: screenTrace,
+            targets: targets
         );
+        Graph.Add(FrameGraph.Stage.Composite, composite);
+        return composite;
     }
 
     /// <summary>
@@ -2053,9 +2090,9 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// <see cref="AutoExposure"/>, the bloom pass only with a <see cref="Bloom"/>, and the three SMAA passes when SMAA is
     /// on.
     /// </summary>
-    private void AddPassesAfterGeometry(ShaderLibrary shaders, RendererOptions options)
+    private CompositePass AddPassesAfterGeometry(ShaderLibrary shaders, RendererOptions options)
     {
-        AddLightingPasses(shaders);
+        CompositePass composite = AddLightingPasses(shaders);
         Graph.Add(FrameGraph.Stage.Haze, new HazePass(device: device, shaders: shaders, layouts: layouts));
         Graph.Add(
             FrameGraph.Stage.Transparent,
@@ -2101,6 +2138,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             new OutlinePass(device: device, shaders: shaders, layouts: layouts, outputFormat: output.Format)
         );
         Graph.Add(FrameGraph.Stage.Readback, new CapturePass());
+        return composite;
     }
 
     private T Own<T>(T resource)

@@ -1,0 +1,24 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#include "screen_trace.glsl"
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+void main()
+{
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    if (any(greaterThanEqual(vec2(pixel), frame.viewport.xy)))
+        return;
+    const float densities[8] = float[8](0.0, 1e-35, 1e-30, 0.001, 0.1, 1.0, 4.0, 100000.0);
+    float density = densities[pixel.x & 7];
+    if ((pixel.x & 7) == 0)
+    {
+        TracingPixel receiver = tracingPixelAt(pixel);
+        receiver.normal = vec3(0.0, 1.0, 0.0);
+        density = densityOf(receiver, KindDiffuse, vec3(1.0, 0.0, 0.0));
+    }
+    uint code = densityCodeOf(density);
+    float decoded = densityOfCode(code);
+    imageStore(specularSample, pixel, vec4(float(code & 255u), float(code >> 8),
+        density >= LeastDensity ? decoded / density : decoded, decoded == 0.0 ? 1.0 : 0.0));
+}

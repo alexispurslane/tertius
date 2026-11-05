@@ -103,4 +103,19 @@ float reprojectedLength(Reprojection r, vec4 tapLengths)
     return holdsHistory(r) ? dot(r.weights, tapLengths) / dot(r.weights, vec4(1.0)) : 0.0;
 }
 
+#define HISTORY_READER(name, source) \
+vec4 name(Reprojection r) \
+{ \
+    vec4 value = vec4(0.0); \
+    for (uint tap = 0u; tap < 4u; tap++) \
+        if (r.weights[tap] > 0.0) \
+            value += r.weights[tap] * imageLoad(source, tapTexel(r, tap)); \
+    return holdsHistory(r) ? value / dot(r.weights, vec4(1.0)) : vec4(0.0); \
+}
+
+float historyRatio(float currentStops, float lastStops)
+{
+    return exp2(clamp(currentStops - lastStops, -64.0, 64.0));
+}
+
 #endif

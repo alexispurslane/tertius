@@ -579,18 +579,19 @@ public sealed class ScriptCommandCaptureTests : IDisposable
     }
 
     [Theory]
-    [InlineData(new string[0], false)]
-    [InlineData(new[] { "--in-flight", "1" }, false)]
-    [InlineData(new[] { "--in-flight", "2" }, true)]
-    public void TheInFlightOptionKeepsTheHeadlessRenderersCapturesInFlightAndOneKeepsTheRenderersDefault(
+    [InlineData(new string[0], false, 2)]
+    [InlineData(new[] { "--in-flight", "1" }, false, 1)]
+    [InlineData(new[] { "--in-flight", "2" }, true, 2)]
+    public void TheInFlightOptionSetsTheRenderersFrameCountAndWhetherCapturesWait(
         string[] inFlight,
-        bool kept
+        bool kept,
+        int frames
     )
     {
         string script = ScriptFile(
             """{ "scene": "lit-box", "window": { "width": 160, "height": 90 }, "steps": [ { "do": "capture", "name": "front" } ] }"""
         );
-        var settings = new List<bool>();
+        var settings = new List<(bool Captures, int Frames)>();
 
         int code = ScriptCommand.Run(
             args: ["--script", script, "--headless", "--out", Out, .. inFlight],
@@ -599,13 +600,13 @@ public sealed class ScriptCommandCaptureTests : IDisposable
             error: error,
             createRenderer: options =>
             {
-                settings.Add(options.CapturesInFlight);
+                settings.Add((options.CapturesInFlight, options.FramesInFlight));
                 return VulkanRenderer.CreateHeadless(options);
             }
         );
 
         code.Should().Be(ScriptCommand.Ok, error.ToString());
-        settings.Should().Equal([kept]);
+        settings.Should().Equal([(kept, frames)]);
     }
 
     [Fact]

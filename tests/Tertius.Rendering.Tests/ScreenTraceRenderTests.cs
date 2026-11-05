@@ -75,7 +75,9 @@ public sealed class ScreenTraceRenderTests
             Vector3 diffuseLight = MeanOver(renderer.ReadImage(diffuse.Slow(0)), MiddleOfTheFloor);
             Vector3 specularLight = MeanOver(renderer.ReadImage(specular.Slow(0)), MiddleOfTheFloor);
             diffuseLight.X.Should().BeApproximately(light, 0.01f * light, "the diffuse signal converges to the light");
-            specularLight.X.Should().BeApproximately(light, 0.01f * light, "the specular signal converges to the light");
+            specularLight
+                .X.Should()
+                .BeApproximately(light, 0.01f * light, "the specular signal converges to the light");
         }
         finally
         {
@@ -94,8 +96,12 @@ public sealed class ScreenTraceRenderTests
 
             float[] sample = renderer.ReadImage(renderer.ScreenTraceSignals.Specular.Sample(0));
             (int X, int Y) shown = MirrorPixel(GlowingPanelCenter);
-            At(sample, shown).X.Should().BeGreaterThan(0.8f * glow.X, "the mirror image of the panel's center shows its glow");
-            At(sample, (shown.X + 150, shown.Y)).X.Should().BeLessThan(0.05f * glow.X, "the floor beside the image shows the dark sky");
+            At(sample, shown)
+                .X.Should()
+                .BeGreaterThan(0.8f * glow.X, "the mirror image of the panel's center shows its glow");
+            At(sample, (shown.X + 150, shown.Y))
+                .X.Should()
+                .BeLessThan(0.05f * glow.X, "the floor beside the image shows the dark sky");
         }
         finally
         {
@@ -108,7 +114,11 @@ public sealed class ScreenTraceRenderTests
     /// <paramref name="holdsLight"/>, the panel's entity holds a lamp at its center, so that it shows its glow to the
     /// eye but sends none: the lamp's own light stands for it (frame.glsl, glowSent).
     /// </summary>
-    private static RenderSnapshot GlowingPanelOverAMirror(VulkanRenderer renderer, Vector3 glow, bool holdsLight = false)
+    private static RenderSnapshot GlowingPanelOverAMirror(
+        VulkanRenderer renderer,
+        Vector3 glow,
+        bool holdsLight = false
+    )
     {
         RenderSnapshot scene = Dark();
         scene.Instances.Add(Floor(renderer, Mirror()));
@@ -125,7 +135,12 @@ public sealed class ScreenTraceRenderTests
         );
         if (holdsLight)
             scene.Lights.Add(
-                Gpu.Lamp(position: GlowingPanelCenter, color: Vector3.One, intensity: 1, chainDepth: TestChains.CamerasFrame)
+                Gpu.Lamp(
+                    position: GlowingPanelCenter,
+                    color: Vector3.One,
+                    intensity: 1,
+                    chainDepth: TestChains.CamerasFrame
+                )
             );
         return scene;
     }
@@ -309,7 +324,10 @@ public sealed class ScreenTraceRenderTests
             float share = FormFactor(point: receiver, front: panelFront, halfWidth: 3, bottom: FloorHeight, top: 1.5f);
             (int X, int Y) pixel = PixelOf(receiver);
             float[] history = renderer.ReadImage(renderer.ScreenTraceSignals.Diffuse.Slow(0));
-            Vector3 shown = MeanOver(history, new Region(Left: pixel.X - 40, Right: pixel.X + 40, Top: pixel.Y - 1, Bottom: pixel.Y + 1));
+            Vector3 shown = MeanOver(
+                history,
+                new Region(Left: pixel.X - 40, Right: pixel.X + 40, Top: pixel.Y - 1, Bottom: pixel.Y + 1)
+            );
             float shownShare = (shown.X - sky) / (glow - sky);
             shownShare.Should().BeApproximately(share, 0.1f * share, "the panel takes its form factor of the light");
         }
@@ -361,7 +379,11 @@ public sealed class ScreenTraceRenderTests
             RenderSnapshot scene = Dark();
             MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
             MaterialId wall = renderer.CreateMaterial(
-                new(BaseColor: new(x: 0.5f, y: 0.5f, z: 0.5f, w: 1), Roughness: 1, Model: new StandardShading(Metallic: 0))
+                new(
+                    BaseColor: new(x: 0.5f, y: 0.5f, z: 0.5f, w: 1),
+                    Roughness: 1,
+                    Model: new StandardShading(Metallic: 0)
+                )
             );
             // A room of 6 × 4 × 8 m around the eye, open behind it.
             scene.Instances.Add(Block(box: box, material: wall, center: new(0, -2.05f, -4), size: new(6, 0.1f, 8)));
@@ -370,7 +392,12 @@ public sealed class ScreenTraceRenderTests
             scene.Instances.Add(Block(box: box, material: wall, center: new(3.05f, 0, -4), size: new(0.1f, 4, 8)));
             scene.Instances.Add(Block(box: box, material: wall, center: new(0, 0, -8.05f), size: new(6, 4, 0.1f)));
             scene.Lights.Add(
-                Gpu.Lamp(position: new(0, 1.5f, -3), color: Vector3.One, intensity: 20, chainDepth: TestChains.CamerasFrame)
+                Gpu.Lamp(
+                    position: new(0, 1.5f, -3),
+                    color: Vector3.One,
+                    intensity: 20,
+                    chainDepth: TestChains.CamerasFrame
+                )
             );
 
             var means = new List<float>();
@@ -382,9 +409,13 @@ public sealed class ScreenTraceRenderTests
             }
 
             for (int frame = 1; frame < means.Count; frame++)
-                means[frame].Should().BeGreaterThanOrEqualTo(0.98f * means[frame - 1], "frame {0} rises from the one before", frame);
+                means[frame]
+                    .Should()
+                    .BeGreaterThanOrEqualTo(0.98f * means[frame - 1], "frame {0} rises from the one before", frame);
             means[^1].Should().BeGreaterThan(1.05f * means[0], "the later bounces add light");
-            means[^1].Should().BeLessThanOrEqualTo(means[0] / (1 - 0.5f), "the bounces sum to at most E / (1 − albedo)");
+            means[^1]
+                .Should()
+                .BeLessThanOrEqualTo(means[0] / (1 - 0.5f), "the bounces sum to at most E / (1 − albedo)");
         }
         finally
         {
@@ -403,7 +434,9 @@ public sealed class ScreenTraceRenderTests
             MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
             MaterialId white = renderer.CreateMaterial(WhiteFloor(roughness: 0.6f));
             scene.Instances.Add(Block(box: box, material: white, center: new(-1.5f, -1, -6), size: new(1, 1, 1)));
-            scene.Instances.Add(Block(box: box, material: white, center: new(1.2f, -0.5f, -9), size: new(1.5f, 2, 1.5f)));
+            scene.Instances.Add(
+                Block(box: box, material: white, center: new(1.2f, -0.5f, -9), size: new(1.5f, 2, 1.5f))
+            );
             (TemporalSignal diffuse, TemporalSignal specular) = renderer.ScreenTraceSignals;
             renderer.Graph.Add(FrameGraph.Stage.GBuffer, new NotANumberSamples(diffuse, specular));
 
@@ -420,8 +453,12 @@ public sealed class ScreenTraceRenderTests
                 lit++;
                 for (int channel = 0; channel < 3; channel++)
                 {
-                    float.IsFinite(diffuseSample[4 * pixel + channel]).Should().BeTrue("lit pixel {0} has a diffuse sample", pixel);
-                    float.IsFinite(specularSample[4 * pixel + channel]).Should().BeTrue("lit pixel {0} has a specular sample", pixel);
+                    float.IsFinite(diffuseSample[4 * pixel + channel])
+                        .Should()
+                        .BeTrue("lit pixel {0} has a diffuse sample", pixel);
+                    float.IsFinite(specularSample[4 * pixel + channel])
+                        .Should()
+                        .BeTrue("lit pixel {0} has a specular sample", pixel);
                 }
             }
 
@@ -546,13 +583,30 @@ public sealed class ScreenTraceRenderTests
             CameraView camera = renderer.LastScene.Camera;
             RecordedRays rays = RecordedRays.Read(renderer, kind: 0);
             int compared = 0;
+            int misses = 0;
             for (int y = 232; y < Height - 40; y += 4)
             for (int x = 130; x < 510; x += 6)
             {
                 // The tracer draws its ray from GGX's visible normals at the roughness floor, so the C# walk follows the
                 // recorded direction, not the exact mirror direction.
-                RayHit? walked = WalkHitOf(camera: camera, distance: distance, pyramid: pyramid, pixel: (x, y), direction: rays.DirectionAt((x, y)));
-                if (walked is not { } hit || !InsideATile(lit, hit.Pixel))
+                RayHit? walked = WalkHitOf(
+                    camera: camera,
+                    distance: distance,
+                    pyramid: pyramid,
+                    pixel: (x, y),
+                    direction: rays.DirectionAt((x, y))
+                );
+                if (walked is not { } hit)
+                {
+                    At(sample, (x, y))
+                        .Length()
+                        .Should()
+                        .BeLessThan(1e-5f, "a CPU miss reflects the dark sky at ({0}, {1})", x, y);
+                    sample[4 * (y * Width + x) + 3].Should().Be(0, "a CPU miss must not become a GPU hit");
+                    misses++;
+                    continue;
+                }
+                if (!InsideATile(lit, hit.Pixel))
                     continue;
                 Vector3 expected = (1 - hit.EntryShare) * At(lit, hit.Pixel);
                 Vector3 shown = At(sample, (x, y));
@@ -570,6 +624,38 @@ public sealed class ScreenTraceRenderTests
             }
 
             compared.Should().BeGreaterThan(300, "most floor pixels below the wall reflect the inside of a tile");
+            misses.Should().BePositive("the pin tests CPU misses as well as hits");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void AnImpostorsGlowReachesAMirrorOnlyWhenItsEntityHoldsNoLight(bool holdsLight)
+    {
+        VulkanRenderer renderer = Gpu.Headless(
+            width: Width,
+            height: Height,
+            screenTrace: ScreenTrace.Default,
+            warmUpFrames: 0,
+            impostors: true
+        );
+        try
+        {
+            RenderSnapshot scene = GlowingPanelOverAMirror(renderer, new(4f), holdsLight);
+            Draw(renderer, scene, frames: 3);
+
+            renderer.LastFrameStats.Impostors.Should().BePositive("the receiver sees a billboard, not the mesh panel");
+            float[] sample = renderer.ReadImage(renderer.ScreenTraceSignals.Specular.Sample(0));
+            float reflected = At(sample, MirrorPixel(GlowingPanelCenter)).X;
+            if (holdsLight)
+                reflected.Should().BeLessThan(0.01f, "the billboard's light mark suppresses its baked glow");
+            else
+                reflected.Should().BeGreaterThan(1f, "the same billboard without a light mark sends its glow");
         }
         finally
         {
@@ -613,7 +699,13 @@ public sealed class ScreenTraceRenderTests
     /// The C# walk's hit of a floor pixel's ray along <paramref name="direction"/>, as the tracer starts it: from the
     /// surface point at the pixel's distance, at the reflection cap. Null for a miss.
     /// </summary>
-    private static RayHit? WalkHitOf(CameraView camera, float[] distance, DepthPyramid pyramid, (int X, int Y) pixel, Vector3 direction)
+    private static RayHit? WalkHitOf(
+        CameraView camera,
+        float[] distance,
+        DepthPyramid pyramid,
+        (int X, int Y) pixel,
+        Vector3 direction
+    )
     {
         Vector3 viewRay = camera.ViewRayThrough(new(pixel.X + 0.5f, pixel.Y + 0.5f));
         var toSurface = Vector3.Normalize(viewRay);
@@ -625,7 +717,9 @@ public sealed class ScreenTraceRenderTests
             direction: direction,
             camera: camera
         );
-        return ray.Walk(pyramid, direction, ScreenTrace.Default.ReflectionSteps).TryGetValue(out RayHit hit) ? hit : null;
+        return ray.Walk(pyramid, direction, ScreenTrace.Default.ReflectionSteps).TryGetValue(out RayHit hit)
+            ? hit
+            : null;
     }
 
     /// <summary>
@@ -655,7 +749,9 @@ public sealed class ScreenTraceRenderTests
             bool own = ((int)Plan[pixel.Y * Width + pixel.X] & (1 << Kind)) != 0;
             int texel = own ? pixel.Y * Width + pixel.X : pixel.Y / 2 * ((Width + 1) / 2) + pixel.X / 2;
             float[] rays = own ? Own : Blocks;
-            return OctahedralNormal.Decode(new(rays[4 * texel] * (2 / 65535f) - 1, rays[4 * texel + 1] * (2 / 65535f) - 1));
+            return OctahedralNormal.Decode(
+                new(rays[4 * texel] * (2 / 65535f) - 1, rays[4 * texel + 1] * (2 / 65535f) - 1)
+            );
         }
     }
 
@@ -722,7 +818,12 @@ public sealed class ScreenTraceRenderTests
             foreach (GpuImage image in samples)
                 context.Barriers.Image(image, ImageUse.TransferDestination, discard: true);
             context.Barriers.Flush(context.Vk, context.CommandBuffer);
-            var color = new ClearColorValue(float32_0: float.NaN, float32_1: float.NaN, float32_2: float.NaN, float32_3: float.NaN);
+            var color = new ClearColorValue(
+                float32_0: float.NaN,
+                float32_1: float.NaN,
+                float32_2: float.NaN,
+                float32_3: float.NaN
+            );
             var whole = new ImageSubresourceRange(
                 aspectMask: ImageAspectFlags.ColorBit,
                 baseMipLevel: 0,

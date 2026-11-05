@@ -16,6 +16,7 @@ internal sealed unsafe class CompositePass : RenderPass
     private readonly DescriptorLayouts layouts;
     private readonly bool scatter;
     private readonly ScreenTraceImages? tracer;
+    private readonly DescriptorSet lightSet;
     private readonly Pipeline pipeline;
 
     /// <param name="scatter">True under <see cref="SeparableSubsurface"/>, whose targets hold the diffuse image.</param>
@@ -26,13 +27,16 @@ internal sealed unsafe class CompositePass : RenderPass
         DescriptorLayouts layouts,
         ShaderConstants constants,
         bool scatter,
-        ScreenTraceImages? tracer
+        ScreenTraceImages? tracer,
+        RenderTargets targets
     )
     {
         this.device = device;
         this.layouts = layouts;
         this.scatter = scatter;
         this.tracer = tracer;
+        lightSet = layouts.AllocateLightSet();
+        Resize(targets);
         pipeline = new GraphicsPipelineDesc
         {
             Name = "composite",
@@ -46,6 +50,22 @@ internal sealed unsafe class CompositePass : RenderPass
     }
 
     public override string Name => "composite";
+
+    internal DescriptorSet LightSet => lightSet;
+
+    /// <summary>Rebinds all four light images after the targets and the tracer's signals resize, with the device idle.</summary>
+    public void Resize(RenderTargets targets)
+    {
+        GpuImage[] light =
+        [
+            targets.DirectDiffuse,
+            targets.DirectSpecular,
+            tracer?.Diffuse.Slow(0) ?? targets.DirectDiffuse,
+            tracer?.Specular.Slow(0) ?? targets.DirectSpecular,
+        ];
+        for (int binding = 0; binding < light.Length; binding++)
+            layouts.WriteStorageImage(set: lightSet, binding: (uint)binding, image: light[binding]);
+    }
 
     public override void Record(FrameContext context)
     {
@@ -70,7 +90,7 @@ internal sealed unsafe class CompositePass : RenderPass
             context.DrawSceneFullScreen(
                 pipeline: pipeline,
                 layout: layouts.CompositeLayout,
-                passSet: targets.LightSet,
+                passSet: lightSet,
                 targets: [(targets.Hdr, AttachmentLoadOp.DontCare)]
             );
             return;
@@ -84,7 +104,7 @@ internal sealed unsafe class CompositePass : RenderPass
         context.DrawSceneFullScreen(
             pipeline: pipeline,
             layout: layouts.CompositeLayout,
-            passSet: targets.LightSet,
+            passSet: lightSet,
             targets: [(targets.Hdr, AttachmentLoadOp.DontCare), (diffuse, AttachmentLoadOp.DontCare)]
         );
     }

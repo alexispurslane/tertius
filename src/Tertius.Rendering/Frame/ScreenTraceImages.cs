@@ -8,9 +8,8 @@ namespace Tertius.Rendering;
 /// plan's bits at each pixel, the records of each 2 × 2 block's ray and of each pixel's own ray of each kind, and the
 /// own-ray list of each kind. Its two sets, one per parity of the drawn frames, also bind what the tracer reads: the depth
 /// pyramid's finest level and its bounds, the direct light's two images, the surface test image, the motion target and the
-/// two signals' images of that parity (<see cref="TemporalSignal.HitImages"/>), whose samples the resolve writes. It also
-/// writes the two signals' slow histories into the light set of the targets (<see cref="RenderTargets.LightSet"/>),
-/// which the composite reads. Every image holds the render targets' size, the block records a quarter of it, and each
+/// two signals' images of that parity (<see cref="TemporalSignal.HitImages"/>), whose samples the resolve writes. The
+/// composite owns the separate light set that binds the direct images and the slow histories (<see cref="CompositePass"/>). Every image holds the render targets' size, the block records a quarter of it, and each
 /// stays in the General layout. The depth pyramid belongs to the targets (<see cref="DepthPyramidImages"/>).
 /// </summary>
 internal sealed class ScreenTraceImages : IDisposable
@@ -121,8 +120,6 @@ internal sealed class ScreenTraceImages : IDisposable
         OwnRays = [CreateOwnRayList(extent, "reflection"), CreateOwnRayList(extent, "diffuse")];
         for (int parity = 0; parity < Sets.Length; parity++)
             WriteSet(parity);
-        layouts.WriteStorageImage(set: targets.LightSet, binding: 2, image: diffuse.Slow(0));
-        layouts.WriteStorageImage(set: targets.LightSet, binding: 3, image: specular.Slow(0));
     }
 
     /// <summary>Writes the set of <paramref name="parity"/> in the bindings of screen_trace.glsl.</summary>
@@ -130,7 +127,10 @@ internal sealed class ScreenTraceImages : IDisposable
     {
         DescriptorSet set = Sets[parity];
         (GpuImage diffuseSample, GpuImage lastFastDiffuse, GpuImage slowDiffuse) = diffuse.HitImages(part: 0, parity);
-        (GpuImage specularSample, GpuImage lastFastSpecular, GpuImage slowSpecular) = specular.HitImages(part: 0, parity);
+        (GpuImage specularSample, GpuImage lastFastSpecular, GpuImage slowSpecular) = specular.HitImages(
+            part: 0,
+            parity
+        );
         layouts.WriteImage(set: set, binding: 0, view: pyramid.DepthFinest.View, layout: ImageLayout.General);
         layouts.WriteImage(set: set, binding: 1, view: pyramid.DepthImage.View, layout: ImageLayout.General);
         GpuImage[] storage =

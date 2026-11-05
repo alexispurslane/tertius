@@ -66,7 +66,7 @@ namespace Tertius.Rendering;
 /// level and its bounds as sampled images, the tracer's inputs and outputs as storage images, and the own-ray list of each
 /// kind (<see cref="ScreenTraceImages"/>). One per parity of the drawn frames, rewritten on resize.</description></item>
 /// <item><term>light</term><description>set 3 of <see cref="CompositeLayout"/>: the direct light's two images and the two
-/// indirect signals' slow histories as storage images for the fragment stage (<see cref="RenderTargets.LightSet"/>). One,
+/// indirect signals' slow histories as storage images for the fragment stage (<see cref="CompositePass"/>). One,
 /// rewritten on resize.</description></item>
 /// </list>
 /// Every pass that draws meshes or reads the G-buffer uses <see cref="SceneLayout"/>, so sets 0 and 1 stay bound
@@ -432,13 +432,11 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
 
     public DescriptorSet AllocateEnvironmentLevelsSet() => Allocate(pool, EnvironmentLevelsSet, null);
 
-
     public DescriptorSet AllocateSmaaSet() => Allocate(pool, SmaaSet, null);
 
     public DescriptorSet AllocatePyramidLevelSet() => Allocate(pool, PyramidLevelSet, null);
 
     public DescriptorSet AllocateDepthTailSet() => Allocate(pool, DepthTailSet, null);
-
 
     public DescriptorSet AllocateDeformSet() => Allocate(pool, DeformSet, null);
 
@@ -798,15 +796,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             sets: [ShadowBoundsSet],
             name: "shadow bounds layout"
         );
-        return (
-            exposure,
-            environmentPrefilter,
-            pyramid,
-            depthTail,
-            deform,
-            scatter,
-            shadowBounds
-        );
+        return (exposure, environmentPrefilter, pyramid, depthTail, deform, scatter, shadowBounds);
     }
 
     /// <summary>A layout of <paramref name="sets"/> whose one push constant range is a <typeparamref name="TPush"/> for the compute stage.</summary>
@@ -827,7 +817,9 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             // tracer set.
             new(
                 DescriptorType.StorageBuffer,
-                (FrameSetStorageBuffers + DeformSetStorageBuffers) * frames + 2 + ScreenTraceStorageBuffers * ScreenTraceSets
+                (FrameSetStorageBuffers + DeformSetStorageBuffers) * frames
+                    + 2
+                    + ScreenTraceStorageBuffers * ScreenTraceSets
             ),
             // Three per frame set (the material sampler and the immutable linear clamp and environment samplers), the
             // immutable samplers of the G-buffer, atlas, post and prefilter sets, and one per glow source set.
@@ -1045,9 +1037,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     private DescriptorSetLayout CreateScreenTraceSetLayout()
     {
         const uint lists = ScreenTraceSampledImages + ScreenTraceStorageImages;
-        Span<DescriptorSetLayoutBinding> bindings = stackalloc DescriptorSetLayoutBinding[
-            (int)(lists + ScreenTraceStorageBuffers)
-        ];
+        Span<DescriptorSetLayoutBinding> bindings =
+            stackalloc DescriptorSetLayoutBinding[(int)(lists + ScreenTraceStorageBuffers)];
         for (uint binding = 0; binding < ScreenTraceSampledImages; binding++)
             bindings[(int)binding] = Image(binding: binding, stages: ShaderStageFlags.ComputeBit);
         for (uint binding = ScreenTraceSampledImages; binding < lists; binding++)
@@ -1065,9 +1056,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// <summary>The layouts of the signal set (<see cref="SignalSet"/>) and the light set (<see cref="LightSet"/>).</summary>
     private (DescriptorSetLayout Signal, DescriptorSetLayout Light) CreateTemporalSetLayouts()
     {
-        Span<DescriptorSetLayoutBinding> signal = stackalloc DescriptorSetLayoutBinding[
-            (int)(SignalSetImages + SignalSetSampledImages)
-        ];
+        Span<DescriptorSetLayoutBinding> signal =
+            stackalloc DescriptorSetLayoutBinding[(int)(SignalSetImages + SignalSetSampledImages)];
         for (uint binding = 0; binding < SignalSetImages; binding++)
             signal[(int)binding] = StorageImage(binding);
         for (uint binding = SignalSetImages; binding < SignalSetImages + SignalSetSampledImages; binding++)

@@ -14,7 +14,7 @@
 #include "gbuffer_surface.glsl"
 #include "temporal.glsl"
 
-// Set 3 of the composite layout, the light set (RenderTargets.LightSet): the direct light's two parts, and the slow
+// Set 3 of the composite layout, the light set owned by CompositePass: the direct light's two parts, and the slow
 // histories of the indirect diffuse and indirect specular signals, rgb the light, demodulated and pre-exposed. Under
 // NoScreenTrace, bindings 2 and 3 hold the direct images, which the composite does not read.
 layout(set = 3, binding = 0, rgba16f) uniform readonly image2D directDiffuseLight;

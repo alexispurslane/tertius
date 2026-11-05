@@ -328,6 +328,37 @@ public sealed class AccumulatorRenderTests
         }
     }
 
+    [Fact(
+        Skip = "ter-gayt: reproduced at history length 1 after 12 frames; section 8 rule 3 needs the user's decision"
+    )]
+    public void IndependentRoughReflectionDistancesDoNotRestartAnUnchangedLightsHistory()
+    {
+        (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
+            parameters: SignalParameters.Specular(0.4f),
+            roughness: 0.38f
+        );
+        try
+        {
+            for (int frame = 0; frame < 12; frame++)
+            {
+                sample.Value = new(x: 1f, y: 1f, z: 1f, w: frame % 2 == 0 ? 2f : 8f);
+                Continue(renderer, scene, frames: 1);
+            }
+
+            renderer.ReadSurfaceTest()[Height / 2 * Width + Width / 2].Should().Be(255);
+            CenterOf(renderer, sample, part: 0)
+                .Length.Should()
+                .BeGreaterThanOrEqualTo(
+                    8f,
+                    "independent reflection rays at roughness 0.38 see two depths, but the camera, surface and light never change"
+                );
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
     [Theory]
     [InlineData(true, 4f)]
     [InlineData(false, 1f)]
@@ -342,7 +373,11 @@ public sealed class AccumulatorRenderTests
         // place alone.
         SignalParameters parameters = specular ? SignalParameters.Specular(0.4f) : Parameters;
         (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
-            parameters: parameters with { Cap = 4, SmoothCap = 4 },
+            parameters: parameters with
+            {
+                Cap = 4,
+                SmoothCap = 4,
+            },
             roughness: 0.05f
         );
         try

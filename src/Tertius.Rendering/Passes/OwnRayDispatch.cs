@@ -5,7 +5,7 @@ namespace Tertius.Rendering;
 /// <summary>
 /// The dispatch of an own-ray list (own_rays.glsl, <see cref="OwnRayList"/>): the clear of the list before a dispatch
 /// appends to it, and the indirect dispatch of the pipeline that traces each listed pixel. The screen tracer's plan
-/// records the clears, and each ray kind's pass the dispatch (<see cref="ScreenTracePass"/>).
+/// records the clears, and each ray kind's pass the dispatch (<see cref="ScreenTraceKernel"/>).
 /// </summary>
 internal sealed unsafe class OwnRayDispatch : IDisposable
 {

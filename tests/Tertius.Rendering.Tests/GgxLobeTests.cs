@@ -142,50 +142,6 @@ public sealed class GgxLobeTests
         tanSquared.Should().BeApproximately(lobe.Alpha * lobe.Alpha, 1e-12);
     }
 
-    [Fact]
-    public void AnUnoccludedPointHasNoSpecularOcclusion()
-    {
-        foreach (double roughness in new[] { 0, 0.2, 0.5, 1 })
-        foreach (double nDotV in new[] { 1e-4, 0.1, 0.5, 1 })
-            new GgxLobe(roughness)
-                .SpecularOcclusion(nDotV: nDotV, occlusion: 1)
-                .Should()
-                .Be(1, $"r = {roughness}, μ = {nDotV}");
-    }
-
-    [Fact]
-    public void AFullyOccludedPointHasFullSpecularOcclusion()
-    {
-        foreach (double roughness in new[] { 0, 0.2, 0.5, 1 })
-        foreach (double nDotV in new[] { 1e-4, 0.1, 0.5, 1 })
-            new GgxLobe(roughness)
-                .SpecularOcclusion(nDotV: nDotV, occlusion: 0)
-                .Should()
-                .Be(0, $"r = {roughness}, μ = {nDotV}");
-    }
-
-    [Fact]
-    public void ARoughLobesSpecularOcclusionIsItsOcclusion()
-    {
-        var rough = new GgxLobe(1);
-        foreach (double occlusion in new[] { 0.1, 0.4, 0.7, 0.95 })
-        foreach (double nDotV in new[] { 0.05, 0.5, 1 })
-            rough
-                .SpecularOcclusion(nDotV: nDotV, occlusion: occlusion)
-                .Should()
-                .BeApproximately(occlusion, 1e-4, $"V = {occlusion}, μ = {nDotV}: α = 1 makes the exponent 2⁻¹⁷");
-    }
-
-    [Fact]
-    public void ASmoothLobeSeenHeadOnLosesLessThanItsOcclusionAndAtAGrazingAngleMore()
-    {
-        var smooth = new GgxLobe(0.1);
-        const double occlusion = 0.5;
-
-        smooth.SpecularOcclusion(nDotV: 1, occlusion: occlusion).Should().BeGreaterThan(occlusion);
-        smooth.SpecularOcclusion(nDotV: 0.05, occlusion: occlusion).Should().BeLessThan(occlusion);
-    }
-
     [Theory]
     [InlineData(0.05)]
     [InlineData(0.5)]

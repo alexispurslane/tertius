@@ -119,7 +119,6 @@ internal sealed class RenderTargets : IDisposable
         GBufferSet = layouts.AllocateGBufferSet();
         PostSet = layouts.AllocatePostSet();
         MeterSet = layouts.AllocateMeterSet();
-        LightSet = layouts.AllocateLightSet();
 
         Glow = new GpuImage[glowLevels];
         GlowSources = glowLevels == 0 ? [] : new DescriptorSet[glowLevels + 1];
@@ -171,15 +170,6 @@ internal sealed class RenderTargets : IDisposable
 
     /// <summary>Set 2: the G-buffer, for the passes that shade surfaces.</summary>
     public DescriptorSet GBufferSet { get; }
-
-    /// <summary>
-    /// Set 3 of <see cref="DescriptorLayouts.CompositeLayout"/>, the light set (composite_pass.glsl): <see
-    /// cref="DirectDiffuse"/> and <see cref="DirectSpecular"/> at bindings 0 and 1, and the slow histories of the two
-    /// indirect signals at bindings 2 and 3, as storage images for the fragment stage, which the composite reads. The
-    /// targets write the direct images into bindings 2 and 3 as well, and the screen tracer writes its histories over them
-    /// (<see cref="ScreenTraceImages"/>), after every resize of the targets.
-    /// </summary>
-    public DescriptorSet LightSet { get; }
 
     /// <summary>The HDR image for tone mapping.</summary>
     public DescriptorSet PostSet { get; }
@@ -291,11 +281,6 @@ internal sealed class RenderTargets : IDisposable
         for (int i = 0; i < 5; i++)
             layouts.WriteImage(set: GBufferSet, binding: (uint)i, arrayElement: 0, image: GBuffer[i]);
         layouts.WriteImage(set: GBufferSet, binding: ShadingBinding, arrayElement: 0, image: Shading);
-        // The direct images stand in at bindings 2 and 3 until the screen tracer writes its histories there.
-        GpuImage[] light = [DirectDiffuse, DirectSpecular, DirectDiffuse, DirectSpecular];
-        for (int binding = 0; binding < light.Length; binding++)
-            layouts.WriteStorageImage(set: LightSet, binding: (uint)binding, image: light[binding]);
-
         layouts.WriteImage(set: PostSet, binding: 0, arrayElement: 0, image: Hdr);
         layouts.WriteImage(set: MeterSet, binding: 0, arrayElement: 0, image: Hdr);
         layouts.WriteImage(set: MeterSet, binding: 1, arrayElement: 0, image: Distance);
