@@ -84,3 +84,48 @@ Completed the single review-fix stage in the same bound checkout and branch, sta
 Before final validation, `tools/cleanup.sh` ran on the ticket's changed C# test file and made no further source change. Complete Checked: 9,948 passed, 20 skipped, zero failures, 3m 52s 884ms. Complete Release: 9,935 passed, 20 skipped, zero failures, 3m 53s 217ms. Release benchmark build: zero warnings and errors. Temporary replay and observation classes are absent from all final Checked and Release test assemblies. The existing C# ScreenRay reference and real-shader correctness tests are unchanged from the integrated base. No bounds/loop predicate, slab/cell tracking, image layout, ray-word input, cap, nudge, scheduler, private Metal API, history or denoising policy changed in this correction.
 
 The earlier note still preserves the complete `/private/tmp/tertius-integration-20261105/launch-ter-rgg9.md` before this final commit. Its independently rechecked SHA-256 remains `6ce6024479ea5e9cc33a4033b1273f2663433e5578285383f3e060b5c58b0d1b`. No unresolved design fork remains. This stage completes only the scoped review fix, not ticket closure or parent integration readiness.
+
+## Parent hardening and main reconciliation, 2026-11-05
+
+The completed workflow `680e3ea3-0eba-481b-88ba-41f1e578fa95` delivered clean commit `a3d5cf545f32503bbc26666c122ec55003bcf8c1`. The parent verified terminal success, settled members and complete cleanup, then hardened the delivered change without repeating implementation, review or fix stages.
+
+The official changed-code classifier ran through Nix against main. It found no changed C# implementation in Core, Simulation or Physics. The production delta consists only of `octahedral.glsl`, `screen_ray.glsl` and `screen_walk.glsl`. Changed production C# executable coverage is not applicable, 0/0 lines and 0/0 branches, not 100%. CPU coverage does not measure GLSL; no shader line-coverage percentage is claimed. Evidence is `/private/tmp/tertius-hardening-20261105/ter-rgg9/official-classifier.log`.
+
+The scripted listed campaign initially killed eight of eleven faults. B01, B02 and L02 survived. Two real-GPU theories, twelve cases in `ScreenWalkBoundaryTests`, now check viewport lower/upper boundaries and actual wall hits across ray-segment lengths and step limits. The original restored shader passes, each of the three faults fails a behavioral assertion, and the restored shader passes again. Production shader source was not changed to kill a mutant. Scoped C# cleanup passed.
+
+This is the single final disposition table. The first campaign and targeted follow-up remain separate before/after evidence, not additional final mutants.
+
+| ID | Deliberate fault | Final result | Detecting evidence |
+| --- | --- | --- | --- |
+| P01 | Restore scalar short-circuit bounds branching | Killed | `ScreenWalkExecutionTests.CheckingTheScreenBoundsNeedsNoConditionalBranch` |
+| P02 | Restore separate step-limit and ray-end branches | Killed | `ScreenWalkExecutionTests.TheWalkBranchesOnTheCombinedStepCapAndRayEndPredicates` |
+| P03 | Normalize the facing-only decoded normal | Killed | `ScreenWalkExecutionTests.TestingSurfaceFacingNeedsNoNormalNormalization` |
+| B01 | Reject a viewport cell only when both boundary failures hold | Killed after new tests | `ScreenWalkBoundaryTests.TheShaderKeepsOnlyCellsInsideBothExclusiveViewportBounds` |
+| B02 | Accept the viewport's exclusive upper edge | Killed after new tests | `ScreenWalkBoundaryTests.TheShaderKeepsOnlyCellsInsideBothExclusiveViewportBounds` |
+| L01 | Stop every walk after one step | Killed | `ScreenTraceRenderTests.AHitFartherThanTheLargestHalfFloatStoresTheLargestHalfFloatAsItsDistance` |
+| L02 | Ignore the ray segment's end | Killed after new tests | `ScreenWalkBoundaryTests.TheShaderHitsTheNextWallPixelOnlyWithinItsSegmentAndStepCap` |
+| L03 | Continue when either loop guard holds | Killed | `ScreenWalkExecutionTests.TheWalkBranchesOnTheCombinedStepCapAndRayEndPredicates` |
+| N01 | Reverse the decoded surface normal | Killed | `ScreenTraceRenderTests.ASurfaceAboveTheReflectionLimitReceivesSpecularLightFromItsDiffuseRays` |
+| N02 | Remove required unit-length shading normalization | Killed | `ScreenTraceRenderTests.UnderAUniformEnvironmentWithNoBlockerBothIndirectSignalsConvergeToItsLight` |
+| N03 | Fold the wrong octahedral hemisphere | Killed | `ScreenTraceRenderTests.AHitFartherThanTheLargestHalfFloatStoresTheLargestHalfFloatAsItsDistance` |
+
+Final outcomes: 11/11 killed; zero survivors, equivalents, judgment calls, timeouts, no-coverage, build-failed or no-tests outcomes. Lists, exact assertions and restoration results are in `mutants.json`, `mutations/results.json`, `survivors.json`, `survivors-after/results.json`, `mutation-lock.log`, `survivors-lock.log` and `cleanup.log` under `/private/tmp/tertius-hardening-20261105/ter-rgg9/`. The three compiled-operation faults protect the selected instruction-shape decisions; the other faults test visible or ray-hit behavior. No reliability soak or universal floating-point equivalence is claimed.
+
+The parent combined main `6119ffdaaddc0bf28e6f92dcd94bdc809c463822`, including the already integrated Entity placement-key change, with the delivered branch and the twelve new cases. ARCHITECTURE.md retains both the shared octahedral decoder owner and the Entity placement-key model. A failed indexed stash application interrupted only the merge bookkeeping; all six incoming paths and both parent test files were saved, restored selectively and verified by SHA-256 before validation. No root ticket overlay or unrelated stash was discarded. Recovery receipts are in `/private/tmp/tertius-integration-20261105/merge-rgg9/`.
+
+Combined code/test/build-input identity is `a60dc7a1e0dc37d804f799cce0e89a4d53ce5281`. Fresh complete Checked and Release validation is running through Nix and `tools/gpu-lock.sh`, with one test process at a time. This paragraph records preparation, not a passing result or integration claim; final results follow separately.
+
+The root launch note was extracted from the delivered ticket and compared byte for byte before integration. Its SHA-256 remains `6ce6024479ea5e9cc33a4033b1273f2663433e5578285383f3e060b5c58b0d1b`. Current validation does not change the recorded performance scope, the existing ter-186q skip, deferred Linux runtime under ter-cgif, or the lack of isolated trace-pass GPU timing. No denoising, corrected environment-read search, FSR policy, ray count or history policy is imported by this reconciliation.
+
+### Combined validation passed
+
+The fresh combined run completed successfully through the normal Nix dev shell and GPU lock:
+
+`nix develop --command bash -c 'bash tools/gpu-lock.sh /private/tmp/tertius-integration-20261105/merge-rgg9/combined-lock.log bash tools/test-all.sh -c Checked,Release -j 1 -o /private/tmp/tertius-integration-20261105/merge-rgg9/combined'`
+
+| Configuration | Passed | Existing skips | Failed | Full solution build, including benchmarks |
+| --- | ---: | ---: | ---: | --- |
+| Checked | 9,970 | 20 | 0 | Passed, zero warnings/errors |
+| Release | 9,957 | 20 | 0 | Passed, zero warnings/errors |
+
+All sixteen full-suite test records match the combined code/test/build-input identity `a60dc7a1e0dc37d804f799cce0e89a4d53ce5281`. The twelve added boundary/segment cases pass in both configurations. Current production shaders remain byte-identical to delivered commit `a3d5cf545f32503bbc26666c122ec55003bcf8c1`; only Entity reconciliation and parent tests changed code inputs. Whitespace checks pass. The complete log and per-module outputs are retained under `/private/tmp/tertius-integration-20261105/merge-rgg9/combined-lock.log` and `combined/`. Ticket prose written after the run does not change the tested inputs. Normal commit hooks, main integration, closure and push follow; none is claimed by this validation receipt alone.
