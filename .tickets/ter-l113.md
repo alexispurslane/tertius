@@ -1,6 +1,6 @@
 ---
 id: ter-l113
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-11-04T15:51:35Z
@@ -12,6 +12,10 @@ parent: ter-89xq
 # Headless timing summary: on stamps that latch late, print neighbouring sums, not single-pass times
 
 On MoltenVK (VulkanRenderer.StampsLatchLate), a pass's GPU time can hold part of the next pass's work. Today WriteGpuTimings in src/Tertius.Host/ScriptCommand.cs prints every pass's own mean, median and p95, then LateStampsNote. A reader takes the per-pass lines as true and has to sum neighbours by hand: ter-9nrc's measurements needed a script (fix/neighbours.py) for this. Suggested by ter-9nrc's review on 2026-11-04. Make the summary print only what holds on such a renderer: the span, and the sum of each run of neighbouring passes that the user names or that the tool picks, or mark each single-pass line as not valid on this driver. Portable: on a driver whose stamps do not latch late, the per-pass lines stay as they are. Design the rule for which sums to print before the build (two designs, with the user).
+
+## Integration, 2026-11-05
+
+Merged into main as `3b1f23c30865ac65a7b3947aa0318cbadd5aea30`, with the entire committed tree identical to validated commit `af2a772b98ab7626f2ba415404496a3496277f16`. Final Checked and Release suites passed 10,267 and 10,254 tests respectively, with zero failures and 19 existing skips each. All 38 scripted faults were caught; the changed Host coverage and six branch-outcome dispositions remain recorded below. The hardening workflow completed successfully and its worker stopped before ticket closure. Parent coordination notes are preserved. This closure changes ticket prose only, so it does not require another complete suite. Main integration did not wait for independent tracer, identity, light-budget or denoising work.
 
 ## Settled choices, 2026-11-04
 
