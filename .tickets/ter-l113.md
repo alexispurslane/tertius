@@ -94,3 +94,23 @@ The changed-type measurements below are design evidence, not a reason to reshape
 | The other 12 selected types | Not applicable | Not applicable | Declaration-only payloads or generated union declarations; their raw counts remain in `changed-types.json` |
 
 Correctness: per-frame range statistics, frame spans and raw JSON remain unchanged; both tool consumers use the existing validity metadata. Fulfillment: both reported output defects have red-to-green behavior evidence, fresh full-suite checks and real-renderer smoke evidence with stated limits. Design: driver validity stays in the report instead of being guessed by each consumer, range means come from the existing summary, and the per-type evidence has explicit applicability. No review finding remains unresolved.
+
+## Parent coordination notes preserved during hardening
+
+The root snapshot and its base are preserved as `parent-notes.latest.md` and `parent-notes.base.md` under `/private/tmp/tertius-hardening-20261105/ter-l113`. These historical notes supplement the branch's implementation and fix evidence. They do not replace it.
+
+### 2026-11-04T23:32:15Z
+
+2026-11-04: user delegated both timing-summary choices. Settled hybrid: caller names inclusive ranges of consecutive render passes with repeatable --gpu-run FIRST..LAST; on StampsLatchLate drivers hide individual pass lines from the console and show frame span plus explicitly named sums. Keep raw per-pass JSON with its driver-validity warning, add per-frame sums before computing mean, median and p95, and keep ordinary console per-pass reporting on other drivers. All workflow agents now use Codex gpt-6.1-sol, reasoningEffort=xhigh. No implementation exists to replay.
+
+### 2026-11-04T23:36:53Z
+
+2026-11-04: implementation workflow 01c1ee3f-5f19-4f3d-96f7-560560a4e5e2, version 869b0b07-3413-4b06-8707-a88a91bf6e91, branch ter-l113-headless-timing-summary from f703caf174af14d5350e410ce2b26acfcc42e5fe. Builder, reviewer and any fixer are Codex gpt-6.1-sol reasoningEffort=xhigh. The caller-selected ranges and omission of invalid single-pass console values are settled, not open user choices.
+
+### 2026-11-05T12:13:08Z
+
+2026-11-05: parent-owned hardening continuation started as workflow e823b93f-b08c-4843-af64-364692a31f57, version 077df081-6e60-4160-b9a4-b89ea970421a, preserving branch head 79fac63e9. Missing coverage, scripted fault checks, and final suites only; completed build/review/fix stages are not repeated. Completion delivery to the takeover thread was rejected (FORBIDDEN); the admitted run has no delivery destination. Parent retains merge/closure ownership.
+
+### Immutable scope correction
+
+The parent later authorized other integrations to advance `main`. Every coverage and Stryker scope command in this hardening uses immutable base `f703caf174af14d5350e410ce2b26acfcc42e5fe`, not a moving `main`. The checkout remains on `ter-l113-headless-timing-summary` and preserves implementation head `79fac63e9a2a5aeaca257d5a1d61e9113515ab5a` as its starting point.

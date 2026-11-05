@@ -413,6 +413,7 @@ class DemoTiming(unittest.TestCase):
         result = self.launch(report, "\n".join(["timed-start", "timed-end", capture, span]) + "\n")
 
         self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stderr, "", "a legacy report needs no warning field")
         self.assertEqual(result.stdout.splitlines()[:2], [capture, span])
         self.assertTrue(result.stdout.splitlines()[-1].startswith("GPU clock over the timed span:"))
 

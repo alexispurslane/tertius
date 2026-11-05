@@ -33,6 +33,20 @@ public sealed class GpuTimingSummaryTests
     }
 
     [Fact]
+    public void AnOlderFinishedFrameCannotChangeTheRecordedRangeStatistics()
+    {
+        var summary = new GpuTimingSummary();
+        summary.Add(Frame(7, new("bloom", 1), new("capture", 2)));
+        summary.Add(Frame(6, new("bloom", 100), new("capture", 200)));
+        summary.Add(Frame(9, new("bloom", 4), new("capture", 8)));
+
+        var read = summary.Runs(["bloom..capture"]);
+
+        read.Problem.Should().BeNull();
+        read.Ok!.Single().Timing.Should().Be(new SpanSummary(Frames: 2, MeanMs: 7.5, MedianMs: 7.5, P95Ms: 12));
+    }
+
+    [Fact]
     public void ARenderWithNoTimingsAddsNothing()
     {
         var summary = new GpuTimingSummary();
@@ -256,6 +270,19 @@ public sealed class GpuTimingSummaryTests
             .And.Contain("Available passes: bloom, capture");
     }
 
+    [Theory]
+    [InlineData("Bloom..capture", "Bloom")]
+    [InlineData("bloom..Capture", "Capture")]
+    public void AGpuRunEndpointMustMatchTheRecordedPassNameCase(string run, string missing)
+    {
+        var summary = new GpuTimingSummary();
+        summary.Add(Frame(7, new("bloom", 1), new("capture", 4)));
+
+        var read = summary.Runs([run]);
+
+        read.Problem.Should().Contain($"unknown pass '{missing}'").And.Contain("Available passes: bloom, capture");
+    }
+
     [Fact]
     public void AReversedGpuRunExplainsTheRequiredFrameOrder()
     {
@@ -286,6 +313,20 @@ public sealed class GpuTimingSummaryTests
             .And.Contain("frame 9")
             .And.Contain("not recorded");
         summary.Frame()!.Value.Frames.Should().Be(2);
+    }
+
+    [Theory]
+    [InlineData("bloom")]
+    [InlineData("capture")]
+    public void AnEndpointFirstRecordedInALaterFrameReportsTheEarlierMissingFrame(string missing)
+    {
+        var summary = new GpuTimingSummary();
+        summary.Add(Frame(7, new PassTiming(missing == "bloom" ? "capture" : "bloom", 2)));
+        summary.Add(Frame(9, new("bloom", 1), new("capture", 4)));
+
+        var read = summary.Runs(["bloom..capture"]);
+
+        read.Problem.Should().Contain($"endpoint '{missing}'").And.Contain("not recorded in frame 7");
     }
 
     [Fact]
