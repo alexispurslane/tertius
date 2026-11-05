@@ -8,6 +8,7 @@
 // other, where the driver drops the test and the pipeline keeps its early depth writes (docs/plans/skin-and-hair.md, "The
 // cutout test").
 layout(constant_id = 1) const bool cutoutAlpha = false;
+layout(constant_id = 8) const bool mainView = false;
 
 struct SurfaceSample
 {
@@ -32,7 +33,7 @@ vec3 anyPerpendicular(vec3 n)
 vec4 sampleTexture(uint index, vec2 uv)
 {
     // Different instances in one indirect draw use different materials, so the index is not dynamically uniform.
-    return texture(sampler2D(textures[nonuniformEXT(index)], materialSampler), uv);
+    return texture(sampler2D(textures[nonuniformEXT(index)], materialSampler), uv, mainView ? frame.renderParams.x : 0.0);
 }
 
 // The unit tangent of the shading frame of the unit normal `n`: the vertex tangent made perpendicular to it, or any

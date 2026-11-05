@@ -28,7 +28,7 @@ vec3 dominantDirectionAt(ivec2 pixel)
 // to the one neighbor there.
 float reflectionFootprintAt(ivec2 pixel)
 {
-    ivec2 last = textureSize(gbufferDistance, 0) - 1;
+    ivec2 last = ivec2(frame.viewport.xy) - 1;
     ivec2 next = ivec2(pixel.x < last.x ? pixel.x + 1 : max(pixel.x - 1, 0),
         pixel.y < last.y ? pixel.y + 1 : max(pixel.y - 1, 0));
     ivec2 previous = ivec2(pixel.x > 0 ? pixel.x - 1 : min(pixel.x + 1, last.x),

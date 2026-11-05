@@ -19,7 +19,7 @@ layout(location = 0, index = 1) out vec4 outTransmittance;
 void main()
 {
     // As in the ambient pass, every read stays inside the image, also for a helper invocation past its edge.
-    ivec2 pixel = min(ivec2(gl_FragCoord.xy), textureSize(gbufferDistance, 0) - 1);
+    ivec2 pixel = min(ivec2(gl_FragCoord.xy), ivec2(frame.viewport.xy) - 1);
     float distanceToEye = texelFetch(gbufferDistance, pixel, 0).r;
     if (distanceToEye <= 0.0)
     {

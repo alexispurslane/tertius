@@ -40,7 +40,7 @@ public sealed class PortableFloatTests
                 Impostors = false,
                 Exposure = new FixedExposure(stops),
                 Bloom = bloom,
-                AntiAliasing = AntiAliasing.None,
+                Upscaling = new NoUpscaling(),
             }
         );
 

@@ -67,6 +67,14 @@ internal sealed unsafe class ExposurePass : RenderPass
         BindSets(context);
         vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Compute, meter);
         Extent2D extent = context.Extent;
+        vk.CmdPushConstants(
+            commandBuffer: commandBuffer,
+            layout: layouts.ExposureLayout,
+            stageFlags: ShaderStageFlags.ComputeBit,
+            offset: 0,
+            size: (uint)sizeof(Extent2D),
+            pValues: &extent
+        );
         vk.CmdDispatch(
             commandBuffer: commandBuffer,
             groupCountX: MeterGroups(extent.Width),
@@ -74,10 +82,21 @@ internal sealed unsafe class ExposurePass : RenderPass
             groupCountZ: 1
         );
 
+        if (context.Targets.Upscale is null)
+            Adapt(context);
+    }
+
+    public void Adapt(FrameContext context)
+    {
+        Vk vk = context.Vk;
+        CommandBuffer commandBuffer = context.CommandBuffer;
+        BarrierBatch barriers = context.Barriers;
+        GpuBuffer histogram = context.Exposure.Histogram;
         barriers.Buffer(histogram, BufferUse.ComputeRead);
         barriers.Buffer(context.Exposure.Buffer, BufferUse.ComputeWrite);
         barriers.Flush(vk, commandBuffer);
         vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Compute, adapt);
+        BindSets(context);
         ExposureAdaptPushConstants push = PushConstants(context.History.ExposureStep);
         vk.CmdPushConstants(
             commandBuffer: commandBuffer,
@@ -134,4 +153,12 @@ internal sealed unsafe class ExposurePass : RenderPass
             IntoDarkFactor = ExposureMeter.ApproachFactor(seconds, setting.IntoDarkSeconds),
             IntoLightFactor = ExposureMeter.ApproachFactor(seconds, setting.IntoLightSeconds),
         };
+}
+
+/// <summary>Writes next frame's exposure only after FSR consumed this frame's exposure and its previous exposure.</summary>
+internal sealed class ExposureAdaptPass(ExposurePass exposure) : RenderPass
+{
+    public override string Name => "exposure adapt";
+
+    public override void Record(FrameContext context) => exposure.Adapt(context);
 }

@@ -58,7 +58,8 @@ internal readonly record struct StillRule(bool Headless, int WarmUpDraws)
     /// </summary>
     public static StillRule For(RendererOptions options, bool headless)
     {
-        int histories = options.ScreenTrace is ScreenTrace ? options.WarmUpFrames : 0;
+        int histories =
+            options.ScreenTrace is ScreenTrace || options.Upscaling is Fsr3Upscaling ? options.WarmUpFrames : 0;
         int exposure = options.Exposure is AutoExposure ? 1 : 0;
         return new(Headless: headless, WarmUpDraws: Math.Max(histories, exposure));
     }
@@ -189,6 +190,7 @@ internal sealed class FrameHistory
             Reset: reset,
             DrawIndex: reset ? 0 : lastDrawIndex + 1,
             ExposureStep: still ? StillExposureStep(step, draw) : step,
+            FsrFrameMilliseconds: still ? 1000f / 60 : step * 1000,
             RefreshesEveryFace: still && draw == 0,
             DrawnFrames: DrawnFrames,
             RenderSize: renderSize,
@@ -285,6 +287,7 @@ internal sealed class FrameHistory
         bool Reset,
         long DrawIndex,
         float ExposureStep,
+        float FsrFrameMilliseconds,
         bool RefreshesEveryFace,
         long DrawnFrames,
         Extent2D RenderSize,
@@ -333,6 +336,15 @@ internal sealed class FrameHistory
 
         /// <summary>The draw's render size.</summary>
         public Extent2D RenderSize => history.derived.RenderSize;
+        public float FsrFrameMilliseconds => history.derived.FsrFrameMilliseconds;
+        public Vector2 Jitter
+        {
+            get
+            {
+                int phases = Fsr3Upscaler.JitterPhaseCount(RenderSize.Width, history.derived.OutputSize.Width);
+                return Fsr3Upscaler.JitterOffset((int)(DrawIndex % phases), phases);
+            }
+        }
 
         /// <summary>The render size of the last drawn frame that this draw continues, or this draw's own where it continues none.</summary>
         public Extent2D PreviousRenderSize => history.derived.Continued?.RenderSize ?? RenderSize;

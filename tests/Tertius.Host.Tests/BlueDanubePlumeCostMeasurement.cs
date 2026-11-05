@@ -44,7 +44,7 @@ public sealed class BlueDanubePlumeCostMeasurement
                     Width = script.Window.Width,
                     Height = script.Window.Height,
                     Impostors = false,
-                    AntiAliasing = AntiAliasing.None,
+                    Upscaling = new NoUpscaling(),
                 }
             );
             var seconds = new Dictionary<int, double>();

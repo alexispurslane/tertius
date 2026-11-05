@@ -51,7 +51,7 @@ internal sealed unsafe class GeometryPass : RenderPass
             DepthTest = true,
             DepthWrite = true,
             DepthCompare = CompareOp.Greater,
-            Constants = constants with { WritesMotion = true },
+            Constants = constants with { WritesMotion = true, MainView = true },
         };
         pipeline = SidedPipeline.Create(device: device, shaders: shaders, desc: desc);
         try
@@ -62,7 +62,7 @@ internal sealed unsafe class GeometryPass : RenderPass
                 desc: desc with
                 {
                     Name = "g-buffer cutout",
-                    Constants = constants with { CutoutAlpha = true, WritesMotion = true },
+                    Constants = constants with { CutoutAlpha = true, WritesMotion = true, MainView = true },
                 }
             );
         }

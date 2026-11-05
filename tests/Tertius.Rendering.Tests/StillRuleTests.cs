@@ -143,20 +143,30 @@ public sealed class StillRuleTests
             .Equal(true, false, false, false);
 
     [Fact]
-    public void AStillUnderAFixedExposureAndNoTracerTakesNoWarmUpDraw() =>
+    public void AStillUnderAFixedExposureAndNoTemporalHistoryTakesNoWarmUpDraw() =>
         StillRule
             .For(
-                new RendererOptions { Exposure = new FixedExposure(0), ScreenTrace = new NoScreenTrace() },
+                new RendererOptions
+                {
+                    Exposure = new FixedExposure(0),
+                    ScreenTrace = new NoScreenTrace(),
+                    Upscaling = new NoUpscaling(),
+                },
                 headless: true
             )
             .WarmUpDraws.Should()
             .Be(0, "no history holds more than one frame, and the exposure needs no draw to adapt in");
 
     [Fact]
-    public void AStillUnderAnAutomaticExposureAndNoTracerTakesOneWarmUpDraw() =>
+    public void AStillUnderAnAutomaticExposureAndNoTemporalHistoryTakesOneWarmUpDraw() =>
         StillRule
             .For(
-                new RendererOptions { Exposure = AutoExposure.Default, ScreenTrace = new NoScreenTrace() },
+                new RendererOptions
+                {
+                    Exposure = AutoExposure.Default,
+                    ScreenTrace = new NoScreenTrace(),
+                    Upscaling = new NoUpscaling(),
+                },
                 headless: true
             )
             .WarmUpDraws.Should()
@@ -172,6 +182,7 @@ public sealed class StillRuleTests
                 {
                     Exposure = automaticExposure ? AutoExposure.Default : new FixedExposure(0),
                     ScreenTrace = ScreenTrace.Default,
+                    Upscaling = new NoUpscaling(),
                     WarmUpFrames = 5,
                 },
                 headless: true
@@ -187,6 +198,7 @@ public sealed class StillRuleTests
                 {
                     Exposure = AutoExposure.Default,
                     ScreenTrace = ScreenTrace.Default,
+                    Upscaling = new NoUpscaling(),
                     WarmUpFrames = 0,
                 },
                 headless: true

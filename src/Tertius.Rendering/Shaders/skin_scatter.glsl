@@ -51,7 +51,7 @@ vec3 scatterAlong(ivec2 pixel, ivec2 axis, vec3 center)
     // The outermost tap's offset is the kernel's reach (ScatterKernel.Reach).
     if (kernel[2 * scatterTapsPerSide].a * pixelsPerMeter < 0.5)
         return center;
-    ivec2 last = imageSize(diffuseImage) - 1;
+    ivec2 last = ivec2(frame.viewport.xy) - 1;
     vec3 sum = vec3(0.0);
     for (int i = 0; i <= 2 * scatterTapsPerSide; i++)
     {
@@ -74,7 +74,7 @@ vec3 scatterAlong(ivec2 pixel, ivec2 axis, vec3 center)
 // Whether the pixel lies inside the images: the dispatch rounds the image up to whole workgroups.
 bool insideScatter(ivec2 pixel)
 {
-    return all(lessThan(pixel, imageSize(diffuseImage)));
+    return all(lessThan(pixel, ivec2(frame.viewport.xy)));
 }
 
 #endif

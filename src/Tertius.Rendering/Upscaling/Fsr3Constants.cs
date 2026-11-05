@@ -144,6 +144,9 @@ internal struct Fsr3Constants
 /// <summary>This frame's values, from which FSR's constants derive.</summary>
 internal readonly record struct Fsr3Frame
 {
+    /// <summary>RCAS sharpening from 0 (off) to 1 (strongest).</summary>
+    public float Sharpness { get; init; }
+
     /// <summary>The size in pixels that this frame drew at, within the largest render size.</summary>
     public required Extent2D RenderSize { get; init; }
 

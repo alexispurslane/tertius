@@ -192,7 +192,7 @@ internal sealed class OutlinePass : RenderPass
         context.BeginRenderingInto([(context.Output, AttachmentLoadOp.Load)]);
         vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Graphics, pipeline);
         context.BindSceneSets(PipelineBindPoint.Graphics, layouts.OverlayLayout);
-        context.SetFullViewport();
+        context.SetViewport(context.Output.Extent);
         var push = new OutlinePushConstants { EncodeSrgb = context.EncodeSrgb ? 1u : 0u };
         vk.CmdPushConstants(
             commandBuffer: commandBuffer,

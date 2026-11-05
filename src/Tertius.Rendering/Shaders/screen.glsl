@@ -1,5 +1,5 @@
 // The screen's geometry in the camera-relative world axes (docs/plans/screen-space-reflections.md, "The ray's image on
-// the screen"). CameraView's ViewRayThrough, PixelOf and InverseDepthOf are the C# copy. Change both together.
+// the screen"). CameraView holds the unjittered C# geometry; this file also applies the frame's current and previous jitter.
 #ifndef TERTIUS_SCREEN_GLSL
 #define TERTIUS_SCREEN_GLSL
 
@@ -9,7 +9,7 @@
 // a unit vector; its component along forward is 1. lighting.vert interpolates the same vector.
 vec3 viewRayThrough(vec2 pixel)
 {
-    vec2 ndc = pixel * frame.viewport.zw * 2.0 - 1.0;
+    vec2 ndc = (pixel + frame.renderParams.yz) * frame.viewport.zw * 2.0 - 1.0;
     return frame.cameraForward.xyz + ndc.x * frame.cameraRight.xyz - ndc.y * frame.cameraUp.xyz;
 }
 
@@ -21,7 +21,13 @@ vec2 pixelOf(vec3 point)
     vec2 ndc = vec2(
         dot(point, frame.cameraRight.xyz) / dot(frame.cameraRight.xyz, frame.cameraRight.xyz),
         -dot(point, frame.cameraUp.xyz) / dot(frame.cameraUp.xyz, frame.cameraUp.xyz)) / depth;
-    return (ndc + 1.0) * 0.5 * frame.viewport.xy;
+    return (ndc + 1.0) * 0.5 * frame.viewport.xy - frame.renderParams.yz;
+}
+
+vec2 historyPlace(vec2 pixel, vec2 motion)
+{
+    return (pixel + frame.renderParams.yz) * frame.viewport.zw + motion
+        - frame.previousJitter.xy * frame.previousViewport.zw;
 }
 
 #endif

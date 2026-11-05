@@ -4,8 +4,7 @@ using Semaphore = Silk.NET.Vulkan.Semaphore;
 namespace Tertius.Rendering;
 
 /// <summary>
-/// Where the frame ends: an offscreen image or a swapchain, written by the tone map or, with SMAA on, by the SMAA
-/// blending.
+/// Where the frame ends: an offscreen image or a swapchain, written by the tone map.
 /// </summary>
 internal interface IOutputTarget : IDisposable
 {
@@ -36,7 +35,7 @@ internal interface IOutputTarget : IDisposable
 
 internal static unsafe class QueueSubmission
 {
-    /// <summary>One vkQueueSubmit2 of a frame's command buffer with optional wait and signal semaphores.</summary>
+    /// <summary>Two submissions in one vkQueueSubmit2. Only the output commands wait for the acquired image.</summary>
     public static void Submit(
         VulkanDevice device,
         FrameResources frame,
@@ -48,7 +47,7 @@ internal static unsafe class QueueSubmission
         var commandBuffer = new CommandBufferSubmitInfo
         {
             SType = StructureType.CommandBufferSubmitInfo,
-            CommandBuffer = frame.CommandBuffer,
+            CommandBuffer = frame.OutputCommandBuffer,
         };
         var waitInfo = new SemaphoreSubmitInfo
         {
@@ -73,8 +72,21 @@ internal static unsafe class QueueSubmission
             SignalSemaphoreInfoCount = signal.Handle != 0 ? 1u : 0u,
             PSignalSemaphoreInfos = &signalInfo,
         };
+        var firstCommand = new CommandBufferSubmitInfo
+        {
+            SType = StructureType.CommandBufferSubmitInfo,
+            CommandBuffer = frame.CommandBuffer,
+        };
+        SubmitInfo2* submissions = stackalloc SubmitInfo2[2];
+        submissions[0] = new SubmitInfo2
+        {
+            SType = StructureType.SubmitInfo2,
+            CommandBufferInfoCount = 1,
+            PCommandBufferInfos = &firstCommand,
+        };
+        submissions[1] = submit;
         device
-            .Vk.QueueSubmit2(queue: device.Queue, submitCount: 1, pSubmits: &submit, fence: frame.Fence)
+            .Vk.QueueSubmit2(queue: device.Queue, submitCount: 2, pSubmits: submissions, fence: frame.Fence)
             .Check("vkQueueSubmit2");
     }
 }

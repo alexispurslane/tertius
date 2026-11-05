@@ -16,6 +16,21 @@ public sealed class Fsr3UpscalerTests
     private static readonly Extent2D LargestRenderSize = new(64, 48);
     private static readonly Extent2D OutputSize = new(96, 72);
 
+    [Fact]
+    public void SharpeningChangesAnEdgeWithoutChangingTheInputOrTheRenderSize()
+    {
+        using var plain = new Fsr3Bench(LargestRenderSize, OutputSize);
+        using var sharpened = new Fsr3Bench(LargestRenderSize, OutputSize);
+        plain.FillPattern();
+        sharpened.FillPattern();
+        plain.Upscale(index: 0, reset: true);
+        Fsr3Inputs inputs = sharpened.Inputs(index: 0, reset: true);
+        inputs = inputs with { Frame = inputs.Frame with { Sharpness = 1 } };
+        sharpened.Submit(command => sharpened.Upscaler.Record(command, sharpened.Barriers, inputs));
+        sharpened.ReadOutput().Should().NotEqual(plain.ReadOutput());
+        sharpened.Device.Log.Snapshot().Should().BeEmpty();
+    }
+
     // The variable that turns on the measurement of FSR's GPU time.
     private const string TimingVariable = "TERTIUS_FSR_TIMING";
 

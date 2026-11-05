@@ -57,7 +57,7 @@ internal sealed unsafe class FrameResources : IDisposable
         this.layouts = layouts;
         this.environment = environment;
         Index = index;
-        (CommandPool, CommandBuffer) = CreateCommands(index);
+        (CommandPool, CommandBuffer, OutputCommandBuffer) = CreateCommands(index);
         Fence = CreateSignaledFence();
         ImageAvailable = CreateAcquireSemaphore(index);
 
@@ -100,6 +100,7 @@ internal sealed unsafe class FrameResources : IDisposable
     public int Index { get; }
     public CommandPool CommandPool { get; }
     public CommandBuffer CommandBuffer { get; }
+    public CommandBuffer OutputCommandBuffer { get; }
 
     /// <summary>Signaled when the GPU has finished this frame's last submission.</summary>
     public Fence Fence { get; }
@@ -262,7 +263,7 @@ internal sealed unsafe class FrameResources : IDisposable
         );
 
     /// <summary>The frame's command pool and its one primary command buffer.</summary>
-    private (CommandPool Pool, CommandBuffer Buffer) CreateCommands(int index)
+    private (CommandPool Pool, CommandBuffer Buffer, CommandBuffer Output) CreateCommands(int index)
     {
         Vk vk = device.Vk;
         var poolInfo = new CommandPoolCreateInfo
@@ -283,12 +284,13 @@ internal sealed unsafe class FrameResources : IDisposable
             SType = StructureType.CommandBufferAllocateInfo,
             CommandPool = pool,
             Level = CommandBufferLevel.Primary,
-            CommandBufferCount = 1,
+            CommandBufferCount = 2,
         };
-        vk.AllocateCommandBuffers(device.Device, &allocateInfo, out CommandBuffer commandBuffer)
-            .Check("vkAllocateCommandBuffers");
-        device.SetName(ObjectType.CommandBuffer, (ulong)commandBuffer.Handle, $"frame {index} commands");
-        return (pool, commandBuffer);
+        CommandBuffer* commands = stackalloc CommandBuffer[2];
+        vk.AllocateCommandBuffers(device.Device, &allocateInfo, commands).Check("vkAllocateCommandBuffers");
+        device.SetName(ObjectType.CommandBuffer, (ulong)commands[0].Handle, $"frame {index} commands");
+        device.SetName(ObjectType.CommandBuffer, (ulong)commands[1].Handle, $"frame {index} output commands");
+        return (pool, commands[0], commands[1]);
     }
 
     // Signaled at creation, so the first wait on a slot that has submitted nothing returns at once.

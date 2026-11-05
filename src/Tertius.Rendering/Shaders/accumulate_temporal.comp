@@ -17,7 +17,7 @@ const float HitDistanceShare = 0.5;
 // behind the last frame's eye.
 vec2 lastPlaceOf(vec3 clip)
 {
-    return clip.z > 0.0 ? 0.5 * clip.xy / clip.z + 0.5 : NoHistoryMotion;
+    return clip.z > 0.0 ? 0.5 * clip.xy / clip.z + 0.5 - frame.previousJitter.xy * frame.previousViewport.zw : NoHistoryMotion;
 }
 
 // Whether two hit distances, in m with 0 for a miss, show the same hit: two misses, or two hits within HitDistanceShare
@@ -87,7 +87,7 @@ Reprojection historyPlaceOf(ivec2 pixel, float roughness, bool hasSample, float 
 {
     uint bits = imageLoad(surfaceTest, pixel).r;
     vec4 motion = imageLoad(motionTarget, pixel);
-    vec2 surfacePlace = (vec2(pixel) + 0.5) * frame.viewport.zw + motion.xy;
+    vec2 surfacePlace = historyPlace(vec2(pixel) + 0.5, motion.xy);
     bool specular = parameters.light == SpecularLight;
     bool tryReflected = specular && hasSample && roughness < parameters.reflectedPlaceBelow;
     // The specular signal takes the taps that pass the specular test, bits 4 to 7.

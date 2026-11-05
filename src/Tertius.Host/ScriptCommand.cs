@@ -27,8 +27,8 @@ namespace Tertius.Host;
 /// <item><c>--screen-trace on|off</c> keeps the headless renderer's default <see cref="ScreenTrace"/>, or turns the
 /// screen tracer off, so that every surface takes the environment's closed forms.</item>
 /// <item><c>--bloom on|off</c> keeps the headless renderer's default <see cref="Bloom"/>, or turns it off.</item>
-/// <item><c>--anti-aliasing off|smaa</c> chooses the headless renderer's <see cref="AntiAliasing"/>, SMAA without the
-/// option.</item>
+/// <item><c>--upscaling off|fsr3</c> chooses native rendering or FSR 3.1. FSR is the default.</item>
+/// <item><c>--render-scale SCALE</c> sets FSR's fixed headless render scale, from 0.5 to 1. The default is 2/3.</item>
 /// <item><c>--local-shadows off|on</c> turns the headless renderer's <see cref="RendererOptions.LocalShadows"/> off, or
 /// keeps the default atlas. <c>--local-shadow-tiles N</c> gives that atlas N tiles.</item>
 /// <item><c>--cascaded-lights N</c> sets the headless renderer's <see cref="RendererOptions.CascadedLights"/>, 0 to 4.</item>
@@ -96,7 +96,7 @@ public static partial class ScriptCommand
     public const string ExposureFile = "exposure.json";
 
     private const string Usage =
-        "Usage: --script <file> --headless --out <folder> [--video none|<file.mkv> [--fps <rate>]] [--size <width>x<height>] [--gpu-run FIRST..LAST]... [--tone-curve aces|hable] [--screen-trace on|off] [--bloom on|off] [--anti-aliasing off|smaa] [--local-shadows off|on] [--local-shadow-tiles <count>] [--cascaded-lights <count>] [--environment-map on|off] [--subsurface on|off] [--in-flight 1|2]  |  --script <file> --out <folder> [--speed <factor>] [--size <width>x<height>]  |  --scene <name> [--speed <factor>] [--record <file>]";
+        "Usage: --script <file> --headless --out <folder> [--video none|<file.mkv> [--fps <rate>]] [--size <width>x<height>] [--gpu-run FIRST..LAST]... [--tone-curve aces|hable] [--screen-trace on|off] [--bloom on|off] [--upscaling off|fsr3] [--render-scale <scale>] [--local-shadows off|on] [--local-shadow-tiles <count>] [--cascaded-lights <count>] [--environment-map on|off] [--subsurface on|off] [--in-flight 1|2]  |  --script <file> --out <folder> [--speed <factor>] [--size <width>x<height>]  |  --scene <name> [--speed <factor>] [--record <file>]";
 
     // The value of --video that draws the captures and drops them (Discard), for a run that only times its frames.
     private const string NoVideo = "none";
@@ -118,7 +118,11 @@ public static partial class ScriptCommand
         ("--tone-curve", (_, curve) => ToneCurveProblem(curve)),
         ("--screen-trace", (_, value) => OnOffProblem("--screen-trace", value)),
         ("--bloom", (_, value) => OnOffProblem("--bloom", value)),
-        ("--anti-aliasing", (_, antiAliasing) => AntiAliasingProblem(antiAliasing)),
+        ("--upscaling", (_, upscaling) => UpscalingProblem(upscaling)),
+        (
+            "--render-scale",
+            (_, scale) => RenderScaleOf(scale) is null ? "--render-scale needs a finite number from 0.5 to 1." : null
+        ),
         ("--local-shadows", (_, localShadows) => LocalShadowsProblem(localShadows)),
         ("--local-shadow-tiles", LocalShadowTilesProblem),
         ("--cascaded-lights", (_, count) => CascadedLightsProblem(count)),
@@ -563,6 +567,7 @@ public static partial class ScriptCommand
             Width = size.Width,
             Height = size.Height,
             Impostors = false,
+            Upscaling = new Fsr3Upscaling(new FixedRenderScale(2f / 3), 0),
         };
         overrides.ApplyTo(rendererOptions);
         try
@@ -923,7 +928,8 @@ public static partial class ScriptCommand
             ToneCurve = ToneCurveOf(given.Value("--tone-curve")),
             ScreenTraceOff = given.Value("--screen-trace") == "off",
             BloomOff = given.Value("--bloom") == "off",
-            AntiAliasing = AntiAliasingOf(given.Value("--anti-aliasing")),
+            Upscaling = UpscalingOf(given.Value("--upscaling")),
+            RenderScale = RenderScaleOf(given.Value("--render-scale")),
             LocalShadows = LocalShadowsOf(given.Value("--local-shadows"), given.Value("--local-shadow-tiles")),
             CascadedLights = CascadedLightsOf(given.Value("--cascaded-lights")),
             EnvironmentMapOff = given.Value("--environment-map") == "off",
@@ -967,8 +973,8 @@ public static partial class ScriptCommand
     private static string? OnOffProblem(string option, string value) =>
         value is "on" or "off" ? null : $"{option} needs on or off, not '{value}'.";
 
-    private static string? AntiAliasingProblem(string antiAliasing) =>
-        AntiAliasingOf(antiAliasing) is null ? $"--anti-aliasing needs off or smaa, not '{antiAliasing}'." : null;
+    private static string? UpscalingProblem(string upscaling) =>
+        UpscalingOf(upscaling) is null ? $"--upscaling needs off or fsr3, not '{upscaling}'." : null;
 
     private static string? LocalShadowsProblem(string localShadows) =>
         localShadows is "off" or "on" ? null : $"--local-shadows needs off or on, not '{localShadows}'.";
@@ -1056,12 +1062,22 @@ public static partial class ScriptCommand
     private static int? CascadedLightsOf(string? text) =>
         WholeNumberOf(text: text, least: 0, most: RendererOptions.MaxCascadedLights);
 
-    /// <summary>The anti-aliasing that the text names, or null for no text or a name that is not off or smaa.</summary>
-    private static AntiAliasing? AntiAliasingOf(string? text) =>
+    /// <summary>The fixed render scale, or null for no text or a value outside the finite range 0.5 to 1.</summary>
+    private static float? RenderScaleOf(string? text) =>
+        float.TryParse(
+            s: text,
+            style: NumberStyles.Float,
+            provider: CultureInfo.InvariantCulture,
+            result: out float scale
+        ) && scale is >= 0.5f and <= 1
+            ? scale
+            : null;
+
+    private static UpscalingSetting? UpscalingOf(string? text) =>
         text switch
         {
-            "off" => AntiAliasing.None,
-            "smaa" => AntiAliasing.Smaa,
+            "off" => new NoUpscaling(),
+            "fsr3" => Fsr3Upscaling.Default,
             _ => null,
         };
 

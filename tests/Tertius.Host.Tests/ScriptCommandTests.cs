@@ -401,33 +401,25 @@ public sealed class ScriptCommandTests : IDisposable
         "--tone-curve",
         "filmic"
     )]
+    [InlineData("--upscaling needs a value", "--script", "script.json", "--headless", "--out", "out", "--upscaling")]
     [InlineData(
-        "--anti-aliasing needs a value",
-        "--script",
-        "script.json",
-        "--headless",
-        "--out",
-        "out",
-        "--anti-aliasing"
-    )]
-    [InlineData(
-        "--anti-aliasing applies to a headless run",
+        "--upscaling applies to a headless run",
         "--script",
         "script.json",
         "--out",
         "out",
-        "--anti-aliasing",
+        "--upscaling",
         "off"
     )]
-    [InlineData("--anti-aliasing applies to a headless run", "--scene", "no-such-scene", "--anti-aliasing", "off")]
+    [InlineData("--upscaling applies to a headless run", "--scene", "no-such-scene", "--upscaling", "off")]
     [InlineData(
-        "--anti-aliasing needs off or smaa",
+        "--upscaling needs off or fsr3",
         "--script",
         "script.json",
         "--headless",
         "--out",
         "out",
-        "--anti-aliasing",
+        "--upscaling",
         "fxaa"
     )]
     [InlineData(
@@ -632,9 +624,9 @@ public sealed class ScriptCommandTests : IDisposable
     }
 
     [Theory]
-    [InlineData("off", AntiAliasing.None)]
-    [InlineData("smaa", AntiAliasing.Smaa)]
-    public void TheAntiAliasingOptionCarriesTheChoiceThatItNames(string name, AntiAliasing antiAliasing)
+    [InlineData("off")]
+    [InlineData("fsr3")]
+    public void TheUpscalingOptionCarriesTheChoiceThatItNames(string name)
     {
         ScriptCommand.Headless chosen = HeadlessOf([
             "--script",
@@ -642,11 +634,61 @@ public sealed class ScriptCommandTests : IDisposable
             "--headless",
             "--out",
             "o",
-            "--anti-aliasing",
+            "--upscaling",
             name,
         ]);
 
-        chosen.Renderer.AntiAliasing.Should().Be(antiAliasing);
+        UpscalingSetting expected = name == "off" ? new NoUpscaling() : Fsr3Upscaling.Default;
+        chosen.Renderer.Upscaling.Should().Be(expected);
+    }
+
+    [Theory]
+    [InlineData("0.5", 0.5f)]
+    [InlineData("0.6666667", 2f / 3)]
+    [InlineData("1", 1f)]
+    public void AHeadlessRenderScaleOverridesTheFixedFsrScale(string text, float scale)
+    {
+        ScriptCommand.Headless chosen = HeadlessOf([
+            "--script",
+            "s.json",
+            "--headless",
+            "--out",
+            "o",
+            "--render-scale",
+            text,
+        ]);
+        var options = new RendererOptions();
+
+        chosen.Renderer.ApplyTo(options);
+
+        options.Upscaling.Should().Be((UpscalingSetting)new Fsr3Upscaling(new FixedRenderScale(scale), 0));
+    }
+
+    [Theory]
+    [InlineData("NaN")]
+    [InlineData("Infinity")]
+    [InlineData("0.49")]
+    [InlineData("1.01")]
+    public void AHeadlessRenderScaleOutsideTheFiniteRangeIsRefused(string text)
+    {
+        ScriptCommand.RunOptions? chosen = ScriptCommand.ReadOptions(
+            ["--script", "s.json", "--headless", "--out", "o", "--render-scale", text],
+            out string? problem
+        );
+
+        chosen.Should().BeNull();
+        problem.Should().Contain("--render-scale");
+    }
+
+    [Fact]
+    public void AHeadlessRunWithoutARenderScaleUsesTwoThirdsRatherThanTheWindowController()
+    {
+        ScriptCommand.Headless chosen = HeadlessOf(["--script", "s.json", "--headless", "--out", "o"]);
+        var options = new RendererOptions();
+
+        chosen.Renderer.ApplyTo(options);
+
+        options.Upscaling.Should().Be((UpscalingSetting)new Fsr3Upscaling(new FixedRenderScale(2f / 3), 0));
     }
 
     public static TheoryData<string[], LocalShadowSetting?> LocalShadowOptions =>

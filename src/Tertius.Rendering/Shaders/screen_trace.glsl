@@ -260,7 +260,7 @@ vec3 lastFastOf(Reprojection r, uint kind)
 // The pixel's place in the last frame's image, from its motion.
 vec2 lastPlaceAt(ivec2 pixel)
 {
-    return (vec2(pixel) + 0.5) * frame.viewport.zw + imageLoad(motionTarget, pixel).xy;
+    return historyPlace(vec2(pixel) + 0.5, imageLoad(motionTarget, pixel).xy);
 }
 
 // The light of a hit at the pixel q, pre-exposed (section 6, "Where a hit's light comes from"): this frame's direct

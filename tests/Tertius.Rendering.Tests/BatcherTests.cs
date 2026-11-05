@@ -2137,20 +2137,23 @@ public sealed class BatcherTests
     [Fact]
     public void TheFrameConstantsMatchTheShadersFrameBlock()
     {
-        Unsafe.SizeOf<GpuFrameConstants>().Should().Be(2416);
-        ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.Counts))).Should().Be(304);
-        ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.RootRotation))).Should().Be(384);
-        ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.CascadeSets))).Should().Be(400);
-        ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.MapAxes))).Should().Be(1424);
+        Unsafe.SizeOf<GpuFrameConstants>().Should().Be(2464);
+        ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.RenderParams))).Should().Be(288);
+        ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.OutputViewport))).Should().Be(304);
+        ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.PreviousJitter))).Should().Be(320);
+        ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.Counts))).Should().Be(352);
+        ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.RootRotation))).Should().Be(432);
+        ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.CascadeSets))).Should().Be(448);
+        ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.MapAxes))).Should().Be(1472);
         ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.Atmosphere)))
             .Should()
-            .Be(2096, "the atmosphere follows the 42 map axes");
+            .Be(2144, "the atmosphere follows the 42 map axes");
         Unsafe.SizeOf<GpuAtmosphere>().Should().Be(96, "std140 lays out six vec4s in 96 bytes");
         ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.MotionViewProj)))
             .Should()
-            .Be(2192, "the previous camera follows the atmosphere");
-        ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.PreviousEye))).Should().Be(2320);
-        ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.PreviousRootRotation))).Should().Be(2400);
+            .Be(2240, "the previous camera follows the atmosphere");
+        ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.PreviousEye))).Should().Be(2368);
+        ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.PreviousRootRotation))).Should().Be(2448);
     }
 
     [Fact]

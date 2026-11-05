@@ -65,8 +65,11 @@ public static partial class ScriptCommand
         /// <summary>True to turn the renderer's bloom off, false to keep its default.</summary>
         public bool BloomOff { get; init; }
 
-        /// <summary>The anti-aliasing that replaces the renderer's default, or null to keep it.</summary>
-        public AntiAliasing? AntiAliasing { get; init; }
+        /// <summary>The upscale setting that replaces the renderer's default, or null to keep it.</summary>
+        public UpscalingSetting? Upscaling { get; init; }
+
+        /// <summary>The fixed headless render scale, or null for 2/3.</summary>
+        public float? RenderScale { get; init; }
 
         /// <summary>The local shadows that replace the renderer's default, or null to keep them.</summary>
         public LocalShadowSetting? LocalShadows { get; init; }
@@ -92,8 +95,10 @@ public static partial class ScriptCommand
                 options.ScreenTrace = new NoScreenTrace();
             if (BloomOff)
                 options.Bloom = new NoBloom();
-            if (AntiAliasing is { } antiAliasing)
-                options.AntiAliasing = antiAliasing;
+            if (Upscaling is { } upscaling)
+                options.Upscaling = upscaling;
+            if (options.Upscaling is Fsr3Upscaling fsr)
+                options.Upscaling = fsr with { RenderScale = new FixedRenderScale(RenderScale ?? 2f / 3) };
             if (LocalShadows is { } localShadows)
                 options.LocalShadows = localShadows;
             if (CascadedLights is { } cascadedLights)

@@ -94,7 +94,7 @@ public static class GpuTesting
                 ScreenTrace = new NoScreenTrace(),
                 Exposure = exposure,
                 Bloom = new NoBloom(),
-                AntiAliasing = AntiAliasing.None,
+                Upscaling = new NoUpscaling(),
                 LocalShadows = new NoLocalShadows(),
                 EnvironmentMap = new NoEnvironmentMap(),
                 Subsurface = new NoSubsurface(),
@@ -123,7 +123,7 @@ public static class GpuTesting
             Impostors = false,
             ScreenTrace = new NoScreenTrace(),
             Bloom = new NoBloom(),
-            AntiAliasing = AntiAliasing.None,
+            Upscaling = new NoUpscaling(),
             Subsurface = new NoSubsurface(),
         };
 

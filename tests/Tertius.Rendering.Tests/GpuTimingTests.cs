@@ -246,8 +246,8 @@ public sealed class GpuTimingTests
     [Fact]
     public void WithEverySettingOnTheFrameGraphHoldsNoMorePassesThanTheGpuTimerCanTime()
     {
-        // Every pass that a setting adds, each with the most passes it can add: the three SMAA passes and the tracer's
-        // seven among them.
+        // Every pass that a setting adds, each with the most passes it can add: FSR and the tracer's
+        // six among them.
         using var renderer = VulkanRenderer.CreateHeadless(
             new()
             {
@@ -260,7 +260,7 @@ public sealed class GpuTimingTests
                 Exposure = AutoExposure.Default,
                 Bloom = Bloom.Default,
                 ScreenTrace = ScreenTrace.Default,
-                AntiAliasing = AntiAliasing.Smaa,
+                Upscaling = new Fsr3Upscaling(new FixedRenderScale(1), 0),
                 EnvironmentMap = SceneEnvironmentMap.Default,
                 Deformation = true,
                 Subsurface = SeparableSubsurface.Default,
@@ -488,7 +488,7 @@ public sealed class GpuTimingTests
                 // A fixed exposure and no tracer draw no warm-up draw, so each Render draws one frame.
                 Exposure = new FixedExposure(0),
                 ScreenTrace = new NoScreenTrace(),
-                AntiAliasing = AntiAliasing.None,
+                Upscaling = new NoUpscaling(),
             },
             (device, allocator, extent) => made = new(device: device, allocator: allocator, extent: extent, bgra: false)
         );

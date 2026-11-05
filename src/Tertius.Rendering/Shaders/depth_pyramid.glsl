@@ -102,7 +102,7 @@ bool neighborContinues(PixelPlane plane, bool insideImage, bool seesSurface, Pix
 // Whether an edge neighbor continues a pixel's plane (neighborContinues). Every texelFetch stays inside its image.
 bool continuesPlane(PixelPlane plane, ivec2 neighbor)
 {
-    bool inside = all(greaterThanEqual(neighbor, ivec2(0))) && all(lessThan(neighbor, textureSize(gbufferDistance, 0)));
+    bool inside = all(greaterThanEqual(neighbor, ivec2(0))) && all(lessThan(neighbor, ivec2(frame.viewport.xy)));
     PixelPlane other = PixelPlane(vec2(0.0), 0.0, vec2(0.0), false);
     bool seesSurface = inside && pixelPlane(neighbor, other);
     return neighborContinues(plane, inside, seesSurface, other);
@@ -173,7 +173,7 @@ vec2 mergedBounds(vec2 a, vec2 b)
 // features.
 vec2 cellBounds(texture2D pyramid, uint level, ivec2 cell)
 {
-    ivec2 size = level == 0u ? textureSize(gbufferDistance, 0) : textureSize(pyramid, int(level) - 1);
+    ivec2 size = (ivec2(frame.viewport.xy) + (1 << level) - 1) >> level;
     if (any(lessThan(cell, ivec2(0))) || any(greaterThanEqual(cell, size)))
         return vec2(0.0, EmptyFar);
     return level == 0u ? pixelBounds(cell) : texelFetch(pyramid, cell, int(level) - 1).rg;

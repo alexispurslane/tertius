@@ -113,7 +113,7 @@ public sealed class VideoCostMeasurement
                 Height = height,
                 Impostors = false,
                 Validation = false,
-                AntiAliasing = AntiAliasing.None,
+                Upscaling = new NoUpscaling(),
             }
         );
         var timed = new TimedRenderer(vulkan);

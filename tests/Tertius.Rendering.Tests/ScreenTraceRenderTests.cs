@@ -20,8 +20,14 @@ public sealed class ScreenTraceRenderTests
     /// A validating headless renderer of 640 × 360 under the screen tracer's default, with no warm-up draws: a still
     /// is one draw, so the first frame of <see cref="Draw"/> is one reset frame, and each frame that it names is one draw.
     /// </summary>
-    private static VulkanRenderer Tracing() =>
-        Gpu.Headless(width: Width, height: Height, screenTrace: ScreenTrace.Default, warmUpFrames: 0);
+    private static VulkanRenderer Tracing(bool upscaling = false) =>
+        Gpu.Headless(
+            width: Width,
+            height: Height,
+            screenTrace: ScreenTrace.Default,
+            warmUpFrames: 0,
+            upscaling: upscaling ? new Fsr3Upscaling(new FixedRenderScale(1), 0) : new NoUpscaling()
+        );
 
     /// <summary>Draws <paramref name="frames"/> frames of <paramref name="scene"/>, each one tick after the last.</summary>
     private static void Draw(VulkanRenderer renderer, RenderSnapshot scene, int frames)
@@ -115,11 +121,13 @@ public sealed class ScreenTraceRenderTests
         }
     }
 
-    [Fact]
-    public void AMirrorFloorShowsAGlowingPanelAtThePlaceOfItsMirrorImage()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void AMirrorFloorShowsAGlowingPanelAtThePlaceOfItsMirrorImage(bool upscaling)
     {
         var glow = new Vector3(4f);
-        VulkanRenderer renderer = Tracing();
+        VulkanRenderer renderer = Tracing(upscaling);
         try
         {
             Draw(renderer, GlowingPanelOverAMirror(renderer, glow), frames: 1);
@@ -140,11 +148,13 @@ public sealed class ScreenTraceRenderTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void AChangedGlowingPanelLosesNinetyPercentOfItsOldMirrorImageWithinTenFrames(bool moves)
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public void AChangedGlowingPanelLosesNinetyPercentOfItsOldMirrorImageWithinTenFrames(bool moves, bool upscaling)
     {
-        VulkanRenderer renderer = Tracing();
+        VulkanRenderer renderer = Tracing(upscaling);
         try
         {
             RenderSnapshot scene = GlowingPanelOverAMirror(renderer, new(4f));

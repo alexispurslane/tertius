@@ -5,8 +5,7 @@ namespace Tertius.Rendering;
 /// <summary>
 /// Maps the pre-exposed HDR image to the output with a <see cref="ToneCurve"/>. With a <see cref="Bloom"/>, it first adds
 /// the summed bloom levels by their strength. An sRGB output format applies the sRGB curve in hardware; for a UNORM output
-/// the shader applies it. With SMAA on, it writes the SMAA tone-mapped image instead, which is sRGB, and SMAA writes the
-/// output.
+/// the shader applies it. Under FSR it reads the upscaled HDR image, otherwise the render-size HDR image.
 /// </summary>
 internal sealed unsafe class ToneMapPass : RenderPass
 {
@@ -14,26 +13,22 @@ internal sealed unsafe class ToneMapPass : RenderPass
     private readonly DescriptorLayouts layouts;
     private readonly Pipeline pipeline;
     private readonly ToneCurve curve;
-    private readonly SmaaTargets? smaa;
 
     // The bloom whose glow the pass adds, or null with NoBloom: the one record of the setting, which chose the shader.
     private readonly Bloom? glow;
 
-    /// <param name="smaa">The SMAA images, whose tone-mapped image this pass writes, or null to write the output.</param>
     public ToneMapPass(
         VulkanDevice device,
         ShaderLibrary shaders,
         DescriptorLayouts layouts,
         Format outputFormat,
         ToneCurve curve,
-        BloomSetting bloom,
-        SmaaTargets? smaa
+        BloomSetting bloom
     )
     {
         this.device = device;
         this.layouts = layouts;
         this.curve = curve;
-        this.smaa = smaa;
         (string shader, glow) = bloom switch
         {
             Bloom on => ("tonemap_bloom.frag", (Bloom?)on),
@@ -45,7 +40,7 @@ internal sealed unsafe class ToneMapPass : RenderPass
             VertexShader = "fullscreen.vert",
             FragmentShader = shader,
             Layout = layouts.PostLayout,
-            ColorFormats = [smaa is null ? outputFormat : SmaaTargets.ToneMappedFormat],
+            ColorFormats = [outputFormat],
             CullMode = CullModeFlags.None,
         }.Create(device, shaders);
     }
@@ -57,8 +52,8 @@ internal sealed unsafe class ToneMapPass : RenderPass
         Vk vk = context.Vk;
         CommandBuffer commandBuffer = context.CommandBuffer;
         BarrierBatch barriers = context.Barriers;
-        GpuImage target = smaa?.ToneMapped ?? context.Output;
-        barriers.Image(context.Targets.Hdr, ImageUse.SampledFragment);
+        GpuImage target = context.Output;
+        barriers.Image(context.Targets.PostHdr, ImageUse.SampledFragment);
         if (glow is not null)
             barriers.Image(context.Targets.Glow[0], ImageUse.SampledFragment);
         barriers.Image(target, ImageUse.ColorAttachment, discard: true);
@@ -73,8 +68,7 @@ internal sealed unsafe class ToneMapPass : RenderPass
         );
         var push = new ToneMapPushConstants
         {
-            // The SMAA tone-mapped image is sRGB, so the hardware applies the curve.
-            EncodeSrgb = smaa is null && context.EncodeSrgb ? 1u : 0u,
+            EncodeSrgb = context.EncodeSrgb ? 1u : 0u,
             ToneCurve = (uint)curve,
             GlowStrength = glow?.Strength ?? 0,
         };

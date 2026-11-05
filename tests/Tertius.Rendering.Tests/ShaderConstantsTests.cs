@@ -32,20 +32,29 @@ public sealed class ShaderConstantsTests
         {
             [ShaderConstants.CutoutAlphaId] = False,
             [ShaderConstants.DropsFibersId] = False,
+            [ShaderConstants.MainViewId] = False,
+            [ShaderConstants.TemporalShadowsId] = False,
         },
         ["skin_scatter_rows.comp"] = new() { [ShaderConstants.ScatterTapsPerSideId] = new(Type: "int", Default: 1) },
-        ["direct.frag"] = new() { [ShaderConstants.DropsFibersId] = False },
+        ["direct.frag"] = new()
+        {
+            [ShaderConstants.DropsFibersId] = False,
+            [ShaderConstants.TemporalShadowsId] = False,
+        },
         ["gbuffer.frag"] = new()
         {
             [ShaderConstants.EnvironmentMapId] = False,
             [ShaderConstants.CutoutAlphaId] = False,
             [ShaderConstants.DropsFibersId] = False,
+            [ShaderConstants.MainViewId] = False,
         },
         ["transparent.frag"] = new()
         {
             [ShaderConstants.EnvironmentMapId] = False,
             [ShaderConstants.CutoutAlphaId] = False,
             [ShaderConstants.DropsFibersId] = False,
+            [ShaderConstants.MainViewId] = False,
+            [ShaderConstants.TemporalShadowsId] = False,
         },
     };
 

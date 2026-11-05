@@ -15,6 +15,7 @@ layout(set = 0, binding = 1) uniform texture2D distanceImage;   // the G-buffer 
 layout(set = 1, binding = 0, std430) buffer HistogramBlock { uint bins[HistogramBins]; };
 
 shared uint localBins[HistogramBins];
+layout(push_constant, std430) uniform MeterPush { uvec2 activeSize; } meter;
 
 void main()
 {
@@ -24,7 +25,7 @@ void main()
     // The block's top-left pixel: it lies inside the image exactly when the block does, so the test below keeps every
     // fetch in range.
     ivec2 pixel = 2 * ivec2(gl_GlobalInvocationID.xy);
-    ivec2 size = textureSize(hdrImage, 0);
+    ivec2 size = ivec2(meter.activeSize);
     if (pixel.x < size.x && pixel.y < size.y && texelFetch(distanceImage, pixel, 0).r > 0.0)
         atomicAdd(localBins[binOf(luminance(texelFetch(hdrImage, pixel, 0).rgb))], 1u);
     barrier();

@@ -93,6 +93,8 @@ public sealed class Fsr3HostTests
         ["r_frame_info"] = Fsr3Slot.FrameInfo,
         ["rw_frame_info"] = Fsr3Slot.FrameInfo,
         ["cbFSR3Upscaler"] = Fsr3Slot.Constants,
+        ["cbRCAS"] = Fsr3Slot.RcasConstants,
+        ["r_rcas_input"] = Fsr3Slot.RcasInput,
         ["cbSPD"] = Fsr3Slot.SpdConstants,
         ["cbGenerateReactive"] = Fsr3Slot.ReactiveConstants,
         ["s_LinearClamp"] = Fsr3Slot.LinearClamp,

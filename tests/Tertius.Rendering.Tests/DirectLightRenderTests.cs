@@ -33,7 +33,7 @@ public sealed class DirectLightRenderTests
                 ScreenTrace = new NoScreenTrace(),
                 Exposure = new FixedExposure(stops),
                 Bloom = new NoBloom(),
-                AntiAliasing = AntiAliasing.None,
+                Upscaling = new NoUpscaling(),
                 EnvironmentMap = new NoEnvironmentMap(),
             }
         );

@@ -1,0 +1,18 @@
+{
+  "scene": "demo-exit",
+  "window": { "width": 1920, "height": 1080 },
+  "steps": [
+    { "do": "camera", "entity": "cabin-camera" },
+    { "do": "post", "to": { "kind": "entity", "id": "person" }, "event": "LeaveShip", "payload": null },
+    { "do": "run", "ticks": 399 },
+    { "do": "camera", "entity": "deck-camera" },
+    { "do": "capture", "name": "deck-still" },
+    { "do": "film", "name": "deck-motion", "frames": 16, "every": 1 },
+    { "do": "camera", "entity": "cabin-camera" },
+    { "do": "capture", "name": "glass-still" },
+    { "do": "film", "name": "glass-motion", "frames": 24, "every": 1 },
+    { "do": "camera", "entity": "spoke-camera" },
+    { "do": "capture", "name": "exterior-still" },
+    { "do": "film", "name": "exterior-motion", "frames": 24, "every": 1 }
+  ]
+}

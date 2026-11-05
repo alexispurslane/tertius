@@ -16,7 +16,7 @@ void main()
 {
     // A helper invocation of a 2 × 2 quad can lie past the image's last column or row when the size is odd, and a fetch
     // there is undefined, so every read stays inside the image.
-    ivec2 pixel = min(ivec2(gl_FragCoord.xy), textureSize(gbufferDistance, 0) - 1);
+    ivec2 pixel = min(ivec2(gl_FragCoord.xy), ivec2(frame.viewport.xy) - 1);
     float distanceToEye = texelFetch(gbufferDistance, pixel, 0).r;
     // Sky and impostors: no direct light. An impostor's light, ambient light included, is baked into its emission.
     if (distanceToEye <= 0.0 || texelFetch(gbufferBaseColor, pixel, 0).a == 0.0)

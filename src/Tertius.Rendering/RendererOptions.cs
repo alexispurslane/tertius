@@ -3,6 +3,9 @@ namespace Tertius.Rendering;
 /// <summary>Settings for creating a <see cref="VulkanRenderer"/>.</summary>
 public sealed class RendererOptions
 {
+    /// <summary>The one temporal anti-aliasing and upscale setting. Headless defaults to a fixed scale of 2/3.</summary>
+    public UpscalingSetting Upscaling { get; set; } = Fsr3Upscaling.Default;
+
     /// <summary>The most far lights that get cascaded shadow maps.</summary>
     public const int MaxCascadedLights = 4;
 
@@ -103,12 +106,6 @@ public sealed class RendererOptions
     /// image and the row image take 16 bytes per pixel, about 33 MB at 1920 × 1080 (docs/plans/skin-and-hair.md, "Cost").
     /// </summary>
     public SubsurfaceSetting Subsurface { get; set; } = SeparableSubsurface.Default;
-
-    /// <summary>
-    /// How the renderer smooths jagged edges after the tone map. SMAA takes 10 bytes of device memory per output pixel
-    /// (about 21 MB at 1920 × 1080) and three full-screen passes.
-    /// </summary>
-    public AntiAliasing AntiAliasing { get; set; } = AntiAliasing.Smaa;
 
     /// <summary>
     /// The ambient light: a map of the scene around the camera, or <see cref="NoEnvironmentMap"/> for the hemisphere of

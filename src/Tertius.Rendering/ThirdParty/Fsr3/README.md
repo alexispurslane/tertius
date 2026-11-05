@@ -25,7 +25,7 @@ FSR 3.1.4 is the last release with GLSL passes for Vulkan. The later releases ar
 
 | Release | Shader change against 3.1.4 | Effect on the engine's build |
 |---|---|---|
-| 3.1.5 | "Fix for possible negative RCAS output": `FsrRcasF` and its half variants in `fsr1/ffx_fsr1.h` multiply `hitMin` by `lowerLimiterMultiplier` | None. Only the sharpening pass runs RCAS, and the engine runs no sharpening and does not build that pass |
+| 3.1.5 | "Fix for possible negative RCAS output": `FsrRcasF` and its half variants in `fsr1/ffx_fsr1.h` multiply `hitMin` by `lowerLimiterMultiplier` | The default path still skips RCAS. Optional sharpening uses the pinned 3.1.4 algorithm, not this later change; tone mapping clamps negative color inputs |
 | 3.1.6 | `ReprojectHistoryColor` in `ffx_fsr3upscaler_reproject.h` passes `PreviousFrameUpscaleSize()` instead of `UpscaleSize()` to `HistorySample16` | None on the modules. The line is in the branch of `FFX_HALF && FFX_FSR3UPSCALER_OPTION_REPROJECT_SAMPLERS_USE_DATA_HALF`. The build sets `FFX_HALF=0`, and its 32-bit branch already passes `PreviousFrameUpscaleSize()` in 3.1.4. The pin carries the line all the same (see "AMD's 3.1.6 fix") |
 
 Apart from those lines and the years of the notices, the 3.1.6 changes are in the host: messages, a watermark and D3D12 aliasing barriers. The engine repeats none of them, because its host is a C# copy of the 3.1.4 host (`Fsr3Upscaler`).
@@ -84,7 +84,7 @@ The pin carries one line of AMD's 3.1.6 fix (ticket `ter-7m38`, 2026-11-03). In 
 
 ## The build
 
-`Tertius.Rendering.csproj` compiles the eight passes that the engine dispatches. It uses `glslangValidator` from the dev shell, as AMD's build does, and checks each module with `spirv-val`:
+`Tertius.Rendering.csproj` compiles eight AMD passes and the engine's optional RCAS wrapper. It uses `glslangValidator` from the dev shell, as AMD's build does, and checks each module with `spirv-val`:
 
 ```
 glslangValidator -V --target-env vulkan1.3 -S comp -Os -DFFX_GPU=1 -DFFX_GLSL=1 -DFFX_HALF=0 -DFFX_SPD_NO_WAVE_OPERATIONS=1 \
@@ -102,7 +102,9 @@ glslangValidator -V --target-env vulkan1.3 -S comp -Os -DFFX_GPU=1 -DFFX_GLSL=1 
 - Lanczos: the upsample uses AMD's approximation (type 2, AMD's base argument), and the reprojection the reference function (type 0). AMD's host picks type 1, a lookup table, only on a device whose waves have from 32 to 64 lanes (`ffx_fsr3upscaler.cpp`, `createPipelineStates`). So the engine creates and binds no `FSR3UPSCALER_LanczosLutData`.
 - The target is Vulkan 1.3, the engine's. AMD's build targets Vulkan 1.2.
 
-The modules use these SPIR-V capabilities: `Shader`, `ImageQuery`, `StorageImageExtendedFormats`, and `StorageImageWriteWithoutFormat` in the accumulate pass, which writes the output through `rw_upscaled_output`, declared with no format. No module uses a subgroup or a 16-bit capability. The engine requires `shaderStorageImageExtendedFormats` and `shaderStorageImageWriteWithoutFormat` (ARCHITECTURE.md, "Required device features").
+The modules use these SPIR-V capabilities: `Shader`, `ImageQuery`, `StorageImageExtendedFormats`, and `StorageImageWriteWithoutFormat` in the accumulate pass and optional RCAS wrapper. Both write the output through `rw_upscaled_output`, declared with no format. No module uses a subgroup or a 16-bit capability. The engine requires `shaderStorageImageExtendedFormats` and `shaderStorageImageWriteWithoutFormat` (ARCHITECTURE.md, "Required device features").
+
+`Shaders/fsr_rcas.glsl` includes the pinned callbacks and RCAS algorithm. It replaces only the input fetch and output store: border fetches clamp to the output image, and padded invocations cannot store outside it. AMD's RCAS dispatch covers 16 × 16 pixels per 64-thread group, so nonmultiples of 16 need that guard. The four constant words follow AMD's `FsrRcasCon`: the float attenuation and its duplicated half-float bits, then two zero words. Sharpness zero skips RCAS. Other values map the engine's 0-to-1 strength to AMD's 2-to-0 stops of attenuation. No pinned file changes for this wrapper.
 
 The images that the shaders filter with AMD's linear sampler are of formats whose linear filtering Vulkan requires: `R8_UNORM`, `R8G8B8A8_UNORM`, `R16_SFLOAT`, `R16G16_SFLOAT` and `R16G16B16A16_SFLOAT`. No pass filters a 32-bit float image.
 

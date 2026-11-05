@@ -139,6 +139,7 @@ public sealed class ExposureReadbackTests
                 // A fixed exposure and no tracer, so that each still draws once and the frames keep their numbers.
                 Exposure = new FixedExposure(-2),
                 ScreenTrace = new NoScreenTrace(),
+                Upscaling = new NoUpscaling(),
             },
             (device, allocator, extent) => made = new(device: device, allocator: allocator, extent: extent, bgra: false)
         );
