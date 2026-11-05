@@ -39,7 +39,7 @@ void main()
     float exposure = exposureScale();
     // surfaceRadiance caps the light at MaxRadiance, so the fringe writes at most MaxRadiance · a = MaxRadiance · (1 − T):
     // the glass's bound, which keeps the blend inside the half float's range (ARCHITECTURE.md, "Portable Vulkan").
-    vec3 radiance = surfaceRadiance(shading, exposed(s.emissive, exposure), inPosition, V, ShadowMapsMainView, exposure);
+    vec3 radiance = surfaceRadiance(shading, exposed(s.emissive, exposure), V, ShadowMapsMainView, exposure);
     // The haze between the eye and the fringe stands in for the share that it covers, as for a pane
     // (docs/plans/atmosphere.md, "The haze"). Each part is at most MaxRadiance · a, and so is their convex sum.
     vec3 seen = throughAir(radiance * coverage, vec3(coverage), inPosition, exposed(frame.atmosphere.haze.rgb, exposure));

@@ -8,7 +8,6 @@
 #include "gbuffer_surface.glsl"
 #include "temporal.glsl"
 
-layout(location = 0) in vec3 inRay;
 layout(location = 0) out vec4 outDiffuse;   // the diffuse part
 layout(location = 1) out vec4 outSpecular;  // the specular part
 
@@ -26,14 +25,10 @@ void main()
         return;
     }
 
-    // The position comes from the ray and the stored distance, so it does not depend on the projection of the depth range
-    // that drew the pixel.
-    vec3 direction = normalize(inRay);
-    vec3 position = direction * distanceToEye;
-    vec3 V = -direction;
     ShadingInput s = materialAt(pixel);
+    vec3 V = -normalize(s.position);
     SurfaceLobes lobes = lobesOf(s, V);
-    DirectTerms direct = directLight(s, lobes, position, V, ShadowMapsMainView, MainView);
+    DirectTerms direct = directLight(s, lobes, V, ShadowMapsMainView, MainView);
     MaterialFactors factors = materialFactors(s, lobes);
     float k = exposureScale();
     outDiffuse = vec4(demodulated(direct.diffuse, factors.diffuse, k), 1.0);

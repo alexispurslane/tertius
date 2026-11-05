@@ -38,7 +38,7 @@ void main()
     vec3 glow = glowSent(s.emissive, inInstanceWords.z);
     // A face of map i keeps the lights of maps 0 to i: a map leaves out the lamps of the subtree that it leaves out
     // (docs/plans/environment-maps-per-frame.md, decision 13).
-    vec3 radiance = directRadiance(shading, glow, inPosition, V, ShadowMapsHolding, draw.map);
+    vec3 radiance = directRadiance(shading, glow, V, ShadowMapsHolding, draw.map);
     // The face sees the surface through the same haze as the main view, from the same eye (docs/plans/atmosphere.md,
     // "The haze"). Both parts are at most MaxRadiance, and so is their convex sum.
     outColor = vec4(throughAir(radiance, vec3(1.0), inPosition, frame.atmosphere.haze.rgb), 0.0);

@@ -330,9 +330,9 @@ struct LightPath
 // The path from a surface point to light `index`, or false where the point takes none of its light. `fiber` as in respond,
 // `tinted` as in lightIrradiance. A surface's geometric normal faces every light that it takes (takesLight), so only a
 // fiber's turns. The sine of the angle to the light is the same on both sides of a card.
-bool lightPath(uint index, bool fiber, bool tinted, ShadingInput s, vec3 position, out LightPath p)
+bool lightPath(uint index, bool fiber, bool tinted, ShadingInput s, out LightPath p)
 {
-    p.irradiance = lightIrradiance(index, tinted, position, p.L, p.d);
+    p.irradiance = lightIrradiance(index, tinted, s.position, p.L, p.d);
     float geometricNdotL = dot(s.geometricNormal, p.L);
     if (p.irradiance == vec3(0.0) || !takesLight(fiber, s, p.L, geometricNdotL))
         return false;
@@ -361,7 +361,7 @@ DirectTerms pathLight(uint index, bool fiber, ShadingInput s, SurfaceLobes lobes
 // lightIrradiance. directLight is the one caller, and it passes constants, so each copy of the loop holds one model's
 // code and only the tint that it needs. A light's response is evaluated only where its shadows let some of it through.
 DirectTerms modelLight(
-    bool fiber, bool tinted, ShadingInput s, SurfaceLobes lobes, vec3 position, vec3 V, uint shadowMaps, uint view)
+    bool fiber, bool tinted, ShadingInput s, SurfaceLobes lobes, vec3 V, uint shadowMaps, uint view)
 {
     DirectTerms sum;
     sum.diffuse = vec3(0.0);
@@ -371,9 +371,9 @@ DirectTerms modelLight(
         if (!viewKeeps(view, lights[i]))
             continue;
         LightPath p;
-        if (!lightPath(i, fiber, tinted, s, position, p))
+        if (!lightPath(i, fiber, tinted, s, p))
             continue;
-        float visibility = pathVisibility(i, p, position, shadowMaps);
+        float visibility = pathVisibility(i, p, s.position, shadowMaps);
         if (visibility > 0.0)
         {
             DirectTerms terms = pathLight(i, fiber, s, lobes, V, p);
@@ -403,14 +403,14 @@ DirectTerms modelLight(
 // the one loop, never true without an atmosphere, made the direct pass of demo-exit's deck about 0.2 ms slower. The
 // choice takes that off, and about 0.05 ms off its transparent pass (docs/plans/skin-and-hair.md, "What remains"). The
 // choice is the same for every pixel of a frame.
-DirectTerms directLight(ShadingInput s, SurfaceLobes lobes, vec3 position, vec3 V, uint shadowMaps, uint view)
+DirectTerms directLight(ShadingInput s, SurfaceLobes lobes, vec3 V, uint shadowMaps, uint view)
 {
     bool tinted = frame.counts.y != NoAirSun;
     if (!dropsFibers && s.model == ShadingHair)
-        return tinted ? modelLight(true, true, s, lobes, position, V, shadowMaps, view)
-                      : modelLight(true, false, s, lobes, position, V, shadowMaps, view);
-    return tinted ? modelLight(false, true, s, lobes, position, V, shadowMaps, view)
-                  : modelLight(false, false, s, lobes, position, V, shadowMaps, view);
+        return tinted ? modelLight(true, true, s, lobes, V, shadowMaps, view)
+                      : modelLight(true, false, s, lobes, V, shadowMaps, view);
+    return tinted ? modelLight(false, true, s, lobes, V, shadowMaps, view)
+                  : modelLight(false, false, s, lobes, V, shadowMaps, view);
 }
 
 // Both parts of directLight, added.
@@ -428,24 +428,24 @@ vec3 directSum(DirectTerms terms)
 // stores radiance. The main view's opaque surfaces split the same cap over the direct and the ambient pass
 // (docs/plans/screen-space-illumination.md, "The cap at MaxRadiance").
 vec3 lobesRadiance(
-    ShadingInput s, SurfaceLobes lobes, vec3 preExposedEmission, vec3 position, vec3 V, uint shadowMaps, float exposure)
+    ShadingInput s, SurfaceLobes lobes, vec3 preExposedEmission, vec3 V, uint shadowMaps, float exposure)
 {
-    vec3 reflected = ambientLight(s, lobes, V) + directSum(directLight(s, lobes, position, V, shadowMaps, MainView));
+    vec3 reflected = ambientLight(s, lobes, V) + directSum(directLight(s, lobes, V, shadowMaps, MainView));
     return min(exposed(reflected, exposure) + preExposedEmission, vec3(MaxRadiance));
 }
 
 // lobesRadiance with the lobes of the material itself: every opaque surface.
-vec3 surfaceRadiance(ShadingInput s, vec3 preExposedEmission, vec3 position, vec3 V, uint shadowMaps, float exposure)
+vec3 surfaceRadiance(ShadingInput s, vec3 preExposedEmission, vec3 V, uint shadowMaps, float exposure)
 {
-    return lobesRadiance(s, lobesOf(s, V), preExposedEmission, position, V, shadowMaps, exposure);
+    return lobesRadiance(s, lobesOf(s, V), preExposedEmission, V, shadowMaps, exposure);
 }
 
 // The light that the lights that the view keeps send from a surface point toward V, plus its emission, in plain
 // radiance: no ambient light and no exposure, as the environment faces store it. Capped at MaxRadiance (exposure.glsl).
-vec3 directRadiance(ShadingInput s, vec3 emission, vec3 position, vec3 V, uint shadowMaps, uint view)
+vec3 directRadiance(ShadingInput s, vec3 emission, vec3 V, uint shadowMaps, uint view)
 {
     SurfaceLobes lobes = lobesOf(s, V);
-    return min(directSum(directLight(s, lobes, position, V, shadowMaps, view)) + emission, vec3(MaxRadiance));
+    return min(directSum(directLight(s, lobes, V, shadowMaps, view)) + emission, vec3(MaxRadiance));
 }
 
 // The light that a lit puff at `position` sends toward the eye (docs/plans/particles.md, "Lit puffs"). A puff has no

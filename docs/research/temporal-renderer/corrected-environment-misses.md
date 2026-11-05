@@ -35,6 +35,8 @@ This port adds no further algorithm and changes no ray budget, clipping, denoisi
 The G-buffer reader reconstructs it from the view ray and radial distance.
 Forward shading takes its existing camera-relative position.
 The tracer reuses that position instead of reconstructing it a second time.
+Direct lighting and forward lighting also read that field, without an independent receiving-position argument.
+The deferred direct pass uses `materialAt` for its position and derives its direction toward the eye from that position.
 
 The corrected readers are reflection misses, composite closed forms, tracer-hit closed forms and forward lighting.
 Forward lighting includes glass, fringe surfaces and impostor captures.
@@ -50,7 +52,9 @@ The search and screen walk share `ThicknessShare` through `thickness.glsl`.
 The CPU search retains the accepted geometric-normal rejection and near-surface entry rule.
 
 The review used the software-design rules of User, Ousterhout and Muratori.
-One receiving-position field serves all readers; there is no parallel position store or new mode.
+One receiving-position field serves all lighting operations that accept a `ShadingInput`; none also accepts a position.
+The original implementation left parallel direct-light arguments in place; the review fix removes them.
+No new mode is added.
 The shared cone owns a calculation used by the CPU search and its GPU twin without unrelated reflection operations.
 `MapSearchCone` keeps only its stored tangent, factory and level calculation because those are the search's actual uses.
 Its numerical-value role justifies that small interface; extra methods or branches would not improve its design.
@@ -209,9 +213,9 @@ Every per-pass mean and median, including unchanged passes, is retained in
 Each run's frame data, neighboring-pass sums, clock, load and pair comparison remain in `timing/round-{1…7}/`.
 `measurement-summary.json` records the retained counts, medians, differences and trace values.
 
-## Final validation and identity
+## Original implementation validation and identity
 
-The final code/test/build-input tree is `f7733d3c09d2b3e9768cd51f41b9001a7a9b26e4`.
+The original implementation's code/test/build-input tree is `f7733d3c09d2b3e9768cd51f41b9001a7a9b26e4`.
 The captures and cost measurements used `dc82b223727ec1599c05826c32cc95acbb41864b`.
 The only later code-tree change removes an obsolete test comment about the deleted reflection-delta pipeline.
 The production Rendering DLL remains byte-identical; complete Checked and Release checks are rerun on the final tree.
@@ -270,3 +274,131 @@ The shared build input Git blob identities are:
 
 The original launch brief is preserved verbatim in `.tickets/ter-7tnv.md` before the final commit.
 No coverage or mutation pass was run in this worker.
+
+## Review fix, 2026-11-05
+
+The review identified one ownership defect and a missing red result for the final off-screen tracer fixture.
+Decision 22 already settles the ownership fix; no new design or rendering policy is chosen here.
+
+The original report said:
+
+> One receiving-position field serves all readers; there is no parallel position store or new mode.
+
+That claim was incomplete at `d42045d1ee44f4cc64a6e7f99736f523f8f2bb75`.
+Direct lighting still accepted a position beside `ShadingInput.position`.
+The direct pass also reconstructed that second position separately from `materialAt`.
+This was demonstrated ownership leakage, not a reproduced visible lighting defect.
+
+The fix removes the redundant argument from `lightPath`, `modelLight`, `directLight`, `lobesRadiance`,
+`surfaceRadiance` and `directRadiance`, including every deferred and forward caller.
+The direct pass uses the position from `materialAt` for both lighting and its direction toward the eye.
+Helpers without a `ShadingInput` still accept a position; the tracer's offset ray origin remains a distinct quantity.
+No search, diffuse-miss, hemisphere, exposure, history, ray-budget or denoising rule changes.
+
+The direct pass now reads:
+
+```glsl
+    ShadingInput s = materialAt(pixel);
+    vec3 V = -normalize(s.position);
+```
+
+where
+
+- `s` = the shared shading input of the receiving surface, including its position.
+- `materialAt(pixel)` = the G-buffer reader that reconstructs that position and reads the material at the pixel.
+- `pixel` = the integer column and row inside the G-buffer image.
+- `V` = the unit direction from the receiving surface toward the eye.
+- `normalize` = the GLSL function that turns a nonzero vector into a unit vector.
+- `s.position` = the receiving surface point relative to the eye, in meters and world axes.
+
+The existing positive-distance guard excludes an eye position before these lines run.
+
+The final complete-wall tracer fixture was run with only reflection misses restored to the original directional read.
+The temporary overload is the four-argument `environmentSpecular` body from review base `34c28466e641a864fd6a915c029e08f07b3b9ccc`.
+Other specular readers retained the corrected search, so this isolates the tracer's reflection-miss input.
+`AReflectionThatLeavesTheScreenFindsTheStripeBehindTheCamera` failed with angular error 0.3666097 rad,
+against the unchanged limit of 0.0625 rad.
+The other seven cases passed, including both bit-exact open-sky fallback controls and the diffuse-miss control.
+The patch is retained as `captures/ter-7tnv/review-fix/tracer-directional-baseline.patch`.
+The execution log is `captures/ter-7tnv/review-fix/logs/red-final-tracer.log`.
+The temporary overload was removed, and `screen_trace.glsl` was verified identical to the reviewed implementation.
+
+### Assessment limits and ownership
+
+This worker executes the macOS checks rather than relying only on the first worker's retained logs.
+Linux runtime remains deferred under `ter-cgif`; valid Vulkan shader modules do not establish Linux runtime behavior.
+The parent owns changed-line coverage, mutation testing, integration, budget acceptance and ticket closure.
+The original paired cost increases, 2.762 ms per frame on deck and 2.175 ms on floor at 1296 MHz, remain above the old allowance.
+This fix does not replace the settled search or claim that its cost meets that allowance.
+New captures are visual checks, not frame-cost measurements.
+Parallax correction still does not fix the unresolved tracer grain.
+
+### Matched review-fix captures
+
+The preserved pre-fix Release Rendering DLL is from `d42045d1ee44f4cc64a6e7f99736f523f8f2bb75`.
+Its SHA-256 is `725e4a6e591cdf385d4f039e34e1d11fd08d7f985818a09fb31bcd074c2355b6`.
+The fixed Release Rendering DLL has SHA-256 `bf54986295051c005ed52560a58464e6e8dc02f337a9b26b13da40338fa84065`.
+Its code/test/build-input identity is `d7daa2215acd2055df7d75b581258be4678e5212`.
+The accepted `environment.glsl` SHA-256 remains unchanged.
+
+Both binaries reran all three bounded `scripts/ter-7tnv-{terminal,floor,pbr}.json` scripts through the real renderer.
+The captures are under `captures/ter-7tnv/review-fix/{pre-fix,fixed}-{terminal,floor,pbr}/`.
+Every settings record and simulation snapshot is identical across each matched pair.
+The dimensions, cameras, simulation times, exposure settings and renderer settings remain those recorded above.
+The auxiliary observer source remains `captures/ter-7tnv/history/HistoryProbeTool.cs`.
+Its draw records match between binaries for every scene: indices 0–33, with a reset only at index 0.
+All twelve observer PNG files are byte-identical to the corresponding ordinary CLI PNG files.
+The observer is excluded from both final full-suite runs.
+
+`capture-provenance.json` in the review-fix folder records settings equality, snapshot equality, draw records,
+image SHA-256 values and the actual exposure values.
+The terminal exposure changes from −2.9894311 to −2.9894981 stops.
+The floor exposure changes from 3.7050803 to 3.7050846 stops.
+The PBR exposure remains −9.081167 stops.
+Those are measured exposure responses, not changed exposure settings.
+All six matched before/after PNG byte streams differ; none is claimed to be an exact image match.
+
+The clock records are `logs/{pre-fix,fixed}-{observer,terminal,floor,pbr}-clock.log` in that folder.
+Capture clocks vary; these records are not matched fixed-clock frame-cost measurements.
+The original seven-round cost evidence is retained for the original implementation, not relabeled as a new measurement.
+
+All six primary before/after images were opened and inspected.
+No new visible displacement or artifact was identified, and no reference image was updated.
+The terminal retains its bright doorway and severe tracer grain.
+The floor retains grain and sharp object feet.
+PBR spheres retain the mirror-to-rough progression.
+The three fixed primary images were shown inline with captions.
+
+### Review-fix validation and final identity
+
+The final code/test/build-input identity is `d7daa2215acd2055df7d75b581258be4678e5212`.
+Both Rendering test-output stamps contain that identity.
+The source identity was checked unchanged before and after the validation commands.
+Only shader and Markdown files change in this fix, so there are no touched C# files for cleanup.
+The earlier implementation's C# cleanup remains recorded above.
+
+| Check executed in this fix stage | Result | Retained log under `captures/ter-7tnv/review-fix/logs/` |
+|---|---|---|
+| Final tracer fixture with only directional reflection misses | Expected angular-placement failure, 1 failed and 7 passed | `red-final-tracer.log` |
+| Restored corrected read and position-consolidation focus | 47 passed, no failures or skips | `green-map-search.log` |
+| Complete Checked solution, one test module at a time | 9,971 passed, 20 skipped, zero failed; 9,991 total | `Checked-all.log` |
+| Complete Release solution, one test module at a time | 9,958 passed, 20 skipped, zero failed; 9,978 total | `Release-all.log` |
+| Release benchmark compilation | Passed, zero warnings and errors | `benchmark-build.log` |
+| All built Release shader modules, Vulkan 1.3 | 83 passed | `readiness.log` |
+
+Every build, test, capture and probe command ran in the Nix dev shell.
+GPU execution held the project GPU lock; the worker ran one build or test command at a time, in the foreground.
+The driver is `captures/ter-7tnv/review-fix/validate.sh`.
+The ordinary image-reference checks passed without changing a reference or weakening an assertion.
+
+An initial combined-class filter used an unsupported union expression and selected zero tests, returning exit code 5.
+That run, `green-focused.log`, is not passing evidence.
+The corrected single-pattern run selected all 47 search cases and passed, followed by both complete solution runs.
+The first preparation attempt lacked the patch command on PATH and was canceled while waiting for the GPU lock;
+it ran no tests and is not red or green evidence.
+The harness's bundled patch tool was then used for every source edit.
+
+Every worker-owned command finished before the final commit.
+The original launch brief was compared byte for byte with the copy preserved in `.tickets/ter-7tnv.md`.
+No agents, workflows, checkout changes, coverage or mutation runs, merges, pushes, PR publication or ticket closure occurred.
+No unresolved in-scope fork remains; the parent's hardening and integration decisions remain with the parent.
