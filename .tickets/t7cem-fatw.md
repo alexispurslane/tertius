@@ -1,6 +1,6 @@
 ---
 id: t7cem-fatw
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-11-05T22:39:01Z
@@ -31,3 +31,7 @@ The standard-library trace records 279 distinct executed runner lines; its summa
 Both public listed runs completed with saved source hashes, all semantic staged entries and HEAD/MERGE_HEAD unchanged across each run. The initial 20 faults had 18 kills and two survivors; the scoped public rerun kills both survivors with the added actual-renderer native/FSR rotated-map resize theory. No private runner or manual mutant cycle was used. The final combined .NET source identity, including this enhancement and its tests, is `2f6a0844cdf514a19bbdbb1fc15daaf816b0b295`; complete Checked/Release suites pass 10,082/10,069 tests respectively, zero failures and 26 explicit skips each.
 
 Remaining safety limit: guarded check/write restoration is not an OS-atomic compare-and-swap against hostile concurrent writers. Parent inspected and accepted this limit for the serialized, exclusively owned maintenance checkout and promised no concurrent staging/edits during the table. Keep this child open for parent integration; stage completeness is not integration or final acceptance.
+
+## Parent integration and closure, 2026-11-05
+
+The parent integrated the tested public runner and its 70 passing safety tests into main at f7fe318bdb3894a50561f4dfae00dee1e7556461. The code identity remains 2f6a0844cdf514a19bbdbb1fc15daaf816b0b295. The parent closed this child only after integration. Default dirty-input refusal, explicit staged-input admission and the accepted exclusive-checkout restoration limit remain unchanged. No tooling self-mutation, Python branch coverage or hostile-writer atomicity is claimed.

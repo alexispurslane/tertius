@@ -1,6 +1,6 @@
 ---
 id: ter-7tnv
-status: in_progress
+status: closed
 deps: [ter-gayt]
 links: []
 created: 2026-11-03T14:53:48Z
@@ -38,7 +38,7 @@ Final validation on `f7733d3c09d2b3e9768cd51f41b9001a7a9b26e4` completed through
 ```text
 ---
 id: ter-7tnv
-status: in_progress
+status: closed
 deps: [ter-gayt]
 links: []
 created: 2026-11-03T14:53:48Z
@@ -289,3 +289,9 @@ Final tested code identity remains 2f6a0844cdf514a19bbdbb1fc15daaf816b0b295. Che
 Evidence is retained under /private/tmp/tertius-hardening-20261105/ter-7tnv/, including final-state.json, final/prerequisite-preservation.json and normal-merge-commit-recovered.queue.log. The worker explicitly released its one heavy allocation after every owned command ended. The parent accepted the successful literal state and requested normal completion of the existing stage without more work. No test needs repetition for this receipt. Root main remains a004bdb7338b4ab92aa2d481a9be9692d638931e. Parent integration, push and ticket closure remain pending. Linux runtime, final image quality and frame budget acceptance remain unclaimed.
 
 The parent read the terminal workflow result after reconciling the stop race. Run f78deb84-f394-4912-b7a7-e8f3e6ac49ed succeeded with done=true and ready_for_integration. Its member is settled and cleanup is complete. This supersedes an interim done=false handoff, not the recorded limits. All source, test and tooling inputs remain those tested at 2f6a0844cdf514a19bbdbb1fc15daaf816b0b295.
+
+### Parent integration and implementation closure, 2026-11-05
+
+Main advanced by fast-forward to f7fe318bdb3894a50561f4dfae00dee1e7556461 after the parent checked the terminal workflow, exact merge parents, clean branch and saved final audit. That commit adds only retained parent receipts above the tested ebee58e1 merge. Every original parent ticket paragraph is retained. All other local ticket files and nohup.out remain byte-identical to their pre-integration copies. The archive is /private/tmp/tertius-integration-20261105/box-main-integration.e2mfGO.
+
+Main has exactly the tested code identity 2f6a0844cdf514a19bbdbb1fc15daaf816b0b295. No source, test, shader or tooling input changed during integration. Existing complete validation remains applicable without another suite run. The parent closed this implementation ticket and tooling child t7cem-fatw only after the code reached main. Closure does not claim final image quality, frame-budget acceptance, Linux runtime, soak reliability, the separate camera/snapping correction or the standalone noise prototype. Distance-producer cleanup remains open in t7cem-d5f9. Epic-level quality and runtime limits remain as documented.
