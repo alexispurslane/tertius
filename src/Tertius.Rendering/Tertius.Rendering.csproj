@@ -21,6 +21,7 @@
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Tertius.Rendering.Tests" />
+    <InternalsVisibleTo Include="Tertius.ReflectionReference" />
     <InternalsVisibleTo Include="Tertius.Benchmarks" />
     <InternalsVisibleTo Include="Tertius.Host.Tests" />
   </ItemGroup>

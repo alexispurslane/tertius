@@ -15,6 +15,7 @@ internal sealed unsafe class CompositePass : RenderPass
     private readonly VulkanDevice device;
     private readonly DescriptorLayouts layouts;
     private readonly bool scatter;
+    private readonly bool sharing;
     private readonly ScreenTraceImages? tracer;
     private readonly Pipeline pipeline;
 
@@ -33,6 +34,7 @@ internal sealed unsafe class CompositePass : RenderPass
         this.device = device;
         this.layouts = layouts;
         this.scatter = scatter;
+        sharing = constants.ReflectionSharingPrototype;
         this.tracer = tracer;
         LightSet = layouts.AllocateLightSet();
         Resize(targets);
@@ -52,7 +54,7 @@ internal sealed unsafe class CompositePass : RenderPass
 
     internal DescriptorSet LightSet { get; }
 
-    /// <summary>Rebinds all four light images after the targets and the tracer's signals resize, with the device idle.</summary>
+    /// <summary>Rebinds the four light images and the existing reflection sample after resize, with the device idle.</summary>
     public void Resize(RenderTargets targets)
     {
         GpuImage[] light =
@@ -61,6 +63,8 @@ internal sealed unsafe class CompositePass : RenderPass
             targets.DirectSpecular,
             tracer?.Diffuse.Slow(0) ?? targets.DirectDiffuse,
             tracer?.Specular.Slow(0) ?? targets.DirectSpecular,
+            tracer?.Specular.Sample(0) ?? targets.DirectSpecular,
+            tracer?.Specular.ReflectionGuide(0) ?? targets.DirectSpecular,
         ];
         for (int binding = 0; binding < light.Length; binding++)
             layouts.WriteStorageImage(set: LightSet, binding: (uint)binding, image: light[binding]);
@@ -79,6 +83,11 @@ internal sealed unsafe class CompositePass : RenderPass
         {
             barriers.Image(tracer.Diffuse.Slow(0), ImageUse.StorageFragment);
             barriers.Image(tracer.Specular.Slow(0), ImageUse.StorageFragment);
+            if (sharing)
+            {
+                barriers.Image(tracer.Specular.Sample(0), ImageUse.StorageFragment);
+                barriers.Image(tracer.Specular.ReflectionGuide(0), ImageUse.StorageFragment);
+            }
         }
 
         barriers.Image(targets.Hdr, ImageUse.ColorAttachment, discard: true);

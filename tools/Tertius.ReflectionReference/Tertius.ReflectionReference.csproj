@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <UsesVulkan>true</UsesVulkan>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/Tertius.Rendering/Tertius.Rendering.csproj" />
+    <InternalsVisibleTo Include="Tertius.Rendering.Tests" />
+  </ItemGroup>
+  <PropertyGroup>
+    <Glslc Condition="'$(Glslc)' == ''">glslc</Glslc>
+    <EngineShaders>$(MSBuildProjectDirectory)/../../src/Tertius.Rendering/Shaders</EngineShaders>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProbeShader Include="$(EngineShaders)/lighting.vert;$(EngineShaders)/mesh.vert;Shaders/*.frag" />
+    <ProbeInclude Include="$(EngineShaders)/*.glsl;Shaders/*.glsl" />
+  </ItemGroup>
+  <Target Name="CompileProbeShaders" BeforeTargets="BeforeBuild"
+          Inputs="@(ProbeShader);@(ProbeInclude);$(MSBuildProjectFullPath)"
+          Outputs="@(ProbeShader->'$(IntermediateOutputPath)probe-shaders/%(Filename)%(Extension).spv')">
+    <MakeDir Directories="$(IntermediateOutputPath)probe-shaders" />
+    <Exec Command="&quot;$(Glslc)&quot; --target-env=vulkan1.3 -O -Werror -I &quot;$(EngineShaders)&quot; -o &quot;$(IntermediateOutputPath)probe-shaders/%(ProbeShader.Filename)%(ProbeShader.Extension).spv&quot; &quot;%(ProbeShader.FullPath)&quot;" />
+  </Target>
+  <Target Name="EmbedProbeShaders" DependsOnTargets="CompileProbeShaders" BeforeTargets="BeforeBuild">
+    <ItemGroup>
+      <_ProbeSpirv Include="@(ProbeShader->'$(IntermediateOutputPath)probe-shaders/%(Filename)%(Extension).spv')" />
+      <EmbeddedResource Include="@(_ProbeSpirv)" LogicalName="Tertius.Rendering.Shaders.%(_ProbeSpirv.Filename)%(_ProbeSpirv.Extension)" WithCulture="false" />
+    </ItemGroup>
+  </Target>
+</Project>

@@ -181,6 +181,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
             {
                 ScreenTraceOn = options.ScreenTrace is ScreenTrace,
                 TemporalShadows = upscaling is Fsr3Upscaling,
+                ReflectionSharingPrototype = options.ScreenTrace is ScreenTrace
+                    && Environment.GetEnvironmentVariable("TERTIUS_REFLECTION_SHARING") == "1",
             };
             (ShadowMap, shadowAtlas) = CreateShadowImages(options);
             // After the shadow map, whose size and depth format shape the cascade boxes that the batcher fits.

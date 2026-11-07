@@ -6,9 +6,11 @@
 // the spatial dispatch reads the neighbors' results while it writes the slow history, and this frame's fast history.
 #extension GL_GOOGLE_include_directive : require
 #include "accumulate.glsl"
+#include "accumulate_reflection_guide.glsl"
 #include "gbuffer_surface.glsl"
 #include "meter.glsl"
 #include "motion.glsl"
+#include "neighbor_limit_prototype.glsl"
 
 // The share of the larger of two hit distances by which they may differ for a tap to pass.
 const float HitDistanceShare = 0.5;
@@ -48,6 +50,7 @@ Reprojection reflectedReprojectionOf(vec2 place, uint bits, float hitDistance)
 
 HISTORY_READER(lastFastAt, lastFast)
 HISTORY_READER(lastSlowAt, slowHistory)
+HISTORY_READER(lastReflectionGuideAt, reflectionGuide)
 
 // The mean luminance of this frame's finite samples on the same surface over the 3 × 3 pixels around the pixel.
 float meanSampleLuminance(ivec2 pixel)
@@ -128,11 +131,13 @@ void main()
         // The sky: no signal, and no reader reads it.
         imageStore(scratch, pixel, vec4(0.0));
         imageStore(fastHistory, pixel, vec4(0.0));
+        if (reflectionSharingPrototype && parameters.light == SpecularLight)
+            imageStore(reflectionGuideScratch, pixel, vec4(0.0));
         return;
     }
 
     vec4 sample4 = imageLoad(sampleImage, pixel);
-    vec3 sampled = sample4.rgb;
+    vec3 sampled = limitIncomingEstimate(pixel, sample4.rgb);
     bool hasSample = finiteSample(sampled);
     // The specular signal's sample holds its hit distance in alpha, 0 for a miss.
     float hitDistance = parameters.light == SpecularLight && hasSample && !isnan(sample4.a) ? sample4.a : 0.0;
@@ -144,6 +149,9 @@ void main()
     Reprojection r = historyPlaceOf(pixel, roughness, hasSample, hitDistance);
     vec4 slow = lastSlowAt(r);
     vec3 fast = lastFastAt(r).rgb;
+    vec2 guide = vec2(0.0);
+    if (reflectionSharingPrototype && parameters.light == SpecularLight)
+        guide = lastReflectionGuideAt(r).rg;
 
     float historyLength = 0.0;
     if (holdsHistory(r))
@@ -173,9 +181,16 @@ void main()
         // The weight 1 / length, written as a step toward the sample, so that a sample equal to the history leaves it
         // exact. A length of 1 takes the sample itself.
         slow.rgb = historyLength <= 1.0 ? sampled : slow.rgb + (sampled - slow.rgb) / historyLength;
+        if (reflectionSharingPrototype && parameters.light == SpecularLight)
+        {
+            vec2 sampledGuide = reflectionDistanceSample(hitDistance);
+            guide = historyLength <= 1.0 ? sampledGuide : guide + (sampledGuide - guide) / historyLength;
+        }
         float fastLength = min(historyLength, fastCapOf(cap));
         fast = fastLength <= 1.0 ? sampled : fast + (sampled - fast) / fastLength;
     }
     imageStore(scratch, pixel, vec4(slow.rgb, historyLength));
     imageStore(fastHistory, pixel, vec4(fast, hitDistance));
+    if (reflectionSharingPrototype && parameters.light == SpecularLight)
+        imageStore(reflectionGuideScratch, pixel, vec4(guide, 0.0, 0.0));
 }

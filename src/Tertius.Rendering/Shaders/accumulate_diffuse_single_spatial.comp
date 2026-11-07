@@ -1,0 +1,5 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#define diffusePrototypeInput scratch
+#define diffusePrototypeOutput slowHistory
+#include "diffuse_spatial_prototype.glsl"

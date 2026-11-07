@@ -6,6 +6,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/Tertius.Rendering/Tertius.Rendering.csproj" />
+    <ProjectReference Include="../../tools/Tertius.ReflectionReference/Tertius.ReflectionReference.csproj" />
     <ProjectReference Include="../Tertius.Testing/Tertius.Testing.csproj" />
     <PackageReference Include="xunit.v3" />
     <PackageReference Include="AwesomeAssertions" />
@@ -30,7 +31,7 @@
     <EngineShaders>$(MSBuildProjectDirectory)/../../src/Tertius.Rendering/Shaders</EngineShaders>
   </PropertyGroup>
   <ItemGroup>
-    <TestShader Include="$(EngineShaders)/lighting.vert;$(EngineShaders)/composite.frag;$(EngineShaders)/composite_scatter.frag;Shaders/direct_light_probe.frag;Shaders/direct_diffuse_probe.frag"
+    <TestShader Include="$(EngineShaders)/lighting.vert;$(EngineShaders)/composite.frag;$(EngineShaders)/composite_scatter.frag;Shaders/direct_light_probe.frag;Shaders/direct_diffuse_probe.frag;Shaders/reflection_sharing_pulse.frag"
                 Flags="-DTERTIUS_EVERY_AMBIENT_TERM -I &quot;$(EngineShaders)&quot;" />
     <TestShader Include="Shaders/*.comp" Flags="-I &quot;$(EngineShaders)&quot;" />
     <TestShader Include="$(EngineShaders)/screen_trace_resolve.comp" Flags="-I &quot;$(EngineShaders)&quot;" />

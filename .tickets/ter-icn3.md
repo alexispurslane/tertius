@@ -47,3 +47,12 @@ Separate budget-capture correction: ter-69s8's original visual-isolation-final i
 **2026-11-05T15:10:14Z**
 
 2026-11-05 tracer/A integration checks passed independently of Design B. Fresh root-engine deck and reflection-front captures reproduce the narrow A references byte-for-byte under matched native 1280x720 fixed exposures, default tracer/SMAA/bloom and advancing film clocks. Existing mottling and speckles remain visible; neither these images nor passing tests establish this ticket acceptance. Integrated Design B remains unaccepted, dirty and unmerged in its separate checkout. Preserve all original quality, identifiable rough-paint reflection and longer-motion criteria. Root capture provenance and logs: /private/tmp/tertius-integration-20261105/merge-gayt/.
+
+**2026-11-05T16:22:29Z**
+
+2026-11-05 user requested a new direct discussion thread and isolated worktree for a Unity-guided noise research program, independent of workflows and FSR integration. Research child tiunr-9b7v is in progress. See docs/plans/unity-guided-indirect-light-research.md. Thread mcp:launch:ee1c1f6e2a6bd945ec813ad2be3e94c1640798e8c20818e376d5f281cfba4558, branch ter-icn3-unity-noise-research, starting main 34c28466e641a864fd6a915c029e08f07b3b9ccc. Existing Design B remains visually rejected and preserved. Three primary hypotheses are bright-ray suppression, hit-radiance source/feedback, and post-temporal diffuse filtering. A previous scene image still contains indirect-light feedback; direct/material double counting, exposure, component contents, and history write points must be resolved. No replacement policy, production edit, heavy command, workflow, merge, or quality acceptance is authorized by this handoff.
+November 5: child tiunr-9b7v adds the user-selected standalone controlled
+reflection reference tool, without changing live noise policy. Bounded
+checks/build/reference outputs complete; allocation RELEASED. See child
+and research document for convergence and the provisional narrow-lobe
+cross-check. No noise-quality or production integration acceptance.

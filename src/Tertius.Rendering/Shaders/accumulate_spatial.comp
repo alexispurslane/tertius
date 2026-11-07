@@ -4,6 +4,7 @@
 // frame's fast history around the pixel, shortens the length by the clamp's move, and writes the slow history.
 #extension GL_GOOGLE_include_directive : require
 #include "accumulate.glsl"
+#include "accumulate_reflection_guide.glsl"
 #include "meter.glsl"
 
 void main()
@@ -12,9 +13,14 @@ void main()
     if (!insideImages(pixel))
         return;
     vec4 scratched = imageLoad(scratch, pixel);
+    vec2 guide = vec2(0.0);
+    if (reflectionSharingPrototype && parameters.light == SpecularLight)
+        guide = imageLoad(reflectionGuideScratch, pixel).rg;
     if (texelFetch(gbufferDistance, pixel, 0).r <= 0.0)
     {
         imageStore(slowHistory, pixel, vec4(0.0));
+        if (reflectionSharingPrototype && parameters.light == SpecularLight)
+            imageStore(reflectionGuide, pixel, vec4(0.0));
         return;
     }
 
@@ -30,6 +36,7 @@ void main()
     {
         int spacing = 1 << int(max(parameters.fixFrames - 1.0 - floor(historyLength), 0.0));
         vec3 sum = slow * historyLength;
+        vec2 guideSum = guide * historyLength;
         float weights = historyLength;
         for (int y = -1; y <= 1; y++)
             for (int x = -1; x <= 1; x++)
@@ -40,8 +47,11 @@ void main()
                 vec4 other = imageLoad(scratch, neighbor);
                 sum += other.rgb * other.a;
                 weights += other.a;
+                if (reflectionSharingPrototype && parameters.light == SpecularLight)
+                    guideSum += imageLoad(reflectionGuideScratch, neighbor).rg * other.a;
             }
         slow = sum / weights;
+        guide = guideSum / weights;
     }
 
     // Step 4, the clamp and the anti-lag, only past the fast cap: until then the slow history holds no more frames than the
@@ -74,4 +84,6 @@ void main()
 
     // Step 5.
     imageStore(slowHistory, pixel, vec4(slow, historyLength));
+    if (reflectionSharingPrototype && parameters.light == SpecularLight)
+        imageStore(reflectionGuide, pixel, vec4(guide, 0.0, 0.0));
 }

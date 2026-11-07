@@ -22,6 +22,7 @@ public sealed class ShaderConstantsTests
         {
             [ShaderConstants.EnvironmentMapId] = False,
             [ShaderConstants.ScreenTraceOnId] = False,
+            [ShaderConstants.ReflectionSharingPrototypeId] = False,
         },
         ["screen_trace_block_rays.comp"] = new()
         {

@@ -46,6 +46,8 @@ internal sealed unsafe class TemporalSignal : IDisposable
     private readonly SignalScratch scratch;
     private readonly Pipeline temporal;
     private readonly Pipeline spatial;
+    private readonly bool singleDiffuseHistory;
+    private readonly bool reflectionDistanceHistory;
     private readonly PartImages[] parts;
 
     /// <summary>The signal sets, [part, parity].</summary>
@@ -90,18 +92,33 @@ internal sealed unsafe class TemporalSignal : IDisposable
         for (int parity = 0; parity < 2; parity++)
             sets[part, parity] = layouts.AllocateSignalSet();
 
-        temporal = CreatePipeline(shaders, "temporal");
-        spatial = CreatePipeline(shaders, "spatial");
+        IndirectLightPrototype prototype = IndirectLightPrototype.Select(
+            enabled: Environment.GetEnvironmentVariable("TERTIUS_INDIRECT_LIGHT_PROTOTYPE") == "1",
+            disableNeighborCap: Environment.GetEnvironmentVariable("TERTIUS_INDIRECT_LIGHT_NEIGHBOR_CAP") == "0",
+            light: parameters.Light
+        );
+        singleDiffuseHistory = prototype.SingleDiffuseHistory;
+        reflectionDistanceHistory = parameters.Light == SignalLight.Specular
+            && Environment.GetEnvironmentVariable("TERTIUS_REFLECTION_SHARING") == "1";
+        temporal = CreatePipeline(shaders, singleDiffuseHistory ? "diffuse_single_temporal" : "temporal", prototype.LimitIncoming);
+        spatial = CreatePipeline(shaders, singleDiffuseHistory ? "diffuse_single_spatial" : "spatial");
         Create();
     }
 
     /// <summary>The pipeline of the dispatch of <paramref name="kind"/>, "temporal" or "spatial": accumulate_kind.comp.</summary>
-    private Pipeline CreatePipeline(ShaderLibrary shaders, string kind) =>
+    private Pipeline CreatePipeline(ShaderLibrary shaders, string kind, bool limitIncoming = false) =>
         new ComputePipelineDesc
         {
             Name = $"accumulate {Name} {kind}",
             Shader = $"accumulate_{kind}.comp",
             Layout = layouts.AccumulateLayout,
+            Constants = limitIncoming || reflectionDistanceHistory
+                ? new ShaderConstants(EnvironmentMap: false)
+                {
+                    NeighborLimitPrototype = limitIncoming,
+                    ReflectionSharingPrototype = reflectionDistanceHistory,
+                }
+                : null,
         }.Create(device, shaders);
 
     /// <summary>The signal's name in the images' names and the passes' names, such as "indirect diffuse".</summary>
@@ -121,6 +138,8 @@ internal sealed unsafe class TemporalSignal : IDisposable
 
     /// <summary>The slow history of <paramref name="part"/> after the last accumulation: rgb the light, a the length.</summary>
     public GpuImage Slow(int part) => parts[part].Slow;
+
+    public GpuImage ReflectionGuide(int part) => parts[part].ReflectionGuide;
 
     /// <summary>
     /// The images of <paramref name="part"/> that the screen tracer binds in a frame of <paramref name="parity"/>: the
@@ -160,17 +179,30 @@ internal sealed unsafe class TemporalSignal : IDisposable
             GpuImage scratched = scratch.Part(part);
             barriers.Image(images.Sample, ImageUse.StorageCompute);
             barriers.Image(images.Slow, ImageUse.StorageCompute);
-            barriers.Image(images.LastFast(parity), ImageUse.StorageCompute);
+            if (!singleDiffuseHistory)
+                barriers.Image(images.LastFast(parity), ImageUse.StorageCompute);
             // Discarded: the temporal dispatch writes every pixel of each.
-            barriers.Image(images.Fast(parity), ImageUse.StorageCompute, discard: true);
+            if (!singleDiffuseHistory)
+                barriers.Image(images.Fast(parity), ImageUse.StorageCompute, discard: true);
+            if (reflectionDistanceHistory)
+            {
+                barriers.Image(images.ReflectionGuide, ImageUse.StorageCompute);
+                barriers.Image(images.ReflectionGuideScratch, ImageUse.StorageCompute, discard: true);
+            }
             // After the last signal's spatial dispatch, which read it.
             barriers.Image(scratched, ImageUse.StorageCompute, discard: true);
             Dispatch(context: context, pipeline: temporal, set: sets[part, parity]);
 
             // The spatial dispatch reads the neighbors' results of the temporal one.
             barriers.Image(scratched, ImageUse.StorageCompute);
-            barriers.Image(images.Fast(parity), ImageUse.StorageCompute);
+            if (!singleDiffuseHistory)
+                barriers.Image(images.Fast(parity), ImageUse.StorageCompute);
             barriers.Image(images.Slow, ImageUse.StorageCompute);
+            if (reflectionDistanceHistory)
+            {
+                barriers.Image(images.ReflectionGuideScratch, ImageUse.StorageCompute);
+                barriers.Image(images.ReflectionGuide, ImageUse.StorageCompute, discard: true);
+            }
             Dispatch(context: context, pipeline: spatial, set: sets[part, parity]);
         }
     }
@@ -241,11 +273,14 @@ internal sealed unsafe class TemporalSignal : IDisposable
                     ImageUsageFlags.ColorAttachmentBit | ImageUsageFlags.TransferDstBit
                 ),
                 Slow: CreateImage(extent, $"{Name} slow history {part}", 0),
-                Fasts:
+                Fasts: singleDiffuseHistory ? [] :
                 [
                     CreateImage(extent, $"{Name} fast history {part}.0", 0),
                     CreateImage(extent, $"{Name} fast history {part}.1", 0),
-                ]
+                ],
+                Guides: reflectionDistanceHistory
+                    ? [CreateImage(extent, $"{Name} distance guide {part}", 0), CreateImage(extent, $"{Name} distance guide scratch {part}", 0)]
+                    : []
             );
             for (int parity = 0; parity < 2; parity++)
                 WriteSignalSet(set: sets[part, parity], images: parts[part], part: part, parity: parity);
@@ -263,6 +298,8 @@ internal sealed unsafe class TemporalSignal : IDisposable
         layouts.WriteStorageImage(set: set, binding: 6, image: targets.Motion);
         layouts.WriteImage(set: set, binding: 7, arrayElement: 0, image: surfaces.Last(parity));
         layouts.WriteImage(set: set, binding: 8, arrayElement: 0, image: surfaces.LastDepth(parity));
+        layouts.WriteStorageImage(set: set, binding: 9, image: images.ReflectionGuide);
+        layouts.WriteStorageImage(set: set, binding: 10, image: reflectionDistanceHistory ? images.ReflectionGuideScratch : scratch.Part(part));
     }
 
     /// <summary>
@@ -305,22 +342,32 @@ internal sealed unsafe class TemporalSignal : IDisposable
     }
 
     /// <summary>The images of one part.</summary>
-    private sealed record PartImages(GpuImage Sample, GpuImage Slow, GpuImage[] Fasts)
+    private sealed record PartImages(GpuImage Sample, GpuImage Slow, GpuImage[] Fasts, GpuImage[] Guides)
     {
         /// <summary>The fast history that the frame of <paramref name="parity"/> writes.</summary>
-        public GpuImage Fast(int parity) => Fasts[parity];
+        public GpuImage Fast(int parity) => Fasts.Length == 0 ? Slow : Fasts[parity];
 
         /// <summary>The fast history that the last drawn frame wrote.</summary>
-        public GpuImage LastFast(int parity) => Fasts[1 - parity];
+        public GpuImage LastFast(int parity) => Fasts.Length == 0 ? Slow : Fasts[1 - parity];
 
-        public IEnumerable<GpuImage> All => [Sample, Slow, Fasts[0], Fasts[1]];
+        public GpuImage ReflectionGuide => Guides.Length == 0 ? Slow : Guides[0];
+
+        public GpuImage ReflectionGuideScratch => Guides[1];
+
+        public IEnumerable<GpuImage> All => [Sample, Slow, .. Fasts, .. Guides];
 
         /// <summary>Whether every image has <paramref name="extent"/>.</summary>
         public bool Fit(Extent2D extent) =>
             SameExtent(Sample.Extent, extent)
             && SameExtent(Slow.Extent, extent)
-            && SameExtent(Fasts[0].Extent, extent)
-            && SameExtent(Fasts[1].Extent, extent);
+            && (
+                Fasts.Length == 0
+                || SameExtent(Fasts[0].Extent, extent) && SameExtent(Fasts[1].Extent, extent)
+            )
+            && (
+                Guides.Length == 0
+                || SameExtent(Guides[0].Extent, extent) && SameExtent(Guides[1].Extent, extent)
+            );
     }
 }
 

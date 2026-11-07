@@ -1,0 +1,78 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#include "accumulate.glsl"
+#include "gbuffer_surface.glsl"
+#include "meter.glsl"
+#include "neighbor_limit_prototype.glsl"
+
+vec4 diffuseHistoryAt(ivec2 pixel, vec3 point, vec3 normal)
+{
+    vec2 place = historyPlace(vec2(pixel) + 0.5, imageLoad(motionTarget, pixel).xy);
+    if (parameters.reset != 0u || abs(exposureStops - previousStops) >= 1.0
+        || any(lessThan(place, vec2(0.0))) || any(greaterThanEqual(place, vec2(1.0))))
+        return vec4(0.0);
+
+    float viewCosine = max(abs(dot(normal, normalize(point))), 0.000001);
+    float radius = max(0.1, 4.0 * tan(frame.params.z) * length(point) / viewCosine);
+    Reprojection reprojection = reprojectionOf(place, 0xFu);
+    vec4 historySum = vec4(0.0);
+    float weightSum = 0.0;
+    for (uint tap = 0u; tap < 4u; tap++)
+    {
+        ivec2 texel = tapTexel(reprojection, tap);
+        if (any(lessThan(texel, ivec2(0))) || any(greaterThanEqual(texel, ivec2(frame.previousViewport.xy))))
+            continue;
+        float deviceDepth = texelFetch(lastDeviceDepth, texel, 0).r;
+        if (deviceDepth <= 0.0)
+            continue;
+        vec3 previousPoint = lastViewRayThrough((vec2(texel) + 0.5) * frame.previousViewport.zw)
+            * (DeviceDepthNear / deviceDepth) + frame.previousEye.xyz;
+        vec3 previousNormal = octDecode(texelFetch(lastSurfaceHistory, texel, 0).yz);
+        if (length(previousPoint - point) > radius || dot(previousNormal, normal) < 0.65)
+            continue;
+        vec4 previous = imageLoad(slowHistory, texel);
+        if (!finiteSample(previous.rgb) || !(previous.a > 0.0) || isinf(previous.a))
+            continue;
+        float weight = reprojection.weights[tap];
+        historySum += previous * weight;
+        weightSum += weight;
+    }
+
+    if (weightSum < LeastHistoryWeight)
+        return vec4(0.0);
+    vec4 history = historySum / weightSum;
+    history.rgb = exposed(history.rgb, historyRatio(exposureStops, previousStops));
+    history.a = min(history.a, 8.0);
+    return history;
+}
+
+void main()
+{
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    if (!insideImages(pixel))
+        return;
+    float distanceToEye = texelFetch(gbufferDistance, pixel, 0).r;
+    if (distanceToEye <= 0.0)
+    {
+        imageStore(scratch, pixel, vec4(0.0));
+        return;
+    }
+
+    vec3 point = normalize(viewRayThrough(vec2(pixel) + 0.5)) * distanceToEye;
+    vec3 normal = octDecode(texelFetch(gbufferNormal, pixel, 0).ba);
+    vec4 history = diffuseHistoryAt(pixel, point, normal);
+    vec3 sampled = limitIncomingEstimate(pixel, imageLoad(sampleImage, pixel).rgb);
+    bool hasSample = finiteSample(sampled);
+    if (!hasSample && history.a <= 0.0)
+    {
+        sampled = closedForm(withAmbientFootprint(materialAt(pixel), pixel), -normalize(point)).diffuse;
+        hasSample = true;
+    }
+    if (hasSample)
+    {
+        float sampleWeight = history.a >= 8.0 ? 0.07 : 1.0 / (history.a + 1.0);
+        history.rgb = history.a <= 0.0 ? sampled : history.rgb + (sampled - history.rgb) * sampleWeight;
+        history.a = min(history.a + 1.0, 8.0);
+    }
+    imageStore(scratch, pixel, history);
+}

@@ -64,7 +64,7 @@ namespace Tertius.Rendering;
 /// level and its bounds as sampled images, the tracer's inputs and outputs as storage images, and the own-ray list of each
 /// kind (<see cref="ScreenTraceImages"/>). One per parity of the drawn frames, rewritten on resize.</description></item>
 /// <item><term>light</term><description>set 3 of <see cref="CompositeLayout"/>: the direct light's two images and the two
-/// indirect signals' slow histories as storage images for the fragment stage (<see cref="CompositePass"/>). One,
+/// indirect signals' slow histories, plus the existing specular sample for the opt-in reflection footprint, as storage images for the fragment stage (<see cref="CompositePass"/>). One,
 /// rewritten on resize.</description></item>
 /// </list>
 /// Every pass that draws meshes or reads the G-buffer uses <see cref="SceneLayout"/>, so sets 0 and 1 stay bound
@@ -101,13 +101,13 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     private const uint SignalSets = 8;
 
     /// <summary>The storage images of a signal set.</summary>
-    private const uint SignalSetImages = 7;
+    private const uint SignalSetImages = 9;
 
     /// <summary>The sampled images of a signal set: the last surface history and the last device depth.</summary>
     private const uint SignalSetSampledImages = 2;
 
     /// <summary>The storage images of the light set: the direct light's two images and the two indirect signals' histories.</summary>
-    private const uint LightSetImages = 4;
+    private const uint LightSetImages = 6;
 
     /// <summary>
     /// The storage buffers of the frame set: bindings 1 to 4, 6, 7, 11, 15, 17 and 18, which the vertex stage all sees. The
@@ -1027,10 +1027,10 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     {
         Span<DescriptorSetLayoutBinding> signal =
             stackalloc DescriptorSetLayoutBinding[(int)(SignalSetImages + SignalSetSampledImages)];
-        for (uint binding = 0; binding < SignalSetImages; binding++)
-            signal[(int)binding] = StorageImage(binding);
-        for (uint binding = SignalSetImages; binding < SignalSetImages + SignalSetSampledImages; binding++)
-            signal[(int)binding] = Image(binding: binding, stages: ShaderStageFlags.ComputeBit);
+        for (uint binding = 0; binding < SignalSetImages + SignalSetSampledImages; binding++)
+            signal[(int)binding] = binding is 7 or 8
+                ? Image(binding: binding, stages: ShaderStageFlags.ComputeBit)
+                : StorageImage(binding);
         Span<DescriptorSetLayoutBinding> light = stackalloc DescriptorSetLayoutBinding[(int)LightSetImages];
         for (uint binding = 0; binding < LightSetImages; binding++)
             light[(int)binding] = StorageImage(binding: binding, stages: ShaderStageFlags.FragmentBit);
