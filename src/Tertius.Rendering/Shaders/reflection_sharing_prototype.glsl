@@ -118,13 +118,22 @@ vec3 reflectionSharedAt(ivec2 pixel, vec3 outgoing)
     if (!reflectionSharingPrototype)
         return outgoing;
     ReflectionSharingReceiver receiver = reflectionSharingReceiverAt(pixel);
-    if (receiver.radius <= 0.0)
+    if (receiver.radius <= 0.0 || receiver.support <= 0.0)
         return outgoing;
     if (!reflectionSharingReceiversAgree(receiver, receiver) || any(isnan(outgoing)) || any(isinf(outgoing)))
         return outgoing;
     vec3 direction = dominantDirectionAt(pixel);
-    vec3 center = reflectionOutgoingAt(pixel);
-    vec3 result = center;
+    vec3 values[25];
+    float weights[25];
+    ReflectionSharingReceiver receivers[25];
+    for (int sampleIndex = 0; sampleIndex < 25; sampleIndex++)
+    {
+        values[sampleIndex] = vec3(0.0);
+        weights[sampleIndex] = 0.0;
+    }
+    values[12] = outgoing;
+    weights[12] = 1.0;
+    receivers[12] = receiver;
     ivec2 size = ivec2(frame.viewport.xy);
     for (int y = -2; y <= 2; y++)
         for (int x = -2; x <= 2; x++)
@@ -144,11 +153,65 @@ vec3 reflectionSharedAt(ivec2 pixel, vec3 outgoing)
             float alpha = min(flooredRoughness(receiver.surface.roughness), flooredRoughness(other.surface.roughness));
             alpha *= alpha;
             float widthSquared = alpha * alpha;
-            float weight = (1.0 / 48.0) * widthSquared / (widthSquared + dot(angularStep, angularStep));
+            float weight = widthSquared / (widthSquared + dot(angularStep, angularStep));
             weight *= min(receiver.support, other.support);
-            result += weight * (value - center);
+            int sampleIndex = (y + 2) * 5 + x + 2;
+            values[sampleIndex] = value;
+            weights[sampleIndex] = weight;
+            receivers[sampleIndex] = other;
         }
-    return result;
+    vec3 sumGuide = vec3(0.0);
+    vec3 sumValue = vec3(0.0);
+    vec3 sumGuideSquared = vec3(0.0);
+    vec3 sumGuideValue = vec3(0.0);
+    vec3 centerGuide = outgoing;
+    float sumWeight = 0.0;
+    for (int sampleIndex = 0; sampleIndex < 25; sampleIndex++)
+    {
+        float weight = weights[sampleIndex];
+        if (weight <= 0.0)
+            continue;
+        ivec2 cell = ivec2(sampleIndex % 5, sampleIndex / 5);
+        vec3 guide = vec3(0.0);
+        float guideCount = 0.0;
+        for (int y = -1; y <= 1; y++)
+            for (int x = -1; x <= 1; x++)
+            {
+                ivec2 guideCell = cell + ivec2(x, y);
+                if (any(lessThan(guideCell, ivec2(0))) || any(greaterThanEqual(guideCell, ivec2(5))))
+                    continue;
+                int guideIndex = guideCell.y * 5 + guideCell.x;
+                if (weights[guideIndex] <= 0.0)
+                    continue;
+                if (guideIndex != sampleIndex
+                    && (!reflectionSharingReceiversAgree(receivers[sampleIndex], receivers[guideIndex])
+                        || !reflectionSharingConnectionAgrees(receivers[sampleIndex], receivers[guideIndex])))
+                    continue;
+                guide += values[guideIndex];
+                guideCount += 1.0;
+            }
+        guide /= guideCount;
+        if (sampleIndex == 12)
+            centerGuide = guide;
+        sumGuide += weight * guide;
+        sumValue += weight * values[sampleIndex];
+        sumGuideSquared += weight * guide * guide;
+        sumGuideValue += weight * guide * values[sampleIndex];
+        sumWeight += weight;
+    }
+    if (sumWeight <= 1.0)
+        return outgoing;
+    vec3 meanGuide = sumGuide / sumWeight;
+    vec3 meanValue = sumValue / sumWeight;
+    vec3 secondMoment = sumGuideSquared / sumWeight;
+    vec3 variance = max(secondMoment - meanGuide * meanGuide, vec3(0.0));
+    vec3 covariance = sumGuideValue / sumWeight - meanGuide * meanValue;
+    vec3 regularization = max(0.01 * secondMoment, vec3(1.0e-12));
+    vec3 slope = covariance / (variance + regularization);
+    vec3 prediction = meanValue + slope * (centerGuide - meanGuide);
+    if (any(isnan(prediction)) || any(isinf(prediction)))
+        return outgoing;
+    return mix(outgoing, max(prediction, vec3(0.0)), receiver.support);
 }
 
 #endif

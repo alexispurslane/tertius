@@ -1,5 +1,26 @@
 # Same-data reflection reconstruction campaign
 
+## Selected H13 baseline and two follow-ups
+
+On November 6, 2026, the user selected H13 as the common research baseline and requested two separate experiments. H13 has the lowest measured persistent mean-error RMS among the first-wave candidates. This does not establish a solved denoiser or a production default. The actual renderer images still contain prominent halo clumps. The selected implementation remains opt-in.
+
+The parent integrated H13's four-file source change into this research branch. All 37 files in H13's sealed source archive matched the integrated source before these planning notes. A copied, hash-verified H13 Release runtime passed 136 focused checks, including existing pure comparison, geometry and metadata checks. Integration ran zero compilations, captures or reference reports. It did not rebuild parent binary directories because old sealed reports link to them. Checked/full-suite validation, coverage and mutations remain prerequisites for any later production merge. Research checkpoint commits bypass the broad commit hook for this reason; they are not production-validation receipts. The unrelated, dirty main checkout remains untouched.
+
+| Experiment | Change under test | What remains fixed |
+| --- | --- | --- |
+| A, tiunr-m0uo | Distribute reflection ray samples across pixels and advancing frames, with a literature-backed sequence at the same configured ray budget | H13 reconstruction, material response, history policy, footprint and ray-reuse policy |
+| B, tiunr-463x | Retain per-pixel temporal fluctuation statistics of accepted raw samples and use them to guide existing reconstruction | Ray generation and budget, material response, geometry validity, and H13 except for the declared variance guidance |
+
+Both agents start from the same committed H13 baseline. They do not combine A and B. B does not add temporal radiance accumulation: fast and slow histories, reprojection and short-history repair already exist. The fast-history neighborhood spread and H07's spatial residual proxy are not per-pixel temporal variance. B extends the existing temporal owner rather than adding another radiance accumulator. Correlated frames do not give independent-sample confidence. A persistent wrong clump can have low temporal variance.
+
+A changes ray samples, so its unfiltered arrays need not match H13. B can change stored estimates and therefore later fast-history source feedback. Neither may claim unchanged arrays without checking them. Camera, geometry, materials, emitters, exposure, initial conditions and capture lengths remain fixed. The readonly probe's before/after snapshot checks still apply within each draw.
+
+Each agent studies primary sources and their input, hardware and companion-system assumptions before implementation. Each obtains genuine assertion failures before changing behavior. Setup failures consume the compile budget but are not behavioral failures. A has at most three Rendering, two tool and four test compilations; B has at most three Rendering, three tool and four test compilations. Neither builds a baseline tool or dependencies, restores packages, runs old quadrature/full suites, tunes against the reference, or starts children. Each has at most two original-fixture capture attempts, one smooth and one rough, and one saved-data report command. Corrections stay inside those totals. A stopped experiment returns evidence, not substituted images.
+
+Both reports compare actual draw 95, separate 32-frame means, temporal noise RMS, persistent mean-error RMS, drift, full-crop total/missing/extra reference fractions, fixed-band loss, row coverage/status and crop-limited width. They retain the fixed center-2048 reference and saved-reference sensitivity checks. They use the existing measurement owner, not another totals formula. No fitted display gain, candidate radiance normalization, weighted score, quality threshold, confidence interval or convergence claim is added. The live-feedback versus one-bounce reference mismatch remains explicit.
+
+Integration, source archives, the corrected shared Release bootstrap and cleanup receipts are under `/private/tmp/tertius-reflection-hypothesis-campaign-20261106/parent-inspections/h13-integration-20261106`. All 18 completed campaign worktrees are archived before removal. Minimal readonly source-path aliases can remain to keep old absolute-path hash manifests usable; these aliases are not Git worktrees. Unrelated worktrees and original evidence remain untouched. Ticket tiunr-k2wn owns integration and cleanup. The parent owns inspection and any later promotion.
+
 Date: November 6, 2026. Campaign ticket: tiunr-lmmx.
 
 ## Purpose

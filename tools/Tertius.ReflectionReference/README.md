@@ -1,5 +1,13 @@
 # Controlled reflection reference
 
+## Selected H13 research baseline
+
+The user selected H13, local affine guided reconstruction, as the common basis for two new experiments. This changes the opt-in research implementation, not a production default. H13 has the smallest measured persistent mean-error RMS among first-wave candidates; its visible speckles remain. `docs/plans/reflection-reconstruction-campaign.md` records the source and reports.
+
+Design A changes reflection sample distribution at the same configured ray budget. Design B adds measured temporal fluctuation statistics to the existing temporal owner and uses them to guide reconstruction. B is not the first temporal accumulation: fast and slow radiance histories already exist. Both experiments start from one committed H13 basis and remain separate.
+
+The probe embeds its own reconstruction shader. Each candidate must prove that the probe and loaded engine implement the intended experiment. Engine-only edits are insufficient when the changed behavior also lives in the probe. Reports retain actual renderer draw 95 separately from the 32-frame mean and compare noise and reference error separately. A can change unfiltered samples; B can change later source feedback. These effects do not permit substituting old arrays or bypassing fixture checks. Old references, controls and sealed runtimes remain immutable.
+
 ## Reflection-sharing prototype
 
 The research-only `--live smooth sharing --out <new-directory>` and

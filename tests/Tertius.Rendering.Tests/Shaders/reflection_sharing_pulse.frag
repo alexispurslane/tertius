@@ -15,6 +15,10 @@ void main()
 {
     ivec2 pixel = ivec2(gl_FragCoord.xy);
     float pulse = all(equal(pixel, ivec2(frame.viewport.xy) / 2)) ? 90.0 : 0.0;
+    if (fixture.surfaceCase == 9)
+        pulse = 12.0;
+    if (fixture.surfaceCase == 10)
+        pulse = pixel.x >= int(frame.viewport.x) / 2 ? 90.0 : 0.0;
     imageStore(history, pixel, vec4(vec3(pulse), 1.0));
     int center = int(frame.viewport.x) / 2;
     float hitDistance = fixture.hitDistance;
