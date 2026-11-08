@@ -1308,3 +1308,14 @@ phase/5 GiB guards used throughout. Receipt:
 live-reference-comparison/captured-points-budget-20261106-0646/README.md.
 The agreed selected-point criteria pass; this is not universal reference,
 physical energy, quality, performance or production acceptance.
+
+This note moved here from ter-icn3 on 2026-11-08, so that the merge into main does not touch the uncommitted edit of ter-icn3 in the main checkout.
+
+**2026-11-05T16:22:29Z**
+
+2026-11-05 user requested a new direct discussion thread and isolated worktree for a Unity-guided noise research program, independent of workflows and FSR integration. Research child tiunr-9b7v is in progress. See docs/plans/unity-guided-indirect-light-research.md. Thread mcp:launch:ee1c1f6e2a6bd945ec813ad2be3e94c1640798e8c20818e376d5f281cfba4558, branch ter-icn3-unity-noise-research, starting main 34c28466e641a864fd6a915c029e08f07b3b9ccc. Existing Design B remains visually rejected and preserved. Three primary hypotheses are bright-ray suppression, hit-radiance source/feedback, and post-temporal diffuse filtering. A previous scene image still contains indirect-light feedback; direct/material double counting, exposure, component contents, and history write points must be resolved. No replacement policy, production edit, heavy command, workflow, merge, or quality acceptance is authorized by this handoff.
+November 5: child tiunr-9b7v adds the user-selected standalone controlled
+reflection reference tool, without changing live noise policy. Bounded
+checks/build/reference outputs complete; allocation RELEASED. See child
+and research document for convergence and the provisional narrow-lobe
+cross-check. No noise-quality or production integration acceptance.
