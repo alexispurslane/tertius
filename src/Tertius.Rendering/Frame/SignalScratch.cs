@@ -12,41 +12,27 @@ internal sealed class SignalScratch : IDisposable
     private readonly VulkanDevice device;
     private readonly DeviceAllocator allocator;
     private readonly RenderTargets targets;
+    private readonly DescriptorLayouts layouts;
     private readonly GpuImage[] images = new GpuImage[TemporalSignal.MostParts];
     private readonly GpuImage[] preciseImages;
 
     /// <param name="targets">The render targets, whose size the images take.</param>
-    /// <param name="historyMode">The specular history, selected once per renderer.</param>
-    /// <param name="instrumentation">The instrumentation of the specular history, which needs a precise history.</param>
-    /// <exception cref="ArgumentException">
-    /// The diagnostic or the accumulation trace is on with the original half-precision history.
-    /// </exception>
-    public SignalScratch(
-        VulkanDevice device,
-        DeviceAllocator allocator,
-        RenderTargets targets,
-        SpecularHistoryMode historyMode,
-        HistoryInstrumentation instrumentation
-    )
+    /// <param name="layouts">The renderer's layouts, which own its specular history and its instrumentation.</param>
+    public SignalScratch(VulkanDevice device, DeviceAllocator allocator, RenderTargets targets, DescriptorLayouts layouts)
     {
         this.device = device;
         this.allocator = allocator;
         this.targets = targets;
-        if (instrumentation != HistoryInstrumentation.None && !historyMode.KeepsLightAge)
-            throw new ArgumentException(
-                $"TERTIUS_REFLECTION_HISTORY_AGREEMENT={instrumentation} needs a precise specular history, not TERTIUS_SPECULAR_HISTORY=original."
-            );
-        HistoryMode = historyMode;
-        Instrumentation = instrumentation;
+        this.layouts = layouts;
         preciseImages = HistoryMode == SpecularHistoryMode.Original ? [] : new GpuImage[TemporalSignal.MostParts];
         Create();
     }
 
-    /// <summary>The history control selected once when this renderer creates its scratch images.</summary>
-    public SpecularHistoryMode HistoryMode { get; }
+    /// <summary>The renderer's specular history, which the layouts own (<see cref="DescriptorLayouts.HistoryMode"/>).</summary>
+    public SpecularHistoryMode HistoryMode => layouts.HistoryMode;
 
-    /// <summary>The instrumentation of the specular history, selected once with <see cref="HistoryMode"/>.</summary>
-    public HistoryInstrumentation Instrumentation { get; }
+    /// <summary>The instrumentation of the specular history, which the layouts own.</summary>
+    public HistoryInstrumentation Instrumentation => layouts.Instrumentation;
 
     /// <summary>The scratch image of a signal's part.</summary>
     public GpuImage Part(int part, SpecularHistoryMode historyMode = SpecularHistoryMode.Original) =>

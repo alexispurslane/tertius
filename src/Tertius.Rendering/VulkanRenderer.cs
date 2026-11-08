@@ -188,13 +188,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 )
             );
             signalScratch = Own(
-                new SignalScratch(
-                    device: device,
-                    allocator: Allocator,
-                    targets: targets,
-                    historyMode: historyMode,
-                    instrumentation: instrumentation
-                )
+                new SignalScratch(device: device, allocator: Allocator, targets: targets, layouts: layouts)
             );
 
             // Before every pass, whose shading constants say whether the scatter is on.

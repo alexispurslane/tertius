@@ -262,6 +262,30 @@ public sealed class DescriptorLayoutsTests
     }
 
     /// <summary>
+    /// The layouts own the renderer's specular history and its instrumentation, and the signal scratch reads both from
+    /// them, so the rule that an instrumentation needs a precise history lives here, before any layout exists.
+    /// </summary>
+    [Theory]
+    [InlineData(nameof(HistoryInstrumentation.LightAgeDiagnostic))]
+    [InlineData(nameof(HistoryInstrumentation.ControlTrace))]
+    public void LayoutsRefuseAnInstrumentationOfTheOriginalHistory(string instrumentation)
+    {
+        using var device = VulkanDevice.Create(validation: true, surfaceExtensions: [], createSurface: null);
+
+        Action create = () =>
+            new DescriptorLayouts(
+                device: device,
+                framesInFlight: 2,
+                glowLevels: 0,
+                historyMode: SpecularHistoryMode.Original,
+                instrumentation: Enum.Parse<HistoryInstrumentation>(instrumentation)
+            ).Dispose();
+
+        create.Should().Throw<ArgumentException>().WithMessage("*needs a precise specular history*");
+        device.Log.Snapshot().Should().BeEmpty("the refusal makes no Vulkan object");
+    }
+
+    /// <summary>
     /// A device whose stages see 15 sampled images makes the scene layout, which needs 14, and is refused at the
     /// impostor layout, which needs 16, before vkCreatePipelineLayout: no validation message reports a layout above the
     /// limit, and the refusal destroys the samplers and layouts that the constructor made before it.

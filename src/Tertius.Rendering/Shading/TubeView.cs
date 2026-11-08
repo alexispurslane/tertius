@@ -17,11 +17,13 @@ internal readonly record struct TubeView
         ToCenter = toCenter;
         HalfSegment = halfSegment;
         Radius = Math.Max(radius, LightUnits.NearestDistance);
+
         double halfLength = halfSegment.Length;
         Double3 axis = halfLength > 0 ? halfSegment / halfLength : Double3.UnitY;
         double along = Double3.Dot(toCenter, axis);
         Double3 across = toCenter - along * axis;
         double distance = across.Length;
+
         // A point beside the segment and inside the capsule counts as on its surface, where the line's light is the side's
         // πL. Beyond an end the floor only keeps the angle's division finite, so the side's light falls to 0 on the axis.
         bool beside = (along - halfLength) * (along + halfLength) <= 0;
@@ -31,6 +33,7 @@ internal readonly record struct TubeView
             far = along + halfLength;
         double nearSquared = floored * floored + near * near,
             farSquared = floored * floored + far * far;
+
         // The angle between the directions to the two ends, without the cancellation of two arctangents.
         double angle = Math.Atan2(floored * (far - near), floored * floored + near * far);
         double nearDistance = Math.Sqrt(nearSquared),
@@ -49,6 +52,7 @@ internal readonly record struct TubeView
                 inward * (angle / floored + far / farSquared - near / nearSquared)
                 - axis * (floored * (1 / farSquared - 1 / nearSquared))
             );
+
         double halfSphere = Math.PI * Radius * Radius / 2;
         (double nearEndSolidAngle, Double3 nearEndVector) = HalfSphere(toCenter - halfSegment, halfSphere, Radius);
         (double farEndSolidAngle, Double3 farEndVector) = HalfSphere(toCenter + halfSegment, halfSphere, Radius);
@@ -89,6 +93,7 @@ internal readonly record struct TubeView
         Double3 segment = 2 * HalfSegment;
         double mirrorAlong = Double3.Dot(mirror, segment);
         double denominator = segment.LengthSquared - mirrorAlong * mirrorAlong;
+
         // A ray along the segment, or a segment of length 0, is as near to every point: the middle stands for them.
         double share =
             denominator > 1e-6 * segment.LengthSquared
@@ -98,6 +103,7 @@ internal readonly record struct TubeView
                     1
                 )
                 : 0.5;
+
         Double3 closest = start + share * segment;
         double distance = closest.Length;
         Double3 toClosest = closest.NormalizedOr(ToCenter.NormalizedOr(mirror));

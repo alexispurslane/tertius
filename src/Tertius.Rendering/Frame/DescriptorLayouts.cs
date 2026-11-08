@@ -100,8 +100,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// binding 22 the uncovered-surface diagnostic (<see cref="HistoryInstrumentation.LightAgeDiagnostic"/>).
     /// </summary>
     private uint ScreenTraceAgeImages =>
-        (historyMode.KeepsLightAge ? 3u : 0u)
-        + (instrumentation == HistoryInstrumentation.LightAgeDiagnostic ? 1u : 0u);
+        (HistoryMode.KeepsLightAge ? 3u : 0u) + (Instrumentation == HistoryInstrumentation.LightAgeDiagnostic ? 1u : 0u);
 
     /// <summary>
     /// The signal sets: one per part and parity of the screen tracer's two signals of one part, and of a test's signal of
@@ -112,15 +111,18 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// <summary>
     /// The storage images of a signal set: nine, with the light-change age of a precise specular history the sample age at
     /// binding 11, and at binding 12 the instrumentation's image, the uncovered-surface diagnostic or the accumulation
-    /// trace. The original history refuses the instrumentation (<see cref="SignalScratch"/>).
+    /// trace. The original history refuses the instrumentation (the constructor).
     /// </summary>
     private uint SignalSetImages =>
-        9u + (historyMode.KeepsLightAge ? 1u : 0u) + (instrumentation == HistoryInstrumentation.None ? 0u : 1u);
+        9u + (HistoryMode.KeepsLightAge ? 1u : 0u) + (Instrumentation == HistoryInstrumentation.None ? 0u : 1u);
 
     /// <summary>The sampled images of a signal set: the last surface history and the last device depth.</summary>
     private const uint SignalSetSampledImages = 2;
 
-    /// <summary>The storage images of the light set: the direct light's two images and the two indirect signals' histories.</summary>
+    /// <summary>
+    /// The storage images of the light set: the direct light's two images, the two indirect signals' histories, and the
+    /// reflection-sharing prototype's specular sample and distance guide (<see cref="CompositePass"/>).
+    /// </summary>
     private const uint LightSetImages = 6;
 
     /// <summary>
@@ -162,8 +164,6 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     );
 
     private readonly VulkanDevice device;
-    private readonly SpecularHistoryMode historyMode;
-    private readonly HistoryInstrumentation instrumentation;
 
     // No handle until the constructor makes the pools, so a Dispose after a refused device destroys none.
     private readonly SetPool pool = new(default, 0);
@@ -181,6 +181,9 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// sample age to the screen tracer set, and the sample age to every signal set.
     /// </param>
     /// <param name="instrumentation">The renderer's instrumentation of the specular history, which adds its images.</param>
+    /// <exception cref="ArgumentException">
+    /// The diagnostic or the accumulation trace is on with the original half-precision history.
+    /// </exception>
     /// <exception cref="NotSupportedException">
     /// A stage of a pipeline layout sees more storage buffers, storage images or sampled images than the device lets one
     /// stage see (<see cref="LimitedDescriptors.Problem"/>).
@@ -193,9 +196,13 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         HistoryInstrumentation instrumentation = HistoryInstrumentation.None
     )
     {
+        if (instrumentation != HistoryInstrumentation.None && !historyMode.KeepsLightAge)
+            throw new ArgumentException(
+                $"TERTIUS_REFLECTION_HISTORY_AGREEMENT={instrumentation} needs a precise specular history, not TERTIUS_SPECULAR_HISTORY=original."
+            );
         this.device = device;
-        this.historyMode = historyMode;
-        this.instrumentation = instrumentation;
+        HistoryMode = historyMode;
+        Instrumentation = instrumentation;
 
         LinearClampSampler = CreateLevelZeroSampler(Filter.Linear, "linear clamp sampler");
         EnvironmentSampler = CreateTrilinearClampSampler("environment sampler");
@@ -400,6 +407,15 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// motion target (docs/plans/temporal-renderer.md, "Images").
     /// </summary>
     public DescriptorSetLayout SignalSet { get; }
+
+    /// <summary>
+    /// The renderer's specular history, selected once per renderer. The layouts own it: the signal scratch and every
+    /// signal read it from here, so their images always match the bindings of these layouts.
+    /// </summary>
+    public SpecularHistoryMode HistoryMode { get; }
+
+    /// <summary>The instrumentation of the specular history, selected once with <see cref="HistoryMode"/>.</summary>
+    public HistoryInstrumentation Instrumentation { get; }
 
     /// <summary>The light set: <see cref="LightSetImages"/> storage images for the fragment stage, which the composite reads.</summary>
     public DescriptorSetLayout LightSet { get; }
@@ -843,7 +859,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
                     + ScreenTraceSampledImages * ScreenTraceSets
             ),
             // One per pyramid level set, the depth tail set's mips, four per environment levels set, three for the scatter
-            // set, one for the shadow bounds set, four per surface test set, SignalSetImages per signal set, four for the
+            // set, one for the shadow bounds set, four per surface test set, SignalSetImages per signal set, six for the
             // light set and fifteen per screen tracer set, plus ScreenTraceAgeImages.
             new(
                 DescriptorType.StorageImage,

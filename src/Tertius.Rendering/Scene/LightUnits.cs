@@ -100,7 +100,7 @@ internal static class LightUnits
     }
 
     /// <summary>
-    /// A spot light's axis at <paramref name="alpha"/> between its previous and current unit axes: the normalized linear
+    /// A spot light's or a tube light's axis at <paramref name="alpha"/> between its previous and current unit axes: the normalized linear
     /// interpolation, or the current axis when the two cancel.
     /// </summary>
     public static Vector3 InterpolateAxis(Vector3 previous, Vector3 current, float alpha)
