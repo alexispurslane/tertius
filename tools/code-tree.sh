@@ -27,7 +27,9 @@ export GIT_INDEX_FILE=$index
 
 excludes=()
 for path in "${code[@]}"; do excludes+=(":(exclude)$path"); done
-git rm -r -q --cached --ignore-unmatch -- . "${excludes[@]}"
+# -f lets git rm remove a file whose staged content differs from both the disk and HEAD. It acts on the copy of the
+# index, so it loses nothing.
+git rm -r -f -q --cached --ignore-unmatch -- . "${excludes[@]}"
 
 if ! $staged; then
     # git add stops at a path that neither the disk nor the index holds, so the list keeps only the paths that exist.
@@ -38,7 +40,7 @@ if ! $staged; then
     git add -A -- "${present[@]}"
 fi
 
-git rm -r -q --cached --ignore-unmatch -- ':(glob)**/*.md'
+git rm -r -f -q --cached --ignore-unmatch -- ':(glob)**/*.md'
 
 git write-tree
 echo "$git_dir"
