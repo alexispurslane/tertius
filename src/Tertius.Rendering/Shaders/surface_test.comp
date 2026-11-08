@@ -59,9 +59,17 @@ void main()
     vec4 motion = imageLoad(motionTarget, pixel);
     vec2 place = historyPlace(center, motion.xy);
     uint bits = 0u;
-    if (pass.reset == 0u && all(greaterThanEqual(place, vec2(0.0))) && all(lessThanEqual(place, vec2(1.0))))
-        bits = surfaceTaps(lastSurfaceHistory, lastDeviceDepth, place, lastViewRayThrough(place) * (depth * motion.z),
-            normal, roughness);
+    if (pass.reset == 0u)
+    {
+        // The pixel rule (screen.glsl): the taps of the pixel place, tested against the pixel's exact last point, which the
+        // sample place rebuilds with the last frame's jitter. Every reader of a history takes its place through readPlace,
+        // which reads the choice in w. FSR reads only xy.
+        HistoryTaps taps = historyTaps(lastSurfaceHistory, lastDeviceDepth, place, pixelPlace(center, motion.xy),
+            lastViewRayThrough(place) * (depth * motion.z), normal, roughness);
+        bits = taps.bits;
+        if (taps.pixel)
+            imageStore(motionTarget, pixel, vec4(motion.xyz, 1.0));
+    }
     imageStore(surfaceTest, pixel, uvec4(bits));
     // The device depth holds the view depth: a half float holds at most 65,504 m.
     imageStore(surfaceHistory, pixel, vec4(0.0, octEncode(normal), roughness));

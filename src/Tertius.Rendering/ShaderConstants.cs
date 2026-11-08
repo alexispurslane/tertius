@@ -13,6 +13,11 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
 {
     public bool MainView { get; init; }
     public bool TemporalShadows { get; init; }
+    public bool NeighborLimitPrototype { get; init; }
+    public bool ReflectionSharingPrototype { get; init; }
+
+    public const uint NeighborLimitPrototypeId = 9;
+    public const uint ReflectionSharingPrototypeId = 10;
 
     /// <summary>The constant_id of environmentMapOn in environment.glsl.</summary>
     public const uint EnvironmentMapId = 0;
@@ -111,6 +116,8 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
             (ScreenTraceOnId, values.ScreenTraceOn ? 1u : 0u),
             (MainViewId, values.MainView ? 1u : 0u),
             (TemporalShadowsId, values.TemporalShadows ? 1u : 0u),
+            (NeighborLimitPrototypeId, values.NeighborLimitPrototype ? 1u : 0u),
+            (ReflectionSharingPrototypeId, values.ReflectionSharingPrototype ? 1u : 0u),
         ];
         for (int i = 0; i < rows.Length; i++)
         {
@@ -139,7 +146,7 @@ internal struct SpecializationStorage
     /// The number of constants: one per field of <see cref="ShaderConstants"/>, the subsurface setting's being its taps per
     /// side. <see cref="ShaderConstants.Specialization"/> writes one row per constant, and a row past this count throws.
     /// </summary>
-    public const int Count = 9;
+    public const int Count = 11;
 
     public SpecializationValues Data;
     public SpecializationEntries Entries;

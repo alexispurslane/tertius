@@ -73,7 +73,9 @@ internal sealed class UpscalePass : RenderPass
                 {
                     Sharpness = sharpness,
                     RenderSize = context.Extent,
-                    Jitter = context.History.Jitter,
+                    // The jitter that the frame's projection took (VulkanRenderer.ApplyRenderProjection), which the
+                    // debug switch DebugJitter can turn off.
+                    Jitter = new(context.Scene.Constants.RenderParams.Y, context.Scene.Constants.RenderParams.Z),
                     FrameMilliseconds = context.History.FsrFrameMilliseconds,
                     NearMeters = DepthRanges.NearPlane,
                     VerticalFov = context.Scene.Camera.VerticalFov,

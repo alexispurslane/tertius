@@ -39,6 +39,19 @@ internal static class LightUnits
     public static double PointIntensity(double power) => power / (4 * Math.PI);
 
     /// <summary>
+    /// The peak intensity, in W/sr, of a tube light of <paramref name="power"/> W: across its segment, where the capsule
+    /// shows 2 R L + π R² of its area 2π R (L + 2 R) (ARCHITECTURE.md, "Tube lights"). PointIntensity for a length of 0.
+    /// </summary>
+    public static double TubeIntensity(double power, float radius, float length)
+    {
+        double ends = 2.0 * radius;
+        // A capsule of no size is a point, whose share of the power the formula's 0 / 0 would lose.
+        return length + ends > 0
+            ? power * (2.0 * length + Math.PI * radius) / (2 * Math.PI * Math.PI * (length + ends))
+            : PointIntensity(power);
+    }
+
+    /// <summary>
     /// The intensity, in W/sr, of a spot light of <paramref name="power"/> W that sends it through its outer cone:
     /// P / (2π (1 − cos θ)), with θ clamped to [MinConeAngle, π].
     /// </summary>
@@ -87,7 +100,7 @@ internal static class LightUnits
     }
 
     /// <summary>
-    /// A spot light's axis at <paramref name="alpha"/> between its previous and current unit axes: the normalized linear
+    /// A spot light's or a tube light's axis at <paramref name="alpha"/> between its previous and current unit axes: the normalized linear
     /// interpolation, or the current axis when the two cancel.
     /// </summary>
     public static Vector3 InterpolateAxis(Vector3 previous, Vector3 current, float alpha)

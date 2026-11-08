@@ -29,8 +29,9 @@ namespace Tertius.Rendering;
 /// <item><term>motion</term>
 /// <description>R16G16B16A16_SFLOAT: xy the last drawn frame's place of the pixel's point minus this frame's place, in
 /// units of the image's size, with no jitter; z the ratio of the point's view depth in the last frame to its view depth in
-/// this frame (docs/plans/temporal-renderer.md, "Jitter"). (2, 2) where the point has no last place. The G-buffer clears
-/// it to 0, and the surface test writes the sky's motion. It is also a storage image, for the surface test.
+/// this frame (docs/plans/temporal-renderer.md, "Jitter"); alpha 1 where the surface test chose the pixel place of the pixel
+/// history rule (screen.glsl), else 0. (2, 2) where the point has no last place. The G-buffer clears it to 0, and the
+/// surface test writes the sky's motion and the alpha. It is also a storage image, for the surface test.
 /// </description></item>
 /// </list>
 /// The depth buffer is D32_SFLOAT with reversed Z (1 near, 0 far, cleared to 0, compare GREATER). The direct light's images

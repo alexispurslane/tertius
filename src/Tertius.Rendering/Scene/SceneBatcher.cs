@@ -594,6 +594,7 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
             {
                 PointRenderLight point => point.Entity,
                 SpotRenderLight spot => spot.Entity,
+                TubeRenderLight tube => tube.Entity,
                 // A light that holds no case is no light, and the renderer skips it.
                 null => null,
             };
@@ -1106,7 +1107,7 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
                 Intensity: LightUnits.PointIntensity(point.Power),
                 Radius: point.Radius,
                 CastsShadow: point.CastsShadow,
-                Spread: new LightSpread(new EveryDirection()),
+                Spread: new LightSpread(new EveryDirection(HalfSegment: Vector3.Zero)),
                 ChainDepth: point.ChainDepth
             ),
             SpotRenderLight spot => new(
@@ -1119,10 +1120,23 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
                 Spread: new LightSpread(SpreadOf(spot, alpha)),
                 ChainDepth: spot.ChainDepth
             ),
+            TubeRenderLight tube => new(
+                Entity: tube.Entity,
+                Position: Vector3.Lerp(tube.PreviousPosition, tube.Position, alpha),
+                Color: tube.Color,
+                Intensity: LightUnits.TubeIntensity(tube.Power, tube.Radius, tube.Length),
+                Radius: tube.Radius,
+                CastsShadow: tube.CastsShadow,
+                Spread: new LightSpread(new EveryDirection(HalfSegment: HalfSegmentOf(tube, alpha))),
+                ChainDepth: tube.ChainDepth
+            ),
             null => throw new UnreachableException("A light that shines holds a case."),
         };
         Vector3 relative = lit.Position - camera.Offset;
-        float reach = (float)LightUnits.Reach(PeakChannel(lit.Color) * lit.Intensity, cutoffIrradiance);
+        // A tube's light falls to the cutoff within the reach of its peak intensity from its segment, which lies within
+        // half its length of its position (ARCHITECTURE.md, "Tube lights").
+        double halfLength = lit.Spread is EveryDirection { HalfSegment: var half } ? half.Length() : 0;
+        float reach = (float)(LightUnits.Reach(PeakChannel(lit.Color) * lit.Intensity, cutoffIrradiance) + halfLength);
         double distance = Math.Sqrt(
             (double)relative.X * relative.X + (double)relative.Y * relative.Y + (double)relative.Z * relative.Z
         );
@@ -1174,6 +1188,17 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
         );
     }
 
+    /// <summary>
+    /// From a tube light's position to one end of its segment at alpha: its unit axes, a zero axis taken as +Y and a zero
+    /// previous axis as the current one, interpolated by <see cref="LightUnits.InterpolateAxis"/>, times half its length.
+    /// </summary>
+    private static Vector3 HalfSegmentOf(in TubeRenderLight tube, float alpha)
+    {
+        Vector3 current = UnitOr(tube.Axis, Vector3.UnitY);
+        Vector3 previous = UnitOr(tube.PreviousAxis, current);
+        return LightUnits.InterpolateAxis(previous, current, alpha) * (tube.Length / 2);
+    }
+
     /// <summary><paramref name="axis"/> at unit length, or <paramref name="fallback"/> for one too short or too long to normalize in single floats.</summary>
     private static Vector3 UnitOr(Vector3 axis, Vector3 fallback)
     {
@@ -1188,7 +1213,8 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
     /// <summary>
     /// Whether a light shines (docs/plans/local-light-shadows.md, decision 20): its places and color are finite, each color
     /// channel is 0 or more and one is above 0, its power is finite and above 0, its radius is finite and 0 or more, a spot
-    /// light's axes and cone angles are finite, and c_max · I is at most <see cref="LightUnits.MaxIntensity"/>.
+    /// light's axes and cone angles are finite, a tube light's axes are finite and its length from 0 to twice
+    /// <see cref="ShaderInput.PositionLimit"/>, and c_max · I is at most <see cref="LightUnits.MaxIntensity"/>.
     /// </summary>
     internal static bool Shines(in RenderLight light) =>
         light switch
@@ -1214,6 +1240,19 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
                 && float.IsFinite(spot.InnerConeAngle)
                 && float.IsFinite(spot.OuterConeAngle)
                 && PeakChannel(spot.Color) * LightUnits.SpotIntensity(spot.Power, spot.OuterConeAngle)
+                    <= LightUnits.MaxIntensity,
+            TubeRenderLight tube => Shines(
+                place: tube.Position,
+                previousPlace: tube.PreviousPosition,
+                color: tube.Color,
+                power: tube.Power,
+                radius: tube.Radius
+            )
+                && ShaderInput.IsFinite(tube.Axis)
+                && ShaderInput.IsFinite(tube.PreviousAxis)
+                // Half the length is then within the position limit, so the reach that adds it keeps a finite square.
+                && tube.Length is >= 0 and <= 2 * ShaderInput.PositionLimit
+                && PeakChannel(tube.Color) * LightUnits.TubeIntensity(tube.Power, tube.Radius, tube.Length)
                     <= LightUnits.MaxIntensity,
             null => false,
         };

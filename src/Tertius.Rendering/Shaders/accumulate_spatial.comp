@@ -4,6 +4,7 @@
 // frame's fast history around the pixel, shortens the length by the clamp's move, and writes the slow history.
 #extension GL_GOOGLE_include_directive : require
 #include "accumulate.glsl"
+#include "accumulate_reflection_guide.glsl"
 #include "meter.glsl"
 
 void main()
@@ -12,9 +13,18 @@ void main()
     if (!insideImages(pixel))
         return;
     vec4 scratched = imageLoad(scratch, pixel);
+    vec2 guide = vec2(0.0);
+    if (reflectionSharingPrototype && parameters.light == SpecularLight)
+        guide = imageLoad(reflectionGuideScratch, pixel).rg;
     if (texelFetch(gbufferDistance, pixel, 0).r <= 0.0)
     {
         imageStore(slowHistory, pixel, vec4(0.0));
+        if (reflectionSharingPrototype && parameters.light == SpecularLight)
+            imageStore(reflectionGuide, pixel, vec4(0.0));
+#ifdef TERTIUS_ACCUMULATION_TRACE
+        for (int layer = 4; layer < 8; layer++)
+            storeTrace(pixel, layer, vec4(0.0));
+#endif
         return;
     }
 
@@ -23,6 +33,11 @@ void main()
     float historyLength = scratched.a;
     float cap = capAt(roughnessAt(pixel));
     float fastCap = fastCapOf(cap);
+#ifdef TERTIUS_ACCUMULATION_TRACE
+    // Layers 4 to 7 (TemporalSignal.TraceLayers). They store the values that the dispatch computes and compute nothing:
+    // an arithmetic of the trace's own changed the driver's rounding of the slow history in the last bit.
+    float tracedBefore = historyLength;
+#endif
 
     // Step 3, the fix: a weighted mean over 3 × 3 pixels 2^(HistoryFixFrames − 1 − n) apart, each neighbor weighted by its
     // length where it shows the same surface. The pixel's own length is at least 1 after the blend, so the sum is never 0.
@@ -30,6 +45,7 @@ void main()
     {
         int spacing = 1 << int(max(parameters.fixFrames - 1.0 - floor(historyLength), 0.0));
         vec3 sum = slow * historyLength;
+        vec2 guideSum = guide * historyLength;
         float weights = historyLength;
         for (int y = -1; y <= 1; y++)
             for (int x = -1; x <= 1; x++)
@@ -40,8 +56,11 @@ void main()
                 vec4 other = imageLoad(scratch, neighbor);
                 sum += other.rgb * other.a;
                 weights += other.a;
+                if (reflectionSharingPrototype && parameters.light == SpecularLight)
+                    guideSum += imageLoad(reflectionGuideScratch, neighbor).rg * other.a;
             }
         slow = sum / weights;
+        guide = guideSum / weights;
     }
 
     // Step 4, the clamp and the anti-lag, only past the fast cap: until then the slow history holds no more frames than the
@@ -68,10 +87,27 @@ void main()
         vec3 high = mean + parameters.clampSigmas * sigma;
         vec3 clamped = clamp(slow, low, high);
         float lag = luminance(abs(slow - clamped)) / max(luminance(mean), 1e-4);
+#ifdef TERTIUS_ACCUMULATION_TRACE
+        storeTrace(pixel, 5, vec4(slow, 1.0));
+        storeTrace(pixel, 6, vec4(mean, lag));
+        storeTrace(pixel, 7, vec4(sigma, 0.0));
+#endif
         historyLength = max(fastCap, historyLength * (1.0 - min(1.0, lag / parameters.antiLagShare)));
         slow = clamped;
     }
 
+#ifdef TERTIUS_ACCUMULATION_TRACE
+    else
+    {
+        storeTrace(pixel, 5, vec4(slow, 0.0));
+        storeTrace(pixel, 6, vec4(0.0));
+        storeTrace(pixel, 7, vec4(0.0));
+    }
+    storeTrace(pixel, 4, vec4(tracedBefore, historyLength, 0.0, 0.0));
+#endif
+
     // Step 5.
     imageStore(slowHistory, pixel, vec4(slow, historyLength));
+    if (reflectionSharingPrototype && parameters.light == SpecularLight)
+        imageStore(reflectionGuide, pixel, vec4(guide, 0.0, 0.0));
 }

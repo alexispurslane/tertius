@@ -132,6 +132,179 @@ public sealed class ScreenTraceHardeningTests
         }
     }
 
+    /// <summary>The paired history modes keep ray allocation independent of specular age, including after resize.</summary>
+    [Collection(GpuCollection.Name)]
+    public sealed class PreciseHistoryRayAllocation
+    {
+        [Theory]
+        [InlineData(null)]
+        [InlineData("")]
+        [InlineData("original")]
+        [InlineData("precise-capped")]
+        [InlineData("precise-uncapped")]
+        public void DisabledDistanceGuidesStillBindMatchingSynchronizedImages(string? mode)
+        {
+            WithHistoryMode(
+                mode,
+                (renderer, scene) =>
+                {
+                    renderer.Render(scene, 1);
+                    scene.Time += 1.0 / 60;
+                    renderer.Render(scene, 1);
+
+                    float[] history = renderer.ReadImage(renderer.ScreenTraceSignals.Specular.Slow(0));
+                    history[4 * (Height / 2 * Width + Width / 2) + 3].Should().BeGreaterThan(0);
+                },
+                sharing: false
+            );
+        }
+
+        [Theory]
+        [InlineData(null)]
+        [InlineData("precise-capped")]
+        [InlineData("precise-uncapped")]
+        [InlineData("original")]
+        public void TheActualReconstructionProbeReadsTheSameUnfilteredHistoryAsTheIndependentLightProbe(string? mode)
+        {
+            WithHistoryMode(
+                mode,
+                (renderer, scene) =>
+                {
+                    var probe = Tertius.ReflectionReference.ReflectionComparisonProbe.On(
+                        renderer,
+                        Primitives.Box(new(0.5f))
+                    );
+
+                    renderer.Render(scene, 1);
+                    scene.Time += 1.0 / 60;
+                    renderer.Render(scene, 1);
+
+                    float[] shared = probe.Read(8);
+                    float[] independent = probe.Read(0);
+                    for (int pixel = 0; pixel < Width * Height; pixel++)
+                    {
+                        shared[2 * pixel + 1]
+                            .Should()
+                            .Be(
+                                independent[2 * pixel],
+                                "the actual shared attachment must read the same slow history through the matching declared storage format"
+                            );
+                        float.IsFinite(shared[2 * pixel]).Should().BeTrue();
+                    }
+                    independent
+                        .Where((_, index) => index % 2 == 0)
+                        .Max()
+                        .Should()
+                        .BeGreaterThan(0, "an all-zero probe cannot establish that the storage reader works");
+                }
+            );
+        }
+
+        [Theory]
+        [InlineData(null)]
+        [InlineData("precise-capped")]
+        [InlineData("precise-uncapped")]
+        public void ReflectionRaysStayFullRateWhileDiffuseRaysStillBecomeShared(string? mode)
+        {
+            WithHistoryMode(
+                mode,
+                (renderer, scene) =>
+                {
+                    renderer.Render(scene, 1);
+                    (int reflection, int diffuse) = renderer.ReadOwnRayCounts();
+
+                    for (int frame = 0; frame < 20; frame++)
+                    {
+                        scene.Time += 1.0 / 60;
+                        renderer.Render(scene, 1);
+                    }
+
+                    renderer
+                        .ReadOwnRayCounts()
+                        .Reflection.Should()
+                        .Be(
+                            reflection,
+                            "both experiment modes trace one reflection ray per eligible pixel regardless of history age"
+                        );
+                    renderer
+                        .ReadOwnRayCounts()
+                        .Diffuse.Should()
+                        .BeLessThan(diffuse / 10, "the specular control must not force full-rate diffuse rays");
+                }
+            );
+        }
+
+        [Theory]
+        [InlineData(null)]
+        [InlineData("precise-capped")]
+        [InlineData("precise-uncapped")]
+        public void ResizingThePreciseHistoryKeepsSampleFastAndGuideImagesInHalfPrecision(string? mode)
+        {
+            WithHistoryMode(
+                mode,
+                (renderer, scene) =>
+                {
+                    renderer.Render(scene, 1);
+
+                    renderer.Resize(Width / 2, Height / 2);
+                    scene.Time += 1.0 / 60;
+                    renderer.Render(scene, 1);
+                    scene.Time += 1.0 / 60;
+                    renderer.Render(scene, 1);
+
+                    TemporalSignal specular = renderer.ScreenTraceSignals.Specular;
+                    TemporalSignal diffuse = renderer.ScreenTraceSignals.Diffuse;
+                    specular.Slow(0).Format.Should().Be(Silk.NET.Vulkan.Format.R32G32B32A32Sfloat);
+                    specular.Sample(0).Format.Should().Be(Silk.NET.Vulkan.Format.R16G16B16A16Sfloat);
+                    specular.ReflectionGuide(0).Format.Should().Be(Silk.NET.Vulkan.Format.R16G16B16A16Sfloat);
+                    specular.HitImages(0, 0).LastFast.Format.Should().Be(Silk.NET.Vulkan.Format.R16G16B16A16Sfloat);
+                    diffuse.Slow(0).Format.Should().Be(Silk.NET.Vulkan.Format.R16G16B16A16Sfloat);
+                    diffuse
+                        .HitImages(0, 0)
+                        .LastFast.Should()
+                        .BeSameAs(
+                            diffuse.Slow(0),
+                            "the H13 single diffuse history must retain its intentional fast/slow alias"
+                        );
+                }
+            );
+        }
+
+        private static void WithHistoryMode(
+            string? mode,
+            Action<VulkanRenderer, RenderSnapshot> action,
+            bool sharing = true
+        )
+        {
+            string[] names =
+            [
+                "TERTIUS_SPECULAR_HISTORY",
+                "TERTIUS_INDIRECT_LIGHT_PROTOTYPE",
+                "TERTIUS_INDIRECT_LIGHT_NEIGHBOR_CAP",
+                "TERTIUS_REFLECTION_SHARING",
+            ];
+            string?[] previous = names.Select(Environment.GetEnvironmentVariable).ToArray();
+            VulkanRenderer? renderer = null;
+            try
+            {
+                Environment.SetEnvironmentVariable(names[0], mode);
+                Environment.SetEnvironmentVariable(names[1], "1");
+                Environment.SetEnvironmentVariable(names[2], "0");
+                Environment.SetEnvironmentVariable(names[3], sharing ? "1" : null);
+                (VulkanRenderer created, RenderSnapshot scene) = Wall();
+                renderer = created;
+                action(renderer, scene);
+            }
+            finally
+            {
+                for (int index = 0; index < names.Length; index++)
+                    Environment.SetEnvironmentVariable(names[index], previous[index]);
+                if (renderer is not null)
+                    Gpu.DisposeAndAssertClean(renderer);
+            }
+        }
+    }
+
     private static (VulkanRenderer Renderer, RenderSnapshot Scene) Wall()
     {
         VulkanRenderer renderer = Gpu.Headless(

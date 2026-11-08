@@ -103,6 +103,35 @@ float reprojectedLength(Reprojection r, vec4 tapLengths)
     return holdsHistory(r) ? dot(r.weights, tapLengths) / dot(r.weights, vec4(1.0)) : 0.0;
 }
 
+// The pass bits of the taps around a place (surfaceTaps), or none for a place outside the last frame's image.
+uint surfaceTapsInside(texture2D lastSurfaceHistory, texture2D lastDeviceDepth, vec2 place, vec3 lastPoint, vec3 normal,
+    float roughness)
+{
+    bool inside = all(greaterThanEqual(place, vec2(0.0))) && all(lessThanEqual(place, vec2(1.0)));
+    return inside ? surfaceTaps(lastSurfaceHistory, lastDeviceDepth, place, lastPoint, normal, roughness) : 0u;
+}
+
+// A place whose history a point reads, the pass bits of its taps, and whether it is the pixel place.
+struct HistoryTaps
+{
+    vec2 place;
+    uint bits;
+    bool pixel;
+};
+
+// The place whose history a point reads under the pixel rule (screen.glsl), of its sample place and its pixel place: the
+// pixel place, unless its taps that pass the surface test hold less than LeastHistoryWeight, as at a silhouette whose
+// own texel showed another surface; then the sample place. Both test their taps against the point's exact last point.
+HistoryTaps historyTaps(texture2D lastSurfaceHistory, texture2D lastDeviceDepth, vec2 samplePlace, vec2 pixelPlace,
+    vec3 lastPoint, vec3 normal, float roughness)
+{
+    uint bits = surfaceTapsInside(lastSurfaceHistory, lastDeviceDepth, pixelPlace, lastPoint, normal, roughness);
+    if (holdsHistory(reprojectionOf(pixelPlace, bits & 0xFu)))
+        return HistoryTaps(pixelPlace, bits, true);
+    return HistoryTaps(samplePlace,
+        surfaceTapsInside(lastSurfaceHistory, lastDeviceDepth, samplePlace, lastPoint, normal, roughness), false);
+}
+
 #define HISTORY_READER(name, source) \
 vec4 name(Reprojection r) \
 { \

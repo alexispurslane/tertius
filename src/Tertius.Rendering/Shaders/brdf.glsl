@@ -78,6 +78,15 @@ float sphereNormalization(float alpha, float lightSine, float VdotH)
     return share * share;
 }
 
+// GgxLobe.TubeNormalization: (α / α′_c) (α / α′_a), the normalization of the lobe that a tube light widens by the
+// half-widths of the ellipse of its representative point, crossSine across the tube and alongSine along it, each
+// widened as sphereNormalization widens α (ARCHITECTURE.md, "Tube lights").
+float tubeNormalization(float alpha, float crossSine, float alongSine, float VdotH)
+{
+    float spread = 0.5 * inversesqrt(max(VdotH, MinHalfCosine));
+    return alpha / min(alpha + crossSine * spread, 1.0) * (alpha / min(alpha + alongSine * spread, 1.0));
+}
+
 // d: the direction between the mirror direction R and the normal N where the lobe gathers most of its light. Seen
 // straight from behind, R is −N, and the mix is zero where towardMirror is one half: d is then N.
 vec3 specularDominantDirection(vec3 N, vec3 R, float alpha)

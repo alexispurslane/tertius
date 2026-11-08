@@ -20,7 +20,10 @@
 layout(set = 3, binding = 0, rgba16f) uniform readonly image2D directDiffuseLight;
 layout(set = 3, binding = 1, rgba16f) uniform readonly image2D directSpecularLight;
 layout(set = 3, binding = 2, rgba16f) uniform readonly image2D indirectDiffuseLight;
-layout(set = 3, binding = 3, rgba16f) uniform readonly image2D indirectSpecularLight;
+#include "specular_history.glsl"
+layout(set = 3, binding = 3, SPECULAR_HISTORY_FORMAT) uniform readonly image2D indirectSpecularLight;
+
+#include "reflection_sharing_prototype.glsl"
 
 layout(location = 0) in vec3 inRay;
 layout(location = 0) out vec4 outColor;
@@ -85,6 +88,8 @@ void main()
         : closedForm(withAmbientFootprint(s, pixel), V);
     vec3 indirectDiffuse = factors.diffuse * indirect.diffuse;
     vec3 indirectSpecular = factors.specular * indirect.specular;
+    if (screenTraceOn)
+        indirectSpecular = reflectionSharedAt(pixel, indirectSpecular);
     // Each part is finite and at most a few times MaxRadiance, so the sum is finite, and the cap keeps the surfaces' share
     // (docs/plans/screen-space-illumination.md, "The cap at MaxRadiance").
     outColor = vec4(

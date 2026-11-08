@@ -6,6 +6,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/Tertius.Rendering/Tertius.Rendering.csproj" />
+    <ProjectReference Include="../../tools/Tertius.ReflectionReference/Tertius.ReflectionReference.csproj" />
     <ProjectReference Include="../Tertius.Testing/Tertius.Testing.csproj" />
     <PackageReference Include="xunit.v3" />
     <PackageReference Include="AwesomeAssertions" />
@@ -30,10 +31,11 @@
     <EngineShaders>$(MSBuildProjectDirectory)/../../src/Tertius.Rendering/Shaders</EngineShaders>
   </PropertyGroup>
   <ItemGroup>
-    <TestShader Include="$(EngineShaders)/lighting.vert;$(EngineShaders)/composite.frag;$(EngineShaders)/composite_scatter.frag;Shaders/direct_light_probe.frag;Shaders/direct_diffuse_probe.frag"
+    <TestShader Include="$(EngineShaders)/lighting.vert;$(EngineShaders)/composite.frag;$(EngineShaders)/composite_scatter.frag;Shaders/direct_light_probe.frag;Shaders/direct_diffuse_probe.frag;Shaders/reflection_sharing_pulse.frag"
                 Flags="-DTERTIUS_EVERY_AMBIENT_TERM -I &quot;$(EngineShaders)&quot;" />
     <TestShader Include="Shaders/*.comp;Shaders/upscale_view_ray_probe.frag" Flags="-I &quot;$(EngineShaders)&quot;" />
     <TestShader Include="$(EngineShaders)/screen_trace_resolve.comp" Flags="-I &quot;$(EngineShaders)&quot;" />
+    <PreciseHistoryTestShader Include="@(TestShader)" />
     <TestShaderInclude Include="$(EngineShaders)/*.glsl;Shaders/*.glsl" />
     <DirectionOnlyShader Include="$(EngineShaders)/lighting.vert;$(EngineShaders)/composite.frag" />
   </ItemGroup>
@@ -63,6 +65,20 @@
     <ItemGroup>
       <_TestSpirv Include="@(TestShader->'$(IntermediateOutputPath)test-shaders/%(Filename)%(Extension).spv')" />
       <EmbeddedResource Include="@(_TestSpirv)" LogicalName="Tertius.Rendering.Shaders.%(_TestSpirv.Filename)%(_TestSpirv.Extension)" WithCulture="false" />
+    </ItemGroup>
+  </Target>
+
+  <Target Name="CompilePreciseHistoryTestShaders" BeforeTargets="BeforeBuild"
+          Inputs="@(PreciseHistoryTestShader);@(TestShaderInclude);$(MSBuildProjectFullPath)"
+          Outputs="@(PreciseHistoryTestShader->'$(IntermediateOutputPath)test-shaders/%(Filename)_precise%(Extension).spv')">
+    <MakeDir Directories="$(IntermediateOutputPath)test-shaders" />
+    <Exec Command="&quot;$(Glslc)&quot; --target-env=vulkan1.3 -O -Werror -DTERTIUS_PRECISE_SPECULAR_HISTORY %(PreciseHistoryTestShader.Flags) -o &quot;$(IntermediateOutputPath)test-shaders/%(PreciseHistoryTestShader.Filename)_precise%(PreciseHistoryTestShader.Extension).spv&quot; &quot;%(PreciseHistoryTestShader.FullPath)&quot;" />
+  </Target>
+
+  <Target Name="EmbedPreciseHistoryTestShaders" DependsOnTargets="CompilePreciseHistoryTestShaders" BeforeTargets="BeforeBuild">
+    <ItemGroup>
+      <_PreciseHistoryTestSpirv Include="@(PreciseHistoryTestShader->'$(IntermediateOutputPath)test-shaders/%(Filename)_precise%(Extension).spv')" />
+      <EmbeddedResource Include="@(_PreciseHistoryTestSpirv)" LogicalName="Tertius.Rendering.Shaders.%(_PreciseHistoryTestSpirv.Filename)%(_PreciseHistoryTestSpirv.Extension)" WithCulture="false" />
     </ItemGroup>
   </Target>
 </Project>

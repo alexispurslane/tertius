@@ -692,11 +692,13 @@ public sealed class EnvironmentBoxRenderTests
                 Constants = new ShaderConstants(EnvironmentMap: true),
             }.Create(device, shaders);
             lightSet = context.Layouts.AllocateLightSet();
-            for (uint binding = 0; binding < 4; binding++)
+            // The six light images of CompositePass without the reflection-sharing prototype: the direct light twice,
+            // then its specular part where the prototype's sample and guide would be.
+            for (uint binding = 0; binding < 6; binding++)
                 context.Layouts.WriteStorageImage(
                     set: lightSet,
                     binding: binding,
-                    image: binding % 2 == 0 ? context.Targets.DirectDiffuse : context.Targets.DirectSpecular
+                    image: binding is 0 or 2 ? context.Targets.DirectDiffuse : context.Targets.DirectSpecular
                 );
         }
 

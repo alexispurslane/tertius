@@ -1,0 +1,53 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <UsesVulkan>true</UsesVulkan>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/Tertius.Rendering/Tertius.Rendering.csproj" />
+    <InternalsVisibleTo Include="Tertius.Rendering.Tests" />
+  </ItemGroup>
+  <PropertyGroup>
+    <Glslc Condition="'$(Glslc)' == ''">glslc</Glslc>
+    <EngineShaders>$(MSBuildProjectDirectory)/../../src/Tertius.Rendering/Shaders</EngineShaders>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProbeShader Include="$(EngineShaders)/lighting.vert;$(EngineShaders)/mesh.vert;Shaders/*.frag" />
+    <PreciseHistoryProbeShader Include="Shaders/reflection_comparison_*.frag" />
+    <ProbeInclude Include="$(EngineShaders)/*.glsl;Shaders/*.glsl" />
+  </ItemGroup>
+  <Target Name="CompileProbeShaders" BeforeTargets="BeforeBuild"
+          Inputs="@(ProbeShader);@(ProbeInclude);$(MSBuildProjectFullPath)"
+          Outputs="@(ProbeShader->'$(IntermediateOutputPath)probe-shaders/%(Filename)%(Extension).spv')">
+    <MakeDir Directories="$(IntermediateOutputPath)probe-shaders" />
+    <Exec Command="&quot;$(Glslc)&quot; --target-env=vulkan1.3 -O -Werror -I &quot;$(EngineShaders)&quot; -o &quot;$(IntermediateOutputPath)probe-shaders/%(ProbeShader.Filename)%(ProbeShader.Extension).spv&quot; &quot;%(ProbeShader.FullPath)&quot;" />
+  </Target>
+  <Target Name="EmbedProbeShaders" DependsOnTargets="CompileProbeShaders" BeforeTargets="BeforeBuild">
+    <ItemGroup>
+      <_ProbeSpirv Include="@(ProbeShader->'$(IntermediateOutputPath)probe-shaders/%(Filename)%(Extension).spv')" />
+      <EmbeddedResource Include="@(_ProbeSpirv)" LogicalName="Tertius.Rendering.Shaders.%(_ProbeSpirv.Filename)%(_ProbeSpirv.Extension)" WithCulture="false" />
+    </ItemGroup>
+  </Target>
+  <Target Name="CompilePreciseHistoryProbeShaders" BeforeTargets="BeforeBuild"
+          Inputs="@(PreciseHistoryProbeShader);@(ProbeInclude);$(MSBuildProjectFullPath)"
+          Outputs="@(PreciseHistoryProbeShader->'$(IntermediateOutputPath)probe-shaders/%(Filename)_precise%(Extension).spv')">
+    <MakeDir Directories="$(IntermediateOutputPath)probe-shaders" />
+    <Exec Command="&quot;$(Glslc)&quot; --target-env=vulkan1.3 -O -Werror -DTERTIUS_PRECISE_SPECULAR_HISTORY -I &quot;$(EngineShaders)&quot; -o &quot;$(IntermediateOutputPath)probe-shaders/%(PreciseHistoryProbeShader.Filename)_precise%(PreciseHistoryProbeShader.Extension).spv&quot; &quot;%(PreciseHistoryProbeShader.FullPath)&quot;" />
+  </Target>
+  <Target Name="EmbedPreciseHistoryProbeShaders" DependsOnTargets="CompilePreciseHistoryProbeShaders" BeforeTargets="BeforeBuild">
+    <ItemGroup>
+      <_PreciseHistoryProbeSpirv Include="@(PreciseHistoryProbeShader->'$(IntermediateOutputPath)probe-shaders/%(Filename)_precise%(Extension).spv')" />
+      <EmbeddedResource Include="@(_PreciseHistoryProbeSpirv)" LogicalName="Tertius.Rendering.Shaders.%(_PreciseHistoryProbeSpirv.Filename)%(_PreciseHistoryProbeSpirv.Extension)" WithCulture="false" />
+    </ItemGroup>
+  </Target>
+  <Target Name="EmbedHistorySourceIdentity" BeforeTargets="BeforeBuild">
+    <GetFileHash Files="@(Compile);@(ProbeShader);@(ProbeInclude);$(MSBuildProjectFullPath)">
+      <Output TaskParameter="Items" ItemName="_HistorySources" />
+    </GetFileHash>
+    <WriteLinesToFile File="$(IntermediateOutputPath)history-sources.sha256" Lines="@(_HistorySources->'%(FullPath)|%(FileHash)')" Overwrite="true" WriteOnlyWhenDifferent="true" />
+    <ItemGroup>
+      <EmbeddedResource Include="$(IntermediateOutputPath)history-sources.sha256" LogicalName="Tertius.HistorySources.sha256" WithCulture="false" />
+    </ItemGroup>
+  </Target>
+</Project>

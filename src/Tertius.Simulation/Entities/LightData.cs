@@ -43,14 +43,45 @@ public readonly record struct SpotLightData(
 );
 
 /// <summary>
-/// The dynamic light that an entity carries: a <see cref="PointLightData"/> or a <see cref="SpotLightData"/>. The default
+/// A tube light that an entity carries: a capsule, a segment of <see cref="Length"/> along the local Y axis of its pose
+/// with a sphere of <see cref="Radius"/> around every point, whose surface sends its power the same in every direction,
+/// in SI units (ARCHITECTURE.md, "Tube lights"). Its pose is the entity's pose composed with <see cref="Offset"/>, and
+/// the segment's middle stands at it.
+/// </summary>
+/// <param name="Offset">The light's pose relative to the entity. A zeroed rotation, as in a defaulted pose, counts as the identity.</param>
+/// <param name="Color">Linear RGB that scales the power per channel.</param>
+/// <param name="Power">The radiant power that leaves the light, in W. A light of 0 or less adds no light.</param>
+/// <param name="Radius">The radius of the capsule, in m, 0 or more.</param>
+/// <param name="Length">The length of the segment between the centers of the capsule's two ends, in m, 0 or more.</param>
+/// <param name="CastsShadow">Whether the light casts shadows from the segment's middle, within the renderer's budgets.</param>
+public readonly record struct TubeLightData(
+    Pose Offset,
+    Vector3 Color,
+    float Power,
+    float Radius,
+    float Length,
+    bool CastsShadow
+)
+{
+    /// <summary>
+    /// The radiance that the capsule sends from its surface of area 2π Radius (Length + 2 Radius) when it emits
+    /// <see cref="Power"/> evenly: Color · Power / (π · area), in W/(m²·sr). A tube of length 0 is the sphere of
+    /// <see cref="PointLightData.SurfaceRadiance"/>. A scene gives the glowing body that holds the light this emission.
+    /// </summary>
+    public Vector3 SurfaceRadiance =>
+        Color * (float)(Power / (2 * Math.PI * Math.PI * (double)Radius * ((double)Length + 2.0 * Radius)));
+}
+
+/// <summary>
+/// The dynamic light that an entity carries: a <see cref="PointLightData"/>, a <see cref="SpotLightData"/> or a
+/// <see cref="TubeLightData"/>. The default
 /// value holds no light, so an entity whose <see cref="RenderData.Light"/> is the default carries none and puts nothing in
 /// the render snapshot. To switch a light off and on again, keep the light value and write the default over it.
 /// </summary>
 /// <remarks>
-/// This is a generated union (docs/plans/union-tooling.md) of <see cref="PointLightData"/> and
-/// <see cref="SpotLightData"/>. Equality needs the same case and the same fields, and counts a NaN as equal to a NaN, as
+/// This is a generated union (docs/plans/union-tooling.md) of <see cref="PointLightData"/>,
+/// <see cref="SpotLightData"/> and <see cref="TubeLightData"/>. Equality needs the same case and the same fields, and counts a NaN as equal to a NaN, as
 /// <see cref="Vector3.Equals(Vector3)"/> does.
 /// </remarks>
-[GeneratedUnion(typeof(PointLightData), typeof(SpotLightData))]
+[GeneratedUnion(typeof(PointLightData), typeof(SpotLightData), typeof(TubeLightData))]
 public readonly partial struct LightData;

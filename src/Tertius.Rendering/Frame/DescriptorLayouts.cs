@@ -64,7 +64,7 @@ namespace Tertius.Rendering;
 /// level and its bounds as sampled images, the tracer's inputs and outputs as storage images, and the own-ray list of each
 /// kind (<see cref="ScreenTraceImages"/>). One per parity of the drawn frames, rewritten on resize.</description></item>
 /// <item><term>light</term><description>set 3 of <see cref="CompositeLayout"/>: the direct light's two images and the two
-/// indirect signals' slow histories as storage images for the fragment stage (<see cref="CompositePass"/>). One,
+/// indirect signals' slow histories, plus the existing specular sample for the opt-in reflection footprint, as storage images for the fragment stage (<see cref="CompositePass"/>). One,
 /// rewritten on resize.</description></item>
 /// </list>
 /// Every pass that draws meshes or reads the G-buffer uses <see cref="SceneLayout"/>, so sets 0 and 1 stay bound
@@ -95,19 +95,35 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     private const uint ScreenTraceStorageBuffers = 2;
 
     /// <summary>
+    /// The storage images that the light-change age of a precise specular history adds to a screen tracer set after its
+    /// lists, at bindings 19 to 21: the last and this frame's light-age records and the specular sample's age, and at
+    /// binding 22 the uncovered-surface diagnostic (<see cref="HistoryInstrumentation.LightAgeDiagnostic"/>).
+    /// </summary>
+    private uint ScreenTraceAgeImages =>
+        (HistoryMode.KeepsLightAge ? 3u : 0u) + (Instrumentation == HistoryInstrumentation.LightAgeDiagnostic ? 1u : 0u);
+
+    /// <summary>
     /// The signal sets: one per part and parity of the screen tracer's two signals of one part, and of a test's signal of
     /// two parts (<see cref="TemporalSignal"/>).
     /// </summary>
     private const uint SignalSets = 8;
 
-    /// <summary>The storage images of a signal set.</summary>
-    private const uint SignalSetImages = 7;
+    /// <summary>
+    /// The storage images of a signal set: nine, with the light-change age of a precise specular history the sample age at
+    /// binding 11, and at binding 12 the instrumentation's image, the uncovered-surface diagnostic or the accumulation
+    /// trace. The original history refuses the instrumentation (the constructor).
+    /// </summary>
+    private uint SignalSetImages =>
+        9u + (HistoryMode.KeepsLightAge ? 1u : 0u) + (Instrumentation == HistoryInstrumentation.None ? 0u : 1u);
 
     /// <summary>The sampled images of a signal set: the last surface history and the last device depth.</summary>
     private const uint SignalSetSampledImages = 2;
 
-    /// <summary>The storage images of the light set: the direct light's two images and the two indirect signals' histories.</summary>
-    private const uint LightSetImages = 4;
+    /// <summary>
+    /// The storage images of the light set: the direct light's two images, the two indirect signals' histories, and the
+    /// reflection-sharing prototype's specular sample and distance guide (<see cref="CompositePass"/>).
+    /// </summary>
+    private const uint LightSetImages = 6;
 
     /// <summary>
     /// The storage buffers of the frame set: bindings 1 to 4, 6, 7, 11, 15, 17 and 18, which the vertex stage all sees. The
@@ -160,13 +176,33 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     private readonly Dictionary<ulong, LimitedDescriptors> layoutDescriptors = [];
 
     /// <param name="glowLevels">The bloom levels, 0 without bloom: the pool holds one glow source set more than that.</param>
+    /// <param name="historyMode">
+    /// The renderer's specular history: the light-change age of a precise history adds the light-age records and the
+    /// sample age to the screen tracer set, and the sample age to every signal set.
+    /// </param>
+    /// <param name="instrumentation">The renderer's instrumentation of the specular history, which adds its images.</param>
+    /// <exception cref="ArgumentException">
+    /// The diagnostic or the accumulation trace is on with the original half-precision history.
+    /// </exception>
     /// <exception cref="NotSupportedException">
     /// A stage of a pipeline layout sees more storage buffers, storage images or sampled images than the device lets one
     /// stage see (<see cref="LimitedDescriptors.Problem"/>).
     /// </exception>
-    public DescriptorLayouts(VulkanDevice device, int framesInFlight, int glowLevels)
+    public DescriptorLayouts(
+        VulkanDevice device,
+        int framesInFlight,
+        int glowLevels,
+        SpecularHistoryMode historyMode = SpecularHistoryMode.PreciseUncapped,
+        HistoryInstrumentation instrumentation = HistoryInstrumentation.None
+    )
     {
+        if (instrumentation != HistoryInstrumentation.None && !historyMode.KeepsLightAge)
+            throw new ArgumentException(
+                $"TERTIUS_REFLECTION_HISTORY_AGREEMENT={instrumentation} needs a precise specular history, not TERTIUS_SPECULAR_HISTORY=original."
+            );
         this.device = device;
+        HistoryMode = historyMode;
+        Instrumentation = instrumentation;
 
         LinearClampSampler = CreateLevelZeroSampler(Filter.Linear, "linear clamp sampler");
         EnvironmentSampler = CreateTrilinearClampSampler("environment sampler");
@@ -371,6 +407,15 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// motion target (docs/plans/temporal-renderer.md, "Images").
     /// </summary>
     public DescriptorSetLayout SignalSet { get; }
+
+    /// <summary>
+    /// The renderer's specular history, selected once per renderer. The layouts own it: the signal scratch and every
+    /// signal read it from here, so their images always match the bindings of these layouts.
+    /// </summary>
+    public SpecularHistoryMode HistoryMode { get; }
+
+    /// <summary>The instrumentation of the specular history, selected once with <see cref="HistoryMode"/>.</summary>
+    public HistoryInstrumentation Instrumentation { get; }
 
     /// <summary>The light set: <see cref="LightSetImages"/> storage images for the fragment stage, which the composite reads.</summary>
     public DescriptorSetLayout LightSet { get; }
@@ -780,7 +825,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         );
 
     /// <summary>The sizes of the shared pool, which holds <paramref name="glowSourceSets"/> glow source sets.</summary>
-    private static DescriptorPoolSize[] SharedPoolSizes(uint frames, uint glowSourceSets) =>
+    private DescriptorPoolSize[] SharedPoolSizes(uint frames, uint glowSourceSets) =>
         [
             // One per frame set, and the scatter set's kernel.
             new(DescriptorType.UniformBuffer, frames + 1),
@@ -814,8 +859,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
                     + ScreenTraceSampledImages * ScreenTraceSets
             ),
             // One per pyramid level set, the depth tail set's mips, four per environment levels set, three for the scatter
-            // set, one for the shadow bounds set, four per surface test set, seven per signal set, four for the light set
-            // and fifteen per screen tracer set.
+            // set, one for the shadow bounds set, four per surface test set, SignalSetImages per signal set, six for the
+            // light set and fifteen per screen tracer set, plus ScreenTraceAgeImages.
             new(
                 DescriptorType.StorageImage,
                 PyramidLevelSets
@@ -826,7 +871,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
                     + 4 * SurfaceTestSets
                     + SignalSetImages * SignalSets
                     + LightSetImages
-                    + ScreenTraceStorageImages * ScreenTraceSets
+                    + (ScreenTraceStorageImages + ScreenTraceAgeImages) * ScreenTraceSets
             ),
         ];
 
@@ -1007,7 +1052,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     {
         const uint lists = ScreenTraceSampledImages + ScreenTraceStorageImages;
         Span<DescriptorSetLayoutBinding> bindings =
-            stackalloc DescriptorSetLayoutBinding[(int)(lists + ScreenTraceStorageBuffers)];
+            stackalloc DescriptorSetLayoutBinding[(int)(lists + ScreenTraceStorageBuffers + ScreenTraceAgeImages)];
         for (uint binding = 0; binding < ScreenTraceSampledImages; binding++)
             bindings[(int)binding] = Image(binding: binding, stages: ShaderStageFlags.ComputeBit);
         for (uint binding = ScreenTraceSampledImages; binding < lists; binding++)
@@ -1019,6 +1064,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
                 descriptorCount: 1,
                 stageFlags: ShaderStageFlags.ComputeBit
             );
+        for (uint binding = lists + ScreenTraceStorageBuffers; binding < bindings.Length; binding++)
+            bindings[(int)binding] = StorageImage(binding);
         return CreateLayout(bindings: bindings, name: "screen trace set");
     }
 
@@ -1027,10 +1074,10 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     {
         Span<DescriptorSetLayoutBinding> signal =
             stackalloc DescriptorSetLayoutBinding[(int)(SignalSetImages + SignalSetSampledImages)];
-        for (uint binding = 0; binding < SignalSetImages; binding++)
-            signal[(int)binding] = StorageImage(binding);
-        for (uint binding = SignalSetImages; binding < SignalSetImages + SignalSetSampledImages; binding++)
-            signal[(int)binding] = Image(binding: binding, stages: ShaderStageFlags.ComputeBit);
+        for (uint binding = 0; binding < SignalSetImages + SignalSetSampledImages; binding++)
+            signal[(int)binding] = binding is 7 or 8
+                ? Image(binding: binding, stages: ShaderStageFlags.ComputeBit)
+                : StorageImage(binding);
         Span<DescriptorSetLayoutBinding> light = stackalloc DescriptorSetLayoutBinding[(int)LightSetImages];
         for (uint binding = 0; binding < LightSetImages; binding++)
             light[(int)binding] = StorageImage(binding: binding, stages: ShaderStageFlags.FragmentBit);

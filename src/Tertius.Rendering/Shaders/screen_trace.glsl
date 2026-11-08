@@ -25,7 +25,8 @@ layout(set = 3, binding = 5, rgba16f) uniform readonly image2D motionTarget;   /
 layout(set = 3, binding = 6, rgba16f) uniform readonly image2D lastFastDiffuse;      // the last frame's fast histories
 layout(set = 3, binding = 7, rgba16f) uniform readonly image2D lastFastSpecular;
 layout(set = 3, binding = 8, rgba16f) uniform readonly image2D slowDiffuse;    // the last frame's slow histories: a the
-layout(set = 3, binding = 9, rgba16f) uniform readonly image2D slowSpecular;   // history length in frames
+#include "specular_history.glsl"
+layout(set = 3, binding = 9, SPECULAR_HISTORY_FORMAT) uniform readonly image2D slowSpecular;
 layout(set = 3, binding = 10, r8ui) uniform uimage2D rayPlan;                  // the plan's bits (PlanOwnRay)
 // The records of the rays, layer KindReflection and KindDiffuse: rgb the ray's light, pre-exposed, a its hit distance in
 // m, 0 for a miss; and x, y the direction's octahedral code in 16-bit units, z the half bits of log2 of its density per
@@ -40,6 +41,98 @@ layout(set = 3, binding = 15, rgba16f) uniform writeonly image2D diffuseSample;
 layout(set = 3, binding = 16, rgba16f) uniform writeonly image2D specularSample;
 OWN_RAY_LIST(3, 17, reflectionOwnRays);
 OWN_RAY_LIST(3, 18, diffuseOwnRays);
+
+#ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
+// The light-change age of a precise specular history (tickets tiunr-py6q and tiunr-7haj, ScreenTraceImages.LightAge): r
+// the exact light at the pixel, g the frames since it last changed, or for a light that the record never saw change −(N + 1), where N counts the frames since the
+// frame that first showed the pixel. The fraction of g holds a pending change (ticket tiunr-okzm, recordAgeOf). The plan
+// writes this frame's record from the last frame's, and a hit reads this frame's record at its pixel.
+layout(set = 3, binding = 19, rg32f) uniform readonly image2D lastLightAge;
+layout(set = 3, binding = 20, rg32f) uniform image2D lightAge;
+// The specular sample's light age (TemporalSignal.SampleAge), which the resolve writes: an age code (ageCodeOf).
+layout(set = 3, binding = 21, r16ui) uniform writeonly uimage2D specularSampleAge;
+
+// The age of a pixel whose light the record never saw change, in the frame that first shows it: no evidence. Each later
+// frame that shows it unchanged lowers it by one, down to −(MostLightAge + 1).
+const float NoLightAge = -1.0;
+
+// The largest age that a record holds: its code, the age plus 1, fills the 15 bits of a ray record's w above RayTraced.
+const float MostLightAge = 32766.0;
+
+// The draws in a row that a light must stay outside the range of the last exact light to count as a change: under FSR,
+// the temporal shadow filter cycles a penumbra's light with a period of at most 4 draws.
+const float LightChangeDraws = 4.0;
+
+// The code of an age in a ray record and in the sample age: 0 for no evidence, else the age plus 1.
+uint ageCodeOf(float age)
+{
+    return age < 0.0 ? 0u : uint(min(age, MostLightAge)) + 1u;
+}
+
+// A record's g: the age, whose integer part it keeps, plus, away from 0, the draws that a pending change has stayed
+// outside the range, in steps of 1 / LightChangeDraws. A single float holds both exactly: the age's magnitude stays below
+// 2^15, so 8 bits of fraction remain, and LightChangeDraws is a power of 2.
+float recordAgeOf(float age, float pendingDraws)
+{
+    float pending = pendingDraws / LightChangeDraws;
+    return age < 0.0 ? age - pending : age + pending;
+}
+
+// The age of a record's g (recordAgeOf). A hit stores g as it is: ageCodeOf and rayFieldOf round toward 0 as this does.
+float ageOfRecord(float g)
+{
+    return trunc(g);
+}
+
+// The draws of a record's pending change (recordAgeOf): 0 for none.
+float pendingDrawsOfRecord(float g)
+{
+    return round(abs(g - trunc(g)) * LightChangeDraws);
+}
+
+#ifdef TERTIUS_LIGHT_AGE_DIAGNOSTIC
+// The diagnostic of uncovered surfaces (TemporalSignal.UncoveredDiagnostic), which only the capture tool and the tests
+// read: the resolve writes r, the fewest frames seen among the never-changed surfaces that the specular sample's rays
+// hit, or −1 for none. The temporal dispatch writes the other channels.
+layout(set = 3, binding = 22, rgba32f) uniform writeonly image2D uncoveredDiagnostic;
+
+// The age of a ray that hit nothing: below every record's age, so that a miss differs from a surface first shown.
+const float MissLightAge = -65536.0;
+
+// The diagnostic's field of a ray record, the 15 bits above RayTraced: an age code below SeenField, or SeenField plus a
+// never-changed hit's frames seen. Its age codes stop at MostFieldCode, age 16,382, which changes no cut while the
+// history holds fewer frames.
+const uint SeenField = 0x4000u;
+const uint MostFieldCode = 0x3FFFu;
+
+uint rayFieldOf(float age)
+{
+    if (age >= 0.0)
+        return min(ageCodeOf(age), MostFieldCode);
+    if (age > MissLightAge)
+        return SeenField | uint(min(-age - 1.0, float(MostFieldCode)));
+    return 0u;
+}
+
+// The seen code of a ray record: 0 for none, else the frames seen of its never-changed hit plus 1.
+uint seenCodeOfRecord(uvec4 ray)
+{
+    uint field = ray.w >> 1;
+    return (field & SeenField) != 0u ? (field & MostFieldCode) + 1u : 0u;
+}
+#endif
+
+// The age code of a ray record's hit (ageCodeOf).
+uint ageCodeOfRecord(uvec4 ray)
+{
+#ifdef TERTIUS_LIGHT_AGE_DIAGNOSTIC
+    uint field = ray.w >> 1;
+    return (field & SeenField) != 0u ? 0u : field;
+#else
+    return ray.w >> 1;
+#endif
+}
+#endif
 
 HISTORY_READER(lastFastDiffuseAt, lastFastDiffuse)
 HISTORY_READER(lastFastSpecularAt, lastFastSpecular)
@@ -260,7 +353,7 @@ vec3 lastFastOf(Reprojection r, uint kind)
 // The pixel's place in the last frame's image, from its motion.
 vec2 lastPlaceAt(ivec2 pixel)
 {
-    return historyPlace(vec2(pixel) + 0.5, imageLoad(motionTarget, pixel).xy);
+    return readPlace(vec2(pixel) + 0.5, imageLoad(motionTarget, pixel));
 }
 
 // The light of a hit at the pixel q, pre-exposed (section 6, "Where a hit's light comes from"): this frame's direct
@@ -313,6 +406,9 @@ struct TracedRay
     vec3 light;       // the hit's light faded into the miss's, pre-exposed; 0 for a ray that traced nothing
     float distance;   // from the ray's start to the hit, in m; 0 for a miss
     bool traced;      // false for a direction below the pixel's geometric plane, which brings no light
+#ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
+    float age;        // the light age of the hit's pixel, NoLightAge for a miss (MissLightAge under the diagnostic)
+#endif
 };
 
 // Traces the ray of the kind from the pixel that starts it: its draw, its walk to the kind's cap, and its light. A
@@ -331,6 +427,11 @@ TracedRay traceFrom(ivec2 pixel, TracingPixel p, uint kind)
     result.light = vec3(0.0);
     result.distance = 0.0;
     result.traced = dot(result.direction, p.s.geometricNormal) > 0.0;
+#ifdef TERTIUS_LIGHT_AGE_DIAGNOSTIC
+    result.age = MissLightAge;
+#elif defined(TERTIUS_PRECISE_SPECULAR_HISTORY)
+    result.age = NoLightAge;
+#endif
     if (!result.traced)
         return result;
     ScreenWalk walk = screenWalkOf(screenRayOf(p.origin, result.direction, p.viewDepth), result.direction, p.ownCard);
@@ -347,6 +448,10 @@ TracedRay traceFrom(ivec2 pixel, TracingPixel p, uint kind)
     result.distance = length(hitPoint - p.origin);
     float fade = edgeFade(hit) * (1.0 - entryShare);
     result.light = mix(missLight, hitLightOf(hitPixel, kind), fade);
+#ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
+    if (fade > 0.0)
+        result.age = imageLoad(lightAge, hitPixel).g;
+#endif
     return result;
 }
 
@@ -385,6 +490,14 @@ RayRecord recordOf(TracedRay traced)
     RayRecord record;
     record.light = vec4(traced.light, min(traced.distance, MostHitDistance));
     record.ray = uvec4(directionCodeOf(traced.direction), densityCodeOf(traced.density), traced.traced ? RayTraced : 0u);
+#ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
+    // The hit's age code in the 15 bits above RayTraced.
+#ifdef TERTIUS_LIGHT_AGE_DIAGNOSTIC
+    record.ray.w |= rayFieldOf(traced.age) << 1;
+#else
+    record.ray.w |= ageCodeOf(traced.age) << 1;
+#endif
+#endif
     return record;
 }
 

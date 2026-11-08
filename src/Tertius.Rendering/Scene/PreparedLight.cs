@@ -2,8 +2,12 @@ using System.Numerics;
 
 namespace Tertius.Rendering;
 
-/// <summary>A point light's spread: every direction.</summary>
-internal readonly record struct EveryDirection;
+/// <summary>
+/// The spread of a point or tube light: every direction, from a capsule around the segment from Position − HalfSegment to
+/// Position + HalfSegment (ARCHITECTURE.md, "Tube lights"). A point light's segment is zero, which leaves its sphere.
+/// </summary>
+/// <param name="HalfSegment">From the light's position to one end of its segment, camera-relative, in m; zero for a point light.</param>
+internal readonly record struct EveryDirection(Vector3 HalfSegment);
 
 /// <summary>
 /// A spot light's spread: a cone around a unit axis. Build it with <see cref="Of"/>, which keeps its invariants:
@@ -39,8 +43,9 @@ internal readonly record struct Cone(Vector3 Axis, float CosInner, float CosOute
 }
 
 /// <summary>
-/// Which directions a light sends its power to: <see cref="EveryDirection"/> for a point light, a <see cref="Cone"/> for a
-/// spot light. The default value is EveryDirection. This is a generated union (docs/plans/union-tooling.md).
+/// Which directions a light sends its power to: <see cref="EveryDirection"/> for a point or tube light, a <see cref="Cone"/>
+/// for a spot light. The default value is EveryDirection with no segment. This is a generated union
+/// (docs/plans/union-tooling.md).
 /// </summary>
 [GeneratedUnion(typeof(EveryDirection), typeof(Cone), ZeroCase = typeof(EveryDirection))]
 internal readonly partial struct LightSpread;
@@ -91,10 +96,13 @@ internal struct PreparedLight
     /// <summary>The color × intensity, in W/sr per channel, from <see cref="LightUnits.RadiantIntensity"/>.</summary>
     public Vector3 RadiantIntensity;
 
-    /// <summary>The radius of the emitting sphere, in m.</summary>
+    /// <summary>The radius of the emitting sphere, or of a tube light's capsule, in m.</summary>
     public float Radius;
 
-    /// <summary>Where the brightest channel falls to the cutoff irradiance, in m.</summary>
+    /// <summary>
+    /// Where the brightest channel falls to the cutoff irradiance, in m from <see cref="Position"/>: for a tube light, its
+    /// peak intensity's reach from its segment plus half its length.
+    /// </summary>
     public float Reach;
 
     /// <summary>The distance from the eye, in m.</summary>

@@ -283,6 +283,56 @@ public sealed class ScreenTraceRenderTests
         }
     }
 
+    [Fact]
+    public void AMirrorFloorShowsNoGlowOfABarWhoseEntityHoldsATubeLight()
+    {
+        var glow = new Vector3(4f);
+        VulkanRenderer renderer = Tracing();
+        try
+        {
+            // The glowing panel of GlowingPanelOverAMirror as a bar 3 m wide, whose entity holds a tube light along it.
+            RenderSnapshot scene = Dark();
+            scene.Instances.Add(Floor(renderer, Mirror()));
+            scene.Instances.Add(
+                Gpu.Instance(
+                    mesh: renderer.CreateMesh(Primitives.Box(new(0.5f))),
+                    material: Glow(renderer, glow),
+                    position: GlowingPanelCenter,
+                    scale: new(3, 0.2f, 0.2f),
+                    radius: 1.6f,
+                    entity: Gpu.LampEntity,
+                    chainDepth: TestChains.CamerasFrame
+                )
+            );
+            scene.Lights.Add(
+                new TubeRenderLight(
+                    EntityIndex: Gpu.LampEntity,
+                    EntityGeneration: 0,
+                    Position: GlowingPanelCenter,
+                    PreviousPosition: GlowingPanelCenter,
+                    Axis: Vector3.UnitX,
+                    PreviousAxis: Vector3.UnitX,
+                    Color: Vector3.One,
+                    Power: 1,
+                    Radius: 0.1f,
+                    Length: 2.8f,
+                    CastsShadow: false,
+                    ChainDepth: TestChains.CamerasFrame
+                )
+            );
+            Draw(renderer, scene, frames: 1);
+
+            float[] sample = renderer.ReadImage(renderer.ScreenTraceSignals.Specular.Sample(0));
+            At(sample, MirrorPixel(GlowingPanelCenter))
+                .X.Should()
+                .BeLessThan(0.05f * glow.X, "the tube light stands for the bar's glow, so a hit counts the glow once");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]

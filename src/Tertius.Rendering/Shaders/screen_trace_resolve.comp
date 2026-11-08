@@ -64,6 +64,12 @@ void main()
         // The sky and the impostors: no signal, and the composite reads none there.
         imageStore(diffuseSample, pixel, vec4(0.0));
         imageStore(specularSample, pixel, vec4(0.0));
+#ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
+        imageStore(specularSampleAge, pixel, uvec4(0u));
+#endif
+#ifdef TERTIUS_LIGHT_AGE_DIAGNOSTIC
+        imageStore(uncoveredDiagnostic, pixel, vec4(-1.0, 0.0, 0.0, 0.0));
+#endif
         return;
     }
     TracingPixel p = tracingPixelAt(pixel);
@@ -80,16 +86,50 @@ void main()
     // The share of the diffuse ray's estimate in the specular sample: 0 below the hand-over band, 1 above it.
     float handOver = clamp((sqrt(p.alpha) - trace.handOverStart) / (trace.maxRoughness - trace.handOverStart), 0.0, 1.0);
     vec3 specularLight = vec3(0.0);
+#ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
+    // The youngest age code of the rays that the specular sample takes light from, 0 where none brings an age.
+    uint ageCode = 0u;
+#endif
+#ifdef TERTIUS_LIGHT_AGE_DIAGNOSTIC
+    // The fewest frames seen plus 1 of the never-changed surfaces that those rays hit, 0 where none hits one.
+    uint seenCode = 0u;
+#endif
     if (handOver > 0.0 && diffuseRay.brings)
+    {
         specularLight = handOver * diffuse.light.rgb * specularWeightOf(p, lobes, factors, diffuseRay);
+#ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
+        ageCode = ageCodeOfRecord(diffuse.ray);
+#endif
+#ifdef TERTIUS_LIGHT_AGE_DIAGNOSTIC
+        seenCode = seenCodeOfRecord(diffuse.ray);
+#endif
+    }
     float hitDistance = diffuse.light.a;
     if (startsKind(p, KindReflection))
     {
         RayRecord reflection = recordAt(pixel, KindReflection, plan);
         WeighedRay reflectionRay = weighedRayOf(p, reflection);
         if (reflectionRay.brings)
+        {
             specularLight += (1.0 - handOver) * reflection.light.rgb * specularWeightOf(p, lobes, factors, reflectionRay);
+#ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
+            uint reflectionCode = ageCodeOfRecord(reflection.ray);
+            if (handOver < 1.0 && reflectionCode != 0u)
+                ageCode = ageCode == 0u ? reflectionCode : min(ageCode, reflectionCode);
+#endif
+#ifdef TERTIUS_LIGHT_AGE_DIAGNOSTIC
+            uint reflectionSeen = seenCodeOfRecord(reflection.ray);
+            if (handOver < 1.0 && reflectionSeen != 0u)
+                seenCode = seenCode == 0u ? reflectionSeen : min(seenCode, reflectionSeen);
+#endif
+        }
         hitDistance = reflection.light.a;
     }
     imageStore(specularSample, pixel, vec4(min(specularLight, vec3(MaxRadiance)), hitDistance));
+#ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
+    imageStore(specularSampleAge, pixel, uvec4(ageCode));
+#endif
+#ifdef TERTIUS_LIGHT_AGE_DIAGNOSTIC
+    imageStore(uncoveredDiagnostic, pixel, vec4(float(seenCode) - 1.0, 0.0, 0.0, 0.0));
+#endif
 }

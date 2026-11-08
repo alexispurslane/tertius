@@ -75,6 +75,7 @@ public sealed class RenderLightUnionTests
                 $"point {position.X} {power} {radius}",
             SpotRenderLight { Direction: var direction, InnerConeAngle: var inner, OuterConeAngle: var outer } =>
                 $"spot {direction.Y} {inner} {outer}",
+            TubeRenderLight { Axis: var axis, Length: var length } => $"tube {axis.Y} {length}",
             null => "none",
         };
 
@@ -234,6 +235,7 @@ public sealed class RenderLightUnionTests
         {
             PointRenderLight { Radius: var radius } => radius,
             SpotRenderLight { Radius: var radius } => radius,
+            TubeRenderLight { Radius: var radius } => radius,
             null => 0,
         };
 
@@ -459,7 +461,7 @@ public sealed class RenderLightUnionTests
             .Select(constructor => constructor.GetParameters().Single().ParameterType)
             .Should()
             .BeEquivalentTo(
-                [typeof(PointRenderLight), typeof(SpotRenderLight)],
+                [typeof(PointRenderLight), typeof(SpotRenderLight), typeof(TubeRenderLight)],
                 "a light is made from one case and nothing else"
             );
     }

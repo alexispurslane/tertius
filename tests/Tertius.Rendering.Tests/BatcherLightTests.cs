@@ -372,6 +372,138 @@ public sealed class BatcherLightTests
         point.SpotRadius.X.Should().Be(0);
     }
 
+    /// <summary>
+    /// A white tube light of 40 W, 0.1 m thick and 2 m long, at <paramref name="position"/> now and at
+    /// <paramref name="previousPosition"/> before, along <paramref name="axis"/> now and <paramref name="previousAxis"/>
+    /// before. Its reach at −10 stops is about 2.7 m from its segment.
+    /// </summary>
+    private static TubeRenderLight Tube(
+        Vector3 position,
+        Vector3 previousPosition,
+        Vector3 axis,
+        Vector3 previousAxis,
+        float length = 2
+    ) =>
+        new(
+            EntityIndex: 5,
+            EntityGeneration: 1,
+            Position: position,
+            PreviousPosition: previousPosition,
+            Axis: axis,
+            PreviousAxis: previousAxis,
+            Color: Vector3.One,
+            Power: 40,
+            Radius: 0.1f,
+            Length: length,
+            CastsShadow: false,
+            ChainDepth: TestChains.CamerasFrame
+        );
+
+    [Fact]
+    public void ATubeLightReachesTheShadersAsItsPeakIntensityItsHalfSegmentAndAReachThatHoldsItsSegment()
+    {
+        RenderSnapshot snapshot = Dark();
+        snapshot.Camera.PreviousPosition = new(0, 0, 2);
+        snapshot.Lights.Add(
+            Tube(
+                position: new(0, 1, -5),
+                previousPosition: new(2, 1, -5),
+                axis: new(0, 0, 3),
+                previousAxis: new(3, 0, 0)
+            )
+        );
+
+        PreparedScene scene = Prepare(snapshot: snapshot, alpha: 0.5f);
+
+        var tube = GpuLight.From(scene.Lights[0]);
+        double intensity = LightUnits.TubeIntensity(power: 40, radius: 0.1f, length: 2);
+        tube.IntensityKind.W.Should().Be(GpuLight.TubeKind);
+        // The eye is at (0, 0, 1) halfway, and the axis halfway between X and Z.
+        Xyz(tube.PositionReach).Should().Be(new Vector3(1, 1, -6));
+        Xyz(tube.IntensityKind).X.Should().BeApproximately((float)intensity, 1e-5f);
+        Xyz(tube.DirectionCosOuter).X.Should().BeApproximately(MathF.Sqrt(0.5f), 1e-6f, "half the length is 1 m");
+        Xyz(tube.DirectionCosOuter).Y.Should().Be(0);
+        Xyz(tube.DirectionCosOuter).Z.Should().BeApproximately(MathF.Sqrt(0.5f), 1e-6f);
+        tube.PositionReach.W.Should()
+            .BeApproximately(
+                (float)(Math.Sqrt(intensity / Cutoff) + 1),
+                1e-4f,
+                "the peak intensity's reach from the segment, which ends 1 m from the middle"
+            );
+        tube.SpotRadius.Y.Should().Be(0.1f);
+    }
+
+    [Fact]
+    public void ATubeLightOfLengthZeroReachesTheShadersAsThePointLightOfItsPower()
+    {
+        RenderSnapshot snapshot = Dark();
+        snapshot.Lights.Add(
+            Tube(
+                position: new(0, 1, -5),
+                previousPosition: new(0, 1, -5),
+                axis: Vector3.UnitX,
+                previousAxis: Vector3.UnitX,
+                length: 0
+            )
+        );
+
+        PreparedScene scene = Prepare(snapshot: snapshot);
+
+        var tube = GpuLight.From(scene.Lights[0]);
+        tube.IntensityKind.W.Should().Be(GpuLight.PointKind);
+        tube.DirectionCosOuter.Should().Be(Vector4.Zero);
+        Xyz(tube.IntensityKind).X.Should().BeApproximately((float)(40 / (4 * Math.PI)), 1e-5f);
+    }
+
+    [Fact]
+    public void ATubeLightWithoutAnAxisStandsUpright()
+    {
+        RenderSnapshot snapshot = Dark();
+        snapshot.Lights.Add(
+            Tube(
+                position: new(0, 1, -5),
+                previousPosition: new(0, 1, -5),
+                axis: Vector3.Zero,
+                previousAxis: Vector3.Zero
+            )
+        );
+
+        PreparedScene scene = Prepare(snapshot: snapshot);
+
+        Xyz(GpuLight.From(scene.Lights[0]).DirectionCosOuter).Should().Be(new Vector3(0, 1, 0));
+    }
+
+    [Theory]
+    [InlineData("axis")]
+    [InlineData("previous-axis")]
+    [InlineData("negative-length")]
+    [InlineData("endless-length")]
+    [InlineData("overlong-length")]
+    [InlineData("too-strong")]
+    public void ATubeLightWithABrokenFieldDoesNotShine(string broken)
+    {
+        TubeRenderLight tube = Tube(
+            position: new(0, 1, -5),
+            previousPosition: new(0, 1, -5),
+            axis: Vector3.UnitX,
+            previousAxis: Vector3.UnitX
+        );
+        TubeRenderLight wrong = broken switch
+        {
+            "axis" => tube with { Axis = new(float.NaN, 0, 0) },
+            "previous-axis" => tube with { PreviousAxis = new(0, float.PositiveInfinity, 0) },
+            "negative-length" => tube with { Length = -0.5f },
+            "endless-length" => tube with { Length = float.PositiveInfinity },
+            // Finite, with a finite peak intensity, but its ends lie beyond the position limit.
+            "overlong-length" => tube with { Length = 1e30f },
+            "too-strong" => tube with { Power = float.MaxValue, Color = new(1e30f, 1, 1) },
+            _ => throw new ArgumentOutOfRangeException(nameof(broken), broken, "No such field."),
+        };
+
+        SceneBatcher.Shines(tube).Should().BeTrue("the tube itself shines");
+        SceneBatcher.Shines(wrong).Should().BeFalse("a tube light with a broken {0} adds no light", broken);
+    }
+
     [Fact]
     public void ASpotLightWithoutAnAxisShinesStraightDown()
     {

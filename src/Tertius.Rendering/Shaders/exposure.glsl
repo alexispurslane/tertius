@@ -10,6 +10,10 @@
 // 65,504, past which a GPU that is not Metal stores infinity. ShaderInput.MaxRadiance is the C# copy.
 const float MaxRadiance = 32256.0;
 
+// R_cut = 2^−13: a pre-exposed radiance that both tone curves show below half an 8-bit step, so a light below it changes no
+// pixel. LightUnits.CutoffRadiance is the C# copy.
+const float CutoffRadiance = 1.0 / 8192.0;
+
 // The factor by which this frame's passes multiply radiance: 2 to the power of the exposure in stops.
 float exposureScale()
 {

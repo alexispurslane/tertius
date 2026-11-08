@@ -61,6 +61,9 @@ internal sealed partial class RenderSnapshotBuilder
 
     private static readonly Double3 LightForward = new(0, 0, -1);
 
+    /// <summary>The local axis of a tube light's segment in its pose: +Y, so that an unturned tube stands upright.</summary>
+    private static readonly Double3 TubeAxis = new(0, 1, 0);
+
     private readonly EntityTable entities;
     private readonly FrameTree frames;
     private readonly ParallelOptions? workers;
@@ -661,6 +664,34 @@ internal sealed partial class RenderSnapshotBuilder
                     CastsShadow: castsShadow,
                     InnerConeAngle: innerConeAngle,
                     OuterConeAngle: outerConeAngle,
+                    ChainDepth: chainDepth
+                );
+                break;
+            }
+            case TubeLightData
+            {
+                Offset: var offset,
+                Color: var color,
+                Power: var power,
+                Radius: var radius,
+                Length: var length,
+                CastsShadow: var castsShadow
+            }:
+            {
+                DPose pose = LightPose(current, offset);
+                DPose previousPose = LightPose(previous, offset);
+                lights.AddRef() = new TubeRenderLight(
+                    EntityIndex: entity.Index,
+                    EntityGeneration: entity.Generation,
+                    Position: (pose.Position - origin).ToVector3(),
+                    PreviousPosition: (previousPose.Position - origin).ToVector3(),
+                    Axis: pose.Rotation.Rotate(TubeAxis).ToVector3(),
+                    PreviousAxis: previousPose.Rotation.Rotate(TubeAxis).ToVector3(),
+                    Color: color,
+                    Power: power,
+                    Radius: radius,
+                    Length: length,
+                    CastsShadow: castsShadow,
                     ChainDepth: chainDepth
                 );
                 break;
