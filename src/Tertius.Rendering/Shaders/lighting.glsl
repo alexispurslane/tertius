@@ -257,27 +257,47 @@ vec3 tubeLightDirection(vec3 toCenter, vec3 halfSegment, float radius, float sol
     return sphereLightDirection(normalizedOr(closest, normalizedOr(toCenter, R)), R, crossSine);
 }
 
-// The irradiance in W/m² per channel that the light at `index` of the list sends to `position` before its shadows:
-// color × intensity over max(d², R², NearestDistance²), times the window of Karis 2013 to the reach and a spot light's
-// cone, and the air's tint for the atmosphere's sun, the light at frame.counts.y, at most IrradianceLimit. 0 at or beyond
-// the reach. A tube light sends its scalar irradiance instead: its face radiance times its solid angle, with the window
-// of its reach from its segment. `tinted` may be false only when frame.counts.y is NoAirSun: a constant false leaves the
-// tint's code out of the caller's loop. L is the unit direction toward the light, zero when the position is at the
-// light's center, and d its distance. `cosine` is the direction of the diffuse light times its share of the irradiance:
-// L, or a tube's cosine vector over its solid angle, `solidAngle`, which is 0 for every other light.
-vec3 lightIrradiance(uint index, bool tinted, vec3 position, out vec3 L, out float d, out vec3 cosine,
-    out float solidAngle)
+// The path from a surface point to a light of the list, before its shadows. lightIrradiance gives its first part: the
+// light's irradiance there, the direction of its diffuse light with that light's share and a tube's solid angle, L the
+// unit direction toward the light's center and d its distance, and the inputs of a tube's response. lightPath gives the
+// rest, what its shadow lookup takes: the geometric normal turned toward the light and the sine of its angle with L.
+struct LightPath
+{
+    vec3 irradiance;
+    vec3 cosine;
+    float solidAngle;
+    vec3 L;
+    float d;
+    // From the shaded point to the light's center, in m.
+    vec3 toCenter;
+    // A tube's half segment and its radius, in m, at least NearestDistance. Only a tube with some irradiance sets them.
+    vec3 halfSegment;
+    float tubeRadius;
+    vec3 shadowNormal;
+    float sinTheta;
+};
+
+// The first part of the path from `position` to the light at `index` of the list (LightPath). Its irradiance in W/m² per
+// channel is color × intensity over max(d², R², NearestDistance²), times the window of Karis 2013 to the reach and a
+// spot light's cone, and the air's tint for the atmosphere's sun, the light at frame.counts.y, at most IrradianceLimit.
+// 0 at or beyond the reach. A tube light sends its scalar irradiance instead: its face radiance times its solid angle,
+// with the window of its reach from its segment. `tinted` may be false only when frame.counts.y is NoAirSun: a constant
+// false leaves the tint's code out of the caller's loop. L is zero when the position is at the light's center. `cosine`
+// is the direction of the diffuse light times its share of the irradiance: L, or a tube's cosine vector over its solid
+// angle, `solidAngle`, which is 0 for every other light.
+void lightIrradiance(uint index, bool tinted, vec3 position, out LightPath p)
 {
     GpuLight light = lights[index];
-    vec3 toLight = light.positionReach.xyz - position;
+    p.toCenter = light.positionReach.xyz - position;
     // Finite: a kept light lies within 2^62 m of the eye, and so does every shaded point.
-    float distanceSq = dot(toLight, toLight);
+    float distanceSq = dot(p.toCenter, p.toCenter);
     // The floor keeps inversesqrt finite at the light's center, where L becomes zero.
     float inverseDistance = inversesqrt(max(distanceSq, 1e-8));
-    L = toLight * inverseDistance;
-    d = distanceSq * inverseDistance;
-    cosine = L;
-    solidAngle = 0.0;
+    p.L = p.toCenter * inverseDistance;
+    p.d = distanceSq * inverseDistance;
+    p.cosine = p.L;
+    p.solidAngle = 0.0;
+    p.irradiance = vec3(0.0);
     float reach = light.positionReach.w;
     float radius = light.spotRadius.y;
     float falloff;
@@ -287,40 +307,41 @@ vec3 lightIrradiance(uint index, bool tinted, vec3 position, out vec3 L, out flo
         vec3 halfSegment = light.directionCosOuter.xyz;
         float halfLengthSq = dot(halfSegment, halfSegment);
         float halfLength = sqrt(halfLengthSq);
-        vec3 toNearest = toLight - clamp(dot(toLight, halfSegment) / halfLengthSq, -1.0, 1.0) * halfSegment;
+        vec3 toNearest = p.toCenter - clamp(dot(p.toCenter, halfSegment) / halfLengthSq, -1.0, 1.0) * halfSegment;
         float nearestSq = dot(toNearest, toNearest);
         // The reach holds the segment: its peak intensity's reach from the segment, plus half its length.
         float segmentReach = max(reach - halfLength, 0.0);
         if (nearestSq >= segmentReach * segmentReach)
-            return vec3(0.0);
+            return;
         float ratio = nearestSq / (segmentReach * segmentReach);
         float window = clamp(1.0 - ratio * ratio, 0.0, 1.0);
-        float tubeRadius = max(radius, NearestDistance);
-        TubeView view = tubeView(toLight, halfSegment, tubeRadius);
-        solidAngle = view.solidAngle;
-        cosine = view.cosineVector / max(view.solidAngle, 1e-30);
+        p.halfSegment = halfSegment;
+        p.tubeRadius = max(radius, NearestDistance);
+        TubeView view = tubeView(p.toCenter, halfSegment, p.tubeRadius);
+        p.solidAngle = view.solidAngle;
+        p.cosine = view.cosineVector / max(view.solidAngle, 1e-30);
         // The peak intensity over the area that the capsule shows across its segment is its face radiance.
         falloff = window * window * view.solidAngle
-            / (4.0 * tubeRadius * halfLength + PI * tubeRadius * tubeRadius);
+            / (4.0 * p.tubeRadius * halfLength + PI * p.tubeRadius * p.tubeRadius);
     }
     else
     {
         // Before the division by reach², which is then above distanceSq ≥ 0.
         if (distanceSq >= reach * reach)
-            return vec3(0.0);
+            return;
         float ratio = distanceSq / (reach * reach);
         float window = clamp(1.0 - ratio * ratio, 0.0, 1.0);
         falloff = window * window / max(distanceSq, max(radius * radius, NearestDistance * NearestDistance));
         if (light.intensityKind.w == SpotKind)
             // Cone.Of keeps cos(inner) above cos(outer), so the edges of smoothstep differ.
-            falloff *= smoothstep(light.directionCosOuter.w, light.spotRadius.x, dot(-L, light.directionCosOuter.xyz));
+            falloff *= smoothstep(light.directionCosOuter.w, light.spotRadius.x, dot(-p.L, light.directionCosOuter.xyz));
     }
     vec3 irradiance = light.intensityKind.rgb * falloff;
     // The atmosphere's sun takes the air's tint at the lit point (docs/plans/atmosphere.md, "The sun's tint"). The tint
     // is at most 1, so the product stays finite.
     if (tinted && index == frame.counts.y)
         irradiance *= sunTintAt(position);
-    return min(irradiance, vec3(IrradianceLimit));
+    p.irradiance = min(irradiance, vec3(IrradianceLimit));
 }
 
 // sin ϕ of the angular radius ϕ of `light` at distance d from its center: R / d, at most 1 inside its sphere. The floor
@@ -439,21 +460,6 @@ bool viewKeeps(uint view, GpuLight light)
     return view == MainView ? light.inMainView != 0u : light.map <= view;
 }
 
-// The path from a surface point to light `index` of the list, before its shadows: the light's irradiance there, the
-// direction of its diffuse light with that light's share and a tube's solid angle (lightIrradiance), and what its
-// shadow lookup takes, L the unit direction toward the light, d its distance, the geometric normal turned toward the
-// light and the sine of its angle with L.
-struct LightPath
-{
-    vec3 irradiance;
-    vec3 cosine;
-    float solidAngle;
-    vec3 L;
-    float d;
-    vec3 shadowNormal;
-    float sinTheta;
-};
-
 // The path from a surface point to light `index`, or false where the point takes none of its light. `fiber` as in respond,
 // `tinted` as in lightIrradiance. The point takes the light that arrives along its diffuse direction, which is L but for a
 // tube. A surface's geometric normal faces every point light that it takes (takesLight), so only a fiber's turns, or a
@@ -461,7 +467,7 @@ struct LightPath
 // same on both sides of a card.
 bool lightPath(uint index, bool fiber, bool tinted, ShadingInput s, out LightPath p)
 {
-    p.irradiance = lightIrradiance(index, tinted, s.position, p.L, p.d, p.cosine, p.solidAngle);
+    lightIrradiance(index, tinted, s.position, p);
     if (p.irradiance == vec3(0.0) || !takesLight(fiber, s, p.cosine, dot(s.geometricNormal, p.cosine)))
         return false;
     float geometricNdotL = dot(s.geometricNormal, p.L);
@@ -478,10 +484,8 @@ float pathVisibility(uint index, LightPath p, vec3 position, uint shadowMaps)
 
 // MaterialSample.TubeTerms per unit of the tube's scalar irradiance: c_diff / π · (N · cosine), and the specular
 // response toward the representative point (ARCHITECTURE.md, "Tube lights"). Nothing where the cosine points below the
-// shading normal. A fiber shades the tube as a point light along its cosine, dimmed by the cosine's length. toCenter
-// runs from the shaded point to the tube's middle.
-DirectTerms tubeResponse(bool fiber, ShadingInput s, SurfaceLobes lobes, vec3 V, LightPath p, GpuLight light,
-    vec3 toCenter)
+// shading normal. A fiber shades the tube as a point light along its cosine, dimmed by the cosine's length.
+DirectTerms tubeResponse(bool fiber, ShadingInput s, SurfaceLobes lobes, vec3 V, LightPath p)
 {
     if (fiber)
     {
@@ -501,8 +505,8 @@ DirectTerms tubeResponse(bool fiber, ShadingInput s, SurfaceLobes lobes, vec3 V,
     terms.diffuse = lobes.diffuseColor / PI * cosine;
     float crossSine;
     float alongSine;
-    vec3 l = tubeLightDirection(toCenter, light.directionCosOuter.xyz, max(light.spotRadius.y, NearestDistance),
-        p.solidAngle, reflect(-V, N), crossSine, alongSine);
+    vec3 l = tubeLightDirection(p.toCenter, p.halfSegment, p.tubeRadius, p.solidAngle, reflect(-V, N), crossSine,
+        alongSine);
     terms.specular = tubeSpecularResponse(lobes, N, V, l, crossSine, alongSine);
     return terms;
 }
@@ -513,7 +517,7 @@ DirectTerms pathLight(uint index, bool fiber, ShadingInput s, SurfaceLobes lobes
 {
     GpuLight light = lights[index];
     DirectTerms terms = light.intensityKind.w == TubeKind
-        ? tubeResponse(fiber, s, lobes, V, p, light, light.positionReach.xyz - s.position)
+        ? tubeResponse(fiber, s, lobes, V, p)
         : respond(fiber, s, lobes, V, p.L, lightSineAt(light, p.d));
     terms.diffuse *= p.irradiance;
     terms.specular *= p.irradiance;
@@ -630,18 +634,15 @@ vec3 scatteredLight(vec3 albedo, vec3 position, uint map)
         GpuLight light = lights[i];
         if (!viewKeeps(MainView, light))
             continue;
-        vec3 L;
-        float d;
         // A puff scatters a tube's scalar irradiance, so it leaves the diffuse direction aside.
-        vec3 cosine;
-        float solidAngle;
+        LightPath p;
         // The puffs keep one loop for every frame, so they pay the compare with frame.counts.y for each light.
-        vec3 incoming = lightIrradiance(i, true, position, L, d, cosine, solidAngle);
+        lightIrradiance(i, true, position, p);
         // At the light's center L is a zero vector, which the far shadows' angle cannot take. A surface there takes
         // nothing either, by its dot(N, L) of 0.
-        if (incoming == vec3(0.0) || d == 0.0)
+        if (p.irradiance == vec3(0.0) || p.d == 0.0)
             continue;
-        irradiance += incoming * lightVisibility(light, position, L, d, L, 0.0, ShadowMapsMainView);
+        irradiance += p.irradiance * lightVisibility(light, position, p.L, p.d, p.L, 0.0, ShadowMapsMainView);
     }
     return albedo * (meanAmbient + irradiance * (1.0 / (4.0 * PI)));
 }
