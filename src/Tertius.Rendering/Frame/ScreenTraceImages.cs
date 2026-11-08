@@ -144,14 +144,13 @@ internal sealed class ScreenTraceImages : IDisposable
         OwnLight = CreateImage(extent: extent, format: LightFormat, layers: Kinds, name: "screen trace own light");
         OwnRay = CreateImage(extent: extent, format: RayFormat, layers: Kinds, name: "screen trace own rays");
         OwnRays = [CreateOwnRayList(extent, "reflection"), CreateOwnRayList(extent, "diffuse")];
-        lightAges =
-            Specular.HistoryMode.KeepsLightAge
-                ?
-                [
-                    CreateImage(extent: extent, format: LightAgeFormat, layers: 1, name: "screen trace light age 0"),
-                    CreateImage(extent: extent, format: LightAgeFormat, layers: 1, name: "screen trace light age 1"),
-                ]
-                : [];
+        lightAges = Specular.HistoryMode.KeepsLightAge
+            ?
+            [
+                CreateImage(extent: extent, format: LightAgeFormat, layers: 1, name: "screen trace light age 0"),
+                CreateImage(extent: extent, format: LightAgeFormat, layers: 1, name: "screen trace light age 1"),
+            ]
+            : [];
         for (int parity = 0; parity < Sets.Length; parity++)
             WriteSet(parity);
     }

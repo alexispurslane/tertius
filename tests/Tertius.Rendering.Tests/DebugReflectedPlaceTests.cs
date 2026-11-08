@@ -1,5 +1,4 @@
 using System.Numerics;
-using Tertius.Testing;
 
 namespace Tertius.Rendering.Tests;
 
@@ -35,7 +34,7 @@ public sealed class DebugReflectedPlaceTests
     [InlineData("on")]
     public void UnsetEmptyAndOnKeepTheReflectedPlace(string? value)
     {
-        DebugReflectedPlace selected = WithSwitch(value, () => DebugReflectedPlace.Selected());
+        DebugReflectedPlace selected = WithSwitch(value, DebugReflectedPlace.Selected);
 
         selected.Should().Be(DebugReflectedPlace.On);
     }
@@ -43,7 +42,7 @@ public sealed class DebugReflectedPlaceTests
     [Fact]
     public void OffSelectsNoReflectedPlace()
     {
-        DebugReflectedPlace selected = WithSwitch("off", () => DebugReflectedPlace.Selected());
+        DebugReflectedPlace selected = WithSwitch("off", DebugReflectedPlace.Selected);
 
         selected.Should().Be(DebugReflectedPlace.Off);
     }
@@ -63,7 +62,9 @@ public sealed class DebugReflectedPlaceTests
 
         int[] sampled = [.. Enumerable.Range(0, Width * Height).Where(pixel => HasFlag(lengths, pixel, HasSample))];
         sampled.Length.Should().BeGreaterThan(Width * Height / 4);
-        sampled.Should().OnlyContain(pixel => !HasFlag(lengths, pixel, ReflectedTried), "the reflected place never competes");
+        sampled
+            .Should()
+            .OnlyContain(pixel => !HasFlag(lengths, pixel, ReflectedTried), "the reflected place never competes");
     }
 
     private static bool HasFlag(float[] layer, int pixel, int flag) => ((int)layer[4 * pixel + 3] & flag) != 0;

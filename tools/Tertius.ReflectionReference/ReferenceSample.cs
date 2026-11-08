@@ -16,17 +16,23 @@ internal readonly record struct ReferenceSample(double PixelX, double PixelY, do
         return samples;
     }
 
-    public static ReferenceSample Shift(uint seed) => new(
-        PixelX: Hash(seed + 1), PixelY: Hash(seed + 2), Face: Hash(seed + 3), Across: Hash(seed + 4), Down: Hash(seed + 5)
-    );
+    public static ReferenceSample Shift(uint seed) =>
+        new(
+            PixelX: Hash(seed + 1),
+            PixelY: Hash(seed + 2),
+            Face: Hash(seed + 3),
+            Across: Hash(seed + 4),
+            Down: Hash(seed + 5)
+        );
 
-    public ReferenceSample Rotated(ReferenceSample shift) => new(
-        PixelX: Fraction(PixelX + shift.PixelX),
-        PixelY: Fraction(PixelY + shift.PixelY),
-        Face: Fraction(Face + shift.Face),
-        Across: Fraction(Across + shift.Across),
-        Down: Fraction(Down + shift.Down)
-    );
+    public ReferenceSample Rotated(ReferenceSample shift) =>
+        new(
+            PixelX: Fraction(PixelX + shift.PixelX),
+            PixelY: Fraction(PixelY + shift.PixelY),
+            Face: Fraction(Face + shift.Face),
+            Across: Fraction(Across + shift.Across),
+            Down: Fraction(Down + shift.Down)
+        );
 
     private static double RadicalInverse(int index, int radix)
     {

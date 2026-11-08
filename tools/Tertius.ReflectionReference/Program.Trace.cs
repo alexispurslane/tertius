@@ -10,7 +10,7 @@ namespace Tertius.ReflectionReference;
 /// three frames, per-pixel sums over the measured frames, and per-frame sums of each length change for the plate
 /// receivers, for those whose sample hit a surface, and for the crop.
 /// </summary>
-internal sealed class TraceWriters : IDisposable
+internal sealed class TraceWriters(string output, ReferenceCrop crop) : IDisposable
 {
     private const int Width = 1280;
     private const int Height = 720;
@@ -49,20 +49,17 @@ internal sealed class TraceWriters : IDisposable
         "MeasuredFrames",
     ];
 
-    private readonly string output;
-    private readonly ReferenceCrop crop;
-    private readonly BinaryWriter cropWriter;
-    private readonly Stream flagWriter;
+    private readonly string output = output;
+    private readonly ReferenceCrop crop = crop;
+    private readonly BinaryWriter cropWriter = new(
+        new GZipStream(File.Create(Path.Combine(output, "measured-trace-crop.f32.gz")), CompressionLevel.Fastest)
+    );
+    private readonly Stream flagWriter = new GZipStream(
+        File.Create(Path.Combine(output, "measured-trace-flags.u8.gz")),
+        CompressionLevel.Fastest
+    );
     private readonly byte[] flagFrame = new byte[Pixels];
     private readonly double[][] sums = [.. SumNames.Select(_ => new double[Pixels])];
-
-    public TraceWriters(string output, ReferenceCrop crop)
-    {
-        this.output = output;
-        this.crop = crop;
-        cropWriter = new(new GZipStream(File.Create(Path.Combine(output, "measured-trace-crop.f32.gz")), CompressionLevel.Fastest));
-        flagWriter = new GZipStream(File.Create(Path.Combine(output, "measured-trace-flags.u8.gz")), CompressionLevel.Fastest);
-    }
 
     /// <summary>Measures one drawn frame, or returns null without the trace.</summary>
     /// <param name="plate">The plate mask of <see cref="Program"/>.PlateMask.</param>
@@ -72,13 +69,23 @@ internal sealed class TraceWriters : IDisposable
     {
         if (renderer.ScreenTraceSignals.Specular.AccumulationTrace(0) is not { } image)
             return null;
-        float[][] layers = [.. Enumerable.Range(0, TemporalSignal.TraceLayers).Select(layer => renderer.ReadImageLayer(image, layer))];
+        float[][] layers =
+        [
+            .. Enumerable.Range(0, TemporalSignal.TraceLayers).Select(layer => renderer.ReadImageLayer(image, layer)),
+        ];
         foreach (float[] layer in layers)
             for (int row = crop.Top; row < crop.Top + crop.Height; row++)
             for (int index = 4 * (row * Width + crop.Left); index < 4 * (row * Width + crop.Left + crop.Width); index++)
                 cropWriter.Write(layer[index]);
         if (dumpWhole)
-            using (var whole = new BinaryWriter(new GZipStream(File.Create(Path.Combine(output, $"trace-{frame:D4}.f32.gz")), CompressionLevel.Fastest)))
+            using (
+                var whole = new BinaryWriter(
+                    new GZipStream(
+                        File.Create(Path.Combine(output, $"trace-{frame:D4}.f32.gz")),
+                        CompressionLevel.Fastest
+                    )
+                )
+            )
                 foreach (float[] layer in layers)
                 foreach (float value in layer)
                     whole.Write(value);
@@ -133,7 +140,8 @@ internal sealed class TraceWriters : IDisposable
         float meanLuminance = Luminance(layers[6], pixel);
         float halfWidth = Specular.ClampSigmas * Luminance(layers[7], pixel);
         bool moved =
-            clamped && Enumerable.Range(0, 3).Any(channel => layers[5][4 * pixel + channel] != history[4 * pixel + channel]);
+            clamped
+            && Enumerable.Range(0, 3).Any(channel => layers[5][4 * pixel + channel] != history[4 * pixel + channel]);
         bool cut = after < before * (1 - 1e-6f);
         double[] values =
         [

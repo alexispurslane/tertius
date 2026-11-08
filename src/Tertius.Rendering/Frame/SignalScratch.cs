@@ -18,7 +18,12 @@ internal sealed class SignalScratch : IDisposable
 
     /// <param name="targets">The render targets, whose size the images take.</param>
     /// <param name="layouts">The renderer's layouts, which own its specular history and its instrumentation.</param>
-    public SignalScratch(VulkanDevice device, DeviceAllocator allocator, RenderTargets targets, DescriptorLayouts layouts)
+    public SignalScratch(
+        VulkanDevice device,
+        DeviceAllocator allocator,
+        RenderTargets targets,
+        DescriptorLayouts layouts
+    )
     {
         this.device = device;
         this.allocator = allocator;

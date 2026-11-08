@@ -677,10 +677,10 @@ public sealed class AccumulatorRenderTests
         public void ThePrototypeLimitsAnIsolatedBrightRayBlockInEitherLightComponent(bool reflected)
         {
             SignalLight light = reflected ? SignalLight.Specular : SignalLight.Diffuse;
-            Func<int, int, Vector4> samples = (column, row) =>
+            static Vector4 samples(int column, int row) =>
                 new(new Vector3(4, 2, 1) * (column is >= 32 and <= 33 && row is >= 18 and <= 19 ? 500 : 1), 7);
-            var control = FrameWithPrototype(false, light, samples);
-            var limited = FrameWithPrototype(true, light, samples);
+            (Vector3 Light, float Length) control = FrameWithPrototype(false, light, samples);
+            (Vector3 Light, float Length) limited = FrameWithPrototype(true, light, samples);
 
             limited
                 .Light.X.Should()
@@ -699,7 +699,7 @@ public sealed class AccumulatorRenderTests
         public void AUniformBrightRegionIsUnchangedByLimiting(bool reflected)
         {
             SignalLight light = reflected ? SignalLight.Specular : SignalLight.Diffuse;
-            Func<int, int, Vector4> samples = (_, _) => new(new Vector3(2000, 1000, 500), 7);
+            static Vector4 samples(int _1, int _2) => new(new Vector3(2000, 1000, 500), 7);
 
             FrameWithPrototype(true, light, samples).Should().Be(FrameWithPrototype(false, light, samples));
         }
@@ -710,10 +710,10 @@ public sealed class AccumulatorRenderTests
         public void AMostlyDarkNeighborhoodLimitsAdjacentBrightRayBlocks(bool reflected)
         {
             SignalLight light = reflected ? SignalLight.Specular : SignalLight.Diffuse;
-            Func<int, int, Vector4> samples = (column, row) =>
+            static Vector4 samples(int column, int row) =>
                 new(new Vector3(column is >= 32 and <= 35 && row is >= 18 and <= 19 ? 2000 : 1), 7);
-            var control = FrameWithPrototype(false, light, samples);
-            var limited = FrameWithPrototype(true, light, samples);
+            (Vector3 Light, float Length) control = FrameWithPrototype(false, light, samples);
+            (Vector3 Light, float Length) limited = FrameWithPrototype(true, light, samples);
 
             limited
                 .Light.X.Should()
@@ -732,7 +732,7 @@ public sealed class AccumulatorRenderTests
         public void LimitingUsesTheMiddleBrightnessAmongTheFiniteNeighbors(int support, float middleBrightness)
         {
             float[] brightness = [1000, 2, 1, 4, 7, 3, 5, 6];
-            Func<int, int, Vector4> samples = (column, row) =>
+            Vector4 samples(int column, int row)
             {
                 if (column == Width / 2 && row == Height / 2)
                     return new(new Vector3(1000), 7);
@@ -749,7 +749,7 @@ public sealed class AccumulatorRenderTests
                     _ => -1,
                 };
                 return new(new Vector3(neighbor >= 0 && neighbor < support ? brightness[neighbor] : float.NaN), 7);
-            };
+            }
             float ratio = 4 * middleBrightness / 1000;
             float expected = 1000 * ratio * (2 - ratio);
 
@@ -762,7 +762,7 @@ public sealed class AccumulatorRenderTests
         public void TheOffControlPreservesAnIsolatedBrightEstimate(bool reflected)
         {
             SignalLight light = reflected ? SignalLight.Specular : SignalLight.Diffuse;
-            Func<int, int, Vector4> samples = (column, row) =>
+            static Vector4 samples(int column, int row) =>
                 new(new Vector3(column is >= 32 and <= 33 && row is >= 18 and <= 19 ? 2000 : 1), 7);
 
             FrameWithPrototype(false, light, samples).Light.X.Should().Be(2000);
@@ -771,7 +771,7 @@ public sealed class AccumulatorRenderTests
         [Fact]
         public void TooFewFiniteNeighborsLeaveTheEstimateUnchanged()
         {
-            Func<int, int, Vector4> samples = (column, row) =>
+            static Vector4 samples(int column, int row) =>
                 new(column == Width / 2 && row == Height / 2 ? new Vector3(2000) : new Vector3(float.NaN), 7);
 
             FrameWithPrototype(true, SignalLight.Specular, samples)
@@ -782,16 +782,16 @@ public sealed class AccumulatorRenderTests
         [Fact]
         public void ScalingAllEstimatesScalesTheLimitedResultByTheSameRatio()
         {
-            Func<int, int, Vector4> samples = (column, row) =>
+            static Vector4 samples(int column, int row) =>
                 new(new Vector3(column is >= 32 and <= 33 && row is >= 18 and <= 19 ? 1000 : 1), 7);
-            Func<int, int, Vector4> scaledSamples = (column, row) =>
+            static Vector4 scaledSamples(int column, int row)
             {
                 Vector4 value = samples(column, row);
                 return new(new Vector3(value.X, value.Y, value.Z) * 8, value.W);
-            };
+            }
 
-            var original = FrameWithPrototype(true, SignalLight.Specular, samples);
-            var scaled = FrameWithPrototype(true, SignalLight.Specular, scaledSamples);
+            (Vector3 Light, float Length) original = FrameWithPrototype(true, SignalLight.Specular, samples);
+            (Vector3 Light, float Length) scaled = FrameWithPrototype(true, SignalLight.Specular, scaledSamples);
 
             scaled.Light.X.Should().BeApproximately(original.Light.X * 8, 0.05f);
             original.Light.X.Should().BeLessThan(10, "the isolated estimate must actually be limited");
@@ -833,8 +833,7 @@ public sealed class AccumulatorRenderTests
     public sealed class ReflectionDistanceHistory
     {
         [Fact]
-        public void AnAcceptedPastHitStillDefinesDistanceWhenTheLatestRayMisses()
-        {
+        public void AnAcceptedPastHitStillDefinesDistanceWhenTheLatestRayMisses() =>
             WithHistory(
                 (renderer, sample, scene) =>
                 {
@@ -848,11 +847,9 @@ public sealed class AccumulatorRenderTests
                     GuideAt(renderer, sample).Support.Should().BeApproximately(0.5f, 0.001f);
                 }
             );
-        }
 
         [Fact]
-        public void KnownDistancesUseTheSameAcceptedFrameWeightsAsLight()
-        {
+        public void KnownDistancesUseTheSameAcceptedFrameWeightsAsLight() =>
             WithHistory(
                 (renderer, sample, scene) =>
                 {
@@ -866,11 +863,9 @@ public sealed class AccumulatorRenderTests
                     GuideAt(renderer, sample).Support.Should().Be(1);
                 }
             );
-        }
 
         [Fact]
-        public void ContinuingMissesReduceSupportWithoutBecomingZeroMetreHits()
-        {
+        public void ContinuingMissesReduceSupportWithoutBecomingZeroMetreHits() =>
             WithHistory(
                 (renderer, sample, scene) =>
                 {
@@ -884,11 +879,9 @@ public sealed class AccumulatorRenderTests
                     GuideAt(renderer, sample).Support.Should().BeApproximately(1f / 3, 0.001f);
                 }
             );
-        }
 
         [Fact]
-        public void EarlierMissesDoNotPullTheFirstKnownDistanceTowardTheReceiver()
-        {
+        public void EarlierMissesDoNotPullTheFirstKnownDistanceTowardTheReceiver() =>
             WithHistory(
                 (renderer, sample, scene) =>
                 {
@@ -902,11 +895,9 @@ public sealed class AccumulatorRenderTests
                     GuideAt(renderer, sample).Support.Should().BeApproximately(0.5f, 0.001f);
                 }
             );
-        }
 
         [Fact]
-        public void ANonfiniteLightSampleDoesNotReplaceAnAcceptedDistance()
-        {
+        public void ANonfiniteLightSampleDoesNotReplaceAnAcceptedDistance() =>
             WithHistory(
                 (renderer, sample, scene) =>
                 {
@@ -921,11 +912,9 @@ public sealed class AccumulatorRenderTests
                     CenterOf(renderer, sample, part: 0).Length.Should().Be(1);
                 }
             );
-        }
 
         [Fact]
-        public void ACameraCutDiscardsDistanceAlongWithItsLightHistory()
-        {
+        public void ACameraCutDiscardsDistanceAlongWithItsLightHistory() =>
             WithHistory(
                 (renderer, sample, scene) =>
                 {
@@ -940,11 +929,9 @@ public sealed class AccumulatorRenderTests
                     CenterOf(renderer, sample, part: 0).Length.Should().Be(1);
                 }
             );
-        }
 
         [Fact]
-        public void AChangedReceiverDoesNotInheritTheOldSurfacesDistance()
-        {
+        public void AChangedReceiverDoesNotInheritTheOldSurfacesDistance() =>
             WithHistory(
                 (renderer, sample, scene) =>
                 {
@@ -961,11 +948,9 @@ public sealed class AccumulatorRenderTests
                     CenterOf(renderer, sample, part: 0).Length.Should().Be(1);
                 }
             );
-        }
 
         [Fact]
-        public void BrighterSamplesDoNotReceiveExtraDistanceWeight()
-        {
+        public void BrighterSamplesDoNotReceiveExtraDistanceWeight() =>
             WithHistory(
                 (renderer, sample, scene) =>
                 {
@@ -979,7 +964,6 @@ public sealed class AccumulatorRenderTests
                     CenterOf(renderer, sample, part: 0).Light.X.Should().BeApproximately(32.5f, 0.01f);
                 }
             );
-        }
 
         [Theory]
         [InlineData(0)]
@@ -987,8 +971,7 @@ public sealed class AccumulatorRenderTests
         [InlineData(float.NaN)]
         [InlineData(float.PositiveInfinity)]
         [InlineData(65504)]
-        public void AnUnknownOrSaturatedDistanceAddsNoFalseHitSupport(float distance)
-        {
+        public void AnUnknownOrSaturatedDistanceAddsNoFalseHitSupport(float distance) =>
             WithHistory(
                 (renderer, sample, scene) =>
                 {
@@ -1002,11 +985,9 @@ public sealed class AccumulatorRenderTests
                     GuideAt(renderer, sample).Support.Should().BeApproximately(0.5f, 0.001f);
                 }
             );
-        }
 
         [Fact]
-        public void AHistoryWithoutAnyKnownHitHasNoDistanceSupport()
-        {
+        public void AHistoryWithoutAnyKnownHitHasNoDistanceSupport() =>
             WithHistory(
                 (renderer, sample, scene) =>
                 {
@@ -1019,7 +1000,6 @@ public sealed class AccumulatorRenderTests
                     CenterOf(renderer, sample, part: 0).Light.Should().Be(Vector3.One);
                 }
             );
-        }
 
         [Fact]
         public void RetainingDistanceDoesNotChangeTheAccumulatedLight()
@@ -1031,8 +1011,7 @@ public sealed class AccumulatorRenderTests
         }
 
         [Fact]
-        public void DistanceSupportFollowsTheExistingShortLightHistoryRepair()
-        {
+        public void DistanceSupportFollowsTheExistingShortLightHistoryRepair() =>
             WithHistory(
                 (renderer, sample, scene) =>
                 {
@@ -1047,7 +1026,6 @@ public sealed class AccumulatorRenderTests
                 },
                 repair: true
             );
-        }
 
         private static Vector3 LightAfterSequence(bool enabled)
         {
@@ -1118,8 +1096,7 @@ public sealed class AccumulatorRenderTests
         [InlineData("", 0.8f)]
         [InlineData("precise-uncapped", 0.045f)]
         [InlineData("precise-uncapped", 0.8f)]
-        public void AnUncappedConstantHistoryGrowsPastTwoThousandAndFortyEightFrames(string? mode, float roughness)
-        {
+        public void AnUncappedConstantHistoryGrowsPastTwoThousandAndFortyEightFrames(string? mode, float roughness) =>
             WithHistory(
                 mode,
                 roughness,
@@ -1145,14 +1122,12 @@ public sealed class AccumulatorRenderTests
                     }
                 }
             );
-        }
 
         [Theory]
         [InlineData(null)]
         [InlineData("")]
         [InlineData("precise-uncapped")]
-        public void ALongAcceptedHistoryRetainsRadianceUpdatesSmallerThanHalfPrecisionCanStore(string? mode)
-        {
+        public void ALongAcceptedHistoryRetainsRadianceUpdatesSmallerThanHalfPrecisionCanStore(string? mode) =>
             WithHistory(
                 mode,
                 0.8f,
@@ -1188,13 +1163,11 @@ public sealed class AccumulatorRenderTests
                         );
                 }
             );
-        }
 
         [Theory]
         [InlineData(null)]
         [InlineData("precise-uncapped")]
-        public void AChangedSurfaceStillDiscardsAnUncappedHistory(string? mode)
-        {
+        public void AChangedSurfaceStillDiscardsAnUncappedHistory(string? mode) =>
             WithHistory(
                 mode,
                 0.8f,
@@ -1215,13 +1188,11 @@ public sealed class AccumulatorRenderTests
                     CenterOf(renderer, sample, part: 0).Light.Should().Be(new Vector3(2));
                 }
             );
-        }
 
         [Theory]
         [InlineData(null)]
         [InlineData("precise-uncapped")]
-        public void AUniformIlluminationStepAfterLongHistoryStillFollowsTheFastHistoryClamp(string? mode)
-        {
+        public void AUniformIlluminationStepAfterLongHistoryStillFollowsTheFastHistoryClamp(string? mode) =>
             WithHistory(
                 mode,
                 0.8f,
@@ -1246,7 +1217,6 @@ public sealed class AccumulatorRenderTests
                         .BeLessThan(2112, "the existing anti-lag still shortens history when the clamp moves it");
                 }
             );
-        }
 
         [Theory]
         [InlineData("original", 0.045f, 4)]
@@ -1259,8 +1229,7 @@ public sealed class AccumulatorRenderTests
             string mode,
             float roughness,
             int cap
-        )
-        {
+        ) =>
             WithHistory(
                 mode,
                 roughness,
@@ -1280,7 +1249,6 @@ public sealed class AccumulatorRenderTests
                     sample.Signal.HitImages(0, 0).LastFast.Format.Should().Be(Format.R16G16B16A16Sfloat);
                 }
             );
-        }
 
         private static Func<int, int, Vector4> NeighborhoodSamples(float center) =>
             (column, row) =>

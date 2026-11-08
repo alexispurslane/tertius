@@ -142,8 +142,7 @@ public sealed class ScreenTraceHardeningTests
         [InlineData("original")]
         [InlineData("precise-capped")]
         [InlineData("precise-uncapped")]
-        public void DisabledDistanceGuidesStillBindMatchingSynchronizedImages(string? mode)
-        {
+        public void DisabledDistanceGuidesStillBindMatchingSynchronizedImages(string? mode) =>
             WithHistoryMode(
                 mode,
                 (renderer, scene) =>
@@ -157,23 +156,18 @@ public sealed class ScreenTraceHardeningTests
                 },
                 sharing: false
             );
-        }
 
         [Theory]
         [InlineData(null)]
         [InlineData("precise-capped")]
         [InlineData("precise-uncapped")]
         [InlineData("original")]
-        public void TheActualReconstructionProbeReadsTheSameUnfilteredHistoryAsTheIndependentLightProbe(string? mode)
-        {
+        public void TheActualReconstructionProbeReadsTheSameUnfilteredHistoryAsTheIndependentLightProbe(string? mode) =>
             WithHistoryMode(
                 mode,
                 (renderer, scene) =>
                 {
-                    var probe = Tertius.ReflectionReference.ReflectionComparisonProbe.On(
-                        renderer,
-                        Primitives.Box(new(0.5f))
-                    );
+                    var probe = ReflectionReference.ReflectionComparisonProbe.On(renderer, Primitives.Box(new(0.5f)));
 
                     renderer.Render(scene, 1);
                     scene.Time += 1.0 / 60;
@@ -198,14 +192,12 @@ public sealed class ScreenTraceHardeningTests
                         .BeGreaterThan(0, "an all-zero probe cannot establish that the storage reader works");
                 }
             );
-        }
 
         [Theory]
         [InlineData(null)]
         [InlineData("precise-capped")]
         [InlineData("precise-uncapped")]
-        public void ReflectionRaysStayFullRateWhileDiffuseRaysStillBecomeShared(string? mode)
-        {
+        public void ReflectionRaysStayFullRateWhileDiffuseRaysStillBecomeShared(string? mode) =>
             WithHistoryMode(
                 mode,
                 (renderer, scene) =>
@@ -232,14 +224,12 @@ public sealed class ScreenTraceHardeningTests
                         .BeLessThan(diffuse / 10, "the specular control must not force full-rate diffuse rays");
                 }
             );
-        }
 
         [Theory]
         [InlineData(null)]
         [InlineData("precise-capped")]
         [InlineData("precise-uncapped")]
-        public void ResizingThePreciseHistoryKeepsSampleFastAndGuideImagesInHalfPrecision(string? mode)
-        {
+        public void ResizingThePreciseHistoryKeepsSampleFastAndGuideImagesInHalfPrecision(string? mode) =>
             WithHistoryMode(
                 mode,
                 (renderer, scene) =>
@@ -268,7 +258,6 @@ public sealed class ScreenTraceHardeningTests
                         );
                 }
             );
-        }
 
         private static void WithHistoryMode(
             string? mode,
@@ -283,7 +272,7 @@ public sealed class ScreenTraceHardeningTests
                 "TERTIUS_INDIRECT_LIGHT_NEIGHBOR_CAP",
                 "TERTIUS_REFLECTION_SHARING",
             ];
-            string?[] previous = names.Select(Environment.GetEnvironmentVariable).ToArray();
+            string?[] previous = [.. names.Select(Environment.GetEnvironmentVariable)];
             VulkanRenderer? renderer = null;
             try
             {

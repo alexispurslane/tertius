@@ -11,7 +11,7 @@ internal static partial class Program
     /// </summary>
     private static bool[] PlateMask(float[][] fields)
     {
-        var plate = new bool[fields[1].Length / 2];
+        bool[] plate = new bool[fields[1].Length / 2];
         for (int pixel = 0; pixel < plate.Length; pixel++)
             plate[pixel] = fields[1][2 * pixel] < 0.5f && fields[4][2 * pixel + 1] > 0;
         return plate;
@@ -24,7 +24,7 @@ internal static partial class Program
 /// <see cref="HistoryInstrumentation.LightAgeDiagnostic"/> the diagnostic of every plate receiver. It writes the raw diagnostic
 /// rasters and one record per plate receiver whose rays hit a never-changed surface.
 /// </summary>
-internal sealed class UncoveredWriters : IDisposable
+internal sealed class UncoveredWriters(string output) : IDisposable
 {
     private const int Width = 1280;
     private const int Height = 720;
@@ -34,16 +34,9 @@ internal sealed class UncoveredWriters : IDisposable
 
     private static readonly ReferenceCrop Region = new(Left: 320, Top: 180, Width: 640, Height: 480);
 
-    private readonly BinaryWriter seen;
-    private readonly BinaryWriter lengths;
-    private readonly BinaryWriter receivers;
-
-    public UncoveredWriters(string output)
-    {
-        seen = Compressed(Path.Combine(output, "measured-seen.u16.gz"));
-        lengths = Compressed(Path.Combine(output, "measured-length-before-blend.f32.gz"));
-        receivers = new BinaryWriter(File.Create(Path.Combine(output, "uncovered-receivers.bin")));
-    }
+    private readonly BinaryWriter seen = Compressed(Path.Combine(output, "measured-seen.u16.gz"));
+    private readonly BinaryWriter lengths = Compressed(Path.Combine(output, "measured-length-before-blend.f32.gz"));
+    private readonly BinaryWriter receivers = new(File.Create(Path.Combine(output, "uncovered-receivers.bin")));
 
     private static BinaryWriter Compressed(string path) =>
         new(new GZipStream(File.Create(path), CompressionLevel.Fastest));
@@ -56,12 +49,19 @@ internal sealed class UncoveredWriters : IDisposable
     /// <param name="output">The H13 output, two floats per pixel, pre-exposed.</param>
     /// <param name="scale">The pre-exposure, which the output divides by.</param>
     /// <param name="history">The specular slow history after the draw, four floats per pixel.</param>
-    public object Measure(VulkanRenderer renderer, int frame, bool[] plate, float[] output, double scale, float[] history)
+    public object Measure(
+        VulkanRenderer renderer,
+        int frame,
+        bool[] plate,
+        float[] output,
+        double scale,
+        float[] history
+    )
     {
-        var grainCount = new long[GrainBins];
-        var grainSquares = new double[GrainBins];
-        var grainInverseLengths = new double[GrainBins];
-        var grainPopulation = new bool[Width * Height];
+        long[] grainCount = new long[GrainBins];
+        double[] grainSquares = new double[GrainBins];
+        double[] grainInverseLengths = new double[GrainBins];
+        bool[] grainPopulation = new bool[Width * Height];
         for (int row = Region.Top; row < Region.Top + Region.Height; row++)
         for (int column = Region.Left; column < Region.Left + Region.Width; column++)
         {
@@ -110,7 +110,7 @@ internal sealed class UncoveredWriters : IDisposable
             uncoveredHoldingShare = 0;
         double lengthSum = 0;
         var lengthHistogram = new SortedDictionary<int, int>();
-        var seenHistogram = new int[65];
+        int[] seenHistogram = new int[65];
         for (int pixel = 0; pixel < Width * Height; pixel++)
         {
             float frames = diagnostic[4 * pixel];

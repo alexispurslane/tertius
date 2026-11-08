@@ -6,7 +6,7 @@ namespace Tertius.ReflectionReference;
 
 internal readonly record struct ProbeOutputGroup(string Shader, int First, int Count);
 
-internal sealed unsafe class ReflectionComparisonProbe : Tertius.Rendering.RenderPass
+internal sealed unsafe class ReflectionComparisonProbe : Rendering.RenderPass
 {
     public static IReadOnlyList<ProbeOutputGroup> OutputGroups { get; } =
     [

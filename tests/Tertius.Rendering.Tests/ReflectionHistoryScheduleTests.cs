@@ -14,7 +14,7 @@ public sealed class ReflectionHistoryScheduleTests
     {
         string path = Path.Combine(Path.GetTempPath(), $"tertius-history-parse-{Guid.NewGuid():N}");
 
-        HistoryRequest request = HistoryRequest.Parse(["--history", "static", "rough", control, "--out", path]);
+        var request = HistoryRequest.Parse(["--history", "static", "rough", control, "--out", path]);
 
         request.Control.ToString().Should().Be(expected);
         request.WarmUpDraws.Should().Be(1024);
@@ -25,7 +25,7 @@ public sealed class ReflectionHistoryScheduleTests
     [Fact]
     public void AnExplicitWarmUpChangesTheContinuousClockBeforeAnyCapture()
     {
-        HistoryRequest request = HistoryRequest.Parse([
+        var request = HistoryRequest.Parse([
             "--history",
             "move",
             "smooth",
@@ -133,7 +133,7 @@ public sealed class ReflectionHistoryScheduleTests
     [Fact]
     public void TheCaptureCommandSelectsFsrAndTheWalkingCamera()
     {
-        HistoryRequest request = HistoryRequest.Parse([
+        var request = HistoryRequest.Parse([
             "--history",
             "static",
             "rough",
@@ -153,7 +153,7 @@ public sealed class ReflectionHistoryScheduleTests
     [Fact]
     public void ACaptureWithoutOptionsDrawsWithoutUpscalingFromAStillCamera()
     {
-        HistoryRequest request = HistoryRequest.Parse(["--history", "static", "rough", "uncapped", "--out", "unused"]);
+        var request = HistoryRequest.Parse(["--history", "static", "rough", "uncapped", "--out", "unused"]);
 
         request.Fsr.Should().BeFalse();
         request.Camera.Should().Be(HistoryCamera.Still);
@@ -166,9 +166,18 @@ public sealed class ReflectionHistoryScheduleTests
     [InlineData("held", "Held")]
     public void TheJitterOptionSelectsTheDebugJitter(string value, string expected)
     {
-        HistoryRequest request = HistoryRequest.Parse(
-            ["--history", "static", "rough", "uncapped", "--out", "unused", "--upscaling", "fsr", "--jitter", value]
-        );
+        var request = HistoryRequest.Parse([
+            "--history",
+            "static",
+            "rough",
+            "uncapped",
+            "--out",
+            "unused",
+            "--upscaling",
+            "fsr",
+            "--jitter",
+            value,
+        ]);
 
         request.Jitter.ToString().Should().Be(expected);
     }
@@ -176,7 +185,7 @@ public sealed class ReflectionHistoryScheduleTests
     [Fact]
     public void ACaptureWithoutAJitterOptionKeepsTheRenderersJitterRule()
     {
-        HistoryRequest request = HistoryRequest.Parse(["--history", "static", "rough", "uncapped", "--out", "unused"]);
+        var request = HistoryRequest.Parse(["--history", "static", "rough", "uncapped", "--out", "unused"]);
 
         request.Jitter.Should().Be(DebugJitter.Upscaler);
     }
@@ -184,9 +193,16 @@ public sealed class ReflectionHistoryScheduleTests
     [Fact]
     public void ThePngOptionAsksForEveryMeasuredFrame()
     {
-        HistoryRequest request = HistoryRequest.Parse(
-            ["--history", "static", "smooth", "uncapped", "--out", "unused", "--png", "all"]
-        );
+        var request = HistoryRequest.Parse([
+            "--history",
+            "static",
+            "smooth",
+            "uncapped",
+            "--out",
+            "unused",
+            "--png",
+            "all",
+        ]);
 
         request.EveryPng.Should().BeTrue();
     }
@@ -194,7 +210,7 @@ public sealed class ReflectionHistoryScheduleTests
     [Fact]
     public void ACaptureWithoutAPngOptionSavesOnlyTheScheduledFrames()
     {
-        HistoryRequest request = HistoryRequest.Parse(["--history", "static", "rough", "uncapped", "--out", "unused"]);
+        var request = HistoryRequest.Parse(["--history", "static", "rough", "uncapped", "--out", "unused"]);
 
         request.EveryPng.Should().BeFalse();
     }
@@ -202,9 +218,16 @@ public sealed class ReflectionHistoryScheduleTests
     [Fact]
     public void AStillCaptureThatAsksForEveryPngSavesEveryMeasuredFrame()
     {
-        HistoryRequest request = HistoryRequest.Parse(
-            ["--history", "static", "smooth", "uncapped", "--out", "unused", "--png", "all"]
-        );
+        var request = HistoryRequest.Parse([
+            "--history",
+            "static",
+            "smooth",
+            "uncapped",
+            "--out",
+            "unused",
+            "--png",
+            "all",
+        ]);
 
         Enumerable.Range(0, 128).Should().OnlyContain(frame => request.SavesPng(frame));
         request.SavesPng(-1).Should().BeFalse("a warm-up draw is not measured");
@@ -213,7 +236,7 @@ public sealed class ReflectionHistoryScheduleTests
     [Fact]
     public void AStillCaptureWithoutThePngOptionSavesOnlyItsFirstAndLastFrame()
     {
-        HistoryRequest request = HistoryRequest.Parse(["--history", "static", "smooth", "uncapped", "--out", "unused"]);
+        var request = HistoryRequest.Parse(["--history", "static", "smooth", "uncapped", "--out", "unused"]);
 
         Enumerable.Range(-1, 129).Where(request.SavesPng).Should().Equal(0, 127);
     }
@@ -245,7 +268,12 @@ public sealed class ReflectionHistoryScheduleTests
     {
         HistoryPose still = new HistorySequence(HistoryEvent.Static, 1024, HistoryCamera.Still).At(0).Camera;
 
-        still.Rotation.Should().Be(Quaternion.CreateFromAxisAngle(Vector3.UnitX, -MathF.PI / 6), "the still captures must repeat the sealed ones");
+        still
+            .Rotation.Should()
+            .Be(
+                Quaternion.CreateFromAxisAngle(Vector3.UnitX, -MathF.PI / 6),
+                "the still captures must repeat the sealed ones"
+            );
     }
 
     [Theory]
@@ -258,8 +286,10 @@ public sealed class ReflectionHistoryScheduleTests
         HistoryFrameState state = new HistorySequence(HistoryEvent.Static, 1024, HistoryCamera.Walk).At(frame);
 
         state.Camera.YawDegrees.Should().BeApproximately(yaw, 1e-5f);
-        Vector3 forward = Vector3.Transform(-Vector3.UnitZ, state.Camera.Rotation);
-        forward.X.Should().BeLessThanOrEqualTo(0, "a positive yaw about +Y turns the view toward -x, the emitter's side");
+        var forward = Vector3.Transform(-Vector3.UnitZ, state.Camera.Rotation);
+        forward
+            .X.Should()
+            .BeLessThanOrEqualTo(0, "a positive yaw about +Y turns the view toward -x, the emitter's side");
     }
 
     [Fact]
@@ -278,7 +308,7 @@ public sealed class ReflectionHistoryScheduleTests
         Vector3 step = schedule.At(179).Camera.Position - schedule.At(119).Camera.Position;
 
         step.Length().Should().BeApproximately(1, 1e-5f, "sixty frames at 60 frames per second take one second");
-        Vector3 right = Vector3.Transform(Vector3.UnitX, schedule.At(179).Camera.Rotation);
+        var right = Vector3.Transform(Vector3.UnitX, schedule.At(179).Camera.Rotation);
         Vector3.Dot(Vector3.Normalize(step), right).Should().BeApproximately(1, 1e-5f);
         step.Y.Should().Be(0);
     }

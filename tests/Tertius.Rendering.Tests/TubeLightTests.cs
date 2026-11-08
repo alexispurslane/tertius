@@ -201,7 +201,7 @@ public sealed class TubeLightTests
         // The ray runs 10⁻⁴ rad off the segment's direction. Every point of the segment then lies about as near to it,
         // and the nearest point's formula divides by the square of that angle.
         var tube = new TubeView(toCenter: new(0.3, 1, 0), halfSegment: new(0.5, 0, 0), radius: 0.05);
-        var mirror = new Double3(1, 1e-4, 0).Normalized();
+        Double3 mirror = new Double3(1, 1e-4, 0).Normalized();
 
         (Double3 direction, double crossSine, _) = tube.Representative(mirror);
 

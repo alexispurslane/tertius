@@ -8,7 +8,7 @@ public sealed class IndirectLightPrototypeTests
     public void DisablingOnlyTheNeighborCapKeepsTheSelectedHistory(bool specular, bool singleDiffuseHistory)
     {
         SignalLight light = specular ? SignalLight.Specular : SignalLight.Diffuse;
-        IndirectLightPrototype selected = IndirectLightPrototype.Select(enabled: true, disableNeighborCap: true, light: light);
+        var selected = IndirectLightPrototype.Select(enabled: true, disableNeighborCap: true, light: light);
 
         selected.SingleDiffuseHistory.Should().Be(singleDiffuseHistory);
         selected.LimitIncoming.Should().BeFalse();
@@ -20,7 +20,7 @@ public sealed class IndirectLightPrototypeTests
     public void TheExistingAllOnPrototypeKeepsItsOriginalHistoryAndCap(bool specular, bool singleDiffuseHistory)
     {
         SignalLight light = specular ? SignalLight.Specular : SignalLight.Diffuse;
-        IndirectLightPrototype selected = IndirectLightPrototype.Select(enabled: true, disableNeighborCap: false, light: light);
+        var selected = IndirectLightPrototype.Select(enabled: true, disableNeighborCap: false, light: light);
 
         selected.SingleDiffuseHistory.Should().Be(singleDiffuseHistory);
         selected.LimitIncoming.Should().BeTrue();
@@ -31,7 +31,11 @@ public sealed class IndirectLightPrototypeTests
     [InlineData(true)]
     public void ACapOverrideDoesNotEnableTheDisabledPrototype(bool disableNeighborCap)
     {
-        IndirectLightPrototype selected = IndirectLightPrototype.Select(enabled: false, disableNeighborCap: disableNeighborCap, light: SignalLight.Diffuse);
+        var selected = IndirectLightPrototype.Select(
+            enabled: false,
+            disableNeighborCap: disableNeighborCap,
+            light: SignalLight.Diffuse
+        );
 
         selected.SingleDiffuseHistory.Should().BeFalse();
         selected.LimitIncoming.Should().BeFalse();

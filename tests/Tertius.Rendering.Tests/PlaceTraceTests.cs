@@ -1,5 +1,4 @@
 using System.Numerics;
-using Tertius.Testing;
 
 namespace Tertius.Rendering.Tests;
 
@@ -38,8 +37,7 @@ public sealed class PlaceTraceTests(ITestOutputHelper output)
     private static readonly UpscalingSetting Jittered = new Fsr3Upscaling(new FixedRenderScale(1), 0);
 
     [Fact]
-    public void TheTraceGivesTheSpecularWeightOfThePlaceThatThePixelRead()
-    {
+    public void TheTraceGivesTheSpecularWeightOfThePlaceThatThePixelRead() =>
         WithRenderer(
             action: (renderer, scene) =>
             {
@@ -57,17 +55,19 @@ public sealed class PlaceTraceTests(ITestOutputHelper output)
                         pixel =>
                             MathF.Abs(
                                 lengths[4 * pixel + 2]
-                                    - (HasFlag(lengths, pixel, PixelPlaceRead) ? places[4 * pixel + 2] : places[4 * pixel + 3])
+                                    - (
+                                        HasFlag(lengths, pixel, PixelPlaceRead)
+                                            ? places[4 * pixel + 2]
+                                            : places[4 * pixel + 3]
+                                    )
                             ) < 1e-5f,
                         "layer 8 weighs each place's taps that pass the specular test, as the reprojection does"
                     );
             }
         );
-    }
 
     [Fact]
-    public void TheTraceMarksEveryPixelThatReadsAtItsPixelPlace()
-    {
+    public void TheTraceMarksEveryPixelThatReadsAtItsPixelPlace() =>
         WithRenderer(
             action: (renderer, scene) =>
             {
@@ -89,11 +89,9 @@ public sealed class PlaceTraceTests(ITestOutputHelper output)
                     );
             }
         );
-    }
 
     [Fact]
-    public void APixelFallsBackExactlyWhereItsPixelPlaceHoldsLessThanTheLeastWeight()
-    {
+    public void APixelFallsBackExactlyWhereItsPixelPlaceHoldsLessThanTheLeastWeight() =>
         WithRenderer(
             action: (renderer, scene) =>
             {
@@ -114,11 +112,9 @@ public sealed class PlaceTraceTests(ITestOutputHelper output)
                     );
             }
         );
-    }
 
     [Fact]
-    public void AStillJitteredInteriorPixelsOwnTexelHoldsTheWholeWeightOfItsPixelPlace()
-    {
+    public void AStillJitteredInteriorPixelsOwnTexelHoldsTheWholeWeightOfItsPixelPlace() =>
         WithRenderer(
             action: (renderer, scene) =>
             {
@@ -135,11 +131,9 @@ public sealed class PlaceTraceTests(ITestOutputHelper output)
                     );
             }
         );
-    }
 
     [Fact]
-    public void AStillTriedReflectedPlaceIsItsPixelPlace()
-    {
+    public void AStillTriedReflectedPlaceIsItsPixelPlace() =>
         WithRenderer(
             action: (renderer, scene) =>
             {
@@ -147,17 +141,20 @@ public sealed class PlaceTraceTests(ITestOutputHelper output)
 
                 float[] lengths = TraceLayer(renderer, Lengths);
                 int[] tried = [.. InteriorPixels(renderer).Where(pixel => HasFlag(lengths, pixel, ReflectedTried))];
-                tried.Length.Should().BeGreaterThan(Width * Height / 8, "the test needs pixels that try the reflected place");
+                tried
+                    .Length.Should()
+                    .BeGreaterThan(Width * Height / 8, "the test needs pixels that try the reflected place");
                 tried.Should().OnlyContain(pixel => HasFlag(lengths, pixel, ReflectedPixelPlaceRead));
                 SurfacePixels(renderer)
                     .Should()
                     .OnlyContain(
-                        pixel => !HasFlag(lengths, pixel, ReflectedPixelPlaceRead) || HasFlag(lengths, pixel, ReflectedTried),
+                        pixel =>
+                            !HasFlag(lengths, pixel, ReflectedPixelPlaceRead)
+                            || HasFlag(lengths, pixel, ReflectedTried),
                         "only a tried reflected place has a place to choose"
                     );
             }
         );
-    }
 
     [Fact]
     public void TheTracedRendererRendersExactlyAsTheUntracedOneUnderJitterAndMotion()
@@ -168,7 +165,10 @@ public sealed class PlaceTraceTests(ITestOutputHelper output)
 
         for (int image = 0; image < expected.Length; image++)
         {
-            int[] differ = [.. Enumerable.Range(0, expected[image].Length).Where(i => actual[image][i] != expected[image][i])];
+            int[] differ =
+            [
+                .. Enumerable.Range(0, expected[image].Length).Where(i => actual[image][i] != expected[image][i]),
+            ];
             output.WriteLine($"Image {image}: {differ.Length} values differ.");
         }
         for (int image = 0; image < expected.Length; image++)
@@ -241,7 +241,8 @@ public sealed class PlaceTraceTests(ITestOutputHelper output)
                                 .Range(-2, 5)
                                 .All(x =>
                                     distance[pixel + y * Width + x] > 0
-                                    && MathF.Abs(distance[pixel + y * Width + x] - distance[pixel]) <= 0.1f * distance[pixel]
+                                    && MathF.Abs(distance[pixel + y * Width + x] - distance[pixel])
+                                        <= 0.1f * distance[pixel]
                                 )
                         )
                 ),

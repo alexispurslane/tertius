@@ -3,22 +3,49 @@ using Tertius.Rendering;
 namespace Tertius.ReflectionReference;
 
 internal readonly record struct ReferenceQuadratureResult(
-    DirectTerms Light, double? EstimatedAbsoluteError, int Evaluations, bool Converged
+    DirectTerms Light,
+    double? EstimatedAbsoluteError,
+    int Evaluations,
+    bool Converged
 );
 
 internal sealed partial class ReferenceIntegral
 {
     private static readonly double[] ThreeNodes = [-0.7745966692414834, 0, 0.7745966692414834];
     private static readonly double[] ThreeWeights = [5.0 / 9, 8.0 / 9, 5.0 / 9];
-    private static readonly double[] FiveNodes = [-0.9061798459386640, -0.5384693101056831, 0, 0.5384693101056831, 0.9061798459386640];
-    private static readonly double[] FiveWeights = [0.2369268850561891, 0.4786286704993665, 0.5688888888888889, 0.4786286704993665, 0.2369268850561891];
+    private static readonly double[] FiveNodes =
+    [
+        -0.9061798459386640,
+        -0.5384693101056831,
+        0,
+        0.5384693101056831,
+        0.9061798459386640,
+    ];
+    private static readonly double[] FiveWeights =
+    [
+        0.2369268850561891,
+        0.4786286704993665,
+        0.5688888888888889,
+        0.4786286704993665,
+        0.2369268850561891,
+    ];
 
     private readonly record struct Panel(
-        ReferenceFace Face, double Across, double Down, double Width, double Height, DirectTerms Light, double Error
+        ReferenceFace Face,
+        double Across,
+        double Down,
+        double Width,
+        double Height,
+        DirectTerms Light,
+        double Error
     );
 
     public ReferenceQuadratureResult IntegrateEmitter(
-        Double3 point, Double3 toView, double relativeTolerance, double absoluteTolerance, int maxEvaluations
+        Double3 point,
+        Double3 toView,
+        double relativeTolerance,
+        double absoluteTolerance,
+        int maxEvaluations
     )
     {
         if (!double.IsFinite(relativeTolerance) || relativeTolerance < 0)
@@ -40,17 +67,33 @@ internal sealed partial class ReferenceIntegral
             double distance = cosine == 0 ? -1 : Double3.Dot(face.Origin - point, face.Normal) / cosine;
             Double3 peak = distance > 0 ? point + distance * mirror - face.Origin : Double3.Zero;
             double footprint = distance > 0 ? 2 * material.Lobe.Alpha * distance / Math.Abs(cosine) : 0;
-            double[] across = Cuts(Double3.Dot(peak, face.Across) / Double3.Dot(face.Across, face.Across), footprint / face.Across.Length);
-            double[] down = Cuts(Double3.Dot(peak, face.Down) / Double3.Dot(face.Down, face.Down), footprint / face.Down.Length);
+            double[] across = Cuts(
+                Double3.Dot(peak, face.Across) / Double3.Dot(face.Across, face.Across),
+                footprint / face.Across.Length
+            );
+            double[] down = Cuts(
+                Double3.Dot(peak, face.Down) / Double3.Dot(face.Down, face.Down),
+                footprint / face.Down.Length
+            );
             for (int column = 0; column < across.Length - 1; column++)
             {
                 for (int row = 0; row < down.Length - 1; row++)
                 {
                     if (evaluations + 34 > maxEvaluations)
-                        return new(Light: total, EstimatedAbsoluteError: null, Evaluations: evaluations, Converged: false);
+                        return new(
+                            Light: total,
+                            EstimatedAbsoluteError: null,
+                            Evaluations: evaluations,
+                            Converged: false
+                        );
                     Panel panel = EvaluatePanel(
-                        face: face, point: point, toView: toView, across: across[column], down: down[row],
-                        width: across[column + 1] - across[column], height: down[row + 1] - down[row]
+                        face: face,
+                        point: point,
+                        toView: toView,
+                        across: across[column],
+                        down: down[row],
+                        width: across[column + 1] - across[column],
+                        height: down[row + 1] - down[row]
                     );
                     panels.Enqueue(panel, -panel.Error);
                     total = Add(total, panel.Light);
@@ -72,8 +115,13 @@ internal sealed partial class ReferenceIntegral
                 for (int row = 0; row < 2; row++)
                 {
                     Panel child = EvaluatePanel(
-                        face: parent.Face, point: point, toView: toView, across: parent.Across + column * width,
-                        down: parent.Down + row * height, width: width, height: height
+                        face: parent.Face,
+                        point: point,
+                        toView: toView,
+                        across: parent.Across + column * width,
+                        down: parent.Down + row * height,
+                        width: width,
+                        height: height
                     );
                     panels.Enqueue(child, -child.Error);
                     total = Add(total, child.Light);
@@ -96,23 +144,58 @@ internal sealed partial class ReferenceIntegral
     }
 
     private Panel EvaluatePanel(
-        ReferenceFace face, Double3 point, Double3 toView, double across, double down, double width, double height
+        ReferenceFace face,
+        Double3 point,
+        Double3 toView,
+        double across,
+        double down,
+        double width,
+        double height
     )
     {
         DirectTerms coarse = IntegratePanel(
-            face: face, point: point, toView: toView, across: across, down: down, width: width, height: height,
-            nodes: ThreeNodes, weights: ThreeWeights
+            face: face,
+            point: point,
+            toView: toView,
+            across: across,
+            down: down,
+            width: width,
+            height: height,
+            nodes: ThreeNodes,
+            weights: ThreeWeights
         );
         DirectTerms fine = IntegratePanel(
-            face: face, point: point, toView: toView, across: across, down: down, width: width, height: height,
-            nodes: FiveNodes, weights: FiveWeights
+            face: face,
+            point: point,
+            toView: toView,
+            across: across,
+            down: down,
+            width: width,
+            height: height,
+            nodes: FiveNodes,
+            weights: FiveWeights
         );
-        return new(Face: face, Across: across, Down: down, Width: width, Height: height, Light: fine, Error: Magnitude(Add(fine, Scale(coarse, -1))));
+        return new(
+            Face: face,
+            Across: across,
+            Down: down,
+            Width: width,
+            Height: height,
+            Light: fine,
+            Error: Magnitude(Add(fine, Scale(coarse, -1)))
+        );
     }
 
     private DirectTerms IntegratePanel(
-        ReferenceFace face, Double3 point, Double3 toView, double across, double down, double width, double height,
-        double[] nodes, double[] weights
+        ReferenceFace face,
+        Double3 point,
+        Double3 toView,
+        double across,
+        double down,
+        double width,
+        double height,
+        double[] nodes,
+        double[] weights
     )
     {
         DirectTerms total = default;
@@ -120,28 +203,41 @@ internal sealed partial class ReferenceIntegral
         {
             for (int row = 0; row < nodes.Length; row++)
             {
-                Double3 delta = face.Position(across + (nodes[column] + 1) * width / 2, down + (nodes[row] + 1) * height / 2) - point;
+                Double3 delta =
+                    face.Position(across + (nodes[column] + 1) * width / 2, down + (nodes[row] + 1) * height / 2)
+                    - point;
                 double squaredDistance = Double3.Dot(delta, delta);
                 Double3 direction = delta / Math.Sqrt(squaredDistance);
                 double cosine = -Double3.Dot(face.Normal, direction);
                 if (direction.Y <= 0 || cosine <= 0)
                     continue;
                 DirectTerms response = material.ReflectedTerms(
-                    normal: Double3.UnitY, toView: toView, toLight: direction, tables: BrdfTables.Shared, lightSine: 0
+                    normal: Double3.UnitY,
+                    toView: toView,
+                    toLight: direction,
+                    tables: BrdfTables.Shared,
+                    lightSine: 0
                 );
-                double weight = weights[column] * weights[row] * face.Area * width * height * cosine / (4 * squaredDistance);
-                total = Add(total, new(response.Diffuse * emitter.Radiance * weight, response.Specular * emitter.Radiance * weight));
+                double weight =
+                    weights[column] * weights[row] * face.Area * width * height * cosine / (4 * squaredDistance);
+                total = Add(
+                    total,
+                    new(response.Diffuse * emitter.Radiance * weight, response.Specular * emitter.Radiance * weight)
+                );
             }
         }
         return total;
     }
 
-    private static DirectTerms Add(DirectTerms left, DirectTerms right) => new(left.Diffuse + right.Diffuse, left.Specular + right.Specular);
+    private static DirectTerms Add(DirectTerms left, DirectTerms right) =>
+        new(left.Diffuse + right.Diffuse, left.Specular + right.Specular);
 
-    private static DirectTerms Scale(DirectTerms light, double scale) => new(light.Diffuse * scale, light.Specular * scale);
+    private static DirectTerms Scale(DirectTerms light, double scale) =>
+        new(light.Diffuse * scale, light.Specular * scale);
 
-    private static double Magnitude(DirectTerms light) => Math.Max(
-        Math.Max(Math.Abs(light.Diffuse.X), Math.Max(Math.Abs(light.Diffuse.Y), Math.Abs(light.Diffuse.Z))),
-        Math.Max(Math.Abs(light.Specular.X), Math.Max(Math.Abs(light.Specular.Y), Math.Abs(light.Specular.Z)))
-    );
+    private static double Magnitude(DirectTerms light) =>
+        Math.Max(
+            Math.Max(Math.Abs(light.Diffuse.X), Math.Max(Math.Abs(light.Diffuse.Y), Math.Abs(light.Diffuse.Z))),
+            Math.Max(Math.Abs(light.Specular.X), Math.Max(Math.Abs(light.Specular.Y), Math.Abs(light.Specular.Z)))
+        );
 }

@@ -46,8 +46,7 @@ public sealed class PixelHistoryTests(ITestOutputHelper output)
     private static readonly UpscalingSetting Jittered = new Fsr3Upscaling(new FixedRenderScale(1), 0);
 
     [Fact]
-    public void AStillPixelUnderFsrJitterReadsItsOwnHistoryTexel()
-    {
+    public void AStillPixelUnderFsrJitterReadsItsOwnHistoryTexel() =>
         WithRenderer(
             upscaling: Jittered,
             action: (renderer, scene) =>
@@ -67,11 +66,9 @@ public sealed class PixelHistoryTests(ITestOutputHelper output)
                 interior.Should().OnlyContain(pixel => OwnTexelWeight(place, weights, pixel) > 0.9999f);
             }
         );
-    }
 
     [Fact]
-    public void AStillPixelUnderAJitterStepWiderThanThePlaneBoundKeepsItsWholeHistory()
-    {
+    public void AStillPixelUnderAJitterStepWiderThanThePlaneBoundKeepsItsWholeHistory() =>
         WithRenderer(
             upscaling: Jittered,
             action: (renderer, scene) =>
@@ -81,7 +78,10 @@ public sealed class PixelHistoryTests(ITestOutputHelper output)
                 scene.Camera.VerticalFov = MathF.PI / 2;
                 Draw(renderer, scene, 17);
 
-                MathF.Abs(JitterChange(renderer).Y).Should().BeGreaterThan(0.5f, "the test needs a wide step of the jitter");
+                MathF
+                    .Abs(JitterChange(renderer).Y)
+                    .Should()
+                    .BeGreaterThan(0.5f, "the test needs a wide step of the jitter");
                 float[] place = TraceLayer(renderer, Place);
                 float[] weights = TraceLayer(renderer, Weights);
                 int[] interior = InteriorPixels(renderer);
@@ -94,11 +94,9 @@ public sealed class PixelHistoryTests(ITestOutputHelper output)
                     );
             }
         );
-    }
 
     [Fact]
-    public void UnderAJitterStepWiderThanThePlaneBoundAStillReflectedPlaceHoldsWhereTheSurfacePlaceHolds()
-    {
+    public void UnderAJitterStepWiderThanThePlaneBoundAStillReflectedPlaceHoldsWhereTheSurfacePlaceHolds() =>
         WithRenderer(
             upscaling: Jittered,
             action: (renderer, scene) =>
@@ -107,16 +105,23 @@ public sealed class PixelHistoryTests(ITestOutputHelper output)
                 scene.Camera.VerticalFov = MathF.PI / 2;
                 Draw(renderer, scene, 17);
 
-                MathF.Abs(JitterChange(renderer).Y).Should().BeGreaterThan(0.5f, "the test needs a wide step of the jitter");
+                MathF
+                    .Abs(JitterChange(renderer).Y)
+                    .Should()
+                    .BeGreaterThan(0.5f, "the test needs a wide step of the jitter");
                 float[] lengths = TraceLayer(renderer, Lengths);
                 int[] tried =
                 [
                     .. InteriorPixels(renderer)
-                        .Where(pixel => HasFlag(lengths, pixel, ReflectedTried) && HasFlag(lengths, pixel, SurfaceHolds)),
+                        .Where(pixel =>
+                            HasFlag(lengths, pixel, ReflectedTried) && HasFlag(lengths, pixel, SurfaceHolds)
+                        ),
                 ];
                 tried.Length.Should().BeGreaterThan(Width * Height / 8);
                 double held = tried.Count(pixel => HasFlag(lengths, pixel, ReflectedHolds)) / (double)tried.Length;
-                output.WriteLine($"The reflected place holds at {held:P1} of {tried.Length} pixels whose surface place holds.");
+                output.WriteLine(
+                    $"The reflected place holds at {held:P1} of {tried.Length} pixels whose surface place holds."
+                );
                 held.Should()
                     .BeGreaterThan(
                         0.75,
@@ -125,11 +130,9 @@ public sealed class PixelHistoryTests(ITestOutputHelper output)
                     );
             }
         );
-    }
 
     [Fact]
-    public void AStillPixelAtASeamBetweenTwoRoughnessesOfOnePlaneReadsItsOwnHistoryTexel()
-    {
+    public void AStillPixelAtASeamBetweenTwoRoughnessesOfOnePlaneReadsItsOwnHistoryTexel() =>
         WithRenderer(
             upscaling: Jittered,
             action: (renderer, scene) =>
@@ -152,11 +155,9 @@ public sealed class PixelHistoryTests(ITestOutputHelper output)
             },
             floor: SeamedFloor
         );
-    }
 
     [Fact]
-    public void AStillPixelUnderFsrJitterWhoseReflectedPlaceWinsReadsItsOwnTexel()
-    {
+    public void AStillPixelUnderFsrJitterWhoseReflectedPlaceWinsReadsItsOwnTexel() =>
         WithRenderer(
             upscaling: Jittered,
             action: (renderer, scene) =>
@@ -175,11 +176,9 @@ public sealed class PixelHistoryTests(ITestOutputHelper output)
                     );
             }
         );
-    }
 
     [Fact]
-    public void UnderCameraMotionAPixelUnderFsrJitterReadsAtThePlaceThatItsMotionAloneGives()
-    {
+    public void UnderCameraMotionAPixelUnderFsrJitterReadsAtThePlaceThatItsMotionAloneGives() =>
         WithRenderer(
             upscaling: Jittered,
             action: (renderer, scene) =>
@@ -210,11 +209,9 @@ public sealed class PixelHistoryTests(ITestOutputHelper output)
                     );
             }
         );
-    }
 
     [Fact]
-    public void ASilhouettePixelWhoseOwnTexelFailsReadsAtTheJitterCorrectedPlace()
-    {
+    public void ASilhouettePixelWhoseOwnTexelFailsReadsAtTheJitterCorrectedPlace() =>
         WithRenderer(
             upscaling: Jittered,
             action: (renderer, scene) =>
@@ -240,11 +237,9 @@ public sealed class PixelHistoryTests(ITestOutputHelper output)
                 corrected.Should().OnlyContain(pixel => silhouette[pixel], "an inside pixel's own texel passes");
             }
         );
-    }
 
     [Fact]
-    public void EveryPixelWhoseJitterCorrectedPlaceHoldsAHistoryHoldsOne()
-    {
+    public void EveryPixelWhoseJitterCorrectedPlaceHoldsAHistoryHoldsOne() =>
         WithRenderer(
             upscaling: Jittered,
             action: (renderer, scene) =>
@@ -262,7 +257,6 @@ public sealed class PixelHistoryTests(ITestOutputHelper output)
                     );
             }
         );
-    }
 
     [Fact]
     public void AStillSlowHistoryUnderFsrJitterGrowsAsLongAsWithoutJitter()
@@ -300,7 +294,10 @@ public sealed class PixelHistoryTests(ITestOutputHelper output)
         float[] place = TraceLayer(renderer, Place);
         float[] lengths =
         [
-            .. InteriorPixels(renderer).Where(pixel => place[4 * pixel + 2] > 0).Select(pixel => slow[4 * pixel + 3]).Order(),
+            .. InteriorPixels(renderer)
+                .Where(pixel => place[4 * pixel + 2] > 0)
+                .Select(pixel => slow[4 * pixel + 3])
+                .Order(),
         ];
         lengths.Length.Should().BeGreaterThan(100, "the test needs the reflection's receivers");
         return lengths[lengths.Length / 2];
@@ -322,19 +319,19 @@ public sealed class PixelHistoryTests(ITestOutputHelper output)
     private static bool[] Silhouettes(VulkanRenderer renderer)
     {
         float[] distance = renderer.ReadDistance();
-        var result = new bool[Width * Height];
+        bool[] result = new bool[Width * Height];
         for (int pixel = 0; pixel < Width * Height; pixel++)
-            for (int y = -2; y <= 2; y++)
-                for (int x = -2; x <= 2; x++)
-                {
-                    int nx = pixel % Width + x;
-                    int ny = pixel / Width + y;
-                    if (nx < 0 || ny < 0 || nx >= Width || ny >= Height)
-                        continue;
-                    float neighbor = distance[ny * Width + nx];
-                    if (neighbor <= 0 || MathF.Abs(neighbor - distance[pixel]) > 0.1f * distance[pixel])
-                        result[pixel] = true;
-                }
+        for (int y = -2; y <= 2; y++)
+        for (int x = -2; x <= 2; x++)
+        {
+            int nx = pixel % Width + x;
+            int ny = pixel / Width + y;
+            if (nx < 0 || ny < 0 || nx >= Width || ny >= Height)
+                continue;
+            float neighbor = distance[ny * Width + nx];
+            if (neighbor <= 0 || MathF.Abs(neighbor - distance[pixel]) > 0.1f * distance[pixel])
+                result[pixel] = true;
+        }
         return result;
     }
 
@@ -391,7 +388,12 @@ public sealed class PixelHistoryTests(ITestOutputHelper output)
         RenderInstance Half(MaterialDesc material, float centerX) =>
             Gpu.Instance(
                 mesh: plane,
-                material: renderer.CreateMaterial(material with { NormalMap = ReflectionTesting.FlatNormalMap(renderer) }),
+                material: renderer.CreateMaterial(
+                    material with
+                    {
+                        NormalMap = ReflectionTesting.FlatNormalMap(renderer),
+                    }
+                ),
                 position: new(centerX, ReflectionTesting.FloorHeight, -20),
                 scale: new(15, 1, 30),
                 radius: 34,

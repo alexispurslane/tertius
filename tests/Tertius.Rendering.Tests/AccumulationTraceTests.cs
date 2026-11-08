@@ -1,5 +1,4 @@
 using System.Numerics;
-using Tertius.Testing;
 
 namespace Tertius.Rendering.Tests;
 
@@ -38,8 +37,7 @@ public sealed class AccumulationTraceTests(ITestOutputHelper output)
     private static readonly UpscalingSetting Jittered = new Fsr3Upscaling(new FixedRenderScale(1), 0);
 
     [Fact]
-    public void TheDiffuseSignalKeepsNoTrace()
-    {
+    public void TheDiffuseSignalKeepsNoTrace() =>
         WithRenderer(
             Jittered,
             (renderer, _) =>
@@ -51,7 +49,6 @@ public sealed class AccumulationTraceTests(ITestOutputHelper output)
                     .BeNull("the trace observes the specular history alone, at 144 bytes per pixel");
             }
         );
-    }
 
     [Fact]
     public void TheTraceRendersExactlyAsTheDefaultUnderJitter()
@@ -62,7 +59,10 @@ public sealed class AccumulationTraceTests(ITestOutputHelper output)
 
         for (int image = 0; image < expected.Length; image++)
         {
-            int[] differ = [.. Enumerable.Range(0, expected[image].Length).Where(i => actual[image][i] != expected[image][i])];
+            int[] differ =
+            [
+                .. Enumerable.Range(0, expected[image].Length).Where(i => actual[image][i] != expected[image][i]),
+            ];
             foreach (int index in differ.Take(12))
                 output.WriteLine(
                     $"Image {image}, pixel {index / 4}, channel {index % 4}: {expected[image][index]:R} against {actual[image][index]:R}."
@@ -74,8 +74,7 @@ public sealed class AccumulationTraceTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void TheTraceGivesEachPixelTheLengthThatTheLastDrawAcceptedAtIt()
-    {
+    public void TheTraceGivesEachPixelTheLengthThatTheLastDrawAcceptedAtIt() =>
         WithRenderer(
             Jittered,
             (renderer, scene) =>
@@ -91,11 +90,9 @@ public sealed class AccumulationTraceTests(ITestOutputHelper output)
                 surface.Should().OnlyContain(pixel => lengths[4 * pixel] == accepted[4 * pixel + 3]);
             }
         );
-    }
 
     [Fact]
-    public void TheTraceGivesTheLengthThatTheSpatialDispatchAccepts()
-    {
+    public void TheTraceGivesTheLengthThatTheSpatialDispatchAccepts() =>
         WithRenderer(
             Jittered,
             (renderer, scene) =>
@@ -104,14 +101,14 @@ public sealed class AccumulationTraceTests(ITestOutputHelper output)
 
                 float[] accepted = Slow(renderer);
                 float[] spatial = TraceLayer(renderer, Spatial);
-                SurfacePixels(renderer).Should().OnlyContain(pixel => spatial[4 * pixel + 1] == accepted[4 * pixel + 3]);
+                SurfacePixels(renderer)
+                    .Should()
+                    .OnlyContain(pixel => spatial[4 * pixel + 1] == accepted[4 * pixel + 3]);
             }
         );
-    }
 
     [Fact]
-    public void TheSpatialDispatchStartsFromTheReprojectedLengthPlusTheBlendedFrame()
-    {
+    public void TheSpatialDispatchStartsFromTheReprojectedLengthPlusTheBlendedFrame() =>
         WithRenderer(
             Jittered,
             (renderer, scene) =>
@@ -130,11 +127,9 @@ public sealed class AccumulationTraceTests(ITestOutputHelper output)
                     );
             }
         );
-    }
 
     [Fact]
-    public void AStillUnjitteredPixelReprojectsOntoItsOwnTexelWithItsWholeWeight()
-    {
+    public void AStillUnjitteredPixelReprojectsOntoItsOwnTexelWithItsWholeWeight() =>
         WithRenderer(
             new NoUpscaling(),
             (renderer, scene) =>
@@ -149,10 +144,12 @@ public sealed class AccumulationTraceTests(ITestOutputHelper output)
                 interior.Should().OnlyContain(pixel => MathF.Abs(lengths[4 * pixel + 2] - 1) < 1e-5f);
                 interior
                     .Should()
-                    .OnlyContain(pixel => OwnTexelWeight(place, weights, pixel) > 0.9999f, "the place is the texel's center");
+                    .OnlyContain(
+                        pixel => OwnTexelWeight(place, weights, pixel) > 0.9999f,
+                        "the place is the texel's center"
+                    );
             }
         );
-    }
 
     [Fact]
     public void UnderTheHeldJitterNoStillJitteredPixelReadsItsHistoryAwayFromItsOwnTexel()
@@ -192,8 +189,7 @@ public sealed class AccumulationTraceTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void TheAntiLagShortensTheLengthByTheTracedLagOverItsShare()
-    {
+    public void TheAntiLagShortensTheLengthByTheTracedLagOverItsShare() =>
         WithRenderer(
             Jittered,
             (renderer, scene) =>
@@ -203,7 +199,9 @@ public sealed class AccumulationTraceTests(ITestOutputHelper output)
                 float[] spatial = TraceLayer(renderer, Spatial);
                 float[] mean = TraceLayer(renderer, Mean);
                 int[] clamped = ClampedPixels(renderer);
-                output.WriteLine($"{clamped.Length} clamped pixels, {clamped.Count(pixel => mean[4 * pixel + 3] > 0)} with lag.");
+                output.WriteLine(
+                    $"{clamped.Length} clamped pixels, {clamped.Count(pixel => mean[4 * pixel + 3] > 0)} with lag."
+                );
                 clamped.Count(pixel => mean[4 * pixel + 3] > 0).Should().BeGreaterThan(10);
                 clamped
                     .Should()
@@ -213,11 +211,9 @@ public sealed class AccumulationTraceTests(ITestOutputHelper output)
                     );
             }
         );
-    }
 
     [Fact]
-    public void TheClampedHistoryLiesInsideTheTracedBox()
-    {
+    public void TheClampedHistoryLiesInsideTheTracedBox() =>
         WithRenderer(
             Jittered,
             (renderer, scene) =>
@@ -240,11 +236,9 @@ public sealed class AccumulationTraceTests(ITestOutputHelper output)
                     );
             }
         );
-    }
 
     [Fact]
-    public void TheLagIsTheClampsMoveAsAShareOfTheMeansLuminance()
-    {
+    public void TheLagIsTheClampsMoveAsAShareOfTheMeansLuminance() =>
         WithRenderer(
             Jittered,
             (renderer, scene) =>
@@ -260,16 +254,16 @@ public sealed class AccumulationTraceTests(ITestOutputHelper output)
                     .Should()
                     .OnlyContain(pixel =>
                         MathF.Abs(
-                            mean[4 * pixel + 3] * MathF.Max(Luminance(mean, pixel), 1e-4f) - Luminance(Moved(unclamped, slow, pixel), 0)
-                        ) <= 1e-4f * (1 + Luminance(mean, pixel))
+                            mean[4 * pixel + 3] * MathF.Max(Luminance(mean, pixel), 1e-4f)
+                                - Luminance(Moved(unclamped, slow, pixel), 0)
+                        )
+                        <= 1e-4f * (1 + Luminance(mean, pixel))
                     );
             }
         );
-    }
 
     [Fact]
-    public void APlateBelowTheHandOverTriesTheReflectedPlaceForEverySampledPixel()
-    {
+    public void APlateBelowTheHandOverTriesTheReflectedPlaceForEverySampledPixel() =>
         WithRenderer(
             Jittered,
             (renderer, scene) =>
@@ -280,7 +274,9 @@ public sealed class AccumulationTraceTests(ITestOutputHelper output)
                 // The bottom twelve rows show only the plate.
                 int[] sampled =
                 [
-                    .. Enumerable.Range((Height - 12) * Width, 12 * Width).Where(pixel => HasFlag(lengths, pixel, HasSample)),
+                    .. Enumerable
+                        .Range((Height - 12) * Width, 12 * Width)
+                        .Where(pixel => HasFlag(lengths, pixel, HasSample)),
                 ];
                 sampled.Length.Should().BeGreaterThan(Width * 6);
                 sampled.Should().OnlyContain(pixel => HasFlag(lengths, pixel, ReflectedTried));
@@ -292,7 +288,6 @@ public sealed class AccumulationTraceTests(ITestOutputHelper output)
                     );
             }
         );
-    }
 
     /// <summary>The pixels whose spatial dispatch ran the clamp: layer 5's alpha says so.</summary>
     private static int[] ClampedPixels(VulkanRenderer renderer)
@@ -303,7 +298,11 @@ public sealed class AccumulationTraceTests(ITestOutputHelper output)
 
     /// <summary>The clamp's move of each channel at <paramref name="pixel"/>, as one RGBA pixel.</summary>
     private static float[] Moved(float[] unclamped, float[] slow, int pixel) =>
-        [.. Enumerable.Range(0, 4).Select(channel => MathF.Abs(unclamped[4 * pixel + channel] - slow[4 * pixel + channel]))];
+        [
+            .. Enumerable
+                .Range(0, 4)
+                .Select(channel => MathF.Abs(unclamped[4 * pixel + channel] - slow[4 * pixel + channel])),
+        ];
 
     /// <summary>The length that the anti-lag leaves of <paramref name="before"/> for <paramref name="lag"/>.</summary>
     private static float AntiLagged(float before, float lag) =>
@@ -354,7 +353,9 @@ public sealed class AccumulationTraceTests(ITestOutputHelper output)
                 .Range(Height / 2 * Width, Width * (Height / 2 - 1))
                 .Where(pixel =>
                     pixel % Width is > 0 and < Width - 1
-                    && Enumerable.Range(-1, 3).All(y => Enumerable.Range(-1, 3).All(x => distance[pixel + y * Width + x] > 0))
+                    && Enumerable
+                        .Range(-1, 3)
+                        .All(y => Enumerable.Range(-1, 3).All(x => distance[pixel + y * Width + x] > 0))
                 ),
         ];
     }

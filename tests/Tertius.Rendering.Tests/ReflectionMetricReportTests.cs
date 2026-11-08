@@ -29,7 +29,11 @@ public sealed class ReflectionMetricReportTests
     [Fact]
     public void OneInvalidSideDoesNotDiscardTheOtherBandOrTheFullCrop()
     {
-        var basis = new MetricReference(new(Left: 0, Top: 0, Width: 7, Height: 1), [0, 2, 8, 10, 8, 2, 0], [0, 1, 1, 1, 1, 1, 1]);
+        var basis = new MetricReference(
+            new(Left: 0, Top: 0, Width: 7, Height: 1),
+            [0, 2, 8, 10, 8, 2, 0],
+            [0, 1, 1, 1, 1, 1, 1]
+        );
 
         MetricComparison measured = basis.Compare(basis.Reference, basis.Reference);
 
@@ -42,7 +46,11 @@ public sealed class ReflectionMetricReportTests
     [Fact]
     public void OnVersusOffUsesOffLightButDoesNotMoveTheReferenceBands()
     {
-        var basis = new MetricReference(new(Left: 0, Top: 0, Width: 7, Height: 1), [0, 2, 8, 10, 8, 2, 0], [1, 1, 1, 1, 1, 1, 1]);
+        var basis = new MetricReference(
+            new(Left: 0, Top: 0, Width: 7, Height: 1),
+            [0, 2, 8, 10, 8, 2, 0],
+            [1, 1, 1, 1, 1, 1, 1]
+        );
 
         MetricComparison measured = basis.Compare([0, 4, 16, 20, 16, 4, 0], [0, 2, 8, 10, 8, 2, 0]);
         MetricRegionResult band = measured.Regions.Single(region => region.Name == "left_outer");
@@ -58,9 +66,11 @@ public sealed class ReflectionMetricReportTests
         var reference = new ReferenceImage(2, 1, [new(4, 4, 4), new(4, 4, 4)]);
         var candidate = new ReferenceImage(2, 1, [new(2, 2, 2), new(6, 6, 6)]);
 
-        ReferenceDifference difference = ReferenceDifference.Compare(reference, candidate);
+        var difference = ReferenceDifference.Compare(reference, candidate);
         RadianceTotals measured = MetricMath.Measure(
-            [.. reference.Pixels.Select(ReferenceImage.Luminance)], [.. candidate.Pixels.Select(ReferenceImage.Luminance)], [1, 1]
+            [.. reference.Pixels.Select(ReferenceImage.Luminance)],
+            [.. candidate.Pixels.Select(ReferenceImage.Luminance)],
+            [1, 1]
         );
 
         measured.MissingFraction.Should().Be(difference.MissingFraction);

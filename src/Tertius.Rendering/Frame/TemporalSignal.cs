@@ -119,7 +119,7 @@ internal sealed unsafe class TemporalSignal : IDisposable
         for (int parity = 0; parity < 2; parity++)
             sets[part, parity] = layouts.AllocateSignalSet();
 
-        IndirectLightPrototype prototype = IndirectLightPrototype.Select(
+        var prototype = IndirectLightPrototype.Select(
             enabled: Environment.GetEnvironmentVariable("TERTIUS_INDIRECT_LIGHT_PROTOTYPE") == "1",
             disableNeighborCap: Environment.GetEnvironmentVariable("TERTIUS_INDIRECT_LIGHT_NEIGHBOR_CAP") == "0",
             light: parameters.Light
@@ -487,7 +487,11 @@ internal sealed unsafe class TemporalSignal : IDisposable
             );
         // The accumulation trace, which only the specular signal's dispatches write: another signal binds its sample.
         if (scratch.Instrumentation == HistoryInstrumentation.ControlTrace)
-            layouts.WriteStorageImage(set: set, binding: 12, image: images.Traces is [var trace] ? trace : images.Sample);
+            layouts.WriteStorageImage(
+                set: set,
+                binding: 12,
+                image: images.Traces is [var trace] ? trace : images.Sample
+            );
     }
 
     private GpuImage CreateSampleAge(Extent2D extent, int part) =>

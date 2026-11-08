@@ -29,8 +29,7 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
     private static readonly Vector3 SunDirection = new(0.4f, 1, 0.3f);
 
     [Fact]
-    public void AStillJitteredSceneWithShadowEdgesResetsNoLightAge()
-    {
+    public void AStillJitteredSceneWithShadowEdgesResetsNoLightAge() =>
         WithRenderer(
             null,
             (renderer, scene) =>
@@ -46,18 +45,21 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                     resets += Enumerable.Range(0, Width * Height).Count(pixel => AgeAt(record, pixel) == 0);
                 }
 
-                output.WriteLine($"Still jittered lit scene: {resets} resets over 64 frames of {surface} surface pixels.");
+                output.WriteLine(
+                    $"Still jittered lit scene: {resets} resets over 64 frames of {surface} surface pixels."
+                );
                 resets
                     .Should()
-                    .Be(0, "the jitter and the temporal shadow filter move an edge pixel's light for fewer than four draws");
+                    .Be(
+                        0,
+                        "the jitter and the temporal shadow filter move an edge pixel's light for fewer than four draws"
+                    );
             },
             new(Upscaling: new Fsr3Upscaling(new FixedRenderScale(1), 0), CascadedLights: 1)
         );
-    }
 
     [Fact]
-    public void APixelWhoseJitterAlternatesAThinGlowingStripAndTheFloorResetsNoLightAge()
-    {
+    public void APixelWhoseJitterAlternatesAThinGlowingStripAndTheFloorResetsNoLightAge() =>
         WithRenderer(
             null,
             (renderer, scene) =>
@@ -66,7 +68,12 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                 // puts a pixel's sample on it in some draws and on the dark floor in others. After a miss, no neighbor
                 // showed its light. Below the horizon at row 36, a floor point d m ahead lies k / d rows lower.
                 const int row = 60;
-                float k = 10 * (Gpu.Project(point: new(0, ReflectionTesting.FloorHeight, -10), width: Width, height: Height).Y - Height / 2f);
+                float k =
+                    10
+                    * (
+                        Gpu.Project(point: new(0, ReflectionTesting.FloorHeight, -10), width: Width, height: Height).Y
+                        - Height / 2f
+                    );
                 float distance = k / (row + 0.5f - Height / 2f);
                 RenderInstance strip = ReflectionTesting.Block(
                     box: renderer.CreateMesh(Primitives.Box(new(0.5f))),
@@ -77,8 +84,8 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                 strip.EntityIndex = 3;
                 scene.Instances.Add(strip);
                 Draw(renderer, scene, 16);
-                var least = new float[Width * Height];
-                var most = new float[Width * Height];
+                float[] least = new float[Width * Height];
+                float[] most = new float[Width * Height];
                 Array.Fill(least, float.MaxValue);
                 long resets = 0;
 
@@ -95,20 +102,22 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                     }
                 }
 
-                int flickering = Enumerable.Range(row * Width, Width).Count(pixel => least[pixel] < 1 && most[pixel] >= 3);
+                int flickering = Enumerable
+                    .Range(row * Width, Width)
+                    .Count(pixel => least[pixel] < 1 && most[pixel] >= 3);
                 output.WriteLine($"Thin strip: {flickering} pixels flicker, {resets} resets over 64 draws.");
                 flickering.Should().BeGreaterThan(10, "the jitter must move pixels between the strip and the floor");
-                resets.Should().Be(0, "the jitter's sample sequence keeps no pixel on the strip for four draws in a row");
+                resets
+                    .Should()
+                    .Be(0, "the jitter's sample sequence keeps no pixel on the strip for four draws in a row");
             },
             new(Upscaling: new Fsr3Upscaling(new FixedRenderScale(1), 0))
         );
-    }
 
     [Theory]
     [InlineData(null)]
     [InlineData("")]
-    public void ByDefaultALastingDimmingOfTheEmitterShortensTheReflectionHistoryToTheLightsAge(string? value)
-    {
+    public void ByDefaultALastingDimmingOfTheEmitterShortensTheReflectionHistoryToTheLightsAge(string? value) =>
         WithRenderer(
             value,
             (renderer, scene) =>
@@ -127,7 +136,6 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                     .BeGreaterThan(30, "the receivers that reflect the emitter keep only the frame since the change");
             }
         );
-    }
 
     [Fact]
     public void TheCappedPreciseHistoryAlsoShortensToTheLightsAge()
@@ -151,7 +159,10 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                         .Range(Height / 2 * Width, Width * Height / 2)
                         .Count(pixel => LengthAt(warm, pixel) > 8 && LengthAt(cut, pixel) <= 1)
                         .Should()
-                        .BeGreaterThan(30, "every precise history keeps the light age, also below its cap of 32 frames");
+                        .BeGreaterThan(
+                            30,
+                            "every precise history keeps the light age, also below its cap of 32 frames"
+                        );
                 }
             );
         }
@@ -162,8 +173,7 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void AStillLitSceneBringsNoAgeThatCouldCutAHistory()
-    {
+    public void AStillLitSceneBringsNoAgeThatCouldCutAHistory() =>
         WithRenderer(
             null,
             (renderer, scene) =>
@@ -181,11 +191,9 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
             },
             new(CascadedLights: 1)
         );
-    }
 
     [Fact]
-    public void ATwentyPercentDimmingOfAnEmitterResetsTheAgeOfItsPixels()
-    {
+    public void ATwentyPercentDimmingOfAnEmitterResetsTheAgeOfItsPixels() =>
         WithRenderer(
             null,
             (renderer, scene) =>
@@ -193,7 +201,10 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                 Draw(renderer, scene, 32);
                 float[] before = renderer.ReadLightAge();
                 int[] interior = InteriorPixels(before, least: 3);
-                int[] floor = [.. Enumerable.Range(60 * Width, 8 * Width).Where(pixel => ExactLightAt(before, pixel) == 0)];
+                int[] floor =
+                [
+                    .. Enumerable.Range(60 * Width, 8 * Width).Where(pixel => ExactLightAt(before, pixel) == 0),
+                ];
                 interior.Length.Should().BeGreaterThan(20, "the emitter must cover pixels whose neighbors are all lit");
                 SetGlow(renderer, scene, new(3.2f));
 
@@ -207,11 +218,9 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                 floor.Should().NotContain(pixel => AgeAt(after, pixel) == 0, "the floor's own light did not change");
             }
         );
-    }
 
     [Fact]
-    public void TheAgeOfAChangedPixelCountsUpOneFramePerFrame()
-    {
+    public void TheAgeOfAChangedPixelCountsUpOneFramePerFrame() =>
         WithRenderer(
             null,
             (renderer, scene) =>
@@ -231,11 +240,9 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                     .BeGreaterThanOrEqualTo(interior.Length * 95 / 100, "five frames passed since the change");
             }
         );
-    }
 
     [Fact]
-    public void AGlowThatDimsForFewerDrawsThanAChangeNeedsGivesNoEvidence()
-    {
+    public void AGlowThatDimsForFewerDrawsThanAChangeNeedsGivesNoEvidence() =>
         WithRenderer(
             null,
             (renderer, scene) =>
@@ -261,14 +268,15 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                 interior
                     .Count(pixel => SeenFramesAt(record, pixel) == 31 + 2 * (LightChangeDraws - 1) + 5)
                     .Should()
-                    .BeGreaterThanOrEqualTo(interior.Length * 95 / 100, "the record still counts the frames since the reset");
+                    .BeGreaterThanOrEqualTo(
+                        interior.Length * 95 / 100,
+                        "the record still counts the frames since the reset"
+                    );
             }
         );
-    }
 
     [Fact]
-    public void WhileADimmingIsPendingTheRecordKeepsTheOldLightAndCountsItsDraws()
-    {
+    public void WhileADimmingIsPendingTheRecordKeepsTheOldLightAndCountsItsDraws() =>
         WithRenderer(
             null,
             (renderer, scene) =>
@@ -289,14 +297,15 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                         && SeenFramesAt(record, pixel) == 31 + LightChangeDraws - 1
                     )
                     .Should()
-                    .BeGreaterThanOrEqualTo(interior.Length * 95 / 100, "the change has not lasted long enough to count");
+                    .BeGreaterThanOrEqualTo(
+                        interior.Length * 95 / 100,
+                        "the change has not lasted long enough to count"
+                    );
             }
         );
-    }
 
     [Fact]
-    public void ALastingDimmingCountsAsAChangeOnItsFourthDrawWithTheNewLight()
-    {
+    public void ALastingDimmingCountsAsAChangeOnItsFourthDrawWithTheNewLight() =>
         WithRenderer(
             null,
             (renderer, scene) =>
@@ -321,11 +330,9 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                     .BeGreaterThanOrEqualTo(interior.Length * 95 / 100, "the glow stayed 20% lower for four draws");
             }
         );
-    }
 
     [Fact]
-    public void AfterALastingDimmingTheReceiversBlendTakesNoOldLight()
-    {
+    public void AfterALastingDimmingTheReceiversBlendTakesNoOldLight() =>
         WithRenderer(
             "light-age-diagnostic",
             (renderer, scene) =>
@@ -358,11 +365,9 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                     );
             }
         );
-    }
 
     [Fact]
-    public void AMoveBelowTheCutoffRadianceChangesNoLightAge()
-    {
+    public void AMoveBelowTheCutoffRadianceChangesNoLightAge() =>
         WithRenderer(
             null,
             (renderer, scene) =>
@@ -380,11 +385,9 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                 interior.Should().OnlyContain(pixel => AgeAt(record, pixel) < 0, "such a move changes no pixel");
             }
         );
-    }
 
     [Fact]
-    public void ABrighteningBelowTheCutoffRadianceChangesNoLightAge()
-    {
+    public void ABrighteningBelowTheCutoffRadianceChangesNoLightAge() =>
         WithRenderer(
             null,
             (renderer, scene) =>
@@ -402,11 +405,9 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                 interior.Should().OnlyContain(pixel => AgeAt(record, pixel) < 0, "the floor holds in both directions");
             }
         );
-    }
 
     [Fact]
-    public void ALightThatDriftsByLessThanTheShareInEachDrawCountsAsNoChange()
-    {
+    public void ALightThatDriftsByLessThanTheShareInEachDrawCountsAsNoChange() =>
         WithRenderer(
             null,
             (renderer, scene) =>
@@ -430,11 +431,9 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                     .OnlyContain(pixel => AgeAt(record, pixel) < 0, "no draw moved the light by more than the share");
             }
         );
-    }
 
     [Fact]
-    public void AMoveAboveTheCutoffRadianceChangesTheLightAge()
-    {
+    public void AMoveAboveTheCutoffRadianceChangesTheLightAge() =>
         WithRenderer(
             null,
             (renderer, scene) =>
@@ -455,11 +454,9 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                     .BeGreaterThanOrEqualTo(interior.Length * 95 / 100, "the move exceeds the cutoff radiance");
             }
         );
-    }
 
     [Fact]
-    public void UnderAHigherExposureASmallerMoveChangesTheLightAge()
-    {
+    public void UnderAHigherExposureASmallerMoveChangesTheLightAge() =>
         WithRenderer(
             null,
             (renderer, scene) =>
@@ -477,15 +474,16 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                 interior
                     .Count(pixel => AgeAt(record, pixel) == 0)
                     .Should()
-                    .BeGreaterThanOrEqualTo(interior.Length * 95 / 100, "the floor is the cutoff with the exposure undone");
+                    .BeGreaterThanOrEqualTo(
+                        interior.Length * 95 / 100,
+                        "the floor is the cutoff with the exposure undone"
+                    );
             },
             new(Exposure: new FixedExposure(3))
         );
-    }
 
     [Fact]
-    public void TheFloorHoldsForTheDemodulatedLightNotForTheLightThatADarkSurfaceShows()
-    {
+    public void TheFloorHoldsForTheDemodulatedLightNotForTheLightThatADarkSurfaceShows() =>
         WithRenderer(
             null,
             (renderer, scene) =>
@@ -504,7 +502,9 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                 float shown = floor.Max(pixel => ExactLightAt(before, pixel) - ExactLightAt(after, pixel)) * 0.06f;
                 output.WriteLine($"Plate: demodulated move at least {move}, shown move at most {shown} W/(m² sr).");
                 move.Should().BeGreaterThan(LightUnits.CutoffRadiance, "the demodulated move must exceed the floor");
-                shown.Should().BeLessThan(LightUnits.CutoffRadiance, "the move times the plate's albedo of 0.06 must not");
+                shown
+                    .Should()
+                    .BeLessThan(LightUnits.CutoffRadiance, "the move times the plate's albedo of 0.06 must not");
                 floor
                     .Count(pixel => AgeAt(after, pixel) == 0)
                     .Should()
@@ -515,7 +515,6 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
             },
             new(CascadedLights: 1)
         );
-    }
 
     [Fact]
     public void AReceiverWhoseRayHitsTheDimmedEmitterKeepsOnlyTheFramesSinceTheChange() =>
@@ -526,8 +525,7 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
         AReceiverWhoseRayHitsTheChangedEmitterKeepsOnlyTheFramesSinceTheChange(new(4.8f));
 
     [Fact]
-    public void ACutHistoryGrowsBackWithTheAgeOfTheLight()
-    {
+    public void ACutHistoryGrowsBackWithTheAgeOfTheLight() =>
         WithRenderer(
             null,
             (renderer, scene) =>
@@ -552,7 +550,10 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
 
                 receivers
                     .Should()
-                    .OnlyContain(pixel => LengthAt(early, pixel) <= 12, "the history holds no frame from before the change");
+                    .OnlyContain(
+                        pixel => LengthAt(early, pixel) <= 12,
+                        "the history holds no frame from before the change"
+                    );
                 receivers.Average(pixel => LengthAt(early, pixel)).Should().BeGreaterThan(4);
                 receivers
                     .Average(pixel => LengthAt(late, pixel))
@@ -560,11 +561,9 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                     .BeGreaterThan(20, "the age of the light grows, so the length grows back with it");
             }
         );
-    }
 
     [Fact]
-    public void ADisoccludedSurfaceHasNoLightAgeEvidence()
-    {
+    public void ADisoccludedSurfaceHasNoLightAgeEvidence() =>
         WithRenderer(
             null,
             (renderer, scene) =>
@@ -586,7 +585,9 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                 [
                     .. Enumerable
                         .Range(0, Width * Height)
-                        .Where(pixel => distanceAfter[pixel] > distanceBefore[pixel] + 0.3f && distanceBefore[pixel] > 0),
+                        .Where(pixel =>
+                            distanceAfter[pixel] > distanceBefore[pixel] + 0.3f && distanceBefore[pixel] > 0
+                        ),
                 ];
                 revealed.Length.Should().BeGreaterThan(10, "the occluder's move must reveal floor behind it");
                 revealed
@@ -603,11 +604,9 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
             },
             new(CascadedLights: 1)
         );
-    }
 
     [Fact]
-    public void ARayThatMissesBringsNoEvidence()
-    {
+    public void ARayThatMissesBringsNoEvidence() =>
         WithRenderer(
             null,
             (renderer, scene) =>
@@ -629,11 +628,9 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                     .BeGreaterThan(30, "rays that hit the dimmed emitter bring its age 0");
             }
         );
-    }
 
     [Fact]
-    public void ARoughReceiversDiffuseRayBringsTheAgeOfTheDimmedEmitter()
-    {
+    public void ARoughReceiversDiffuseRayBringsTheAgeOfTheDimmedEmitter() =>
         WithRenderer(
             null,
             (renderer, scene) =>
@@ -648,15 +645,16 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                     .Range(Height / 2 * Width, Width * Height / 2)
                     .Count(pixel => ages[pixel] == 1)
                     .Should()
-                    .BeGreaterThan(30, "above the tracer's roughest reflection, the specular sample takes the diffuse ray");
+                    .BeGreaterThan(
+                        30,
+                        "above the tracer's roughest reflection, the specular sample takes the diffuse ray"
+                    );
             },
             new(Roughness: 0.7f)
         );
-    }
 
     [Fact]
-    public void ARayDimmerThanAQuarterOfTheReceiversHistoryDoesNotCutIt()
-    {
+    public void ARayDimmerThanAQuarterOfTheReceiversHistoryDoesNotCutIt() =>
         WithRenderer(
             null,
             (renderer, scene) =>
@@ -689,11 +687,9 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
             },
             new(Gray: 4)
         );
-    }
 
     [Fact]
-    public void AnExposureChangeAloneResetsNoLightAge()
-    {
+    public void AnExposureChangeAloneResetsNoLightAge() =>
         WithRenderer(
             null,
             (renderer, scene) =>
@@ -714,14 +710,13 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
 
                 float after = renderer.ReadExposureStops().Stops;
                 MathF.Abs(after - before).Should().BeGreaterThan(0.1f, "the real exposure must adapt");
-                output.WriteLine($"Exposure {before} -> {after} stops: {resets} resets of {56 * surface} pixel-frames.");
-                (resets / (56.0 * surface))
-                    .Should()
-                    .BeLessThan(0.001, "the exact light undoes the pre-exposure");
+                output.WriteLine(
+                    $"Exposure {before} -> {after} stops: {resets} resets of {56 * surface} pixel-frames."
+                );
+                (resets / (56.0 * surface)).Should().BeLessThan(0.001, "the exact light undoes the pre-exposure");
             },
             new(Exposure: AutoExposure.Default, CascadedLights: 1)
         );
-    }
 
     [Fact]
     public void AnUnknownAgreementSettingFails()
@@ -786,8 +781,7 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void AResizeStartsEveryLightAgeWithoutEvidence()
-    {
+    public void AResizeStartsEveryLightAgeWithoutEvidence() =>
         WithRenderer(
             null,
             (renderer, scene) =>
@@ -809,7 +803,6 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                 Gpu.AssertClean(renderer);
             }
         );
-    }
 
     [Fact]
     public void TheLightAgeRunsCleanlyWithTheH13Reconstruction()
@@ -843,8 +836,7 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void ASurfaceSeenSinceTheResetFrameCountsTheFramesSinceThen()
-    {
+    public void ASurfaceSeenSinceTheResetFrameCountsTheFramesSinceThen() =>
         WithRenderer(
             null,
             (renderer, scene) =>
@@ -852,19 +844,23 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                 Draw(renderer, scene, 32);
 
                 float[] record = renderer.ReadLightAge();
-                int[] surface = [.. Enumerable.Range(0, Width * Height).Where(pixel => ExactLightAt(record, pixel) >= 0)];
+                int[] surface =
+                [
+                    .. Enumerable.Range(0, Width * Height).Where(pixel => ExactLightAt(record, pixel) >= 0),
+                ];
                 surface.Length.Should().BeGreaterThan(Width * Height / 2);
                 surface
                     .Count(pixel => SeenFramesAt(record, pixel) == 31)
                     .Should()
-                    .BeGreaterThanOrEqualTo(surface.Length * 99 / 100, "the reset frame first showed them, 31 frames ago");
+                    .BeGreaterThanOrEqualTo(
+                        surface.Length * 99 / 100,
+                        "the reset frame first showed them, 31 frames ago"
+                    );
             }
         );
-    }
 
     [Fact]
-    public void ANewlyUncoveredSurfaceIsSeenForZeroFramesThenOneMoreFramePerFrame()
-    {
+    public void ANewlyUncoveredSurfaceIsSeenForZeroFramesThenOneMoreFramePerFrame() =>
         WithRenderer(
             null,
             (renderer, scene) =>
@@ -888,7 +884,9 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                 [
                     .. Enumerable
                         .Range(0, Width * Height)
-                        .Where(pixel => distanceAfter[pixel] > distanceBefore[pixel] + 0.3f && distanceBefore[pixel] > 0),
+                        .Where(pixel =>
+                            distanceAfter[pixel] > distanceBefore[pixel] + 0.3f && distanceBefore[pixel] > 0
+                        ),
                 ];
                 revealed.Length.Should().BeGreaterThan(10, "the occluder's move must reveal floor behind it");
                 revealed.Should().OnlyContain(pixel => SeenFramesAt(uncovered, pixel) == 0, "the move first showed it");
@@ -896,11 +894,9 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
             },
             new(CascadedLights: 1)
         );
-    }
 
     [Fact]
-    public void AnUncoveredSurfaceBringsItsReceiversNoAge()
-    {
+    public void AnUncoveredSurfaceBringsItsReceiversNoAge() =>
         WithRenderer(
             null,
             (renderer, scene) =>
@@ -926,7 +922,6 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
             },
             new(CascadedLights: 1)
         );
-    }
 
     [Fact]
     public void TheDiagnosticRendersExactlyAsTheDefault()
@@ -947,12 +942,13 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
         float[][] actual = ImagesAfterDimmingAndUncovering("control-trace");
 
         for (int image = 0; image < expected.Length; image++)
-            actual[image].Should().Equal(expected[image], "the trace only observes, and the light age cuts as without it");
+            actual[image]
+                .Should()
+                .Equal(expected[image], "the trace only observes, and the light age cuts as without it");
     }
 
     [Fact]
-    public void TheDiagnosticGivesEachReceiverTheFramesSeenOfTheUnchangedSurfaceThatItsRaysHit()
-    {
+    public void TheDiagnosticGivesEachReceiverTheFramesSeenOfTheUnchangedSurfaceThatItsRaysHit() =>
         WithRenderer(
             "light-age-diagnostic",
             (renderer, scene) =>
@@ -972,14 +968,14 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                     .OnlyContain(pixel => SeenByRaysAt(diagnostic, pixel) == -1, "a miss sees no surface");
                 receivers
                     .Should()
-                    .OnlyContain(pixel => SeenByRaysAt(diagnostic, pixel) == -1 || SeenByRaysAt(diagnostic, pixel) == 31);
+                    .OnlyContain(pixel =>
+                        SeenByRaysAt(diagnostic, pixel) == -1 || SeenByRaysAt(diagnostic, pixel) == 31
+                    );
             }
         );
-    }
 
     [Fact]
-    public void TheDiagnosticSeesTheRaysThatHitAFreshlyUncoveredSurface()
-    {
+    public void TheDiagnosticSeesTheRaysThatHitAFreshlyUncoveredSurface() =>
         WithRenderer(
             "light-age-diagnostic",
             (renderer, scene) =>
@@ -1006,11 +1002,9 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
             },
             new(CascadedLights: 1)
         );
-    }
 
     [Fact]
-    public void TheDiagnosticGivesEachReceiversHistoryLengthBeforeItsBlend()
-    {
+    public void TheDiagnosticGivesEachReceiversHistoryLengthBeforeItsBlend() =>
         WithRenderer(
             "light-age-diagnostic",
             (renderer, scene) =>
@@ -1021,7 +1015,9 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                 float[] diagnostic = UncoveredDiagnostic(renderer);
                 int[] receivers =
                 [
-                    .. Enumerable.Range(Height / 2 * Width, Width * Height / 2).Where(pixel => LengthAt(slow, pixel) > 0),
+                    .. Enumerable
+                        .Range(Height / 2 * Width, Width * Height / 2)
+                        .Where(pixel => LengthAt(slow, pixel) > 0),
                 ];
                 receivers.Length.Should().BeGreaterThan(Width * Height / 4);
                 receivers
@@ -1036,16 +1032,18 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                     .BeGreaterThanOrEqualTo(receivers.Length * 95 / 100);
             }
         );
-    }
 
-    private static readonly string[] SharingSwitches = ["TERTIUS_REFLECTION_SHARING", "TERTIUS_INDIRECT_LIGHT_PROTOTYPE"];
+    private static readonly string[] SharingSwitches =
+    [
+        "TERTIUS_REFLECTION_SHARING",
+        "TERTIUS_INDIRECT_LIGHT_PROTOTYPE",
+    ];
 
     /// <summary>
     /// The receivers whose ray hits the emitter in the draw that counts its change bring back age 0 and, when their sample
     /// holds at least a quarter of their history's luminance, keep a history of one frame.
     /// </summary>
-    private void AReceiverWhoseRayHitsTheChangedEmitterKeepsOnlyTheFramesSinceTheChange(Vector3 glow)
-    {
+    private void AReceiverWhoseRayHitsTheChangedEmitterKeepsOnlyTheFramesSinceTheChange(Vector3 glow) =>
         WithRenderer(
             null,
             (renderer, scene) =>
@@ -1069,14 +1067,15 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                             && Luminance(sample, pixel) >= 0.3f * Luminance(warm, pixel)
                         ),
                 ];
-                output.WriteLine($"Receivers with a bright ray of age 0 after the glow became {glow.X}: {bright.Length}.");
+                output.WriteLine(
+                    $"Receivers with a bright ray of age 0 after the glow became {glow.X}: {bright.Length}."
+                );
                 bright.Length.Should().BeGreaterThan(30, "the plate reflects the emitter");
                 bright
                     .Should()
                     .OnlyContain(pixel => LengthAt(after, pixel) <= 1, "the light the ray sees is 0 frames old");
             }
         );
-    }
 
     /// <summary>
     /// The specular slow history and sample, the diffuse slow history and the HDR image after a dimming of the emitter
@@ -1173,7 +1172,9 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                     && pixel / Width is > 0 and < Height - 1
                     && Enumerable
                         .Range(-1, 3)
-                        .All(y => Enumerable.Range(-1, 3).All(x => ExactLightAt(record, pixel + y * Width + x) >= least))
+                        .All(y =>
+                            Enumerable.Range(-1, 3).All(x => ExactLightAt(record, pixel + y * Width + x) >= least)
+                        )
                 ),
         ];
 
@@ -1205,7 +1206,8 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
     /// The frames on screen of a pixel whose light the record never saw change, from its first frame at 0: the record
     /// holds −(frames + 1). A changed pixel's age is 0 or more, so it has none: −1.
     /// </summary>
-    private static float SeenFramesAt(float[] record, int pixel) => AgeAt(record, pixel) < 0 ? -AgeAt(record, pixel) - 1 : -1;
+    private static float SeenFramesAt(float[] record, int pixel) =>
+        AgeAt(record, pixel) < 0 ? -AgeAt(record, pixel) - 1 : -1;
 
     /// <summary>The uncovered-surface diagnostic of the specular sample, four floats per pixel.</summary>
     private static float[] UncoveredDiagnostic(VulkanRenderer renderer) =>
@@ -1272,7 +1274,9 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
             try
             {
                 RenderSnapshot scene = ReflectionTesting.Gray(settings.Gray);
-                scene.Instances.Add(ReflectionTesting.Floor(renderer, Plate with { Roughness = settings.Roughness ?? Plate.Roughness }));
+                scene.Instances.Add(
+                    ReflectionTesting.Floor(renderer, Plate with { Roughness = settings.Roughness ?? Plate.Roughness })
+                );
                 RenderInstance emitter = ReflectionTesting.Block(
                     box: renderer.CreateMesh(Primitives.Box(new(0.5f))),
                     material: ReflectionTesting.Glow(renderer, new(4)),

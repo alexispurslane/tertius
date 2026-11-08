@@ -190,12 +190,14 @@ public sealed class DescriptorLayoutsTests
         );
         using var layouts = new DescriptorLayouts(device: device, framesInFlight: 2, glowLevels: 0);
 
-        layouts.DescriptorsOf(layouts.ScreenTraceLayout).StorageImages.Compute.Should().Be(
-            original.DescriptorsOf(original.ScreenTraceLayout).StorageImages.Compute + 3
-        );
-        layouts.DescriptorsOf(layouts.AccumulateLayout).StorageImages.Compute.Should().Be(
-            original.DescriptorsOf(original.AccumulateLayout).StorageImages.Compute + 1
-        );
+        layouts
+            .DescriptorsOf(layouts.ScreenTraceLayout)
+            .StorageImages.Compute.Should()
+            .Be(original.DescriptorsOf(original.ScreenTraceLayout).StorageImages.Compute + 3);
+        layouts
+            .DescriptorsOf(layouts.AccumulateLayout)
+            .StorageImages.Compute.Should()
+            .Be(original.DescriptorsOf(original.AccumulateLayout).StorageImages.Compute + 1);
     }
 
     [Fact]
@@ -210,7 +212,10 @@ public sealed class DescriptorLayoutsTests
             historyMode: SpecularHistoryMode.PreciseCapped
         );
 
-        layouts.DescriptorsOf(layouts.ScreenTraceLayout).Should().Be(uncapped.DescriptorsOf(uncapped.ScreenTraceLayout));
+        layouts
+            .DescriptorsOf(layouts.ScreenTraceLayout)
+            .Should()
+            .Be(uncapped.DescriptorsOf(uncapped.ScreenTraceLayout));
         layouts.DescriptorsOf(layouts.AccumulateLayout).Should().Be(uncapped.DescriptorsOf(uncapped.AccumulateLayout));
     }
 
@@ -230,12 +235,14 @@ public sealed class DescriptorLayoutsTests
             instrumentation: HistoryInstrumentation.LightAgeDiagnostic
         );
 
-        layouts.DescriptorsOf(layouts.ScreenTraceLayout).StorageImages.Compute.Should().Be(
-            lightAge.DescriptorsOf(lightAge.ScreenTraceLayout).StorageImages.Compute + 1
-        );
-        layouts.DescriptorsOf(layouts.AccumulateLayout).StorageImages.Compute.Should().Be(
-            lightAge.DescriptorsOf(lightAge.AccumulateLayout).StorageImages.Compute + 1
-        );
+        layouts
+            .DescriptorsOf(layouts.ScreenTraceLayout)
+            .StorageImages.Compute.Should()
+            .Be(lightAge.DescriptorsOf(lightAge.ScreenTraceLayout).StorageImages.Compute + 1);
+        layouts
+            .DescriptorsOf(layouts.AccumulateLayout)
+            .StorageImages.Compute.Should()
+            .Be(lightAge.DescriptorsOf(lightAge.AccumulateLayout).StorageImages.Compute + 1);
     }
 
     /// <summary>
@@ -253,12 +260,14 @@ public sealed class DescriptorLayoutsTests
             instrumentation: HistoryInstrumentation.ControlTrace
         );
 
-        layouts.DescriptorsOf(layouts.ScreenTraceLayout).StorageImages.Compute.Should().Be(
-            control.DescriptorsOf(control.ScreenTraceLayout).StorageImages.Compute
-        );
-        layouts.DescriptorsOf(layouts.AccumulateLayout).StorageImages.Compute.Should().Be(
-            control.DescriptorsOf(control.AccumulateLayout).StorageImages.Compute + 1
-        );
+        layouts
+            .DescriptorsOf(layouts.ScreenTraceLayout)
+            .StorageImages.Compute.Should()
+            .Be(control.DescriptorsOf(control.ScreenTraceLayout).StorageImages.Compute);
+        layouts
+            .DescriptorsOf(layouts.AccumulateLayout)
+            .StorageImages.Compute.Should()
+            .Be(control.DescriptorsOf(control.AccumulateLayout).StorageImages.Compute + 1);
     }
 
     /// <summary>

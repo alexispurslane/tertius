@@ -153,8 +153,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
         log = device.Log;
         try
         {
-            SpecularHistoryMode historyMode = SpecularHistoryMode.Selected();
-            HistoryInstrumentation instrumentation = HistoryInstrumentation.Selected();
+            var historyMode = SpecularHistoryMode.Selected();
+            var instrumentation = HistoryInstrumentation.Selected();
             CheckOptionsOnDevice(options, device);
             Allocator = Own(new DeviceAllocator(device));
             releases = Own(new DeferredReleases());
@@ -180,12 +180,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
 
             targets = CreateTargets(options);
             surfaceHistory = Own(
-                new SurfaceHistory(
-                    device: device,
-                    allocator: Allocator,
-                    layouts: layouts,
-                    targets: targets
-                )
+                new SurfaceHistory(device: device, allocator: Allocator, layouts: layouts, targets: targets)
             );
             signalScratch = Own(
                 new SignalScratch(device: device, allocator: Allocator, targets: targets, layouts: layouts)
@@ -199,7 +194,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
             {
                 ScreenTraceOn = options.ScreenTrace is ScreenTrace,
                 TemporalShadows = upscaling is Fsr3Upscaling,
-                ReflectionSharingPrototype = options.ScreenTrace is ScreenTrace
+                ReflectionSharingPrototype =
+                    options.ScreenTrace is ScreenTrace
                     && Environment.GetEnvironmentVariable("TERTIUS_REFLECTION_SHARING") == "1",
             };
             (ShadowMap, shadowAtlas) = CreateShadowImages(options);

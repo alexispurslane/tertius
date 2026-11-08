@@ -1,4 +1,3 @@
-using System.IO.Compression;
 using System.Numerics;
 using System.Reflection;
 using System.Runtime.InteropServices;
@@ -15,7 +14,7 @@ internal static partial class Program
 
     private static int CaptureHistory(string[] args)
     {
-        HistoryRequest request = HistoryRequest.Parse(args);
+        var request = HistoryRequest.Parse(args);
         CreateNewOutput(request.Output);
         try
         {
@@ -53,7 +52,7 @@ internal static partial class Program
                 DebugJitter.Held => "held",
             }
         );
-        HistoryInstrumentation instrumentation = HistoryInstrumentation.Selected();
+        var instrumentation = HistoryInstrumentation.Selected();
         Dictionary<string, string> identities = RequireHistorySources(request.Output);
         HistorySequence schedule = request.Schedule;
         float roughness = request.Roughness == "smooth" ? 0.045f : 0.2f;
@@ -65,8 +64,8 @@ internal static partial class Program
                     Event = request.Event.ToString(),
                     Material = request.Roughness,
                     ControlMode = request.Control.ToString(),
-                    WarmUpDraws = request.WarmUpDraws,
-                    MeasuredFrames = schedule.MeasuredFrames,
+                    request.WarmUpDraws,
+                    schedule.MeasuredFrames,
                     Fps = 60,
                     EventFrame = request.Event == HistoryEvent.Static ? (int?)null : 60,
                     SamplePlanForcedFullRate = request.Control != SpecularHistoryMode.Original,
@@ -76,11 +75,13 @@ internal static partial class Program
                     Height = 720,
                     Roughness = roughness,
                     ExposureStops = ComparisonExposure,
-                    Upscaling = request.Fsr ? "Fsr3Upscaling(FixedRenderScale(1), sharpness 0): jittered, native 1280x720 render" : "NoUpscaling",
+                    Upscaling = request.Fsr
+                        ? "Fsr3Upscaling(FixedRenderScale(1), sharpness 0): jittered, native 1280x720 render"
+                        : "NoUpscaling",
                     Camera = request.Camera.ToString(),
                     DebugJitter = request.Jitter.ToString(),
                     HistoryJitter = "Pixel: the renderer's only rule since tiunr-4b2g. A history texel stands for its whole pixel and moves only with the scene's motion; a pixel whose own place holds less than LeastHistoryWeight of passing taps reads the jitter-corrected place.",
-                    EveryPng = request.EveryPng,
+                    request.EveryPng,
                     OutputHdrFiles = "measured-output-hdr.f32 holds, per measured frame, the final image before bloom and tone mapping (FSR's upscaled output, or the HDR image without an upscale) over the original 80x160 crop: little-endian float32 RGB, pre-exposure undone, frame-major then row-major. draws.jsonl FixedCropOutputPlateRedMean is its red channel summed over the crop's plate pixels, over all crop pixels.",
                     TraceFiles = "When control-trace is selected (tiunr-4b2g): measured-trace-crop.f32.gz holds, per measured frame, the 9 RGBA32F trace layers (TemporalSignal.TraceLayers) of the original 80x160 crop, layer-major then row-major. trace-NNNN.f32.gz holds all 9 layers of the whole 1280x720 screen in frames 0, 64 and the last. measured-trace-flags.u8.gz holds, per measured frame, one ScreenFlag byte per pixel of the whole 1280x720 screen, row-major (bit 0 anti-lag cut, 1 clamp moved, 2 read at the pixel place, 3 the pixel place holds less than LeastHistoryWeight, 4 hit, 5 reprojection lost more than half a frame, 6 reflected place won, 7 surface). trace-sums.f32 holds one float32 1280x720 raster per sum of TraceWriters.SumNames over the measured frames. screen-classes.u8 is the whole screen at frame 0: 0 sky, 1 plate, 2 another surface (the emitter). draws.jsonl Trace holds per-frame length-change sums of the plate, the plate pixels whose sample hit a surface, and both inside the crop.",
                     TraceSums = TraceWriters.SumNames,
@@ -105,7 +106,7 @@ internal static partial class Program
                 JsonOptions
             )
         );
-        VulkanRenderer renderer = VulkanRenderer.CreateHeadless(
+        var renderer = VulkanRenderer.CreateHeadless(
             new()
             {
                 Width = 1280,
@@ -161,7 +162,7 @@ internal static partial class Program
                 )
             );
             MeshData geometry = Primitives.Box(new(0.5f));
-            ReflectionComparisonProbe probe = ReflectionComparisonProbe.On(renderer, geometry);
+            var probe = ReflectionComparisonProbe.On(renderer, geometry);
             RenderSnapshot scene = ComparisonScene(renderer, roughness, geometry);
             MaterialId dark = renderer.CreateMaterial(
                 new(
@@ -215,7 +216,9 @@ internal static partial class Program
                 };
                 scene.Instances[1] = emitter;
                 scene.Lights[0] = EmitterLight(
-                    position: emitter.Position, previousPosition: emitter.PreviousPosition, radiance: state.Emission
+                    position: emitter.Position,
+                    previousPosition: emitter.PreviousPosition,
+                    radiance: state.Emission
                 );
                 scene.Camera.Position = state.Camera.Position;
                 scene.Camera.Rotation = state.Camera.Rotation;
@@ -259,9 +262,14 @@ internal static partial class Program
                             state.EmitterX,
                             state.PreviousEmitterX,
                             state.Emission,
-                            CameraPosition = new[] { state.Camera.Position.X, state.Camera.Position.Y, state.Camera.Position.Z },
+                            CameraPosition = new[]
+                            {
+                                state.Camera.Position.X,
+                                state.Camera.Position.Y,
+                                state.Camera.Position.Z,
+                            },
                             CameraYawDegrees = state.Camera.YawDegrees,
-                            CameraCuts = scene.CameraCuts,
+                            scene.CameraCuts,
                             ReceiverPosition = new[]
                             {
                                 scene.Instances[0].Position.X,
@@ -313,7 +321,7 @@ internal static partial class Program
                 {
                     Passed = true,
                     RendererDraws = request.WarmUpDraws + schedule.MeasuredFrames,
-                    MeasuredFrames = schedule.MeasuredFrames,
+                    schedule.MeasuredFrames,
                     ValidationMessages = 0,
                     IdentitiesUnchanged = true,
                 },
@@ -406,10 +414,10 @@ internal static partial class Program
         }
         float[][] cropFields = [.. fields.Select(field => CropAttachment(field, 2))];
         int count = ComparisonCrop.Width * ComparisonCrop.Height;
-        var inputs = new float[count * 16];
-        var source = new float[count * 15];
-        var alpha = new float[count];
-        var classification = new byte[count];
+        float[] inputs = new float[count * 16];
+        float[] source = new float[count * 15];
+        float[] alpha = new float[count];
+        byte[] classification = new byte[count];
         (float stops, float previousStops) = renderer.ReadExposureStops();
         if (stops != ComparisonExposure || previousStops != ComparisonExposure)
             throw new InvalidDataException("The history control requires exactly the fixed exposure in both frames.");
@@ -471,10 +479,7 @@ internal static partial class Program
             regionSum += fullOutput[2 * pixel] / scale;
             regionPixels++;
         }
-        bool diagnostic =
-            frame == 0
-            || frame == request.Schedule.MeasuredFrames - 1
-            || frame is 59 or 60 or 119 or 120;
+        bool diagnostic = frame == 0 || frame == request.Schedule.MeasuredFrames - 1 || frame is 59 or 60 or 119 or 120;
         if (diagnostic)
         {
             string folder = Path.Combine(request.Output, $"diagnostic-{frame:D4}");
@@ -492,7 +497,11 @@ internal static partial class Program
             bool[] plateMask = PlateMask(fields);
             File.WriteAllBytes(
                 Path.Combine(request.Output, "screen-classes.u8"),
-                [.. Enumerable.Range(0, plateMask.Length).Select(pixel => ScreenClass(plateMask[pixel], fields[4][2 * pixel + 1]))]
+                [
+                    .. Enumerable
+                        .Range(0, plateMask.Length)
+                        .Select(pixel => ScreenClass(plateMask[pixel], fields[4][2 * pixel + 1])),
+                ]
             );
             File.WriteAllBytes(Path.Combine(request.Output, "surface-classification.u8"), classification);
             File.WriteAllText(
@@ -579,7 +588,7 @@ internal static partial class Program
                     .Where(name => name.EndsWith(".spv", StringComparison.Ordinal))
                     .Order(),
             ];
-            var hashes = shaders.ToDictionary(
+            Dictionary<string, string> hashes = shaders.ToDictionary(
                 name => name,
                 name =>
                 {
@@ -673,7 +682,10 @@ internal readonly record struct HistorySequence(HistoryEvent Event, int WarmUpDr
         if (Camera == HistoryCamera.Still)
             return new(start, 0);
         float yaw = Math.Clamp(frame - 59, 0, PanFrames) * PanDegreesPerSecond / 60;
-        Vector3 right = Vector3.Transform(Vector3.UnitX, Quaternion.CreateFromAxisAngle(Vector3.UnitY, yaw * MathF.PI / 180));
+        var right = Vector3.Transform(
+            Vector3.UnitX,
+            Quaternion.CreateFromAxisAngle(Vector3.UnitY, yaw * MathF.PI / 180)
+        );
         float walked = Math.Max(frame - 59 - PanFrames, 0) * WalkMetersPerSecond / 60;
         return new(start + walked * right, yaw);
     }

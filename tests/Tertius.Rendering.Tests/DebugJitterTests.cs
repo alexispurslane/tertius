@@ -1,5 +1,4 @@
 using System.Numerics;
-using Tertius.Testing;
 
 namespace Tertius.Rendering.Tests;
 
@@ -86,7 +85,11 @@ public sealed class DebugJitterTests
                 scene.Instances.Add(
                     ReflectionTesting.Floor(
                         renderer,
-                        new(BaseColor: new(new Vector3(0.5f), 1), Roughness: 0.5f, Model: new StandardShading(Metallic: 0))
+                        new(
+                            BaseColor: new(new Vector3(0.5f), 1),
+                            Roughness: 0.5f,
+                            Model: new StandardShading(Metallic: 0)
+                        )
                     )
                 );
                 RenderInstance block = ReflectionTesting.Block(

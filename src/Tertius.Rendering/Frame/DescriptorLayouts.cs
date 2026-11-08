@@ -100,7 +100,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// binding 22 the uncovered-surface diagnostic (<see cref="HistoryInstrumentation.LightAgeDiagnostic"/>).
     /// </summary>
     private uint ScreenTraceAgeImages =>
-        (HistoryMode.KeepsLightAge ? 3u : 0u) + (Instrumentation == HistoryInstrumentation.LightAgeDiagnostic ? 1u : 0u);
+        (HistoryMode.KeepsLightAge ? 3u : 0u)
+        + (Instrumentation == HistoryInstrumentation.LightAgeDiagnostic ? 1u : 0u);
 
     /// <summary>
     /// The signal sets: one per part and parity of the screen tracer's two signals of one part, and of a test's signal of

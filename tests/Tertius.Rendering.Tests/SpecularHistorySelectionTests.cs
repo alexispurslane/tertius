@@ -17,7 +17,7 @@ public sealed class SpecularHistorySelectionTests
     [InlineData("original", nameof(SpecularHistoryMode.Original))]
     public void EachSettingSelectsItsHistory(string? value, string expected)
     {
-        SpecularHistoryMode selected = WithSwitch(value, () => SpecularHistoryMode.Selected());
+        SpecularHistoryMode selected = WithSwitch(value, SpecularHistoryMode.Selected);
 
         selected.Should().Be(Enum.Parse<SpecularHistoryMode>(expected));
     }

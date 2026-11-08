@@ -11,16 +11,28 @@ internal sealed record RadianceTotals(double ReferenceSum, double CandidateSum, 
 }
 
 internal sealed record MetricRoot(double Position, string Direction, bool Occluded);
+
 internal sealed record MetricInterval(double Start, double End);
+
 internal sealed record MetricRoots(MetricRoot[] Points, MetricInterval[] Plateaus);
+
 internal sealed record MetricEdge(double? Position, string[] Reasons);
+
 internal sealed record MetricLevel(double Height, MetricRoots Roots, MetricEdge Left, MetricEdge Right);
+
 internal sealed record MetricWidth(double? Lower, double? Upper, string? Reason)
 {
     public double? Width => Upper - Lower;
 }
+
 internal sealed record MetricTemporal(double Mean, double SampleStandardDeviation, double First8Last8Difference);
-internal sealed record MetricProfile(MetricLevel[] Levels, MetricWidth Central90, double? LeftTransition, double? RightTransition);
+
+internal sealed record MetricProfile(
+    MetricLevel[] Levels,
+    MetricWidth Central90,
+    double? LeftTransition,
+    double? RightTransition
+);
 
 internal static class MetricMath
 {
@@ -74,7 +86,8 @@ internal static class MetricMath
                         if (values[index - 1] > level && values[index + 1] < level)
                             direction = "falling";
                     }
-                    bool occluded = coverage[Math.Max(0, index - 1)..Math.Min(values.Length, index + 2)].Any(value => value < 1);
+                    bool occluded = coverage[Math.Max(0, index - 1)..Math.Min(values.Length, index + 2)]
+                        .Any(value => value < 1);
                     roots.Add(new(index + 0.5, direction, occluded));
                 }
                 index = end;
@@ -85,7 +98,13 @@ internal static class MetricMath
             double second = values[index + 1];
             if (level <= Math.Min(first, second) || level >= Math.Max(first, second))
                 continue;
-            roots.Add(new(index + 0.5 + (level - first) / (second - first), second > first ? "rising" : "falling", coverage[index] < 1 || coverage[index + 1] < 1));
+            roots.Add(
+                new(
+                    index + 0.5 + (level - first) / (second - first),
+                    second > first ? "rising" : "falling",
+                    coverage[index] < 1 || coverage[index + 1] < 1
+                )
+            );
         }
         return new([.. roots], [.. plateaus]);
     }
@@ -126,11 +145,20 @@ internal static class MetricMath
                 position = selected[0].Position;
             return new(position, [.. reasons]);
         }
-        return new(Height: level, Roots: roots, Left: Side("rising", values[0] > level), Right: Side("falling", values[^1] > level));
+        return new(
+            Height: level,
+            Roots: roots,
+            Left: Side("rising", values[0] > level),
+            Right: Side("falling", values[^1] > level)
+        );
     }
 
     public static double[] Weights(int length, MetricInterval interval) =>
-        [.. Enumerable.Range(0, length).Select(index => Math.Max(0, Math.Min(index + 1, interval.End) - Math.Max(index, interval.Start)))];
+        [
+            .. Enumerable
+                .Range(0, length)
+                .Select(index => Math.Max(0, Math.Min(index + 1, interval.End) - Math.Max(index, interval.Start))),
+        ];
 
     public static MetricWidth Central90(double[] values, int origin)
     {
@@ -156,7 +184,10 @@ internal static class MetricMath
     public static MetricTemporal Temporal(double[] values)
     {
         if (values.Length < 16 || values.Any(value => !double.IsFinite(value)))
-            throw new ArgumentException("Temporal metrics require at least sixteen finite recorded values.", nameof(values));
+            throw new ArgumentException(
+                "Temporal metrics require at least sixteen finite recorded values.",
+                nameof(values)
+            );
         double mean = values.Average();
         double variance = values.Sum(value => (value - mean) * (value - mean)) / (values.Length - 1);
         return new(mean, Math.Sqrt(variance), values[^8..].Average() - values[..8].Average());
@@ -187,7 +218,17 @@ internal sealed class MetricProfileBasis
 
     public MetricProfile Measure(double[] candidate)
     {
-        MetricLevel[] levels = [.. Fractions.Select(fraction => MetricMath.Level(values: candidate, coverage: coverage, level: amplitude * fraction, origin: origin))];
-        return new(Levels: levels, Central90: MetricMath.Central90(candidate, origin), LeftTransition: levels[2].Left.Position - levels[0].Left.Position, RightTransition: levels[0].Right.Position - levels[2].Right.Position);
+        MetricLevel[] levels =
+        [
+            .. Fractions.Select(fraction =>
+                MetricMath.Level(values: candidate, coverage: coverage, level: amplitude * fraction, origin: origin)
+            ),
+        ];
+        return new(
+            Levels: levels,
+            Central90: MetricMath.Central90(candidate, origin),
+            LeftTransition: levels[2].Left.Position - levels[0].Left.Position,
+            RightTransition: levels[0].Right.Position - levels[2].Right.Position
+        );
     }
 }

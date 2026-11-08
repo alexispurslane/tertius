@@ -41,7 +41,13 @@ public sealed class ReflectionReferenceTests
     [Fact]
     public void DifferentPositionsWithinAPixelSeeDifferentDirections()
     {
-        var camera = new ReferenceCamera(Eye: new(0, 3, 6), Target: Double3.Zero, VerticalFov: Math.PI / 3, Width: 1280, Height: 720);
+        var camera = new ReferenceCamera(
+            Eye: new(0, 3, 6),
+            Target: Double3.Zero,
+            VerticalFov: Math.PI / 3,
+            Width: 1280,
+            Height: 720
+        );
 
         Double3 left = camera.Ray(640, 360);
         Double3 right = camera.Ray(641, 360);
@@ -79,7 +85,12 @@ public sealed class ReflectionReferenceTests
     public void DoublingEmittedRadianceDoublesReflectedRadiance()
     {
         var emitter = new ReferenceEmitter(Minimum: new(-1, 1, -1), Maximum: new(1, 1.1, 1), Radiance: new(1, 2, 3));
-        var material = new MaterialSample(BaseColor: new(0.06, 0.06, 0.06), Metallic: 0, Roughness: 0.2, Reflectance: 0.5);
+        var material = new MaterialSample(
+            BaseColor: new(0.06, 0.06, 0.06),
+            Metallic: 0,
+            Roughness: 0.2,
+            Reflectance: 0.5
+        );
         var original = new ReferenceIntegral(emitter, material);
         var doubled = new ReferenceIntegral(emitter with { Radiance = 2 * emitter.Radiance }, material);
 
@@ -93,22 +104,41 @@ public sealed class ReflectionReferenceTests
     [Fact]
     public void UnseenEmittersProvideNoReflectedLight()
     {
-        var emitter = new ReferenceEmitter(Minimum: new(-1, -2, -1), Maximum: new(1, -1, 1), Radiance: new(6800, 6800, 6800));
-        var material = new MaterialSample(BaseColor: new(0.06, 0.06, 0.06), Metallic: 0, Roughness: 0.2, Reflectance: 0.5);
+        var emitter = new ReferenceEmitter(
+            Minimum: new(-1, -2, -1),
+            Maximum: new(1, -1, 1),
+            Radiance: new(6800, 6800, 6800)
+        );
+        var material = new MaterialSample(
+            BaseColor: new(0.06, 0.06, 0.06),
+            Metallic: 0,
+            Roughness: 0.2,
+            Reflectance: 0.5
+        );
         var integral = new ReferenceIntegral(emitter, material);
 
-        integral.Estimate(point: Double3.Zero, toView: Double3.UnitY, pairs: 2048, seed: 9).Should().Be(default(DirectTerms));
+        integral
+            .Estimate(point: Double3.Zero, toView: Double3.UnitY, pairs: 2048, seed: 9)
+            .Should()
+            .Be(default(DirectTerms));
     }
 
     [Fact]
     public void TwoIndependentSamplingDensitiesAgreeAtBroadRoughness()
     {
         var emitter = new ReferenceEmitter(Minimum: new(-1, 1, -1), Maximum: new(1, 1.1, 1), Radiance: new(1, 1, 1));
-        var material = new MaterialSample(BaseColor: new(0.06, 0.06, 0.06), Metallic: 0, Roughness: 0.6, Reflectance: 0.5);
+        var material = new MaterialSample(
+            BaseColor: new(0.06, 0.06, 0.06),
+            Metallic: 0,
+            Roughness: 0.6,
+            Reflectance: 0.5
+        );
         var integral = new ReferenceIntegral(emitter, material);
 
         Double3 mixed = integral.Estimate(point: Double3.Zero, toView: Double3.UnitY, pairs: 16384, seed: 29).Specular;
-        Double3 area = integral.Estimate(point: Double3.Zero, toView: Double3.UnitY, pairs: 32768, seed: 83, emitterOnly: true).Specular;
+        Double3 area = integral
+            .Estimate(point: Double3.Zero, toView: Double3.UnitY, pairs: 32768, seed: 83, emitterOnly: true)
+            .Specular;
 
         mixed.X.Should().BeGreaterThan(0);
         area.X.Should().BeApproximately(mixed.X, mixed.X * 0.01);
@@ -117,7 +147,13 @@ public sealed class ReflectionReferenceTests
     [Fact]
     public void ATopDownCameraKeepsTheHorizontalPixelFootprint()
     {
-        var camera = new ReferenceCamera(Eye: new(0, 3, 0), Target: Double3.Zero, VerticalFov: Math.PI / 3, Width: 1280, Height: 720);
+        var camera = new ReferenceCamera(
+            Eye: new(0, 3, 0),
+            Target: Double3.Zero,
+            VerticalFov: Math.PI / 3,
+            Width: 1280,
+            Height: 720
+        );
 
         camera.Ray(641, 360).X.Should().BeGreaterThan(camera.Ray(640, 360).X);
     }
@@ -125,11 +161,33 @@ public sealed class ReflectionReferenceTests
     [Fact]
     public void APixelOfTheBarReflectionContainsLight()
     {
-        var camera = new ReferenceCamera(Eye: new(0, 3, 6), Target: new(0, 0, 6 - 3 * Math.Sqrt(3)), VerticalFov: Math.PI / 3, Width: 1280, Height: 720);
-        var emitter = new ReferenceEmitter(Minimum: new(-1.1, 0, -2.1), Maximum: new(-0.9, 2, -1.9), Radiance: new(6800, 6800, 6800));
-        var material = new MaterialSample(BaseColor: new(0.06, 0.06, 0.06), Metallic: 0, Roughness: 0.2, Reflectance: 0.5);
+        var camera = new ReferenceCamera(
+            Eye: new(0, 3, 6),
+            Target: new(0, 0, 6 - 3 * Math.Sqrt(3)),
+            VerticalFov: Math.PI / 3,
+            Width: 1280,
+            Height: 720
+        );
+        var emitter = new ReferenceEmitter(
+            Minimum: new(-1.1, 0, -2.1),
+            Maximum: new(-0.9, 2, -1.9),
+            Radiance: new(6800, 6800, 6800)
+        );
+        var material = new MaterialSample(
+            BaseColor: new(0.06, 0.06, 0.06),
+            Metallic: 0,
+            Roughness: 0.2,
+            Reflectance: 0.5
+        );
 
-        ReferenceImage[] images = ReferenceImage.RenderLevels(camera: camera, crop: new(Left: 560, Top: 310, Width: 2, Height: 2), emitter: emitter, material: material, levels: [64, 256], seed: 41);
+        ReferenceImage[] images = ReferenceImage.RenderLevels(
+            camera: camera,
+            crop: new(Left: 560, Top: 310, Width: 2, Height: 2),
+            emitter: emitter,
+            material: material,
+            levels: [64, 256],
+            seed: 41
+        );
 
         images[1].Pixels.Sum(value => value.X).Should().BeGreaterThan(0);
         images[1].Pixels.Should().HaveCount(4);
@@ -156,7 +214,7 @@ public sealed class ReflectionReferenceTests
         var reference = new ReferenceImage(Width: 2, Height: 1, Pixels: [new(4, 4, 4), new(4, 4, 4)]);
         var candidate = new ReferenceImage(Width: 2, Height: 1, Pixels: [new(2, 2, 2), new(4, 4, 4)]);
 
-        ReferenceDifference difference = ReferenceDifference.Compare(reference, candidate);
+        var difference = ReferenceDifference.Compare(reference, candidate);
 
         difference.MissingFraction.Should().BeApproximately(0.25, 1e-14);
         difference.ExcessFraction.Should().Be(0);
@@ -169,7 +227,7 @@ public sealed class ReflectionReferenceTests
         var reference = new ReferenceImage(Width: 2, Height: 1, Pixels: [new(4, 4, 4), new(4, 4, 4)]);
         var candidate = new ReferenceImage(Width: 2, Height: 1, Pixels: [new(2, 2, 2), new(6, 6, 6)]);
 
-        ReferenceDifference difference = ReferenceDifference.Compare(reference, candidate);
+        var difference = ReferenceDifference.Compare(reference, candidate);
 
         difference.MissingFraction.Should().BeApproximately(0.25, 1e-14);
         difference.ExcessFraction.Should().BeApproximately(0.25, 1e-14);
