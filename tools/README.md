@@ -1087,6 +1087,12 @@ nix develop --command dotnet test --solution Tertius.slnx -c Checked
 
 A full run of one test project records only that project. `tools/test-all.sh` records every project in both configurations. If you edit code after the run, the hash changes, and the hook runs the tests again. An edit to a ticket or a Markdown file leaves the hash as it was.
 
+A file that is not code can have staged content that differs from both the disk and HEAD, for example after a partial `git add -p`. The script removes such a file from its copy of the index with `git rm -f`, so the hash stays as it was. `tools/test_code_tree.py` tests this in new repositories under `/private/tmp`, with the standard library only:
+
+```bash
+nix develop --command python3 -I tools/test_code_tree.py
+```
+
 ### After a commit
 
 The post-commit hook attaches the pending slop note to the new commit, under `refs/notes/slop`. The hook compares the tree of the commit with the tree that the pre-commit hook measured. If the two trees are different, the commit gets no note. A commit without a pending note also gets no note here: a commit with `--no-verify`, a commit without C# changes, and a merge, which runs no post-commit hook. If such a commit changes C# code under `src`, the pre-push hook notes it.
