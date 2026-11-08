@@ -131,21 +131,31 @@ public sealed class WalkSliceTests(WalkRun run) : IClassFixture<WalkRun>
     }
 
     [Fact]
-    public void AfterTheQuarterTurnThePortWallFillsTheViewWhereTheRoofWasDark()
+    public void TheCeilingPanelsSendNoLightToTheRoofAroundThem()
     {
-        // Facing the nose, the top left of the image shows the roof, which the lamps leave dark away from them. After the
-        // quarter turn, the person faces the port wall from 3.5 m away, and the wall, lit by the lamps, fills the image.
-        // In SI units each capture takes the automatic exposure of a scripted run, which raises the dim cabin, so the roof
-        // is dark beside the lamp-lit wall, not dark on an absolute scale. The roof showed (42, 39, 35), under half the
-        // wall, while the map held the ceiling panels' glow: that glow lit the floor and the walls a second time but not the
-        // roof, which faces away from the panels. The map now leaves a lamp's glow out (ter-ylzk), so the exposure rises
-        // by about 1.2 stops, and the roof shows (74, 69, 63), about two thirds of the wall's (109, 103, 95).
-        (int r, int g, int b) roof = run.Capture("cabin").Average(300, 100);
+        // Each cabin lamp is a rectangle light on the lower face of its panel, which shines down (ARCHITECTURE.md,
+        // "Rectangle lights"), so the roof lies behind every face and takes only the light that the floor and the walls
+        // send back. Facing the nose, the roof beside the nearest panel, at the top of the image, shows the same as the
+        // roof at the top left, 4 m away from it: (106, 100, 92) at both on 2026-11-08. The bulbs behind the panels before
+        // lit a bright ring on the roof around each panel.
+        Png cabin = run.Capture("cabin");
+        (int r, int g, int b) besideLamp = cabin.Average(540, 40);
+        (int r, int g, int b) awayFromLamps = cabin.Average(300, 100);
+
+        Math.Abs(besideLamp.r - awayFromLamps.r)
+            .Should()
+            .BeLessThanOrEqualTo(4, $"the roof beside a panel {besideLamp} takes no more light than away from it {awayFromLamps}");
+    }
+
+    [Fact]
+    public void AfterTheQuarterTurnThePortWallFillsTheView()
+    {
+        // After the quarter turn, the person faces the port wall from 3.5 m away, and the wall, lit by the lamps, fills the
+        // image. In SI units each capture takes the automatic exposure of a scripted run. The top left showed the roof
+        // before the turn, which is no darker than the wall now that the panels light only below their faces: (106, 100,
+        // 92) against the wall's (99, 93, 85) on 2026-11-08.
         (int r, int g, int b) wall = run.Capture("turned").Average(300, 100);
 
-        (roof.r + roof.g + roof.b < 3 * (wall.r + wall.g + wall.b) / 4)
-            .Should()
-            .BeTrue($"facing the nose, the top left shows the roof, darker than the lamp-lit wall {wall}, not {roof}");
         (wall.r > 80 && wall.r > wall.b)
             .Should()
             .BeTrue($"after the turn, the top left shows the lamp-lit port wall, not {wall}");

@@ -226,12 +226,17 @@ public sealed class ShuttleTests : IDisposable
             world.GetFrame(lamp).Should().Be(cabin);
             DPose pose = world.PoseIn(lamp, cabin);
             (pose.Position - panel.Center).Length.Should().BeLessThan(1e-5, id);
-            PointLightData light = world.GetRender(lamp).Light is PointLightData point ? point : default;
+            RectLightData light = world.GetRender(lamp).Light is RectLightData face ? face : default;
             light.Power.Should().Be(10, $"{id} carries a cabin lamp's light of 10 W, about 3,000 lumens");
             light.CastsShadow.Should().BeTrue($"the light of {id} casts shadows; its panel does not darken it");
-            (light.Offset.Position - new Double3(-side * 0.3, 0, 0))
+            (light.Offset.Position - new Double3(-side * 0.025, 0, 0))
                 .Length.Should()
-                .BeLessThan(1e-6, $"the light of {id} lies 0.3 m in front of it");
+                .BeLessThan(1e-6, $"the light of {id} is the panel's face toward the cabin");
+            (Vector3.Transform(Vector3.UnitZ, light.Offset.Rotation) - new Vector3(-side, 0, 0))
+                .Length()
+                .Should()
+                .BeLessThan(1e-6f, $"the face of {id} shines toward the cabin's middle");
+            (light.Width, light.Height).Should().Be((0.15f, 0.5f), $"the light of {id} is as wide and as tall as its face");
         }
     }
 

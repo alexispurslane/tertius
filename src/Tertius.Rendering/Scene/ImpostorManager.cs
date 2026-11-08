@@ -783,6 +783,9 @@ internal sealed partial class ImpostorManager : IInstanceProcessor
             Vector3 unit = toLight / distance;
             if (light.Spread is Cone { Axis: var axis, CosInner: var cosInner, CosOuter: var cosOuter })
                 falloff *= SmoothStep(cosOuter, cosInner, Vector3.Dot(-unit, axis));
+            // From afar a rectangle light's intensity falls with the cosine to its front, and its back sends none.
+            if (light.Spread is RectFace { HalfWidth: var width, HalfHeight: var height })
+                falloff *= MathF.Max(Vector3.Dot(-unit, Vector3.Normalize(Vector3.Cross(width, height))), 0f);
             Vector3 unlimited = light.RadiantIntensity * falloff;
             if (index == airSunLight)
                 unlimited *= PaintedAtmosphere.SunTintAt(atmosphere, instance.Position);

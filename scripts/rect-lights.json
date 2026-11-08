@@ -1,0 +1,8 @@
+{
+  "scene": "rect-lights",
+  "window": { "width": 1280, "height": 720 },
+  "steps": [
+    { "do": "run", "ticks": 60 },
+    { "do": "capture", "name": "floors" }
+  ]
+}

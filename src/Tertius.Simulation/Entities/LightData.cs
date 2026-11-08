@@ -73,15 +73,44 @@ public readonly record struct TubeLightData(
 }
 
 /// <summary>
-/// The dynamic light that an entity carries: a <see cref="PointLightData"/>, a <see cref="SpotLightData"/> or a
-/// <see cref="TubeLightData"/>. The default
+/// A rectangle light that an entity carries: a one-sided rectangle of <see cref="Width"/> along the local X axis of its
+/// pose and <see cref="Height"/> along its local Y axis, centered on the pose, whose front face sends its power toward
+/// local +Z with the same radiance in every direction, in SI units (ARCHITECTURE.md, "Rectangle lights"). Its pose is the
+/// entity's pose composed with <see cref="Offset"/>.
+/// </summary>
+/// <param name="Offset">The light's pose relative to the entity. A zeroed rotation, as in a defaulted pose, counts as the identity.</param>
+/// <param name="Color">Linear RGB that scales the power per channel.</param>
+/// <param name="Power">The radiant power that leaves the front face, in W. A light of 0 or less adds no light.</param>
+/// <param name="Width">The rectangle's side along local X, in m, above 0.</param>
+/// <param name="Height">The rectangle's side along local Y, in m, above 0.</param>
+/// <param name="CastsShadow">Whether the light casts shadows from the rectangle's center, within the renderer's budgets.</param>
+public readonly record struct RectLightData(
+    Pose Offset,
+    Vector3 Color,
+    float Power,
+    float Width,
+    float Height,
+    bool CastsShadow
+)
+{
+    /// <summary>
+    /// The radiance that the front face of area Width · Height sends when it emits <see cref="Power"/> evenly:
+    /// Color · Power / (π · Width · Height), in W/(m²·sr). A scene gives the glowing panel that holds the light this
+    /// emission.
+    /// </summary>
+    public Vector3 SurfaceRadiance => Color * (float)(Power / (Math.PI * (double)Width * Height));
+}
+
+/// <summary>
+/// The dynamic light that an entity carries: a <see cref="PointLightData"/>, a <see cref="SpotLightData"/>, a
+/// <see cref="TubeLightData"/> or a <see cref="RectLightData"/>. The default
 /// value holds no light, so an entity whose <see cref="RenderData.Light"/> is the default carries none and puts nothing in
 /// the render snapshot. To switch a light off and on again, keep the light value and write the default over it.
 /// </summary>
 /// <remarks>
 /// This is a generated union (docs/plans/union-tooling.md) of <see cref="PointLightData"/>,
-/// <see cref="SpotLightData"/> and <see cref="TubeLightData"/>. Equality needs the same case and the same fields, and counts a NaN as equal to a NaN, as
+/// <see cref="SpotLightData"/>, <see cref="TubeLightData"/> and <see cref="RectLightData"/>. Equality needs the same case and the same fields, and counts a NaN as equal to a NaN, as
 /// <see cref="Vector3.Equals(Vector3)"/> does.
 /// </remarks>
-[GeneratedUnion(typeof(PointLightData), typeof(SpotLightData), typeof(TubeLightData))]
+[GeneratedUnion(typeof(PointLightData), typeof(SpotLightData), typeof(TubeLightData), typeof(RectLightData))]
 public readonly partial struct LightData;

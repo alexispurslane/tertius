@@ -392,7 +392,7 @@ public sealed class RenderSnapshotLightingTests
         {
             PointRenderLight point => (point.Position, point.PreviousPosition),
             SpotRenderLight spotLight => (spotLight.Position, spotLight.PreviousPosition),
-            TubeRenderLight => throw new InvalidOperationException("The lamp is no tube."),
+            TubeRenderLight or RectRenderLight => throw new InvalidOperationException("The lamp is no tube or rectangle."),
             null => throw new InvalidOperationException("The lamp's light holds a case."),
         };
         position.Should().Be(new Vector3(12, -1, -5));
@@ -484,6 +484,60 @@ public sealed class RenderSnapshotLightingTests
         PoseChecks.AssertNear(tube.PreviousAxis, new(-1, 0, 0), 1e-6f);
         tube.Length.Should().Be(1.7f);
         tube.Radius.Should().Be(0.13f);
+    }
+
+    [Fact]
+    public void ARectangleLightFollowsItsEntityAndTurnsItsFaceWithIt()
+    {
+        using var test = new TestWorld();
+        test.World.Camera = test.SpawnCamera(test.Root, DPose.Identity);
+        // The panel moves 1 m along +X and turns a quarter turn about +Y in each tick, and its offset turns its face a
+        // quarter turn about +X: from +Z, its local front, to −Y, straight down. At the end of tick 1 the entity has
+        // turned by a half turn, which takes the down-facing front to (0, −1, 0) still, and its width from +X to −X.
+        var faceDown = Quaternion.CreateFromAxisAngle(Vector3.UnitX, MathF.PI / 2);
+        test.World.Spawn(
+            new()
+            {
+                Frame = test.Root,
+                Render = new RenderData
+                {
+                    Light = new RectLightData(
+                        Offset: new(new Vector3(0, -0.1f, 0), faceDown),
+                        Color: LampColor,
+                        Power: 10,
+                        Width: 1.2f,
+                        Height: 0.6f,
+                        CastsShadow: true
+                    ),
+                },
+                Components =
+                [
+                    Lambda.OnTick(
+                        (self, scoped ref events, scoped ref outbox) =>
+                            self.SetTransform(
+                                new DPose(
+                                    new Double3(self.Tick + 1, 3, -5),
+                                    DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI / 2 * (self.Tick + 1))
+                                )
+                            )
+                    ),
+                ],
+            }
+        );
+        test.Run(1);
+        test.World.Latest();
+
+        test.Run(1);
+
+        test.World.Latest().Lights.Single().TryGetValue(out RectRenderLight rect).Should().BeTrue();
+        PoseChecks.AssertNear(rect.Position, new(2, 2.9f, -5));
+        PoseChecks.AssertNear(rect.PreviousPosition, new(1, 2.9f, -5));
+        PoseChecks.AssertNear(Vector3.Transform(Vector3.UnitZ, rect.Rotation), new(0, -1, 0), 1e-6f);
+        PoseChecks.AssertNear(Vector3.Transform(Vector3.UnitX, rect.Rotation), new(-1, 0, 0), 1e-6f);
+        PoseChecks.AssertNear(Vector3.Transform(Vector3.UnitX, rect.PreviousRotation), new(0, 0, -1), 1e-6f);
+        rect.Width.Should().Be(1.2f);
+        rect.Height.Should().Be(0.6f);
+        rect.CastsShadow.Should().BeTrue();
     }
 
     [Fact]
