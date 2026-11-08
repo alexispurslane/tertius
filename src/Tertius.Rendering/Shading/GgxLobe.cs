@@ -73,10 +73,24 @@ internal readonly record struct GgxLobe
     /// <param name="vDotH">The cosine of the view direction to the half vector of the representative point.</param>
     public double SphereNormalization(double lightSine, double vDotH)
     {
-        double widened = Math.Min(Alpha + lightSine / (2 * Math.Sqrt(Math.Max(vDotH, MinHalfCosine))), 1);
-        double share = Alpha / widened;
+        double share = WidenedShare(lightSine, vDotH);
         return share * share;
     }
+
+    /// <summary>
+    /// (α / α′_c) (α / α′_a), the normalization of the lobe that a tube light widens by the half-widths of its
+    /// representative point's ellipse, each widened as <see cref="SphereNormalization"/> widens α (ARCHITECTURE.md, "Tube
+    /// lights"). tubeNormalization in brdf.glsl is the GPU copy.
+    /// </summary>
+    /// <param name="crossSine">The sine of the half-width across the tube, R over the distance to the representative point.</param>
+    /// <param name="alongSine">The sine of the half-width along the tube, Ω / (π · crossSine).</param>
+    /// <param name="vDotH">The cosine of the view direction to the half vector of the representative point.</param>
+    public double TubeNormalization(double crossSine, double alongSine, double vDotH) =>
+        WidenedShare(crossSine, vDotH) * WidenedShare(alongSine, vDotH);
+
+    /// <summary>α / α′, with α′ = min(α + sin ϕ / (2 √(v·h)), 1) for the half-width of sine <paramref name="sine"/>.</summary>
+    private double WidenedShare(double sine, double vDotH) =>
+        Alpha / Math.Min(Alpha + sine / (2 * Math.Sqrt(Math.Max(vDotH, MinHalfCosine))), 1);
 
     /// <summary>
     /// The unit direction toward Karis's representative point of a sphere light: the point of the sphere nearest the

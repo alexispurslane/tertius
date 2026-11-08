@@ -88,3 +88,7 @@ Suites after the new tests: full Checked 10,312 total, 0 failed, 24 skipped; ful
 **2026-11-08T03:55:43Z**
 
 2026-11-08: verified the acceptance report: checked2.log 10,312 run 0 failed, release2.log 10,299 run 0 failed; no switch left in src or tests (two historical mentions in the capture tool's request.json field and README); no commit outside T3 checkpoints. Mutants 19 killed, 3 judgment calls (S18 trace flag, S21 prototype, ticket tiunr-zoec, S22 one-frame read). Screenshots looked at: the reflections-long floor shows sparse white specks from rare bright hits (ter-12xp).
+
+**2026-11-08T19:13:03Z**
+
+2026-11-08, merge commit da70cd8c: the commit report asked to split TemporalSignal.Accumulate (CC 15, 46 statements), TemporalSignal.cs:390 (64 lines) with a statement wall at 459-477, VulkanRenderer.cs:134 (104 lines) and :2114 (76 lines), and the long methods of the capture tool (Program.History.cs, Program.Uncovered.cs, Program.cs). Not done in this commit. Most of Accumulate's branches and of the long renderer methods select the opt-in research prototypes (single diffuse history, reflection distance guide, instrumentation). Their removal or acceptance is the real simplification, and a split now would only move those branches. The tool methods are research capture scripts. The merge task kept the accepted behavior byte-identical and did not restructure it.

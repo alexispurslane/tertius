@@ -79,15 +79,55 @@ public readonly record struct SpotRenderLight(
 }
 
 /// <summary>
-/// One light of a <see cref="RenderSnapshot"/>: a <see cref="PointRenderLight"/> or a <see cref="SpotRenderLight"/>.
+/// A tube light of the snapshot: a capsule around a segment through <see cref="Position"/> along <see cref="Axis"/>, whose
+/// surface sends its power the same in every direction. Its places and axes follow the rules of the position of a
+/// <see cref="RenderInstance"/> (ARCHITECTURE.md, "Tube lights").
+/// </summary>
+/// <param name="EntityIndex">As for <see cref="PointRenderLight"/>: the slot names the light within one snapshot.</param>
+/// <param name="EntityGeneration">As for <see cref="PointRenderLight"/>.</param>
+/// <param name="Position">The middle of the segment, relative to the render origin, in the axes of the camera's frame, in meters.</param>
+/// <param name="PreviousPosition">The middle at the previous snapshot, relative to the same origin, as an instance's.</param>
+/// <param name="Axis">
+/// The direction of the segment, in the axes of the camera's frame. It need not be normalized. The renderer takes +Y
+/// when it is zero.
+/// </param>
+/// <param name="PreviousAxis">The direction at the previous snapshot.</param>
+/// <param name="Color">Linear RGB that scales the power per channel.</param>
+/// <param name="Power">The radiant power that leaves the light, in W.</param>
+/// <param name="Radius">The radius of the capsule, in m.</param>
+/// <param name="Length">The length of the segment between the centers of the capsule's ends, in m.</param>
+/// <param name="CastsShadow">Whether the light casts shadows from the segment's middle, within the renderer's budgets.</param>
+/// <param name="ChainDepth">As for <see cref="PointRenderLight"/>.</param>
+public readonly record struct TubeRenderLight(
+    uint EntityIndex,
+    uint EntityGeneration,
+    Vector3 Position,
+    Vector3 PreviousPosition,
+    Vector3 Axis,
+    Vector3 PreviousAxis,
+    Vector3 Color,
+    float Power,
+    float Radius,
+    float Length,
+    bool CastsShadow,
+    ushort ChainDepth
+)
+{
+    /// <summary>As for <see cref="PointRenderLight.Entity"/>.</summary>
+    public Entity Entity => new(Index: EntityIndex, Generation: EntityGeneration);
+}
+
+/// <summary>
+/// One light of a <see cref="RenderSnapshot"/>: a <see cref="PointRenderLight"/>, a <see cref="SpotRenderLight"/> or a
+/// <see cref="TubeRenderLight"/>.
 /// The default value holds no light. The renderer skips it.
 /// </summary>
 /// <remarks>
 /// The union generator writes its union members (docs/plans/union-tooling.md). A light reads only the values of its own
 /// case. The cases share their slots by type, so the union takes the fields of one spot light and its kind byte, 88
-/// bytes.
+/// bytes: a tube light's fields fit in a spot light's.
 /// Equality needs the same case and the same values, and counts a NaN as equal to a NaN, as
 /// <see cref="Vector3.Equals(Vector3)"/> does.
 /// </remarks>
-[GeneratedUnion(typeof(PointRenderLight), typeof(SpotRenderLight))]
+[GeneratedUnion(typeof(PointRenderLight), typeof(SpotRenderLight), typeof(TubeRenderLight))]
 public readonly partial struct RenderLight;

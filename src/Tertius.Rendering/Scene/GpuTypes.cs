@@ -273,6 +273,9 @@ internal struct GpuLight
     /// <summary>The kind of a spot light in <see cref="IntensityKind"/>.w.</summary>
     public const float SpotKind = 1f;
 
+    /// <summary>The kind of a tube light, a point light with a segment, in <see cref="IntensityKind"/>.w.</summary>
+    public const float TubeKind = 2f;
+
     /// <summary>The slot of a light without shadows, in <see cref="Shadow"/>.x.</summary>
     public const uint NoSlot = 0;
 
@@ -288,10 +291,16 @@ internal struct GpuLight
     /// <summary>xyz camera-relative position, w the reach in meters.</summary>
     public Vector4 PositionReach;
 
-    /// <summary>rgb color × intensity in W/sr, w the kind: <see cref="PointKind"/> or <see cref="SpotKind"/>.</summary>
+    /// <summary>
+    /// rgb color × intensity in W/sr, a tube light's across its segment; w the kind: <see cref="PointKind"/>,
+    /// <see cref="SpotKind"/> or <see cref="TubeKind"/>.
+    /// </summary>
     public Vector4 IntensityKind;
 
-    /// <summary>xyz the unit spot axis, w cos(outer half-angle). Zero for a point light, which has no cone.</summary>
+    /// <summary>
+    /// xyz the unit spot axis, w cos(outer half-angle). For a tube light, xyz from its position to one end of its segment and
+    /// w zero. Zero for a point light.
+    /// </summary>
     public Vector4 DirectionCosOuter;
 
     /// <summary>x cos(inner half-angle), zero for a point light; y the emitter's radius in meters.</summary>
@@ -328,6 +337,12 @@ internal struct GpuLight
                 new Vector4(direction, outer),
                 inner,
                 SpotKind
+            ),
+            // A segment within 10^−6 m of its middle is a point, and its square stays a normal float in the shader.
+            EveryDirection { HalfSegment: var half } when half.LengthSquared() > 1e-12f => (
+                new Vector4(half, 0),
+                0f,
+                TubeKind
             ),
             EveryDirection => (Vector4.Zero, 0f, PointKind),
         };

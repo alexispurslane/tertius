@@ -214,6 +214,9 @@ internal static partial class Program
                     _ => bright,
                 };
                 scene.Instances[1] = emitter;
+                scene.Lights[0] = EmitterLight(
+                    position: emitter.Position, previousPosition: emitter.PreviousPosition, radiance: state.Emission
+                );
                 scene.Camera.Position = state.Camera.Position;
                 scene.Camera.Rotation = state.Camera.Rotation;
                 scene.Camera.PreviousPosition = state.PreviousCamera.Position;

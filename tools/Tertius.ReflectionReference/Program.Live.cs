@@ -203,7 +203,7 @@ internal static partial class Program
             FrameFormat = "32 consecutive draws, each 80x160 row-major float32 scalar red radiance, little endian.",
             InputFormat = "16 float32 per crop pixel: preexposed specular R, preexposed emission R, roughness, reflectance, baseColor R, metallic, normal XYZ, distance, camera-relative position XYZ, composite view XYZ.",
             SourceLimit = "Reference is one emitter reflection. Live source includes existing screen-hit fast-history feedback; recorded emitter specular is slow-history observation, not a bound on every hit source.",
-            ReadbackInputsUnchanged = true, Fixture = "No direct lights, ambient, environment, atmosphere, bloom, normal map or impostors; emitter black, metallic 0, reflectance 0, roughness 1, authored emission 6800.",
+            ReadbackInputsUnchanged = true, Fixture = "One direct light, the emitter's tube light of face radiance 6800 (tiunr-5jqs), so the emitter's glow reaches no ray and the reference of emitter reflections stands for the light's direct specular; no ambient, environment, atmosphere, bloom, normal map or impostors; emitter black, metallic 0, reflectance 0, roughness 1, authored emission 6800.",
             ProbeDrawsPerRendererFrame = ReflectionComparisonProbe.OutputGroups.Count + (sharing ? 1 : 0),
             ProbeAllEightOutputsValidated = true, MaximumFactorRelativeError = maximumFactorRelativeError,
             AuditedGeometry = geometryAudit, OriginalAnalyticPositionFailuresAreDiagnosticsNotPasses = geometryAudit,
@@ -244,8 +244,22 @@ internal static partial class Program
             boundingRadius: 2, hemisphere: HemisphereUp.Along(Vector3.UnitY), chainDepth: 0,
             flags: RenderFlags.Visible | RenderFlags.NoImpostor, entityIndex: 2, entityGeneration: 1
         ));
+        scene.Lights.Add(EmitterLight(position: new(-1, 1, -2), previousPosition: new(-1, 1, -2), radiance: 6800));
         return scene;
     }
+
+    /// <summary>The radius of the emitter's tube light: the capsule 2 m tall with the 0.2 x 2 x 0.2 m box's surface area.</summary>
+    private const float EmitterTubeRadius = (4 * 0.2f * 2 + 2 * 0.2f * 0.2f) / (2 * MathF.PI * 2);
+
+    /// <summary>
+    /// The tube light that the emitter's entity holds (tiunr-5jqs): upright, as tall as the box, of its surface area, with
+    /// the face radiance <paramref name="radiance"/>, which the box's emission equals. Its entity's glow then reaches no ray.
+    /// </summary>
+    private static TubeRenderLight EmitterLight(Vector3 position, Vector3 previousPosition, float radiance) => new(
+        EntityIndex: 2, EntityGeneration: 1, Position: position, PreviousPosition: previousPosition, Axis: Vector3.UnitY,
+        PreviousAxis: Vector3.UnitY, Color: Vector3.One, Power: radiance * MathF.PI * 2 * MathF.PI * EmitterTubeRadius * 2,
+        Radius: EmitterTubeRadius, Length: 2 - 2 * EmitterTubeRadius, CastsShadow: false, ChainDepth: 0
+    );
 
     private static float[] CropAttachment(float[] image, int channels = 2)
     {

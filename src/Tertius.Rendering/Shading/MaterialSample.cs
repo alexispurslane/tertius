@@ -73,6 +73,37 @@ internal readonly record struct MaterialSample(Double3 BaseColor, double Metalli
     }
 
     /// <summary>
+    /// The light of a tube light toward <paramref name="toView"/> per unit of its face radiance, the C# copy of tubeResponse
+    /// in lighting.glsl (ARCHITECTURE.md, "Tube lights"): c_diff / π · (n · <see cref="TubeView.CosineVector"/>), and the
+    /// compensated lobe toward its representative point, normalized, times n·l and <see cref="TubeView.SolidAngle"/>.
+    /// Nothing where the cosine vector points below the surface.
+    /// </summary>
+    public DirectTerms TubeTerms(Double3 normal, Double3 toView, TubeView tube, BrdfTables tables)
+    {
+        double cosine = Double3.Dot(normal, tube.CosineVector);
+        if (cosine <= 0)
+            return default;
+        double lobeAlbedo = tables.SampleDfg(nDotV: ViewCosine(normal, toView), roughness: Lobe.Roughness).LobeAlbedo;
+        (Double3 toPoint, double crossSine, double alongSine) = tube.Representative(
+            2 * Double3.Dot(normal, toView) * normal - toView
+        );
+        double nDotPoint = Double3.Dot(normal, toPoint);
+        Double3 specular = Double3.Zero;
+        if (nDotPoint > 0)
+        {
+            Double3 lobe = SingleScatteringLobe(normal: normal, toView: toView, toLight: toPoint);
+            double normalization = Lobe.TubeNormalization(
+                crossSine: crossSine,
+                alongSine: alongSine,
+                vDotH: Double3.Dot(toView, (toView + toPoint).Normalized())
+            );
+            specular = lobe * normalization * EnergyCompensation(lobeAlbedo) * (nDotPoint * tube.SolidAngle);
+        }
+
+        return new(Diffuse: DiffuseColor / Math.PI * cosine, Specular: specular);
+    }
+
+    /// <summary>
     /// The C# copy of hemisphereAmbient: the diffuse color by the normal's sky share, and the compensated specular albedo
     /// by the lobe's sky share.
     /// </summary>

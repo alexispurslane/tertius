@@ -392,6 +392,7 @@ public sealed class RenderSnapshotLightingTests
         {
             PointRenderLight point => (point.Position, point.PreviousPosition),
             SpotRenderLight spotLight => (spotLight.Position, spotLight.PreviousPosition),
+            TubeRenderLight => throw new InvalidOperationException("The lamp is no tube."),
             null => throw new InvalidOperationException("The lamp's light holds a case."),
         };
         position.Should().Be(new Vector3(12, -1, -5));
@@ -432,6 +433,57 @@ public sealed class RenderSnapshotLightingTests
         test.World.Latest().Lights.Single().TryGetValue(out SpotRenderLight spot).Should().BeTrue();
         PoseChecks.AssertNear(spot.Direction, new(0, 0, 1), 1e-6f);
         PoseChecks.AssertNear(spot.PreviousDirection, new(-1, 0, 0), 1e-6f);
+    }
+
+    [Fact]
+    public void ATubeLightFollowsItsEntityAndTurnsItsSegmentWithIt()
+    {
+        using var test = new TestWorld();
+        test.World.Camera = test.SpawnCamera(test.Root, DPose.Identity);
+        // The bar moves 1 m along +X and turns a quarter turn about +Z in each tick: to x = 1 and a quarter turn at the end
+        // of tick 0, and to x = 2 and a half turn at the end of tick 1. The turns take the segment's axis (0, 1, 0) to
+        // (-1, 0, 0) and to (0, -1, 0).
+        test.World.Spawn(
+            new()
+            {
+                Frame = test.Root,
+                Render = new RenderData
+                {
+                    Light = new TubeLightData(
+                        Offset: default,
+                        Color: LampColor,
+                        Power: 30,
+                        Radius: 0.13f,
+                        Length: 1.7f,
+                        CastsShadow: false
+                    ),
+                },
+                Components =
+                [
+                    Lambda.OnTick(
+                        (self, scoped ref events, scoped ref outbox) =>
+                            self.SetTransform(
+                                new DPose(
+                                    new Double3(self.Tick + 1, 0, -5),
+                                    DQuaternion.FromAxisAngle(Double3.UnitZ, Math.PI / 2 * (self.Tick + 1))
+                                )
+                            )
+                    ),
+                ],
+            }
+        );
+        test.Run(1);
+        test.World.Latest();
+
+        test.Run(1);
+
+        test.World.Latest().Lights.Single().TryGetValue(out TubeRenderLight tube).Should().BeTrue();
+        PoseChecks.AssertNear(tube.Position, new(2, 0, -5));
+        PoseChecks.AssertNear(tube.PreviousPosition, new(1, 0, -5));
+        PoseChecks.AssertNear(tube.Axis, new(0, -1, 0), 1e-6f);
+        PoseChecks.AssertNear(tube.PreviousAxis, new(-1, 0, 0), 1e-6f);
+        tube.Length.Should().Be(1.7f);
+        tube.Radius.Should().Be(0.13f);
     }
 
     [Fact]

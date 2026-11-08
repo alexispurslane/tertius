@@ -159,14 +159,7 @@ public static partial class DemoScenes
         // reflection blurs.
         scene.Add(
             "bar",
-            world.Spawn(
-                GlowingBox(
-                    surface: surface,
-                    resources: resources,
-                    standsOn: new(-1, ReflectionsFloor, -2),
-                    halfExtents: new(0.1f, 1, 0.1f)
-                )
-            )
+            world.Spawn(GlowingBar(surface: surface, resources: resources, standsOn: new(-1, ReflectionsFloor, -2)))
         );
 
         scene.Add(
@@ -191,6 +184,49 @@ public static partial class DemoScenes
                 )
             )
         );
+    }
+
+    /// <summary>
+    /// The reflections scene's glowing bar in <paramref name="surface"/>, 2 m tall and 0.2 m square, which stands on the
+    /// point <paramref name="standsOn"/>. It holds a tube light of its height and surface area that sends a radiance of 6800,
+    /// and glows with that light's face radiance (ARCHITECTURE.md, "Tube lights"). It casts no shadow, because its light
+    /// stands inside it.
+    /// </summary>
+    private static SpawnDesc GlowingBar(FrameHandle surface, IRenderResources resources, Double3 standsOn)
+    {
+        const float height = 2,
+            width = 0.2f,
+            radiance = 6800;
+        // The capsule as tall as the bar, 2π R height, has the bar's surface area 4 width height + 2 width².
+        const float radius = (4 * width * height + 2 * width * width) / (2 * MathF.PI * height);
+        var tube = new TubeLightData(
+            Offset: default,
+            Color: Vector3.One,
+            Power: radiance * MathF.PI * 2 * MathF.PI * radius * height,
+            Radius: radius,
+            Length: height - 2 * radius,
+            CastsShadow: true
+        );
+        return new()
+        {
+            Frame = surface,
+            Pose = new(standsOn + new Double3(0, height / 2, 0), DQuaternion.Identity),
+            Render = new RenderData
+            {
+                Mesh = resources.CreateMesh(Primitives.Box(new(width / 2, height / 2, width / 2))),
+                Material = resources.CreateMaterial(
+                    new(
+                        BaseColor: new(x: 0, y: 0, z: 0, w: 1),
+                        Roughness: UsualRoughness,
+                        Reflectance: 0,
+                        Emissive: tube.SurfaceRadiance
+                    )
+                ),
+                BoundingRadius = new Vector3(width / 2, height / 2, width / 2).Length(),
+                Flags = RenderFlags.Visible | RenderFlags.NoImpostor,
+                Light = tube,
+            },
+        };
     }
 
     /// <summary>

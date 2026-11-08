@@ -315,6 +315,15 @@ Y=0 to 2, and Z=-2.1 to -1.9. Each outer face emits uniform RGB radiance
 6800 W/(m² sr). It blocks camera rays but contributes no direct camera
 color to these reflected-light-only images.
 
+The live scene's box holds a tube light (tiunr-5jqs): an upright capsule
+2 m tall with the box's surface area, radius 0.134 m, whose face radiance
+equals the box's emission. It moves with the box, dims with it, and goes out
+with it. The engine then sends the box's glow to no ray, so the live plate's
+light comes from the tube light's direct diffuse and specular parts
+(ARCHITECTURE.md, "Tube lights"). The reference still integrates the box's
+faces. A live-against-reference difference therefore includes the tube
+light's approximations: its capsule shape and its representative point.
+
 The camera eye is (0,3,6). Its target is (0,0,6-3 sqrt(3)). Its vertical
 field of view is the engine default, `MathF.PI / 3f`. The virtual frame is
 1280 by 720 pixels. The crop starts at (530,240) and covers 80 by 160 of

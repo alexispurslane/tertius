@@ -1107,6 +1107,45 @@ public sealed class BatcherTests
         drawn.Single(each => each.ModelRow0.W > 0).HoldsLight.Should().Be(0u, "the screen carries no light");
     }
 
+    [Fact]
+    public void OnlyTheGpuInstancesOfATubeLightsEntityCarryItsLightHolderMark()
+    {
+        RenderSnapshot snapshot = Empty();
+        RenderInstance bar = Box(new(-2, 0, -10), chainDepth: TestChains.CamerasFrame);
+        bar.EntityIndex = 7;
+        bar.EntityGeneration = 3;
+        RenderInstance screen = Box(new(2, 0, -10), chainDepth: TestChains.CamerasFrame);
+        screen.EntityIndex = 8;
+        screen.EntityGeneration = 3;
+        snapshot.Instances.Add(bar);
+        snapshot.Instances.Add(screen);
+        snapshot.Lights.Add(
+            new TubeRenderLight(
+                EntityIndex: 7,
+                EntityGeneration: 3,
+                Position: new(-2, 0, -10),
+                PreviousPosition: new(-2, 0, -10),
+                Axis: Vector3.UnitY,
+                PreviousAxis: Vector3.UnitY,
+                Color: Vector3.One,
+                Power: 10,
+                Radius: 0.1f,
+                Length: 1,
+                CastsShadow: false,
+                ChainDepth: TestChains.CamerasFrame
+            )
+        );
+
+        PreparedScene scene = Prepare(snapshot: snapshot);
+
+        GpuInstance[] drawn = scene.Instances[..scene.InstanceCount];
+        drawn
+            .Single(each => each.ModelRow0.W < 0)
+            .HoldsLight.Should()
+            .Be(1u, "the tube light carries the bar's entity, so a ray that hits the bar brings none of its glow");
+        drawn.Single(each => each.ModelRow0.W > 0).HoldsLight.Should().Be(0u, "the screen carries no light");
+    }
+
     /// <summary>
     /// The renderer follows an instance from frame to frame by its whole entity, slot and generation, because a new entity
     /// can take the slot of a destroyed one (ImpostorKey, the shadow tiles' casters). The batcher builds that entity.

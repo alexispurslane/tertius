@@ -109,11 +109,16 @@ const uint CascadeSetSlot = 1u;
 const uint FarShadowsOnlySlot = 2u;
 const uint AtlasTilesSlot = 3u;
 
+// The kind of a light in GpuLight.intensityKind.w (GpuLight.*Kind in GpuTypes.cs).
+const float PointKind = 0.0;
+const float SpotKind = 1.0;
+const float TubeKind = 2.0;
+
 struct GpuLight
 {
     vec4 positionReach;       // xyz world position, w reach in meters
-    vec4 intensityKind;       // rgb color × intensity in W/sr, w 0 = point, 1 = spot
-    vec4 directionCosOuter;   // xyz unit spot axis, w cos(outer half-angle); zero for a point light
+    vec4 intensityKind;       // rgb color × intensity in W/sr, a tube's across its segment; w the kind
+    vec4 directionCosOuter;   // xyz unit spot axis, w cos(outer half-angle); a tube's half segment, w 0; zero for a point
     vec4 spotRadius;          // x cos(inner half-angle), zero for a point light; y the emitter's radius in meters
     uvec4 shadow;             // x the slot; y the set or the first tile view; z the tile views
     uvec3 occluders;          // x the first occluder, y the occluders, z how many of the first ones the cascade set also draws
