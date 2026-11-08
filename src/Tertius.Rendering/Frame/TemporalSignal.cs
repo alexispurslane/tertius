@@ -170,27 +170,29 @@ internal sealed unsafe class TemporalSignal : IDisposable
     public HistoryInstrumentation Instrumentation { get; }
 
     /// <summary>
-    /// The shader variant whose declared slow-history format matches this signal's storage. The precise variants keep the
-    /// light-change age. Under an instrumentation, the shaders that write its image take the variant that also writes it:
-    /// the temporal dispatch and the screen tracer's kernels the diagnostic, both dispatches the trace.
+    /// The shader variant whose declared slow-history format matches this signal's storage (<see cref="HistoryShader(string,
+    /// SpecularHistoryMode, HistoryInstrumentation)"/>).
     /// </summary>
-    public string HistoryShader(string shader)
+    public string HistoryShader(string shader) => HistoryShader(shader, HistoryMode, Instrumentation);
+
+    /// <summary>
+    /// The variant of <paramref name="shader"/> for a history of <paramref name="mode"/>. The precise variants keep the
+    /// light-change age. Under an instrumentation, the shaders of its variant take that variant, which also writes its
+    /// image (<see cref="HistoryInstrumentationSelection"/>).
+    /// </summary>
+    internal static string HistoryShader(
+        string shader,
+        SpecularHistoryMode mode,
+        HistoryInstrumentation instrumentation
+    )
     {
-        string name = Path.GetFileNameWithoutExtension(shader);
-        string extension = Path.GetExtension(shader);
-        if (HistoryMode == SpecularHistoryMode.Original)
+        if (mode == SpecularHistoryMode.Original)
             return shader;
-        if (
-            Instrumentation == HistoryInstrumentation.LightAgeDiagnostic
-            && (shader == "accumulate_temporal.comp" || shader.StartsWith("screen_trace_", StringComparison.Ordinal))
-        )
-            return $"{name}_lightagediag_precise{extension}";
-        if (
-            Instrumentation == HistoryInstrumentation.ControlTrace
-            && shader is "accumulate_temporal.comp" or "accumulate_spatial.comp"
-        )
-            return $"{name}_trace_precise{extension}";
-        return $"{name}_precise{extension}";
+        string suffix =
+            instrumentation.Variant is { } variant && variant.Shaders.Contains(shader)
+                ? variant.Suffix
+                : ShaderVariant.PreciseSuffix;
+        return ShaderVariant.Of(shader, suffix);
     }
 
     /// <summary>The most parts of a signal: the descriptor pool holds the sets of a test's signal of two parts.</summary>

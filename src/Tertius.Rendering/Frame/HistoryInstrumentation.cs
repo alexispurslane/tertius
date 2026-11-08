@@ -22,9 +22,59 @@ internal enum HistoryInstrumentation
     ControlTrace,
 }
 
-/// <summary>The selection of <see cref="HistoryInstrumentation"/>, once per renderer.</summary>
+/// <summary>
+/// A shader variant that Tertius.Rendering.csproj compiles: the suffix of its file names, and the shaders that it compiles
+/// in it. <c>ShaderVariantTests</c> checks each variant against the shaders that the build embeds.
+/// </summary>
+internal readonly record struct ShaderVariant(string Suffix, string[] Shaders)
+{
+    /// <summary>The precise variant's suffix, which every shader of a precise history takes without an instrumented one.</summary>
+    public const string PreciseSuffix = "_precise";
+
+    /// <summary>The file name of <paramref name="shader"/>'s variant, such as composite_precise.frag.</summary>
+    public static string Of(string shader, string suffix) =>
+        $"{Path.GetFileNameWithoutExtension(shader)}{suffix}{Path.GetExtension(shader)}";
+}
+
+/// <summary>
+/// The selection of <see cref="HistoryInstrumentation"/>, once per renderer, and the shader variant of each.
+/// </summary>
 internal static class HistoryInstrumentationSelection
 {
+    /// <summary>The LightAgeDiagnosticShader items of Tertius.Rendering.csproj.</summary>
+    private static readonly ShaderVariant LightAgeDiagnosticVariant = new(
+        Suffix: "_lightagediag_precise",
+        Shaders:
+        [
+            "accumulate_temporal.comp",
+            "screen_trace_block_rays.comp",
+            "screen_trace_own_rays.comp",
+            "screen_trace_plan.comp",
+            "screen_trace_resolve.comp",
+        ]
+    );
+
+    /// <summary>The AccumulationTraceShader items of Tertius.Rendering.csproj.</summary>
+    private static readonly ShaderVariant AccumulationTraceVariant = new(
+        Suffix: "_trace_precise",
+        Shaders: ["accumulate_temporal.comp", "accumulate_spatial.comp"]
+    );
+
+    extension(HistoryInstrumentation instrumentation)
+    {
+        /// <summary>
+        /// The variant of the shaders that write this instrumentation's image, or null for none. A shader that the
+        /// variant does not hold takes its precise variant under the instrumentation too.
+        /// </summary>
+        public ShaderVariant? Variant =>
+            instrumentation switch
+            {
+                HistoryInstrumentation.None => null,
+                HistoryInstrumentation.LightAgeDiagnostic => LightAgeDiagnosticVariant,
+                HistoryInstrumentation.ControlTrace => AccumulationTraceVariant,
+            };
+    }
+
     extension(HistoryInstrumentation)
     {
         /// <summary>
