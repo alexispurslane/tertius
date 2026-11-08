@@ -37,3 +37,7 @@ ShaderVariantTests checks the table against the embedded resources both ways. Be
 10 rows: killed 8, timeout 0, survived 0, no-coverage 0, build-failed 2, no-tests 0, no-mutant 0, removed 0
 
 C04 and C05 each left one private variant unread, so IDE0052 failed their builds. C10, which swaps the two arms, replaces them and is killed.
+
+**2026-11-08T22:05:27Z**
+
+Coverage of the changed lines, Debug, the classes ShaderVariantTests, HistoryShaderTests and AccumulationTraceTests: 29/29 lines, 9/10 branches. The partial branch at HistoryInstrumentation.cs:70 is the compiler's arm for an enum value outside HistoryInstrumentation, which no instrumentation reaches, so it needs no test.
