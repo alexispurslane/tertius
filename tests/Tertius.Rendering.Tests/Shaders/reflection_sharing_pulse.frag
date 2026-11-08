@@ -4,7 +4,8 @@
 #include "screen.glsl"
 #include "octahedral.glsl"
 #include "reflection_distance_guide.glsl"
-layout(set = 3, binding = 3, rgba16f) uniform writeonly image2D history;
+#include "specular_history.glsl"
+layout(set = 3, binding = 3, SPECULAR_HISTORY_FORMAT) uniform writeonly image2D history;
 layout(set = 3, binding = 4, rgba16f) uniform writeonly image2D specularSample;
 layout(set = 3, binding = 5, rgba16f) uniform writeonly image2D distanceGuide;
 layout(push_constant) uniform TestFixture { int surfaceCase; float hitDistance; float hitSupport; } fixture;

@@ -7,7 +7,7 @@
 
 vec4 diffuseHistoryAt(ivec2 pixel, vec3 point, vec3 normal)
 {
-    vec2 place = historyPlace(vec2(pixel) + 0.5, imageLoad(motionTarget, pixel).xy);
+    vec2 place = readPlace(vec2(pixel) + 0.5, imageLoad(motionTarget, pixel));
     if (parameters.reset != 0u || abs(exposureStops - previousStops) >= 1.0
         || any(lessThan(place, vec2(0.0))) || any(greaterThanEqual(place, vec2(1.0))))
         return vec4(0.0);

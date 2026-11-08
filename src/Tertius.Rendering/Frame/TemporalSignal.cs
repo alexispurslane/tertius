@@ -18,10 +18,11 @@ namespace Tertius.Rendering;
 /// </para>
 /// <para>
 /// Each part owns a sample, a slow history and two fast histories, which alternate by the parity of the drawn frames
-/// (<see cref="FrameHistory.PendingFrame.Parity"/>), all RGBA16F at the targets' size. The slow history holds the length
+/// (<see cref="FrameHistory.PendingFrame.Parity"/>), RGBA16F at the targets' size except the experiment's RGBA32F slow history. The slow history holds the length
 /// in alpha, and the specular signal's sample and fast history the hit distance, 0 for a miss. The sample is a color
 /// attachment of its producer, and every other image stays in the General layout. The signals share the scratch images
-/// (<see cref="SignalScratch"/>).
+/// (<see cref="SignalScratch"/>). With a precise history, the specular part also owns its sample's light age, which the
+/// resolve writes and the temporal dispatch reads at binding 11 (the light-change age, ticket tiunr-7haj).
 /// </para>
 /// <para>Invariants, checked by <see cref="AssertInvariants"/>:</para>
 /// <list type="bullet">
@@ -32,8 +33,23 @@ namespace Tertius.Rendering;
 /// </remarks>
 internal sealed unsafe class TemporalSignal : IDisposable
 {
-    /// <summary>The format of every image of a signal.</summary>
+    /// <summary>The sample, fast-history and guide format, also used by the original slow history.</summary>
     public const Format SignalFormat = Format.R16G16B16A16Sfloat;
+
+    /// <summary>
+    /// The format of the specular sample's light age with a precise history: 0 for no evidence, else the age in frames
+    /// plus 1.
+    /// </summary>
+    public const Format SampleAgeFormat = Format.R16Uint;
+
+    /// <summary>
+    /// The format of the diagnostic of uncovered surfaces under <see cref="HistoryInstrumentation.LightAgeDiagnostic"/>: r the
+    /// fewest frames seen among the never-changed surfaces that the specular sample's rays hit, or −1 for none, which the
+    /// resolve writes; g the slow history's length just before its blend, after the light-age cut, or −1 without a
+    /// sample; b 1 where the sample holds at least the cut share of the slow history's luminance, else 0; a the length
+    /// before the light-age cut. The temporal dispatch writes g, b and a.
+    /// </summary>
+    public const Format UncoveredDiagnosticFormat = Format.R32G32B32A32Sfloat;
 
     /// <summary>The width and the height of a workgroup of both dispatches: the shaders' local size.</summary>
     private const uint GroupSize = 8;
@@ -85,6 +101,17 @@ internal sealed unsafe class TemporalSignal : IDisposable
 
         Name = name;
         Parameters = parameters;
+        HistoryMode = parameters.Light == SignalLight.Specular ? scratch.HistoryMode : SpecularHistoryMode.Original;
+        Instrumentation =
+            parameters.Light == SignalLight.Specular ? scratch.Instrumentation : HistoryInstrumentation.None;
+        if (
+            HistoryMode != SpecularHistoryMode.Original
+            && (
+                device.FormatProperties(Format.R32G32B32A32Sfloat).OptimalTilingFeatures
+                & FormatFeatureFlags.StorageImageBit
+            ) == 0
+        )
+            throw new NotSupportedException($"RGBA32F specular history storage is unavailable on {device.DeviceName}.");
 
         this.parts = new PartImages[parts];
         sets = new DescriptorSet[parts, 2];
@@ -98,9 +125,14 @@ internal sealed unsafe class TemporalSignal : IDisposable
             light: parameters.Light
         );
         singleDiffuseHistory = prototype.SingleDiffuseHistory;
-        reflectionDistanceHistory = parameters.Light == SignalLight.Specular
+        reflectionDistanceHistory =
+            parameters.Light == SignalLight.Specular
             && Environment.GetEnvironmentVariable("TERTIUS_REFLECTION_SHARING") == "1";
-        temporal = CreatePipeline(shaders, singleDiffuseHistory ? "diffuse_single_temporal" : "temporal", prototype.LimitIncoming);
+        temporal = CreatePipeline(
+            shaders,
+            singleDiffuseHistory ? "diffuse_single_temporal" : "temporal",
+            prototype.LimitIncoming
+        );
         spatial = CreatePipeline(shaders, singleDiffuseHistory ? "diffuse_single_spatial" : "spatial");
         Create();
     }
@@ -110,15 +142,16 @@ internal sealed unsafe class TemporalSignal : IDisposable
         new ComputePipelineDesc
         {
             Name = $"accumulate {Name} {kind}",
-            Shader = $"accumulate_{kind}.comp",
+            Shader = HistoryShader($"accumulate_{kind}.comp"),
             Layout = layouts.AccumulateLayout,
-            Constants = limitIncoming || reflectionDistanceHistory
-                ? new ShaderConstants(EnvironmentMap: false)
-                {
-                    NeighborLimitPrototype = limitIncoming,
-                    ReflectionSharingPrototype = reflectionDistanceHistory,
-                }
-                : null,
+            Constants =
+                limitIncoming || reflectionDistanceHistory
+                    ? new ShaderConstants(EnvironmentMap: false)
+                    {
+                        NeighborLimitPrototype = limitIncoming,
+                        ReflectionSharingPrototype = reflectionDistanceHistory,
+                    }
+                    : null,
         }.Create(device, shaders);
 
     /// <summary>The signal's name in the images' names and the passes' names, such as "indirect diffuse".</summary>
@@ -130,6 +163,36 @@ internal sealed unsafe class TemporalSignal : IDisposable
     /// <summary>The signal's parameter set.</summary>
     public SignalParameters Parameters { get; }
 
+    /// <summary>The specular history's storage and age policy, or original storage for other signals.</summary>
+    public SpecularHistoryMode HistoryMode { get; }
+
+    /// <summary>The instrumentation of the specular history, or none for other signals.</summary>
+    public HistoryInstrumentation Instrumentation { get; }
+
+    /// <summary>
+    /// The shader variant whose declared slow-history format matches this signal's storage. The precise variants keep the
+    /// light-change age. Under an instrumentation, the shaders that write its image take the variant that also writes it:
+    /// the temporal dispatch and the screen tracer's kernels the diagnostic, both dispatches the trace.
+    /// </summary>
+    public string HistoryShader(string shader)
+    {
+        string name = Path.GetFileNameWithoutExtension(shader);
+        string extension = Path.GetExtension(shader);
+        if (HistoryMode == SpecularHistoryMode.Original)
+            return shader;
+        if (
+            Instrumentation == HistoryInstrumentation.LightAgeDiagnostic
+            && (shader == "accumulate_temporal.comp" || shader.StartsWith("screen_trace_", StringComparison.Ordinal))
+        )
+            return $"{name}_lightagediag_precise{extension}";
+        if (
+            Instrumentation == HistoryInstrumentation.ControlTrace
+            && shader is "accumulate_temporal.comp" or "accumulate_spatial.comp"
+        )
+            return $"{name}_trace_precise{extension}";
+        return $"{name}_precise{extension}";
+    }
+
     /// <summary>The most parts of a signal: the descriptor pool holds the sets of a test's signal of two parts.</summary>
     public const int MostParts = 2;
 
@@ -140,6 +203,54 @@ internal sealed unsafe class TemporalSignal : IDisposable
     public GpuImage Slow(int part) => parts[part].Slow;
 
     public GpuImage ReflectionGuide(int part) => parts[part].ReflectionGuide;
+
+    /// <summary>
+    /// The light age of the sample of <paramref name="part"/>, which the resolve writes with a precise specular history
+    /// (<see cref="SampleAgeFormat"/>), or null without it.
+    /// </summary>
+    public GpuImage? SampleAge(int part) => parts[part].Ages is [var age, ..] ? age : null;
+
+    /// <summary>
+    /// The diagnostic of uncovered surfaces of <paramref name="part"/> under <see cref="HistoryInstrumentation.LightAgeDiagnostic"/>
+    /// (<see cref="UncoveredDiagnosticFormat"/>), or null without it. Only the capture tool and the tests read it.
+    /// </summary>
+    public GpuImage? UncoveredDiagnostic(int part) => parts[part].Ages is [_, var diagnostic] ? diagnostic : null;
+
+    /// <summary>
+    /// The layers of the accumulation trace (<see cref="AccumulationTrace(int)"/>), each RGBA32F at the targets' size. The
+    /// temporal dispatch writes layers 0 to 3 and 8 and the spatial dispatch layers 4 to 7, for every pixel, 0 for sky. The
+    /// spatial dispatch stores only values that it computes anyway, because an arithmetic of the trace's own changed the
+    /// driver's rounding of the slow history:
+    /// <list type="number">
+    /// <item>The length that the last draw accepted at the pixel's own texel, the length after the reprojection and
+    /// before the blend, the sum of the taps' weights, and flags: bits 0 to 3 the taps that hold weight, 4 the reflected
+    /// place won, 5 it was tried, 6 the surface place holds a history, 7 the reflected place does, 8 the pixel has a
+    /// sample, 9 it shows a surface, 10 it read at its pixel place (the pixel history rule, screen.glsl), 11 its tried
+    /// reflected place is that place's pixel place.</item>
+    /// <item>The four taps' bilinear weights times their pass bits, in the order of the surface test.</item>
+    /// <item>Where the place that won lies relative to the pixel, in texels of the last image, so that tap 0 is its
+    /// floor; the sample's hit distance, 0 for a miss; the sample's luminance, 0 without one.</item>
+    /// <item>The least and the most length of the taps that hold weight, and the luminance of the reprojected fast and
+    /// slow histories before the exposure ratio, 0 without a history.</item>
+    /// <item>The length before and after the anti-lag.</item>
+    /// <item>The slow history after the fix and before the clamp, and 1 where the clamp ran, else 0.</item>
+    /// <item>The box's mean, the mean of the 3 × 3 fast histories, and the lag, 0 without the clamp.</item>
+    /// <item>The fast histories' standard deviation, 0 without the clamp.</item>
+    /// <item>The weight of the taps that pass the surface test at the pixel place and at the sample place, then of those
+    /// that pass the specular test at each (ticket tiunr-wk29). The pixel place is the pixel moved by the scene's motion
+    /// alone; under the control nothing reads it, but the trace weighs it.</item>
+    /// </list>
+    /// </summary>
+    public const int TraceLayers = 9;
+
+    /// <summary>The format of each layer of the accumulation trace.</summary>
+    public const Format TraceFormat = Format.R32G32B32A32Sfloat;
+
+    /// <summary>
+    /// The accumulation trace of <paramref name="part"/> under <see cref="HistoryInstrumentation.ControlTrace"/>
+    /// (<see cref="TraceLayers"/>), or null without it. Only the capture tool and the tests read it.
+    /// </summary>
+    public GpuImage? AccumulationTrace(int part) => parts[part].Traces is [var trace] ? trace : null;
 
     /// <summary>
     /// The images of <paramref name="part"/> that the screen tracer binds in a frame of <paramref name="parity"/>: the
@@ -176,8 +287,14 @@ internal sealed unsafe class TemporalSignal : IDisposable
         for (int part = 0; part < parts.Length; part++)
         {
             PartImages images = parts[part];
-            GpuImage scratched = scratch.Part(part);
+            GpuImage scratched = scratch.Part(part, HistoryMode);
+            if (!reflectionDistanceHistory && HistoryMode != SpecularHistoryMode.Original)
+                barriers.Image(scratch.Part(part), ImageUse.StorageCompute);
             barriers.Image(images.Sample, ImageUse.StorageCompute);
+            foreach (GpuImage age in images.Ages)
+                barriers.Image(age, ImageUse.StorageCompute);
+            foreach (GpuImage trace in images.Traces)
+                barriers.Image(trace, ImageUse.StorageCompute);
             barriers.Image(images.Slow, ImageUse.StorageCompute);
             if (!singleDiffuseHistory)
                 barriers.Image(images.LastFast(parity), ImageUse.StorageCompute);
@@ -195,9 +312,13 @@ internal sealed unsafe class TemporalSignal : IDisposable
 
             // The spatial dispatch reads the neighbors' results of the temporal one.
             barriers.Image(scratched, ImageUse.StorageCompute);
+            if (!reflectionDistanceHistory && HistoryMode != SpecularHistoryMode.Original)
+                barriers.Image(scratch.Part(part), ImageUse.StorageCompute);
             if (!singleDiffuseHistory)
                 barriers.Image(images.Fast(parity), ImageUse.StorageCompute);
             barriers.Image(images.Slow, ImageUse.StorageCompute);
+            foreach (GpuImage trace in images.Traces)
+                barriers.Image(trace, ImageUse.StorageCompute);
             if (reflectionDistanceHistory)
             {
                 barriers.Image(images.ReflectionGuideScratch, ImageUse.StorageCompute);
@@ -215,7 +336,7 @@ internal sealed unsafe class TemporalSignal : IDisposable
     public void Resize()
     {
         Contract.Requires(SameExtent(surfaces.Test.Extent, targets.Extent));
-        Contract.Requires(SameExtent(scratch.Part(0).Extent, targets.Extent));
+        Contract.Requires(SameExtent(scratch.Part(0, HistoryMode).Extent, targets.Extent));
         DestroyImages();
         Create();
         Contract.Ensures(FitsTargets());
@@ -244,6 +365,11 @@ internal sealed unsafe class TemporalSignal : IDisposable
     {
         context.BeginComputePass(pipeline: pipeline, layout: layouts.AccumulateLayout, passSet: set);
         var push = AccumulatePushConstants.Of(Parameters, context.History.Reset);
+        if (HistoryMode == SpecularHistoryMode.PreciseUncapped)
+        {
+            push.Cap = float.PositiveInfinity;
+            push.SmoothCap = float.PositiveInfinity;
+        }
         context.Vk.CmdPushConstants(
             commandBuffer: context.CommandBuffer,
             layout: layouts.AccumulateLayout,
@@ -272,14 +398,55 @@ internal sealed unsafe class TemporalSignal : IDisposable
                     $"{Name} sample {part}",
                     ImageUsageFlags.ColorAttachmentBit | ImageUsageFlags.TransferDstBit
                 ),
-                Slow: CreateImage(extent, $"{Name} slow history {part}", 0),
-                Fasts: singleDiffuseHistory ? [] :
-                [
-                    CreateImage(extent, $"{Name} fast history {part}.0", 0),
-                    CreateImage(extent, $"{Name} fast history {part}.1", 0),
-                ],
+                Slow: CreateImage(
+                    extent: extent,
+                    imageName: $"{Name} slow history {part}",
+                    extraUsage: 0,
+                    format: HistoryMode == SpecularHistoryMode.Original ? SignalFormat : Format.R32G32B32A32Sfloat
+                ),
+                Fasts: singleDiffuseHistory
+                    ? []
+                    :
+                    [
+                        CreateImage(extent, $"{Name} fast history {part}.0", 0),
+                        CreateImage(extent, $"{Name} fast history {part}.1", 0),
+                    ],
                 Guides: reflectionDistanceHistory
-                    ? [CreateImage(extent, $"{Name} distance guide {part}", 0), CreateImage(extent, $"{Name} distance guide scratch {part}", 0)]
+                    ?
+                    [
+                        CreateImage(extent, $"{Name} distance guide {part}", 0),
+                        CreateImage(extent, $"{Name} distance guide scratch {part}", 0),
+                    ]
+                    : [],
+                Ages: (HistoryMode.KeepsLightAge, Instrumentation) switch
+                {
+                    (false, _) => [],
+                    (true, not HistoryInstrumentation.LightAgeDiagnostic) => [CreateSampleAge(extent, part)],
+                    (true, HistoryInstrumentation.LightAgeDiagnostic) =>
+                    [
+                        CreateSampleAge(extent, part),
+                        CreateImage(
+                            extent: extent,
+                            imageName: $"{Name} uncovered diagnostic {part}",
+                            extraUsage: 0,
+                            format: UncoveredDiagnosticFormat
+                        ),
+                    ],
+                },
+                Traces: Instrumentation == HistoryInstrumentation.ControlTrace
+                    ?
+                    [
+                        GpuImage.Create(
+                            device: device,
+                            allocator: allocator,
+                            extent: extent,
+                            format: TraceFormat,
+                            usage: ImageUsageFlags.StorageBit | ImageUsageFlags.TransferSrcBit,
+                            mipLevels: 1,
+                            name: $"{Name} accumulation trace {part}",
+                            arrayLayers: TraceLayers
+                        ),
+                    ]
                     : []
             );
             for (int parity = 0; parity < 2; parity++)
@@ -293,25 +460,52 @@ internal sealed unsafe class TemporalSignal : IDisposable
         layouts.WriteStorageImage(set: set, binding: 1, image: images.Slow);
         layouts.WriteStorageImage(set: set, binding: 2, image: images.LastFast(parity));
         layouts.WriteStorageImage(set: set, binding: 3, image: images.Fast(parity));
-        layouts.WriteStorageImage(set: set, binding: 4, image: scratch.Part(part));
+        layouts.WriteStorageImage(set: set, binding: 4, image: scratch.Part(part, HistoryMode));
         layouts.WriteStorageImage(set: set, binding: 5, image: surfaces.Test);
         layouts.WriteStorageImage(set: set, binding: 6, image: targets.Motion);
         layouts.WriteImage(set: set, binding: 7, arrayElement: 0, image: surfaces.Last(parity));
         layouts.WriteImage(set: set, binding: 8, arrayElement: 0, image: surfaces.LastDepth(parity));
-        layouts.WriteStorageImage(set: set, binding: 9, image: images.ReflectionGuide);
-        layouts.WriteStorageImage(set: set, binding: 10, image: reflectionDistanceHistory ? images.ReflectionGuideScratch : scratch.Part(part));
+        layouts.WriteStorageImage(
+            set: set,
+            binding: 9,
+            image: reflectionDistanceHistory ? images.ReflectionGuide : scratch.Part(part)
+        );
+        layouts.WriteStorageImage(
+            set: set,
+            binding: 10,
+            image: reflectionDistanceHistory ? images.ReflectionGuideScratch : scratch.Part(part)
+        );
+        // The sample age, which only the specular signal's temporal dispatch reads: another signal binds its sample.
+        if (scratch.HistoryMode.KeepsLightAge)
+            layouts.WriteStorageImage(set: set, binding: 11, image: images.Ages is [var age, ..] ? age : images.Sample);
+        // The diagnostic of uncovered surfaces, which only the specular signal's temporal dispatch writes.
+        if (scratch.Instrumentation == HistoryInstrumentation.LightAgeDiagnostic)
+            layouts.WriteStorageImage(
+                set: set,
+                binding: 12,
+                image: images.Ages is [_, var diagnostic] ? diagnostic : images.Sample
+            );
+        // The accumulation trace, which only the specular signal's dispatches write: another signal binds its sample.
+        if (scratch.Instrumentation == HistoryInstrumentation.ControlTrace)
+            layouts.WriteStorageImage(set: set, binding: 12, image: images.Traces is [var trace] ? trace : images.Sample);
     }
+
+    private GpuImage CreateSampleAge(Extent2D extent, int part) =>
+        CreateImage(extent: extent, imageName: $"{Name} sample age {part}", extraUsage: 0, format: SampleAgeFormat);
 
     /// <summary>
     /// An image of the signal at <paramref name="extent"/>: a storage image, which the read hooks copy out, plus
     /// <paramref name="extraUsage"/>.
     /// </summary>
     private GpuImage CreateImage(Extent2D extent, string imageName, ImageUsageFlags extraUsage) =>
+        CreateImage(extent: extent, imageName: imageName, extraUsage: extraUsage, format: SignalFormat);
+
+    private GpuImage CreateImage(Extent2D extent, string imageName, ImageUsageFlags extraUsage, Format format) =>
         GpuImage.Create(
             device: device,
             allocator: allocator,
             extent: extent,
-            format: SignalFormat,
+            format: format,
             usage: ImageUsageFlags.StorageBit | ImageUsageFlags.TransferSrcBit | extraUsage,
             mipLevels: 1,
             name: imageName
@@ -342,7 +536,14 @@ internal sealed unsafe class TemporalSignal : IDisposable
     }
 
     /// <summary>The images of one part.</summary>
-    private sealed record PartImages(GpuImage Sample, GpuImage Slow, GpuImage[] Fasts, GpuImage[] Guides)
+    private sealed record PartImages(
+        GpuImage Sample,
+        GpuImage Slow,
+        GpuImage[] Fasts,
+        GpuImage[] Guides,
+        GpuImage[] Ages,
+        GpuImage[] Traces
+    )
     {
         /// <summary>The fast history that the frame of <paramref name="parity"/> writes.</summary>
         public GpuImage Fast(int parity) => Fasts.Length == 0 ? Slow : Fasts[parity];
@@ -350,24 +551,20 @@ internal sealed unsafe class TemporalSignal : IDisposable
         /// <summary>The fast history that the last drawn frame wrote.</summary>
         public GpuImage LastFast(int parity) => Fasts.Length == 0 ? Slow : Fasts[1 - parity];
 
-        public GpuImage ReflectionGuide => Guides.Length == 0 ? Slow : Guides[0];
+        public GpuImage ReflectionGuide => Guides.Length == 0 ? Sample : Guides[0];
 
         public GpuImage ReflectionGuideScratch => Guides[1];
 
-        public IEnumerable<GpuImage> All => [Sample, Slow, .. Fasts, .. Guides];
+        public IEnumerable<GpuImage> All => [Sample, Slow, .. Fasts, .. Guides, .. Ages, .. Traces];
 
         /// <summary>Whether every image has <paramref name="extent"/>.</summary>
         public bool Fit(Extent2D extent) =>
             SameExtent(Sample.Extent, extent)
             && SameExtent(Slow.Extent, extent)
-            && (
-                Fasts.Length == 0
-                || SameExtent(Fasts[0].Extent, extent) && SameExtent(Fasts[1].Extent, extent)
-            )
-            && (
-                Guides.Length == 0
-                || SameExtent(Guides[0].Extent, extent) && SameExtent(Guides[1].Extent, extent)
-            );
+            && (Fasts.Length == 0 || SameExtent(Fasts[0].Extent, extent) && SameExtent(Fasts[1].Extent, extent))
+            && (Guides.Length == 0 || SameExtent(Guides[0].Extent, extent) && SameExtent(Guides[1].Extent, extent))
+            && Ages.All(age => SameExtent(age.Extent, extent))
+            && Traces.All(trace => SameExtent(trace.Extent, extent));
     }
 }
 

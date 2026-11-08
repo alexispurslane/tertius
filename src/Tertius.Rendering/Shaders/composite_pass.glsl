@@ -20,7 +20,8 @@
 layout(set = 3, binding = 0, rgba16f) uniform readonly image2D directDiffuseLight;
 layout(set = 3, binding = 1, rgba16f) uniform readonly image2D directSpecularLight;
 layout(set = 3, binding = 2, rgba16f) uniform readonly image2D indirectDiffuseLight;
-layout(set = 3, binding = 3, rgba16f) uniform readonly image2D indirectSpecularLight;
+#include "specular_history.glsl"
+layout(set = 3, binding = 3, SPECULAR_HISTORY_FORMAT) uniform readonly image2D indirectSpecularLight;
 
 #include "reflection_sharing_prototype.glsl"
 

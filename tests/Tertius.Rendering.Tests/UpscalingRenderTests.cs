@@ -425,6 +425,30 @@ public sealed class UpscalingRenderTests
     }
 
     [Fact]
+    public void TheUpscaledHdrImageHoldsTheOutputSizeUnderFsr()
+    {
+        VulkanRenderer renderer = Gpu.Headless(
+            width: 160,
+            height: 96,
+            upscaling: new Fsr3Upscaling(new FixedRenderScale(2f / 3), 0),
+            warmUpFrames: 0
+        );
+        try
+        {
+            renderer.Render(BoxScene(renderer), 1);
+
+            float[] upscaled = renderer.ReadPostHdr();
+
+            upscaled.Length.Should().Be(4 * 160 * 96, "FSR writes the output size, before bloom and tone mapping");
+            upscaled.Should().Contain(value => value > 0);
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
     public void JitterDoesNotAppearInTheMotionOfAStillBox()
     {
         VulkanRenderer renderer = Gpu.Headless(

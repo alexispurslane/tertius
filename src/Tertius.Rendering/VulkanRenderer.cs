@@ -125,6 +125,9 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// <summary>The record of the last drawn frame, whose count of drawn frames numbers every frame of the renderer.</summary>
     private readonly FrameHistory history;
     private readonly UpscalingSetting upscaling;
+
+    /// <summary>Which draws jitter, selected once: the debug switch of ticket tiunr-4b2g, by default FSR's draws.</summary>
+    private readonly DebugJitter debugJitter = DebugJitter.Selected();
     private readonly UpscalePass? upscalePass;
     private bool disposed;
 
@@ -150,13 +153,21 @@ public sealed unsafe class VulkanRenderer : IRenderer
         log = device.Log;
         try
         {
+            SpecularHistoryMode historyMode = SpecularHistoryMode.Selected();
+            HistoryInstrumentation instrumentation = HistoryInstrumentation.Selected();
             CheckOptionsOnDevice(options, device);
             Allocator = Own(new DeviceAllocator(device));
             releases = Own(new DeferredReleases());
             ShaderLibrary shaders = Own(new ShaderLibrary(device, ShaderLibrary.EngineShaders));
 
             layouts = Own(
-                new DescriptorLayouts(device, options.FramesInFlight, glowLevels: GlowLevelsOf(options.Bloom))
+                new DescriptorLayouts(
+                    device: device,
+                    framesInFlight: options.FramesInFlight,
+                    glowLevels: GlowLevelsOf(options.Bloom),
+                    historyMode: historyMode,
+                    instrumentation: instrumentation
+                )
             );
             output = Own(createOutput(device, Allocator));
             geometry = Own(new GeometryStore(device, Allocator));
@@ -169,9 +180,22 @@ public sealed unsafe class VulkanRenderer : IRenderer
 
             targets = CreateTargets(options);
             surfaceHistory = Own(
-                new SurfaceHistory(device: device, allocator: Allocator, layouts: layouts, targets: targets)
+                new SurfaceHistory(
+                    device: device,
+                    allocator: Allocator,
+                    layouts: layouts,
+                    targets: targets
+                )
             );
-            signalScratch = Own(new SignalScratch(device: device, allocator: Allocator, targets: targets));
+            signalScratch = Own(
+                new SignalScratch(
+                    device: device,
+                    allocator: Allocator,
+                    targets: targets,
+                    historyMode: historyMode,
+                    instrumentation: instrumentation
+                )
+            );
 
             // Before every pass, whose shading constants say whether the scatter is on.
             ScatterImages = CreateScatterImages(options.Subsurface);
@@ -830,19 +854,32 @@ public sealed unsafe class VulkanRenderer : IRenderer
         context.IndirectDrawCalls = 0;
     }
 
+    /// <summary>Whether the renderer's draws jitter their projection: under FSR, or as <see cref="DebugJitter"/> says.</summary>
+    private bool DrawsJitter =>
+        debugJitter switch
+        {
+            DebugJitter.Upscaler or DebugJitter.Held => upscaling is Fsr3Upscaling,
+            DebugJitter.None => false,
+            DebugJitter.Always => true,
+        };
+
     private void ApplyRenderProjection(FrameHistory.PendingFrame pending)
     {
-        Vector2 jitter = upscaling is Fsr3Upscaling ? pending.Jitter : Vector2.Zero;
+        bool jitters = DrawsJitter;
+        Vector2 jitter = jitters ? pending.Jitter : Vector2.Zero;
         float bias =
             upscaling is Fsr3Upscaling
                 ? MathF.Log2(pending.RenderSize.Width / (float)targets.OutputExtent.Width) - 1
                 : 0;
         LastScene.Constants.RenderParams = new(x: bias, y: jitter.X, z: jitter.Y, w: pending.DrawIndex % 4);
         Vector2 previousJitter = Vector2.Zero;
-        if (upscaling is Fsr3Upscaling && !pending.Reset)
+        if (jitters && !pending.Reset)
         {
             int phases = Fsr3Upscaler.JitterPhaseCount(pending.PreviousRenderSize.Width, targets.OutputExtent.Width);
-            previousJitter = Fsr3Upscaler.JitterOffset((int)((pending.DrawIndex - 1) % phases), phases);
+            previousJitter =
+                debugJitter == DebugJitter.Held
+                    ? jitter
+                    : Fsr3Upscaler.JitterOffset((int)((pending.DrawIndex - 1) % phases), phases);
         }
         LastScene.Constants.PreviousJitter = new(previousJitter, 0, 0);
         Extent2D outputSize = targets.OutputExtent;
@@ -1115,6 +1152,13 @@ public sealed unsafe class VulkanRenderer : IRenderer
     internal float[] ReadHdr() => ReadLevel(image: targets.Hdr, layer: 0, mip: 0).Values;
 
     /// <summary>
+    /// The HDR image after the upscale, RGBA per pixel, row by row from the top: FSR's output at the output size, or the
+    /// HDR image without an upscale. Pre-exposed radiance before bloom and tone mapping. A test hook for the capture tool:
+    /// it waits for the device to be idle and submits its own copy.
+    /// </summary>
+    internal float[] ReadPostHdr() => ReadLevel(image: targets.PostHdr, layer: 0, mip: 0).Values;
+
+    /// <summary>
     /// The first level of the first layer of <paramref name="image"/>, row by row from the top, as floats: a test's own
     /// image. A test hook: it waits for the device to be idle and submits its own copy.
     /// </summary>
@@ -1164,6 +1208,18 @@ public sealed unsafe class VulkanRenderer : IRenderer
     internal ScreenTraceImages ScreenTraceImages =>
         screenTrace ?? throw new InvalidOperationException("The screen tracer is off.");
 
+    /// <summary>
+    /// The light-age record that the last drawn frame wrote (<see cref="ScreenTraceImages.LightAge"/>): per pixel the
+    /// exact light and the age in frames, or <see cref="ScreenTraceImages.NoLightAge"/>. A test hook: it waits for the
+    /// device to be idle and submits its own copy.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The original specular history keeps no light age.</exception>
+    internal float[] ReadLightAge() =>
+        ReadImage(
+            ScreenTraceImages.LightAge((int)((history.DrawnFrames - 1) & 1))
+                ?? throw new InvalidOperationException("The original specular history keeps no light age.")
+        );
+
     internal DescriptorSet CompositeLightSet => compositePass.LightSet;
 
     /// <summary>
@@ -1203,7 +1259,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// <summary>
     /// The motion target of the last frame, RGBA per pixel, row by row from the top: xy the last drawn frame's place of the
     /// pixel's point minus this frame's place, in units of the image's size, z the ratio of the view depths, (2, 2) without
-    /// a last place (<see cref="RenderTargets.Motion"/>). A test hook, like <see cref="ReadDistance"/>.
+    /// a last place, and alpha 1 where the pixel reads its history at its pixel place (<see cref="RenderTargets.Motion"/>). A test hook, like <see cref="ReadDistance"/>.
     /// </summary>
     internal float[] ReadMotion() => ReadLevel(image: targets.Motion, layer: 0, mip: 0).Values;
 
@@ -1520,12 +1576,14 @@ public sealed unsafe class VulkanRenderer : IRenderer
             Format.R16G16B16A16Sfloat => (4, StoredChannel.Half),
             Format.R32Sfloat => (1, StoredChannel.Float),
             Format.R32G32Sfloat => (2, StoredChannel.Float),
+            Format.R32G32B32A32Sfloat => (4, StoredChannel.Float),
             // Each word comes back as the bits of a float, which its hook takes apart.
             Format.R32G32Uint => (2, StoredChannel.Float),
             Format.R16G16B16A16SNorm => (4, StoredChannel.Snorm16),
             Format.R8G8B8A8Uint => (4, StoredChannel.Uint8),
             Format.R8Uint or Format.R8Unorm => (1, StoredChannel.Uint8),
             Format.R16G16B16A16Uint => (4, StoredChannel.Uint16),
+            Format.R16Uint => (1, StoredChannel.Uint16),
             _ => throw new ArgumentException(
                 $"{image.Name} has the format {image.Format}, which no hook reads.",
                 nameof(image)
@@ -2070,7 +2128,9 @@ public sealed unsafe class VulkanRenderer : IRenderer
         );
         TemporalSignal specular = CreateSignal(
             shaders: shaders,
-            parameters: SignalParameters.Specular(trace.HandOverStart),
+            parameters: SignalParameters.Specular(
+                DebugReflectedPlace.Selected() == DebugReflectedPlace.Off ? 0 : trace.HandOverStart
+            ),
             name: "indirect specular",
             parts: 1
         );

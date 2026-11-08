@@ -8,6 +8,90 @@
 
 layout(local_size_x = 8, local_size_y = 8) in;
 
+#ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
+#include "meter.glsl"
+
+// The share by which the exact light must leave the last frame's range around the pixel's place to move: the range of
+// 3 × 3 pixels takes in the jitter at a shadow's edge, and the share the half-float rounding of the direct light under
+// another pre-exposure.
+const float LightChangeShare = 0.02;
+
+// The exact light at the pixel, the light that has no noise in a still scene: the luminance of the demodulated direct
+// diffuse light and of the glow that the pixel sends, with the pre-exposure undone, so that an exposure change is no light
+// change. It leaves out the direct specular light, which moves with the eye, and every history, which holds noisy bounced
+// light. An impostor's light is its glow, as at a hit. The sky has none: −1.
+float exactLightAt(ivec2 pixel)
+{
+    if (texelFetch(gbufferDistance, pixel, 0).r <= 0.0)
+        return -1.0;
+    vec3 light = glowSent(texelFetch(gbufferEmissive, pixel, 0).rgb, lightMarkOfWord(texelFetch(gbufferShading, pixel, 0).b));
+    if (texelFetch(gbufferBaseColor, pixel, 0).a != 0.0)
+        light += imageLoad(directDiffuseLight, pixel).rgb;
+    return luminance(light) / exposureScale();
+}
+
+// Whether the light leaves the range from `least` to `most` by more than LightChangeShare of the range's end and by more
+// than `cutoff`.
+bool leaves(float light, float least, float most, float cutoff)
+{
+    return light > most + max(most * LightChangeShare, cutoff) || light < least - max(least * LightChangeShare, cutoff);
+}
+
+// This frame's light-age record of the pixel: its exact light, and its age. The last record reprojects through the
+// surface test from the tap of the largest weight, the pixel's own place in a still frame, so that no age spreads to a
+// neighbor. A pixel without a history, as in a reset frame or where a surface is uncovered, is shown for the first time:
+// NoLightAge. A light moves when it leaves the range of the last exact light over the 3 × 3 pixels around that tap. A move
+// counts as a change only when it lasts LightChangeDraws draws in a row (ticket tiunr-okzm, ARCHITECTURE.md).
+// Until then the record keeps its last light and counts the draws, and a light back inside the range drops the count. The
+// record takes a light inside the range only near its own last light: a light that only a neighbor's explains, as at an
+// edge under jitter, would carry a pending change of the neighbors into their ranges. Otherwise the age grows by a frame.
+// A light that the record never saw change keeps no evidence, but counts the frames that showed it: its value falls by one.
+vec2 lightAgeOf(ivec2 pixel)
+{
+    float light = exactLightAt(pixel);
+    if (light < 0.0)
+        return vec2(light, NoLightAge);
+    Reprojection r = reprojectionOf(lastPlaceAt(pixel), imageLoad(surfaceTest, pixel).r & 0xFu);
+    if (!holdsHistory(r))
+        return vec2(light, NoLightAge);
+    uint nearest = 0u;
+    for (uint tap = 1u; tap < 4u; tap++)
+        if (r.weights[tap] > r.weights[nearest])
+            nearest = tap;
+    ivec2 center = tapTexel(r, nearest);
+    vec2 lastRecord = imageLoad(lastLightAge, center).rg;
+    // A defense only: a tap that passes the surface test shows a surface, whose last record holds a light of 0 or more.
+    if (lastRecord.r < 0.0)
+        return vec2(light, NoLightAge);
+    ivec2 last = ivec2(frame.previousViewport.xy) - 1;
+    float least = lastRecord.r;
+    float most = lastRecord.r;
+    for (int y = -1; y <= 1; y++)
+        for (int x = -1; x <= 1; x++)
+        {
+            float neighbor = imageLoad(lastLightAge, clamp(center + ivec2(x, y), ivec2(0), last)).r;
+            if (neighbor < 0.0)
+                continue;
+            least = min(least, neighbor);
+            most = max(most, neighbor);
+        }
+    float age = ageOfRecord(lastRecord.g);
+    float older = age < 0.0 ? max(age - 1.0, -MostLightAge - 1.0) : min(age + 1.0, MostLightAge);
+    // The floor: the cutoff radiance with the pre-exposure undone, on the demodulated light. A base color of at most 1
+    // shows a move no larger, so no move that a pixel shows above the cutoff escapes. The record cannot split its glow
+    // from its direct light to scale only the latter by the albedo.
+    float cutoff = CutoffRadiance / exposureScale();
+    if (!leaves(light, least, most, cutoff))
+        return vec2(leaves(light, lastRecord.r, lastRecord.r, cutoff) ? lastRecord.r : light, older);
+    float pendingDraws = pendingDrawsOfRecord(lastRecord.g) + 1.0;
+    // The change takes age 0, not the pending draws: those draws blended the new light into the receivers' histories,
+    // and a cut to their count would keep the old light that the histories still hold.
+    if (pendingDraws >= LightChangeDraws)
+        return vec2(light, 0.0);
+    return vec2(lastRecord.r, recordAgeOf(older, pendingDraws));
+}
+#endif
+
 // The length of the pixel's history of the kind at its place in the last frame, in frames: the slow history's alpha,
 // through the taps, the pass bits and the weights of the accumulator's reprojection of the surface place. The specular
 // signal's plan reads the surface place alone, because the reflected place needs this frame's hit distance.
@@ -31,6 +115,9 @@ void main()
     ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
     if (any(greaterThanEqual(vec2(pixel), frame.viewport.xy)))
         return;
+#ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
+    imageStore(lightAge, pixel, vec4(lightAgeOf(pixel), 0.0, 0.0));
+#endif
     uint plan = 0u;
     if (tracedSurface(pixel))
     {
@@ -42,7 +129,11 @@ void main()
             // A pixel that starts the kind gives its block a chosen pixel.
             if (!startsKind(p, kind) || !chosenPixelOf(pixel / 2, kind, chosen, c) || all(equal(chosen, pixel)))
                 continue;
+#ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
+            if (kind != KindReflection && historyLengthOf(pixel, kind) >= FullRateFrames && fits(p, c))
+#else
             if (historyLengthOf(pixel, kind) >= FullRateFrames && fits(p, c))
+#endif
                 continue;
             if (kind == KindReflection)
             {

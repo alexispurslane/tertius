@@ -300,12 +300,11 @@ public sealed class AccumulatorRenderTests
     }
 
     [Theory]
-    [InlineData(0.05f, 4f)]
-    [InlineData(0.4f, 18f)]
-    [InlineData(0.8f, 32f)]
-    public void TheSpecularSignalsCapFollowsTheRoughness(float roughness, float cap)
+    [InlineData(0.05f)]
+    [InlineData(0.4f)]
+    [InlineData(0.8f)]
+    public void TheDefaultSpecularHistoryKeepsAcceptedFramesAtEveryRoughness(float roughness)
     {
-        // 4 frames up to a roughness of 0.1, then linear to 32 frames at 0.7.
         (VulkanRenderer renderer, SamplePass sample, RenderSnapshot scene) = Accumulating(
             parameters: SignalParameters.Specular(0.4f),
             roughness: roughness
@@ -317,7 +316,7 @@ public sealed class AccumulatorRenderTests
 
             Continue(renderer, scene, frames: 40);
 
-            CenterOf(renderer, sample, part: 0).Length.Should().BeApproximately(cap, 1e-3f);
+            CenterOf(renderer, sample, part: 0).Length.Should().Be(41);
         }
         finally
         {
@@ -326,8 +325,8 @@ public sealed class AccumulatorRenderTests
     }
 
     [Theory]
-    [InlineData(4.5f, 4f)]
-    [InlineData(3.5f, 4f)]
+    [InlineData(4.5f, 12f)]
+    [InlineData(3.5f, 12f)]
     public void ARejectedReflectedLocationDoesNotDiscardUnchangedLightAtTheSurfaceLocation(
         float hitDistance,
         float length
@@ -398,7 +397,7 @@ public sealed class AccumulatorRenderTests
                 Continue(renderer, scene, frames: 1);
             }
 
-            CenterOf(renderer, sample, part: 0).Length.Should().Be(4f);
+            CenterOf(renderer, sample, part: 0).Length.Should().Be(12f);
         }
         finally
         {
@@ -510,11 +509,11 @@ public sealed class AccumulatorRenderTests
     }
 
     [Theory]
-    [InlineData(true, 0.05f, 20f, 4f)]
-    [InlineData(true, 0.05f, 39f, 4f)]
+    [InlineData(true, 0.05f, 20f, 8f)]
+    [InlineData(true, 0.05f, 39f, 8f)]
     [InlineData(true, 0.05f, 41f, 1f)]
     [InlineData(false, 0.05f, 20f, 1f)]
-    [InlineData(true, 0.38f, 20f, 4f)]
+    [InlineData(true, 0.38f, 20f, 8f)]
     [InlineData(true, 0.45f, 20f, 1f)]
     public void AMirrorPixelWhoseSurfaceLeftTheLastImageKeepsItsHistoryThroughTheReflectedPoint(
         bool specular,
@@ -683,10 +682,12 @@ public sealed class AccumulatorRenderTests
             var control = FrameWithPrototype(false, light, samples);
             var limited = FrameWithPrototype(true, light, samples);
 
-            limited.Light.X.Should().BeLessThan(
-                control.Light.X * 0.2f,
-                "the selected prototype includes limiting without a second setting"
-            );
+            limited
+                .Light.X.Should()
+                .BeLessThan(
+                    control.Light.X * 0.2f,
+                    "the selected prototype includes limiting without a second setting"
+                );
             limited.Length.Should().Be(1);
             (limited.Light.X / limited.Light.Y).Should().BeApproximately(2, 0.01f);
             (limited.Light.Y / limited.Light.Z).Should().BeApproximately(2, 0.01f);
@@ -714,10 +715,12 @@ public sealed class AccumulatorRenderTests
             var control = FrameWithPrototype(false, light, samples);
             var limited = FrameWithPrototype(true, light, samples);
 
-            limited.Light.X.Should().BeLessThan(
-                control.Light.X * 0.2f,
-                "one bright neighboring ray block must not protect the center from the mostly dark neighborhood"
-            );
+            limited
+                .Light.X.Should()
+                .BeLessThan(
+                    control.Light.X * 0.2f,
+                    "one bright neighboring ray block must not protect the center from the mostly dark neighborhood"
+                );
         }
 
         [Theory]
@@ -772,7 +775,8 @@ public sealed class AccumulatorRenderTests
                 new(column == Width / 2 && row == Height / 2 ? new Vector3(2000) : new Vector3(float.NaN), 7);
 
             FrameWithPrototype(true, SignalLight.Specular, samples)
-                .Should().Be(FrameWithPrototype(false, SignalLight.Specular, samples));
+                .Should()
+                .Be(FrameWithPrototype(false, SignalLight.Specular, samples));
         }
 
         [Fact]
@@ -805,7 +809,11 @@ public sealed class AccumulatorRenderTests
             {
                 Environment.SetEnvironmentVariable("TERTIUS_INDIRECT_LIGHT_PROTOTYPE", enabled ? "1" : null);
                 (VulkanRenderer created, SamplePass sample, RenderSnapshot scene) = Accumulating(
-                    parameters: Parameters with { Light = light, HistoryFixFrames = 0 }
+                    parameters: Parameters with
+                    {
+                        Light = light,
+                        HistoryFixFrames = 0,
+                    }
                 );
                 renderer = created;
                 sample.Samples = samples;
@@ -827,134 +835,150 @@ public sealed class AccumulatorRenderTests
         [Fact]
         public void AnAcceptedPastHitStillDefinesDistanceWhenTheLatestRayMisses()
         {
-            WithHistory((renderer, sample, scene) =>
-            {
-                sample.Value = new(x: 1, y: 1, z: 1, w: 8);
-                renderer.Render(scene, 1);
-                sample.Value = new(x: 1, y: 1, z: 1, w: 0);
+            WithHistory(
+                (renderer, sample, scene) =>
+                {
+                    sample.Value = new(x: 1, y: 1, z: 1, w: 8);
+                    renderer.Render(scene, 1);
+                    sample.Value = new(x: 1, y: 1, z: 1, w: 0);
 
-                Continue(renderer, scene, frames: 1);
+                    Continue(renderer, scene, frames: 1);
 
-                GuideAt(renderer, sample).Distance.Should().BeApproximately(8, 0.01f);
-                GuideAt(renderer, sample).Support.Should().BeApproximately(0.5f, 0.001f);
-            });
+                    GuideAt(renderer, sample).Distance.Should().BeApproximately(8, 0.01f);
+                    GuideAt(renderer, sample).Support.Should().BeApproximately(0.5f, 0.001f);
+                }
+            );
         }
 
         [Fact]
         public void KnownDistancesUseTheSameAcceptedFrameWeightsAsLight()
         {
-            WithHistory((renderer, sample, scene) =>
-            {
-                sample.Value = new(x: 1, y: 1, z: 1, w: 8);
-                renderer.Render(scene, 1);
-                sample.Value = new(x: 1, y: 1, z: 1, w: 24);
+            WithHistory(
+                (renderer, sample, scene) =>
+                {
+                    sample.Value = new(x: 1, y: 1, z: 1, w: 8);
+                    renderer.Render(scene, 1);
+                    sample.Value = new(x: 1, y: 1, z: 1, w: 24);
 
-                Continue(renderer, scene, frames: 1);
+                    Continue(renderer, scene, frames: 1);
 
-                GuideAt(renderer, sample).Distance.Should().BeApproximately(16, 0.01f);
-                GuideAt(renderer, sample).Support.Should().Be(1);
-            });
+                    GuideAt(renderer, sample).Distance.Should().BeApproximately(16, 0.01f);
+                    GuideAt(renderer, sample).Support.Should().Be(1);
+                }
+            );
         }
 
         [Fact]
         public void ContinuingMissesReduceSupportWithoutBecomingZeroMetreHits()
         {
-            WithHistory((renderer, sample, scene) =>
-            {
-                sample.Value = new(x: 1, y: 1, z: 1, w: 8);
-                renderer.Render(scene, 1);
-                sample.Value = new(x: 1, y: 1, z: 1, w: 0);
+            WithHistory(
+                (renderer, sample, scene) =>
+                {
+                    sample.Value = new(x: 1, y: 1, z: 1, w: 8);
+                    renderer.Render(scene, 1);
+                    sample.Value = new(x: 1, y: 1, z: 1, w: 0);
 
-                Continue(renderer, scene, frames: 2);
+                    Continue(renderer, scene, frames: 2);
 
-                GuideAt(renderer, sample).Distance.Should().BeApproximately(8, 0.01f);
-                GuideAt(renderer, sample).Support.Should().BeApproximately(1f / 3, 0.001f);
-            });
+                    GuideAt(renderer, sample).Distance.Should().BeApproximately(8, 0.01f);
+                    GuideAt(renderer, sample).Support.Should().BeApproximately(1f / 3, 0.001f);
+                }
+            );
         }
 
         [Fact]
         public void EarlierMissesDoNotPullTheFirstKnownDistanceTowardTheReceiver()
         {
-            WithHistory((renderer, sample, scene) =>
-            {
-                sample.Value = new(x: 1, y: 1, z: 1, w: 0);
-                renderer.Render(scene, 1);
-                sample.Value = new(x: 1, y: 1, z: 1, w: 16);
+            WithHistory(
+                (renderer, sample, scene) =>
+                {
+                    sample.Value = new(x: 1, y: 1, z: 1, w: 0);
+                    renderer.Render(scene, 1);
+                    sample.Value = new(x: 1, y: 1, z: 1, w: 16);
 
-                Continue(renderer, scene, frames: 1);
+                    Continue(renderer, scene, frames: 1);
 
-                GuideAt(renderer, sample).Distance.Should().BeApproximately(16, 0.01f);
-                GuideAt(renderer, sample).Support.Should().BeApproximately(0.5f, 0.001f);
-            });
+                    GuideAt(renderer, sample).Distance.Should().BeApproximately(16, 0.01f);
+                    GuideAt(renderer, sample).Support.Should().BeApproximately(0.5f, 0.001f);
+                }
+            );
         }
 
         [Fact]
         public void ANonfiniteLightSampleDoesNotReplaceAnAcceptedDistance()
         {
-            WithHistory((renderer, sample, scene) =>
-            {
-                sample.Value = new(x: 1, y: 1, z: 1, w: 8);
-                renderer.Render(scene, 1);
-                sample.Value = new(x: float.NaN, y: float.NaN, z: float.NaN, w: 24);
+            WithHistory(
+                (renderer, sample, scene) =>
+                {
+                    sample.Value = new(x: 1, y: 1, z: 1, w: 8);
+                    renderer.Render(scene, 1);
+                    sample.Value = new(x: float.NaN, y: float.NaN, z: float.NaN, w: 24);
 
-                Continue(renderer, scene, frames: 1);
+                    Continue(renderer, scene, frames: 1);
 
-                GuideAt(renderer, sample).Distance.Should().BeApproximately(8, 0.01f);
-                GuideAt(renderer, sample).Support.Should().Be(1);
-                CenterOf(renderer, sample, part: 0).Length.Should().Be(1);
-            });
+                    GuideAt(renderer, sample).Distance.Should().BeApproximately(8, 0.01f);
+                    GuideAt(renderer, sample).Support.Should().Be(1);
+                    CenterOf(renderer, sample, part: 0).Length.Should().Be(1);
+                }
+            );
         }
 
         [Fact]
         public void ACameraCutDiscardsDistanceAlongWithItsLightHistory()
         {
-            WithHistory((renderer, sample, scene) =>
-            {
-                sample.Value = new(x: 1, y: 1, z: 1, w: 8);
-                renderer.Render(scene, 1);
-                scene.CameraCuts++;
-                sample.Value = new(x: 1, y: 1, z: 1, w: 0);
+            WithHistory(
+                (renderer, sample, scene) =>
+                {
+                    sample.Value = new(x: 1, y: 1, z: 1, w: 8);
+                    renderer.Render(scene, 1);
+                    scene.CameraCuts++;
+                    sample.Value = new(x: 1, y: 1, z: 1, w: 0);
 
-                Continue(renderer, scene, frames: 1);
+                    Continue(renderer, scene, frames: 1);
 
-                GuideAt(renderer, sample).Support.Should().Be(0);
-                CenterOf(renderer, sample, part: 0).Length.Should().Be(1);
-            });
+                    GuideAt(renderer, sample).Support.Should().Be(0);
+                    CenterOf(renderer, sample, part: 0).Length.Should().Be(1);
+                }
+            );
         }
 
         [Fact]
         public void AChangedReceiverDoesNotInheritTheOldSurfacesDistance()
         {
-            WithHistory((renderer, sample, scene) =>
-            {
-                sample.Value = new(x: 1, y: 1, z: 1, w: 8);
-                renderer.Render(scene, 1);
-                RenderInstance receiver = scene.Instances[0];
-                receiver.Material = renderer.CreateMaterial(MaterialDesc.Color(Vector4.One, roughness: 0.8f));
-                scene.Instances[0] = receiver;
-                sample.Value = new(x: 1, y: 1, z: 1, w: 0);
+            WithHistory(
+                (renderer, sample, scene) =>
+                {
+                    sample.Value = new(x: 1, y: 1, z: 1, w: 8);
+                    renderer.Render(scene, 1);
+                    RenderInstance receiver = scene.Instances[0];
+                    receiver.Material = renderer.CreateMaterial(MaterialDesc.Color(Vector4.One, roughness: 0.8f));
+                    scene.Instances[0] = receiver;
+                    sample.Value = new(x: 1, y: 1, z: 1, w: 0);
 
-                Continue(renderer, scene, frames: 1);
+                    Continue(renderer, scene, frames: 1);
 
-                GuideAt(renderer, sample).Support.Should().Be(0);
-                CenterOf(renderer, sample, part: 0).Length.Should().Be(1);
-            });
+                    GuideAt(renderer, sample).Support.Should().Be(0);
+                    CenterOf(renderer, sample, part: 0).Length.Should().Be(1);
+                }
+            );
         }
 
         [Fact]
         public void BrighterSamplesDoNotReceiveExtraDistanceWeight()
         {
-            WithHistory((renderer, sample, scene) =>
-            {
-                sample.Value = new(x: 1, y: 1, z: 1, w: 8);
-                renderer.Render(scene, 1);
-                sample.Value = new(x: 64, y: 64, z: 64, w: 24);
+            WithHistory(
+                (renderer, sample, scene) =>
+                {
+                    sample.Value = new(x: 1, y: 1, z: 1, w: 8);
+                    renderer.Render(scene, 1);
+                    sample.Value = new(x: 64, y: 64, z: 64, w: 24);
 
-                Continue(renderer, scene, frames: 1);
+                    Continue(renderer, scene, frames: 1);
 
-                GuideAt(renderer, sample).Distance.Should().BeApproximately(16, 0.01f);
-                CenterOf(renderer, sample, part: 0).Light.X.Should().BeApproximately(32.5f, 0.01f);
-            });
+                    GuideAt(renderer, sample).Distance.Should().BeApproximately(16, 0.01f);
+                    CenterOf(renderer, sample, part: 0).Light.X.Should().BeApproximately(32.5f, 0.01f);
+                }
+            );
         }
 
         [Theory]
@@ -965,32 +989,36 @@ public sealed class AccumulatorRenderTests
         [InlineData(65504)]
         public void AnUnknownOrSaturatedDistanceAddsNoFalseHitSupport(float distance)
         {
-            WithHistory((renderer, sample, scene) =>
-            {
-                sample.Value = new(x: 1, y: 1, z: 1, w: 8);
-                renderer.Render(scene, 1);
-                sample.Value = new(x: 1, y: 1, z: 1, w: distance);
+            WithHistory(
+                (renderer, sample, scene) =>
+                {
+                    sample.Value = new(x: 1, y: 1, z: 1, w: 8);
+                    renderer.Render(scene, 1);
+                    sample.Value = new(x: 1, y: 1, z: 1, w: distance);
 
-                Continue(renderer, scene, frames: 1);
+                    Continue(renderer, scene, frames: 1);
 
-                GuideAt(renderer, sample).Distance.Should().BeApproximately(8, 0.01f);
-                GuideAt(renderer, sample).Support.Should().BeApproximately(0.5f, 0.001f);
-            });
+                    GuideAt(renderer, sample).Distance.Should().BeApproximately(8, 0.01f);
+                    GuideAt(renderer, sample).Support.Should().BeApproximately(0.5f, 0.001f);
+                }
+            );
         }
 
         [Fact]
         public void AHistoryWithoutAnyKnownHitHasNoDistanceSupport()
         {
-            WithHistory((renderer, sample, scene) =>
-            {
-                sample.Value = new(x: 1, y: 1, z: 1, w: 0);
+            WithHistory(
+                (renderer, sample, scene) =>
+                {
+                    sample.Value = new(x: 1, y: 1, z: 1, w: 0);
 
-                renderer.Render(scene, 1);
-                Continue(renderer, scene, frames: 4);
+                    renderer.Render(scene, 1);
+                    Continue(renderer, scene, frames: 4);
 
-                GuideAt(renderer, sample).Support.Should().Be(0);
-                CenterOf(renderer, sample, part: 0).Light.Should().Be(Vector3.One);
-            });
+                    GuideAt(renderer, sample).Support.Should().Be(0);
+                    CenterOf(renderer, sample, part: 0).Light.Should().Be(Vector3.One);
+                }
+            );
         }
 
         [Fact]
@@ -1005,32 +1033,38 @@ public sealed class AccumulatorRenderTests
         [Fact]
         public void DistanceSupportFollowsTheExistingShortLightHistoryRepair()
         {
-            WithHistory((renderer, sample, scene) =>
-            {
-                sample.Samples = (column, row) => new Vector4(Vector3.One,
-                    column == Width / 2 && row == Height / 2 ? 0 : 8);
+            WithHistory(
+                (renderer, sample, scene) =>
+                {
+                    sample.Samples = (column, row) =>
+                        new Vector4(Vector3.One, column == Width / 2 && row == Height / 2 ? 0 : 8);
 
-                renderer.Render(scene, 1);
+                    renderer.Render(scene, 1);
 
-                GuideAt(renderer, sample).Distance.Should().BeApproximately(8, 0.01f);
-                GuideAt(renderer, sample).Support.Should().BeApproximately(8f / 9, 0.001f);
-                CenterOf(renderer, sample, part: 0).Light.Should().Be(Vector3.One);
-            }, repair: true);
+                    GuideAt(renderer, sample).Distance.Should().BeApproximately(8, 0.01f);
+                    GuideAt(renderer, sample).Support.Should().BeApproximately(8f / 9, 0.001f);
+                    CenterOf(renderer, sample, part: 0).Light.Should().Be(Vector3.One);
+                },
+                repair: true
+            );
         }
 
         private static Vector3 LightAfterSequence(bool enabled)
         {
             Vector3 result = default;
-            WithHistory((renderer, sample, scene) =>
-            {
-                sample.Value = new(x: 1, y: 1, z: 1, w: 8);
-                renderer.Render(scene, 1);
-                sample.Value = new(x: 3, y: 3, z: 3, w: 0);
-                Continue(renderer, scene, frames: 1);
-                sample.Value = new(x: 7, y: 7, z: 7, w: 16);
-                Continue(renderer, scene, frames: 1);
-                result = CenterOf(renderer, sample, part: 0).Light;
-            }, enabled);
+            WithHistory(
+                (renderer, sample, scene) =>
+                {
+                    sample.Value = new(x: 1, y: 1, z: 1, w: 8);
+                    renderer.Render(scene, 1);
+                    sample.Value = new(x: 3, y: 3, z: 3, w: 0);
+                    Continue(renderer, scene, frames: 1);
+                    sample.Value = new(x: 7, y: 7, z: 7, w: 16);
+                    Continue(renderer, scene, frames: 1);
+                    result = CenterOf(renderer, sample, part: 0).Light;
+                },
+                enabled
+            );
             return result;
         }
 
@@ -1042,7 +1076,11 @@ public sealed class AccumulatorRenderTests
             return (support > 0 ? guide[center] / support : 0, support);
         }
 
-        private static void WithHistory(Action<VulkanRenderer, SamplePass, RenderSnapshot> action, bool enabled = true, bool repair = false)
+        private static void WithHistory(
+            Action<VulkanRenderer, SamplePass, RenderSnapshot> action,
+            bool enabled = true,
+            bool repair = false
+        )
         {
             string? previous = Environment.GetEnvironmentVariable("TERTIUS_REFLECTION_SHARING");
             VulkanRenderer? renderer = null;
@@ -1050,7 +1088,12 @@ public sealed class AccumulatorRenderTests
             {
                 Environment.SetEnvironmentVariable("TERTIUS_REFLECTION_SHARING", enabled ? "1" : null);
                 (VulkanRenderer created, SamplePass sample, RenderSnapshot scene) = Accumulating(
-                    parameters: SignalParameters.Specular(0) with { Cap = 4, SmoothCap = 4, HistoryFixFrames = repair ? 4 : 0 }
+                    parameters: SignalParameters.Specular(0) with
+                    {
+                        Cap = 4,
+                        SmoothCap = 4,
+                        HistoryFixFrames = repair ? 4 : 0,
+                    }
                 );
                 renderer = created;
                 action(renderer, sample, scene);
@@ -1058,6 +1101,212 @@ public sealed class AccumulatorRenderTests
             finally
             {
                 Environment.SetEnvironmentVariable("TERTIUS_REFLECTION_SHARING", previous);
+                if (renderer is not null)
+                    Gpu.DisposeAndAssertClean(renderer);
+            }
+        }
+    }
+
+    /// <summary>The precise specular experiment's accepted history and unchanged rejection and anti-lag.</summary>
+    [Collection(GpuCollection.Name)]
+    public sealed class PreciseSpecularHistory
+    {
+        [Theory]
+        [InlineData(null, 0.045f)]
+        [InlineData(null, 0.8f)]
+        [InlineData("", 0.045f)]
+        [InlineData("", 0.8f)]
+        [InlineData("precise-uncapped", 0.045f)]
+        [InlineData("precise-uncapped", 0.8f)]
+        public void AnUncappedConstantHistoryGrowsPastTwoThousandAndFortyEightFrames(string? mode, float roughness)
+        {
+            WithHistory(
+                mode,
+                roughness,
+                (renderer, sample, scene) =>
+                {
+                    sample.Value = Vector4.One;
+                    renderer.Render(scene, 1);
+                    Continue(renderer, scene, frames: 63);
+                    CenterOf(renderer, sample, part: 0)
+                        .Length.Should()
+                        .Be(64, "accepted specular frames have no configured age cap");
+
+                    Continue(renderer, scene, frames: 2048);
+
+                    for (int part = 0; part < 2; part++)
+                    {
+                        (Vector3 light, float length) = CenterOf(renderer, sample, part);
+                        length.Should().Be(2112, "the count must not stop at half precision's unit-increment limit");
+                        light.Should().Be(Vector3.One);
+                        Console.WriteLine(
+                            $"Uncapped accepted history: roughness={roughness:R}, part={part}, age={length:R}, radiance={light.X:R}"
+                        );
+                    }
+                }
+            );
+        }
+
+        [Theory]
+        [InlineData(null)]
+        [InlineData("")]
+        [InlineData("precise-uncapped")]
+        public void ALongAcceptedHistoryRetainsRadianceUpdatesSmallerThanHalfPrecisionCanStore(string? mode)
+        {
+            WithHistory(
+                mode,
+                0.8f,
+                (renderer, sample, scene) =>
+                {
+                    sample.Samples = NeighborhoodSamples(1);
+                    renderer.Render(scene, 1);
+                    Continue(renderer, scene, frames: 63);
+                    CenterOf(renderer, sample, part: 0).Length.Should().Be(64);
+                    Continue(renderer, scene, frames: 2048);
+                    float before = CenterOf(renderer, sample, part: 0).Light.X;
+                    sample.Samples = NeighborhoodSamples(1.125f);
+
+                    Continue(renderer, scene, frames: 8);
+
+                    (Vector3 light, float length) = CenterOf(renderer, sample, part: 0);
+                    length.Should().Be(2120);
+                    Console.WriteLine(
+                        $"Small updates after long history: before={before:R}, after={light.X:R}, age={length:R}"
+                    );
+                    light
+                        .X.Should()
+                        .BeGreaterThan(
+                            before,
+                            "eight accepted small updates must not round back to the old half float"
+                        );
+                    light
+                        .X.Should()
+                        .BeApproximately(
+                            (before * 2112 + 1.125f * 8) / 2120,
+                            0.00001f,
+                            "the broad fast-neighborhood variance leaves this running mean unclamped"
+                        );
+                }
+            );
+        }
+
+        [Theory]
+        [InlineData(null)]
+        [InlineData("precise-uncapped")]
+        public void AChangedSurfaceStillDiscardsAnUncappedHistory(string? mode)
+        {
+            WithHistory(
+                mode,
+                0.8f,
+                (renderer, sample, scene) =>
+                {
+                    sample.Value = Vector4.One;
+                    renderer.Render(scene, 1);
+                    Continue(renderer, scene, frames: 63);
+                    CenterOf(renderer, sample, part: 0).Length.Should().Be(64);
+                    RenderInstance receiver = scene.Instances[0];
+                    receiver.Material = renderer.CreateMaterial(MaterialDesc.Color(Vector4.One, roughness: 0.2f));
+                    scene.Instances[0] = receiver;
+                    sample.Value = new Vector4(new Vector3(2), 1);
+
+                    Continue(renderer, scene, frames: 1);
+
+                    CenterOf(renderer, sample, part: 0).Length.Should().Be(1);
+                    CenterOf(renderer, sample, part: 0).Light.Should().Be(new Vector3(2));
+                }
+            );
+        }
+
+        [Theory]
+        [InlineData(null)]
+        [InlineData("precise-uncapped")]
+        public void AUniformIlluminationStepAfterLongHistoryStillFollowsTheFastHistoryClamp(string? mode)
+        {
+            WithHistory(
+                mode,
+                0.8f,
+                (renderer, sample, scene) =>
+                {
+                    sample.Value = Vector4.One;
+                    renderer.Render(scene, 1);
+                    Continue(renderer, scene, frames: 63);
+                    CenterOf(renderer, sample, part: 0).Length.Should().Be(64);
+                    Continue(renderer, scene, frames: 2048);
+                    sample.Value = new Vector4(new Vector3(2), 1);
+
+                    Continue(renderer, scene, frames: 10);
+
+                    (Vector3 light, float length) = CenterOf(renderer, sample, part: 0);
+                    Console.WriteLine(
+                        $"Long-history step after 10 frames: radiance={light.X:R}, accepted age={length:R}"
+                    );
+                    light.X.Should().BeInRange(1.9f, 2);
+                    length
+                        .Should()
+                        .BeLessThan(2112, "the existing anti-lag still shortens history when the clamp moves it");
+                }
+            );
+        }
+
+        [Theory]
+        [InlineData("original", 0.045f, 4)]
+        [InlineData("original", 0.4f, 18)]
+        [InlineData("original", 0.8f, 32)]
+        [InlineData("precise-capped", 0.045f, 4)]
+        [InlineData("precise-capped", 0.4f, 18)]
+        [InlineData("precise-capped", 0.8f, 32)]
+        public void TheExplicitCappedControlsRetainTheOriginalRoughnessDependentAgeCap(
+            string mode,
+            float roughness,
+            int cap
+        )
+        {
+            WithHistory(
+                mode,
+                roughness,
+                (renderer, sample, scene) =>
+                {
+                    sample.Value = Vector4.One;
+                    renderer.Render(scene, 1);
+
+                    Continue(renderer, scene, frames: 63);
+
+                    CenterOf(renderer, sample, part: 0).Length.Should().Be(cap);
+                    sample
+                        .Signal.Slow(0)
+                        .Format.Should()
+                        .Be(mode == "original" ? Format.R16G16B16A16Sfloat : Format.R32G32B32A32Sfloat);
+                    sample.Signal.Sample(0).Format.Should().Be(Format.R16G16B16A16Sfloat);
+                    sample.Signal.HitImages(0, 0).LastFast.Format.Should().Be(Format.R16G16B16A16Sfloat);
+                }
+            );
+        }
+
+        private static Func<int, int, Vector4> NeighborhoodSamples(float center) =>
+            (column, row) =>
+                new Vector4(new Vector3(column == Width / 2 && row == Height / 2 ? center : (column + row) % 2 * 2), 1);
+
+        private static void WithHistory(
+            string? mode,
+            float roughness,
+            Action<VulkanRenderer, SamplePass, RenderSnapshot> action
+        )
+        {
+            string? previous = Environment.GetEnvironmentVariable("TERTIUS_SPECULAR_HISTORY");
+            VulkanRenderer? renderer = null;
+            try
+            {
+                Environment.SetEnvironmentVariable("TERTIUS_SPECULAR_HISTORY", mode);
+                (VulkanRenderer created, SamplePass sample, RenderSnapshot scene) = Accumulating(
+                    parameters: SignalParameters.Specular(0),
+                    roughness: roughness
+                );
+                renderer = created;
+                action(renderer, sample, scene);
+            }
+            finally
+            {
+                Environment.SetEnvironmentVariable("TERTIUS_SPECULAR_HISTORY", previous);
                 if (renderer is not null)
                     Gpu.DisposeAndAssertClean(renderer);
             }

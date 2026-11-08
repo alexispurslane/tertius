@@ -1,5 +1,5 @@
-using Silk.NET.Vulkan;
 using System.Text.Json;
+using Silk.NET.Vulkan;
 using Tertius.Rendering;
 
 namespace Tertius.ReflectionReference;
@@ -8,7 +8,8 @@ internal readonly record struct ProbeOutputGroup(string Shader, int First, int C
 
 internal sealed unsafe class ReflectionComparisonProbe : Tertius.Rendering.RenderPass
 {
-    public static IReadOnlyList<ProbeOutputGroup> OutputGroups { get; } = [
+    public static IReadOnlyList<ProbeOutputGroup> OutputGroups { get; } =
+    [
         new("reflection_comparison_light.frag", 0, 3),
         new("reflection_comparison_surface.frag", 3, 3),
         new("reflection_comparison_view.frag", 6, 2),
@@ -33,7 +34,11 @@ internal sealed unsafe class ReflectionComparisonProbe : Tertius.Rendering.Rende
     public override string Name => "research reflected light probe";
     public JsonElement? NumericMetadata { get; private set; }
 
-    public static ReflectionComparisonProbe On(VulkanRenderer renderer, MeshData boxGeometry, bool includeReconstruction = false)
+    public static ReflectionComparisonProbe On(
+        VulkanRenderer renderer,
+        MeshData boxGeometry,
+        bool includeReconstruction = false
+    )
     {
         var probe = new ReflectionComparisonProbe(renderer, boxGeometry, includeReconstruction);
         renderer.Graph.Add(FrameGraph.Stage.Composite, probe);
@@ -51,21 +56,27 @@ internal sealed unsafe class ReflectionComparisonProbe : Tertius.Rendering.Rende
         device = context.Device;
         shaders = new ShaderLibrary(device, typeof(ReflectionComparisonProbe).Assembly);
         foreach (ProbeOutputGroup group in groups)
-            pipelines.Add(new GraphicsPipelineDesc
-            {
-                Name = Name,
-                VertexShader = "lighting.vert",
-                FragmentShader = group.Shader,
-                Layout = context.Layouts.CompositeLayout,
-                ColorFormats = [.. Enumerable.Repeat(Format.R32G32Sfloat, group.Count)],
-                CullMode = CullModeFlags.None,
-                Constants = renderer.ShadingConstants,
-            }.Create(device, shaders));
+            pipelines.Add(
+                new GraphicsPipelineDesc
+                {
+                    Name = Name,
+                    VertexShader = "lighting.vert",
+                    FragmentShader = renderer.ScreenTraceSignals.Specular.HistoryShader(group.Shader),
+                    Layout = context.Layouts.CompositeLayout,
+                    ColorFormats = [.. Enumerable.Repeat(Format.R32G32Sfloat, group.Count)],
+                    CullMode = CullModeFlags.None,
+                    Constants = renderer.ShadingConstants,
+                }.Create(device, shaders)
+            );
         for (int attachment = 0; attachment < images.Length; attachment++)
             images[attachment] = GpuImage.Create(
-                device: device, allocator: renderer.Allocator, extent: context.Extent, format: Format.R32G32Sfloat,
+                device: device,
+                allocator: renderer.Allocator,
+                extent: context.Extent,
+                format: Format.R32G32Sfloat,
                 usage: ImageUsageFlags.ColorAttachmentBit | ImageUsageFlags.TransferSrcBit,
-                mipLevels: 1, name: $"{Name} {attachment}"
+                mipLevels: 1,
+                name: $"{Name} {attachment}"
             );
     }
 
@@ -75,14 +86,25 @@ internal sealed unsafe class ReflectionComparisonProbe : Tertius.Rendering.Rende
         foreach (GpuImage image in context.Targets.GBuffer)
             context.Barriers.Image(image, ImageUse.SampledFragment);
         context.Barriers.Image(renderer.ScreenTraceSignals.Specular.Slow(0), ImageUse.StorageFragment);
+        context.Barriers.Image(renderer.ScreenTraceSignals.Specular.Sample(0), ImageUse.StorageFragment);
+        context.Barriers.Image(renderer.ScreenTraceSignals.Specular.ReflectionGuide(0), ImageUse.StorageFragment);
+        context.Barriers.Image(context.Targets.DirectSpecular, ImageUse.StorageFragment);
         foreach (GpuImage image in images)
             context.Barriers.Image(image, ImageUse.ColorAttachment, discard: true);
         context.Barriers.Buffer(context.Exposure.Buffer, BufferUse.ShaderRead);
         context.Barriers.Flush(context.Vk, context.CommandBuffer);
         for (int group = 0; group < groups.Count; group++)
             context.DrawSceneFullScreen(
-                pipeline: pipelines[group], layout: context.Layouts.CompositeLayout, passSet: renderer.CompositeLightSet,
-                targets: [.. images.Skip(groups[group].First).Take(groups[group].Count).Select(image => (image, AttachmentLoadOp.DontCare))]
+                pipeline: pipelines[group],
+                layout: context.Layouts.CompositeLayout,
+                passSet: renderer.CompositeLightSet,
+                targets:
+                [
+                    .. images
+                        .Skip(groups[group].First)
+                        .Take(groups[group].Count)
+                        .Select(image => (image, AttachmentLoadOp.DontCare)),
+                ]
             );
     }
 

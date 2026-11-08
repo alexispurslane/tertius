@@ -3444,3 +3444,202 @@ All owned build/test/render/report/presentation commands ended and were explicit
 RELEASED2026-11-06at15:29:59EST. No process or later reservation remains.
 Ticket stays open for integration; the broader reference/noise goal is not complete.
 Evidence: live-reference-comparison/reflection-distance-history-recovery-20261106-1520/README.md.
+
+## November 7, 2026: agreement test with a drift sum selected
+
+The user judged the paired-ray check (tiunr-ax4c) barely better than the uncapped
+control. The user called its extra ray walks a bad sign and asked what the
+existing data can do. The user selected removal of the paired-ray code. Its sealed
+evidence stays as a control.
+
+Diagnosis from source and saved numbers, with no new run: the box clamp is the
+only history shortening. Its half width is 1.5 times the spread of the 3x3 fast
+histories, not the standard error of their mean. One rough-plate sample has a
+standard deviation of at least 69% of the mean, from the capped run's noise.
+The box is therefore at least ±39% of the mean. A 20% dimming stays inside it.
+
+Selected model: the slow history stays valid while it agrees with recent light
+within the standard error of that agreement. The user chose 3x3 same-surface
+pooling and a two-sided drift sum (CUSUM, Page 1954) across frames. CUSUM finds
+a lasting shift in the mean of a noisy stream at a set false-alarm rate. Our
+stream has unknown variance and heavy tails, so the test estimates the standard
+error from the neighbors and clamps each frame's term. Tiunr-py6q holds the
+definitions, agent-settled forks and Gaussian-model predictions. No measurement
+supports the predictions yet. Implementation follows TDD as an opt-in mode.
+
+Native result, November 7, 2026: the predictions did not hold on the rough plate.
+Static window scores averaged -0.84 instead of 0, because rough rays are
+right-skewed and each window estimates its own standard error. At allowance 0.2,
+static rough noise doubled and the dimming finished faster only because histories
+stayed short. At allowance 1.25, noise rose 29% and the dimming matched the
+control. The paired-ray code is removed. The drift test stays opt-in. Evidence:
+`/private/tmp/tertius-drift-history-20261107/report.md`.
+
+## November 7, 2026: drift sum failed, light-change age measured
+
+The drift sum failed on the rough plate. Each 3x3 window estimated its own
+standard error, and rough rays are mostly dark with rare bright emitter hits.
+The window score therefore averaged -0.84 in a still scene. No drain setting
+separated the still plate from the 20% dimming. A rank or median test cannot
+help, because the dimming changes only the brightness of the rare bright hits.
+Evidence: /private/tmp/tertius-drift-history-20261107/report.md.
+
+The user then chose the light-change age. Each screen pixel records the frames
+since its exact light (demodulated direct diffuse light plus glow) last changed.
+Each ray brings that age back, and the receiver's slow history may not be older.
+Native results against the uncapped control, 1280x720, no jitter:
+
+| Measure | Uncapped control | Light-change age |
+| --- | --- | --- |
+| Rough 20% dimming, persistent 90% adjustment | Not within 180 updates | 36 updates |
+| Rough dimming, unfinished after 10 updates | 74.4% | 32.6% |
+| Static rough and smooth output | Reference | Byte-identical |
+| Switch-off and emitter motion | Reference | Same |
+
+The cost is about 40 frames of coarser halo grain after the change, and 18 bytes
+per render pixel. The native captures have no camera jitter or camera motion.
+Rays that now hit another surface give no evidence. No acceptance follows yet.
+Evidence: /private/tmp/tertius-light-age-history-20261107/report.md.
+
+## November 7, 2026: uncovered surfaces and FSR jitter measured
+
+The user proposed a starting age A for newly uncovered surfaces. One run
+measured how often reflection rays hit them, with FSR jitter and a moving
+camera. Instrumentation changed no rendered output.
+
+- Jitter resets no light age. The light-change age passes the jitter risk.
+- In this scene about 8 of 862,600 plate receivers per frame hit a surface
+  uncovered in the last 32 frames, because the emitter is the only hit target.
+  Computed noise cost for A = 0 to 32 is under 5%. The recommendation is A = 4,
+  whose stale share after 36 frames is 9.8%, after the jitter fix below.
+- FSR jitter alone cuts the uncapped history: rough median 90 to 13 frames,
+  smooth 1,152 to 239, through the box clamp and anti-lag. Noise doubles on the
+  rough plate and grows about 14 times on the smooth plate.
+
+The jitter finding comes first, because every earlier uncapped noise gain was
+measured without jitter. Evidence: /private/tmp/tertius-uncovered-age-20261107/report.md.
+
+## November 7, 2026: jitter cuts diagnosed and the pixel history rule measured
+
+The jitter alone, not FSR, cut the uncapped histories. A still pixel re-read
+its history at a place offset by the jitter difference, so the bilinear read
+blurred the slow history every draw. The box clamp and anti-lag then cut the
+blurred edges. The user chose the fix "jitter is not motion": a history texel
+stands for its whole pixel, so it moves only with scene motion. A sharper
+re-read filter was rejected, because our histories keep hundreds of frames.
+
+Opt-in `TERTIUS_HISTORY_JITTER=pixel`, FSR still camera, default against rule:
+
+| Measure | Rough | Smooth |
+| --- | --- | --- |
+| Crop median history length | 12.3 to 88 frames | 264 to 1,152 frames |
+| Noise of the final FSR output, W/(m² sr) | 2.91 to 2.48 | 1.70 to 1.11 |
+| Reflection edge width, 10% to 90% | not measured | 4.0 to 1.7 px |
+
+The blur had hidden the rough plate's speckled fringe, which returns, finer
+than without FSR. During a camera pan the rule cuts more rough history (40%
+against 22% of crop pixels per frame), for an unknown cause. Evidence:
+/private/tmp/tertius-jitter-pixel-20261107/report.md.
+
+## November 8, 2026: the pixel rule's pan cuts diagnosed
+
+The pixel rule does not cause its extra pan cuts. Without jitter, the two rules
+render identically, and the pixel rule under jitter equals both in every pan
+total. The control cuts less because its jitter discards rare bright light in
+still frames.
+
+1. A rare bright hit is one rough-plate ray that hits the emitter far from the
+   reflection, in 0.0017% of far-plate pixel-frames under every rule.
+2. Under the control's jitter, a still pixel reads at a fractional place. The
+   specular reflected place then drops the hit texel, wins the place
+   competition in 95% of the frames after a hit, and discards the light.
+3. Under the pixel rule, a still pixel reads its own texel. The reflected place
+   never wins (0%), and the slow history keeps the light: 425 far-plate pixels
+   at the pan's start, against 0.
+4. The pan spreads the kept light into neighbors whose fast boxes hold almost
+   nothing. The anti-lag divides the clamp's move by that tiny box mean and
+   cuts. The far-plate cuts peak at 4.8% per frame at frame 78 and end by 108.
+
+`TERTIUS_DEBUG_REFLECTED_PLACE=off` confirms the chain: the control then keeps
+the hits and cuts 20% of the plate per frame. The kept light is the same bias
+as ter-18hc: the box of fast histories lies below the true mean of a rare
+bright signal. During the walk, the pixel rule cuts less than the control.
+Evidence: /private/tmp/tertius-pan-cuts-20261107/report.md.
+
+## November 8, 2026: the pixel history rule becomes the only rule
+
+The user accepted the pixel history rule after the pan diagnosis. It is now the
+renderer's only rule. The switch `TERTIUS_HISTORY_JITTER` and the `_pixel`
+shader variants are gone, and every history shader compiles the rule. The
+silhouette fallback to the jitter-corrected place stays. The old rule exists
+only in the sealed evidence above. ARCHITECTURE.md, "The frame history",
+describes the rule. Ticket `tiunr-4b2g` records the tests and the mutants.
+
+## November 8, 2026: the light-change age becomes the renderer's behavior
+
+The user made the light-change age the renderer's default. Every precise
+specular history now keeps it, capped and uncapped. The original history keeps
+H13's shaders, which have none. The values `off` and `light-age` of
+`TERTIUS_REFLECTION_HISTORY_AGREEMENT` are gone and stop the renderer. The
+diagnostic and the accumulation trace stay as opt-in instrumentation.
+
+The measurement ran first, with FSR 3.1 at scale 1 and the pixel history rule,
+light age off against on. 1,024 warm-up draws, 1280 by 720, uncapped history.
+
+| Measure | Light age off | Light age on |
+| --- | ---: | ---: |
+| Rough 20% dimming, persistent 90% adjustment, plate before FSR | not within 180 updates | 36 updates |
+| Same, final FSR output | not within 180 updates | 92 updates |
+| Still rough plate, crop median history length, frame 127 | 88.0 frames | 88.0 frames |
+| Still smooth plate, crop median history length, frame 127 | 1,152 frames | 1,152 frames |
+| Still rough plate, final output temporal noise RMS | 2.483 | 2.483 |
+| Still smooth plate, final output temporal noise RMS | 1.111 | 1.111 |
+
+The still captures render byte-identically with the light age off and on. No
+age reset in a still frame. After the change, the default captures equal the
+opt-in light-age captures byte for byte in every rendered file. Evidence:
+/private/tmp/tertius-light-age-default-20261108/report.md. Ticket `tiunr-7haj`
+records the tests and the mutants.
+
+## November 8, 2026: the light age finds changes in a still scene
+
+The light-change age is now the default (ticket tiunr-7haj). Under FSR with the
+pixel rule, a lasting 20% dimming reaches 90% adjustment after 36 updates on the
+plate and 92 in the final output. Still plates are byte-identical with it off and on.
+
+The demo's reflections scene, whose lights hold still, still gets evidence
+(ticket tiunr-okzm). Three mechanisms move its "exact light", and the 2% test is
+purely relative:
+
+1. A local light's reach follows the exposure, so a surface near the reach flips
+   between no light and about 0.0008 W/(m² sr).
+2. Under FSR jitter, a silhouette or thin-step pixel samples another surface,
+   whose light no neighbor of the 3 by 3 range shows.
+3. Under FSR, the temporal shadow filter takes 4 of its 16 taps per draw, so a
+   penumbra pixel's light cycles with a period of 2 or 4 draws.
+
+At the low view's shown draw, 700 floor receivers fall from a length of 23 to
+0.5. The off/on image difference is mostly not those receivers: the floor's
+specks respond to any global change, and fixed exposures 1e-6 stops apart
+already move 2,776 pixels by up to 38 levels. Evidence:
+/private/tmp/tertius-light-age-evidence-20261108/report.md.
+
+## November 8, 2026: the light age's floor and 4-draw wait
+
+The user chose two rules for the light age (ticket tiunr-okzm). A move counts
+only above the cutoff radiance with the exposure undone, and only after it
+stays outside the 3 by 3 range for 4 draws in a row. A committed change takes
+age 0: a cut shortens only a history's length, so it cannot remove old light
+that the pending draws already blended in. The builder added a third rule: a
+light inside the range takes the record only near the pixel's own last light,
+so that an emitter's border does not pass a dimming inward one ring per draw.
+
+| Run | Resets before | Resets after | Cuts before | Cuts after |
+| --- | ---: | ---: | ---: | ---: |
+| Front still | 1,667 | 3 | 973 | 12 |
+| Low still | 4,140 | 11 | 11,890 | 32 |
+| Edge still | 605 | 142 | 357 | 0 |
+
+The rough 20% dimming now reaches 90% adjustment after 40 updates on the
+plate (was 36) and 100 in the final output (was 92). Still and walking plates
+are byte-identical. Evidence: /private/tmp/tertius-light-age-persistence-20261108/.

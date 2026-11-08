@@ -15,6 +15,36 @@
 // The share of the larger of two hit distances by which they may differ for a tap to pass.
 const float HitDistanceShare = 0.5;
 
+#ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
+// The specular sample's light age (ticket tiunr-py6q, TemporalSignal.SampleAge): 0 for no evidence, else the age in frames
+// of the youngest light that its rays hit, plus 1.
+layout(set = 3, binding = 11, r16ui) uniform readonly uimage2D sampleAge;
+
+// The least share of the slow history's luminance that a sample must hold for its age to cut the history: a dim ray does
+// not speak for the light that the history holds.
+const float AgeCutShare = 0.25;
+#endif
+
+#ifdef TERTIUS_LIGHT_AGE_DIAGNOSTIC
+// The diagnostic of uncovered surfaces (TemporalSignal.UncoveredDiagnostic): the resolve wrote r, and this dispatch keeps
+// it and writes the length just before the blend, whether the sample holds the cut share, and the length before the cut.
+layout(set = 3, binding = 12, rgba32f) uniform image2D uncoveredDiagnostic;
+#endif
+
+#ifdef TERTIUS_ACCUMULATION_TRACE
+// The place flags of the invocation's historyPlaceOf (accumulate.glsl), and the place that won in texels of the last
+// frame's image, as reprojectionOf takes it.
+uint tracedPlace = 0u;
+vec2 tracedTexelPlace = vec2(0.0);
+// Flags of layer 0 past accumulate.glsl's (ticket tiunr-wk29), which only this dispatch writes: the surface place is the
+// pixel place (screen.glsl's pixel rule), and the tried reflected place is its pixel place.
+const uint TracedPixelPlaceRead = 1u << 10;
+const uint TracedReflectedPixelPlaceRead = 1u << 11;
+
+// The pixel rule's choices of the invocation's historyPlaceOf: TracedPixelPlaceRead and TracedReflectedPixelPlaceRead.
+uint tracedPixelPlaces = 0u;
+#endif
+
 // The place in the last frame's image of a point relative to this frame's eye, or a place outside it for a point
 // behind the last frame's eye.
 vec2 lastPlaceOf(vec3 clip)
@@ -83,6 +113,15 @@ vec2 reflectedPlaceOf(vec3 point, float hitDistance)
     return lastPlaceOf(lastClipOf(point + toSurface * hitDistance - frame.previousEye.xyz));
 }
 
+// The reflected point's pixel place (screen.glsl's pixel history rule): its place as reflectedPlaceOf gives it, with this
+// frame's jitter in place of the last frame's, so that a still point's place is the center of the pixel whose jittered
+// sample sees it.
+vec2 pixelReflectedPlaceOf(vec3 point, float hitDistance)
+{
+    return reflectedPlaceOf(point, hitDistance) + frame.previousJitter.xy * frame.previousViewport.zw
+        - frame.renderParams.yz * frame.viewport.zw;
+}
+
 // The place whose history the pixel reprojects: the surface place, or below reflectedPlaceBelow also the reflected
 // point's place, whichever passes, and of two that pass the one whose fast history lies nearer this frame's samples. A
 // pixel without a sample has no hit distance to test, so it takes the surface place.
@@ -90,12 +129,18 @@ Reprojection historyPlaceOf(ivec2 pixel, float roughness, bool hasSample, float 
 {
     uint bits = imageLoad(surfaceTest, pixel).r;
     vec4 motion = imageLoad(motionTarget, pixel);
-    vec2 surfacePlace = historyPlace(vec2(pixel) + 0.5, motion.xy);
+    vec2 samplePlace = historyPlace(vec2(pixel) + 0.5, motion.xy);
+    vec2 surfacePlace = readPlace(vec2(pixel) + 0.5, motion);
     bool specular = parameters.light == SpecularLight;
     bool tryReflected = specular && hasSample && roughness < parameters.reflectedPlaceBelow;
     // The specular signal takes the taps that pass the specular test, bits 4 to 7.
     uint surfaceBits = specular ? (bits >> 4) & 0xFu : bits & 0xFu;
     Reprojection surface = reprojectionOf(surfacePlace, surfaceBits);
+#ifdef TERTIUS_ACCUMULATION_TRACE
+    tracedPlace = holdsHistory(surface) ? TracedSurfaceHolds : 0u;
+    tracedTexelPlace = surfacePlace * frame.previousViewport.xy - 0.5;
+    tracedPixelPlaces = motion.w != 0.0 ? TracedPixelPlaceRead : 0u;
+#endif
     if (!tryReflected || parameters.reset != 0u)
         return surface;
 
@@ -103,23 +148,79 @@ Reprojection historyPlaceOf(ivec2 pixel, float roughness, bool hasSample, float 
     float distanceToEye = texelFetch(gbufferDistance, pixel, 0).r;
     vec3 point = normalize(viewRay) * distanceToEye;
     // The pixel's last point, as the surface test rebuilds it: the mirror's point in the last frame.
-    vec3 lastPoint = lastViewRayThrough(surfacePlace) * (distanceToEye / length(viewRay) * motion.z);
+    vec3 lastPoint = lastViewRayThrough(samplePlace) * (distanceToEye / length(viewRay) * motion.z);
     vec3 normal = octDecode(texelFetch(gbufferNormal, pixel, 0).ba);
-    vec2 reflectedPlace = reflectedPlaceOf(point, hitDistance);
-    bool inside = all(greaterThanEqual(reflectedPlace, vec2(0.0))) && all(lessThanEqual(reflectedPlace, vec2(1.0)));
-    uint reflectedBits = inside
-        ? (surfaceTaps(lastSurfaceHistory, lastDeviceDepth, reflectedPlace, lastPoint, normal, roughness) >> 4) & 0xFu
-        : 0u;
+    // The reflected place follows the rule of the surface place (signals.glsl).
+    HistoryTaps taps = historyTaps(lastSurfaceHistory, lastDeviceDepth, reflectedPlaceOf(point, hitDistance),
+        pixelReflectedPlaceOf(point, hitDistance), lastPoint, normal, roughness);
+    vec2 reflectedPlace = taps.place;
+    uint reflectedBits = (taps.bits >> 4) & 0xFu;
+#ifdef TERTIUS_ACCUMULATION_TRACE
+    tracedPixelPlaces |= taps.pixel ? TracedReflectedPixelPlaceRead : 0u;
+#endif
     Reprojection reflected = reflectedReprojectionOf(reflectedPlace, reflectedBits, hitDistance);
+#ifdef TERTIUS_ACCUMULATION_TRACE
+    tracedPlace = TracedReflectedTried | (holdsHistory(surface) ? TracedSurfaceHolds : 0u)
+        | (holdsHistory(reflected) ? TracedReflectedHolds : 0u);
+#endif
     if (!holdsHistory(reflected))
         return surface;
     if (!holdsHistory(surface))
+    {
+#ifdef TERTIUS_ACCUMULATION_TRACE
+        tracedPlace |= TracedReflectedWon;
+        tracedTexelPlace = reflectedPlace * frame.previousViewport.xy - 0.5;
+#endif
         return reflected;
+    }
     float mean = meanSampleLuminance(pixel);
     float surfaceOff = abs(luminance(lastFastAt(surface).rgb) - mean);
     float reflectedOff = abs(luminance(lastFastAt(reflected).rgb) - mean);
+#ifdef TERTIUS_ACCUMULATION_TRACE
+    if (reflectedOff < surfaceOff)
+    {
+        tracedPlace |= TracedReflectedWon;
+        tracedTexelPlace = reflectedPlace * frame.previousViewport.xy - 0.5;
+    }
+#endif
     return reflectedOff < surfaceOff ? reflected : surface;
 }
+
+#ifdef TERTIUS_ACCUMULATION_TRACE
+// The sum of the bilinear weights of the taps of `bits` around a place.
+float tracedWeightOf(vec2 place, uint bits)
+{
+    return dot(reprojectionOf(place, bits).weights, vec4(1.0));
+}
+
+// Layer 8 (ticket tiunr-wk29): the weights of the taps that pass at the pixel's two places, as the surface test
+// (surface_test.comp) tests them against the pixel's exact last point: the pixel place's under the surface test and the
+// sample place's, then the same under the specular test. The pixel place is screen.glsl's pixelPlace. A place outside the
+// last frame's image, and every place of a frame that resets, holds no weight.
+vec4 tracedPlaceWeights(ivec2 pixel)
+{
+    vec2 center = vec2(pixel) + 0.5;
+    vec3 ray = viewRayThrough(center);
+    float depth = texelFetch(gbufferDistance, pixel, 0).r / length(ray);
+    vec3 normal = octDecode(texelFetch(gbufferNormal, pixel, 0).ba);
+    float roughness = texelFetch(gbufferSpecular, pixel, 0).g;
+    vec4 motion = imageLoad(motionTarget, pixel);
+    vec2 samplePlace = historyPlace(center, motion.xy);
+    vec2 ownPlace = pixelPlace(center, motion.xy);
+    vec3 lastPoint = lastViewRayThrough(samplePlace) * (depth * motion.z);
+    uint sampleBits = 0u;
+    uint ownBits = 0u;
+    if (parameters.reset == 0u)
+    {
+        if (all(greaterThanEqual(samplePlace, vec2(0.0))) && all(lessThanEqual(samplePlace, vec2(1.0))))
+            sampleBits = surfaceTaps(lastSurfaceHistory, lastDeviceDepth, samplePlace, lastPoint, normal, roughness);
+        if (all(greaterThanEqual(ownPlace, vec2(0.0))) && all(lessThanEqual(ownPlace, vec2(1.0))))
+            ownBits = surfaceTaps(lastSurfaceHistory, lastDeviceDepth, ownPlace, lastPoint, normal, roughness);
+    }
+    return vec4(tracedWeightOf(ownPlace, ownBits & 0xFu), tracedWeightOf(samplePlace, sampleBits & 0xFu),
+        tracedWeightOf(ownPlace, (ownBits >> 4) & 0xFu), tracedWeightOf(samplePlace, (sampleBits >> 4) & 0xFu));
+}
+#endif
 
 void main()
 {
@@ -133,6 +234,11 @@ void main()
         imageStore(fastHistory, pixel, vec4(0.0));
         if (reflectionSharingPrototype && parameters.light == SpecularLight)
             imageStore(reflectionGuideScratch, pixel, vec4(0.0));
+#ifdef TERTIUS_ACCUMULATION_TRACE
+        for (int layer = 0; layer < 4; layer++)
+            storeTrace(pixel, layer, vec4(0.0));
+        storeTrace(pixel, 8, vec4(0.0));
+#endif
         return;
     }
 
@@ -153,6 +259,28 @@ void main()
     if (reflectionSharingPrototype && parameters.light == SpecularLight)
         guide = lastReflectionGuideAt(r).rg;
 
+#ifdef TERTIUS_ACCUMULATION_TRACE
+    // Layers 1 to 3: the taps' weights; where tap 0 lies relative to the pixel, the hit distance and the sample's
+    // luminance; the least and the most length of the taps that hold weight, and the luminance of the reprojected fast
+    // and slow histories before the exposure ratio, 0 without a history.
+    uint tracedTaps = 0u;
+    float leastTapLength = 0.0;
+    float mostTapLength = 0.0;
+    for (uint tap = 0u; tap < 4u; tap++)
+        if (r.weights[tap] > 0.0)
+        {
+            float tapLength = imageLoad(slowHistory, tapTexel(r, tap)).a;
+            leastTapLength = tracedTaps == 0u ? tapLength : min(leastTapLength, tapLength);
+            mostTapLength = tracedTaps == 0u ? tapLength : max(mostTapLength, tapLength);
+            tracedTaps |= 1u << tap;
+        }
+    storeTrace(pixel, 1, r.weights);
+    storeTrace(pixel, 2, vec4(tracedTexelPlace - vec2(pixel), hitDistance, hasSample ? luminance(sampled) : 0.0));
+    storeTrace(pixel, 3, vec4(leastTapLength, mostTapLength, luminance(fast), luminance(slow.rgb)));
+    float lastAccepted = imageLoad(slowHistory, pixel).a;
+    bool tracedHasSample = hasSample;
+#endif
+
     float historyLength = 0.0;
     if (holdsHistory(r))
     {
@@ -165,6 +293,30 @@ void main()
         slow.rgb = exposed(slow.rgb, ratio);
         fast = exposed(fast, ratio);
     }
+
+#ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
+    // The light-change age: the history keeps no more frames than the age of the light that the sample's rays see, so
+    // after the blend it holds only frames from after the change.
+#ifdef TERTIUS_LIGHT_AGE_DIAGNOSTIC
+    float uncutLength = historyLength;
+#endif
+    uint ageCode = imageLoad(sampleAge, pixel).r;
+    if (hasSample && ageCode != 0u && luminance(sampled) >= AgeCutShare * luminance(slow.rgb))
+        historyLength = min(historyLength, float(ageCode - 1u));
+#ifdef TERTIUS_LIGHT_AGE_DIAGNOSTIC
+    bool holdsCutShare = hasSample && luminance(sampled) >= AgeCutShare * luminance(slow.rgb);
+    imageStore(uncoveredDiagnostic, pixel, vec4(imageLoad(uncoveredDiagnostic, pixel).r,
+        hasSample ? historyLength : -1.0, holdsCutShare ? 1.0 : 0.0, uncutLength));
+#endif
+#endif
+
+#ifdef TERTIUS_ACCUMULATION_TRACE
+    // Layer 0: the length that the last draw accepted at this texel, the length before the blend, the sum of the taps'
+    // weights and the flags.
+    storeTrace(pixel, 0, vec4(lastAccepted, historyLength, dot(r.weights, vec4(1.0)),
+        float(tracedTaps | tracedPlace | tracedPixelPlaces | (tracedHasSample ? TracedSample : 0u) | TracedSurfacePixel)));
+    storeTrace(pixel, 8, tracedPlaceWeights(pixel));
+#endif
 
     // Step 2. A sample that is not finite counts as no sample: the pixel keeps its history and its length. Without a
     // history, it takes the closed form.

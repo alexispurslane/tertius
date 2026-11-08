@@ -13,6 +13,8 @@ internal static partial class Program
 
     internal static int Main(string[] args)
     {
+        if (args is ["--history", ..])
+            return CaptureHistory(args);
         if (args is ["--geometry-audit", "--out", _])
             return CaptureLive(roughnessName: "smooth", mode: "off", path: args[2], diagnosticOnly: true, geometryAudit: true);
         if (args is ["--raster-metadata", "--out", _])

@@ -30,6 +30,9 @@
        Files ending in .glsl are includes. A change to any include recompiles every stage. -->
   <ItemGroup>
     <GlslShader Include="Shaders/*.vert;Shaders/*.frag;Shaders/*.comp" />
+    <PreciseHistoryShader Include="Shaders/accumulate_temporal.comp;Shaders/accumulate_spatial.comp;Shaders/screen_trace_*.comp;Shaders/composite.frag;Shaders/composite_scatter.frag" />
+    <LightAgeDiagnosticShader Include="Shaders/accumulate_temporal.comp;Shaders/screen_trace_*.comp" />
+    <AccumulationTraceShader Include="Shaders/accumulate_temporal.comp;Shaders/accumulate_spatial.comp" />
     <GlslInclude Include="Shaders/*.glsl" />
     <None Include="@(GlslShader);@(GlslInclude)" />
   </ItemGroup>
@@ -71,6 +74,61 @@
     <ItemGroup>
       <_GlslSpirv Include="@(GlslShader->'$(IntermediateOutputPath)shaders/%(Filename)%(Extension).spv')" />
       <EmbeddedResource Include="@(_GlslSpirv)" LogicalName="Tertius.Rendering.Shaders.%(_GlslSpirv.Filename)%(_GlslSpirv.Extension)" WithCulture="false" />
+    </ItemGroup>
+  </Target>
+
+  <Target Name="CompilePreciseHistoryShaders" BeforeTargets="BeforeBuild"
+          Inputs="@(PreciseHistoryShader);@(GlslInclude);$(MSBuildProjectFullPath)"
+          Outputs="@(PreciseHistoryShader->'$(IntermediateOutputPath)shaders/%(Filename)_precise%(Extension).spv')">
+    <MakeDir Directories="$(IntermediateOutputPath)shaders" />
+    <Exec Command="&quot;$(Glslc)&quot; --target-env=vulkan1.3 -O -Werror -DTERTIUS_PRECISE_SPECULAR_HISTORY -I &quot;$(MSBuildProjectDirectory)/Shaders&quot; -o &quot;$(IntermediateOutputPath)shaders/%(PreciseHistoryShader.Filename)_precise%(PreciseHistoryShader.Extension).spv&quot; &quot;%(PreciseHistoryShader.FullPath)&quot;" />
+  </Target>
+
+  <Target Name="EmbedPreciseHistoryShaders" DependsOnTargets="CompilePreciseHistoryShaders" BeforeTargets="BeforeBuild">
+    <ItemGroup>
+      <_PreciseHistorySpirv Include="@(PreciseHistoryShader->'$(IntermediateOutputPath)shaders/%(Filename)_precise%(Extension).spv')" />
+      <EmbeddedResource Include="@(_PreciseHistorySpirv)" LogicalName="Tertius.Rendering.Shaders.%(_PreciseHistorySpirv.Filename)%(_PreciseHistorySpirv.Extension)" WithCulture="false" />
+    </ItemGroup>
+  </Target>
+  <!-- The precise variants of the tracer and of the temporal dispatch with the diagnostic of uncovered surfaces, which
+       only the capture tool and the tests read. They render exactly as the precise variants, which always keep the
+       light-change age (ticket tiunr-7haj). -->
+  <Target Name="CompileLightAgeDiagnosticShaders" BeforeTargets="BeforeBuild"
+          Inputs="@(LightAgeDiagnosticShader);@(GlslInclude);$(MSBuildProjectFullPath)"
+          Outputs="@(LightAgeDiagnosticShader->'$(IntermediateOutputPath)shaders/%(Filename)_lightagediag_precise%(Extension).spv')">
+    <MakeDir Directories="$(IntermediateOutputPath)shaders" />
+    <Exec Command="&quot;$(Glslc)&quot; --target-env=vulkan1.3 -O -Werror -DTERTIUS_PRECISE_SPECULAR_HISTORY -DTERTIUS_LIGHT_AGE_DIAGNOSTIC -I &quot;$(MSBuildProjectDirectory)/Shaders&quot; -o &quot;$(IntermediateOutputPath)shaders/%(LightAgeDiagnosticShader.Filename)_lightagediag_precise%(LightAgeDiagnosticShader.Extension).spv&quot; &quot;%(LightAgeDiagnosticShader.FullPath)&quot;" />
+  </Target>
+
+  <Target Name="EmbedLightAgeDiagnosticShaders" DependsOnTargets="CompileLightAgeDiagnosticShaders" BeforeTargets="BeforeBuild">
+    <ItemGroup>
+      <_LightAgeDiagnosticSpirv Include="@(LightAgeDiagnosticShader->'$(IntermediateOutputPath)shaders/%(Filename)_lightagediag_precise%(Extension).spv')" />
+      <EmbeddedResource Include="@(_LightAgeDiagnosticSpirv)" LogicalName="Tertius.Rendering.Shaders.%(_LightAgeDiagnosticSpirv.Filename)%(_LightAgeDiagnosticSpirv.Extension)" WithCulture="false" />
+    </ItemGroup>
+  </Target>
+  <!-- The accumulation trace (ticket tiunr-4b2g): the precise variants of both dispatches that also write what each
+       stage did to the specular history, which only the capture tool and the tests read. It renders exactly as the
+       precise variants, the light-change age included. -->
+  <Target Name="CompileAccumulationTraceShaders" BeforeTargets="BeforeBuild"
+          Inputs="@(AccumulationTraceShader);@(GlslInclude);$(MSBuildProjectFullPath)"
+          Outputs="@(AccumulationTraceShader->'$(IntermediateOutputPath)shaders/%(Filename)_trace_precise%(Extension).spv')">
+    <MakeDir Directories="$(IntermediateOutputPath)shaders" />
+    <Exec Command="&quot;$(Glslc)&quot; --target-env=vulkan1.3 -O -Werror -DTERTIUS_PRECISE_SPECULAR_HISTORY -DTERTIUS_ACCUMULATION_TRACE -I &quot;$(MSBuildProjectDirectory)/Shaders&quot; -o &quot;$(IntermediateOutputPath)shaders/%(AccumulationTraceShader.Filename)_trace_precise%(AccumulationTraceShader.Extension).spv&quot; &quot;%(AccumulationTraceShader.FullPath)&quot;" />
+  </Target>
+
+  <Target Name="EmbedAccumulationTraceShaders" DependsOnTargets="CompileAccumulationTraceShaders" BeforeTargets="BeforeBuild">
+    <ItemGroup>
+      <_AccumulationTraceSpirv Include="@(AccumulationTraceShader->'$(IntermediateOutputPath)shaders/%(Filename)_trace_precise%(Extension).spv')" />
+      <EmbeddedResource Include="@(_AccumulationTraceSpirv)" LogicalName="Tertius.Rendering.Shaders.%(_AccumulationTraceSpirv.Filename)%(_AccumulationTraceSpirv.Extension)" WithCulture="false" />
+    </ItemGroup>
+  </Target>
+  <Target Name="EmbedHistorySourceIdentity" BeforeTargets="BeforeBuild">
+    <GetFileHash Files="@(Compile);@(GlslShader);@(GlslInclude);$(MSBuildProjectFullPath)">
+      <Output TaskParameter="Items" ItemName="_HistorySources" />
+    </GetFileHash>
+    <WriteLinesToFile File="$(IntermediateOutputPath)history-sources.sha256" Lines="@(_HistorySources->'%(FullPath)|%(FileHash)')" Overwrite="true" WriteOnlyWhenDifferent="true" />
+    <ItemGroup>
+      <EmbeddedResource Include="$(IntermediateOutputPath)history-sources.sha256" LogicalName="Tertius.HistorySources.sha256" WithCulture="false" />
     </ItemGroup>
   </Target>
 </Project>

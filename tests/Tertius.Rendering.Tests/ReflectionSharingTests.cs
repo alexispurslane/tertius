@@ -304,7 +304,7 @@ public sealed class ReflectionSharingTests
             shaders = new ShaderLibrary(device, typeof(ReflectionSharingTests).Assembly);
             pipeline = new GraphicsPipelineDesc
             {
-                Name = Name, VertexShader = "lighting.vert", FragmentShader = "reflection_sharing_pulse.frag",
+                Name = Name, VertexShader = "lighting.vert", FragmentShader = renderer.ScreenTraceSignals.Specular.HistoryShader("reflection_sharing_pulse.frag"),
                 Layout = context.Layouts.CompositeLayout,
                 ColorFormats = [RenderTargets.DistanceFormat, RenderTargets.NormalFormat], CullMode = CullModeFlags.None,
                 Constants = renderer.ShadingConstants,

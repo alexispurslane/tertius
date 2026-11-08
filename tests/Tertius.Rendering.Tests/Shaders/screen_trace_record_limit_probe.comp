@@ -10,7 +10,12 @@ void main()
     if (any(greaterThanEqual(vec2(pixel), frame.viewport.xy)))
         return;
     const float distances[4] = float[4](0.0, 32752.0, 65504.0, 131008.0);
+    // A precise history's ray also carries its hit's light age: none here.
+#ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
+    TracedRay traced = TracedRay(vec3(0.0, 0.0, 1.0), 1.0, vec3(1.0), distances[pixel.x & 3], true, NoLightAge);
+#else
     TracedRay traced = TracedRay(vec3(0.0, 0.0, 1.0), 1.0, vec3(1.0), distances[pixel.x & 3], true);
+#endif
     RayRecord record = recordOf(traced);
     imageStore(specularSample, pixel, vec4(traced.distance / 65504.0, record.light.a / 65504.0, 0.0, 1.0));
 }

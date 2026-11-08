@@ -33,7 +33,7 @@ internal sealed unsafe class ScreenTraceKernel : IDisposable
         pipeline = new ComputePipelineDesc
         {
             Name = name,
-            Shader = shader,
+            Shader = images.Specular.HistoryShader(shader),
             Layout = layouts.ScreenTraceLayout,
             Constants = constants,
         }.Create(device, shaders);
@@ -48,7 +48,7 @@ internal sealed unsafe class ScreenTraceKernel : IDisposable
             pipeline: new ComputePipelineDesc
             {
                 Name = $"{Name}, own",
-                Shader = "screen_trace_own_rays.comp",
+                Shader = images.Specular.HistoryShader("screen_trace_own_rays.comp"),
                 Layout = layouts.ScreenTraceLayout,
                 Constants = constants,
             }
@@ -123,6 +123,15 @@ internal sealed class ScreenTracePlanPass(ScreenTraceKernel kernel, ScreenTraceI
         ScreenTraceKernel.DeclareSurfaces(context);
         kernel.DeclareHistories(context.Barriers, context.History.Parity, slow: true);
         context.Barriers.Image(images.Plan, ImageUse.StorageCompute, discard: true);
+        // The light-change age: the plan reads the direct light and the last record, and writes every pixel of this one.
+        int parity = context.History.Parity;
+        if (images.LightAge(parity) is { } lightAge && images.LastLightAge(parity) is { } lastLightAge)
+        {
+            context.Barriers.Image(context.Targets.DirectDiffuse, ImageUse.StorageCompute);
+            context.Barriers.Buffer(context.Exposure.Buffer, BufferUse.ComputeRead);
+            context.Barriers.Image(lastLightAge, ImageUse.StorageCompute);
+            context.Barriers.Image(lightAge, ImageUse.StorageCompute, discard: true);
+        }
         foreach (GpuBuffer list in images.OwnRays)
             context.Barriers.Buffer(list, BufferUse.ComputeWrite);
         kernel.Record(context, side: 1);
@@ -170,6 +179,9 @@ internal sealed class ScreenTraceRaysPass(
         // Each kind writes its own layers, but the validation layers' hazard tracking sees one image.
         foreach (GpuImage image in (GpuImage[])[images.BlockLight, images.BlockRay, images.OwnLight, images.OwnRay])
             barriers.Image(image, ImageUse.StorageCompute);
+        // A hit reads the age that the plan wrote at its pixel.
+        if (images.LightAge(context.History.Parity) is { } lightAge)
+            barriers.Image(lightAge, ImageUse.StorageCompute);
     }
 
     public override void Dispose()
@@ -190,6 +202,10 @@ internal sealed class ScreenTraceResolvePass(ScreenTraceKernel kernel, ScreenTra
             context.Barriers.Image(image, ImageUse.StorageCompute);
         context.Barriers.Image(images.Diffuse.Sample(0), ImageUse.StorageCompute, discard: true);
         context.Barriers.Image(images.Specular.Sample(0), ImageUse.StorageCompute, discard: true);
+        if (images.Specular.SampleAge(0) is { } age)
+            context.Barriers.Image(age, ImageUse.StorageCompute, discard: true);
+        if (images.Specular.UncoveredDiagnostic(0) is { } diagnostic)
+            context.Barriers.Image(diagnostic, ImageUse.StorageCompute, discard: true);
         kernel.Record(context, side: 1);
     }
 

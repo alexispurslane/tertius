@@ -8,6 +8,16 @@ Design A changes reflection sample distribution at the same configured ray budge
 
 The probe embeds its own reconstruction shader. Each candidate must prove that the probe and loaded engine implement the intended experiment. Engine-only edits are insufficient when the changed behavior also lives in the probe. Reports retain actual renderer draw 95 separately from the 32-frame mean and compare noise and reference error separately. A can change unfiltered samples; B can change later source feedback. These effects do not permit substituting old arrays or bypassing fixture checks. Old references, controls and sealed runtimes remain immutable.
 
+The first A/B attempts did not produce valid candidate quality comparisons. A's shader passed182 focused checks, but its symlinked executable entry made both captures load H13. B stopped on incompatible statistic-image bindings before capture. The campaign plan records the failed attempts and follow-up tickets. A physical local entry copy and an actual-loaded-engine check are required before another capture; matching preview images do not establish that a candidate ran.
+
+The user authorized separate bounded repairs under tiunr-oi26 and tiunr-d3la. A reuses its exact tested binaries and repairs capture setup only. B repairs optional statistic-image format compatibility without changing the estimator. Before either repair captures, run the existing non-rendering `--cap-shaders <intended-engine.dll> --out <new-directory>` command from the frozen local entry. Require `shader-identity.json` to name and hash the intended loaded engine, with all resources identical to that intended engine. This is an engine-admission check, not a baseline comparison. `--sharing-shaders` is not suitable because it requires exactly four changed modules. Also verify actual tool and embedded-probe identities; engine identity alone does not prove statistic consumption. Keep the failed attempts and their consumed counts separate from new measurements.
+
+A's capture repair now verifies that the intended tested engine runs, with no new compilation and 182 focused replay passes. Its two valid captures are under `/private/tmp/tertius-reflection-hypothesis-campaign-20261106/A-h13-capture-repair-v2`. The campaign plan records the measured tradeoff: rough temporal noise falls 2.83%, but persistent mean-reference error rises 11.12%. A repaired capture path is not evidence that the algorithm improves quality. H13 remains the selected baseline.
+
+B's first repair stopped before capture, with 37 synchronization failures and two resize image-view failures. That evidence remains under `/private/tmp/tertius-reflection-hypothesis-campaign-20261106/B-h13-binding-repair-v2`. The user then removed the artificial execution ceilings and directed the existing agent to finish the repair. The continuation fixes test-owned image ordering and resize lifetime, without changing B's engine estimator. All 148 focused cases pass. The actual embedded-probe variance-input test passes, and admission identifies the intended loaded engine. Both native captures have zero Vulkan validation messages through disposal.
+
+Successful B images and results are under `/private/tmp/tertius-reflection-hypothesis-campaign-20261106/B-h13-resource-repair-v3`. Parent inspection verifies the sealed files, linked targets, runtime/report inputs and seven compressed tables without another heavy command. Rough temporal noise falls 3.07% against H13, but persistent mean-reference error rises 1.84%. The reflection widens and excess light increases. Smooth plate arrays remain byte-identical across all 32 measured frames. The repair succeeds, but the candidate does not preserve H13 accuracy. H13 remains selected. The campaign plan retains the counts, historical failures, comparison images and limits. No B integration or production acceptance occurs.
+
 ## Reflection-sharing prototype
 
 The research-only `--live smooth sharing --out <new-directory>` and
@@ -471,3 +481,137 @@ These are observed point agreements, not certified accuracy bounds.
 The prior images and13.7% diagnostic stay preserved. No image was rerun
 or changed for this point-only check. It does not measure the live
 prototype's light loss, edge width, motion stability or performance.
+
+## Slow specular history controls
+
+The renderer defaults to uncapped slow specular history. Unset or empty
+`TERTIUS_SPECULAR_HISTORY` selects the same mode as `precise-uncapped`.
+The fast history, rejection and clamping remain unchanged.
+
+| `--history` control | Environment value set by the tool | Slow storage | Age limit |
+|---|---|---|---|
+| `original` | `original` | 16-bit/channel | Historical roughness-dependent limit |
+| `capped` | `precise-capped` | 32-bit/channel | Historical roughness-dependent limit |
+| `uncapped` | `precise-uncapped` | 32-bit/channel | No configured limit |
+
+Both precise controls use full-rate reflection rays at eligible pixels. Other
+history images keep their existing storage and ray policy. Compare these two
+controls to isolate the age-limit change; comparison with `original` also
+includes storage and reflection-allocation differences. The `original` command
+sets its value explicitly because an unset value now selects uncapped history.
+
+`--history static|move|off|dim smooth|rough original|capped|uncapped --out <new-directory>`
+records native final-render PNGs, scene-linear radiance, history ages, source and
+binary identities, and validation through disposal. Warm-up defaults to 1,024
+advancing draws; `--warmup N` overrides it. The historical evidence and its
+limitations remain under `/private/tmp/tertius-uncapped-history-20261107/`.
+
+### Light-change age
+
+Every capture with a precise specular history, `capped` or `uncapped`, keeps
+the light-change age of tickets `tiunr-py6q` and `tiunr-7haj`. The renderer has
+no switch for it since November 8, 2026. The `original` history keeps none. The
+light age does not change ray directions, the slow-history age limit or the H13
+reconstruction.
+
+`TERTIUS_REFLECTION_HISTORY_AGREEMENT` selects only instrumentation: unset or
+empty for none, `light-age-diagnostic` or `control-trace`. The removed values
+`off` and `light-age` stop the renderer with an error. Captures before that date
+used `off` for a control without the light age and `light-age` for the age.
+
+`request.json` records the instrumentation in `HistoryInstrumentation`. Captures
+before November 8, 2026 recorded the mode in `HistoryAgreement`. With a precise
+history, `measured-sample-age.u16` stores one little-endian uint16 per original
+crop pixel per measured frame: 0 for no evidence, else the specular sample's
+youngest ray age plus 1. `measured-light-age.f32` stores two float32 values per
+crop pixel per frame: the exact light and the age, -1 for no evidence. Each
+measured line of `draws.jsonl` counts the whole screen's surface pixels, age
+resets and pixels with evidence. These files are empty for the `original`
+history. The native evidence lives under
+`/private/tmp/tertius-light-age-history-20261107/`, and the FSR evidence of the
+change to the default under `/private/tmp/tertius-light-age-default-20261108/`.
+
+Since the uncovered-surface measurement, a negative age is no evidence and
+counts frames on screen: the record holds −(N + 1) for a pixel that N frames
+showed unchanged. `draws.jsonl` also counts `FirstShown`, the surface pixels
+with N = 0.
+
+### Uncovered surfaces
+
+Set `TERTIUS_REFLECTION_HISTORY_AGREEMENT=light-age-diagnostic` for the
+diagnostic of uncovered surfaces. It renders exactly as a capture without the
+variable. Two history options select the scenario:
+
+- `--upscaling fsr` draws through FSR 3.1 at render scale 1, so that the camera
+  jitters. The default `none` draws without upscaling.
+- `--camera walk` moves the camera on a fixed path with the static event: still
+  for measured frames 0 to 59, a pan to the left at 10 degrees per second for
+  frames 60 to 119, then a walk to the camera's right at 1 m/s. It measures 240
+  frames and keeps every PNG.
+
+Every capture writes grain bins to each measured line of `draws.jsonl`. The
+grain of a plate pixel in the reflection region is its output minus the mean of
+its eight plate neighbors. The bins sort the pixels by their accepted length.
+With the diagnostic, `measured-seen.u16.gz` and
+`measured-length-before-blend.f32.gz` hold the whole screen per frame, and
+`uncovered-receivers.bin` holds one record per plate receiver whose rays hit a
+never-changed surface. `request.json` describes the formats. The evidence lives
+under `/private/tmp/tertius-uncovered-age-20261107/`.
+
+### Accumulation trace and jitter
+
+Set `TERTIUS_REFLECTION_HISTORY_AGREEMENT=control-trace` for the accumulation
+trace of ticket `tiunr-4b2g`. It renders exactly as a capture without the
+variable, the light-change age included. Captures before November 8, 2026 had no
+light age with this value. The
+trace holds, for each pixel of the specular signal, what the reprojection, the
+blend, the box clamp and the anti-lag did to the slow history in the last draw.
+`TemporalSignal.TraceLayers` describes its nine layers. Layer 8 and the flags
+10 and 11 of layer 0 (ticket `tiunr-wk29`) record the pixel's two history
+places: the passing tap weight of the pixel place and of the sample place, and
+whether the pixel read its pixel place. The pixel place is the pixel moved by
+the scene's motion alone. The sample place also moves by the jitter's change.
+Under the renderer's pixel history rule (ticket `tiunr-4b2g`), a pixel reads its
+pixel place. It reads the sample place only where the pixel place holds less
+than `LeastHistoryWeight` of passing taps, as at a silhouette. Captures before
+2026-11-08 without `TERTIUS_HISTORY_JITTER=pixel` used the sample place
+everywhere. `request.json` records the rule in `HistoryJitter`.
+With the trace, the capture writes these files:
+
+- `measured-trace-crop.f32.gz`: the nine layers of the 80 by 160 crop in each
+  measured frame.
+- `measured-trace-flags.u8.gz`: one `ScreenFlag` byte per pixel of the whole
+  screen in each measured frame: the anti-lag cut, the clamp moved, the pixel
+  place was read, the pixel place holds less than `LeastHistoryWeight`, a hit,
+  a reprojection loss of more than half a frame, the reflected place won, and a
+  surface.
+- `trace-0000.f32.gz`, `trace-0064.f32.gz` and the last frame's file: the
+  whole screen.
+- `trace-sums.f32`: per-pixel sums over the measured frames, one raster per
+  name of `TraceWriters.SumNames`.
+- `screen-classes.u8`: sky, plate or another surface, per pixel.
+
+Each measured line of `draws.jsonl` also holds per-frame sums of each length
+change for the plate, for the plate pixels whose sample hit a surface, and for
+both inside the crop.
+
+The option `--jitter` sets the debug switch `TERTIUS_DEBUG_JITTER`:
+
+- `upscaler`, the default, jitters exactly the draws that FSR upscales.
+- `none` draws without jitter, also under FSR.
+- `always` jitters by FSR's sequence also without FSR.
+- `held` keeps FSR's jitter, but the reprojection takes this draw's jitter for
+  the last draw's. A still camera then reprojects each pixel onto its own
+  texel. The surface test rebuilds the last frame's points with the wrong
+  jitter, so the plate's far border loses its history. The pixel history rule
+  reads a still pixel's own texel without this switch. Under the rule, `held`
+  changes only the sample place, which a silhouette reads, and the rebuilt last
+  points.
+
+The evidence lives under `/private/tmp/tertius-jitter-cuts-20261107/`.
+
+The debug switch `TERTIUS_DEBUG_REFLECTED_PLACE=off` (ticket `tiunr-wk29`) sets
+the specular signal's `ReflectedPlaceBelow` to 0, so the reflected place never
+competes with the surface place. Unset, empty and `on` keep the renderer's rule.
+The evidence of the pan's cuts lives under
+`/private/tmp/tertius-pan-cuts-20261107/`.

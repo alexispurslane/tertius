@@ -165,10 +165,100 @@ public sealed class DescriptorLayoutsTests
         ];
 
         all.Max(counts => counts.StorageBuffers.Most).Should().Be(10, "the frame set's vertex stage sees ten");
-        all.Max(counts => counts.StorageImages.Most).Should().Be(15, "the screen tracer's compute stage sees fifteen");
+        all.Max(counts => counts.StorageImages.Most)
+            .Should()
+            .Be(18, "the screen tracer's compute stage sees fifteen and the light-change age's three");
         all.Max(counts => counts.SampledImages.Most)
             .Should()
             .Be(16, "the impostor layout's fragment stage sees sixteen");
+    }
+
+    /// <summary>
+    /// The light-change age of a precise specular history adds three storage images to the screen tracer's compute stage,
+    /// the two light-age records and the sample age, and one to the accumulator's, the sample age. The original history
+    /// keeps H13's shaders, which have no light age.
+    /// </summary>
+    [Fact]
+    public void APreciseHistoryAddsTheLightAgesThreeStorageImagesToTheScreenTracerAndOneToTheAccumulator()
+    {
+        using var device = VulkanDevice.Create(validation: true, surfaceExtensions: [], createSurface: null);
+        using var original = new DescriptorLayouts(
+            device: device,
+            framesInFlight: 2,
+            glowLevels: 0,
+            historyMode: SpecularHistoryMode.Original
+        );
+        using var layouts = new DescriptorLayouts(device: device, framesInFlight: 2, glowLevels: 0);
+
+        layouts.DescriptorsOf(layouts.ScreenTraceLayout).StorageImages.Compute.Should().Be(
+            original.DescriptorsOf(original.ScreenTraceLayout).StorageImages.Compute + 3
+        );
+        layouts.DescriptorsOf(layouts.AccumulateLayout).StorageImages.Compute.Should().Be(
+            original.DescriptorsOf(original.AccumulateLayout).StorageImages.Compute + 1
+        );
+    }
+
+    [Fact]
+    public void TheCappedPreciseHistoryHasTheSameLayoutsAsTheUncapped()
+    {
+        using var device = VulkanDevice.Create(validation: true, surfaceExtensions: [], createSurface: null);
+        using var uncapped = new DescriptorLayouts(device: device, framesInFlight: 2, glowLevels: 0);
+        using var layouts = new DescriptorLayouts(
+            device: device,
+            framesInFlight: 2,
+            glowLevels: 0,
+            historyMode: SpecularHistoryMode.PreciseCapped
+        );
+
+        layouts.DescriptorsOf(layouts.ScreenTraceLayout).Should().Be(uncapped.DescriptorsOf(uncapped.ScreenTraceLayout));
+        layouts.DescriptorsOf(layouts.AccumulateLayout).Should().Be(uncapped.DescriptorsOf(uncapped.AccumulateLayout));
+    }
+
+    /// <summary>
+    /// The diagnostic of uncovered surfaces adds one storage image more to each: the diagnostic image, which the resolve
+    /// writes and the temporal dispatch completes.
+    /// </summary>
+    [Fact]
+    public void TheUncoveredDiagnosticAddsOneStorageImageToTheScreenTracerAndOneToTheAccumulator()
+    {
+        using var device = VulkanDevice.Create(validation: true, surfaceExtensions: [], createSurface: null);
+        using var lightAge = new DescriptorLayouts(device: device, framesInFlight: 2, glowLevels: 0);
+        using var layouts = new DescriptorLayouts(
+            device: device,
+            framesInFlight: 2,
+            glowLevels: 0,
+            instrumentation: HistoryInstrumentation.LightAgeDiagnostic
+        );
+
+        layouts.DescriptorsOf(layouts.ScreenTraceLayout).StorageImages.Compute.Should().Be(
+            lightAge.DescriptorsOf(lightAge.ScreenTraceLayout).StorageImages.Compute + 1
+        );
+        layouts.DescriptorsOf(layouts.AccumulateLayout).StorageImages.Compute.Should().Be(
+            lightAge.DescriptorsOf(lightAge.AccumulateLayout).StorageImages.Compute + 1
+        );
+    }
+
+    /// <summary>
+    /// The accumulation trace adds one storage image to the accumulator, the trace, and none to the screen tracer.
+    /// </summary>
+    [Fact]
+    public void TheAccumulationTraceAddsOneStorageImageToTheAccumulatorOnly()
+    {
+        using var device = VulkanDevice.Create(validation: true, surfaceExtensions: [], createSurface: null);
+        using var control = new DescriptorLayouts(device: device, framesInFlight: 2, glowLevels: 0);
+        using var layouts = new DescriptorLayouts(
+            device: device,
+            framesInFlight: 2,
+            glowLevels: 0,
+            instrumentation: HistoryInstrumentation.ControlTrace
+        );
+
+        layouts.DescriptorsOf(layouts.ScreenTraceLayout).StorageImages.Compute.Should().Be(
+            control.DescriptorsOf(control.ScreenTraceLayout).StorageImages.Compute
+        );
+        layouts.DescriptorsOf(layouts.AccumulateLayout).StorageImages.Compute.Should().Be(
+            control.DescriptorsOf(control.AccumulateLayout).StorageImages.Compute + 1
+        );
     }
 
     /// <summary>

@@ -95,13 +95,27 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     private const uint ScreenTraceStorageBuffers = 2;
 
     /// <summary>
+    /// The storage images that the light-change age of a precise specular history adds to a screen tracer set after its
+    /// lists, at bindings 19 to 21: the last and this frame's light-age records and the specular sample's age, and at
+    /// binding 22 the uncovered-surface diagnostic (<see cref="HistoryInstrumentation.LightAgeDiagnostic"/>).
+    /// </summary>
+    private uint ScreenTraceAgeImages =>
+        (historyMode.KeepsLightAge ? 3u : 0u)
+        + (instrumentation == HistoryInstrumentation.LightAgeDiagnostic ? 1u : 0u);
+
+    /// <summary>
     /// The signal sets: one per part and parity of the screen tracer's two signals of one part, and of a test's signal of
     /// two parts (<see cref="TemporalSignal"/>).
     /// </summary>
     private const uint SignalSets = 8;
 
-    /// <summary>The storage images of a signal set.</summary>
-    private const uint SignalSetImages = 9;
+    /// <summary>
+    /// The storage images of a signal set: nine, with the light-change age of a precise specular history the sample age at
+    /// binding 11, and at binding 12 the instrumentation's image, the uncovered-surface diagnostic or the accumulation
+    /// trace. The original history refuses the instrumentation (<see cref="SignalScratch"/>).
+    /// </summary>
+    private uint SignalSetImages =>
+        9u + (historyMode.KeepsLightAge ? 1u : 0u) + (instrumentation == HistoryInstrumentation.None ? 0u : 1u);
 
     /// <summary>The sampled images of a signal set: the last surface history and the last device depth.</summary>
     private const uint SignalSetSampledImages = 2;
@@ -148,6 +162,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     );
 
     private readonly VulkanDevice device;
+    private readonly SpecularHistoryMode historyMode;
+    private readonly HistoryInstrumentation instrumentation;
 
     // No handle until the constructor makes the pools, so a Dispose after a refused device destroys none.
     private readonly SetPool pool = new(default, 0);
@@ -160,13 +176,26 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     private readonly Dictionary<ulong, LimitedDescriptors> layoutDescriptors = [];
 
     /// <param name="glowLevels">The bloom levels, 0 without bloom: the pool holds one glow source set more than that.</param>
+    /// <param name="historyMode">
+    /// The renderer's specular history: the light-change age of a precise history adds the light-age records and the
+    /// sample age to the screen tracer set, and the sample age to every signal set.
+    /// </param>
+    /// <param name="instrumentation">The renderer's instrumentation of the specular history, which adds its images.</param>
     /// <exception cref="NotSupportedException">
     /// A stage of a pipeline layout sees more storage buffers, storage images or sampled images than the device lets one
     /// stage see (<see cref="LimitedDescriptors.Problem"/>).
     /// </exception>
-    public DescriptorLayouts(VulkanDevice device, int framesInFlight, int glowLevels)
+    public DescriptorLayouts(
+        VulkanDevice device,
+        int framesInFlight,
+        int glowLevels,
+        SpecularHistoryMode historyMode = SpecularHistoryMode.PreciseUncapped,
+        HistoryInstrumentation instrumentation = HistoryInstrumentation.None
+    )
     {
         this.device = device;
+        this.historyMode = historyMode;
+        this.instrumentation = instrumentation;
 
         LinearClampSampler = CreateLevelZeroSampler(Filter.Linear, "linear clamp sampler");
         EnvironmentSampler = CreateTrilinearClampSampler("environment sampler");
@@ -780,7 +809,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         );
 
     /// <summary>The sizes of the shared pool, which holds <paramref name="glowSourceSets"/> glow source sets.</summary>
-    private static DescriptorPoolSize[] SharedPoolSizes(uint frames, uint glowSourceSets) =>
+    private DescriptorPoolSize[] SharedPoolSizes(uint frames, uint glowSourceSets) =>
         [
             // One per frame set, and the scatter set's kernel.
             new(DescriptorType.UniformBuffer, frames + 1),
@@ -814,8 +843,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
                     + ScreenTraceSampledImages * ScreenTraceSets
             ),
             // One per pyramid level set, the depth tail set's mips, four per environment levels set, three for the scatter
-            // set, one for the shadow bounds set, four per surface test set, seven per signal set, four for the light set
-            // and fifteen per screen tracer set.
+            // set, one for the shadow bounds set, four per surface test set, SignalSetImages per signal set, four for the
+            // light set and fifteen per screen tracer set, plus ScreenTraceAgeImages.
             new(
                 DescriptorType.StorageImage,
                 PyramidLevelSets
@@ -826,7 +855,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
                     + 4 * SurfaceTestSets
                     + SignalSetImages * SignalSets
                     + LightSetImages
-                    + ScreenTraceStorageImages * ScreenTraceSets
+                    + (ScreenTraceStorageImages + ScreenTraceAgeImages) * ScreenTraceSets
             ),
         ];
 
@@ -1007,7 +1036,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     {
         const uint lists = ScreenTraceSampledImages + ScreenTraceStorageImages;
         Span<DescriptorSetLayoutBinding> bindings =
-            stackalloc DescriptorSetLayoutBinding[(int)(lists + ScreenTraceStorageBuffers)];
+            stackalloc DescriptorSetLayoutBinding[(int)(lists + ScreenTraceStorageBuffers + ScreenTraceAgeImages)];
         for (uint binding = 0; binding < ScreenTraceSampledImages; binding++)
             bindings[(int)binding] = Image(binding: binding, stages: ShaderStageFlags.ComputeBit);
         for (uint binding = ScreenTraceSampledImages; binding < lists; binding++)
@@ -1019,6 +1048,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
                 descriptorCount: 1,
                 stageFlags: ShaderStageFlags.ComputeBit
             );
+        for (uint binding = lists + ScreenTraceStorageBuffers; binding < bindings.Length; binding++)
+            bindings[(int)binding] = StorageImage(binding);
         return CreateLayout(bindings: bindings, name: "screen trace set");
     }
 

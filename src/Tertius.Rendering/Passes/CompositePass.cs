@@ -38,11 +38,12 @@ internal sealed unsafe class CompositePass : RenderPass
         this.tracer = tracer;
         LightSet = layouts.AllocateLightSet();
         Resize(targets);
+        string fragmentShader = scatter ? "composite_scatter.frag" : "composite.frag";
         pipeline = new GraphicsPipelineDesc
         {
             Name = "composite",
             VertexShader = "lighting.vert",
-            FragmentShader = scatter ? "composite_scatter.frag" : "composite.frag",
+            FragmentShader = tracer is null ? fragmentShader : tracer.Specular.HistoryShader(fragmentShader),
             Layout = layouts.CompositeLayout,
             ColorFormats = scatter ? [RenderTargets.HdrFormat, RenderTargets.DiffuseFormat] : [RenderTargets.HdrFormat],
             CullMode = CullModeFlags.None,
@@ -63,8 +64,8 @@ internal sealed unsafe class CompositePass : RenderPass
             targets.DirectSpecular,
             tracer?.Diffuse.Slow(0) ?? targets.DirectDiffuse,
             tracer?.Specular.Slow(0) ?? targets.DirectSpecular,
-            tracer?.Specular.Sample(0) ?? targets.DirectSpecular,
-            tracer?.Specular.ReflectionGuide(0) ?? targets.DirectSpecular,
+            sharing && tracer is { } sampleTracer ? sampleTracer.Specular.Sample(0) : targets.DirectSpecular,
+            sharing && tracer is { } guideTracer ? guideTracer.Specular.ReflectionGuide(0) : targets.DirectSpecular,
         ];
         for (int binding = 0; binding < light.Length; binding++)
             layouts.WriteStorageImage(set: LightSet, binding: (uint)binding, image: light[binding]);

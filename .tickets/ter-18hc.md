@@ -2,7 +2,7 @@
 id: ter-18hc
 status: open
 deps: []
-links: []
+links: [tiunr-wk29, tiunr-nxtr]
 created: 2026-11-04T20:48:47Z
 type: bug
 priority: 2

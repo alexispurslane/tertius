@@ -21,6 +21,76 @@ Both reports compare actual draw 95, separate 32-frame means, temporal noise RMS
 
 Integration, source archives, the corrected shared Release bootstrap and cleanup receipts are under `/private/tmp/tertius-reflection-hypothesis-campaign-20261106/parent-inspections/h13-integration-20261106`. All 18 completed campaign worktrees are archived before removal. Minimal readonly source-path aliases can remain to keep old absolute-path hash manifests usable; these aliases are not Git worktrees. Unrelated worktrees and original evidence remain untouched. Ticket tiunr-k2wn owns integration and cleanup. The parent owns inspection and any later promotion.
 
+### First A/B attempts: no valid quality comparison
+
+Both attempts ended and released their owned commands. Neither measures the new design's native image quality. The selected H13 baseline remains unchanged.
+
+| Design | Verified test evidence | Native measurement outcome |
+| --- | --- | --- |
+| A, tiunr-m0uo | Four baseline assertion failures; final182/182 focused Release checks pass | Both capture attempts loaded H13 instead of A. The frozen tool entry was symlinked into H13, so the host selected H13's application directory. Both host traces and engine hashes establish this. The192 draws and one metrics command consumed their allocation, but produce zero valid A captures or quality metrics. |
+| B, tiunr-463x | Six baseline assertion failures; attempted candidate83/147, with64 failures containing image-format validation errors | New RGBA32F statistic declarations receive RGBA16F fallback images when disabled. The off path is invalid. Rendering compile attempts3/3 are consumed; no native capture or metrics command ran. |
+
+The A fault repeats the documented requirement to copy the executable entry locally. It is not an algorithmic null, and these duplicate H13 images are not new A results. Follow-up tiunr-oi26 records local-entry and actual-loaded-engine admission before any fresh capture allocation. Follow-up tiunr-d3la records B's disabled-resource binding defect. Neither tracking ticket authorizes a retry. B's missing red-runtime binary identity and unestablished statistic-to-probe consumption remain disclosed.
+
+### Authorized A/B repairs
+
+The user then requested two new repair agents and new renders. Each repair starts in a new T3 worktree from H13 commit `37e047c88e6bcc086174854912bd57107f948315` and imports only its own preserved candidate. The old candidate worktrees and evidence remain readonly inputs. The repairs do not combine A and B or tune either algorithm against the reference.
+
+| Repair | Required proof before capture | Fresh execution bounds |
+| --- | --- | --- |
+| A, tiunr-oi26 | Reproduce the old entry's loaded-engine identity failure without rendering, then physically copy the entry and prove the intended tested A engine loads | Zero compilations; one existing focused-test replay; two original-fixture capture attempts; one saved-data report |
+| B, tiunr-d3la | Reproduce the incompatible image binding, repair format compatibility, pass focused tests, and prove the temporal statistic reaches the measured reconstruction | At most three Rendering, three tool and four affected-test compilations; five focused test executions; two original-fixture capture attempts; one saved-data report |
+
+These are fresh bounded continuations, not resets of historical counts. The repair brief and launch receipts are under `/private/tmp/tertius-reflection-hypothesis-campaign-20261106/parent-inspections/ab-repair-launch-20261106-v2`. All heavy phases use Nix and the existing serialized GPU queue, with fresh disk, memory and load guards. Both repairs require a physical local executable entry, actual loaded-engine admission and preserved host traces. The parent owns final inspection, integration and ticket closure.
+
+### Verified A capture repair
+
+The A repair loads the exact tested A engine in both new captures. The physical tool entry and host traces identify engine `dbc04d91`, rather than H13. All 60 engine resources match the intended candidate during non-rendering admission. The parent verified all 429 artifact entries, the linked-target inventory, runtime and report inputs, and replay XML with 182 passed cases and no failures, errors or skips. All four new preview hashes differ from H13.
+
+| Material | Temporal noise RMS, H13 to A | Persistent mean-error RMS, H13 to A | Fixed outer-band missing/reference, H13 to A |
+| --- | --- | --- | --- |
+| Smooth | 13.34637 to 11.80329, 11.56% lower | 52.07977 to 51.67748, 0.77% lower | 3.79723% to 3.62979% |
+| Rough | 21.14352 to 20.54499, 2.83% lower | 30.19907 to 33.55702, 11.12% higher | 5.55257% to 11.15734% |
+
+RMS values use W/(m² sr). Temporal noise measures per-pixel variation over the 32 captured frames. Persistent mean error compares the separate 32-frame mean with the fixed reference. The outer-band denominator is reference radiance inside the fixed band, not the whole crop. Outer bands use 141 valid rows and 19 invalid rows; they cover 1.34152% of smooth and 13.95262% of rough whole-crop reference radiance. Full-crop totals retain every pixel.
+
+This continuation adds zero compilations, one 182-case executable replay, two non-rendering admissions, two valid captures with 192 draws including 64 measured draws, and one saved-data metrics command. Earlier invalid capture attempts and all counts remain preserved. The actual rough image and separate mean still show clumps. A is a measured tradeoff, not a replacement that preserves rough reference accuracy. Its digitally shifted Sobol sequence is not spatiotemporal blue noise; the interaction with rotating 2x2 ray reuse limits per-pixel coverage claims. Static correlated frames and live-feedback versus one-bounce-reference differences remain limits.
+
+Evidence is under `C/A-h13-capture-repair-v2`; parent verification is under `C/parent-inspections/A-h13-capture-repair-v2`, where C is `/private/tmp/tertius-reflection-hypothesis-campaign-20261106`. The manifest SHA256 is `ab6cbf1db1bbe7cbe6d92124f894d806aabbf5925cd9f74492e2105ea5be375d`. Heavy commands are released. H13 remains unchanged; neither A source integration nor ticket closure occurs here.
+
+### B repair stops before native measurement
+
+The B repair replaces incompatible half-precision fallback views with a 1x1 RGBA32F storage image. It leaves the temporal-statistic estimator and H13 reconstruction equations unchanged. The final focused run no longer reports the original format mismatch, but remains invalid: 109 of 148 cases pass, 39 fail, and none are skipped. The parent verified the XML and all 575 artifact identities plus 208 linked entries.
+
+Of the 39 remaining failures, 37 report read-after-write synchronization hazards between the synthetic pulse and the actual comparison probe's fallback-image use. Two resize cases report invalid or destroyed image views at signal binding 4. The resize lifetime cause remains unresolved. The actual embedded-probe test that changes only the variance input passes, as do the accepted-sample statistic cases. Those passes establish a synthetic consuming path, not a valid native capture or a quality improvement.
+
+The continuation uses three Rendering compilation attempts, two tool compilations, three test compilations, four executable runs and both correction rounds. It stops at the Rendering ceiling with zero capture-admission commands, native captures, renderer frames or metrics commands. All B image and noise/accuracy fields remain unavailable. No old H13 image substitutes for a missing B image. The parent records the remaining GPU-resource work in a follow-up ticket without authorizing a retry or reserving capacity.
+
+Evidence is under `C/B-h13-binding-repair-v2`; parent verification is under `C/parent-inspections/B-h13-binding-repair-v2`. The manifest SHA256 is `5ce330fc1d696942a851fd6d81694aab886d9b6baffc28cdde0e423b1edcc84d`. Heavy work is released. The missing historical red-observer DLL identity and targeted-red dependency differences remain disclosed. H13 remains unchanged, and all relevant tickets remain open for parent disposition.
+
+The user then explicitly directed the existing B agent to keep working until fixed. Ticket tiunr-pzhn owns this continuation in the same worktree. The previous artificial compilation, correction and capture-attempt ceilings no longer apply. Historical evidence and cumulative counts remain unchanged. The agent must continue through valid GPU resource ordering/lifetime, full focused green, actual loaded-candidate admission, both material captures and the existing metrics report. Nix, the unchanged serialized GPU queue, live resource guards, fixed experiment semantics and immutable failed attempts still apply. No extra agent, algorithm retuning, capacity reservation or production integration is authorized.
+
+Parent inspection receipts under `C/parent-inspections/A-h13-sample-distribution-v1` and `C/parent-inspections/B-h13-temporal-variance-v1` verify353 and44 sealed entries respectively. Here C is `/private/tmp/tertius-reflection-hypothesis-campaign-20261106`. No parent build, test, capture, metric rerun, new agent or candidate integration occurred during inspection. No conclusion about A or B's noise-versus-accuracy tradeoff follows from these failed attempts.
+
+### Verified B resource repair and measured tradeoff
+
+The continuation under tiunr-pzhn completes B's resource repair. All 148 focused cases pass without skips. The corrections order the synthetic pulse's bound statistic image and recreate the custom test pass's sample image after resize. The engine and estimator remain unchanged from B's previous repair. Both native captures have zero Vulkan validation messages through renderer disposal. The actual embedded-probe variance-input test passes. Admission identifies the intended local engine and all 60 engine shader modules.
+
+Parent inspection verifies 444 sealed entries, 156 links, 76 runtime identities, 93 report-input identities and seven compressed tables. No parent build, test, capture or metrics rerun occurs. Evidence is `C/B-h13-resource-repair-v3`. The parent receipt and labeled H13/B images are under `C/parent-inspections/B-h13-resource-repair-v3`.
+
+| Rough observable | H13 | B |
+| --- | ---: | ---: |
+| Temporal noise RMS, W/(m² sr) | 21.143515 | 20.494741 |
+| Persistent 32-frame mean-reference error RMS, W/(m² sr) | 30.199067 | 30.756077 |
+| Missing/reference, % | 4.375675 | 4.196462 |
+| Extra/reference, % | 8.746474 | 9.211141 |
+| Fixed outer-band missing/band-reference, % | 5.552570 | 4.628890 |
+| Column-mean 5–95% width within the crop, native pixels | 25.243299 | 25.608837 |
+
+Temporal noise measures variation around each pixel's 32-frame mean. Persistent error measures that mean's difference from the fixed reference. B reduces rough temporal noise by 3.0684%, but increases persistent error by 1.8445%. Reference width is 24.471147 native pixels. B loses less light, but adds more excess light and widens the reflection. Smooth plate arrays match H13 across all 32 frames. Raw/emitter identities remain separate. The rough images differ, but their prominent clumps remain. This does not meet the user's accuracy-preserving improvement criterion. H13 remains selected.
+
+The continuation uses zero Rendering, one tool and two test compilations. Cumulative compilations are 6/4/7. All 620 test cases remain recorded as 448 passes and 172 historical failures. Both captures pass, with 192 draws and 64 measured frames. Two metrics commands remain preserved, including the first input-staging failure. All owned commands are released. No integration, production acceptance, coverage, mutation run or ticket closure occurs. Static correlated frames and the live-feedback/one-bounce-reference mismatch still limit interpretation.
+
 Date: November 6, 2026. Campaign ticket: tiunr-lmmx.
 
 ## Purpose
@@ -469,3 +539,219 @@ Static correlated frames, live source feedback versus the one-bounce reference,
 stale manifest algorithm prose and the original 26 failed position diagnostics
 remain limits. The reference is not declared satisfactory and speckles are not
 declared solved.
+
+## Uncapped slow-history experiment (November 7, 2026)
+
+Ticket `tiunr-ipmk` tests the user's proposal to remove the specular slow
+history's age limit while retaining surface rejection, the short fast history,
+clamping and the reduction of old-history influence after clamping. H13 stays
+the spatial reconstruction baseline. This is a research experiment, not an
+accepted renderer policy.
+
+The causal comparison uses the same higher-precision slow-history storage and
+the same fixed reflection-ray allocation for capped and uncapped accumulation.
+An additional original-H13 control separates those supporting changes from the
+effect of removing the age limit. Diffuse ray allocation, ray directions,
+material response, source feedback and H13's spatial filter stay fixed.
+
+Each native 1280 × 720 run first draws 1,024 advancing warm-up frames. Static
+runs retain 128 scene-linear measured frames for noise and reference-error
+measurements. The reference remains the saved one-bounce reference, so source
+feedback is still a limit on interpretation. Actual frames and separate
+temporal means must not be confused.
+
+Two 60-frames-per-second videos compare capped and uncapped final renderer
+output after the same warm-up. In one, the reflected emitter moves while the
+receiver and camera remain fixed. In the other, the emitter switches off
+without geometry movement. Both retain the initial stationary interval and
+the following response. Events must not reset the renderer. A smaller emitter
+brightness change is a further numeric response check. History-length
+distributions establish whether the existing clamp still limits effective
+accumulation even without an age limit.
+
+Evidence lives under `/private/tmp/tertius-uncapped-history-20261107/`.
+Build, test and capture failures remain recorded; there is no arbitrary
+attempt ceiling. No acceptance, commit or integration follows merely from
+successful execution.
+
+### Measured uncapped-history outcome
+
+All 16 captures completed with clean validation through disposal: 19,552 native
+draws, 3,168 measured draws and 2,412 final-render PNGs. Every run used 1,024
+advancing warm-up draws. The capped/uncapped source inputs and reflection-ray
+counts match. Their dynamic pre-event radiance and history-age prefixes match
+the static runs. The engine's focused suites pass 300/300 in Checked and 300/300
+in Release. The seven saved-frame measurement tests pass.
+
+Noise below is the image RMS of each pixel's temporal sample standard
+deviation. Error is the RMS of the 128-frame temporal mean minus the saved
+one-bounce reference. Both use outgoing visible-plate specular red radiance in
+W/(m² sr), not display brightness or spatial speckle contrast.
+
+| Material and control | Temporal noise RMS | Mean-reference error RMS |
+|---|---:|---:|
+| Rough original H13 | 24.446157 | 26.492000 |
+| Rough matched capped | 17.741029 | 29.785164 |
+| Rough matched uncapped | 5.528005 | 29.022363 |
+| Smooth original H13 | 14.275161 | 51.604504 |
+| Smooth matched capped | 14.283778 | 51.658591 |
+| Smooth matched uncapped | 0.997452 | 51.440042 |
+
+Removing the age limit reduces noise 68.84% for rough and 93.02% for smooth
+against the matched capped control. Mean-reference error falls 2.56% and 0.42%,
+respectively. Against original H13, rough noise falls 77.39% but error rises
+9.55%. The full-rate-ray and precision changes must therefore remain separate
+from the isolated age-limit result. Persistent spatial speckles remain.
+
+Final uncapped median history age is 95.95 frame units on the rough plate and
+1,152 on the smooth plate; the matched caps are 8.67 and 4. History age is an
+accepted averaging weight, not an independent-sample count. Existing clamping
+still shortens rough history.
+
+After the emitter switches off, both controls remove 90% of aggregate receiver
+light in 10 draws for rough and 9 for smooth, about 167 ms and 150 ms at 60 Hz.
+The smaller 20% rough-emitter dimming change exposes the limitation: capped
+completes 90% of the adjustment in 19 draws, while uncapped does not within 180
+draws (3 seconds). Uncapped still retains 17.27% of the requested adjustment at
+the end. The dim target is 80% of the preceding 60-frame mean, not an
+independently rendered settled reference. No clamp or rejection tuning was
+performed after observing this result.
+
+The delivered `videos/moving-reflection.mp4` shows rough then smooth motion
+(8 seconds). `videos/lighting-changes.mp4` shows rough off, smooth off, then
+rough 20% dimming (12 seconds). Both compare matched capped on the left with
+uncapped on the right, using real final-render frames and same-frame enlarged
+crops. There is no temporal interpolation or image denoising. No moved-emitter
+reference was rendered, so motion is not declared trail-free.
+
+The full report, complete result JSON, actual-render PNG sheets, self-contained
+comparison and video files are under the evidence root recorded above. The
+initial failing-test DLL was overwritten; its XML, base revision and shader
+identity proof remain, and the gap is disclosed. Float32 age stops advancing
+by one at 16,777,216 accepted frames. Static correlated frames and live
+source-history feedback versus the one-bounce reference remain limits. No
+default-policy acceptance, commit, merge or ticket closure occurred.
+
+### Accepted uncapped default
+
+On November 7, 2026, the user accepted the tested uncapped mode as the next
+default despite the measured illumination-response and rough-reference-error
+tradeoffs. The first change only selects that existing implementation when
+`TERTIUS_SPECULAR_HISTORY` is unset or empty. Its precise slow-history storage
+and full-rate reflection allocation remain the same as the inspected experiment.
+Fast history, surface rejection, reflected-location rejection, clamping and
+history shortening remain unchanged. This does not accept an unmeasured new
+rejection policy.
+
+Explicit `original` and `precise-capped` remain historical comparison controls.
+The history capture command now sets `original` explicitly for that control;
+clearing the variable would select the new default and invalidate the control.
+The sealed original experiment is not edited or relabeled. Default-adoption
+evidence is separate, under
+`/private/tmp/tertius-uncapped-default-20261107/`.
+
+Behavior tests exercise both unset and empty settings through actual GPU
+accumulation beyond the half-precision frame-count limit. Tests retain surface
+rejection and fast-history clamping, explicit historical cap behavior, matching
+storage formats, disabled descriptors, resize and the actual reconstruction
+probe. Test shaders use the same history-format variants as the engine so their
+probes do not assume historical half-precision storage. No assertion of
+unchanged rejection is removed to hide an accumulation difference.
+
+### Reference-ray rejection experiment
+
+On November 7, 2026, the user selected the second reflected-source validation
+design: recheck a matching reference ray. This is not the earlier spatial-variance
+Design B. Ticket `tiunr-ax4c` owns the experiment. Its baseline is the accepted
+precise/full-rate uncapped history, with existing rejection and H13 reconstruction.
+Evidence lives under `/private/tmp/tertius-paired-ray-history-20261107/`.
+
+The ordinary reflection estimator remains unchanged. An opt-in pass records a
+fresh reference ray and replays the preceding frame's matched reference ray.
+The comparison uses source direct light, emission, and existing closed-form
+environment light, without noisy source temporal feedback or the screen-hit
+fade. It does not add validation light to the estimator. Different independent
+random directions do not constitute change evidence.
+
+The model fits this renderer's low sample count and reuses its screen-space
+walk and light evaluation. It does not require NRD, hardware ray tracing, or
+another engine's scene representation. The cost does not inherit an external
+denoiser's performance results: the implementation issues fresh-reference and
+replay walks, and allocates 112 bytes per viewport pixel when enabled. It cannot
+observe offscreen geometry unavailable to the existing walk.
+
+`TERTIUS_REFLECTION_HISTORY_VALIDATION=paired-ray` enables the pass. Unset,
+empty, and `off` disable it. The disabled path keeps its old image budget and
+matches preserved baseline GPU readbacks in Checked and Release. Enabled mode
+requires 22 screen-trace storage-image descriptors instead of 15. The seven
+RGBA32F images consume 98.4375 MiB at 1280 by 720. The slow specular signal owns
+their creation, resize, and disposal.
+
+Matched evidence can reduce the retained age to the existing four-frame fast
+cap before the ordinary sample blends. Existing surface checks, clamp,
+anti-lag, reflection-distance guide, and H13 reconstruction remain unchanged.
+The implementation's exact thresholds, reasons, failures, and GPU tests are
+recorded in `engine/HANDOFF.md`. Native comparisons measure static quality,
+motion, full switch-off, and 20% dimming after 1,024 warm-up draws. No default
+acceptance, commit, merge, or ticket closure follows from green tests alone.
+
+The native experiment completed on November 7, 2026. All 14 matched captures
+pass Vulkan validation through disposal. They contain 17,248 renderer draws,
+including 2,912 measured draws. A separate 128-draw smoke capture also passes.
+The rough and smooth static outputs match the uncapped control across all 128
+measured crop frames, including history age and unfiltered input. Both retained
+full-render PNGs also match. The control matches the preceding uncapped
+experiment, rather than a reconstructed or substituted baseline.
+
+For 20% dimming on the rough plate, the mean crop light reaches and maintains
+90% of the requested adjustment after 118 updates. The uncapped control does
+not reach that threshold within 180 updates. The unfinished fraction after
+180 updates falls from 17.2659% to 6.9310%. Switch-off takes the same 10 rough
+or nine smooth updates in both modes. The moving-emitter crop and videos show
+little additional benefit. The old crop is not an independent reference for
+the moving source, so those observations do not establish a ghosting score.
+
+The dimming evidence shortens history at 2,117 of 12,486 plate pixels on the
+change draw. It shortens none in that crop during the next 179 draws. Each
+reference record renews every draw. Both matched evaluations can therefore
+see the new light while the long average retains old light. Ticket `tiunr-py6q`
+records this limit without authorizing another design. This is a partial
+response improvement, not complete validation of the retained light.
+
+Final Rendering tests pass 2,551 Checked cases and 2,550 Release cases, with
+the same ten existing skips in each configuration. All 34 focused cases pass
+in both. Seven saved-data measurement tests pass. Native results, definitions,
+failure evidence, screenshots, videos and runtime identities are retained in
+the experiment's `report.md`, `result.json`, and `additional-checks.json`.
+The check remains opt-in. Coverage, mutation testing, Linux-driver behavior,
+performance and general-scene acceptance remain unestablished.
+
+### Paired-ray removal and the drift-sum agreement test
+
+On November 7, 2026, the user judged the reference-ray check barely better than
+the uncapped control. The user selected its removal. Every file that the check
+owned returned byte for byte to its state before the check. The sealed paired-ray
+evidence stays as a control. `TERTIUS_REFLECTION_HISTORY_VALIDATION` no longer
+exists.
+
+Ticket `tiunr-py6q` then built an opt-in agreement test with a drift sum,
+`TERTIUS_REFLECTION_HISTORY_AGREEMENT=drift`. It compares each pixel's limited
+sample with its slow history, pools the 3x3 same-surface window, and keeps a
+two-sided CUSUM. A trip cuts the history to the fast cap of four. It uses no
+rays and takes 24 bytes per pixel. ARCHITECTURE.md describes the mechanism.
+Evidence lives under `/private/tmp/tertius-drift-history-20261107/`.
+
+Two native runs used the paired-ray matrix. With the selected allowance 0.2, the
+rough dimming reached persistent 90% adjustment after 57 updates, against more
+than 180 for the control. But static rough noise doubled, and 4.44% of static
+plate pixels fell to the fast cap per frame, against 0.87% for the control.
+With the one tuning change, allowance 1.25, static rough noise rose 29% and the
+dimming response matched the control.
+
+The cause is a biased score. On the static rough plate, the window mean over its
+standard error averages -0.84, because rough rays are right-skewed. The falling
+sum climbs on noise alone. In both runs, the share of plate pixels that fell
+after the dimming stayed within 0.1 percentage points of the share before it. No
+allowance separated the two cases. With the test off, the control output stays
+byte-identical. The test remains opt-in, uncommitted and unmerged. The evidence
+folder's `report.md` holds the tables, videos, test results and deviations.

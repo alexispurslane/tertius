@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using Silk.NET.Vulkan;
 
@@ -22,6 +23,19 @@ internal sealed class ScreenTraceImages : IDisposable
 
     /// <summary>The format of a record's ray: the direction's octahedral code, the half bits of log2 of its density, and RayTraced.</summary>
     public const Format RayFormat = Format.R16G16B16A16Uint;
+
+    /// <summary>
+    /// The format of the light-age record of a precise specular history: r the exact light at the pixel, g
+    /// its age in frames or <see cref="NoLightAge"/>.
+    /// </summary>
+    public const Format LightAgeFormat = Format.R32G32Sfloat;
+
+    /// <summary>
+    /// The light-age record's age of a pixel whose light was never seen to change, in the frame that first shows it: no
+    /// evidence. Each later frame that shows it unchanged lowers the value by one, so the record holds −(N + 1) for a
+    /// pixel seen for N frames, and an age of 0 or more once its light changed.
+    /// </summary>
+    public const float NoLightAge = -1;
 
     /// <summary>The two ray kinds, which are the layers of the record images: 0 reflection rays, 1 diffuse rays.</summary>
     public const int Kinds = 2;
@@ -74,6 +88,20 @@ internal sealed class ScreenTraceImages : IDisposable
     /// <summary>The direction, density and RayTraced of each pixel's own ray, one layer per kind.</summary>
     public GpuImage OwnRay { get; private set; }
 
+    /// <summary>The light-age records, one per parity, with a precise specular history: none with the original.</summary>
+    private GpuImage[] lightAges = [];
+
+    /// <summary>
+    /// The light-age record that a frame of <paramref name="parity"/> writes, or null with the original specular history
+    /// (the light-change age, ticket tiunr-7haj): per pixel the exact light, the luminance of the demodulated direct
+    /// diffuse light and of the glow that the pixel sends, with the pre-exposure undone, and the frames since it last
+    /// changed.
+    /// </summary>
+    public GpuImage? LightAge(int parity) => lightAges.Length == 0 ? null : lightAges[parity];
+
+    /// <summary>The light-age record that the last drawn frame wrote, for a frame of <paramref name="parity"/>.</summary>
+    public GpuImage? LastLightAge(int parity) => lightAges.Length == 0 ? null : lightAges[1 - parity];
+
     /// <summary>The own-ray list of each kind, in the layout of <see cref="OwnRayList"/>.</summary>
     public GpuBuffer[] OwnRays { get; private set; } = [];
 
@@ -116,6 +144,14 @@ internal sealed class ScreenTraceImages : IDisposable
         OwnLight = CreateImage(extent: extent, format: LightFormat, layers: Kinds, name: "screen trace own light");
         OwnRay = CreateImage(extent: extent, format: RayFormat, layers: Kinds, name: "screen trace own rays");
         OwnRays = [CreateOwnRayList(extent, "reflection"), CreateOwnRayList(extent, "diffuse")];
+        lightAges =
+            Specular.HistoryMode.KeepsLightAge
+                ?
+                [
+                    CreateImage(extent: extent, format: LightAgeFormat, layers: 1, name: "screen trace light age 0"),
+                    CreateImage(extent: extent, format: LightAgeFormat, layers: 1, name: "screen trace light age 1"),
+                ]
+                : [];
         for (int parity = 0; parity < Sets.Length; parity++)
             WriteSet(parity);
     }
@@ -158,6 +194,20 @@ internal sealed class ScreenTraceImages : IDisposable
                 type: DescriptorType.StorageBuffer,
                 buffer: OwnRays[kind]
             );
+        // The light-change age after the lists: the last frame's record, this frame's, and the specular sample's age.
+        if (lightAges.Length != 0)
+        {
+            layouts.WriteStorageImage(set: set, binding: 19, image: lightAges[1 - parity]);
+            layouts.WriteStorageImage(set: set, binding: 20, image: lightAges[parity]);
+            layouts.WriteStorageImage(
+                set: set,
+                binding: 21,
+                image: Specular.SampleAge(0) ?? throw new UnreachableException("The light age makes the sample age.")
+            );
+        }
+        // The diagnostic of uncovered surfaces, whose first channel the resolve writes.
+        if (Specular.UncoveredDiagnostic(0) is { } diagnostic)
+            layouts.WriteStorageImage(set: set, binding: 22, image: diagnostic);
     }
 
     /// <summary>A record image: written and read as a storage image, copied out by the read hooks.</summary>
@@ -191,8 +241,9 @@ internal sealed class ScreenTraceImages : IDisposable
     /// <summary>Destroys the images and the lists, which <see cref="Resize"/> makes again. The device must be idle.</summary>
     public void Dispose()
     {
-        foreach (GpuImage image in Records)
+        foreach (GpuImage image in (GpuImage[])[.. Records, .. lightAges])
             image.Dispose();
+        lightAges = [];
         foreach (GpuBuffer list in OwnRays)
             list.Dispose();
         OwnRays = [];
