@@ -1,0 +1,1785 @@
+{
+  "reviewedHead": "46a0f4f244bc3b820e1921c97f654ffc06d63ea5",
+  "fixedCodeTree": "10497903e0e39b2839d943b59b6bb380d54d4515",
+  "reviewedBoxCodeTree": "cda9d325a704aa321e2f921a7d3b60144373705d",
+  "integratedSearchControlCodeTree": "6fc8947dc81ba55c7f45ee59dece54d1b0ae8d13",
+  "originalReviewBase": "34c28466e641a864fd6a915c029e08f07b3b9ccc",
+  "worktreePath": "/Users/alexispurslane/.t3/worktrees/tertius/ter-7tnv-corrected-environment-misses",
+  "branch": "ter-7tnv-corrected-environment-misses",
+  "rendererSha256": "6f78de402f668e2944bee803bc24a0f5365f5a09d392729afb15ae5914d1e7ea",
+  "reviewedBoxRendererSha256": "694e7a5f9591ac811d0679690fbaf982e0381441f68b36d427335469c667e091",
+  "integratedSearchRendererSha256": "b4e9bd12960c3b81dd36f8c2006cd41db18765e9bc472c1f8b7437e6d7c3d4ba",
+  "checks": {
+    "Checked": {
+      "path": "captures/ter-7tnv-box-fix/logs/full-Checked-gpu.log",
+      "sha256": "d7b5de7d9f596888a54d748013a8dec3165ecad56affaa92eeddf8007de3fd87",
+      "total": 10023,
+      "failed": 0,
+      "passed": 10003,
+      "skipped": 20
+    },
+    "Release": {
+      "path": "captures/ter-7tnv-box-fix/logs/full-Release-gpu.log",
+      "sha256": "15d6d0bd23b975e65eb662a9ea9a1514f823ea29eef92f38aa0f649854135da1",
+      "total": 10010,
+      "failed": 0,
+      "passed": 9990,
+      "skipped": 20
+    },
+    "focused": {
+      "path": "captures/ter-7tnv-box-fix/logs/final-focused-gpu.log",
+      "sha256": "44051e91e7f06236452ff79d44f906e5e143329a5ddff71dc6a3e023c0e7f900",
+      "total": 50,
+      "failed": 0,
+      "passed": 50,
+      "skipped": 0
+    },
+    "deformation": {
+      "path": "captures/ter-7tnv-box-fix/logs/final-deformation.log",
+      "sha256": "90005da5c3b43b636074b8991ea867174e244b707ff57d7f199808aafc705e3b",
+      "total": 30,
+      "failed": 0,
+      "passed": 30,
+      "skipped": 0
+    },
+    "red": {
+      "path": "captures/ter-7tnv-box-fix/logs/red-gpu.log",
+      "sha256": "6f93fa0fda94b5bf9b28046f2455693a1dccd7c3c1e44cd25f0b625435829dfb",
+      "total": 50,
+      "failed": 14,
+      "passed": 36,
+      "reason": "Twelve face cases, the previous outward boundary case, and the real specular reader fail for the intended boundary error. The real reader returns 0 rather than 8 +/- 0.005."
+    },
+    "firstGreen": {
+      "path": "captures/ter-7tnv-box-fix/logs/green-gpu.log",
+      "sha256": "9c89fbe874e883523731d8050b1bbdae684be26571365a3cdb69ccf9ea9efcb9",
+      "total": 50,
+      "failed": 0,
+      "passed": 50,
+      "skipped": 0
+    },
+    "testOutputStamps": [
+      {
+        "path": "tests/Tertius.Core.Tests/bin/Checked/net11.0/code-tree.txt",
+        "sha256": "b12e157bb9d329294e0ae2f564c4915b2befc5f27281f819d6cfb4a4e2a0f186",
+        "codeTree": "10497903e0e39b2839d943b59b6bb380d54d4515"
+      },
+      {
+        "path": "tests/Tertius.Unions.Tests/bin/Checked/net11.0/code-tree.txt",
+        "sha256": "b12e157bb9d329294e0ae2f564c4915b2befc5f27281f819d6cfb4a4e2a0f186",
+        "codeTree": "10497903e0e39b2839d943b59b6bb380d54d4515"
+      },
+      {
+        "path": "tests/Tertius.Physics.Tests/bin/Checked/net11.0/code-tree.txt",
+        "sha256": "b12e157bb9d329294e0ae2f564c4915b2befc5f27281f819d6cfb4a4e2a0f186",
+        "codeTree": "10497903e0e39b2839d943b59b6bb380d54d4515"
+      },
+      {
+        "path": "tests/Tertius.Simulation.Tests/bin/Checked/net11.0/code-tree.txt",
+        "sha256": "b12e157bb9d329294e0ae2f564c4915b2befc5f27281f819d6cfb4a4e2a0f186",
+        "codeTree": "10497903e0e39b2839d943b59b6bb380d54d4515"
+      },
+      {
+        "path": "tests/Tertius.Host.Tests/bin/Checked/net11.0/code-tree.txt",
+        "sha256": "b12e157bb9d329294e0ae2f564c4915b2befc5f27281f819d6cfb4a4e2a0f186",
+        "codeTree": "10497903e0e39b2839d943b59b6bb380d54d4515"
+      },
+      {
+        "path": "tests/Tertius.Slop.Tests/bin/Checked/net11.0/code-tree.txt",
+        "sha256": "b12e157bb9d329294e0ae2f564c4915b2befc5f27281f819d6cfb4a4e2a0f186",
+        "codeTree": "10497903e0e39b2839d943b59b6bb380d54d4515"
+      },
+      {
+        "path": "tests/Tertius.Rendering.Tests/bin/Checked/net11.0/code-tree.txt",
+        "sha256": "b12e157bb9d329294e0ae2f564c4915b2befc5f27281f819d6cfb4a4e2a0f186",
+        "codeTree": "10497903e0e39b2839d943b59b6bb380d54d4515"
+      },
+      {
+        "path": "tests/Tertius.Style.Tests/bin/Checked/net11.0/code-tree.txt",
+        "sha256": "b12e157bb9d329294e0ae2f564c4915b2befc5f27281f819d6cfb4a4e2a0f186",
+        "codeTree": "10497903e0e39b2839d943b59b6bb380d54d4515"
+      },
+      {
+        "path": "tests/Tertius.Testing/bin/Checked/net11.0/code-tree.txt",
+        "sha256": "b12e157bb9d329294e0ae2f564c4915b2befc5f27281f819d6cfb4a4e2a0f186",
+        "codeTree": "10497903e0e39b2839d943b59b6bb380d54d4515"
+      },
+      {
+        "path": "tests/Tertius.Core.Tests/bin/Release/net11.0/code-tree.txt",
+        "sha256": "b12e157bb9d329294e0ae2f564c4915b2befc5f27281f819d6cfb4a4e2a0f186",
+        "codeTree": "10497903e0e39b2839d943b59b6bb380d54d4515"
+      },
+      {
+        "path": "tests/Tertius.Unions.Tests/bin/Release/net11.0/code-tree.txt",
+        "sha256": "b12e157bb9d329294e0ae2f564c4915b2befc5f27281f819d6cfb4a4e2a0f186",
+        "codeTree": "10497903e0e39b2839d943b59b6bb380d54d4515"
+      },
+      {
+        "path": "tests/Tertius.Physics.Tests/bin/Release/net11.0/code-tree.txt",
+        "sha256": "b12e157bb9d329294e0ae2f564c4915b2befc5f27281f819d6cfb4a4e2a0f186",
+        "codeTree": "10497903e0e39b2839d943b59b6bb380d54d4515"
+      },
+      {
+        "path": "tests/Tertius.Simulation.Tests/bin/Release/net11.0/code-tree.txt",
+        "sha256": "b12e157bb9d329294e0ae2f564c4915b2befc5f27281f819d6cfb4a4e2a0f186",
+        "codeTree": "10497903e0e39b2839d943b59b6bb380d54d4515"
+      },
+      {
+        "path": "tests/Tertius.Host.Tests/bin/Release/net11.0/code-tree.txt",
+        "sha256": "b12e157bb9d329294e0ae2f564c4915b2befc5f27281f819d6cfb4a4e2a0f186",
+        "codeTree": "10497903e0e39b2839d943b59b6bb380d54d4515"
+      },
+      {
+        "path": "tests/Tertius.Slop.Tests/bin/Release/net11.0/code-tree.txt",
+        "sha256": "b12e157bb9d329294e0ae2f564c4915b2befc5f27281f819d6cfb4a4e2a0f186",
+        "codeTree": "10497903e0e39b2839d943b59b6bb380d54d4515"
+      },
+      {
+        "path": "tests/Tertius.Rendering.Tests/bin/Release/net11.0/code-tree.txt",
+        "sha256": "b12e157bb9d329294e0ae2f564c4915b2befc5f27281f819d6cfb4a4e2a0f186",
+        "codeTree": "10497903e0e39b2839d943b59b6bb380d54d4515"
+      },
+      {
+        "path": "tests/Tertius.Style.Tests/bin/Release/net11.0/code-tree.txt",
+        "sha256": "b12e157bb9d329294e0ae2f564c4915b2befc5f27281f819d6cfb4a4e2a0f186",
+        "codeTree": "10497903e0e39b2839d943b59b6bb380d54d4515"
+      },
+      {
+        "path": "tests/Tertius.Testing/bin/Release/net11.0/code-tree.txt",
+        "sha256": "b12e157bb9d329294e0ae2f564c4915b2befc5f27281f819d6cfb4a4e2a0f186",
+        "codeTree": "10497903e0e39b2839d943b59b6bb380d54d4515"
+      }
+    ],
+    "checkedBuild": {
+      "path": "captures/ter-7tnv-box-fix/logs/final-solution-Checked.log",
+      "sha256": "8d8937635be489c8c16071f444766c269d08af9d34dd94d73c7a54910cc00277"
+    },
+    "releaseBuild": {
+      "path": "captures/ter-7tnv-box-fix/logs/final-solution-Release.log",
+      "sha256": "bec0519d9c2952ba12b54bffe51fa8e735783de0f4c37429aab07226749326dd"
+    },
+    "benchmarkBuild": {
+      "path": "captures/ter-7tnv-box-fix/logs/final-benchmark-Release.log",
+      "sha256": "e9179ed42e865ac2a556998a00f8148622ab89af41834e9dbe55b763fff15538"
+    },
+    "vulkan13": {
+      "modules": 90,
+      "list": {
+        "path": "captures/ter-7tnv-box-fix/validated-modules.txt",
+        "sha256": "29fdc7e8da7246315b1652404c58b31f54c304f6fdeb948143e7dec0a201a4cd"
+      },
+      "log": {
+        "path": "captures/ter-7tnv-box-fix/logs/readiness.log",
+        "sha256": "d54deab6b08b379d44a210f14d9289b179bc096ca2bba0c9b0d7e5f29afced8e"
+      },
+      "linuxExecution": false
+    }
+  },
+  "cpuPreparation": {
+    "summary": [
+      {
+        "mode": "off",
+        "integratedSearchMedianMs": 1.8931875,
+        "fixedBoxMedianMs": 1.9157915,
+        "pairedMedianDifferenceMs": 0.02260400000000007,
+        "allocatedBytesPer128Calls": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "mode": "one-face",
+        "integratedSearchMedianMs": 2.3415415,
+        "fixedBoxMedianMs": 2.3953955000000002,
+        "pairedMedianDifferenceMs": 0.050604000000000315,
+        "allocatedBytesPer128Calls": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "mode": "six-faces",
+        "integratedSearchMedianMs": 2.6249374999999997,
+        "fixedBoxMedianMs": 2.681375,
+        "pairedMedianDifferenceMs": 0.038041499999999395,
+        "allocatedBytesPer128Calls": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "mode": "four-maps-one-face",
+        "integratedSearchMedianMs": 2.313792,
+        "fixedBoxMedianMs": 2.3668329999999997,
+        "pairedMedianDifferenceMs": 0.030770500000000034,
+        "allocatedBytesPer128Calls": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "mode": "four-maps-24-faces",
+        "integratedSearchMedianMs": 5.2036455,
+        "fixedBoxMedianMs": 5.251521,
+        "pairedMedianDifferenceMs": 0.033541000000001375,
+        "allocatedBytesPer128Calls": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      }
+    ],
+    "runs": [
+      {
+        "Variant": "fixed-box",
+        "Utc": "2026-11-05T21:32:51.502013+00:00",
+        "Runtime": ".NET 11.0.0-rc.1.26425.128",
+        "Architecture": "Arm64",
+        "Frequency": 1000000000,
+        "RendererSha256": "6f78de402f668e2944bee803bc24a0f5365f5a09d392729afb15ae5914d1e7ea",
+        "RunnerSha256": "1229f02753de789774feb55cff425574b7217467987c5eb62d916e7d71f4d54b",
+        "Rows": [
+          {
+            "Map": "off",
+            "Instances": 20000,
+            "Posed": 0,
+            "WarmUp": 64,
+            "Samples": 128,
+            "AllocatedBytesOnCallingThread": 0,
+            "medianMs": 1.9451459999999998,
+            "meanMs": 1.9557792734375,
+            "minMs": 1.931666,
+            "maxMs": 2.114834
+          },
+          {
+            "Map": "one-face",
+            "Instances": 20000,
+            "Posed": 0,
+            "WarmUp": 64,
+            "Samples": 128,
+            "AllocatedBytesOnCallingThread": 0,
+            "medianMs": 2.519083,
+            "meanMs": 2.54889678125,
+            "minMs": 2.367791,
+            "maxMs": 6.722375
+          },
+          {
+            "Map": "six-faces",
+            "Instances": 20000,
+            "Posed": 0,
+            "WarmUp": 64,
+            "Samples": 128,
+            "AllocatedBytesOnCallingThread": 0,
+            "medianMs": 2.6882915,
+            "meanMs": 2.69771515625,
+            "minMs": 2.675334,
+            "maxMs": 2.895083
+          },
+          {
+            "Map": "four-maps-one-face",
+            "Instances": 20000,
+            "Posed": 0,
+            "WarmUp": 64,
+            "Samples": 128,
+            "AllocatedBytesOnCallingThread": 0,
+            "medianMs": 2.3792295,
+            "meanMs": 2.3995419921875,
+            "minMs": 2.36625,
+            "maxMs": 2.531333
+          },
+          {
+            "Map": "four-maps-24-faces",
+            "Instances": 20000,
+            "Posed": 0,
+            "WarmUp": 64,
+            "Samples": 128,
+            "AllocatedBytesOnCallingThread": 0,
+            "medianMs": 5.251521,
+            "meanMs": 5.270813515625,
+            "minMs": 5.231958,
+            "maxMs": 5.674208
+          }
+        ],
+        "raw": {
+          "path": "captures/ter-7tnv-box-fix/cpu-1-fixed-box.json",
+          "sha256": "80438bbe59d1ade53773a8866514c42d1734a040e92f5609149233f916f1ac14"
+        }
+      },
+      {
+        "Variant": "integrated-search",
+        "Utc": "2026-11-05T21:32:48.30476+00:00",
+        "Runtime": ".NET 11.0.0-rc.1.26425.128",
+        "Architecture": "Arm64",
+        "Frequency": 1000000000,
+        "RendererSha256": "b4e9bd12960c3b81dd36f8c2006cd41db18765e9bc472c1f8b7437e6d7c3d4ba",
+        "RunnerSha256": "1229f02753de789774feb55cff425574b7217467987c5eb62d916e7d71f4d54b",
+        "Rows": [
+          {
+            "Map": "off",
+            "Instances": 20000,
+            "Posed": 0,
+            "WarmUp": 64,
+            "Samples": 128,
+            "AllocatedBytesOnCallingThread": 0,
+            "medianMs": 1.8891879999999999,
+            "meanMs": 1.900121703125,
+            "minMs": 1.875417,
+            "maxMs": 1.976625
+          },
+          {
+            "Map": "one-face",
+            "Instances": 20000,
+            "Posed": 0,
+            "WarmUp": 64,
+            "Samples": 128,
+            "AllocatedBytesOnCallingThread": 0,
+            "medianMs": 2.3310415,
+            "meanMs": 2.3767890859375,
+            "minMs": 2.299459,
+            "maxMs": 6.42375
+          },
+          {
+            "Map": "six-faces",
+            "Instances": 20000,
+            "Posed": 0,
+            "WarmUp": 64,
+            "Samples": 128,
+            "AllocatedBytesOnCallingThread": 0,
+            "medianMs": 2.6249374999999997,
+            "meanMs": 2.639325859375,
+            "minMs": 2.609542,
+            "maxMs": 2.762416
+          },
+          {
+            "Map": "four-maps-one-face",
+            "Instances": 20000,
+            "Posed": 0,
+            "WarmUp": 64,
+            "Samples": 128,
+            "AllocatedBytesOnCallingThread": 0,
+            "medianMs": 2.313792,
+            "meanMs": 2.33655271875,
+            "minMs": 2.294541,
+            "maxMs": 2.492875
+          },
+          {
+            "Map": "four-maps-24-faces",
+            "Instances": 20000,
+            "Posed": 0,
+            "WarmUp": 64,
+            "Samples": 128,
+            "AllocatedBytesOnCallingThread": 0,
+            "medianMs": 5.1867915,
+            "meanMs": 5.1982760546875,
+            "minMs": 5.163458,
+            "maxMs": 5.57325
+          }
+        ],
+        "raw": {
+          "path": "captures/ter-7tnv-box-fix/cpu-1-integrated-search.json",
+          "sha256": "99dc3cefa2deec4d2e60b90c89b680cd0796f9ebae0a356ca63edabbd94f88a5"
+        }
+      },
+      {
+        "Variant": "fixed-box",
+        "Utc": "2026-11-05T21:32:54.645331+00:00",
+        "Runtime": ".NET 11.0.0-rc.1.26425.128",
+        "Architecture": "Arm64",
+        "Frequency": 1000000000,
+        "RendererSha256": "6f78de402f668e2944bee803bc24a0f5365f5a09d392729afb15ae5914d1e7ea",
+        "RunnerSha256": "1229f02753de789774feb55cff425574b7217467987c5eb62d916e7d71f4d54b",
+        "Rows": [
+          {
+            "Map": "off",
+            "Instances": 20000,
+            "Posed": 0,
+            "WarmUp": 64,
+            "Samples": 128,
+            "AllocatedBytesOnCallingThread": 0,
+            "medianMs": 1.9157915,
+            "meanMs": 1.9245878828125,
+            "minMs": 1.903166,
+            "maxMs": 2.01875
+          },
+          {
+            "Map": "one-face",
+            "Instances": 20000,
+            "Posed": 0,
+            "WarmUp": 64,
+            "Samples": 128,
+            "AllocatedBytesOnCallingThread": 0,
+            "medianMs": 2.3611665,
+            "meanMs": 2.439300796875,
+            "minMs": 2.333625,
+            "maxMs": 6.452375
+          },
+          {
+            "Map": "six-faces",
+            "Instances": 20000,
+            "Posed": 0,
+            "WarmUp": 64,
+            "Samples": 128,
+            "AllocatedBytesOnCallingThread": 0,
+            "medianMs": 2.6615624999999996,
+            "meanMs": 2.672685875,
+            "minMs": 2.642833,
+            "maxMs": 2.838625
+          },
+          {
+            "Map": "four-maps-one-face",
+            "Instances": 20000,
+            "Posed": 0,
+            "WarmUp": 64,
+            "Samples": 128,
+            "AllocatedBytesOnCallingThread": 0,
+            "medianMs": 2.340833,
+            "meanMs": 2.3626122734375,
+            "minMs": 2.329625,
+            "maxMs": 2.516042
+          },
+          {
+            "Map": "four-maps-24-faces",
+            "Instances": 20000,
+            "Posed": 0,
+            "WarmUp": 64,
+            "Samples": 128,
+            "AllocatedBytesOnCallingThread": 0,
+            "medianMs": 5.218604,
+            "meanMs": 5.2415084296875,
+            "minMs": 5.197958,
+            "maxMs": 5.584916
+          }
+        ],
+        "raw": {
+          "path": "captures/ter-7tnv-box-fix/cpu-2-fixed-box.json",
+          "sha256": "0bcbe9cdc9e2218aa714f97324a1e80516dea633ab8a54cbfc721d07e0f1ee9f"
+        }
+      },
+      {
+        "Variant": "integrated-search",
+        "Utc": "2026-11-05T21:32:57.761685+00:00",
+        "Runtime": ".NET 11.0.0-rc.1.26425.128",
+        "Architecture": "Arm64",
+        "Frequency": 1000000000,
+        "RendererSha256": "b4e9bd12960c3b81dd36f8c2006cd41db18765e9bc472c1f8b7437e6d7c3d4ba",
+        "RunnerSha256": "1229f02753de789774feb55cff425574b7217467987c5eb62d916e7d71f4d54b",
+        "Rows": [
+          {
+            "Map": "off",
+            "Instances": 20000,
+            "Posed": 0,
+            "WarmUp": 64,
+            "Samples": 128,
+            "AllocatedBytesOnCallingThread": 0,
+            "medianMs": 1.8931875,
+            "meanMs": 1.9105108046875,
+            "minMs": 1.869,
+            "maxMs": 2.335791
+          },
+          {
+            "Map": "one-face",
+            "Instances": 20000,
+            "Posed": 0,
+            "WarmUp": 64,
+            "Samples": 128,
+            "AllocatedBytesOnCallingThread": 0,
+            "medianMs": 2.3415415,
+            "meanMs": 2.3807343359375,
+            "minMs": 2.294834,
+            "maxMs": 6.301958
+          },
+          {
+            "Map": "six-faces",
+            "Instances": 20000,
+            "Posed": 0,
+            "WarmUp": 64,
+            "Samples": 128,
+            "AllocatedBytesOnCallingThread": 0,
+            "medianMs": 2.623521,
+            "meanMs": 2.6358027265625,
+            "minMs": 2.604666,
+            "maxMs": 2.771083
+          },
+          {
+            "Map": "four-maps-one-face",
+            "Instances": 20000,
+            "Posed": 0,
+            "WarmUp": 64,
+            "Samples": 128,
+            "AllocatedBytesOnCallingThread": 0,
+            "medianMs": 2.3100625,
+            "meanMs": 2.3202942890625,
+            "minMs": 2.290958,
+            "maxMs": 2.44975
+          },
+          {
+            "Map": "four-maps-24-faces",
+            "Instances": 20000,
+            "Posed": 0,
+            "WarmUp": 64,
+            "Samples": 128,
+            "AllocatedBytesOnCallingThread": 0,
+            "medianMs": 5.2036455,
+            "meanMs": 5.220127875,
+            "minMs": 5.1675,
+            "maxMs": 5.519458
+          }
+        ],
+        "raw": {
+          "path": "captures/ter-7tnv-box-fix/cpu-2-integrated-search.json",
+          "sha256": "a7a4fe3e90a4bb9e9e885ceb3cddb1653a4f8cee23563df5134f8bff06a3f617"
+        }
+      },
+      {
+        "Variant": "fixed-box",
+        "Utc": "2026-11-05T21:33:04.047136+00:00",
+        "Runtime": ".NET 11.0.0-rc.1.26425.128",
+        "Architecture": "Arm64",
+        "Frequency": 1000000000,
+        "RendererSha256": "6f78de402f668e2944bee803bc24a0f5365f5a09d392729afb15ae5914d1e7ea",
+        "RunnerSha256": "1229f02753de789774feb55cff425574b7217467987c5eb62d916e7d71f4d54b",
+        "Rows": [
+          {
+            "Map": "off",
+            "Instances": 20000,
+            "Posed": 0,
+            "WarmUp": 64,
+            "Samples": 128,
+            "AllocatedBytesOnCallingThread": 0,
+            "medianMs": 1.9108955,
+            "meanMs": 1.922674484375,
+            "minMs": 1.900167,
+            "maxMs": 2.281542
+          },
+          {
+            "Map": "one-face",
+            "Instances": 20000,
+            "Posed": 0,
+            "WarmUp": 64,
+            "Samples": 128,
+            "AllocatedBytesOnCallingThread": 0,
+            "medianMs": 2.3953955000000002,
+            "meanMs": 2.4506875234375,
+            "minMs": 2.358333,
+            "maxMs": 6.401625
+          },
+          {
+            "Map": "six-faces",
+            "Instances": 20000,
+            "Posed": 0,
+            "WarmUp": 64,
+            "Samples": 128,
+            "AllocatedBytesOnCallingThread": 0,
+            "medianMs": 2.681375,
+            "meanMs": 2.6927190546875,
+            "minMs": 2.66775,
+            "maxMs": 2.851
+          },
+          {
+            "Map": "four-maps-one-face",
+            "Instances": 20000,
+            "Posed": 0,
+            "WarmUp": 64,
+            "Samples": 128,
+            "AllocatedBytesOnCallingThread": 0,
+            "medianMs": 2.3668329999999997,
+            "meanMs": 2.370733125,
+            "minMs": 2.350125,
+            "maxMs": 2.496167
+          },
+          {
+            "Map": "four-maps-24-faces",
+            "Instances": 20000,
+            "Posed": 0,
+            "WarmUp": 64,
+            "Samples": 128,
+            "AllocatedBytesOnCallingThread": 0,
+            "medianMs": 5.253125000000001,
+            "meanMs": 5.2740944453125,
+            "minMs": 5.228458,
+            "maxMs": 5.588834
+          }
+        ],
+        "raw": {
+          "path": "captures/ter-7tnv-box-fix/cpu-3-fixed-box.json",
+          "sha256": "f16df782481e2e59a75f0c5727aa0e067e3bd42e2b542d4ec2d4294b5b4924ec"
+        }
+      },
+      {
+        "Variant": "integrated-search",
+        "Utc": "2026-11-05T21:33:00.900763+00:00",
+        "Runtime": ".NET 11.0.0-rc.1.26425.128",
+        "Architecture": "Arm64",
+        "Frequency": 1000000000,
+        "RendererSha256": "b4e9bd12960c3b81dd36f8c2006cd41db18765e9bc472c1f8b7437e6d7c3d4ba",
+        "RunnerSha256": "1229f02753de789774feb55cff425574b7217467987c5eb62d916e7d71f4d54b",
+        "Rows": [
+          {
+            "Map": "off",
+            "Instances": 20000,
+            "Posed": 0,
+            "WarmUp": 64,
+            "Samples": 128,
+            "AllocatedBytesOnCallingThread": 0,
+            "medianMs": 1.9094795,
+            "meanMs": 1.91578646875,
+            "minMs": 1.895333,
+            "maxMs": 1.972583
+          },
+          {
+            "Map": "one-face",
+            "Instances": 20000,
+            "Posed": 0,
+            "WarmUp": 64,
+            "Samples": 128,
+            "AllocatedBytesOnCallingThread": 0,
+            "medianMs": 2.3447915,
+            "meanMs": 2.4135833515625,
+            "minMs": 2.323458,
+            "maxMs": 6.404667
+          },
+          {
+            "Map": "six-faces",
+            "Instances": 20000,
+            "Posed": 0,
+            "WarmUp": 64,
+            "Samples": 128,
+            "AllocatedBytesOnCallingThread": 0,
+            "medianMs": 2.6480205,
+            "meanMs": 2.6590533984375,
+            "minMs": 2.630917,
+            "maxMs": 2.81025
+          },
+          {
+            "Map": "four-maps-one-face",
+            "Instances": 20000,
+            "Posed": 0,
+            "WarmUp": 64,
+            "Samples": 128,
+            "AllocatedBytesOnCallingThread": 0,
+            "medianMs": 2.336125,
+            "meanMs": 2.34821325,
+            "minMs": 2.318625,
+            "maxMs": 2.500875
+          },
+          {
+            "Map": "four-maps-24-faces",
+            "Instances": 20000,
+            "Posed": 0,
+            "WarmUp": 64,
+            "Samples": 128,
+            "AllocatedBytesOnCallingThread": 0,
+            "medianMs": 5.219583999999999,
+            "meanMs": 5.2389069062499996,
+            "minMs": 5.194334,
+            "maxMs": 5.472042
+          }
+        ],
+        "raw": {
+          "path": "captures/ter-7tnv-box-fix/cpu-3-integrated-search.json",
+          "sha256": "c29d788da35505b2df89a27785aa843846933f0c3dd7d387666fddf5f6c7ecd9"
+        }
+      }
+    ],
+    "scope": "Complete one-thread SceneBatcherBenchmarks.Prepare on 20,000 static unit cubes. Three interleaved pairs, 64 warm-up calls and 128 measured calls per mode. Integrated discarded-search control versus the fixed automatic-box renderer. This is not an isolated fitting or GPU cost. Stopwatch frequency is recorded; CPU frequency was not pinned."
+  },
+  "gpuFrames": {
+    "summary": [
+      {
+        "view": "deck",
+        "medianPairedDifferenceMs": 0.004102766666663982,
+        "minPairedDifferenceMs": -0.0014927416666754567,
+        "maxPairedDifferenceMs": 0.00824301666667715,
+        "reviewedBoxMedianRunMeanMs": 11.696458716666667,
+        "fixedBoxMedianRunMeanMs": 11.700561483333331
+      },
+      {
+        "view": "floor",
+        "medianPairedDifferenceMs": 0.00784301666665499,
+        "minPairedDifferenceMs": -0.019457691666669774,
+        "maxPairedDifferenceMs": 0.018733908333347316,
+        "reviewedBoxMedianRunMeanMs": 10.82112016666667,
+        "fixedBoxMedianRunMeanMs": 10.828571875000003
+      }
+    ],
+    "pairs": [
+      {
+        "view": "deck",
+        "round": 1,
+        "reviewed-box": {
+          "device": "Apple M1 Max",
+          "width": 1280,
+          "height": 720,
+          "frame": {
+            "frames": 120,
+            "meanMs": 11.702404150000003,
+            "medianMs": 11.694937,
+            "p95Ms": 11.992042
+          },
+          "gpuClock": {
+            "meanMhz": 1296.0,
+            "p10Mhz": 1296.0,
+            "p90Mhz": 1296.0,
+            "samples": 13
+          },
+          "warning": "On MoltenVK a pass's GPU time can hold part of the next pass's work: only the span and the sums of neighbouring passes hold. Individual pass times are omitted; raw per-pass JSON values are not valid alone. Read each pass's own time from a trace (tools/README.md, \"GPU trace\").",
+          "raw": {
+            "path": "captures/ter-7tnv-box-fix/timing-1-deck-reviewed-box/gpu-timings.json",
+            "sha256": "fcedef5a9bed04a09907b38165297c800981a75be3e8702127c267da5abe63b3"
+          }
+        },
+        "fixed-box": {
+          "device": "Apple M1 Max",
+          "width": 1280,
+          "height": 720,
+          "frame": {
+            "frames": 120,
+            "meanMs": 11.700911408333328,
+            "medianMs": 11.688292,
+            "p95Ms": 12.012041
+          },
+          "gpuClock": {
+            "meanMhz": 1296.0,
+            "p10Mhz": 1296.0,
+            "p90Mhz": 1296.0,
+            "samples": 13
+          },
+          "warning": "On MoltenVK a pass's GPU time can hold part of the next pass's work: only the span and the sums of neighbouring passes hold. Individual pass times are omitted; raw per-pass JSON values are not valid alone. Read each pass's own time from a trace (tools/README.md, \"GPU trace\").",
+          "raw": {
+            "path": "captures/ter-7tnv-box-fix/timing-1-deck-fixed-box/gpu-timings.json",
+            "sha256": "e12a5056e08bd68bb0fcf0a6e3ef12fa2f495997936781dfe186f333b3b74314"
+          }
+        },
+        "differenceMs": -0.0014927416666754567,
+        "clockComparison": {
+          "path": "captures/ter-7tnv-box-fix/logs/compare-1-deck.log",
+          "sha256": "40aae08000033f212e2218d73ff13fea553293e257799673d0b79373a405d856"
+        }
+      },
+      {
+        "view": "deck",
+        "round": 2,
+        "reviewed-box": {
+          "device": "Apple M1 Max",
+          "width": 1280,
+          "height": 720,
+          "frame": {
+            "frames": 120,
+            "meanMs": 11.689790308333329,
+            "medianMs": 11.687333500000001,
+            "p95Ms": 12.005333
+          },
+          "gpuClock": {
+            "meanMhz": 1296.0,
+            "p10Mhz": 1296.0,
+            "p90Mhz": 1296.0,
+            "samples": 13
+          },
+          "warning": "On MoltenVK a pass's GPU time can hold part of the next pass's work: only the span and the sums of neighbouring passes hold. Individual pass times are omitted; raw per-pass JSON values are not valid alone. Read each pass's own time from a trace (tools/README.md, \"GPU trace\").",
+          "raw": {
+            "path": "captures/ter-7tnv-box-fix/timing-2-deck-reviewed-box/gpu-timings.json",
+            "sha256": "3dbc39ffa656a55f1b6ad169a2fdd263c71f607479c3b0b8733eff387f129b13"
+          }
+        },
+        "fixed-box": {
+          "device": "Apple M1 Max",
+          "width": 1280,
+          "height": 720,
+          "frame": {
+            "frames": 120,
+            "meanMs": 11.698033325000006,
+            "medianMs": 11.673791999999999,
+            "p95Ms": 12.001417
+          },
+          "gpuClock": {
+            "meanMhz": 1296.0,
+            "p10Mhz": 1296.0,
+            "p90Mhz": 1296.0,
+            "samples": 13
+          },
+          "warning": "On MoltenVK a pass's GPU time can hold part of the next pass's work: only the span and the sums of neighbouring passes hold. Individual pass times are omitted; raw per-pass JSON values are not valid alone. Read each pass's own time from a trace (tools/README.md, \"GPU trace\").",
+          "raw": {
+            "path": "captures/ter-7tnv-box-fix/timing-2-deck-fixed-box/gpu-timings.json",
+            "sha256": "4ae4a337ad8808e5f035190c3f598e93e96bb47c4aa96430e68a26364967a38a"
+          }
+        },
+        "differenceMs": 0.00824301666667715,
+        "clockComparison": {
+          "path": "captures/ter-7tnv-box-fix/logs/compare-2-deck.log",
+          "sha256": "e7236a356a8adce6da4676bcb0e82ca3a22de2df316348fd6453dce13006c4f4"
+        }
+      },
+      {
+        "view": "deck",
+        "round": 3,
+        "reviewed-box": {
+          "device": "Apple M1 Max",
+          "width": 1280,
+          "height": 720,
+          "frame": {
+            "frames": 120,
+            "meanMs": 11.696458716666667,
+            "medianMs": 11.662271,
+            "p95Ms": 12.067875
+          },
+          "gpuClock": {
+            "meanMhz": 1296.0,
+            "p10Mhz": 1296.0,
+            "p90Mhz": 1296.0,
+            "samples": 13
+          },
+          "warning": "On MoltenVK a pass's GPU time can hold part of the next pass's work: only the span and the sums of neighbouring passes hold. Individual pass times are omitted; raw per-pass JSON values are not valid alone. Read each pass's own time from a trace (tools/README.md, \"GPU trace\").",
+          "raw": {
+            "path": "captures/ter-7tnv-box-fix/timing-3-deck-reviewed-box/gpu-timings.json",
+            "sha256": "03b40c806079a1fc7320a073b32f9c9d0f46eade62cf3a506379a5dee71daffd"
+          }
+        },
+        "fixed-box": {
+          "device": "Apple M1 Max",
+          "width": 1280,
+          "height": 720,
+          "frame": {
+            "frames": 120,
+            "meanMs": 11.700561483333331,
+            "medianMs": 11.6824795,
+            "p95Ms": 11.977625
+          },
+          "gpuClock": {
+            "meanMhz": 1296.0,
+            "p10Mhz": 1296.0,
+            "p90Mhz": 1296.0,
+            "samples": 14
+          },
+          "warning": "On MoltenVK a pass's GPU time can hold part of the next pass's work: only the span and the sums of neighbouring passes hold. Individual pass times are omitted; raw per-pass JSON values are not valid alone. Read each pass's own time from a trace (tools/README.md, \"GPU trace\").",
+          "raw": {
+            "path": "captures/ter-7tnv-box-fix/timing-3-deck-fixed-box/gpu-timings.json",
+            "sha256": "23e544f621142e0c66c9d7c0376b3313a1c494dfca60610bc103c48fba5940e8"
+          }
+        },
+        "differenceMs": 0.004102766666663982,
+        "clockComparison": {
+          "path": "captures/ter-7tnv-box-fix/logs/compare-3-deck.log",
+          "sha256": "2833948db22c6eb1f3d940fae42969ecee2589ffd00d03a9f1483ec94810c019"
+        }
+      },
+      {
+        "view": "floor",
+        "round": 1,
+        "reviewed-box": {
+          "device": "Apple M1 Max",
+          "width": 1280,
+          "height": 720,
+          "frame": {
+            "frames": 120,
+            "meanMs": 10.848029566666673,
+            "medianMs": 10.831167,
+            "p95Ms": 11.145375
+          },
+          "gpuClock": {
+            "meanMhz": 1296.0,
+            "p10Mhz": 1296.0,
+            "p90Mhz": 1296.0,
+            "samples": 12
+          },
+          "warning": "On MoltenVK a pass's GPU time can hold part of the next pass's work: only the span and the sums of neighbouring passes hold. Individual pass times are omitted; raw per-pass JSON values are not valid alone. Read each pass's own time from a trace (tools/README.md, \"GPU trace\").",
+          "raw": {
+            "path": "captures/ter-7tnv-box-fix/timing-1-floor-reviewed-box/gpu-timings.json",
+            "sha256": "408290d0040a74bb87f364724f8f94f21965c3569dc98d980d9684a06d016e04"
+          }
+        },
+        "fixed-box": {
+          "device": "Apple M1 Max",
+          "width": 1280,
+          "height": 720,
+          "frame": {
+            "frames": 120,
+            "meanMs": 10.828571875000003,
+            "medianMs": 10.8152085,
+            "p95Ms": 11.180459
+          },
+          "gpuClock": {
+            "meanMhz": 1296.0,
+            "p10Mhz": 1296.0,
+            "p90Mhz": 1296.0,
+            "samples": 12
+          },
+          "warning": "On MoltenVK a pass's GPU time can hold part of the next pass's work: only the span and the sums of neighbouring passes hold. Individual pass times are omitted; raw per-pass JSON values are not valid alone. Read each pass's own time from a trace (tools/README.md, \"GPU trace\").",
+          "raw": {
+            "path": "captures/ter-7tnv-box-fix/timing-1-floor-fixed-box/gpu-timings.json",
+            "sha256": "df2425d831674789d6faf130bc011914fb0973ce29ebaa074c72d9734bce00ef"
+          }
+        },
+        "differenceMs": -0.019457691666669774,
+        "clockComparison": {
+          "path": "captures/ter-7tnv-box-fix/logs/compare-1-floor.log",
+          "sha256": "ff56c8f1433077c7ca1a22e92ecd510fec0a55a5d37a936e7cbb2452c195085f"
+        }
+      },
+      {
+        "view": "floor",
+        "round": 2,
+        "reviewed-box": {
+          "device": "Apple M1 Max",
+          "width": 1280,
+          "height": 720,
+          "frame": {
+            "frames": 120,
+            "meanMs": 10.82112016666667,
+            "medianMs": 10.807646,
+            "p95Ms": 11.160333
+          },
+          "gpuClock": {
+            "meanMhz": 1296.0,
+            "p10Mhz": 1296.0,
+            "p90Mhz": 1296.0,
+            "samples": 13
+          },
+          "warning": "On MoltenVK a pass's GPU time can hold part of the next pass's work: only the span and the sums of neighbouring passes hold. Individual pass times are omitted; raw per-pass JSON values are not valid alone. Read each pass's own time from a trace (tools/README.md, \"GPU trace\").",
+          "raw": {
+            "path": "captures/ter-7tnv-box-fix/timing-2-floor-reviewed-box/gpu-timings.json",
+            "sha256": "299b7727e13643a10e81c837fd6c9171bfe5680a47a248f0ebedf615492d0d09"
+          }
+        },
+        "fixed-box": {
+          "device": "Apple M1 Max",
+          "width": 1280,
+          "height": 720,
+          "frame": {
+            "frames": 120,
+            "meanMs": 10.828963183333325,
+            "medianMs": 10.8208335,
+            "p95Ms": 11.1745
+          },
+          "gpuClock": {
+            "meanMhz": 1296.0,
+            "p10Mhz": 1296.0,
+            "p90Mhz": 1296.0,
+            "samples": 12
+          },
+          "warning": "On MoltenVK a pass's GPU time can hold part of the next pass's work: only the span and the sums of neighbouring passes hold. Individual pass times are omitted; raw per-pass JSON values are not valid alone. Read each pass's own time from a trace (tools/README.md, \"GPU trace\").",
+          "raw": {
+            "path": "captures/ter-7tnv-box-fix/timing-2-floor-fixed-box/gpu-timings.json",
+            "sha256": "a9b176545c4190905f1980d801081f13da0110d92c38cc6af54bbdb7d0e6abff"
+          }
+        },
+        "differenceMs": 0.00784301666665499,
+        "clockComparison": {
+          "path": "captures/ter-7tnv-box-fix/logs/compare-2-floor.log",
+          "sha256": "3c44b757bb005b547dbc97b3bdec1712e9e00107c4ccecb7cd3a10c302129ec5"
+        }
+      },
+      {
+        "view": "floor",
+        "round": 3,
+        "reviewed-box": {
+          "device": "Apple M1 Max",
+          "width": 1280,
+          "height": 720,
+          "frame": {
+            "frames": 120,
+            "meanMs": 10.808690691666659,
+            "medianMs": 10.8001045,
+            "p95Ms": 11.143042
+          },
+          "gpuClock": {
+            "meanMhz": 1296.0,
+            "p10Mhz": 1296.0,
+            "p90Mhz": 1296.0,
+            "samples": 13
+          },
+          "warning": "On MoltenVK a pass's GPU time can hold part of the next pass's work: only the span and the sums of neighbouring passes hold. Individual pass times are omitted; raw per-pass JSON values are not valid alone. Read each pass's own time from a trace (tools/README.md, \"GPU trace\").",
+          "raw": {
+            "path": "captures/ter-7tnv-box-fix/timing-3-floor-reviewed-box/gpu-timings.json",
+            "sha256": "48e62b80b1109511a321819a3a8fd3451b046d41345bb0f9a7db3bb96cbc6d91"
+          }
+        },
+        "fixed-box": {
+          "device": "Apple M1 Max",
+          "width": 1280,
+          "height": 720,
+          "frame": {
+            "frames": 120,
+            "meanMs": 10.827424600000006,
+            "medianMs": 10.8352085,
+            "p95Ms": 11.128292
+          },
+          "gpuClock": {
+            "meanMhz": 1296.0,
+            "p10Mhz": 1296.0,
+            "p90Mhz": 1296.0,
+            "samples": 12
+          },
+          "warning": "On MoltenVK a pass's GPU time can hold part of the next pass's work: only the span and the sums of neighbouring passes hold. Individual pass times are omitted; raw per-pass JSON values are not valid alone. Read each pass's own time from a trace (tools/README.md, \"GPU trace\").",
+          "raw": {
+            "path": "captures/ter-7tnv-box-fix/timing-3-floor-fixed-box/gpu-timings.json",
+            "sha256": "5403aca402d83c4e2cb8f7f0f6dbbe78b75b14fb39a5725735ae98781f97f49e"
+          }
+        },
+        "differenceMs": 0.018733908333347316,
+        "clockComparison": {
+          "path": "captures/ter-7tnv-box-fix/logs/compare-3-floor.log",
+          "sha256": "4d9e40fd229eac4297d82fc258049d352dde1c8fbaa444d0362d1aecf48ff2c0"
+        }
+      }
+    ],
+    "scope": "Three interleaved matched 120-frame pairs per window, reviewed automatic-box renderer versus boundary-fixed automatic-box renderer. Not search-versus-box savings. GPU frame spans only; retained distance producers remain in both."
+  },
+  "captures": [
+    {
+      "view": "terminal",
+      "images": [
+        {
+          "path": "captures/ter-7tnv-box/boundary-fix-terminal/terminal-next.png",
+          "sha256": "af16229075ddd92bdf5efe5ed0ab0ee6fc9c5afa55fc67af27d805b4259bcab9",
+          "observer": {
+            "path": "captures/ter-7tnv-box/boundary-fix-observed-terminal/terminal-next.png",
+            "sha256": "af16229075ddd92bdf5efe5ed0ab0ee6fc9c5afa55fc67af27d805b4259bcab9"
+          },
+          "equalsReviewedBoxImage": true
+        },
+        {
+          "path": "captures/ter-7tnv-box/boundary-fix-terminal/terminal.png",
+          "sha256": "d33b15e63825eaa947480a6efc83498fe7c24b3e17f15b6c84c62c7c4a087e89",
+          "observer": {
+            "path": "captures/ter-7tnv-box/boundary-fix-observed-terminal/terminal.png",
+            "sha256": "d33b15e63825eaa947480a6efc83498fe7c24b3e17f15b6c84c62c7c4a087e89"
+          },
+          "equalsReviewedBoxImage": true
+        }
+      ],
+      "settings": {
+        "Width": 1280,
+        "Height": 720,
+        "WarmUpFrames": 32,
+        "Validation": false,
+        "Impostors": false,
+        "CapturesInFlight": false,
+        "ScreenTrace": "ScreenTraceSetting(ScreenTrace { MaxRoughness = 0.5, ReflectionSteps = 256, DiffuseSteps = 62 })",
+        "Exposure": "ExposureSetting(AutoExposure { MinStops = -14, MaxStops = 10, CompensationStops = 0, DarkShare = 0.1, BrightShare = 0.1, IntoDarkSeconds = 3, IntoLightSeconds = 1 })",
+        "EnvironmentMap": "EnvironmentMapSetting(SceneEnvironmentMap { FaceSize = 128, FacesPerFrame = 1 })",
+        "Bloom": "BloomSetting(Bloom { Threshold = 1, Knee = 0.5, Strength = 0.25, Levels = 6 })",
+        "AntiAliasing": "Smaa",
+        "Subsurface": "SubsurfaceSetting(SeparableSubsurface { TapsPerSide = 8 })"
+      },
+      "history": {
+        "path": "captures/ter-7tnv-box/boundary-fix-terminal-history.json",
+        "sha256": "e201d50607bd887399dc48e4e0b547c334f9c5c03988d1b63be6f36ec9a72e82"
+      },
+      "first": {
+        "Number": 0,
+        "DrawIndex": 0,
+        "Reset": true,
+        "SnapshotSeconds": 5.233333333333333,
+        "ExposureStep": "Infinity",
+        "MapCount": 3,
+        "Chain": [
+          {
+            "FrameId": 4294967298,
+            "Axes": [
+              0,
+              0,
+              0,
+              1
+            ]
+          },
+          {
+            "FrameId": 4294967297,
+            "Axes": [
+              0,
+              -0.9470375,
+              0,
+              0.3211229
+            ]
+          },
+          {
+            "FrameId": 4294967296,
+            "Axes": [
+              0.065227434,
+              -0.92729485,
+              0.19236507,
+              0.31442854
+            ]
+          }
+        ],
+        "Boxes": [
+          {
+            "Map": 0,
+            "Minimum": [
+              -695853250,
+              -701553200,
+              -152725800000.0,
+              1
+            ],
+            "Maximum": [
+              695546800,
+              689846850,
+              -151334400000.0,
+              0
+            ]
+          },
+          {
+            "Map": 1,
+            "Minimum": [
+              152564.45,
+              395228.12,
+              -230810910,
+              1
+            ],
+            "Maximum": [
+              262599400,
+              120179816,
+              -199551.78,
+              0
+            ]
+          },
+          {
+            "Map": 2,
+            "Minimum": [
+              -6371019,
+              -12742004,
+              -6371008,
+              1
+            ],
+            "Maximum": [
+              6370983,
+              246.428,
+              6370994,
+              0
+            ]
+          }
+        ]
+      },
+      "last": {
+        "Number": 33,
+        "DrawIndex": 33,
+        "Reset": false,
+        "SnapshotSeconds": 5.25,
+        "ExposureStep": 0.016666668,
+        "MapCount": 3,
+        "Chain": [
+          {
+            "FrameId": 4294967298,
+            "Axes": [
+              0,
+              0,
+              0,
+              1
+            ]
+          },
+          {
+            "FrameId": 4294967297,
+            "Axes": [
+              0,
+              -0.94703776,
+              0,
+              0.32112238
+            ]
+          },
+          {
+            "FrameId": 4294967296,
+            "Axes": [
+              0.06522732,
+              -0.927295,
+              0.1923651,
+              0.314428
+            ]
+          }
+        ],
+        "Boxes": [
+          {
+            "Map": 0,
+            "Minimum": [
+              -695843900,
+              -701543000,
+              -152725780000.0,
+              1
+            ],
+            "Maximum": [
+              695556160,
+              689857100,
+              -151334390000.0,
+              0
+            ]
+          },
+          {
+            "Map": 1,
+            "Minimum": [
+              152486.88,
+              395232.9,
+              -230810940,
+              1
+            ],
+            "Maximum": [
+              262599440,
+              120179840,
+              -199450.28,
+              0
+            ]
+          },
+          {
+            "Map": 2,
+            "Minimum": [
+              -6371019,
+              -12742004,
+              -6371008,
+              1
+            ],
+            "Maximum": [
+              6370983,
+              246.428,
+              6370994,
+              0
+            ]
+          }
+        ]
+      },
+      "drawCount": 34,
+      "resetCount": 1,
+      "exposure": [
+        {
+          "frame": 0,
+          "capture": "terminal",
+          "stops": -2.96673
+        },
+        {
+          "frame": 1,
+          "capture": "terminal-next",
+          "stops": -2.96673
+        }
+      ],
+      "script": {
+        "path": "scripts/ter-7tnv-terminal.json",
+        "sha256": "c9399ec2da2fb75e491f69551c1de3d97e77ed64405b3dcebb6c753fcbb39d00"
+      }
+    },
+    {
+      "view": "floor",
+      "images": [
+        {
+          "path": "captures/ter-7tnv-box/boundary-fix-floor/floor-next.png",
+          "sha256": "a2c523def45c1150849678a44530a3df1697693b692c827ff9a631892b0153fa",
+          "observer": {
+            "path": "captures/ter-7tnv-box/boundary-fix-observed-floor/floor-next.png",
+            "sha256": "a2c523def45c1150849678a44530a3df1697693b692c827ff9a631892b0153fa"
+          },
+          "equalsReviewedBoxImage": true
+        },
+        {
+          "path": "captures/ter-7tnv-box/boundary-fix-floor/floor.png",
+          "sha256": "9c99a55542a8f9285d3eccacb2e478bc1d6490e911930e6769746ea21b34fe99",
+          "observer": {
+            "path": "captures/ter-7tnv-box/boundary-fix-observed-floor/floor.png",
+            "sha256": "9c99a55542a8f9285d3eccacb2e478bc1d6490e911930e6769746ea21b34fe99"
+          },
+          "equalsReviewedBoxImage": true
+        }
+      ],
+      "settings": {
+        "Width": 1280,
+        "Height": 720,
+        "WarmUpFrames": 32,
+        "Validation": false,
+        "Impostors": false,
+        "CapturesInFlight": false,
+        "ScreenTrace": "ScreenTraceSetting(ScreenTrace { MaxRoughness = 0.5, ReflectionSteps = 256, DiffuseSteps = 62 })",
+        "Exposure": "ExposureSetting(AutoExposure { MinStops = -14, MaxStops = 10, CompensationStops = 0, DarkShare = 0.1, BrightShare = 0.1, IntoDarkSeconds = 3, IntoLightSeconds = 1 })",
+        "EnvironmentMap": "EnvironmentMapSetting(SceneEnvironmentMap { FaceSize = 128, FacesPerFrame = 1 })",
+        "Bloom": "BloomSetting(Bloom { Threshold = 1, Knee = 0.5, Strength = 0.25, Levels = 6 })",
+        "AntiAliasing": "Smaa",
+        "Subsurface": "SubsurfaceSetting(SeparableSubsurface { TapsPerSide = 8 })"
+      },
+      "history": {
+        "path": "captures/ter-7tnv-box/boundary-fix-floor-history.json",
+        "sha256": "f2b7f58acc4e9dea9d9424a371d9c43614f9d0438eee6c4893b86e066907eead"
+      },
+      "first": {
+        "Number": 0,
+        "DrawIndex": 0,
+        "Reset": true,
+        "SnapshotSeconds": 52.78333333333333,
+        "ExposureStep": "Infinity",
+        "MapCount": 2,
+        "Chain": [
+          {
+            "FrameId": 4294967297,
+            "Axes": [
+              0,
+              0,
+              0,
+              1
+            ]
+          },
+          {
+            "FrameId": 4294967296,
+            "Axes": [
+              -0.47602487,
+              0.060578246,
+              0.52287704,
+              -0.7045072
+            ]
+          }
+        ],
+        "Boxes": [
+          {
+            "Map": 0,
+            "Minimum": [
+              -6302067,
+              -13140985,
+              -6461161,
+              1
+            ],
+            "Maximum": [
+              6439933,
+              -398985,
+              6280839,
+              0
+            ]
+          },
+          {
+            "Map": 1,
+            "Minimum": [
+              -3.90493,
+              -109.76588,
+              -102.259125,
+              1
+            ],
+            "Maximum": [
+              199.08276,
+              109.93435,
+              100.72858,
+              0
+            ]
+          }
+        ]
+      },
+      "last": {
+        "Number": 33,
+        "DrawIndex": 33,
+        "Reset": false,
+        "SnapshotSeconds": 52.8,
+        "ExposureStep": 0.016666668,
+        "MapCount": 2,
+        "Chain": [
+          {
+            "FrameId": 4294967297,
+            "Axes": [
+              0,
+              0,
+              0,
+              1
+            ]
+          },
+          {
+            "FrameId": 4294967296,
+            "Axes": [
+              -0.477388,
+              0.06241686,
+              0.5216328,
+              -0.70434666
+            ]
+          }
+        ],
+        "Boxes": [
+          {
+            "Map": 0,
+            "Minimum": [
+              -6301989,
+              -13140984,
+              -6461263,
+              1
+            ],
+            "Maximum": [
+              6440011,
+              -398984,
+              6280737,
+              0
+            ]
+          },
+          {
+            "Map": 1,
+            "Minimum": [
+              -3.9049072,
+              -109.7661,
+              -102.268715,
+              1
+            ],
+            "Maximum": [
+              199.0828,
+              109.93413,
+              100.71899,
+              0
+            ]
+          }
+        ]
+      },
+      "drawCount": 34,
+      "resetCount": 1,
+      "exposure": [
+        {
+          "frame": 0,
+          "capture": "floor",
+          "stops": 3.6925075
+        },
+        {
+          "frame": 1,
+          "capture": "floor-next",
+          "stops": 3.6925075
+        }
+      ],
+      "script": {
+        "path": "scripts/ter-7tnv-floor.json",
+        "sha256": "f3e8ae2684fc7edd6596488266cc66e3806aef31917a6b8d83c45e420f4bc9fc"
+      }
+    },
+    {
+      "view": "cabin",
+      "images": [
+        {
+          "path": "captures/ter-7tnv-box/boundary-fix-cabin/cabin-next.png",
+          "sha256": "97779fa1c71d9d9837e039d39501e3300848f72077accd4bffce7940df0adb4f",
+          "observer": {
+            "path": "captures/ter-7tnv-box/boundary-fix-observed-cabin/cabin-next.png",
+            "sha256": "97779fa1c71d9d9837e039d39501e3300848f72077accd4bffce7940df0adb4f"
+          },
+          "equalsReviewedBoxImage": true
+        },
+        {
+          "path": "captures/ter-7tnv-box/boundary-fix-cabin/cabin.png",
+          "sha256": "ccd64c38a95105aeb75af87e1ed05d2a7cde56302657c868cfbbf16be94f9da8",
+          "observer": {
+            "path": "captures/ter-7tnv-box/boundary-fix-observed-cabin/cabin.png",
+            "sha256": "ccd64c38a95105aeb75af87e1ed05d2a7cde56302657c868cfbbf16be94f9da8"
+          },
+          "equalsReviewedBoxImage": true
+        }
+      ],
+      "settings": {
+        "Width": 1280,
+        "Height": 720,
+        "WarmUpFrames": 32,
+        "Validation": false,
+        "Impostors": false,
+        "CapturesInFlight": false,
+        "ScreenTrace": "ScreenTraceSetting(ScreenTrace { MaxRoughness = 0.5, ReflectionSteps = 256, DiffuseSteps = 62 })",
+        "Exposure": "ExposureSetting(AutoExposure { MinStops = -14, MaxStops = 10, CompensationStops = 0, DarkShare = 0.1, BrightShare = 0.1, IntoDarkSeconds = 3, IntoLightSeconds = 1 })",
+        "EnvironmentMap": "EnvironmentMapSetting(SceneEnvironmentMap { FaceSize = 128, FacesPerFrame = 1 })",
+        "Bloom": "BloomSetting(Bloom { Threshold = 1, Knee = 0.5, Strength = 0.25, Levels = 6 })",
+        "AntiAliasing": "Smaa",
+        "Subsurface": "SubsurfaceSetting(SeparableSubsurface { TapsPerSide = 8 })"
+      },
+      "history": {
+        "path": "captures/ter-7tnv-box/boundary-fix-cabin-history.json",
+        "sha256": "d8732b6e48dc3a99ce982af7e3a7c33fd38f22bbc1b13126cecec32055968182"
+      },
+      "first": {
+        "Number": 0,
+        "DrawIndex": 0,
+        "Reset": true,
+        "SnapshotSeconds": 16.666666666666668,
+        "ExposureStep": "Infinity",
+        "MapCount": 4,
+        "Chain": [
+          {
+            "FrameId": 4294967300,
+            "Axes": [
+              0,
+              0,
+              0,
+              1
+            ]
+          },
+          {
+            "FrameId": 4294967298,
+            "Axes": [
+              0,
+              0,
+              0,
+              1
+            ]
+          },
+          {
+            "FrameId": 4294967297,
+            "Axes": [
+              0,
+              -0.94717133,
+              0,
+              0.3207281
+            ]
+          },
+          {
+            "FrameId": 4294967296,
+            "Axes": [
+              0.06514724,
+              -0.92742586,
+              0.19239223,
+              0.31404197
+            ]
+          }
+        ],
+        "Boxes": [
+          {
+            "Map": 0,
+            "Minimum": [
+              -696187840,
+              -701543000,
+              -152725820000.0,
+              1
+            ],
+            "Maximum": [
+              695212200,
+              689857100,
+              -151334420000.0,
+              0
+            ]
+          },
+          {
+            "Map": 1,
+            "Minimum": [
+              99293.09,
+              397916.97,
+              -230818770,
+              1
+            ],
+            "Maximum": [
+              262591150,
+              120184070,
+              -129908.82,
+              0
+            ]
+          },
+          {
+            "Map": 2,
+            "Minimum": [
+              -6370998.5,
+              -12742004,
+              -6371008,
+              1
+            ],
+            "Maximum": [
+              6371003.5,
+              246.808,
+              6370994,
+              0
+            ]
+          },
+          {
+            "Map": 3,
+            "Minimum": [
+              -6.431552,
+              -9.931552,
+              -15.531552,
+              1
+            ],
+            "Maximum": [
+              11.031552,
+              7.5315523,
+              1.9315519,
+              0
+            ]
+          }
+        ]
+      },
+      "last": {
+        "Number": 33,
+        "DrawIndex": 33,
+        "Reset": false,
+        "SnapshotSeconds": 16.683333333333334,
+        "ExposureStep": 0.016666668,
+        "MapCount": 4,
+        "Chain": [
+          {
+            "FrameId": 4294967300,
+            "Axes": [
+              0,
+              0,
+              0,
+              1
+            ]
+          },
+          {
+            "FrameId": 4294967298,
+            "Axes": [
+              0,
+              0,
+              0,
+              1
+            ]
+          },
+          {
+            "FrameId": 4294967297,
+            "Axes": [
+              0,
+              -0.9471715,
+              0,
+              0.32072753
+            ]
+          },
+          {
+            "FrameId": 4294967296,
+            "Axes": [
+              0.065147124,
+              -0.92742604,
+              0.19239227,
+              0.3140414
+            ]
+          }
+        ],
+        "Boxes": [
+          {
+            "Map": 0,
+            "Minimum": [
+              -696187100,
+              -701549100,
+              -152725820000.0,
+              1
+            ],
+            "Maximum": [
+              695213000,
+              689850940,
+              -151334420000.0,
+              0
+            ]
+          },
+          {
+            "Map": 1,
+            "Minimum": [
+              99215.44,
+              397920.03,
+              -230818750,
+              1
+            ],
+            "Maximum": [
+              262591120,
+              120184070,
+              -129807.24,
+              0
+            ]
+          },
+          {
+            "Map": 2,
+            "Minimum": [
+              -6370998.5,
+              -12742004,
+              -6371008,
+              1
+            ],
+            "Maximum": [
+              6371003.5,
+              246.808,
+              6370994,
+              0
+            ]
+          },
+          {
+            "Map": 3,
+            "Minimum": [
+              -6.431552,
+              -9.931552,
+              -15.531552,
+              1
+            ],
+            "Maximum": [
+              11.031552,
+              7.5315523,
+              1.9315519,
+              0
+            ]
+          }
+        ]
+      },
+      "drawCount": 34,
+      "resetCount": 1,
+      "exposure": [
+        {
+          "frame": 0,
+          "capture": "cabin",
+          "stops": -8.340269
+        },
+        {
+          "frame": 1,
+          "capture": "cabin-next",
+          "stops": -8.340269
+        }
+      ],
+      "script": {
+        "path": "scripts/ter-7tnv-box-cabin.json",
+        "sha256": "1a783f26c5d787c4e3e712c6384adf06b8819cbcca956eabaaa67124d364057d"
+      }
+    }
+  ],
+  "sources": {
+    "captures/ter-7tnv-box-fix/CpuPreparationProbe.cs": {
+      "sha256": "60297253ebeb2fa157afee6b34bf050b1cc882f814f4045a7776ef6223c3b910",
+      "source": "using System.Diagnostics;\nusing System.Reflection;\nusing System.Runtime.InteropServices;\nusing System.Security.Cryptography;\nusing System.Text.Json;\nusing Tertius.Benchmarks;\nusing Tertius.Rendering;\n\ninternal static class CpuPreparationProbe\n{\n    public static void Main(string[] args)\n    {\n        const int warmUp = 64;\n        const int samples = 128;\n        string[] maps = [\"off\", \"one-face\", \"six-faces\", \"four-maps-one-face\", \"four-maps-24-faces\"];\n        var rows = new List<object>();\n        foreach (string map in maps)\n        {\n            var fixture = new SceneBatcherBenchmarks { Map = map, Posed = 0 };\n            fixture.Setup();\n            for (int draw = 0; draw < warmUp; draw++)\n                fixture.Prepare();\n            var milliseconds = new double[samples];\n            long before = GC.GetAllocatedBytesForCurrentThread();\n            for (int draw = 0; draw < samples; draw++)\n            {\n                long start = Stopwatch.GetTimestamp();\n                fixture.Prepare();\n                milliseconds[draw] = 1000.0 * (Stopwatch.GetTimestamp() - start) / Stopwatch.Frequency;\n            }\n            long bytes = GC.GetAllocatedBytesForCurrentThread() - before;\n            fixture.Cleanup();\n            rows.Add(new { Map = map, Instances = 20000, Posed = 0, WarmUp = warmUp, Samples = samples,\n                Milliseconds = milliseconds, AllocatedBytesOnCallingThread = bytes });\n        }\n        File.WriteAllText(args[1], JsonSerializer.Serialize(new\n        {\n            Variant = args[0],\n            Utc = DateTimeOffset.UtcNow,\n            Runtime = RuntimeInformation.FrameworkDescription,\n            Architecture = RuntimeInformation.ProcessArchitecture.ToString(),\n            Stopwatch.Frequency,\n            RendererSha256 = Convert.ToHexStringLower(SHA256.HashData(File.ReadAllBytes(typeof(VulkanRenderer).Assembly.Location))),\n            RunnerSha256 = Convert.ToHexStringLower(SHA256.HashData(File.ReadAllBytes(Assembly.GetExecutingAssembly().Location))),\n            Rows = rows\n        }));\n    }\n}\n"
+    },
+    "captures/ter-7tnv-box-fix/cpu-probe.targets": {
+      "sha256": "8346a9ebf8c7d69000be098222451df7b8f765fcd42650086ff954c3f4c1e962",
+      "source": "<Project>\n  <ItemGroup Condition=\"'$(MSBuildProjectName)' == 'Tertius.Benchmarks'\">\n    <Compile Remove=\"Program.cs\" />\n    <Compile Include=\"$(MSBuildThisFileDirectory)CpuPreparationProbe.cs\" />\n  </ItemGroup>\n</Project>\n"
+    },
+    "captures/ter-7tnv-box-fix/cpu-probe.sh": {
+      "sha256": "08adbfb68ba6ff2ddbd2d139a0ddb7ba84ecfa7db46cb55c831df43c6dde5537",
+      "source": "set -euo pipefail\nroot=$(pwd -P)\nevidence=\"$root/captures/ter-7tnv-box-fix\"\ncapacity() {\n    date\n    uptime\n    memory_pressure | tail -1\n    df -h .\n    test \"$(df -k . | awk 'NR == 2 { print $4 }')\" -ge 5242880\n}\ncapacity\ndotnet build benchmarks/Tertius.Benchmarks -c Release -m:1 -p:BuildInParallel=false -v minimal -nologo \\\n    -p:CustomAfterMicrosoftCommonTargets=\"$evidence/cpu-probe.targets\" > \"$evidence/logs/cpu-probe-build.log\" 2>&1\nmkdir -p \"$evidence/cpu-bin\"\ncp -R benchmarks/Tertius.Benchmarks/bin/Release/net11.0/. \"$evidence/cpu-bin/\"\nshasum -a 256 \"$evidence/CpuPreparationProbe.cs\" \"$evidence/cpu-probe.targets\" \"$evidence/cpu-probe.sh\" \\\n    \"$evidence/cpu-bin/Tertius.Benchmarks.dll\" > \"$evidence/cpu-inputs.sha256\"\nfor round in 1 2 3; do\n    variants=\"integrated-search fixed-box\"\n    if [[ \"$round\" == 2 ]]; then variants=\"fixed-box integrated-search\"; fi\n    for variant in $variants; do\n        capacity\n        renderer=\"$root/src/Tertius.Rendering/bin/Release/net11.0/Tertius.Rendering.dll\"\n        if [[ \"$variant\" == integrated-search ]]; then\n            renderer=\"$root/captures/ter-7tnv-box/control-bin/Tertius.Rendering.dll\"\n        fi\n        cp \"$renderer\" \"$evidence/cpu-bin/Tertius.Rendering.dll\"\n        dotnet \"$evidence/cpu-bin/Tertius.Benchmarks.dll\" \"$variant\" \"$evidence/cpu-$round-$variant.json\" \\\n            > \"$evidence/logs/cpu-$round-$variant.log\" 2>&1\n        tail -5 \"$evidence/logs/cpu-$round-$variant.log\"\n    done\ndone\ncapacity\ndotnet build benchmarks/Tertius.Benchmarks -c Release -m:1 -p:BuildInParallel=false -v minimal -nologo \\\n    > \"$evidence/logs/benchmark-Release.log\" 2>&1\ntail -5 \"$evidence/logs/benchmark-Release.log\"\n"
+    },
+    "captures/ter-7tnv-box-fix/capture-fixed.sh": {
+      "sha256": "027ad2f7f84fcbf3735793b623af2406d4d14986e35988e4ebcafd4a53a4ab3f",
+      "source": "set -euo pipefail\nroot=$(pwd -P)\nevidence=\"$root/captures/ter-7tnv-box-fix\"\nold=\"$root/captures/ter-7tnv-box\"\ncapacity() {\n    date\n    uptime\n    memory_pressure | tail -1\n    df -h .\n    test \"$(df -k . | awk 'NR == 2 { print $4 }')\" -ge 5242880\n}\ncapacity\nbash tools/code-tree.sh > \"$evidence/capture-code-tree.txt\"\ncmp \"$evidence/code-tree.txt\" \"$evidence/capture-code-tree.txt\"\ncp src/Tertius.Rendering/bin/Release/net11.0/Tertius.Rendering.dll \"$evidence/fixed-renderer.dll\"\nmkdir -p \"$evidence/observer-bin\"\ncp -R \"$old/observer-bin/.\" \"$evidence/observer-bin/\"\ncp \"$evidence/fixed-renderer.dll\" \"$evidence/observer-bin/Tertius.Rendering.dll\"\nshasum -a 256 \"$evidence/fixed-renderer.dll\" \"$old/box-bin/Tertius.Rendering.dll\" \\\n    \"$evidence/observer-bin/Tertius.Host.Tests.dll\" \"$old/BoxCaptureObserver.cs\" \\\n    \"$evidence/capture-fixed.sh\" > \"$evidence/capture-inputs.sha256\"\nfor view in terminal floor cabin; do\n    shasum -a 256 \"$old/box-$view/\"*.png \"$old/control-$view/\"*.png\ndone > \"$evidence/preserved-images.sha256\"\ncapacity\nTERTIUS_BOX_ROOT=\"$root\" TERTIUS_BOX_VARIANT=boundary-fix \\\n    bash tools/gpu-lock.sh \"$evidence/logs/capture-observer-gpu.log\" dotnet \"$evidence/observer-bin/Tertius.Host.Tests.dll\" \\\n    -class Tertius.Host.Tests.BoxCaptureObserver > \"$evidence/logs/capture-observer-command.log\" 2>&1\nfor view in terminal floor cabin; do\n    capacity\n    script=\"scripts/ter-7tnv-$view.json\"\n    if [[ \"$view\" == cabin ]]; then script=scripts/ter-7tnv-box-cabin.json; fi\n    bash tools/gpu-lock.sh \"$evidence/logs/capture-$view-gpu.log\" bash tools/gpu-clock.sh \\\n        dotnet run --project src/Tertius.Demo -c Release --no-build -- \\\n        --script \"$script\" --headless --out \"$old/boundary-fix-$view\" \\\n        > \"$evidence/logs/capture-$view-command.log\" 2>&1\n    for image in \"$old/boundary-fix-$view/\"*.png; do\n        cmp \"$image\" \"$old/boundary-fix-observed-$view/$(basename \"$image\")\"\n    done\n    echo \"$view: real CLI and history observer PNGs match byte for byte\"\ndone\nshasum -a 256 -c \"$evidence/preserved-images.sha256\" > \"$evidence/logs/preserved-images.log\"\n"
+    },
+    "captures/ter-7tnv-box-fix/timing-fixed.sh": {
+      "sha256": "52c74b5a956d89dc1411dd14f79c5a10a9364741fe398b373153ed2f2b3524ae",
+      "source": "set -euo pipefail\nroot=$(pwd -P)\nevidence=\"$root/captures/ter-7tnv-box-fix\"\nbash tools/code-tree.sh > \"$evidence/timing-code-tree.txt\"\ncmp \"$evidence/code-tree.txt\" \"$evidence/timing-code-tree.txt\"\nfor round in 1 2 3; do\n    variants=\"reviewed-box fixed-box\"\n    if [[ \"$round\" == 2 ]]; then variants=\"fixed-box reviewed-box\"; fi\n    for view in deck floor; do\n        for variant in $variants; do\n            date\n            uptime\n            memory_pressure | tail -1\n            df -h .\n            test \"$(df -k . | awk 'NR == 2 { print $4 }')\" -ge 5242880\n            binary=\"$root/src/Tertius.Demo/bin/Release/net11.0/Tertius.Demo\"\n            if [[ \"$variant\" == reviewed-box ]]; then\n                binary=\"$root/captures/ter-7tnv-box/box-bin/Tertius.Demo\"\n            fi\n            TERTIUS_TIMING_BINARY=\"$binary\" bash captures/ter-7tnv-box/demo-timing-binary.sh \\\n                \"$evidence/timing-$round-$view-$variant\" \"captures/ter-7tnv/$view-120.json\" \\\n                --size 1280x720 --in-flight 2 > \"$evidence/logs/timing-$round-$view-$variant.log\" 2>&1\n            tail -4 \"$evidence/logs/timing-$round-$view-$variant.log\"\n        done\n        python3 -I tools/gpu_clock.py compare \\\n            \"$evidence/timing-$round-$view-reviewed-box/gpu-timings.json\" \\\n            \"$evidence/timing-$round-$view-fixed-box/gpu-timings.json\" \\\n            > \"$evidence/logs/compare-$round-$view.log\"\n        head -5 \"$evidence/logs/compare-$round-$view.log\"\n    done\ndone\n"
+    },
+    "captures/ter-7tnv-box-fix/readiness-fixed.sh": {
+      "sha256": "ba5b78257cd68379d5c2e50b63a65f9b74b8eb27cfe6eee29fe4fcd222f4b37c",
+      "source": "set -euo pipefail\nroot=$(pwd -P)\nevidence=\"$root/captures/ter-7tnv-box-fix\"\ncapacity() {\n    date\n    uptime\n    memory_pressure | tail -1\n    df -h .\n    test \"$(df -k . | awk 'NR == 2 { print $4 }')\" -ge 5242880\n}\nbash tools/code-tree.sh > \"$evidence/validation-code-tree.txt\"\ncmp \"$evidence/code-tree.txt\" \"$evidence/validation-code-tree.txt\"\nfor configuration in Checked Release; do\n    capacity\n    dotnet build Tertius.slnx -c \"$configuration\" -m:1 -p:BuildInParallel=false -v minimal -nologo \\\n        > \"$evidence/logs/final-solution-$configuration.log\" 2>&1\n    tail -5 \"$evidence/logs/final-solution-$configuration.log\"\n    if [[ \"$configuration\" == Checked ]]; then\n        capacity\n        bash tools/gpu-lock.sh \"$evidence/logs/final-focused-gpu.log\" dotnet test \\\n            --project tests/Tertius.Rendering.Tests -c Checked --no-build --filter-class '*EnvironmentBox*'\n        capacity\n        dotnet test --project tests/Tertius.Rendering.Tests -c Checked --no-build --filter-class '*BatcherDeformTests*' \\\n            > \"$evidence/logs/final-deformation.log\" 2>&1\n        tail -9 \"$evidence/logs/final-deformation.log\"\n    fi\n    capacity\n    bash tools/gpu-lock.sh \"$evidence/logs/full-$configuration-gpu.log\" dotnet test \\\n        --solution Tertius.slnx -c \"$configuration\" --no-build --max-parallel-test-modules 1\n    tail -10 \"$evidence/logs/full-$configuration-gpu.log\"\ndone\ncapacity\ndotnet build benchmarks/Tertius.Benchmarks -c Release -m:1 -p:BuildInParallel=false -v minimal -nologo \\\n    > \"$evidence/logs/final-benchmark-Release.log\" 2>&1\ntail -5 \"$evidence/logs/final-benchmark-Release.log\"\nrg --files --hidden --no-ignore src/Tertius.Rendering/obj/Release tests/Tertius.Rendering.Tests/obj/Release \\\n    | rg '\\.spv$' | sort > \"$evidence/validated-modules.txt\"\nwhile IFS= read -r module; do\n    spirv-val --target-env vulkan1.3 \"$module\"\ndone < \"$evidence/validated-modules.txt\"\nprintf 'Vulkan 1.3 validation passed for %s compiled modules\\n' \"$(wc -l < \"$evidence/validated-modules.txt\")\"\nshasum -a 256 src/Tertius.Rendering/bin/Release/net11.0/Tertius.Rendering.dll \\\n    \"$evidence/fixed-renderer.dll\" > \"$evidence/final-renderer.sha256\"\ncmp src/Tertius.Rendering/bin/Release/net11.0/Tertius.Rendering.dll \"$evidence/fixed-renderer.dll\"\nbash tools/code-tree.sh > \"$evidence/final-code-tree.txt\"\ncmp \"$evidence/code-tree.txt\" \"$evidence/final-code-tree.txt\"\ngit diff --check\ngit diff --cached --check\n"
+    },
+    "captures/ter-7tnv-box-fix/summarize.py": {
+      "sha256": "7b5eb64a7764ccda10d37ac8dd8b795f9fde496fa4691f5604e10be6b5e1ce4b",
+      "source": "import hashlib\nimport json\nimport pathlib\nimport re\nimport statistics\n\nroot = pathlib.Path.cwd()\nevidence = root / \"captures/ter-7tnv-box-fix\"\ncaptures = root / \"captures/ter-7tnv-box\"\nidentity = (evidence / \"code-tree.txt\").read_text().splitlines()[0]\n\n\ndef digest(path):\n    return hashlib.sha256(path.read_bytes()).hexdigest()\n\n\ndef stored(path):\n    return {\"path\": str(path.relative_to(root)), \"sha256\": digest(path)}\n\n\ndef summary(path):\n    text = path.read_text()\n    found = re.search(r\"\\s+total: (\\d+)\\s+failed: (\\d+)\\s+succeeded: (\\d+)\\s+skipped: (\\d+)\", text)\n    if \"Test run summary: Passed!\" not in text or found is None or found[2] != \"0\":\n        raise RuntimeError(f\"No complete passing summary in {path}\")\n    return stored(path) | dict(zip([\"total\", \"failed\", \"passed\", \"skipped\"], map(int, found.groups())))\n\n\nchecks = {configuration: summary(evidence / f\"logs/full-{configuration}-gpu.log\") for configuration in [\"Checked\", \"Release\"]}\nchecks[\"focused\"] = summary(evidence / \"logs/final-focused-gpu.log\")\nchecks[\"deformation\"] = summary(evidence / \"logs/final-deformation.log\")\nchecks[\"red\"] = stored(evidence / \"logs/red-gpu.log\") | {\"total\": 50, \"failed\": 14, \"passed\": 36,\n    \"reason\": \"Twelve face cases, the previous outward boundary case, and the real specular reader fail for the intended boundary error. The real reader returns 0 rather than 8 +/- 0.005.\"}\nchecks[\"firstGreen\"] = summary(evidence / \"logs/green-gpu.log\")\nstamps = []\nfor configuration in [\"Checked\", \"Release\"]:\n    for stamp in root.glob(f\"tests/*/bin/{configuration}/net11.0/code-tree.txt\"):\n        assert stamp.read_text().splitlines()[0] == identity, stamp\n        stamps.append(stored(stamp) | {\"codeTree\": identity})\nchecks[\"testOutputStamps\"] = stamps\nfor label, name in [(\"checkedBuild\", \"final-solution-Checked.log\"), (\"releaseBuild\", \"final-solution-Release.log\"),\n                    (\"benchmarkBuild\", \"final-benchmark-Release.log\")]:\n    path = evidence / \"logs\" / name\n    text = path.read_text()\n    assert \"Build succeeded.\" in text and \"0 Warning(s)\" in text and \"0 Error(s)\" in text, path\n    checks[label] = stored(path)\nmodules = (evidence / \"validated-modules.txt\").read_text().splitlines()\nchecks[\"vulkan13\"] = {\"modules\": len(modules), \"list\": stored(evidence / \"validated-modules.txt\"),\n    \"log\": stored(evidence / \"logs/readiness.log\"), \"linuxExecution\": False}\nassert digest(evidence / \"fixed-renderer.dll\") == digest(root / \"src/Tertius.Rendering/bin/Release/net11.0/Tertius.Rendering.dll\")\n\ncpu_runs = []\ncpu_modes = {}\nfor path in sorted(evidence.glob(\"cpu-*-*.json\")):\n    run = json.loads(path.read_text())\n    rows = []\n    for row in run[\"Rows\"]:\n        samples = row[\"Milliseconds\"]\n        record = {key: value for key, value in row.items() if key != \"Milliseconds\"}\n        record |= {\"medianMs\": statistics.median(samples), \"meanMs\": statistics.mean(samples),\n                   \"minMs\": min(samples), \"maxMs\": max(samples)}\n        rows.append(record)\n        cpu_modes.setdefault(row[\"Map\"], {}).setdefault(run[\"Variant\"], []).append(record)\n    cpu_runs.append({key: value for key, value in run.items() if key != \"Rows\"} | {\"Rows\": rows, \"raw\": stored(path)})\ncpu = []\nfor mode, variants in cpu_modes.items():\n    before = variants[\"integrated-search\"]\n    after = variants[\"fixed-box\"]\n    cpu.append({\"mode\": mode, \"integratedSearchMedianMs\": statistics.median(row[\"medianMs\"] for row in before),\n        \"fixedBoxMedianMs\": statistics.median(row[\"medianMs\"] for row in after),\n        \"pairedMedianDifferenceMs\": statistics.median(box[\"medianMs\"] - control[\"medianMs\"] for control, box in zip(before, after)),\n        \"allocatedBytesPer128Calls\": [row[\"AllocatedBytesOnCallingThread\"] for row in before + after]})\n\ntiming_pairs = []\nfor view in [\"deck\", \"floor\"]:\n    for round in [1, 2, 3]:\n        pair = {\"view\": view, \"round\": round}\n        for variant in [\"reviewed-box\", \"fixed-box\"]:\n            path = evidence / f\"timing-{round}-{view}-{variant}/gpu-timings.json\"\n            run = json.loads(path.read_text())\n            pair[variant] = {key: run[key] for key in [\"device\", \"width\", \"height\", \"frame\", \"gpuClock\", \"warning\"]}\n            pair[variant][\"raw\"] = stored(path)\n            assert run[\"frame\"][\"frames\"] == 120\n            assert run[\"gpuClock\"][\"meanMhz\"] == run[\"gpuClock\"][\"p10Mhz\"] == run[\"gpuClock\"][\"p90Mhz\"] == 1296\n        pair[\"differenceMs\"] = pair[\"fixed-box\"][\"frame\"][\"meanMs\"] - pair[\"reviewed-box\"][\"frame\"][\"meanMs\"]\n        pair[\"clockComparison\"] = stored(evidence / f\"logs/compare-{round}-{view}.log\")\n        timing_pairs.append(pair)\ntimings = [{\"view\": view, \"medianPairedDifferenceMs\": statistics.median(pair[\"differenceMs\"] for pair in timing_pairs if pair[\"view\"] == view),\n    \"minPairedDifferenceMs\": min(pair[\"differenceMs\"] for pair in timing_pairs if pair[\"view\"] == view),\n    \"maxPairedDifferenceMs\": max(pair[\"differenceMs\"] for pair in timing_pairs if pair[\"view\"] == view),\n    \"reviewedBoxMedianRunMeanMs\": statistics.median(pair[\"reviewed-box\"][\"frame\"][\"meanMs\"] for pair in timing_pairs if pair[\"view\"] == view),\n    \"fixedBoxMedianRunMeanMs\": statistics.median(pair[\"fixed-box\"][\"frame\"][\"meanMs\"] for pair in timing_pairs if pair[\"view\"] == view)} for view in [\"deck\", \"floor\"]]\n\nimages = []\nfor view in [\"terminal\", \"floor\", \"cabin\"]:\n    rows = json.loads((captures / f\"boundary-fix-{view}-history.json\").read_text())\n    assert [row[\"DrawIndex\"] for row in rows] == list(range(34))\n    assert sum(row[\"Reset\"] for row in rows) == 1\n    assert abs(rows[-1][\"SnapshotSeconds\"] - rows[0][\"SnapshotSeconds\"] - 1 / 60) < 1e-10\n    image_records = []\n    for path in sorted((captures / f\"boundary-fix-{view}\").glob(\"*.png\")):\n        observer = captures / f\"boundary-fix-observed-{view}\" / path.name\n        old = captures / f\"box-{view}\" / path.name\n        assert digest(path) == digest(observer)\n        image_records.append(stored(path) | {\"observer\": stored(observer), \"equalsReviewedBoxImage\": digest(path) == digest(old)})\n    images.append({\"view\": view, \"images\": image_records, \"settings\": json.loads((captures / f\"boundary-fix-{view}-settings.json\").read_text()),\n        \"history\": stored(captures / f\"boundary-fix-{view}-history.json\"), \"first\": rows[0], \"last\": rows[-1],\n        \"drawCount\": len(rows), \"resetCount\": 1,\n        \"exposure\": json.loads((captures / f\"boundary-fix-{view}/exposure.json\").read_text()),\n        \"script\": stored(root / f\"scripts/ter-7tnv-{'box-cabin' if view == 'cabin' else view}.json\")})\n\nsources = {}\nfor path in [evidence / \"CpuPreparationProbe.cs\", evidence / \"cpu-probe.targets\", evidence / \"cpu-probe.sh\",\n             evidence / \"capture-fixed.sh\", evidence / \"timing-fixed.sh\", evidence / \"readiness-fixed.sh\", evidence / \"summarize.py\",\n             captures / \"BoxCaptureObserver.cs\", captures / \"observer.targets\", captures / \"demo-timing-binary.sh\"]:\n    sources[str(path.relative_to(root))] = {\"sha256\": digest(path), \"source\": path.read_text()}\nrecord = {\"reviewedHead\": \"46a0f4f244bc3b820e1921c97f654ffc06d63ea5\", \"fixedCodeTree\": identity,\n    \"reviewedBoxCodeTree\": \"cda9d325a704aa321e2f921a7d3b60144373705d\",\n    \"integratedSearchControlCodeTree\": \"6fc8947dc81ba55c7f45ee59dece54d1b0ae8d13\",\n    \"originalReviewBase\": \"34c28466e641a864fd6a915c029e08f07b3b9ccc\", \"worktreePath\": str(root),\n    \"branch\": \"ter-7tnv-corrected-environment-misses\", \"rendererSha256\": digest(evidence / \"fixed-renderer.dll\"),\n    \"reviewedBoxRendererSha256\": digest(captures / \"box-bin/Tertius.Rendering.dll\"),\n    \"integratedSearchRendererSha256\": digest(captures / \"control-bin/Tertius.Rendering.dll\"),\n    \"checks\": checks, \"cpuPreparation\": {\"summary\": cpu, \"runs\": cpu_runs,\n        \"scope\": \"Complete one-thread SceneBatcherBenchmarks.Prepare on 20,000 static unit cubes. Three interleaved pairs, 64 warm-up calls and 128 measured calls per mode. Integrated discarded-search control versus the fixed automatic-box renderer. This is not an isolated fitting or GPU cost. Stopwatch frequency is recorded; CPU frequency was not pinned.\"},\n    \"gpuFrames\": {\"summary\": timings, \"pairs\": timing_pairs,\n        \"scope\": \"Three interleaved matched 120-frame pairs per window, reviewed automatic-box renderer versus boundary-fixed automatic-box renderer. Not search-versus-box savings. GPU frame spans only; retained distance producers remain in both.\"},\n    \"captures\": images, \"sources\": sources,\n    \"preservedTicketPrefix\": stored(evidence / \"ticket-prefix.md\"), \"preservedPlan\": stored(evidence / \"plan-before.md\"),\n    \"limits\": [\"Linux execution remains deferred under ter-cgif.\", \"Changed-line coverage and mutations remain parent-owned and were not run.\",\n        \"Final image-quality and frame-budget acceptance remain parent-owned. Grain, doorway saturation, curved background bands, loose enclosures, and mixed ancestor radiance remain.\",\n        \"No separate hierarchy, ownership texture, map compositing, producer cleanup, noise import, or FSR reconciliation was added.\"]}\ndestination = root / \"docs/research/temporal-renderer/automatic-box-projection/review-fix.json\"\ndestination.write_text(json.dumps(record, indent=2) + \"\\n\")\nprint(json.dumps({\"codeTree\": identity, \"rendererSha256\": record[\"rendererSha256\"], \"checks\": checks,\n    \"cpu\": cpu, \"gpu\": timings, \"captures\": [{\"view\": image[\"view\"], \"maps\": image[\"first\"][\"MapCount\"],\n        \"firstSeconds\": image[\"first\"][\"SnapshotSeconds\"], \"nextSeconds\": image[\"last\"][\"SnapshotSeconds\"],\n        \"exposure\": image[\"exposure\"], \"allPngsEqualReviewed\": all(path[\"equalsReviewedBoxImage\"] for path in image[\"images\"])} for image in images]}, indent=2))\n"
+    },
+    "captures/ter-7tnv-box/BoxCaptureObserver.cs": {
+      "sha256": "4ee1e898b59361dfd2af4b63d768cd6ebafcaf32cc4cb95cdb25f6404e164e5e",
+      "source": "using System.Text.Json;\nusing Tertius.Demo;\nusing Tertius.Rendering;\n\nnamespace Tertius.Host.Tests;\n\npublic sealed class BoxCaptureObserver\n{\n    private static readonly JsonSerializerOptions HistoryJson = new()\n    {\n        NumberHandling = System.Text.Json.Serialization.JsonNumberHandling.AllowNamedFloatingPointLiterals\n    };\n\n    [Fact]\n    public void WarmedCapturesAdvanceTheirSnapshotClockAndKeepTheirDrawHistory()\n    {\n        string checkout = Environment.GetEnvironmentVariable(\"TERTIUS_BOX_ROOT\")\n            ?? throw new InvalidOperationException(\"TERTIUS_BOX_ROOT is required.\");\n        string variant = Environment.GetEnvironmentVariable(\"TERTIUS_BOX_VARIANT\")\n            ?? throw new InvalidOperationException(\"TERTIUS_BOX_VARIANT is required.\");\n        string root = Path.Combine(checkout, \"captures/ter-7tnv-box\");\n        foreach (string view in new[] { \"terminal\", \"floor\", \"cabin\" })\n        {\n            var probe = new ObservationPass();\n            using var output = new StringWriter();\n            using var error = new StringWriter();\n            string script = view == \"cabin\" ? \"ter-7tnv-box-cabin.json\" : $\"ter-7tnv-{view}.json\";\n            int code = ScriptCommand.Run(\n                args: [\"--script\", Path.Combine(checkout, \"scripts\", script), \"--headless\", \"--out\",\n                    Path.Combine(root, $\"{variant}-observed-{view}\")],\n                scenes: DemoScenes.All, output: output, error: error,\n                createRenderer: options =>\n                {\n                    File.WriteAllText(Path.Combine(root, $\"{variant}-{view}-settings.json\"), JsonSerializer.Serialize(new\n                    {\n                        options.Width, options.Height, options.WarmUpFrames, options.Validation,\n                        options.Impostors, options.CapturesInFlight,\n                        ScreenTrace = options.ScreenTrace.ToString(), Exposure = options.Exposure.ToString(),\n                        EnvironmentMap = options.EnvironmentMap.ToString(), Bloom = options.Bloom.ToString(),\n                        AntiAliasing = options.AntiAliasing.ToString(), Subsurface = options.Subsurface.ToString()\n                    }));\n                    VulkanRenderer renderer = VulkanRenderer.CreateHeadless(options);\n                    renderer.Graph.Add(FrameGraph.Stage.Composite, probe);\n                    return renderer;\n                }\n            );\n            File.WriteAllText(Path.Combine(root, $\"{variant}-{view}-history.json\"), JsonSerializer.Serialize(probe.Rows, HistoryJson));\n            code.Should().Be(ScriptCommand.Ok, error.ToString());\n            probe.Indices.Should().Equal(Enumerable.Range(0, 34).Select(index => (long)index));\n            probe.Resets.Count(reset => reset).Should().Be(1);\n            probe.Times.Distinct().Should().HaveCount(2);\n            (probe.Times[^1] - probe.Times[0]).Should().BeApproximately(1.0 / 60, 1e-10);\n        }\n    }\n\n    private sealed class ObservationPass : RenderPass\n    {\n        public override string Name => \"box capture history evidence\";\n        public List<object> Rows { get; } = [];\n        public List<long> Indices { get; } = [];\n        public List<bool> Resets { get; } = [];\n        public List<double> Times { get; } = [];\n\n        public override void Record(FrameContext context)\n        {\n            Indices.Add(context.History.DrawIndex);\n            Resets.Add(context.History.Reset);\n            Times.Add(context.Snapshot.Time);\n            Rows.Add(new\n            {\n                context.Number, context.History.DrawIndex, context.History.Reset,\n                SnapshotSeconds = context.Snapshot.Time, context.History.ExposureStep,\n                context.Scene.MapCount,\n                Chain = context.Snapshot.Chain.Select(frame => new\n                {\n                    frame.FrameId,\n                    Axes = new[] { frame.Rotation.X, frame.Rotation.Y, frame.Rotation.Z, frame.Rotation.W }\n                }).ToArray(),\n                Boxes = Enumerable.Range(0, context.Scene.MapCount).Select(map =>\n                {\n                    GpuMapBox box = context.Scene.Constants.MapBoxes[map];\n                    return new\n                    {\n                        Map = map,\n                        Minimum = new[] { box.Minimum.X, box.Minimum.Y, box.Minimum.Z, box.Minimum.W },\n                        Maximum = new[] { box.Maximum.X, box.Maximum.Y, box.Maximum.Z, box.Maximum.W }\n                    };\n                }).ToArray()\n            });\n        }\n    }\n}\n"
+    },
+    "captures/ter-7tnv-box/observer.targets": {
+      "sha256": "b4b1a8097f2fe0249576b4b7fa6e076dc9ced8ca83163082530292e4120a732f",
+      "source": "<Project>\n  <ItemGroup Condition=\"'$(MSBuildProjectName)' == 'Tertius.Host.Tests'\">\n    <Compile Include=\"$(MSBuildThisFileDirectory)BoxCaptureObserver.cs\" />\n  </ItemGroup>\n</Project>\n"
+    },
+    "captures/ter-7tnv-box/demo-timing-binary.sh": {
+      "sha256": "89e842f7488b3be9c42ce17269309a722e4e539b0744f5832b37a58d47111d9f",
+      "source": "#!/usr/bin/env bash\n# Tool code (tools/README.md, \"The GPU clock of a timed run\"): one timed headless run of the Release demo, under the GPU\n# lock through tools/gpu-lock.sh and beside gpu-clock through tools/gpu-clock.sh. Run it inside the dev shell:\n#   nix develop --command bash tools/demo-timing.sh <out folder> <script.json> [demo options]\n#   nix develop --command bash tools/demo-timing.sh captures/gpu-branch scripts/demo-exit.json --size 1920x1080\n#   nix develop --command bash tools/demo-timing.sh captures/deck deck-120.json --size 1280x720 --in-flight 2\n# Run it from the checkout whose demo it times. It builds the demo in Release and runs the built binary with --headless\n# --out <out folder> --video none and the demo options, so the run holds no build. The run's output goes to\n# <out folder>/run.log. The script writes the clock over the run's timed span into <out folder>/gpu-timings.json as\n# \"gpuClock\", and prints the report's warning and the GPU lines of the run: valid pass times, the frame span, requested\n# range sums and the clock. tools/gpu_clock.py compare compares two such runs. A demo from before ter-qk78 prints no\n# markers, so its clock is unknown.\n# With --in-flight 2, the demo keeps two frames on the GPU, so that the GPU does not idle between frames and can reach\n# its top clock.\nset -uo pipefail\n\nusage=\"usage: tools/demo-timing.sh <out folder> <script.json> [demo options]\"\nout=$(realpath -m \"${1:?$usage}\")\nscript=$(realpath \"${2:?$usage}\")\nshift 2\n# The tools come from this script's checkout, and the demo from the checkout of the working directory, so that a\n# checkout of an older base, which lacks these tools, runs its own demo with them.\ntools=\"$(pwd)/tools\"\ncd \"$(git rev-parse --show-toplevel)\"\nmkdir -p \"$out\"\n\nbash \"$tools/gpu-lock.sh\" \"$out/run.log\" bash -c 'set -e; available=$(df -k . | awk '\"'\"'NR == 2 { print $4 }'\"'\"'); printf \"post-queue availableKiB=%s\\n\" \"$available\"; test \"$available\" -ge 5242880; exec bash \"$@\"' bash \"$tools/gpu-clock.sh\" \"${TERTIUS_TIMING_BINARY:?}\" \\\n    --script \"$script\" --headless --out \"$out\" --video none \"$@\"\ncode=$?\nif [[ \"$code\" -ne 0 ]]; then\n    echo \"The demo run failed (exit code $code). The end of $out/run.log:\" >&2\n    tail -20 \"$out/run.log\" >&2\n    exit \"$code\"\nfi\nif [[ ! -f \"$out/gpu-timings.json\" ]]; then\n    echo \"The run wrote no gpu-timings.json: its renderer times no pass, or the script shows no frame. See $out/run.log.\" >&2\n    exit 1\nfi\npython3 -I \"$tools/gpu_clock.py\" record \"$out/run.log\" \"$out/gpu-timings.json\" > /dev/null\npython3 -I - \"$out/gpu-timings.json\" <<'PY'\nimport json\nimport sys\n\nwith open(sys.argv[1]) as timings:\n    warning = json.load(timings).get(\"warning\")\nif warning:\n    print(warning)\nPY\ngrep -E '^GPU ' \"$out/run.log\"\n"
+    }
+  },
+  "preservedTicketPrefix": {
+    "path": "captures/ter-7tnv-box-fix/ticket-prefix.md",
+    "sha256": "e64c68c514605c79b31bde73346ff97fa7695c4f1fdce7cb8a0816a6a8418503"
+  },
+  "preservedPlan": {
+    "path": "captures/ter-7tnv-box-fix/plan-before.md",
+    "sha256": "255857f439b4d132403783dc464d646294dabca6ef9a5698f3cb0ecced548008"
+  },
+  "limits": [
+    "Linux execution remains deferred under ter-cgif.",
+    "Changed-line coverage and mutations remain parent-owned and were not run.",
+    "Final image-quality and frame-budget acceptance remain parent-owned. Grain, doorway saturation, curved background bands, loose enclosures, and mixed ancestor radiance remain.",
+    "No separate hierarchy, ownership texture, map compositing, producer cleanup, noise import, or FSR reconciliation was added."
+  ]
+}

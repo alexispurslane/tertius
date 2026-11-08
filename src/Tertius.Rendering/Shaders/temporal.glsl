@@ -93,7 +93,8 @@ IndirectLight closedForm(ShadingInput s, vec3 V)
     {
         light.diffuse = environmentDiffuse(s.map, s.normal);
         light.specular = environmentSpecular(
-            s.map, ambientSpecularDirection(s, V), flooredRoughness(s.roughness), s.reflectionFootprint);
+            s.map, s.position, ambientSpecularDirection(s, V), s.geometricNormal,
+            flooredRoughness(s.roughness), s.reflectionFootprint);
     }
     else
     {

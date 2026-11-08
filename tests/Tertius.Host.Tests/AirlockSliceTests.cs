@@ -188,7 +188,7 @@ public sealed class AirlockSliceTests(AirlockRun run) : IClassFixture<AirlockRun
         // Changed on purpose by the move to SI units (docs/plans/local-light-shadows.md, Part 5): at the exposure that
         // Earth sets the chamber floor shows far darker than the Earth-lit port face. Before, the lamps sent 10 times the
         // sunlight, cast no shadows, lit the floor through the chamber's walls, and the floor showed brighter than the face.
-        // The floor is dark but not black, about (2, 4, 8): black space would show there if the hatch showed no floor.
+        // The floor is dark but not black, about (1, 2, 5): black space would show there if the hatch showed no floor.
         Png hull = run.Capture("hull");
         (int r, int g, int b) earth = hull.Average(640, 690),
             floor = hull.Average(640, 495),
@@ -200,7 +200,7 @@ public sealed class AirlockSliceTests(AirlockRun run) : IClassFixture<AirlockRun
                 (side.r + side.g + side.b) / 4,
                 $"the chamber floor {floor} is darker than the Earth-lit port face {side}"
             );
-        (floor.r + floor.g + floor.b >= 10 && floor.b > floor.r)
+        (floor.r + floor.g + floor.b >= 6 && floor.b > floor.r)
             .Should()
             .BeTrue(
                 $"the chamber floor shows in the faint blue of the environment map's light, not black, not {floor}"

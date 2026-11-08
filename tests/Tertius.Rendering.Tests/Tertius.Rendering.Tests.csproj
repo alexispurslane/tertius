@@ -33,11 +33,26 @@
   <ItemGroup>
     <TestShader Include="$(EngineShaders)/lighting.vert;$(EngineShaders)/composite.frag;$(EngineShaders)/composite_scatter.frag;Shaders/direct_light_probe.frag;Shaders/direct_diffuse_probe.frag;Shaders/reflection_sharing_pulse.frag"
                 Flags="-DTERTIUS_EVERY_AMBIENT_TERM -I &quot;$(EngineShaders)&quot;" />
-    <TestShader Include="Shaders/*.comp" Flags="-I &quot;$(EngineShaders)&quot;" />
+    <TestShader Include="Shaders/*.comp;Shaders/upscale_view_ray_probe.frag" Flags="-I &quot;$(EngineShaders)&quot;" />
     <TestShader Include="$(EngineShaders)/screen_trace_resolve.comp" Flags="-I &quot;$(EngineShaders)&quot;" />
     <PreciseHistoryTestShader Include="@(TestShader)" />
     <TestShaderInclude Include="$(EngineShaders)/*.glsl;Shaders/*.glsl" />
+    <DirectionOnlyShader Include="$(EngineShaders)/lighting.vert;$(EngineShaders)/composite.frag" />
   </ItemGroup>
+
+  <Target Name="CompileDirectionOnlyShaders" BeforeTargets="BeforeBuild"
+          Inputs="@(DirectionOnlyShader);@(TestShaderInclude);$(MSBuildProjectFullPath)"
+          Outputs="@(DirectionOnlyShader->'$(IntermediateOutputPath)direction-only/%(Filename)%(Extension).spv')">
+    <MakeDir Directories="$(IntermediateOutputPath)direction-only" />
+    <Exec Command="&quot;$(Glslc)&quot; --target-env=vulkan1.3 -O -Werror -DTERTIUS_MAP_DIRECTION_ONLY -I &quot;$(EngineShaders)&quot; -o &quot;$(IntermediateOutputPath)direction-only/%(DirectionOnlyShader.Filename)%(DirectionOnlyShader.Extension).spv&quot; &quot;%(DirectionOnlyShader.FullPath)&quot;" />
+  </Target>
+
+  <Target Name="EmbedDirectionOnlyShaders" DependsOnTargets="CompileDirectionOnlyShaders" BeforeTargets="BeforeBuild">
+    <ItemGroup>
+      <_DirectionOnlySpirv Include="@(DirectionOnlyShader->'$(IntermediateOutputPath)direction-only/%(Filename)%(Extension).spv')" />
+      <EmbeddedResource Include="@(_DirectionOnlySpirv)" LogicalName="Tertius.Rendering.Shaders.direction_only_%(_DirectionOnlySpirv.Filename)%(_DirectionOnlySpirv.Extension)" WithCulture="false" />
+    </ItemGroup>
+  </Target>
 
   <Target Name="CompileTestShaders" BeforeTargets="BeforeBuild"
           Inputs="@(TestShader);@(TestShaderInclude);$(MSBuildProjectFullPath)"

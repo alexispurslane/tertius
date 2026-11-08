@@ -128,6 +128,32 @@ public sealed class GpuTimingTests
     }
 
     [Fact]
+    public void TwoPassesWithTheSameLabelKeepTheirOwnMeasuredStages()
+    {
+        VulkanRenderer renderer = TimedRenderer(framesInFlight: 1);
+        try
+        {
+            renderer.Graph.Add(FrameGraph.Stage.GBuffer, new EmptyPass());
+            renderer.Graph.Add(FrameGraph.Stage.Exposure, new EmptyPass());
+            RenderSnapshot scene = TestScene.Create(renderer).Snapshot();
+
+            for (int draw = 0; draw < 3; draw++)
+                renderer.Render(scene, 1);
+
+            renderer
+                .LastFrameStats.GpuTimings!.Value.Passes.ToArray()
+                .Where(pass => pass.Pass == "empty")
+                .Select(pass => pass.Stage)
+                .Should()
+                .Equal(FrameGraph.Stage.GBuffer, FrameGraph.Stage.Exposure);
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
     public void UnderTheScreenTracerItsPassesRunBetweenTheDirectPassAndTheComposite()
     {
         VulkanRenderer renderer = TimedRenderer(screenTrace: ScreenTrace.Default);

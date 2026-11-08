@@ -408,6 +408,52 @@ public sealed class BatcherDeformTests
         scene.VisibleSpan[0].Mesh.Should().Be(StaticMeshCount);
     }
 
+    [Theory]
+    [InlineData(Cylinder)]
+    [InlineData(MorphBox)]
+    public void TheMapBoxContainsEveryTransformedOffScreenDeformedVertexDespiteASmallCullingRadius(int mesh)
+    {
+        RenderSnapshot snapshot = Empty();
+        RigPose pose = mesh == Cylinder ? TipAt(20) : BoxRest with { Weights = [1, -0.75f] };
+        MeshData data = mesh == Cylinder ? CylinderData : BoxData;
+        Vector3 position = new(100, 0, -10);
+        Vector3 scale = new(-2, 1, 3);
+        var rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, 0.4f);
+        AddPosed(
+            snapshot,
+            Instance(mesh, position) with
+            {
+                BoundingRadius = 0.1f,
+                Scale = scale,
+                PreviousScale = scale,
+                Rotation = rotation,
+                PreviousRotation = rotation,
+            },
+            pose
+        );
+        PreparedScene scene = Prepare(snapshot, Roomy, new WithMap(new FaceMask[1], new IrradianceReading?[1]));
+        GpuMapBox box = scene.Constants.MapBoxes[0];
+        box.Minimum.W.Should().Be(1);
+        scene.VisibleCount.Should().Be(0);
+        scene.PlacedSpan[0].Radius.Should().Be(0.1f);
+        PackedDeform packed = MeshDeform.Pack(StagedMesh.Of(data))!;
+        foreach (GpuDeformVertex source in packed.Vertices)
+        {
+            GpuVertex deformed = MeshDeform.Deformed(
+                source: source,
+                deltas: packed.Deltas.AsSpan((int)source.MorphStart, (int)source.MorphCount),
+                rows: scene.Poses,
+                paletteJoints: packed.Deform.PaletteJoints
+            );
+            Vector3 vertex = position + Vector3.Transform(deformed.Position * scale, rotation);
+            for (int axis = 0; axis < 3; axis++)
+            {
+                vertex[axis].Should().BeGreaterThanOrEqualTo(box.Minimum[axis]);
+                vertex[axis].Should().BeLessThanOrEqualTo(box.Maximum[axis]);
+            }
+        }
+    }
+
     [Fact]
     public void RenderRowBoundingRadiusOverridesThePosedBound()
     {

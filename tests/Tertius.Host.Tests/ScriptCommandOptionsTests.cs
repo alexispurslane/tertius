@@ -24,6 +24,18 @@ public sealed class ScriptCommandOptionsTests
         renderer.CapturesInFlight.Should().Be(captures);
     }
 
+    [Fact]
+    public void TheRemovedSmaaOptionIsRefusedRatherThanSilentlyIgnored()
+    {
+        ScriptCommand.RunOptions? options = ScriptCommand.ReadOptions(
+            ["--script", "s.json", "--headless", "--out", "o", "--anti-aliasing", "smaa"],
+            out string? problem
+        );
+
+        options.Should().BeNull();
+        problem.Should().NotBeNull();
+    }
+
     // Each option of the headless renderer, with a value that a headless run takes.
     private static readonly string[][] RendererOptions =
     [

@@ -1,0 +1,23 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#include "screen_trace.glsl"
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+void main()
+{
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    if (any(greaterThanEqual(vec2(pixel), frame.viewport.xy)))
+        return;
+    vec3 actual = vec3(0.0);
+    vec3 directional = vec3(0.0);
+    if (tracedSurface(pixel))
+    {
+        TracingPixel receiver = tracingPixelAt(pixel);
+        vec3 direction = ambientSpecularDirection(receiver.s, receiver.V);
+        actual = missLightOf(receiver, pixel, KindDiffuse, direction);
+        directional = exposed(environmentLobe(receiver.s.map, direction, 0.5).rgb, exposureScale());
+    }
+    imageStore(specularSample, pixel, vec4(actual, 1.0));
+    imageStore(diffuseSample, pixel, vec4(directional, 1.0));
+}

@@ -49,6 +49,32 @@ public sealed class Fsr3UpscalerTests
         ShouldAllBeTheConstant(bench.ReadOutput());
     }
 
+    [Theory]
+    [InlineData(96u, 72u)]
+    [InlineData(95u, 73u)]
+    public void SharpeningWritesPositiveFiniteColorIncludingTheOutputBorders(uint width, uint height)
+    {
+        using var bench = new Fsr3Bench(LargestRenderSize, new(width, height));
+        bench.Fill(Constant);
+        Fsr3Inputs inputs = bench.Inputs(index: 0, reset: true);
+        inputs = inputs with { Frame = inputs.Frame with { Sharpness = 1 } };
+
+        bench.Submit(command => bench.Upscaler.Record(command, bench.Barriers, inputs));
+
+        bench
+            .ReadOutput()
+            .Should()
+            .OnlyContain(pixel =>
+                float.IsFinite(pixel.X)
+                && pixel.X > 0
+                && float.IsFinite(pixel.Y)
+                && pixel.Y > 0
+                && float.IsFinite(pixel.Z)
+                && pixel.Z > 0
+            );
+        bench.Device.Log.Snapshot().Should().BeEmpty();
+    }
+
     [Fact]
     public void AConstantColorUpscalesToTheSameColorBelowTheLargestRenderSizeAndAfterTheRenderSizeChanges()
     {

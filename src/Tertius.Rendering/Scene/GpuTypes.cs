@@ -463,7 +463,7 @@ internal struct GpuPuff
     public uint Map;
 }
 
-/// <summary>The frame uniform block (std140). 2,320 bytes.</summary>
+/// <summary>The frame uniform block (std140). 3,808 bytes.</summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct GpuFrameConstants
 {
@@ -551,6 +551,24 @@ internal struct GpuFrameConstants
 
     /// <summary>The last drawn frame's root axes in world axes, as a quaternion (x, y, z, w).</summary>
     public Vector4 PreviousRootRotation;
+
+    /// <summary>The automatic geometry enclosures in each map's axes, relative to the eye, in meters.</summary>
+    public MapBoxArray MapBoxes;
+}
+
+/// <summary>A projection enclosure. Minimum.w is 1 for a populated box and 0 for no geometry.</summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct GpuMapBox
+{
+    public Vector4 Minimum;
+    public Vector4 Maximum;
+}
+
+/// <summary>One enclosure per map, laid out as two std140 vec4 values per entry.</summary>
+[InlineArray(EnvironmentChain.MaxMaps)]
+internal struct MapBoxArray
+{
+    private GpuMapBox element;
 }
 
 /// <summary>

@@ -1,0 +1,40 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#include "screen_trace.glsl"
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+void main()
+{
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    if (any(greaterThanEqual(vec2(pixel), frame.viewport.xy)))
+        return;
+    if (pixel.x < 2)
+    {
+        vec4 values = pixel.x == 0
+            ? vec4(beyondTheScreen(vec2(-1.0, 0.0), 1.0), beyondTheScreen(vec2(0.0, -1.0), 1.0),
+                beyondTheScreen(vec2(frame.viewport.x, 0.0), 1.0),
+                beyondTheScreen(vec2(0.0, frame.viewport.y), 1.0))
+            : vec4(beyondTheScreen(vec2(0.0), 1.0), beyondTheScreen(vec2(frame.viewport.x - 1.0, 0.0), 1.0),
+                beyondTheScreen(vec2(0.0, frame.viewport.y - 1.0), 1.0),
+                beyondTheScreen(frame.viewport.xy - 1.0, 1.0));
+        imageStore(specularSample, pixel, values);
+        return;
+    }
+    float wallW = texelFetch(depthFinest, pixel, 0).r;
+    ScreenRay shortRay = ScreenRay(vec2(pixel) + 0.5, vec2(1.0, 0.0), wallW, 0.0, 0.25);
+    ScreenRay longRay = ScreenRay(vec2(pixel) + 0.5, vec2(1.0, 0.0), wallW, 0.0, 4.0);
+    vec2 hit;
+    ivec2 hitPixel;
+    float share;
+    uint shortResult = walkScreen(depthFinest, depthPyramid,
+        screenWalkOf(shortRay, vec3(0.0, 0.0, -1.0), NoCard), 256u, hit, hitPixel, share);
+    uint longResult = walkScreen(depthFinest, depthPyramid,
+        screenWalkOf(longRay, vec3(0.0, 0.0, -1.0), NoCard), 256u, hit, hitPixel, share);
+    uint zeroCapResult = walkScreen(depthFinest, depthPyramid,
+        screenWalkOf(longRay, vec3(0.0, 0.0, -1.0), NoCard), 0u, hit, hitPixel, share);
+    uint oneCapResult = walkScreen(depthFinest, depthPyramid,
+        screenWalkOf(longRay, vec3(0.0, 0.0, -1.0), NoCard), 1u, hit, hitPixel, share);
+    imageStore(specularSample, pixel,
+        vec4(float(shortResult), float(longResult), float(zeroCapResult), float(oneCapResult)));
+}

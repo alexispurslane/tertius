@@ -17,6 +17,7 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 TOOLS = Path(__file__).resolve().parent
@@ -184,6 +185,191 @@ class CheckingTheListAgainstTheRepository(unittest.TestCase):
         self.repo.tracked.add("global.json")
         errors = self.repo.errors(self._parsed(_mutant(file="global.json", line=1, original="10.0", replacement="9.0")))
         self.assertTrue(any("no project" in e for e in errors), errors)
+
+
+class StagedMergeInputs(unittest.TestCase):
+    """A real pending merge retains its source bytes, staged prerequisites and merge identities."""
+
+    def setUp(self):
+        self.repo = _Repo()
+        self.addCleanup(self.repo.close)
+        self.root = self.repo.root
+        self.path = self.root / "src/A/Thing.cs"
+        self.git("init", "-b", "main")
+        self.git("config", "user.name", "Mutation tests")
+        self.git("config", "user.email", "mutation@example.invalid")
+        self.git("config", "core.hooksPath", "/dev/null")
+        self.git("add", ".")
+        self.git("commit", "-qm", "base")
+        self.git("checkout", "-qb", "prerequisite")
+        (self.root / "prerequisite.txt").write_text("keep this import\n")
+        self.git("add", "prerequisite.txt")
+        self.git("commit", "-qm", "prerequisite")
+        self.git("checkout", "main")
+        (self.root / "local.txt").write_text("local branch\n")
+        self.git("add", "local.txt")
+        self.git("commit", "-qm", "local")
+        self.git("merge", "--no-commit", "--no-ff", "prerequisite")
+        self.path.write_bytes(b"int F(int x)\r\n    => x + 1; // staged\n")
+        self.git("add", "src/A/Thing.cs")
+        self.mutants, errors = mutate.parse_list(json.dumps([_mutant()]))
+        self.assertEqual(errors, [])
+        self.out = self.root / "evidence"
+        self.out.mkdir()
+        self.baseline = mutate.Inputs(self.root, self.mutants)
+
+    def git(self, *args):
+        return subprocess.check_output(["git", "-C", str(self.root), *args], stderr=subprocess.DEVNULL)
+
+    def finish(self):
+        with patch.object(mutate, "_build", return_value=True):
+            return mutate._finish(self.root, self.mutants, self.out, [], None, self.baseline)
+
+    def test_restored_staged_source_is_not_reported_as_corruption(self):
+        before = self.path.read_bytes()
+        index = self.git("ls-files", "--stage", "-z")
+        identities = self.git("rev-parse", "HEAD", "MERGE_HEAD")
+        with mutate.applied(self.path, 2, "x + 1", "x - 1"):
+            self.assertIn(b"x - 1", self.path.read_bytes())
+        self.assertIsNone(self.finish())
+        self.assertEqual(self.path.read_bytes(), before)
+        self.assertEqual(self.git("ls-files", "--stage", "-z"), index)
+        self.assertEqual(self.git("rev-parse", "HEAD", "MERGE_HEAD"), identities)
+
+    def test_an_unexpected_writer_is_not_overwritten_by_restoration(self):
+        with self.assertRaisesRegex(RuntimeError, "changed|unexpected|restor"):
+            with mutate.applied(self.path, 2, "x + 1", "x - 1"):
+                self.path.write_bytes(b"another worker's edit\n")
+        self.assertEqual(self.path.read_bytes(), b"another worker's edit\n")
+
+    def admission(self, allow_staged):
+        return mutate.validate(self.mutants, self.root, set(mutate._git_lines(self.root, "ls-files", "-z")),
+                               mutate._dirty(self.root), allow_staged)
+
+    def test_default_admission_rejects_staged_source(self):
+        self.assertTrue(any("uncommitted" in error for error in self.admission(False)))
+
+    def test_explicit_opt_in_admits_exact_stage_zero_source(self):
+        self.assertEqual(self.admission(True), [])
+
+    def test_a_sigkill_leftover_does_not_become_an_accepted_baseline(self):
+        self.path.write_bytes(self.path.read_bytes().replace(b"x + 1", b"x - 1"))
+        self.assertTrue(any("staged" in error for error in self.admission(True)))
+
+    def test_untracked_source_is_rejected_also_with_opt_in(self):
+        self.git("rm", "--cached", "src/A/Thing.cs")
+        self.assertTrue(any("track" in error for error in self.admission(True)))
+
+    def test_unmerged_source_is_rejected_also_with_opt_in(self):
+        object_id = self.git("rev-parse", ":src/A/Thing.cs").decode().strip()
+        self.git("update-index", "--force-remove", "src/A/Thing.cs")
+        subprocess.run(["git", "-C", str(self.root), "update-index", "--index-info"],
+                       input=f"100644 {object_id} 1\tsrc/A/Thing.cs\n".encode(), check=True)
+        self.assertTrue(any("stage" in error for error in self.admission(True)))
+
+    def test_unsupported_symlink_inputs_are_rejected(self):
+        self.path.unlink()
+        self.path.symlink_to("A.csproj")
+        self.git("add", "src/A/Thing.cs")
+        with self.assertRaisesRegex(mutate.InputChanged, "regular"):
+            mutate.Inputs(self.root, self.mutants)
+
+    def test_final_check_detects_byte_corruption_without_changing_the_dirty_path_set(self):
+        self.path.write_bytes(b"later corruption\n")
+        self.assertIn("bytes or mode changed", self.finish())
+        self.assertEqual(self.path.read_bytes(), b"later corruption\n")
+
+    def test_final_check_detects_a_new_staged_object_on_the_same_path(self):
+        self.path.write_bytes(b"later stage\n")
+        self.git("add", "src/A/Thing.cs")
+        self.path.write_bytes(self.baseline.files["src/A/Thing.cs"][0])
+        self.assertIn("staged entries changed", self.finish())
+        self.assertEqual(self.git("show", ":src/A/Thing.cs"), b"later stage\n")
+
+    def test_unrelated_staged_prerequisites_are_also_protected(self):
+        (self.root / "prerequisite.txt").write_text("changed import\n")
+        self.git("add", "prerequisite.txt")
+        self.assertIn("staged entries changed", self.finish())
+
+    def test_git_index_refresh_does_not_change_semantic_staged_entries(self):
+        self.git("update-index", "--refresh")
+        self.assertIsNone(self.finish())
+
+    def test_final_check_detects_pending_merge_metadata_changes(self):
+        merge = Path(self.git("rev-parse", "--git-path", "MERGE_HEAD").decode().strip())
+        (self.root / merge).write_text("0" * 40 + "\n")
+        self.assertIn("pending merge metadata changed", self.finish())
+
+    def test_an_exception_restores_staged_source_and_preserves_git_state(self):
+        with self.assertRaisesRegex(RuntimeError, "build crashed"):
+            with mutate.applied(self.path, 2, "x + 1", "x - 1", self.baseline.files["src/A/Thing.cs"]):
+                raise RuntimeError("build crashed")
+        self.assertEqual(self.baseline.check(), [])
+
+    def test_an_interruption_restores_staged_source_and_preserves_git_state(self):
+        with self.assertRaises(KeyboardInterrupt):
+            with mutate.applied(self.path, 2, "x + 1", "x - 1", self.baseline.files["src/A/Thing.cs"]):
+                raise KeyboardInterrupt
+        self.assertEqual(self.baseline.check(), [])
+
+    def test_changed_source_is_not_mutated_from_a_new_baseline(self):
+        self.path.write_bytes(b"later corruption\n")
+        with self.assertRaisesRegex(mutate.InputChanged, "before mutation"):
+            with mutate.applied(self.path, 2, "x + 1", "x - 1", self.baseline.files["src/A/Thing.cs"]):
+                self.fail("unsafe mutation started")
+
+    def test_a_real_termination_signal_restores_staged_bytes_without_changing_the_merge(self):
+        script = f"""
+import sys, time
+from pathlib import Path
+sys.path.insert(0, {str(TOOLS)!r})
+import mutate
+mutate.stop_on_signals()
+with mutate.applied(Path({str(self.path)!r}), 2, 'x + 1', 'x - 1'):
+    print('mutated', flush=True)
+    time.sleep(20)
+"""
+        with subprocess.Popen([sys.executable, "-I", "-c", script], stdout=subprocess.PIPE,
+                              stderr=subprocess.PIPE, text=True) as child:
+            self.assertEqual(child.stdout.readline().strip(), "mutated")
+            child.terminate()
+            child.communicate(timeout=5)
+        self.assertEqual(self.baseline.check(), [])
+
+    def test_a_successful_mutation_run_restores_staged_source_and_all_prerequisites(self):
+        assembly = self.root / "tests/A.Tests/bin/Checked/net11.0/A.dll"
+        assembly.parent.mkdir(parents=True)
+
+        def build(*args):
+            assembly.write_bytes(b"test fixture assembly")
+            timestamp = self.path.stat().st_mtime_ns + 1
+            os.utime(assembly, ns=(timestamp, timestamp))
+            return True
+
+        def test(*args):
+            self.assertIn(b"x - 1", self.path.read_bytes())
+            self.assertEqual(self.git("show", ":src/A/Thing.cs"), self.baseline.files["src/A/Thing.cs"][0])
+            return "killed", ["ThingTests.TheChangedOperationIsRejected"]
+
+        rows = []
+        with patch.object(mutate, "_build", side_effect=build), patch.object(mutate, "_test", side_effect=test):
+            self.assertIsNone(mutate._run_mutants(self.root, self.mutants, self.out, rows, False, self.baseline))
+        self.assertEqual(rows[0]["result"], "killed")
+        self.assertEqual(self.baseline.check(), [])
+        self.assertIsNone(self.finish())
+
+    def test_final_check_detects_head_moving_without_overwriting_it(self):
+        other = self.git("rev-parse", "prerequisite").decode().strip()
+        self.git("update-ref", "HEAD", other)
+        self.assertIn("HEAD", self.finish())
+        self.assertEqual(self.git("rev-parse", "HEAD").decode().strip(), other)
+
+    def test_final_check_refuses_to_build_corrupted_source(self):
+        self.path.write_bytes(b"corruption\n")
+        with patch.object(mutate, "_build") as build:
+            self.assertIn("bytes or mode changed", mutate._finish(
+                self.root, self.mutants, self.out, [], None, self.baseline))
+            build.assert_not_called()
 
 
 class FindingTheProjectOfAFile(unittest.TestCase):

@@ -10,10 +10,8 @@
 #include "gbuffer_inputs.glsl"
 #include "octahedral.glsl"
 #include "screen.glsl"
+#include "thickness.glsl"
 
-// κ: a surface at view depth z fills the depths from z to z (1 + κ) behind it, along its view ray. The screen tracer's
-// walk reads it at every level, so every ray sees one thickness of what is solid (CellBounds.ThicknessShare).
-const float ThicknessShare = 0.1;
 // The share by which the center of a depth sample's edge neighbor may stand off the sample's plane, in inverse depth, and
 // the sample's center off the neighbor's plane, where the neighbor continues the plane (CellBounds.ContinuationShare). Far
 // below κ: at κ, the plane of a curved mesh's pixel reaches edges where the neighbor's surface stands off it by several

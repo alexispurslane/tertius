@@ -16,7 +16,7 @@ The list is a JSON array. Each mutant has these fields:
     note         optional: the change in a few words, for the table
 
 Before the first change, the script checks the whole list and refuses to start on any error: every file exists, git
-tracks it, it has no uncommitted change and it belongs to a project (a folder above it has a .csproj), the original
+tracks it, by default it has no uncommitted change and it belongs to a project (a folder above it has a .csproj), the original
 starts on its line, and the ids are unique. Then it builds and
 runs each distinct pair of project and classes once without a mutant. A baseline that fails or runs zero tests stops the
 run, because a failing baseline makes every mutant look killed.
@@ -26,8 +26,13 @@ wrote a new assembly of the mutated file's project into the test project's outpu
 embedded SPIR-V), run only its classes in Checked with --no-build under a timeout of 120 s, then restore the exact
 original bytes and touch the file. The restore also runs on a failure, an exception, Ctrl-C, SIGTERM and SIGHUP. After
 the last mutant, the script builds each test project once more, so that its output matches the source again, and
-checks that git shows every mutated file unchanged. A file of analyzers/ works the same way, with its test project
+checks every mutated file against its exact starting bytes and mode. A file of analyzers/ works the same way, with its test project
 tests/Tertius.Unions.Tests or tests/Tertius.Style.Tests.
+
+--allow-staged explicitly admits tracked regular stage-0 inputs whose bytes and executable mode equal the index.
+Unstaged differences, unmerged entries and unsupported file modes remain errors. Every run snapshots all semantic
+index entries, HEAD and pending merge metadata, and verifies them without rewriting Git state. inputs.json records
+the source hashes and Git baseline. Unexpected edits fail the run and are never overwritten by restoration.
 
 Results: killed (a test failed, or the test host crashed), timeout (counts as killed, listed apart), survived,
 build-failed (the mutant does not compile, so it is not a valid mutant) and no-tests (the filter ran zero tests: an
@@ -38,10 +43,12 @@ not restored, and 2 for an error in the list.
 
 import argparse
 import contextlib
+import hashlib
 import json
 import os
 import re
 import signal
+import stat
 import subprocess
 import sys
 import time
@@ -136,10 +143,10 @@ def locate(data, line, original):
     return offsets[0] if len(offsets) == 1 else None
 
 
-def validate(mutants, root, tracked, dirty):
+def validate(mutants, root, tracked, dirty, allow_staged=False):
     """The errors of the mutants against the repository at root, in which git tracks the relative paths in tracked and
-    shows uncommitted changes, also untracked files, for the paths in dirty. An empty list means that the run can
-    start."""
+    shows uncommitted changes, also untracked files, for the paths in dirty. With allow_staged, each input must match
+    its single regular stage-0 entry exactly. An empty list means that the run can start."""
     root = Path(root).resolve()
     errors = []
     for m in mutants:
@@ -153,13 +160,19 @@ def validate(mutants, root, tracked, dirty):
             errors.append(f'{m["id"]}: {m["file"]} does not exist')
         elif rel not in tracked:
             errors.append(f'{m["id"]}: git does not track {rel}, so git cannot show it unchanged at the end')
-        elif rel in dirty:
+        elif rel in dirty and not allow_staged:
             errors.append(f'{m["id"]}: {rel} has an uncommitted change; commit it or restore it first '
                           '(a run that was killed with SIGKILL leaves its mutant in the file)')
         elif project_of(root, rel) is None:
             errors.append(f'{m["id"]}: {rel} belongs to no project, because no folder above it has a .csproj, so no '
                           'test build holds its mutant')
         else:
+            if allow_staged:
+                try:
+                    if _file_input(path) != _staged_input(root, rel):
+                        errors.append(f'{m["id"]}: {rel} differs from its staged bytes or mode')
+                except (InputChanged, subprocess.CalledProcessError) as error:
+                    errors.append(f'{m["id"]}: {error}')
             found = len(_starts_on_line(path.read_bytes(), m['line'], m['original']))
             if found == 0:
                 errors.append(f'{m["id"]}: the original text does not start on line {m["line"]} of {rel}')
@@ -173,6 +186,78 @@ def validate(mutants, root, tracked, dirty):
 
 # Applying and restoring.
 
+class InputChanged(RuntimeError):
+    """The run cannot safely use or restore its original input."""
+
+
+def _file_input(path):
+    mode = path.lstat().st_mode
+    if not stat.S_ISREG(mode):
+        raise InputChanged(f'{path} is not a regular file')
+    return path.read_bytes(), bool(mode & 0o111)
+
+
+def _staged_input(root, rel):
+    entries = _git_lines(root, 'ls-files', '--stage', '-z', '--', rel)
+    if len(entries) != 1:
+        raise InputChanged(f'{rel} needs one tracked stage-0 entry')
+    mode, object_id, stage = entries[0].split('\t', 1)[0].split()
+    if stage != '0' or mode not in ('100644', '100755'):
+        raise InputChanged(f'{rel} has an unsupported mode or unresolved stage')
+    data = subprocess.check_output(['git', '-C', str(root), 'cat-file', 'blob', object_id])
+    return data, mode == '100755'
+
+
+class Inputs:
+    """Exact mutated-file inputs, all semantic index entries and the pending merge identity; never rewrites Git state."""
+
+    def __init__(self, root, mutants):
+        self.root = root
+        self.index = self._index()
+        if any(entry.split('\t', 1)[0].split()[2] != '0' for entry in self.index):
+            raise InputChanged('the index has unresolved stages')
+        self.identity = self._identity()
+        self.files = {}
+        for rel in sorted({mutant['file'] for mutant in mutants}):
+            value = _file_input(root / rel)
+            if value != _staged_input(root, rel):
+                raise InputChanged(f'{rel} differs from its staged bytes or mode')
+            self.files[rel] = value
+        if self.check():
+            raise InputChanged('inputs changed while taking their baseline')
+
+    def _index(self):
+        return _git_lines(self.root, 'ls-files', '--stage', '-z')
+
+    def _identity(self):
+        identity = {'HEAD': subprocess.check_output(['git', '-C', str(self.root), 'rev-parse', '--verify', 'HEAD'])}
+        for name in ('MERGE_HEAD', 'MERGE_MSG', 'MERGE_MODE'):
+            value = subprocess.check_output(['git', '-C', str(self.root), 'rev-parse', '--git-path', name])
+            path = self.root / os.fsdecode(value).strip()
+            identity[name] = path.read_bytes() if path.exists() else None
+        return identity
+
+    def check(self):
+        problems = []
+        if self._index() != self.index:
+            problems.append('semantic staged entries changed')
+        if self._identity() != self.identity:
+            problems.append('HEAD or pending merge metadata changed')
+        for rel, expected in self.files.items():
+            try:
+                if _file_input(self.root / rel) != expected:
+                    problems.append(f'{rel} bytes or mode changed')
+            except (OSError, InputChanged):
+                problems.append(f'{rel} is missing or no longer a regular input')
+        return problems
+
+    def evidence(self):
+        return {'index': self.index,
+                'identity': {key: os.fsdecode(value) if value is not None else None
+                             for key, value in self.identity.items()},
+                'files': {rel: {'sha256': hashlib.sha256(data).hexdigest(), 'executable': executable}
+                          for rel, (data, executable) in self.files.items()}}
+
 @contextlib.contextmanager
 def _signals_blocked():
     held = {signal.SIGINT, signal.SIGTERM, signal.SIGHUP}
@@ -184,12 +269,16 @@ def _signals_blocked():
 
 
 @contextlib.contextmanager
-def applied(path, line, original, replacement):
+def applied(path, line, original, replacement, baseline=None):
     """Inside the block, the file at path holds the mutant: replacement in place of original where it starts on line.
     On the way out, also on an exception or a signal that stop_on_signals turned into one, the file gets its exact
-    original bytes back and a new modification time, so that the next incremental build compiles it again."""
+    original bytes back and a new modification time, unless an unexpected writer changed it, which fails without
+    overwriting the edit. A supplied baseline must match before the mutation starts."""
     path = Path(path)
-    data = path.read_bytes()
+    starting = _file_input(path)
+    if baseline is not None and starting != baseline:
+        raise InputChanged(f'{path} changed before mutation; nothing was overwritten')
+    data, executable = starting
     offset = locate(data, line, original)
     if offset is None:
         raise ValueError(f'the original text does not start once on line {line} of {path}')
@@ -198,10 +287,10 @@ def applied(path, line, original, replacement):
         path.write_bytes(mutated)
         yield
     finally:
-        _restore(path, data)
+        _restore(path, data, mutated, executable)
 
 
-def _restore(path, data):
+def _restore(path, data, mutated, executable):
     """Writes data to path and touches it, whatever signal arrives. A signal blocked during the write runs its handler
     when the block ends, and a signal can also arrive before the block starts. Either way the restore runs again, and
     the first signal goes on after the file holds data."""
@@ -209,6 +298,9 @@ def _restore(path, data):
     while True:
         try:
             with _signals_blocked():
+                current, mode = _file_input(path)
+                if current not in (data, mutated) or mode != executable:
+                    raise InputChanged(f'{path} changed unexpectedly; restoration did not overwrite it')
                 path.write_bytes(data)
                 os.utime(path)
             break
@@ -311,6 +403,8 @@ def main():
     parser.add_argument('out', help='the folder for results.json and the logs of each mutant')
     parser.add_argument('--only', help='run only these ids, separated by commas')
     parser.add_argument('--keep-going', action='store_true', help='go on after a mutant whose filter ran zero tests')
+    parser.add_argument('--allow-staged', action='store_true',
+                        help='admit tracked stage-0 inputs only when their bytes and mode exactly match the index')
     args = parser.parse_args()
     if not os.environ.get('TERTIUS_VULKAN_DIR'):
         sys.exit('TERTIUS_VULKAN_DIR is empty. Run the script inside the dev shell: nix develop --command python3 -I '
@@ -322,23 +416,32 @@ def main():
         errors += [f'--only names {i}, which the list does not have' for i in wanted if i not in {m['id'] for m in mutants}]
         mutants = [m for m in mutants if m['id'] in wanted]
     if not errors:
-        errors = validate(mutants, root, set(_git_lines(root, 'ls-files', '-z')), _dirty(root))
+        errors = validate(mutants, root, set(_git_lines(root, 'ls-files', '-z')), _dirty(root), args.allow_staged)
+    baseline = None
+    if not errors:
+        try:
+            baseline = Inputs(root, mutants)
+        except (InputChanged, OSError, subprocess.CalledProcessError) as error:
+            errors.append(str(error))
     if errors:
         print('The list has errors, so no mutant ran:', *errors, sep='\n  ', file=sys.stderr)
         sys.exit(2)
     out = Path(args.out).resolve()
     out.mkdir(parents=True, exist_ok=True)
+    (out / 'inputs.json').write_text(json.dumps(baseline.evidence(), indent=1) + '\n')
     stop_on_signals()
     started = time.monotonic()
     rows, stopped = [], None
     try:
         stopped = _baselines(root, mutants, out) or _check_assemblies(root, mutants)
         if not stopped:
-            stopped = _run_mutants(root, mutants, out, rows, args.keep_going)
+            stopped = _run_mutants(root, mutants, out, rows, args.keep_going, baseline)
     except (KeyboardInterrupt, Stopped):
         stopped = 'the run was interrupted'
+    except InputChanged as error:
+        stopped = str(error)
     finally:
-        stopped = _finish(root, mutants, out, rows, stopped)
+        stopped = _finish(root, mutants, out, rows, stopped, baseline)
     mutation_table.print_table(rows)
     print(f'wall time {time.monotonic() - started:.0f} s; logs and results.json in {out}')
     if stopped:
@@ -369,12 +472,15 @@ def _check_assemblies(root, mutants):
     return None
 
 
-def _run_mutants(root, mutants, out, rows, keep_going):
+def _run_mutants(root, mutants, out, rows, keep_going, baseline):
     """Runs every mutant and appends its row. Returns why the run must stop, or None."""
     for n, m in enumerate(mutants, 1):
+        problems = baseline.check()
+        if problems:
+            raise InputChanged('; '.join(problems))
         start = time.monotonic()
         path = root / m['file']
-        with applied(path, m['line'], m['original'], m['replacement']):
+        with applied(path, m['line'], m['original'], m['replacement'], baseline.files[m['file']]):
             mutated_at = path.stat().st_mtime_ns
             if not _build(root, m['project'], out / f'{m["id"]}.build.log'):
                 result, names = 'build-failed', []
@@ -394,16 +500,18 @@ def _run_mutants(root, mutants, out, rows, keep_going):
     return None
 
 
-def _finish(root, mutants, out, rows, stopped):
+def _finish(root, mutants, out, rows, stopped, baseline):
     """Rebuilds each test project once, so that its output holds no mutant, writes results.json, and checks that git
-    shows every mutated file unchanged. Returns why the run stopped, or None."""
-    for n, project in enumerate(dict.fromkeys(m['project'] for m in mutants), 1):
-        if not _build(root, project, out / f'restore-{n}.build.log'):
-            print(f'WARNING: the rebuild of {project} after the run failed, see {out}/restore-{n}.build.log',
-                  file=sys.stderr)
-    changed = sorted(_dirty(root, sorted({m['file'] for m in mutants})))
-    if changed:
-        stopped = f'git shows these mutated files changed: {", ".join(changed)}. Restore them with git restore.'
+    matches the starting source/index/merge baseline. Unexpected changes skip the rebuild and remain untouched.
+    Returns why the run stopped, or None."""
+    problems = baseline.check()
+    if not problems:
+        for n, project in enumerate(dict.fromkeys(m['project'] for m in mutants), 1):
+            if not _build(root, project, out / f'restore-{n}.build.log'):
+                stopped = f'the rebuild of {project} after the run failed, see {out}/restore-{n}.build.log'
+        problems = baseline.check()
+    if problems:
+        stopped = '; '.join(problems) + '; unexpected changes were preserved, not overwritten'
     (out / 'results.json').write_text(json.dumps({'stopped': stopped, 'rows': rows}, indent=1) + '\n')
     return stopped
 

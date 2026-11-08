@@ -140,7 +140,7 @@ float cellExit(ScreenRay ray, RayReciprocals inverse, vec2 cell, float side, vec
 // no surface, as one outside its level does and as the depth image's padding does.
 bool beyondTheScreen(vec2 cell, float side)
 {
-    return any(lessThan(cell, vec2(0.0))) || any(greaterThanEqual(cell * side, frame.viewport.xy));
+    return any(bvec2(any(lessThan(cell, vec2(0.0))), any(greaterThanEqual(cell * side, frame.viewport.xy))));
 }
 
 // q: 0 when the ray stands in front of the slab [low, high] where it enters the pixel, 1 behind it, and between inside.

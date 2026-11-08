@@ -5,16 +5,16 @@ using Silk.NET.Vulkan;
 namespace Tertius.Rendering;
 
 /// <summary>
-/// The identity of an instance from frame to frame: its entity's slot and generation, and its render part
+/// The identity of an instance from frame to frame: its entity and its render part
 /// (docs/plans/temporal-renderer.md, "The key of an object").
 /// </summary>
-internal readonly record struct PlacementKey(uint Slot, uint Generation, ushort Part)
+internal readonly record struct PlacementKey(Entity Entity, ushort Part)
 {
     /// <summary>
     /// The key's place in the order of the snapshot's instances: by slot, then by part. The generation takes no part,
     /// because one slot holds one entity at a time.
     /// </summary>
-    public ulong Order => ((ulong)Slot << 16) | Part;
+    public ulong Order => ((ulong)Entity.Index << 16) | Part;
 }
 
 /// <summary>

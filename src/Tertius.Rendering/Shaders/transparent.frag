@@ -45,7 +45,7 @@ void main()
     float exposure = exposureScale();
     // The emission is capped before the exposure multiplies it, as every writer's light is (exposure.glsl).
     vec3 radiance = min(
-        lobesRadiance(shading, lobes, exposed(s.emissive, exposure), inPosition, V, ShadowMapsMainView, exposure),
+        lobesRadiance(shading, lobes, exposed(s.emissive, exposure), V, ShadowMapsMainView, exposure),
         MaxRadiance * (1.0 - transmittance));
     // outColor is radiance, so it takes the exposure that every pass's radiance takes. The transmittance is a fraction
     // of the radiance behind, and never takes such a factor. The blend keeps the target's alpha, so neither alpha

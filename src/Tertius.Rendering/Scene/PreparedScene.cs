@@ -522,6 +522,9 @@ internal sealed class PreparedScene
     /// <summary>R_i of the first <see cref="MapCount"/> maps, root first: the axes of map i's frame in world axes, interpolated.</summary>
     public readonly Quaternion[] MapAxes = new Quaternion[EnvironmentChain.MaxMaps];
 
+    /// <summary>The geometry enclosures of the served groups, before visibility culling, in map axes and meters.</summary>
+    public MapBoxArray MapBoxes;
+
     // The frame meshes, the jobs and their pose rows (docs/plans/skinning-and-morphs.md, "Posing in the batcher").
     private MeshInfo[] meshes = new MeshInfo[64];
     private int meshCount;
@@ -742,7 +745,10 @@ internal sealed class PreparedScene
         ShadowTileCount = 0;
         DrawnTiles.Clear();
         Array.Clear(Impostors);
+
         EnvironmentFaces.Clear();
+        MapBoxes = default;
+
         meshCount = StaticMeshCount;
         deformCount = 0;
         poseCount = 0;

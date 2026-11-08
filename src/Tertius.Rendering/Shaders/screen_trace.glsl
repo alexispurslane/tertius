@@ -232,7 +232,7 @@ TracingPixel tracingPixelAt(ivec2 pixel)
     p.V = -toSurface;
     p.normal = p.s.model == ShadingHair ? fiberNormal(p.s.strand, p.V, p.s.normal) : p.s.normal;
     p.viewDepth = distanceToEye / length(ray);
-    p.point = toSurface * distanceToEye;
+    p.point = p.s.position;
     p.origin = p.point + p.s.geometricNormal * originOffset(p.viewDepth);
     float roughness = flooredRoughness(p.s.roughness);
     p.alpha = roughness * roughness;
@@ -333,7 +333,7 @@ vec3 missLightOf(TracingPixel p, ivec2 pixel, uint kind, vec3 direction)
     vec3 light;
     if (environmentMapOn)
         light = kind == KindDiffuse ? environmentLobe(p.s.map, direction, 0.5).rgb
-            : environmentSpecular(p.s.map, direction, sqrt(p.alpha),
+            : environmentSpecular(p.s.map, p.s.position, direction, p.s.geometricNormal, sqrt(p.alpha),
                 withAmbientFootprint(p.s, pixel).reflectionFootprint);
     else
         light = mix(frame.ambientGround.rgb, frame.ambientSky.rgb,

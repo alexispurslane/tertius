@@ -2176,7 +2176,7 @@ public sealed class BatcherTests
     [Fact]
     public void TheFrameConstantsMatchTheShadersFrameBlock()
     {
-        Unsafe.SizeOf<GpuFrameConstants>().Should().Be(2464);
+        Unsafe.SizeOf<GpuFrameConstants>().Should().Be(3808);
         ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.RenderParams))).Should().Be(288);
         ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.OutputViewport))).Should().Be(304);
         ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.PreviousJitter))).Should().Be(320);
@@ -2193,6 +2193,9 @@ public sealed class BatcherTests
             .Be(2240, "the previous camera follows the atmosphere");
         ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.PreviousEye))).Should().Be(2368);
         ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.PreviousRootRotation))).Should().Be(2448);
+        ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.MapBoxes))).Should().Be(2464);
+        Unsafe.SizeOf<GpuMapBox>().Should().Be(32);
+        Unsafe.SizeOf<MapBoxArray>().Should().Be(1344);
     }
 
     [Fact]

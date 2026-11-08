@@ -39,13 +39,15 @@ public sealed class LocalShadowRenderTests
 
     private static VulkanRenderer Renderer(
         LocalShadowSetting? setting = null,
-        EnvironmentMapSetting? environmentMap = null
+        EnvironmentMapSetting? environmentMap = null,
+        UpscalingSetting upscaling = default
     ) =>
         Gpu.Headless(
             width: Width,
             height: Height,
             localShadows: setting ?? LocalShadowAtlas.Default,
-            environmentMap: environmentMap
+            environmentMap: environmentMap,
+            upscaling: upscaling
         );
 
     /// <summary>A snapshot with no light at all, and the camera turned by <paramref name="camera"/>.</summary>
@@ -175,6 +177,40 @@ public sealed class LocalShadowRenderTests
     }
 
     [Fact]
+    public void TemporalTileFilteringKeepsBothTheLitFloorAndTheBoxShadowInEveryGroup()
+    {
+        VulkanRenderer renderer = Gpu.Headless(
+            width: Width,
+            height: Height,
+            localShadows: LocalShadowAtlas.Default,
+            upscaling: new Fsr3Upscaling(new FixedRenderScale(2f / 3), 0),
+            warmUpFrames: 0
+        );
+        try
+        {
+            var kit = Kit.Create(renderer);
+            RenderSnapshot scene = SpotOverABox(kit);
+            for (int draw = 0; draw < 4; draw++)
+            {
+                scene.Time = draw / 60.0;
+                Capture image = Gpu.RenderAndCapture(
+                    renderer: renderer,
+                    snapshot: scene,
+                    name: "temporal tile shadows"
+                );
+
+                float lit = LumaAt(image, BesideTheBox);
+                lit.Should().BeGreaterThan(0.2f);
+                LumaAt(image, UnderTheBox).Should().BeLessThan(ShadowedShare * lit);
+            }
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
     public void APointLightShadowsEachOfSixPillarsAroundIt()
     {
         VulkanRenderer renderer = Renderer();
@@ -261,11 +297,16 @@ public sealed class LocalShadowRenderTests
         }
     }
 
-    [Fact]
-    public void TheShadowsEdgeIsSoftOverTheFilter()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TheShadowsEdgeIsSoftOverTheFilter(bool temporal)
     {
         const int tileSize = 128;
-        VulkanRenderer renderer = Renderer(new LocalShadowAtlas(Tiles: 8, TileSize: tileSize));
+        VulkanRenderer renderer = Renderer(
+            setting: new LocalShadowAtlas(Tiles: 8, TileSize: tileSize),
+            upscaling: temporal ? new Fsr3Upscaling(new FixedRenderScale(1), 0) : new NoUpscaling()
+        );
         try
         {
             var kit = Kit.Create(renderer);
@@ -300,12 +341,21 @@ public sealed class LocalShadowRenderTests
             float[] shares = [.. xs.Select(x => Share(shadowed: shadowed, lit: unshadowed, point: new(x, -1, -6)))];
             shares[0].Should().BeLessThan(0.02f, "the slab hides the floor 0.6 m inside its shadow");
             shares[^1].Should().BeGreaterThan(0.98f, "the floor 0.6 m outside the shadow sees the whole light");
-            float start = xs[Array.FindIndex(shares, share => share >= 0.05f)];
-            float end = xs[Array.FindIndex(shares, share => share >= 0.95f)];
-            float texel = 2 * MathF.Tan(0.6f) * tileSize / (tileSize - 2 * ShadowTiles.MarginTexels) / tileSize * 4;
-            ((end - start) / texel)
+            shares
                 .Should()
-                .BeInRange(2.5f, 5.5f, "the 4 × 4 bilinear taps one texel apart blur the edge over 4 texels");
+                .Contain(
+                    share => share > 0.05f && share < 0.95f,
+                    "the filter must keep partially lit receivers between the fully shadowed and fully lit floor"
+                );
+            if (!temporal)
+            {
+                float start = xs[Array.FindIndex(shares, share => share >= 0.05f)];
+                float end = xs[Array.FindIndex(shares, share => share >= 0.95f)];
+                float texel = 2 * MathF.Tan(0.6f) * tileSize / (tileSize - 2 * ShadowTiles.MarginTexels) / tileSize * 4;
+                ((end - start) / texel)
+                    .Should()
+                    .BeInRange(2.5f, 5.5f, "the 4 × 4 bilinear taps one texel apart blur the edge over 4 texels");
+            }
         }
         finally
         {

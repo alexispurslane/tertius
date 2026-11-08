@@ -8,6 +8,7 @@
 #include "cube_faces.glsl"
 #include "frame.glsl"
 #include "sky.glsl"
+#include "environment_box.glsl"
 
 // ShaderConstants.EnvironmentMap: true while the renderer's setting is SceneEnvironmentMap, fixed for its life.
 layout(constant_id = 0) const bool environmentMapOn = false;
@@ -21,6 +22,13 @@ const bool skipsTermsThatAddNothing = false;
 const bool skipsTermsThatAddNothing = true;
 #endif
 
+// The directional control of EnvironmentBoxRenderTests omits the automatic enclosure correction.
+#ifdef TERTIUS_MAP_DIRECTION_ONLY
+const bool projectsEnvironmentBoxes = false;
+#else
+const bool projectsEnvironmentBoxes = true;
+#endif
+
 // RGBA16F, a cube array whose cube i is map i: level k holds roughness k / (L − 1), alpha the open-sky share. Partially
 // bound: empty with the map off.
 layout(set = 0, binding = 12) uniform textureCubeArray environmentSpecularMap;
@@ -30,12 +38,6 @@ layout(set = 0, binding = 13) uniform sampler environmentSampler;
 // side, alpha the open-sky share that a Lambert surface sees, and each later level the mean of its children over their
 // solid angles, down to 2 texels on a side. Sampled with environmentSampler. Partially bound: empty with the map off.
 layout(set = 0, binding = 14) uniform textureCubeArray environmentIrradianceMap;
-// R16F, a cube array whose cube i is map i's distance cube (docs/plans/environment-map-distances.md, "The distance store"):
-// level 0 holds w = 1000 m over the distance from the eye to the surface that the radiance map's texel shows, along the
-// texel's direction, in km⁻¹, and 0 for the sky. Each later level holds the mean of its children over their solid angles,
-// down to 1 texel on a side, as the radiance map's mips do. Sampled with environmentSampler. Partially bound: empty with
-// the map off.
-layout(set = 0, binding = 16) uniform textureCubeArray environmentDistanceMap;
 
 // A world direction in the axes of map `map`: the inverse of R_i, frame.mapAxes[map], by the quaternion sandwich with the
 // conjugate. The batcher keeps R_i a unit quaternion, so the turn keeps a unit vector unit, and the identity turns v to
@@ -57,25 +59,32 @@ vec3 environmentDiffuse(uint map, vec3 normal)
         0.0).rgb;
 }
 
-// Map `map`'s specular map along the lobe of roughness r, from 0 to 1, at the unit world direction d: the light in rgb
-// and the open-sky share in a. The layer coordinate float(map) is an integer, which Vulkan rounds to itself.
-vec4 environmentLobe(uint map, vec3 d, float roughness)
+// Map `map`'s specular map along the lobe of roughness r, from 0 to 1, at the direction v in the map's axes, which need
+// not be unit: the light in rgb and the open-sky share in a. The layer coordinate float(map) is an integer, which Vulkan
+// rounds to itself.
+vec4 environmentLobeInMapAxes(uint map, vec3 v, float roughness)
 {
     float levels = float(textureQueryLevels(samplerCubeArray(environmentSpecularMap, environmentSampler)));
-    return textureLod(
-        samplerCubeArray(environmentSpecularMap, environmentSampler),
-        vec4(inMapAxes(map, d), float(map)),
+    return textureLod(samplerCubeArray(environmentSpecularMap, environmentSampler), vec4(v, float(map)),
         roughness * (levels - 1.0));
 }
 
-// S(d, r): map `map`'s specular light along the lobe of the floored roughness r at the unit direction d, plus the
-// reflected stars for the footprint f, times the open-sky share there. The stars stay in world axes at d. L comes from the
-// image, so no other store holds it.
-vec3 environmentSpecular(uint map, vec3 d, float roughness, float footprint)
+// environmentLobeInMapAxes at the unit world direction d.
+vec4 environmentLobe(uint map, vec3 d, float roughness)
 {
-    vec4 lobe = environmentLobe(map, d, roughness);
-    // Where the lobe sees no open sky, its share is 0, and 0 times the reflected stars, which are finite, is a zero,
-    // whose sum with lobe.rgb equals lobe.rgb, so the stars' cells are not hashed.
+    return environmentLobeInMapAxes(map, inMapAxes(map, d), roughness);
+}
+
+vec3 environmentSpecular(uint map, vec3 position, vec3 d, vec3 geometricNormal, float roughness, float footprint)
+{
+    vec3 lookup = inMapAxes(map, d);
+    if (projectsEnvironmentBoxes && dot(d, geometricNormal) > 0.0)
+    {
+        GpuMapBox box = frame.mapBoxes[map];
+        if (box.minimum.w != 0.0 && environmentLobeInMapAxes(map, lookup, 0.0).a < 1.0)
+            lookup = boxProjectedDirection(box.minimum.xyz, box.maximum.xyz, inMapAxes(map, position), lookup);
+    }
+    vec4 lobe = environmentLobeInMapAxes(map, lookup, roughness);
     if (skipsTermsThatAddNothing && lobe.a == 0.0)
         return lobe.rgb;
     return lobe.rgb + lobe.a * reflectedStars(d, starWidth(footprint, roughness * roughness));
