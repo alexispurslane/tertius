@@ -1,6 +1,6 @@
 ---
 id: tiunr-i1ho
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-11-08T19:49:01Z
