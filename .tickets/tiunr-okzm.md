@@ -1,6 +1,6 @@
 ---
 id: tiunr-okzm
-status: in_progress
+status: closed
 deps: []
 links: [tiunr-7haj, tiunr-3am9, tiunr-lzc7]
 created: 2026-11-08T05:28:59Z

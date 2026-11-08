@@ -1,6 +1,6 @@
 ---
 id: tiunr-5jqs
-status: in_progress
+status: closed
 deps: []
 links: [tiunr-5qf3, ter-12xp, tiunr-1lss]
 created: 2026-11-08T16:22:16Z

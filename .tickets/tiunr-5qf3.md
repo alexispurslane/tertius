@@ -1,6 +1,6 @@
 ---
 id: tiunr-5qf3
-status: in_progress
+status: closed
 deps: [tiunr-nxtr]
 links: [ter-12xp, tiunr-5jqs]
 created: 2026-11-08T14:41:59Z
@@ -45,3 +45,7 @@ Not run: full Checked and Release suites, snapshot review, coverage, mutation te
 **2026-11-08T16:22:16Z**
 
 2026-11-08: superseded by tiunr-5jqs (the user chose a tube light over a spatial filter).
+
+**2026-11-08T20:05:06Z**
+
+2026-11-08: superseded by the tube light (tiunr-5jqs). The specks came from emissive objects that hold no light, so only rare rays carried their light. The tube light sends the bar's light through the exact light loop and hides its glow from the rays, so the floor's specks are gone without a firefly limit, and reflections of small bright lamps keep their brightness.

@@ -1,6 +1,6 @@
 ---
 id: tiunr-nxtr
-status: in_progress
+status: closed
 deps: [tiunr-4b2g, tiunr-7haj, tiunr-okzm]
 links: [ter-18hc, tiunr-wk29, ter-12xp]
 created: 2026-11-08T02:19:42Z
@@ -27,3 +27,7 @@ User choice 2026-11-08 (design T). The slow history keeps rare bright light that
 **2026-11-08T15:30:56Z**
 
 2026-11-08: result (/private/tmp/tertius-box-tail-20261108/report.md): the tail stops the pan cuts (rough crop 40.4% to 0.8%) and lowers still rough noise (2.48 to 1.49), but real changes linger: the rough 20% dimming is not adjusted within 180 final updates (was 100), and a moved emitter leaves 5.1% of its old light. Decision by the orchestrator under the user's delegation: the tail stays off (opt-in TERTIUS_BOX_TAIL), and the work goes on to the firefly limit tiunr-5qf3.
+
+**2026-11-08T20:05:06Z**
+
+2026-11-08: rejected and removed before the merge into main. The box tail kept rare bright light, but real light changes lingered (a moved emitter left a slab visible 3 s later, a switched-off emitter kept about 5% of its glow). The switch TERTIUS_BOX_TAIL, BoxTail.cs, accumulate_box_tail.glsl, its _boxtail shader modules and its tests are gone. Every remaining engine SPIR-V module is byte-identical before and after the removal (75 of 75). The evidence stays in /private/tmp/tertius-box-tail-20261108/.

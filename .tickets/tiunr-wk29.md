@@ -1,6 +1,6 @@
 ---
 id: tiunr-wk29
-status: in_progress
+status: closed
 deps: []
 links: [tiunr-4b2g, ter-18hc, tiunr-nxtr]
 created: 2026-11-08T00:59:42Z
@@ -33,3 +33,7 @@ Diagnosed 2026-11-08 (evidence /private/tmp/tertius-pan-cuts-20261107/report.md,
 **2026-11-08T02:19:47Z**
 
 2026-11-08: the user chose design T for the box (tiunr-nxtr): keep the rare light and widen the box by a standard error from a long-run second moment. The firefly clamp was rejected.
+
+**2026-11-08T20:05:06Z**
+
+2026-11-08: the diagnosis is done, and it cleared the pixel history rule (tiunr-4b2g), which merges into main now.
