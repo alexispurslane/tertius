@@ -33,6 +33,8 @@
     <PreciseHistoryShader Include="Shaders/accumulate_temporal.comp;Shaders/accumulate_spatial.comp;Shaders/screen_trace_*.comp;Shaders/composite.frag;Shaders/composite_scatter.frag" />
     <LightAgeDiagnosticShader Include="Shaders/accumulate_temporal.comp;Shaders/screen_trace_*.comp" />
     <AccumulationTraceShader Include="Shaders/accumulate_temporal.comp;Shaders/accumulate_spatial.comp" />
+    <!-- HistoryInstrumentationSelection lists the shaders of the two items above, and ShaderVariantTests checks the
+         list against the embedded shaders. -->
     <GlslInclude Include="Shaders/*.glsl" />
     <None Include="@(GlslShader);@(GlslInclude)" />
   </ItemGroup>
