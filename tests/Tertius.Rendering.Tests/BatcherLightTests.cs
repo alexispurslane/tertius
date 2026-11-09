@@ -591,6 +591,8 @@ public sealed class BatcherLightTests
     [InlineData("no-width")]
     [InlineData("no-height")]
     [InlineData("endless-width")]
+    [InlineData("hair-thin-width")]
+    [InlineData("hair-thin-height")]
     [InlineData("overlong-height")]
     [InlineData("too-strong")]
     public void ARectangleLightWithABrokenFieldDoesNotShine(string broken)
@@ -608,6 +610,10 @@ public sealed class BatcherLightTests
             "no-width" => panel with { Width = 0 },
             "no-height" => panel with { Height = -1 },
             "endless-width" => panel with { Width = float.PositiveInfinity },
+            // Below 1 µm the square of a half side underflows in the shader's single floats, and a ratio of two zeros
+            // gives NaN.
+            "hair-thin-width" => panel with { Width = 1e-30f },
+            "hair-thin-height" => panel with { Height = 5e-7f },
             // Finite, but its corners lie beyond the position limit.
             "overlong-height" => panel with { Height = 1e30f },
             "too-strong" => panel with { Power = float.MaxValue, Color = new(1e30f, 1, 1) },

@@ -15,11 +15,17 @@ public sealed class LtcTableTests
         Half[] fitted = LtcFit.LtcFit.Row(row);
 
         int start = row * LtcTable.Size * LtcTable.Channels;
-        LtcTable
-            .Shared.Texels.Slice(start, fitted.Length)
-            .ToArray()
+        double[] stored = [.. LtcTable.Shared.Texels.Slice(start, fitted.Length).ToArray().Select(texel => (double)texel)];
+
+        // Two steps of a half float, 2⁻⁹ of the value, plus a little at 0: another machine's sine and cosine can differ in
+        // their last bit, which can move the simplex's path and flip a rounding. A changed lobe moves the fit by percents.
+        stored
             .Should()
-            .Equal(fitted, "the table holds the fit of tools/Tertius.LtcFit, and each row starts from its own first guess");
+            .Equal(
+                fitted.Select(texel => (double)texel),
+                (a, b) => Math.Abs(a - b) <= Math.Abs(b) / 512 + 1e-4,
+                "the table holds the fit of tools/Tertius.LtcFit, and each row starts from its own first guess"
+            );
     }
 
     [Fact]

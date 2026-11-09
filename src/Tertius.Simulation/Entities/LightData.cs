@@ -73,10 +73,8 @@ public readonly record struct TubeLightData(
 }
 
 /// <summary>
-/// A rectangle light that an entity carries: a one-sided rectangle of <see cref="Width"/> along the local X axis of its
-/// pose and <see cref="Height"/> along its local Y axis, centered on the pose, whose front face sends its power toward
-/// local +Z with the same radiance in every direction, in SI units (ARCHITECTURE.md, "Rectangle lights"). Its pose is the
-/// entity's pose composed with <see cref="Offset"/>.
+/// A rectangle light that an entity carries: a one-sided face in the local XY plane of the entity's pose composed with
+/// <see cref="Offset"/>, which shines toward local +Z (ARCHITECTURE.md, "Rectangle lights").
 /// </summary>
 /// <param name="Offset">The light's pose relative to the entity. A zeroed rotation, as in a defaulted pose, counts as the identity.</param>
 /// <param name="Color">Linear RGB that scales the power per channel.</param>

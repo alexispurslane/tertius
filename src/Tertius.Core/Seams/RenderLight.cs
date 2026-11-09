@@ -127,10 +127,7 @@ public readonly record struct TubeRenderLight(
 /// <param name="EntityGeneration">As for <see cref="PointRenderLight"/>.</param>
 /// <param name="Position">The rectangle's center, relative to the render origin, in the axes of the camera's frame, in meters.</param>
 /// <param name="PreviousPosition">The center at the previous snapshot, relative to the same origin, as an instance's.</param>
-/// <param name="Rotation">
-/// The rectangle's axes in the axes of the camera's frame: it takes local X to the width, local Y to the height and local
-/// +Z to the front. The renderer takes the identity when it is zero.
-/// </param>
+/// <param name="Rotation">Takes local X to the width, Y to the height and +Z to the front, in the camera frame's axes.</param>
 /// <param name="PreviousRotation">The rotation at the previous snapshot.</param>
 /// <param name="Color">Linear RGB that scales the power per channel.</param>
 /// <param name="Power">The radiant power that leaves the front face, in W.</param>

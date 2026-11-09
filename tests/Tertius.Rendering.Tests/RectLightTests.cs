@@ -134,75 +134,79 @@ public sealed class RectLightTests
         terms.Should().Be(default(DirectTerms), "the whole rectangle lies below the surface's horizon");
     }
 
-    /// <summary>
-    /// The roughness, the view's angle off the normal in rad and the rectangle of each check of the LTC shine against the
-    /// integral. "in-the-mirror" is a panel 1.2 m square 2 m along the mirror ray, facing back: the highlight's peak.
-    /// </summary>
-    public static TheoryData<double, double, string> Shines
+    /// <summary>The 108 checks of the LTC shine against the integral of the GGX lobe over the face (tests/STYLE.md, "Long tests").</summary>
+    public sealed class LtcShineAgainstTheIntegral
     {
-        get
+        /// <summary>
+        /// The roughness, the view's angle off the normal in rad and the rectangle of each check of the LTC shine against the
+        /// integral. "in-the-mirror" is a panel 1.2 m square 2 m along the mirror ray, facing back: the highlight's peak.
+        /// </summary>
+        public static TheoryData<double, double, string> Shines
         {
-            var data = new TheoryData<double, double, string>();
-            foreach (double roughness in new[] { 0.045, 0.1, 0.25, 0.5, 0.75, 1.0 })
-            foreach (double viewAngle in new[] { 0.0, 0.6, 1.2 })
-            foreach (
-                string rect in new[] { "in-the-mirror", "overhead", "overhead-aside", "wall", "across-the-horizon", "tilted" }
-            )
-                data.Add(roughness, viewAngle, rect);
-            return data;
+            get
+            {
+                var data = new TheoryData<double, double, string>();
+                foreach (double roughness in new[] { 0.045, 0.1, 0.25, 0.5, 0.75, 1.0 })
+                foreach (double viewAngle in new[] { 0.0, 0.6, 1.2 })
+                foreach (
+                    string rect in new[] { "in-the-mirror", "overhead", "overhead-aside", "wall", "across-the-horizon", "tilted" }
+                )
+                    data.Add(roughness, viewAngle, rect);
+                return data;
+            }
         }
-    }
 
-    [Theory]
-    [MemberData(nameof(Shines))]
-    public void TheLtcShineOfARectangleMatchesTheIntegralOfTheGgxLobeOverItsFace(
-        double roughness,
-        double viewAngle,
-        string name
-    )
-    {
-        var metal = new MaterialSample(BaseColor: new(1, 1, 1), Metallic: 1, Roughness: roughness, Reflectance: 0.5);
-        var toView = new Double3(Math.Sin(viewAngle), Math.Cos(viewAngle), 0);
-        TestRect rect = name == "in-the-mirror" ? InTheMirror(toView) : RectNamed(name);
+        [Theory]
+        [MemberData(nameof(Shines))]
+        public void TheLtcShineOfARectangleMatchesTheIntegralOfTheGgxLobeOverItsFace(
+            double roughness,
+            double viewAngle,
+            string name
+        )
+        {
+            var metal = new MaterialSample(BaseColor: new(1, 1, 1), Metallic: 1, Roughness: roughness, Reflectance: 0.5);
+            var toView = new Double3(Math.Sin(viewAngle), Math.Cos(viewAngle), 0);
+            TestRect rect = name == "in-the-mirror" ? InTheMirror(toView) : RectNamed(name);
 
-        double shine = metal
-            .RectTerms(normal: Double3.UnitY, toView: toView, rect: rect.View, tables: BrdfTables.Shared, ltc: LtcTable.Shared)
-            .Specular.X;
+            double shine = metal
+                .RectTerms(normal: Double3.UnitY, toView: toView, rect: rect.View, tables: BrdfTables.Shared, ltc: LtcTable.Shared)
+                .Specular.X;
 
-        double reference = rect.ShineIntegral(metal, toView);
-        shine
-            .Should()
-            .BeApproximately(
-                reference,
-                ShineTolerance(viewAngle, reference),
-                "the LTC shine at roughness {0} and {1} rad off the normal matches the integral {2} of the rectangle {3}",
-                roughness,
-                viewAngle,
-                reference,
-                name
-            );
-    }
+            double reference = rect.ShineIntegral(metal, toView);
+            shine
+                .Should()
+                .BeApproximately(
+                    reference,
+                    ShineTolerance(viewAngle, reference),
+                    "the LTC shine at roughness {0} and {1} rad off the normal matches the integral {2} of the rectangle {3}",
+                    roughness,
+                    viewAngle,
+                    reference,
+                    name
+                );
+        }
 
-    /// <summary>
-    /// How far the LTC shine may miss the integral <paramref name="reference"/>, in units of the face radiance: the fitted
-    /// cosine's error measured over these cases on 2026-11-08, rounded up. Up to 0.6 rad off the normal it missed by at
-    /// most 2.6 % plus 0.005. At 1.2 rad it overshot the peak by up to 10 % and fell short by up to 13 %, and lost up to
-    /// 0.016 in GGX's longer tail, which the cosine does not have (ARCHITECTURE.md, "Rectangle lights").
-    /// </summary>
-    private static double ShineTolerance(double viewAngle, double reference) =>
-        viewAngle <= 0.6 ? 0.006 + 0.03 * reference : 0.02 + 0.15 * reference;
+        /// <summary>
+        /// How far the LTC shine may miss the integral <paramref name="reference"/>, in units of the face radiance: the fitted
+        /// cosine's error measured over these cases on 2026-11-08, rounded up. Up to 0.6 rad off the normal it missed by at
+        /// most 2.6 % plus 0.005. At 1.2 rad it overshot the peak by up to 10 % and fell short by up to 13 %, and lost up to
+        /// 0.016 in GGX's longer tail, which the cosine does not have (ARCHITECTURE.md, "Rectangle lights").
+        /// </summary>
+        private static double ShineTolerance(double viewAngle, double reference) =>
+            viewAngle <= 0.6 ? 0.006 + 0.03 * reference : 0.02 + 0.15 * reference;
 
-    /// <summary>A panel 1.2 m square 2 m from the point along the mirror ray of <paramref name="toView"/>, facing the point.</summary>
-    private static TestRect InTheMirror(Double3 toView)
-    {
-        Double3 mirror = Mirror(Double3.UnitY, toView);
-        // The turn that takes the local front +Z to −mirror, about the axis across the plane of view.
-        Vector3 back = -mirror.ToVector3();
-        Vector3 axis = Vector3.Cross(Vector3.UnitZ, back);
-        float angle = MathF.Acos(Math.Clamp(back.Z, -1, 1));
-        Quaternion rotation =
-            axis.LengthSquared() > 1e-12f ? Quaternion.CreateFromAxisAngle(Vector3.Normalize(axis), angle) : FaceDown;
-        return Rect(center: 2 * mirror, rotation: rotation, width: 1.2, height: 1.2);
+        /// <summary>A panel 1.2 m square 2 m from the point along the mirror ray of <paramref name="toView"/>, facing the point.</summary>
+        private static TestRect InTheMirror(Double3 toView)
+        {
+            Double3 mirror = Mirror(Double3.UnitY, toView);
+            // The turn that takes the local front +Z to −mirror, about the axis across the plane of view.
+            Vector3 back = -mirror.ToVector3();
+            Vector3 axis = Vector3.Cross(Vector3.UnitZ, back);
+            float angle = MathF.Acos(Math.Clamp(back.Z, -1, 1));
+            Quaternion rotation =
+                axis.LengthSquared() > 1e-12f ? Quaternion.CreateFromAxisAngle(Vector3.Normalize(axis), angle) : FaceDown;
+            return Rect(center: 2 * mirror, rotation: rotation, width: 1.2, height: 1.2);
+        }
     }
 
     [Fact]
@@ -239,35 +243,39 @@ public sealed class RectLightTests
         edge.Should().BeInRange(0.3, 0.7, "the image's edge lies where the mirror ray meets the panel's edge");
     }
 
-    [Theory]
-    [InlineData(4.0, 0.06)]
-    [InlineData(1.5, 0.25)]
-    public void ARoughFloorsHighlightKeepsTheEnergyThatTheIntegralGives(double eyeHeight, double tolerance)
+    /// <summary>The rough floor's highlight against the integral, over a grid of 81 floor points (tests/STYLE.md, "Long tests").</summary>
+    public sealed class RoughFloorEnergy
     {
-        // The cabin lamp 2 m above a rough white metal floor, seen from 3 m away and eyeHeight m up, so from about 40° and
-        // from about 65° off the normal at the floor's middle. The highlight's sum over a grid of floor points 4 m square
-        // keeps the energy of the lobe's integral over the panel: 4.6 % short seen from 4 m up, and 22.6 % short seen from
-        // 1.5 m up, where the fitted cosine sends 7 % of its light below the horizon and lacks GGX's longer tail
-        // (measured on 2026-11-08).
-        var metal = new MaterialSample(BaseColor: new(1, 1, 1), Metallic: 1, Roughness: 0.5, Reflectance: 0.5);
-        var eye = new Double3(0, eyeHeight, 3);
-        double shine = 0,
-            reference = 0;
-        for (int i = 0; i < 9; i++)
-        for (int k = 0; k < 9; k++)
+        [Theory]
+        [InlineData(4.0, 0.06)]
+        [InlineData(1.5, 0.25)]
+        public void ARoughFloorsHighlightKeepsTheEnergyThatTheIntegralGives(double eyeHeight, double tolerance)
         {
-            var point = new Double3(-2 + 0.5 * i, 0, -2 + 0.5 * k);
-            TestRect rect = Rect(center: new Double3(0, 2, 0) - point, rotation: FaceDown, width: 1.2, height: 1.2);
-            Double3 toView = (eye - point).Normalized();
-            shine += metal
-                .RectTerms(normal: Double3.UnitY, toView: toView, rect: rect.View, tables: BrdfTables.Shared, ltc: LtcTable.Shared)
-                .Specular.X;
-            reference += rect.ShineIntegral(metal, toView);
-        }
+            // The cabin lamp 2 m above a rough white metal floor, seen from 3 m away and eyeHeight m up, so from about 40° and
+            // from about 65° off the normal at the floor's middle. The highlight's sum over a grid of floor points 4 m square
+            // keeps the energy of the lobe's integral over the panel: 4.6 % short seen from 4 m up, and 22.6 % short seen from
+            // 1.5 m up, where the fitted cosine sends 7 % of its light below the horizon and lacks GGX's longer tail
+            // (measured on 2026-11-08).
+            var metal = new MaterialSample(BaseColor: new(1, 1, 1), Metallic: 1, Roughness: 0.5, Reflectance: 0.5);
+            var eye = new Double3(0, eyeHeight, 3);
+            double shine = 0,
+                reference = 0;
+            for (int i = 0; i < 9; i++)
+            for (int k = 0; k < 9; k++)
+            {
+                var point = new Double3(-2 + 0.5 * i, 0, -2 + 0.5 * k);
+                TestRect rect = Rect(center: new Double3(0, 2, 0) - point, rotation: FaceDown, width: 1.2, height: 1.2);
+                Double3 toView = (eye - point).Normalized();
+                shine += metal
+                    .RectTerms(normal: Double3.UnitY, toView: toView, rect: rect.View, tables: BrdfTables.Shared, ltc: LtcTable.Shared)
+                    .Specular.X;
+                reference += rect.ShineIntegral(metal, toView);
+            }
 
-        shine
-            .Should()
-            .BeApproximately(reference, tolerance * reference, "the highlight keeps the integral's energy {0}", reference);
+            shine
+                .Should()
+                .BeApproximately(reference, tolerance * reference, "the highlight keeps the integral's energy {0}", reference);
+        }
     }
 
     /// <summary>A rectangle relative to the shaded point, and the numerical integrals over its face.</summary>

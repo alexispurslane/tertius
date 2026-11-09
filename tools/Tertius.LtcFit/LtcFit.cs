@@ -40,7 +40,7 @@ internal static class LtcFit
         (double M11, double M22, double M13) shape = (scale, scale, 0);
         for (int column = 0; column < LtcTable.Size; column++)
         {
-            double nDotV = LtcTable.ViewCosineOf(column);
+            double nDotV = ViewCosineOf(column);
             var target = new Target(lobe, nDotV);
             bool round = column == 0;
             shape = Fit(target, shape, round);
@@ -52,6 +52,17 @@ internal static class LtcFit
             texels[texel + 3] = (Half)inverse.M22;
         }
         return texels;
+    }
+
+    /// <summary>
+    /// The view cosine μ that column <paramref name="column"/> holds: 1 − x² with x = column / (n − 1), at least
+    /// <see cref="MaterialSample.MinViewCosine"/>, the floor that the shading takes too. <see cref="LtcTable.Sample"/>
+    /// reads the column back from √(1 − μ).
+    /// </summary>
+    private static double ViewCosineOf(int column)
+    {
+        double x = BrdfTables.TexelValue(column, LtcTable.Size);
+        return Math.Max(1 - x * x, MaterialSample.MinViewCosine);
     }
 
     /// <summary>The fitted shape of <paramref name="target"/> from <paramref name="start"/>; one scale only if <paramref name="round"/>.</summary>

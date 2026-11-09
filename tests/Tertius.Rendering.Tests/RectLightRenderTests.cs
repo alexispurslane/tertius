@@ -65,14 +65,16 @@ public sealed class RectLightRenderTests
 
     /// <summary>
     /// A dark snapshot with <paramref name="panel"/> and a square of <paramref name="desc"/> that faces the camera
-    /// <see cref="SquareDistance"/> ahead, under a view of height <paramref name="fov"/> rad: its capture.
+    /// <see cref="SquareDistance"/> ahead, turned by <paramref name="tilt"/> rad about the vertical, under a view of height
+    /// <paramref name="fov"/> rad: its capture.
     /// </summary>
     private static Capture RenderSquare(
         VulkanRenderer renderer,
         RectRenderLight panel,
         MaterialDesc desc,
         float fov,
-        string name
+        string name,
+        float tilt = 0
     )
     {
         RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitZ, starIrradiance: 0);
@@ -85,13 +87,20 @@ public sealed class RectLightRenderTests
                 material: renderer.CreateMaterial(desc),
                 position: new(0, 0, -SquareDistance),
                 scale: Vector3.One,
-                rotation: Quaternion.CreateFromAxisAngle(Vector3.UnitX, MathF.PI / 2),
+                rotation: SquareTurn(tilt),
                 radius: 2.2f,
                 chainDepth: TestChains.CamerasFrame
             )
         );
         return Gpu.RenderAndCapture(renderer: renderer, snapshot: snapshot, name: name);
     }
+
+    /// <summary>The turn of the square, whose plane faces +Y, to face the camera along +Z and then lean <paramref name="tilt"/> rad about +Y.</summary>
+    private static Quaternion SquareTurn(float tilt) =>
+        Quaternion.Concatenate(
+            Quaternion.CreateFromAxisAngle(Vector3.UnitX, MathF.PI / 2),
+            Quaternion.CreateFromAxisAngle(Vector3.UnitY, tilt)
+        );
 
     /// <summary>A panel in front of the matte square by name.</summary>
     public static TheoryData<string> MattePanels => ["facing-the-square", "tilted-beside", "through-the-square"];
@@ -248,6 +257,78 @@ public sealed class RectLightRenderTests
                 .Color(Width / 2, Height / 2)
                 .X.Should()
                 .BeInRange(shown[0].X, shown[1].X, "the square's center shows the C# LTC shine {0} within 2 %", expected.X);
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void ARoughSquareSeenAtASlantShowsTheCSharpLtcShineOfARectangleLight()
+    {
+        // The rough square leans 0.95 rad, 54°, away from the camera, so the shine reads the table's leaning cosines and
+        // turns the face into the frame whose first tangent points toward the view. The panel, 1 m square, stands 1.2 m
+        // from the square's center near the mirror ray and 0.35 m above the plane of view, facing the center, so its
+        // corners use both tangents.
+        const float tilt = 0.95f;
+        Vector3 normal = Vector3.Transform(Vector3.UnitY, SquareTurn(tilt));
+        Vector3 mirror = Vector3.Reflect(-Vector3.UnitZ, normal);
+        Vector3 toPanel = Vector3.Normalize(mirror + new Vector3(0, 0.35f, 0));
+        Vector3 back = -toPanel;
+        Quaternion rotation = Quaternion.CreateFromAxisAngle(
+            Vector3.Normalize(Vector3.Cross(Vector3.UnitZ, back)),
+            MathF.Acos(back.Z)
+        );
+        var toCenter = (Double3)(1.2f * toPanel);
+        RectRenderLight panel = Panel(
+            position: new Vector3(0, 0, -SquareDistance) + toCenter.ToVector3(),
+            rotation: rotation,
+            power: 4,
+            width: 1,
+            height: 1
+        );
+        (Double3 halfWidth, Double3 halfHeight) = HalfSides(panel);
+        var metal = new MaterialDesc(
+            BaseColor: new(x: 1, y: 1, z: 1, w: 1),
+            Roughness: 0.5f,
+            Reflectance: 0.5f,
+            Model: new StandardShading(Metallic: 1)
+        );
+        DirectTerms terms = TestMaterials
+            .SampleOf(metal)
+            .RectTerms(
+                normal: normal,
+                toView: Double3.UnitZ,
+                rect: new RectView(toCenter: toCenter, halfWidth: halfWidth, halfHeight: halfHeight),
+                tables: BrdfTables.Shared,
+                ltc: LtcTable.Shared
+            );
+        Double3 expected = terms.Specular * FaceRadianceInReach(panel, toCenter);
+
+        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
+        try
+        {
+            Capture image = RenderSquare(
+                renderer: renderer,
+                panel: panel,
+                desc: metal,
+                fov: Gpu.Fov,
+                name: "rect-light-slant",
+                tilt: tilt
+            );
+            // 3 %: the bilinear weights of a table sample between texels are as coarse as the device's sub-texel
+            // precision, which Vulkan lets be 4 bits, and the leaning cosine changes along both of the table's axes here.
+            Vector3[] shown = Displayed(
+                renderer,
+                [(expected * 0.97).ToVector3(), (expected * 1.03).ToVector3()],
+                "rect-light-slant-glow"
+            );
+
+            image
+                .Color(Width / 2, Height / 2)
+                .X.Should()
+                .BeInRange(shown[0].X, shown[1].X, "the slanted square shows the C# LTC shine {0} within 3 %", expected.X);
         }
         finally
         {

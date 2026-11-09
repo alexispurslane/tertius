@@ -1,13 +1,9 @@
 namespace Tertius.Rendering;
 
 /// <summary>
-/// The inverse matrices of the linearly transformed cosines that stand for our GGX lobe (Heitz, Dupuy, Hill and Neubelt
-/// 2016), fitted by tools/Tertius.LtcFit and embedded as <see cref="ResourceName"/> (ARCHITECTURE.md, "Rectangle lights").
+/// The inverse matrices of the linearly transformed cosines that stand for our GGX lobe, fitted by tools/Tertius.LtcFit:
+/// column i at √(1 − μ) = i / (n − 1), row j at roughness j / (n − 1) (ARCHITECTURE.md, "Rectangle lights").
 /// </summary>
-/// <remarks>
-/// <see cref="Size"/>² texels of four halves, row by row from r = 0: column i holds the view at √(1 − μ) = i / (n − 1),
-/// row j the roughness j / (n − 1). The magnitude and the Fresnel part are the DFG table's E₁ and S.
-/// </remarks>
 internal sealed class LtcTable
 {
     public const int Size = 64;
@@ -38,25 +34,15 @@ internal sealed class LtcTable
     public ReadOnlySpan<Half> Texels => texels;
 
     /// <summary>
-    /// The view cosine μ that column <paramref name="column"/> holds: 1 − x² with x = column / (n − 1), at least
-    /// <see cref="MaterialSample.MinViewCosine"/>, the floor that the shading takes too.
-    /// </summary>
-    public static double ViewCosineOf(int column)
-    {
-        double x = BrdfTables.TexelValue(column, Size);
-        return Math.Max(1 - x * x, MaterialSample.MinViewCosine);
-    }
-
-    /// <summary>
     /// The inverse matrix at the floored <paramref name="roughness"/> and the view cosine <paramref name="nDotV"/>,
     /// bilinear between texels and clamped at the ends, as the GPU samples it.
     /// </summary>
     public LtcMatrix Sample(double roughness, double nDotV)
     {
         double u = BrdfTables.TexelCoordinate(Math.Sqrt(1 - Math.Clamp(nDotV, 0, 1)), Size);
-        double v = BrdfTables.TexelCoordinate(roughness, Size);
+        double row = BrdfTables.TexelCoordinate(roughness, Size);
         double Channel(int channel) =>
-            BrdfTables.Bilinear(table: texels, width: Size, height: Size, channels: Channels, channel: channel, u: u, v: v);
+            BrdfTables.Bilinear(table: texels, width: Size, height: Size, channels: Channels, channel: channel, u: u, v: row);
         return new(M00: Channel(0), M02: Channel(1), M20: Channel(2), M22: Channel(3));
     }
 

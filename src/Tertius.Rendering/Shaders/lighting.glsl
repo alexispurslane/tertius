@@ -409,7 +409,8 @@ void lightIrradiance(uint index, bool tinted, vec3 position, out LightPath p)
     }
     else if (light.intensityKind.w == RectKind)
     {
-        // GpuLight.From gives a rectangle sides above 0, so the squares of its half sides are above 0.
+        // SceneBatcher.Shines keeps a rectangle with sides of at least 1 µm, so the squares of its half sides are normal
+        // floats.
         vec3 halfWidth = light.directionCosOuter.xyz;
         vec3 halfHeight = light.halfHeight.xyz;
         float widthSq = dot(halfWidth, halfWidth);

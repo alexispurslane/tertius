@@ -40,14 +40,7 @@ internal static class NelderMead
             if (2 * Math.Abs(low - high) <= (low + high) * tolerance)
                 break;
 
-            double[] centroid = new double[dimensions];
-            for (int i = 0; i <= dimensions; i++)
-            {
-                if (i == highest)
-                    continue;
-                for (int k = 0; k < dimensions; k++)
-                    centroid[k] += points[i][k] / dimensions;
-            }
+            double[] centroid = Centroid(points, highest);
 
             double[] Along(double factor) =>
                 [.. Enumerable.Range(0, dimensions).Select(k => centroid[k] + factor * (centroid[k] - points[highest][k]))];
@@ -78,17 +71,38 @@ internal static class NelderMead
                 continue;
             }
 
-            for (int i = 0; i <= dimensions; i++)
-            {
-                if (i == lowest)
-                    continue;
-                for (int k = 0; k < dimensions; k++)
-                    points[i][k] = points[lowest][k] + Shrink * (points[i][k] - points[lowest][k]);
-                values[i] = objective(points[i]);
-            }
+            ShrinkToward(points: points, values: values, lowest: lowest, objective: objective);
         }
 
         return points[Ranks(values).Lowest];
+    }
+
+    /// <summary>The mean of every point of the simplex but <paramref name="excluded"/>.</summary>
+    private static double[] Centroid(double[][] points, int excluded)
+    {
+        int dimensions = points.Length - 1;
+        double[] centroid = new double[dimensions];
+        for (int i = 0; i <= dimensions; i++)
+        {
+            if (i == excluded)
+                continue;
+            for (int k = 0; k < dimensions; k++)
+                centroid[k] += points[i][k] / dimensions;
+        }
+        return centroid;
+    }
+
+    /// <summary>Moves every point of the simplex halfway toward point <paramref name="lowest"/>, and evaluates it again.</summary>
+    private static void ShrinkToward(double[][] points, double[] values, int lowest, Func<double[], double> objective)
+    {
+        for (int i = 0; i < points.Length; i++)
+        {
+            if (i == lowest)
+                continue;
+            for (int k = 0; k < points[i].Length; k++)
+                points[i][k] = points[lowest][k] + Shrink * (points[i][k] - points[lowest][k]);
+            values[i] = objective(points[i]);
+        }
     }
 
     /// <summary>The indices of the lowest, the highest and the second highest value, the first of equal values first.</summary>

@@ -66,6 +66,7 @@ internal sealed class BrdfTableImages : IDisposable
         barriers.Image(LobeSky, ImageUse.TransferDestination, discard: true);
         barriers.Image(Ltc, ImageUse.TransferDestination, discard: true);
         barriers.Flush(device.Vk, commandBuffer);
+
         staging.CopyToImage(commandBuffer: commandBuffer, image: Dfg, texels: MemoryMarshal.AsBytes(tables.Dfg));
         staging.CopyToImage(
             commandBuffer: commandBuffer,
@@ -77,6 +78,7 @@ internal sealed class BrdfTableImages : IDisposable
             image: Ltc,
             texels: MemoryMarshal.AsBytes(LtcTable.Shared.Texels)
         );
+
         // The shading passes of this frame read the tables, the lighting in fragment shaders and the reflections' trace
         // in a compute shader, so the barrier makes the copies visible to both stages. No pass declares the tables later.
         barriers.Image(Dfg, ImageUse.SampledFragmentCompute);
