@@ -102,11 +102,9 @@ internal sealed unsafe class ScreenTraceKernel : IDisposable
     {
         barriers.Image(images.SurfaceTest, ImageUse.StorageCompute);
         barriers.Image(images.Motion, ImageUse.StorageCompute);
-        foreach (TemporalSignal signal in (TemporalSignal[])[images.Diffuse, images.Specular])
-        {
-            (_, GpuImage lastFast, GpuImage slowHistory) = signal.HitImages(part: 0, parity);
-            barriers.Image(slow ? slowHistory : lastFast, ImageUse.StorageCompute);
-        }
+        barriers.Image(slow ? images.Diffuse.Slow(0) : images.HitDiffuse(parity), ImageUse.StorageCompute);
+        (_, GpuImage lastFast, GpuImage slowSpecular) = images.Specular.HitImages(part: 0, parity);
+        barriers.Image(slow ? slowSpecular : lastFast, ImageUse.StorageCompute);
     }
 
     public void Dispose() => device.Vk.DestroyPipeline(device.Device, pipeline, null);

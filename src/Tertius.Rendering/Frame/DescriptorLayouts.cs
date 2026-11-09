@@ -63,6 +63,9 @@ namespace Tertius.Rendering;
 /// <item><term>screen trace</term><description>set 3 of <see cref="ScreenTraceLayout"/>: the depth pyramid's finest
 /// level and its bounds as sampled images, the tracer's inputs and outputs as storage images, and the own-ray list of each
 /// kind (<see cref="ScreenTraceImages"/>). One per parity of the drawn frames, rewritten on resize.</description></item>
+/// <item><term>filter</term><description>set 3 of <see cref="DiffuseFilterLayout"/>: the input and the output of one
+/// dispatch of the diffuse filter, the diffuse slow history and this frame's diffuse fast history, as storage images for
+/// the compute stage (<see cref="DiffuseFilter"/>). One per dispatch and parity, rewritten on resize.</description></item>
 /// <item><term>light</term><description>set 3 of <see cref="CompositeLayout"/>: the direct light's two images and the two
 /// indirect signals' slow histories, plus the existing specular sample for the opt-in reflection footprint, as storage images for the fragment stage (<see cref="CompositePass"/>). One,
 /// rewritten on resize.</description></item>
@@ -119,6 +122,17 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
 
     /// <summary>The sampled images of a signal set: the last surface history and the last device depth.</summary>
     private const uint SignalSetSampledImages = 2;
+
+    /// <summary>
+    /// The filter sets of one diffuse filter, the screen tracer's or a test's (<see cref="DiffuseFilter.Sets"/>).
+    /// </summary>
+    private const uint FilterSets = DiffuseFilter.Sets;
+
+    /// <summary>
+    /// The storage images of a filter set: a dispatch's input and output, the diffuse slow history and this frame's diffuse
+    /// fast history.
+    /// </summary>
+    private const uint FilterSetImages = 4;
 
     /// <summary>
     /// The storage images of the light set: the direct light's two images, the two indirect signals' histories, and the
@@ -230,6 +244,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         // The temporal lighting's sets.
         SurfaceTestSet = CreateSurfaceTestSetLayout();
         (SignalSet, LightSet) = CreateTemporalSetLayouts();
+        FilterSet = CreateFilterSetLayout();
         ScreenTraceSet = CreateScreenTraceSetLayout();
 
         (SceneLayout, ImpostorLayout, CompositeLayout, OverlayLayout, PostLayout, BloomLayout) =
@@ -244,21 +259,34 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             ShadowBoundsLayout
         ) = CreateComputeLayouts();
 
-        SurfaceTestLayout = ComputeLayout<SurfaceTestPushConstants>(
-            sets: [FrameSet, TextureSet, GBufferSet, SurfaceTestSet],
-            name: "surface test layout"
-        );
-        AccumulateLayout = ComputeLayout<AccumulatePushConstants>(
-            sets: [FrameSet, TextureSet, GBufferSet, SignalSet],
-            name: "accumulate layout"
-        );
-        ScreenTraceLayout = ComputeLayout<ScreenTracePushConstants>(
-            sets: [FrameSet, TextureSet, GBufferSet, ScreenTraceSet],
-            name: "screen trace layout"
-        );
+        (SurfaceTestLayout, AccumulateLayout, DiffuseFilterLayout, ScreenTraceLayout) = CreateTemporalLayouts();
 
         (pool, texturePool) = CreatePools(framesInFlight: (uint)framesInFlight, glowSourceSets: (uint)glowLevels + 1);
     }
+
+    /// <summary>
+    /// The temporal lighting's compute layouts: sets 0 to 2 and each one's own set 3, after the sets that they name.
+    /// </summary>
+    private (PipelineLayout SurfaceTest, PipelineLayout Accumulate, PipelineLayout Filter, PipelineLayout Trace)
+        CreateTemporalLayouts() =>
+        (
+            ComputeLayout<SurfaceTestPushConstants>(
+                sets: [FrameSet, TextureSet, GBufferSet, SurfaceTestSet],
+                name: "surface test layout"
+            ),
+            ComputeLayout<AccumulatePushConstants>(
+                sets: [FrameSet, TextureSet, GBufferSet, SignalSet],
+                name: "accumulate layout"
+            ),
+            ComputeLayout<DiffuseFilterPushConstants>(
+                sets: [FrameSet, TextureSet, GBufferSet, FilterSet],
+                name: "diffuse filter layout"
+            ),
+            ComputeLayout<ScreenTracePushConstants>(
+                sets: [FrameSet, TextureSet, GBufferSet, ScreenTraceSet],
+                name: "screen trace layout"
+            )
+        );
 
     public DescriptorSetLayout FrameSet { get; }
     public DescriptorSetLayout TextureSet { get; }
@@ -433,6 +461,12 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// </summary>
     public DescriptorSetLayout ScreenTraceSet { get; }
 
+    /// <summary>Set 3 of <see cref="DiffuseFilterLayout"/>: the images of one dispatch of the diffuse filter.</summary>
+    public DescriptorSetLayout FilterSet { get; }
+
+    /// <summary>The layout of the diffuse filter's dispatches: sets 0 to 2, the filter set and the push constants.</summary>
+    public PipelineLayout DiffuseFilterLayout { get; }
+
     /// <summary>Sets 0 to 2 of <see cref="SceneLayout"/>, the screen tracer set and <see cref="ScreenTracePushConstants"/>, for the tracer's four passes.</summary>
     public PipelineLayout ScreenTraceLayout { get; }
 
@@ -477,6 +511,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     public DescriptorSet AllocateLightSet() => Allocate(pool, LightSet, null);
 
     public DescriptorSet AllocateScreenTraceSet() => Allocate(pool, ScreenTraceSet, null);
+
+    public DescriptorSet AllocateFilterSet() => Allocate(pool, FilterSet, null);
 
     public DescriptorSet AllocateTextureSet()
     {
@@ -864,7 +900,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             ),
             // One per pyramid level set, the depth tail set's mips, four per environment levels set, three for the scatter
             // set, one for the shadow bounds set, four per surface test set, SignalSetImages per signal set, six for the
-            // light set and fifteen per screen tracer set, plus ScreenTraceAgeImages.
+            // light set, fifteen per screen tracer set, plus ScreenTraceAgeImages, and four per filter set.
             new(
                 DescriptorType.StorageImage,
                 PyramidLevelSets
@@ -876,6 +912,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
                     + SignalSetImages * SignalSets
                     + LightSetImages
                     + (ScreenTraceStorageImages + ScreenTraceAgeImages) * ScreenTraceSets
+                    + FilterSetImages * FilterSets
             ),
         ];
 
@@ -885,8 +922,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         uint frames = framesInFlight;
         // The frame sets, the deform sets, the G-buffer, post, atlas, meter, exposure, prefilter, scatter, shadow
         // bounds and light sets, the glow source sets, the pyramid level sets, the depth tail set, the environment levels
-        // sets, the surface test sets, the signal sets and the screen tracer sets. The tracer's sets exist even with the
-        // tracer off: they cost nothing per frame.
+        // sets, the surface test sets, the signal sets, the screen tracer sets and the filter sets. The tracer's sets exist
+        // even with the tracer off: they cost nothing per frame.
         SetPool shared = CreatePool(
             sizes: SharedPoolSizes(frames, glowSourceSets),
             maxSets: 2 * frames
@@ -896,7 +933,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
                 + EnvironmentLevelsSets
                 + SurfaceTestSets
                 + SignalSets
-                + ScreenTraceSets,
+                + ScreenTraceSets
+                + FilterSets,
             flags: 0,
             name: "descriptor pool"
         );
@@ -1086,6 +1124,15 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         for (uint binding = 0; binding < LightSetImages; binding++)
             light[(int)binding] = StorageImage(binding: binding, stages: ShaderStageFlags.FragmentBit);
         return (CreateLayout(bindings: signal, name: "signal set"), CreateLayout(bindings: light, name: "light set"));
+    }
+
+    /// <summary>The layout of the filter set: <see cref="FilterSetImages"/> storage images for the compute stage.</summary>
+    private DescriptorSetLayout CreateFilterSetLayout()
+    {
+        Span<DescriptorSetLayoutBinding> filter = stackalloc DescriptorSetLayoutBinding[(int)FilterSetImages];
+        for (uint binding = 0; binding < FilterSetImages; binding++)
+            filter[(int)binding] = StorageImage(binding);
+        return CreateLayout(bindings: filter, name: "filter set");
     }
 
     /// <summary>A binding of one storage image for the compute stage.</summary>

@@ -62,7 +62,7 @@ internal sealed unsafe class CompositePass : RenderPass
         [
             targets.DirectDiffuse,
             targets.DirectSpecular,
-            tracer?.Diffuse.Slow(0) ?? targets.DirectDiffuse,
+            tracer?.ShownDiffuse ?? targets.DirectDiffuse,
             tracer?.Specular.Slow(0) ?? targets.DirectSpecular,
             sharing && tracer is { } sampleTracer ? sampleTracer.Specular.Sample(0) : targets.DirectSpecular,
             sharing && tracer is { } guideTracer ? guideTracer.Specular.ReflectionGuide(0) : targets.DirectSpecular,
@@ -82,7 +82,7 @@ internal sealed unsafe class CompositePass : RenderPass
         barriers.Image(targets.DirectSpecular, ImageUse.StorageFragment);
         if (tracer is not null)
         {
-            barriers.Image(tracer.Diffuse.Slow(0), ImageUse.StorageFragment);
+            barriers.Image(tracer.ShownDiffuse, ImageUse.StorageFragment);
             barriers.Image(tracer.Specular.Slow(0), ImageUse.StorageFragment);
             if (sharing)
             {
