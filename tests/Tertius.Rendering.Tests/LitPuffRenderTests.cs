@@ -197,7 +197,7 @@ public sealed class LitPuffRenderTests
     private static RectRenderLight PanelAbove(Vector3 puff, bool facesDown)
     {
         Vector3 position = puff + new Vector3(0.4f, 1.5f, 0);
-        Quaternion rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (facesDown ? 1 : -1) * MathF.PI / 2);
+        var rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (facesDown ? 1 : -1) * MathF.PI / 2);
         return new(
             EntityIndex: Gpu.LampEntity,
             EntityGeneration: 0,

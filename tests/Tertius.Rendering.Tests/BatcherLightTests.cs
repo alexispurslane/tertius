@@ -611,7 +611,9 @@ public sealed class BatcherLightTests
         PreparedScene scene = Prepare(snapshot: snapshot);
 
         scene.Constants.Counts.X.Should().Be(3u);
-        scene.Constants.Counts.W.Should().Be(2u, "the shaders run the rectangles' own loop only when the list holds one");
+        scene
+            .Constants.Counts.W.Should()
+            .Be(2u, "the shaders run the rectangles' own loop only when the list holds one");
     }
 
     [Fact]

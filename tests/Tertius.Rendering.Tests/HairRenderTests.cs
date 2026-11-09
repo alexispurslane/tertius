@@ -269,7 +269,7 @@ public sealed class HairRenderTests
         {
             Double3 a = corners[i],
                 b = corners[(i + 1) & 3];
-            Double3 normal = Double3.Cross(a, b);
+            var normal = Double3.Cross(a, b);
             sum += normal * (Math.Atan2(normal.Length, Double3.Dot(a, b)) / normal.Length);
         }
         return 0.5 * sum;
@@ -322,8 +322,8 @@ public sealed class HairRenderTests
         // A panel 0.6 m by 0.4 m, 1 m to the right of the card, 0.5 m up and 1 m nearer the eye, turned to face the card's
         // center, of 6 W and white.
         var center = new Vector3(1f, 0.5f, -2f);
-        Vector3 front = Vector3.Normalize(CardCenter - center);
-        Vector3 axis = Vector3.Normalize(Vector3.Cross(Vector3.UnitZ, front));
+        var front = Vector3.Normalize(CardCenter - center);
+        var axis = Vector3.Normalize(Vector3.Cross(Vector3.UnitZ, front));
         RectRenderLight panel = PanelAt(center, Quaternion.CreateFromAxisAngle(axis, MathF.Acos(front.Z)));
         VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
         try
@@ -362,8 +362,8 @@ public sealed class HairRenderTests
     {
         // The panel of the test above turned to face away from the card: the card sees its back.
         var center = new Vector3(1f, 0.5f, -2f);
-        Vector3 away = Vector3.Normalize(center - CardCenter);
-        Vector3 axis = Vector3.Normalize(Vector3.Cross(Vector3.UnitZ, away));
+        var away = Vector3.Normalize(center - CardCenter);
+        var axis = Vector3.Normalize(Vector3.Cross(Vector3.UnitZ, away));
         var rotation = Quaternion.CreateFromAxisAngle(axis, MathF.Acos(away.Z));
         VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
         try

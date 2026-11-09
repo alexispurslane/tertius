@@ -127,8 +127,12 @@ public sealed class RectLightTests
         double exact = 0;
         for (int i = 0; i < 4; i++)
         {
-            Double3 normal = Double3.Cross(corners[i], corners[(i + 1) & 3]);
-            exact += 0.5 * normal.Y * Math.Atan2(normal.Length, Double3.Dot(corners[i], corners[(i + 1) & 3])) / normal.Length;
+            var normal = Double3.Cross(corners[i], corners[(i + 1) & 3]);
+            exact +=
+                0.5
+                * normal.Y
+                * Math.Atan2(normal.Length, Double3.Dot(corners[i], corners[(i + 1) & 3]))
+                / normal.Length;
         }
 
         corners.Should().OnlyContain(corner => corner.Y > 0, "the whole face lies above the floor's horizon");
