@@ -164,10 +164,12 @@ internal sealed class ScreenTraceRaysPass(
         PyramidImages pyramid = targets.Pyramid ?? throw new UnreachableException("The tracer reads the pyramid.");
         barriers.Image(pyramid.Image, ImageUse.SampledComputeGeneral);
         barriers.Image(pyramid.Finest, ImageUse.SampledComputeGeneral);
+
         // Without the guiding, no pass writes the light pyramid, and the rays never read it: the barrier only gives it
         // the layout of the set's descriptors.
         barriers.Image(images.LightPyramidImages.Image, ImageUse.SampledComputeGeneral);
         barriers.Image(images.LightPyramidImages.Finest, ImageUse.SampledComputeGeneral);
+
         barriers.Image(targets.DirectDiffuse, ImageUse.StorageCompute);
         barriers.Image(targets.DirectSpecular, ImageUse.StorageCompute);
         kernel.DeclareHistories(barriers, context.History.Parity, slow: false);

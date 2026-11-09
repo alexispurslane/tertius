@@ -215,20 +215,7 @@ internal sealed class ScreenTraceImages : IDisposable
             part: 0,
             parity
         );
-        layouts.WriteImage(set: set, binding: 0, view: pyramid.Finest.View, layout: ImageLayout.General);
-        layouts.WriteImage(set: set, binding: 1, view: pyramid.Image.View, layout: ImageLayout.General);
-        layouts.WriteImage(
-            set: set,
-            binding: DescriptorLayouts.ScreenTraceLightBinding,
-            view: LightPyramidImages.Finest.View,
-            layout: ImageLayout.General
-        );
-        layouts.WriteImage(
-            set: set,
-            binding: DescriptorLayouts.ScreenTraceLightBinding + 1,
-            view: LightPyramidImages.Image.View,
-            layout: ImageLayout.General
-        );
+        WritePyramids(set);
         GpuImage[] storage =
         [
             targets.DirectDiffuse,
@@ -270,6 +257,26 @@ internal sealed class ScreenTraceImages : IDisposable
         // The diagnostic of uncovered surfaces, whose first channel the resolve writes.
         if (Specular.UncoveredDiagnostic(0) is { } diagnostic)
             layouts.WriteStorageImage(set: set, binding: 22, image: diagnostic);
+    }
+
+    /// <summary>Writes the sampled images of <paramref name="set"/>: the depth pyramid at bindings 0 and 1, and the light
+    /// pyramid from <see cref="DescriptorLayouts.ScreenTraceLightBinding"/>, each its finest level and then its levels.</summary>
+    private void WritePyramids(DescriptorSet set)
+    {
+        layouts.WriteImage(set: set, binding: 0, view: pyramid.Finest.View, layout: ImageLayout.General);
+        layouts.WriteImage(set: set, binding: 1, view: pyramid.Image.View, layout: ImageLayout.General);
+        layouts.WriteImage(
+            set: set,
+            binding: DescriptorLayouts.ScreenTraceLightBinding,
+            view: LightPyramidImages.Finest.View,
+            layout: ImageLayout.General
+        );
+        layouts.WriteImage(
+            set: set,
+            binding: DescriptorLayouts.ScreenTraceLightBinding + 1,
+            view: LightPyramidImages.Image.View,
+            layout: ImageLayout.General
+        );
     }
 
     /// <summary>A record image: written and read as a storage image, copied out by the read hooks.</summary>

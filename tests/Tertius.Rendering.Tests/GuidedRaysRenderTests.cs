@@ -126,7 +126,7 @@ public sealed class GuidedRaysRenderTests
                 {
                     renderer.Render(scene, 1f);
 
-                    (int compared, int above) = CompareBlockDensities(renderer);
+                    (int compared, int above, _) = CompareBlockDensities(renderer);
                     compared.Should().BeGreaterThan(1000);
                     above.Should().Be(0, "no ray has a guided density");
                 }
@@ -148,9 +148,58 @@ public sealed class GuidedRaysRenderTests
                 {
                     renderer.Render(scene, 1f);
 
-                    (int compared, int above) = CompareBlockDensities(renderer);
+                    (int compared, int above, _) = CompareBlockDensities(renderer);
                     compared.Should().BeGreaterThan(1000);
                     above.Should().BeGreaterThan(compared / 8, "about half the rays aim at the patch, which they reach");
+                }
+                finally
+                {
+                    Gpu.DisposeAndAssertClean(renderer);
+                }
+            }
+        );
+
+    [Fact]
+    public void WithNoLitPixelInViewEachBlocksDiffuseDensityIsTheCosineDensity() =>
+        WithSwitch(
+            null,
+            () =>
+            {
+                (VulkanRenderer renderer, RenderSnapshot scene) = SceneOverFloor(Dark(), panel: false);
+                try
+                {
+                    renderer.Render(scene, 1f);
+
+                    (int compared, int above, int below) = CompareBlockDensities(renderer);
+                    compared.Should().BeGreaterThan(1000);
+                    (above, below).Should().Be((0, 0), "a screen without guide light guides no ray");
+                }
+                finally
+                {
+                    Gpu.DisposeAndAssertClean(renderer);
+                }
+            }
+        );
+
+    [Fact]
+    public void ASunlitSurfacesPixelsHoldGuideLight() =>
+        WithSwitch(
+            null,
+            () =>
+            {
+                (VulkanRenderer renderer, RenderSnapshot scene) = SceneOverFloor(
+                    Gpu.Snapshot(Vector3.UnitY),
+                    panel: false
+                );
+                try
+                {
+                    renderer.Render(scene, 1f);
+
+                    (float[] lights, _, _) = renderer.ReadLightPyramidLevel(0);
+                    float[] distances = renderer.ReadDistance();
+                    int surfaces = distances.Count(distance => distance > 0);
+                    int lit = Enumerable.Range(0, lights.Length).Count(pixel => distances[pixel] > 0 && lights[pixel] > 0);
+                    lit.Should().BeGreaterThan(surfaces / 4, "the star overhead lights the floor");
                 }
                 finally
                 {
@@ -203,11 +252,11 @@ public sealed class GuidedRaysRenderTests
             bool[] floor = FloorBesidePatch();
             (double guidedMean, double guidedError, double guidedVariance) = WithSwitch(
                 null,
-                () => BounceLight(floor, frames, skipped)
+                () => BounceLight(floor: floor, frames: frames, skipped: skipped, graySky: false)
             );
             (double cosineMean, double cosineError, double cosineVariance) = WithSwitch(
                 "off",
-                () => BounceLight(floor, frames, skipped)
+                () => BounceLight(floor: floor, frames: frames, skipped: skipped, graySky: false)
             );
 
             double error = Math.Sqrt(guidedError * guidedError + cosineError * cosineError);
@@ -218,13 +267,44 @@ public sealed class GuidedRaysRenderTests
                 .Should()
                 .BeLessThan(0.3 * cosineVariance, $"the guided rays find the patch in most frames ({guidedMean}, {cosineMean})");
         }
+
+        [Fact]
+        public void UnderAGraySkyTheFloorsLightKeepsItsMeanWithTheGuiding()
+        {
+            const int frames = 64,
+                skipped = 16;
+            bool[] floor = FloorBesidePatch();
+            (double guidedMean, double guidedError, _) = WithSwitch(
+                null,
+                () => BounceLight(floor: floor, frames: frames, skipped: skipped, graySky: true)
+            );
+            (double cosineMean, double cosineError, _) = WithSwitch(
+                "off",
+                () => BounceLight(floor: floor, frames: frames, skipped: skipped, graySky: true)
+            );
+
+            double error = Math.Sqrt(guidedError * guidedError + cosineError * cosineError);
+            guidedMean
+                .Should()
+                .BeApproximately(
+                    cosineMean,
+                    Math.Max(4 * error, 0.03 * cosineMean),
+                    $"a cosine ray that misses weighs 1 / (1 - g) of its cosine weight, and a guided miss brings nothing ({error})"
+                );
+        }
     }
 
     /// <summary>
     /// A dark world with a white floor 1.5 m below the eye, a white wall 7 m ahead, and on the wall a glowing panel of
     /// 0.6 m by 0.4 m a little to the right: the only light, which the floor takes from the rays that hit it.
     /// </summary>
-    private static (VulkanRenderer Renderer, RenderSnapshot Scene) GlowOverFloor()
+    private static (VulkanRenderer Renderer, RenderSnapshot Scene) GlowOverFloor() => SceneOverFloor(Dark(), panel: true);
+
+    /// <summary>
+    /// <paramref name="world"/> with a white floor 1.5 m below the eye, a white wall 7 m ahead, and with
+    /// <paramref name="panel"/> the glowing panel of <see cref="GlowOverFloor"/> on the wall.
+    /// </summary>
+    private static (VulkanRenderer Renderer, RenderSnapshot Scene) SceneOverFloor(RenderSnapshot world, bool panel)
     {
         VulkanRenderer renderer = Gpu.Headless(
             width: Width,
@@ -232,21 +312,22 @@ public sealed class GuidedRaysRenderTests
             screenTrace: ScreenTrace.Default,
             warmUpFrames: 0
         );
-        RenderSnapshot scene = Dark();
+        RenderSnapshot scene = world;
         MaterialDesc white = MaterialDesc.Color(Vector4.One, roughness: 1f);
         MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
         scene.Instances.Add(Floor(renderer, white));
         scene.Instances.Add(
             Block(box: box, material: renderer.CreateMaterial(white), center: new(0, 2, -7.5f), size: new(30, 7, 1))
         );
-        scene.Instances.Add(
-            Block(
-                box: box,
-                material: Glow(renderer, new(PatchGlow)),
-                center: PanelCenter,
-                size: new(0.6f, 0.4f, 0.02f)
-            )
-        );
+        if (panel)
+            scene.Instances.Add(
+                Block(
+                    box: box,
+                    material: Glow(renderer, new(PatchGlow)),
+                    center: PanelCenter,
+                    size: new(0.6f, 0.4f, 0.02f)
+                )
+            );
         return (renderer, scene);
     }
 
@@ -286,11 +367,17 @@ public sealed class GuidedRaysRenderTests
 
     /// <summary>
     /// The floor's diffuse samples over <paramref name="frames"/> frames from frame <paramref name="skipped"/> on: the mean
-    /// luminance, its standard error from the frames' means, and the mean over the pixels of each pixel's variance.
+    /// luminance, its standard error from the frames' means, and the mean over the pixels of each pixel's variance. With
+    /// <paramref name="graySky"/>, a gray sky of 0.5 also lights the floor, through the rays that miss.
     /// </summary>
-    private static (double Mean, double Error, double Variance) BounceLight(bool[] floor, int frames, int skipped)
+    private static (double Mean, double Error, double Variance) BounceLight(
+        bool[] floor,
+        int frames,
+        int skipped,
+        bool graySky
+    )
     {
-        (VulkanRenderer renderer, RenderSnapshot scene) = GlowOverFloor();
+        (VulkanRenderer renderer, RenderSnapshot scene) = SceneOverFloor(graySky ? Gray(0.5f) : Dark(), panel: true);
         try
         {
             int pixels = floor.Count(pixel => pixel);
@@ -334,9 +421,10 @@ public sealed class GuidedRaysRenderTests
     /// <summary>
     /// Compares each block's diffuse density with the cosine density of its direction at its chosen pixel, over the floor
     /// blocks of the last frame: how many it compared, and how many lie above it, which only a guided density explains.
-    /// Every density must be at least the cosine share of the mixture.
+    /// Every density must be at least the cosine share of the mixture. Also how many lie below the cosine density, which
+    /// only the mixture explains.
     /// </summary>
-    private static (int Compared, int Above) CompareBlockDensities(VulkanRenderer renderer)
+    private static (int Compared, int Above, int Below) CompareBlockDensities(VulkanRenderer renderer)
     {
         float[] plan = renderer.ReadImage(renderer.ScreenTraceImages.Plan);
         float[] records = renderer.ReadImageLayer(renderer.ScreenTraceImages.BlockRay, 1);
@@ -344,7 +432,8 @@ public sealed class GuidedRaysRenderTests
         float[] distances = renderer.ReadDistance();
         float share = renderer.ScreenTraceImages.Guided ? LightPyramid.GuidedShare : 0;
         int compared = 0,
-            above = 0;
+            above = 0,
+            below = 0;
         // Each block from its top left corner, at even coordinates: from row 50, below the horizon at row 45.
         for (int y = Height / 2 + 5; y < Height - 1; y += 2)
         for (int x = 0; x < Width - 1; x += 2)
@@ -367,15 +456,18 @@ public sealed class GuidedRaysRenderTests
             density.Should().BeGreaterThanOrEqualTo((1 - share) * cosine * 0.98, "the cosine draw's share stays");
             if (density > cosine * 1.05 + 1e-4)
                 above++;
+            if (density < cosine * 0.98 - 1e-4)
+                below++;
             compared++;
         }
-        return (compared, above);
+        return (compared, above, below);
     }
 
     /// <summary>
     /// Compares each floor block's diffuse density with the C# copy's mixture density, over the blocks of the last frame
     /// whose ray hit: the copy rebuilds the ray's origin from the chosen pixel's distance and the frame's jitter, and the
-    /// hit pixel from the hit distance. Returns how many it compared, and how many have a guided density above 0.
+    /// hit pixel from the hit distance. Fewer than 1 in 20 may differ by more than 1.5 %. Returns how many it compared,
+    /// and how many have a guided density above 0.
     /// </summary>
     private static (int Compared, int Guided) CompareHitDensities(VulkanRenderer renderer)
     {
@@ -392,8 +484,8 @@ public sealed class GuidedRaysRenderTests
         float[] normals = renderer.ReadNormals();
         float[] distances = renderer.ReadDistance();
         int compared = 0,
-            guided = 0,
-            atProjected = 0;
+            guided = 0;
+        var mismatched = new List<string>();
         for (int y = Height / 2 + 5; y < Height - 1; y += 2)
         for (int x = 0; x < Width - 1; x += 2)
         {
@@ -408,52 +500,48 @@ public sealed class GuidedRaysRenderTests
             float hitDistance = hits[record + 3];
             if (distances[pixel] <= 0 || ((int)records[record + 3] & 1) == 0 || hitDistance <= 0)
                 continue;
-            Vector3 normal = OctahedralNormal.Decode(new(normals[4 * pixel], normals[4 * pixel + 1]));
             Vector3 direction = OctahedralNormal.Decode(
                 new(records[record] * (2 / 65535f) - 1, records[record + 1] * (2 / 65535f) - 1)
             );
-            Vector3 ray = camera.ViewRayThrough(new Vector2(start.X + 0.5f, start.Y + 0.5f) + jitter);
-            float viewDepth = distances[pixel] / ray.Length();
-            Vector3 geometricNormal = OctahedralNormal.Decode(new(normals[4 * pixel + 2], normals[4 * pixel + 3]));
-            // The origin stands off the surface along the geometric normal, as tracingPixelAt places it.
-            Vector3 origin =
-                Vector3.Normalize(ray) * distances[pixel]
-                + geometricNormal * ScreenRay.OriginOffset(viewDepth, camera.PixelAngle);
+            Vector3 origin = OriginOf(camera: camera, jitter: jitter, pixel: start, distance: distances[pixel], normals: normals);
+            // The hit distance runs from the origin to the hit pixel's center on its surface, not along the ray, so a few
+            // points project into a neighbor of the hit pixel, whose 3 × 3 pixels differ.
             Vector2 place = camera.PixelOf(origin + direction * hitDistance) - jitter;
-            (int X, int Y) projected = ((int)MathF.Floor(place.X), (int)MathF.Floor(place.Y));
+            float guidedDensity = light.GuidedDensity(
+                camera: camera,
+                depth: depth,
+                origin: origin,
+                direction: direction,
+                hit: ((int)MathF.Floor(place.X), (int)MathF.Floor(place.Y)),
+                jitter: jitter
+            );
+            Vector3 normal = OctahedralNormal.Decode(new(normals[4 * pixel], normals[4 * pixel + 1]));
+            double expected = LightPyramid.MixtureDensity(
+                MathF.Max(Vector3.Dot(normal, direction), 0) / MathF.PI,
+                guidedDensity
+            );
             double density = Math.Pow(2, (double)BitConverter.UInt16BitsToHalf((ushort)records[record + 2]));
-            float cosine = MathF.Max(Vector3.Dot(normal, direction), 0) / MathF.PI;
-            // The hit distance runs from the origin to the hit pixel's center on its surface, not along the ray, so its
-            // point can project into a neighbor of the hit pixel. So the copy's density of one of the 3 × 3 pixels around
-            // that point must match.
-            (int X, int Y)? matched = null;
-            float matchedGuided = 0;
-            for (int neighbor = 0; neighbor < 9 && matched is null; neighbor++)
-            {
-                // The projected pixel first, then its neighbors.
-                int index = (neighbor + 4) % 9;
-                (int X, int Y) hit = (projected.X + index % 3 - 1, projected.Y + index / 3 - 1);
-                float guidedDensity = light.GuidedDensity(
-                    camera: camera,
-                    depth: depth,
-                    origin: origin,
-                    direction: direction,
-                    hit: hit,
-                    jitter: jitter
-                );
-                double expected = LightPyramid.MixtureDensity(cosine, guidedDensity);
-                if (Math.Abs(density - expected) <= Math.Max(0.015 * expected, 1e-6))
-                    (matched, matchedGuided) = (hit, guidedDensity);
-            }
-            matched.Should().NotBeNull($"the block at ({x}, {y}) has the density {density} and projects to {projected}");
+            if (Math.Abs(density - expected) > Math.Max(0.015 * expected, 1e-6))
+                mismatched.Add($"({x}, {y}): {density} against {expected}");
             compared++;
-            if (matched == projected)
-                atProjected++;
-            if (matchedGuided > 0)
+            if (guidedDensity > 0)
                 guided++;
         }
-        atProjected.Should().BeGreaterThan(9 * compared / 10, "most hit points project into their hit pixel");
+        mismatched.Count.Should().BeLessThan(compared / 20, string.Join("; ", mismatched));
         return (compared, guided);
+    }
+
+    /// <summary>
+    /// The origin of the rays of <paramref name="pixel"/>, camera-relative: its surface point on the jittered view ray at
+    /// its distance, off the surface along its geometric normal, as tracingPixelAt in screen_trace.glsl places it.
+    /// </summary>
+    private static Vector3 OriginOf(in CameraView camera, Vector2 jitter, (int X, int Y) pixel, float distance, float[] normals)
+    {
+        int index = pixel.Y * Width + pixel.X;
+        Vector3 geometricNormal = OctahedralNormal.Decode(new(normals[4 * index + 2], normals[4 * index + 3]));
+        Vector3 ray = camera.ViewRayThrough(new Vector2(pixel.X + 0.5f, pixel.Y + 0.5f) + jitter);
+        float viewDepth = distance / ray.Length();
+        return Vector3.Normalize(ray) * distance + geometricNormal * ScreenRay.OriginOffset(viewDepth, camera.PixelAngle);
     }
 
     private static float Luminance(Vector3 light) => Vector3.Dot(light, new(0.2126f, 0.7152f, 0.0722f));
