@@ -1,6 +1,6 @@
 ---
 id: ter-yfb5
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-11-09T04:14:05Z
