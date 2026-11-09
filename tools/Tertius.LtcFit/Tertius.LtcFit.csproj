@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The fit of the LTC table of rectangle lights to the GGX lobe of Tertius.Rendering (tools/README.md, "The LTC table").
+    It writes src/Tertius.Rendering/Shading/LtcTable.bin, which the renderer embeds.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/Tertius.Rendering/Tertius.Rendering.csproj" />
+    <InternalsVisibleTo Include="Tertius.Rendering.Tests" />
+  </ItemGroup>
+</Project>

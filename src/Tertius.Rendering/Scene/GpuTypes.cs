@@ -260,11 +260,11 @@ internal struct GpuMaterial
 }
 
 /// <summary>
-/// One light in the light storage buffer (std430, binding 3 of the frame set). 112 bytes, the last 12 unused.
+/// One light in the light storage buffer (std430, binding 3 of the frame set). 128 bytes, the last 12 unused.
 /// <see cref="From"/> is the one place that encodes a <see cref="PreparedLight"/>, its spread, its shadow slot, its map
 /// and whether the main view keeps it for the shaders.
 /// </summary>
-[StructLayout(LayoutKind.Sequential, Size = 112)]
+[StructLayout(LayoutKind.Sequential, Size = 128)]
 internal struct GpuLight
 {
     /// <summary>The kind of a point light in <see cref="IntensityKind"/>.w.</summary>
@@ -275,6 +275,9 @@ internal struct GpuLight
 
     /// <summary>The kind of a tube light, a point light with a segment, in <see cref="IntensityKind"/>.w.</summary>
     public const float TubeKind = 2f;
+
+    /// <summary>The kind of a rectangle light in <see cref="IntensityKind"/>.w.</summary>
+    public const float RectKind = 3f;
 
     /// <summary>The slot of a light without shadows, in <see cref="Shadow"/>.x.</summary>
     public const uint NoSlot = 0;
@@ -292,19 +295,22 @@ internal struct GpuLight
     public Vector4 PositionReach;
 
     /// <summary>
-    /// rgb color × intensity in W/sr, a tube light's across its segment; w the kind: <see cref="PointKind"/>,
-    /// <see cref="SpotKind"/> or <see cref="TubeKind"/>.
+    /// rgb color × intensity in W/sr, a tube light's across its segment and a rectangle light's across its face; w the kind:
+    /// <see cref="PointKind"/>, <see cref="SpotKind"/>, <see cref="TubeKind"/> or <see cref="RectKind"/>.
     /// </summary>
     public Vector4 IntensityKind;
 
     /// <summary>
     /// xyz the unit spot axis, w cos(outer half-angle). For a tube light, xyz from its position to one end of its segment and
-    /// w zero. Zero for a point light.
+    /// w zero. For a rectangle light, xyz its half width and w zero. Zero for a point light.
     /// </summary>
     public Vector4 DirectionCosOuter;
 
     /// <summary>x cos(inner half-angle), zero for a point light; y the emitter's radius in meters.</summary>
     public Vector4 SpotRadius;
+
+    /// <summary>xyz a rectangle light's half height, perpendicular to its half width; zero for every other light.</summary>
+    public Vector4 HalfHeight;
 
     /// <summary>x the slot; y the cascade set or the first tile view; z the tile views.</summary>
     public UInt4 Shadow;
@@ -331,20 +337,28 @@ internal struct GpuLight
     /// </summary>
     public static GpuLight From(in PreparedLight light)
     {
-        (Vector4 axis, float cosInner, float kind) = light.Spread switch
+        (Vector4 axis, Vector4 halfHeight, float cosInner, float kind) = light.Spread switch
         {
             Cone { Axis: var direction, CosInner: var inner, CosOuter: var outer } => (
                 new Vector4(direction, outer),
+                Vector4.Zero,
                 inner,
                 SpotKind
             ),
             // A segment within 10^−6 m of its middle is a point, and its square stays a normal float in the shader.
             EveryDirection { HalfSegment: var half } when half.LengthSquared() > 1e-12f => (
                 new Vector4(half, 0),
+                Vector4.Zero,
                 0f,
                 TubeKind
             ),
-            EveryDirection => (Vector4.Zero, 0f, PointKind),
+            EveryDirection => (Vector4.Zero, Vector4.Zero, 0f, PointKind),
+            RectFace { HalfWidth: var width, HalfHeight: var height } => (
+                new Vector4(width, 0),
+                new Vector4(height, 0),
+                0f,
+                RectKind
+            ),
         };
         (UInt4 shadow, UInt3 occluders) = light.Shadow switch
         {
@@ -365,6 +379,7 @@ internal struct GpuLight
             IntensityKind = new(ShaderInput.Intensity(light.RadiantIntensity), kind),
             DirectionCosOuter = axis,
             SpotRadius = new(x: cosInner, y: MathF.Min(light.Radius, ShaderInput.PositionLimit), z: 0, w: 0),
+            HalfHeight = halfHeight,
             Shadow = shadow,
             Occluders = occluders,
             Map = (uint)light.Map,

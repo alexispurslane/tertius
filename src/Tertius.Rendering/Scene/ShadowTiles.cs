@@ -206,7 +206,8 @@ internal sealed class ShadowTiles
         light.Spread switch
         {
             Cone { OuterAngle: <= WidestCone } => 1,
-            Cone or EveryDirection => CubeFaces.Count,
+            // A rectangle light's shadow falls from its center into its whole front, which no one cone holds.
+            Cone or EveryDirection or RectFace => CubeFaces.Count,
         };
 
     /// <summary>Camera-relative world space to the tile's clip space, row-vector form: reversed-Z, infinite far plane.</summary>
@@ -703,6 +704,7 @@ internal sealed class ShadowTiles
                     nameof(aim)
                 ),
                 (ConeAim, EveryDirection) => throw new ArgumentException("A point light has no cone.", nameof(aim)),
+                (ConeAim, RectFace) => throw new ArgumentException("A rectangle light has no cone.", nameof(aim)),
             };
         }
 

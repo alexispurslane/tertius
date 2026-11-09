@@ -337,6 +337,12 @@ internal sealed unsafe class FrameResources : IDisposable
         // The tables never change, so their bindings are written once.
         layouts.WriteImage(set: FrameSet, binding: 8, arrayElement: 0, image: tables.Dfg);
         layouts.WriteImage(set: FrameSet, binding: 9, arrayElement: 0, image: tables.LobeSky);
+        layouts.WriteImage(
+            set: FrameSet,
+            binding: DescriptorLayouts.LtcTableBinding,
+            arrayElement: 0,
+            image: tables.Ltc
+        );
         // The renderer has one exposure buffer for its life, which every frame passes on to the next.
         layouts.WriteBuffer(set: FrameSet, binding: 11, type: DescriptorType.StorageBuffer, buffer: exposure);
         if (ShadowTiles is { } tiles)

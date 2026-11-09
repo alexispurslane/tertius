@@ -24,6 +24,12 @@
     <InternalsVisibleTo Include="Tertius.ReflectionReference" />
     <InternalsVisibleTo Include="Tertius.Benchmarks" />
     <InternalsVisibleTo Include="Tertius.Host.Tests" />
+    <InternalsVisibleTo Include="Tertius.LtcFit" />
+  </ItemGroup>
+  <!-- The LTC table of the rectangle lights, which tools/Tertius.LtcFit fits to our GGX lobe (tools/README.md, "The LTC
+       table"). -->
+  <ItemGroup>
+    <EmbeddedResource Include="Shading/LtcTable.bin" LogicalName="Tertius.Rendering.LtcTable.bin" WithCulture="false" />
   </ItemGroup>
 
   <!-- GLSL 4.60 shaders. Each stage file becomes one SPIR-V module, embedded as Tertius.Rendering.Shaders.<file>.spv.

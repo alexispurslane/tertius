@@ -7,7 +7,8 @@
 // Each light of the one light list adds f · E · (N·L), where E is its irradiance (docs/plans/local-light-shadows.md, "The
 // shaders"), and its specular part sees the light as a sphere of its radius (docs/plans/pbr-brdf.md, "Sized lights").
 // A tube light is a capsule, whose diffuse part takes its vector irradiance and whose specular part its representative
-// point (ARCHITECTURE.md, "Tube lights").
+// point (ARCHITECTURE.md, "Tube lights"). A rectangle light is a one-sided face, whose diffuse part takes the exact edge
+// sum cut at the horizon and whose specular part the LTC of the lobe (ARCHITECTURE.md, "Rectangle lights").
 // A hair pixel takes each light's response of a fiber instead (hair.glsl), from either side of its card, and its
 // ambient light at its fiber normal, its shading normal (docs/plans/skin-and-hair.md, "The hair model"). A skin pixel
 // shades as the standard model, with metallic 0. The ambient light comes from one ambient source,
@@ -257,9 +258,87 @@ vec3 tubeLightDirection(vec3 toCenter, vec3 halfSegment, float radius, float sol
     return sphereLightDirection(normalizedOr(closest, normalizedOr(toCenter, R)), R, crossSine);
 }
 
+// RectView.SolidAngle: Ω, the solid angle in sr of a rectangle light's face centered toCenter from the shaded point with
+// the half sides halfWidth and halfHeight, whose cross product points to its front, or 0 behind the face. The triangles
+// (c0, c1, c2) and (c0, c2, c3) of Van Oosterom and Strackee each have the triple product 4 · height. The corners are
+// taken in units of the center's distance, where Ω is the same and no product overflows.
+float rectSolidAngle(vec3 toCenter, vec3 halfWidth, vec3 halfHeight)
+{
+    float scale = 1.0 / max(length(toCenter), 1e-6);
+    vec3 c = toCenter * scale;
+    vec3 w = halfWidth * scale;
+    vec3 h = halfHeight * scale;
+    // The point's height over the face's plane, times the half sides' lengths: in front where it is above 0.
+    float height = -dot(c, cross(w, h));
+    if (height <= 0.0)
+        return 0.0;
+    vec3 c0 = c - w - h;
+    vec3 c1 = c - w + h;
+    vec3 c2 = c + w + h;
+    vec3 c3 = c + w - h;
+    float l0 = length(c0);
+    float l1 = length(c1);
+    float l2 = length(c2);
+    float l3 = length(c3);
+    float first = l0 * l1 * l2 + dot(c0, c1) * l2 + dot(c0, c2) * l1 + dot(c1, c2) * l0;
+    float second = l0 * l2 * l3 + dot(c0, c2) * l3 + dot(c0, c3) * l2 + dot(c2, c3) * l0;
+    // atan's y is above 0, so it is defined for every x.
+    return 2.0 * (atan(4.0 * height, first) + atan(4.0 * height, second));
+}
+
+// RectView.EdgeVector: θ n̂ of the arc from the direction of a to that of b, its angle times the unit normal of its plane;
+// zero for an arc of no length. atan of the unnormalized sine and cosine keeps the angle exact near 0 and π, where acos
+// loses it.
+vec3 edgeVector(vec3 a, vec3 b)
+{
+    vec3 normal = cross(a, b);
+    float sine = length(normal);
+    return sine > 0.0 ? normal * (atan(sine, dot(a, b)) / sine) : vec3(0.0);
+}
+
+// RectView.CutCosine: ∫ max(ω_z, 0) dω over the convex quad q seen from the origin, in sr: Lambert's edge sum over its
+// part above z = 0. The cut leaves at most one way out and one way back in, which the horizon's arc joins. The quad winds
+// clockwise about the direction from the origin toward it, so the sum is above 0.
+float cutCosine(vec3 q[4])
+{
+    float sum = 0.0;
+    vec3 exitPoint = vec3(0.0);
+    vec3 entryPoint = vec3(0.0);
+    bool cut = false;
+    for (int i = 0; i < 4; i++)
+    {
+        vec3 a = q[i];
+        vec3 b = q[(i + 1) & 3];
+        bool aAbove = a.z >= 0.0;
+        bool bAbove = b.z >= 0.0;
+        if (aAbove && bAbove)
+            sum += edgeVector(a, b).z;
+        else if (aAbove || bAbove)
+        {
+            // The signs of a.z and b.z differ, so the division is finite.
+            vec3 crossing = mix(a, b, a.z / (a.z - b.z));
+            cut = true;
+            if (aAbove)
+            {
+                sum += edgeVector(a, crossing).z;
+                exitPoint = crossing;
+            }
+            else
+            {
+                sum += edgeVector(crossing, b).z;
+                entryPoint = crossing;
+            }
+        }
+    }
+    if (cut)
+        sum += edgeVector(exitPoint, entryPoint).z;
+    return max(0.5 * sum, 0.0);
+}
+
 // The path from a surface point to a light of the list, before its shadows. lightIrradiance gives its first part: the
-// light's irradiance there, the direction of its diffuse light with that light's share and a tube's solid angle, L the
-// unit direction toward the light's center and d its distance, and the inputs of a tube's response. lightPath gives the
+// light's irradiance there, the direction of its diffuse light with that light's share and a tube's or a rectangle's solid
+// angle, L the unit direction toward the light's center and d its distance, and the inputs of a tube's or a rectangle's
+// response. lightPath gives the
 // rest, what its shadow lookup takes: the geometric normal turned toward the light and the sine of its angle with L.
 struct LightPath
 {
@@ -273,6 +352,9 @@ struct LightPath
     // A tube's half segment and its radius, in m, at least NearestDistance. Only a tube with some irradiance sets them.
     vec3 halfSegment;
     float tubeRadius;
+    // A rectangle's half width and half height, in m. Only a rectangle with some irradiance sets them.
+    vec3 halfWidth;
+    vec3 halfHeight;
     vec3 shadowNormal;
     float sinTheta;
 };
@@ -281,10 +363,11 @@ struct LightPath
 // channel is color × intensity over max(d², R², NearestDistance²), times the window of Karis 2013 to the reach and a
 // spot light's cone, and the air's tint for the atmosphere's sun, the light at frame.counts.y, at most IrradianceLimit.
 // 0 at or beyond the reach. A tube light sends its scalar irradiance instead: its face radiance times its solid angle,
-// with the window of its reach from its segment. `tinted` may be false only when frame.counts.y is NoAirSun: a constant
-// false leaves the tint's code out of the caller's loop. L is zero when the position is at the light's center. `cosine`
-// is the direction of the diffuse light times its share of the irradiance: L, or a tube's cosine vector over its solid
-// angle, `solidAngle`, which is 0 for every other light.
+// with the window of its reach from its segment, and so does a rectangle light, with the window of its reach from its
+// face, and none behind its face. `tinted` may be false only when frame.counts.y is NoAirSun: a constant false leaves the
+// tint's code out of the caller's loop. L is zero when the position is at the light's center. `cosine` is the direction
+// of the diffuse light times its share of the irradiance: L, or a tube's cosine vector over its solid angle,
+// `solidAngle`, which is 0 for a point and a spot light. A rectangle keeps L: rectResponse cuts its face itself.
 void lightIrradiance(uint index, bool tinted, vec3 position, out LightPath p)
 {
     GpuLight light = lights[index];
@@ -323,6 +406,34 @@ void lightIrradiance(uint index, bool tinted, vec3 position, out LightPath p)
         // The peak intensity over the area that the capsule shows across its segment is its face radiance.
         falloff = window * window * view.solidAngle
             / (4.0 * p.tubeRadius * halfLength + PI * p.tubeRadius * p.tubeRadius);
+    }
+    else if (light.intensityKind.w == RectKind)
+    {
+        // SceneBatcher.Shines keeps a rectangle with sides of at least 1 µm, so the squares of its half sides are normal
+        // floats.
+        vec3 halfWidth = light.directionCosOuter.xyz;
+        vec3 halfHeight = light.halfHeight.xyz;
+        float widthSq = dot(halfWidth, halfWidth);
+        float heightSq = dot(halfHeight, halfHeight);
+        // From the point to the face's nearest point: the center moved toward the point along each side, at most a half
+        // side.
+        vec3 toNearest = p.toCenter - clamp(dot(p.toCenter, halfWidth) / widthSq, -1.0, 1.0) * halfWidth
+            - clamp(dot(p.toCenter, halfHeight) / heightSq, -1.0, 1.0) * halfHeight;
+        float nearestSq = dot(toNearest, toNearest);
+        // The reach holds the face: its peak intensity's reach from the face, plus half its diagonal.
+        float faceReach = max(reach - sqrt(widthSq + heightSq), 0.0);
+        if (nearestSq >= faceReach * faceReach)
+            return;
+        p.solidAngle = rectSolidAngle(p.toCenter, halfWidth, halfHeight);
+        // Behind the face.
+        if (p.solidAngle <= 0.0)
+            return;
+        float ratio = nearestSq / (faceReach * faceReach);
+        float window = clamp(1.0 - ratio * ratio, 0.0, 1.0);
+        p.halfWidth = halfWidth;
+        p.halfHeight = halfHeight;
+        // The peak intensity over the face's area is its face radiance.
+        falloff = window * window * p.solidAngle / (4.0 * length(cross(halfWidth, halfHeight)));
     }
     else
     {
@@ -460,15 +571,27 @@ bool viewKeeps(uint view, GpuLight light)
     return view == MainView ? light.inMainView != 0u : light.map <= view;
 }
 
+// Whether some corner of the rectangle of path p lies above the plane through the shaded point with the normal n: then
+// some part of the face does, because the face is convex.
+bool rectAbove(vec3 n, LightPath p)
+{
+    return dot(n, p.toCenter) + abs(dot(n, p.halfWidth)) + abs(dot(n, p.halfHeight)) > 0.0;
+}
+
 // The path from a surface point to light `index`, or false where the point takes none of its light. `fiber` as in respond,
 // `tinted` as in lightIrradiance. The point takes the light that arrives along its diffuse direction, which is L but for a
-// tube. A surface's geometric normal faces every point light that it takes (takesLight), so only a fiber's turns, or a
+// tube, and a surface takes a rectangle's light where some of its face lies above both of its horizons. A surface's geometric normal faces every point light that it takes (takesLight), so only a fiber's turns, or a
 // surface's toward the middle of a tube that it takes from beyond its horizon. The sine of the angle to the light is the
 // same on both sides of a card.
 bool lightPath(uint index, bool fiber, bool tinted, ShadingInput s, out LightPath p)
 {
     lightIrradiance(index, tinted, s.position, p);
-    if (p.irradiance == vec3(0.0) || !takesLight(fiber, s, p.cosine, dot(s.geometricNormal, p.cosine)))
+    if (p.irradiance == vec3(0.0))
+        return false;
+    bool takes = lights[index].intensityKind.w == RectKind
+        ? fiber || rectAbove(s.normal, p) && rectAbove(s.geometricNormal, p)
+        : takesLight(fiber, s, p.cosine, dot(s.geometricNormal, p.cosine));
+    if (!takes)
         return false;
     float geometricNdotL = dot(s.geometricNormal, p.L);
     p.shadowNormal = geometricNdotL < 0.0 ? -s.geometricNormal : s.geometricNormal;
@@ -511,14 +634,71 @@ DirectTerms tubeResponse(bool fiber, ShadingInput s, SurfaceLobes lobes, vec3 V,
     return terms;
 }
 
+// MaterialSample.RectTerms per unit of the rectangle's scalar irradiance (ARCHITECTURE.md, "Rectangle lights"): c_diff / π
+// times the face's cosine integral cut at the shading normal's horizon, and the compensated specular albedo times the
+// share of the lobe's LTC that the face covers, cut at the LTC's own horizon, each over the face's solid angle. Both sums
+// take the corners in the LTC's frame, whose x points toward the view: the cosine integral does not depend on the
+// tangents. A fiber shades the face as a point light along its vector irradiance, dimmed by that vector's length over the
+// solid angle, as it shades a tube.
+DirectTerms rectResponse(bool fiber, ShadingInput s, SurfaceLobes lobes, vec3 V, LightPath p)
+{
+    // In units of the center's distance, where the sums are the same and no product overflows.
+    float scale = 1.0 / max(p.d, 1e-6);
+    vec3 c = p.toCenter * scale;
+    vec3 w = p.halfWidth * scale;
+    vec3 h = p.halfHeight * scale;
+    // −w −h, −w +h, +w +h, +w −h: clockwise about the front, seen from it.
+    vec3 corners[4] = vec3[4](c - w - h, c - w + h, c + w + h, c + w - h);
+    float inverseSolidAngle = 1.0 / max(p.solidAngle, 1e-30);
+    DirectTerms terms;
+    terms.diffuse = vec3(0.0);
+    terms.specular = vec3(0.0);
+    if (fiber)
+    {
+        vec3 vector = 0.5 * (edgeVector(corners[0], corners[1]) + edgeVector(corners[1], corners[2])
+            + edgeVector(corners[2], corners[3]) + edgeVector(corners[3], corners[0]));
+        terms = hairResponse(s, lobes, V, normalizedOr(vector, p.L));
+        float share = length(vector) * inverseSolidAngle;
+        terms.diffuse *= share;
+        terms.specular *= share;
+        return terms;
+    }
+    vec3 N = s.normal;
+    vec3 along = V - N * dot(V, N);
+    // Head on the LTC is round about the normal, so any tangent serves.
+    vec3 first = dot(along, along) > 1e-10
+        ? normalize(along)
+        : normalize(cross(abs(N.x) < 0.9 ? vec3(1.0, 0.0, 0.0) : vec3(0.0, 1.0, 0.0), N));
+    vec3 second = cross(N, first);
+    vec4 inverse = ltcAt(lobes.NdotV, flooredRoughness(s.roughness));
+    vec3 local[4];
+    vec3 lobe[4];
+    for (int i = 0; i < 4; i++)
+    {
+        local[i] = vec3(dot(corners[i], first), dot(corners[i], second), dot(corners[i], N));
+        lobe[i] = vec3(inverse.x * local[i].x + inverse.y * local[i].z, local[i].y,
+            inverse.z * local[i].x + inverse.w * local[i].z);
+    }
+    float cosine = cutCosine(local);
+    if (cosine <= 0.0)
+        return terms;
+    terms.diffuse = lobes.diffuseColor / PI * (cosine * inverseSolidAngle);
+    terms.specular = specularWeight(lobes) * (cutCosine(lobe) / PI * inverseSolidAngle);
+    return terms;
+}
+
 // The light of light `index` along its path from `s.position` before its shadows, in its two parts: its irradiance times
 // the response, plain radiance. `fiber` as in respond.
 DirectTerms pathLight(uint index, bool fiber, ShadingInput s, SurfaceLobes lobes, vec3 V, LightPath p)
 {
     GpuLight light = lights[index];
-    DirectTerms terms = light.intensityKind.w == TubeKind
-        ? tubeResponse(fiber, s, lobes, V, p)
-        : respond(fiber, s, lobes, V, p.L, lightSineAt(light, p.d));
+    DirectTerms terms;
+    if (light.intensityKind.w == TubeKind)
+        terms = tubeResponse(fiber, s, lobes, V, p);
+    else if (light.intensityKind.w == RectKind)
+        terms = rectResponse(fiber, s, lobes, V, p);
+    else
+        terms = respond(fiber, s, lobes, V, p.L, lightSineAt(light, p.d));
     terms.diffuse *= p.irradiance;
     terms.specular *= p.irradiance;
     return terms;
@@ -634,7 +814,7 @@ vec3 scatteredLight(vec3 albedo, vec3 position, uint map)
         GpuLight light = lights[i];
         if (!viewKeeps(MainView, light))
             continue;
-        // A puff scatters a tube's scalar irradiance, so it leaves the diffuse direction aside.
+        // A puff scatters a tube's or a rectangle's scalar irradiance, so it leaves the diffuse direction aside.
         LightPath p;
         // The puffs keep one loop for every frame, so they pay the compare with frame.counts.y for each light.
         lightIrradiance(i, true, position, p);

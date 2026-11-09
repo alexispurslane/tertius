@@ -1,0 +1,9 @@
+{
+  "scene": "demo-surface",
+  "window": { "width": 1280, "height": 720 },
+  "steps": [
+    { "do": "camera", "entity": "bay-camera" },
+    { "do": "film", "name": "settle", "frames": 240, "every": 1 },
+    { "do": "capture", "name": "bay" }
+  ]
+}

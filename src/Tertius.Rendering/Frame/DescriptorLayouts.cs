@@ -145,6 +145,9 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// <summary>The binding of the last drawn frame's kept positions in the frame set.</summary>
     public const uint KeptPositionsBinding = 18;
 
+    /// <summary>The binding of the frame set that holds the LTC table of the rectangle lights (brdf.glsl, ltcTable).</summary>
+    public const uint LtcTableBinding = 19;
+
     /// <summary>The binding of this frame's kept positions in the deform set.</summary>
     public const uint DeformKeptPositionsBinding = 5;
 
@@ -1175,6 +1178,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             StorageBuffer(binding: MotionsBinding, stages: graphics),
             // The last drawn frame's kept positions, which the G-buffer's vertex stage reads.
             StorageBuffer(binding: KeptPositionsBinding, stages: ShaderStageFlags.VertexBit),
+            // The LTC table of the rectangle lights, which every pass that shades lights reads beside the other tables.
+            Image(binding: LtcTableBinding, stages: shading),
         ];
         Span<DescriptorBindingFlags> flags = stackalloc DescriptorBindingFlags[frame.Length];
         foreach (uint binding in (ReadOnlySpan<uint>)[12, 14, ShadowAtlas.TileViewsBinding, 16, KeptPositionsBinding])

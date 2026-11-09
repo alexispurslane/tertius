@@ -57,7 +57,7 @@ public sealed class RenderSnapshotKeyTests
         uint generation = light switch
         {
             PointRenderLight { EntityGeneration: var g } => g,
-            SpotRenderLight or TubeRenderLight => throw new InvalidOperationException("The lamp is a point light."),
+            SpotRenderLight or TubeRenderLight or RectRenderLight => throw new InvalidOperationException("The lamp is a point light."),
             null => throw new InvalidOperationException("The lamp has no light."),
         };
         generation.Should().Be(lamp.Generation).And.NotBe(first.Generation);
@@ -81,7 +81,7 @@ public sealed class RenderSnapshotKeyTests
         uint generation = light switch
         {
             SpotRenderLight { EntityGeneration: var g } => g,
-            PointRenderLight or TubeRenderLight => throw new InvalidOperationException("The lamp is a spot light."),
+            PointRenderLight or TubeRenderLight or RectRenderLight => throw new InvalidOperationException("The lamp is a spot light."),
             null => throw new InvalidOperationException("The lamp has no light."),
         };
         generation.Should().Be(lamp.Generation).And.NotBe(first.Generation);

@@ -434,6 +434,16 @@ nix develop --command dotnet run -c Release --project benchmarks/Tertius.Benchma
 
 The filter matches the full name of the method, with wildcards. A filter that names only the class runs every method of the class with every parameter value.
 
+## The LTC table
+
+`tools/Tertius.LtcFit` fits the LTC table of the rectangle lights to the renderer's own `GgxLobe` (ARCHITECTURE.md, "Rectangle lights"). It writes `src/Tertius.Rendering/Shading/LtcTable.bin`, 64 × 64 texels of four half floats, which the Rendering assembly embeds. Run it in the dev shell from the repository root:
+
+```bash
+nix develop --command dotnet run --project tools/Tertius.LtcFit -c Release -- src/Tertius.Rendering/Shading/LtcTable.bin
+```
+
+The fit takes about 6 s on 10 cores. It runs the rows in parallel, and each row's fit is deterministic, so a new run writes the same file. If you change `GgxLobe`, the roughness floor or the view cosine's floor, run the tool again and commit the new table. `LtcTableTests` fits rows 3, 32 and 63 again and fails when the stored table differs from them.
+
 ## FSR 3.1 golden values
 
 `tools/fsr3-golden/` holds tool code for the FSR 3.1 host (`Fsr3Upscaler`, ARCHITECTURE.md, "Upscaling: FSR 3.1"). The dev shell fetches AMD's FidelityFX SDK at tag `v1.1.4` into the variable `TERTIUS_FFX_SDK` (`native/fidelityfx-sdk.nix`). Both scripts read AMD's code from there and never from the network.

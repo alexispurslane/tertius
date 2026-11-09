@@ -43,11 +43,19 @@ internal readonly record struct Cone(Vector3 Axis, float CosInner, float CosOute
 }
 
 /// <summary>
-/// Which directions a light sends its power to: <see cref="EveryDirection"/> for a point or tube light, a <see cref="Cone"/>
-/// for a spot light. The default value is EveryDirection with no segment. This is a generated union
-/// (docs/plans/union-tooling.md).
+/// A rectangle light's spread: the half-space in front of its face, the rectangle from Position − HalfWidth − HalfHeight to
+/// Position + HalfWidth + HalfHeight, whose front is HalfWidth × HalfHeight (ARCHITECTURE.md, "Rectangle lights").
 /// </summary>
-[GeneratedUnion(typeof(EveryDirection), typeof(Cone), ZeroCase = typeof(EveryDirection))]
+/// <param name="HalfWidth">From the center to the middle of the edge at +width, camera-relative, in m.</param>
+/// <param name="HalfHeight">From the center to the middle of the edge at +height, perpendicular to the width, in m.</param>
+internal readonly record struct RectFace(Vector3 HalfWidth, Vector3 HalfHeight);
+
+/// <summary>
+/// Which directions a light sends its power to: <see cref="EveryDirection"/> for a point or tube light, a <see cref="Cone"/>
+/// for a spot light, a <see cref="RectFace"/> for a rectangle light. The default value is EveryDirection with no segment.
+/// This is a generated union (docs/plans/union-tooling.md).
+/// </summary>
+[GeneratedUnion(typeof(EveryDirection), typeof(Cone), typeof(RectFace), ZeroCase = typeof(EveryDirection))]
 internal readonly partial struct LightSpread;
 
 /// <summary>
@@ -96,12 +104,13 @@ internal struct PreparedLight
     /// <summary>The color × intensity, in W/sr per channel, from <see cref="LightUnits.RadiantIntensity"/>.</summary>
     public Vector3 RadiantIntensity;
 
-    /// <summary>The radius of the emitting sphere, or of a tube light's capsule, in m.</summary>
+    /// <summary>The radius of the emitting sphere, or of a tube light's capsule, in m; 0 for a rectangle light.</summary>
     public float Radius;
 
     /// <summary>
     /// Where the brightest channel falls to the cutoff irradiance, in m from <see cref="Position"/>: for a tube light, its
-    /// peak intensity's reach from its segment plus half its length.
+    /// peak intensity's reach from its segment plus half its length, and for a rectangle light from its face plus half its
+    /// diagonal.
     /// </summary>
     public float Reach;
 

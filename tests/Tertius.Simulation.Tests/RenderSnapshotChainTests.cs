@@ -349,6 +349,7 @@ public sealed class RenderSnapshotChainTests
                     PointRenderLight { ChainDepth: var depth } => depth,
                     SpotRenderLight { ChainDepth: var depth } => depth,
                     TubeRenderLight { ChainDepth: var depth } => depth,
+                    RectRenderLight { ChainDepth: var depth } => depth,
                     null => ushort.MaxValue,
                 }
             )

@@ -5,7 +5,7 @@ namespace Tertius.Rendering;
 internal readonly record struct MaterialSample(Double3 BaseColor, double Metallic, double Roughness, double Reflectance)
 {
     // A normal map can turn the shading normal away from the eye, and the visibility term divides by μ.
-    private const double MinViewCosine = 1e-4;
+    internal const double MinViewCosine = 1e-4;
 
     private static Double3 One => new(1, 1, 1);
 
@@ -101,6 +101,27 @@ internal readonly record struct MaterialSample(Double3 BaseColor, double Metalli
         }
 
         return new(Diffuse: DiffuseColor / Math.PI * cosine, Specular: specular);
+    }
+
+    /// <summary>
+    /// The light of a rectangle light toward <paramref name="toView"/> per unit of its face radiance, the C# copy of
+    /// rectResponse in lighting.glsl (ARCHITECTURE.md, "Rectangle lights"): c_diff / π times the face's cosine integral cut
+    /// at the horizon, and the compensated specular albedo times the share of the LTC of the lobe that the face covers.
+    /// </summary>
+    public DirectTerms RectTerms(Double3 normal, Double3 toView, RectView rect, BrdfTables tables, LtcTable ltc)
+    {
+        double cosine = rect.ClippedCosine(normal);
+        if (cosine <= 0)
+            return default;
+        double share = rect.LtcShare(
+            normal: normal,
+            toView: toView,
+            inverse: ltc.Sample(roughness: Lobe.Roughness, nDotV: ViewCosine(normal, toView))
+        );
+        return new(
+            Diffuse: DiffuseColor / Math.PI * cosine,
+            Specular: CompensatedSpecularAlbedo(normal: normal, toView: toView, tables: tables) * share
+        );
     }
 
     /// <summary>

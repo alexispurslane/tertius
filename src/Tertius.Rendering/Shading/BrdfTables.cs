@@ -168,7 +168,7 @@ internal sealed class BrdfTables
     /// A channel of a row-major table at the texture coordinate (u, v), filtered as a Vulkan linear sampler with clamp
     /// to edge.
     /// </summary>
-    private static double Bilinear(Half[] table, int width, int height, int channels, int channel, double u, double v)
+    internal static double Bilinear(Half[] table, int width, int height, int channels, int channel, double u, double v)
     {
         (int left, int right, double across) = Neighbors(u, width);
         (int top, int bottom, double down) = Neighbors(v, height);

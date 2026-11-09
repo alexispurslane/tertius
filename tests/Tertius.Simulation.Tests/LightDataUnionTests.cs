@@ -63,6 +63,7 @@ public sealed class LightDataUnionTests
             PointLightData { Power: var power, Radius: var radius } => $"point {power} {radius}",
             SpotLightData { InnerConeAngle: var inner, OuterConeAngle: var outer } => $"spot {inner} {outer}",
             TubeLightData { Length: var length } => $"tube {length}",
+            RectLightData { Width: var width } => $"rect {width}",
             null => "none",
         };
 
@@ -219,6 +220,7 @@ public sealed class LightDataUnionTests
             PointLightData { Radius: var radius } => radius,
             SpotLightData { Radius: var radius } => radius,
             TubeLightData { Radius: var radius } => radius,
+            RectLightData => 0,
             null => 0,
         };
 
@@ -438,7 +440,7 @@ public sealed class LightDataUnionTests
             .Select(constructor => constructor.GetParameters().Single().ParameterType)
             .Should()
             .BeEquivalentTo(
-                [typeof(PointLightData), typeof(SpotLightData), typeof(TubeLightData)],
+                [typeof(PointLightData), typeof(SpotLightData), typeof(TubeLightData), typeof(RectLightData)],
                 "a light is made from one case and nothing else"
             );
     }

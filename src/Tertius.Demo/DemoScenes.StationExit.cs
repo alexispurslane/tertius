@@ -336,11 +336,27 @@ public static partial class DemoScenes
         /// <summary>Spawns the lamps of the spoke and of the wheel's ceiling in <paramref name="station"/>.</summary>
         private static void SpawnLamps(World world, FrameHandle station, IRenderResources resources)
         {
-            // Cabin lamps behind glowing panels 1.2 m square.
-            MaterialId lampMaterial = LampPanelMaterial(resources: resources, power: CabinLampPower, area: 1.2f * 1.2f);
+            // Glowing panels 1.2 m square, each of whose face toward the room is a cabin lamp's rectangle light.
+            RectLightData wallFace = PanelLight(
+                offset: new(0, 0, -0.05f),
+                front: -Vector3.UnitZ,
+                across: Vector3.UnitX,
+                width: 1.2f,
+                height: 1.2f,
+                power: CabinLampPower
+            );
+            RectLightData ceilingFace = PanelLight(
+                offset: new(0.05f, 0, 0),
+                front: Vector3.UnitX,
+                across: Vector3.UnitZ,
+                width: 1.2f,
+                height: 1.2f,
+                power: CabinLampPower
+            );
+            MaterialId lampMaterial = LampPanelMaterial(resources: resources, light: wallFace);
             MeshId wallPanel = resources.CreateMesh(Primitives.Box(new(0.6f, 0.6f, 0.05f)));
             MeshId ceilingPanel = resources.CreateMesh(Primitives.Box(new(0.05f, 0.6f, 0.6f)));
-            // The spoke lamps, on the spoke's spinward wall, each with its light 0.3 m in front of it.
+            // The spoke lamps, on the spoke's spinward wall, each facing away from it.
             float wall = DemoStation.SpokeHalfWidth - DemoStation.SpokeWall;
             foreach (int x in new[] { -14, -26, -38, -50, -62, -74, -86 })
                 world.Spawn(
@@ -349,11 +365,11 @@ public static partial class DemoScenes
                         pose: new(new(x, 0, wall - 0.05), DQuaternion.Identity),
                         mesh: wallPanel,
                         material: lampMaterial,
-                        light: LampLight(offset: new(0, 0, -0.3f), power: CabinLampPower)
+                        light: wallFace
                     )
                 );
             // The wheel lamps, flat under the ceiling's face toward the floor, each turned so that its local +X points away
-            // from the axis, with its light 0.3 m below it.
+            // from the axis, toward the floor.
             double under = DemoStation.CeilingRadius + DemoStation.CeilingThickness + 0.06;
             foreach (double y in new[] { -5.0, 5.0 })
             foreach (double z in new[] { -6.0, 2.0, 10.0 })
@@ -366,7 +382,7 @@ public static partial class DemoScenes
                         pose: new(at, DQuaternion.FromAxisAngle(Double3.UnitY, theta)),
                         mesh: ceilingPanel,
                         material: lampMaterial,
-                        light: LampLight(offset: new(0.3f, 0, 0), power: CabinLampPower)
+                        light: ceilingFace
                     )
                 );
             }
@@ -377,7 +393,7 @@ public static partial class DemoScenes
             DPose pose,
             MeshId mesh,
             MaterialId material,
-            PointLightData light
+            RectLightData light
         ) =>
             new()
             {

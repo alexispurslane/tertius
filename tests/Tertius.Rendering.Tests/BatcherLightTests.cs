@@ -171,6 +171,18 @@ public sealed class BatcherLightTests
         RenderSnapshot snapshot = Dark();
         snapshot.Lights.Add(Lamp(new(0, 1, -5)) with { EntityIndex = 4, EntityGeneration = 5 });
         snapshot.Lights.Add(Beam(new(0, 3, -5), -Vector3.UnitY) with { EntityIndex = 9, EntityGeneration = 2 });
+        snapshot.Lights.Add(
+            Panel(
+                position: new(0, 2, -5),
+                previousPosition: new(0, 2, -5),
+                rotation: Quaternion.Identity,
+                previousRotation: Quaternion.Identity
+            ) with
+            {
+                EntityIndex = 6,
+                EntityGeneration = 3,
+            }
+        );
 
         PreparedScene scene = Prepare(snapshot: snapshot);
 
@@ -178,7 +190,9 @@ public sealed class BatcherLightTests
             .LightSpan.ToArray()
             .Select(light => light.Entity)
             .Should()
-            .BeEquivalentTo([new Entity(Index: 4, Generation: 5), new Entity(Index: 9, Generation: 2)]);
+            .BeEquivalentTo(
+                [new Entity(Index: 4, Generation: 5), new Entity(Index: 9, Generation: 2), new Entity(Index: 6, Generation: 3)]
+            );
     }
 
     // ---- Which lights are kept --------------------------------------------------------------------------------------
@@ -502,6 +516,144 @@ public sealed class BatcherLightTests
 
         SceneBatcher.Shines(tube).Should().BeTrue("the tube itself shines");
         SceneBatcher.Shines(wrong).Should().BeFalse("a tube light with a broken {0} adds no light", broken);
+    }
+
+    /// <summary>
+    /// A white rectangle light of 10 W, 1.2 m wide and 0.6 m high, at <paramref name="position"/> now and at
+    /// <paramref name="previousPosition"/> before, turned by <paramref name="rotation"/> now and
+    /// <paramref name="previousRotation"/> before.
+    /// </summary>
+    private static RectRenderLight Panel(
+        Vector3 position,
+        Vector3 previousPosition,
+        Quaternion rotation,
+        Quaternion previousRotation
+    ) =>
+        new(
+            EntityIndex: 5,
+            EntityGeneration: 1,
+            Position: position,
+            PreviousPosition: previousPosition,
+            Rotation: rotation,
+            PreviousRotation: previousRotation,
+            Color: Vector3.One,
+            Power: 10,
+            Width: 1.2f,
+            Height: 0.6f,
+            CastsShadow: false,
+            ChainDepth: TestChains.CamerasFrame
+        );
+
+    [Fact]
+    public void ARectangleLightReachesTheShadersAsItsPeakIntensityItsHalfSidesAndAReachThatHoldsItsFace()
+    {
+        RenderSnapshot snapshot = Dark();
+        snapshot.Camera.PreviousPosition = new(0, 0, 2);
+        // An eighth of a turn about +Y halfway between the identity and a quarter turn: the width runs between +X and −Z.
+        snapshot.Lights.Add(
+            Panel(
+                position: new(0, 1, -5),
+                previousPosition: new(2, 1, -5),
+                rotation: Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 2),
+                previousRotation: Quaternion.Identity
+            )
+        );
+
+        PreparedScene scene = Prepare(snapshot: snapshot, alpha: 0.5f);
+
+        var panel = GpuLight.From(scene.Lights[0]);
+        panel.IntensityKind.W.Should().Be(GpuLight.RectKind);
+        Xyz(panel.PositionReach).Should().Be(new Vector3(1, 1, -6), "the eye is at (0, 0, 1) halfway");
+        Xyz(panel.IntensityKind).X.Should().BeApproximately((float)(10 / Math.PI), 1e-5f, "a flat face's P / π across it");
+        (Xyz(panel.DirectionCosOuter) - new Vector3(0.6f, 0, -0.6f) * MathF.Sqrt(0.5f))
+            .Length()
+            .Should()
+            .BeLessThan(1e-6f, "the half width");
+        (Xyz(panel.HalfHeight) - new Vector3(0, 0.3f, 0)).Length().Should().BeLessThan(1e-6f, "the half height");
+        panel.PositionReach.W.Should()
+            .BeApproximately(
+                (float)(Math.Sqrt(10 / Math.PI / Cutoff) + Math.Sqrt(0.6 * 0.6 + 0.3 * 0.3)),
+                1e-4f,
+                "the peak intensity's reach from the face, whose corners lie half its diagonal from its center"
+            );
+        panel.SpotRadius.Y.Should().Be(0, "the shadow falls from the face's center as from a point");
+    }
+
+    [Fact]
+    public void ARectangleLightWithoutARotationFacesAlongPlusZ()
+    {
+        RenderSnapshot snapshot = Dark();
+        snapshot.Lights.Add(
+            Panel(
+                position: new(0, 1, -5),
+                previousPosition: new(0, 1, -5),
+                rotation: default,
+                previousRotation: default
+            )
+        );
+
+        PreparedScene scene = Prepare(snapshot: snapshot);
+
+        var panel = GpuLight.From(scene.Lights[0]);
+        Xyz(panel.DirectionCosOuter).Should().Be(new Vector3(0.6f, 0, 0));
+        Xyz(panel.HalfHeight).Should().Be(new Vector3(0, 0.3f, 0));
+    }
+
+    [Theory]
+    [InlineData("rotation")]
+    [InlineData("previous-rotation")]
+    [InlineData("no-width")]
+    [InlineData("no-height")]
+    [InlineData("endless-width")]
+    [InlineData("hair-thin-width")]
+    [InlineData("hair-thin-height")]
+    [InlineData("overlong-height")]
+    [InlineData("too-strong")]
+    public void ARectangleLightWithABrokenFieldDoesNotShine(string broken)
+    {
+        RectRenderLight panel = Panel(
+            position: new(0, 1, -5),
+            previousPosition: new(0, 1, -5),
+            rotation: Quaternion.Identity,
+            previousRotation: Quaternion.Identity
+        );
+        RectRenderLight wrong = broken switch
+        {
+            "rotation" => panel with { Rotation = new(x: float.NaN, y: 0, z: 0, w: 1) },
+            "previous-rotation" => panel with { PreviousRotation = new(x: 0, y: float.PositiveInfinity, z: 0, w: 1) },
+            "no-width" => panel with { Width = 0 },
+            "no-height" => panel with { Height = -1 },
+            "endless-width" => panel with { Width = float.PositiveInfinity },
+            // Below 1 µm the square of a half side underflows in the shader's single floats, and a ratio of two zeros
+            // gives NaN.
+            "hair-thin-width" => panel with { Width = 1e-30f },
+            "hair-thin-height" => panel with { Height = 5e-7f },
+            // Finite, but its corners lie beyond the position limit.
+            "overlong-height" => panel with { Height = 1e30f },
+            "too-strong" => panel with { Power = float.MaxValue, Color = new(1e30f, 1, 1) },
+            _ => throw new ArgumentOutOfRangeException(nameof(broken), broken, "No such field."),
+        };
+
+        SceneBatcher.Shines(panel).Should().BeTrue("the panel itself shines");
+        SceneBatcher.Shines(wrong).Should().BeFalse("a rectangle light with a broken {0} adds no light", broken);
+    }
+
+    [Fact]
+    public void ARectangleLightTakesTheSixTilesOfAPointLight()
+    {
+        RenderSnapshot snapshot = Dark();
+        snapshot.Lights.Add(
+            Panel(
+                position: new(0, 1, -5),
+                previousPosition: new(0, 1, -5),
+                rotation: Quaternion.Identity,
+                previousRotation: Quaternion.Identity
+            )
+        );
+
+        PreparedScene scene = Prepare(snapshot: snapshot);
+
+        ShadowTiles.TilesOf(scene.Lights[0]).Should().Be(6, "its shadow falls from its center into its whole front");
     }
 
     [Fact]
