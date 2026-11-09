@@ -2,7 +2,7 @@
 id: ter-35w5
 status: closed
 deps: []
-links: []
+links: [ter-abun, ter-vfd3]
 created: 2026-11-03T22:42:15Z
 type: bug
 priority: 3
