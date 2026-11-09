@@ -1,6 +1,6 @@
 ---
 id: ter-e436
-status: in_progress
+status: closed
 deps: [tiunr-nuhk, tiunr-i1ho]
 links: []
 created: 2026-11-08T21:04:29Z
