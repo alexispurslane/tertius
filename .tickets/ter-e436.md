@@ -102,3 +102,23 @@ Coverage of the changed lines (tools/coverage, Debug and Release): 507/519 lines
 Cost: the orbit cabin's view along its five panels took a median frame span of 15.8 ms against 12.1 to 12.7 ms with the bulbs, and the bay view 15.6 ms against 12.3 ms (M1 Max, 1280 x 720, 241 frames, two runs for the cabin). Follow-up: t2-rhja.
 
 Screenshots (240 still draws before each capture, then the capture's own draw: 241 draws in all), in /private/tmp/tertius-rect-light-20261108/final: after-rect-lamps/cabin.png and before-rect-lamps/cabin.png (orbit cabin), after-rect-bay/bay.png and before-rect-bay/bay.png (bay), after-rect-lights/floors.png (mirror and rough floors; main has no such scene). The bright specks in the cabin are on main too (a separate delegate diagnoses them).
+
+**2026-11-09T03:19:45Z**
+
+Official Stryker run (tools/stryker/changed.py main, after merging main, 5,461 s, valid: 0 timeouts, 0 Dubious, load mean 10.6):
+
+| id | place | change | result | killed by | s |
+|---|---|---|---|---|---:|
+| Simulation-506 | src/Tertius.Simulation/Entities/LightData.cs:99 | Color * ... -> Color / ... | killed | RectLightDataTests.ARectangleSendsItsPowerFromItsFrontFace | - |
+| Simulation-507 | src/Tertius.Simulation/Entities/LightData.cs:99 | Power / (pi ...) -> Power * (pi ...) | killed | RectLightDataTests.ARectangleSendsItsPowerFromItsFrontFace | - |
+| Simulation-508 | src/Tertius.Simulation/Entities/LightData.cs:99 | Width * Height -> Width / Height | killed | RectLightDataTests.ARectangleSendsItsPowerFromItsFrontFace | - |
+| Simulation-509 | src/Tertius.Simulation/Entities/LightData.cs:99 | pi * Width -> pi / Width | killed | RectLightDataTests.ARectangleSendsItsPowerFromItsFrontFace | - |
+| Simulation-3761 | src/Tertius.Simulation/Internal/Rendering/RenderSnapshotBuilder.cs:714 | pose.Position - origin -> + origin | survived, then killed | RenderSnapshotLightingTests.ARectangleLightFollowsItsEntityAndTurnsItsFaceWithIt (camera moved to (0, 2, 0)) | 3.7 |
+| Simulation-3762 | src/Tertius.Simulation/Internal/Rendering/RenderSnapshotBuilder.cs:715 | previousPose.Position - origin -> + origin | survived, then killed | the same test | 3.9 |
+| B01 | RenderSnapshotBuilder.cs:709 (no Stryker mutant) | offset left out | killed | the same test | 6.5 |
+| B02 | RenderSnapshotBuilder.cs:710 (no Stryker mutant) | previous pose = current | killed | the same test | 3.8 |
+| R01 | src/Tertius.Core/Seams/RenderLight.cs:154 (no Stryker mutant) | generation dropped | survived, then killed | BatcherLightTests.AKeptLightCarriesTheSlotAndTheGenerationOfItsEntity (a rectangle light added) | 6.3 |
+
+The two Stryker survivors were checked again with tools/mutate.py on the same change, not with a second official run of about 1.5 hours: the test had its camera at the origin, so the origin's sign did not show. Line 711 (the constructor call) holds no behavior of its own beyond its arguments. Summary: 9 rows, all killed, 3 of them after a test change.
+
+Suites on the merged branch: Release 10,672 total, 0 failed, 26 skipped.

@@ -526,7 +526,8 @@ public sealed class RenderSnapshotLightingTests
     public void ARectangleLightFollowsItsEntityAndTurnsItsFaceWithIt()
     {
         using var test = new TestWorld();
-        test.World.Camera = test.SpawnCamera(test.Root, DPose.Identity);
+        // The camera stands 2 m up, and the snapshot gives the light's places relative to it.
+        test.World.Camera = test.SpawnCamera(test.Root, new DPose(new Double3(0, 2, 0), DQuaternion.Identity));
         // The panel moves 1 m along +X and turns a quarter turn about +Y in each tick, and its offset turns its face a
         // quarter turn about +X: from +Z, its local front, to −Y, straight down. At the end of tick 1 the entity has
         // turned by a half turn, which takes the down-facing front to (0, −1, 0) still, and its width from +X to −X.
@@ -566,8 +567,8 @@ public sealed class RenderSnapshotLightingTests
         test.Run(1);
 
         test.World.Latest().Lights.Single().TryGetValue(out RectRenderLight rect).Should().BeTrue();
-        PoseChecks.AssertNear(rect.Position, new(2, 2.9f, -5));
-        PoseChecks.AssertNear(rect.PreviousPosition, new(1, 2.9f, -5));
+        PoseChecks.AssertNear(rect.Position, new(2, 0.9f, -5));
+        PoseChecks.AssertNear(rect.PreviousPosition, new(1, 0.9f, -5));
         PoseChecks.AssertNear(Vector3.Transform(Vector3.UnitZ, rect.Rotation), new(0, -1, 0), 1e-6f);
         PoseChecks.AssertNear(Vector3.Transform(Vector3.UnitX, rect.Rotation), new(-1, 0, 0), 1e-6f);
         PoseChecks.AssertNear(Vector3.Transform(Vector3.UnitX, rect.PreviousRotation), new(0, 0, -1), 1e-6f);

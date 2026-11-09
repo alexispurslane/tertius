@@ -171,6 +171,18 @@ public sealed class BatcherLightTests
         RenderSnapshot snapshot = Dark();
         snapshot.Lights.Add(Lamp(new(0, 1, -5)) with { EntityIndex = 4, EntityGeneration = 5 });
         snapshot.Lights.Add(Beam(new(0, 3, -5), -Vector3.UnitY) with { EntityIndex = 9, EntityGeneration = 2 });
+        snapshot.Lights.Add(
+            Panel(
+                position: new(0, 2, -5),
+                previousPosition: new(0, 2, -5),
+                rotation: Quaternion.Identity,
+                previousRotation: Quaternion.Identity
+            ) with
+            {
+                EntityIndex = 6,
+                EntityGeneration = 3,
+            }
+        );
 
         PreparedScene scene = Prepare(snapshot: snapshot);
 
@@ -178,7 +190,9 @@ public sealed class BatcherLightTests
             .LightSpan.ToArray()
             .Select(light => light.Entity)
             .Should()
-            .BeEquivalentTo([new Entity(Index: 4, Generation: 5), new Entity(Index: 9, Generation: 2)]);
+            .BeEquivalentTo(
+                [new Entity(Index: 4, Generation: 5), new Entity(Index: 9, Generation: 2), new Entity(Index: 6, Generation: 3)]
+            );
     }
 
     // ---- Which lights are kept --------------------------------------------------------------------------------------
