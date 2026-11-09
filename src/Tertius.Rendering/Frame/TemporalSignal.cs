@@ -19,7 +19,8 @@ namespace Tertius.Rendering;
 /// <para>
 /// Each part owns a sample, a slow history and two fast histories, which alternate by the parity of the drawn frames
 /// (<see cref="FrameHistory.PendingFrame.Parity"/>), RGBA16F at the targets' size except the experiment's RGBA32F slow history. The slow history holds the length
-/// in alpha, and the specular signal's sample and fast history the hit distance, 0 for a miss. The sample is a color
+/// in alpha, the specular signal's sample and fast history the hit distance, 0 for a miss, and the diffuse signal's fast
+/// history the deviation of its samples' luminance, which the diffuse filter reads. The sample is a color
 /// attachment of its producer, and every other image stays in the General layout. The signals share the scratch images
 /// (<see cref="SignalScratch"/>). With a precise history, the specular part also owns its sample's light age, which the
 /// resolve writes and the temporal dispatch reads at binding 11 (the light-change age, ticket tiunr-7haj).
@@ -207,7 +208,10 @@ internal sealed unsafe class TemporalSignal : IDisposable
     /// <summary>The sample of <paramref name="part"/>, which the producer writes in each frame: rgb the light, a 1.</summary>
     public GpuImage Sample(int part) => parts[part].Sample;
 
-    /// <summary>The slow history of <paramref name="part"/> after the last accumulation: rgb the light, a the length.</summary>
+    /// <summary>
+    /// The slow history of <paramref name="part"/> after the last accumulation: rgb the light, a the length. The diffuse
+    /// filter is its second writer: its first step replaces the diffuse slow history's light (<see cref="DiffuseFilter"/>).
+    /// </summary>
     public GpuImage Slow(int part) => parts[part].Slow;
 
     /// <summary>

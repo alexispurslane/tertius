@@ -1189,7 +1189,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
 
     /// <summary>
     /// A filter of the diffuse light of <paramref name="signal"/>'s part 0, whose pass the caller adds after the signal's
-    /// accumulation. A test hook: the filter goes with the renderer.
+    /// accumulation. A test hook: the filter goes with the renderer. The descriptor pool holds the sets of one filter, so
+    /// the renderer must run under <see cref="NoScreenTrace"/>, whose tracer makes no filter.
     /// </summary>
     internal DiffuseFilter CreateDiffuseFilter(TemporalSignal signal)
     {
@@ -2162,6 +2163,20 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 filter: filter
             )
         );
+        AddRayPasses(shaders: shaders, trace: trace, images: images);
+        Graph.Add(FrameGraph.Stage.ScreenTrace, new AccumulatePass(diffuse));
+        if (filter is not null)
+            Graph.Add(FrameGraph.Stage.ScreenTrace, new DiffuseFilterPass(filter));
+        Graph.Add(FrameGraph.Stage.ScreenTrace, new AccumulatePass(specular));
+        return images;
+    }
+
+    /// <summary>
+    /// The tracer's four passes in <see cref="FrameGraph.Stage.ScreenTrace"/>: the ray plan, the reflection rays, the
+    /// diffuse rays and the resolve.
+    /// </summary>
+    private void AddRayPasses(ShaderLibrary shaders, ScreenTrace trace, ScreenTraceImages images)
+    {
         ScreenTraceKernel Kernel(string name, string shader, uint kind = 0) =>
             new(
                 device: device,
@@ -2201,11 +2216,6 @@ public sealed unsafe class VulkanRenderer : IRenderer
             FrameGraph.Stage.ScreenTrace,
             new ScreenTraceResolvePass(Kernel("screen trace resolve", "screen_trace_resolve.comp"), images)
         );
-        Graph.Add(FrameGraph.Stage.ScreenTrace, new AccumulatePass(diffuse));
-        if (filter is not null)
-            Graph.Add(FrameGraph.Stage.ScreenTrace, new DiffuseFilterPass(filter));
-        Graph.Add(FrameGraph.Stage.ScreenTrace, new AccumulatePass(specular));
-        return images;
     }
 
     /// <summary>The bloom levels that <paramref name="bloom"/> builds: 0 for <see cref="NoBloom"/>.</summary>

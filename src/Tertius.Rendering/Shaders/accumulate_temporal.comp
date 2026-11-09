@@ -14,9 +14,10 @@
 #include "motion.glsl"
 #include "neighbor_limit_prototype.glsl"
 
-// The share of the fast history's luminance within which a sample's step is rounding, not noise: the fast history's blend
-// with the weight 1 / 4 stops within two half-float steps of a constant sample, and a step is at most 2^−10 of a value.
-const float RoundingShare = 1.0 / 512.0;
+// The share of the fast history's luminance within which a sample's step is rounding, not noise. The fast history's
+// blend with the weight 1 / 4 stops less than four half-float steps below a constant sample where the store rounds toward
+// zero, as the spec allows, and a step is at most 2^−10 of a value: under 2^−8, and 1 / 192 leaves a margin.
+const float RoundingShare = 1.0 / 192.0;
 
 // The share of the larger of two hit distances by which they may differ for a tap to pass.
 const float HitDistanceShare = 0.5;

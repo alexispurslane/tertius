@@ -10,6 +10,7 @@
 #extension GL_GOOGLE_include_directive : require
 #include "temporal.glsl"
 #include "meter.glsl"
+#include "signals.glsl"
 
 layout(local_size_x = 8, local_size_y = 8) in;
 
@@ -22,10 +23,6 @@ layout(push_constant, std430) uniform FilterPush
 
 // The 5 × 5 B-spline kernel's weight at a tap 0, 1 or 2 taps from the center along one axis: (1, 4, 6, 4, 1) / 16.
 const float KernelWeights[3] = float[3](0.375, 0.25, 0.0625);
-
-// The plane stop's bound: a tap's distance from the pixel's plane at which its weight falls to 0, as a share of the
-// nearer view depth. It is the surface test's PlaneShare (signals.glsl).
-const float FilterPlaneShare = 0.01;
 
 // The normal stop's power of the cosine between the normals: the paper's 128.
 const float NormalPower = 128.0;
@@ -85,7 +82,8 @@ float tapWeight(FilterTap a, FilterTap b, int x, int y)
 {
     vec3 apart = b.point - a.point;
     float planeDistance = max(abs(dot(apart, a.normal)), abs(dot(apart, b.normal)));
-    float plane = max(1.0 - planeDistance / (FilterPlaneShare * min(a.depth, b.depth)), 0.0);
+    // The weight falls to 0 at the surface test's bound, PlaneShare of the nearer view depth.
+    float plane = max(1.0 - planeDistance / (PlaneShare * min(a.depth, b.depth)), 0.0);
     float normal = pow(max(dot(a.normal, b.normal), 0.0), NormalPower);
     float deviation = LuminanceDeviations * sqrt(a.variance + b.variance) + LeastDeviation;
     float light = exp(-abs(a.luminance - b.luminance) / deviation);

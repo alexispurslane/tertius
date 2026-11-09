@@ -36,6 +36,10 @@ public sealed class DiffuseFilterSwitchTests
         );
 
     [Fact]
+    public void TheOnSettingKeepsTheFilter() =>
+        WithTracer("on", images => images.ShownDiffuse.Should().BeSameAs(images.Filter!.Filtered));
+
+    [Fact]
     public void AnUnknownSettingIsRefused()
     {
         string? previous = Environment.GetEnvironmentVariable(Switch);

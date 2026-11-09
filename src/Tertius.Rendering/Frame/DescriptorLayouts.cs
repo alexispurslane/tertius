@@ -256,25 +256,34 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             ShadowBoundsLayout
         ) = CreateComputeLayouts();
 
-        SurfaceTestLayout = ComputeLayout<SurfaceTestPushConstants>(
-            sets: [FrameSet, TextureSet, GBufferSet, SurfaceTestSet],
-            name: "surface test layout"
-        );
-        AccumulateLayout = ComputeLayout<AccumulatePushConstants>(
-            sets: [FrameSet, TextureSet, GBufferSet, SignalSet],
-            name: "accumulate layout"
-        );
-        DiffuseFilterLayout = ComputeLayout<DiffuseFilterPushConstants>(
-            sets: [FrameSet, TextureSet, GBufferSet, FilterSet],
-            name: "diffuse filter layout"
-        );
-        ScreenTraceLayout = ComputeLayout<ScreenTracePushConstants>(
-            sets: [FrameSet, TextureSet, GBufferSet, ScreenTraceSet],
-            name: "screen trace layout"
-        );
+        (SurfaceTestLayout, AccumulateLayout, DiffuseFilterLayout, ScreenTraceLayout) = CreateTemporalLayouts();
 
         (pool, texturePool) = CreatePools(framesInFlight: (uint)framesInFlight, glowSourceSets: (uint)glowLevels + 1);
     }
+
+    /// <summary>
+    /// The temporal lighting's compute layouts: sets 0 to 2 and each one's own set 3, after the sets that they name.
+    /// </summary>
+    private (PipelineLayout SurfaceTest, PipelineLayout Accumulate, PipelineLayout Filter, PipelineLayout Trace)
+        CreateTemporalLayouts() =>
+        (
+            ComputeLayout<SurfaceTestPushConstants>(
+                sets: [FrameSet, TextureSet, GBufferSet, SurfaceTestSet],
+                name: "surface test layout"
+            ),
+            ComputeLayout<AccumulatePushConstants>(
+                sets: [FrameSet, TextureSet, GBufferSet, SignalSet],
+                name: "accumulate layout"
+            ),
+            ComputeLayout<DiffuseFilterPushConstants>(
+                sets: [FrameSet, TextureSet, GBufferSet, FilterSet],
+                name: "diffuse filter layout"
+            ),
+            ComputeLayout<ScreenTracePushConstants>(
+                sets: [FrameSet, TextureSet, GBufferSet, ScreenTraceSet],
+                name: "screen trace layout"
+            )
+        );
 
     public DescriptorSetLayout FrameSet { get; }
     public DescriptorSetLayout TextureSet { get; }

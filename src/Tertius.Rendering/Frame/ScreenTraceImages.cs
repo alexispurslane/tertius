@@ -69,6 +69,7 @@ internal sealed class ScreenTraceImages : IDisposable
         this.targets = targets;
         this.surfaces = surfaces;
         this.pyramid = pyramid;
+
         Diffuse = diffuse;
         Specular = specular;
         Filter = filter;
