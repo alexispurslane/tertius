@@ -1,6 +1,6 @@
 ---
 id: t2-rhja
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-11-09T01:15:12Z
