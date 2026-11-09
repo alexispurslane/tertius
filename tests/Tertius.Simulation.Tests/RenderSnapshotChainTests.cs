@@ -322,10 +322,29 @@ public sealed class RenderSnapshotChainTests
                 },
             }
         );
+        // A glowing bar in the sun's frame, three frames above the camera's.
+        test.World.Spawn(
+            new()
+            {
+                Frame = chain.Sun,
+                Pose = TestWorld.At(0, 0, 1e5),
+                Render = new()
+                {
+                    Light = new TubeLightData(
+                        Offset: Pose.Identity,
+                        Color: Vector3.One,
+                        Power: 30,
+                        Radius: 0.1f,
+                        Length: 2,
+                        CastsShadow: false
+                    ),
+                },
+            }
+        );
 
         test.Run(1);
 
-        // The lights keep the slot order: the apron's lamp, then the searchlight.
+        // The lights keep the slot order: the apron's lamp, the searchlight, then the bar.
         test.World.Latest()
             .Lights.Select(light =>
                 light switch
@@ -337,7 +356,7 @@ public sealed class RenderSnapshotChainTests
                 }
             )
             .Should()
-            .Equal(1, 2);
+            .Equal(1, 2, 3);
     }
 
     [Fact]
