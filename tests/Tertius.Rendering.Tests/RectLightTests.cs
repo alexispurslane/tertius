@@ -95,6 +95,22 @@ public sealed class RectLightTests
     }
 
     [Fact]
+    public void TheEdgeSumsFitOfThetaOverSineStaysWithinTwoMillionthsOfItUpToNearlyAHalfTurn()
+    {
+        // The fit replaces the arctangent of each edge. Within 3.2·10⁻⁴ rad of π an edge passes almost through the shaded
+        // point, where the floor of sin² θ takes over.
+        double worst = 0;
+        for (int i = 1; i <= 10_000; i++)
+        {
+            double angle = (Math.PI - 3.2e-4) * i / 10_000;
+            double exact = angle / Math.Sin(angle);
+            worst = Math.Max(worst, Math.Abs(RectView.ThetaOverSine(Math.Cos(angle)) / exact - 1));
+        }
+
+        worst.Should().BeLessThan(2e-6, "Hill and Heitz's rational fit follows θ / sin θ so closely");
+    }
+
+    [Fact]
     public void APointBehindARectangleTakesNoneOfItsLight()
     {
         // The cabin lamp turned to face up, 2 m above the point.

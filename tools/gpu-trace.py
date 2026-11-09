@@ -124,9 +124,13 @@ def of_process(row, process: str) -> bool:
 
 
 def passes_by_encoder(encoders: Path, process: str, passes: list[str]):
-    """Maps each encoder of the process to its command buffer and pass name, {encoder: (buffer, pass)}, for each command
-    buffer of the encoder list with one more timestamp encoder than passes. Also returns the set of every command buffer
-    of the process that the encoder list holds, for command_buffers."""
+    """Maps each encoder of the process to its frame and pass name, {encoder: (frame, pass)}, for each frame of the
+    encoder list with one more timestamp encoder than passes. Also returns the frame of every command buffer of the
+    process that the encoder list holds, {buffer: frame}, for gpu_intervals and command_buffers.
+
+    A frame is a run of consecutive command buffers of the list whose timestamp encoders add up to one more than
+    passes, named after its first command buffer: the renderer submits the output's commands in a second command
+    buffer (QueueSubmission.Submit). A command buffer outside such a run is a frame of its own."""
     by_buffer: dict[str, list[tuple[int, str, str]]] = defaultdict(list)
     for row in rows(encoders):
         if not of_process(row, process):
@@ -135,13 +139,33 @@ def passes_by_encoder(encoders: Path, process: str, passes: list[str]):
         index = int(indexed[1 : indexed.index("]")])
         by_buffer[row["cmdbuffer-id"][0]].append((index, row["encoder-id"][0], row["encoder-label"][0] or ""))
     named: dict[str, tuple[str, str]] = {}
+    frames = {buffer: buffer for buffer in by_buffer}
+    run: list[str] = []
+    stamps = 0
     for buffer, listed in by_buffer.items():
         listed.sort()
-        if sum(1 for _, _, label in listed if label == STAMP) != len(passes) + 1:
-            # An upload records no timestamp, and a frame whose rows the trace lost can hold another number.
+        held = sum(1 for _, _, label in listed if label == STAMP)
+        if held == 0:
+            # An upload records no timestamp.
             continue
-        stamps = -1
-        for _, encoder, label in listed:
+        if stamps + held > len(passes) + 1:
+            # A frame whose rows the trace lost holds fewer stamps: the run starts again at this command buffer.
+            run, stamps = [], 0
+        run.append(buffer)
+        stamps += held
+        if stamps == len(passes) + 1:
+            name_frame(run, by_buffer, passes, named, frames)
+            run, stamps = [], 0
+    return named, frames
+
+
+def name_frame(run: list[str], by_buffer, passes: list[str], named: dict, frames: dict) -> None:
+    """Names the encoders of the frame of the command buffers run in named, as passes_by_encoder, and maps each of them
+    to the frame in frames."""
+    stamps = -1
+    for buffer in run:
+        frames[buffer] = run[0]
+        for _, encoder, label in by_buffer[buffer]:
             if label == STAMP:
                 stamps += 1
                 continue
@@ -151,15 +175,14 @@ def passes_by_encoder(encoders: Path, process: str, passes: list[str]):
                 name = passes[stamps]
             else:
                 name = AFTER
-            named[encoder] = (buffer, name)
-    return named, set(by_buffer)
+            named[encoder] = (run[0], name)
 
 
-def command_buffers(listed: set[str], starts: dict[str, int]) -> dict:
+def command_buffers(frames: dict[str, str], starts: dict[str, int]) -> dict:
     """The counts of the first line of passes.md, as passes.json holds them under "commandBuffers": "frames", the frames
     of the trace, those of starts (gpu_intervals), also a frame whose passes the report cannot read; and "skipped", the
-    command buffers of the encoder list listed (passes_by_encoder) that are not frames, such as an upload."""
-    return {"frames": len(starts), "skipped": len(listed - starts.keys())}
+    frames of the encoder list (passes_by_encoder) that are not frames of the trace, such as an upload."""
+    return {"frames": len(starts), "skipped": len(set(frames.values()) - starts.keys())}
 
 
 def union(intervals: list[tuple[int, int]]) -> list[tuple[int, int]]:
@@ -173,15 +196,15 @@ def union(intervals: list[tuple[int, int]]) -> list[tuple[int, int]]:
     return merged
 
 
-def gpu_intervals(table: Path, process: str, named):
-    """The GPU intervals of each pass in each command buffer, {(buffer, pass): [(start, end)]}, and the first GPU start
-    of each frame of the trace, {buffer: start}, in nanoseconds.
+def gpu_intervals(table: Path, process: str, named, frames: dict[str, str]):
+    """The GPU intervals of each pass in each frame, {(frame, pass): [(start, end)]}, and the first GPU start of each
+    frame of the trace, {frame: start}, in nanoseconds. named and frames come from passes_by_encoder.
 
     A frame of the trace is a command buffer of the process whose GPU intervals hold a timestamp encoder or an encoder
     of named, because the renderer writes stamps in each frame's command buffer and in no other. The table labels each
     interval with its encoder, so a frame counts even when the trace lost its rows in the encoder list, which named
     comes from. Then the frame has no intervals of a pass, and it keeps its place in the order of the frames (per_frame).
-    Each command buffer of the intervals is a frame of starts.
+    Each command buffer of the intervals that frames does not join to another is a frame of starts.
     """
     by_pass: dict[tuple[str, str], list[tuple[int, int]]] = defaultdict(list)
     first: dict[str, int] = {}
@@ -189,7 +212,7 @@ def gpu_intervals(table: Path, process: str, named):
     for row in rows(table):
         if not of_process(row, process):
             continue
-        buffer = row["cmdbuffer-id"][0]
+        buffer = frames.get(row["cmdbuffer-id"][0], row["cmdbuffer-id"][0])
         start = int(row["start"][1])
         first[buffer] = min(first.get(buffer, start), start)
         found = named.get(row["encoder-id"][0])
@@ -710,11 +733,11 @@ def report(args) -> int:
         print(f"The passes of {args.timings}: {', '.join(passes)}.", file=sys.stderr)
         return 1
 
-    named, listed = passes_by_encoder(export(args.trace, "metal-application-encoders-list", exports), args.process, passes)
+    named, frames = passes_by_encoder(export(args.trace, "metal-application-encoders-list", exports), args.process, passes)
     if not named:
         print(f"No command buffer of {args.process} holds {len(passes) + 1} timestamp encoders.", file=sys.stderr)
         return 1
-    intervals, starts = gpu_intervals(export(args.trace, "metal-gpu-intervals", exports), args.process, named)
+    intervals, starts = gpu_intervals(export(args.trace, "metal-gpu-intervals", exports), args.process, named, frames)
     if not any(name in passes for _, name in intervals):
         print(f"The trace holds no GPU intervals for the passes of {args.process}.", file=sys.stderr)
         return 1
@@ -728,7 +751,7 @@ def report(args) -> int:
     report["gpuClock"] = gpu_clock.to_json(gpu_clock.from_json(timings.get("gpuClock")))
     if args.log is not None:
         report["loadAtStart"] = load_at_start(args.log.read_text())
-    report["commandBuffers"] = command_buffers(listed, starts)
+    report["commandBuffers"] = command_buffers(frames, starts)
     report |= summarize(intervals, starts, passes, counters, args.window)
     if args.paired or args.control:
         name = args.paired or args.control

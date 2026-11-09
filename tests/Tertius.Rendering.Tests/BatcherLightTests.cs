@@ -585,6 +585,36 @@ public sealed class BatcherLightTests
     }
 
     [Fact]
+    public void TheFrameCountsTheRectangleLightsOfItsListForTheShadersLoopOverThem()
+    {
+        RenderSnapshot snapshot = Dark();
+        snapshot.Lights.Add(
+            Gpu.Lamp(position: new(0, 1, -5), color: Vector3.One, intensity: 4, chainDepth: TestChains.CamerasFrame)
+        );
+        snapshot.Lights.Add(
+            Panel(
+                position: new(1, 1, -5),
+                previousPosition: new(1, 1, -5),
+                rotation: Quaternion.Identity,
+                previousRotation: Quaternion.Identity
+            )
+        );
+        snapshot.Lights.Add(
+            Panel(
+                position: new(-1, 1, -5),
+                previousPosition: new(-1, 1, -5),
+                rotation: Quaternion.Identity,
+                previousRotation: Quaternion.Identity
+            )
+        );
+
+        PreparedScene scene = Prepare(snapshot: snapshot);
+
+        scene.Constants.Counts.X.Should().Be(3u);
+        scene.Constants.Counts.W.Should().Be(2u, "the shaders run the rectangles' own loop only when the list holds one");
+    }
+
+    [Fact]
     public void ARectangleLightWithoutARotationFacesAlongPlusZ()
     {
         RenderSnapshot snapshot = Dark();

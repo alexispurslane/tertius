@@ -103,10 +103,13 @@ internal readonly record struct RectView
 
     /// <summary>
     /// ∫ max(ω_z, 0) dω over the convex quad <paramref name="q"/> seen from the origin, in sr: Lambert's edge sum over its
-    /// part above z = 0. The cut leaves at most one way out and one way back in, which the horizon's arc joins.
+    /// part above z = 0. The cut leaves at most one way out and one way back in, which the horizon's arc joins. No corner
+    /// may be the origin.
     /// </summary>
     internal static double CutCosine(Double3[] q)
     {
+        // The directions of the corners: a crossing between two of them lies on their arc, so it keeps the cut exact.
+        q = [q[0].Normalized(), q[1].Normalized(), q[2].Normalized(), q[3].Normalized()];
         double sum = 0;
         Double3 exit = Double3.Zero,
             entry = Double3.Zero;
@@ -124,7 +127,7 @@ internal readonly record struct RectView
             }
             if (!aAbove && !bAbove)
                 continue;
-            var crossing = Double3.Lerp(a, b, a.Z / (a.Z - b.Z));
+            Double3 crossing = Double3.Lerp(a, b, a.Z / (a.Z - b.Z)).Normalized();
             cut = true;
             if (aAbove)
             {
@@ -143,15 +146,26 @@ internal readonly record struct RectView
     }
 
     /// <summary>
-    /// θ n̂ of the arc from the direction of <paramref name="a"/> to that of <paramref name="b"/>: its angle times the unit
-    /// normal of its plane. Zero for an arc of no length.
+    /// θ n̂ of the arc from the unit direction <paramref name="a"/> to the unit direction <paramref name="b"/>: its angle
+    /// times the unit normal of its plane. Zero for an arc of no length. θ / sin θ comes from <see cref="ThetaOverSine"/>,
+    /// as in the shader, with no arctangent.
     /// </summary>
-    private static Double3 EdgeVector(Double3 a, Double3 b)
+    private static Double3 EdgeVector(Double3 a, Double3 b) =>
+        Double3.Cross(a, b) * ThetaOverSine(Double3.Dot(a, b));
+
+    /// <summary>
+    /// θ / sin θ at the angle θ of cosine <paramref name="cosine"/>, by Hill and Heitz's rational fit (Hill and Heitz 2016,
+    /// "Real-Time Area Lighting: a Journey from Research to Production"): within 2·10⁻⁶ of it up to θ = π − 3.2·10⁻⁴. Beyond
+    /// that angle the floor of sin² θ keeps it finite.
+    /// </summary>
+    internal static double ThetaOverSine(double cosine)
     {
-        var normal = Double3.Cross(a, b);
-        double sine = normal.Length;
-        // atan2 of the unnormalized sine and cosine keeps the angle exact near 0 and π, where acos loses it.
-        return sine > 0 ? normal * (Math.Atan2(sine, Double3.Dot(a, b)) / sine) : Double3.Zero;
+        double y = Math.Abs(cosine);
+        // θ / sin θ / (2π) at the angle of cosine y, at most π / 2.
+        double fit = (0.8543985 + (0.4965155 + 0.0145206 * y) * y) / (3.4175940 + (4.1616724 + y) * y);
+        // Past π / 2, θ / sin θ = π / sin θ − (π − θ) / sin(π − θ).
+        double share = cosine > 0 ? fit : 0.5 / Math.Sqrt(Math.Max(1 - cosine * cosine, 1e-7)) - fit;
+        return 2 * Math.PI * share;
     }
 
     /// <summary>Two unit tangents that make a right-handed frame with <paramref name="normal"/>.</summary>

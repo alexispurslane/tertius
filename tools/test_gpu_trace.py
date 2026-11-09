@@ -428,7 +428,9 @@ class GpuIntervals(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "metal-gpu-intervals.xml"
             path.write_text(f"<trace-query-result><node><schema>{schema}</schema>{body}</node></trace-query-result>")
-            return gpu_trace.gpu_intervals(path, "Demo", {"e1": ("b1", "a"), "e2": ("b1", "a")})
+            return gpu_trace.gpu_intervals(
+                path, "Demo", {"e1": ("b1", "a"), "e2": ("b1", "a")}, {"b1": "b1", "b1-out": "b1"}
+            )
 
     def test_a_command_buffer_with_a_timestamp_encoder_is_a_frame_from_its_first_gpu_start(self):
         stamp = f"Queue 0-0:{gpu_trace.STAMP}   (Demo (1)) 0x1"
@@ -446,6 +448,15 @@ class GpuIntervals(unittest.TestCase):
         _, starts = self.intervals([(50, 5, "Demo (1)", "b1", "e1", "Queue 0-0:vkCmdDispatch ComputeEncoder")])
         self.assertEqual(starts, {"b1": 50})
 
+    def test_the_second_command_buffer_of_a_frame_starts_no_frame_of_its_own(self):
+        stamp = f"Queue 0-0:{gpu_trace.STAMP}   (Demo (1)) 0x1"
+        _, starts = self.intervals([
+            (40, 5, "Demo (1)", "b1", "s1", stamp),
+            (50, 5, "Demo (1)", "b1", "e1", "Queue 0-0:vkCmdDispatch ComputeEncoder"),
+            (90, 5, "Demo (1)", "b1-out", "s2", stamp),
+        ])
+        self.assertEqual(starts, {"b1": 40})
+
     def test_the_intervals_hold_only_the_encoders_that_name_a_pass(self):
         found, _ = self.intervals([
             (50, 5, "Demo (1)", "b1", "e1", "Queue 0-0:vkCmdDispatch ComputeEncoder"),
@@ -459,8 +470,8 @@ class CommandBuffers(unittest.TestCase):
     """passes_by_encoder and command_buffers: the first line of passes.md counts the frames of the frame order and the
     other command buffers of the encoder list."""
 
-    def listed(self, rows):
-        """passes_by_encoder on an encoder list of rows (process, command buffer, encoder, label, index) for the pass a."""
+    def listed(self, rows, passes=("a",)):
+        """passes_by_encoder on an encoder list of rows (process, command buffer, encoder, label, index) for the passes."""
         columns = ["process", "cmdbuffer-id", "encoder-id", "encoder-label", "encoder-label-indexed"]
         body = "".join(
             "<row>" + "".join(f'<c fmt="{text}"></c>' for text in cells) + "</row>"
@@ -470,7 +481,7 @@ class CommandBuffers(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "metal-application-encoders-list.xml"
             path.write_text(f"<trace-query-result><node><schema>{schema}</schema>{body}</node></trace-query-result>")
-            return gpu_trace.passes_by_encoder(path, "Demo", ["a"])
+            return gpu_trace.passes_by_encoder(path, "Demo", list(passes))
 
     def test_the_encoder_list_names_the_passes_of_a_command_buffer_with_one_more_timestamp_than_passes(self):
         named, _ = self.listed([
@@ -489,17 +500,54 @@ class CommandBuffers(unittest.TestCase):
             ("Demo (1)", "b2", "e2", "vkCmdCopyBuffer BlitEncoder", 0),
             ("Other (2)", "b3", "e3", "vkCmdCopyBuffer BlitEncoder", 0),
         ])
-        self.assertEqual(listed, {"b1", "b2"})
+        self.assertEqual(set(listed), {"b1", "b2"})
+
+    def test_two_command_buffers_whose_timestamps_together_are_one_more_than_passes_make_one_frame(self):
+        # The renderer submits the output's commands in a second command buffer (QueueSubmission.Submit).
+        named, frames = self.listed(
+            [
+                ("Demo (1)", "b1", "s1", gpu_trace.STAMP, 0),
+                ("Demo (1)", "b1", "e1", "vkCmdDispatch ComputeEncoder", 1),
+                ("Demo (1)", "b1", "s2", gpu_trace.STAMP, 2),
+                ("Demo (1)", "b2", "e2", "vkCmdBeginRendering RenderEncoder", 0),
+                ("Demo (1)", "b2", "s3", gpu_trace.STAMP, 1),
+            ],
+            passes=("a", "b"),
+        )
+        self.assertEqual((named, frames), ({"e1": ("b1", "a"), "e2": ("b1", "b")}, {"b1": "b1", "b2": "b1"}))
+
+    def test_a_frame_that_lost_a_timestamp_leaves_the_next_frame_named(self):
+        named, _ = self.listed(
+            [
+                ("Demo (1)", "b1", "s1", gpu_trace.STAMP, 0),
+                ("Demo (1)", "b1", "e1", "vkCmdDispatch ComputeEncoder", 1),
+                ("Demo (1)", "b2", "e2", "vkCmdBeginRendering RenderEncoder", 0),
+                ("Demo (1)", "b2", "s3", gpu_trace.STAMP, 1),
+                ("Demo (1)", "b3", "s4", gpu_trace.STAMP, 0),
+                ("Demo (1)", "b3", "e3", "vkCmdDispatch ComputeEncoder", 1),
+                ("Demo (1)", "b3", "s5", gpu_trace.STAMP, 2),
+                ("Demo (1)", "b4", "e4", "vkCmdBeginRendering RenderEncoder", 0),
+                ("Demo (1)", "b4", "s6", gpu_trace.STAMP, 1),
+            ],
+            passes=("a", "b"),
+        )
+        self.assertEqual(named, {"e3": ("b3", "a"), "e4": ("b3", "b")})
 
     def test_every_frame_of_the_order_counts_as_a_frame_also_one_that_the_encoder_list_lost(self):
         # Two uploads make the encoder list longer than the frame order, so the count must come from the order.
-        found = gpu_trace.command_buffers({"b1", "b2", "upload", "upload-2"}, {"b1": 10, "b2": 20, "lost": 30})
+        found = gpu_trace.command_buffers(
+            {"b1": "b1", "b2": "b2", "upload": "upload", "upload-2": "upload-2"}, {"b1": 10, "b2": 20, "lost": 30}
+        )
         self.assertEqual(found["frames"], 3)
 
     def test_the_other_command_buffers_are_those_of_the_encoder_list_that_are_not_frames(self):
         # b2 is a frame whose encoder list holds another number of timestamps: it is a frame, not another command buffer.
-        found = gpu_trace.command_buffers({"b1", "b2", "upload"}, {"b1": 10, "b2": 20, "lost": 30})
+        found = gpu_trace.command_buffers({"b1": "b1", "b2": "b2", "upload": "upload"}, {"b1": 10, "b2": 20, "lost": 30})
         self.assertEqual(found["skipped"], 1)
+
+    def test_the_second_command_buffer_of_a_frame_is_not_another_command_buffer(self):
+        found = gpu_trace.command_buffers({"b1": "b1", "b1-out": "b1", "upload": "upload"}, {"b1": 10})
+        self.assertEqual(found, {"frames": 1, "skipped": 1})
 
 
 class BootstrapError(unittest.TestCase):
