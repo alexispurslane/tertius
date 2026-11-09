@@ -59,6 +59,55 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
         );
 
     [Fact]
+    public void AWalkOverTheSteepLightOfAStillLampCommitsNoLightChange() =>
+        WithRenderer(
+            null,
+            (renderer, scene) =>
+            {
+                // A lamp 0.6 m over the floor: its light on the floor falls steeply away from the spot below it, so a pixel
+                // that the walk moves across the floor shows a light far from the last light of its nearest tap.
+                var lamp = new Vector3(1, ReflectionTesting.FloorHeight + 0.6f, -4);
+                scene.Lights.Add(
+                    new PointRenderLight(
+                        EntityIndex: Gpu.LampEntity,
+                        EntityGeneration: 0,
+                        Position: lamp,
+                        PreviousPosition: lamp,
+                        Color: Vector3.One,
+                        Power: 4 * MathF.PI * 2,
+                        Radius: 0.05f,
+                        CastsShadow: false,
+                        ChainDepth: TestChains.CamerasFrame
+                    )
+                );
+                Draw(renderer, scene, 16);
+                long commits = 0;
+
+                for (int frame = 0; frame < 48; frame++)
+                {
+                    scene.Camera.PreviousPosition = scene.Camera.Position;
+                    scene.Camera.Position += new Vector3(0, 0, -0.04f);
+                    Draw(renderer, scene, 1);
+                    float[] record = renderer.ReadLightAge();
+                    float[] distance = renderer.ReadDistance();
+                    commits += Enumerable
+                        .Range(Width, Width * (Height - 2))
+                        .Count(pixel => AgeAt(record, pixel) == 0 && InsideTheFloor(distance, pixel));
+                }
+
+                output.WriteLine($"Walk toward a still lamp: {commits} committed light changes over 48 draws.");
+                commits.Should().Be(0, "no light changed: the walk only moves the pixels over the lamp's still light");
+
+                // A floor pixel whose rows above and below show the floor too, not the emitter's edge, which the walk
+                // moves over the floor: the floor's distance changes by less than a quarter from row to row.
+                static bool InsideTheFloor(float[] distance, int pixel) =>
+                    distance[pixel] > 0
+                    && MathF.Abs(distance[pixel - Width] / distance[pixel] - 1) < 0.25f
+                    && MathF.Abs(distance[pixel + Width] / distance[pixel] - 1) < 0.25f;
+            }
+        );
+
+    [Fact]
     public void APixelWhoseJitterAlternatesAThinGlowingStripAndTheFloorResetsNoLightAge() =>
         WithRenderer(
             null,
