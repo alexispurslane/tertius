@@ -190,6 +190,65 @@ public sealed class LitPuffRenderTests
         ShouldMatchGlowPuffs(snapshot, [Albedo * irradiance / (4 * MathF.PI)], "lit-puff-point");
     }
 
+    /// <summary>
+    /// A panel 1.2 m by 0.8 m that casts no shadow, 1.5 m above <paramref name="puff"/> and 0.4 m aside, turned so that
+    /// its front faces down when <paramref name="facesDown"/>, else up, with a power of 8 W.
+    /// </summary>
+    private static RectRenderLight PanelAbove(Vector3 puff, bool facesDown)
+    {
+        Vector3 position = puff + new Vector3(0.4f, 1.5f, 0);
+        Quaternion rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (facesDown ? 1 : -1) * MathF.PI / 2);
+        return new(
+            EntityIndex: Gpu.LampEntity,
+            EntityGeneration: 0,
+            Position: position,
+            PreviousPosition: position,
+            Rotation: rotation,
+            PreviousRotation: rotation,
+            Color: new(1f, 0.8f, 0.5f),
+            Power: 8,
+            Width: 1.2f,
+            Height: 0.8f,
+            CastsShadow: false,
+            ChainDepth: TestChains.CamerasFrame
+        );
+    }
+
+    [Fact]
+    public void ALitPuffScattersARectangleLightsFaceRadianceTimesTheSolidAngleOfItsFace()
+    {
+        RenderSnapshot snapshot = Dark();
+        var puff = new Vector3(0, 0, -6);
+        RectRenderLight panel = PanelAbove(puff, facesDown: true);
+        snapshot.Lights.Add(panel);
+        AddLitPuff(snapshot, puff);
+
+        Double3 halfWidth = Vector3.Transform(Vector3.UnitX, panel.Rotation) * (panel.Width / 2),
+            halfHeight = Vector3.Transform(Vector3.UnitY, panel.Rotation) * (panel.Height / 2);
+        Double3 toCenter = panel.Position - puff;
+        double solidAngle = new RectView(toCenter: toCenter, halfWidth: halfWidth, halfHeight: halfHeight).SolidAngle;
+        double intensity = LightUnits.RectIntensity(panel.Power);
+        double reach = LightUnits.Reach(intensity, LightUnits.CutoffIrradiance(0));
+        // The puff lies under the face, so the face's nearest point is straight above it, 1.5 m away.
+        double ratio = 1.5 * 1.5 / (reach * reach);
+        double window = (1 - ratio * ratio) * (1 - ratio * ratio);
+        double faceRadiance = intensity / ((double)panel.Width * panel.Height);
+        Vector3 irradiance = panel.Color * (float)(faceRadiance * window * solidAngle);
+        solidAngle.Should().BePositive("the puff lies in front of the face");
+        ShouldMatchGlowPuffs(snapshot, [Albedo * irradiance / (4 * MathF.PI)], "lit-puff-rect");
+    }
+
+    [Fact]
+    public void ALitPuffBehindARectangleLightTakesNoneOfItsLight()
+    {
+        RenderSnapshot snapshot = Dark();
+        var puff = new Vector3(0, 0, -6);
+        snapshot.Lights.Add(PanelAbove(puff, facesDown: false));
+        AddLitPuff(snapshot, puff);
+
+        ShouldMatchGlowPuffs(snapshot, [Vector3.Zero], "lit-puff-behind-rect");
+    }
+
     [Fact]
     public void ALitPuffAtALightsExactCenterTakesNoLightFromIt()
     {

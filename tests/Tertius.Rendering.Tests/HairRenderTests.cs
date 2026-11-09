@@ -257,6 +257,134 @@ public sealed class HairRenderTests
         }
     }
 
+    /// <summary>
+    /// The vector irradiance of a rectangle light's face per unit of its face radiance, ½ Σ θᵢ n̂ᵢ over its four edges seen
+    /// from the point, in sr: each edge's angle from an arctangent, independent of the shader's fit. The corners are
+    /// relative to the point, in the order −w −h, −w +h, +w +h, +w −h.
+    /// </summary>
+    private static Double3 VectorIrradiance(Double3[] corners)
+    {
+        Double3 sum = Double3.Zero;
+        for (int i = 0; i < 4; i++)
+        {
+            Double3 a = corners[i],
+                b = corners[(i + 1) & 3];
+            Double3 normal = Double3.Cross(a, b);
+            sum += normal * (Math.Atan2(normal.Length, Double3.Dot(a, b)) / normal.Length);
+        }
+        return 0.5 * sum;
+    }
+
+    /// <summary>
+    /// The face of <paramref name="panel"/> seen from <paramref name="position"/>: its vector irradiance per unit of face
+    /// radiance (<see cref="VectorIrradiance"/>), and its face radiance times the window of its reach from the face's
+    /// nearest point under FixedExposure(0).
+    /// </summary>
+    private static (Double3 Vector, double FaceRadiance) FaceSeenFrom(RectRenderLight panel, Double3 position)
+    {
+        Double3 halfWidth = Vector3.Transform(Vector3.UnitX, panel.Rotation) * (panel.Width / 2),
+            halfHeight = Vector3.Transform(Vector3.UnitY, panel.Rotation) * (panel.Height / 2);
+        Double3 toCenter = (Double3)panel.Position - position;
+        Double3 vector = VectorIrradiance([
+            toCenter - halfWidth - halfHeight,
+            toCenter - halfWidth + halfHeight,
+            toCenter + halfWidth + halfHeight,
+            toCenter + halfWidth - halfHeight,
+        ]);
+        double intensity = LightUnits.RectIntensity(panel.Power);
+        double reach = LightUnits.Reach(intensity, LightUnits.CutoffIrradiance(0));
+        double across = Math.Clamp(-Double3.Dot(toCenter, halfWidth) / halfWidth.LengthSquared, -1, 1),
+            up = Math.Clamp(-Double3.Dot(toCenter, halfHeight) / halfHeight.LengthSquared, -1, 1);
+        double ratio = (-toCenter - across * halfWidth - up * halfHeight).LengthSquared / (reach * reach);
+        return (vector, intensity / ((double)panel.Width * panel.Height) * Math.Pow(1 - ratio * ratio, 2));
+    }
+
+    /// <summary>A white rectangle light of 6 W, 0.6 m by 0.4 m, that casts no shadow, at <paramref name="center"/>.</summary>
+    private static RectRenderLight PanelAt(Vector3 center, Quaternion rotation) =>
+        new(
+            EntityIndex: Gpu.LampEntity,
+            EntityGeneration: 0,
+            Position: center,
+            PreviousPosition: center,
+            Rotation: rotation,
+            PreviousRotation: rotation,
+            Color: Vector3.One,
+            Power: 6,
+            Width: 0.6f,
+            Height: 0.4f,
+            CastsShadow: false,
+            ChainDepth: TestChains.Root
+        );
+
+    [Fact]
+    public void AHairPixelTakesARectangleLightAsHairFiberTakesALightAlongTheFacesVectorIrradiance()
+    {
+        // A panel 0.6 m by 0.4 m, 1 m to the right of the card, 0.5 m up and 1 m nearer the eye, turned to face the card's
+        // center, of 6 W and white.
+        var center = new Vector3(1f, 0.5f, -2f);
+        Vector3 front = Vector3.Normalize(CardCenter - center);
+        Vector3 axis = Vector3.Normalize(Vector3.Cross(Vector3.UnitZ, front));
+        RectRenderLight panel = PanelAt(center, Quaternion.CreateFromAxisAngle(axis, MathF.Acos(front.Z)));
+        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
+        try
+        {
+            MeshId plane = renderer.CreateMesh(Primitives.Plane(1));
+            RenderSnapshot snapshot = SunOnly(Vector3.UnitY, irradiance: 0);
+            snapshot.Lights.Add(panel);
+
+            Vector3 shown = At(
+                Rendered(renderer, snapshot, Card(plane: plane, material: Hair(renderer), rotation: FacingTheCamera)),
+                Ahead
+            );
+            StoredFiber fiber = StoredAt(renderer, Ahead);
+            (Double3 vector, double faceRadiance) = FaceSeenFrom(panel, fiber.Position);
+
+            ShouldBeNear(
+                actual: shown,
+                expected: FiberLight(
+                    fiber: fiber,
+                    hair: BrownHair,
+                    toLight: vector.Normalized(),
+                    irradiance: new Double3(1, 1, 1) * (faceRadiance * vector.Length)
+                ),
+                relative: HalfRounding,
+                because: "a fiber takes the face as a light along its vector irradiance, of the face radiance times its length"
+            );
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void AHairPixelBehindARectangleLightTakesNoneOfItsLight()
+    {
+        // The panel of the test above turned to face away from the card: the card sees its back.
+        var center = new Vector3(1f, 0.5f, -2f);
+        Vector3 away = Vector3.Normalize(center - CardCenter);
+        Vector3 axis = Vector3.Normalize(Vector3.Cross(Vector3.UnitZ, away));
+        var rotation = Quaternion.CreateFromAxisAngle(axis, MathF.Acos(away.Z));
+        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
+        try
+        {
+            MeshId plane = renderer.CreateMesh(Primitives.Plane(1));
+            RenderSnapshot snapshot = SunOnly(Vector3.UnitY, irradiance: 0);
+            snapshot.Lights.Add(PanelAt(center, rotation));
+
+            Vector3 shown = At(
+                Rendered(renderer, snapshot, Card(plane: plane, material: Hair(renderer), rotation: FacingTheCamera)),
+                Ahead
+            );
+
+            shown.Should().Be(Vector3.Zero, "a fiber has no horizon, but the face sends no light from its back");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
     [Fact]
     public void APlusVCardStoresAStrandThatRunsTheWayItsTextureVGrows()
     {
