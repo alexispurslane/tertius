@@ -435,14 +435,14 @@ class TheLoadOfARun(unittest.TestCase):
     def test_the_official_run_has_one_test_host_because_stryker_5_under_reports_kills_above_one(self):
         self.assertEqual(config.CONCURRENCY, 1)
 
-    def test_every_mutant_runs_every_test_because_the_coverage_capture_costs_more_than_a_changed_line_run_saves(self):
-        # tiunr-e8xk's run1: the capture took 2,517 s of Core's 2,674 s and 3,674 s of Simulation's 3,813 s, against a
-        # full test pass of 28 s and 44 s. Below about 80 mutants per module, running every test is faster.
+    def test_each_mutant_runs_only_its_covering_tests_because_every_test_is_slow_on_the_mutated_assembly(self):
+        # t9-al5u: with coverage-analysis off, each Simulation mutant of tiunr-e8xk's run3 ran every test on the mutated
+        # assembly and took about 11 minutes, while the initial run of every test on the plain assembly took 33 s.
         with tempfile.TemporaryDirectory() as folder:
             path = config.write_config(folder, ["**/A.cs"], ["Core"])
             with open(path) as f:
                 written = json.load(f)["stryker-config"]
-        self.assertEqual(written["coverage-analysis"], "off")
+        self.assertEqual(written["coverage-analysis"], "perTest")
 
     def test_stryker_starts_at_nice_20_with_the_processor_count_that_bounds_the_xunit_threads_of_its_configuration(self):
         with tempfile.TemporaryDirectory() as folder:

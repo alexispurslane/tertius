@@ -184,12 +184,12 @@ The official settings are in `tools/stryker/config.py`:
 
 | Setting | Value | Why |
 |---|---|---|
-| `coverage-analysis` | `off` | Each mutant runs every test of the run's test projects. The per-test coverage capture of `perTest` costs more than it saves on a changed-line run (t9-al5u, "Run time" below). |
+| `coverage-analysis` | `perTest` | Each mutant runs only the tests that reach it. `off` was slower, because every test is slow on the mutated assembly (t9-al5u, "Run time" below). |
 | `configuration` | `Checked` | The same build as `tools/mutate.py` and the pre-commit hook. |
 | `concurrency` | 1 | One test host at a time. At a higher concurrency, Stryker.NET 5.0.0 reports killed mutants as Survived (issue #3832, "Stryker.NET pitfalls"). |
 | xunit threads | 4 per run | `changed.py` sets `DOTNET_PROCESSOR_COUNT` to 4 / concurrency for Stryker and its test hosts. xunit's default runs one test class per processor at once, so the hosts together run at most 4 threads. |
 | priority | nice 20 | `changed.py` starts Stryker at the lowest priority, and its test hosts inherit it. The builders and GPU captures of other agents go first. |
-| `timeout-ratio`, `additional-timeout` | 2, 300000 ms | A mutant's limit is 2 x its tests' initial time + 300 s. ter-hxca calibrated the 300 s for the per-test coverage capture, which used 1.5 x a test's initial time + 300 s. The official run kept the value when it turned the capture off. |
+| `timeout-ratio`, `additional-timeout` | 2, 300000 ms | A mutant's limit is 2 x its tests' initial time + 300 s. The per-test coverage capture uses 1.5 x a test's initial time + 300 s. |
 | `break-on-initial-test-failure` | true | A test that fails without a mutant stops the run. |
 | timeout share | at most 25% | Above it, the run is not valid. Quiet runs gave 0 of 3 timeouts (Core) and 3 of 20 (Simulation). The same 3 Simulation mutants also timed out at a 1-minute load of 173, so they make a test hang, and a hang is a kill. ter-u63a's trial, which the load broke, gave 65 of 76. |
 | timeout load | at most 17.5 per core | A timeout counts as a kill only at a 1-minute load of at most 17.5 times the cores. The 3 Simulation hangs repeated at a maximum load of 30.5 and of 173.4 on this 10-core machine. Above that, the calibration has no evidence that a timeout is a hang. |
@@ -198,10 +198,10 @@ The run is not valid in four cases. The script then prints NOT VALID with the fi
 
 - More than 25% of the mutants that ran ended in a timeout. Run it again on a quieter machine. If `tools/stryker/compare.py` then shows the same timeouts, the mutants make a test hang, and the share needs a new calibration.
 - A mutant ended in a timeout, and the 1-minute load of the module's run passed 17.5 times the cores. Run it again on a quieter machine.
-- Stryker marked a test Dubious. Its coverage capture failed, so every mutant also runs that test, and the run is not scoped. Run it again on a quieter machine. Only a run with `coverage-analysis` `perTest` has the capture, so the official run cannot show this case.
+- Stryker marked a test Dubious. Its coverage capture failed, so every mutant also runs that test, and the run is not scoped. Run it again on a quieter machine.
 - A build replaced Stryker's mutated assembly in a test project's output during the run. The mutants after that build ran the plain code, and they can show Survived. Run it again, and build or test no Checked test project of this worktree while it runs.
 
-Do not build or test the Checked test projects of the run in the same worktree while an official run goes on. This includes `dotnet test -c Checked`, `tools/mutate.py` with one of those test projects (also `tests/Tertius.Unions.Tests` for an analyzer line), `tools/test-all.sh` and the pre-commit hook. Stryker copies its mutated module assembly into the output of the test projects before it runs the mutants, and such a build replaces it. Stryker restores the plain copy about 1 s before it ends. `run.py` reads each copy in every sample between the two: a copy without Stryker's helper class `MutantControl` in two samples in a row makes the run not valid. A run in another worktree or on another machine does not interfere.
+Do not build or test the Checked test projects of the run in the same worktree while an official run goes on. This includes `dotnet test -c Checked`, `tools/mutate.py` with one of those test projects (also `tests/Tertius.Unions.Tests` for an analyzer line), `tools/test-all.sh` and the pre-commit hook. Stryker copies its mutated module assembly into the output of the test projects before its coverage capture, and such a build replaces it. Stryker restores the plain copy about 1 s before it ends. `run.py` reads each copy in every sample between the two: a copy without Stryker's helper class `MutantControl` in two samples in a row makes the run not valid. A run in another worktree or on another machine does not interfere.
 
 Under the table, the script lists the changed lines on which no Stryker mutant starts, because Stryker 5.0.0 has no mutator for them. Examples are an enum value in an assignment, such as `holds = Holds.Value;`, and the result of a switch arm. The list keeps only the lines that can hold behavior: lines with an assignment, an arrow, a `return`, a `throw`, a `yield` or a call statement. Judge each line, and put a mutant in the `tools/mutate.py` list for each line whose behavior a test must check. Two rules decide which mutants count:
 
@@ -212,7 +212,7 @@ On ter-9xl7's `Result.cs`, the list names 12 lines. Among them are the 4 lines o
 
 A no-mutant row has the id `<module>-<path in the project>-L<line>`, for example `Core-Unions/Result.cs-L88`, and a removed row has `R` in place of `L`. The path keeps the ids of two files apart.
 
-After each module's run, `run.py` builds its test projects again in Checked. Stryker restores the plain module assembly in their output when it ends normally. A run that stops early, for example on a signal, leaves its mutated assembly there, and a later `dotnet test --no-build` runs it. Under the table, the script prints the evidence of each module's log. It gives the compile tries of the one schemata build, and the initial test run with its count of tests. It also gives the time of the per-test coverage capture, or "no per-test coverage capture" for the official run, the Dubious tests, and the mean count of tests that each mutant ran. It also gives the 1-minute load and the test hosts, from the samples of `run.py`: their nice value, and the CPU of all hosts of one sample together. Stryker starts one host per test project at once, but it runs one of them at a time. So their CPU together shows the thread bound, and their count does not. `<module>/processes.log` holds each sample of Stryker's processes. `<out>/results.json` holds the rows, the evidence, the settings and the load samples.
+After each module's run, `run.py` builds its test projects again in Checked. Stryker restores the plain module assembly in their output when it ends normally. A run that stops early, for example on a signal, leaves its mutated assembly there, and a later `dotnet test --no-build` runs it. Under the table, the script prints the evidence of each module's log. It gives the compile tries of the one schemata build, and the initial test run with its count of tests. It also gives the time of the per-test coverage capture, or "no per-test coverage capture" for a run with `coverage-analysis` `off`, the Dubious tests, and the mean count of tests that each mutant ran. It also gives the 1-minute load and the test hosts, from the samples of `run.py`: their nice value, and the CPU of all hosts of one sample together. Stryker starts one host per test project at once, but it runs one of them at a time. So their CPU together shows the thread bound, and their count does not. `<module>/processes.log` holds each sample of Stryker's processes. `<out>/results.json` holds the rows, the evidence, the settings and the load samples.
 
 `tools/stryker/run.py` is the only script that starts Stryker. It takes the machine-wide lock `/tmp/tertius-stryker.lock`, a folder, because two Stryker runs at once compete for the CPU and their tests time out. `changed.py` holds the lock over all its modules. The record in the folder, the release rule and the liveness rule are those of every machine lock ("The record of a machine lock"). The record's label is the run's folder. The lock works in this way:
 
@@ -228,28 +228,33 @@ With `--head <commit>`, the script measures a merged range, for example the comm
 
 #### Run time
 
-The official run turns the per-test coverage capture off (t9-al5u, user decision 2026-11-08). The capture runs every test of the test projects alone, one at a time, so its time does not depend on the size of the change. It uses about one core. On tiunr-e8xk's first run, with the capture on, it took most of each module's run:
+Most of a run is the per-test coverage capture. The capture runs every test of the test projects alone, one at a time, on the mutated assembly. That assembly holds a switch for every mutant that Stryker compiled, and on run3 below that was 1,175 switches for 10 mutants in the spans. So every test is slower there than in the initial test run, which uses the plain assembly. The capture's time does not depend on the size of the change, and it uses about one core. On tiunr-e8xk's run1:
 
-| Module | Mutants | Wall time | Coverage capture | One full test pass |
+| Module | Mutants | Wall time | Coverage capture | Initial test run (plain assembly) |
 |---|---:|---:|---:|---:|
 | Core | 0 | 2,674 s | 2,517 s | 28 s (4,622 tests) |
 | Simulation | 10 | 3,813 s | 3,674 s | 44 s (4,563 tests) |
 
-Without the capture, every mutant runs every test, at about the time of one full test pass. So a run without the capture is faster while a module has fewer mutants than its capture time divided by its full test pass: 2,517 / 28 = 90 for Core and 3,674 / 44 = 83 for Simulation. Use about 80 mutants per module as the crossover. A changed-line run of one ticket has far fewer. If a run has more, for example a run of whole files with `--files`, a configuration by hand with `perTest` is faster.
+The capture is not slow because it runs the tests one at a time. It is slow because the tests run on the mutated assembly. So `coverage-analysis` `off`, where every mutant runs every test, does not save time. It runs the slow full test pass once for each mutant. t9-al5u tried it on the same lines (run3, 2026-11-08), and these results made the official run go back to `perTest`:
 
-A mutant that makes a test hang still runs until Stryker's limit: 2 x the initial time of its tests + 300 s. Without the capture, its tests are all the tests of the run, so the limit is about 6 minutes.
+- Each mutant's run of Core's tests took 3 to 12 s.
+- Each mutant's run of the Simulation tests and of the Physics tests reached Stryker's limit, 314 s and 342 s. In those runs, Physics finished 361, 326 and 79 of its 1,492 tests. The initial run finished all of them in less than 33 s.
+- So each Simulation mutant took about 11 minutes, and the 10 mutants would take about 2 hours. Run1 with `perTest` took 64 minutes for the module.
+- The load and the explicit list of tests did not cause it. The initial run ran at the same nice value and a similar load, and it also sent Stryker's explicit list of tests.
 
-Earlier runs with the capture on, for comparison:
+Ticket t9-q4qe looks for a way to keep the mutants outside the spans out of the compiled assembly. That would shorten both the capture and the mutants.
+
+Earlier runs, for comparison:
 
 - On ter-hxca's official calibration, a run of Core on the 3 mutants of ter-9xl7's `Result.cs` took 2,107 s. The initial test run of 4,593 tests took 26 s. The per-test coverage capture took 2,017 s, 96% of the run, and the 3 mutants took seconds. At concurrency 3, the capture took 990 s of 1,092 s, because three test hosts shared the tests.
 - On ter-2y6i's 20 mutants, a run of Simulation took 8,656 s: 2,576 s of coverage capture and 5,951 s of mutants. Most mutants of these spans are on hot paths, with 1,250 to 2,463 covering tests each. Such a mutant makes some Physics and Simulation tests run until Stryker's limit, about 335 s and 300 s, so it takes about 10 minutes. At concurrency 3, the same run took 3,094 s.
 
-These changes can shorten a run:
+These changes can shorten the capture or the mutants:
 
-- A Stryker.NET release that fixes issue #3832 lets the concurrency rise, and the mutants spread over the test hosts.
-- Fewer test projects make each mutant shorter. But the run then misses the kills of the tests in the projects that it leaves out.
+- A Stryker.NET release that fixes issue #3832 lets the concurrency rise, and the capture spreads over the test hosts.
+- Fewer test projects make the capture shorter. But the run then misses the kills of the tests in the projects that it leaves out.
 - Faster cores make each test shorter. More cores do not help at concurrency 1.
-- A smaller `additional-timeout` shortens each mutant that makes a test hang. ter-hxca chose 300 s for the capture, which the official run no longer makes, so a new calibration can lower it.
+- A smaller `additional-timeout` shortens each mutant that makes a test run to the limit. But the capture uses the same setting, and a test such as `DeterminismTests` needs 80 to 90 s alone there.
 
 ### A run on another machine
 
@@ -291,12 +296,12 @@ The official command uses these three scripts. Call them yourself to mutate whol
 
 These cost time on the vertical slice and on ter-hxca, so the scripts handle them:
 
-- Stryker.NET 5.0.0 reads `coverage-analysis` only from a configuration file, not from the command line. Without `perTest`, every mutant runs every test. The official run wants that ("Run time"), so its configuration sets `off`.
+- Stryker.NET 5.0.0 reads `coverage-analysis` only from a configuration file, not from the command line. Without `perTest`, every mutant runs every test, on the slow mutated assembly ("Run time").
 - Stryker.NET matches a `mutate` pattern against the full path. A pattern without the `**/` prefix matches no file, and the run then has no mutants.
 - In a pattern such as `**/Frames/FrameTree.cs{402..1704}`, the numbers are character offsets in the file, not line numbers.
 - Stryker.NET leaves a mutant that does not compile out of the score. A method with a pattern variable in a condition, such as `x is { } box && ...`, often makes every mutant in the method fail to compile (error CS0165). On the vertical slice, the Core score was 100% of 155 mutants, but 52 more mutants never ran. Hand mutations of their lines found three gaps. The official run lists such lines as no-mutant rows.
 - The progress bar shows only on a terminal. `run.py` passes the `-L` flag, which writes the log to `out/logs`, so that you can follow a run in the background.
-- With `perTest`, the MTP runner captures per-test coverage one test at a time, in a test host that it reuses. Each test gets a limit of 1.5 x its initial time + `additional-timeout`, at least 30 s. A test whose class fixture does the work, such as `DeterminismTests`, has an initial time near 0, but it took 80 to 90 s alone under the capture. With the default `additional-timeout` of 10 s, Stryker marked such tests Dubious.
+- The MTP runner captures per-test coverage one test at a time, in a test host that it reuses. Each test gets a limit of 1.5 x its initial time + `additional-timeout`, at least 30 s. A test whose class fixture does the work, such as `DeterminismTests`, has an initial time near 0, but it took 80 to 90 s alone under the capture. With the default `additional-timeout` of 10 s, Stryker marked such tests Dubious.
 - After such a timeout, Stryker 5.0.0 kills the test host and starts a new one. Then it waits 10 s for the coverage relay of the killed host on every later test of that runner, and it marks each of them Dubious. One slow test can make hundreds of Dubious tests, and every mutant then runs them all.
 - Stryker.NET 5.0.0 under the MTP runner reports killed mutants as Survived at a concurrency above 1 ([issue #3832](https://github.com/stryker-mutator/stryker-net/issues/3832), open on 2026-11-01). The count of kills changes from run to run on unchanged code, but Killed + Survived stays the same. The reporter measured kill rates of 70.59% at concurrency 1, 38.45% at 2 and 27.10% at 4, against 70.80% on 4.16.0. `coverage-analysis` off does not help. So the official run uses concurrency 1, and a survivor of a run at a higher concurrency proves nothing.
 - To raise the concurrency when a fixed release comes, run the official command once at concurrency 1 and at least twice at the higher concurrency, on the same spans. The fault is nondeterministic, so one equal run is not enough. Then compare the runs mutant by mutant:
