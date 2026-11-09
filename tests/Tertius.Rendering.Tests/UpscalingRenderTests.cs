@@ -789,7 +789,9 @@ public sealed class UpscalingRenderTests
         scene.Camera.Rotation = down;
         scene.Camera.PreviousRotation = down;
         MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
-        MaterialId gray = renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.6f, y: 0.6f, z: 0.6f, w: 1f), roughness: 0.8f));
+        MaterialId gray = renderer.CreateMaterial(
+            MaterialDesc.Color(new(x: 0.6f, y: 0.6f, z: 0.6f, w: 1f), roughness: 0.8f)
+        );
         scene.Instances.Add(
             Gpu.Instance(
                 mesh: box,
@@ -827,10 +829,12 @@ public sealed class UpscalingRenderTests
         }
         float dark = rows.Min(),
             lit = rows.Max();
-        int[] inside = Enumerable
-            .Range(0, image.Height)
-            .Where(y => rows[y] > dark + 0.2f * (lit - dark) && rows[y] < dark + 0.8f * (lit - dark))
-            .ToArray();
+        int[] inside =
+        [
+            .. Enumerable
+                .Range(0, image.Height)
+                .Where(y => rows[y] > dark + 0.2f * (lit - dark) && rows[y] < dark + 0.8f * (lit - dark)),
+        ];
         inside.Should().NotBeEmpty("the slab's shadow edge crosses the view");
         return (inside.Min(), inside.Max());
     }

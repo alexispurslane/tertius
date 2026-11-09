@@ -36,10 +36,7 @@ public sealed class ShaderConstantsTests
             [ShaderConstants.MainViewId] = False,
         },
         ["skin_scatter_rows.comp"] = new() { [ShaderConstants.ScatterTapsPerSideId] = new(Type: "int", Default: 1) },
-        ["direct.frag"] = new()
-        {
-            [ShaderConstants.DropsFibersId] = False,
-        },
+        ["direct.frag"] = new() { [ShaderConstants.DropsFibersId] = False },
         ["gbuffer.frag"] = new()
         {
             [ShaderConstants.EnvironmentMapId] = False,
