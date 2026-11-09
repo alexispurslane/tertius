@@ -72,7 +72,10 @@ def write_config(out, mutate, tests, concurrency=CONCURRENCY, additional_timeout
     """Writes <out>/stryker-config.json for the mutate patterns and the test modules, and returns its path."""
     config = {'stryker-config': {
         'test-runner': 'mtp',
-        # Stryker.NET 5.0.0 takes coverage-analysis only from a configuration file, not from the command line.
+        # Stryker.NET 5.0.0 takes coverage-analysis only from a configuration file, not from the command line. perTest:
+        # each mutant runs only the tests that reach it. Off made each mutant run every test on the mutated assembly,
+        # whose switches of all compiled mutants slow every test: a Simulation mutant took about 11 minutes, and Physics
+        # finished 361 of its 1,492 tests in 315 s (t9-al5u, tools/README.md, "Run time").
         'coverage-analysis': 'perTest',
         'configuration': CONFIGURATION,
         'concurrency': concurrency,

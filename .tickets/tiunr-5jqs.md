@@ -100,3 +100,40 @@ Not measured: the GPU cost of a tube light.
 **2026-11-08T18:19:55Z**
 
 2026-11-08: verified: final-checked 10,394 run 0 failed, final-release 10,381 run 0 failed; looked at the video check frames and the demo front view (no specks, the box and ball clean). Open: the old ray-lit wide glow was about 2.5 times the new direct level (tiunr-1lss).
+
+**2026-11-09T00:32:35Z**
+
+Official Stryker run of the tube light's Core and Simulation lines (tiunr-e8xk, 2026-11-08). Base da70cd8c2, head main at f3fee2c12: its Core, Simulation and Physics diff is identical to the diff of 972d42f16 alone. Run1 was valid (no timeout, no Dubious test). Core had no Stryker mutant. The lines without a Stryker mutant went to tools/mutate.py (M rows). M15 and M16 repeat the two Stryker survivors as listed mutants, to show the new tests red on them.
+
+| id | place | change | result | killed by, or reason |
+|---|---|---|---|---|
+| Simulation-498 | LightData.cs:72 | Color * -> Color / | killed | TubeLightDataTests.ATubeOfLengthZeroSendsTheRadianceOfTheSphereOfItsRadius, TubeLightDataTests.ACapsuleSendsItsPowerFromItsWholeSurface |
+| Simulation-499 | LightData.cs:72 | Power / -> Power * | killed | as 498 |
+| Simulation-500 | LightData.cs:72 | area product mutated | killed | as 498 |
+| Simulation-501 | LightData.cs:72 | * Radius -> / Radius | killed | as 498 |
+| Simulation-502 | LightData.cs:72 | PI * PI -> PI / PI | killed | as 498 |
+| Simulation-503 | LightData.cs:72 | 2 * PI -> 2 / PI | killed | as 498 |
+| Simulation-504 | LightData.cs:72 | Length + 2R -> Length - 2R | killed | as 498 |
+| Simulation-505 | LightData.cs:72 | 2.0 * Radius -> 2.0 / Radius | killed | as 498 |
+| Simulation-3755 | RenderSnapshotBuilder.cs:686 | pose.Position - origin -> + origin | survived in run1, now killed | New case: RenderSnapshotLightingTests.ALightOnAMovingEntityCarriesItsPreviousPlace(kind: "tube"), red on M15 |
+| Simulation-3756 | RenderSnapshotBuilder.cs:687 | previousPose.Position - origin -> + origin | survived in run1, now killed | Same test case, red on M16 |
+| M01 | RenderSnapshotBuilder.cs:65 | tube axis -Z | killed | RenderSnapshotLightingTests.ATubeLightFollowsItsEntityAndTurnsItsSegmentWithIt |
+| M02 | RenderSnapshotBuilder.cs:681 | pose from previous | killed | same |
+| M03 | RenderSnapshotBuilder.cs:682 | previous pose from current | killed | same |
+| M04 | RenderSnapshotBuilder.cs:684 | entity index + 1 | survived, now killed | New tube case in RenderSnapshotLightingTests.ALightCarriesTheIndexOfItsEntity |
+| M05 | RenderSnapshotBuilder.cs:685 | entity generation + 1 | survived, now killed | same (it compares the whole Entity) |
+| M06 | RenderSnapshotBuilder.cs:688 | axis from previous pose | killed | RenderSnapshotLightingTests.ATubeLightFollowsItsEntityAndTurnsItsSegmentWithIt |
+| M07 | RenderSnapshotBuilder.cs:689 | previous axis from pose | killed | same |
+| M08 | RenderSnapshotBuilder.cs:690 | color doubled | survived, now killed | New tube case in RenderSnapshotLightingTests.ALightCarriesItsPowerRadiusAndShadowFlagIntoTheSnapshot |
+| M09 | RenderSnapshotBuilder.cs:691 | power doubled | survived, now killed | same |
+| M10 | RenderSnapshotBuilder.cs:692 | radius doubled | killed | RenderSnapshotLightingTests.ATubeLightFollowsItsEntityAndTurnsItsSegmentWithIt |
+| M11 | RenderSnapshotBuilder.cs:693 | length doubled | killed | same |
+| M12 | RenderSnapshotBuilder.cs:694 | shadow flag negated | survived, now killed | New tube case in ALightCarriesItsPowerRadiusAndShadowFlagIntoTheSnapshot |
+| M13 | RenderSnapshotBuilder.cs:695 | chain depth + 1 | survived, now killed | New tube light in RenderSnapshotChainTests.ALightTakesTheDepthOfTheEntityThatCarriesIt |
+| M14 | RenderLight.cs:117 | tube Entity index and generation swapped | killed | BatcherTests.OnlyTheGpuInstancesOfATubeLightsEntityCarryItsLightHolderMark |
+| M15 | RenderSnapshotBuilder.cs:686 | Simulation-3755 as a listed mutant | killed | ALightOnAMovingEntityCarriesItsPreviousPlace(kind: "tube") |
+| M16 | RenderSnapshotBuilder.cs:687 | Simulation-3756 as a listed mutant | killed | same |
+
+LightData.cs:71, which Stryker listed without a mutant, is the declaration `public Vector3 SurfaceRadiance =>`. Its expression is line 72, with 8 killed mutants, so the line needs no mutant of its own.
+
+Summary: 26 rows (10 Stryker, 16 listed). Before the new tests, of the 24 rows that ran then: killed 16, survived 8. After: all 26 killed, 0 without an answer. The kills of the 8 come from tools/mutate.py (mutate2, the new tests red on each mutant), not from a second official run, by the parent's decision.
