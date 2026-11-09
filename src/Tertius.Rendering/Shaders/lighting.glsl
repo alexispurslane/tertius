@@ -7,8 +7,9 @@
 // Each light of the one light list adds f · E · (N·L), where E is its irradiance (docs/plans/local-light-shadows.md, "The
 // shaders"), and its specular part sees the light as a sphere of its radius (docs/plans/pbr-brdf.md, "Sized lights").
 // A tube light is a capsule, whose diffuse part takes its vector irradiance and whose specular part its representative
-// point (ARCHITECTURE.md, "Tube lights"). A rectangle light is a one-sided face, whose diffuse part takes the exact edge
-// sum cut at the horizon and whose specular part the LTC of the lobe (ARCHITECTURE.md, "Rectangle lights").
+// point (ARCHITECTURE.md, "Tube lights"). A rectangle light is a one-sided face, whose E is its face radiance: its diffuse
+// part takes the edge sum cut at the horizon and its specular part the LTC of the lobe (ARCHITECTURE.md, "Rectangle
+// lights").
 // A hair pixel takes each light's response of a fiber instead (hair.glsl), from either side of its card, and its
 // ambient light at its fiber normal, its shading normal (docs/plans/skin-and-hair.md, "The hair model"). A skin pixel
 // shades as the standard model, with metallic 0. The ambient light comes from one ambient source,
@@ -39,10 +40,12 @@ const uint ShadowMapsHolding = 2u;    // the finest cascade whose box holds the 
 // LightUnits.NearestDistance: the floor of the distance, in m, by which a light of radius 0 divides its irradiance.
 const float NearestDistance = 0.01;
 
-// ShaderInput.IrradianceLimit, 2^64 W/m²: the most irradiance per channel that one light gives a surface. A kept light's
-// irradiance before the cap is finite, at most 10^34 W/sr over the floor of 10^−4 m², so min sees no infinity. Below the
-// cap, the sum over every light of its product with the BRDF, its visibility and the exposure stays a finite single float
-// (ARCHITECTURE.md, "Portable Vulkan").
+// ShaderInput.IrradianceLimit, 2^64: the most irradiance per channel in W/m² that one light gives a surface, and the most
+// face radiance per channel in W/(m²·sr) of a rectangle light. A point, spot or tube light's irradiance before the cap is
+// finite, at most 10^34 W/sr over the floor of 10^−4 m². A rectangle's face radiance can pass the float range before the
+// cap, 10^34 W/sr over a face of 10^−12 m², and min(+∞, cap) is the cap. Below the cap, the sum over every light of its
+// product with the response, its visibility and the exposure stays a finite single float: a rectangle's response per
+// unit of face radiance is at most about its albedo (ARCHITECTURE.md, "Portable Vulkan").
 const float IrradianceLimit = 18446744073709551616.0;
 
 struct ShadingInput
@@ -288,28 +291,32 @@ float rectSolidAngle(vec3 toCenter, vec3 halfWidth, vec3 halfHeight)
 }
 
 // RectView.EdgeVector: θ n̂ of the arc from the unit direction a to the unit direction b, its angle times the unit normal
-// of its plane; zero for an arc of no length. θ / sin θ comes from Hill and Heitz's rational fit of the cosine (Hill and
-// Heitz 2016, "Real-Time Area Lighting: a Journey from Research to Production"), within 2·10⁻⁶ of it up to an angle of
-// π − 3.2·10⁻⁴, with no arctangent. Beyond that angle the floor of sin² θ keeps the division finite.
+// of its plane; zero for an arc of no length, between opposite directions and when a or b is zero. θ / sin θ comes from
+// Hill and Heitz's rational fit (Hill and Heitz 2016, "Real-Time Area Lighting: a Journey from Research to Production"),
+// within 2·10⁻⁶ of it at every angle, with no arctangent. Past π / 2 it takes sin θ from the cross product, which keeps
+// it exact near π, where 1 − cos² θ loses it in rounding.
 vec3 edgeVector(vec3 a, vec3 b)
 {
+    vec3 normal = cross(a, b);
     float x = dot(a, b);
     float y = abs(x);
     // θ / sin θ / (2π) at the angle of cosine y, at most π / 2.
     float fit = (0.8543985 + (0.4965155 + 0.0145206 * y) * y) / (3.4175940 + (4.1616724 + y) * y);
-    // Past π / 2, θ / sin θ = π / sin θ − (π − θ) / sin(π − θ).
-    float thetaOverSine = x > 0.0 ? fit : 0.5 * inversesqrt(max(1.0 - x * x, 1e-7)) - fit;
-    return cross(a, b) * (2.0 * PI * thetaOverSine);
+    // Past π / 2, θ / sin θ = π / sin θ − (π − θ) / sin(π − θ). The floor keeps the division finite where the normal is
+    // zero, and so is the product.
+    float thetaOverSineOverTwoPi = x > 0.0 ? fit : 0.5 / max(length(normal), 1e-30) - fit;
+    return normal * (2.0 * PI * thetaOverSineOverTwoPi);
 }
 
 // RectView.CutCosine: ∫ max(ω_z, 0) dω over the convex quad q seen from the origin, in sr: Lambert's edge sum over its
 // part above z = 0. The cut leaves at most one way out and one way back in, which the horizon's arc joins. The quad winds
-// clockwise about the direction from the origin toward it, so the sum is above 0. No corner of q may be the origin.
+// clockwise about the direction from the origin toward it, so the sum is above 0.
 float cutCosine(vec3 q[4])
 {
-    // The directions of the corners: a crossing between two of them lies on their arc, so it keeps the cut exact.
+    // The directions of the corners: a crossing between two of them lies on their arc, so it keeps the cut exact. A corner
+    // that rounds to the origin adds no edge.
     for (int i = 0; i < 4; i++)
-        q[i] = normalize(q[i]);
+        q[i] = normalizedOr(q[i], vec3(0.0));
     float sum = 0.0;
     vec3 exitPoint = vec3(0.0);
     vec3 entryPoint = vec3(0.0);
@@ -325,7 +332,7 @@ float cutCosine(vec3 q[4])
         else if (aAbove || bAbove)
         {
             // The signs of a.z and b.z differ, so the division is finite.
-            vec3 crossing = normalize(mix(a, b, a.z / (a.z - b.z)));
+            vec3 crossing = normalizedOr(mix(a, b, a.z / (a.z - b.z)), vec3(0.0));
             cut = true;
             if (aAbove)
             {
@@ -670,8 +677,8 @@ DirectTerms rectResponse(bool fiber, ShadingInput s, SurfaceLobes lobes, vec3 V,
     terms.specular = vec3(0.0);
     if (fiber)
     {
-        // The point lies in front of the face's plane, so no corner is the point.
-        vec3 u[4] = vec3[4](normalize(corners[0]), normalize(corners[1]), normalize(corners[2]), normalize(corners[3]));
+        vec3 u[4] = vec3[4](normalizedOr(corners[0], vec3(0.0)), normalizedOr(corners[1], vec3(0.0)),
+            normalizedOr(corners[2], vec3(0.0)), normalizedOr(corners[3], vec3(0.0)));
         vec3 vector = 0.5 * (edgeVector(u[0], u[1]) + edgeVector(u[1], u[2]) + edgeVector(u[2], u[3])
             + edgeVector(u[3], u[0]));
         terms = hairResponse(s, lobes, V, normalizedOr(vector, p.L));
@@ -765,9 +772,9 @@ DirectTerms modelLight(
 
 // Every light of the list that the view keeps reflected toward V in its two parts, each dimmed by its shadows as
 // shadowMaps says: a face of map i passes i, and every other caller MainView. The lights other than the rectangles add
-// in the order of the list, then the rectangles in the order of the list, so the sum rounds the same way on every run. A light adds only where takesLight says. A hair card's shadow lookups
-// take its geometric normal turned toward the light, the side that the light sees (docs/plans/skin-and-hair.md,
-// decision 27). The result is plain radiance: no ambient light, no emission and no exposure. The direct pass divides it
+// in the order of the list, then the rectangles in the order of the list, so the sum rounds the same way on every run.
+// A light adds only where takesLight says. A hair card's shadow lookups take its geometric normal turned toward the
+// light, the side that the light sees (docs/plans/skin-and-hair.md, decision 27). The result is plain radiance: no ambient light, no emission and no exposure. The direct pass divides it
 // by its material factors into the direct light's images (Shaders/direct.frag).
 //
 // A pixel has one model, so directLight chooses the model once per pixel, before the loop over the lights, and each

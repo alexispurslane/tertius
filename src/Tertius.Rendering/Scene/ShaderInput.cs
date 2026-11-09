@@ -31,8 +31,9 @@ internal static class ShaderInput
     public const float RadianceLimit = 18446744073709551616f;
 
     /// <summary>
-    /// The most irradiance per channel, 2^64 W/m², that one light gives a surface in the shaders: `IrradianceLimit` in
-    /// Shaders/lighting.glsl, where lightIrradiance caps it before the BRDF. Below it, the bound of
+    /// The most irradiance per channel, 2^64 W/m², that one light gives a surface in the shaders, and the most face
+    /// radiance per channel, 2^64 W/(m²·sr), of a rectangle light: `IrradianceLimit` in Shaders/lighting.glsl, where
+    /// lightIrradiance caps it before the response. Below it, the bound of
     /// <see cref="RadianceLimit"/> holds for the sum of every light's product with the BRDF, its visibility and the exposure.
     /// </summary>
     public const float IrradianceLimit = 18446744073709551616f;

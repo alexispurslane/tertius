@@ -414,8 +414,9 @@ class GpuIntervals(unittest.TestCase):
     """gpu_intervals: reads the exported table of GPU intervals into the intervals of each pass and the first GPU start
     of each frame."""
 
-    def intervals(self, rows):
-        """gpu_intervals on a table of rows (start ns, duration ns, process, command buffer, encoder, label)."""
+    def intervals(self, rows, named=None, buffers_per_frame=1):
+        """gpu_intervals on a table of rows (start ns, duration ns, process, command buffer, encoder, label), with the
+        encoders e1 and e2 of the pass a unless named gives others."""
         columns = ["start", "duration", "process", "cmdbuffer-id", "encoder-id", "event-label"]
         body = "".join(
             "<row>" + "".join(f'<c fmt="{fmt}">{text}</c>' for fmt, text in cells) + "</row>"
@@ -428,13 +429,11 @@ class GpuIntervals(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "metal-gpu-intervals.xml"
             path.write_text(f"<trace-query-result><node><schema>{schema}</schema>{body}</node></trace-query-result>")
-            return gpu_trace.gpu_intervals(
-                path, "Demo", {"e1": ("b1", "a"), "e2": ("b1", "a")}, {"b1": "b1", "b1-out": "b1"}
-            )
+            return gpu_trace.gpu_intervals(path, "Demo", named or {"e1": "a", "e2": "a"}, buffers_per_frame)
 
     def test_a_command_buffer_with_a_timestamp_encoder_is_a_frame_from_its_first_gpu_start(self):
         stamp = f"Queue 0-0:{gpu_trace.STAMP}   (Demo (1)) 0x1"
-        _, starts = self.intervals([
+        _, starts, _ = self.intervals([
             (50, 5, "Demo (1)", "b1", "e1", "Queue 0-0:vkCmdDispatch ComputeEncoder"),
             (40, 5, "Demo (1)", "b1", "s1", stamp),
             (90, 5, "Demo (1)", "b2", "s2", stamp),
@@ -445,20 +444,50 @@ class GpuIntervals(unittest.TestCase):
         self.assertEqual(starts, {"b1": 40, "b2": 90})
 
     def test_a_command_buffer_with_an_encoder_of_a_pass_is_a_frame_even_when_the_trace_lost_its_timestamp_intervals(self):
-        _, starts = self.intervals([(50, 5, "Demo (1)", "b1", "e1", "Queue 0-0:vkCmdDispatch ComputeEncoder")])
+        _, starts, _ = self.intervals([(50, 5, "Demo (1)", "b1", "e1", "Queue 0-0:vkCmdDispatch ComputeEncoder")])
         self.assertEqual(starts, {"b1": 50})
 
     def test_the_second_command_buffer_of_a_frame_starts_no_frame_of_its_own(self):
         stamp = f"Queue 0-0:{gpu_trace.STAMP}   (Demo (1)) 0x1"
-        _, starts = self.intervals([
-            (40, 5, "Demo (1)", "b1", "s1", stamp),
-            (50, 5, "Demo (1)", "b1", "e1", "Queue 0-0:vkCmdDispatch ComputeEncoder"),
-            (90, 5, "Demo (1)", "b1-out", "s2", stamp),
-        ])
+        _, starts, _ = self.intervals(
+            [
+                (40, 5, "Demo (1)", "b1", "s1", stamp),
+                (50, 5, "Demo (1)", "b1", "e1", "Queue 0-0:vkCmdDispatch ComputeEncoder"),
+                (90, 5, "Demo (1)", "b1-out", "s2", stamp),
+            ],
+            buffers_per_frame=2,
+        )
         self.assertEqual(starts, {"b1": 40})
 
+    def test_the_passes_of_the_second_command_buffer_of_a_frame_count_in_that_frame(self):
+        found, _, _ = self.intervals(
+            [
+                (40, 5, "Demo (1)", "b1", "e1", "Queue 0-0:vkCmdDispatch ComputeEncoder"),
+                (90, 5, "Demo (1)", "b1-out", "e2", "Queue 0-0:vkCmdBeginRendering RenderEncoder"),
+            ],
+            named={"e1": "a", "e2": "b"},
+            buffers_per_frame=2,
+        )
+        self.assertEqual(found, {("b1", "a"): [(40, 45)], ("b1", "b"): [(90, 95)]})
+
+    def test_a_frame_whose_encoder_rows_the_trace_lost_keeps_its_place_among_frames_of_two_command_buffers(self):
+        # Frame f2's encoders name no pass, because the encoder list lost them, but its stamps still make it a frame.
+        stamp = f"Queue 0-0:{gpu_trace.STAMP}   (Demo (1)) 0x1"
+        _, starts, _ = self.intervals(
+            [
+                (10, 1, "Demo (1)", "f1", "s1", stamp),
+                (20, 1, "Demo (1)", "f1-out", "s2", stamp),
+                (30, 1, "Demo (1)", "f2", "s3", stamp),
+                (40, 1, "Demo (1)", "f2-out", "s4", stamp),
+                (50, 1, "Demo (1)", "f3", "s5", stamp),
+                (60, 1, "Demo (1)", "f3-out", "s6", stamp),
+            ],
+            buffers_per_frame=2,
+        )
+        self.assertEqual(starts, {"f1": 10, "f2": 30, "f3": 50})
+
     def test_the_intervals_hold_only_the_encoders_that_name_a_pass(self):
-        found, _ = self.intervals([
+        found, _, _ = self.intervals([
             (50, 5, "Demo (1)", "b1", "e1", "Queue 0-0:vkCmdDispatch ComputeEncoder"),
             (60, 5, "Demo (1)", "b1", "e2", "Queue 0-0:vkCmdDispatch ComputeEncoder"),
             (40, 5, "Demo (1)", "b1", "s1", f"Queue 0-0:{gpu_trace.STAMP}   (Demo (1)) 0x1"),
@@ -484,27 +513,27 @@ class CommandBuffers(unittest.TestCase):
             return gpu_trace.passes_by_encoder(path, "Demo", list(passes))
 
     def test_the_encoder_list_names_the_passes_of_a_command_buffer_with_one_more_timestamp_than_passes(self):
-        named, _ = self.listed([
+        named, _, _ = self.listed([
             ("Demo (1)", "b1", "s1", gpu_trace.STAMP, 0),
             ("Demo (1)", "b1", "e1", "vkCmdDispatch ComputeEncoder", 1),
             ("Demo (1)", "b1", "s2", gpu_trace.STAMP, 2),
             ("Demo (1)", "b2", "e2", "vkCmdCopyBuffer BlitEncoder", 0),
         ])
-        self.assertEqual(named, {"e1": ("b1", "a")})
+        self.assertEqual(named, {"e1": "a"})
 
     def test_the_encoder_list_gives_every_command_buffer_that_it_lists(self):
-        _, listed = self.listed([
+        _, _, listed = self.listed([
             ("Demo (1)", "b1", "s1", gpu_trace.STAMP, 0),
             ("Demo (1)", "b1", "e1", "vkCmdDispatch ComputeEncoder", 1),
             ("Demo (1)", "b1", "s2", gpu_trace.STAMP, 2),
             ("Demo (1)", "b2", "e2", "vkCmdCopyBuffer BlitEncoder", 0),
             ("Other (2)", "b3", "e3", "vkCmdCopyBuffer BlitEncoder", 0),
         ])
-        self.assertEqual(set(listed), {"b1", "b2"})
+        self.assertEqual(listed, {"b1", "b2"})
 
     def test_two_command_buffers_whose_timestamps_together_are_one_more_than_passes_make_one_frame(self):
         # The renderer submits the output's commands in a second command buffer (QueueSubmission.Submit).
-        named, frames = self.listed(
+        named, shape, _ = self.listed(
             [
                 ("Demo (1)", "b1", "s1", gpu_trace.STAMP, 0),
                 ("Demo (1)", "b1", "e1", "vkCmdDispatch ComputeEncoder", 1),
@@ -514,10 +543,10 @@ class CommandBuffers(unittest.TestCase):
             ],
             passes=("a", "b"),
         )
-        self.assertEqual((named, frames), ({"e1": ("b1", "a"), "e2": ("b1", "b")}, {"b1": "b1", "b2": "b1"}))
+        self.assertEqual((named, shape), ({"e1": "a", "e2": "b"}, (2, 1)))
 
     def test_a_frame_that_lost_a_timestamp_leaves_the_next_frame_named(self):
-        named, _ = self.listed(
+        named, _, _ = self.listed(
             [
                 ("Demo (1)", "b1", "s1", gpu_trace.STAMP, 0),
                 ("Demo (1)", "b1", "e1", "vkCmdDispatch ComputeEncoder", 1),
@@ -531,22 +560,43 @@ class CommandBuffers(unittest.TestCase):
             ],
             passes=("a", "b"),
         )
-        self.assertEqual(named, {"e3": ("b3", "a"), "e4": ("b3", "b")})
+        self.assertEqual(named, {"e3": "a", "e4": "b"})
+
+    def test_the_second_command_buffer_of_a_frame_whose_first_the_trace_lost_does_not_join_the_next_frame(self):
+        # The second command buffer b4 of frame 2 and the first command buffer b5 of frame 3 also hold three stamps.
+        named, _, _ = self.listed(
+            [
+                ("Demo (1)", "b1", "s1", gpu_trace.STAMP, 0),
+                ("Demo (1)", "b1", "e1", "vkCmdDispatch ComputeEncoder", 1),
+                ("Demo (1)", "b1", "s2", gpu_trace.STAMP, 2),
+                ("Demo (1)", "b2", "e2", "vkCmdBeginRendering RenderEncoder", 0),
+                ("Demo (1)", "b2", "s3", gpu_trace.STAMP, 1),
+                ("Demo (1)", "b4", "e4", "vkCmdBeginRendering RenderEncoder", 0),
+                ("Demo (1)", "b4", "s6", gpu_trace.STAMP, 1),
+                ("Demo (1)", "b5", "s7", gpu_trace.STAMP, 0),
+                ("Demo (1)", "b5", "e5", "vkCmdDispatch ComputeEncoder", 1),
+                ("Demo (1)", "b5", "s8", gpu_trace.STAMP, 2),
+                ("Demo (1)", "b6", "e6", "vkCmdBeginRendering RenderEncoder", 0),
+                ("Demo (1)", "b6", "s9", gpu_trace.STAMP, 1),
+            ],
+            passes=("a", "b"),
+        )
+        self.assertEqual(named, {"e1": "a", "e2": "b", "e5": "a", "e6": "b"})
 
     def test_every_frame_of_the_order_counts_as_a_frame_also_one_that_the_encoder_list_lost(self):
         # Two uploads make the encoder list longer than the frame order, so the count must come from the order.
         found = gpu_trace.command_buffers(
-            {"b1": "b1", "b2": "b2", "upload": "upload", "upload-2": "upload-2"}, {"b1": 10, "b2": 20, "lost": 30}
+            {"b1", "b2", "upload", "upload-2"}, {"b1", "b2", "lost"}, {"b1": 10, "b2": 20, "lost": 30}
         )
         self.assertEqual(found["frames"], 3)
 
     def test_the_other_command_buffers_are_those_of_the_encoder_list_that_are_not_frames(self):
         # b2 is a frame whose encoder list holds another number of timestamps: it is a frame, not another command buffer.
-        found = gpu_trace.command_buffers({"b1": "b1", "b2": "b2", "upload": "upload"}, {"b1": 10, "b2": 20, "lost": 30})
+        found = gpu_trace.command_buffers({"b1", "b2", "upload"}, {"b1", "b2", "lost"}, {"b1": 10, "b2": 20, "lost": 30})
         self.assertEqual(found["skipped"], 1)
 
     def test_the_second_command_buffer_of_a_frame_is_not_another_command_buffer(self):
-        found = gpu_trace.command_buffers({"b1": "b1", "b1-out": "b1", "upload": "upload"}, {"b1": 10})
+        found = gpu_trace.command_buffers({"b1", "b1-out", "upload"}, {"b1", "b1-out"}, {"b1": 10})
         self.assertEqual(found, {"frames": 1, "skipped": 1})
 
 

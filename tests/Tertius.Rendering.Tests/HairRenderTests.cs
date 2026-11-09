@@ -275,16 +275,33 @@ public sealed class HairRenderTests
         return 0.5 * sum;
     }
 
-    [Fact]
-    public void AHairPixelTakesARectangleLightAsHairFiberTakesALightAlongTheFacesVectorIrradiance()
+    /// <summary>
+    /// The face of <paramref name="panel"/> seen from <paramref name="position"/>: its vector irradiance per unit of face
+    /// radiance (<see cref="VectorIrradiance"/>), and its face radiance times the window of its reach from the face's
+    /// nearest point under FixedExposure(0).
+    /// </summary>
+    private static (Double3 Vector, double FaceRadiance) FaceSeenFrom(RectRenderLight panel, Double3 position)
     {
-        // A panel 0.6 m by 0.4 m, 1 m to the right of the card, 0.5 m up and 1 m nearer the eye, turned to face the card's
-        // center, of 6 W and white.
-        var center = new Vector3(1f, 0.5f, -2f);
-        Vector3 front = Vector3.Normalize(CardCenter - center);
-        Vector3 axis = Vector3.Normalize(Vector3.Cross(Vector3.UnitZ, front));
-        var rotation = Quaternion.CreateFromAxisAngle(axis, MathF.Acos(front.Z));
-        var panel = new RectRenderLight(
+        Double3 halfWidth = Vector3.Transform(Vector3.UnitX, panel.Rotation) * (panel.Width / 2),
+            halfHeight = Vector3.Transform(Vector3.UnitY, panel.Rotation) * (panel.Height / 2);
+        Double3 toCenter = (Double3)panel.Position - position;
+        Double3 vector = VectorIrradiance([
+            toCenter - halfWidth - halfHeight,
+            toCenter - halfWidth + halfHeight,
+            toCenter + halfWidth + halfHeight,
+            toCenter + halfWidth - halfHeight,
+        ]);
+        double intensity = LightUnits.RectIntensity(panel.Power);
+        double reach = LightUnits.Reach(intensity, LightUnits.CutoffIrradiance(0));
+        double across = Math.Clamp(-Double3.Dot(toCenter, halfWidth) / halfWidth.LengthSquared, -1, 1),
+            up = Math.Clamp(-Double3.Dot(toCenter, halfHeight) / halfHeight.LengthSquared, -1, 1);
+        double ratio = (-toCenter - across * halfWidth - up * halfHeight).LengthSquared / (reach * reach);
+        return (vector, intensity / ((double)panel.Width * panel.Height) * Math.Pow(1 - ratio * ratio, 2));
+    }
+
+    /// <summary>A white rectangle light of 6 W, 0.6 m by 0.4 m, that casts no shadow, at <paramref name="center"/>.</summary>
+    private static RectRenderLight PanelAt(Vector3 center, Quaternion rotation) =>
+        new(
             EntityIndex: Gpu.LampEntity,
             EntityGeneration: 0,
             Position: center,
@@ -298,6 +315,16 @@ public sealed class HairRenderTests
             CastsShadow: false,
             ChainDepth: TestChains.Root
         );
+
+    [Fact]
+    public void AHairPixelTakesARectangleLightAsHairFiberTakesALightAlongTheFacesVectorIrradiance()
+    {
+        // A panel 0.6 m by 0.4 m, 1 m to the right of the card, 0.5 m up and 1 m nearer the eye, turned to face the card's
+        // center, of 6 W and white.
+        var center = new Vector3(1f, 0.5f, -2f);
+        Vector3 front = Vector3.Normalize(CardCenter - center);
+        Vector3 axis = Vector3.Normalize(Vector3.Cross(Vector3.UnitZ, front));
+        RectRenderLight panel = PanelAt(center, Quaternion.CreateFromAxisAngle(axis, MathF.Acos(front.Z)));
         VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
         try
         {
@@ -310,22 +337,7 @@ public sealed class HairRenderTests
                 Ahead
             );
             StoredFiber fiber = StoredAt(renderer, Ahead);
-            Double3 halfWidth = Vector3.Transform(Vector3.UnitX, rotation) * 0.3f,
-                halfHeight = Vector3.Transform(Vector3.UnitY, rotation) * 0.2f;
-            Double3 toCenter = (Double3)center - fiber.Position;
-            Double3 vector = VectorIrradiance([
-                toCenter - halfWidth - halfHeight,
-                toCenter - halfWidth + halfHeight,
-                toCenter + halfWidth + halfHeight,
-                toCenter + halfWidth - halfHeight,
-            ]);
-            double intensity = LightUnits.RectIntensity(panel.Power);
-            double reach = LightUnits.Reach(intensity, LightUnits.CutoffIrradiance(0));
-            // The window of the reach from the face's nearest point, which is about 1.5 m away, far inside the reach.
-            double across = Math.Clamp(-Double3.Dot(toCenter, halfWidth) / halfWidth.LengthSquared, -1, 1),
-                up = Math.Clamp(-Double3.Dot(toCenter, halfHeight) / halfHeight.LengthSquared, -1, 1);
-            double ratio = (-toCenter - across * halfWidth - up * halfHeight).LengthSquared / (reach * reach);
-            double faceRadiance = intensity / (0.6 * 0.4) * Math.Pow(1 - ratio * ratio, 2);
+            (Double3 vector, double faceRadiance) = FaceSeenFrom(panel, fiber.Position);
 
             ShouldBeNear(
                 actual: shown,
@@ -338,6 +350,34 @@ public sealed class HairRenderTests
                 relative: HalfRounding,
                 because: "a fiber takes the face as a light along its vector irradiance, of the face radiance times its length"
             );
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void AHairPixelBehindARectangleLightTakesNoneOfItsLight()
+    {
+        // The panel of the test above turned to face away from the card: the card sees its back.
+        var center = new Vector3(1f, 0.5f, -2f);
+        Vector3 away = Vector3.Normalize(center - CardCenter);
+        Vector3 axis = Vector3.Normalize(Vector3.Cross(Vector3.UnitZ, away));
+        var rotation = Quaternion.CreateFromAxisAngle(axis, MathF.Acos(away.Z));
+        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
+        try
+        {
+            MeshId plane = renderer.CreateMesh(Primitives.Plane(1));
+            RenderSnapshot snapshot = SunOnly(Vector3.UnitY, irradiance: 0);
+            snapshot.Lights.Add(PanelAt(center, rotation));
+
+            Vector3 shown = At(
+                Rendered(renderer, snapshot, Card(plane: plane, material: Hair(renderer), rotation: FacingTheCamera)),
+                Ahead
+            );
+
+            shown.Should().Be(Vector3.Zero, "a fiber has no horizon, but the face sends no light from its back");
         }
         finally
         {
