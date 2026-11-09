@@ -15,7 +15,8 @@ public sealed class LampPanelTests : IDisposable
     public void Dispose() => world.Dispose();
 
     /// <summary>The scene of <paramref name="name"/>, built without a renderer.</summary>
-    private SceneInstance Build(string name) => DemoScenes.All.Single(s => s.Name == name).Build(world, RenderResources.None);
+    private SceneInstance Build(string name) =>
+        DemoScenes.All.Single(s => s.Name == name).Build(world, RenderResources.None);
 
     [Fact]
     public void TheCabinLampsAreRectangleLightsOnTheLowerFacesOfTheirPanels()

@@ -15,7 +15,10 @@ public sealed class LtcTableTests
         Half[] fitted = LtcFit.LtcFit.Row(row);
 
         int start = row * LtcTable.Size * LtcTable.Channels;
-        double[] stored = [.. LtcTable.Shared.Texels.Slice(start, fitted.Length).ToArray().Select(texel => (double)texel)];
+        double[] stored =
+        [
+            .. LtcTable.Shared.Texels.Slice(start, fitted.Length).ToArray().Select(texel => (double)texel),
+        ];
 
         // Two steps of a half float, 2⁻⁹ of the value, plus a little at 0: another machine's sine and cosine can differ in
         // their last bit, which can move the simplex's path and flip a rounding. A changed lobe moves the fit by percents.
@@ -44,6 +47,8 @@ public sealed class LtcTableTests
         inverse.M02.Should().Be(0, "head on, the lobe does not lean");
         inverse.M20.Should().Be(0, "head on, the lobe does not lean");
         inverse.M00.Should().Be(1, "head on, the lobe is as wide along x as along y");
-        inverse.M22.Should().BeApproximately(0.5, 0.02, "the light's angle off the normal is twice the half vector's, so 2α");
+        inverse
+            .M22.Should()
+            .BeApproximately(0.5, 0.02, "the light's angle off the normal is twice the half vector's, so 2α");
     }
 }

@@ -75,7 +75,11 @@ public static partial class DemoScenes
             scene.Add(
                 $"{name}-panel",
                 world.Spawn(
-                    DrawnAt(frame: surface, position: new(x, ReflectionsFloor + 0.4 + panelHalfExtents.Y, -3), render: panel)
+                    DrawnAt(
+                        frame: surface,
+                        position: new(x, ReflectionsFloor + 0.4 + panelHalfExtents.Y, -3),
+                        render: panel
+                    )
                 )
             );
         }

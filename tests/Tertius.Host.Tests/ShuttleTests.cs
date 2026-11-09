@@ -236,7 +236,9 @@ public sealed class ShuttleTests : IDisposable
                 .Length()
                 .Should()
                 .BeLessThan(1e-6f, $"the face of {id} shines toward the cabin's middle");
-            (light.Width, light.Height).Should().Be((0.15f, 0.5f), $"the light of {id} is as wide and as tall as its face");
+            (light.Width, light.Height)
+                .Should()
+                .Be((0.15f, 0.5f), $"the light of {id} is as wide and as tall as its face");
         }
     }
 

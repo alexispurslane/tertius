@@ -23,7 +23,10 @@ internal sealed class LtcTable
     public LtcTable(Half[] texels)
     {
         if (texels.Length != Size * Size * Channels)
-            throw new ArgumentException($"An LTC table holds {Size * Size * Channels} halves, not {texels.Length}.", nameof(texels));
+            throw new ArgumentException(
+                $"An LTC table holds {Size * Size * Channels} halves, not {texels.Length}.",
+                nameof(texels)
+            );
         this.texels = texels;
     }
 
@@ -42,7 +45,15 @@ internal sealed class LtcTable
         double u = BrdfTables.TexelCoordinate(Math.Sqrt(1 - Math.Clamp(nDotV, 0, 1)), Size);
         double row = BrdfTables.TexelCoordinate(roughness, Size);
         double Channel(int channel) =>
-            BrdfTables.Bilinear(table: texels, width: Size, height: Size, channels: Channels, channel: channel, u: u, v: row);
+            BrdfTables.Bilinear(
+                table: texels,
+                width: Size,
+                height: Size,
+                channels: Channels,
+                channel: channel,
+                u: u,
+                v: row
+            );
         return new(M00: Channel(0), M02: Channel(1), M20: Channel(2), M22: Channel(3));
     }
 

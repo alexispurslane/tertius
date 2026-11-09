@@ -36,7 +36,8 @@ public sealed class RectLightTests
             "tilted" => Rect(
                 center: new(0.8, 1.2, -0.4),
                 rotation: Quaternion.Normalize(
-                    Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.7f) * Quaternion.CreateFromAxisAngle(Vector3.UnitX, 2.1f)
+                    Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.7f)
+                        * Quaternion.CreateFromAxisAngle(Vector3.UnitX, 2.1f)
                 ),
                 width: 0.9,
                 height: 0.4
@@ -68,7 +69,8 @@ public sealed class RectLightTests
             .BeApproximately(
                 reference,
                 // The grid of 1000 × 1000 cells misses at most a cell's width along the horizon's cut.
-                1e-3 * reference + 1e-9,
+                1e-3 * reference
+                    + 1e-9,
                 "the edge sum, cut at the horizon, is the exact irradiance {0} sr of the rectangle {1}",
                 reference,
                 name
@@ -84,7 +86,12 @@ public sealed class RectLightTests
         double reference = rect.Integral(Double3.UnitY).SolidAngle;
 
         rect.View.SolidAngle.Should()
-            .BeApproximately(reference, 1e-3 * reference, "the two triangles' solid angles add to the face's {0} sr", reference);
+            .BeApproximately(
+                reference,
+                1e-3 * reference,
+                "the two triangles' solid angles add to the face's {0} sr",
+                reference
+            );
     }
 
     [Fact]
@@ -109,7 +116,11 @@ public sealed class RectLightTests
 
         rect.View.SolidAngle.Should().Be(0, "the rectangle sends its light from its front alone");
         terms.Should().Be(default(DirectTerms), "the point lies behind the rectangle's face");
-        rect.View.LtcShare(normal: Double3.UnitY, toView: Double3.UnitY, inverse: LtcTable.Shared.Sample(roughness: 0.5, nDotV: 1))
+        rect.View.LtcShare(
+                normal: Double3.UnitY,
+                toView: Double3.UnitY,
+                inverse: LtcTable.Shared.Sample(roughness: 0.5, nDotV: 1)
+            )
             .Should()
             .Be(0, "no lobe takes light from the back of the face");
     }
@@ -155,7 +166,12 @@ public sealed class RectLightTests
         double reference = matte.DiffuseColor.X / Math.PI * rect.Integral(Double3.UnitY).Irradiance;
         terms
             .Diffuse.X.Should()
-            .BeApproximately(reference, 1e-3 * reference, "the floor reflects c_diff / π of the irradiance {0} sr", reference);
+            .BeApproximately(
+                reference,
+                1e-3 * reference,
+                "the floor reflects c_diff / π of the irradiance {0} sr",
+                reference
+            );
     }
 
     [Fact]
@@ -165,10 +181,13 @@ public sealed class RectLightTests
         // floor's horizon and facing the point. The fitted cosine leans toward the mirror ray and reaches a little below
         // the horizon, but light from below the surface cannot reach it.
         var toView = new Double3(Math.Sin(1.3), Math.Cos(1.3), 0);
-        Vector3 front = Vector3.Normalize(new Vector3(2, 0.5f, 0));
+        var front = Vector3.Normalize(new Vector3(2, 0.5f, 0));
         TestRect rect = Rect(
             center: new(-2, -0.5, 0),
-            rotation: Quaternion.CreateFromAxisAngle(Vector3.Normalize(Vector3.Cross(Vector3.UnitZ, front)), MathF.Acos(front.Z)),
+            rotation: Quaternion.CreateFromAxisAngle(
+                Vector3.Normalize(Vector3.Cross(Vector3.UnitZ, front)),
+                MathF.Acos(front.Z)
+            ),
             width: 1.0,
             height: 0.6
         );
@@ -201,7 +220,15 @@ public sealed class RectLightTests
                 foreach (double roughness in new[] { 0.045, 0.1, 0.25, 0.5, 0.75, 1.0 })
                 foreach (double viewAngle in new[] { 0.0, 0.6, 1.2 })
                 foreach (
-                    string rect in new[] { "in-the-mirror", "overhead", "overhead-aside", "wall", "across-the-horizon", "tilted" }
+                    string rect in new[]
+                    {
+                        "in-the-mirror",
+                        "overhead",
+                        "overhead-aside",
+                        "wall",
+                        "across-the-horizon",
+                        "tilted",
+                    }
                 )
                     data.Add(roughness, viewAngle, rect);
                 return data;
@@ -216,12 +243,23 @@ public sealed class RectLightTests
             string name
         )
         {
-            var metal = new MaterialSample(BaseColor: new(1, 1, 1), Metallic: 1, Roughness: roughness, Reflectance: 0.5);
+            var metal = new MaterialSample(
+                BaseColor: new(1, 1, 1),
+                Metallic: 1,
+                Roughness: roughness,
+                Reflectance: 0.5
+            );
             var toView = new Double3(Math.Sin(viewAngle), Math.Cos(viewAngle), 0);
             TestRect rect = name == "in-the-mirror" ? InTheMirror(toView) : RectNamed(name);
 
             double shine = metal
-                .RectTerms(normal: Double3.UnitY, toView: toView, rect: rect.View, tables: BrdfTables.Shared, ltc: LtcTable.Shared)
+                .RectTerms(
+                    normal: Double3.UnitY,
+                    toView: toView,
+                    rect: rect.View,
+                    tables: BrdfTables.Shared,
+                    ltc: LtcTable.Shared
+                )
                 .Specular.X;
 
             double reference = rect.ShineIntegral(metal, toView);
@@ -253,10 +291,12 @@ public sealed class RectLightTests
             Double3 mirror = Mirror(Double3.UnitY, toView);
             // The turn that takes the local front +Z to −mirror, about the axis across the plane of view.
             Vector3 back = -mirror.ToVector3();
-            Vector3 axis = Vector3.Cross(Vector3.UnitZ, back);
+            var axis = Vector3.Cross(Vector3.UnitZ, back);
             float angle = MathF.Acos(Math.Clamp(back.Z, -1, 1));
             Quaternion rotation =
-                axis.LengthSquared() > 1e-12f ? Quaternion.CreateFromAxisAngle(Vector3.Normalize(axis), angle) : FaceDown;
+                axis.LengthSquared() > 1e-12f
+                    ? Quaternion.CreateFromAxisAngle(Vector3.Normalize(axis), angle)
+                    : FaceDown;
             return Rect(center: 2 * mirror, rotation: rotation, width: 1.2, height: 1.2);
         }
     }
@@ -319,14 +359,25 @@ public sealed class RectLightTests
                 TestRect rect = Rect(center: new Double3(0, 2, 0) - point, rotation: FaceDown, width: 1.2, height: 1.2);
                 Double3 toView = (eye - point).Normalized();
                 shine += metal
-                    .RectTerms(normal: Double3.UnitY, toView: toView, rect: rect.View, tables: BrdfTables.Shared, ltc: LtcTable.Shared)
+                    .RectTerms(
+                        normal: Double3.UnitY,
+                        toView: toView,
+                        rect: rect.View,
+                        tables: BrdfTables.Shared,
+                        ltc: LtcTable.Shared
+                    )
                     .Specular.X;
                 reference += rect.ShineIntegral(metal, toView);
             }
 
             shine
                 .Should()
-                .BeApproximately(reference, tolerance * reference, "the highlight keeps the integral's energy {0}", reference);
+                .BeApproximately(
+                    reference,
+                    tolerance * reference,
+                    "the highlight keeps the integral's energy {0}",
+                    reference
+                );
         }
     }
 
@@ -428,8 +479,7 @@ public sealed class RectLightTests
         }
 
         /// <summary>The place of the face at the shares (<paramref name="u"/>, <paramref name="v"/>) of its width and height.</summary>
-        private Double3 PlaceAt(double u, double v) =>
-            Center + (2 * u - 1) * HalfWidth + (2 * v - 1) * HalfHeight;
+        private Double3 PlaceAt(double u, double v) => Center + (2 * u - 1) * HalfWidth + (2 * v - 1) * HalfHeight;
 
         /// <summary>Whether the ray from the origin along <paramref name="direction"/> meets the face from its front.</summary>
         private bool Hits(Double3 direction)

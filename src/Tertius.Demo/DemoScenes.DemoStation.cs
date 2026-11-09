@@ -645,7 +645,12 @@ public static partial class DemoScenes
         /// Spawns the bay lamps in <paramref name="frame"/>, added to <paramref name="scene"/> as <c>bay-lamp-0</c> to
         /// <c>bay-lamp-3</c>.
         /// </summary>
-        private static void SpawnBayLamps(World world, FrameHandle frame, SceneInstance scene, IRenderResources resources)
+        private static void SpawnBayLamps(
+            World world,
+            FrameHandle frame,
+            SceneInstance scene,
+            IRenderResources resources
+        )
         {
             // The bay lamps: glowing panels 1.2 m square, flat on the bay's walls, each a floodlight's rectangle light on its
             // face toward the bay, in the station's axes. Three stand near the slot, 8 m in from it, and one in the middle of

@@ -19,7 +19,13 @@ public sealed class RectLightRenderTests
     private const float SquareDistance = 3;
 
     /// <summary>A rectangle light that casts no shadow, centered on <paramref name="position"/> and turned by <paramref name="rotation"/>.</summary>
-    private static RectRenderLight Panel(Vector3 position, Quaternion rotation, float power, float width, float height) =>
+    private static RectRenderLight Panel(
+        Vector3 position,
+        Quaternion rotation,
+        float power,
+        float width,
+        float height
+    ) =>
         new(
             EntityIndex: Gpu.LampEntity,
             EntityGeneration: 0,
@@ -113,17 +119,17 @@ public sealed class RectLightRenderTests
         name switch
         {
             // A panel 0.8 m by 0.5 m, 0.6 m in front of the center, facing it.
-            "facing-the-square" => (new(0, 0, 0.6), Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI), 0.8f, 0.5f),
+            "facing-the-square" => (
+                new(0, 0, 0.6),
+                Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI),
+                0.8f,
+                0.5f
+            ),
             // The cabin lamp's panel 0.7 m beside the center and 0.5 m out, turned to face the center at a slant.
             "tilted-beside" => (new(0.7, 0.1, 0.5), Quaternion.CreateFromAxisAngle(Vector3.UnitY, -2.2f), 1.2f, 1.2f),
             // A panel that stands slanted through the square above its center, facing down toward it: only the part in front
             // of the square lights it, and the cut at the horizon decides how much.
-            "through-the-square" => (
-                new(0, 0.3, 0.1),
-                Quaternion.CreateFromAxisAngle(Vector3.UnitX, 1.2f),
-                1.0f,
-                0.6f
-            ),
+            "through-the-square" => (new(0, 0.3, 0.1), Quaternion.CreateFromAxisAngle(Vector3.UnitX, 1.2f), 1.0f, 0.6f),
             _ => throw new ArgumentOutOfRangeException(nameof(name), name, "No such panel."),
         };
 
@@ -201,7 +207,13 @@ public sealed class RectLightRenderTests
         VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
         try
         {
-            Capture image = RenderSquare(renderer: renderer, panel: panel, desc: matte, fov: Gpu.Fov, name: "rect-light-behind");
+            Capture image = RenderSquare(
+                renderer: renderer,
+                panel: panel,
+                desc: matte,
+                fov: Gpu.Fov,
+                name: "rect-light-behind"
+            );
 
             image.Color(Width / 2, Height / 2).Should().Be(Vector3.Zero, "the square lies behind the panel's face");
         }
@@ -216,7 +228,7 @@ public sealed class RectLightRenderTests
     {
         // A rough white metal square, roughness 0.5, and a panel 1 m square 1.2 m in front of it and 0.6 m to the side,
         // turned to face the square's center: the camera sees its wide highlight at the center.
-        Quaternion rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.Atan2(-0.6f, -1.2f));
+        var rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.Atan2(-0.6f, -1.2f));
         var toCenter = new Double3(0.6, 0, 1.2);
         RectRenderLight panel = Panel(
             position: new Vector3(0, 0, -SquareDistance) + toCenter.ToVector3(),
@@ -246,7 +258,13 @@ public sealed class RectLightRenderTests
         VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
         try
         {
-            Capture image = RenderSquare(renderer: renderer, panel: panel, desc: metal, fov: Gpu.Fov, name: "rect-light-rough");
+            Capture image = RenderSquare(
+                renderer: renderer,
+                panel: panel,
+                desc: metal,
+                fov: Gpu.Fov,
+                name: "rect-light-rough"
+            );
             Vector3[] shown = Displayed(
                 renderer,
                 [(expected * 0.98).ToVector3(), (expected * 1.02).ToVector3()],
@@ -256,7 +274,12 @@ public sealed class RectLightRenderTests
             image
                 .Color(Width / 2, Height / 2)
                 .X.Should()
-                .BeInRange(shown[0].X, shown[1].X, "the square's center shows the C# LTC shine {0} within 2 %", expected.X);
+                .BeInRange(
+                    shown[0].X,
+                    shown[1].X,
+                    "the square's center shows the C# LTC shine {0} within 2 %",
+                    expected.X
+                );
         }
         finally
         {
@@ -272,11 +295,11 @@ public sealed class RectLightRenderTests
         // from the square's center near the mirror ray and 0.35 m above the plane of view, facing the center, so its
         // corners use both tangents.
         const float tilt = 0.95f;
-        Vector3 normal = Vector3.Transform(Vector3.UnitY, SquareTurn(tilt));
-        Vector3 mirror = Vector3.Reflect(-Vector3.UnitZ, normal);
-        Vector3 toPanel = Vector3.Normalize(mirror + new Vector3(0, 0.35f, 0));
+        var normal = Vector3.Transform(Vector3.UnitY, SquareTurn(tilt));
+        var mirror = Vector3.Reflect(-Vector3.UnitZ, normal);
+        var toPanel = Vector3.Normalize(mirror + new Vector3(0, 0.35f, 0));
         Vector3 back = -toPanel;
-        Quaternion rotation = Quaternion.CreateFromAxisAngle(
+        var rotation = Quaternion.CreateFromAxisAngle(
             Vector3.Normalize(Vector3.Cross(Vector3.UnitZ, back)),
             MathF.Acos(back.Z)
         );
@@ -328,7 +351,12 @@ public sealed class RectLightRenderTests
             image
                 .Color(Width / 2, Height / 2)
                 .X.Should()
-                .BeInRange(shown[0].X, shown[1].X, "the slanted square shows the C# LTC shine {0} within 3 %", expected.X);
+                .BeInRange(
+                    shown[0].X,
+                    shown[1].X,
+                    "the slanted square shows the C# LTC shine {0} within 3 %",
+                    expected.X
+                );
         }
         finally
         {
@@ -368,7 +396,13 @@ public sealed class RectLightRenderTests
         VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
         try
         {
-            Capture image = RenderSquare(renderer: renderer, panel: panel, desc: mirror, fov: fov, name: "rect-light-mirror");
+            Capture image = RenderSquare(
+                renderer: renderer,
+                panel: panel,
+                desc: mirror,
+                fov: fov,
+                name: "rect-light-mirror"
+            );
             Vector3[] shown = Displayed(
                 renderer,
                 [(plateau * 0.5).ToVector3(), (plateau * 0.98).ToVector3(), (plateau * 1.02).ToVector3()],
@@ -380,12 +414,18 @@ public sealed class RectLightRenderTests
             image
                 .Color(Width / 2, Height / 2)
                 .X.Should()
-                .BeInRange(shown[1].X, shown[2].X, "the image's middle shows the C# radiance {0} within 2 %", plateau.X);
+                .BeInRange(
+                    shown[1].X,
+                    shown[2].X,
+                    "the image's middle shows the C# radiance {0} within 2 %",
+                    plateau.X
+                );
             // The floored lobe widens each edge by about a pixel at this view.
             across
                 .Should()
                 .BeCloseTo((int)Math.Round(2 * Math.Atan(0.3 / 5) * focalLength), 4, "the image is the panel's width");
-            up.Should().BeCloseTo((int)Math.Round(2 * Math.Atan(0.1 / 5) * focalLength), 4, "the image is the panel's height");
+            up.Should()
+                .BeCloseTo((int)Math.Round(2 * Math.Atan(0.1 / 5) * focalLength), 4, "the image is the panel's height");
         }
         finally
         {

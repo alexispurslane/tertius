@@ -190,9 +190,11 @@ public sealed class BatcherLightTests
             .LightSpan.ToArray()
             .Select(light => light.Entity)
             .Should()
-            .BeEquivalentTo(
-                [new Entity(Index: 4, Generation: 5), new Entity(Index: 9, Generation: 2), new Entity(Index: 6, Generation: 3)]
-            );
+            .BeEquivalentTo([
+                new Entity(Index: 4, Generation: 5),
+                new Entity(Index: 9, Generation: 2),
+                new Entity(Index: 6, Generation: 3),
+            ]);
     }
 
     // ---- Which lights are kept --------------------------------------------------------------------------------------
@@ -564,13 +566,16 @@ public sealed class BatcherLightTests
         var panel = GpuLight.From(scene.Lights[0]);
         panel.IntensityKind.W.Should().Be(GpuLight.RectKind);
         Xyz(panel.PositionReach).Should().Be(new Vector3(1, 1, -6), "the eye is at (0, 0, 1) halfway");
-        Xyz(panel.IntensityKind).X.Should().BeApproximately((float)(10 / Math.PI), 1e-5f, "a flat face's P / π across it");
+        Xyz(panel.IntensityKind)
+            .X.Should()
+            .BeApproximately((float)(10 / Math.PI), 1e-5f, "a flat face's P / π across it");
         (Xyz(panel.DirectionCosOuter) - new Vector3(0.6f, 0, -0.6f) * MathF.Sqrt(0.5f))
             .Length()
             .Should()
             .BeLessThan(1e-6f, "the half width");
         (Xyz(panel.HalfHeight) - new Vector3(0, 0.3f, 0)).Length().Should().BeLessThan(1e-6f, "the half height");
-        panel.PositionReach.W.Should()
+        panel
+            .PositionReach.W.Should()
             .BeApproximately(
                 (float)(Math.Sqrt(10 / Math.PI / Cutoff) + Math.Sqrt(0.6 * 0.6 + 0.3 * 0.3)),
                 1e-4f,

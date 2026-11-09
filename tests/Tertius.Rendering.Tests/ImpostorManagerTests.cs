@@ -1083,7 +1083,7 @@ public sealed class ImpostorManagerTests
             RenderSnapshot snapshot = Snapshot();
             snapshot.Instances.Add(Ball(entity: 1, position: position));
             Vector3 place = position + new Vector3(3, 0, 0);
-            Quaternion rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitY, turn);
+            var rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitY, turn);
             snapshot.Lights.Add(
                 new RectRenderLight(
                     EntityIndex: Gpu.LampEntity,

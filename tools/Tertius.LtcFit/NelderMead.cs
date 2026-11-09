@@ -22,8 +22,8 @@ internal static class NelderMead
     )
     {
         int dimensions = start.Length;
-        var points = new double[dimensions + 1][];
-        var values = new double[dimensions + 1];
+        double[][] points = new double[dimensions + 1][];
+        double[] values = new double[dimensions + 1];
         for (int i = 0; i <= dimensions; i++)
         {
             points[i] = (double[])start.Clone();
@@ -43,7 +43,11 @@ internal static class NelderMead
             double[] centroid = Centroid(points, highest);
 
             double[] Along(double factor) =>
-                [.. Enumerable.Range(0, dimensions).Select(k => centroid[k] + factor * (centroid[k] - points[highest][k]))];
+                [
+                    .. Enumerable
+                        .Range(0, dimensions)
+                        .Select(k => centroid[k] + factor * (centroid[k] - points[highest][k])),
+                ];
 
             double[] reflected = Along(Reflection);
             double reflectedValue = objective(reflected);

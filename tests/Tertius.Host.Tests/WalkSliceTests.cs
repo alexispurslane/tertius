@@ -144,7 +144,10 @@ public sealed class WalkSliceTests(WalkRun run) : IClassFixture<WalkRun>
 
         Math.Abs(besideLamp.r - awayFromLamps.r)
             .Should()
-            .BeLessThanOrEqualTo(4, $"the roof beside a panel {besideLamp} takes no more light than away from it {awayFromLamps}");
+            .BeLessThanOrEqualTo(
+                4,
+                $"the roof beside a panel {besideLamp} takes no more light than away from it {awayFromLamps}"
+            );
     }
 
     [Fact]

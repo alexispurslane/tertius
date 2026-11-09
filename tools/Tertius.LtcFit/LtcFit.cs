@@ -25,7 +25,11 @@ internal static class LtcFit
     public static Half[] Table()
     {
         var texels = new Half[LtcTable.Size * LtcTable.Size * LtcTable.Channels];
-        Parallel.For(fromInclusive: 0, toExclusive: LtcTable.Size, body: row => Row(row).CopyTo(texels.AsSpan(row * LtcTable.Size * LtcTable.Channels)));
+        Parallel.For(
+            fromInclusive: 0,
+            toExclusive: LtcTable.Size,
+            body: row => Row(row).CopyTo(texels.AsSpan(row * LtcTable.Size * LtcTable.Channels))
+        );
         return texels;
     }
 
@@ -188,23 +192,14 @@ internal static class LtcFit
     /// A clamped cosine D_o mapped by M = [x y z] · [[m11, 0, m13], [0, m22, 0], [0, 0, 1]], with x and z in the plane of the
     /// view and the normal. M keeps y, so it is a 2 × 2 map of (x, z) and a scale of y.
     /// </summary>
-    private readonly struct Cosine
+    private readonly struct Cosine(Double3 x, Double3 z, double m11, double m22, double m13)
     {
         // M on (x, z): [[a, b], [c, d]].
-        private readonly double a,
-            b,
-            c,
-            d,
-            yScale;
-
-        public Cosine(Double3 x, Double3 z, double m11, double m22, double m13)
-        {
-            a = x.X * m11;
-            b = x.X * m13 + z.X;
-            c = x.Z * m11;
-            d = x.Z * m13 + z.Z;
+        private readonly double a = x.X * m11,
+            b = x.X * m13 + z.X,
+            c = x.Z * m11,
+            d = x.Z * m13 + z.Z,
             yScale = m22;
-        }
 
         private double Determinant => (a * d - b * c) * yScale;
 

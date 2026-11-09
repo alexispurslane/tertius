@@ -16,7 +16,7 @@ internal readonly record struct RectView
         ToCenter = toCenter;
         HalfWidth = halfWidth;
         HalfHeight = halfHeight;
-        Double3 area = Double3.Cross(halfWidth, halfHeight);
+        var area = Double3.Cross(halfWidth, halfHeight);
         // The point's height over the face's plane, times the half sides' lengths: in front where it is above 0.
         double height = -Double3.Dot(toCenter, area);
         InFront = height > 0;
@@ -32,10 +32,8 @@ internal readonly record struct RectView
             l1 = c1.Length,
             l2 = c2.Length,
             l3 = c3.Length;
-        double first =
-            l0 * l1 * l2 + Double3.Dot(c0, c1) * l2 + Double3.Dot(c0, c2) * l1 + Double3.Dot(c1, c2) * l0;
-        double second =
-            l0 * l2 * l3 + Double3.Dot(c0, c2) * l3 + Double3.Dot(c0, c3) * l2 + Double3.Dot(c2, c3) * l0;
+        double first = l0 * l1 * l2 + Double3.Dot(c0, c1) * l2 + Double3.Dot(c0, c2) * l1 + Double3.Dot(c1, c2) * l0;
+        double second = l0 * l2 * l3 + Double3.Dot(c0, c2) * l3 + Double3.Dot(c0, c3) * l2 + Double3.Dot(c2, c3) * l0;
         SolidAngle = 2 * (Math.Atan2(4 * height, first) + Math.Atan2(4 * height, second));
     }
 
@@ -63,7 +61,9 @@ internal readonly record struct RectView
         if (!InFront)
             return 0;
         (Double3 first, Double3 second) = Basis(normal);
-        return CutCosine(Corners(corner => new(Double3.Dot(corner, first), Double3.Dot(corner, second), Double3.Dot(corner, normal))));
+        return CutCosine(
+            Corners(corner => new(Double3.Dot(corner, first), Double3.Dot(corner, second), Double3.Dot(corner, normal)))
+        );
     }
 
     /// <summary>
@@ -98,7 +98,8 @@ internal readonly record struct RectView
             _ => ToCenter + HalfWidth - HalfHeight,
         };
 
-    private Double3[] Corners(Func<Double3, Double3> map) => [map(Corner(0)), map(Corner(1)), map(Corner(2)), map(Corner(3))];
+    private Double3[] Corners(Func<Double3, Double3> map) =>
+        [map(Corner(0)), map(Corner(1)), map(Corner(2)), map(Corner(3))];
 
     /// <summary>
     /// ∫ max(ω_z, 0) dω over the convex quad <paramref name="q"/> seen from the origin, in sr: Lambert's edge sum over its
@@ -123,7 +124,7 @@ internal readonly record struct RectView
             }
             if (!aAbove && !bAbove)
                 continue;
-            Double3 crossing = Double3.Lerp(a, b, a.Z / (a.Z - b.Z));
+            var crossing = Double3.Lerp(a, b, a.Z / (a.Z - b.Z));
             cut = true;
             if (aAbove)
             {
@@ -147,7 +148,7 @@ internal readonly record struct RectView
     /// </summary>
     private static Double3 EdgeVector(Double3 a, Double3 b)
     {
-        Double3 normal = Double3.Cross(a, b);
+        var normal = Double3.Cross(a, b);
         double sine = normal.Length;
         // atan2 of the unnormalized sine and cosine keeps the angle exact near 0 and π, where acos loses it.
         return sine > 0 ? normal * (Math.Atan2(sine, Double3.Dot(a, b)) / sine) : Double3.Zero;

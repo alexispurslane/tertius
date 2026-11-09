@@ -150,7 +150,7 @@ public static partial class DemoScenes
     )
     {
         // The rows are the images of local X, Y and Z, so the turn takes the width to across and +Z to front.
-        Vector3 up = Vector3.Cross(front, across);
+        var up = Vector3.Cross(front, across);
         var axes = new Matrix4x4(
             m11: across.X,
             m12: across.Y,

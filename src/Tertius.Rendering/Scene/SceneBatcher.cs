@@ -1302,7 +1302,8 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
         && ShaderInput.IsFinite(spot.PreviousDirection)
         && float.IsFinite(spot.InnerConeAngle)
         && float.IsFinite(spot.OuterConeAngle)
-        && PeakChannel(spot.Color) * LightUnits.SpotIntensity(spot.Power, spot.OuterConeAngle) <= LightUnits.MaxIntensity;
+        && PeakChannel(spot.Color) * LightUnits.SpotIntensity(spot.Power, spot.OuterConeAngle)
+            <= LightUnits.MaxIntensity;
 
     private static bool Shines(in TubeRenderLight tube) =>
         Shines(
@@ -1337,7 +1338,10 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
 
     /// <summary>Whether every part of <paramref name="rotation"/> is finite.</summary>
     private static bool IsFinite(Quaternion rotation) =>
-        float.IsFinite(rotation.X) && float.IsFinite(rotation.Y) && float.IsFinite(rotation.Z) && float.IsFinite(rotation.W);
+        float.IsFinite(rotation.X)
+        && float.IsFinite(rotation.Y)
+        && float.IsFinite(rotation.Z)
+        && float.IsFinite(rotation.W);
 
     /// <summary>
     /// What every light needs to shine: finite places and color, each color channel 0 or more and one above 0, a finite

@@ -267,7 +267,7 @@ public static partial class DemoScenes
             // Each lamp is a glowing panel 0.6 m by 1.2 m on the inner face of a wall, whose face toward the hall is a cabin
             // lamp's rectangle light.
             MeshId lampMesh = resources.CreateMesh(Primitives.Box(new(0.05f, 0.3f, 0.6f)));
-            RectLightData Face(double side) =>
+            static RectLightData Face(double side) =>
                 PanelLight(
                     offset: new((float)-side * 0.05f, 0, 0),
                     front: new((float)-side, 0, 0),
