@@ -301,7 +301,13 @@ public sealed class RenderSnapshotChainTests
             test: test,
             frame: chain.Surface,
             pose: TestWorld.At(0, 10, 0),
-            light: new PointLightData(Offset: Pose.Identity, Color: Vector3.One, Power: 40, Radius: 0.05f, CastsShadow: false)
+            light: new PointLightData(
+                Offset: Pose.Identity,
+                Color: Vector3.One,
+                Power: 40,
+                Radius: 0.05f,
+                CastsShadow: false
+            )
         );
         // A searchlight in earth, two frames above the camera's.
         SpawnLight(
