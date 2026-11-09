@@ -1,6 +1,6 @@
 ---
 id: ter-4kws
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-11-09T15:10:17Z
@@ -38,3 +38,7 @@ The cabin floor's new specks are single bright pixels spread over the whole floo
 Settle counts: not measured again on today's main. The runs were cancelled after the speck result decided the ticket, to free the GPU queue for the survey. The research of 2026-11-08 (built at 3e5038916, settle2.py) measured main 85/62, 57/47, 35/37 and hits on the fast history 44/41, 35/32, 31/34 (cabin, bay with the sun off, lamp hall; lamps off/lamps on). So the change would meet the 60-draw goal, but it brings back the specks that ter-9371 removed.
 
 Conclusion: the reason of ter-9371 for the filtered light still holds. A sunlit hit pixel's fast history holds a speck at a quarter of its sample's light, and a hit copies it into the floor's diffuse light, where the filter does not remove it. The faster settle must come from somewhere else, for example the light-change age on the diffuse history (ter-wkvw).
+
+**2026-11-09T17:37:36Z**
+
+2026-11-09: rejected by its own acceptance. Hits on the fast history bring single bright pixels back to the cabin floor (0.0 to 1.2 per 10,000 px) and move the cabin's region means by -1.9 to +7.0 %. The faster settle is ter-wkvw's job.
