@@ -55,10 +55,10 @@ Each step, traces as above (ms, median):
 | and 3 without counts.w | 1.04 | 10.94 | 1.56 | 11.41 | 3.92 | 11.33 |
 | and counts.w | 1.06 | 10.93 | 1.51 | 11.27 | 3.48 | 10.91 |
 
-Timed runs of the shot scripts (241 frames, medians of the GPU frame span, the same runs as the shots): cabin 12.11 (bulbs), 15.99 (before), 13.00 (after); bay 12.53, 15.50, 12.98; rect-lights 9.86 (before), 8.93 (after). The timed runs read about 2 ms more than the traces of their last 121 frames in every version; the differences between versions agree. Target met: both views within 0.9 ms of the bulbs.
+Timed runs of the shot scripts (241 frames, medians of the GPU frame span, the same runs as the shots): cabin 12.11 (bulbs), 15.99 (before), 13.00 (after); bay 12.53, 15.50, 12.98; rect-lights 9.86 (before), 8.93 (after). The timed runs read about 2 ms more than the traces of their last 121 frames in every version; the differences between versions agree. Before the review's fixes, both views stayed within 0.9 ms of the bulbs; the final numbers are below.
 
 Accuracy of the fit:
-- theta / sin theta: within 1.5e-6 relative up to theta = pi - 3.2e-4 (TheEdgeSumsFitOfThetaOverSineStaysWithinTwoMillionthsOfItUpToNearlyAHalfTurn, bound 2e-6). Past that the floor of sin^2 at 1e-7 takes over, where an edge passes within 3.2e-4 rad of the point.
+- theta / sin theta: within 1.5e-6 relative at every angle up to theta = pi - 1e-9 (TheEdgeSumsFitOfThetaOverSineStaysWithinTwoMillionthsOfItAtEveryAngle, bound 2e-6). Past pi / 2 the fit takes sin theta from the length of the cross product (the review's F2, below), so no floor takes over near pi.
 - The cut edge sum against the exact (arctangent) sum, 200,000 random quads above and across the horizon, in doubles: at most 9.2e-7 sr apart, and within 0.047 % wherever the integral exceeds 1e-3 sr (scratch script fiterr.py).
 - RectLightTests pass unchanged: diffuse within 0.1 % of the numerical integral, the LTC shine within 3 % + 0.006 and 15 % + 0.02, the mirror and the rough floor energy as before.
 
@@ -78,3 +78,37 @@ Review (one reviewer subagent, 2026-11-09). Findings and what was done:
 - Q4: the 189-column comment line is rewrapped.
 - Q5, the coupled rect argument: kept, as the reviewer accepted: a compile-time constant is the one way to keep the other shapes' code out of a loop, as fiber and tinted do.
 - The reviewer could not run anything; the timings, images and tests above are this agent's runs.
+
+Final measurements, after the review's fixes (the F2 fix adds one length per edge past pi / 2):
+- Traces (last 121 frames, medians, ms): cabin direct light 1.09, frame span 10.82 (bulbs 0.79 and 10.31); bay direct light 1.67, frame span 11.41 (bulbs 1.25 and 10.71); lamp-hall-64 direct light 3.46, frame span 11.21 (bulbs 3.31 and 10.56).
+- Timed cabin runs (241 frames, median GPU frame span, bulbs and this branch alternated): bulbs 12.86 and 12.63, this branch 13.82 and 13.39. A single run of this branch read 13.77 at a low load. Timed bay: 12.96 (bulbs 12.53). Timed rect-lights: 8.93 (before 9.86).
+- So the cabin stays within 0.8 to 1.0 ms of the bulbs and the bay within 0.4 to 0.7 ms. In the cabin trace, the direct pass gives 0.30 ms of the 0.51 ms, and the transparent pass and the screen tracer's ray hits (the same lightIrradiance for every panel) give the rest.
+
+Mutation testing (tools/mutate.py; no Core, Simulation or Physics line changed, so no Stryker run):
+
+| id | place | change | result | answer |
+|---|---|---|---|---|
+| S01 | lighting.glsl edgeVector | no fit past pi / 2 | killed | AMirrorReflectsARectangleLightAtItsSize |
+| S02 | lighting.glsl edgeVector | edge vector halved | killed | ARoughSquareSeenAtASlantShowsTheCSharpLtcShineOfARectangleLight |
+| S03 | lighting.glsl cutCosine | corners not normalized | killed | ARoughSquareSeenAtASlantShowsTheCSharpLtcShineOfARectangleLight |
+| S04 | lighting.glsl cutCosine | crossing not normalized | killed | ARectangleLightLightsAMatteSquareAsTheCSharpRectangleDoes |
+| S05 | lighting.glsl lightIrradiance | a point in the face's plane takes light (> for >=) | survived | Equivalent: rectAbove rejects a surface point in the face's plane, and rectSolidAngle gives 0 to a puff there. |
+| S06 | lighting.glsl lightIrradiance | no test behind the face | survived, then killed | AHairPixelBehindARectangleLightTakesNoneOfItsLight (new, red on the mutant) |
+| S07 | lighting.glsl lightIrradiance | face area halved | killed | ARoughSquareSeenAtASlantShowsTheCSharpLtcShineOfARectangleLight |
+| S08 | lighting.glsl scatteredLight | puff without the solid angle | killed | ALitPuffScattersARectangleLightsFaceRadianceTimesTheSolidAngleOfItsFace |
+| S09 | lighting.glsl rectResponse | fiber share 1 | killed | AHairPixelTakesARectangleLightAsHairFiberTakesALightAlongTheFacesVectorIrradiance |
+| S10 | lighting.glsl rectResponse | fiber corners not normalized | killed | AHairPixelTakesARectangleLightAsHairFiberTakesALightAlongTheFacesVectorIrradiance |
+| S11 | lighting.glsl shapeLight | rectangle loop never runs | killed | ARoughSquareSeenAtASlantShowsTheCSharpLtcShineOfARectangleLight |
+| S12 | lighting.glsl shapeLight | both loops take every light | killed | ARoughSquareSeenAtASlantShowsTheCSharpLtcShineOfARectangleLight |
+| S13 | lighting.glsl edgeVector | sine from 1 - cos^2 (the code before F2) | survived | Judgment call: only a pixel within about 0.05 mm of an edge's line tells it apart, which no GPU test can place; the C# copy (C07b) carries that test. |
+| C01 | RectView.CutCosine | corners not normalized | killed | ARectangleLightsAPointAsTheIntegralOverItsFaceDoes |
+| C02 | RectView.CutCosine | crossing not normalized | killed | ARectangleLightsAPointAsTheIntegralOverItsFaceDoes |
+| C03 | RectView.ThetaOverSine | no fit past pi / 2 | killed | the fit test |
+| C04 | RectView.ThetaOverSine | floor of sin^2 1e-6 (before F2) | killed | the fit test |
+| C05 | RectView.ThetaOverSine | theta over sine halved | killed | the fit test |
+| C06 | SceneBatcher.RectCount | count the other lights | killed (the first form, W: 0, did not build: the unused method is an error; rewritten) | TheFrameCountsTheRectangleLightsOfItsListForTheShadersLoopOverThem |
+| C07b | RectView.ThetaOverSine | sine from 1 - cos^2 | killed (C07 did not build: the unused sine parameter is an error; rewritten with 0 * sine) | APointBesideTheLineOfAnEdgeTakesTheLightOfTheArctangentEdgeSum |
+
+20 valid mutants: 18 killed, 1 equivalent (S05), 1 judgment call (S13).
+
+Coverage on the changed lines (tools/coverage, Debug and Release, after the merge of main with the diffuse filter): 23 of 23 changed C# lines and 6 of 6 branches covered (SceneBatcher.RectCount, RectView). The GLSL lines have no coverage tool; the mutants above cover each changed path.
