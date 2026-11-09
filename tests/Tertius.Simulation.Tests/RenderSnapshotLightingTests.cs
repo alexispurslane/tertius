@@ -44,6 +44,30 @@ public sealed class RenderSnapshotLightingTests
             Light = new PointLightData(Offset: LampOffset, Color: LampColor, Power: 3, Radius: 0.2f, CastsShadow: true),
         };
 
+    /// <summary>The same as <see cref="Lamp"/>, but a tube light, a bar of 1.7 m.</summary>
+    private static RenderData TubeLamp() =>
+        new()
+        {
+            Light = new TubeLightData(
+                Offset: LampOffset,
+                Color: LampColor,
+                Power: 3,
+                Radius: 0.2f,
+                Length: 1.7f,
+                CastsShadow: true
+            ),
+        };
+
+    /// <summary>The lamp of each kind: "point", "spot" or "tube".</summary>
+    private static RenderData LampOfKind(string kind) =>
+        kind switch
+        {
+            "point" => PointLamp(),
+            "spot" => Lamp(),
+            "tube" => TubeLamp(),
+            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "A lamp is a point, a spot or a tube."),
+        };
+
     // ---- The camera ------------------------------------------------------------------------------------------------
 
     [Fact]
@@ -326,11 +350,12 @@ public sealed class RenderSnapshotLightingTests
         test.World.Camera = test.SpawnCamera(test.Root, DPose.Identity);
         test.World.Spawn(new() { Frame = test.Root, Render = PointLamp() });
         test.World.Spawn(new() { Frame = test.Root, Render = Lamp() });
+        test.World.Spawn(new() { Frame = test.Root, Render = TubeLamp() });
 
         test.Run(1);
 
         RenderLight[] lights = [.. test.World.Latest().Lights];
-        lights.Should().HaveCount(2);
+        lights.Should().HaveCount(3);
         lights[0].TryGetValue(out PointRenderLight point).Should().BeTrue();
         point.Color.Should().Be(new Vector3(1, 0.5f, 0.25f));
         point.Power.Should().Be(3);
@@ -343,6 +368,12 @@ public sealed class RenderSnapshotLightingTests
         spot.CastsShadow.Should().BeTrue();
         spot.InnerConeAngle.Should().Be(0.3f);
         spot.OuterConeAngle.Should().Be(0.5f);
+        lights[2].TryGetValue(out TubeRenderLight tube).Should().BeTrue();
+        tube.Color.Should().Be(new Vector3(1, 0.5f, 0.25f));
+        tube.Power.Should().Be(3);
+        tube.Radius.Should().Be(0.2f);
+        tube.Length.Should().Be(1.7f);
+        tube.CastsShadow.Should().BeTrue();
     }
 
     [Fact]
@@ -355,6 +386,7 @@ public sealed class RenderSnapshotLightingTests
         test.Show(test.Root, TestWorld.At(0, 0, -6));
         Entity point = test.World.Spawn(new() { Frame = test.Root, Render = PointLamp() });
         Entity spot = test.World.Spawn(new() { Frame = test.Root, Render = Lamp() });
+        Entity tube = test.World.Spawn(new() { Frame = test.Root, Render = TubeLamp() });
 
         test.Run(1);
 
@@ -363,12 +395,15 @@ public sealed class RenderSnapshotLightingTests
         pointLight.EntityIndex.Should().Be(point.Index);
         lights[1].TryGetValue(out SpotRenderLight spotLight).Should().BeTrue();
         spotLight.EntityIndex.Should().Be(spot.Index);
+        lights[2].TryGetValue(out TubeRenderLight tubeLight).Should().BeTrue();
+        tubeLight.Entity.Should().Be(tube, "a tube light carries both the index and the generation of its entity");
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void ALightOnAMovingEntityCarriesItsPreviousPlace(bool spot)
+    [InlineData("point")]
+    [InlineData("spot")]
+    [InlineData("tube")]
+    public void ALightOnAMovingEntityCarriesItsPreviousPlace(string kind)
     {
         using var test = new TestWorld();
         test.World.Camera = test.SpawnCamera(test.Root, DPose.Identity, new Mover(new(0, 1, 0)));
@@ -377,7 +412,7 @@ public sealed class RenderSnapshotLightingTests
             {
                 Frame = test.Root,
                 Pose = TestWorld.At(10, 0, -5),
-                Render = spot ? Lamp() : PointLamp(),
+                Render = LampOfKind(kind),
                 Components = [new Mover(new(1, 0, 0))],
             }
         );
@@ -391,8 +426,9 @@ public sealed class RenderSnapshotLightingTests
         (Vector3 position, Vector3 previous) = test.World.Latest().Lights.Single() switch
         {
             PointRenderLight point => (point.Position, point.PreviousPosition),
-            SpotRenderLight spotLight => (spotLight.Position, spotLight.PreviousPosition),
-            TubeRenderLight => throw new InvalidOperationException("The lamp is no tube."),
+            SpotRenderLight spot => (spot.Position, spot.PreviousPosition),
+            TubeRenderLight tube => (tube.Position, tube.PreviousPosition),
+            RectRenderLight rect => (rect.Position, rect.PreviousPosition),
             null => throw new InvalidOperationException("The lamp's light holds a case."),
         };
         position.Should().Be(new Vector3(12, -1, -5));
@@ -484,6 +520,61 @@ public sealed class RenderSnapshotLightingTests
         PoseChecks.AssertNear(tube.PreviousAxis, new(-1, 0, 0), 1e-6f);
         tube.Length.Should().Be(1.7f);
         tube.Radius.Should().Be(0.13f);
+    }
+
+    [Fact]
+    public void ARectangleLightFollowsItsEntityAndTurnsItsFaceWithIt()
+    {
+        using var test = new TestWorld();
+        // The camera stands 2 m up, and the snapshot gives the light's places relative to it.
+        test.World.Camera = test.SpawnCamera(test.Root, new DPose(new Double3(0, 2, 0), DQuaternion.Identity));
+        // The panel moves 1 m along +X and turns a quarter turn about +Y in each tick, and its offset turns its face a
+        // quarter turn about +X: from +Z, its local front, to −Y, straight down. At the end of tick 1 the entity has
+        // turned by a half turn, which takes the down-facing front to (0, −1, 0) still, and its width from +X to −X.
+        var faceDown = Quaternion.CreateFromAxisAngle(Vector3.UnitX, MathF.PI / 2);
+        test.World.Spawn(
+            new()
+            {
+                Frame = test.Root,
+                Render = new RenderData
+                {
+                    Light = new RectLightData(
+                        Offset: new(new Vector3(0, -0.1f, 0), faceDown),
+                        Color: LampColor,
+                        Power: 10,
+                        Width: 1.2f,
+                        Height: 0.6f,
+                        CastsShadow: true
+                    ),
+                },
+                Components =
+                [
+                    Lambda.OnTick(
+                        (self, scoped ref events, scoped ref outbox) =>
+                            self.SetTransform(
+                                new DPose(
+                                    new Double3(self.Tick + 1, 3, -5),
+                                    DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI / 2 * (self.Tick + 1))
+                                )
+                            )
+                    ),
+                ],
+            }
+        );
+        test.Run(1);
+        test.World.Latest();
+
+        test.Run(1);
+
+        test.World.Latest().Lights.Single().TryGetValue(out RectRenderLight rect).Should().BeTrue();
+        PoseChecks.AssertNear(rect.Position, new(2, 0.9f, -5));
+        PoseChecks.AssertNear(rect.PreviousPosition, new(1, 0.9f, -5));
+        PoseChecks.AssertNear(Vector3.Transform(Vector3.UnitZ, rect.Rotation), new(0, -1, 0), 1e-6f);
+        PoseChecks.AssertNear(Vector3.Transform(Vector3.UnitX, rect.Rotation), new(-1, 0, 0), 1e-6f);
+        PoseChecks.AssertNear(Vector3.Transform(Vector3.UnitX, rect.PreviousRotation), new(0, 0, -1), 1e-6f);
+        rect.Width.Should().Be(1.2f);
+        rect.Height.Should().Be(0.6f);
+        rect.CastsShadow.Should().BeTrue();
     }
 
     [Fact]

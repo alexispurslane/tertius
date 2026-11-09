@@ -12,10 +12,12 @@ const float MinHalfCosine = 1e-4;   // GgxLobe.MinHalfCosine, the floor of v·h 
 const float DfgSize = 32.0;         // BrdfTables.DfgSize
 const float LobeSkyWidth = 64.0;    // BrdfTables.LobeSkyWidth
 const float LobeSkyHeight = 32.0;   // BrdfTables.LobeSkyHeight
+const float LtcSize = 64.0;         // LtcTable.Size
 
 layout(set = 0, binding = 8) uniform texture2D dfgTable;       // RG16F: (S, E₁) over μ across and r down
 layout(set = 0, binding = 9) uniform texture2D lobeSkyTable;   // R16F: s_l over (d·up + 1) / 2 across and r down
 layout(set = 0, binding = 10) uniform sampler linearClamp;    // linear, clamped to the edge, one level
+layout(set = 0, binding = 19) uniform texture2D ltcTable;      // RGBA16F: LtcTable's m00, m02, m20, m22 over √(1 − μ) across and r down
 
 // GgxLobe's constructor: the one place of the roughness floor.
 float flooredRoughness(float roughness)
@@ -106,6 +108,14 @@ vec2 dfgAt(float NdotV, float roughness)
 {
     vec2 uv = vec2(tableCoordinate(NdotV, DfgSize), tableCoordinate(roughness, DfgSize));
     return textureLod(sampler2D(dfgTable, linearClamp), uv, 0.0).rg;
+}
+
+// LtcTable.Sample: the inverse matrix of the LTC of the lobe at μ and the floored roughness, as (m00, m02, m20, m22) with
+// m11 = 1, in the frame whose x points toward the view and whose z is the normal (ARCHITECTURE.md, "Rectangle lights").
+vec4 ltcAt(float NdotV, float roughness)
+{
+    vec2 uv = vec2(tableCoordinate(sqrt(1.0 - NdotV), LtcSize), tableCoordinate(roughness, LtcSize));
+    return textureLod(sampler2D(ltcTable, linearClamp), uv, 0.0);
 }
 
 // s_l at d·up and the floored roughness.

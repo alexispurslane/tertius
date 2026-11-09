@@ -155,6 +155,17 @@ public sealed class RenderSnapshotChainTests
         after.Chain[^1].Rotation.Should().NotBe(before[^1], "earth turned by 1 rad/s for one tick under the shuttle");
     }
 
+    /// <summary>An entity at <paramref name="pose"/> in <paramref name="frame"/> that carries <paramref name="light"/> and draws nothing.</summary>
+    private static void SpawnLight(TestWorld test, FrameHandle frame, DPose pose, LightData light) =>
+        test.World.Spawn(
+            new()
+            {
+                Frame = frame,
+                Pose = pose,
+                Render = new() { Light = light },
+            }
+        );
+
     /// <summary>A frame in the root that spins at 1 rad/s about +Y, to stand for earth.</summary>
     private static FrameHandle SpawnSpinningEarth(TestWorld test) =>
         test.World.GetOwnedFrame(
@@ -285,47 +296,52 @@ public sealed class RenderSnapshotChainTests
     {
         using var test = new TestWorld();
         CabinChain chain = SpawnCabinChain(test);
-        test.World.Spawn(
-            new()
-            {
-                Frame = chain.Surface,
-                Pose = TestWorld.At(0, 10, 0),
-                Render = new()
-                {
-                    Light = new PointLightData(
-                        Offset: Pose.Identity,
-                        Color: Vector3.One,
-                        Power: 40,
-                        Radius: 0.05f,
-                        CastsShadow: false
-                    ),
-                },
-            }
+        // A lamp over the apron, one frame above the camera's.
+        SpawnLight(
+            test: test,
+            frame: chain.Surface,
+            pose: TestWorld.At(0, 10, 0),
+            light: new PointLightData(
+                Offset: Pose.Identity,
+                Color: Vector3.One,
+                Power: 40,
+                Radius: 0.05f,
+                CastsShadow: false
+            )
         );
         // A searchlight in earth, two frames above the camera's.
-        test.World.Spawn(
-            new()
-            {
-                Frame = chain.Earth,
-                Pose = TestWorld.At(0, 7e4, 0),
-                Render = new()
-                {
-                    Light = new SpotLightData(
-                        Offset: Pose.Identity,
-                        Color: Vector3.One,
-                        Power: 500,
-                        Radius: 0.1f,
-                        CastsShadow: false,
-                        InnerConeAngle: 0.5f,
-                        OuterConeAngle: 0.8f
-                    ),
-                },
-            }
+        SpawnLight(
+            test: test,
+            frame: chain.Earth,
+            pose: TestWorld.At(0, 7e4, 0),
+            light: new SpotLightData(
+                Offset: Pose.Identity,
+                Color: Vector3.One,
+                Power: 500,
+                Radius: 0.1f,
+                CastsShadow: false,
+                InnerConeAngle: 0.5f,
+                OuterConeAngle: 0.8f
+            )
+        );
+        // A glowing bar in the sun's frame, three frames above the camera's.
+        SpawnLight(
+            test: test,
+            frame: chain.Sun,
+            pose: TestWorld.At(0, 0, 1e5),
+            light: new TubeLightData(
+                Offset: Pose.Identity,
+                Color: Vector3.One,
+                Power: 30,
+                Radius: 0.1f,
+                Length: 2,
+                CastsShadow: false
+            )
         );
 
         test.Run(1);
 
-        // The lights keep the slot order: the apron's lamp, then the searchlight.
+        // The lights keep the slot order: the apron's lamp, the searchlight, then the bar.
         test.World.Latest()
             .Lights.Select(light =>
                 light switch
@@ -333,11 +349,12 @@ public sealed class RenderSnapshotChainTests
                     PointRenderLight { ChainDepth: var depth } => depth,
                     SpotRenderLight { ChainDepth: var depth } => depth,
                     TubeRenderLight { ChainDepth: var depth } => depth,
+                    RectRenderLight { ChainDepth: var depth } => depth,
                     null => ushort.MaxValue,
                 }
             )
             .Should()
-            .Equal(1, 2);
+            .Equal(1, 2, 3);
     }
 
     [Fact]

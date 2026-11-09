@@ -158,7 +158,8 @@ internal struct CameraView
                 { } beam => (MainViewTier.InView, beam),
                 null => (MainViewTier.AxisMissesView, reach),
             },
-            EveryDirection => (
+            // A rectangle light's front is a half-space of the sphere, which the sphere's test holds.
+            EveryDirection or RectFace => (
                 Culls(light.Position, reach) ? MainViewTier.FaceOnly : MainViewTier.InView,
                 light.Distance
             ),

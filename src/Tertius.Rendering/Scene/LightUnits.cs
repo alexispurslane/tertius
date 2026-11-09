@@ -52,6 +52,12 @@ internal static class LightUnits
     }
 
     /// <summary>
+    /// The peak intensity, in W/sr, of a rectangle light of <paramref name="power"/> W: P / π across its face, which sends
+    /// the same radiance P / (π A) in every direction of its front (ARCHITECTURE.md, "Rectangle lights").
+    /// </summary>
+    public static double RectIntensity(double power) => power / Math.PI;
+
+    /// <summary>
     /// The intensity, in W/sr, of a spot light of <paramref name="power"/> W that sends it through its outer cone:
     /// P / (2π (1 − cos θ)), with θ clamped to [MinConeAngle, π].
     /// </summary>

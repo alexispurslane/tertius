@@ -113,18 +113,20 @@ const uint AtlasTilesSlot = 3u;
 const float PointKind = 0.0;
 const float SpotKind = 1.0;
 const float TubeKind = 2.0;
+const float RectKind = 3.0;
 
 struct GpuLight
 {
     vec4 positionReach;       // xyz world position, w reach in meters
-    vec4 intensityKind;       // rgb color × intensity in W/sr, a tube's across its segment; w the kind
-    vec4 directionCosOuter;   // xyz unit spot axis, w cos(outer half-angle); a tube's half segment, w 0; zero for a point
+    vec4 intensityKind;       // rgb color × intensity in W/sr, a tube's across its segment, a rectangle's across its face; w the kind
+    vec4 directionCosOuter;   // xyz unit spot axis, w cos(outer half-angle); a tube's half segment or a rectangle's half width, w 0; zero for a point
     vec4 spotRadius;          // x cos(inner half-angle), zero for a point light; y the emitter's radius in meters
+    vec4 halfHeight;          // xyz a rectangle's half height; zero for every other light
     uvec4 shadow;             // x the slot; y the set or the first tile view; z the tile views
     uvec3 occluders;          // x the first occluder, y the occluders, z how many of the first ones the cascade set also draws
     uint map;                 // the map of the light's carrier: a face of map i keeps it when map <= i
     uint inMainView;          // 1 when the light's reach touches the main view's frustum, else 0
-};                            // std430: 100 bytes of members, a stride of 112
+};                            // std430: 116 bytes of members, a stride of 128
 
 // GpuFrameConstants.NoAirSun: frame.counts.y of a frame whose light list holds no sun of an atmosphere.
 const uint NoAirSun = 0xFFFFFFFFu;

@@ -285,6 +285,20 @@ public static partial class DemoScenes
         /// <summary>The half extents of a lamp's panel, in meters: 0.05 m thick across the wall, 0.5 m tall and 0.15 m wide.</summary>
         private static Vector3 LampHalf => new(0.025f, 0.25f, 0.075f);
 
+        /// <summary>
+        /// The light of a lamp on the wall at the side <paramref name="side"/> of X, +1 or −1: its panel's face toward the
+        /// cabin's middle, LampHalf's Y by Z twice over.
+        /// </summary>
+        private static RectLightData LampFace(float side) =>
+            PanelLight(
+                offset: new(-side * LampHalf.X, 0, 0),
+                front: new(-side, 0, 0),
+                across: Vector3.UnitZ,
+                width: 2 * LampHalf.Z,
+                height: 2 * LampHalf.Y,
+                power: CabinLampPower
+            );
+
         /// <summary>The radii of the bubble, in meters, in the shuttle's axes.</summary>
         public static Vector3 Bubble { get; } = (Hull + new Vector3(2)) * MathF.Sqrt(3);
 
@@ -459,18 +473,13 @@ public static partial class DemoScenes
 
         /// <summary>
         /// Spawns the <see cref="Lamps"/> in <paramref name="cabin"/>, the shuttle's frame, with their scene ids: each a
-        /// warm glowing panel with a cabin lamp's light 0.3 m in front of it, toward the cabin's middle, which casts shadows
+        /// warm glowing panel whose face toward the cabin's middle is a cabin lamp's rectangle light, which casts shadows
         /// within the renderer's budget.
         /// </summary>
         public static void SpawnLamps(World world, FrameHandle cabin, SceneInstance scene, IRenderResources resources)
         {
             MeshId mesh = resources.CreateMesh(Primitives.Box(LampHalf));
-            // The panel's face toward the cabin is LampHalf's Y by Z, twice over.
-            MaterialId material = LampPanelMaterial(
-                resources: resources,
-                power: CabinLampPower,
-                area: 4 * LampHalf.Y * LampHalf.Z
-            );
+            MaterialId material = LampPanelMaterial(resources: resources, light: LampFace(side: 1));
             foreach ((string id, BoundingBox panel) in Lamps)
                 scene.Add(
                     id,
@@ -485,10 +494,7 @@ public static partial class DemoScenes
                                 Material = material,
                                 BoundingRadius = LampHalf.Length(),
                                 Flags = RenderFlags.Visible,
-                                Light = LampLight(
-                                    offset: new(-MathF.Sign(panel.Center.X) * 0.3f, 0, 0),
-                                    power: CabinLampPower
-                                ),
+                                Light = LampFace(side: MathF.Sign(panel.Center.X)),
                             },
                         }
                     )

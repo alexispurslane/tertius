@@ -140,10 +140,11 @@ def _time(stamp):
 def evidence(log, ids):
     """What a Stryker log shows about the speed of its tricks, for the mutants whose Stryker ids are in ids:
     compiles and compile_failures (the tries of the one schemata build), initial_runs and tests (the initial test run
-    and its count of tests), initial_seconds, coverage_seconds (the per-test coverage capture), dubious (the tests whose
-    coverage capture failed, so every mutant runs them) and scopes (each mutant's count of tests, or 'all')."""
+    and its count of tests), initial_seconds, captures (the starts of a per-test coverage capture, none with
+    coverage-analysis off), coverage_seconds (the capture's time), dubious (the tests whose coverage capture failed, so
+    every mutant runs them) and scopes (each mutant's count of tests, or 'all')."""
     found = {'compiles': 0, 'compile_failures': 0, 'initial_runs': 0, 'tests': 0, 'dubious': 0, 'scopes': {},
-             'initial_seconds': None, 'coverage_seconds': None, 'elapsed': None}
+             'initial_seconds': None, 'captures': 0, 'coverage_seconds': None, 'elapsed': None}
     marks = {}
     for stamp, level, text in _LINE.findall(log):
         if text.startswith('Trying compilation for the'):
@@ -157,6 +158,7 @@ def evidence(log, ids):
         elif text.startswith('Initial test run output'):
             marks.setdefault('initial_end', _time(stamp))
         elif text.startswith('Starting per-test coverage capture'):
+            found['captures'] += 1
             marks.setdefault('coverage', _time(stamp))
         elif text.startswith('Per-test coverage capture complete'):
             marks['coverage_end'] = _time(stamp)
@@ -202,11 +204,16 @@ def _evidence_text(module, found, result):
     counted = [s for s in scopes if s != 'all']
     mean = f'{sum(counted) / len(counted):.1f}' if counted else '-'
     initial = f'{found["initial_seconds"]:.0f} s' if found['initial_seconds'] is not None else 'no end mark'
-    coverage = f'{found["coverage_seconds"]:.0f} s' if found['coverage_seconds'] is not None else 'no end mark'
+    if found['coverage_seconds'] is not None:
+        coverage = f'per-test coverage capture {found["coverage_seconds"]:.0f} s'
+    elif found['captures']:
+        coverage = 'per-test coverage capture no end mark'
+    else:
+        coverage = 'no per-test coverage capture'
     return (f'{module}: {result["seconds"]:.0f} s wall; schemata build {found["compiles"]} compile tries '
             f'({found["compile_failures"]} failed, each removing the mutants that broke it); '
             f'{found["initial_runs"]} initial test run of {found["tests"]} tests in {initial}; '
-            f'per-test coverage capture {coverage}; {found["dubious"]} Dubious tests; '
+            f'{coverage}; {found["dubious"]} Dubious tests; '
             f'{len(scopes)} mutants ran a mean of {mean} of {found["tests"]} tests, '
             f'{scopes.count("all")} ran all tests; {result["watch"]}')
 

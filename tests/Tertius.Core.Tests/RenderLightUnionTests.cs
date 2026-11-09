@@ -76,6 +76,7 @@ public sealed class RenderLightUnionTests
             SpotRenderLight { Direction: var direction, InnerConeAngle: var inner, OuterConeAngle: var outer } =>
                 $"spot {direction.Y} {inner} {outer}",
             TubeRenderLight { Axis: var axis, Length: var length } => $"tube {axis.Y} {length}",
+            RectRenderLight { Width: var width } => $"rect {width}",
             null => "none",
         };
 
@@ -236,6 +237,7 @@ public sealed class RenderLightUnionTests
             PointRenderLight { Radius: var radius } => radius,
             SpotRenderLight { Radius: var radius } => radius,
             TubeRenderLight { Radius: var radius } => radius,
+            RectRenderLight => 0,
             null => 0,
         };
 
@@ -461,19 +463,19 @@ public sealed class RenderLightUnionTests
             .Select(constructor => constructor.GetParameters().Single().ParameterType)
             .Should()
             .BeEquivalentTo(
-                [typeof(PointRenderLight), typeof(SpotRenderLight), typeof(TubeRenderLight)],
+                [typeof(PointRenderLight), typeof(SpotRenderLight), typeof(TubeRenderLight), typeof(RectRenderLight)],
                 "a light is made from one case and nothing else"
             );
     }
 
     [Fact]
-    public void ALightTakesEightyEightBytesTheFieldsOfOneSpotLight()
+    public void ALightTakesTheFieldsOfOneSpotLightAndTheTwoRotationsOfARectangleLight()
     {
-        // The cases share the storage of every field of a point light, so the union holds one spot light's 87 bytes of
-        // fields. Its slots are packed by type, so the shadow flag, the chain depth and the kind byte fill 4 bytes, and the
-        // union takes 88, less than a spot light alone, which pads to 92. Storing each case whole would take 148 bytes.
+        // The cases share their slots by type, so the union holds one spot light's 87 bytes of fields and the 32 bytes of
+        // a rectangle light's two quaternions, the one type that no other case has. The shadow flag, the chain depth and
+        // the kind byte fill 4 bytes, and the union takes 120. Storing each case whole would take 260 bytes.
         Unsafe.SizeOf<PointRenderLight>().Should().Be(56);
         Unsafe.SizeOf<SpotRenderLight>().Should().Be(92);
-        Unsafe.SizeOf<RenderLight>().Should().Be(88);
+        Unsafe.SizeOf<RenderLight>().Should().Be(120);
     }
 }

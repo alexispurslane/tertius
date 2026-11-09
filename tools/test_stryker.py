@@ -330,6 +330,29 @@ class EvidenceInTheLog(unittest.TestCase):
         self.assertEqual(self.evidence["scopes"], {"0": 37, "1": "all", "2": 3})
 
 
+LOG_WITHOUT_CAPTURE = "".join(line + "\n" for line in LOG.splitlines() if "coverage" not in line)
+
+
+class EvidenceWithoutTheCoverageCapture(unittest.TestCase):
+    """evidence and its text for a run with coverage-analysis off, whose log has no per-test coverage capture."""
+
+    def setUp(self):
+        self.evidence = changed.evidence(LOG_WITHOUT_CAPTURE, {"0", "1", "2"})
+
+    def test_a_log_without_the_capture_gives_no_capture_seconds(self):
+        self.assertIsNone(self.evidence["coverage_seconds"])
+
+    def test_the_text_says_that_the_run_had_no_capture_not_that_the_capture_lost_its_end(self):
+        text = changed._evidence_text("Core", self.evidence, {"seconds": 600, "watch": "load"})
+        self.assertIn("no per-test coverage capture", text)
+        self.assertNotIn("no end mark", text)
+
+    def test_a_capture_that_started_and_never_ended_still_says_that_it_lost_its_end(self):
+        log = LOG.replace("Per-test coverage capture complete", "Something else")
+        text = changed._evidence_text("Core", changed.evidence(log, {"0"}), {"seconds": 600, "watch": "load"})
+        self.assertIn("per-test coverage capture no end mark", text)
+
+
 class ValidityOfARun(unittest.TestCase):
     """problems: what makes an official run not valid, each with its fix."""
 
@@ -411,6 +434,15 @@ class TheLoadOfARun(unittest.TestCase):
 
     def test_the_official_run_has_one_test_host_because_stryker_5_under_reports_kills_above_one(self):
         self.assertEqual(config.CONCURRENCY, 1)
+
+    def test_each_mutant_runs_only_its_covering_tests_because_every_test_is_slow_on_the_mutated_assembly(self):
+        # t9-al5u: with coverage-analysis off, each Simulation mutant of tiunr-e8xk's run3 ran every test on the mutated
+        # assembly and took about 11 minutes, while the initial run of every test on the plain assembly took 33 s.
+        with tempfile.TemporaryDirectory() as folder:
+            path = config.write_config(folder, ["**/A.cs"], ["Core"])
+            with open(path) as f:
+                written = json.load(f)["stryker-config"]
+        self.assertEqual(written["coverage-analysis"], "perTest")
 
     def test_stryker_starts_at_nice_20_with_the_processor_count_that_bounds_the_xunit_threads_of_its_configuration(self):
         with tempfile.TemporaryDirectory() as folder:

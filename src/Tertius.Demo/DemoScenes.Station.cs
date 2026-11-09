@@ -232,7 +232,7 @@ public static partial class DemoScenes
             FrameHandle frame = SpawnStation(world: world, resources: resources, scene: scene, earth: earth);
 
             // Five cabin lamps under the roof, 6 m apart, placed as in the orbit scene's ship.
-            SpawnCabinLamps(world: world, resources: resources, frame: frame, spacing: 6);
+            SpawnCabinLamps(world: world, resources: resources, scene: scene, frame: frame, spacing: 6);
 
             SpawnAirlock(world: world, resources: resources, scene: scene, frame: frame);
             SpawnPods(world: world, resources: resources, scene: scene, frame: frame);

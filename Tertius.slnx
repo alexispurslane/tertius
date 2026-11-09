@@ -28,6 +28,7 @@
     <Project Path="tests/Tertius.Slop.Tests/Tertius.Slop.Tests.csproj" />
   </Folder>
   <Folder Name="/tools/">
+    <Project Path="tools/Tertius.LtcFit/Tertius.LtcFit.csproj" />
     <Project Path="tools/Tertius.Slop/Tertius.Slop.csproj" />
     <Project Path="tools/Tertius.TestRecord/Tertius.TestRecord.csproj" />
   </Folder>

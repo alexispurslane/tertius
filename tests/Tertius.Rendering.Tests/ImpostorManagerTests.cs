@@ -1072,6 +1072,45 @@ public sealed class ImpostorManagerTests
     }
 
     [Fact]
+    public void ARectangleLightThatTurnsItsBackOnTheObjectRecapturesIt()
+    {
+        var harness = new Harness();
+        var position = new Vector3(0, 0, -DistanceFor(100f));
+        // A panel 1 m square 3 m to the +X side of the object. A quarter turn about Y takes its front, local +Z, to −X,
+        // toward the object, or the other way to +X, away from it.
+        RenderSnapshot Scene(float turn)
+        {
+            RenderSnapshot snapshot = Snapshot();
+            snapshot.Instances.Add(Ball(entity: 1, position: position));
+            Vector3 place = position + new Vector3(3, 0, 0);
+            var rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitY, turn);
+            snapshot.Lights.Add(
+                new RectRenderLight(
+                    EntityIndex: Gpu.LampEntity,
+                    EntityGeneration: 0,
+                    Position: place,
+                    PreviousPosition: place,
+                    Rotation: rotation,
+                    PreviousRotation: rotation,
+                    Color: Vector3.One,
+                    Power: 50,
+                    Width: 1,
+                    Height: 1,
+                    CastsShadow: false,
+                    ChainDepth: TestChains.CamerasFrame
+                )
+            );
+            return snapshot;
+        }
+
+        harness.Run(Scene(turn: -MathF.PI / 2));
+        harness.Manager.Captures.Length.Should().Be(1, "the panel faces the object and lights it");
+        harness.Run(Scene(turn: MathF.PI / 2));
+
+        harness.Manager.Captures.Length.Should().Be(1, "the panel's back sends no light, so the object went dark");
+    }
+
+    [Fact]
     public void PointAndSpotLightsAreBakedSoChangingThemRecaptures()
     {
         float height = 100f;

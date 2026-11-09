@@ -63,8 +63,8 @@ public static partial class DemoScenes
     public const double SunPower = 3.828e26;
 
     /// <summary>
-    /// The radius of every lamp's light, in meters: a small bulb. A surface is farther than this from each lamp, so the
-    /// radius changes no lit pixel.
+    /// The radius of a bulb's light, in meters. A surface is farther than this from each bulb, so the radius changes no lit
+    /// pixel.
     /// </summary>
     private const float LampRadius = 0.05f;
 
@@ -106,23 +106,23 @@ public static partial class DemoScenes
         };
 
     /// <summary>
-    /// The black material of a lamp's panel whose face of <paramref name="area"/> m² sends a lamp's
-    /// <paramref name="power"/> W of <see cref="LampColor"/>: it glows with the radiance color · P / (π A), in
-    /// W/(m²·sr), of a flat emitter that looks the same from every side.
+    /// The black material of a lamp's panel whose glowing face is <paramref name="light"/>: it glows with the light's face
+    /// radiance, color · P / (π A), in W/(m²·sr), so that the panel shows the light that it sends (ARCHITECTURE.md,
+    /// "Rectangle lights").
     /// </summary>
-    private static MaterialId LampPanelMaterial(IRenderResources resources, float power, float area) =>
+    private static MaterialId LampPanelMaterial(IRenderResources resources, in RectLightData light) =>
         resources.CreateMaterial(
             new(
                 BaseColor: new(x: 0, y: 0, z: 0, w: 1),
                 Roughness: UsualRoughness,
                 Reflectance: 0,
-                Emissive: LampColor * (power / (MathF.PI * area))
+                Emissive: light.SurfaceRadiance
             )
         );
 
     /// <summary>
-    /// A lamp's warm light of <paramref name="power"/> W at <paramref name="offset"/> from its panel, which casts shadows.
-    /// Its panel leaves <see cref="RenderFlags.CastsShadow"/> off, so it does not darken its own light.
+    /// A small bulb's warm light of <paramref name="power"/> W at <paramref name="offset"/> from its carrier, which casts
+    /// shadows.
     /// </summary>
     private static PointLightData LampLight(Vector3 offset, float power) =>
         new(
@@ -134,8 +134,68 @@ public static partial class DemoScenes
         );
 
     /// <summary>
+    /// The warm light of a lamp's glowing face, which casts shadows from its center (ARCHITECTURE.md, "Rectangle lights"):
+    /// a rectangle of <paramref name="width"/> by <paramref name="height"/> m at <paramref name="offset"/> from its panel's
+    /// middle, whose front is the unit axis <paramref name="front"/> and whose width runs along the unit axis
+    /// <paramref name="across"/>. Its panel leaves <see cref="RenderFlags.CastsShadow"/> off, so it does not darken its
+    /// own light.
+    /// </summary>
+    private static RectLightData PanelLight(
+        Vector3 offset,
+        Vector3 front,
+        Vector3 across,
+        float width,
+        float height,
+        float power
+    )
+    {
+        // The rows are the images of local X, Y and Z, so the turn takes the width to across and +Z to front.
+        var up = Vector3.Cross(front, across);
+        var axes = new Matrix4x4(
+            m11: across.X,
+            m12: across.Y,
+            m13: across.Z,
+            m14: 0,
+            m21: up.X,
+            m22: up.Y,
+            m23: up.Z,
+            m24: 0,
+            m31: front.X,
+            m32: front.Y,
+            m33: front.Z,
+            m34: 0,
+            m41: 0,
+            m42: 0,
+            m43: 0,
+            m44: 1
+        );
+        return new(
+            Offset: new(offset, Quaternion.CreateFromRotationMatrix(axes)),
+            Color: LampColor,
+            Power: power,
+            Width: width,
+            Height: height,
+            CastsShadow: true
+        );
+    }
+
+    /// <summary>
+    /// The light of a cabin's ceiling lamp: the lower face, 1.2 m square, of a panel 0.1 m thick, which shines down with a
+    /// cabin lamp's power.
+    /// </summary>
+    private static RectLightData CeilingPanelLight =>
+        PanelLight(
+            offset: new(0, -0.05f, 0),
+            front: -Vector3.UnitY,
+            across: Vector3.UnitX,
+            width: 1.2f,
+            height: 1.2f,
+            power: CabinLampPower
+        );
+
+    /// <summary>
     /// A lamp under a cabin's roof at <paramref name="position"/> in <paramref name="frame"/>: a glowing panel of
-    /// <paramref name="mesh"/> and <paramref name="material"/>, with a cabin lamp's light 10 cm below it.
+    /// <paramref name="mesh"/> and <paramref name="material"/>, whose lower face is the <see cref="CeilingPanelLight"/>.
     /// </summary>
     private static SpawnDesc CeilingLamp(FrameHandle frame, Double3 position, MeshId mesh, MaterialId material) =>
         new()
@@ -148,25 +208,35 @@ public static partial class DemoScenes
                 Material = material,
                 BoundingRadius = 0.85f,
                 Flags = RenderFlags.Visible,
-                Light = LampLight(offset: new(0, -0.1f, 0), power: CabinLampPower),
+                Light = CeilingPanelLight,
             },
         };
 
     /// <summary>
     /// Five <see cref="CeilingLamp"/>s along the cabin's Z axis in <paramref name="frame"/>, <paramref name="spacing"/> m
-    /// apart and centered on Z = 0, each a glowing panel 1.2 m square under the roof.
+    /// apart and centered on Z = 0, each a glowing panel 1.2 m square under the roof, added to <paramref name="scene"/> as
+    /// <c>cabin-lamp-0</c> to <c>cabin-lamp-4</c> from −Z.
     /// </summary>
-    private static void SpawnCabinLamps(World world, IRenderResources resources, FrameHandle frame, double spacing)
+    private static void SpawnCabinLamps(
+        World world,
+        IRenderResources resources,
+        SceneInstance scene,
+        FrameHandle frame,
+        double spacing
+    )
     {
         MeshId lampMesh = resources.CreateMesh(Primitives.Box(new(0.6f, 0.05f, 0.6f)));
-        MaterialId lampMaterial = LampPanelMaterial(resources: resources, power: CabinLampPower, area: 1.2f * 1.2f);
+        MaterialId lampMaterial = LampPanelMaterial(resources: resources, light: CeilingPanelLight);
         for (int i = -2; i <= 2; i++)
-            world.Spawn(
-                CeilingLamp(
-                    frame: frame,
-                    position: new(0, Cabin.Y - 0.05, spacing * i),
-                    mesh: lampMesh,
-                    material: lampMaterial
+            scene.Add(
+                $"cabin-lamp-{i + 2}",
+                world.Spawn(
+                    CeilingLamp(
+                        frame: frame,
+                        position: new(0, Cabin.Y - 0.05, spacing * i),
+                        mesh: lampMesh,
+                        material: lampMaterial
+                    )
                 )
             );
     }
@@ -225,6 +295,7 @@ public static partial class DemoScenes
         new("pbr-spheres", PbrSpheres),
         new("reflections", Reflections),
         new("mirror-balls", MirrorBalls),
+        new("rect-lights", RectLights),
         .. ShadowScenes,
         .. BounceLightScenes,
         .. RigScenes,
@@ -408,7 +479,7 @@ public static partial class DemoScenes
 
         // Five lamps under the roof, 12 m apart, light the cabin, because the hull keeps the sunlight out, except through the
         // windows when the sun stands on their side. Each casts shadows within the renderer's budget.
-        SpawnCabinLamps(world: world, resources: resources, frame: shipFrame, spacing: 12);
+        SpawnCabinLamps(world: world, resources: resources, scene: scene, frame: shipFrame, spacing: 12);
 
         SpawnPanesAndAirlock(world: world, resources: resources, scene: scene, shipFrame: shipFrame);
 

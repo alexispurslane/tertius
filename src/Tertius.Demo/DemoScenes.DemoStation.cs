@@ -24,8 +24,8 @@ public static partial class DemoScenes
     /// the bay inside is 16 by 25 by 16 m. The <see cref="Slot"/> leads through its +Y wall. Its -X wall is the
     /// <see cref="Deck"/>, the landing floor of step 5. It is built in its own axes, whose +Z is the station's +Y (see
     /// <see cref="HubTurn"/>), because a box opening runs along X or Z only.</item>
-    /// <item>Four glowing panels with point lights, the bay lamps, on the bay's +X, +Z and -Z walls near the slot and on its
-    /// far end wall, so the slot glows from inside. They leave the deck clear for the landing.</item>
+    /// <item>Four glowing panels whose faces are rectangle lights, the bay lamps, on the bay's +X, +Z and -Z walls near the
+    /// slot and on its far end wall, so the slot glows from inside. They leave the deck clear for the landing.</item>
     /// <item>The view <c>rim-camera</c>, in the station's frame, 2 m off the slot's face of the wheel near its rim, looks
     /// across the axis at a point between the hub and <see cref="HoldPoint"/>, with the axis across the picture. It turns
     /// with the station.</item>
@@ -453,7 +453,7 @@ public static partial class DemoScenes
             StationExit.Spawn(world: world, station: frame, scene: scene, resources: resources);
             WheelCoda.Spawn(world: world, station: frame, scene: scene, resources: resources);
 
-            SpawnBayLamps(world: world, frame: frame, resources: resources);
+            SpawnBayLamps(world: world, frame: frame, scene: scene, resources: resources);
             SpawnCameras(world: world, frame: frame, scene: scene);
             return station;
         }
@@ -641,18 +641,21 @@ public static partial class DemoScenes
             );
         }
 
-        /// <summary>Spawns the bay lamps in <paramref name="frame"/>.</summary>
-        private static void SpawnBayLamps(World world, FrameHandle frame, IRenderResources resources)
+        /// <summary>
+        /// Spawns the bay lamps in <paramref name="frame"/>, added to <paramref name="scene"/> as <c>bay-lamp-0</c> to
+        /// <c>bay-lamp-3</c>.
+        /// </summary>
+        private static void SpawnBayLamps(
+            World world,
+            FrameHandle frame,
+            SceneInstance scene,
+            IRenderResources resources
+        )
         {
-            // The bay lamps: floodlights behind glowing panels 1.2 m square, flat on the bay's walls, each with its light
-            // 0.3 m out from the wall, in the station's axes. Three stand near the slot, 8 m in from it, and one in the
-            // middle of the far end wall.
+            // The bay lamps: glowing panels 1.2 m square, flat on the bay's walls, each a floodlight's rectangle light on its
+            // face toward the bay, in the station's axes. Three stand near the slot, 8 m in from it, and one in the middle of
+            // the far end wall.
             Vector3 bay = HubHalf - new Vector3(HubWall);
-            MaterialId lampMaterial = LampPanelMaterial(
-                resources: resources,
-                power: FloodlightPower,
-                area: 1.2f * 1.2f
-            );
             (Vector3 Wall, Vector3 Inward)[] lamps =
             [
                 (new(bay.X, bay.Y - 8, 0), -Vector3.UnitX),
@@ -660,26 +663,46 @@ public static partial class DemoScenes
                 (new(0, bay.Y - 8, -bay.Z), Vector3.UnitZ),
                 (new(0, -bay.Y, 0), Vector3.UnitY),
             ];
-            foreach ((Vector3 at, Vector3 inward) in lamps)
+            MaterialId lampMaterial = LampPanelMaterial(resources: resources, light: BayPanelLight(lamps[0].Inward));
+            for (int i = 0; i < lamps.Length; i++)
             {
+                (Vector3 at, Vector3 inward) = lamps[i];
                 Vector3 half = new Vector3(0.6f) - 0.55f * Vector3.Abs(inward);
-                world.Spawn(
-                    new()
-                    {
-                        Frame = frame,
-                        Pose = new(at + inward * half, DQuaternion.Identity),
-                        Render = new RenderData
+                scene.Add(
+                    $"bay-lamp-{i}",
+                    world.Spawn(
+                        new()
                         {
-                            Mesh = resources.CreateMesh(Primitives.Box(half)),
-                            Material = lampMaterial,
-                            BoundingRadius = 0.85f,
-                            Flags = RenderFlags.Visible | RenderFlags.NoImpostor,
-                            Light = LampLight(offset: inward * 0.3f, power: FloodlightPower),
-                        },
-                    }
+                            Frame = frame,
+                            Pose = new(at + inward * half, DQuaternion.Identity),
+                            Render = new RenderData
+                            {
+                                Mesh = resources.CreateMesh(Primitives.Box(half)),
+                                Material = lampMaterial,
+                                BoundingRadius = 0.85f,
+                                Flags = RenderFlags.Visible | RenderFlags.NoImpostor,
+                                Light = BayPanelLight(inward),
+                            },
+                        }
+                    )
                 );
             }
         }
+
+        /// <summary>
+        /// The light of a bay lamp whose panel, 0.1 m thick, lies flat on a wall: its face 1.2 m square toward the bay along
+        /// the unit axis <paramref name="inward"/>, with a floodlight's power.
+        /// </summary>
+        private static RectLightData BayPanelLight(Vector3 inward) =>
+            PanelLight(
+                offset: inward * 0.05f,
+                front: inward,
+                // Any axis across the front serves the square face.
+                across: MathF.Abs(inward.Y) > 0.5f ? Vector3.UnitX : Vector3.Cross(Vector3.UnitY, inward),
+                width: 1.2f,
+                height: 1.2f,
+                power: FloodlightPower
+            );
 
         /// <summary>Spawns the rim, bay and hold cameras in <paramref name="frame"/>.</summary>
         private static void SpawnCameras(World world, FrameHandle frame, SceneInstance scene)

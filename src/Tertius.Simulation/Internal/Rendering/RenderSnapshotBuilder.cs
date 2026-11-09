@@ -696,6 +696,34 @@ internal sealed partial class RenderSnapshotBuilder
                 );
                 break;
             }
+            case RectLightData
+            {
+                Offset: var offset,
+                Color: var color,
+                Power: var power,
+                Width: var width,
+                Height: var height,
+                CastsShadow: var castsShadow
+            }:
+            {
+                DPose pose = LightPose(current, offset);
+                DPose previousPose = LightPose(previous, offset);
+                lights.AddRef() = new RectRenderLight(
+                    EntityIndex: entity.Index,
+                    EntityGeneration: entity.Generation,
+                    Position: (pose.Position - origin).ToVector3(),
+                    PreviousPosition: (previousPose.Position - origin).ToVector3(),
+                    Rotation: pose.Rotation.ToQuaternion(),
+                    PreviousRotation: previousPose.Rotation.ToQuaternion(),
+                    Color: color,
+                    Power: power,
+                    Width: width,
+                    Height: height,
+                    CastsShadow: castsShadow,
+                    ChainDepth: chainDepth
+                );
+                break;
+            }
             case null:
                 break;
             default:

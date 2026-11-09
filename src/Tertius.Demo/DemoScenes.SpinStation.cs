@@ -264,10 +264,19 @@ public static partial class DemoScenes
         /// <summary>The lamps on both walls, one on each wall over every fourth joint.</summary>
         private static void SpawnWallLamps(World world, IRenderResources resources, FrameHandle frame)
         {
-            // Each lamp is a glowing panel 0.6 m by 1.2 m on the inner face of a wall, with a cabin lamp's light just in
-            // front of it.
+            // Each lamp is a glowing panel 0.6 m by 1.2 m on the inner face of a wall, whose face toward the hall is a cabin
+            // lamp's rectangle light.
             MeshId lampMesh = resources.CreateMesh(Primitives.Box(new(0.05f, 0.3f, 0.6f)));
-            MaterialId lampMaterial = LampPanelMaterial(resources: resources, power: CabinLampPower, area: 0.6f * 1.2f);
+            static RectLightData Face(double side) =>
+                PanelLight(
+                    offset: new((float)-side * 0.05f, 0, 0),
+                    front: new((float)-side, 0, 0),
+                    across: Vector3.UnitZ,
+                    width: 1.2f,
+                    height: 0.6f,
+                    power: CabinLampPower
+                );
+            MaterialId lampMaterial = LampPanelMaterial(resources: resources, light: Face(1));
             for (int k = 0; k < Segments; k += LampEvery)
             {
                 double theta = k * Facet,
@@ -291,7 +300,7 @@ public static partial class DemoScenes
                                 Material = lampMaterial,
                                 BoundingRadius = 0.85f,
                                 Flags = RenderFlags.Visible,
-                                Light = LampLight(offset: new((float)-side * 0.3f, -0.3f, 0), power: CabinLampPower),
+                                Light = Face(side),
                             },
                         }
                     );

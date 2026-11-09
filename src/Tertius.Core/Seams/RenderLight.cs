@@ -118,16 +118,53 @@ public readonly record struct TubeRenderLight(
 }
 
 /// <summary>
-/// One light of a <see cref="RenderSnapshot"/>: a <see cref="PointRenderLight"/>, a <see cref="SpotRenderLight"/> or a
-/// <see cref="TubeRenderLight"/>.
+/// A rectangle light of the snapshot: a one-sided rectangle of <see cref="Width"/> by <see cref="Height"/> centered on
+/// <see cref="Position"/>, whose front face sends its power with the same radiance in every direction. Its places and
+/// rotations follow the rules of the position and rotation of a <see cref="RenderInstance"/> (ARCHITECTURE.md, "Rectangle
+/// lights").
+/// </summary>
+/// <param name="EntityIndex">As for <see cref="PointRenderLight"/>: the slot names the light within one snapshot.</param>
+/// <param name="EntityGeneration">As for <see cref="PointRenderLight"/>.</param>
+/// <param name="Position">The rectangle's center, relative to the render origin, in the axes of the camera's frame, in meters.</param>
+/// <param name="PreviousPosition">The center at the previous snapshot, relative to the same origin, as an instance's.</param>
+/// <param name="Rotation">Takes local X to the width, Y to the height and +Z to the front, in the camera frame's axes.</param>
+/// <param name="PreviousRotation">The rotation at the previous snapshot.</param>
+/// <param name="Color">Linear RGB that scales the power per channel.</param>
+/// <param name="Power">The radiant power that leaves the front face, in W.</param>
+/// <param name="Width">The side along the rotated local X, in m.</param>
+/// <param name="Height">The side along the rotated local Y, in m.</param>
+/// <param name="CastsShadow">Whether the light casts shadows from the rectangle's center, within the renderer's budgets.</param>
+/// <param name="ChainDepth">As for <see cref="PointRenderLight"/>.</param>
+public readonly record struct RectRenderLight(
+    uint EntityIndex,
+    uint EntityGeneration,
+    Vector3 Position,
+    Vector3 PreviousPosition,
+    Quaternion Rotation,
+    Quaternion PreviousRotation,
+    Vector3 Color,
+    float Power,
+    float Width,
+    float Height,
+    bool CastsShadow,
+    ushort ChainDepth
+)
+{
+    /// <summary>As for <see cref="PointRenderLight.Entity"/>.</summary>
+    public Entity Entity => new(Index: EntityIndex, Generation: EntityGeneration);
+}
+
+/// <summary>
+/// One light of a <see cref="RenderSnapshot"/>: a <see cref="PointRenderLight"/>, a <see cref="SpotRenderLight"/>, a
+/// <see cref="TubeRenderLight"/> or a <see cref="RectRenderLight"/>.
 /// The default value holds no light. The renderer skips it.
 /// </summary>
 /// <remarks>
 /// The union generator writes its union members (docs/plans/union-tooling.md). A light reads only the values of its own
-/// case. The cases share their slots by type, so the union takes the fields of one spot light and its kind byte, 88
-/// bytes: a tube light's fields fit in a spot light's.
+/// case. The cases share their slots by type, so the union takes the fields of one spot light, a rectangle light's two
+/// rotations and its kind byte, 120 bytes: a tube light's fields fit in a spot light's.
 /// Equality needs the same case and the same values, and counts a NaN as equal to a NaN, as
 /// <see cref="Vector3.Equals(Vector3)"/> does.
 /// </remarks>
-[GeneratedUnion(typeof(PointRenderLight), typeof(SpotRenderLight), typeof(TubeRenderLight))]
+[GeneratedUnion(typeof(PointRenderLight), typeof(SpotRenderLight), typeof(TubeRenderLight), typeof(RectRenderLight))]
 public readonly partial struct RenderLight;

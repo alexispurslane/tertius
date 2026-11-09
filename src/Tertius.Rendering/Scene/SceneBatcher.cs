@@ -595,6 +595,7 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
                 PointRenderLight point => point.Entity,
                 SpotRenderLight spot => spot.Entity,
                 TubeRenderLight tube => tube.Entity,
+                RectRenderLight rect => rect.Entity,
                 // A light that holds no case is no light, and the renderer skips it.
                 null => null,
             };
@@ -1098,45 +1099,11 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
         int maps
     )
     {
-        LightCase lit = light switch
-        {
-            PointRenderLight point => new(
-                Entity: point.Entity,
-                Position: Vector3.Lerp(point.PreviousPosition, point.Position, alpha),
-                Color: point.Color,
-                Intensity: LightUnits.PointIntensity(point.Power),
-                Radius: point.Radius,
-                CastsShadow: point.CastsShadow,
-                Spread: new LightSpread(new EveryDirection(HalfSegment: Vector3.Zero)),
-                ChainDepth: point.ChainDepth
-            ),
-            SpotRenderLight spot => new(
-                Entity: spot.Entity,
-                Position: Vector3.Lerp(spot.PreviousPosition, spot.Position, alpha),
-                Color: spot.Color,
-                Intensity: LightUnits.SpotIntensity(spot.Power, spot.OuterConeAngle),
-                Radius: spot.Radius,
-                CastsShadow: spot.CastsShadow,
-                Spread: new LightSpread(SpreadOf(spot, alpha)),
-                ChainDepth: spot.ChainDepth
-            ),
-            TubeRenderLight tube => new(
-                Entity: tube.Entity,
-                Position: Vector3.Lerp(tube.PreviousPosition, tube.Position, alpha),
-                Color: tube.Color,
-                Intensity: LightUnits.TubeIntensity(tube.Power, tube.Radius, tube.Length),
-                Radius: tube.Radius,
-                CastsShadow: tube.CastsShadow,
-                Spread: new LightSpread(new EveryDirection(HalfSegment: HalfSegmentOf(tube, alpha))),
-                ChainDepth: tube.ChainDepth
-            ),
-            null => throw new UnreachableException("A light that shines holds a case."),
-        };
+        LightCase lit = CaseOf(light, alpha);
         Vector3 relative = lit.Position - camera.Offset;
-        // A tube's light falls to the cutoff within the reach of its peak intensity from its segment, which lies within
-        // half its length of its position (ARCHITECTURE.md, "Tube lights").
-        double halfLength = lit.Spread is EveryDirection { HalfSegment: var half } ? half.Length() : 0;
-        float reach = (float)(LightUnits.Reach(PeakChannel(lit.Color) * lit.Intensity, cutoffIrradiance) + halfLength);
+        float reach = (float)(
+            LightUnits.Reach(PeakChannel(lit.Color) * lit.Intensity, cutoffIrradiance) + EmitterHalfExtent(lit.Spread)
+        );
         double distance = Math.Sqrt(
             (double)relative.X * relative.X + (double)relative.Y * relative.Y + (double)relative.Z * relative.Z
         );
@@ -1199,6 +1166,84 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
         return LightUnits.InterpolateAxis(previous, current, alpha) * (tube.Length / 2);
     }
 
+    /// <summary>The case of <paramref name="light"/> at <paramref name="alpha"/> between its last two places, its intensity in W/sr.</summary>
+    private static LightCase CaseOf(in RenderLight light, float alpha) =>
+        light switch
+        {
+            PointRenderLight point => new(
+                Entity: point.Entity,
+                Position: Vector3.Lerp(point.PreviousPosition, point.Position, alpha),
+                Color: point.Color,
+                Intensity: LightUnits.PointIntensity(point.Power),
+                Radius: point.Radius,
+                CastsShadow: point.CastsShadow,
+                Spread: new LightSpread(new EveryDirection(HalfSegment: Vector3.Zero)),
+                ChainDepth: point.ChainDepth
+            ),
+            SpotRenderLight spot => new(
+                Entity: spot.Entity,
+                Position: Vector3.Lerp(spot.PreviousPosition, spot.Position, alpha),
+                Color: spot.Color,
+                Intensity: LightUnits.SpotIntensity(spot.Power, spot.OuterConeAngle),
+                Radius: spot.Radius,
+                CastsShadow: spot.CastsShadow,
+                Spread: new LightSpread(SpreadOf(spot, alpha)),
+                ChainDepth: spot.ChainDepth
+            ),
+            TubeRenderLight tube => new(
+                Entity: tube.Entity,
+                Position: Vector3.Lerp(tube.PreviousPosition, tube.Position, alpha),
+                Color: tube.Color,
+                Intensity: LightUnits.TubeIntensity(tube.Power, tube.Radius, tube.Length),
+                Radius: tube.Radius,
+                CastsShadow: tube.CastsShadow,
+                Spread: new LightSpread(new EveryDirection(HalfSegment: HalfSegmentOf(tube, alpha))),
+                ChainDepth: tube.ChainDepth
+            ),
+            // The shadow falls from the face's center as from a point, so the light has no radius (ARCHITECTURE.md,
+            // "Rectangle lights").
+            RectRenderLight rect => new(
+                Entity: rect.Entity,
+                Position: Vector3.Lerp(rect.PreviousPosition, rect.Position, alpha),
+                Color: rect.Color,
+                Intensity: LightUnits.RectIntensity(rect.Power),
+                Radius: 0,
+                CastsShadow: rect.CastsShadow,
+                Spread: new LightSpread(FaceOf(rect, alpha)),
+                ChainDepth: rect.ChainDepth
+            ),
+            null => throw new UnreachableException("A light that shines holds a case."),
+        };
+
+    /// <summary>
+    /// How far, in m, the light's emitter reaches from its position: a tube's light falls to the cutoff within the reach
+    /// of its peak intensity from its segment, which lies within half its length of its position (ARCHITECTURE.md, "Tube
+    /// lights"), and a rectangle's from its face, which lies within half its diagonal.
+    /// </summary>
+    private static double EmitterHalfExtent(in LightSpread spread) =>
+        spread switch
+        {
+            EveryDirection { HalfSegment: var half } => half.Length(),
+            RectFace { HalfWidth: var width, HalfHeight: var height } => Math.Sqrt(
+                (double)width.LengthSquared() + height.LengthSquared()
+            ),
+            Cone => 0,
+        };
+
+    /// <summary>
+    /// The face of a rectangle light at alpha: its rotations slerped by <see cref="Interpolate"/>, a zero rotation taken as
+    /// the identity and a zero previous one as the current one, applied to its half width along local X and its half height
+    /// along local Y.
+    /// </summary>
+    private static RectFace FaceOf(in RectRenderLight rect, float alpha)
+    {
+        Quaternion rotation = Interpolate(rect.PreviousRotation, rect.Rotation, alpha);
+        return new(
+            HalfWidth: Vector3.Transform(Vector3.UnitX, rotation) * (rect.Width / 2),
+            HalfHeight: Vector3.Transform(Vector3.UnitY, rotation) * (rect.Height / 2)
+        );
+    }
+
     /// <summary><paramref name="axis"/> at unit length, or <paramref name="fallback"/> for one too short or too long to normalize in single floats.</summary>
     private static Vector3 UnitOr(Vector3 axis, Vector3 fallback)
     {
@@ -1211,51 +1256,92 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
     private static double PeakChannel(Vector3 color) => Math.Max(color.X, Math.Max(color.Y, color.Z));
 
     /// <summary>
+    /// The shortest side of a rectangle light that shines, 1 µm: the square of half of it, 2.5 × 10⁻¹³ m², stays a normal
+    /// single float, as a tube's half segment of 10⁻⁶ m does (ARCHITECTURE.md, "Rectangle lights").
+    /// </summary>
+    internal const float MinRectSide = 1e-6f;
+
+    /// <summary>
     /// Whether a light shines (docs/plans/local-light-shadows.md, decision 20): its places and color are finite, each color
     /// channel is 0 or more and one is above 0, its power is finite and above 0, its radius is finite and 0 or more, a spot
     /// light's axes and cone angles are finite, a tube light's axes are finite and its length from 0 to twice
-    /// <see cref="ShaderInput.PositionLimit"/>, and c_max · I is at most <see cref="LightUnits.MaxIntensity"/>.
+    /// <see cref="ShaderInput.PositionLimit"/>, a rectangle light's rotations are finite and its sides from
+    /// <see cref="MinRectSide"/> to the position limit, and c_max · I is at most <see cref="LightUnits.MaxIntensity"/>.
     /// </summary>
     internal static bool Shines(in RenderLight light) =>
         light switch
         {
-            // The intensity is checked after the finite tests, so that it is a number.
-            PointRenderLight point => Shines(
-                place: point.Position,
-                previousPlace: point.PreviousPosition,
-                color: point.Color,
-                power: point.Power,
-                radius: point.Radius
-            )
-                && PeakChannel(point.Color) * LightUnits.PointIntensity(point.Power) <= LightUnits.MaxIntensity,
-            SpotRenderLight spot => Shines(
-                place: spot.Position,
-                previousPlace: spot.PreviousPosition,
-                color: spot.Color,
-                power: spot.Power,
-                radius: spot.Radius
-            )
-                && ShaderInput.IsFinite(spot.Direction)
-                && ShaderInput.IsFinite(spot.PreviousDirection)
-                && float.IsFinite(spot.InnerConeAngle)
-                && float.IsFinite(spot.OuterConeAngle)
-                && PeakChannel(spot.Color) * LightUnits.SpotIntensity(spot.Power, spot.OuterConeAngle)
-                    <= LightUnits.MaxIntensity,
-            TubeRenderLight tube => Shines(
-                place: tube.Position,
-                previousPlace: tube.PreviousPosition,
-                color: tube.Color,
-                power: tube.Power,
-                radius: tube.Radius
-            )
-                && ShaderInput.IsFinite(tube.Axis)
-                && ShaderInput.IsFinite(tube.PreviousAxis)
-                // Half the length is then within the position limit, so the reach that adds it keeps a finite square.
-                && tube.Length is >= 0 and <= 2 * ShaderInput.PositionLimit
-                && PeakChannel(tube.Color) * LightUnits.TubeIntensity(tube.Power, tube.Radius, tube.Length)
-                    <= LightUnits.MaxIntensity,
+            PointRenderLight point => Shines(point),
+            SpotRenderLight spot => Shines(spot),
+            TubeRenderLight tube => Shines(tube),
+            RectRenderLight rect => Shines(rect),
             null => false,
         };
+
+    // Each light checks its intensity after the finite tests, so that it is a number.
+
+    private static bool Shines(in PointRenderLight point) =>
+        Shines(
+            place: point.Position,
+            previousPlace: point.PreviousPosition,
+            color: point.Color,
+            power: point.Power,
+            radius: point.Radius
+        )
+        && PeakChannel(point.Color) * LightUnits.PointIntensity(point.Power) <= LightUnits.MaxIntensity;
+
+    private static bool Shines(in SpotRenderLight spot) =>
+        Shines(
+            place: spot.Position,
+            previousPlace: spot.PreviousPosition,
+            color: spot.Color,
+            power: spot.Power,
+            radius: spot.Radius
+        )
+        && ShaderInput.IsFinite(spot.Direction)
+        && ShaderInput.IsFinite(spot.PreviousDirection)
+        && float.IsFinite(spot.InnerConeAngle)
+        && float.IsFinite(spot.OuterConeAngle)
+        && PeakChannel(spot.Color) * LightUnits.SpotIntensity(spot.Power, spot.OuterConeAngle)
+            <= LightUnits.MaxIntensity;
+
+    private static bool Shines(in TubeRenderLight tube) =>
+        Shines(
+            place: tube.Position,
+            previousPlace: tube.PreviousPosition,
+            color: tube.Color,
+            power: tube.Power,
+            radius: tube.Radius
+        )
+        && ShaderInput.IsFinite(tube.Axis)
+        && ShaderInput.IsFinite(tube.PreviousAxis)
+        // Half the length is then within the position limit, so the reach that adds it keeps a finite square.
+        && tube.Length is >= 0 and <= 2 * ShaderInput.PositionLimit
+        && PeakChannel(tube.Color) * LightUnits.TubeIntensity(tube.Power, tube.Radius, tube.Length)
+            <= LightUnits.MaxIntensity;
+
+    private static bool Shines(in RectRenderLight rect) =>
+        Shines(
+            place: rect.Position,
+            previousPlace: rect.PreviousPosition,
+            color: rect.Color,
+            power: rect.Power,
+            radius: 0
+        )
+        && IsFinite(rect.Rotation)
+        && IsFinite(rect.PreviousRotation)
+        // Half of each side is then within the position limit, so the reach that adds half the diagonal keeps a finite
+        // square, and at least half of MinRectSide, so the shader's square of it stays a normal single float.
+        && rect.Width is >= MinRectSide and <= ShaderInput.PositionLimit
+        && rect.Height is >= MinRectSide and <= ShaderInput.PositionLimit
+        && PeakChannel(rect.Color) * LightUnits.RectIntensity(rect.Power) <= LightUnits.MaxIntensity;
+
+    /// <summary>Whether every part of <paramref name="rotation"/> is finite.</summary>
+    private static bool IsFinite(Quaternion rotation) =>
+        float.IsFinite(rotation.X)
+        && float.IsFinite(rotation.Y)
+        && float.IsFinite(rotation.Z)
+        && float.IsFinite(rotation.W);
 
     /// <summary>
     /// What every light needs to shine: finite places and color, each color channel 0 or more and one above 0, a finite

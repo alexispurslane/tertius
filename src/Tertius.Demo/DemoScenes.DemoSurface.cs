@@ -533,7 +533,7 @@ public static partial class DemoScenes
         )
         {
             MeshId lampMesh = resources.CreateMesh(Primitives.Box(new(0.6f, 0.05f, 0.6f)));
-            MaterialId lampMaterial = LampPanelMaterial(resources: resources, power: CabinLampPower, area: 1.2f * 1.2f);
+            MaterialId lampMaterial = LampPanelMaterial(resources: resources, light: CeilingPanelLight);
 
             SpawnDesc Lamp(FrameHandle frame, Double3 position) =>
                 CeilingLamp(frame: frame, position: position, mesh: lampMesh, material: lampMaterial);
