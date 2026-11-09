@@ -193,7 +193,6 @@ public sealed unsafe class VulkanRenderer : IRenderer
             ShadingConstants = new(EnvironmentMap: environmentMap is not null)
             {
                 ScreenTraceOn = options.ScreenTrace is ScreenTrace,
-                TemporalShadows = upscaling is Fsr3Upscaling,
                 ReflectionSharingPrototype =
                     options.ScreenTrace is ScreenTrace
                     && Environment.GetEnvironmentVariable("TERTIUS_REFLECTION_SHARING") == "1",
@@ -861,7 +860,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             upscaling is Fsr3Upscaling
                 ? MathF.Log2(pending.RenderSize.Width / (float)targets.OutputExtent.Width) - 1
                 : 0;
-        LastScene.Constants.RenderParams = new(x: bias, y: jitter.X, z: jitter.Y, w: pending.DrawIndex % 4);
+        LastScene.Constants.RenderParams = new(x: bias, y: jitter.X, z: jitter.Y, w: 0);
         Vector2 previousJitter = Vector2.Zero;
         if (jitters && !pending.Reset)
         {

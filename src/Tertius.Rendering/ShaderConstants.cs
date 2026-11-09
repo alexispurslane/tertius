@@ -12,7 +12,6 @@ namespace Tertius.Rendering;
 internal readonly record struct ShaderConstants(bool EnvironmentMap)
 {
     public bool MainView { get; init; }
-    public bool TemporalShadows { get; init; }
     public bool NeighborLimitPrototype { get; init; }
     public bool ReflectionSharingPrototype { get; init; }
 
@@ -39,9 +38,6 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
 
     /// <summary>The constant_id of screenTraceOn in temporal.glsl.</summary>
     public const uint ScreenTraceOnId = 6;
-
-    /// <summary>The constant_id of temporalShadows in shadows.glsl.</summary>
-    public const uint TemporalShadowsId = 7;
 
     /// <summary>The constant_id of mainView in material.glsl.</summary>
     public const uint MainViewId = 8;
@@ -107,17 +103,16 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
         };
         ReadOnlySpan<(uint Id, uint Value)> rows =
         [
-            (EnvironmentMapId, values.EnvironmentMap ? 1u : 0u),
-            (CutoutAlphaId, values.CutoutAlpha ? 1u : 0u),
+            (EnvironmentMapId, VkBool(values.EnvironmentMap)),
+            (CutoutAlphaId, VkBool(values.CutoutAlpha)),
             (ScatterTapsPerSideId, (uint)tapsPerSide),
-            (DropsFibersId, values.DropsFibers ? 1u : 0u),
-            (WritesMotionId, values.WritesMotion ? 1u : 0u),
+            (DropsFibersId, VkBool(values.DropsFibers)),
+            (WritesMotionId, VkBool(values.WritesMotion)),
             (RayKindId, values.RayKind),
-            (ScreenTraceOnId, values.ScreenTraceOn ? 1u : 0u),
-            (MainViewId, values.MainView ? 1u : 0u),
-            (TemporalShadowsId, values.TemporalShadows ? 1u : 0u),
-            (NeighborLimitPrototypeId, values.NeighborLimitPrototype ? 1u : 0u),
-            (ReflectionSharingPrototypeId, values.ReflectionSharingPrototype ? 1u : 0u),
+            (ScreenTraceOnId, VkBool(values.ScreenTraceOn)),
+            (MainViewId, VkBool(values.MainView)),
+            (NeighborLimitPrototypeId, VkBool(values.NeighborLimitPrototype)),
+            (ReflectionSharingPrototypeId, VkBool(values.ReflectionSharingPrototype)),
         ];
         for (int i = 0; i < rows.Length; i++)
         {
@@ -134,6 +129,9 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
         };
         return &storage->Info;
     }
+
+    /// <summary>The VkBool32 of <paramref name="value"/>: 1 or 0.</summary>
+    private static uint VkBool(bool value) => value ? 1u : 0u;
 }
 
 /// <summary>
@@ -146,7 +144,7 @@ internal struct SpecializationStorage
     /// The number of constants: one per field of <see cref="ShaderConstants"/>, the subsurface setting's being its taps per
     /// side. <see cref="ShaderConstants.Specialization"/> writes one row per constant, and a row past this count throws.
     /// </summary>
-    public const int Count = 11;
+    public const int Count = 10;
 
     public SpecializationValues Data;
     public SpecializationEntries Entries;

@@ -49,7 +49,7 @@ These come from `.tickets/ter-89xq.md`, the brief of this ticket and its notes. 
 5. Decision 41 of [screen-space-illumination.md](screen-space-illumination.md) holds: a blocked direction brings the blocker's light, an open one the environment's light from that direction. (User, 2026-10-27, kept on 2026-11-03)
 6. Reflection rays start from every surface up to a roughness limit, the demo's paint of 0.38 included. The radiance pyramid, the reflection trace, the reflections pass and SMAA are deleted. (User, 2026-11-03)
 7. One accumulator module with a parameter set per signal. It has slow and fast histories, a history fix for new pixels, anti-lag and demodulated light. It runs the surface test once per frame. The reflection adds its own tests of the hit distance and the reflected point. Each history keeps the render size of the frame that wrote it. (User and orchestrator, 2026-11-03)
-8. Stochastic shadow taps: a few of the shadow taps per frame, in a pattern that turns each frame. (User, 2026-11-03)
+8. Stochastic shadow taps: a few of the shadow taps per frame, in a pattern that turns each frame. (User, 2026-11-03) Changed on 2026-11-09 (`ter-yfb5`): the pattern made a fixed comb under FSR, and every view takes all 16 taps again (decision 34).
 9. A ray budget driven by history length: more rays where the history is short. (User, 2026-11-03) Decision 43 adds no limit to these rays at the first build (2026-11-04).
 10. Many-light sampling, ReSTIR DI, for direct light, which then becomes a temporal signal through the same accumulator module. (User, 2026-11-03) Changed on 2026-11-04 (`ter-9nrc`): the user removed ReSTIR DI. Every light is shaded exactly, and the direct light keeps no history (section 7).
 11. Time-sliced maps (`ter-7khp`) and a world-space radiance cache (`ter-13rm`) are later tickets, outside this design. (User, 2026-11-03)
@@ -80,7 +80,11 @@ Each decision gives its reason. The important ones also give the second design a
 31. FSR's pre-exposure constant comes from the GPU's exposure buffer, through a small copy into FSR's constant buffer. AMD's shaders stay unchanged. Section 5 gives the reason. Ticket `ter-k63u` corrected this decision on 2026-11-03: AMD's 3.1.4 shaders have one such constant, `deltaPreExposure`, and the exposure image is AMD's default (section 5, "The host").
 32. If a headless draw's step is 0, endless or at least `MeteringStepSeconds`, 0.09 s, the draw is a still. This is today's rule of the metering draw, so one predicate decides both. A still resets every history, then draws warm-up draws of the same snapshot before the shown draw. Their count is `WarmUpFrames`, 32 by default, or 0 where no history holds more than one frame. The first warm-up draw takes over the metering draw's two jobs, the exposure and the refresh of every face. Section 10 gives the rule and what a still depends on. Changed on 2026-11-04 (`ter-9nrc`): no history holds more than one frame until the screen tracer, so `WarmUpFrames` is gone. A still draws one warm-up draw under `AutoExposure` and none under a fixed exposure. `ter-gayt` brings the count back with its histories.
 33. Headless scripted runs use a fixed render scale, 2/3 by default, and the window uses the controller. Reason: a controller that follows GPU timings breaks the determinism of headless captures. A scale of 2/3 gives the budget's size, 1280 × 720 at a 1080p output.
-34. The main view's shadow taps are the turning quarter of the 16 taps under `Fsr3Upscaling` and all 16 taps under `NoUpscaling`. The environment faces and the impostor captures always take all 16. Reason: only an image that FSR averages can take a quarter.
+34. Every view takes all 16 shadow taps, under `Fsr3Upscaling` as under `NoUpscaling`. Changed on 2026-11-09 (`ter-yfb5`). Until then, the main view under `Fsr3Upscaling` took a turning quarter of the 16 taps, by the reason "only an image that FSR averages can take a quarter". That reason assumed that FSR averages the four quarters at each output pixel. It does not:
+    - The quarter's horizontal tap offset is −0.5 texel or +0.5 texel, by the parity of the draw index plus the pixel's column.
+    - FSR's jitter is Halton base 2 over the draw index in x, so a sample lands in the right half of its render pixel exactly in the draws of even index.
+    - So the offset that a sample carries depends on where the sample lands. At a render scale of 2/3, each output column gathers a fixed mix of the two offsets, which repeats every 3 output columns. A comb of that period showed in every soft shadow, about 5 levels of 8 bits in `UpscalingRenderTests.ASoftSunShadowEdgeShowsNoStripeThreeOutputColumnsWideUnderFsr` and plainly on the demo's apron and the shuttle's window bars.
+    - A hash per draw in place of the parity would break the correlation, but it would turn the comb into noise that FSR must average, in every penumbra. The full filter has neither. The full filter costs about 0.24 ms more at a 1920 × 1080 output (FSR 2/3), about 1.1 % of the frame: the median of the 5 paired rounds in which both builds ran in the GPU's quiet mode, at 1296 MHz. Two Android emulators of another project shared the GPU, so the paired medians over all rounds, +0.05 ms (18 rounds, 90 % interval −0.63 to +0.95 ms) and +0.38 ms (12 rounds, +0.16 to +1.32 ms), are wider. ARCHITECTURE.md, "Temporal upscaling and render size", gives the method. That cost buys one clean filter, so the quarter's code is gone and no hashed quarter replaces it.
 35. Updated on 2026-11-05 (`ter-7tnv`): every corrected specular reader uses analytic box projection, not a distance-cube search. One automatically fitted enclosure covers the geometry already assigned to each map group, in that semantic frame's axes. The intersection chooses a map direction; it is not a real geometry hit. The settled source, fallback rules and limits are in [semantic-frame-box-projection.md](semantic-frame-box-projection.md). A diffuse miss keeps its directional read. The earlier search design and its measured costs remain historical evidence, not the production algorithm or a box-projection cost estimate.
 36. An impostor billboard writes its instance's light mark, as a mesh does. So a lamp that draws as a billboard sends its light once to the tracer's hits, by the rule that the closed `ter-coy0` carries forward. Section 6 gives the cost.
 37. The frame submits its work in two parts: the passes up to the bloom, then the passes that write the output image. Only the second part waits for the swapchain image. Reason: the controller's measure of the first part then holds no wait (section 4).
@@ -251,7 +255,7 @@ The list follows section 1 of [pass-map.md](../research/temporal-renderer/pass-m
 | Pass today | Fate | What changes |
 |---|---|---|
 | Deformation | Changed | It also writes each deformed vertex's position into the kept positions of this frame's slot (section 3). |
-| Shadow maps | Kept | The maps do not change. Their readers take the frame's taps (section 7). |
+| Shadow maps | Kept | The maps do not change. Their readers take all 16 taps (decision 34). |
 | Local shadows | Kept | The same. |
 | Environment faces | Kept | Their surfaces take all 16 taps, as today. |
 | Environment prefilter | Kept | The tracer's misses read its specular image. |
@@ -265,7 +269,7 @@ The list follows section 1 of [pass-map.md](../research/temporal-renderer/pass-m
 | Radiance pyramid | Deleted | A hit reads the histories (decision 25). |
 | Reflection trace, reflections | Deleted | The tracer's reflection rays and the specular signal take their place. |
 | Haze | Kept | Render size. |
-| Transparent | Changed | Jitter, the frame's taps, and the copy of the opaque-only image at its start. |
+| Transparent | Changed | Jitter and the copy of the opaque-only image at its start. |
 | Exposure | Changed | The meter reads the active part. |
 | Bloom | Changed | After FSR, at the output size. |
 | Tone map | Changed | After FSR, at the output size. |
@@ -866,14 +870,11 @@ Two designs for the direct light's image:
 
 B wins. Under the exact loop, A's history equals the sample, so its images are a second store of the same light. The screen tracer (`ter-gayt`) reads this frame's direct light at a hit, which B's images hold. `TemporalSignal` and `AccumulatePass` stay for the tracer's two indirect signals (section 8).
 
-### Visibility and the stochastic taps
+### Visibility
 
-`lightVisibility` stays the one function of a light's shadow: the cascade sets, the far shadows and the tiles of the local shadow atlas. It takes the tap set as an argument:
+`lightVisibility` stays the one function of a light's shadow: the cascade sets, the far shadows and the tiles of the local shadow atlas. Every view takes the full set: the 4 × 4 bilinear taps, one texel apart, of equal weight.
 
-- The full set: the 4 × 4 bilinear taps, one texel apart, of equal weight.
-- The frame's quarter: 4 of the 16 taps. Tap (i, j), with i and j from 0 to 3, belongs to group (i mod 2) + 2 (j mod 2). The group of a pixel is (draw index + x + 2y) mod 4. So each 2 × 2 quad of pixels takes all four groups in every frame. The taps have equal weights, so each group is an unbiased quarter of the filter.
-
-The tiles of the local atlas compute their quarter from 4 gathers with exact weights, as their full filter computes from 9. The early test of the bounds stays first, so a pixel that is fully lit or fully shadowed takes no tap and no noise. Only the penumbra is noisy, and FSR averages it. Decision 34 says which passes take which set.
+Until `ter-yfb5`, the main view under FSR took the frame's quarter: 4 of the 16 taps, tap (i, j) in group (i mod 2) + 2 (j mod 2), and the group of a pixel (draw index + x + 2y) mod 4. The tiles computed their quarter from 4 gathers. FSR did not average the quarters, because its jitter correlates with the parity of the draw index, so the quarter made a fixed comb (decision 34).
 
 ### Panel lights
 
@@ -1138,7 +1139,7 @@ Each ordering rule and its reason:
 2. ReSTIR combines in a fixed order. The candidates come first, in the order of their draws, then the temporal reservoir, then the spatial neighbors in the order of their pattern. Reason: weighted reservoir sampling depends on the order of its random numbers. Removed on 2026-11-04 (`ter-9nrc`).
 3. The order of each own-ray list follows the GPU's schedule, but each ray writes only its own pixel's record. Reason: then no result depends on the order of the list. No pass adds light with atomic operations.
 4. No dispatch reads an image that it writes. Reason: no read can then see a write of the same dispatch, whatever the order of the invocations.
-5. The draw index counts drawn frames, not ticks. The noise, the block's turn, the tap group and FSR's jitter index derive from it. Reason: a window that skips a snapshot still draws a new noise pattern in its next frame.
+5. The draw index counts drawn frames, not ticks. The noise, the block's turn and FSR's jitter index derive from it. Reason: a window that skips a snapshot still draws a new noise pattern in its next frame.
 6. `FrameHistory.Drew` and the other owners' `Drew` run after the submission, and only then. Reason: a frame that throws then changes no stock, so the next frame starts from the last finished frame.
 
 Two GPUs, or two drivers, give images that differ in their last bits. The reference images of the snapshot tests come from one machine, as today.
@@ -1406,7 +1407,7 @@ This list proposes the fates. This ticket edits no other ticket.
 | `ter-c8ab` | Sunlight in the impostor captures of a closed hull | Kept | The captures do not change. |
 | `ter-2o8j` | Cull small objects in the map's faces | Kept | The faces do not change. |
 | `ter-28vm` | Whether an invisible entity casts a shadow | Kept | The shadow maps do not change. |
-| `ter-bdt3`, `ter-egcv`, `ter-fu8n` | The shadow tiles' holders and the slope bias | Kept | The shadow maps do not change, and the stochastic taps read the same maps. |
+| `ter-bdt3`, `ter-egcv`, `ter-fu8n` | The shadow tiles' holders and the slope bias | Kept | The shadow maps do not change, and the stochastic taps read the same maps (removed by `ter-yfb5`). |
 | `ter-qril` | An invalid layout barrier after a frame that throws | Kept | The map's prefilter does not change. |
 | `ter-rtxu` | Renderer snapshot tests, an epic | Changed | Its dependency on the closed `ter-sglu` is met. The frame's defaults change until ticket 6, so it moves after ticket 6, and its references come from the new defaults. |
 | `ter-ed76`, `ter-g25a` | gpu-trace's counter traces and its leftover recordings | Kept | Ticket 6 traces with gpu-trace. `ter-g25a` stays open with no parent, and its dependency on the closed `ter-b2da` is met. |
@@ -1706,7 +1707,7 @@ Ticket 1 lists the SPIR-V capabilities of AMD's modules and the storage images t
 8. A star of one pixel can fall between samples at render scales below 1 (section 5).
 9. Two GPUs or drivers give images that differ in their last bits (section 10).
 10. The design takes about 0.57 GB more memory at a 1080p output (section 11).
-11. Under `NoUpscaling`, the main view takes all 16 shadow taps. So the GPU tests with the zero cases do not see the noise of the stochastic taps. Ticket 5's tests cover the taps under `Fsr3Upscaling`.
+11. Under `NoUpscaling`, the main view takes all 16 shadow taps. So the GPU tests with the zero cases do not see the noise of the stochastic taps. Ticket 5's tests cover the taps under `Fsr3Upscaling`. Removed on 2026-11-09 (`ter-yfb5`): every view takes all 16 taps (decision 34).
 12. The screen shows many bounces, and the map's faces hold one. A wall that leaves the screen falls back to the map's single bounce. If the camera turns away from a bright room's walls, the room dims a little. Its indirect light then loses up to the share g that the later bounces hold. Only `ter-13rm` closes this gap, because `ter-bsxh` closed without its work.
 13. The clamp leaves the settled light a little low. The model of section 6 takes a skewed noise of 100 % per sample. The settled light is then 0.4 % low for one bounce, 0.5 % at g = 0.5 and 0.6 % at g = 0.8.
 14. A hit on a lamp's impostor billboard brings no light, also not the light of the lamp's lit housing (decision 36).

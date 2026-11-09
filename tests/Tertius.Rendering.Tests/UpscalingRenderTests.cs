@@ -741,30 +741,35 @@ public sealed class UpscalingRenderTests
         }
     }
 
+    /// <summary>
+    /// The penumbra of a slab's edge that runs across the image, so each of its columns holds the same shadow
+    /// (docs/plans/temporal-renderer.md, decision 34).
+    /// </summary>
     [Fact]
-    public void EveryPixelUsesEveryTemporalShadowGroupOverFourAdvancingDraws()
+    public void ASoftSunShadowEdgeShowsNoStripeThreeOutputColumnsWideUnderFsr()
     {
+        const int width = 480,
+            height = 270;
         VulkanRenderer renderer = Gpu.Headless(
-            width: 128,
-            height: 128,
-            upscaling: new Fsr3Upscaling(new FixedRenderScale(0.5f), 0),
-            screenTrace: ScreenTrace.Default,
-            warmUpFrames: 0
+            width: width,
+            height: height,
+            upscaling: new Fsr3Upscaling(new FixedRenderScale(2f / 3), 0),
+            screenTrace: new NoScreenTrace(),
+            exposure: new FixedExposure(0),
+            warmUpFrames: RendererOptions.DefaultWarmUpFrames
         );
         try
         {
-            RenderSnapshot scene = BoxScene(renderer);
-            var probe = ScreenTraceProbe.On(renderer, "upscale_sampling_probe.comp");
-            var groups = new List<float[]>();
-            for (int draw = 0; draw < 4; draw++)
-            {
-                scene.Time = draw / 60.0;
-                renderer.Render(scene, 1);
-                groups.Add(probe.Read());
-            }
-
-            foreach (int pixel in new[] { 0, 1, 64, 65, 32 * 64 + 32 })
-                groups.Select(values => values[4 * pixel + 3]).Should().BeEquivalentTo([0f, 1f, 2f, 3f]);
+            Capture image = Gpu.RenderAndCapture(
+                renderer: renderer,
+                snapshot: SlabShadowScene(renderer),
+                name: "slab shadow under FSR"
+            );
+            (int first, int last) = PenumbraRows(image);
+            (last - first).Should().BeGreaterThan(4, "the penumbra spans several rows of the view straight down");
+            StripeLevels(image: image, firstRow: first, lastRow: last)
+                .Should()
+                .BeLessThan(0.5f, "a stripe three output columns wide is FSR seeing the taps change with the jitter");
         }
         finally
         {
@@ -772,34 +777,93 @@ public sealed class UpscalingRenderTests
         }
     }
 
-    [Fact]
-    public void UnoccludedSunlightStaysLitThroughEveryTemporalShadowGroup()
+    /// <summary>
+    /// A camera that looks straight down at a ground 0.6 m below it, under a slab above it whose edge runs along x, lit by
+    /// a sun almost overhead. The slab's shadow covers the far part of the ground, the top of the image.
+    /// </summary>
+    private static RenderSnapshot SlabShadowScene(VulkanRenderer renderer)
     {
-        VulkanRenderer renderer = Gpu.Headless(
-            width: 128,
-            height: 96,
-            upscaling: new Fsr3Upscaling(new FixedRenderScale(0.5f), 0),
-            warmUpFrames: 0
+        RenderSnapshot scene = Gpu.Snapshot(new(0.2f, 1f, -0.3f));
+        Gpu.Star(snapshot: scene, angularRadius: 0f);
+        Quaternion down = Gpu.PitchDown(MathF.PI / 2);
+        scene.Camera.Rotation = down;
+        scene.Camera.PreviousRotation = down;
+        MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
+        MaterialId gray = renderer.CreateMaterial(MaterialDesc.Color(new(x: 0.6f, y: 0.6f, z: 0.6f, w: 1f), roughness: 0.8f));
+        scene.Instances.Add(
+            Gpu.Instance(
+                mesh: box,
+                material: gray,
+                position: new(0, -0.7f, 0),
+                scale: new(8f, 0.2f, 8f),
+                flags: RenderFlags.CastsShadow,
+                chainDepth: TestChains.CamerasFrame
+            )
         );
-        try
-        {
-            RenderSnapshot scene = BoxScene(renderer);
-            scene.Ambient.Intensity = 0;
-            RenderInstance caster = scene.Instances[0];
-            caster.Flags |= RenderFlags.CastsShadow;
-            scene.Instances[0] = caster;
-            for (int draw = 0; draw < 4; draw++)
-            {
-                scene.Time = draw / 60.0;
-                renderer.Render(scene, 1);
+        scene.Instances.Add(
+            Gpu.Instance(
+                mesh: box,
+                material: gray,
+                position: new(0, 1f, -5.46f),
+                scale: new(10f, 0.1f, 10f),
+                flags: RenderFlags.CastsShadow,
+                chainDepth: TestChains.CamerasFrame
+            )
+        );
+        return scene;
+    }
 
-                renderer.ReadHdr()[4 * (24 * 64 + 32)].Should().BeGreaterThan(0.4f);
-            }
-        }
-        finally
+    /// <summary>
+    /// The first and the last row of the capture whose mean luma lies between a fifth and four fifths of the way from the
+    /// darkest row's to the brightest row's.
+    /// </summary>
+    private static (int First, int Last) PenumbraRows(Capture image)
+    {
+        float[] rows = new float[image.Height];
+        for (int y = 0; y < image.Height; y++)
         {
-            Gpu.DisposeAndAssertClean(renderer);
+            for (int x = 0; x < image.Width; x++)
+                rows[y] += image.Luma(x, y) / image.Width;
         }
+        float dark = rows.Min(),
+            lit = rows.Max();
+        int[] inside = Enumerable
+            .Range(0, image.Height)
+            .Where(y => rows[y] > dark + 0.2f * (lit - dark) && rows[y] < dark + 0.8f * (lit - dark))
+            .ToArray();
+        inside.Should().NotBeEmpty("the slab's shadow edge crosses the view");
+        return (inside.Min(), inside.Max());
+    }
+
+    /// <summary>
+    /// The amplitude, in 8-bit levels, of the part of a period of three columns in the mean luma of each column over the
+    /// rows from <paramref name="firstRow"/> to <paramref name="lastRow"/>, after the linear trend of the columns is
+    /// removed. The columns are the middle 3 × 120 of the capture.
+    /// </summary>
+    private static float StripeLevels(Capture image, int firstRow, int lastRow)
+    {
+        const int count = 360;
+        int start = (image.Width - count) / 2;
+        double[] columns = new double[count];
+        for (int i = 0; i < count; i++)
+        {
+            for (int y = firstRow; y <= lastRow; y++)
+                columns[i] += 255.0 * image.Luma(start + i, y) / (lastRow - firstRow + 1);
+        }
+        double meanIndex = (count - 1) / 2.0,
+            mean = columns.Average();
+        double slope =
+            Enumerable.Range(0, count).Sum(i => (i - meanIndex) * (columns[i] - mean))
+            / Enumerable.Range(0, count).Sum(i => (i - meanIndex) * (i - meanIndex));
+        double real = 0,
+            imaginary = 0;
+        for (int i = 0; i < count; i++)
+        {
+            double value = columns[i] - mean - slope * (i - meanIndex);
+            real += value * Math.Cos(2 * Math.PI * i / 3);
+            imaginary += value * Math.Sin(2 * Math.PI * i / 3);
+        }
+        return (float)(2 * Math.Sqrt(real * real + imaginary * imaginary) / count);
     }
 
     [Theory]

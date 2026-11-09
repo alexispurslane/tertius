@@ -61,8 +61,8 @@ const float NoLightAge = -1.0;
 // The largest age that a record holds: its code, the age plus 1, fills the 15 bits of a ray record's w above RayTraced.
 const float MostLightAge = 32766.0;
 
-// The draws in a row that a light must stay outside the range of the last exact light to count as a change: under FSR,
-// the temporal shadow filter cycles a penumbra's light with a period of at most 4 draws.
+// The draws in a row that a light must stay outside the range of the last exact light to count as a change
+// (ARCHITECTURE.md, the light-change age, and t2-hvez).
 const float LightChangeDraws = 4.0;
 
 // The code of an age in a ray record and in the sample age: 0 for no evidence, else the age plus 1.
