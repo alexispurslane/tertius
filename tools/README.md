@@ -933,6 +933,19 @@ nix develop --command python3 -I tools/gpu-trace.py report <folder>/run.trace <f
 nix develop --command python3 -I tools/test_gpu_trace.py
 ```
 
+## The diffuse filter's switch
+
+The environment variable `TERTIUS_DIFFUSE_FILTER` turns the diffuse filter on or off (ARCHITECTURE.md, "The diffuse filter"). The renderer reads it once, when it is made. Unset, empty and `on` keep the filter. With `off`, the renderer makes no filter: the composite shows the diffuse slow history, and the rays read the diffuse fast history at their hits, as before ticket `ter-9371`. Any other value stops the renderer with an `ArgumentException`.
+
+To compare the two, render the same script twice into two folders:
+
+```bash
+nix develop --command bash -c 'dotnet run --project src/Tertius.Demo -c Release -- --script scripts/orbit.json --headless --out captures/filter-on'
+nix develop --command bash -c 'TERTIUS_DIFFUSE_FILTER=off dotnet run --project src/Tertius.Demo -c Release -- --script scripts/orbit.json --headless --out captures/filter-off'
+```
+
+The auto exposure meters each run's own image, so the two runs can take different exposures. Compare the light of two runs at one fixed exposure.
+
 ## Scripted models in Blender
 
 A scripted model is a model whose only source is a folder of Blender Python scripts, with a name that ends in `.model`. The `.blend` file, the `.glb` file, the baked textures and the views are build outputs. The design is in `docs/plans/asset-pipeline.md`, "Scripted models". The project skill `.claude/skills/procedural-modeling/` teaches the way of work, with the Nostromo, `content/tertius.demo/assets/ships/nostromo.model/`, as its worked example. `tools/blender/` holds the tools:

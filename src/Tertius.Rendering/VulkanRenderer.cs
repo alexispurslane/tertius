@@ -1021,6 +1021,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
         {
             tracer.Diffuse.Resize();
             tracer.Specular.Resize();
+            tracer.Filter?.Resize();
             tracer.Resize();
         }
 
@@ -1183,6 +1184,28 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 parameters: parameters,
                 name: name,
                 parts: parts
+            )
+        );
+
+    /// <summary>
+    /// A filter of the diffuse light of <paramref name="signal"/>'s part 0, whose pass the caller adds after the signal's
+    /// accumulation. A test hook: the filter goes with the renderer.
+    /// </summary>
+    internal DiffuseFilter CreateDiffuseFilter(TemporalSignal signal)
+    {
+        using var shaders = new ShaderLibrary(device, ShaderLibrary.EngineShaders);
+        return CreateDiffuseFilter(shaders, signal);
+    }
+
+    private DiffuseFilter CreateDiffuseFilter(ShaderLibrary shaders, TemporalSignal signal) =>
+        Own(
+            new DiffuseFilter(
+                device: device,
+                allocator: Allocator,
+                layouts: layouts,
+                shaders: shaders,
+                targets: targets,
+                signal: signal
             )
         );
 
@@ -2124,6 +2147,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
             name: "indirect specular",
             parts: 1
         );
+        DiffuseFilter? filter =
+            DiffuseFilter.SwitchedOn() && diffuse.KeepsFastHistory ? CreateDiffuseFilter(shaders, diffuse) : null;
         ScreenTraceImages images = Own(
             new ScreenTraceImages(
                 device: device,
@@ -2133,7 +2158,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 surfaces: surfaceHistory,
                 pyramid: pyramid,
                 diffuse: diffuse,
-                specular: specular
+                specular: specular,
+                filter: filter
             )
         );
         ScreenTraceKernel Kernel(string name, string shader, uint kind = 0) =>
@@ -2176,6 +2202,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
             new ScreenTraceResolvePass(Kernel("screen trace resolve", "screen_trace_resolve.comp"), images)
         );
         Graph.Add(FrameGraph.Stage.ScreenTrace, new AccumulatePass(diffuse));
+        if (filter is not null)
+            Graph.Add(FrameGraph.Stage.ScreenTrace, new DiffuseFilterPass(filter));
         Graph.Add(FrameGraph.Stage.ScreenTrace, new AccumulatePass(specular));
         return images;
     }

@@ -157,6 +157,12 @@ internal sealed unsafe class TemporalSignal : IDisposable
     /// <summary>The signal's name in the images' names and the passes' names, such as "indirect diffuse".</summary>
     public string Name { get; }
 
+    /// <summary>
+    /// Whether the signal keeps fast histories of its own: not under the single-history prototype of the diffuse light,
+    /// whose fast history is its slow history, so that the diffuse filter finds no deviation there.
+    /// </summary>
+    public bool KeepsFastHistory => !singleDiffuseHistory;
+
     /// <summary>The signal's parts.</summary>
     public int Parts => parts.Length;
 
@@ -203,6 +209,12 @@ internal sealed unsafe class TemporalSignal : IDisposable
 
     /// <summary>The slow history of <paramref name="part"/> after the last accumulation: rgb the light, a the length.</summary>
     public GpuImage Slow(int part) => parts[part].Slow;
+
+    /// <summary>
+    /// The fast history of <paramref name="part"/> that the frame of <paramref name="parity"/> writes: rgb the light, a the
+    /// specular signal's hit distance or the diffuse signal's deviation of its samples' luminance (<see cref="DiffuseFilter"/>).
+    /// </summary>
+    public GpuImage Fast(int part, int parity) => parts[part].Fast(parity);
 
     public GpuImage ReflectionGuide(int part) => parts[part].ReflectionGuide;
 

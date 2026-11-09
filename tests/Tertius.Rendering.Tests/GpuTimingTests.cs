@@ -166,7 +166,7 @@ public sealed class GpuTimingTests
             string[] passes = [.. renderer.LastFrameStats.GpuTimings!.Value.Passes.ToArray().Select(pass => pass.Pass)];
             passes
                 .SkipWhile(pass => pass != "G-buffer")
-                .Take(11)
+                .Take(12)
                 .Should()
                 .Equal(
                     [
@@ -179,11 +179,13 @@ public sealed class GpuTimingTests
                         "diffuse rays",
                         "screen trace resolve",
                         "accumulate indirect diffuse",
+                        "filter indirect diffuse",
                         "accumulate indirect specular",
                         "composite",
                     ],
-                    "the rays read the pyramid and the direct light, the accumulations read the resolve's samples, and "
-                        + "the composite reads the slow histories"
+                    "the rays read the pyramid and the direct light, the accumulations read the resolve's samples, the "
+                        + "filter reads the diffuse histories, and the composite reads the filtered light and the slow "
+                        + "specular history"
                 );
         }
         finally

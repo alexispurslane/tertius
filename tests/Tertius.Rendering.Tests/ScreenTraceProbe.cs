@@ -49,6 +49,7 @@ internal sealed class ScreenTraceProbe(VulkanRenderer renderer, string shader) :
         context.Barriers.Image(renderer.ScreenTraceSignals.Diffuse.Sample(0), ImageUse.StorageCompute);
         context.Barriers.Image(renderer.ScreenTraceSignals.Specular.Sample(0), ImageUse.StorageCompute);
         kernel!.DeclareHistories(context.Barriers, context.History.Parity, slow: true);
+        kernel!.DeclareHistories(context.Barriers, context.History.Parity, slow: false);
         kernel!.Record(context, side: 1);
     }
 

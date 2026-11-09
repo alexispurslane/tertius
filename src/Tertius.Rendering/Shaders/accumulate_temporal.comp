@@ -3,7 +3,9 @@
 // invocation per pixel reprojects the last frame's slow and fast histories through the surface test, rescales them by the
 // exposure ratio and blends the sample in. The specular signal also tests the reflected point's place and that place's
 // hit distances (section 8, "The specular signal's own tests"). It writes the slow history into the scratch image, so that
-// the spatial dispatch reads the neighbors' results while it writes the slow history, and this frame's fast history.
+// the spatial dispatch reads the neighbors' results while it writes the slow history, and this frame's fast history. The
+// diffuse signal's fast history keeps in alpha the standard deviation of its samples' luminance over the fast history's
+// frames, which the diffuse filter reads (DiffuseFilter.cs).
 #extension GL_GOOGLE_include_directive : require
 #include "accumulate.glsl"
 #include "accumulate_reflection_guide.glsl"
@@ -11,6 +13,10 @@
 #include "meter.glsl"
 #include "motion.glsl"
 #include "neighbor_limit_prototype.glsl"
+
+// The share of the fast history's luminance within which a sample's step is rounding, not noise: the fast history's blend
+// with the weight 1 / 4 stops within two half-float steps of a constant sample, and a step is at most 2^−10 of a value.
+const float RoundingShare = 1.0 / 512.0;
 
 // The share of the larger of two hit distances by which they may differ for a tap to pass.
 const float HitDistanceShare = 0.5;
@@ -254,7 +260,10 @@ void main()
     // pass bits. A failing tap and a tap outside the last image hold no weight: the surface test fails it.
     Reprojection r = historyPlaceOf(pixel, roughness, hasSample, hitDistance);
     vec4 slow = lastSlowAt(r);
-    vec3 fast = lastFastAt(r).rgb;
+    vec4 lastFast4 = lastFastAt(r);
+    vec3 fast = lastFast4.rgb;
+    // The diffuse signal's deviation of its samples' luminance; the specular signal's alpha holds its hit distance.
+    float deviation = parameters.light == DiffuseLight ? lastFast4.a : 0.0;
     vec2 guide = vec2(0.0);
     if (reflectionSharingPrototype && parameters.light == SpecularLight)
         guide = lastReflectionGuideAt(r).rg;
@@ -292,6 +301,7 @@ void main()
         historyLength = min(slow.a, cap);
         slow.rgb = exposed(slow.rgb, ratio);
         fast = exposed(fast, ratio);
+        deviation = min(deviation * ratio, MaxRadiance);
     }
 
 #ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
@@ -339,10 +349,17 @@ void main()
             guide = historyLength <= 1.0 ? sampledGuide : guide + (sampledGuide - guide) / historyLength;
         }
         float fastLength = min(historyLength, fastCapOf(cap));
+        // The variance of the luminance, weighted as the fast history weighs its samples: the exponential update of the
+        // variance with the sample's weight w is (1 − w) (variance + w step²), 0 for the first sample. Updated from the
+        // step, not from the mean of the squares, so that samples without noise keep exactly 0.
+        float weight = fastLength <= 1.0 ? 1.0 : 1.0 / fastLength;
+        float step = luminance(sampled) - luminance(fast);
+        step = abs(step) <= RoundingShare * luminance(fast) ? 0.0 : step;
+        deviation = min(sqrt((1.0 - weight) * (deviation * deviation + weight * step * step)), MaxRadiance);
         fast = fastLength <= 1.0 ? sampled : fast + (sampled - fast) / fastLength;
     }
     imageStore(scratch, pixel, vec4(slow.rgb, historyLength));
-    imageStore(fastHistory, pixel, vec4(fast, hitDistance));
+    imageStore(fastHistory, pixel, vec4(fast, parameters.light == SpecularLight ? hitDistance : deviation));
     if (reflectionSharingPrototype && parameters.light == SpecularLight)
         imageStore(reflectionGuideScratch, pixel, vec4(guide, 0.0, 0.0));
 }

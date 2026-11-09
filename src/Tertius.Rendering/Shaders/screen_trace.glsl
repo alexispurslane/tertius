@@ -22,7 +22,9 @@ layout(set = 3, binding = 2, rgba16f) uniform readonly image2D directDiffuseLigh
 layout(set = 3, binding = 3, rgba16f) uniform readonly image2D directSpecularLight;
 layout(set = 3, binding = 4, r8ui) uniform readonly uimage2D surfaceTest;      // the pass bits (signals.glsl)
 layout(set = 3, binding = 5, rgba16f) uniform readonly image2D motionTarget;   // the G-buffer's motion target
-layout(set = 3, binding = 6, rgba16f) uniform readonly image2D lastFastDiffuse;      // the last frame's fast histories
+// The last frame's diffuse light that a hit reads: the diffuse filter's output, or with the filter off the fast history
+// (ScreenTraceImages.HitDiffuse); and the last frame's specular fast history.
+layout(set = 3, binding = 6, rgba16f) uniform readonly image2D lastDiffuseLight;
 layout(set = 3, binding = 7, rgba16f) uniform readonly image2D lastFastSpecular;
 layout(set = 3, binding = 8, rgba16f) uniform readonly image2D slowDiffuse;    // the last frame's slow histories: a the
 #include "specular_history.glsl"
@@ -134,7 +136,7 @@ uint ageCodeOfRecord(uvec4 ray)
 }
 #endif
 
-HISTORY_READER(lastFastDiffuseAt, lastFastDiffuse)
+HISTORY_READER(lastDiffuseLightAt, lastDiffuseLight)
 HISTORY_READER(lastFastSpecularAt, lastFastSpecular)
 HISTORY_READER(slowDiffuseAt, slowDiffuse)
 HISTORY_READER(slowSpecularAt, slowSpecular)
@@ -341,13 +343,13 @@ vec3 missLightOf(TracingPixel p, ivec2 pixel, uint kind, vec3 direction)
     return exposed(light, exposureScale());
 }
 
-// The last frame's fast history in `history` at a reprojection that holds one, rescaled to its weights and into this
-// frame's exposure.
-vec3 lastFastOf(Reprojection r, uint kind)
+// The last frame's light of the signal of `kind` at a reprojection that holds one (lastDiffuseLight, lastFastSpecular),
+// rescaled to its weights and into this frame's exposure.
+vec3 lastLightOf(Reprojection r, uint kind)
 {
-    vec3 fast = kind == KindDiffuse ? lastFastDiffuseAt(r).rgb : lastFastSpecularAt(r).rgb;
+    vec3 light = kind == KindDiffuse ? lastDiffuseLightAt(r).rgb : lastFastSpecularAt(r).rgb;
     // As the accumulator rescales its histories (accumulate_temporal.comp): within 2^±64 and at most MaxRadiance.
-    return exposed(fast, historyRatio(exposureStops, previousStops));
+    return exposed(light, historyRatio(exposureStops, previousStops));
 }
 
 // The pixel's place in the last frame's image, from its motion.
@@ -357,7 +359,7 @@ vec2 lastPlaceAt(ivec2 pixel)
 }
 
 // The light of a hit at the pixel q, pre-exposed (section 6, "Where a hit's light comes from"): this frame's direct
-// light and the last frame's fast histories at q's place, times q's material factors, and the glow that q sends. A diffuse
+// light and the last frame's light of both signals at q's place, times q's material factors, and the glow that q sends. A diffuse
 // ray leaves out q's specular part. Where q fails the surface test, and so in a reset frame, a history is the
 // environment's closed form at q. An impostor's light is its emission, which holds its ambient light.
 vec3 hitLightOf(ivec2 q, uint kind)
@@ -377,11 +379,11 @@ vec3 hitLightOf(ivec2 q, uint kind)
     IndirectLight closedLight = IndirectLight(vec3(0.0), vec3(0.0));
     if (closed)
         closedLight = closedForm(withAmbientFootprint(s, q), V);
-    vec3 diffuseHistory = holdsHistory(diffuse) ? lastFastOf(diffuse, KindDiffuse) : closedLight.diffuse;
+    vec3 diffuseHistory = holdsHistory(diffuse) ? lastLightOf(diffuse, KindDiffuse) : closedLight.diffuse;
     vec3 light = factors.diffuse * (imageLoad(directDiffuseLight, q).rgb + diffuseHistory) + glow;
     if (kind == KindReflection)
     {
-        vec3 specularHistory = holdsHistory(specular) ? lastFastOf(specular, KindReflection) : closedLight.specular;
+        vec3 specularHistory = holdsHistory(specular) ? lastLightOf(specular, KindReflection) : closedLight.specular;
         light += factors.specular * (imageLoad(directSpecularLight, q).rgb + specularHistory);
     }
     return min(light, vec3(MaxRadiance));

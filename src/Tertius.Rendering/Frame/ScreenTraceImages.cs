@@ -50,6 +50,7 @@ internal sealed class ScreenTraceImages : IDisposable
     /// <param name="pyramid">The depth pyramid and its finest level.</param>
     /// <param name="diffuse">The diffuse signal, of one part, whose sample the resolve writes.</param>
     /// <param name="specular">The specular signal, of one part.</param>
+    /// <param name="filter">The diffuse signal's filter, or null with the filter off (<see cref="DiffuseFilter.SwitchedOn"/>).</param>
     public ScreenTraceImages(
         VulkanDevice device,
         DeviceAllocator allocator,
@@ -58,7 +59,8 @@ internal sealed class ScreenTraceImages : IDisposable
         SurfaceHistory surfaces,
         DepthPyramidImages pyramid,
         TemporalSignal diffuse,
-        TemporalSignal specular
+        TemporalSignal specular,
+        DiffuseFilter? filter
     )
     {
         this.device = device;
@@ -69,6 +71,7 @@ internal sealed class ScreenTraceImages : IDisposable
         this.pyramid = pyramid;
         Diffuse = diffuse;
         Specular = specular;
+        Filter = filter;
         Sets = [layouts.AllocateScreenTraceSet(), layouts.AllocateScreenTraceSet()];
         Create();
     }
@@ -120,6 +123,20 @@ internal sealed class ScreenTraceImages : IDisposable
     /// <summary>The specular signal.</summary>
     public TemporalSignal Specular { get; }
 
+    /// <summary>The diffuse signal's filter, or null with the filter off.</summary>
+    public DiffuseFilter? Filter { get; }
+
+    /// <summary>
+    /// The diffuse light that the composite shows: the filtered light, or with the filter off the diffuse slow history.
+    /// </summary>
+    public GpuImage ShownDiffuse => Filter?.Filtered ?? Diffuse.Slow(0);
+
+    /// <summary>
+    /// The last drawn frame's diffuse light that a ray's hit reads in a frame of <paramref name="parity"/>: the filtered
+    /// light, so that a bright speck does not spread through the hits, or with the filter off the last fast history.
+    /// </summary>
+    public GpuImage HitDiffuse(int parity) => Filter?.Filtered ?? Diffuse.HitImages(part: 0, parity).LastFast;
+
     /// <summary>The images that the tracer writes and reads again: the plan and the four record images.</summary>
     public IEnumerable<GpuImage> Records => [Plan, BlockLight, BlockRay, OwnLight, OwnRay];
 
@@ -159,7 +176,7 @@ internal sealed class ScreenTraceImages : IDisposable
     private void WriteSet(int parity)
     {
         DescriptorSet set = Sets[parity];
-        (GpuImage diffuseSample, GpuImage lastFastDiffuse, GpuImage slowDiffuse) = Diffuse.HitImages(part: 0, parity);
+        (GpuImage diffuseSample, _, GpuImage slowDiffuse) = Diffuse.HitImages(part: 0, parity);
         (GpuImage specularSample, GpuImage lastFastSpecular, GpuImage slowSpecular) = Specular.HitImages(
             part: 0,
             parity
@@ -172,7 +189,7 @@ internal sealed class ScreenTraceImages : IDisposable
             targets.DirectSpecular,
             surfaces.Test,
             targets.Motion,
-            lastFastDiffuse,
+            HitDiffuse(parity),
             lastFastSpecular,
             slowDiffuse,
             slowSpecular,

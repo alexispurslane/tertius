@@ -779,6 +779,19 @@ internal struct AccumulatePushConstants
         };
 }
 
+/// <summary>
+/// The push constants of a wavelet dispatch of the diffuse filter, diffuse_filter_wavelet.comp (<see cref="DiffuseFilter"/>).
+/// </summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct DiffuseFilterPushConstants
+{
+    /// <summary>The distance between the kernel's taps, in pixels: 2^i in dispatch i.</summary>
+    public int Step;
+
+    /// <summary>1 in the dispatch whose light the slow history takes (<see cref="DiffuseFilter.FeedbackDispatch"/>), else 0.</summary>
+    public uint Feedback;
+}
+
 /// <summary>The push constants of the screen tracer's four passes, screen_trace.glsl (<see cref="ScreenTraceKernel"/>).</summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct ScreenTracePushConstants
