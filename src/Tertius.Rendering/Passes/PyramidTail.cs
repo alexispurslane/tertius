@@ -3,13 +3,13 @@ using Silk.NET.Vulkan;
 namespace Tertius.Rendering;
 
 /// <summary>
-/// The tail of the depth pyramid's build (docs/plans/screen-space-reflections.md, "The passes"): one workgroup writes
-/// every mip from the first that its shared memory holds to 1 × 1, with a barrier of the workgroup between two mips, so
-/// the small mips, whose work is less than the drain of a barrier between dispatches, share one dispatch.
+/// The tail of a pyramid's build (docs/plans/screen-space-reflections.md, "The passes"): one workgroup writes every mip
+/// from the first that its shared memory holds to 1 × 1, with a barrier of the workgroup between two mips, so the small
+/// mips, whose work is less than the drain of a barrier between dispatches, share one dispatch.
 /// </summary>
-internal sealed unsafe class DepthPyramidTail : IDisposable
+internal sealed unsafe class PyramidTail : IDisposable
 {
-    /// <summary>The most texels of the tail's first mip, 4 KB of shared memory: depth_pyramid_tail.comp's TailTexels.</summary>
+    /// <summary>The most texels of the tail's first mip, 4 KB of shared memory: pyramid_tail.glsl's TailTexels.</summary>
     public const int Texels = 512;
 
     /// <summary>The most mips of a tail, from 512 texels in a row to 1 × 1: the storage images that its set binds.</summary>
@@ -19,15 +19,17 @@ internal sealed unsafe class DepthPyramidTail : IDisposable
     private readonly DescriptorLayouts layouts;
     private readonly Pipeline pipeline;
 
-    public DepthPyramidTail(VulkanDevice device, ShaderLibrary shaders, DescriptorLayouts layouts)
+    /// <param name="shaders">The library that holds <c>{name}_tail.comp</c>.</param>
+    /// <param name="name">The pyramid's shaders' common name, such as <c>depth_pyramid</c>.</param>
+    public PyramidTail(VulkanDevice device, ShaderLibrary shaders, DescriptorLayouts layouts, string name)
     {
         this.device = device;
         this.layouts = layouts;
         pipeline = new ComputePipelineDesc
         {
-            Name = "depth_pyramid tail",
-            Shader = "depth_pyramid_tail.comp",
-            Layout = layouts.DepthTailLayout,
+            Name = name + " tail",
+            Shader = name + "_tail.comp",
+            Layout = layouts.PyramidTailLayout,
         }.Create(device, shaders);
     }
 
@@ -37,7 +39,7 @@ internal sealed unsafe class DepthPyramidTail : IDisposable
     /// </summary>
     internal static string? StorageImageProblem(uint maxPerStageStorageImages) =>
         maxPerStageStorageImages < Mips
-            ? $"The depth pyramid's tail binds {Mips} storage images in one compute stage, above the device's maxPerStageDescriptorStorageImages of {maxPerStageStorageImages}."
+            ? $"A pyramid's tail binds {Mips} storage images in one compute stage, above the device's maxPerStageDescriptorStorageImages of {maxPerStageStorageImages}."
             : null;
 
     /// <summary>The first mip of <paramref name="image"/> that the tail builds, or its mip count for none.</summary>
@@ -56,7 +58,7 @@ internal sealed unsafe class DepthPyramidTail : IDisposable
     /// <summary>
     /// Records the tail's dispatch of one workgroup through <paramref name="tailSet"/>, which writes the mips of
     /// <paramref name="image"/> from <see cref="FirstMip(GpuImage)"/> to the last, after the dispatches of the mips
-    /// below, or nothing when the image has no tail. The caller binds sets 0 to 2 as for <see cref="PyramidBuild.Dispatch"/>.
+    /// below, or nothing when the image has no tail. The caller binds sets 0 to 2 as for <see cref="PyramidBuild.DispatchLevels"/>.
     /// </summary>
     public void Dispatch(FrameContext context, GpuImage image, DescriptorSet tailSet)
     {
@@ -72,20 +74,20 @@ internal sealed unsafe class DepthPyramidTail : IDisposable
         vk.CmdBindDescriptorSets(
             commandBuffer: commandBuffer,
             pipelineBindPoint: PipelineBindPoint.Compute,
-            layout: layouts.DepthTailLayout,
+            layout: layouts.PyramidTailLayout,
             firstSet: 3,
             descriptorSetCount: 1,
             pDescriptorSets: &tailSet,
             dynamicOffsetCount: 0,
             pDynamicOffsets: null
         );
-        var push = new DepthTailPushConstants { MipCount = image.MipLevels - (uint)first };
+        var push = new PyramidTailPushConstants { MipCount = image.MipLevels - (uint)first };
         vk.CmdPushConstants(
             commandBuffer: commandBuffer,
-            layout: layouts.DepthTailLayout,
+            layout: layouts.PyramidTailLayout,
             stageFlags: ShaderStageFlags.ComputeBit,
             offset: 0,
-            size: (uint)sizeof(DepthTailPushConstants),
+            size: (uint)sizeof(PyramidTailPushConstants),
             pValues: &push
         );
         vk.CmdDispatch(commandBuffer: commandBuffer, groupCountX: 1, groupCountY: 1, groupCountZ: 1);

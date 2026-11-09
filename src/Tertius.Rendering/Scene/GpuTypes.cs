@@ -825,11 +825,15 @@ internal struct ScreenTracePushConstants
     public uint ReflectionSteps;
     public uint DiffuseSteps;
 
+    /// <summary>The share of the diffuse rays that the guided draw gives: <see cref="LightPyramid.GuidedShare"/>, or 0 with the guiding off.</summary>
+    public float GuidedShare;
+
     /// <summary>
-    /// The push constants of a draw of index <paramref name="drawIndex"/> under <paramref name="trace"/>. The index wraps
-    /// at 2^32 draws, more than two years at 60 frames per second, which changes only the random numbers.
+    /// The push constants of a draw of index <paramref name="drawIndex"/> under <paramref name="trace"/>, with the
+    /// guided diffuse rays when <paramref name="guided"/>. The index wraps at 2^32 draws, more than two years at 60
+    /// frames per second, which changes only the random numbers.
     /// </summary>
-    public static ScreenTracePushConstants Of(ScreenTrace trace, long drawIndex) =>
+    public static ScreenTracePushConstants Of(ScreenTrace trace, long drawIndex, bool guided) =>
         new()
         {
             DrawIndex = unchecked((uint)drawIndex),
@@ -837,14 +841,15 @@ internal struct ScreenTracePushConstants
             HandOverStart = trace.HandOverStart,
             ReflectionSteps = (uint)trace.ReflectionSteps,
             DiffuseSteps = (uint)trace.DiffuseSteps,
+            GuidedShare = guided ? LightPyramid.GuidedShare : 0,
         };
 }
 
-/// <summary>The push constants of the depth pyramid's tail, depth_pyramid_tail.comp (<see cref="DepthPyramidTail"/>).</summary>
+/// <summary>The push constants of the depth pyramid's tail, depth_pyramid_tail.comp (<see cref="PyramidTail"/>).</summary>
 [StructLayout(LayoutKind.Sequential)]
-internal struct DepthTailPushConstants
+internal struct PyramidTailPushConstants
 {
-    /// <summary>The mips of the tail, from its first to 1 × 1: 1 to <see cref="DepthPyramidTail.Mips"/>.</summary>
+    /// <summary>The mips of the tail, from its first to 1 × 1: 1 to <see cref="PyramidTail.Mips"/>.</summary>
     public uint MipCount;
 }
 

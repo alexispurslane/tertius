@@ -1,6 +1,6 @@
 ---
 id: ter-05wb
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-11-09T20:22:30Z

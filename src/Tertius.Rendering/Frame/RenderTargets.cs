@@ -6,7 +6,7 @@ namespace Tertius.Rendering;
 /// <summary>
 /// The screen-sized images shared by all frames in flight: the G-buffer, the depth buffer, the direct light's two images,
 /// the HDR target, the output-size bloom levels, under the skin scatter, the diffuse image, under FSR the upscale
-/// targets, and under <see cref="ScreenTrace"/>, the depth pyramid (<see cref="DepthPyramidImages"/>).
+/// targets, and under <see cref="ScreenTrace"/>, the depth pyramid (<see cref="PyramidImages"/>).
 /// Sharing is safe because every use goes through <see cref="BarrierBatch"/>, and barriers order against earlier
 /// submissions on the queue. Resizing recreates everything; the caller makes sure the device is idle.
 /// </summary>
@@ -135,7 +135,14 @@ internal sealed class RenderTargets : IDisposable
             GlowSources[i] = layouts.AllocateGlowSourceSet();
         Create(extent);
         if (depthPyramid)
-            Pyramid = new(device: device, allocator: allocator, layouts: layouts, extent: Extent);
+            Pyramid = new(
+                device: device,
+                allocator: allocator,
+                layouts: layouts,
+                extent: Extent,
+                format: PyramidImages.DepthFormat,
+                name: "depth pyramid"
+            );
     }
 
     public Extent2D Extent { get; private set; }
@@ -173,7 +180,7 @@ internal sealed class RenderTargets : IDisposable
     public GpuImage? Diffuse { get; private set; }
 
     /// <summary>The depth pyramid, or null under <see cref="NoScreenTrace"/>.</summary>
-    public DepthPyramidImages? Pyramid { get; }
+    public PyramidImages? Pyramid { get; }
 
     /// <summary>Set 2: the G-buffer, for the passes that shade surfaces.</summary>
     public DescriptorSet GBufferSet { get; }
@@ -198,7 +205,7 @@ internal sealed class RenderTargets : IDisposable
 
     /// <summary>Recreates every target at a new size. The device must be idle.</summary>
     /// <exception cref="ArgumentOutOfRangeException">
-    /// The screen tracer is on, and a side is above <see cref="DepthPyramidImages.MaxSide"/>, or an own-ray list passes
+    /// The screen tracer is on, and a side is above <see cref="PyramidImages.MaxSide"/>, or an own-ray list passes
     /// the device's storage buffer range (<see cref="OwnRayList.RangeProblem"/>).
     /// </exception>
     public void Resize(Extent2D extent)
@@ -216,7 +223,7 @@ internal sealed class RenderTargets : IDisposable
     /// <summary>The screen tracer's limits on the screen: the depth pyramid's levels, and the own-ray lists' range.</summary>
     private static void CheckTracedScreen(VulkanDevice device, Extent2D extent)
     {
-        if (DepthPyramidImages.ScreenProblem(extent.Width, extent.Height) is { } problem)
+        if (PyramidImages.ScreenProblem(extent.Width, extent.Height) is { } problem)
             throw new ArgumentOutOfRangeException(nameof(extent), problem);
         if (OwnRayList.RangeProblem(extent, device.Properties.Limits.MaxStorageBufferRange) is { } range)
             throw new ArgumentOutOfRangeException(nameof(extent), range);
@@ -296,8 +303,8 @@ internal sealed class RenderTargets : IDisposable
     }
 
     /// <summary>
-    /// A direct light image at <paramref name="extent"/>. The direct pass draws it, and the composite and the occlusion's
-    /// depth pass read it as a storage image.
+    /// A direct light image at <paramref name="extent"/>. The direct pass draws it, the composite and the tracer read it as
+    /// a storage image, and the light pyramid samples the diffuse one.
     /// </summary>
     private GpuImage DirectImage(Extent2D extent, string name) =>
         GpuImage.Create(
@@ -305,7 +312,7 @@ internal sealed class RenderTargets : IDisposable
             allocator: allocator,
             extent: extent,
             format: DirectFormat,
-            usage: ImageUsageFlags.ColorAttachmentBit | ImageUsageFlags.StorageBit,
+            usage: ImageUsageFlags.ColorAttachmentBit | ImageUsageFlags.StorageBit | ImageUsageFlags.SampledBit,
             mipLevels: 1,
             name: name
         );
@@ -426,13 +433,14 @@ internal sealed class RenderTargets : IDisposable
             throw new NotSupportedException($"{DepthFormat} cannot be a depth attachment on {device.DeviceName}.");
         if (depthPyramid)
             CheckPyramidFormats(device);
-        // The spec requires both of RGBA16F on every device (docs/plans/skin-and-hair.md, "Required device features").
+        // The spec requires all three of RGBA16F on every device (docs/plans/skin-and-hair.md, "Required device
+        // features"). The light pyramid samples the direct light.
         const FormatFeatureFlags drawnAndStored =
-            FormatFeatureFlags.ColorAttachmentBit | FormatFeatureFlags.StorageImageBit;
+            FormatFeatureFlags.ColorAttachmentBit | FormatFeatureFlags.StorageImageBit | FormatFeatureFlags.SampledImageBit;
         foreach (Format format in diffuse ? (Format[])[DirectFormat, DiffuseFormat] : [DirectFormat])
             if ((device.FormatProperties(format).OptimalTilingFeatures & drawnAndStored) != drawnAndStored)
                 throw new NotSupportedException(
-                    $"{format} cannot be a color attachment and a storage image on {device.DeviceName}."
+                    $"{format} cannot be a sampled color attachment and a storage image on {device.DeviceName}."
                 );
     }
 
@@ -443,12 +451,12 @@ internal sealed class RenderTargets : IDisposable
     private static void CheckPyramidFormats(VulkanDevice device)
     {
         if (
-            DepthPyramidTail.StorageImageProblem(device.Properties.Limits.MaxPerStageDescriptorStorageImages) is
+            PyramidTail.StorageImageProblem(device.Properties.Limits.MaxPerStageDescriptorStorageImages) is
             { } storageImages
         )
             throw new NotSupportedException($"{storageImages} ({device.DeviceName})");
         const FormatFeatureFlags pyramid = FormatFeatureFlags.SampledImageBit | FormatFeatureFlags.StorageImageBit;
-        foreach (Format format in (Format[])[DepthPyramidImages.DepthFormat, Format.R32Sfloat])
+        foreach (Format format in (Format[])[PyramidImages.DepthFormat, Format.R32Sfloat])
             if ((device.FormatProperties(format).OptimalTilingFeatures & pyramid) != pyramid)
                 throw new NotSupportedException($"{format} cannot be sampled and stored on {device.DeviceName}.");
     }

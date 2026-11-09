@@ -46,7 +46,7 @@ public sealed class PyramidRenderTests
     }
 
     // At 640 × 360 the depth image is 512 × 256, and levels 5 to 10 are the tail, which one workgroup builds
-    // (DepthPyramidTail.FirstMip).
+    // (PyramidTail.FirstMip).
     [Theory]
     [InlineData(1)]
     [InlineData(3)]

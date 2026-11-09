@@ -9,7 +9,7 @@ namespace Tertius.Rendering.Tests;
 /// level of the depth pyramid halves the screen and rounds up, so the image is padded until each of its mips holds its
 /// level.
 /// </summary>
-public sealed class DepthPyramidImagesTests
+public sealed class PyramidImagesTests
 {
     public static TheoryData<uint, uint> Screens =>
         new()
@@ -33,12 +33,12 @@ public sealed class DepthPyramidImagesTests
     [InlineData(16_385, 1, false)]
     [InlineData(1, 16_385, false)]
     public void TheScreenTracerCoversAScreenOfUpTo16384PxASide(uint width, uint height, bool covered) =>
-        (DepthPyramidImages.ScreenProblem(width, height) is null).Should().Be(covered);
+        (PyramidImages.ScreenProblem(width, height) is null).Should().Be(covered);
 
     [Fact]
     public void AScreenOfTheLongestSideNeedsAsManyLevelsAsTheSetsHold()
     {
-        int side = DepthPyramidImages.MaxSide;
+        int side = PyramidImages.MaxSide;
 
         DepthPyramid.LevelCount(side, side).Should().Be(DepthPyramid.MaxLevels, "one depth level set per level");
     }
@@ -47,7 +47,7 @@ public sealed class DepthPyramidImagesTests
     [MemberData(nameof(Screens))]
     public void EachMipOfTheDepthImageHoldsItsLevelOfTheDepthPyramid(uint width, uint height)
     {
-        Extent2D image = DepthPyramidImages.DepthImageExtent(new(width, height));
+        Extent2D image = PyramidImages.ImageExtent(new(width, height));
         int topLevel = DepthPyramid.LevelCount((int)width, (int)height);
 
         for (int level = 1; level <= topLevel; level++)
@@ -65,7 +65,7 @@ public sealed class DepthPyramidImagesTests
     [MemberData(nameof(Screens))]
     public void TheDepthImagesFullMipChainHasOneMipPerLevelAboveTheDistanceTarget(uint width, uint height)
     {
-        Extent2D image = DepthPyramidImages.DepthImageExtent(new(width, height));
+        Extent2D image = PyramidImages.ImageExtent(new(width, height));
 
         int mips = BitOperations.Log2(Math.Max(image.Width, image.Height)) + 1;
 
@@ -76,7 +76,7 @@ public sealed class DepthPyramidImagesTests
     [MemberData(nameof(Screens))]
     public void TheDepthImageIsTheSmallestWhoseMipsHoldEveryLevel(uint width, uint height)
     {
-        Extent2D image = DepthPyramidImages.DepthImageExtent(new(width, height));
+        Extent2D image = PyramidImages.ImageExtent(new(width, height));
         int topLevel = DepthPyramid.LevelCount((int)width, (int)height);
         IEnumerable<(int Width, int Height)> levels = Enumerable
             .Range(1, topLevel)

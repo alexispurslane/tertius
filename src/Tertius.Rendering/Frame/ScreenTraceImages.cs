@@ -9,9 +9,11 @@ namespace Tertius.Rendering;
 /// plan's bits at each pixel, the records of each 2 × 2 block's ray and of each pixel's own ray of each kind, and the
 /// own-ray list of each kind. Its two sets, one per parity of the drawn frames, also bind what the tracer reads: the depth
 /// pyramid's finest level and its bounds, the direct light's two images, the surface test image, the motion target and the
-/// two signals' images of that parity (<see cref="TemporalSignal.HitImages"/>), whose samples the resolve writes. The
-/// composite owns the separate light set that binds the direct images and the slow histories (<see cref="CompositePass"/>). Every image holds the render targets' size, the block records a quarter of it, and each
-/// stays in the General layout. The depth pyramid belongs to the targets (<see cref="DepthPyramidImages"/>).
+/// two signals' images of that parity (<see cref="TemporalSignal.HitImages"/>), whose samples the resolve writes, and the
+/// light pyramid that the guided diffuse rays draw from (<see cref="LightPyramidImages"/>). The composite owns the separate light
+/// set that binds the direct images and the slow histories (<see cref="CompositePass"/>). Every image holds the render
+/// targets' size, the block records a quarter of it, and each stays in the General layout. The depth pyramid belongs to
+/// the targets (<see cref="PyramidImages"/>).
 /// </summary>
 internal sealed class ScreenTraceImages : IDisposable
 {
@@ -45,22 +47,24 @@ internal sealed class ScreenTraceImages : IDisposable
     private readonly DescriptorLayouts layouts;
     private readonly RenderTargets targets;
     private readonly SurfaceHistory surfaces;
-    private readonly DepthPyramidImages pyramid;
+    private readonly PyramidImages pyramid;
 
     /// <param name="pyramid">The depth pyramid and its finest level.</param>
     /// <param name="diffuse">The diffuse signal, of one part, whose sample the resolve writes.</param>
     /// <param name="specular">The specular signal, of one part.</param>
     /// <param name="filter">The diffuse signal's filter, or null with the filter off (<see cref="DiffuseFilter.SwitchedOn"/>).</param>
+    /// <param name="guided">Whether a share of the diffuse rays aims at bright pixels (<see cref="LightPyramidPass.SwitchedOn"/>).</param>
     public ScreenTraceImages(
         VulkanDevice device,
         DeviceAllocator allocator,
         DescriptorLayouts layouts,
         RenderTargets targets,
         SurfaceHistory surfaces,
-        DepthPyramidImages pyramid,
+        PyramidImages pyramid,
         TemporalSignal diffuse,
         TemporalSignal specular,
-        DiffuseFilter? filter
+        DiffuseFilter? filter,
+        bool guided
     )
     {
         this.device = device;
@@ -73,7 +77,16 @@ internal sealed class ScreenTraceImages : IDisposable
         Diffuse = diffuse;
         Specular = specular;
         Filter = filter;
+        Guided = guided;
         Sets = [layouts.AllocateScreenTraceSet(), layouts.AllocateScreenTraceSet()];
+        LightPyramidImages = new(
+            device: device,
+            allocator: allocator,
+            layouts: layouts,
+            extent: targets.Extent,
+            format: PyramidImages.LightFormat,
+            name: "light pyramid"
+        );
         Create();
     }
 
@@ -128,6 +141,18 @@ internal sealed class ScreenTraceImages : IDisposable
     public DiffuseFilter? Filter { get; }
 
     /// <summary>
+    /// Whether <see cref="LightPyramid.GuidedShare"/> of the diffuse rays aim at pixels drawn from the light pyramid, or
+    /// every diffuse ray comes from the cosine lobe (ARCHITECTURE.md, "Guided diffuse rays").
+    /// </summary>
+    public bool Guided { get; }
+
+    /// <summary>
+    /// The light pyramid: each pixel's guide light and the sums of its levels, which <see cref="LightPyramidPass"/> builds
+    /// while <see cref="Guided"/>. It exists either way, because the tracer's sets bind it.
+    /// </summary>
+    public PyramidImages LightPyramidImages { get; }
+
+    /// <summary>
     /// The diffuse light that the composite shows: the filtered light, or with the filter off the diffuse slow history.
     /// </summary>
     public GpuImage ShownDiffuse => Filter?.Filtered ?? Diffuse.Slow(0);
@@ -148,6 +173,7 @@ internal sealed class ScreenTraceImages : IDisposable
     public void Resize()
     {
         Dispose();
+        LightPyramidImages.Create(targets.Extent);
         Create();
     }
 
@@ -171,6 +197,13 @@ internal sealed class ScreenTraceImages : IDisposable
             : [];
         for (int parity = 0; parity < Sets.Length; parity++)
             WriteSet(parity);
+        // The light pyramid's finest level reads this frame's direct diffuse light.
+        layouts.WriteImage(
+            set: LightPyramidImages.FinestSet,
+            binding: 0,
+            view: targets.DirectDiffuse.View,
+            layout: ImageLayout.General
+        );
     }
 
     /// <summary>Writes the set of <paramref name="parity"/> in the bindings of screen_trace.glsl.</summary>
@@ -182,8 +215,20 @@ internal sealed class ScreenTraceImages : IDisposable
             part: 0,
             parity
         );
-        layouts.WriteImage(set: set, binding: 0, view: pyramid.DepthFinest.View, layout: ImageLayout.General);
-        layouts.WriteImage(set: set, binding: 1, view: pyramid.DepthImage.View, layout: ImageLayout.General);
+        layouts.WriteImage(set: set, binding: 0, view: pyramid.Finest.View, layout: ImageLayout.General);
+        layouts.WriteImage(set: set, binding: 1, view: pyramid.Image.View, layout: ImageLayout.General);
+        layouts.WriteImage(
+            set: set,
+            binding: DescriptorLayouts.ScreenTraceLightBinding,
+            view: LightPyramidImages.Finest.View,
+            layout: ImageLayout.General
+        );
+        layouts.WriteImage(
+            set: set,
+            binding: DescriptorLayouts.ScreenTraceLightBinding + 1,
+            view: LightPyramidImages.Image.View,
+            layout: ImageLayout.General
+        );
         GpuImage[] storage =
         [
             targets.DirectDiffuse,
@@ -261,6 +306,7 @@ internal sealed class ScreenTraceImages : IDisposable
         foreach (GpuImage image in (GpuImage[])[.. Records, .. lightAges])
             image.Dispose();
         lightAges = [];
+        LightPyramidImages.Dispose();
         foreach (GpuBuffer list in OwnRays)
             list.Dispose();
         OwnRays = [];

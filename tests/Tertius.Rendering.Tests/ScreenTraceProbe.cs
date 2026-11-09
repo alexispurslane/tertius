@@ -41,9 +41,9 @@ internal sealed class ScreenTraceProbe(VulkanRenderer renderer, string shader) :
     public override void Record(FrameContext context)
     {
         ScreenTraceKernel.DeclareSurfaces(context);
-        DepthPyramidImages pyramid = context.Targets.Pyramid!;
-        context.Barriers.Image(pyramid.DepthFinest, ImageUse.SampledComputeGeneral);
-        context.Barriers.Image(pyramid.DepthImage, ImageUse.SampledComputeGeneral);
+        PyramidImages pyramid = context.Targets.Pyramid!;
+        context.Barriers.Image(pyramid.Finest, ImageUse.SampledComputeGeneral);
+        context.Barriers.Image(pyramid.Image, ImageUse.SampledComputeGeneral);
         foreach (GpuImage image in renderer.ScreenTraceImages.Records)
             context.Barriers.Image(image, ImageUse.StorageCompute);
         context.Barriers.Image(renderer.ScreenTraceSignals.Diffuse.Sample(0), ImageUse.StorageCompute);
