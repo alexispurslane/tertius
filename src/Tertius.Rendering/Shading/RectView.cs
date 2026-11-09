@@ -86,23 +86,6 @@ internal readonly record struct RectView
     }
 
     /// <summary>
-    /// The vector irradiance over the face radiance, in sr: ½ Σ θᵢ n̂ᵢ of the whole face, uncut. A fiber takes its light
-    /// along it; 0 behind the face.
-    /// </summary>
-    public Double3 CosineVector
-    {
-        get
-        {
-            if (!InFront)
-                return Double3.Zero;
-            Double3 sum = Double3.Zero;
-            for (int i = 0; i < 4; i++)
-                sum += EdgeVector(Corner(i), Corner((i + 1) & 3));
-            return 0.5 * sum;
-        }
-    }
-
-    /// <summary>
     /// Corner <paramref name="index"/> of the face relative to the point, from 0 to 3: −w −h, −w +h, +w +h, +w −h, which
     /// winds clockwise about the front, so the edge sum is above 0 seen from the front.
     /// </summary>

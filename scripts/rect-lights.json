@@ -2,7 +2,7 @@
   "scene": "rect-lights",
   "window": { "width": 1280, "height": 720 },
   "steps": [
-    { "do": "run", "ticks": 60 },
+    { "do": "film", "name": "settle", "frames": 240, "every": 1 },
     { "do": "capture", "name": "floors" }
   ]
 }

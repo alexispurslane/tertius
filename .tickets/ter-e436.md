@@ -47,3 +47,58 @@ Review (one reviewer subagent, 2026-11-08). The reviewer found no material defec
 Also refactored for the commit hook: Shines split into one method per light case, Prepared's light switch into CaseOf, Nelder-Mead's centroid and shrink into methods (same table bits, md5 bd681a0e), the impostor's spread probes into one switch, the rect-lights scene shortened. Not changed: RenderSnapshotBuilder's long flat switch over the light cases.
 Device limit: binding 19 takes the impostor layout's fragment stage to 17 sampled images, one above the spec's least of 16. ARCHITECTURE.md's device row already requires 17; RADV, ANV and lavapipe report far more. DescriptorLayoutsTests updated to 15 and 17.
 WalkSliceTests: the roof is no longer darker than the wall, because the ceiling panels send no light up. The roof test became TheCeilingPanelsSendNoLightToTheRoofAroundThem (red on main: 134 beside a panel against 74 away from it; green here: 106 and 106).
+
+**2026-11-09T01:15:29Z**
+
+Hardening (2026-11-08).
+
+Listed mutants (tools/mutate.py, three runs; the rows show each mutant's last run):
+
+| id | place | change | result | killed by | s |
+|---|---|---|---|---|---:|
+| S01 | src/Tertius.Rendering/Shaders/lighting.glsl:699 | rectangle shades as a point light | killed | RectLightRenderTests.ARoughSquareShowsTheCSharpLtcShineOfARectangleLight, RectLightRenderTests.ARectangleLightLightsAMatteSquareAsTheCSharpRectangleDoes(name: "facing-the-square"), RectLightRenderTests.ARectangleLightLightsAMatteSquareAsTheCSharpRectangleDoes(name: "through-the-square") | 31.2 |
+| S02 | src/Tertius.Rendering/Shaders/lighting.glsl:334 | no horizon arc | killed | RectLightRenderTests.ARectangleLightLightsAMatteSquareAsTheCSharpRectangleDoes(name: "through-the-square") | 32.8 |
+| S03 | src/Tertius.Rendering/Shaders/lighting.glsl:286 | solid angle triple product 2h | survived | Judgment call: on a surface the solid angle multiplies the irradiance and divides the response, so it cancels; it changes only lit puffs and fibers, which no GPU test covers, and C01 locks the C# copy. | 33.4 |
+| S04 | src/Tertius.Rendering/Shaders/lighting.glsl:436 | face area halved | killed | RectLightRenderTests.ARoughSquareShowsTheCSharpLtcShineOfARectangleLight, RectLightRenderTests.ARectangleLightLightsAMatteSquareAsTheCSharpRectangleDoes(name: "facing-the-square"), RectLightRenderTests.ARectangleLightLightsAMatteSquareAsTheCSharpRectangleDoes(name: "through-the-square") | 33.4 |
+| S05 | src/Tertius.Rendering/Shaders/lighting.glsl:685 | diffuse without 1/pi | killed | RectLightRenderTests.ARectangleLightLightsAMatteSquareAsTheCSharpRectangleDoes(name: "facing-the-square"), RectLightRenderTests.ARectangleLightLightsAMatteSquareAsTheCSharpRectangleDoes(name: "through-the-square"), RectLightRenderTests.ARectangleLightLightsAMatteSquareAsTheCSharpRectangleDoes(name: "tilted-beside") | 33.9 |
+| S06 | src/Tertius.Rendering/Shaders/lighting.glsl:686 | specular without 1/pi | killed | RectLightRenderTests.ARoughSquareShowsTheCSharpLtcShineOfARectangleLight, RectLightRenderTests.ARectangleLightLightsAMatteSquareAsTheCSharpRectangleDoes(name: "facing-the-square"), RectLightRenderTests.ARectangleLightLightsAMatteSquareAsTheCSharpRectangleDoes(name: "tilted-beside") | 34.0 |
+| S07 | src/Tertius.Rendering/Shaders/lighting.glsl:679 | LTC drops m02 | killed | RectLightRenderTests.AMirrorReflectsARectangleLightAtItsSize, RectLightRenderTests.ARoughSquareSeenAtASlantShowsTheCSharpLtcShineOfARectangleLight | 33.9 |
+| S08 | src/Tertius.Rendering/Shaders/lighting.glsl:670 | LTC frame turned 90 deg | killed | RectLightRenderTests.AMirrorReflectsARectangleLightAtItsSize, RectLightRenderTests.ARoughSquareSeenAtASlantShowsTheCSharpLtcShineOfARectangleLight | 34.0 |
+| S09 | src/Tertius.Rendering/Shaders/lighting.glsl:592 | no geometric horizon test | survived | Judgment call: the geometric horizon matters only where a normal map turns the shading normal away from the geometric one; the point-light path has the same untested guard. | 33.1 |
+| S10 | src/Tertius.Rendering/Shaders/lighting.glsl:424 | window from the center's reach | survived | Judgment call: the reach already adds half the diagonal, so measuring the window from the face's reach or from the center's changes the light only in the last per cent of the reach, below the cutoff irradiance. | 33.2 |
+| S11 | src/Tertius.Rendering/Shaders/brdf.glsl:117 | LTC view index linear | killed | RectLightRenderTests.AMirrorReflectsARectangleLightAtItsSize, RectLightRenderTests.ARoughSquareSeenAtASlantShowsTheCSharpLtcShineOfARectangleLight | 32.7 |
+| S12 | src/Tertius.Rendering/Shaders/lighting.glsl:661 | fiber share 1 | survived | Judgment call: the fiber branch scales hairResponse by the vector irradiance's share; no hair card under a rectangle light is in a test, as for the tube. | 33.8 |
+| C01 | src/Tertius.Rendering/Shading/RectView.cs:39 | solid angle triple product 2h | killed | RectLightTests.ARectanglesSolidAngleMatchesTheIntegralOverItsFace(name: "across-the-horizon"), RectLightTests.ARectanglesSolidAngleMatchesTheIntegralOverItsFace(name: "mostly-below"), RectLightTests.ARectanglesSolidAngleMatchesTheIntegralOverItsFace(name: "near-overhead") | 26.0 |
+| C02 | src/Tertius.Rendering/Shading/RectView.cs:157 | no horizon arc | killed | RectLightTests.ARectangleLightsAPointAsTheIntegralOverItsFaceDoes(name: "mostly-below"), RectLightTests.ARectangleLightsAPointAsTheIntegralOverItsFaceDoes(name: "across-the-horizon") | 4.5 |
+| C03 | src/Tertius.Rendering/Shading/RectView.cs:189 | LTC frame turned 90 deg | killed | RectLightTests.AMirrorShowsTheRectangleAtItsSize | 5.1 |
+| C04 | src/Tertius.Rendering/Shading/LtcTable.cs:67 | LTC drops m02 | killed | RectLightTests.AMirrorShowsTheRectangleAtItsSize | 5.6 |
+| C05 | tools/Tertius.LtcFit/LtcFit.cs:65 | view cosine of a column linear | killed | LtcTableTests.ARowOfTheTableIsTheFitOfOurGgxLobe(row: 32), LtcTableTests.ARowOfTheTableIsTheFitOfOurGgxLobe(row: 63), LtcTableTests.ARowOfTheTableIsTheFitOfOurGgxLobe(row: 3) | 6.3 |
+| C06 | src/Tertius.Rendering/Shading/MaterialSample.cs:122 | diffuse without 1/pi | killed | RectLightTests.AMatteSurfaceReflectsItsDiffuseColorOverPiOfTheIrradiance | 5.0 |
+| C07 | src/Tertius.Rendering/Shading/MaterialSample.cs:114 | facing away keeps the shine | killed | RectLightTests.AFaceJustBelowTheHorizonSendsNoShineToAGrazingView | 4.8 |
+| C08 | src/Tertius.Rendering/Scene/LightUnits.cs:58 | rect intensity P/4pi | killed | BatcherLightTests.ARectangleLightReachesTheShadersAsItsPeakIntensityItsHalfSidesAndAReachThatHoldsItsFace | 7.6 |
+| C09 | src/Tertius.Rendering/Scene/SceneBatcher.cs:1227 | reach without half diagonal | killed | BatcherLightTests.ARectangleLightReachesTheShadersAsItsPeakIntensityItsHalfSidesAndAReachThatHoldsItsFace | 4.5 |
+| C10 | src/Tertius.Rendering/Scene/SceneBatcher.cs:1242 | full width as half width | killed | BatcherLightTests.ARectangleLightReachesTheShadersAsItsPeakIntensityItsHalfSidesAndAReachThatHoldsItsFace, BatcherLightTests.ARectangleLightWithoutARotationFacesAlongPlusZ | 4.8 |
+| C11 | src/Tertius.Rendering/Scene/SceneBatcher.cs:1334 | no floor on the width | killed | BatcherLightTests.ARectangleLightWithABrokenFieldDoesNotShine(broken: "hair-thin-width") | 5.0 |
+| C12 | src/Tertius.Rendering/Scene/ImpostorManager.cs:793 | impostor takes light from the back too | killed | ImpostorManagerTests.ARectangleLightThatTurnsItsBackOnTheObjectRecapturesIt | 4.9 |
+| C13 | src/Tertius.Rendering/Scene/GpuTypes.cs:358 | half height = half width | killed | BatcherLightTests.ARectangleLightReachesTheShadersAsItsPeakIntensityItsHalfSidesAndAReachThatHoldsItsFace, BatcherLightTests.ARectangleLightWithoutARotationFacesAlongPlusZ, RectLightRenderTests.ARoughSquareShowsTheCSharpLtcShineOfARectangleLight | 7.9 |
+| C14 | src/Tertius.Rendering/Scene/PreparedScene.cs:162 | rect main-view test removed | build-failed | Dropped: the arm holds no behavior of the rectangle alone, and any change to it breaks the switch's exhaustiveness. | 2.8 |
+| D01 | src/Tertius.Demo/DemoScenes.cs:153 | panel up flipped | killed | LampPanelTests.TheCabinLampsAreRectangleLightsOnTheLowerFacesOfTheirPanels, LampPanelTests.TheBayLampsAreRectangleLightsThatFaceIntoTheBay, ShuttleTests.TheLampsHangOnPillarsClearOfTheGlass | 7.9 |
+| D02 | src/Tertius.Demo/DemoScenes.cs:188 | cabin face on the upper side | killed | LampPanelTests.TheCabinLampsAreRectangleLightsOnTheLowerFacesOfTheirPanels | 5.0 |
+| D03 | src/Tertius.Demo/DemoScenes.DemoStation.cs:693 | bay face on the wall side | killed | LampPanelTests.TheBayLampsAreRectangleLightsThatFaceIntoTheBay | 5.5 |
+| D04 | src/Tertius.Demo/DemoScenes.cs:119 | panel glows twice its light | survived | Judgment call: the scenes build without a renderer in the Host tests, so no test sees a material; RectLightDataTests locks SurfaceRadiance, which the panel takes unchanged. | 5.2 |
+| S13 | src/Tertius.Rendering/Shaders/lighting.glsl:670 | LTC first tangent away from the view | killed | RectLightRenderTests.AMirrorReflectsARectangleLightAtItsSize, RectLightRenderTests.ARoughSquareSeenAtASlantShowsTheCSharpLtcShineOfARectangleLight | 37.9 |
+| S14 | src/Tertius.Rendering/Shaders/lighting.glsl:679 | m02 and m20 swapped | killed | RectLightRenderTests.AMirrorReflectsARectangleLightAtItsSize, RectLightRenderTests.ARoughSquareSeenAtASlantShowsTheCSharpLtcShineOfARectangleLight | 37.1 |
+32 rows: killed 26, survived 5, build-failed 1
+
+New tests that killed survivors, each red on its mutant first: AMatteSurfaceReflectsItsDiffuseColorOverPiOfTheIrradiance (C06), AFaceJustBelowTheHorizonSendsNoShineToAGrazingView (C07), ARectangleLightThatTurnsItsBackOnTheObjectRecapturesIt (C12). C02, C12 and C13 were rewritten so that they compile (the first forms left a pattern variable unused). The official Stryker run for the Core and Simulation lines is recorded separately.
+
+Coverage of the changed lines (tools/coverage, Debug and Release): 507/519 lines (97.7 %), 101/116 branches (87.1 %). The gaps:
+- RectView.CosineVector (no caller): deleted.
+- RectView.LtcShare's behind-the-face guard: now tested directly in APointBehindARectangleTakesNoneOfItsLight.
+- LtcTable's length check: new test ATableOfAnotherSizeIsRefused.
+- SceneBatcher.CaseOf's null arm: unreachable, because Shines refuses the empty light first.
+- ShadowTiles' (ConeAim, RectFace) throw: guards a programming error, as the point light's arm does. No test.
+
+Cost: the orbit cabin's view along its five panels took a median frame span of 15.8 ms against 12.1 to 12.7 ms with the bulbs, and the bay view 15.6 ms against 12.3 ms (M1 Max, 1280 x 720, 241 frames, two runs for the cabin). Follow-up: t2-rhja.
+
+Screenshots (240 still draws before each capture, then the capture's own draw: 241 draws in all), in /private/tmp/tertius-rect-light-20261108/final: after-rect-lamps/cabin.png and before-rect-lamps/cabin.png (orbit cabin), after-rect-bay/bay.png and before-rect-bay/bay.png (bay), after-rect-lights/floors.png (mirror and rough floors; main has no such scene). The bright specks in the cabin are on main too (a separate delegate diagnoses them).

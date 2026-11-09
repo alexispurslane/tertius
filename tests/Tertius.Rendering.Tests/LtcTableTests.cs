@@ -29,6 +29,14 @@ public sealed class LtcTableTests
     }
 
     [Fact]
+    public void ATableOfAnotherSizeIsRefused()
+    {
+        Action make = () => _ = new LtcTable(new Half[LtcTable.Size * LtcTable.Size]);
+
+        make.Should().Throw<ArgumentException>().WithMessage("An LTC table holds 16384 halves, not 4096.*");
+    }
+
+    [Fact]
     public void HeadOnTheCosineOfARoughLobeIsRoundAboutTheNormal()
     {
         LtcMatrix inverse = LtcTable.Shared.Sample(roughness: 0.5, nDotV: 1);

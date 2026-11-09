@@ -3,7 +3,7 @@
   "window": { "width": 1280, "height": 720 },
   "steps": [
     { "do": "camera", "entity": "person" },
-    { "do": "film", "name": "settle", "frames": 30, "every": 1 },
+    { "do": "film", "name": "settle", "frames": 240, "every": 1 },
     { "do": "capture", "name": "cabin" }
   ]
 }

@@ -3,7 +3,7 @@
   "window": { "width": 1280, "height": 720 },
   "steps": [
     { "do": "camera", "entity": "bay-camera" },
-    { "do": "run", "ticks": 240 },
+    { "do": "film", "name": "settle", "frames": 240, "every": 1 },
     { "do": "capture", "name": "bay" }
   ]
 }

@@ -109,6 +109,9 @@ public sealed class RectLightTests
 
         rect.View.SolidAngle.Should().Be(0, "the rectangle sends its light from its front alone");
         terms.Should().Be(default(DirectTerms), "the point lies behind the rectangle's face");
+        rect.View.LtcShare(normal: Double3.UnitY, toView: Double3.UnitY, inverse: LtcTable.Shared.Sample(roughness: 0.5, nDotV: 1))
+            .Should()
+            .Be(0, "no lobe takes light from the back of the face");
     }
 
     [Fact]
@@ -132,6 +135,55 @@ public sealed class RectLightTests
 
         rect.View.SolidAngle.Should().BePositive("the point lies in front of the rectangle");
         terms.Should().Be(default(DirectTerms), "the whole rectangle lies below the surface's horizon");
+    }
+
+    [Fact]
+    public void AMatteSurfaceReflectsItsDiffuseColorOverPiOfTheIrradiance()
+    {
+        // The cabin lamp 2 m above a matte floor: Lambert's surface sends c_diff / π of its irradiance to every view.
+        TestRect rect = RectNamed("overhead");
+        var matte = new MaterialSample(BaseColor: new(0.8, 0.8, 0.8), Metallic: 0, Roughness: 0.5, Reflectance: 0.5);
+
+        DirectTerms terms = matte.RectTerms(
+            normal: Double3.UnitY,
+            toView: Double3.UnitY,
+            rect: rect.View,
+            tables: BrdfTables.Shared,
+            ltc: LtcTable.Shared
+        );
+
+        double reference = matte.DiffuseColor.X / Math.PI * rect.Integral(Double3.UnitY).Irradiance;
+        terms
+            .Diffuse.X.Should()
+            .BeApproximately(reference, 1e-3 * reference, "the floor reflects c_diff / π of the irradiance {0} sr", reference);
+    }
+
+    [Fact]
+    public void AFaceJustBelowTheHorizonSendsNoShineToAGrazingView()
+    {
+        // A rough floor seen 1.3 rad off its normal, and a panel 2 m away on the side of the mirror ray, wholly below the
+        // floor's horizon and facing the point. The fitted cosine leans toward the mirror ray and reaches a little below
+        // the horizon, but light from below the surface cannot reach it.
+        var toView = new Double3(Math.Sin(1.3), Math.Cos(1.3), 0);
+        Vector3 front = Vector3.Normalize(new Vector3(2, 0.5f, 0));
+        TestRect rect = Rect(
+            center: new(-2, -0.5, 0),
+            rotation: Quaternion.CreateFromAxisAngle(Vector3.Normalize(Vector3.Cross(Vector3.UnitZ, front)), MathF.Acos(front.Z)),
+            width: 1.0,
+            height: 0.6
+        );
+        var metal = new MaterialSample(BaseColor: new(1, 1, 1), Metallic: 1, Roughness: 0.75, Reflectance: 0.5);
+
+        DirectTerms terms = metal.RectTerms(
+            normal: Double3.UnitY,
+            toView: toView,
+            rect: rect.View,
+            tables: BrdfTables.Shared,
+            ltc: LtcTable.Shared
+        );
+
+        rect.View.InFront.Should().BeTrue("the point lies in front of the panel");
+        terms.Should().Be(default(DirectTerms), "the whole panel lies below the floor's horizon");
     }
 
     /// <summary>The 108 checks of the LTC shine against the integral of the GGX lobe over the face (tests/STYLE.md, "Long tests").</summary>
