@@ -267,8 +267,12 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// <summary>
     /// The temporal lighting's compute layouts: sets 0 to 2 and each one's own set 3, after the sets that they name.
     /// </summary>
-    private (PipelineLayout SurfaceTest, PipelineLayout Accumulate, PipelineLayout Filter, PipelineLayout Trace)
-        CreateTemporalLayouts() =>
+    private (
+        PipelineLayout SurfaceTest,
+        PipelineLayout Accumulate,
+        PipelineLayout Filter,
+        PipelineLayout Trace
+    ) CreateTemporalLayouts() =>
         (
             ComputeLayout<SurfaceTestPushConstants>(
                 sets: [FrameSet, TextureSet, GBufferSet, SurfaceTestSet],

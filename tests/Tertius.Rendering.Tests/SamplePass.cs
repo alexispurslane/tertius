@@ -28,12 +28,7 @@ internal sealed unsafe class SamplePass(TemporalSignal signal, DeviceAllocator a
             Upload(context, samples);
             return;
         }
-        var color = new ClearColorValue(
-            float32_0: Value.X,
-            float32_1: Value.Y,
-            float32_2: Value.Z,
-            float32_3: Value.W
-        );
+        var color = new ClearColorValue(float32_0: Value.X, float32_1: Value.Y, float32_2: Value.Z, float32_3: Value.W);
         var whole = new ImageSubresourceRange(
             aspectMask: ImageAspectFlags.ColorBit,
             baseMipLevel: 0,

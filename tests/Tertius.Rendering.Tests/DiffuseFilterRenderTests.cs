@@ -84,7 +84,7 @@ public sealed class DiffuseFilterRenderTests
     {
         filter.AssertInvariants();
         float[] filtered = renderer.ReadImage(filter.Filtered);
-        var red = new float[Width * Height];
+        float[] red = new float[Width * Height];
         for (int pixel = 0; pixel < red.Length; pixel++)
             red[pixel] = filtered[4 * pixel];
         return red;
@@ -187,9 +187,7 @@ public sealed class DiffuseFilterRenderTests
             // Each history's blend stops within 16 half-float steps of the sample, 4e-3, because a store into a half float
             // may round toward zero, so the two histories can differ by that.
             for (int pixel = 0; pixel < Width * Height; pixel++)
-                red[pixel]
-                    .Should()
-                    .BeApproximately(history[4 * pixel], 4.5e-3f, "pixel {0} saw no noise", pixel);
+                red[pixel].Should().BeApproximately(history[4 * pixel], 4.5e-3f, "pixel {0} saw no noise", pixel);
         }
         finally
         {
@@ -210,7 +208,8 @@ public sealed class DiffuseFilterRenderTests
         {
             int frame = 0;
             Func<int, int, Vector4> flicker = Flicker(() => frame);
-            sample.Samples = (column, row) => column < Width / 2 ? new Vector4(x: 0, y: 0, z: 0, w: 1) : flicker(column, row);
+            sample.Samples = (column, row) =>
+                column < Width / 2 ? new Vector4(x: 0, y: 0, z: 0, w: 1) : flicker(column, row);
 
             for (frame = 0; frame < 30; frame++)
                 Continue(renderer, scene, frames: 1);
@@ -255,7 +254,8 @@ public sealed class DiffuseFilterRenderTests
         {
             int frame = 0;
             Func<int, int, Vector4> flicker = Flicker(() => frame);
-            sample.Samples = (column, row) => column < Width / 2 ? new Vector4(x: 0, y: 0, z: 0, w: 1) : flicker(column, row);
+            sample.Samples = (column, row) =>
+                column < Width / 2 ? new Vector4(x: 0, y: 0, z: 0, w: 1) : flicker(column, row);
 
             for (frame = 0; frame < 30; frame++)
                 Continue(renderer, scene, frames: 1);
@@ -354,7 +354,9 @@ public sealed class DiffuseFilterRenderTests
             int center = Height / 2 * Width + Width / 2;
             // Unfiltered, the history of 16 frames holds bright / 16 = 1 at the bright pixel and 0 around it. The first
             // step's kernel gives the pixel at most its own weight, (3 / 8)², and its neighbor some of the light.
-            history[4 * center].Should().BeLessThan(0.5f, "the history holds the first step's light, not the sample's");
+            history[4 * center]
+                .Should()
+                .BeLessThan(0.5f, "the history holds the first step's light, not the sample's");
             history[4 * center]
                 .Should()
                 .BeGreaterThan(0.1f, "the later steps, which spread the light far wider, do not write the history");
@@ -460,7 +462,9 @@ public sealed class DiffuseFilterRenderTests
                 Continue(renderer, scene, frames: 1);
 
             float[] fast = renderer.ReadImage(sample.Signal.Fast(part: 0, parity: (int)(renderer.DrawnFrames & 1) ^ 1));
-            fast[4 * (Height / 2 * Width + Width / 2) + 3].Should().BeApproximately(0.99f, 0.1f, "the samples deviate by 1");
+            fast[4 * (Height / 2 * Width + Width / 2) + 3]
+                .Should()
+                .BeApproximately(0.99f, 0.1f, "the samples deviate by 1");
         }
         finally
         {

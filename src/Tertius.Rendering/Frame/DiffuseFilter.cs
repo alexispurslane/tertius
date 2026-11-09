@@ -52,6 +52,7 @@ internal sealed unsafe class DiffuseFilter : IDisposable
     private readonly TemporalSignal signal;
     private readonly Pipeline variance;
     private readonly Pipeline wavelet;
+
     /// <summary>The variance dispatch's set of each parity.</summary>
     private readonly DescriptorSet[] varianceSets = new DescriptorSet[2];
 
@@ -99,9 +100,7 @@ internal sealed unsafe class DiffuseFilter : IDisposable
         {
             null or "" or "on" => true,
             "off" => false,
-            var value => throw new ArgumentException(
-                $"Unknown TERTIUS_DIFFUSE_FILTER value '{value}': use on or off."
-            ),
+            var value => throw new ArgumentException($"Unknown TERTIUS_DIFFUSE_FILTER value '{value}': use on or off."),
         };
 
     /// <summary>
@@ -163,9 +162,7 @@ internal sealed unsafe class DiffuseFilter : IDisposable
     private GpuImage OutputOf(int dispatch) => dispatch == Dispatches - 1 ? Filtered : passes[(dispatch + 1) % 2];
 
     private bool FitsTargets() =>
-        SameExtent(Filtered.Extent)
-        && SameExtent(passes[0].Extent)
-        && SameExtent(passes[1].Extent);
+        SameExtent(Filtered.Extent) && SameExtent(passes[0].Extent) && SameExtent(passes[1].Extent);
 
     private bool SameExtent(Extent2D extent) =>
         extent.Width == targets.Extent.Width && extent.Height == targets.Extent.Height;
@@ -199,7 +196,10 @@ internal sealed unsafe class DiffuseFilter : IDisposable
     }
 
     private (GpuImage[] Passes, GpuImage Filtered) CreateImages() =>
-        ([CreateImage("diffuse filter pass 0"), CreateImage("diffuse filter pass 1")], CreateImage("diffuse filter output"));
+        (
+            [CreateImage("diffuse filter pass 0"), CreateImage("diffuse filter pass 1")],
+            CreateImage("diffuse filter output")
+        );
 
     private void WriteSets()
     {
