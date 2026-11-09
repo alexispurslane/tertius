@@ -52,8 +52,8 @@ internal readonly record struct StillRule(bool Headless, int WarmUpDraws)
 
     /// <summary>
     /// The rule of a renderer of <paramref name="options"/> (section 10, "The still rule"): <see
-    /// cref="RendererOptions.WarmUpFrames"/> warm-up draws under <see cref="ScreenTrace"/>, whose signals hold more than
-    /// one frame. Without it, no history holds more than one frame, so a still takes 1 warm-up draw under <see
+    /// cref="RendererOptions.WarmUpFrames"/> warm-up draws under <see cref="ScreenTrace"/> or <see cref="Fsr3Upscaling"/>,
+    /// whose histories hold more than one frame. Without both, no history holds more than one frame, so a still takes 1 warm-up draw under <see
     /// cref="AutoExposure"/>, so that the exposure has a draw to adapt in, and else 0. Under both, at least 1.
     /// </summary>
     public static StillRule For(RendererOptions options, bool headless)

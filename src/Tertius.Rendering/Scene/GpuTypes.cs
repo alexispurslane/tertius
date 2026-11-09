@@ -496,6 +496,7 @@ internal struct GpuFrameConstants
     public Vector4 AmbientSky;
     public Vector4 AmbientGround;
     public Vector4 Viewport;
+    /// <summary>X the main view's mip bias, Y and Z the jitter in render pixels, W unused.</summary>
     public Vector4 RenderParams;
     public Vector4 OutputViewport;
     public Vector4 PreviousJitter;

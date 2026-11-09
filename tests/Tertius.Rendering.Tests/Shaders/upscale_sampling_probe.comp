@@ -1,7 +1,6 @@
 #version 460
 #extension GL_GOOGLE_include_directive : require
 #include "screen_trace.glsl"
-#include "shadows.glsl"
 
 layout(local_size_x = 8, local_size_y = 8) in;
 
@@ -11,6 +10,5 @@ void main()
     if (any(greaterThanEqual(vec2(pixel), frame.viewport.xy)))
         return;
     vec3 color = texelFetch(gbufferBaseColor, pixel, 0).rgb;
-    int group = shadowGroup(viewRayThrough(vec2(pixel) + 0.5));
-    imageStore(specularSample, pixel, vec4(color, float(group)));
+    imageStore(specularSample, pixel, vec4(color, 0.0));
 }

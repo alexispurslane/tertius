@@ -188,7 +188,7 @@ layout(set = 0, binding = 0, std140) uniform FrameBlock
     vec4 ambientSky;          // rgb sky color × intensity
     vec4 ambientGround;       // rgb ground color × intensity
     vec4 viewport;            // width, height, 1 / width, 1 / height
-    vec4 renderParams;
+    vec4 renderParams;        // x main-view mip bias, yz jitter in render pixels, w unused
     vec4 outputViewport;
     vec4 previousJitter;
     vec4 params;              // x the most pre-exposed light that one puff adds to a pixel, y time in seconds, z angular size of one pixel

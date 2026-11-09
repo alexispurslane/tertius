@@ -24,16 +24,6 @@
 #define TERTIUS_SHADOWS_GLSL
 
 #include "cube_faces.glsl"
-#include "screen.glsl"
-layout(constant_id = 7) const bool temporalShadows = false;
-
-int shadowGroup(vec3 position)
-{
-    if (!temporalShadows || dot(position, frame.cameraForward.xyz) <= 0.0)
-        return 0;
-    ivec2 pixel = ivec2(clamp(pixelOf(position), vec2(0.0), frame.viewport.xy - 1.0));
-    return (int(frame.renderParams.w) + pixel.x + 2 * pixel.y) & 3;
-}
 
 // The lit fraction of one cascade of one cascade set at a world position, with geometricNormal and sinTheta as in
 // cascadeShadow.
@@ -49,11 +39,9 @@ float sampleCascade(uint set, uint cascade, vec3 position, vec3 geometricNormal,
     float layer = float(set * 4u + cascade);
 
     float lit = 0.0;
-    int phase = shadowGroup(position);
-    int stride = temporalShadows ? 2 : 1;
-    for (int y = temporalShadows ? (phase >> 1) & 1 : 0; y < 4; y += stride)
+    for (int y = 0; y < 4; y++)
     {
-        for (int x = temporalShadows ? phase & 1 : 0; x < 4; x += stride)
+        for (int x = 0; x < 4; x++)
         {
             vec2 offset = vec2(float(x) - 1.5, float(y) - 1.5) * invSize;
             vec4 coordinate = vec4(uv + offset, layer, reference);
@@ -61,7 +49,7 @@ float sampleCascade(uint set, uint cascade, vec3 position, vec3 geometricNormal,
             lit += textureGrad(sampler2DArrayShadow(shadowCascades, shadowSampler), coordinate, vec2(0.0), vec2(0.0));
         }
     }
-    return lit * (temporalShadows ? 0.25 : 1.0 / 16.0);
+    return lit * (1.0 / 16.0);
 }
 
 // How far a world position is beyond the shadow maps: 0 where they shadow it, 1 past their end, and a smooth step over
@@ -302,20 +290,6 @@ float tileShadow(GpuLight light, vec3 position, vec3 L, float d, vec3 geometricN
         return 0.0;
     if (ndc.z >= t.bounds.y)
         return 1.0;
-
-    if (temporalShadows)
-    {
-        int phase = shadowGroup(position);
-        float selected = 0.0;
-        for (int row = (phase >> 1) & 1; row < 4; row += 2)
-            for (int column = phase & 1; column < 4; column += 2)
-            {
-                vec2 at = (first + vec2(column, row) + 1.0) / size;
-                vec4 gathered = textureGather(sampler2DArrayShadow(shadowAtlas, shadowSampler), vec3(at, layer), ndc.z);
-                selected += mix(mix(gathered.w, gathered.z, f.x), mix(gathered.x, gathered.y, f.x), f.y);
-            }
-        return selected * 0.25;
-    }
 
     // Nine gathers of 2 × 2 comparisons read the 5 × 5 texels and one unweighted column and row beyond them.
     float wx[6] = float[6](1.0 - f.x, 1.0, 1.0, 1.0, f.x, 0.0);
