@@ -1,0 +1,58 @@
+#version 460
+// The variance dispatch of the diffuse filter (diffuse_filter.glsl): one invocation per pixel writes the slow history's
+// light and the standard deviation of the luminance of the pixel's samples, the input of the first wavelet dispatch. A
+// history of at least YoungFrames frames takes the deviation that the temporal dispatch keeps in the fast history's alpha.
+// A younger one estimates it from the fast histories of the same surface around it, raised by YoungFrames over its length,
+// as the paper does, because a few samples give no temporal estimate.
+#extension GL_GOOGLE_include_directive : require
+#include "diffuse_filter.glsl"
+
+layout(set = 3, binding = 1, rgba16f) uniform writeonly image2D filterOutput;  // rgb the light, a the deviation
+layout(set = 3, binding = 2, rgba16f) uniform readonly image2D slowHistory;    // rgb the light, a the length
+layout(set = 3, binding = 3, rgba16f) uniform readonly image2D fastHistory;    // this frame's: a the deviation
+
+// The length below which a history estimates its deviation from its neighbors: the paper's four frames.
+const float YoungFrames = 4.0;
+
+// The half width of the window of the young estimate: the paper's 7 × 7 pixels.
+const int YoungRadius = 3;
+
+// The deviation of the luminance of the fast histories on the pixel's surface over the window, raised by YoungFrames over
+// the history's length.
+float youngDeviation(ivec2 pixel, float historyLength)
+{
+    SurfaceKey key = surfaceKeyAt(pixel);
+    float sum = 0.0;
+    float squares = 0.0;
+    float count = 0.0;
+    for (int y = -YoungRadius; y <= YoungRadius; y++)
+        for (int x = -YoungRadius; x <= YoungRadius; x++)
+        {
+            ivec2 neighbor = pixel + ivec2(x, y);
+            if (!insideFilter(neighbor) || !sameSurface(key, surfaceKeyAt(neighbor)))
+                continue;
+            float l = luminance(imageLoad(fastHistory, neighbor).rgb);
+            sum += l;
+            squares += l * l;
+            count += 1.0;
+        }
+    // The pixel's own key passes its own test, so the count is at least 1.
+    float mean = sum / count;
+    float variance = max(squares / count - mean * mean, 0.0) * YoungFrames / max(historyLength, 1.0);
+    return min(sqrt(variance), MaxRadiance);
+}
+
+void main()
+{
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    if (!insideFilter(pixel))
+        return;
+    vec4 slow = imageLoad(slowHistory, pixel);
+    if (!filteredAt(pixel))
+    {
+        imageStore(filterOutput, pixel, vec4(slow.rgb, 0.0));
+        return;
+    }
+    float deviation = slow.a >= YoungFrames ? imageLoad(fastHistory, pixel).a : youngDeviation(pixel, slow.a);
+    imageStore(filterOutput, pixel, vec4(slow.rgb, deviation));
+}

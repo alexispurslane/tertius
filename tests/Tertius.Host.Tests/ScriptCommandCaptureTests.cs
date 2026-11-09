@@ -33,6 +33,7 @@ public sealed class ScriptCommandCaptureTests : IDisposable
         "diffuse rays",
         "screen trace resolve",
         "accumulate indirect diffuse",
+        "filter indirect diffuse",
         "accumulate indirect specular",
         "composite",
         "scatter rows",
