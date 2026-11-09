@@ -1085,6 +1085,16 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
         FarShadows.Choose(scene.LightSpan, cascadedLights);
     }
 
+    /// <summary>The rectangle lights of <paramref name="lights"/>, which the shaders loop over apart from the others.</summary>
+    private static int RectCount(ReadOnlySpan<PreparedLight> lights)
+    {
+        int count = 0;
+        foreach (ref readonly PreparedLight light in lights)
+            if (light.Spread is RectFace)
+                count++;
+        return count;
+    }
+
     /// <summary>
     /// A light that <see cref="Shines(in RenderLight)"/>, interpolated by alpha, relative to the interpolated eye of
     /// <paramref name="camera"/>, with its radiant intensity, its reach to <paramref name="cutoffIrradiance"/> and its
@@ -1596,7 +1606,7 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
                 X: (uint)scene.LightCount,
                 Y: scene.AirSunLight is { } sun ? (uint)sun : GpuFrameConstants.NoAirSun,
                 Z: 0,
-                W: 0
+                W: (uint)RectCount(scene.LightSpan)
             ),
             RootRotation = new(
                 x: camera.RootRotation.X,

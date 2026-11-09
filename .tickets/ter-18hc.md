@@ -2,7 +2,7 @@
 id: ter-18hc
 status: open
 deps: []
-links: [tiunr-wk29, tiunr-nxtr, ter-9371, td-hjn6]
+links: [tiunr-wk29, tiunr-nxtr, ter-9371, td-hjn6, ter-wkvw]
 created: 2026-11-04T20:48:47Z
 type: bug
 priority: 2
@@ -27,3 +27,9 @@ What the user gets: a glow that covers a small share of a pixel's hemisphere, su
 
 To do: measure the bias against the clamp's sigmas and against a neighborhood that spans more blocks, and choose a fix (for example a wider box, or a box from the fast history's own variance over time). The test AGlowingPanelBesideAFloorPixelTakesItsShareOfThePixelsDiffuseLight measures at 0.95 m, where the bias is small. Move it to 4.95 m when the fix lands.
 
+
+## Notes
+
+**2026-11-09T12:08:39Z**
+
+2026-11-09 user decision: keep the diffuse slow history's clamp. Measured in /private/tmp/tertius-diffuse-clamp-20261108/: it removes 22 to 27 % of the orbit cabin's indirect diffuse light (11 to 14 % of the image), 0 to 5 % in lamp-only scenes, and it hides the blobs that the diffuse filter makes of sunlit specks. Without it, the diffuse light takes 1.5 to 3 times as many draws to settle after a lamp switch. The user accepted the bias over ReSTIR GI (days of work, about 1 to 2 ms). If correct bounce from small bright sources matters later, ReSTIR GI is the recorded path.

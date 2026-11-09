@@ -224,6 +224,42 @@ public sealed class RectLightRenderTests
     }
 
     [Fact]
+    public void ASquareWhoseHorizonHidesARectangleLightTakesNoneOfItsLight()
+    {
+        // The panel of "facing-the-square" moved 0.6 m behind the square's plane, still facing the camera: its front sees
+        // the square's back, and the square's front faces away from all of it.
+        RectRenderLight panel = Panel(
+            position: new(0, 0, -SquareDistance - 0.6f),
+            rotation: Quaternion.Identity,
+            power: 6,
+            width: 0.8f,
+            height: 0.5f
+        );
+        var matte = new MaterialDesc(BaseColor: new(x: 0.8f, y: 0.8f, z: 0.8f, w: 1), Roughness: 1, Reflectance: 0.5f);
+
+        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
+        try
+        {
+            Capture image = RenderSquare(
+                renderer: renderer,
+                panel: panel,
+                desc: matte,
+                fov: Gpu.Fov,
+                name: "rect-light-below-the-horizon"
+            );
+
+            image
+                .Color(Width / 2, Height / 2)
+                .Should()
+                .Be(Vector3.Zero, "the whole panel lies below the horizon of the square's front");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
     public void ARoughSquareShowsTheCSharpLtcShineOfARectangleLight()
     {
         // A rough white metal square, roughness 0.5, and a panel 1 m square 1.2 m in front of it and 0.6 m to the side,

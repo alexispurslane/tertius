@@ -510,7 +510,8 @@ internal struct GpuFrameConstants
     /// <summary>
     /// x: the lights; y: the place in the light list of the atmosphere's sun (<see cref="PreparedScene.AirSunLight"/>), or
     /// <see cref="NoAirSun"/>, by which the shaders choose the light loop that takes no tint; z: the cascades of each drawn
-    /// cascade set, <see cref="ShadowCascades.Count"/>, or 0 when no set was drawn; w: unused.
+    /// cascade set, <see cref="ShadowCascades.Count"/>, or 0 when no set was drawn; w: the rectangle lights of the list, by
+    /// which the shaders skip the rectangles' own loop when there are none.
     /// </summary>
     public UInt4 Counts;
 

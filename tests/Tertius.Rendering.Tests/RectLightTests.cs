@@ -95,6 +95,53 @@ public sealed class RectLightTests
     }
 
     [Fact]
+    public void TheEdgeSumsFitOfThetaOverSineStaysWithinTwoMillionthsOfItAtEveryAngle()
+    {
+        // The fit replaces the arctangent of each edge, up to an edge that passes 10⁻⁹ rad from the shaded point.
+        double worst = 0;
+        for (int i = 1; i <= 10_000; i++)
+        {
+            double angle = (Math.PI - 1e-9) * i / 10_000;
+            double exact = angle / Math.Sin(angle);
+            double fitted = RectView.ThetaOverSine(cosine: Math.Cos(angle), sine: Math.Sin(angle));
+            worst = Math.Max(worst, Math.Abs(fitted / exact - 1));
+        }
+
+        worst.Should().BeLessThan(2e-6, "Hill and Heitz's rational fit follows θ / sin θ so closely");
+    }
+
+    [Fact]
+    public void APointBesideTheLineOfAnEdgeTakesTheLightOfTheArctangentEdgeSum()
+    {
+        // A wall panel whose lower edge lies 1 µm above the floor and 0.05 mm in front of the floor point: seen from the
+        // point, that edge spans almost half a turn, where 1 − cos² θ loses sin θ in rounding.
+        TestRect rect = Rect(center: new(0, 0.400001, 5e-5), rotation: FaceBack, width: 1.0, height: 0.8);
+        RectView view = rect.View;
+        Double3[] corners =
+        [
+            view.ToCenter - view.HalfWidth - view.HalfHeight,
+            view.ToCenter - view.HalfWidth + view.HalfHeight,
+            view.ToCenter + view.HalfWidth + view.HalfHeight,
+            view.ToCenter + view.HalfWidth - view.HalfHeight,
+        ];
+        double exact = 0;
+        for (int i = 0; i < 4; i++)
+        {
+            var normal = Double3.Cross(corners[i], corners[(i + 1) & 3]);
+            exact +=
+                0.5
+                * normal.Y
+                * Math.Atan2(normal.Length, Double3.Dot(corners[i], corners[(i + 1) & 3]))
+                / normal.Length;
+        }
+
+        corners.Should().OnlyContain(corner => corner.Y > 0, "the whole face lies above the floor's horizon");
+        view.ClippedCosine(Double3.UnitY)
+            .Should()
+            .BeApproximately(exact, 1e-4 * exact, "Lambert's edge sum with each angle from an arctangent is exact");
+    }
+
+    [Fact]
     public void APointBehindARectangleTakesNoneOfItsLight()
     {
         // The cabin lamp turned to face up, 2 m above the point.
