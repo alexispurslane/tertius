@@ -103,16 +103,16 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
         };
         ReadOnlySpan<(uint Id, uint Value)> rows =
         [
-            (EnvironmentMapId, values.EnvironmentMap ? 1u : 0u),
-            (CutoutAlphaId, values.CutoutAlpha ? 1u : 0u),
+            (EnvironmentMapId, VkBool(values.EnvironmentMap)),
+            (CutoutAlphaId, VkBool(values.CutoutAlpha)),
             (ScatterTapsPerSideId, (uint)tapsPerSide),
-            (DropsFibersId, values.DropsFibers ? 1u : 0u),
-            (WritesMotionId, values.WritesMotion ? 1u : 0u),
+            (DropsFibersId, VkBool(values.DropsFibers)),
+            (WritesMotionId, VkBool(values.WritesMotion)),
             (RayKindId, values.RayKind),
-            (ScreenTraceOnId, values.ScreenTraceOn ? 1u : 0u),
-            (MainViewId, values.MainView ? 1u : 0u),
-            (NeighborLimitPrototypeId, values.NeighborLimitPrototype ? 1u : 0u),
-            (ReflectionSharingPrototypeId, values.ReflectionSharingPrototype ? 1u : 0u),
+            (ScreenTraceOnId, VkBool(values.ScreenTraceOn)),
+            (MainViewId, VkBool(values.MainView)),
+            (NeighborLimitPrototypeId, VkBool(values.NeighborLimitPrototype)),
+            (ReflectionSharingPrototypeId, VkBool(values.ReflectionSharingPrototype)),
         ];
         for (int i = 0; i < rows.Length; i++)
         {
@@ -129,6 +129,9 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
         };
         return &storage->Info;
     }
+
+    /// <summary>The VkBool32 of <paramref name="value"/>: 1 or 0.</summary>
+    private static uint VkBool(bool value) => value ? 1u : 0u;
 }
 
 /// <summary>
