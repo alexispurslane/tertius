@@ -44,6 +44,9 @@ internal sealed unsafe class DiffuseFilter : IDisposable
     /// </summary>
     public const uint Sets = 2 + Dispatches;
 
+    /// <summary>The filter's dispatches: the variance dispatch, then the wavelet dispatches.</summary>
+    public const int Steps = 1 + Dispatches;
+
     /// <summary>The width and the height of a workgroup: the shaders' local size.</summary>
     private const uint GroupSize = 8;
 
@@ -115,34 +118,62 @@ internal sealed unsafe class DiffuseFilter : IDisposable
     /// </summary>
     public void Filter(FrameContext context)
     {
-        Contract.Requires(context.Targets == targets && FitsTargets());
+        for (int step = 0; step < Steps; step++)
+        {
+            QueueStep(context, step);
+            DispatchStep(context, step);
+        }
+    }
+
+    /// <summary>
+    /// Queues the barriers before dispatch <paramref name="step"/> of <see cref="Steps"/> into the frame's batch, which the
+    /// next dispatch of the frame flushes: the variance dispatch, then wavelet dispatch <paramref name="step"/> − 1.
+    /// </summary>
+    public void QueueStep(FrameContext context, int step)
+    {
         int parity = context.History.Parity;
         BarrierBatch barriers = context.Barriers;
-
-        // The surfaces that the edge stops compare, and the material that tells a lit surface.
-        foreach (GpuImage surface in (GpuImage[])[targets.Distance, targets.Normal, targets.BaseColor, targets.Shading])
-            barriers.Image(surface, ImageUse.SampledCompute);
-
-        barriers.Image(signal.Slow(0), ImageUse.StorageCompute);
-        barriers.Image(signal.Fast(0, parity), ImageUse.StorageCompute);
-        barriers.Image(passes[0], ImageUse.StorageCompute, discard: true);
-        barriers.Image(guide, ImageUse.StorageCompute, discard: true);
-        Dispatch(context: context, pipeline: variance, set: varianceSets[parity], push: default);
-        // Every wavelet dispatch only reads the guide, so one barrier after its write serves them all.
-        barriers.Image(guide, ImageUse.StorageCompute);
-
-        for (int dispatch = 0; dispatch < Dispatches; dispatch++)
+        if (step == 0)
         {
-            var push = new DiffuseFilterPushConstants
-            {
-                Step = 1 << dispatch,
-                Feedback = dispatch == FeedbackDispatch ? 1u : 0u,
-            };
-            barriers.Image(InputOf(dispatch), ImageUse.StorageCompute);
-            barriers.Image(OutputOf(dispatch), ImageUse.StorageCompute, discard: true);
+            Contract.Requires(context.Targets == targets && FitsTargets());
+            // The surfaces that the edge stops compare, and the material that tells a lit surface.
+            foreach (
+                GpuImage surface in (GpuImage[])[targets.Distance, targets.Normal, targets.BaseColor, targets.Shading]
+            )
+                barriers.Image(surface, ImageUse.SampledCompute);
+
             barriers.Image(signal.Slow(0), ImageUse.StorageCompute);
-            Dispatch(context: context, pipeline: wavelet, set: waveletSets[dispatch], push: push);
+            barriers.Image(signal.Fast(0, parity), ImageUse.StorageCompute);
+            barriers.Image(passes[0], ImageUse.StorageCompute, discard: true);
+            barriers.Image(guide, ImageUse.StorageCompute, discard: true);
+            return;
         }
+
+        int dispatch = step - 1;
+        // Every wavelet dispatch only reads the guide, so one barrier after its write serves them all.
+        if (dispatch == 0)
+            barriers.Image(guide, ImageUse.StorageCompute);
+        barriers.Image(InputOf(dispatch), ImageUse.StorageCompute);
+        barriers.Image(OutputOf(dispatch), ImageUse.StorageCompute, discard: true);
+        barriers.Image(signal.Slow(0), ImageUse.StorageCompute);
+    }
+
+    /// <summary>Records dispatch <paramref name="step"/> of <see cref="Steps"/>, after <see cref="QueueStep"/>.</summary>
+    public void DispatchStep(FrameContext context, int step)
+    {
+        if (step == 0)
+        {
+            Dispatch(context: context, pipeline: variance, set: varianceSets[context.History.Parity], push: default);
+            return;
+        }
+
+        int dispatch = step - 1;
+        var push = new DiffuseFilterPushConstants
+        {
+            Step = 1 << dispatch,
+            Feedback = dispatch == FeedbackDispatch ? 1u : 0u,
+        };
+        Dispatch(context: context, pipeline: wavelet, set: waveletSets[dispatch], push: push);
     }
 
     /// <summary>

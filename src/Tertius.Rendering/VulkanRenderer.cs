@@ -2183,9 +2183,11 @@ public sealed unsafe class VulkanRenderer : IRenderer
             );
         AddRayPasses(shaders: shaders, trace: trace, images: images);
         Graph.Add(FrameGraph.Stage.ScreenTrace, new AccumulatePass(diffuse));
-        if (filter is not null)
-            Graph.Add(FrameGraph.Stage.ScreenTrace, new DiffuseFilterPass(filter));
-        Graph.Add(FrameGraph.Stage.ScreenTrace, new AccumulatePass(specular));
+        // The specular accumulation reads no image that the filter writes, so it records between the filter's steps.
+        Graph.Add(
+            FrameGraph.Stage.ScreenTrace,
+            filter is null ? new AccumulatePass(specular) : new FilteredAccumulatePass(filter, specular)
+        );
         return images;
     }
 
