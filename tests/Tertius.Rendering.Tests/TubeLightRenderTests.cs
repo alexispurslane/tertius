@@ -255,7 +255,7 @@ public sealed class TubeLightRenderTests
             chainDepth: TestChains.CamerasFrame
         );
         // Turned half a turn about Y, the panel's front faces the square.
-        Quaternion facing = Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI);
+        var facing = Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI);
         var panel = new RectRenderLight(
             EntityIndex: Gpu.LampEntity,
             EntityGeneration: 0,
