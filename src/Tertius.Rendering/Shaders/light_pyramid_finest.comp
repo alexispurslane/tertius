@@ -1,0 +1,41 @@
+#version 460
+// The finest level of the light pyramid (light_pyramid.glsl): each pixel's guide light, the luminance of the light that
+// leaves it without its history, as a hit reads it (hitLightOf in screen_trace.glsl): this frame's direct diffuse light
+// times the diffuse color, and the glow that the pixel sends. The sky holds none, and an impostor only its glow. One
+// invocation per pixel.
+#extension GL_GOOGLE_include_directive : require
+#extension GL_EXT_samplerless_texture_functions : require
+#include "light_pyramid.glsl"
+#include "frame.glsl"
+#include "gbuffer_surface.glsl"
+#include "temporal.glsl"
+#include "meter.glsl"
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+layout(set = 3, binding = 0) uniform texture2D directDiffuseLight;            // demodulated and pre-exposed
+layout(set = 3, binding = 1, r32f) uniform writeonly image2D destination;   // the finest level, the screen's size
+
+// The guide light of a pixel inside the viewport.
+float guideLightAt(ivec2 pixel)
+{
+    if (texelFetch(gbufferDistance, pixel, 0).r <= 0.0)
+        return NoLight;
+    vec3 light = glowSent(texelFetch(gbufferEmissive, pixel, 0).rgb, lightMarkOfWord(texelFetch(gbufferShading, pixel, 0).b));
+    if (texelFetch(gbufferBaseColor, pixel, 0).a != 0.0)
+    {
+        ShadingInput s = materialAt(pixel);
+        vec3 V = -normalize(viewRayThrough(vec2(pixel) + 0.5));
+        light += materialFactors(s, lobesOf(s, V)).diffuse * texelFetch(directDiffuseLight, pixel, 0).rgb;
+    }
+    return luminance(min(light, vec3(MaxRadiance)));
+}
+
+void main()
+{
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    if (any(greaterThanEqual(pixel, imageSize(destination))))
+        return;
+    bool inside = all(lessThan(pixel, ivec2(frame.viewport.xy)));
+    imageStore(destination, pixel, vec4(inside ? guideLightAt(pixel) : NoLight));
+}

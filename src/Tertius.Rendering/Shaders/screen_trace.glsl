@@ -43,6 +43,10 @@ layout(set = 3, binding = 15, rgba16f) uniform writeonly image2D diffuseSample;
 layout(set = 3, binding = 16, rgba16f) uniform writeonly image2D specularSample;
 OWN_RAY_LIST(3, 17, reflectionOwnRays);
 OWN_RAY_LIST(3, 18, diffuseOwnRays);
+// The light pyramid (ARCHITECTURE.md, "Guided diffuse rays", light_pyramid.glsl): each pixel's guide light, and the sums
+// of levels 1 to L, mip m level m + 1, whose padding holds no light. Bindings 19 to 22 are the light age's.
+layout(set = 3, binding = 23) uniform texture2D lightFinest;    // R32F
+layout(set = 3, binding = 24) uniform texture2D lightLevels;    // R32F
 
 #ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
 // The light-change age of a precise specular history (tickets tiunr-py6q and tiunr-7haj, ScreenTraceImages.LightAge): r
@@ -149,6 +153,7 @@ layout(push_constant, std430) uniform ScreenTracePush
     float handOverStart;     // MaxRoughness − HandOverWidth: from it, the specular sample blends in the diffuse rays
     uint reflectionSteps;    // the caps of decision 41
     uint diffuseSteps;
+    float guidedShare;       // LightPyramid.GuidedShare, or 0 with the guiding off (TERTIUS_GUIDED_RAYS)
 } trace;
 
 // The two ray kinds, which index the record layers and the constants of the draws.
@@ -176,6 +181,13 @@ const float LeastRayCosine = 0.00006103515625;
 // The constants of pcg3d's third value, one per kind and use: a direction takes two dimensions from one draw, its x and y.
 const uint DirectionDraw[2] = uint[2](0x5245u, 0x4446u);   // "RE", "DF"
 const uint TurnDraw[2] = uint[2](0x5254u, 0x4454u);        // the block's turn
+// The guided draw: the descent's levels, three per draw from "GD" on, and the target's place in its slab, "GT".
+const uint GuideDraw = 0x4744u;
+const uint TargetDraw = 0x4754u;
+
+// How deep a pixel's target box reaches behind its center, the front of its slab, as a share of its view depth: κ / 2
+// (LightPyramid.TargetDepthShare).
+const float TargetDepthShare = 0.5 * ThicknessShare;
 
 // Jarzynski and Olano 2020, "Hash Functions for GPU Rendering": three 32-bit words from three.
 uvec3 pcg3d(uvec3 v)
@@ -389,6 +401,158 @@ vec3 hitLightOf(ivec2 q, uint kind)
     return min(light, vec3(MaxRadiance));
 }
 
+// The guide light of a cell of the light pyramid's level, 0 beyond the level's image, whose fetch is undefined.
+float pyramidLightAt(int level, ivec2 cell)
+{
+    if (level == 0)
+        return all(lessThan(cell, textureSize(lightFinest, 0))) ? texelFetch(lightFinest, cell, 0).r : 0.0;
+    return all(lessThan(cell, textureSize(lightLevels, level - 1))) ? texelFetch(lightLevels, cell, level - 1).r : 0.0;
+}
+
+// The guide light of the whole screen: the top level's one cell. 0 when no lit pixel is in view.
+float guideTotal()
+{
+    return texelFetch(lightLevels, ivec2(0), textureQueryLevels(lightLevels) - 1).r;
+}
+
+// The pixel at which a guided ray from `pixel` aims, each pixel in proportion to its guide light: from the top, each level
+// takes a child in proportion to its light (LightPyramid.Drawn). The total must be above 0.
+ivec2 guidedTargetOf(ivec2 pixel)
+{
+    int top = textureQueryLevels(lightLevels);
+    ivec2 cell = ivec2(0);
+    // Each draw gives the random units of three levels.
+    uvec3 draw = uvec3(0u);
+    for (int level = top; level >= 1; level--)
+    {
+        int index = top - level;
+        if (index % 3 == 0)
+            draw = drawOf(pixel, trace.drawIndex, GuideDraw + uint(index / 3));
+        float unit = unitOf(draw[index % 3]);
+        float lights[4];
+        float total = 0.0;
+        for (int child = 0; child < 4; child++)
+        {
+            lights[child] = pyramidLightAt(level - 1, 2 * cell + ivec2(child & 1, child >> 1));
+            total += lights[child];
+        }
+        float reach = unit * total;
+        int chosen = 0;
+        float below = 0.0;
+        for (int child = 0; child < 4; child++)
+        {
+            if (lights[child] <= 0.0)
+                continue;
+            chosen = child;
+            below += lights[child];
+            if (reach < below)
+                break;
+        }
+        cell = 2 * cell + ivec2(chosen & 1, chosen >> 1);
+    }
+    return cell;
+}
+
+// The point at which a guided ray from `pixel` aims in its target pixel: a uniform point of the target's box, its volume
+// from its center's depth to TargetDepthShare behind it (LightPyramid.TargetOf).
+vec3 guidedPointOf(ivec2 pixel, ivec2 target)
+{
+    uvec3 draw = drawOf(pixel, trace.drawIndex, TargetDraw);
+    vec2 place = vec2(target) + vec2(unitOf(draw.x), unitOf(draw.y));
+    return viewRayThrough(place) * ((1.0 + TargetDepthShare * unitOf(draw.z)) / texelFetch(depthFinest, target, 0).r);
+}
+
+// The end of a chord that no side of the slab ends (LightPyramid.NoEnd).
+const float NoChordEnd = 1e30;
+
+// The chord (t from x to y) where also α + β t ≥ 0 (LightPyramid.Chord.Inside).
+vec2 chordInside(vec2 chord, float alpha, float beta)
+{
+    if (beta > 0.0)
+        return vec2(max(chord.x, -alpha / beta), chord.y);
+    if (beta < 0.0)
+        return vec2(chord.x, min(chord.y, -alpha / beta));
+    return alpha < 0.0 ? chord.xx : chord;
+}
+
+// (t / z)² at the distance t along the ray, z the point's view depth.
+float squareOverDepth(float t, float originDepth, float along)
+{
+    float ratio = t / (originDepth + t * along);
+    return ratio * ratio;
+}
+
+// The density per steradian of the directions of the guided rays from `origin` that aim at the pixel q, along
+// `direction`, times the screen's guide light: q's guide light times the integral of t² over q's target box along the
+// ray, over the box's volume element, and 0 where the ray misses the box or q has no light (LightPyramid.PixelDensity).
+// A pixel without light, most of the 3 × 3 around a hit in a dark region, returns before its depth's fetch.
+float pixelDensityOf(vec3 origin, vec3 direction, ivec2 q)
+{
+    bool inside = all(greaterThanEqual(q, ivec2(0))) && all(lessThan(q, textureSize(lightFinest, 0)));
+    float light = inside ? texelFetch(lightFinest, q, 0).r : 0.0;
+    if (light <= 0.0)
+        return 0.0;
+    float w = texelFetch(depthFinest, q, 0).r;
+    if (w <= 0.0)
+        return 0.0;
+    float front = 1.0 / w;
+    float back = (1.0 + TargetDepthShare) / w;
+    vec3 forward = frame.cameraForward.xyz;
+    float originDepth = dot(origin, forward);
+    float along = dot(direction, forward);
+    // The chord of the ray through the box: t from 0 where every side of the box holds the ray's point.
+    vec2 chord = chordInside(chordInside(vec2(0.0, NoChordEnd), originDepth - front, along), back - originDepth, -along);
+    vec3 right = frame.cameraRight.xyz / dot(frame.cameraRight.xyz, frame.cameraRight.xyz);
+    vec3 up = frame.cameraUp.xyz / dot(frame.cameraUp.xyz, frame.cameraUp.xyz);
+    for (int side = 0; side < 2; side++)
+    {
+        // The pixel's columns and rows, each edge a plane through the eye, as pixelOf places the jittered pixels.
+        vec2 edge = (vec2(q + side) + frame.renderParams.yz) * frame.viewport.zw * 2.0 - 1.0;
+        float facing = side == 0 ? 1.0 : -1.0;
+        vec3 acrossX = (right - edge.x * forward) * facing;
+        vec3 acrossY = (-up - edge.y * forward) * facing;
+        chord = chordInside(chord, dot(origin, acrossX), dot(direction, acrossX));
+        chord = chordInside(chord, dot(origin, acrossY), dot(direction, acrossY));
+    }
+    if (chord.y <= chord.x)
+        return 0.0;
+    // Simpson's rule over the chord: z changes by at most TargetDepthShare inside the box, so t² / z² is nearly a
+    // quadratic in t, which the rule integrates exactly.
+    float squares = (chord.y - chord.x) / 6.0 * (squareOverDepth(chord.x, originDepth, along)
+        + 4.0 * squareOverDepth(0.5 * (chord.x + chord.y), originDepth, along) + squareOverDepth(chord.y, originDepth, along));
+    // The pixel's area at depth 1, 4 tan h tan v / (width · height), times the box's depth: a uniform point of the box
+    // has the density 1 / (A z² dz).
+    float areaDepth = 4.0 * length(frame.cameraRight.xyz) * length(frame.cameraUp.xyz) * frame.viewport.z
+        * frame.viewport.w * (back - front);
+    return light * squares / areaDepth;
+}
+
+// The density per steradian with which a guided ray from `origin` runs along `direction` and counts, and whether one that
+// aims at `target` counts: it counts when the walk hits a pixel of the 3 × 3 around its target, and it crosses the
+// target's box. So the density sums pixelDensityOf over the 3 × 3 pixels around the hit, in rows from the top, over the
+// screen's guide light, which must be above 0 (ARCHITECTURE.md, "Guided diffuse rays", LightPyramid.GuidedDensity and
+// Counts).
+float guidedDensityOf(vec3 origin, vec3 direction, ivec2 hit, ivec2 target, out bool counts)
+{
+    float density = 0.0;
+    counts = false;
+    for (int y = -1; y <= 1; y++)
+        for (int x = -1; x <= 1; x++)
+        {
+            ivec2 q = hit + ivec2(x, y);
+            float pixel = pixelDensityOf(origin, direction, q);
+            density += pixel;
+            counts = counts || all(equal(q, target)) && pixel > 0.0;
+        }
+    return density / guideTotal();
+}
+
+// The density of the one-sample mixture of the cosine draw and the guided draw (LightPyramid.MixtureDensity).
+float mixtureDensity(float cosineDensity, float guidedDensity)
+{
+    return (1.0 - trace.guidedShare) * cosineDensity + trace.guidedShare * guidedDensity;
+}
+
 // The 16-bit units of a unit direction's octahedral code.
 uvec2 directionCodeOf(vec3 direction)
 {
@@ -420,11 +584,25 @@ TracedRay traceFrom(ivec2 pixel, TracingPixel p, uint kind)
     TracedRay result;
     uvec3 draw = drawOf(pixel, trace.drawIndex, DirectionDraw[kind]);
     vec2 u = vec2(unitOf(draw.x), unitOf(draw.y));
-    vec3 drawn = kind == KindReflection ? reflectionDirection(p, u) : diffuseDirection(p, u);
-    // The record holds the direction's code, and the resolve weighs the ray by the code's direction. So the ray walks
-    // that direction, and its density is that direction's: at the roughness floor, the rounding of the code alone moves
-    // D(h) by several percent.
-    result.direction = directionOfCode(directionCodeOf(drawn));
+    // A diffuse ray takes the guided draw by the draw's third word, while a lit pixel is in view (ARCHITECTURE.md,
+    // "Guided diffuse rays").
+    bool guiding = kind == KindDiffuse && trace.guidedShare > 0.0 && guideTotal() > 0.0;
+    bool guided = guiding && unitOf(draw.z) < trace.guidedShare;
+    ivec2 target = ivec2(-1);
+    vec3 drawn;
+    if (guided)
+    {
+        target = guidedTargetOf(pixel);
+        drawn = normalize(guidedPointOf(pixel, target) - p.origin);
+    }
+    else
+        drawn = kind == KindReflection ? reflectionDirection(p, u) : diffuseDirection(p, u);
+    // The record holds the direction's code, and the resolve weighs the ray by the code's direction. So a reflection ray
+    // walks that direction, and its density is that direction's: at the roughness floor, the rounding of the code alone
+    // moves D(h) by several percent. A diffuse ray walks its drawn direction: the guided density is a box function of
+    // the direction, and a rounded direction near a box's edge would count where its draw did not land, which loses
+    // light. Its cosine density and weight are smooth, so the code's rounding moves them by far less than a percent.
+    result.direction = kind == KindReflection ? directionOfCode(directionCodeOf(drawn)) : drawn;
     result.density = densityOf(p, kind, result.direction);
     result.light = vec3(0.0);
     result.distance = 0.0;
@@ -444,7 +622,25 @@ TracedRay traceFrom(ivec2 pixel, TracingPixel p, uint kind)
     vec3 missLight = missLightOf(p, pixel, kind, result.direction);
     result.light = missLight;
     if (walkScreen(depthFinest, depthPyramid, walk, steps, hit, hitPixel, entryShare) != WalkHit)
+    {
+        // A miss has no guided density. A guided ray counts only where it hits a pixel near its target, so a miss brings
+        // nothing.
+        if (guiding)
+            result.density = mixtureDensity(result.density, 0.0);
+        if (guided)
+            result.light = vec3(0.0);
         return result;
+    }
+    if (guiding)
+    {
+        bool counts;
+        result.density = mixtureDensity(result.density, guidedDensityOf(p.origin, result.direction, hitPixel, target, counts));
+        if (guided && !counts)
+        {
+            result.light = vec3(0.0);
+            return result;
+        }
+    }
     // The hit's surface point from its own distance, not from the ray's inverse depth, which is coarse far away.
     vec3 hitPoint = normalize(viewRayThrough(hit)) * texelFetch(gbufferDistance, hitPixel, 0).r;
     result.distance = length(hitPoint - p.origin);
