@@ -1,8 +1,8 @@
 ---
 id: ter-wkvw
 status: open
-deps: []
-links: [ter-18hc, ter-9371]
+deps: [tb-8zew]
+links: [ter-18hc, ter-9371, tb-4g6h]
 created: 2026-11-09T12:08:39Z
 type: feature
 priority: 1
