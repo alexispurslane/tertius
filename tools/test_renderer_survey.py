@@ -1,0 +1,243 @@
+#!/usr/bin/env python3
+"""Tool code. The scripts and the measures of tools/renderer-survey.py, on synthetic scripts and images.
+
+    nix develop --command python3 -I tools/test_renderer_survey.py
+
+It needs NumPy, SciPy and Pillow, which the dev shell gives. The file loads renderer-survey.py by its path, because
+python3 -I leaves the script's folder out of the import path and the file name holds a dash.
+"""
+
+import importlib.util
+import unittest
+from pathlib import Path
+
+import numpy as np
+
+spec = importlib.util.spec_from_file_location("renderer_survey", Path(__file__).with_name("renderer-survey.py"))
+survey = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(survey)
+
+
+def script(*steps):
+    return {"scene": "test", "window": {"width": 1280, "height": 720}, "steps": list(steps)}
+
+
+RUN = lambda ticks: {"do": "run", "ticks": ticks}
+CAPTURE = lambda name: {"do": "capture", "name": name}
+FILM = lambda name, frames, every: {"do": "film", "name": name, "frames": frames, "every": every}
+CAMERA = lambda entity: {"do": "camera", "entity": entity}
+MARK = [{"do": "capture", "name": "mark"}]
+
+
+def ticks_before_mark(built):
+    ticks = 0
+    for step in built["steps"]:
+        if step == MARK[0]:
+            return ticks
+        if step["do"] == "run":
+            ticks += step["ticks"]
+        if step["do"] == "film":
+            ticks += step["frames"] * step["every"]
+    raise AssertionError("no mark")
+
+
+class Views(unittest.TestCase):
+    """views_script: a frame's state without a render, then the view's own steps."""
+
+    def test_a_capture_after_a_run_keeps_the_run_and_drops_the_earlier_captures(self):
+        source = script(CAMERA("a"), RUN(30), CAPTURE("one"), RUN(10), CAPTURE("two"), RUN(5), CAPTURE("three"))
+        built, still = survey.views_script(source, {1: MARK})
+        self.assertEqual(built["steps"], [CAMERA("a"), RUN(30), RUN(10), MARK[0]])
+        self.assertTrue(still[1], "no frame was drawn before, so the view's first capture is a still")
+
+    def test_a_film_frame_reaches_the_ticks_of_that_frame(self):
+        source = script(RUN(4), FILM("f", 10, 3), CAPTURE("after"))
+        built, _ = survey.views_script(source, {4: MARK})
+        self.assertEqual(ticks_before_mark(built), 4 + 5 * 3, "film frame 4 shows the state after 5 of its steps")
+
+    def test_the_steps_between_two_views_run_and_their_renders_do_not(self):
+        source = script(CAPTURE("a"), RUN(2), CAMERA("b"), CAPTURE("b"))
+        built, still = survey.views_script(source, {0: MARK, 1: MARK})
+        self.assertEqual(built["steps"], [MARK[0], RUN(2), CAMERA("b"), MARK[0]])
+        self.assertTrue(still[0])
+        self.assertFalse(still[1], "two ticks after a drawn frame is no still: the step is under 0.09 s")
+
+    def test_a_view_six_ticks_after_a_drawn_frame_is_a_still(self):
+        source = script(CAPTURE("a"), RUN(6), CAPTURE("b"))
+        _, still = survey.views_script(source, {0: MARK, 1: MARK})
+        self.assertTrue(still[1])
+
+    def test_a_frame_past_the_end_is_refused(self):
+        with self.assertRaises(ValueError):
+            survey.views_script(script(CAPTURE("a")), {1: MARK})
+
+    def test_the_shown_still_is_the_first_capture_with_120_draws(self):
+        self.assertEqual(survey.still_draws(True, survey.still_capture_index(True)), 132)
+        self.assertEqual(survey.still_draws(False, survey.still_capture_index(False)), 133)
+
+    def test_a_timing_film_draws_frames_one_tick_apart(self):
+        built = survey.timing_script(script(RUN(100), CAPTURE("a")), 0)
+        self.assertEqual(built["steps"][-1], FILM("t", survey.TIMING_FRAMES, 1))
+
+    def test_a_motion_film_draws_each_frame_one_tick_after_the_last_and_keeps_the_scripts_ticks(self):
+        built = survey.motion_script(script(FILM("f", 10, 6)), 2, 3)
+        films = [s for s in built["steps"] if s["do"] == "film"]
+        self.assertEqual([f["every"] for f in films], [1, 1, 1])
+        ticks = sum(s["ticks"] for s in built["steps"] if s["do"] == "run") + len(films)
+        self.assertEqual(ticks, 3 * 6 + 3 * 6, "the start's state, then each frame's six ticks")
+
+
+class MotionReferences(unittest.TestCase):
+    def test_a_reference_reaches_the_state_of_its_film_frame_and_names_its_still_of_120_draws(self):
+        motion = script(RUN(30), FILM("m0000", 1, 1), FILM("m0001", 1, 1), FILM("m0002", 1, 1))
+        built, names = survey.motion_references_script(motion, [2])
+        mark = built["steps"].index({"do": "capture", "name": "r0002-s00"})
+        ticks = sum(s["ticks"] for s in built["steps"][:mark] if s["do"] == "run")
+        self.assertEqual(ticks, 33, "the state of the third film frame")
+        self.assertEqual(names[2], "r0002-s03", "the first capture is a still, so the fourth has 132 draws")
+
+
+class Switches(unittest.TestCase):
+    def test_the_switch_turns_the_lamps_off_for_200_draws_from_the_draw_of_its_film_frame(self):
+        runs = survey.switch_runs({"select": "x:1:2", "sun": "off"})
+        first = survey.STILL_DRAWS + survey.SWITCH_OFF
+        self.assertEqual(runs["switch"]["TERTIUS_PROBE_LAMP_OFF"], f"{first}-{first + 200}")
+        self.assertNotIn("TERTIUS_PROBE_LAMP_OFF", runs["on"])
+        self.assertTrue(all(r["TERTIUS_PROBE_SUN"] == "off" for r in runs.values()))
+
+    def test_the_film_follows_the_lamps_for_100_draws_after_they_come_back_on(self):
+        film = survey.switch_script({"scene": "s", "camera": None, "ticks": 10})["steps"][-1]
+        self.assertEqual(film["frames"] - survey.SWITCH_ON, 100)
+
+
+class Settle(unittest.TestCase):
+    def test_a_series_that_stays_within_the_tolerance_settles_at_once(self):
+        self.assertEqual(survey.settle_draws([1.0] * 10, [1.02] * 10, 0, 10), 0)
+
+    def test_the_settle_ends_at_the_last_frame_outside_the_tolerance(self):
+        series = [2.0, 1.5, 1.2, 1.04, 1.1, 1.0, 1.0]
+        self.assertEqual(survey.settle_draws(series, [1.0] * 7, 0, 7), 5, "frame 4 is the last one outside 5 %")
+
+    def test_a_series_still_outside_the_tolerance_at_the_windows_end_did_not_settle(self):
+        series = [2.0, 1.0, 1.0, 1.2]
+        self.assertIsNone(survey.settle_draws(series, [1.0] * 4, 0, 4), "no count, not the window's length of 4")
+
+    def test_a_series_inside_the_tolerance_only_at_the_windows_last_frame_settles_there(self):
+        self.assertEqual(survey.settle_draws([2.0, 2.0, 2.0, 1.0], [1.0] * 4, 0, 4), 3)
+
+    def test_the_slowest_region_decides_and_one_that_did_not_settle_decides_alone(self):
+        self.assertEqual(survey.slowest_settle([4, 40, 12]), 40)
+        self.assertIsNone(survey.slowest_settle([4, None, 12]))
+        self.assertEqual(survey.slowest_settle([]), 0, "no changed region leaves nothing to settle")
+
+    def test_a_count_that_did_not_settle_reads_as_not_settled_within_the_window(self):
+        self.assertEqual(survey.settle_text(None, 200), "not settled within 200 draws")
+        self.assertEqual(survey.settle_text(48, 200), "48")
+
+    def test_only_regions_that_the_switch_changes_count(self):
+        self.assertEqual(survey.changed_regions([1.0, 0.5, 0.95], [1.0, 1.0, 1.0]), [1])
+
+    def test_a_film_that_trails_the_still_lags_by_the_difference_over_the_change_per_draw(self):
+        self.assertAlmostEqual(survey.lag(film=1.0, still=1.1, slope=0.01), 10.0)
+
+    def test_a_light_that_barely_changes_gives_no_lag(self):
+        self.assertIsNone(survey.lag(film=1.0, still=1.001, slope=0.0001))
+
+
+def flat(value=0.2, shape=(96, 128)):
+    return np.full(shape, value, dtype=np.float32)
+
+
+class Measures(unittest.TestCase):
+    def test_a_lone_bright_pixel_is_a_speck_and_one_that_the_reference_holds_is_not(self):
+        reference = flat()
+        reference[10, 10] = 0.9
+        still = reference.copy()
+        still[50, 60] = 0.9
+        visible = int(survey.visible(reference).sum())
+        self.assertAlmostEqual(survey.specks(still, reference), 1e4 / visible)
+
+    def test_an_image_equal_to_its_reference_has_no_blotch(self):
+        self.assertEqual(survey.blotch(flat(), flat())[0], 0.0)
+
+    def test_a_wide_bright_patch_is_a_blotch(self):
+        still = flat()
+        still[30:60, 40:80] *= 1.2
+        score, _ = survey.blotch(still, flat())
+        self.assertGreater(score, survey.BLOTCH_LIMIT)
+
+    def test_the_bloom_of_a_lamp_that_changes_from_draw_to_draw_is_no_blotch(self):
+        reference = flat()
+        reference[40:44, 60:64] = 0.95
+        still = reference.copy()
+        still[30:56, 48:76] *= 1.5
+        still[40:44, 60:64] = 0.95
+        self.assertLess(survey.blotch(still, reference)[0], survey.BLOTCH_LIMIT)
+
+    def test_a_brighter_whole_image_is_a_level_change_and_no_blotch(self):
+        still = flat() * 1.03
+        self.assertAlmostEqual(survey.level(still, flat()), 0.03, places=4)
+        self.assertLess(survey.blotch(still, flat())[0], 1e-4)
+
+    def test_grain_without_low_frequency_error_hardly_moves_the_blotch(self):
+        rng = np.random.default_rng(1)
+        still = flat() * (1 + 0.1 * rng.standard_normal((96, 128)).astype(np.float32))
+        self.assertLess(survey.blotch(still, flat())[0], survey.BLOTCH_LIMIT / 2)
+
+    def test_a_light_that_rises_steadily_does_not_flicker(self):
+        low, grain = survey.flicker(flat(0.1 + 0.01 * t) for t in range(10))
+        self.assertLess(low, 1e-6)
+        self.assertLess(grain, 1e-6)
+
+    def test_a_light_that_pumps_from_frame_to_frame_flickers(self):
+        low, _ = survey.flicker(flat(0.2 * (1.1 if t % 2 else 1.0)) for t in range(10))
+        self.assertGreater(low, survey.FLICKER_LIMIT)
+
+    def test_a_moving_object_adds_at_most_its_share_of_the_image_times_the_cap(self):
+        frames = []
+        for t in range(9):
+            y = flat()
+            y[:, 8 * t:8 * t + 8] = 0.9
+            frames.append(y)
+        low, grain = survey.flicker(frames)
+        self.assertLessEqual(grain, 3 * 8 / 128 * survey.FLICKER_CAP + 1e-6)
+
+    def test_region_means_give_the_whole_image_first_and_then_each_cell(self):
+        y = np.zeros((6, 6), dtype=np.float32)
+        y[:2, :2] = 9.0
+        means = survey.region_means(y)
+        self.assertEqual(len(means), 1 + survey.GRID ** 2)
+        self.assertAlmostEqual(means[0], 1.0)
+        self.assertAlmostEqual(means[1], 9.0)
+
+
+class Verdicts(unittest.TestCase):
+    def test_a_moving_light_whose_film_errs_by_more_than_the_limit_fails_though_its_lag_is_short(self):
+        rows = [{"error": -0.3, "lagDraws": 20.0}, {"error": -0.2, "lagDraws": 25.0}, {"error": 0.0, "lagDraws": None}]
+        self.assertEqual(survey.lag_verdict({"lagDraws": 22.0, "rows": rows}), ["lag error"])
+
+    def test_a_moving_light_that_tracks_within_the_limit_passes(self):
+        rows = [{"error": 0.02, "lagDraws": 4.0}, {"error": -0.05, "lagDraws": 9.0}]
+        self.assertEqual(survey.lag_verdict({"lagDraws": 6.0, "rows": rows}), [])
+
+    def test_a_frame_whose_p95_exceeds_the_budget_at_the_windowed_clock_fails(self):
+        self.assertEqual(survey.timing_verdict({"p95AtWindowedMs": 12.1}), ["time"])
+        self.assertEqual(survey.timing_verdict({"p95AtWindowedMs": 11.9}), [])
+
+    def test_a_film_darker_than_its_still_by_more_than_the_lag_limit_fails(self):
+        film = {"flicker": 0.0, "grainFlicker": 0.0, "blotch": 0.0, "level": -0.2}
+        self.assertEqual(survey.motion_verdict(film), ["motion level"])
+        self.assertEqual(survey.motion_verdict({**film, "level": -0.05}), [])
+
+    def test_a_settle_over_the_goal_fails_and_so_does_one_that_did_not_settle_within_its_window(self):
+        self.assertEqual(survey.settle_verdict(61), ["settle"])
+        self.assertEqual(survey.settle_verdict(60), [])
+        self.assertEqual(survey.settle_verdict(None), ["settle"])
+
+    def test_a_moving_light_that_lags_more_than_the_goal_fails_and_one_too_steady_for_a_lag_passes(self):
+        self.assertEqual(survey.lag_verdict({"lagDraws": 61.0, "rows": []}), ["lag"])
+        self.assertEqual(survey.lag_verdict({"lagDraws": None, "rows": []}), [])
+
+
+if __name__ == "__main__":
+    unittest.main()

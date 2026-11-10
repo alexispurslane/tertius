@@ -1,0 +1,105 @@
+--- a/src/Tertius.Host/ScriptCommand.Options.cs	2026-11-09 15:06:44
++++ b/src/Tertius.Host/ScriptCommand.Options.cs	2026-11-09 15:06:44
+@@ -107,6 +107,9 @@
+                 options.EnvironmentMap = new NoEnvironmentMap();
+             if (SubsurfaceOff)
+                 options.Subsurface = new NoSubsurface();
++            // PROBE (tools/renderer-survey): a fixed exposure in stops from TERTIUS_PROBE_EXPOSURE.
++            if (Environment.GetEnvironmentVariable("TERTIUS_PROBE_EXPOSURE") is { Length: > 0 } stops)
++                options.Exposure = new FixedExposure(float.Parse(stops, System.Globalization.CultureInfo.InvariantCulture));
+             if (FramesInFlight is { } count)
+             {
+                 options.FramesInFlight = count;
+--- a/src/Tertius.Rendering/Frame/FrameHistory.cs	2026-11-09 15:06:44
++++ b/src/Tertius.Rendering/Frame/FrameHistory.cs	2026-11-09 15:06:44
+@@ -185,7 +185,11 @@
+     {
+         Contract.Requires(draw >= 0 && draw < DrawsOf(step));
+         bool still = IsStill(step);
+-        bool reset = Resets(snapshot: snapshot, outputSize: outputSize, firstOfAStill: still && draw == 0);
++        // PROBE (tools/renderer-survey): with TERTIUS_PROBE_STILL_CONTINUES=1, a still keeps the history of the draws
++        // before it, as a window keeps drawing an unchanged view. A camera cut, a new output size and the first drawn
++        // frame still reset.
++        bool reset = Resets(snapshot: snapshot, outputSize: outputSize,
++            firstOfAStill: still && draw == 0 && Environment.GetEnvironmentVariable("TERTIUS_PROBE_STILL_CONTINUES") != "1");
+         derived = new(
+             Reset: reset,
+             DrawIndex: reset ? 0 : lastDrawIndex + 1,
+--- a/src/Tertius.Rendering/Frame/FrameResources.cs	2026-11-09 15:06:44
++++ b/src/Tertius.Rendering/Frame/FrameResources.cs	2026-11-09 15:06:44
+@@ -248,7 +248,54 @@
+             Array.Resize(ref gpuLights, Math.Max(scene.LightCount, gpuLights.Length * 2));
+         for (int i = 0; i < scene.LightCount; i++)
+             gpuLights[i] = GpuLight.From(scene.Lights[i]);
++        ProbeLamps(gpuLights.AsSpan(0, scene.LightCount));
+         return gpuLights.AsSpan(0, scene.LightCount);
++    }
++
++    // PROBE (tools/renderer-survey, never commit to src): TERTIUS_PROBE_LAMP_OFF="a-b,c-d" turns the selected local lights
++    // off in the draws a <= draw < b, counted from 0 over every draw of the run. TERTIUS_PROBE_LAMP_SEL = all, or
++    // x:lo:hi, y:lo:hi or z:lo:hi, selects the local lights whose world position lies in that range on that axis.
++    // TERTIUS_PROBE_SUN=off turns off every light whose reach is at least 10^6 m.
++    private static int probeDraw;
++    private static readonly (int From, int To)[] ProbeRanges = (Environment.GetEnvironmentVariable("TERTIUS_PROBE_LAMP_OFF") ?? "")
++        .Split(',', StringSplitOptions.RemoveEmptyEntries)
++        .Select(r => r.Split('-'))
++        .Select(r => (int.Parse(r[0]), int.Parse(r[1])))
++        .ToArray();
++    private static readonly string[] ProbeSelect = (Environment.GetEnvironmentVariable("TERTIUS_PROBE_LAMP_SEL") ?? "all").Split(':');
++    private static readonly bool ProbeSunOff = Environment.GetEnvironmentVariable("TERTIUS_PROBE_SUN") == "off";
++
++    private static void ProbeLamps(Span<GpuLight> lights)
++    {
++        int draw = probeDraw++;
++        if (ProbeSunOff)
++            for (int i = 0; i < lights.Length; i++)
++                if (lights[i].PositionReach.W >= 1e6f)
++                    lights[i].IntensityKind = new Vector4(0, 0, 0, lights[i].IntensityKind.W);
++        bool off = false;
++        foreach ((int from, int to) in ProbeRanges)
++            off |= draw >= from && draw < to;
++        if (!off)
++            return;
++        int count = 0;
++        for (int i = 0; i < lights.Length; i++)
++        {
++            Vector4 p = lights[i].PositionReach;
++            bool chosen = ProbeSelect[0] switch
++            {
++                "x" => p.X >= float.Parse(ProbeSelect[1]) && p.X <= float.Parse(ProbeSelect[2]),
++                "y" => p.Y >= float.Parse(ProbeSelect[1]) && p.Y <= float.Parse(ProbeSelect[2]),
++                "z" => p.Z >= float.Parse(ProbeSelect[1]) && p.Z <= float.Parse(ProbeSelect[2]),
++                _ => true,
++            };
++            if (chosen && p.W > 0 && p.W < 1e6f)
++            {
++                lights[i].IntensityKind = new Vector4(0, 0, 0, lights[i].IntensityKind.W);
++                count++;
++            }
++        }
++        if (ProbeRanges.Any(r => r.From == draw))
++            Console.Error.WriteLine($"PROBE draw {draw}: {count} of {lights.Length} lights off");
+     }
+ 
+     /// <summary>A storage buffer of this frame that the CPU rewrites each frame, named after the frame and <paramref name="contents"/>.</summary>
+--- a/src/Tertius.Rendering/Shaders/tonemap.glsl	2026-11-09 15:06:44
++++ b/src/Tertius.Rendering/Shaders/tonemap.glsl	2026-11-09 15:06:44
+@@ -67,6 +67,18 @@
+ #endif
+     // The passes that wrote the HDR image pre-exposed it, so the curve takes it as it is.
+     vec3 hdr = max(light, vec3(0.0));
++    if (tonemap.toneCurve != toneCurveAcesFitted)
++    {
++        // PROBE (tools/renderer-survey): log2 luminance in 24 bits over 2^-24 to 2^16, each byte written as the linear
++        // value whose sRGB code it is.
++        float y = dot(hdr, vec3(0.2126, 0.7152, 0.0722));
++        float v = y > 0.0 ? clamp((log2(y) + 24.0) / 40.0, 0.0, 1.0) : 0.0;
++        uint q = uint(v * 16777215.0 + 0.5);
++        vec3 bytes = vec3(float(q >> 16u), float((q >> 8u) & 255u), float(q & 255u)) / 255.0;
++        vec3 lin = mix(bytes / 12.92, pow((bytes + 0.055) / 1.055, vec3(2.4)), step(vec3(0.04045), bytes));
++        outColor = vec4(tonemap.encodeSrgb != 0u ? bytes : lin, 1.0);
++        return;
++    }
+     vec3 ldr = tonemap.toneCurve == toneCurveAcesFitted ? acesFitted(hdr) : hable(hdr);
+     if (tonemap.encodeSrgb != 0u)
+         ldr = linearToSrgb(ldr);
