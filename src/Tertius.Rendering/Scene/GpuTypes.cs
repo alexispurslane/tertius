@@ -279,6 +279,15 @@ internal struct GpuLight
     /// <summary>The kind of a rectangle light in <see cref="IntensityKind"/>.w.</summary>
     public const float RectKind = 3f;
 
+    /// <summary>The shape of a point or a spot light, and its bit in <see cref="GpuFrameConstants.Counts"/>.W.</summary>
+    public const uint PointShape = 1;
+
+    /// <summary>The shape of a tube light, and its bit in <see cref="GpuFrameConstants.Counts"/>.W.</summary>
+    public const uint TubeShape = 2;
+
+    /// <summary>The shape of a rectangle light, and its bit in <see cref="GpuFrameConstants.Counts"/>.W.</summary>
+    public const uint RectShape = 4;
+
     /// <summary>The slot of a light without shadows, in <see cref="Shadow"/>.x.</summary>
     public const uint NoSlot = 0;
 
@@ -345,8 +354,7 @@ internal struct GpuLight
                 inner,
                 SpotKind
             ),
-            // A segment within 10^−6 m of its middle is a point, and its square stays a normal float in the shader.
-            EveryDirection { HalfSegment: var half } when half.LengthSquared() > 1e-12f => (
+            EveryDirection { HalfSegment: var half } when IsSegment(half) => (
                 new Vector4(half, 0),
                 Vector4.Zero,
                 0f,
@@ -386,6 +394,25 @@ internal struct GpuLight
             InMainView = light.InMainView ? 1u : 0u,
         };
     }
+
+    /// <summary>
+    /// The shape of <paramref name="light"/>, as the shaders read it from the kind that <see cref="From"/> gives:
+    /// <see cref="PointShape"/>, <see cref="TubeShape"/> or <see cref="RectShape"/>. Each shape has a light loop of its own.
+    /// </summary>
+    public static uint ShapeOf(in PreparedLight light) =>
+        light.Spread switch
+        {
+            Cone => PointShape,
+            EveryDirection { HalfSegment: var half } when IsSegment(half) => TubeShape,
+            EveryDirection => PointShape,
+            RectFace => RectShape,
+        };
+
+    /// <summary>
+    /// Whether a light with <paramref name="halfSegment"/> is a tube: a segment within 10^−6 m of its middle is a point, and
+    /// a longer one's square stays a normal float in the shader.
+    /// </summary>
+    private static bool IsSegment(Vector3 halfSegment) => halfSegment.LengthSquared() > 1e-12f;
 
     private static UInt3 OccludersOf(OccluderRange range, int mapped) =>
         new(X: (uint)range.Start, Y: (uint)range.Count, Z: (uint)mapped);
@@ -511,8 +538,8 @@ internal struct GpuFrameConstants
     /// <summary>
     /// x: the lights; y: the place in the light list of the atmosphere's sun (<see cref="PreparedScene.AirSunLight"/>), or
     /// <see cref="NoAirSun"/>, by which the shaders choose the light loop that takes no tint; z: the cascades of each drawn
-    /// cascade set, <see cref="ShadowCascades.Count"/>, or 0 when no set was drawn; w: the rectangle lights of the list, by
-    /// which the shaders skip the rectangles' own loop when there are none.
+    /// cascade set, <see cref="ShadowCascades.Count"/>, or 0 when no set was drawn; w: the shapes of the list's lights, one
+    /// bit each (<see cref="GpuLight.ShapeOf"/>), by which the shaders skip the loop of a shape that the list lacks.
     /// </summary>
     public UInt4 Counts;
 
