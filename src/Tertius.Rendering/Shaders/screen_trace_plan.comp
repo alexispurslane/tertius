@@ -16,9 +16,10 @@ layout(local_size_x = 8, local_size_y = 8) in;
 // another pre-exposure.
 const float LightChangeShare = 0.02;
 
-// The least weight of a tap whose last light the record's footprint takes in: the rounding of a still frame's place gives
-// its other taps weights near 0, which must not widen the band of the pixel's own light to its neighbors'.
-const float FootprintWeight = 1.0 / 64.0;
+// The least weight of a tap other than the nearest whose last light the record's footprint takes in: the rounding of a
+// still frame's pixel place gives its other taps weights near 0, which must not widen the band of the pixel's own light
+// to its neighbors'.
+const float LeastFootprintWeight = 1.0 / 64.0;
 
 // The exact light at the pixel, the light that has no noise in a still scene: the luminance of the demodulated direct
 // diffuse light and of the glow that the pixel sends, with the pre-exposure undone, so that an exposure change is no light
@@ -41,15 +42,16 @@ bool leaves(float light, float least, float most, float cutoff)
     return light > most + max(most * LightChangeShare, cutoff) || light < least - max(least * LightChangeShare, cutoff);
 }
 
-// This frame's light-age record of the pixel: its exact light, and its age. The last record reprojects through the
-// surface test from the tap of the largest weight, the pixel's own place in a still frame, so that no age spreads to a
-// neighbor. A pixel without a history, as in a reset frame or where a surface is uncovered, is shown for the first time:
+// This frame's light-age record of the pixel: its exact light, and its age. The last record's age, pending draws and
+// 3 × 3 range reproject through the surface test from the tap of the largest weight, the pixel's own place in a still
+// frame, so that no age spreads to a neighbor. Its last light is the taps' weighted mean. A pixel without a history, as in a reset frame or where a surface is uncovered, is shown for the first time:
 // NoLightAge. A light moves when it leaves the range of the last exact light over the 3 × 3 pixels around that tap. A move
 // counts as a change only when it lasts LightChangeDraws draws in a row (ticket tiunr-okzm, ARCHITECTURE.md).
 // Until then the record keeps its last light at the pixel's surface point, the taps' weighted mean, and counts the draws,
 // and a light back inside the range drops the count. The record takes a light inside the range only near the last lights
-// of its footprint, the taps that its place lies between: a light that only a neighbor's explains, as at an edge under
-// jitter, would carry a pending change of the neighbors into their ranges. Otherwise the age grows by a frame.
+// of its footprint, the nearest tap and the taps of weight LeastFootprintWeight or more: a light that only a neighbor's
+// explains, as at an edge under jitter, would carry a pending change of the neighbors into their ranges. Otherwise the
+// age grows by a frame.
 // A light that the record never saw change keeps no evidence, but counts the frames that showed it: its value falls by one.
 vec2 lightAgeOf(ivec2 pixel)
 {
@@ -81,12 +83,12 @@ vec2 lightAgeOf(ivec2 pixel)
             most = max(most, neighbor);
         }
     // The last light at the pixel's surface point, the weighted mean of the last records at the taps, and the range of
-    // the taps that weigh at least FootprintWeight: in a still frame both are the center's own light. Under motion over a
+    // the footprint: at a still frame's pixel place both are the center's own light, up to the rounding of the place. Under motion over a
     // steep light, the light leaves the band around any one last light every draw, and the record would keep a last light
     // from which the pixel's light drifts until it leaves the 3 × 3 range (ticket tb-8zew). The center passes the defense
-    // above, so the weights add up to more than 0.
+    // above, so the sum of the weights is more than 0.
     float lastLight = 0.0;
-    float weights = 0.0;
+    float weightSum = 0.0;
     float footprintLeast = lastRecord.r;
     float footprintMost = lastRecord.r;
     for (uint tap = 0u; tap < 4u; tap++)
@@ -97,14 +99,14 @@ vec2 lightAgeOf(ivec2 pixel)
         if (recorded < 0.0)
             continue;
         lastLight += r.weights[tap] * recorded;
-        weights += r.weights[tap];
-        if (r.weights[tap] >= FootprintWeight)
+        weightSum += r.weights[tap];
+        if (r.weights[tap] >= LeastFootprintWeight)
         {
             footprintLeast = min(footprintLeast, recorded);
             footprintMost = max(footprintMost, recorded);
         }
     }
-    lastLight /= weights;
+    lastLight /= weightSum;
     float age = ageOfRecord(lastRecord.g);
     float older = age < 0.0 ? max(age - 1.0, -MostLightAge - 1.0) : min(age + 1.0, MostLightAge);
     // The floor: the cutoff radiance with the pre-exposure undone, on the demodulated light. A base color of at most 1

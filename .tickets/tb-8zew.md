@@ -2,7 +2,7 @@
 id: tb-8zew
 status: in_progress
 deps: []
-links: []
+links: [tb-4g6h]
 created: 2026-11-10T00:34:37Z
 type: bug
 priority: 1

@@ -82,28 +82,84 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                 );
                 Draw(renderer, scene, 16);
                 long commits = 0;
+                long moves = 0;
+                float[] last = renderer.ReadLightAge();
 
                 for (int frame = 0; frame < 48; frame++)
                 {
-                    scene.Camera.PreviousPosition = scene.Camera.Position;
-                    scene.Camera.Position += new Vector3(0, 0, -0.04f);
+                    Step(scene);
                     Draw(renderer, scene, 1);
                     float[] record = renderer.ReadLightAge();
                     float[] distance = renderer.ReadDistance();
-                    commits += Enumerable
-                        .Range(Width, Width * (Height - 2))
-                        .Count(pixel => AgeAt(record, pixel) == 0 && InsideTheFloor(distance, pixel));
+                    int[] away =
+                    [
+                        .. Enumerable
+                            .Range(Width, Width * (Height - 2))
+                            .Where(pixel => AwayFromARowDepthEdge(distance, pixel)),
+                    ];
+                    commits += away.Count(pixel => AgeAt(record, pixel) == 0);
+                    moves += away.Count(pixel =>
+                        ExactLightAt(last, pixel) > 0
+                        && MathF.Abs(ExactLightAt(record, pixel) / ExactLightAt(last, pixel) - 1) > 0.02f
+                    );
+                    last = record;
                 }
 
-                output.WriteLine($"Walk toward a still lamp: {commits} committed light changes over 48 draws.");
+                output.WriteLine(
+                    $"Walk toward a still lamp: {commits} committed light changes, {moves} pixel moves over 48 draws."
+                );
+                moves
+                    .Should()
+                    .BeGreaterThan(
+                        1000,
+                        "the walk must move pixels across the lamp's steep light by more than the share"
+                    );
                 commits.Should().Be(0, "no light changed: the walk only moves the pixels over the lamp's still light");
+            }
+        );
 
-                // A floor pixel whose rows above and below show the floor too, not the emitter's edge, which the walk
-                // moves over the floor: the floor's distance changes by less than a quarter from row to row.
-                static bool InsideTheFloor(float[] distance, int pixel) =>
-                    distance[pixel] > 0
-                    && MathF.Abs(distance[pixel - Width] / distance[pixel] - 1) < 0.25f
-                    && MathF.Abs(distance[pixel + Width] / distance[pixel] - 1) < 0.25f;
+    [Fact]
+    public void AWalkTowardADimmingEmitterStillCommitsItsChange() =>
+        WithRenderer(
+            null,
+            (renderer, scene) =>
+            {
+                Draw(renderer, scene, 16);
+                for (int frame = 0; frame < 8; frame++)
+                {
+                    Step(scene);
+                    Draw(renderer, scene, 1);
+                }
+                SetGlow(renderer, scene, new(3.2f));
+
+                for (int frame = 0; frame < LightChangeDraws + 2; frame++)
+                {
+                    Step(scene);
+                    Draw(renderer, scene, 1);
+                }
+
+                float[] record = renderer.ReadLightAge();
+                int[] interior = InteriorPixels(record, least: 2.5f);
+                output.WriteLine(
+                    "Ages of the interior after the walk: "
+                        + string.Join(
+                            ", ",
+                            interior
+                                .GroupBy(pixel => AgeAt(record, pixel))
+                                .OrderBy(g => g.Key)
+                                .Select(g => $"{g.Key}: {g.Count()}")
+                        )
+                );
+                interior.Length.Should().BeGreaterThan(20, "the emitter must cover pixels whose neighbors are all lit");
+                // At least 90%, not the 95% of a still camera: under motion, 7.5% of the interior misses the change, also
+                // with the band around the nearest tap's light that the record took before tb-8zew (ticket tb-4g6h).
+                interior
+                    .Count(pixel => AgeAt(record, pixel) is >= 0 and <= 2)
+                    .Should()
+                    .BeGreaterThanOrEqualTo(
+                        interior.Length * 90 / 100,
+                        "the glow fell 20% while the camera walked, and the change counts on its fourth draw"
+                    );
             }
         );
 
@@ -1210,6 +1266,23 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
         emitter.Material = ReflectionTesting.Glow(renderer, radiance);
         scene.Instances[1] = emitter;
     }
+
+    /// <summary>One draw's step of the walks: the camera moves 4 cm toward the emitter.</summary>
+    private static void Step(RenderSnapshot scene)
+    {
+        scene.Camera.PreviousPosition = scene.Camera.Position;
+        scene.Camera.Position += new Vector3(0, 0, -0.04f);
+    }
+
+    /// <summary>
+    /// A pixel whose rows above and below lie within a quarter of its distance: away from the horizontal depth edges, such
+    /// as the emitter's lower edge over the floor, which the walk moves across the image. A pixel beside a vertical depth
+    /// edge passes.
+    /// </summary>
+    private static bool AwayFromARowDepthEdge(float[] distance, int pixel) =>
+        distance[pixel] > 0
+        && MathF.Abs(distance[pixel - Width] / distance[pixel] - 1) < 0.25f
+        && MathF.Abs(distance[pixel + Width] / distance[pixel] - 1) < 0.25f;
 
     /// <summary>The pixels whose exact light and whose eight neighbors' exact light are at least <paramref name="least"/>.</summary>
     private static int[] InteriorPixels(float[] record, float least) =>
