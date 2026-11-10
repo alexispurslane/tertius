@@ -74,7 +74,75 @@ The limits come from the eye, and two scenes anchor them: the lamp hall as clean
 
 ## The baseline
 
-BASELINE
+The baseline measures main at commit `fc1c51476`, on 2026-11-09 and 2026-11-10. It ran before steps 3 and 4 merged. The survey's results are in `/private/tmp/tertius-survey-baseline-20261109`, and `report.md` there holds the full tables.
+
+### Frame time
+
+Every one of the 90 views ran at a GPU clock of 1295 to 1296 MHz, with no Android emulator. The table counts the views by the p95 of their GPU frame span.
+
+| Band of p95 | Views |
+|---|---:|
+| At most 12 ms | 22 |
+| 12 to 14.2 ms | 23 |
+| 14.2 to 16.7 ms | 11 |
+| 16.7 to 21 ms | 12 |
+| Above 21 ms | 22 |
+
+So 22 views meet the 12 ms budget, and 56 views stay within 16.7 ms. The six slowest views are `exit-cabin` (35.3 ms), `docking-cabin` (33.3 ms), `spin-standing` (31.0 ms), `exit-deck` (30.8 ms), `deck-cuts` (30.6 ms) and `docking-bay` (30.3 ms). The deck's p95, the view `exit-deck`, is 30.8 ms.
+
+The 22 views above 21 ms are the candidates for the list of heavy views of decision 5: `airlock-door`, `bay-sunbeam`, `box-cabin`, `cabin-light-cabin`, `deck-cuts`, `docking-bay`, `docking-cabin`, `exit-cabin`, `exit-chute`, `exit-deck`, `exit-floor`, `exit-stack`, `floor`, `lamp-hall-16-hair`, `pillar-room`, `rect-bay`, `rect-lamps`, `spin-standing`, `station-cabin`, `surface-cabin`, `surface-terminal` and `terminal`. Step 10 names the list from the times after the plan.
+
+The first survey gave `bay-sunbeam` a p95 of 33.8 ms beside the emulator. Without it, the view takes 24.3 ms. The view `spacewalk` fell by 4.2 ms in the same way. The other 88 views moved by at most 0.7 ms.
+
+### Stills
+
+5 of 90 stills fail.
+
+| Still | Specks | Blotch score | Fails on |
+|---|---:|---:|---|
+| `rect-lamps` | 1.34 | 0.156 | Specks and blotches |
+| `bay-sunbeam` | 0.04 | 0.085 | Blotches |
+| `docking-bay` | 0.24 | 0.081 | Blotches |
+| `terminal` | 0.01 | 0.056 | Blotches |
+| `surface-terminal` | 0.01 | 0.056 | Blotches |
+
+A full disk stopped one chunk of the still part, so 8 stills have no baseline result: `launch-climb`, `meshes`, `shuttle`, `surface-terminal`, `surface-apron`, `surface-cabin`, `surface-overview` and `doorway-inside`. The table and the count take their values from the first survey, which measured the same source code. Only `surface-terminal` of them fails. The still `lamp-hall-16-hair` now passes with 0.91 specks, and `rect-lamps` now fails with 1.34 specks. Its scene, the orbit station, runs physics before the still, so its state can differ from run to run.
+
+### Films
+
+9 of 18 films fail.
+
+| Film | Camera | Flicker | Blotch score | Motion level | Fails on |
+|---|---|---:|---:|---:|---|
+| `bay-sunbeam` | Fixed | 0.0078 | 0.421 | −71 % | Blotches, level, flicker |
+| `rect-bay` | Fixed | 0.0024 | 0.354 | +238 % | Blotches, level |
+| `exit-floor` | Moving | 0.0040 | 0.298 | +12 % | Blotches, level |
+| `docking-landing` | Moving | 0.0033 | 0.208 | +7 % | Blotches |
+| `rect-lamps` | Fixed | 0.0034 | 0.178 | −3 % | Blotches |
+| `lamp-hall-4-spot-moving` | Fixed | 0.0124 | 0.116 | 0 % | Blotches, flicker |
+| `lamp-hall-64-moving` | Fixed | 0.0036 | 0.069 | +1 % | Blotches |
+| `lamp-hall-16-moving` | Fixed | 0.0029 | 0.046 | +2 % | Blotches |
+| `rigs-crowd` | Fixed | 0.0020 | 0.043 | 0 % | Blotches |
+
+The other 9 films pass: `exit-cabin`, `exit-deck`, `hair-bent-cards`, `orbit-umbra`, `pillar-room`, `rect-lights`, `reflections`, `skin-head` and `spot-box`.
+
+### Settle counts
+
+| Change | Lamps off | Lamps on | Source |
+|---|---:|---:|---|
+| Cabin, lamp switch | 114 draws | 66 draws | Baseline |
+| Bay with the sun off, lamp switch | 48 draws | 34 draws | Baseline |
+| Lamp hall, lamp switch | 36 draws | 25 draws | First survey |
+
+The cabin fails in both directions. With the window of 200 draws, its lamps-off count is 114 draws, where the first survey reported "100", the length of its window. The lamp hall's switch was not run again on the user's order of 2026-11-10 (see below). The first survey measured it on the same source code, with a lamps-off window of 100 draws. Its count of 36 lies inside that window.
+
+The first survey also holds the moving lights and the walk, on the same source code:
+
+- `bay-sun`, the moving sun in the bay: a median lag of 18 draws and a median error of 19 % against the limit of 10 %. It fails.
+- `lamp-hall-16-moving` and `lamp-hall-64-spot-moving`: errors of 3.6 % and 0.9 %. Both pass.
+- `cabin-walk`: the whole image settles 94 draws after the walk stops. Two of the 9 regions were not settled within 200 draws, and the other changed regions need 56 to 142 draws. It fails. Ticket `ter-g3tk` follows it.
+
+On 2026-11-10 the user stopped the baseline's remaining switch, lag and walk cases, so that steps 2 and 5 got the GPU first. Step 10 surveys them again on the final main.
 
 ## The split by light signal
 
