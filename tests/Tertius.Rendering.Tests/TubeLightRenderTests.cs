@@ -7,7 +7,7 @@ namespace Tertius.Rendering.Tests;
 /// <summary>
 /// A tube light on the GPU (ARCHITECTURE.md, "Tube lights"): a matte square in front of it takes the C# tube's light,
 /// whether the tube lies across, stands on it, or passes through it, and a mirror shows it as a bar of the capsule's size
-/// at the C# radiance.
+/// at the C# radiance. Beside a lamp and a panel, the tube adds its light to theirs.
 /// </summary>
 [Collection(GpuCollection.Name)]
 public sealed class TubeLightRenderTests
@@ -56,12 +56,12 @@ public sealed class TubeLightRenderTests
     }
 
     /// <summary>
-    /// A dark snapshot with <paramref name="tube"/> and a square of <paramref name="desc"/> that faces the camera
+    /// A dark snapshot with <paramref name="lights"/> and a square of <paramref name="desc"/> that faces the camera
     /// <see cref="SquareDistance"/> ahead, under a view of height <paramref name="fov"/> rad: its capture.
     /// </summary>
     private static Capture RenderSquare(
         VulkanRenderer renderer,
-        TubeRenderLight tube,
+        RenderLight[] lights,
         MaterialDesc desc,
         float fov,
         string name
@@ -70,7 +70,8 @@ public sealed class TubeLightRenderTests
         RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitZ, starIrradiance: 0);
         snapshot.Ambient.Intensity = 0;
         snapshot.Camera.VerticalFov = fov;
-        snapshot.Lights.Add(tube);
+        foreach (RenderLight light in lights)
+            snapshot.Lights.Add(light);
         snapshot.Instances.Add(
             Gpu.Instance(
                 mesh: renderer.CreateMesh(Primitives.Plane(1.5f)),
@@ -146,7 +147,7 @@ public sealed class TubeLightRenderTests
         {
             Capture image = RenderSquare(
                 renderer: renderer,
-                tube: tube,
+                lights: [tube],
                 desc: matte,
                 fov: Gpu.Fov,
                 name: $"tube-light-matte-{name}"
@@ -206,7 +207,7 @@ public sealed class TubeLightRenderTests
         {
             Capture image = RenderSquare(
                 renderer: renderer,
-                tube: tube,
+                lights: [tube],
                 desc: mirror,
                 fov: fov,
                 name: "tube-light-mirror"
@@ -234,6 +235,67 @@ public sealed class TubeLightRenderTests
             across
                 .Should()
                 .BeCloseTo((int)Math.Round(2 * Math.Atan(0.05 / 5) * focalLength), 4, "the bar is the capsule's width");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void ATubeALampAndAPanelTogetherLightAMatteSquareAsTheSumOfEachAlone()
+    {
+        // Each light shape has a light loop of its own (ARCHITECTURE.md, "The lighting model"), so a frame with all three
+        // runs every loop, and each loop adds its light to the others'.
+        TubeRenderLight tube = Tube(position: new(0, 0, -SquareDistance + 0.6f), power: 9, radius: 0.05f, length: 1);
+        PointRenderLight lamp = Gpu.Lamp(
+            position: new(0.5f, 0.3f, -SquareDistance + 1),
+            color: Vector3.One,
+            intensity: 1,
+            chainDepth: TestChains.CamerasFrame
+        );
+        // Turned half a turn about Y, the panel's front faces the square.
+        var facing = Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI);
+        var panel = new RectRenderLight(
+            EntityIndex: Gpu.LampEntity,
+            EntityGeneration: 0,
+            Position: new(-0.5f, 0, -SquareDistance + 1),
+            PreviousPosition: new(-0.5f, 0, -SquareDistance + 1),
+            Rotation: facing,
+            PreviousRotation: facing,
+            Color: Vector3.One,
+            Power: 20,
+            Width: 0.4f,
+            Height: 0.3f,
+            CastsShadow: false,
+            ChainDepth: TestChains.CamerasFrame
+        );
+        var matte = new MaterialDesc(BaseColor: new(x: 0.8f, y: 0.8f, z: 0.8f, w: 1), Roughness: 1, Reflectance: 0.5f);
+
+        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
+        try
+        {
+            var probe = DirectLightProbe.On(renderer);
+            float CenterRed(RenderLight[] lights, string name)
+            {
+                RenderSquare(renderer: renderer, lights: lights, desc: matte, fov: Gpu.Fov, name: name);
+                return probe.Read()[4 * (Height / 2 * Width + Width / 2)];
+            }
+            float tubeAlone = CenterRed([tube], "tube-light-sum-tube");
+            float lampAlone = CenterRed([lamp], "tube-light-sum-lamp");
+            float panelAlone = CenterRed([panel], "tube-light-sum-panel");
+            float together = CenterRed([panel, tube, lamp], "tube-light-sum-together");
+
+            tubeAlone.Should().BePositive("the tube lights the square's center");
+            lampAlone.Should().BePositive("the lamp lights the square's center");
+            panelAlone.Should().BePositive("the panel lights the square's center");
+            together
+                .Should()
+                .BeApproximately(
+                    tubeAlone + lampAlone + panelAlone,
+                    1e-3f * (tubeAlone + lampAlone + panelAlone),
+                    "the frame runs the loop of each shape that its list holds, and adds their light"
+                );
         }
         finally
         {
