@@ -901,6 +901,7 @@ public sealed class Fsr3UpscalerTests
                 Color = color,
                 OpaqueOnly = opaqueOnly,
                 Reactive = reactive,
+                TransparencyAndComposition = null,
                 Depth = depth,
                 Motion = motion,
                 Output = output,

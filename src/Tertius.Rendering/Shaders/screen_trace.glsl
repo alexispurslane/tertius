@@ -53,6 +53,9 @@ layout(set = 3, binding = 19, rg32f) uniform readonly image2D lastLightAge;
 layout(set = 3, binding = 20, rg32f) uniform image2D lightAge;
 // The specular sample's light age (TemporalSignal.SampleAge), which the resolve writes: an age code (ageCodeOf).
 layout(set = 3, binding = 21, r16ui) uniform writeonly uimage2D specularSampleAge;
+// FSR 3.1's transparency and composition mask (ScreenTraceImages.LightChangeMask), which the plan writes from this frame's
+// record: where the direct light changed, FSR's history keeps to this frame's light (ticket t1-4hij).
+layout(set = 3, binding = 22, r8) uniform writeonly image2D lightChangeMask;
 
 // The age of a pixel whose light the record never saw change, in the frame that first shows it: no evidence. Each later
 // frame that shows it unchanged lowers it by one, down to −(MostLightAge + 1).
@@ -96,7 +99,7 @@ float pendingDrawsOfRecord(float g)
 // The diagnostic of uncovered surfaces (TemporalSignal.UncoveredDiagnostic), which only the capture tool and the tests
 // read: the resolve writes r, the fewest frames seen among the never-changed surfaces that the specular sample's rays
 // hit, or −1 for none. The temporal dispatch writes the other channels.
-layout(set = 3, binding = 22, rgba32f) uniform writeonly image2D uncoveredDiagnostic;
+layout(set = 3, binding = 23, rgba32f) uniform writeonly image2D uncoveredDiagnostic;
 
 // The age of a ray that hit nothing: below every record's age, so that a miss differs from a surface first shown.
 const float MissLightAge = -65536.0;

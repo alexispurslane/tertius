@@ -122,6 +122,18 @@ vec2 lightAgeOf(ivec2 pixel)
         return vec2(light, 0.0);
     return vec2(lastLight, recordAgeOf(older, pendingDraws));
 }
+
+// The frames after a change of the pixel's light in which FSR's history keeps to this frame's light.
+const float LightChangeMaskFrames = 8.0;
+
+// FSR 3.1's transparency and composition mask of a record's g (ticket t1-4hij): 1 while a change is pending and for
+// LightChangeMaskFrames frames after it, else 0. Under the mask FSR clamps its history to the pixel's neighbors in this
+// frame, so a still surface under a moving light does not keep the light of the light's earlier places.
+float lightChangeMaskOf(float g)
+{
+    bool recent = g >= 0.0 && ageOfRecord(g) < LightChangeMaskFrames;
+    return recent || pendingDrawsOfRecord(g) > 0.0 ? 1.0 : 0.0;
+}
 #endif
 
 // The length of the pixel's history of the kind at its place in the last frame, in frames: the slow history's alpha,
@@ -148,7 +160,9 @@ void main()
     if (any(greaterThanEqual(vec2(pixel), frame.viewport.xy)))
         return;
 #ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
-    imageStore(lightAge, pixel, vec4(lightAgeOf(pixel), 0.0, 0.0));
+    vec2 record = lightAgeOf(pixel);
+    imageStore(lightAge, pixel, vec4(record, 0.0, 0.0));
+    imageStore(lightChangeMask, pixel, vec4(lightChangeMaskOf(record.g), 0.0, 0.0, 0.0));
 #endif
     uint plan = 0u;
     if (tracedSurface(pixel))

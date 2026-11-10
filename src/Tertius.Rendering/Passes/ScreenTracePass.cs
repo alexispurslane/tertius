@@ -130,6 +130,9 @@ internal sealed class ScreenTracePlanPass(ScreenTraceKernel kernel, ScreenTraceI
             context.Barriers.Image(lastLightAge, ImageUse.StorageCompute);
             context.Barriers.Image(lightAge, ImageUse.StorageCompute, discard: true);
         }
+        // FSR's light-change mask, which the plan writes at every pixel from this frame's record.
+        if (images.LightChangeMask is { } mask)
+            context.Barriers.Image(mask, ImageUse.StorageCompute, discard: true);
         foreach (GpuBuffer list in images.OwnRays)
             context.Barriers.Buffer(list, BufferUse.ComputeWrite);
         kernel.Record(context, side: 1);

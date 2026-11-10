@@ -213,6 +213,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
                     shaders: shaders,
                     targets: targets,
                     surfaces: surfaceHistory,
+                    screenTrace: screenTrace,
                     framesInFlight: options.FramesInFlight,
                     sharpness: fsr.Sharpness
                 );
@@ -1230,6 +1231,18 @@ public sealed unsafe class VulkanRenderer : IRenderer
     internal float[] ReadLightAge() =>
         ReadImage(
             ScreenTraceImages.LightAge((int)((history.DrawnFrames - 1) & 1))
+                ?? throw new InvalidOperationException("The original specular history keeps no light age.")
+        );
+
+    /// <summary>
+    /// The light-change mask that the last drawn frame wrote for FSR 3.1 (<see cref="ScreenTraceImages.LightChangeMask"/>),
+    /// one value per pixel as a byte from 0 to 255, 0 where FSR keeps its history. A test hook: it waits for the device to
+    /// be idle.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The original specular history keeps no light age.</exception>
+    internal float[] ReadLightChangeMask() =>
+        ReadImage(
+            ScreenTraceImages.LightChangeMask
                 ?? throw new InvalidOperationException("The original specular history keeps no light age.")
         );
 

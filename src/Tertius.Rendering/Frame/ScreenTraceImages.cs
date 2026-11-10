@@ -11,7 +11,7 @@ namespace Tertius.Rendering;
 /// pyramid's finest level and its bounds, the direct light's two images, the surface test image, the motion target and the
 /// two signals' images of that parity (<see cref="TemporalSignal.HitImages"/>), whose samples the resolve writes. The
 /// composite owns the separate light set that binds the direct images and the slow histories (<see cref="CompositePass"/>). Every image holds the render targets' size, the block records a quarter of it, and each
-/// stays in the General layout. The depth pyramid belongs to the targets (<see cref="DepthPyramidImages"/>).
+/// stays in the General layout, but the light-change mask, which FSR samples. The depth pyramid belongs to the targets (<see cref="DepthPyramidImages"/>).
 /// </summary>
 internal sealed class ScreenTraceImages : IDisposable
 {
@@ -29,6 +29,9 @@ internal sealed class ScreenTraceImages : IDisposable
     /// its age in frames or <see cref="NoLightAge"/>.
     /// </summary>
     public const Format LightAgeFormat = Format.R32G32Sfloat;
+
+    /// <summary>The format of the light-change mask: AMD's transparency and composition mask, from 0 to 1.</summary>
+    public const Format LightChangeMaskFormat = Format.R8Unorm;
 
     /// <summary>
     /// The light-age record's age of a pixel whose light was never seen to change, in the frame that first shows it: no
@@ -106,6 +109,12 @@ internal sealed class ScreenTraceImages : IDisposable
     /// <summary>The light-age record that the last drawn frame wrote, for a frame of <paramref name="parity"/>.</summary>
     public GpuImage? LastLightAge(int parity) => lightAges.Length == 0 ? null : lightAges[1 - parity];
 
+    /// <summary>
+    /// FSR 3.1's transparency and composition mask, or null with the original specular history: per pixel, how much FSR's
+    /// history keeps to this frame's light, which the plan writes from this frame's light-age record (ticket t1-4hij).
+    /// </summary>
+    public GpuImage? LightChangeMask { get; private set; }
+
     /// <summary>The own-ray list of each kind, in the layout of <see cref="OwnRayList"/>.</summary>
     public GpuBuffer[] OwnRays { get; private set; } = [];
 
@@ -169,6 +178,15 @@ internal sealed class ScreenTraceImages : IDisposable
                 CreateImage(extent: extent, format: LightAgeFormat, layers: 1, name: "screen trace light age 1"),
             ]
             : [];
+        LightChangeMask = Specular.HistoryMode.KeepsLightAge
+            ? CreateImage(
+                extent: extent,
+                format: LightChangeMaskFormat,
+                layers: 1,
+                name: "screen trace light-change mask",
+                sampled: true
+            )
+            : null;
         for (int parity = 0; parity < Sets.Length; parity++)
             WriteSet(parity);
     }
@@ -221,20 +239,30 @@ internal sealed class ScreenTraceImages : IDisposable
                 binding: 21,
                 image: Specular.SampleAge(0) ?? throw new UnreachableException("The light age makes the sample age.")
             );
+            layouts.WriteStorageImage(
+                set: set,
+                binding: 22,
+                image: LightChangeMask ?? throw new UnreachableException("The light age makes the light-change mask.")
+            );
         }
         // The diagnostic of uncovered surfaces, whose first channel the resolve writes.
         if (Specular.UncoveredDiagnostic(0) is { } diagnostic)
-            layouts.WriteStorageImage(set: set, binding: 22, image: diagnostic);
+            layouts.WriteStorageImage(set: set, binding: 23, image: diagnostic);
     }
 
-    /// <summary>A record image: written and read as a storage image, copied out by the read hooks.</summary>
-    private GpuImage CreateImage(Extent2D extent, Format format, uint layers, string name) =>
+    /// <summary>
+    /// A record image: written and read as a storage image, copied out by the read hooks, and with
+    /// <paramref name="sampled"/> sampled by FSR 3.1.
+    /// </summary>
+    private GpuImage CreateImage(Extent2D extent, Format format, uint layers, string name, bool sampled = false) =>
         GpuImage.Create(
             device: device,
             allocator: allocator,
             extent: extent,
             format: format,
-            usage: ImageUsageFlags.StorageBit | ImageUsageFlags.TransferSrcBit,
+            usage: ImageUsageFlags.StorageBit
+                | ImageUsageFlags.TransferSrcBit
+                | (sampled ? ImageUsageFlags.SampledBit : 0),
             mipLevels: 1,
             name: name,
             arrayLayers: layers,
@@ -261,6 +289,8 @@ internal sealed class ScreenTraceImages : IDisposable
         foreach (GpuImage image in (GpuImage[])[.. Records, .. lightAges])
             image.Dispose();
         lightAges = [];
+        LightChangeMask?.Dispose();
+        LightChangeMask = null;
         foreach (GpuBuffer list in OwnRays)
             list.Dispose();
         OwnRays = [];

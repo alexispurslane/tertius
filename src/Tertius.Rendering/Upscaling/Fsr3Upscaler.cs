@@ -92,6 +92,12 @@ internal readonly record struct Fsr3Inputs
     /// <summary>The reactive mask, R8_UNORM, which the generator writes as a storage image and the upscale samples.</summary>
     public required GpuImage Reactive { get; init; }
 
+    /// <summary>
+    /// The transparency and composition mask, R8_UNORM, sampled, or null for AMD's default mask of 0. The renderer feeds
+    /// the screen tracer's light-change mask (ticket t1-4hij).
+    /// </summary>
+    public required GpuImage? TransparencyAndComposition { get; init; }
+
     /// <summary>The device depth, reversed and infinite: sampled.</summary>
     public required GpuImage Depth { get; init; }
 
@@ -665,7 +671,8 @@ internal sealed unsafe class Fsr3Upscaler : IDisposable
             // AMD's default exposure, 0, which AMD's shaders read as 1: the color is already pre-exposed.
             Fsr3Slot.InputExposure => Image(Fsr3Image.DefaultExposure),
             Fsr3Slot.ReactiveMask => inputs.Reactive,
-            Fsr3Slot.TransparencyAndCompositionMask => Image(Fsr3Image.DefaultReactivityMask),
+            Fsr3Slot.TransparencyAndCompositionMask => inputs.TransparencyAndComposition
+                ?? Image(Fsr3Image.DefaultReactivityMask),
             Fsr3Slot.UpscaledOutput => inputs.Output,
             Fsr3Slot.RcasInput => Image(
                 Fsr3Bindings.Written(Fsr3Image.InternalUpscaled1, Fsr3Image.InternalUpscaled2, odd)
