@@ -45,7 +45,7 @@ public sealed class DescriptorLayoutsTests
         Descriptors(storageBuffers: 0, storageImages: 10, sampledImages: 0)
             .Problem(LeastLimits)
             .Should()
-            .Contain("10 storage images", "the depth tail's compute stage writes ten mips");
+            .Contain("10 storage images", "the pyramid tail's compute stage writes ten mips");
 
     [Fact]
     public void ADeviceWithTheSpecsMinimumOfSixteenSampledImagesInAStageCannotBindALayoutWhoseStageSeesEighteen() =>
@@ -129,6 +129,14 @@ public sealed class DescriptorLayoutsTests
             .DescriptorsOf(layouts.ImpostorLayout)
             .SampledImages.Most.Should()
             .Be(17, "the impostor atlas set adds two images to the fragment stage");
+        layouts
+            .DescriptorsOf(layouts.ScreenTraceLayout)
+            .SampledImages.Most.Should()
+            .Be(
+                16,
+                "the compute stage sees the frame set's and the G-buffer set's images, the depth pyramid's two and the "
+                    + "light pyramid's two: the spec's least, so one more needs a device check"
+            );
     }
 
     [Fact]

@@ -57,8 +57,13 @@
               pkgs.git
               # The duplicate-code report, tools/duplicates.sh.
               jscpd
-              # The coverage and Stryker helpers in tools/ are Python.
-              pkgs.python3
+              # The coverage and Stryker helpers in tools/ are Python. The renderer survey (tools/renderer-survey.py)
+              # reads its captures with Pillow and measures them with NumPy and SciPy.
+              (pkgs.python3.withPackages (python: [
+                python.numpy
+                python.scipy
+                python.pillow
+              ]))
               pkgs.shaderc
               pkgs.glslang
               # spirv-val checks every FSR module in the build (src/Tertius.Rendering/ThirdParty/Fsr3/README.md).
