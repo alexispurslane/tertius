@@ -1113,7 +1113,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         const uint lists = ScreenTraceSampledImages + ScreenTraceStorageImages;
         // The bindings before the light pyramid's two images, which start at ScreenTraceLightBinding.
         int beforeLight = (int)(lists + ScreenTraceStorageBuffers + ScreenTraceAgeImages);
-        Span<DescriptorSetLayoutBinding> bindings = stackalloc DescriptorSetLayoutBinding[beforeLight + (int)ScreenTraceLightImages];
+        Span<DescriptorSetLayoutBinding> bindings =
+            stackalloc DescriptorSetLayoutBinding[beforeLight + (int)ScreenTraceLightImages];
         for (uint binding = 0; binding < ScreenTraceSampledImages; binding++)
             bindings[(int)binding] = Image(binding: binding, stages: ShaderStageFlags.ComputeBit);
         for (uint binding = ScreenTraceSampledImages; binding < lists; binding++)
@@ -1128,7 +1129,10 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         for (uint binding = lists + ScreenTraceStorageBuffers; binding < beforeLight; binding++)
             bindings[(int)binding] = StorageImage(binding);
         for (uint image = 0; image < ScreenTraceLightImages; image++)
-            bindings[beforeLight + (int)image] = Image(binding: ScreenTraceLightBinding + image, stages: ShaderStageFlags.ComputeBit);
+            bindings[beforeLight + (int)image] = Image(
+                binding: ScreenTraceLightBinding + image,
+                stages: ShaderStageFlags.ComputeBit
+            );
         return CreateLayout(bindings: bindings, name: "screen trace set");
     }
 

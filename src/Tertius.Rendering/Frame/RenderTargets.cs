@@ -436,7 +436,9 @@ internal sealed class RenderTargets : IDisposable
         // The spec requires all three of RGBA16F on every device (docs/plans/skin-and-hair.md, "Required device
         // features"). The light pyramid samples the direct light.
         const FormatFeatureFlags drawnAndStored =
-            FormatFeatureFlags.ColorAttachmentBit | FormatFeatureFlags.StorageImageBit | FormatFeatureFlags.SampledImageBit;
+            FormatFeatureFlags.ColorAttachmentBit
+            | FormatFeatureFlags.StorageImageBit
+            | FormatFeatureFlags.SampledImageBit;
         foreach (Format format in diffuse ? (Format[])[DirectFormat, DiffuseFormat] : [DirectFormat])
             if ((device.FormatProperties(format).OptimalTilingFeatures & drawnAndStored) != drawnAndStored)
                 throw new NotSupportedException(

@@ -92,15 +92,14 @@ public sealed class GuidedRaysTests
         float share = scene.Light.Light(level: 0, target.X, target.Y) / scene.Light.Total;
         float inverseDepth = scene.Depth.Finest(target.X, target.Y);
         // A grid of directions in polar angles about the slab's center, wide enough to hold the whole slab.
-        Vector3 axis = Vector3.Normalize(
+        var axis = Vector3.Normalize(
             LightPyramid.TargetOf(
                 camera: camera,
                 pixel: target,
                 place: new(0.5f),
                 depthShare: 0.5f,
                 inverseDepth: inverseDepth
-            )
-                - receiver.Origin
+            ) - receiver.Origin
         );
         (Vector3 tangent, Vector3 bitangent) = BasisOf(axis);
         const int steps = 1200;
@@ -111,7 +110,7 @@ public sealed class GuidedRaysTests
         {
             double theta = (radial + 0.5) / steps * widest;
             double phi = (turn + 0.5) / steps * 2 * Math.PI;
-            Vector3 direction = Vector3.Normalize(
+            var direction = Vector3.Normalize(
                 (float)Math.Cos(theta) * axis
                     + (float)(Math.Sin(theta) * Math.Cos(phi)) * tangent
                     + (float)(Math.Sin(theta) * Math.Sin(phi)) * bitangent
@@ -128,7 +127,8 @@ public sealed class GuidedRaysTests
             sum += density * solidAngle;
         }
 
-        sum.Should().BeApproximately(share, 0.01 * share, "the density per steradian is P(q) times the slab's Jacobian");
+        sum.Should()
+            .BeApproximately(share, 0.01 * share, "the density per steradian is P(q) times the slab's Jacobian");
     }
 
     [Fact]
@@ -136,7 +136,11 @@ public sealed class GuidedRaysTests
     {
         CameraView camera = ScreenTesting.Camera(width: Width, height: Height);
         // A bright patch of 1.2 m by 1.2 m on the back wall: a few dozen pixels of the 5,184.
-        LitFrame scene = Lit(camera, Room, patch: point => point.Z < -9.9f && point.X is > 1 and < 2.2f && point.Y is > 0 and < 1.2f);
+        LitFrame scene = Lit(
+            camera,
+            Room,
+            patch: point => point.Z < -9.9f && point.X is > 1 and < 2.2f && point.Y is > 0 and < 1.2f
+        );
         foreach ((int x, int y) in new[] { (30, 48), (60, 46), (48, 51) })
         {
             Receiver receiver = scene.ReceiverAt(x, y);
@@ -192,7 +196,9 @@ public sealed class GuidedRaysTests
             (double mean, double variance) = scene.MixtureEstimate(receiver, samples: 100_000, seed: x + y);
 
             mean.Should().BeApproximately(integral, 0.03 * integral, $"the mixture is unbiased at ({x}, {y})");
-            variance.Should().BeLessThan(0.1 * cosineVariance, $"rays that enter the floor's slabs count at ({x}, {y})");
+            variance
+                .Should()
+                .BeLessThan(0.1 * cosineVariance, $"rays that enter the floor's slabs count at ({x}, {y})");
         }
     }
 
@@ -265,10 +271,7 @@ public sealed class GuidedRaysTests
             for (int row = 0; row < side; row++)
             for (int column = 0; column < side; column++)
             {
-                var unit = new Vector2(
-                    (column + random.NextSingle()) / side,
-                    (row + random.NextSingle()) / side
-                );
+                var unit = new Vector2((column + random.NextSingle()) / side, (row + random.NextSingle()) / side);
                 double light = LightAlong(receiver, CosineDirection(receiver.Normal, unit)).Light;
                 sum += light;
                 squares += light * light;

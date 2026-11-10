@@ -1,6 +1,6 @@
 # Tools
 
-These helpers run every test project in one command, start JetBrains Rider inside the dev shell, run code coverage and mutation testing (Stryker.NET and listed mutants) on the lines that a branch changed, report duplicated code, measure the sloppiness of the code, build the docs site, trace the GPU passes of a demo run, build scripted models in Blender, and clean up the code. The git hooks in `.githooks/` call some of them. For the rules on which helper to run, read the Testing section of CLAUDE.md. The scripts are tool code: they never ship, so they skip polish.
+These helpers run every test project in one command, start JetBrains Rider inside the dev shell, run code coverage and mutation testing (Stryker.NET and listed mutants) on the lines that a branch changed, report duplicated code, measure the sloppiness of the code, build the docs site, trace the GPU passes of a demo run, survey every scene of the renderer, build scripted models in Blender, and clean up the code. The git hooks in `.githooks/` call some of them. For the rules on which helper to run, read the Testing section of CLAUDE.md. The scripts are tool code: they never ship, so they skip polish.
 
 Run every command in the dev shell, from the repository root. The build copies the Jolt library and the Vulkan loader next to each output, so the tests need no `DYLD_*` variable. Outside the dev shell, the GPU tests cannot find `libvulkan`, and the scripts stop with a message. Write the output to a folder outside the repository, for example `/tmp/tertius-coverage`.
 
@@ -961,6 +961,105 @@ nix develop --command python3 -I tools/gpu-trace.py report <folder>/run.trace <f
 
 ```bash
 nix develop --command python3 -I tools/test_gpu_trace.py
+```
+
+## The renderer survey
+
+`tools/renderer-survey.py` measures every scene of `scripts/*.json` against the goal of epic `ter-8hyd`: frame time, specks and blotches in stills, flicker in motion, and the draws until the light settles after a change. Ticket `ter-6k3k` wrote it, and `docs/plans/renderer-finish.md` holds its first results, the reasons for its thresholds and the ranked failures. Each later ticket of the epic runs it again and compares its table with that baseline.
+
+Every render runs at the budget's configuration: the Release demo, headless, with `--size 1920x1080`. A headless renderer draws at its fixed render scale of 2/3, so FSR 3.1 upscales 1280 × 720 to 1920 × 1080 (docs/plans/rendering-performance.md, decision 1).
+
+### The cases
+
+`tools/renderer-survey/cases.json` lists the cases, and the tool reads nothing else about them. A case names a frame of a script, counted from 0 over the script's captures and film frames, as `gpu-trace.py trim` counts them. A case can also name a scene, a camera and the ticks before the view, for a moment that no script captures, such as the station bay when the sunbeam crosses it. The file has six lists:
+
+| List | What each case gives | Build |
+|---|---|---|
+| `stills` | A view for the timing and the still measures | Main for the timing, probe for the stills |
+| `motion` | A film of up to 180 frames for the flicker and the motion blotches | Main for the film, probe for its stills |
+| `switches` | Lamps that switch off and on again | Probe |
+| `lags` | Lights that move, such as the bay's sun | Probe |
+| `walks` | A walk of the person, then a stop | Probe |
+| `skip` | A script that the survey leaves out, with the reason | None |
+
+To add a scene, add a case to the file. A new script in `scripts/` needs at least one still case or a `skip` entry.
+
+### Run it
+
+Run the commands in the dev shell, from the repository root. The output folder must be outside the repository, for example `/private/tmp/tertius-survey`:
+
+```bash
+nix develop --command python3 -I tools/renderer-survey.py probe-build /private/tmp/tertius-survey
+nix develop --command python3 -I tools/renderer-survey.py run /private/tmp/tertius-survey --clock-bin <folder of gpu-clock>
+nix develop --command python3 -I tools/renderer-survey.py trace /private/tmp/tertius-survey --slowest 5
+nix develop --command python3 -I tools/renderer-survey.py report /private/tmp/tertius-survey
+nix develop --command python3 -I tools/renderer-survey.py sheet /private/tmp/tertius-survey
+```
+
+The commands do these things:
+
+1. `probe-build` builds the probe demo into `<out>/probe-bin`. It extracts `git archive HEAD` into a temporary folder, applies `tools/renderer-survey/probe.patch`, and builds without the analyzers. The probe never enters `src`. If the patch no longer applies to a later `HEAD`, update the patch.
+2. `run` builds the Release demo, renders each case, measures its images and deletes them. It keeps the shown still, the reference, and the first, middle and last frames of each film in `<out>/images`. It writes one result file per case into `<out>/results/<part>/<name>.json`. `--parts` selects the parts (default `timing,still,motion,switch,lag,walk`), and `--only` selects cases by name.
+3. `trace` records a GPU trace without counters (`tools/gpu-trace.sh --no-counters`) of the timing film of each of the slowest views.
+4. `report` prints the tables with the verdicts, in Markdown.
+5. `sheet` writes `<out>/contact-sheet.png`, one labeled still of every view.
+
+A case whose result file exists does not run again. So a stopped run goes on where it stopped. To run a case again, delete its result file. A full run on 2026-11-09 took about four hours, most of it in the wait for the GPU lock.
+
+`run` takes the GPU lock once for each chunk of cases, 8 by default (`--chunk`), so that a chunk waits once for the other users of the lock. `--chunk 0` runs in one process and takes the lock for each render. Before each render, the tool samples the GPU's busy share three times with `ioreg` and records it as `gpuBusyBefore`. Another process, such as an Android emulator, can use the GPU while the survey holds the lock. Before a timing run, make sure that no other process uses the GPU heavily. An Android emulator puts the GPU in a slow mode. So if an emulator runs before or during a view's timing, the tool writes no result for that view. When no emulator runs, run the timing part again.
+
+The run stops before a render when less than 5 GB are free on `/`. A film of 180 frames at 1920 × 1080 takes about 700 MB until the tool measures it, and a switch run of 460 probe frames about 2.6 GB.
+
+### The measures
+
+The renderer resets its history at the first draw of every still (ARCHITECTURE.md, "The still rule"). So on main, each capture of an unchanged state is the same fresh still of 33 draws, with the same random numbers. The probe's setting `TERTIUS_PROBE_STILL_CONTINUES=1` keeps the history through the stills of an unchanged state, as a window keeps drawing an unchanged view. An unchanged state is a capture right after a drawn frame, with no tick between them. A still after a step of time still resets. Before 2026-11-10, the probe also kept the history across a step of time. So a lag still and a film's last reference started from the history of an earlier state. The still part, the stills of the motion part, the lag stills and the walk's end still use it. The still and motion parts also render with `--bloom off`, because a bright glow's bloom changes from draw to draw with its sub-pixel place and is no error of the light. So the contact sheet shows the scenes without bloom.
+
+The still part renders 28 stills of each view after the view's state, each with 33 draws, and the history goes on through them. The shown still is the first capture with at least 120 draws: 132 draws, or 133 when the first capture follows a drawn frame by fewer than 6 ticks. The reference is the mean of the last 20 captures, from draw 297 to draw 924. Their histories are nearly independent of the shown still's, because the slow history keeps at most 32 frames. The measures work on the display-linear luminance of the 8-bit sRGB captures:
+
+- The speck count is ter-9371's rule: a pixel brighter than twice the median of its 7 × 7 window and than that median plus 0.03. A speck counts only when the reference has no speck within 2 pixels, so that stars and small lamps do not count. The count is the number of connected speck groups per 10,000 visible pixels. A pixel is visible when its blurred reference exceeds 0.002.
+- The level is the median ratio of the blurred still to the blurred reference over the visible pixels, minus 1. It shows a light or an exposure that still changes at the still's draw.
+- The blotch score compares the blurred still with the blurred reference. The blur is a Gaussian with a standard deviation of 4 render pixels (6 output pixels). The tool first divides the still by its level. Each pixel's error is then the difference over the reference, with a floor of 0.01 in the denominator. The tool gives the RMS and the 90th percentile of the errors over the visible pixels away from emitters. The 90th percentile is the score.
+
+The reference comes from the same renderer. So the blotch score measures the low-frequency error that changes from draw to draw. It cannot show an error that every draw repeats.
+
+The timing part renders each still view's state and then 120 frames one tick apart, with `--video none` and `--in-flight 2`, beside `gpu-clock` (see "The GPU clock of a timed run"). It records the median and the 95th percentile of the frame span in `gpu-timings.json` and their estimates at the windowed clock. `--clock-bin` names the folder of the built `gpu-clock`. Without it, the clock is unknown and the verdict uses the raw times.
+
+The motion part first renders stills of 132 draws of the states of a film's middle and last frames, with the auto exposure. The mean of their exposures becomes the fixed exposure of the part (the probe's `TERTIUS_PROBE_EXPOSURE`). The part then renders the same stills again and up to 180 consecutive frames of the film, all at that fixed exposure. A film starts at a camera cut and adapts its exposure over seconds, while a still adapts at once. So without one shared exposure, the two differ by their exposure and not by their light. Before 2026-11-10, the stills kept their own auto exposure, and the film results of the first survey and of the baseline hold that error. The part gives the blotch score and the level of each sampled frame against its still. The film draws a frame every tick, as a window does. A script frame of N ticks becomes N frames, and a run of N ticks becomes N frames. Headless, a draw after 6 ticks or more is a still with warm-up draws, which a window never draws. The flicker is the median over the frames of the mean relative second difference, `y[t] - (y[t-1] + y[t+1]) / 2`, after the blur of the blotch score. A light that changes at a steady rate and a steady pan give a second difference near 0. Each pixel's share is capped at 0.5, so that a moving object adds at most its share of the image. The grain flicker is the same without the blur.
+
+A case that measures nothing fails with the verdict "not measured". Three examples follow. In a still, every visible pixel lies near an emitter. A switch changes no region by more than 10 %. A lag case's light changes too little for a lag.
+
+The probe parts use the probe demo with a fixed exposure (`--exposure`, 4.08 stops by default), no bloom, and the Hable tone curve, which the probe replaces with 24-bit log luminance. So they read scene luminance without the auto exposure. Each frame becomes the mean luminance of the whole image and of a 3 × 3 grid of regions:
+
+- A switch case turns the selected lamps off at film frame 160 and on at frame 360. It films 100 more frames (`TERTIUS_PROBE_LAMP_OFF`, `TERTIUS_PROBE_LAMP_SEL` and `TERTIUS_PROBE_SUN` in the patch). So the lamps-off window is 200 draws and the lamps-on window is 100 draws. Two control runs hold the lamps off or on from the start. The settle is the draws after the change until the light of every region that the switch changes by more than 10 % stays within 5 % of its control. This is the method of `settle2.py` of 2026-11-08.
+- A lag case renders a film of moving lights, and stills of 132 draws of the same states at its sample frames. The lag is the film's difference from the still divided by the film's change per draw, so it is in draws. It counts only regions whose light changes by more than 10 % in 60 draws.
+- A walk case walks the person forward, stops, and then films 200 frames. The settle is the draws after the stop until every region stays within 5 % of a still of 133 draws at the end.
+
+A light that is still outside the tolerance at the last frame of its window has no settle count. The result file then holds `null`, and the report prints "not settled within N draws", with N the window's length. Such a case fails. Before 2026-11-09, the tool gave the window's length as the count. So a value of 100 in the first survey means "not settled within 100 draws".
+
+### The split by light signal
+
+`split` renders a film or a still once for each light signal and tells which signal carries its error. The light signals are the direct light with the emission, the bounce light (indirect diffuse) and the reflections (indirect specular). The probe's setting `TERTIUS_PROBE_SIGNAL` (1, 2 or 3) shows one signal alone, and 0 shows the whole image. The command needs a probe built from the current `probe.patch` in its own output folder:
+
+```bash
+nix develop --command python3 -I tools/renderer-survey.py probe-build /private/tmp/tertius-split
+nix develop --command python3 -I tools/renderer-survey.py split /private/tmp/tertius-split --films bay-sunbeam rect-bay --stills rect-lamps
+nix develop --command python3 -I tools/renderer-survey.py split-report /private/tmp/tertius-split
+```
+
+A film takes the fixed exposure of its result in the survey folder that `--survey` names. Without such a result, it takes its exposure as the motion part does: the mean auto exposure of the stills of its middle and last frames. A still first renders its shown still with the auto exposure and takes that exposure. Each render then uses the fixed exposure and the probe's log luminance, so the four renders read scene luminance and add up.
+
+The direct light's render also holds the sky, the stars and an impostor's baked light, so that the four renders add up. Every pass after the composite, such as glass, particles and haze, adds its light to each of the four renders. So the split computes that light as (direct + bounce + reflections − all) / 2 and takes it out of each signal. The report names it "after". For each sample, the report gives the whole image's blotch score and level, and each part's blotch score, level and share of the light. A part's blotch score is the score of that part's difference alone, relative to the whole image's light. So the part with the largest score carries the error. A film also gets the flicker of each part.
+
+With `--native`, the split of a film renders at 1280 × 720 without FSR 3.1 (`--upscaling off`). It scales each image up to 1920 × 1080 before it measures. A part whose error stays without FSR is the renderer's, and a part whose error goes away comes from FSR's own history. The result file then ends in `-native`.
+
+The split measures in scene luminance, not in the display luminance of the survey. Its masks and its floor come from an ACES fit of the scene luminance. So its scores are close to the survey's scores but not equal to them. FSR 3.1 upscales each render on its own, and its clamp is not linear. So the parts do not add up exactly where FSR clamps.
+
+### Tests
+
+`tools/test_renderer_survey.py` tests the scripts that the tool writes and the measures, on synthetic scripts and images. It needs NumPy, SciPy and Pillow, which the dev shell gives. It runs in about a second:
+
+```bash
+nix develop --command python3 -I tools/test_renderer_survey.py
 ```
 
 ## The diffuse filter's switch

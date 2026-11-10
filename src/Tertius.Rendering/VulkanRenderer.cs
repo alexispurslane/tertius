@@ -438,9 +438,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
         ?? options.Subsurface.Problem
         ?? options.ScreenTrace.Problem
         ?? options.Upscaling.Problem
-        ?? (
-            options.ScreenTrace is ScreenTrace ? PyramidImages.ScreenProblem(options.Width, options.Height) : null
-        );
+        ?? (options.ScreenTrace is ScreenTrace ? PyramidImages.ScreenProblem(options.Width, options.Height) : null);
 
     /// <summary>The checks of <paramref name="options"/> that need the device's limits, after <see cref="CheckOptions"/>.</summary>
     private static void CheckOptionsOnDevice(RendererOptions options, VulkanDevice device)
@@ -1356,10 +1354,14 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// <exception cref="InvalidOperationException">The screen tracer is off.</exception>
     internal (float[] Lights, int Width, int Height) ReadLightPyramidLevel(int level)
     {
-        PyramidImages pyramid = (screenTrace ?? throw new InvalidOperationException("The screen tracer is off.")).LightPyramidImages;
+        PyramidImages pyramid = (
+            screenTrace ?? throw new InvalidOperationException("The screen tracer is off.")
+        ).LightPyramidImages;
         ArgumentOutOfRangeException.ThrowIfNegative(level);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(level, pyramid.TopLevel);
-        return level == 0 ? ReadLevel(image: pyramid.Finest, layer: 0, mip: 0) : ReadLevel(image: pyramid.Image, layer: 0, mip: level - 1);
+        return level == 0
+            ? ReadLevel(image: pyramid.Finest, layer: 0, mip: 0)
+            : ReadLevel(image: pyramid.Image, layer: 0, mip: level - 1);
     }
 
     private PyramidImages PyramidOrThrow() =>
@@ -2179,7 +2181,12 @@ public sealed unsafe class VulkanRenderer : IRenderer
         if (images.Guided)
             Graph.Add(
                 FrameGraph.Stage.ScreenTrace,
-                new LightPyramidPass(device: device, shaders: shaders, layouts: layouts, pyramid: images.LightPyramidImages)
+                new LightPyramidPass(
+                    device: device,
+                    shaders: shaders,
+                    layouts: layouts,
+                    pyramid: images.LightPyramidImages
+                )
             );
         AddRayPasses(shaders: shaders, trace: trace, images: images);
         Graph.Add(FrameGraph.Stage.ScreenTrace, new AccumulatePass(diffuse));
