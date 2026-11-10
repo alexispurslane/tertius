@@ -54,8 +54,6 @@ BUDGET_MS = 12.0
 WINDOWED_MHZ = 1296.0
 # The frames of a view's timing film, each one tick after the last, so that no frame is a still with warm-up draws.
 TIMING_FRAMES = 120
-# The GPU's busy share before a timed run, in %, above which the run's record marks that another process used the GPU.
-SHARED_GPU_PERCENT = 20
 
 # A still view: captures of the same state, each a still of STILL_DRAWS draws. The shown still is the capture whose
 # draws first reach STILL_AT. The reference is the mean of the last REFERENCE_CAPTURES captures, whose first draw comes
@@ -103,7 +101,8 @@ BLOTCH_LIMIT = 0.04
 FLICKER_LIMIT = 0.006
 GRAIN_FLICKER_LIMIT = 0.05
 
-PARTS = ("timing", "still", "motion", "switch", "lag", "walk")
+# Each part of the survey and the list of tools/renderer-survey/cases.json whose cases it runs.
+PARTS = {"timing": "stills", "still": "stills", "motion": "motion", "switch": "switches", "lag": "lags", "walk": "walks"}
 
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -226,22 +225,39 @@ def timing_script(script: dict, frame: int) -> dict:
 
 
 def motion_script(script: dict, start: int, frames: int) -> dict:
-    """A film of the script from frame start: the frames of its films one by one, each one tick apart when the script's
-    film runs more ticks per frame (such a frame would be a still with warm-up draws headless, which no window draws).
-    A capture inside the range becomes one more tick."""
+    """A film of the script from frame start, as a window draws it: one frame every tick, up to frames frames. A frame of
+    a script film that runs N ticks becomes N frames, a capture becomes one frame, and a run of N ticks after frame start
+    becomes N frames. So no frame is a still with warm-up draws, which a window never draws. Other steps after frame
+    start, such as a camera or a post, keep their place."""
     built, _ = views_script(script, {start: []})
     steps = built["steps"]
     kept = 0
-    for frame, step, offset in frame_steps(script):
-        if frame < start:
-            continue
+
+    def film(ticks):
+        nonlocal kept
+        for _ in range(min(ticks, frames - kept)):
+            steps.append({"do": "film", "name": f"m{kept:04d}", "frames": 1, "every": 1})
+            kept += 1
+
+    frame = 0
+    for step in script["steps"]:
         if kept >= frames:
             break
-        ticks = 1 if offset is None else min(step["every"], 1)
-        steps.append({"do": "film", "name": f"m{kept:04d}", "frames": 1, "every": ticks})
-        if offset is not None and step["every"] > 1:
-            steps.extend(run_step(step["every"] - 1))
-        kept += 1
+        kind = step["do"]
+        if kind == "capture":
+            if frame >= start:
+                film(1)
+            frame += 1
+        elif kind == "film":
+            for offset in range(step["frames"]):
+                if frame + offset >= start:
+                    film(step["every"])
+            frame += step["frames"]
+        elif frame > start:
+            if kind == "run":
+                film(step["ticks"])
+            else:
+                steps.append(step)
     return {**built, "steps": steps}
 
 
@@ -390,11 +406,11 @@ def blotch(y, reference) -> tuple[float, float]:
     """The low-frequency error of the still against its reference, after the still is divided by its level: the
     magnitude of the relative difference of the two after a blur of BLUR_SIGMA, over the visible pixels away from
     emitters, as its 90th percentile, the blotch score, and its RMS. A change of the whole image's level is no blotch,
-    and level() measures it."""
+    and level() measures it. Both are None when no pixel is visible away from the emitters: nothing was measured."""
     n = np()
     mask = visible(reference) & ~near_emitters(reference)
     if not mask.any():
-        return 0.0, 0.0
+        return None, None
     b = blur(reference)
     relative = n.abs((blur(y) / (1 + level(y, reference)) - b) / (b + RELATIVE_FLOOR))[mask]
     return float(n.percentile(relative, 90)), float(n.sqrt(n.mean(relative ** 2)))
@@ -403,9 +419,9 @@ def blotch(y, reference) -> tuple[float, float]:
 def flicker(frames) -> tuple[float, float]:
     """The flicker of a film: for each frame t, the second difference y[t] - (y[t-1] + y[t+1]) / 2 relative to the three
     frames' mean, capped at FLICKER_CAP and averaged over the visible pixels away from the emitters of the three frames;
-    the median over the frames. A light that
-    changes steadily, a fade or a steady camera pan has a second difference near 0. Returns the low-frequency flicker,
-    after a blur of BLUR_SIGMA, and the grain flicker of single pixels. frames is an iterable of luminance images."""
+    the median over the frames. A light that changes steadily, a fade or a steady camera pan has a second difference
+    near 0. Returns the low-frequency flicker, after a blur of BLUR_SIGMA, and the grain flicker of single pixels, or
+    None for both when no frame had a measured pixel. frames is an iterable of luminance images."""
     n = np()
     low = []
     grain = []
@@ -426,7 +442,7 @@ def flicker(frames) -> tuple[float, float]:
         low.append(float(d_low[mask].mean()))
         grain.append(float(d_grain[mask].mean()))
     if not low:
-        return 0.0, 0.0
+        return None, None
     return float(n.median(low)), float(n.median(grain))
 
 
@@ -444,7 +460,7 @@ def settle_draws(series, control, first: int, last: int, tolerance: float = SETT
     """The draws from frame first until the series stays within tolerance of its control up to frame last: 0 when it
     never leaves, and None when it is still outside at frame last - 1, so that it did not settle within the window of
     last - first draws. settle2.py's rule of 2026-11-08."""
-    bad = [k for k in range(first, last) if abs(series[k] / control[k] - 1) > tolerance]
+    bad = [k for k in range(first, last) if abs(series[k] - control[k]) > tolerance * abs(control[k])]
     if not bad:
         return 0
     if bad[-1] == last - 1:
@@ -479,8 +495,15 @@ def lag(film, still, slope) -> float | None:
 # Verdicts
 
 
+# The verdict of a case that measured nothing, such as a view whose every visible pixel lies near an emitter. It fails,
+# so that a case that measures nothing never passes.
+NOT_MEASURED = "not measured"
+
+
 def still_verdict(result: dict) -> list:
     """The measures of a still that fail their threshold."""
+    if result["blotch"] is None:
+        return [NOT_MEASURED]
     failed = []
     if result["specks"] > SPECKS_LIMIT:
         failed.append("specks")
@@ -492,14 +515,18 @@ def still_verdict(result: dict) -> list:
 
 
 def timing_verdict(result: dict) -> list:
-    return ["time"] if result.get("p95AtWindowedMs", 0) > BUDGET_MS else []
+    """A view fails when its p95 at the windowed clock exceeds the budget. With the clock unknown, the raw p95 decides."""
+    p95 = result.get("p95AtWindowedMs", result.get("p95Ms"))
+    return ["time"] if p95 is not None and p95 > BUDGET_MS else []
 
 
 def motion_verdict(result: dict) -> list:
     """A film fails on flicker, or on the blotches or the level of its sampled frames against stills of the same states.
     A level within LAG_ERROR_LIMIT is the error that the goal's lag allows a moving light."""
+    if result["blotch"] is None or result["flicker"] is None:
+        return [NOT_MEASURED]
     failed = []
-    if result.get("blotch", 0) > BLOTCH_LIMIT:
+    if result["blotch"] > BLOTCH_LIMIT:
         failed.append("motion blotches")
     if abs(result.get("level", 0)) > LAG_ERROR_LIMIT:
         failed.append("motion level")
@@ -530,9 +557,11 @@ def lag_error(result: dict) -> float | None:
 
 def lag_verdict(result: dict) -> list:
     """A lag case fails when its median lag exceeds the goal, or on its error. A lag of None says that no light changed
-    enough for a lag to show, so it passes."""
+    enough for a lag to show, so the case measured nothing, and it fails."""
     lag_draws = result["lagDraws"]
-    failed = ["lag"] if lag_draws is not None and lag_draws > SETTLE_GOAL else []
+    if lag_draws is None:
+        return [NOT_MEASURED]
+    failed = ["lag"] if lag_draws > SETTLE_GOAL else []
     error = lag_error(result)
     if error is not None and error > LAG_ERROR_LIMIT:
         failed.append("lag error")
@@ -619,8 +648,8 @@ def render(out: Path, script: dict, *, binary: Path, env: dict | None = None, ex
 
 
 def emulators() -> int:
-    """The Android emulators that run now. On 2026-11-09 they put the GPU into a slow mode in which the survey's frame
-    spans doubled at the same clock (docs/plans/renderer-finish.md, "The machine")."""
+    """The Android emulators that run now. On 2026-11-09 a run beside one raised the p95 of bay-sunbeam from 24.3 to
+    33.8 ms at the same clock (docs/plans/renderer-finish.md, decision 9)."""
     found = subprocess.run(["pgrep", "-f", "qemu-system"], capture_output=True, text=True).stdout.split()
     return len(found)
 
@@ -660,7 +689,7 @@ def run_timing(out: Path, case: dict, args):
     frame = timings["frame"]
     result = {"script": label_of(case), "scene": scene_name(case), "frame": case.get("frame", 0),
               "frames": frame["frames"], "medianMs": frame["medianMs"], "p95Ms": frame["p95Ms"], "meanMs": frame["meanMs"],
-              "clock": clock, "gpuBusyBefore": gpu_busy(log), "emulators": max(before, emulators())}
+              "clock": clock, "gpuBusyBefore": gpu_busy(log)}
     if "meanMhz" in clock:
         scale = clock["meanMhz"] / WINDOWED_MHZ
         result["medianAtWindowedMs"] = frame["medianMs"] * scale
@@ -708,40 +737,67 @@ def motion_references_script(motion: dict, frames: list) -> tuple[dict, dict]:
     return built, {k: f"r{k:04d}-s{still_capture_index(still[k]):02d}" for k in frames}
 
 
-def run_motion(out: Path, case: dict, args):
-    """A film and stills of the states of its middle and last frames. The stills come first, with the auto exposure,
-    and the film then holds the mean of their exposures: a film that starts at a camera cut adapts its exposure over
-    seconds, while a still adapts at once, so the two would differ by their exposure and not by their light."""
+@dataclass
+class MotionCase:
+    """A motion case's film, the frames that it samples, and the script of the stills of their states."""
+
+    film: dict
+    # The sampled frames by label: the middle and the last frame.
+    samples: dict
+    references: dict
+    # The reference capture of each sampled frame.
+    names: dict
+
+
+def motion_case(case: dict) -> MotionCase:
     if "script" in case:
-        script = motion_script(script_of(case["script"]), case["start"], case["frames"])
+        film = motion_script(script_of(case["script"]), case["start"], case["frames"])
     else:
-        script = scene_script(case["scene"], case["camera"], case["ticks"],
-                              [{"do": "film", "name": "m0000", "frames": case["frames"], "every": 1}])
+        film = scene_script(case["scene"], case["camera"], case["ticks"],
+                            [{"do": "film", "name": "m0000", "frames": case["frames"], "every": 1}])
     samples = {"middle": case["frames"] // 2, "end": case["frames"] - 1}
-    references, names = motion_references_script(script, list(samples.values()))
+    references, names = motion_references_script(film, list(samples.values()))
+    return MotionCase(film, samples, references, names)
+
+
+def film_exposure(out: Path, name: str, motion: MotionCase) -> float:
+    """The fixed exposure of a film and its stills, in stops: the mean of the auto exposures of the stills of its
+    sampled frames. A film that starts at a camera cut adapts its exposure over seconds, while a still adapts at once,
+    so the film and its stills must share one fixed exposure, or they differ by their exposure and not by their light."""
+    work = out / "work" / "exposure" / name
+    render(work, motion.references, binary=probe_binary(out), env=STILL_CONTINUES, extra=NO_BLOOM)
+    exposures = {e["capture"]: e["stops"] for e in json.loads((work / "exposure.json").read_text())}
+    shutil.rmtree(work)
+    return sum(exposures[motion.names[k]] for k in motion.samples.values()) / len(motion.samples)
+
+
+def run_motion(out: Path, case: dict, args):
+    """A film and stills of the states of its middle and last frames, all at one fixed exposure (film_exposure)."""
+    motion = motion_case(case)
+    stops = film_exposure(out, case["name"], motion)
+    fixed = {"TERTIUS_PROBE_EXPOSURE": f"{stops:.4f}"}
     reference_work = out / "work" / "motion" / f"{case['name']}-references"
-    render(reference_work, references, binary=probe_binary(out), env=STILL_CONTINUES, extra=NO_BLOOM)
-    exposures = {e["capture"]: e["stops"] for e in json.loads((reference_work / "exposure.json").read_text())}
-    stops = sum(exposures[names[k]] for k in samples.values()) / len(samples)
+    render(reference_work, motion.references, binary=probe_binary(out), env={**STILL_CONTINUES, **fixed}, extra=NO_BLOOM)
     work = out / "work" / "motion" / case["name"]
-    render(work, script, binary=probe_binary(out), env={"TERTIUS_PROBE_EXPOSURE": f"{stops:.4f}"}, extra=NO_BLOOM)
+    render(work, motion.film, binary=probe_binary(out), env=fixed, extra=NO_BLOOM)
     files = sorted(work.glob("m*-*.png"))
     low, grain = flicker(luminance(f) for f in files)
     images = out / "images" / "motion"
-    for label, k in (("start", 0), *samples.items()):
+    for label, k in (("start", 0), *motion.samples.items()):
         keep_png(files[k], images / f"{case['name']}-{label}.png")
     # Each sampled frame against a still of the same state: the blotches and the level that motion adds.
     against = {}
-    for label, k in samples.items():
-        y, r = luminance(files[k]), luminance(reference_work / f"{names[k]}.png")
+    for label, k in motion.samples.items():
+        y, r = luminance(files[k]), luminance(reference_work / f"{motion.names[k]}.png")
         score, rms = blotch(y, r)
-        against[label] = {"blotch": score, "blotchRms": rms, "level": level(y, r), "stillStops": exposures[names[k]]}
-        keep_png(reference_work / f"{names[k]}.png", images / f"{case['name']}-{label}-still.png")
+        against[label] = {"blotch": score, "blotchRms": rms, "level": level(y, r)}
+        keep_png(reference_work / f"{motion.names[k]}.png", images / f"{case['name']}-{label}-still.png")
     shutil.rmtree(reference_work)
+    scores = [a["blotch"] for a in against.values()]
     result = {"script": label_of(case), "scene": scene_name(case), "start": case.get("start", case.get("ticks")),
               "frames": len(files), "view": case["view"], "stops": stops, "flicker": low, "grainFlicker": grain,
-              "blotch": max(a["blotch"] for a in against.values()),
-              "blotchRms": max(a["blotchRms"] for a in against.values()),
+              "blotch": None if None in scores else max(scores),
+              "blotchRms": None if None in scores else max(a["blotchRms"] for a in against.values()),
               "level": min((a["level"] for a in against.values()), key=lambda v: -abs(v)), "samples": against}
     result["failed"] = motion_verdict(result)
     save(out, "motion", case["name"], result)
@@ -802,7 +858,9 @@ def run_switch(out: Path, case: dict, args):
               "onDrawsWhole": settle_draws(whole, [row[0] for row in series["on"]], SWITCH_ON, SWITCH_FRAMES),
               "change": series["off"][SWITCH_ON - 1][0] / series["on"][SWITCH_ON - 1][0] - 1,
               "series": series}
-    result["failed"] = sorted(set(settle_verdict(result["offDraws"]) + settle_verdict(result["onDraws"])))
+    # A switch that changes no region by more than REGION_CHANGE measured nothing.
+    result["failed"] = [NOT_MEASURED] if not regions else sorted(
+        set(settle_verdict(result["offDraws"]) + settle_verdict(result["onDraws"])))
     save(out, "switch", case["name"], result)
     return result
 
@@ -863,13 +921,12 @@ def run_chunks(args) -> int:
     for the other users of the lock and not once per render."""
     out = Path(args.out).resolve()
     cases = load_cases()
-    plan = {"timing": "stills", "still": "stills", "motion": "motion", "switch": "switches", "lag": "lags", "walk": "walks"}
     if not args.no_build:
         subprocess.run(["dotnet", "build", "src/Tertius.Demo", "-c", "Release", "-v", "quiet", "-nologo"], cwd=ROOT,
                        check=True, stdout=subprocess.DEVNULL)
     code = 0
     for part in args.parts.split(","):
-        pending = [c["name"] for c in cases[plan[part]] if (not args.only or c["name"] in args.only)
+        pending = [c["name"] for c in cases[PARTS[part]] if (not args.only or c["name"] in args.only)
                    and not done(out, part, c["name"])]
         for first in range(0, len(pending), args.chunk):
             chunk = pending[first:first + args.chunk]
@@ -895,12 +952,12 @@ def run(args):
     if not args.no_build:
         subprocess.run(["dotnet", "build", "src/Tertius.Demo", "-c", "Release", "-v", "quiet", "-nologo"], cwd=ROOT,
                        check=True, stdout=subprocess.DEVNULL)
-    plan = {"timing": ("stills", run_timing), "still": ("stills", run_still), "motion": ("motion", run_motion),
-            "switch": ("switches", run_switch), "lag": ("lags", run_lag), "walk": ("walks", run_walk)}
+    runners = {"timing": run_timing, "still": run_still, "motion": run_motion, "switch": run_switch, "lag": run_lag,
+               "walk": run_walk}
     failures = 0
     for part in parts:
-        key, runner = plan[part]
-        for case in cases[key]:
+        runner = runners[part]
+        for case in cases[PARTS[part]]:
             if args.only and case["name"] not in args.only:
                 continue
             if done(out, part, case["name"]):
@@ -975,7 +1032,7 @@ def signal_errors(film: dict, still: dict, mask) -> dict:
     n = np()
     total = still["all"]
     if not mask.any():
-        return {"blotch": 0.0, "level": 0.0, "parts": {}}
+        return {"blotch": None, "level": None, "parts": {}}
     whole_level = float(n.median(film["all"][mask] / n.maximum(total[mask], 1e-12)) - 1)
     denominator = total + SCENE_FLOOR
 
@@ -1014,7 +1071,7 @@ def signal_flicker(frames) -> dict:
         for name in series:
             d = n.minimum(n.abs(p1[name] - (p0[name] + p2[name]) / 2) / (mean + SCENE_FLOOR), FLICKER_CAP)
             series[name].append(float(d[mask].mean()))
-    return {name: float(n.median(values)) if values else 0.0 for name, values in series.items()}
+    return {name: float(n.median(values)) if values else None for name, values in series.items()}
 
 
 # A native split renders at the render size of the budget, 1280 x 720, without FSR 3.1 (--upscaling off), and scales
@@ -1046,19 +1103,10 @@ def split_motion(out: Path, case: dict, stops: float | None, native=False) -> di
     """A film's split: for each render of SIGNALS, the film and the stills of its middle and last frames, at the fixed
     exposure stops, in scene luminance. Without stops, the stills render first with the auto exposure, and the film
     takes the mean of their exposures, as run_motion does."""
-    if "script" in case:
-        script = motion_script(script_of(case["script"]), case["start"], case["frames"])
-    else:
-        script = scene_script(case["scene"], case["camera"], case["ticks"],
-                              [{"do": "film", "name": "m0000", "frames": case["frames"], "every": 1}])
-    samples = {"middle": case["frames"] // 2, "end": case["frames"] - 1}
-    references, names = motion_references_script(script, list(samples.values()))
+    motion = motion_case(case)
+    script, samples, references, names = motion.film, motion.samples, motion.references, motion.names
     if stops is None:
-        work = out / "work" / "split" / f"{case['name']}-exposure"
-        render(work, references, binary=probe_binary(out), env=STILL_CONTINUES, extra=NO_BLOOM)
-        exposures = {e["capture"]: e["stops"] for e in json.loads((work / "exposure.json").read_text())}
-        stops = sum(exposures[names[k]] for k in samples.values()) / len(samples)
-        shutil.rmtree(work)
+        stops = film_exposure(out, case["name"], motion)
     films, stills, masks = {}, {}, {}
     for signal in SIGNALS:
         work = signal_render(out, f"{case['name']}-references", references, signal, stops, still=True, native=native)
@@ -1106,7 +1154,9 @@ def split_still(out: Path, case: dict) -> dict:
 def split(args):
     """Splits the named films and stills by light signal into <out>/results/split/<name>.json. A film takes the fixed
     exposure of its result in the survey folder args.survey when that exists. Otherwise it renders its own auto
-    exposure first, as a still always does."""
+    exposure first, as a still always does. --native applies to films only."""
+    if args.native and args.stills:
+        raise SystemExit("--native renders films only. Leave out --stills.")
     out = Path(args.out).resolve()
     cases = load_cases()
     motion = {c["name"]: c for c in cases["motion"]}
@@ -1238,7 +1288,8 @@ def report(args):
     lines += ["", "| Change | Kind | Settle draws | Whole image | Verdict |", "|---|---|---:|---:|---|"]
     for name, r in results(out, "switch").items():
         for edge in ("off", "on"):
-            draws, window = r[f"{edge}Draws"], r[f"{edge}Window"]
+            # A result from before 2026-11-10 has no window, and its counts are never None.
+            draws, window = r[f"{edge}Draws"], r.get(f"{edge}Window")
             lines.append(f"| {name} lamps {edge} | switch | {settle_text(draws, window)} "
                          f"| {settle_text(r[f'{edge}DrawsWhole'], window)} | {'fail' if settle_verdict(draws) else 'pass'} |")
     for name, r in results(out, "lag").items():
@@ -1248,8 +1299,9 @@ def report(args):
                      f"| error {cell(100 * error if error is not None else None, 1)} % "
                      f"| {'fail: ' + ', '.join(failed) if failed else 'pass'} |")
     for name, r in results(out, "walk").items():
-        lines.append(f"| {name} | walk stop | {settle_text(r['settleDraws'], r['window'])} "
-                     f"| {settle_text(r['settleDrawsWhole'], r['window'])} | {'fail' if settle_verdict(r['settleDraws']) else 'pass'} |")
+        window = r.get("window", len(r["after"]))
+        lines.append(f"| {name} | walk stop | {settle_text(r['settleDraws'], window)} "
+                     f"| {settle_text(r['settleDrawsWhole'], window)} | {'fail' if settle_verdict(r['settleDraws']) else 'pass'} |")
     print("\n".join(lines))
     return 0
 

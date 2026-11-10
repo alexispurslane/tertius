@@ -48,7 +48,7 @@ Two earlier decisions still hold. The budget is 12 ms at the budget's configurat
 ### Settled by this design
 
 8. The survey (`tools/renderer-survey.py`) is the measure of the goal. A ticket of the epic that changes the image or the frame time runs the parts of the survey that it touches. It compares the result with the baseline below. The rules of `tools/README.md`, "The renderer survey", say how to run it.
-9. If another GPU program runs, a timing does not count. On 2026-11-09, 39 of the 90 timing runs of the first survey ran beside an Android emulator. The emulator put the GPU in a slow mode. For example, the p95 of `bay-sunbeam` was 33.8 ms against a median of 23.8 ms. So the survey records the number of running emulators with each timing, and a timing beside an emulator does not count.
+9. If an Android emulator runs, a timing does not count. On 2026-11-09, 39 of the 90 timing runs of the first survey ran beside an Android emulator. The emulator put the GPU in a slow mode. For example, the p95 of `bay-sunbeam` was 33.8 ms against a median of 23.8 ms. So the survey writes no timing while an emulator runs, before or during the run. The tool sees only emulators. Before a timing run, make sure that no other program uses the GPU.
 10. A failure is assigned to a fix only after a split by light signal shows which signal carries it. The first diagnosis of the blotches covered 2 of the 9 failing films. Part "The split by light signal" gives the split of every failing film.
 11. Every step uses only the device features that the renderer already requires (`ARCHITECTURE.md`, "Required device features"). The times in this doc hold for the M1 Max only, because no tracer pass has a Linux run yet (ticket `ter-cgif`).
 
@@ -65,7 +65,7 @@ The survey measures each view, film and change at the budget's configuration. `t
 | Motion level | A film frame's whole-image light against a still of the same state | 10 % | The error of a history that lags 60 draws behind a light that changes by 10 % in 60 draws |
 | Flicker | The median over a film's frames of the relative second difference of the blurred light from draw to draw | 0.006 | Set by eye: the lamp hall's quiet films stay under it, and the moving lamps' films show a visible pumping above it |
 | Grain flicker | The same without the blur | 0.05 | Set by eye: no film shows visible grain under it |
-| Settle count | The draws after a change until every changed region stays within 5 % of a control run | 60 draws | The goal |
+| Settle count | The draws after a change until every changed region stays within 5 % of a control run, or of a still at the end for a walk | 60 draws | The goal |
 | Lag error | The median error of a moving light's film against stills of the same states | 10 % | The motion level's reason |
 
 A settle that is still outside the 5 % at the end of its window has no count. The survey reports it as "not settled within N draws", and it fails. The lamps-off window is 200 draws and the lamps-on window 100 draws. The first survey of 2026-11-09 had a lamps-off window of 100 draws and reported the window's length as the count. So its "100 draws" for the cabin means "not settled within 100 draws".
@@ -106,7 +106,7 @@ The first survey gave `bay-sunbeam` a p95 of 33.8 ms beside the emulator. Withou
 | `terminal` | 0.01 | 0.056 | Blotches |
 | `surface-terminal` | 0.01 | 0.056 | Blotches |
 
-A full disk stopped one chunk of the still part, so 8 stills have no baseline result: `launch-climb`, `meshes`, `shuttle`, `surface-terminal`, `surface-apron`, `surface-cabin`, `surface-overview` and `doorway-inside`. The table and the count take their values from the first survey, which measured the same source code. Only `surface-terminal` of them fails. The still `lamp-hall-16-hair` now passes with 0.91 specks, and `rect-lamps` now fails with 1.34 specks. Its scene, the orbit station, runs physics before the still, so its state can differ from run to run.
+A full disk stopped one chunk of the still part, so 8 stills have no baseline result: `launch-climb`, `meshes`, `shuttle`, `surface-terminal`, `surface-apron`, `surface-cabin`, `surface-overview` and `doorway-inside`. The table and the count take their values from the first survey, which measured the same source code. Only `surface-terminal` of them fails. The still `lamp-hall-16-hair` now passes with 0.91 specks, and `rect-lamps` now fails with 1.34 specks. The first report's values came from the still part with bloom, before the part turned bloom off. Nobody measured how much the speck count varies between two runs of the same code.
 
 ### Films
 
@@ -125,6 +125,14 @@ A full disk stopped one chunk of the still part, so 8 stills have no baseline re
 | `rigs-crowd` | Fixed | 0.0020 | 0.043 | 0 % | Blotches |
 
 The other 9 films pass: `exit-cabin`, `exit-deck`, `hair-bent-cards`, `orbit-umbra`, `pillar-room`, `rect-lights`, `reflections`, `skin-head` and `spot-box`.
+
+The review of this ticket found three faults in the motion part, after the baseline ran. The tool now has the repairs, but the film table above still holds the faults:
+
+- The film used one fixed exposure, and each still of the same state used its own auto exposure. The tone curve is not linear, so the exposure gap shows as level and as blotch. The gap was ±0.57 stops for `bay-sunbeam` and ±0.54 stops for `rect-bay`, so their levels of −71 % and +238 % are mostly exposure. The gap was at most ±0.16 stops for the other films.
+- The film `orbit-umbra` runs 6 ticks per script frame, so each of its frames was a fresh still, not a film. Every visible pixel of its view also lies near a bright pixel, so it measured nothing. Its pass means nothing.
+- The probe kept the history across a step of time, so each film's last reference started from the history of the middle frame's state. This bias is small for a light that settles within 100 draws.
+
+The split by light signal below renders each film and its stills at one fixed exposure, so its numbers do not have the first fault. Step 10 runs the motion part again with the repaired tool.
 
 ### Settle counts
 

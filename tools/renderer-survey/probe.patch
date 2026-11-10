@@ -1,6 +1,8 @@
---- a/src/Tertius.Host/ScriptCommand.Options.cs	2026-11-09 15:06:44
-+++ b/src/Tertius.Host/ScriptCommand.Options.cs	2026-11-09 15:06:44
-@@ -107,6 +107,9 @@
+diff --git a/src/Tertius.Host/ScriptCommand.Options.cs b/src/Tertius.Host/ScriptCommand.Options.cs
+index 2fdc522..07e51c5 100644
+--- a/src/Tertius.Host/ScriptCommand.Options.cs
++++ b/src/Tertius.Host/ScriptCommand.Options.cs
+@@ -107,6 +107,9 @@ public static partial class ScriptCommand
                  options.EnvironmentMap = new NoEnvironmentMap();
              if (SubsurfaceOff)
                  options.Subsurface = new NoSubsurface();
@@ -10,31 +12,36 @@
              if (FramesInFlight is { } count)
              {
                  options.FramesInFlight = count;
---- a/src/Tertius.Rendering/Frame/FrameHistory.cs	2026-11-09 15:06:44
-+++ b/src/Tertius.Rendering/Frame/FrameHistory.cs	2026-11-09 15:06:44
-@@ -185,7 +185,11 @@
+diff --git a/src/Tertius.Rendering/Frame/FrameHistory.cs b/src/Tertius.Rendering/Frame/FrameHistory.cs
+index b4ceb4b..61c6b36 100644
+--- a/src/Tertius.Rendering/Frame/FrameHistory.cs
++++ b/src/Tertius.Rendering/Frame/FrameHistory.cs
+@@ -185,7 +185,12 @@ internal sealed class FrameHistory
      {
          Contract.Requires(draw >= 0 && draw < DrawsOf(step));
          bool still = IsStill(step);
 -        bool reset = Resets(snapshot: snapshot, outputSize: outputSize, firstOfAStill: still && draw == 0);
-+        // PROBE (tools/renderer-survey): with TERTIUS_PROBE_STILL_CONTINUES=1, a still keeps the history of the draws
-+        // before it, as a window keeps drawing an unchanged view. A camera cut, a new output size and the first drawn
-+        // frame still reset.
-+        bool reset = Resets(snapshot: snapshot, outputSize: outputSize,
-+            firstOfAStill: still && draw == 0 && Environment.GetEnvironmentVariable("TERTIUS_PROBE_STILL_CONTINUES") != "1");
++        // PROBE (tools/renderer-survey): with TERTIUS_PROBE_STILL_CONTINUES=1, a still of an unchanged state (a step of 0 s,
++        // a capture right after a drawn frame) keeps the history of the draws before it, as a window keeps drawing an
++        // unchanged view. A still after a step of time, a camera cut, a new output size and the first drawn frame still
++        // reset.
++        bool continues = step == 0f && Environment.GetEnvironmentVariable("TERTIUS_PROBE_STILL_CONTINUES") == "1";
++        bool reset = Resets(snapshot: snapshot, outputSize: outputSize, firstOfAStill: still && draw == 0 && !continues);
          derived = new(
              Reset: reset,
              DrawIndex: reset ? 0 : lastDrawIndex + 1,
---- a/src/Tertius.Rendering/Frame/FrameResources.cs	2026-11-09 15:06:44
-+++ b/src/Tertius.Rendering/Frame/FrameResources.cs	2026-11-09 15:06:44
-@@ -248,7 +248,54 @@
+diff --git a/src/Tertius.Rendering/Frame/FrameResources.cs b/src/Tertius.Rendering/Frame/FrameResources.cs
+index f847f8e..3ad94e0 100644
+--- a/src/Tertius.Rendering/Frame/FrameResources.cs
++++ b/src/Tertius.Rendering/Frame/FrameResources.cs
+@@ -248,9 +248,56 @@ internal sealed unsafe class FrameResources : IDisposable
              Array.Resize(ref gpuLights, Math.Max(scene.LightCount, gpuLights.Length * 2));
          for (int i = 0; i < scene.LightCount; i++)
              gpuLights[i] = GpuLight.From(scene.Lights[i]);
 +        ProbeLamps(gpuLights.AsSpan(0, scene.LightCount));
          return gpuLights.AsSpan(0, scene.LightCount);
-+    }
-+
+     }
+ 
 +    // PROBE (tools/renderer-survey, never commit to src): TERTIUS_PROBE_LAMP_OFF="a-b,c-d" turns the selected local lights
 +    // off in the draws a <= draw < b, counted from 0 over every draw of the run. TERTIUS_PROBE_LAMP_SEL = all, or
 +    // x:lo:hi, y:lo:hi or z:lo:hi, selects the local lights whose world position lies in that range on that axis.
@@ -79,30 +86,11 @@
 +        }
 +        if (ProbeRanges.Any(r => r.From == draw))
 +            Console.Error.WriteLine($"PROBE draw {draw}: {count} of {lights.Length} lights off");
-     }
- 
-     /// <summary>A storage buffer of this frame that the CPU rewrites each frame, named after the frame and <paramref name="contents"/>.</summary>
---- a/src/Tertius.Rendering/Shaders/tonemap.glsl	2026-11-09 15:06:44
-+++ b/src/Tertius.Rendering/Shaders/tonemap.glsl	2026-11-09 15:06:44
-@@ -67,6 +67,18 @@
- #endif
-     // The passes that wrote the HDR image pre-exposed it, so the curve takes it as it is.
-     vec3 hdr = max(light, vec3(0.0));
-+    if (tonemap.toneCurve != toneCurveAcesFitted)
-+    {
-+        // PROBE (tools/renderer-survey): log2 luminance in 24 bits over 2^-24 to 2^16, each byte written as the linear
-+        // value whose sRGB code it is.
-+        float y = dot(hdr, vec3(0.2126, 0.7152, 0.0722));
-+        float v = y > 0.0 ? clamp((log2(y) + 24.0) / 40.0, 0.0, 1.0) : 0.0;
-+        uint q = uint(v * 16777215.0 + 0.5);
-+        vec3 bytes = vec3(float(q >> 16u), float((q >> 8u) & 255u), float(q & 255u)) / 255.0;
-+        vec3 lin = mix(bytes / 12.92, pow((bytes + 0.055) / 1.055, vec3(2.4)), step(vec3(0.04045), bytes));
-+        outColor = vec4(tonemap.encodeSrgb != 0u ? bytes : lin, 1.0);
-+        return;
 +    }
-     vec3 ldr = tonemap.toneCurve == toneCurveAcesFitted ? acesFitted(hdr) : hable(hdr);
-     if (tonemap.encodeSrgb != 0u)
-         ldr = linearToSrgb(ldr);
++
+     /// <summary>A storage buffer of this frame that the CPU rewrites each frame, named after the frame and <paramref name="contents"/>.</summary>
+     private HostArray<T> StorageArray<T>(DeviceAllocator allocator, string contents, int capacity)
+         where T : unmanaged =>
 diff --git a/src/Tertius.Rendering/ShaderConstants.cs b/src/Tertius.Rendering/ShaderConstants.cs
 index deae64b..1975791 100644
 --- a/src/Tertius.Rendering/ShaderConstants.cs
@@ -126,31 +114,33 @@ index deae64b..1975791 100644
      public SpecializationValues Data;
      public SpecializationEntries Entries;
 diff --git a/src/Tertius.Rendering/Shaders/composite_pass.glsl b/src/Tertius.Rendering/Shaders/composite_pass.glsl
-index 7251102..d13f42c 100644
+index 7251102..56c2a9e 100644
 --- a/src/Tertius.Rendering/Shaders/composite_pass.glsl
 +++ b/src/Tertius.Rendering/Shaders/composite_pass.glsl
-@@ -27,6 +27,10 @@ layout(set = 3, binding = 3, SPECULAR_HISTORY_FORMAT) uniform readonly image2D i
+@@ -27,6 +27,11 @@ layout(set = 3, binding = 3, SPECULAR_HISTORY_FORMAT) uniform readonly image2D i
  
  layout(location = 0) in vec3 inRay;
  layout(location = 0) out vec4 outColor;
 +
 +// PROBE (tools/renderer-survey): TERTIUS_PROBE_SIGNAL shows one light signal alone. 0 all, 1 the direct light with the
-+// emission, 2 the bounce light (indirect diffuse), 3 the reflections (indirect specular). Under 1 to 3 the sky is black.
++// emission, the sky and an impostor's baked light, 2 the bounce light (indirect diffuse), 3 the reflections (indirect
++// specular).
 +layout(constant_id = 11) const int probeSignal = 0;
  #ifdef SCATTER_OUTPUT
  // The diffuse image: the pass writes every one of its pixels.
  layout(location = 1) out vec4 outDiffuse;
-@@ -50,7 +54,8 @@ void main()
+@@ -50,7 +55,9 @@ void main()
  #ifdef TERTIUS_DIRECT_LIGHT_ONLY
          outColor = vec4(0.0);
  #else
 -        outColor = vec4(preExposed(skyRadiance(direction) + starRadiance(direction)), 1.0);
-+        outColor = probeSignal != 0 ? vec4(0.0, 0.0, 0.0, 1.0)
++        // PROBE: the sky and the stars count as direct light, so that the four renders add up.
++        outColor = probeSignal >= 2 ? vec4(0.0, 0.0, 0.0, 1.0)
 +            : vec4(preExposed(skyRadiance(direction) + starRadiance(direction)), 1.0);
  #endif
          writeDiffuse(vec4(0.0));
          return;
-@@ -64,7 +69,7 @@ void main()
+@@ -64,7 +71,7 @@ void main()
  #ifdef TERTIUS_DIRECT_DIFFUSE_ONLY
          outColor = vec4(0.0);
  #else
@@ -159,7 +149,7 @@ index 7251102..d13f42c 100644
  #endif
          writeDiffuse(vec4(0.0));
          return;
-@@ -92,6 +97,15 @@ void main()
+@@ -92,6 +99,15 @@ void main()
          indirectSpecular = reflectionSharedAt(pixel, indirectSpecular);
      // Each part is finite and at most a few times MaxRadiance, so the sum is finite, and the cap keeps the surfaces' share
      // (docs/plans/screen-space-illumination.md, "The cap at MaxRadiance").
@@ -175,3 +165,26 @@ index 7251102..d13f42c 100644
      outColor = vec4(
          min(directDiffuse + directSpecular + indirectDiffuse + indirectSpecular + emissive, vec3(MaxRadiance)), 1.0);
      // D, at most MaxRadiance, and the mask, which marks the skin pixels that alone the scatter passes spread.
+diff --git a/src/Tertius.Rendering/Shaders/tonemap.glsl b/src/Tertius.Rendering/Shaders/tonemap.glsl
+index b013dc9..d40cc1d 100644
+--- a/src/Tertius.Rendering/Shaders/tonemap.glsl
++++ b/src/Tertius.Rendering/Shaders/tonemap.glsl
+@@ -67,6 +67,18 @@ void main()
+ #endif
+     // The passes that wrote the HDR image pre-exposed it, so the curve takes it as it is.
+     vec3 hdr = max(light, vec3(0.0));
++    if (tonemap.toneCurve != toneCurveAcesFitted)
++    {
++        // PROBE (tools/renderer-survey): log2 luminance in 24 bits over 2^-24 to 2^16, each byte written as the linear
++        // value whose sRGB code it is.
++        float y = dot(hdr, vec3(0.2126, 0.7152, 0.0722));
++        float v = y > 0.0 ? clamp((log2(y) + 24.0) / 40.0, 0.0, 1.0) : 0.0;
++        uint q = uint(v * 16777215.0 + 0.5);
++        vec3 bytes = vec3(float(q >> 16u), float((q >> 8u) & 255u), float(q & 255u)) / 255.0;
++        vec3 lin = mix(bytes / 12.92, pow((bytes + 0.055) / 1.055, vec3(2.4)), step(vec3(0.04045), bytes));
++        outColor = vec4(tonemap.encodeSrgb != 0u ? bytes : lin, 1.0);
++        return;
++    }
+     vec3 ldr = tonemap.toneCurve == toneCurveAcesFitted ? acesFitted(hdr) : hable(hdr);
+     if (tonemap.encodeSrgb != 0u)
+         ldr = linearToSrgb(ldr);

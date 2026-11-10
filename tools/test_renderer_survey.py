@@ -79,12 +79,20 @@ class Views(unittest.TestCase):
         built = survey.timing_script(script(RUN(100), CAPTURE("a")), 0)
         self.assertEqual(built["steps"][-1], FILM("t", survey.TIMING_FRAMES, 1))
 
-    def test_a_motion_film_draws_each_frame_one_tick_after_the_last_and_keeps_the_scripts_ticks(self):
-        built = survey.motion_script(script(FILM("f", 10, 6)), 2, 3)
-        films = [s for s in built["steps"] if s["do"] == "film"]
-        self.assertEqual([f["every"] for f in films], [1, 1, 1])
-        ticks = sum(s["ticks"] for s in built["steps"] if s["do"] == "run") + len(films)
-        self.assertEqual(ticks, 3 * 6 + 3 * 6, "the start's state, then each frame's six ticks")
+    def test_a_motion_film_draws_a_frame_every_tick_through_a_script_film_of_six_ticks_per_frame(self):
+        built = survey.motion_script(script(FILM("f", 10, 6)), 2, 12)
+        start = [s for s in built["steps"] if s["do"] == "film"]
+        before = sum(s["ticks"] for s in built["steps"] if s["do"] == "run")
+        self.assertEqual(before, 3 * 6, "the state of frame 2")
+        self.assertEqual(len(start), 12)
+        self.assertTrue(all(f["frames"] == 1 and f["every"] == 1 for f in start), "no step between draws reaches 6 ticks")
+        self.assertFalse([s for s in built["steps"][built["steps"].index(start[0]):] if s["do"] == "run"])
+
+    def test_a_motion_film_draws_the_ticks_of_a_run_and_keeps_a_camera_step(self):
+        built = survey.motion_script(script(CAPTURE("a"), RUN(3), CAMERA("b"), CAPTURE("c")), 0, 10)
+        after = built["steps"]
+        self.assertEqual([s["do"] for s in after], ["film", "film", "film", "film", "camera", "film"])
+        self.assertTrue(all(s["every"] == 1 for s in after if s["do"] == "film"))
 
 
 class MotionReferences(unittest.TestCase):
@@ -111,6 +119,9 @@ class Switches(unittest.TestCase):
 
 
 class Settle(unittest.TestCase):
+    def test_a_region_whose_control_is_dark_settles_when_it_is_dark_too(self):
+        self.assertEqual(survey.settle_draws([0.5, 0.0, 0.0], [0.0] * 3, 0, 3), 1)
+
     def test_a_series_that_stays_within_the_tolerance_settles_at_once(self):
         self.assertEqual(survey.settle_draws([1.0] * 10, [1.02] * 10, 0, 10), 0)
 
@@ -156,6 +167,12 @@ class Measures(unittest.TestCase):
         still[50, 60] = 0.9
         visible = int(survey.visible(reference).sum())
         self.assertAlmostEqual(survey.specks(still, reference), 1e4 / visible)
+
+    def test_an_image_whose_every_pixel_is_near_an_emitter_measures_no_blotch(self):
+        self.assertEqual(survey.blotch(flat(0.9), flat(0.9)), (None, None))
+
+    def test_a_film_with_no_measured_frame_has_no_flicker(self):
+        self.assertEqual(survey.flicker(flat(0.9) for _ in range(5)), (None, None))
 
     def test_an_image_equal_to_its_reference_has_no_blotch(self):
         self.assertEqual(survey.blotch(flat(), flat())[0], 0.0)
@@ -289,9 +306,18 @@ class Verdicts(unittest.TestCase):
         self.assertEqual(survey.settle_verdict(60), [])
         self.assertEqual(survey.settle_verdict(None), ["settle"])
 
-    def test_a_moving_light_that_lags_more_than_the_goal_fails_and_one_too_steady_for_a_lag_passes(self):
+    def test_a_moving_light_that_lags_more_than_the_goal_fails_and_a_case_too_steady_for_a_lag_measured_nothing(self):
         self.assertEqual(survey.lag_verdict({"lagDraws": 61.0, "rows": []}), ["lag"])
-        self.assertEqual(survey.lag_verdict({"lagDraws": None, "rows": []}), [])
+        self.assertEqual(survey.lag_verdict({"lagDraws": None, "rows": []}), [survey.NOT_MEASURED])
+
+    def test_a_view_whose_clock_is_unknown_is_judged_by_its_raw_p95(self):
+        self.assertEqual(survey.timing_verdict({"p95Ms": 30.0, "clock": {"unknown": "no gpu-clock"}}), ["time"])
+        self.assertEqual(survey.timing_verdict({"p95Ms": 9.0}), [])
+
+    def test_a_still_or_film_that_measured_nothing_fails(self):
+        self.assertEqual(survey.still_verdict({"specks": 0.0, "blotch": None, "level": 0.0}), [survey.NOT_MEASURED])
+        film = {"flicker": None, "grainFlicker": None, "blotch": None, "level": 0.0}
+        self.assertEqual(survey.motion_verdict(film), [survey.NOT_MEASURED])
 
 
 if __name__ == "__main__":
