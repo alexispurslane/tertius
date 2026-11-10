@@ -1,6 +1,6 @@
 ---
 id: tb-8zew
-status: in_progress
+status: closed
 deps: []
 links: [tb-4g6h]
 created: 2026-11-10T00:34:37Z
