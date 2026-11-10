@@ -10,7 +10,7 @@ namespace Tertius.Rendering;
 internal sealed class LightPyramid
 {
     /// <summary>The share of the diffuse rays that aim at a pixel drawn from the pyramid: g of the mixture density.</summary>
-    public const float GuidedShare = 0.5f;
+    public const float GuidedShare = 0.25f;
 
     /// <summary>The end of a chord that no side of the slab ends. Not infinity, as in the shader.</summary>
     private const float NoEnd = 1e30f;

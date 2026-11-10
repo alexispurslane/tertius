@@ -150,7 +150,7 @@ public sealed class GuidedRaysRenderTests
 
                     (int compared, int above, _) = CompareBlockDensities(renderer);
                     compared.Should().BeGreaterThan(1000);
-                    above.Should().BeGreaterThan(compared / 8, "about half the rays aim at the patch, which they reach");
+                    above.Should().BeGreaterThan(compared / 12, "a quarter of the rays aim at the patch, and most of them reach it");
                 }
                 finally
                 {
@@ -165,7 +165,7 @@ public sealed class GuidedRaysRenderTests
             null,
             () =>
             {
-                (VulkanRenderer renderer, RenderSnapshot scene) = SceneOverFloor(Dark(), panel: false);
+                (VulkanRenderer renderer, RenderSnapshot scene) = SceneOverFloor(Dark(), panel: false, ScreenTrace.Default);
                 try
                 {
                     renderer.Render(scene, 1f);
@@ -189,7 +189,8 @@ public sealed class GuidedRaysRenderTests
             {
                 (VulkanRenderer renderer, RenderSnapshot scene) = SceneOverFloor(
                     Gpu.Snapshot(Vector3.UnitY),
-                    panel: false
+                    panel: false,
+                    ScreenTrace.Default
                 );
                 try
                 {
@@ -227,7 +228,7 @@ public sealed class GuidedRaysRenderTests
 
                     (int compared, int guided) = CompareHitDensities(renderer);
                     compared.Should().BeGreaterThan(400);
-                    guided.Should().BeGreaterThan(compared / 8, "about half the rays aim at the patch, which they reach");
+                    guided.Should().BeGreaterThan(compared / 12, "a quarter of the rays aim at the patch, and most of them reach it");
                 }
                 finally
                 {
@@ -252,11 +253,11 @@ public sealed class GuidedRaysRenderTests
             bool[] floor = FloorBesidePatch();
             (double guidedMean, double guidedError, double guidedVariance) = WithSwitch(
                 null,
-                () => BounceLight(floor: floor, frames: frames, skipped: skipped, graySky: false)
+                () => BounceLight(floor: floor, frames: frames, skipped: skipped, scene: () => SceneOverFloor(Dark(), panel: true, ScreenTrace.Default))
             );
             (double cosineMean, double cosineError, double cosineVariance) = WithSwitch(
                 "off",
-                () => BounceLight(floor: floor, frames: frames, skipped: skipped, graySky: false)
+                () => BounceLight(floor: floor, frames: frames, skipped: skipped, scene: () => SceneOverFloor(Dark(), panel: true, ScreenTrace.Default))
             );
 
             double error = Math.Sqrt(guidedError * guidedError + cosineError * cosineError);
@@ -276,11 +277,11 @@ public sealed class GuidedRaysRenderTests
             bool[] floor = FloorBesidePatch();
             (double guidedMean, double guidedError, _) = WithSwitch(
                 null,
-                () => BounceLight(floor: floor, frames: frames, skipped: skipped, graySky: true)
+                () => BounceLight(floor: floor, frames: frames, skipped: skipped, scene: () => SceneOverFloor(Gray(0.5f), panel: true, ScreenTrace.Default))
             );
             (double cosineMean, double cosineError, _) = WithSwitch(
                 "off",
-                () => BounceLight(floor: floor, frames: frames, skipped: skipped, graySky: true)
+                () => BounceLight(floor: floor, frames: frames, skipped: skipped, scene: () => SceneOverFloor(Gray(0.5f), panel: true, ScreenTrace.Default))
             );
 
             double error = Math.Sqrt(guidedError * guidedError + cosineError * cosineError);
@@ -292,24 +293,82 @@ public sealed class GuidedRaysRenderTests
                     $"a cosine ray that misses weighs 1 / (1 - g) of its cosine weight, and a guided miss brings nothing ({error})"
                 );
         }
+
+        [Fact]
+        public void WhenTheWalkRunsOutOfStepsAGuidedRayBringsNoSkyLightAndTheFloorsLightKeepsItsMean()
+        {
+            const int frames = 64,
+                skipped = 16;
+            // Four steps end most walks across the 7 m to the wall, so most guided rays miss.
+            ScreenTrace shortWalk = ScreenTrace.Default with { DiffuseSteps = 4 };
+            bool[] floor = FloorBesidePatch();
+            (double guidedMean, double guidedError, _) = WithSwitch(
+                null,
+                () => BounceLight(floor: floor, frames: frames, skipped: skipped, scene: () => SceneOverFloor(Gray(0.5f), panel: true, shortWalk))
+            );
+            (double cosineMean, double cosineError, _) = WithSwitch(
+                "off",
+                () => BounceLight(floor: floor, frames: frames, skipped: skipped, scene: () => SceneOverFloor(Gray(0.5f), panel: true, shortWalk))
+            );
+
+            double error = Math.Sqrt(guidedError * guidedError + cosineError * cosineError);
+            guidedMean
+                .Should()
+                .BeApproximately(
+                    cosineMean,
+                    Math.Max(4 * error, 0.03 * cosineMean),
+                    $"a guided ray counts only where it hits near its target, so its miss brings no sky light ({error})"
+                );
+        }
+
+        [Fact]
+        public void AGuidedRayThatABoxStopsBeforeItsTargetBringsNothingAndTheFloorsLightKeepsItsMean()
+        {
+            const int frames = 64,
+                skipped = 16;
+            bool[] floor = FloorBesidePatch();
+            (double guidedMean, double guidedError, _) = WithSwitch(
+                null,
+                () => BounceLight(floor: floor, frames: frames, skipped: skipped, scene: BoxBeforePanel)
+            );
+            (double cosineMean, double cosineError, _) = WithSwitch(
+                "off",
+                () => BounceLight(floor: floor, frames: frames, skipped: skipped, scene: BoxBeforePanel)
+            );
+
+            double error = Math.Sqrt(guidedError * guidedError + cosineError * cosineError);
+            guidedMean
+                .Should()
+                .BeApproximately(
+                    cosineMean,
+                    Math.Max(4 * error, 0.03 * cosineMean),
+                    $"a guided ray that hits the sky-lit box far from its target brings nothing ({error})"
+                );
+        }
     }
 
     /// <summary>
     /// A dark world with a white floor 1.5 m below the eye, a white wall 7 m ahead, and on the wall a glowing panel of
     /// 0.6 m by 0.4 m a little to the right: the only light, which the floor takes from the rays that hit it.
     /// </summary>
-    private static (VulkanRenderer Renderer, RenderSnapshot Scene) GlowOverFloor() => SceneOverFloor(Dark(), panel: true);
+    private static (VulkanRenderer Renderer, RenderSnapshot Scene) GlowOverFloor() =>
+        SceneOverFloor(Dark(), panel: true, ScreenTrace.Default);
 
     /// <summary>
     /// <paramref name="world"/> with a white floor 1.5 m below the eye, a white wall 7 m ahead, and with
-    /// <paramref name="panel"/> the glowing panel of <see cref="GlowOverFloor"/> on the wall.
+    /// <paramref name="panel"/> the glowing panel of <see cref="GlowOverFloor"/> on the wall, traced by
+    /// <paramref name="trace"/>.
     /// </summary>
-    private static (VulkanRenderer Renderer, RenderSnapshot Scene) SceneOverFloor(RenderSnapshot world, bool panel)
+    private static (VulkanRenderer Renderer, RenderSnapshot Scene) SceneOverFloor(
+        RenderSnapshot world,
+        bool panel,
+        ScreenTrace trace
+    )
     {
         VulkanRenderer renderer = Gpu.Headless(
             width: Width,
             height: Height,
-            screenTrace: ScreenTrace.Default,
+            screenTrace: trace,
             warmUpFrames: 0
         );
         RenderSnapshot scene = world;
@@ -328,6 +387,25 @@ public sealed class GuidedRaysRenderTests
                     size: new(0.6f, 0.4f, 0.02f)
                 )
             );
+        return (renderer, scene);
+    }
+
+    /// <summary>
+    /// The glowing panel over the floor under a gray sky of 0.5, with a white box of 1.2 m by 0.5 m by 0.3 m on the floor
+    /// 1.5 m in front of the wall, below the panel: it stands between the panel and the floor in front of the box, so it
+    /// stops most guided rays from that floor before they reach the panel.
+    /// </summary>
+    private static (VulkanRenderer Renderer, RenderSnapshot Scene) BoxBeforePanel()
+    {
+        (VulkanRenderer renderer, RenderSnapshot scene) = SceneOverFloor(Gray(0.5f), panel: true, ScreenTrace.Default);
+        scene.Instances.Add(
+            Block(
+                box: renderer.CreateMesh(Primitives.Box(new(0.5f))),
+                material: renderer.CreateMaterial(MaterialDesc.Color(Vector4.One, roughness: 1f)),
+                center: new(PanelCenter.X, FloorHeight + 0.25f, -5.5f),
+                size: new(1.2f, 0.5f, 0.3f)
+            )
+        );
         return (renderer, scene);
     }
 
@@ -367,17 +445,17 @@ public sealed class GuidedRaysRenderTests
 
     /// <summary>
     /// The floor's diffuse samples over <paramref name="frames"/> frames from frame <paramref name="skipped"/> on: the mean
-    /// luminance, its standard error from the frames' means, and the mean over the pixels of each pixel's variance. With
-    /// <paramref name="graySky"/>, a gray sky of 0.5 also lights the floor, through the rays that miss.
+    /// luminance, its standard error from the frames' means, and the mean over the pixels of each pixel's variance, in the
+    /// renderer and the scene that <paramref name="scene"/> makes.
     /// </summary>
     private static (double Mean, double Error, double Variance) BounceLight(
         bool[] floor,
         int frames,
         int skipped,
-        bool graySky
+        Func<(VulkanRenderer Renderer, RenderSnapshot Scene)> scene
     )
     {
-        (VulkanRenderer renderer, RenderSnapshot scene) = SceneOverFloor(graySky ? Gray(0.5f) : Dark(), panel: true);
+        (VulkanRenderer renderer, RenderSnapshot world) = scene();
         try
         {
             int pixels = floor.Count(pixel => pixel);
@@ -386,8 +464,8 @@ public sealed class GuidedRaysRenderTests
             var frameMeans = new List<double>();
             for (int frame = 0; frame < frames; frame++)
             {
-                scene.Time += Tick;
-                renderer.Render(scene, 1f);
+                world.Time += Tick;
+                renderer.Render(world, 1f);
                 if (frame < skipped)
                     continue;
                 float[] sample = renderer.ReadImage(renderer.ScreenTraceSignals.Diffuse.Sample(0));
