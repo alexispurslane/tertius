@@ -1,6 +1,6 @@
 ---
 id: ter-6k3k
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-11-09T15:08:08Z
