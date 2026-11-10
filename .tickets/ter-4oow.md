@@ -47,3 +47,23 @@ No still's survey verdict moved from pass to fail.
 **2026-11-10T13:34:22Z**
 
 Review (reviewer subagent, 2026-11-10) and answers. F1 (medium, static): a block that mixes two roughnesses shares rays whose capped weights darken the reflection; not fixed here, because the fix changes the measured rule that Alexis chose to merge as built and needs a new deck trace; recorded as ter-8nhf, and the design doc's false comparison with the original rule is corrected. F2: the Vulkan spec allows sin an absolute error of 2^-11, half the bound at the roughness floor; fixed, the bound is now the angle 2 LobeFitShare atan(alpha), within 0.25 % of its chord up to MaxRoughness. F3: the flat-mirror test's margin was about half a point because the view turns less toward the image's sides; fixed, the bound is 3/4 and the comment names the side bands. F4: the ball test's comment gave shares as widths; fixed. Docs: precise-capped keeps a mirror at its own rays (cap 4); the README of the reference tool and ARCHITECTURE.md's byte-identity claim are corrected (the original variant's SPIR-V of the plan now differs in its bytes, not its rule). Design: the lobe test moved into fits(p, c, kind), so one function decides the fit.
+
+**2026-11-10T14:49:53Z**
+
+Mutation testing (tools/mutate.py, 13 listed mutants on the changed lines of screen_trace_plan.comp, classes ScreenTraceRenderTests and ScreenTraceHardeningTests, 527 s): killed 11, survived 2. Coverage: no changed C# source line (only tests), and GLSL has no coverage tool; no Core, Simulation or Physics line changed, so no Stryker run.
+
+| id | change | result |
+|---|---|---|
+| S01 | LobeFitShare 0.0 | killed |
+| S02 | LobeFitShare 4.0 | killed |
+| S03 | inside test inverted | killed |
+| S04 | normals only, no view | killed |
+| S05 | atan(c.alpha) for atan(p.alpha) | survived: judgment call. It differs only at a block of two roughnesses, which no test holds; ter-8nhf changes this term and brings the test that pins it. |
+| S06 | half the bound (share 0.25) | survived: judgment call. The tests pin the regimes far from the boundary (a mirror keeps its rays, a glossy floor shares); a test at the boundary would hang on the image size and the field of view (review F3), and the deck measured the same time at 0.25 and 0.5. |
+| S07 | chosen pixel's view dropped | killed |
+| S08 | age rule dropped | killed |
+| S09 | plane test dropped | killed |
+| S10 | lobe fit on the diffuse kind | killed |
+| S11 | lobe fit dropped | killed |
+| S12 | fit never sees the reflection kind | killed |
+| S13 | age rule or fit | killed |
