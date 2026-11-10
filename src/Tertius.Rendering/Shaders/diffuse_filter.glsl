@@ -3,7 +3,8 @@
 // (diffuse_filter_variance.comp) pairs the slow history's light with the standard deviation of the samples' luminance.
 // Each step of the filter, a wavelet dispatch (diffuse_filter_wavelet.comp), takes a 5 × 5 B-spline kernel at taps 2^i
 // pixels apart, stopped by the planes, the normals and the luminance, and moves light between the taps. Set 3 is the
-// filter set (DescriptorLayouts.FilterSet): every image holds the render size, RGBA16F, and stays in the General layout.
+// filter set (DescriptorLayouts.FilterSet): every image holds the render size and stays in the General layout. The light
+// images are RGBA16F, and the guide, which the variance dispatch writes for the wavelet dispatches' taps, RGBA32F.
 #ifndef TERTIUS_DIFFUSE_FILTER_GLSL
 #define TERTIUS_DIFFUSE_FILTER_GLSL
 
@@ -59,15 +60,25 @@ struct FilterTap
     float variance;
 };
 
-// The tap of a pixel whose input is `light`: rgb the light, a the deviation of its luminance.
-FilterTap filterTapAt(ivec2 pixel, vec4 light)
+// The guide of a pixel (DiffuseFilter.Guide): xyz its point relative to the eye in m, w its view depth, or 0 where the
+// filter does not take the pixel. The variance dispatch writes it once, so that no tap of a wavelet dispatch rebuilds it
+// from the G-buffer.
+vec4 guideAt(ivec2 pixel)
 {
-    FilterTap tap;
+    if (!filteredAt(pixel))
+        return vec4(0.0);
     vec3 ray = viewRayThrough(vec2(pixel) + 0.5);
     float distanceToEye = texelFetch(gbufferDistance, pixel, 0).r;
-    tap.point = normalize(ray) * distanceToEye;
     // The view ray's component along forward is 1, so the view depth is the distance over its length.
-    tap.depth = distanceToEye / length(ray);
+    return vec4(normalize(ray) * distanceToEye, distanceToEye / length(ray));
+}
+
+// The tap of a pixel whose guide is `guide` and whose input is `light`: rgb the light, a the deviation of its luminance.
+FilterTap filterTapAt(ivec2 pixel, vec4 guide, vec4 light)
+{
+    FilterTap tap;
+    tap.point = guide.xyz;
+    tap.depth = guide.w;
     tap.normal = octDecode(texelFetch(gbufferNormal, pixel, 0).ba);
     tap.luminance = luminance(light.rgb);
     tap.variance = light.a * light.a;
@@ -88,14 +99,6 @@ float tapWeight(FilterTap a, FilterTap b, int x, int y)
     float deviation = LuminanceDeviations * sqrt(a.variance + b.variance) + LeastDeviation;
     float light = exp(-abs(a.luminance - b.luminance) / deviation);
     return KernelWeights[abs(x)] * KernelWeights[abs(y)] * plane * normal * light;
-}
-
-// The pixel of tap (x, y) of `pixel`, `step` pixels apart, or (-1, -1) where the tap lies outside the images or shows no
-// lit surface.
-ivec2 tapPixel(ivec2 pixel, int x, int y)
-{
-    ivec2 neighbor = pixel + parameters.step * ivec2(x, y);
-    return insideFilter(neighbor) && filteredAt(neighbor) ? neighbor : ivec2(-1);
 }
 
 #endif

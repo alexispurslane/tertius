@@ -139,10 +139,10 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     private const uint FilterSets = DiffuseFilter.Sets;
 
     /// <summary>
-    /// The storage images of a filter set: a dispatch's input and output, the diffuse slow history and this frame's diffuse
-    /// fast history.
+    /// The storage images of a filter set: a dispatch's input and output, the diffuse slow history, this frame's diffuse
+    /// fast history and the filter's guide.
     /// </summary>
-    private const uint FilterSetImages = 4;
+    private const uint FilterSetImages = 5;
 
     /// <summary>
     /// The storage images of the light set: the direct light's two images, the two indirect signals' histories, and the
