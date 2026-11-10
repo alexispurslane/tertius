@@ -110,7 +110,21 @@ internal readonly record struct MaterialSample(Double3 BaseColor, double Metalli
     /// </summary>
     public DirectTerms RectTerms(Double3 normal, Double3 toView, RectView rect, BrdfTables tables, LtcTable ltc)
     {
-        double cosine = rect.ClippedCosine(normal);
+        bool point = rect.ShadesAsPointOn(normal);
+        double solidAngle = rect.PointSolidAngle;
+        Double3 toCenter = rect.ToCenter.Normalized();
+        if (point && Roughness >= RectView.PointRoughness)
+        {
+            DirectTerms sphere = ReflectedTerms(
+                normal: normal,
+                toView: toView,
+                toLight: toCenter,
+                tables: tables,
+                lightSine: 0
+            );
+            return new(Diffuse: sphere.Diffuse * solidAngle, Specular: sphere.Specular * solidAngle);
+        }
+        double cosine = point ? Double3.Dot(normal, toCenter) * solidAngle : rect.ClippedCosine(normal);
         if (cosine <= 0)
             return default;
         double share = rect.LtcShare(

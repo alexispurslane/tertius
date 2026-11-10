@@ -6,8 +6,8 @@ namespace Tertius.Rendering.Tests;
 
 /// <summary>
 /// A rectangle light on the GPU (ARCHITECTURE.md, "Rectangle lights"): a matte square in front of it takes the C#
-/// rectangle's light, also where the panel crosses the square's horizon and where the square stands behind it, a rough
-/// square shows the C# LTC shine, and a mirror shows the panel at its size.
+/// rectangle's light, also where the panel crosses the square's horizon, where the square stands behind it and where the
+/// panel lies far enough to shade as a point, a rough square shows the C# shine, and a mirror shows the panel at its size.
 /// </summary>
 [Collection(GpuCollection.Name)]
 public sealed class RectLightRenderTests
@@ -109,7 +109,8 @@ public sealed class RectLightRenderTests
         );
 
     /// <summary>A panel in front of the matte square by name.</summary>
-    public static TheoryData<string> MattePanels => ["facing-the-square", "tilted-beside", "through-the-square"];
+    public static TheoryData<string> MattePanels =>
+        ["facing-the-square", "tilted-beside", "through-the-square", "far-facing-the-square"];
 
     /// <summary>
     /// The panel of <see cref="MattePanels"/> by its name: from the square's center to its center, in m, its turn, and its
@@ -130,6 +131,14 @@ public sealed class RectLightRenderTests
             // A panel that stands slanted through the square above its center, facing down toward it: only the part in front
             // of the square lights it, and the cut at the horizon decides how much.
             "through-the-square" => (new(0, 0.3, 0.1), Quaternion.CreateFromAxisAngle(Vector3.UnitX, 1.2f), 1.0f, 0.6f),
+            // A panel 0.3 m by 0.2 m, 2 m in front of the center and facing it: 11 half diagonals away, so it shades as a
+            // point light.
+            "far-facing-the-square" => (
+                new(0, 0, 2),
+                Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI),
+                0.3f,
+                0.2f
+            ),
             _ => throw new ArgumentOutOfRangeException(nameof(name), name, "No such panel."),
         };
 
@@ -314,6 +323,70 @@ public sealed class RectLightRenderTests
                     shown[0].X,
                     shown[1].X,
                     "the square's center shows the C# LTC shine {0} within 2 %",
+                    expected.X
+                );
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void ARoughSquareShowsTheCSharpPointShineOfAFarRectangleLight()
+    {
+        // The rough square of ARoughSquareShowsTheCSharpLtcShineOfARectangleLight, and a panel 0.2 m square in the same
+        // place: 9.5 half diagonals away, so it shines as a point light.
+        var rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.Atan2(-0.6f, -1.2f));
+        var toCenter = new Double3(0.6, 0, 1.2);
+        RectRenderLight panel = Panel(
+            position: new Vector3(0, 0, -SquareDistance) + toCenter.ToVector3(),
+            rotation: rotation,
+            power: 4,
+            width: 0.2f,
+            height: 0.2f
+        );
+        (Double3 halfWidth, Double3 halfHeight) = HalfSides(panel);
+        var metal = new MaterialDesc(
+            BaseColor: new(x: 1, y: 1, z: 1, w: 1),
+            Roughness: 0.5f,
+            Reflectance: 0.5f,
+            Model: new StandardShading(Metallic: 1)
+        );
+        DirectTerms terms = TestMaterials
+            .SampleOf(metal)
+            .RectTerms(
+                normal: Double3.UnitZ,
+                toView: Double3.UnitZ,
+                rect: new RectView(toCenter: toCenter, halfWidth: halfWidth, halfHeight: halfHeight),
+                tables: BrdfTables.Shared,
+                ltc: LtcTable.Shared
+            );
+        Double3 expected = terms.Specular * FaceRadianceInReach(panel, toCenter);
+
+        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height);
+        try
+        {
+            Capture image = RenderSquare(
+                renderer: renderer,
+                panel: panel,
+                desc: metal,
+                fov: Gpu.Fov,
+                name: "rect-light-rough-far"
+            );
+            Vector3[] shown = Displayed(
+                renderer,
+                [(expected * 0.98).ToVector3(), (expected * 1.02).ToVector3()],
+                "rect-light-rough-far-glow"
+            );
+
+            image
+                .Color(Width / 2, Height / 2)
+                .X.Should()
+                .BeInRange(
+                    shown[0].X,
+                    shown[1].X,
+                    "the square's center shows the C# point shine {0} within 2 %",
                     expected.X
                 );
         }

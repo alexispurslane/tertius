@@ -40,6 +40,11 @@ const uint ShadowMapsHolding = 2u;    // the finest cascade whose box holds the 
 // LightUnits.NearestDistance: the floor of the distance, in m, by which a light of radius 0 divides its irradiance.
 const float NearestDistance = 0.01;
 
+// RectView.PointDistanceRatio: the distance to a rectangle's center, in half diagonals, from which it shades as a point.
+const float RectPointDistanceRatio = 8.0;
+// RectView.PointRoughness: the roughness from which a far rectangle's shine is a point light's, not the LTC's.
+const float RectPointRoughness = 0.5;
+
 // ShaderInput.IrradianceLimit, 2^64: the most irradiance per channel in W/m² that one light gives a surface, and the most
 // face radiance per channel in W/(m²·sr) of a rectangle light. A point, spot or tube light's irradiance before the cap is
 // finite, at most 10^34 W/sr over the floor of 10^−4 m². A rectangle's face radiance can pass the float range before the
@@ -664,12 +669,24 @@ DirectTerms tubeResponse(bool fiber, ShadingInput s, SurfaceLobes lobes, vec3 V,
     return terms;
 }
 
+// RectView.ShadesAsPointOn: whether the rectangle of path p shades a surface of normal n as a point light. It lies at
+// least RectPointDistanceRatio half diagonals away, and every corner lies above the surface's horizon, which a point
+// light cannot cut.
+bool rectShadesAsPoint(vec3 n, LightPath p)
+{
+    float halfDiagonalSq = dot(p.halfWidth, p.halfWidth) + dot(p.halfHeight, p.halfHeight);
+    bool far = p.d * p.d >= RectPointDistanceRatio * RectPointDistanceRatio * halfDiagonalSq;
+    bool aboveHorizon = dot(n, p.toCenter) - abs(dot(n, p.halfWidth)) - abs(dot(n, p.halfHeight)) > 0.0;
+    return far && aboveHorizon;
+}
+
 // MaterialSample.RectTerms per unit of the rectangle's face radiance (ARCHITECTURE.md, "Rectangle lights"): c_diff / π
 // times the face's cosine integral cut at the shading normal's horizon, and the compensated specular albedo times the
 // share of the lobe's LTC that the face covers, cut at the LTC's own horizon. Both sums take the corners in the LTC's
 // frame, whose x points toward the view: the cosine integral does not depend on the tangents. A fiber shades the face as
 // a point light along its vector irradiance per unit of face radiance, dimmed by that vector's length, as it shades a
-// tube.
+// tube. A face that rectShadesAsPoint gives its diffuse light as a point light of its projected solid angle, and to a
+// rough surface also its shine: the sums cost the direct pass most of its time (ARCHITECTURE.md, "Rectangle lights").
 DirectTerms rectResponse(bool fiber, ShadingInput s, SurfaceLobes lobes, vec3 V, LightPath p)
 {
     // In units of the center's distance, where the sums are the same and no product overflows.
@@ -695,6 +712,16 @@ DirectTerms rectResponse(bool fiber, ShadingInput s, SurfaceLobes lobes, vec3 V,
         return terms;
     }
     vec3 N = s.normal;
+    bool point = rectShadesAsPoint(N, p);
+    // RectView.PointSolidAngle: c is a unit vector here, so this is the face's area times its cosine over d².
+    float solidAngle = -4.0 * dot(c, cross(w, h));
+    if (point && s.roughness >= RectPointRoughness)
+    {
+        terms = surfaceResponse(s, lobes, V, p.L, 0.0);
+        terms.diffuse *= solidAngle;
+        terms.specular *= solidAngle;
+        return terms;
+    }
     vec3 along = V - N * dot(V, N);
     // Head on the LTC is round about the normal, so any tangent serves.
     vec3 first = dot(along, along) > 1e-10
@@ -710,7 +737,7 @@ DirectTerms rectResponse(bool fiber, ShadingInput s, SurfaceLobes lobes, vec3 V,
         lobe[i] = vec3(inverse.x * local[i].x + inverse.y * local[i].z, local[i].y,
             inverse.z * local[i].x + inverse.w * local[i].z);
     }
-    float cosine = cutCosine(local);
+    float cosine = point ? dot(N, p.L) * solidAngle : cutCosine(local);
     if (cosine <= 0.0)
         return terms;
     terms.diffuse = lobes.diffuseColor / PI * cosine;
