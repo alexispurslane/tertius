@@ -584,36 +584,79 @@ public sealed class BatcherLightTests
         panel.SpotRadius.Y.Should().Be(0, "the shadow falls from the face's center as from a point");
     }
 
-    [Fact]
-    public void TheFrameCountsTheRectangleLightsOfItsListForTheShadersLoopOverThem()
+    /// <summary>A light of each kind, and a tube of length 0, which the shaders shade as a lamp, by name.</summary>
+    public static TheoryData<string> LightKinds => ["lamp", "beam", "tube", "tube-of-length-zero", "panel"];
+
+    /// <summary>The light of <see cref="LightKinds"/> by its name, 5 m ahead of the camera.</summary>
+    private static RenderLight LightNamed(string name) =>
+        name switch
+        {
+            "lamp" => Gpu.Lamp(
+                position: new(0, 1, -5),
+                color: Vector3.One,
+                intensity: 4,
+                chainDepth: TestChains.CamerasFrame
+            ),
+            "beam" => Beam(new(0, 1, -5), -Vector3.UnitY),
+            "tube" => Tube(
+                position: new(0, 1, -5),
+                previousPosition: new(0, 1, -5),
+                axis: Vector3.UnitX,
+                previousAxis: Vector3.UnitX
+            ),
+            "tube-of-length-zero" => Tube(
+                position: new(0, 1, -5),
+                previousPosition: new(0, 1, -5),
+                axis: Vector3.UnitX,
+                previousAxis: Vector3.UnitX,
+                length: 0
+            ),
+            "panel" => Panel(
+                position: new(0, 1, -5),
+                previousPosition: new(0, 1, -5),
+                rotation: Quaternion.Identity,
+                previousRotation: Quaternion.Identity
+            ),
+            _ => throw new ArgumentOutOfRangeException(nameof(name), name, "No such light."),
+        };
+
+    [Theory]
+    [MemberData(nameof(LightKinds))]
+    public void TheFrameNamesTheShapeOfALightAsTheShadersReadItFromTheLightsKind(string name)
     {
         RenderSnapshot snapshot = Dark();
-        snapshot.Lights.Add(
-            Gpu.Lamp(position: new(0, 1, -5), color: Vector3.One, intensity: 4, chainDepth: TestChains.CamerasFrame)
-        );
-        snapshot.Lights.Add(
-            Panel(
-                position: new(1, 1, -5),
-                previousPosition: new(1, 1, -5),
-                rotation: Quaternion.Identity,
-                previousRotation: Quaternion.Identity
-            )
-        );
-        snapshot.Lights.Add(
-            Panel(
-                position: new(-1, 1, -5),
-                previousPosition: new(-1, 1, -5),
-                rotation: Quaternion.Identity,
-                previousRotation: Quaternion.Identity
-            )
-        );
+        snapshot.Lights.Add(LightNamed(name));
 
         PreparedScene scene = Prepare(snapshot: snapshot);
 
-        scene.Constants.Counts.X.Should().Be(3u);
+        float kind = GpuLight.From(scene.Lights[0]).IntensityKind.W;
+        // The rule of shapeOf in lighting.glsl, which picks each light's loop from its kind.
+        uint shape = kind switch
+        {
+            GpuLight.RectKind => GpuLight.RectShape,
+            GpuLight.TubeKind => GpuLight.TubeShape,
+            _ => GpuLight.PointShape,
+        };
         scene
             .Constants.Counts.W.Should()
-            .Be(2u, "the shaders run the rectangles' own loop only when the list holds one");
+            .Be(shape, "shapeOf in lighting.glsl picks a light's loop by its kind, and the frame runs only that loop");
+    }
+
+    [Fact]
+    public void TheFrameNamesEachShapeOfItsListOnceForTheShadersToSkipTheLoopsOfTheOthers()
+    {
+        RenderSnapshot snapshot = Dark();
+        snapshot.Lights.Add(LightNamed("lamp"));
+        snapshot.Lights.Add(LightNamed("beam"));
+        snapshot.Lights.Add(LightNamed("panel"));
+        snapshot.Lights.Add(LightNamed("panel"));
+
+        PreparedScene scene = Prepare(snapshot: snapshot);
+
+        scene.Constants.Counts.X.Should().Be(4u);
+        scene
+            .Constants.Counts.W.Should()
+            .Be(GpuLight.PointShape | GpuLight.RectShape, "the list holds no tube, so the tubes' loop does not run");
     }
 
     [Fact]
