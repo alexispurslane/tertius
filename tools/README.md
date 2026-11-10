@@ -1028,11 +1028,27 @@ The motion part first renders stills of 132 draws of the states of a film's midd
 
 The probe parts use the probe demo with a fixed exposure (`--exposure`, 4.08 stops by default), no bloom, and the Hable tone curve, which the probe replaces with 24-bit log luminance. So they read scene luminance without the auto exposure. Each frame becomes the mean luminance of the whole image and of a 3 × 3 grid of regions:
 
-- A switch case turns the selected lamps off at film frame 160 and on at frame 360, and films 100 more frames (`TERTIUS_PROBE_LAMP_OFF`, `TERTIUS_PROBE_LAMP_SEL` and `TERTIUS_PROBE_SUN` in the patch). So the lamps-off window is 200 draws and the lamps-on window is 100 draws. Two control runs hold the lamps off or on from the start. The settle is the draws after the change until the light of every region that the switch changes by more than 10 % stays within 5 % of its control. This is the method of `settle2.py` of 2026-11-08.
+- A switch case turns the selected lamps off at film frame 160 and on at frame 360. It films 100 more frames (`TERTIUS_PROBE_LAMP_OFF`, `TERTIUS_PROBE_LAMP_SEL` and `TERTIUS_PROBE_SUN` in the patch). So the lamps-off window is 200 draws and the lamps-on window is 100 draws. Two control runs hold the lamps off or on from the start. The settle is the draws after the change until the light of every region that the switch changes by more than 10 % stays within 5 % of its control. This is the method of `settle2.py` of 2026-11-08.
 - A lag case renders a film of moving lights, and stills of 132 draws of the same states at its sample frames. The lag is the film's difference from the still divided by the film's change per draw, so it is in draws. It counts only regions whose light changes by more than 10 % in 60 draws.
 - A walk case walks the person forward, stops, and then films 200 frames. The settle is the draws after the stop until every region stays within 5 % of a still of 133 draws at the end.
 
-A light that is still outside the tolerance at the last frame of its window has no settle count. The result file then holds `null`, and the report prints "not settled within N draws", with N the window's length. Such a case fails. Before 2026-11-09, the tool gave the window's length as the count, so a value of 100 in the first survey means "not settled within 100 draws".
+A light that is still outside the tolerance at the last frame of its window has no settle count. The result file then holds `null`, and the report prints "not settled within N draws", with N the window's length. Such a case fails. Before 2026-11-09, the tool gave the window's length as the count. So a value of 100 in the first survey means "not settled within 100 draws".
+
+### The split by light signal
+
+`split` renders a film or a still once for each light signal and tells which signal carries its error. The light signals are the direct light with the emission, the bounce light (indirect diffuse) and the reflections (indirect specular). The probe's setting `TERTIUS_PROBE_SIGNAL` (1, 2 or 3) shows one signal alone, and 0 shows the whole image. The command needs a probe built from the current `probe.patch` in its own output folder:
+
+```bash
+nix develop --command python3 -I tools/renderer-survey.py probe-build /private/tmp/tertius-split
+nix develop --command python3 -I tools/renderer-survey.py split /private/tmp/tertius-split --survey /private/tmp/tertius-survey --films bay-sunbeam rect-bay --stills rect-lamps
+nix develop --command python3 -I tools/renderer-survey.py split-report /private/tmp/tertius-split
+```
+
+A film takes the fixed exposure of its result in the survey folder that `--survey` names, so the survey's motion part must run first. A still first renders its shown still with the auto exposure and takes that exposure. Each render then uses the fixed exposure and the probe's log luminance, so the four renders read scene luminance and add up.
+
+Every pass after the composite, such as glass, particles and haze, adds its light to each of the four renders. So the split computes that light as (direct + bounce + reflections − all) / 2 and takes it out of each signal. The report names it "after". For each sample, the report gives the whole image's blotch score and level, and each part's blotch score, level and share of the light. A part's blotch score is the score of that part's difference alone, relative to the whole image's light. So the part with the largest score carries the error. A film also gets the flicker of each part.
+
+The split measures in scene luminance, not in the display luminance of the survey. Its masks and its floor come from an ACES fit of the scene luminance. So its scores are close to the survey's scores but not equal to them. FSR 3.1 upscales each render on its own, and its clamp is not linear. So the parts do not add up exactly where FSR clamps.
 
 ### Tests
 

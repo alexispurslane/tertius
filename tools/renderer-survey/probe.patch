@@ -103,3 +103,75 @@
      vec3 ldr = tonemap.toneCurve == toneCurveAcesFitted ? acesFitted(hdr) : hable(hdr);
      if (tonemap.encodeSrgb != 0u)
          ldr = linearToSrgb(ldr);
+diff --git a/src/Tertius.Rendering/ShaderConstants.cs b/src/Tertius.Rendering/ShaderConstants.cs
+index deae64b..1975791 100644
+--- a/src/Tertius.Rendering/ShaderConstants.cs
++++ b/src/Tertius.Rendering/ShaderConstants.cs
+@@ -113,6 +113,8 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
+             (MainViewId, VkBool(values.MainView)),
+             (NeighborLimitPrototypeId, VkBool(values.NeighborLimitPrototype)),
+             (ReflectionSharingPrototypeId, VkBool(values.ReflectionSharingPrototype)),
++            // PROBE (tools/renderer-survey): probeSignal of composite_pass.glsl.
++            (11u, uint.TryParse(Environment.GetEnvironmentVariable("TERTIUS_PROBE_SIGNAL"), out uint probeSignal) ? probeSignal : 0u),
+         ];
+         for (int i = 0; i < rows.Length; i++)
+         {
+@@ -144,7 +146,7 @@ internal struct SpecializationStorage
+     /// The number of constants: one per field of <see cref="ShaderConstants"/>, the subsurface setting's being its taps per
+     /// side. <see cref="ShaderConstants.Specialization"/> writes one row per constant, and a row past this count throws.
+     /// </summary>
+-    public const int Count = 10;
++    public const int Count = 11;
+ 
+     public SpecializationValues Data;
+     public SpecializationEntries Entries;
+diff --git a/src/Tertius.Rendering/Shaders/composite_pass.glsl b/src/Tertius.Rendering/Shaders/composite_pass.glsl
+index 7251102..d13f42c 100644
+--- a/src/Tertius.Rendering/Shaders/composite_pass.glsl
++++ b/src/Tertius.Rendering/Shaders/composite_pass.glsl
+@@ -27,6 +27,10 @@ layout(set = 3, binding = 3, SPECULAR_HISTORY_FORMAT) uniform readonly image2D i
+ 
+ layout(location = 0) in vec3 inRay;
+ layout(location = 0) out vec4 outColor;
++
++// PROBE (tools/renderer-survey): TERTIUS_PROBE_SIGNAL shows one light signal alone. 0 all, 1 the direct light with the
++// emission, 2 the bounce light (indirect diffuse), 3 the reflections (indirect specular). Under 1 to 3 the sky is black.
++layout(constant_id = 11) const int probeSignal = 0;
+ #ifdef SCATTER_OUTPUT
+ // The diffuse image: the pass writes every one of its pixels.
+ layout(location = 1) out vec4 outDiffuse;
+@@ -50,7 +54,8 @@ void main()
+ #ifdef TERTIUS_DIRECT_LIGHT_ONLY
+         outColor = vec4(0.0);
+ #else
+-        outColor = vec4(preExposed(skyRadiance(direction) + starRadiance(direction)), 1.0);
++        outColor = probeSignal != 0 ? vec4(0.0, 0.0, 0.0, 1.0)
++            : vec4(preExposed(skyRadiance(direction) + starRadiance(direction)), 1.0);
+ #endif
+         writeDiffuse(vec4(0.0));
+         return;
+@@ -64,7 +69,7 @@ void main()
+ #ifdef TERTIUS_DIRECT_DIFFUSE_ONLY
+         outColor = vec4(0.0);
+ #else
+-        outColor = vec4(emissive, 1.0);
++        outColor = vec4(probeSignal <= 1 ? emissive : vec3(0.0), 1.0);
+ #endif
+         writeDiffuse(vec4(0.0));
+         return;
+@@ -92,6 +97,15 @@ void main()
+         indirectSpecular = reflectionSharedAt(pixel, indirectSpecular);
+     // Each part is finite and at most a few times MaxRadiance, so the sum is finite, and the cap keeps the surfaces' share
+     // (docs/plans/screen-space-illumination.md, "The cap at MaxRadiance").
++    if (probeSignal != 0)
++    {
++        // PROBE: each signal alone, and its share of D for the skin scatter, so that the three signals add up.
++        directDiffuse *= float(probeSignal == 1);
++        directSpecular *= float(probeSignal == 1);
++        emissive *= float(probeSignal == 1);
++        indirectDiffuse *= float(probeSignal == 2);
++        indirectSpecular *= float(probeSignal == 3);
++    }
+     outColor = vec4(
+         min(directDiffuse + directSpecular + indirectDiffuse + indirectSpecular + emissive, vec3(MaxRadiance)), 1.0);
+     // D, at most MaxRadiance, and the mask, which marks the skin pixels that alone the scatter passes spread.

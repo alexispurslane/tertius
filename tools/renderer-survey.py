@@ -910,6 +910,219 @@ def run(args):
 
 
 # ---------------------------------------------------------------------------------------------------------------------
+# The split by light signal: which signal carries a failure of a film or a still
+
+
+# The probe's renders of one light signal alone (TERTIUS_PROBE_SIGNAL of probe.patch), and of the whole image. Every pass
+# after the composite, such as glass, particles and haze, adds its light to each of the four renders.
+SIGNALS = {"all": "0", "direct": "1", "bounce": "2", "reflections": "3"}
+# The parts of the split: the three signals, and "after", the light of the passes after the composite.
+PARTS_OF_LIGHT = ("direct", "bounce", "reflections", "after")
+# The split keeps each image blurred by BLUR_SIGMA and reduced by this factor on each axis, which the blur allows.
+SPLIT_REDUCE = 3
+
+
+def display(y):
+    """The display-linear luminance of a pre-exposed scene luminance under the default tone curve, the ACES fit of
+    tonemap.glsl taken on the luminance alone. The split's masks and its floor come from it."""
+    n = np()
+    fitted = (y * (y + 0.0245786) - 0.000090537) / (y * (0.983729 * y + 0.4329510) + 0.238081)
+    return n.clip(fitted, 0.0, 1.0)
+
+
+# The scene luminance whose display() is RELATIVE_FLOOR: the split's floor of the denominator.
+SCENE_FLOOR = 0.0408
+
+
+def reduce(y):
+    """y blurred by BLUR_SIGMA and reduced by SPLIT_REDUCE."""
+    return blur(y)[::SPLIT_REDUCE, ::SPLIT_REDUCE].astype(np().float32)
+
+
+def split_mask(still):
+    """The pixels that the blotch score of the still counts (blotch()): visible and away from emitters, judged on the
+    display() of the scene luminance of the whole image, reduced as reduce() reduces."""
+    d = display(still)
+    return (visible(d) & ~near_emitters(d))[::SPLIT_REDUCE, ::SPLIT_REDUCE]
+
+
+def parts_of(images: dict) -> dict:
+    """The parts of the light from the four renders of one moment, each reduced: the passes after the composite add
+    their light to all four, so it is (direct + bounce + reflections - all) / 2, and each signal's own light is its
+    render less that."""
+    after = (images["direct"] + images["bounce"] + images["reflections"] - images["all"]) / 2
+    parts = {name: images[name] - after for name in ("direct", "bounce", "reflections")}
+    parts["after"] = after
+    return parts
+
+
+def signal_errors(film: dict, still: dict, mask) -> dict:
+    """The blotch of a film frame against the still of the same state, split by the part of the light that carries it.
+    film and still map each render of SIGNALS to its reduced scene luminance. The whole image's error is blotch()'s, in
+    scene luminance: the relative difference after the film is divided by its level, with the floor SCENE_FLOOR, as its
+    90th percentile over the mask. Each part's blotch is the same measure of that part's difference alone, still
+    relative to the whole image's light. Each part also gets its own level, film over still less 1, and its share of the
+    still's light."""
+    n = np()
+    total = still["all"]
+    if not mask.any():
+        return {"blotch": 0.0, "level": 0.0, "parts": {}}
+    whole_level = float(n.median(film["all"][mask] / n.maximum(total[mask], 1e-12)) - 1)
+    scale = 1 + whole_level
+    denominator = total + SCENE_FLOOR
+
+    def score(difference):
+        return float(n.percentile(n.abs(difference / denominator)[mask], 90))
+
+    film_parts, still_parts = parts_of(film), parts_of(still)
+    light = float(total[mask].sum())
+    parts = {}
+    for name in PARTS_OF_LIGHT:
+        f, s = float(film_parts[name][mask].sum()), float(still_parts[name][mask].sum())
+        parts[name] = {"blotch": score(film_parts[name] / scale - still_parts[name]),
+                       "level": f / s - 1 if abs(s) > 1e-3 * light else None,
+                       "share": s / light if light > 0 else 0.0}
+    return {"blotch": score(film["all"] / scale - total), "level": whole_level, "parts": parts}
+
+
+def signal_flicker(frames) -> dict:
+    """The low-frequency flicker of a film by part of the light: flicker()'s second difference of each part, relative
+    to the mean of the whole image's three frames, capped at FLICKER_CAP and averaged over the visible reduced pixels,
+    then the median over the frames. frames is an iterable of dicts that map each render of SIGNALS to its reduced
+    image. "all" is the whole image's flicker in the same measure."""
+    n = np()
+    series = {name: [] for name in ("all", *PARTS_OF_LIGHT)}
+    window = []
+    for images in frames:
+        window.append({"all": images["all"], **parts_of(images)})
+        if len(window) < 3:
+            continue
+        p0, p1, p2 = window[-3:]
+        window = window[-2:]
+        mean = (p0["all"] + p1["all"] + p2["all"]) / 3
+        mask = display(mean) > VISIBLE
+        if not mask.any():
+            continue
+        for name in series:
+            d = n.minimum(n.abs(p1[name] - (p0[name] + p2[name]) / 2) / (mean + SCENE_FLOOR), FLICKER_CAP)
+            series[name].append(float(d[mask].mean()))
+    return {name: float(n.median(values)) if values else 0.0 for name, values in series.items()}
+
+
+def signal_render(out: Path, name: str, script: dict, signal: str, stops: float, *, still=False) -> Path:
+    env = {"TERTIUS_PROBE_SIGNAL": SIGNALS[signal], "TERTIUS_PROBE_EXPOSURE": f"{stops:.4f}"}
+    if still:
+        env.update(STILL_CONTINUES)
+    work = out / "work" / "split" / f"{name}-{signal}"
+    render(work, script, binary=probe_binary(out), env=env, extra=PROBE_OPTIONS)
+    return work
+
+
+def split_motion(out: Path, case: dict, stops: float) -> dict:
+    """A film's split: for each render of SIGNALS, the film and the stills of its middle and last frames, at the fixed
+    exposure stops, in scene luminance."""
+    if "script" in case:
+        script = motion_script(script_of(case["script"]), case["start"], case["frames"])
+    else:
+        script = scene_script(case["scene"], case["camera"], case["ticks"],
+                              [{"do": "film", "name": "m0000", "frames": case["frames"], "every": 1}])
+    samples = {"middle": case["frames"] // 2, "end": case["frames"] - 1}
+    references, names = motion_references_script(script, list(samples.values()))
+    films, stills, masks = {}, {}, {}
+    for signal in SIGNALS:
+        work = signal_render(out, f"{case['name']}-references", references, signal, stops, still=True)
+        for label, k in samples.items():
+            y = probe_luminance(work / f"{names[k]}.png")
+            stills.setdefault(label, {})[signal] = reduce(y)
+            if signal == "all":
+                masks[label] = split_mask(y)
+        shutil.rmtree(work)
+        work = signal_render(out, case["name"], script, signal, stops)
+        films[signal] = [reduce(probe_luminance(f)) for f in sorted(work.glob("m*-*.png"))]
+        shutil.rmtree(work)
+    frames = len(films["all"])
+    flicker_parts = signal_flicker({signal: films[signal][t] for signal in SIGNALS} for t in range(frames))
+    against = {label: signal_errors({signal: films[signal][k] for signal in SIGNALS}, stills[label], masks[label])
+               for label, k in samples.items()}
+    return {"kind": "motion", "stops": stops, "frames": frames, "flicker": flicker_parts, "samples": against}
+
+
+def split_still(out: Path, case: dict) -> dict:
+    """A still's split: the auto exposure of the shown still first, then for each render of SIGNALS the still view at
+    that fixed exposure, in scene luminance: the shown still against the mean of the reference captures."""
+    script, first_is_still = still_script(*source_of(case))
+    index = still_capture_index(first_is_still)
+    work = out / "work" / "split" / f"{case['name']}-exposure"
+    render(work, views_script(source_of(case)[0], {source_of(case)[1]: captures("v", index + 1)})[0],
+           binary=probe_binary(out), env=STILL_CONTINUES, extra=NO_BLOOM)
+    stops = {e["capture"]: e["stops"] for e in json.loads((work / "exposure.json").read_text())}[f"v-s{index:02d}"]
+    shutil.rmtree(work)
+    shown, reference, mask = {}, {}, None
+    for signal in SIGNALS:
+        work = signal_render(out, case["name"], script, signal, stops, still=True)
+        y = probe_luminance(work / f"v-s{index:02d}.png")
+        shown[signal] = reduce(y)
+        total = sum(probe_luminance(work / f"v-s{k:02d}.png") for k in range(STILL_CAPTURES - REFERENCE_CAPTURES, STILL_CAPTURES))
+        reference[signal] = reduce(total / REFERENCE_CAPTURES)
+        if signal == "all":
+            mask = split_mask(total / REFERENCE_CAPTURES)
+        shutil.rmtree(work)
+    return {"kind": "still", "stops": stops, "draws": still_draws(first_is_still, index),
+            "samples": {"shown": signal_errors(shown, reference, mask)}}
+
+
+def split(args):
+    """Splits the named films and stills by light signal into <out>/results/split/<name>.json. A film takes the fixed
+    exposure of its result in the survey folder args.survey, and a still renders its own auto exposure first."""
+    out = Path(args.out).resolve()
+    cases = load_cases()
+    motion = {c["name"]: c for c in cases["motion"]}
+    stills = {c["name"]: c for c in cases["stills"]}
+    failures = 0
+    for kind, names in (("motion", args.films or []), ("still", args.stills or [])):
+        for name in names:
+            key = f"{kind}-{name}"
+            if done(out, "split", key):
+                continue
+            print(f"split {key} ...", flush=True)
+            try:
+                if kind == "motion":
+                    stops = json.loads((Path(args.survey) / "results" / "motion" / f"{name}.json").read_text())["stops"]
+                    result = split_motion(out, motion[name], stops)
+                else:
+                    result = split_still(out, stills[name])
+            except (RuntimeError, ValueError, OSError, KeyError) as error:
+                failures += 1
+                print(f"split {key} FAILED: {error!r}", flush=True)
+                continue
+            save(out, "split", key, result)
+            print(f"split {key}: " + json.dumps(result["samples"]), flush=True)
+    return 1 if failures else 0
+
+
+def split_report(args):
+    """The tables of the split, in Markdown: for each sample, the whole image's blotch and level, and each part's blotch,
+    level and share of the light. A film adds its flicker by part."""
+    out = Path(args.out).resolve()
+    lines = ["| Case | Sample | Whole blotch | Whole level | " + " | ".join(f"{p} blotch / level / share" for p in PARTS_OF_LIGHT)
+             + " |", "|---|---|---:|---:|" + "---|" * len(PARTS_OF_LIGHT)]
+    for name, r in results(out, "split").items():
+        for label, sample in r["samples"].items():
+            parts = sample["parts"]
+            lines.append(f"| {name} | {label} | {cell(sample['blotch'], 3)} | {cell(sample['level'], 3)} | " + " | ".join(
+                f"{cell(parts[p]['blotch'], 3)} / {cell(parts[p]['level'], 3)} / {cell(parts[p]['share'], 2)}"
+                for p in PARTS_OF_LIGHT) + " |")
+    lines += ["", "| Film | Whole flicker | " + " | ".join(f"{p} flicker" for p in PARTS_OF_LIGHT) + " |",
+              "|---|---:|" + "---:|" * len(PARTS_OF_LIGHT)]
+    for name, r in results(out, "split").items():
+        if r["kind"] == "motion":
+            lines.append(f"| {name} | {cell(r['flicker']['all'], 4)} | "
+                         + " | ".join(cell(r["flicker"][p], 4) for p in PARTS_OF_LIGHT) + " |")
+    print("\n".join(lines))
+    return 0
+
+
+# ---------------------------------------------------------------------------------------------------------------------
 # Probe build, trace, report and contact sheet
 
 
@@ -1055,10 +1268,16 @@ def main(argv=None) -> int:
     p.add_argument("--slowest", type=int, default=5, help="how many views, slowest by median frame span")
     p.add_argument("--also", nargs="*", help="more views to trace, by name")
     p.add_argument("--clock-bin", default=os.environ.get("GPU_CALIBRATION_BIN"))
-    for name in ("report", "sheet"):
+    p = sub.add_parser("split")
+    p.add_argument("out")
+    p.add_argument("--survey", required=True, help="the survey folder whose motion results give the films' exposure")
+    p.add_argument("--films", nargs="*", help="motion cases to split, by name")
+    p.add_argument("--stills", nargs="*", help="still cases to split, by name")
+    for name in ("report", "sheet", "split-report"):
         sub.add_parser(name).add_argument("out")
     args = parser.parse_args(argv)
-    return {"probe-build": probe_build, "run": run, "trace": trace, "report": report, "sheet": sheet}[args.command](args)
+    return {"probe-build": probe_build, "run": run, "trace": trace, "report": report, "sheet": sheet, "split": split,
+            "split-report": split_report}[args.command](args)
 
 
 if __name__ == "__main__":

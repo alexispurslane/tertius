@@ -211,6 +211,53 @@ class Measures(unittest.TestCase):
         self.assertAlmostEqual(means[1], 9.0)
 
 
+def renders(direct, bounce, reflections, after=None):
+    """The four renders of SIGNALS for given parts of the light: the passes after the composite add to each render."""
+    after = np.zeros_like(direct) if after is None else after
+    return {"all": direct + bounce + reflections + after, "direct": direct + after, "bounce": bounce + after,
+            "reflections": reflections + after}
+
+
+class Split(unittest.TestCase):
+    """The split by light signal: which part of the light carries a film's error against its still."""
+
+    def test_the_light_after_the_composite_is_taken_out_of_each_signals_render(self):
+        parts = survey.parts_of(renders(flat(0.3), flat(0.2), flat(0.1), after=flat(0.05)))
+        for name, value in (("direct", 0.3), ("bounce", 0.2), ("reflections", 0.1), ("after", 0.05)):
+            self.assertTrue(np.allclose(parts[name], value), name)
+
+    def test_a_patch_in_the_bounce_light_is_the_bounce_lights_blotch_alone(self):
+        still = renders(flat(0.3), flat(0.2), flat(0.1), after=flat(0.02))
+        bounce = flat(0.2)
+        bounce[20:70, 30:100] *= 2
+        film = renders(flat(0.3), bounce, flat(0.1), after=flat(0.02))
+        errors = survey.signal_errors(film, still, np.ones_like(bounce, dtype=bool))
+        parts = errors["parts"]
+        self.assertGreater(parts["bounce"]["blotch"], survey.BLOTCH_LIMIT)
+        for name in ("direct", "reflections", "after"):
+            self.assertLess(parts[name]["blotch"], 1e-3, name)
+        self.assertAlmostEqual(parts["bounce"]["share"], 0.2 / 0.62, places=4)
+
+    def test_a_signal_that_trails_its_still_shows_its_own_level(self):
+        still = renders(flat(0.3), flat(0.2), flat(0.1))
+        film = renders(flat(0.3), flat(0.1), flat(0.1))
+        parts = survey.signal_errors(film, still, np.ones((96, 128), dtype=bool))["parts"]
+        self.assertAlmostEqual(parts["bounce"]["level"], -0.5, places=4)
+        self.assertAlmostEqual(parts["direct"]["level"], 0.0, places=4)
+        self.assertIsNone(parts["after"]["level"], "no light after the composite gives no level")
+
+    def test_a_pumping_reflection_is_the_reflections_flicker_and_no_other_parts(self):
+        frames = [renders(flat(0.3), flat(0.2), flat(0.1 * (1.5 if t % 2 else 1.0))) for t in range(9)]
+        flicker = survey.signal_flicker(frames)
+        self.assertGreater(flicker["reflections"], survey.FLICKER_LIMIT)
+        self.assertAlmostEqual(flicker["reflections"], flicker["all"], places=6)
+        for name in ("direct", "bounce", "after"):
+            self.assertLess(flicker[name], 1e-6, name)
+
+    def test_the_scene_floor_shows_as_the_display_floor_of_the_blotch_score(self):
+        self.assertAlmostEqual(float(survey.display(np.float32(survey.SCENE_FLOOR))), survey.RELATIVE_FLOOR, places=4)
+
+
 class Verdicts(unittest.TestCase):
     def test_a_moving_light_whose_film_errs_by_more_than_the_limit_fails_though_its_lag_is_short(self):
         rows = [{"error": -0.3, "lagDraws": 20.0}, {"error": -0.2, "lagDraws": 25.0}, {"error": 0.0, "lagDraws": None}]

@@ -1,0 +1,181 @@
+# Finish the renderer
+
+Epic: `ter-8hyd`. This doc came from ticket `ter-6k3k`, the survey of every scene, on 2026-11-09. It says what "finished" means for the renderer and how the survey measures it. It also gives the baseline's results and the order in which the epic fixes what fails. The proposal of 2026-11-09 (`/private/tmp/tertius-report-20261109/proposal.md`) holds the full reasoning and its evidence files. This doc keeps its conclusions and the user's decisions on them.
+
+## Goal
+
+The user set the goal on 2026-11-09:
+
+> just keep working until our whole rendering system essentially is reasonable. We don't have terrible noise or blotches and updates are within 60 frames or so and generally we can render everything that we were rendering before in a reasonable way under 12 milliseconds. ... Don't do re-ster though, that was a failure.
+
+The epic reads this as three measurable conditions and one rule:
+
+1. No scene that `scripts/*.json` renders shows terrible noise or blotches, in a still or in motion.
+2. The light settles within about 60 draws after a change: a lamp switch, a moving sun, moving lamps, and the surfaces that a walk reveals.
+3. Every scene that rendered before still renders, with a GPU frame span of at most 12 ms at the budget's configuration. Decision 5 below names the exceptions.
+4. No ReSTIR of any kind, for direct light or for bounce light.
+
+## Terms
+
+- Draw: one rendered frame.
+- View: one camera position and moment of the survey. The survey has 90 views.
+- Film: a run of up to 180 consecutive draws of one scene, one tick apart. The survey has 18 films.
+- Still: the image of a view after 132 draws of an unchanged state.
+- Direct light: light that reaches a surface straight from a lamp or the sun. The survey counts the emission of glowing surfaces with it.
+- Bounce light: light that reaches a surface from another surface. The code calls it indirect diffuse light.
+- Reflections: the mirror-like light of a surface. The code calls it indirect specular light.
+- Light signal: one of direct light, bounce light and reflections.
+- History: a running average of one pixel's light over past draws.
+- Budget's configuration: the Release demo on the development Mac (Apple M1 Max), with 1920 × 1080 output. FSR 3.1 upscales it from 1280 × 720 (`docs/plans/rendering-performance.md`, decision 1).
+- GPU frame span: the time from the start of a frame's first pass to the end of its last pass.
+- p95: the value that 95 % of the frames stay under.
+- Windowed clock: the GPU clock of a window that draws steadily, 1296 MHz on the development Mac (`tools/README.md`, "The GPU clock of a timed run").
+
+## Decisions
+
+### Made by the user
+
+1. Blotches: the diffuse rays aim half by angle and half at the bright lit pixels of the draw (guided diffuse rays, ticket `ter-05wb`). Screen probes stay the fallback. This reverses a part of the choice of 2026-11-08, which wanted a spatial filter "not a clamp and not importance-sampled rays" (`.tickets/ter-9371.md`). (User, 2026-11-09)
+2. Slow updates: the bounce-light history is cut on evidence only. A ray brings back the light-change age of the pixel that it hit. The history then drops the draws from before that change (ticket `ter-wkvw`). Hits keep reading the filtered light. The fresh hit light, in which a hit reads the fast history again, is not built. (User, 2026-11-09)
+3. Shared reflection rays: if the block's reflection ray lies inside a pixel's own reflection lobe, the pixel uses that ray (sharing by lobe fit). A lobe is the cone of directions from which a surface reflects light toward the eye. Sharing by a fixed roughness is not built. (User, 2026-11-09)
+4. Diffuse filter: the thinner kernel, six steps of a 3 × 3 grid in place of five steps of a 5 × 5 grid. The coarse steps at half size are not built. (User, 2026-11-09)
+5. Frame time: a GPU frame span of 16.7 ms, one frame at 60 frames per second, is acceptable for a named list of heavy views. The 12 ms budget holds for every other view. Step 10 of the order of work names the list from measured numbers. (User, 2026-11-09)
+6. The survey's limits stay as they are. They were set by eye, with the lamp hall as clean and the bay's moving sunbeam as bad. Part "Measures and thresholds" gives each one. (User, 2026-11-09)
+7. No ReSTIR of any kind. The ReSTIR for direct light was 3.2 ms slower than the exact loop on the deck, and it left grain on floors and glass. So it was removed (`ARCHITECTURE.md`, "Light sampling"). (User, 2026-11-09)
+
+Two earlier decisions still hold. The budget is 12 ms at the budget's configuration (`docs/plans/rendering-performance.md`, decision 1). A pass over its share first gets optimizations that keep the image. Then its default can drop quality, and the full quality stays a setting (decision 2 there).
+
+### Settled by this design
+
+8. The survey (`tools/renderer-survey.py`) is the measure of the goal. A ticket of the epic that changes the image or the frame time runs the parts of the survey that it touches. It compares the result with the baseline below. The rules of `tools/README.md`, "The renderer survey", say how to run it.
+9. If another GPU program runs, a timing does not count. On 2026-11-09, 39 of the 90 timing runs of the first survey ran beside an Android emulator. The emulator put the GPU in a slow mode. For example, the p95 of `bay-sunbeam` was 33.8 ms against a median of 23.8 ms. So the survey records the number of running emulators with each timing, and a timing beside an emulator does not count.
+10. A failure is assigned to a fix only after a split by light signal shows which signal carries it. The first diagnosis of the blotches covered 2 of the 9 failing films. Part "The split by light signal" gives the split of every failing film.
+11. Every step uses only the device features that the renderer already requires (`ARCHITECTURE.md`, "Required device features"). The times in this doc hold for the M1 Max only, because no tracer pass has a Linux run yet (ticket `ter-cgif`).
+
+## Measures and thresholds
+
+The survey measures each view, film and change at the budget's configuration. `tools/README.md`, "The renderer survey", defines each measure exactly. This table gives the limits and their reasons.
+
+| Measure | What it measures | Limit | Reason |
+|---|---|---|---|
+| Frame time | The p95 of the GPU frame span over 120 draws, scaled to the windowed clock | 12 ms, or 16.7 ms for the named heavy views | Decisions 5 and the budget of `rendering-performance.md` |
+| Specks | Groups of pixels more than twice as bright as their 7 × 7 neighborhood, which the long reference does not hold, per 10,000 visible pixels | 1.0 | Set by eye: the lamp hall is clean, and specks show above this count |
+| Blotch score | The 90th percentile of the relative difference to a long reference of the same state, after a blur of 4 render pixels | 0.04 | Set by eye: the lamp hall stays under it, and the bay's moving sunbeam is far above it |
+| Level | A still's whole-image light against its reference | 5 % | The settle tolerance: a light that still changes at the still's draw |
+| Motion level | A film frame's whole-image light against a still of the same state | 10 % | The error of a history that lags 60 draws behind a light that changes by 10 % in 60 draws |
+| Flicker | The median over a film's frames of the relative second difference of the blurred light from draw to draw | 0.006 | Set by eye: the lamp hall's quiet films stay under it, and the moving lamps' films show a visible pumping above it |
+| Grain flicker | The same without the blur | 0.05 | Set by eye: no film shows visible grain under it |
+| Settle count | The draws after a change until every changed region stays within 5 % of a control run | 60 draws | The goal |
+| Lag error | The median error of a moving light's film against stills of the same states | 10 % | The motion level's reason |
+
+A settle that is still outside the 5 % at the end of its window has no count. The survey reports it as "not settled within N draws", and it fails. The lamps-off window is 200 draws and the lamps-on window 100 draws. The first survey of 2026-11-09 had a lamps-off window of 100 draws and reported the window's length as the count. So its "100 draws" for the cabin means "not settled within 100 draws".
+
+The limits come from the eye, and two scenes anchor them: the lamp hall as clean and the bay's moving sunbeam as bad. The user accepted them on 2026-11-09 (decision 6). The blotch score compares the renderer with itself. So it cannot see an error that every draw repeats, such as a bias of the clamp. The parent of the epic also looks at frames and films before it calls a scene clean.
+
+## The baseline
+
+BASELINE
+
+## The split by light signal
+
+SPLIT
+
+## The problems and their fixes
+
+This part gives each problem in a few lines. Sections 2 and 3 of the proposal hold the measurements, the two designs of each problem and the sources.
+
+### Blotches
+
+Bright and dark patches, 20 to 60 pixels wide, sit in the bounce light and move from draw to draw. The cause is a count of rays. One diffuse ray serves a block of 2 × 2 pixels and aims by angle only. Take the bay's sunbeam and the cabin walk. There, 0.13 to 2.1 % of the rays hit a small sunlit patch about 100 times brighter than the walls. Those rays carry 36 to 86 % of the bounce light (`.tickets/ter-05wb.md`). No history and no filter averages so few hits without a wider blur or a longer delay.
+
+The fix is decision 1. Half of the diffuse rays pick a target pixel in proportion to its direct light in this draw. Each ray's weight divides by the chance of its direction under both rules together (multiple importance sampling, [Veach 1997]). Nothing is kept between pixels or draws, so this is not ReSTIR. The prototype cut the small blotches in the bay from 1.5 to 0.4 % of the lit pixels. It cost 0.35 to 0.39 ms. It also lowered the lamp hall's mean bounce light by 4.8 % through the clamp. The builder of step 5 tries a guided share of a quarter against that loss.
+
+### Slow updates
+
+After a change, the bounce light keeps moving for one to three seconds. A ray's hit reads the filtered light of the last draw, which follows the slow history of up to 32 draws. Each bounce passes through that history again. Let g be the share of its light that a room sends back per bounce. The settle then stretches by about 1 / (1 − g) (`docs/plans/temporal-renderer.md`, "The bounce model").
+
+The fix is decision 2. The renderer records for each pixel how many draws ago its direct light changed. A diffuse ray brings back that age from its hit, and the bounce-light history then holds only the draws after the change. The branch `ter-wkvw-diffuse-light-age` measured five of six settle counts better, at 0.04 ms. The repair of the light-change record (step 4) comes first. A walk past still lamps changes no direct light, so this fix cannot help the walk. The split of the walk by signal decides its fix.
+
+### Frame time
+
+The deck's GPU frame span rose from 13.4 ms on 2026-11-05 to about 30.9 ms (ticket `ter-b4ux`). A Metal System Trace attributes the rise:
+
+| Cause | Added time on the deck | Fix |
+|---|---|---|
+| A reflection ray at every smooth pixel in every draw | 7.40 ms | Step 2: shared reflection rays by lobe fit |
+| The diffuse filter | 4.21 ms | Step 7: the thinner kernel, about 2 ms back by estimate |
+| The 13 lamps became rectangle lights | 1.83 ms | A quality feature that the user chose. It stays |
+| The direct pass grew with the tube light's merge | 0.76 ms | Step 3: one light loop per light shape |
+| 16 shadow taps under FSR | 0.29 ms | A quality feature that the user chose. It stays |
+| Other passes | 0.81 ms | None yet |
+| Frame span outside single passes | 1.57 ms | Step 9 attributes it |
+
+The forecast after the plan is about 20 to 21 ms for the deck, so the ship interiors stay above 12 ms. Decision 5 answers that: the heavy views get 16.7 ms. Views with many lamps also get the light budget per screen tile (ticket `ter-69s8`).
+
+### Light lost to the clamp
+
+The clamp keeps the slow history inside the range of the fast histories of the 3 × 3 pixels around it. A rare bright sample lies outside that range, so the clamp cuts real light: 22 to 27 % of the cabin's bounce light. The user keeps the clamp, because it makes a lamp switch settle 1.5 to 3 times faster (`.tickets/ter-18hc.md`). The guided rays shrink the jumps, and the prototype's cabin read 23 % brighter. Step 12 measures the loss again.
+
+### Specks and grain
+
+89 of 90 stills pass the speck limit, and no film fails the grain flicker. The thinner filter is the main risk to both, so its acceptance guards the speck count.
+
+## The order of work
+
+| Step | Work | Ticket | Depends on |
+|---|---|---|---|
+| 1 | Commit the survey, repair its two faults, run the baseline, split each failure by light signal, write this doc | `ter-6k3k` | Nothing |
+| 2 | Shared reflection rays by lobe fit, as the default | New, child of `ter-8hyd` | Nothing |
+| 3 | One light loop per light shape | New, child of `ter-b4ux` | Nothing |
+| 4 | The repair of the light-change record alone, commit `3c6348a95` | New, split from `ter-wkvw` | Nothing |
+| 5 | Guided diffuse rays: the clock, the guided share, the hardening, the merge | `ter-05wb` | Step 1 |
+| 6 | Cut the bounce-light history on evidence, with the fix of its blotches after a cut | `ter-wkvw` | Steps 4 and 5 |
+| 7 | The thinner diffuse filter | New, child of `ter-8hyd` | Step 5 |
+| 8 | The light budget per screen tile | `ter-69s8` | Nothing |
+| 9 | Attribute the 1.57 ms outside single passes, and the 5.9 ms of shadow tiles in `rect-bay` | `ter-b4ux` | Steps 2 and 3 |
+| 10 | Run the survey again, name the heavy views of decision 5, set the defaults | `ter-6k3k` notes, `ter-odli` | All above |
+| 11 | If `deck-cuts` fails: a ray limit after a camera cut | New | Step 10 |
+| 12 | Close `ter-12xp`, measure `ter-18hc` again, update `ARCHITECTURE.md` | `ter-12xp`, `ter-18hc` | Step 10 |
+
+Steps 2, 3 and 4 are quick fixes that no later step changes, so they run first and in parallel. Steps 5 to 7 form one chain. The noise that the guided rays leave decides how much the history cut and the filter can do. Step 6 of the proposal had two parts. Decision 2 removes its first part, the test of fresh hit light.
+
+Three things stay out, because the goal does not need them yet:
+
+- A world-space light cache (ticket `ter-13rm`). No measured failure needs light from surfaces behind the camera. If the split shows light that left the screen as a cause, it comes back.
+- A filter for the reflections. The uncapped reflection history does that work.
+- Screen probes. If the guided rays fail, they are the fallback for the blotches.
+
+## Acceptance of the steps
+
+- Step 2: a Metal System Trace of the deck shows the reflection rays at most 2.7 ms and the frame span lower by at least 7 ms. The reflection plate test of 2026-11-07, with the uncapped history, gives rough noise at most 7.7 W/(m² sr) and smooth noise unchanged at 1.0. No measure of `reflections-front`, `mirror-balls`, `exit-deck`, `exit-floor` or the film `reflections` moves from pass to fail. Sharing by lobe fit has no measured gain yet, so its trace decides whether it meets the 7 ms.
+- Step 3: the deck's direct pass falls by 0.5 ms or more, and the image stays the same.
+- Step 5: long stills of the bay, the cabin walk and the lamp hall stay within 1 % of the rays aimed by angle only. The lamp hall's mean bounce light stays within 1 % of main. The stills `docking-bay`, `surface-terminal` and `bay-sunbeam` have a blotch score of at most 0.04. No still's speck count rises above 1.0.
+- Step 6: every changed region of the cabin, the bay and the lamp hall settles within 60 draws after a lamp switch. The film `bay-sunbeam` and the cabin walk show no new blotches from false cuts.
+- Step 7: a trace of the deck shows the diffuse filter at most 2.3 ms. No still's speck count rises above 1.0, no still's blotch score rises by more than 0.005, and each region's mean light stays within 1 %.
+- Step 10: every view meets its frame time limit, every still and film passes, and every change settles within 60 draws.
+
+## Dead ends
+
+Do not try these again without a new reason. Section 5 of the proposal names the record of each.
+
+| Tried | Why it failed |
+|---|---|
+| ReSTIR for direct light | Grain on floors and glass, and 3.2 ms slower than the exact loop on the deck |
+| ReSTIR for bounce light | Ruled out by the user on 2026-11-09 |
+| A cap of 24 lights for the whole view | Far lamps lost the light on their own walls, and the exposure jumped |
+| Light lists per tile by reach | Every lamp's reach covers the whole hall, so no tile drops a lamp |
+| A spatial filter with AMD's 7 × 7 pattern, before the histories | Specks and patches stayed, and the user rejected the image |
+| A bounce-light history limited by the neighbors' median | It removes real highlights |
+| Hits read the raw fast history | Single bright pixels came back on the cabin floor (`ter-4kws`) |
+| Cheap switches against blotches: no anti-lag, no clamp, more own rays, a longer history, a wider clamp box | Each one loses light or gains under 12 % |
+| The SVGF paper's own weighting in the filter | It created light, about 20 % in the cabin |
+| Removing the clamp | A lamp switch settles 1.5 to 3 times slower |
+| The debug switch `TERTIUS_SPECULAR_HISTORY=original` as a default | It shares the rays but also brings back the short reflection history |
+
+## References
+
+- [Veach 1997] E. Veach, 1997, "Robust Monte Carlo Methods for Light Transport Simulation", PhD thesis, Stanford, section 9.2.4.
+- [Stachowiak 2015] T. Stachowiak, 2015, "Stochastic Screen-Space Reflections", SIGGRAPH course Advances in Real-Time Rendering. The source of shared reflection rays.
+- [Schied 2017] C. Schied and others, 2017, "Spatiotemporal Variance-Guided Filtering", High Performance Graphics. The source of the diffuse filter.
+- The proposal of 2026-11-09 and its evidence: `/private/tmp/tertius-report-20261109/proposal.md`, `report.md`, `compare*.md`.
+- The first survey: `/private/tmp/tertius-survey-20261109/report.md`.
