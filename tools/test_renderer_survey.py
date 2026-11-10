@@ -246,6 +246,14 @@ class Split(unittest.TestCase):
         self.assertAlmostEqual(parts["direct"]["level"], 0.0, places=4)
         self.assertIsNone(parts["after"]["level"], "no light after the composite gives no level")
 
+    def test_a_part_that_only_brightens_shows_in_its_own_level_and_no_other_part_gets_a_blotch(self):
+        still = renders(flat(0.3), flat(0.2), flat(0.1))
+        film = renders(flat(0.3), flat(0.6), flat(0.1))
+        parts = survey.signal_errors(film, still, np.ones((96, 128), dtype=bool))["parts"]
+        self.assertAlmostEqual(parts["bounce"]["level"], 2.0, places=4)
+        for name in ("direct", "bounce", "reflections"):
+            self.assertLess(parts[name]["blotch"], 1e-4, name)
+
     def test_a_pumping_reflection_is_the_reflections_flicker_and_no_other_parts(self):
         frames = [renders(flat(0.3), flat(0.2), flat(0.1 * (1.5 if t % 2 else 1.0))) for t in range(9)]
         flicker = survey.signal_flicker(frames)

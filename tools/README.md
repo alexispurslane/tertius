@@ -1006,7 +1006,7 @@ The commands do these things:
 
 A case whose result file exists does not run again. So a stopped run goes on where it stopped. To run a case again, delete its result file. A full run on 2026-11-09 took about four hours, most of it in the wait for the GPU lock.
 
-`run` takes the GPU lock once for each chunk of cases, 8 by default (`--chunk`), so that a chunk waits once for the other users of the lock. `--chunk 0` runs in one process and takes the lock for each render. Before each render, the tool samples the GPU's busy share three times with `ioreg` and records it as `gpuBusyBefore`. Another process, such as an Android emulator, can use the GPU while the survey holds the lock. Before a timing run, make sure that no other process uses the GPU heavily.
+`run` takes the GPU lock once for each chunk of cases, 8 by default (`--chunk`), so that a chunk waits once for the other users of the lock. `--chunk 0` runs in one process and takes the lock for each render. Before each render, the tool samples the GPU's busy share three times with `ioreg` and records it as `gpuBusyBefore`. Another process, such as an Android emulator, can use the GPU while the survey holds the lock. Before a timing run, make sure that no other process uses the GPU heavily. If an Android emulator runs before or during a view's timing, the tool writes no result for that view, because an emulator puts the GPU in a slow mode. Run the timing part again when no emulator runs.
 
 The run stops before a render when less than 5 GB are free on `/`. A film of 180 frames at 1920 × 1080 takes about 700 MB until the tool measures it, and a switch run of 460 probe frames about 2.6 GB.
 
@@ -1040,13 +1040,15 @@ A light that is still outside the tolerance at the last frame of its window has 
 
 ```bash
 nix develop --command python3 -I tools/renderer-survey.py probe-build /private/tmp/tertius-split
-nix develop --command python3 -I tools/renderer-survey.py split /private/tmp/tertius-split --survey /private/tmp/tertius-survey --films bay-sunbeam rect-bay --stills rect-lamps
+nix develop --command python3 -I tools/renderer-survey.py split /private/tmp/tertius-split --films bay-sunbeam rect-bay --stills rect-lamps
 nix develop --command python3 -I tools/renderer-survey.py split-report /private/tmp/tertius-split
 ```
 
-A film takes the fixed exposure of its result in the survey folder that `--survey` names, so the survey's motion part must run first. A still first renders its shown still with the auto exposure and takes that exposure. Each render then uses the fixed exposure and the probe's log luminance, so the four renders read scene luminance and add up.
+A film takes the fixed exposure of its result in the survey folder that `--survey` names. Without such a result, it first renders the stills of its middle and last frames with the auto exposure and takes the mean of their exposures, as the motion part does. A still first renders its shown still with the auto exposure and takes that exposure. Each render then uses the fixed exposure and the probe's log luminance, so the four renders read scene luminance and add up.
 
 Every pass after the composite, such as glass, particles and haze, adds its light to each of the four renders. So the split computes that light as (direct + bounce + reflections − all) / 2 and takes it out of each signal. The report names it "after". For each sample, the report gives the whole image's blotch score and level, and each part's blotch score, level and share of the light. A part's blotch score is the score of that part's difference alone, relative to the whole image's light. So the part with the largest score carries the error. A film also gets the flicker of each part.
+
+With `--native`, the split of a film renders at 1280 × 720 without FSR 3.1 (`--upscaling off`) and scales each image up to 1920 × 1080 before it measures. A part whose error stays without FSR is the renderer's, and a part whose error goes away comes from FSR's own history. The result file then ends in `-native`.
 
 The split measures in scene luminance, not in the display luminance of the survey. Its masks and its floor come from an ACES fit of the scene luminance. So its scores are close to the survey's scores but not equal to them. FSR 3.1 upscales each render on its own, and its clamp is not linear. So the parts do not add up exactly where FSR clamps.
 

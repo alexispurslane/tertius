@@ -581,7 +581,8 @@ GPU_SAMPLER = (
 )
 
 
-def render(out: Path, script: dict, *, binary: Path, env: dict | None = None, extra=(), timed=False, clock_bin=None) -> Path:
+def render(out: Path, script: dict, *, binary: Path, env: dict | None = None, extra=(), timed=False, clock_bin=None,
+           size=SIZE) -> Path:
     """Renders a script headless under the GPU lock into out, at the budget's configuration. A timed run draws no image,
     keeps two frames in flight and runs beside gpu-clock, and its gpu-timings.json gets the clock record."""
     if free_gb() < 5:
@@ -592,7 +593,7 @@ def render(out: Path, script: dict, *, binary: Path, env: dict | None = None, ex
     path = out / "script.json"
     path.write_text(json.dumps(script, indent=1))
     log = out.parent / f"{out.name}.log"
-    command = [str(binary), "--script", str(path), "--headless", "--out", str(out), "--size", SIZE, *extra]
+    command = [str(binary), "--script", str(path), "--headless", "--out", str(out), "--size", size, *extra]
     if timed:
         command = ["bash", str(ROOT / "tools" / "gpu-clock.sh"), *command, "--video", "none", "--in-flight", "2"]
     run_env = {**os.environ, **(env or {})}
@@ -644,9 +645,16 @@ def keep_png(src: Path, dst: Path):
 
 
 def run_timing(out: Path, case: dict, args):
+    """A view's timing. A timing beside an Android emulator does not count, so the case gets no result file while one
+    runs, and a later run times it again."""
     work = out / "work" / "timing" / case["name"]
     before = emulators()
+    if before:
+        raise RuntimeError(f"{before} Android emulators run. Time {case['name']} again when none runs.")
     log = render(work, timing_script(*source_of(case)), binary=DEMO, timed=True, clock_bin=args.clock_bin)
+    if emulators():
+        shutil.rmtree(work)
+        raise RuntimeError(f"An Android emulator started during the timing of {case['name']}. Time it again.")
     timings = json.loads((work / "gpu-timings.json").read_text())
     clock = timings.get("gpuClock", {})
     frame = timings["frame"]
@@ -960,15 +968,15 @@ def signal_errors(film: dict, still: dict, mask) -> dict:
     """The blotch of a film frame against the still of the same state, split by the part of the light that carries it.
     film and still map each render of SIGNALS to its reduced scene luminance. The whole image's error is blotch()'s, in
     scene luminance: the relative difference after the film is divided by its level, with the floor SCENE_FLOOR, as its
-    90th percentile over the mask. Each part's blotch is the same measure of that part's difference alone, still
-    relative to the whole image's light. Each part also gets its own level, film over still less 1, and its share of the
-    still's light."""
+    90th percentile over the mask. Each part's level is its film's light over its still's, less 1, and its blotch is
+    the same measure of its own difference after its film is divided by its own level, still relative to the whole
+    image's light. So a part that only gets brighter or darker shows in its level and not as a blotch of another part.
+    Each part also gets its share of the still's light."""
     n = np()
     total = still["all"]
     if not mask.any():
         return {"blotch": 0.0, "level": 0.0, "parts": {}}
     whole_level = float(n.median(film["all"][mask] / n.maximum(total[mask], 1e-12)) - 1)
-    scale = 1 + whole_level
     denominator = total + SCENE_FLOOR
 
     def score(difference):
@@ -979,10 +987,10 @@ def signal_errors(film: dict, still: dict, mask) -> dict:
     parts = {}
     for name in PARTS_OF_LIGHT:
         f, s = float(film_parts[name][mask].sum()), float(still_parts[name][mask].sum())
-        parts[name] = {"blotch": score(film_parts[name] / scale - still_parts[name]),
-                       "level": f / s - 1 if abs(s) > 1e-3 * light else None,
-                       "share": s / light if light > 0 else 0.0}
-    return {"blotch": score(film["all"] / scale - total), "level": whole_level, "parts": parts}
+        level_of_part = f / s - 1 if abs(s) > 1e-3 * light and f / s > 0 else None
+        parts[name] = {"blotch": score(film_parts[name] / (1 + (level_of_part or 0.0)) - still_parts[name]),
+                       "level": level_of_part, "share": s / light if light > 0 else 0.0}
+    return {"blotch": score(film["all"] / (1 + whole_level) - total), "level": whole_level, "parts": parts}
 
 
 def signal_flicker(frames) -> dict:
@@ -1009,18 +1017,35 @@ def signal_flicker(frames) -> dict:
     return {name: float(n.median(values)) if values else 0.0 for name, values in series.items()}
 
 
-def signal_render(out: Path, name: str, script: dict, signal: str, stops: float, *, still=False) -> Path:
+# A native split renders at the render size of the budget, 1280 x 720, without FSR 3.1 (--upscaling off), and scales
+# each image up to the output size, so that its measures match the split with FSR. It tells FSR's own history apart
+# from the renderer's signals.
+NATIVE_SIZE = "1280x720"
+
+
+def signal_render(out: Path, name: str, script: dict, signal: str, stops: float, *, still=False, native=False) -> Path:
     env = {"TERTIUS_PROBE_SIGNAL": SIGNALS[signal], "TERTIUS_PROBE_EXPOSURE": f"{stops:.4f}"}
     if still:
         env.update(STILL_CONTINUES)
     work = out / "work" / "split" / f"{name}-{signal}"
-    render(work, script, binary=probe_binary(out), env=env, extra=PROBE_OPTIONS)
+    if native:
+        render(work, script, binary=probe_binary(out), env=env, extra=(*PROBE_OPTIONS, "--upscaling", "off"),
+               size=NATIVE_SIZE)
+    else:
+        render(work, script, binary=probe_binary(out), env=env, extra=PROBE_OPTIONS)
     return work
 
 
-def split_motion(out: Path, case: dict, stops: float) -> dict:
+def signal_luminance(path: Path, native: bool):
+    """The scene luminance of a capture of the split, at the output size."""
+    y = probe_luminance(path)
+    return ndimage().zoom(y, OUTPUT_PER_RENDER, order=1) if native else y
+
+
+def split_motion(out: Path, case: dict, stops: float | None, native=False) -> dict:
     """A film's split: for each render of SIGNALS, the film and the stills of its middle and last frames, at the fixed
-    exposure stops, in scene luminance."""
+    exposure stops, in scene luminance. Without stops, the stills render first with the auto exposure, and the film
+    takes the mean of their exposures, as run_motion does."""
     if "script" in case:
         script = motion_script(script_of(case["script"]), case["start"], case["frames"])
     else:
@@ -1028,23 +1053,30 @@ def split_motion(out: Path, case: dict, stops: float) -> dict:
                               [{"do": "film", "name": "m0000", "frames": case["frames"], "every": 1}])
     samples = {"middle": case["frames"] // 2, "end": case["frames"] - 1}
     references, names = motion_references_script(script, list(samples.values()))
+    if stops is None:
+        work = out / "work" / "split" / f"{case['name']}-exposure"
+        render(work, references, binary=probe_binary(out), env=STILL_CONTINUES, extra=NO_BLOOM)
+        exposures = {e["capture"]: e["stops"] for e in json.loads((work / "exposure.json").read_text())}
+        stops = sum(exposures[names[k]] for k in samples.values()) / len(samples)
+        shutil.rmtree(work)
     films, stills, masks = {}, {}, {}
     for signal in SIGNALS:
-        work = signal_render(out, f"{case['name']}-references", references, signal, stops, still=True)
+        work = signal_render(out, f"{case['name']}-references", references, signal, stops, still=True, native=native)
         for label, k in samples.items():
-            y = probe_luminance(work / f"{names[k]}.png")
+            y = signal_luminance(work / f"{names[k]}.png", native)
             stills.setdefault(label, {})[signal] = reduce(y)
             if signal == "all":
                 masks[label] = split_mask(y)
         shutil.rmtree(work)
-        work = signal_render(out, case["name"], script, signal, stops)
-        films[signal] = [reduce(probe_luminance(f)) for f in sorted(work.glob("m*-*.png"))]
+        work = signal_render(out, case["name"], script, signal, stops, native=native)
+        films[signal] = [reduce(signal_luminance(f, native)) for f in sorted(work.glob("m*-*.png"))]
         shutil.rmtree(work)
     frames = len(films["all"])
     flicker_parts = signal_flicker({signal: films[signal][t] for signal in SIGNALS} for t in range(frames))
     against = {label: signal_errors({signal: films[signal][k] for signal in SIGNALS}, stills[label], masks[label])
                for label, k in samples.items()}
-    return {"kind": "motion", "stops": stops, "frames": frames, "flicker": flicker_parts, "samples": against}
+    return {"kind": "motion", "native": native, "stops": stops, "frames": frames, "flicker": flicker_parts,
+            "samples": against}
 
 
 def split_still(out: Path, case: dict) -> dict:
@@ -1073,7 +1105,8 @@ def split_still(out: Path, case: dict) -> dict:
 
 def split(args):
     """Splits the named films and stills by light signal into <out>/results/split/<name>.json. A film takes the fixed
-    exposure of its result in the survey folder args.survey, and a still renders its own auto exposure first."""
+    exposure of its result in the survey folder args.survey when that exists. Otherwise it renders its own auto
+    exposure first, as a still always does."""
     out = Path(args.out).resolve()
     cases = load_cases()
     motion = {c["name"]: c for c in cases["motion"]}
@@ -1081,14 +1114,15 @@ def split(args):
     failures = 0
     for kind, names in (("motion", args.films or []), ("still", args.stills or [])):
         for name in names:
-            key = f"{kind}-{name}"
+            key = f"{kind}-{name}" + ("-native" if args.native else "")
             if done(out, "split", key):
                 continue
             print(f"split {key} ...", flush=True)
             try:
                 if kind == "motion":
-                    stops = json.loads((Path(args.survey) / "results" / "motion" / f"{name}.json").read_text())["stops"]
-                    result = split_motion(out, motion[name], stops)
+                    survey = Path(args.survey or out) / "results" / "motion" / f"{name}.json"
+                    stops = json.loads(survey.read_text())["stops"] if survey.exists() else None
+                    result = split_motion(out, motion[name], stops, native=args.native)
                 else:
                     result = split_still(out, stills[name])
             except (RuntimeError, ValueError, OSError, KeyError) as error:
@@ -1270,9 +1304,10 @@ def main(argv=None) -> int:
     p.add_argument("--clock-bin", default=os.environ.get("GPU_CALIBRATION_BIN"))
     p = sub.add_parser("split")
     p.add_argument("out")
-    p.add_argument("--survey", required=True, help="the survey folder whose motion results give the films' exposure")
+    p.add_argument("--survey", help="a survey folder whose motion results give the films' exposure")
     p.add_argument("--films", nargs="*", help="motion cases to split, by name")
     p.add_argument("--stills", nargs="*", help="still cases to split, by name")
+    p.add_argument("--native", action="store_true", help="films only: render without FSR 3.1 at the render size")
     for name in ("report", "sheet", "split-report"):
         sub.add_parser(name).add_argument("out")
     args = parser.parse_args(argv)
