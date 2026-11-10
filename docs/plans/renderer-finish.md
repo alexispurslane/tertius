@@ -154,7 +154,51 @@ On 2026-11-10 the user stopped the baseline's remaining switch, lag and walk cas
 
 ## The split by light signal
 
-SPLIT
+The survey's tool split each failing film and the still `rect-lamps` by light signal (`tools/README.md`, "The split by light signal"). Each case renders once whole and once for each signal, at one fixed exposure and in scene luminance. A part's blotch score is the error of that part alone, relative to the whole image's light. So the part with the largest score carries the failure, and a part above 0.04 fails on its own. The results are in `/private/tmp/tertius-split-20261109/results/split`.
+
+| Case | Sample | Whole | Direct | Bounce | Reflections | Carried by |
+|---|---|---:|---:|---:|---:|---|
+| `rect-lamps` (still) | Shown | 0.103 | 0.008 | 0.103 | 0.012 | Bounce |
+| `rect-lamps` | Middle | 0.093 | 0.005 | 0.099 | 0.020 | Bounce |
+| `rect-lamps` | Last | 0.117 | 0.005 | 0.117 | 0.011 | Bounce |
+| `bay-sunbeam` | Middle | 0.201 | 0.005 | 0.171 | 0.040 | Bounce, reflections at the limit |
+| `bay-sunbeam` | Last | 0.149 | 0.009 | 0.114 | 0.066 | Bounce and reflections |
+| `rect-bay` | Middle | 0.118 | 0.006 | 0.121 | 0.017 | Bounce |
+| `rect-bay` | Last | 0.105 | 0.004 | 0.073 | 0.031 | Bounce |
+| `exit-floor` | Middle | 0.017 | 0.005 | 0.011 | 0.007 | Passes |
+| `exit-floor` | Last | 0.152 | 0.004 | 0.253 | 0.028 | Bounce |
+| `docking-landing` | Middle | 0.127 | 0.010 | 0.079 | 0.105 | Reflections and bounce |
+| `docking-landing` | Last | 0.122 | 0.017 | 0.095 | 0.059 | Bounce and reflections |
+| `lamp-hall-4-spot-moving` | Middle | 0.075 | 0.058 | 0.025 | 0.007 | Direct |
+| `lamp-hall-4-spot-moving` | Last | 0.060 | 0.054 | 0.018 | 0.008 | Direct |
+| `lamp-hall-64-moving` | Middle | 0.042 | 0.038 | 0.007 | 0.004 | Direct |
+| `lamp-hall-64-moving` | Last | 0.033 | 0.029 | 0.007 | 0.003 | Direct, under the limit |
+| `lamp-hall-16-moving` | Middle | 0.028 | 0.025 | 0.005 | 0.003 | Direct, under the limit |
+| `lamp-hall-16-moving` | Last | 0.026 | 0.023 | 0.007 | 0.002 | Direct, under the limit |
+| `rigs-crowd` | Middle | 0.024 | 0.025 | 0.006 | 0.004 | Direct, under the limit |
+| `rigs-crowd` | Last | 0.028 | 0.029 | 0.008 | 0.004 | Direct, under the limit |
+
+The flicker of the films with moving lamps, split the same way:
+
+| Film | Whole | Direct | Bounce | Reflections |
+|---|---:|---:|---:|---:|
+| `lamp-hall-64-moving` | 0.0188 | 0.0189 | 0.0004 | 0.0004 |
+| `lamp-hall-16-moving` | 0.0075 | 0.0075 | 0.0003 | 0.0002 |
+| `lamp-hall-4-spot-moving` | 0.0060 | 0.0059 | 0.0004 | 0.0003 |
+| `bay-sunbeam` | 0.0055 | 0.0011 | 0.0051 | 0.0008 |
+
+The light after the composite, from glass, particles and haze, stays at 0.015 or less in every case, so the table leaves it out.
+
+The split gives four groups:
+
+1. The bounce light carries the failure of `rect-lamps` (still and film), `bay-sunbeam`, `rect-bay` and `exit-floor`. In `rect-lamps` the levels stay within 6 %, so the error is shape: the blobs on the ceiling. The guided diffuse rays (step 5) aim at this. In `bay-sunbeam` and `rect-bay` the bounce light also trails the change of light, by −31 % and +84 % at the middle frame. The history cut of step 6 aims at this lag. In `exit-floor` the error appears only at the last frame, after the camera moved, where the bounce light is 73 % too bright. That is the walk's failure (ticket `ter-g3tk`).
+2. The reflections fail on their own in `docking-landing` (0.105 and 0.059) and in `bay-sunbeam` (0.066 at the last frame), beside the bounce light. No step of the plan aims at this. Ticket `t3-5r0z` follows it, after step 2 changes the reflection rays.
+3. The direct light carries the failure of the films with moving lamps or moving figures: `lamp-hall-4-spot-moving`, `lamp-hall-64-moving`, `lamp-hall-16-moving` and `rigs-crowd`. It also carries their flicker. The renderer's direct light has no history, so the split ran `lamp-hall-4-spot-moving` again without FSR 3.1 (`--native`). Without FSR, the direct light's blotch falls from 0.058 to 0.000 and its flicker from 0.0059 to 0.0003. So FSR's own history causes this group's failure, and no step of the plan touches it. Ticket `t3-5jws` follows it.
+4. In the split's measure, `lamp-hall-16-moving` and `rigs-crowd` stay under the blotch limit, at 0.028 and 0.029 at most. The survey's display measure fails them at 0.046 and 0.043. They are borderline cases of group 3.
+
+So the guided diffuse rays and the history cut address group 1 only. The proposal's assignment of all 9 films to the diffuse rays holds for 4 films and a still.
+
+The split measures in scene luminance, not in display luminance. The tone curve compresses bright light, so the split's scores differ from the survey's. For example, the flicker of `lamp-hall-16-moving` is 0.0075 in the split and 0.0029 in the survey. The split of `rect-lamps` (the still) ran before a correction of the measure. That correction divides each part by its own level, not by the whole image's. The still's whole level is −1.4 %, so the correction changes its parts by less than 0.002.
 
 ## The problems and their fixes
 
@@ -201,9 +245,9 @@ The clamp keeps the slow history inside the range of the fast histories of the 3
 | Step | Work | Ticket | Depends on |
 |---|---|---|---|
 | 1 | Commit the survey, repair its two faults, run the baseline, split each failure by light signal, write this doc | `ter-6k3k` | Nothing |
-| 2 | Shared reflection rays by lobe fit, as the default | New, child of `ter-8hyd` | Nothing |
-| 3 | One light loop per light shape | New, child of `ter-b4ux` | Nothing |
-| 4 | The repair of the light-change record alone, commit `3c6348a95` | New, split from `ter-wkvw` | Nothing |
+| 2 | Shared reflection rays by lobe fit, as the default | `ter-4oow` | Nothing |
+| 3 | One light loop per light shape (merged 2026-11-10) | `t4-6p04` | Nothing |
+| 4 | The repair of the light-change record alone (merged 2026-11-10) | `tb-8zew` | Nothing |
 | 5 | Guided diffuse rays: the clock, the guided share, the hardening, the merge | `ter-05wb` | Step 1 |
 | 6 | Cut the bounce-light history on evidence, with the fix of its blotches after a cut | `ter-wkvw` | Steps 4 and 5 |
 | 7 | The thinner diffuse filter | New, child of `ter-8hyd` | Step 5 |
@@ -212,6 +256,8 @@ The clamp keeps the slow history inside the range of the fast histories of the 3
 | 10 | Run the survey again, name the heavy views of decision 5, set the defaults | `ter-6k3k` notes, `ter-odli` | All above |
 | 11 | If `deck-cuts` fails: a ray limit after a camera cut | New | Step 10 |
 | 12 | Close `ter-12xp`, measure `ter-18hc` again, update `ARCHITECTURE.md` | `ter-12xp`, `ter-18hc` | Step 10 |
+
+The split by light signal found two failures that no step covers yet. FSR 3.1's history smears the direct light of moving lamps and figures (ticket `t3-5jws`). The reflections fail on their own in two films (ticket `t3-5r0z`). Both come before step 10.
 
 Steps 2, 3 and 4 are quick fixes that no later step changes, so they run first and in parallel. Steps 5 to 7 form one chain. The noise that the guided rays leave decides how much the history cut and the filter can do. Step 6 of the proposal had two parts. Decision 2 removes its first part, the test of fresh hit light.
 
