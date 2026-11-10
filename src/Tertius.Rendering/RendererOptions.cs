@@ -120,4 +120,12 @@ public sealed class RendererOptions
     /// "Memory and cost").
     /// </summary>
     public bool Deformation { get; set; } = true;
+
+    /// <summary>
+    /// Whether the GPU timer writes a timestamp after every pass, so that <see cref="RenderStats.GpuTimings"/> times each
+    /// pass. Off, it writes one after each of the render scale's cost groups (<see cref="RenderScaleController.CostGroupOf"/>),
+    /// which the window's controller needs. On by default, for measured runs; the window turns it off
+    /// (ARCHITECTURE.md, "GPU timings").
+    /// </summary>
+    public bool PassTimestamps { get; set; } = true;
 }

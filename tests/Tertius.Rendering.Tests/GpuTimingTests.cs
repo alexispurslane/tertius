@@ -32,7 +32,8 @@ public sealed class GpuTimingTests
     private static VulkanRenderer TimedRenderer(
         int framesInFlight = 2,
         ScreenTraceSetting screenTrace = default,
-        SubsurfaceSetting subsurface = default
+        SubsurfaceSetting subsurface = default,
+        bool passTimestamps = true
     )
     {
         VulkanRenderer renderer = Gpu.Headless(
@@ -40,7 +41,8 @@ public sealed class GpuTimingTests
             height: Height,
             framesInFlight: framesInFlight,
             screenTrace: screenTrace,
-            subsurface: subsurface
+            subsurface: subsurface,
+            passTimestamps: passTimestamps
         );
         if (!renderer.TimesPasses)
         {
@@ -78,7 +80,7 @@ public sealed class GpuTimingTests
     [InlineData(3)]
     public void EachFrameReportsTheTimingsOfTheFrameThatUsedItsSlotOneRoundOfFramesInFlightBefore(int framesInFlight)
     {
-        VulkanRenderer renderer = TimedRenderer(framesInFlight);
+        VulkanRenderer renderer = TimedRenderer(framesInFlight: framesInFlight);
         try
         {
             RenderSnapshot snapshot = TestScene.Create(renderer).Snapshot();
@@ -120,6 +122,53 @@ public sealed class GpuTimingTests
                 .Select(pass => pass.Pass)
                 .Should()
                 .Equal(renderer.Graph.Passes.Select(pass => pass.Name));
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void WithoutPassTimestampsTheTimingsHoldOneTimingPerCostGroupThatAddUpToTheSpan()
+    {
+        RenderScaleController.CostGroup[] groups = TimingsOfTheThirdFrame(passTimestamps: true)
+            .Passes.ToArray()
+            .Select(pass => RenderScaleController.CostGroupOf(pass.Stage))
+            .Distinct()
+            .ToArray();
+
+        GpuTimings timings = TimingsOfTheThirdFrame(passTimestamps: false);
+
+        timings
+            .Passes.ToArray()
+            .Select(pass => pass.Pass)
+            .Should()
+            .Equal(groups.Select(RenderScaleController.NameOf), "the timer stamps only where a cost group ends");
+        timings
+            .Passes.ToArray()
+            .Select(pass => RenderScaleController.CostGroupOf(pass.Stage))
+            .Should()
+            .Equal(groups, "each timing carries a stage of its group, which the controller weighs");
+        timings
+            .Passes.ToArray()
+            .Sum(pass => pass.Milliseconds)
+            .Should()
+            .BeApproximately(timings.SpanMilliseconds, 1e-9, "the groups split the span between them");
+    }
+
+    /// <summary>The timings of the first frame that reports any, of the test scene, with or without pass timestamps.</summary>
+    private static GpuTimings TimingsOfTheThirdFrame(bool passTimestamps)
+    {
+        VulkanRenderer renderer = TimedRenderer(passTimestamps: passTimestamps);
+        try
+        {
+            RenderSnapshot snapshot = TestScene.Create(renderer).Snapshot();
+            for (int i = 0; i < 3; i++)
+                renderer.Render(snapshot, 1f);
+            GpuTimings timings = renderer.LastFrameStats.GpuTimings!.Value;
+            // The timer rewrites its pass array in place, so the copy outlives the renderer.
+            return timings with { Passes = timings.Passes.ToArray() };
         }
         finally
         {

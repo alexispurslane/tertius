@@ -28,9 +28,13 @@ internal sealed unsafe class GpuTimer : IDisposable
     private readonly ulong[] results = new ulong[2 * Queries];
     private readonly PassTiming[] timings = new PassTiming[MaxPasses];
 
-    public GpuTimer(VulkanDevice device, int framesInFlight)
+    /// <param name="eachPass">
+    /// Whether the graph stamps after every pass, or only where a cost group of the render scale ends.
+    /// </param>
+    public GpuTimer(VulkanDevice device, int framesInFlight, bool eachPass)
     {
         this.device = device;
+        EachPass = eachPass;
         int count = device.Timestamps.Supported ? framesInFlight : 0;
         var made = new List<SlotQueries>(count);
         var info = new QueryPoolCreateInfo
@@ -66,6 +70,12 @@ internal sealed unsafe class GpuTimer : IDisposable
 
     /// <summary>True when the queue writes timestamps, so the timer times the passes.</summary>
     public bool Supported => slots.Length > 0;
+
+    /// <summary>
+    /// Whether <see cref="FrameGraph.Record"/> stamps after every pass (RendererOptions.PassTimestamps), or only after the
+    /// last pass of each cost group of the render scale, so that each timing holds a group.
+    /// </summary>
+    public bool EachPass { get; }
 
     /// <summary>
     /// The timings of the last frame whose GPU work finished, or null before one has. The passes are this timer's storage,
