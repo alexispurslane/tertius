@@ -421,10 +421,14 @@ ivec2 guidedTargetOf(ivec2 pixel)
 {
     int top = textureQueryLevels(lightLevels);
     ivec2 cell = ivec2(0);
+    // Each draw gives the random units of three levels.
+    uvec3 draw = uvec3(0u);
     for (int level = top; level >= 1; level--)
     {
         int index = top - level;
-        float unit = unitOf(drawOf(pixel, trace.drawIndex, GuideDraw + uint(index / 3))[index % 3]);
+        if (index % 3 == 0)
+            draw = drawOf(pixel, trace.drawIndex, GuideDraw + uint(index / 3));
+        float unit = unitOf(draw[index % 3]);
         float lights[4];
         float total = 0.0;
         for (int child = 0; child < 4; child++)
@@ -479,14 +483,17 @@ float squareOverDepth(float t, float originDepth, float along)
 }
 
 // The density per steradian of the directions of the guided rays from `origin` that aim at the pixel q, along
-// `direction`: q's share of the guide light times the integral of t² over q's target box along the ray, over the box's
-// volume element, and 0 where the ray misses the box or q has no light (LightPyramid.PixelDensity).
+// `direction`, times the screen's guide light: q's guide light times the integral of t² over q's target box along the
+// ray, over the box's volume element, and 0 where the ray misses the box or q has no light (LightPyramid.PixelDensity).
+// A pixel without light, most of the 3 × 3 around a hit in a dark region, returns before its depth's fetch.
 float pixelDensityOf(vec3 origin, vec3 direction, ivec2 q)
 {
     bool inside = all(greaterThanEqual(q, ivec2(0))) && all(lessThan(q, textureSize(lightFinest, 0)));
     float light = inside ? texelFetch(lightFinest, q, 0).r : 0.0;
-    float w = inside ? texelFetch(depthFinest, q, 0).r : 0.0;
-    if (light <= 0.0 || w <= 0.0)
+    if (light <= 0.0)
+        return 0.0;
+    float w = texelFetch(depthFinest, q, 0).r;
+    if (w <= 0.0)
         return 0.0;
     float front = 1.0 / w;
     float back = (1.0 + TargetDepthShare) / w;
@@ -517,13 +524,14 @@ float pixelDensityOf(vec3 origin, vec3 direction, ivec2 q)
     // has the density 1 / (A z² dz).
     float areaDepth = 4.0 * length(frame.cameraRight.xyz) * length(frame.cameraUp.xyz) * frame.viewport.z
         * frame.viewport.w * (back - front);
-    return light / guideTotal() * squares / areaDepth;
+    return light * squares / areaDepth;
 }
 
 // The density per steradian with which a guided ray from `origin` runs along `direction` and counts, and whether one that
 // aims at `target` counts: it counts when the walk hits a pixel of the 3 × 3 around its target, and it crosses the
-// target's box. So the density sums pixelDensityOf over the 3 × 3 pixels around the hit, in rows from the top
-// (ARCHITECTURE.md, "Guided diffuse rays", LightPyramid.GuidedDensity and Counts).
+// target's box. So the density sums pixelDensityOf over the 3 × 3 pixels around the hit, in rows from the top, over the
+// screen's guide light, which must be above 0 (ARCHITECTURE.md, "Guided diffuse rays", LightPyramid.GuidedDensity and
+// Counts).
 float guidedDensityOf(vec3 origin, vec3 direction, ivec2 hit, ivec2 target, out bool counts)
 {
     float density = 0.0;
@@ -536,7 +544,7 @@ float guidedDensityOf(vec3 origin, vec3 direction, ivec2 hit, ivec2 target, out 
             density += pixel;
             counts = counts || all(equal(q, target)) && pixel > 0.0;
         }
-    return density;
+    return density / guideTotal();
 }
 
 // The density of the one-sample mixture of the cosine draw and the guided draw (LightPyramid.MixtureDensity).
@@ -589,10 +597,12 @@ TracedRay traceFrom(ivec2 pixel, TracingPixel p, uint kind)
     }
     else
         drawn = kind == KindReflection ? reflectionDirection(p, u) : diffuseDirection(p, u);
-    // The record holds the direction's code, and the resolve weighs the ray by the code's direction. So the ray walks
-    // that direction, and its density is that direction's: at the roughness floor, the rounding of the code alone moves
-    // D(h) by several percent.
-    result.direction = directionOfCode(directionCodeOf(drawn));
+    // The record holds the direction's code, and the resolve weighs the ray by the code's direction. So a reflection ray
+    // walks that direction, and its density is that direction's: at the roughness floor, the rounding of the code alone
+    // moves D(h) by several percent. A diffuse ray walks its drawn direction: the guided density is a box function of
+    // the direction, and a rounded direction near a box's edge would count where its draw did not land, which loses
+    // light. Its cosine density and weight are smooth, so the code's rounding moves them by far less than a percent.
+    result.direction = kind == KindReflection ? directionOfCode(directionCodeOf(drawn)) : drawn;
     result.density = densityOf(p, kind, result.direction);
     result.light = vec3(0.0);
     result.distance = 0.0;

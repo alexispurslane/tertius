@@ -2494,15 +2494,25 @@ Why the estimate is unbiased. Let f(ω) be the light that the walk gives along �
 
 - A cosine ray that misses has p̃ = 0, because a guided ray never counts on a miss. So its density is (1 − g) · p_cos, which covers the miss light.
 - A cosine ray that hits a pixel h adds p̃ for the 3 × 3 pixels around h, the targets for which a guided ray along ω counts.
-- A guided ray that a nearer surface stops hits a pixel outside the 3 × 3 around its target and brings 0. That direction is counted for the targets around the pixel that it hits, by p̃.
+- A guided ray that a nearer surface stops brings 0 when it hits a pixel outside the 3 × 3 around its target. When the nearer surface's pixel lies in that 3 × 3 and the ray crosses the target's box, the ray counts and brings that surface's light, and p̃ counts that direction too. Either way the direction is counted for the targets around the pixel that it hits, by p̃.
 - A target behind the receiver's geometric plane gives a direction that the tracer does not trace, so it brings 0, where f is 0 too. Only directions above the plane enter p̃.
 - g < 1, so p_mix > 0 on every direction above the plane, where f can be other than 0.
 
-The direction goes through its octahedral code before the walk, and both densities are of the coded direction, as for the cosine rays alone. The descent's sums and the density's P(q) agree up to rounding. `GuidedRaysTests` holds the C# copy against numerical integrals: the density integrates to each pixel's share of the light, a floor's bounce light keeps the cosine estimate's mean with a much smaller variance, and a patch behind the receiver's surface adds nothing. `GuidedRaysRenderTests` holds the shader's light pyramid and densities against the copy, and checks the same mean with a smaller variance on the GPU.
+A diffuse ray walks its drawn direction, and both densities are of that direction. The record holds the direction's octahedral code, and the resolve weighs the ray by the code's direction. The guided density is a box function of the direction, so a coded direction near a box's edge would count where its draw did not land, and the guided rays would lose light: the review of `ter-05wb` estimated 1 to 2 % at 1080p. The cosine density and the weight are smooth, and the code moves them by far less than a percent. A reflection ray walks the coded direction, because at the roughness floor the code's rounding alone moves D(h) by several percent. The descent's sums and the density's P(q) agree up to rounding. `GuidedRaysTests` holds the C# copy against numerical integrals: the density integrates to each pixel's share of the light, a floor's bounce light keeps the cosine estimate's mean with a much smaller variance, and a patch behind the receiver's surface adds nothing. `GuidedRaysRenderTests` holds the shader's light pyramid and densities against the copy, and checks the same mean with a smaller variance on the GPU.
 
-{{GUIDED_SHARE}}
+The share g is 1/4 (`LightPyramid.GuidedShare`). The guided draw aims by the direct light on screen alone, though a guided ray brings all the light of its hit. The cosine rays alone cover the rest of the light, such as the sky and the light of the histories, and each of them weighs 1 / (1 − g) of its cosine weight. So a larger share makes the light outside the guide noisier, and the slow history's clamp cuts more of it. Ticket `ter-05wb` measured three shares against main in 2026-11 with the renderer survey (`tools/README.md`, "The renderer survey"), at 1920 × 1080 with FSR 3.1:
 
-{{GUIDED_COST}}
+| Measure | Main | g = 1/2 | g = 1/4 | g = 1/8 |
+|---|---|---|---|---|
+| Blotch score of the still `bay-sunbeam` | 0.085 | 0.034 | 0.041 | 0.052 |
+| Blotch score of the still `docking-bay` | 0.081 | 0.038 | 0.043 | 0.050 |
+| Blotch score of the still `rect-lamps` | 0.156 | 0.052 | 0.052 | 0.053 |
+| Blotch score of the still `exit-cabin` | 0.020 | 0.028 | 0.022 | 0.021 |
+| The change of the lamp hall's bounce light, draws 120 to 159 of a still at 1280 × 720 | 0 | −4.8 % | −2.0 % | −0.9 % |
+
+A quarter keeps most of the half's gain on the blotches and loses less than half as much of the lamp hall's bounce light. It also adds less noise than a half to calm views: the still `exit-cabin` scores 0.022, against 0.020 on main and 0.028 at a half. The loss comes from the clamp: in long stills with the clamp off, every share stays within about 1 % of the cosine rays alone.
+
+The cost, at the windowed clock of 1296 MHz held over each timed span, with two frames in flight at 1920 × 1080: the median frame span over three interleaved runs of each build rose from 23.33 to 23.81 ms in the bay (`bay.json` of the ticket's note, 480 frames) and from 23.34 to 24.07 ms in the cabin walk (260 frames). The sum of the passes from "direct light" through "screen trace resolve" rose by 0.62 and 0.96 ms. The light pyramid's pass and the guided density are both in that sum, and the timer cannot split them on MoltenVK (see "GPU timings"). The density sums nine pixel densities at every diffuse ray's hit, for the cosine rays too, so its cost does not fall with g.
 
 The debug switch `TERTIUS_GUIDED_RAYS=off` (`LightPyramidPass.SwitchedOn`) records no "light pyramid" pass and sets g to 0. The light pyramid's images stay, because the tracer's sets bind them. So every diffuse ray takes the cosine draw with the cosine density, as before the guiding.
 

@@ -69,7 +69,9 @@ internal sealed unsafe class PyramidImages : IDisposable
     public GpuImage Finest { get; private set; }
 
     /// <summary>Set 3 of <see cref="DescriptorLayouts.PyramidLayout"/> for the finest level's dispatch: its image at
-    /// binding 1, as a level set holds its level. The pass that builds the pyramid writes its binding 0.</summary>
+    /// binding 1, as a level set holds its level. Binding 0 holds the image that the finest shader reads: the light
+    /// pyramid's owner, <see cref="ScreenTraceImages"/>, writes the direct diffuse light there, and the depth pyramid's
+    /// finest shader reads the G-buffer alone, so its binding 0 stays unwritten.</summary>
     public DescriptorSet FinestSet { get; }
 
     /// <summary>The top level L, whose one cell covers the screen (<see cref="DepthPyramid.LevelCount"/>).</summary>

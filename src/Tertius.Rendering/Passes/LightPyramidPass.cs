@@ -20,7 +20,7 @@ internal sealed class LightPyramidPass(
         shaders: shaders,
         layouts: layouts,
         name: "light_pyramid",
-        firstShader: "light_pyramid_down.comp"
+        firstShader: null
     );
 
     public override string Name => "light pyramid";

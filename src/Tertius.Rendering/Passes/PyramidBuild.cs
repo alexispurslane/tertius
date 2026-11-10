@@ -16,26 +16,28 @@ internal sealed unsafe class PyramidBuild : IDisposable
     private readonly VulkanDevice device;
     private readonly DescriptorLayouts layouts;
     private readonly Pipeline finest;
-    private readonly Pipeline first;
+    /// <summary>The pipeline of level 1, or none when the down pipeline writes level 1 too.</summary>
+    private readonly Pipeline? first;
     private readonly Pipeline down;
     private readonly PyramidTail tail;
 
     /// <param name="shaders">The library that holds <paramref name="firstShader"/> and <c>{name}_finest.comp</c>,
     /// <c>{name}_down.comp</c> and <c>{name}_tail.comp</c>.</param>
     /// <param name="name">The shaders' common name, such as <c>depth_pyramid</c>.</param>
-    /// <param name="firstShader">The shader of level 1, such as <c>depth_pyramid_first.comp</c>.</param>
+    /// <param name="firstShader">The shader of level 1, such as <c>depth_pyramid_first.comp</c>, or null when
+    /// <c>{name}_down.comp</c> writes level 1 from the finest level as it writes every other level.</param>
     public PyramidBuild(
         VulkanDevice device,
         ShaderLibrary shaders,
         DescriptorLayouts layouts,
         string name,
-        string firstShader
+        string? firstShader
     )
     {
         this.device = device;
         this.layouts = layouts;
         finest = Create(shaders, name: name + " finest", shader: name + "_finest.comp");
-        first = Create(shaders, name: name + " first", shader: firstShader);
+        first = firstShader is null ? null : Create(shaders, name: name + " first", shader: firstShader);
         down = Create(shaders, name: name + " down", shader: name + "_down.comp");
         tail = new(device: device, shaders: shaders, layouts: layouts, name: name);
     }
@@ -69,7 +71,8 @@ internal sealed unsafe class PyramidBuild : IDisposable
     {
         tail.Dispose();
         device.Vk.DestroyPipeline(device.Device, finest, null);
-        device.Vk.DestroyPipeline(device.Device, first, null);
+        if (first is { } own)
+            device.Vk.DestroyPipeline(device.Device, own, null);
         device.Vk.DestroyPipeline(device.Device, down, null);
     }
 
@@ -92,7 +95,7 @@ internal sealed unsafe class PyramidBuild : IDisposable
         context.Barriers.Image(image, ImageUse.StorageCompute, discard: mip == 0);
         Dispatch(
             context: context,
-            pipeline: mip == 0 ? first : down,
+            pipeline: mip == 0 ? first ?? down : down,
             set: levelSet,
             extent: new(Math.Max(image.Extent.Width >> mip, 1), Math.Max(image.Extent.Height >> mip, 1))
         );
