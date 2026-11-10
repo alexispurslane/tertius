@@ -584,7 +584,7 @@ public sealed class BatcherLightTests
         panel.SpotRadius.Y.Should().Be(0, "the shadow falls from the face's center as from a point");
     }
 
-    /// <summary>A light of each kind that the shaders tell apart, by name.</summary>
+    /// <summary>A light of each kind, and a tube of length 0, which the shaders shade as a lamp, by name.</summary>
     public static TheoryData<string> LightKinds => ["lamp", "beam", "tube", "tube-of-length-zero", "panel"];
 
     /// <summary>The light of <see cref="LightKinds"/> by its name, 5 m ahead of the camera.</summary>
@@ -630,6 +630,7 @@ public sealed class BatcherLightTests
         PreparedScene scene = Prepare(snapshot: snapshot);
 
         float kind = GpuLight.From(scene.Lights[0]).IntensityKind.W;
+        // The rule of shapeOf in lighting.glsl, which picks each light's loop from its kind.
         uint shape = kind switch
         {
             GpuLight.RectKind => GpuLight.RectShape,
