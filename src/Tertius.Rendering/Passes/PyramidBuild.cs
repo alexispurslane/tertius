@@ -16,6 +16,7 @@ internal sealed unsafe class PyramidBuild : IDisposable
     private readonly VulkanDevice device;
     private readonly DescriptorLayouts layouts;
     private readonly Pipeline finest;
+
     /// <summary>The pipeline of level 1, or none when the down pipeline writes level 1 too.</summary>
     private readonly Pipeline? first;
     private readonly Pipeline down;

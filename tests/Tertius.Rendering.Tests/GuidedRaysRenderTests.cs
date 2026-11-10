@@ -1,5 +1,4 @@
 using System.Numerics;
-using Tertius.Testing;
 using static Tertius.Rendering.Tests.ReflectionTesting;
 
 namespace Tertius.Rendering.Tests;
@@ -105,7 +104,11 @@ public sealed class GuidedRaysRenderTests
                         for (int x = 0; x < size.Width; x++)
                             lights[y * levelWidth + x]
                                 .Should()
-                                .BeApproximately(copy.Light(level, x, y), 1e-5f * copy.Total, $"cell ({x}, {y}) of {level}");
+                                .BeApproximately(
+                                    copy.Light(level, x, y),
+                                    1e-5f * copy.Total,
+                                    $"cell ({x}, {y}) of {level}"
+                                );
                     }
                 }
                 finally
@@ -150,7 +153,12 @@ public sealed class GuidedRaysRenderTests
 
                     (int compared, int above, _) = CompareBlockDensities(renderer);
                     compared.Should().BeGreaterThan(1000);
-                    above.Should().BeGreaterThan(compared / 12, "a quarter of the rays aim at the patch, and most of them reach it");
+                    above
+                        .Should()
+                        .BeGreaterThan(
+                            compared / 12,
+                            "a quarter of the rays aim at the patch, and most of them reach it"
+                        );
                 }
                 finally
                 {
@@ -165,7 +173,11 @@ public sealed class GuidedRaysRenderTests
             null,
             () =>
             {
-                (VulkanRenderer renderer, RenderSnapshot scene) = SceneOverFloor(Dark(), panel: false, ScreenTrace.Default);
+                (VulkanRenderer renderer, RenderSnapshot scene) = SceneOverFloor(
+                    Dark(),
+                    panel: false,
+                    ScreenTrace.Default
+                );
                 try
                 {
                     renderer.Render(scene, 1f);
@@ -199,7 +211,9 @@ public sealed class GuidedRaysRenderTests
                     (float[] lights, _, _) = renderer.ReadLightPyramidLevel(0);
                     float[] distances = renderer.ReadDistance();
                     int surfaces = distances.Count(distance => distance > 0);
-                    int lit = Enumerable.Range(0, lights.Length).Count(pixel => distances[pixel] > 0 && lights[pixel] > 0);
+                    int lit = Enumerable
+                        .Range(0, lights.Length)
+                        .Count(pixel => distances[pixel] > 0 && lights[pixel] > 0);
                     lit.Should().BeGreaterThan(surfaces / 4, "the star overhead lights the floor");
                 }
                 finally
@@ -228,7 +242,12 @@ public sealed class GuidedRaysRenderTests
 
                     (int compared, int guided) = CompareHitDensities(renderer);
                     compared.Should().BeGreaterThan(400);
-                    guided.Should().BeGreaterThan(compared / 12, "a quarter of the rays aim at the patch, and most of them reach it");
+                    guided
+                        .Should()
+                        .BeGreaterThan(
+                            compared / 12,
+                            "a quarter of the rays aim at the patch, and most of them reach it"
+                        );
                 }
                 finally
                 {
@@ -253,11 +272,23 @@ public sealed class GuidedRaysRenderTests
             bool[] floor = FloorBesidePatch();
             (double guidedMean, double guidedError, double guidedVariance) = WithSwitch(
                 null,
-                () => BounceLight(floor: floor, frames: frames, skipped: skipped, scene: () => SceneOverFloor(Dark(), panel: true, ScreenTrace.Default))
+                () =>
+                    BounceLight(
+                        floor: floor,
+                        frames: frames,
+                        skipped: skipped,
+                        scene: () => SceneOverFloor(Dark(), panel: true, ScreenTrace.Default)
+                    )
             );
             (double cosineMean, double cosineError, double cosineVariance) = WithSwitch(
                 "off",
-                () => BounceLight(floor: floor, frames: frames, skipped: skipped, scene: () => SceneOverFloor(Dark(), panel: true, ScreenTrace.Default))
+                () =>
+                    BounceLight(
+                        floor: floor,
+                        frames: frames,
+                        skipped: skipped,
+                        scene: () => SceneOverFloor(Dark(), panel: true, ScreenTrace.Default)
+                    )
             );
 
             double error = Math.Sqrt(guidedError * guidedError + cosineError * cosineError);
@@ -266,7 +297,10 @@ public sealed class GuidedRaysRenderTests
                 .BeApproximately(cosineMean, Math.Max(4 * error, 0.03 * cosineMean), $"the standard error is {error}");
             guidedVariance
                 .Should()
-                .BeLessThan(0.3 * cosineVariance, $"the guided rays find the patch in most frames ({guidedMean}, {cosineMean})");
+                .BeLessThan(
+                    0.3 * cosineVariance,
+                    $"the guided rays find the patch in most frames ({guidedMean}, {cosineMean})"
+                );
         }
 
         [Fact]
@@ -277,11 +311,23 @@ public sealed class GuidedRaysRenderTests
             bool[] floor = FloorBesidePatch();
             (double guidedMean, double guidedError, _) = WithSwitch(
                 null,
-                () => BounceLight(floor: floor, frames: frames, skipped: skipped, scene: () => SceneOverFloor(Gray(0.5f), panel: true, ScreenTrace.Default))
+                () =>
+                    BounceLight(
+                        floor: floor,
+                        frames: frames,
+                        skipped: skipped,
+                        scene: () => SceneOverFloor(Gray(0.5f), panel: true, ScreenTrace.Default)
+                    )
             );
             (double cosineMean, double cosineError, _) = WithSwitch(
                 "off",
-                () => BounceLight(floor: floor, frames: frames, skipped: skipped, scene: () => SceneOverFloor(Gray(0.5f), panel: true, ScreenTrace.Default))
+                () =>
+                    BounceLight(
+                        floor: floor,
+                        frames: frames,
+                        skipped: skipped,
+                        scene: () => SceneOverFloor(Gray(0.5f), panel: true, ScreenTrace.Default)
+                    )
             );
 
             double error = Math.Sqrt(guidedError * guidedError + cosineError * cosineError);
@@ -300,15 +346,30 @@ public sealed class GuidedRaysRenderTests
             const int frames = 64,
                 skipped = 16;
             // Four steps end most walks across the 7 m to the wall, so most guided rays miss.
-            ScreenTrace shortWalk = ScreenTrace.Default with { DiffuseSteps = 4 };
+            ScreenTrace shortWalk = ScreenTrace.Default with
+            {
+                DiffuseSteps = 4,
+            };
             bool[] floor = FloorBesidePatch();
             (double guidedMean, double guidedError, _) = WithSwitch(
                 null,
-                () => BounceLight(floor: floor, frames: frames, skipped: skipped, scene: () => SceneOverFloor(Gray(0.5f), panel: true, shortWalk))
+                () =>
+                    BounceLight(
+                        floor: floor,
+                        frames: frames,
+                        skipped: skipped,
+                        scene: () => SceneOverFloor(Gray(0.5f), panel: true, shortWalk)
+                    )
             );
             (double cosineMean, double cosineError, _) = WithSwitch(
                 "off",
-                () => BounceLight(floor: floor, frames: frames, skipped: skipped, scene: () => SceneOverFloor(Gray(0.5f), panel: true, shortWalk))
+                () =>
+                    BounceLight(
+                        floor: floor,
+                        frames: frames,
+                        skipped: skipped,
+                        scene: () => SceneOverFloor(Gray(0.5f), panel: true, shortWalk)
+                    )
             );
 
             double error = Math.Sqrt(guidedError * guidedError + cosineError * cosineError);
@@ -365,14 +426,9 @@ public sealed class GuidedRaysRenderTests
         ScreenTrace trace
     )
     {
-        VulkanRenderer renderer = Gpu.Headless(
-            width: Width,
-            height: Height,
-            screenTrace: trace,
-            warmUpFrames: 0
-        );
+        VulkanRenderer renderer = Gpu.Headless(width: Width, height: Height, screenTrace: trace, warmUpFrames: 0);
         RenderSnapshot scene = world;
-        MaterialDesc white = MaterialDesc.Color(Vector4.One, roughness: 1f);
+        var white = MaterialDesc.Color(Vector4.One, roughness: 1f);
         MeshId box = renderer.CreateMesh(Primitives.Box(new(0.5f)));
         scene.Instances.Add(Floor(renderer, white));
         scene.Instances.Add(
@@ -581,7 +637,13 @@ public sealed class GuidedRaysRenderTests
             Vector3 direction = OctahedralNormal.Decode(
                 new(records[record] * (2 / 65535f) - 1, records[record + 1] * (2 / 65535f) - 1)
             );
-            Vector3 origin = OriginOf(camera: camera, jitter: jitter, pixel: start, distance: distances[pixel], normals: normals);
+            Vector3 origin = OriginOf(
+                camera: camera,
+                jitter: jitter,
+                pixel: start,
+                distance: distances[pixel],
+                normals: normals
+            );
             // The hit distance runs from the origin to the hit pixel's center on its surface, not along the ray, so a few
             // points project into a neighbor of the hit pixel, whose 3 × 3 pixels differ.
             Vector2 place = camera.PixelOf(origin + direction * hitDistance) - jitter;
@@ -613,13 +675,20 @@ public sealed class GuidedRaysRenderTests
     /// The origin of the rays of <paramref name="pixel"/>, camera-relative: its surface point on the jittered view ray at
     /// its distance, off the surface along its geometric normal, as tracingPixelAt in screen_trace.glsl places it.
     /// </summary>
-    private static Vector3 OriginOf(in CameraView camera, Vector2 jitter, (int X, int Y) pixel, float distance, float[] normals)
+    private static Vector3 OriginOf(
+        in CameraView camera,
+        Vector2 jitter,
+        (int X, int Y) pixel,
+        float distance,
+        float[] normals
+    )
     {
         int index = pixel.Y * Width + pixel.X;
         Vector3 geometricNormal = OctahedralNormal.Decode(new(normals[4 * index + 2], normals[4 * index + 3]));
         Vector3 ray = camera.ViewRayThrough(new Vector2(pixel.X + 0.5f, pixel.Y + 0.5f) + jitter);
         float viewDepth = distance / ray.Length();
-        return Vector3.Normalize(ray) * distance + geometricNormal * ScreenRay.OriginOffset(viewDepth, camera.PixelAngle);
+        return Vector3.Normalize(ray) * distance
+            + geometricNormal * ScreenRay.OriginOffset(viewDepth, camera.PixelAngle);
     }
 
     private static float Luminance(Vector3 light) => Vector3.Dot(light, new(0.2126f, 0.7152f, 0.0722f));

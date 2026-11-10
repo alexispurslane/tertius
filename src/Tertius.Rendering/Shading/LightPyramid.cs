@@ -24,7 +24,10 @@ internal sealed class LightPyramid
     /// <summary>Each level from 0 to <see cref="TopLevel"/>.</summary>
     private readonly Level[] levels;
 
-    private LightPyramid(Level[] levels) => this.levels = levels;
+    private LightPyramid(Level[] levels)
+    {
+        this.levels = levels;
+    }
 
     /// <summary>The level whose one cell covers the screen.</summary>
     public int TopLevel => levels.Length - 1;
@@ -247,7 +250,11 @@ internal sealed class LightPyramid
             float middle = 0.5f * (Start + End);
             return (End - Start)
                 / 6
-                * (Ratio(Start, originDepth, along) + 4 * Ratio(middle, originDepth, along) + Ratio(End, originDepth, along));
+                * (
+                    Ratio(Start, originDepth, along)
+                    + 4 * Ratio(middle, originDepth, along)
+                    + Ratio(End, originDepth, along)
+                );
         }
 
         private static float Ratio(float t, float originDepth, float along)
