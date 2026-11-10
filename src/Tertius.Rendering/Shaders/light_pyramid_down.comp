@@ -1,0 +1,32 @@
+#version 460
+// Level k ≥ 1 of the light pyramid (light_pyramid.glsl): each cell sums the light of the up to four cells of level k − 1
+// under it, level 1 those of the finest level. One invocation per texel of the image's mip, padding included, whose
+// children lie beyond the screen and hold no light.
+#extension GL_GOOGLE_include_directive : require
+#extension GL_EXT_samplerless_texture_functions : require
+#include "light_pyramid.glsl"
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+layout(set = 3, binding = 0) uniform texture2D source;                       // level k − 1, one mip or the finest level
+layout(set = 3, binding = 1, r32f) uniform writeonly image2D destination;   // level k
+
+// A child outside the source lies beyond the screen, and the fetch must stay inside the image.
+float childLight(ivec2 child)
+{
+    if (any(greaterThanEqual(child, textureSize(source, 0))))
+        return NoLight;
+    return texelFetch(source, child, 0).r;
+}
+
+void main()
+{
+    ivec2 cell = ivec2(gl_GlobalInvocationID.xy);
+    if (any(greaterThanEqual(cell, imageSize(destination))))
+        return;
+    float light = NoLight;
+    for (int y = 0; y < 2; y++)
+        for (int x = 0; x < 2; x++)
+            light = summedLight(light, childLight(2 * cell + ivec2(x, y)));
+    imageStore(destination, cell, vec4(light));
+}

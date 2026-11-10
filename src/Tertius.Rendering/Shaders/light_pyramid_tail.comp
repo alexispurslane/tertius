@@ -1,0 +1,30 @@
+#version 460
+// The tail of the light pyramid: pyramid_tail.glsl over the sums of light_pyramid_down.comp.
+#extension GL_GOOGLE_include_directive : require
+#extension GL_EXT_samplerless_texture_functions : require
+#include "light_pyramid.glsl"
+
+#define TailCell float
+#define TAIL_FORMAT r32f
+
+float emptyCell()
+{
+    return NoLight;
+}
+
+float mergedCells(float a, float b)
+{
+    return summedLight(a, b);
+}
+
+float cellOfTexel(vec4 texel)
+{
+    return texel.r;
+}
+
+vec4 texelOfCell(float light)
+{
+    return vec4(light);
+}
+
+#include "pyramid_tail.glsl"
