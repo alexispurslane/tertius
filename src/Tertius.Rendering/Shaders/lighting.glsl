@@ -386,9 +386,9 @@ struct LightPath
 // may be false only when frame.counts.y is NoAirSun: a constant false leaves the tint's code out of the caller's loop. L
 // is zero when the position is at the light's center. `cosine` is the direction of the diffuse light times its share of
 // the irradiance: L, or a tube's cosine vector over its solid angle, `solidAngle`, which is 0 for every other light. A
-// rectangle keeps L: rectResponse cuts its face itself. `rect` must be whether the light is a rectangle: a constant
-// leaves the other shapes' code out of the caller's loop.
-void lightIrradiance(uint index, bool tinted, bool rect, vec3 position, out LightPath p)
+// rectangle keeps L: rectResponse cuts its face itself. `shape` must be the light's shapeOf: a constant leaves the other
+// shapes' code out of the caller's loop.
+void lightIrradiance(uint index, bool tinted, uint shape, vec3 position, out LightPath p)
 {
     GpuLight light = lights[index];
     p.toCenter = light.positionReach.xyz - position;
@@ -404,7 +404,7 @@ void lightIrradiance(uint index, bool tinted, bool rect, vec3 position, out Ligh
     float reach = light.positionReach.w;
     float radius = light.spotRadius.y;
     float falloff;
-    if (rect)
+    if (shape == RectShape)
     {
         // SceneBatcher.Shines keeps a rectangle with sides of at least 1 µm, so the squares of its half sides are normal
         // floats.
@@ -434,7 +434,7 @@ void lightIrradiance(uint index, bool tinted, bool rect, vec3 position, out Ligh
         // The peak intensity over the face's area is its face radiance.
         falloff = window * window / (4.0 * length(front));
     }
-    else if (light.intensityKind.w == TubeKind)
+    else if (shape == TubeShape)
     {
         // GpuLight.From gives a tube a half segment longer than 10^−6 m, so its square is above 0.
         vec3 halfSegment = light.directionCosOuter.xyz;
@@ -593,6 +593,13 @@ bool viewKeeps(uint view, GpuLight light)
     return view == MainView ? light.inMainView != 0u : light.map <= view;
 }
 
+// The shape of `light` by its kind: RectShape, TubeShape, or PointShape for a point or a spot light.
+uint shapeOf(GpuLight light)
+{
+    float kind = light.intensityKind.w;
+    return kind == RectKind ? RectShape : kind == TubeKind ? TubeShape : PointShape;
+}
+
 // Whether some corner of the rectangle of path p lies above the plane through the shaded point with the normal n: then
 // some part of the face does, because the face is convex.
 bool rectAbove(vec3 n, LightPath p)
@@ -601,17 +608,17 @@ bool rectAbove(vec3 n, LightPath p)
 }
 
 // The path from a surface point to light `index`, or false where the point takes none of its light. `fiber` as in respond,
-// `tinted` and `rect` as in lightIrradiance. The point takes the light that arrives along its diffuse direction, which is
+// `tinted` and `shape` as in lightIrradiance. The point takes the light that arrives along its diffuse direction, which is
 // L but for a tube, and a surface takes a rectangle's light where some of its face lies above both of its horizons. A
 // surface's geometric normal faces every point light that it takes (takesLight), so only a fiber's turns, or a surface's
 // toward the middle of a tube that it takes from beyond its horizon. The sine of the angle to the light is the same on
 // both sides of a card.
-bool lightPath(uint index, bool fiber, bool tinted, bool rect, ShadingInput s, out LightPath p)
+bool lightPath(uint index, bool fiber, bool tinted, uint shape, ShadingInput s, out LightPath p)
 {
-    lightIrradiance(index, tinted, rect, s.position, p);
+    lightIrradiance(index, tinted, shape, s.position, p);
     if (p.irradiance == vec3(0.0))
         return false;
-    bool takes = rect
+    bool takes = shape == RectShape
         ? fiber || rectAbove(s.normal, p) && rectAbove(s.geometricNormal, p)
         : takesLight(fiber, s, p.cosine, dot(s.geometricNormal, p.cosine));
     if (!takes)
@@ -712,42 +719,41 @@ DirectTerms rectResponse(bool fiber, ShadingInput s, SurfaceLobes lobes, vec3 V,
 }
 
 // The light of light `index` along its path from `s.position` before its shadows, in its two parts: its irradiance times
-// the response, plain radiance. `fiber` as in respond, `rect` as in lightIrradiance.
-DirectTerms pathLight(uint index, bool fiber, bool rect, ShadingInput s, SurfaceLobes lobes, vec3 V, LightPath p)
+// the response, plain radiance. `fiber` as in respond, `shape` as in lightIrradiance.
+DirectTerms pathLight(uint index, bool fiber, uint shape, ShadingInput s, SurfaceLobes lobes, vec3 V, LightPath p)
 {
-    GpuLight light = lights[index];
     DirectTerms terms;
-    if (rect)
+    if (shape == RectShape)
         terms = rectResponse(fiber, s, lobes, V, p);
-    else if (light.intensityKind.w == TubeKind)
+    else if (shape == TubeShape)
         terms = tubeResponse(fiber, s, lobes, V, p);
     else
-        terms = respond(fiber, s, lobes, V, p.L, lightSineAt(light, p.d));
+        terms = respond(fiber, s, lobes, V, p.L, lightSineAt(lights[index], p.d));
     terms.diffuse *= p.irradiance;
     terms.specular *= p.irradiance;
     return terms;
 }
 
-// modelLight's loop over the rectangle lights of the list if `rect`, else over every other light, added to `sum`.
-// `fiber` as in respond, `tinted` and `rect` as in lightIrradiance. modelLight is the one caller, and it passes
-// constants. A light's response is evaluated only where its shadows let some of it through.
-void shapeLight(bool fiber, bool tinted, bool rect, ShadingInput s, SurfaceLobes lobes, vec3 V, uint shadowMaps,
+// modelLight's loop over the lights of the list of one shape, `shape`, added to `sum`. `fiber` as in respond, `tinted`
+// and `shape` as in lightIrradiance. modelLight is the one caller, and it passes constants. A light's response is
+// evaluated only where its shadows let some of it through.
+void shapeLight(bool fiber, bool tinted, uint shape, ShadingInput s, SurfaceLobes lobes, vec3 V, uint shadowMaps,
     uint view, inout DirectTerms sum)
 {
-    // frame.counts.w counts the rectangles: without one, their loop would only skip every light of the list.
-    if (rect && frame.counts.w == 0u)
+    // frame.counts.w holds the shapes of the list: without a light of this shape, its loop would only skip every light.
+    if ((frame.counts.w & shape) == 0u)
         return;
     for (uint i = 0u; i < frame.counts.x; i++)
     {
-        if (!viewKeeps(view, lights[i]) || (lights[i].intensityKind.w == RectKind) != rect)
+        if (!viewKeeps(view, lights[i]) || shapeOf(lights[i]) != shape)
             continue;
         LightPath p;
-        if (!lightPath(i, fiber, tinted, rect, s, p))
+        if (!lightPath(i, fiber, tinted, shape, s, p))
             continue;
         float visibility = pathVisibility(i, p, s.position, shadowMaps);
         if (visibility > 0.0)
         {
-            DirectTerms terms = pathLight(i, fiber, rect, s, lobes, V, p);
+            DirectTerms terms = pathLight(i, fiber, shape, s, lobes, V, p);
             sum.diffuse += terms.diffuse * visibility;
             sum.specular += terms.specular * visibility;
         }
@@ -756,23 +762,25 @@ void shapeLight(bool fiber, bool tinted, bool rect, ShadingInput s, SurfaceLobes
 
 // directLight for one model: a fiber's light if `fiber`, else a surface's. `fiber` as in respond, `tinted` as in
 // lightIrradiance. directLight is the one caller, and it passes constants, so each copy of the loop holds one model's
-// code and only the tint that it needs. The rectangle lights take a loop of their own after the other lights, so the
-// loop of the point, spot and tube lights holds none of the rectangle's code: in that one loop, the rectangle's code made
-// the direct pass of a lamp hall of 64 bulbs and no rectangle about 1.7 ms slower (ticket t2-rhja).
+// code and only the tint that it needs. Each light shape takes a loop of its own, so a loop holds no other shape's code:
+// in one loop with the point lights, the rectangle's code made the direct pass of a lamp hall of 64 bulbs and no
+// rectangle about 1.7 ms slower (ticket t2-rhja).
 DirectTerms modelLight(
     bool fiber, bool tinted, ShadingInput s, SurfaceLobes lobes, vec3 V, uint shadowMaps, uint view)
 {
     DirectTerms sum;
     sum.diffuse = vec3(0.0);
     sum.specular = vec3(0.0);
-    shapeLight(fiber, tinted, false, s, lobes, V, shadowMaps, view, sum);
-    shapeLight(fiber, tinted, true, s, lobes, V, shadowMaps, view, sum);
+    shapeLight(fiber, tinted, PointShape, s, lobes, V, shadowMaps, view, sum);
+    shapeLight(fiber, tinted, TubeShape, s, lobes, V, shadowMaps, view, sum);
+    shapeLight(fiber, tinted, RectShape, s, lobes, V, shadowMaps, view, sum);
     return sum;
 }
 
 // Every light of the list that the view keeps reflected toward V in its two parts, each dimmed by its shadows as
-// shadowMaps says: a face of map i passes i, and every other caller MainView. The lights other than the rectangles add
-// in the order of the list, then the rectangles in the order of the list, so the sum rounds the same way on every run.
+// shadowMaps says: a face of map i passes i, and every other caller MainView. The point and spot lights add in the order
+// of the list, then the tubes, then the rectangles, each in the order of the list, so the sum rounds the same way on
+// every run.
 // A light adds only where takesLight says. A hair card's shadow lookups take its geometric normal turned toward the
 // light, the side that the light sees (docs/plans/skin-and-hair.md, decision 27). The result is plain radiance: no ambient light, no emission and no exposure. The direct pass divides it
 // by its material factors into the direct light's images (Shaders/direct.frag).
@@ -856,14 +864,14 @@ vec3 scatteredLight(vec3 albedo, vec3 position, uint map)
         // A puff scatters a tube's or a rectangle's scalar irradiance, so it leaves the diffuse direction aside.
         LightPath p;
         // The puffs keep one loop for every frame, so they pay the compare with frame.counts.y for each light.
-        bool rect = light.intensityKind.w == RectKind;
-        lightIrradiance(i, true, rect, position, p);
+        uint shape = shapeOf(light);
+        lightIrradiance(i, true, shape, position, p);
         // At the light's center L is a zero vector, which the far shadows' angle cannot take. A surface there takes
         // nothing either, by its dot(N, L) of 0.
         if (p.irradiance == vec3(0.0) || p.d == 0.0)
             continue;
         // A rectangle's path holds its face radiance, whose scalar irradiance is that times the face's solid angle.
-        float spread = rect ? rectSolidAngle(p.toCenter, p.halfWidth, p.halfHeight) : 1.0;
+        float spread = shape == RectShape ? rectSolidAngle(p.toCenter, p.halfWidth, p.halfHeight) : 1.0;
         irradiance += p.irradiance * (spread
             * lightVisibility(light, position, p.L, p.d, p.L, 0.0, ShadowMapsMainView));
     }

@@ -59,6 +59,111 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
         );
 
     [Fact]
+    public void AWalkOverTheSteepLightOfAStillLampCommitsNoLightChange() =>
+        WithRenderer(
+            null,
+            (renderer, scene) =>
+            {
+                // A lamp 0.6 m over the floor: its light on the floor falls steeply away from the spot below it, so a pixel
+                // that the walk moves across the floor shows a light far from the last light of its nearest tap.
+                var lamp = new Vector3(1, ReflectionTesting.FloorHeight + 0.6f, -4);
+                scene.Lights.Add(
+                    new PointRenderLight(
+                        EntityIndex: Gpu.LampEntity,
+                        EntityGeneration: 0,
+                        Position: lamp,
+                        PreviousPosition: lamp,
+                        Color: Vector3.One,
+                        Power: 4 * MathF.PI * 2,
+                        Radius: 0.05f,
+                        CastsShadow: false,
+                        ChainDepth: TestChains.CamerasFrame
+                    )
+                );
+                Draw(renderer, scene, 16);
+                long commits = 0;
+                long moves = 0;
+                float[] last = renderer.ReadLightAge();
+
+                for (int frame = 0; frame < 48; frame++)
+                {
+                    Step(scene);
+                    Draw(renderer, scene, 1);
+                    float[] record = renderer.ReadLightAge();
+                    float[] distance = renderer.ReadDistance();
+                    int[] away =
+                    [
+                        .. Enumerable
+                            .Range(Width, Width * (Height - 2))
+                            .Where(pixel => AwayFromARowDepthEdge(distance, pixel)),
+                    ];
+                    commits += away.Count(pixel => AgeAt(record, pixel) == 0);
+                    moves += away.Count(pixel =>
+                        ExactLightAt(last, pixel) > 0
+                        && MathF.Abs(ExactLightAt(record, pixel) / ExactLightAt(last, pixel) - 1) > 0.02f
+                    );
+                    last = record;
+                }
+
+                output.WriteLine(
+                    $"Walk toward a still lamp: {commits} committed light changes, {moves} pixel moves over 48 draws."
+                );
+                moves
+                    .Should()
+                    .BeGreaterThan(
+                        1000,
+                        "the walk must move pixels across the lamp's steep light by more than the share"
+                    );
+                commits.Should().Be(0, "no light changed: the walk only moves the pixels over the lamp's still light");
+            }
+        );
+
+    [Fact]
+    public void AWalkTowardADimmingEmitterStillCommitsItsChange() =>
+        WithRenderer(
+            null,
+            (renderer, scene) =>
+            {
+                Draw(renderer, scene, 16);
+                for (int frame = 0; frame < 8; frame++)
+                {
+                    Step(scene);
+                    Draw(renderer, scene, 1);
+                }
+                SetGlow(renderer, scene, new(3.2f));
+
+                for (int frame = 0; frame < LightChangeDraws + 2; frame++)
+                {
+                    Step(scene);
+                    Draw(renderer, scene, 1);
+                }
+
+                float[] record = renderer.ReadLightAge();
+                int[] interior = InteriorPixels(record, least: 2.5f);
+                output.WriteLine(
+                    "Ages of the interior after the walk: "
+                        + string.Join(
+                            ", ",
+                            interior
+                                .GroupBy(pixel => AgeAt(record, pixel))
+                                .OrderBy(g => g.Key)
+                                .Select(g => $"{g.Key}: {g.Count()}")
+                        )
+                );
+                interior.Length.Should().BeGreaterThan(20, "the emitter must cover pixels whose neighbors are all lit");
+                // At least 90%, not the 95% of a still camera: under motion, 7.5% of the interior misses the change, also
+                // with the band around the nearest tap's light that the record took before tb-8zew (ticket tb-4g6h).
+                interior
+                    .Count(pixel => AgeAt(record, pixel) is >= 0 and <= 2)
+                    .Should()
+                    .BeGreaterThanOrEqualTo(
+                        interior.Length * 90 / 100,
+                        "the glow fell 20% while the camera walked, and the change counts on its fourth draw"
+                    );
+            }
+        );
+
+    [Fact]
     public void APixelWhoseJitterAlternatesAThinGlowingStripAndTheFloorResetsNoLightAge() =>
         WithRenderer(
             null,
@@ -1161,6 +1266,23 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
         emitter.Material = ReflectionTesting.Glow(renderer, radiance);
         scene.Instances[1] = emitter;
     }
+
+    /// <summary>One draw's step of the walks: the camera moves 4 cm toward the emitter.</summary>
+    private static void Step(RenderSnapshot scene)
+    {
+        scene.Camera.PreviousPosition = scene.Camera.Position;
+        scene.Camera.Position += new Vector3(0, 0, -0.04f);
+    }
+
+    /// <summary>
+    /// A pixel whose rows above and below lie within a quarter of its distance: away from the horizontal depth edges, such
+    /// as the emitter's lower edge over the floor, which the walk moves across the image. A pixel beside a vertical depth
+    /// edge passes.
+    /// </summary>
+    private static bool AwayFromARowDepthEdge(float[] distance, int pixel) =>
+        distance[pixel] > 0
+        && MathF.Abs(distance[pixel - Width] / distance[pixel] - 1) < 0.25f
+        && MathF.Abs(distance[pixel + Width] / distance[pixel] - 1) < 0.25f;
 
     /// <summary>The pixels whose exact light and whose eight neighbors' exact light are at least <paramref name="least"/>.</summary>
     private static int[] InteriorPixels(float[] record, float least) =>
