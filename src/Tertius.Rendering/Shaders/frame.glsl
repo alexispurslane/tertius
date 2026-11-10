@@ -115,6 +115,12 @@ const float SpotKind = 1.0;
 const float TubeKind = 2.0;
 const float RectKind = 3.0;
 
+// The shape of a light, each with a light loop of its own (lighting.glsl, modelLight), and its bit in frame.counts.w
+// (GpuLight.*Shape in GpuTypes.cs): point and spot lights, tubes, rectangles.
+const uint PointShape = 1u;
+const uint TubeShape = 2u;
+const uint RectShape = 4u;
+
 struct GpuLight
 {
     vec4 positionReach;       // xyz world position, w reach in meters
@@ -194,7 +200,7 @@ layout(set = 0, binding = 0, std140) uniform FrameBlock
     vec4 params;              // x the most pre-exposed light that one puff adds to a pixel, y time in seconds, z angular size of one pixel
     uvec4 counts;             // x lights, y the place in the list of the atmosphere's sun, whose light takes the air's tint,
                               // or NoAirSun; z cascades of each drawn cascade set (0: no set this frame); w the
-                              // rectangle lights of the list
+                              // shapes of the list's lights, one bit each (PointShape, TubeShape, RectShape)
     // The cascade sets of the far lights (see ShadowCascades.cs). The sets share one camera and one map size, so these
     // four hold for every set.
     vec4 shadowSplits;        // view depth where each cascade ends
