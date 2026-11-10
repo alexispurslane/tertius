@@ -655,6 +655,90 @@ public sealed class ScreenTraceRenderTests
         }
     }
 
+    [Theory]
+    [InlineData(0.2f, false)]
+    [InlineData(0f, true)]
+    public void AConvergedPixelOfAFlatFloorTracesItsOwnReflectionRayOnlyWhereOnePixelsTurnOfTheViewLeavesItsLobe(
+        float roughness,
+        bool ownRays
+    )
+    {
+        // One pixel of the view turns the mirror direction by about 0.003 rad at 640 × 360. A lobe at roughness 0.2 is
+        // about 0.08 rad wide, so the block's ray lies inside it. The roughness floor's lobe is about 0.004 rad wide, so
+        // a neighbor's mirror direction lies outside the share of it, though the floor's normal is the same.
+        VulkanRenderer renderer = Tracing();
+        try
+        {
+            RenderSnapshot scene = Gray(0.3f);
+            scene.Instances.Add(Floor(renderer, WhiteFloor(roughness)));
+            Draw(renderer, scene, frames: 1);
+            int reset = renderer.ReadOwnRayCounts().Reflection;
+
+            Draw(renderer, scene, frames: 12);
+
+            int converged = renderer.ReadOwnRayCounts().Reflection;
+            if (ownRays)
+                converged.Should().BeGreaterThan(reset * 9 / 10, "a flat mirror keeps its sharp image");
+            else
+                converged.Should().BeLessThan(reset / 10, "a converged pixel of a glossy floor shares its block's ray");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Theory]
+    [InlineData(0f, true)]
+    [InlineData(0.4f, false)]
+    public void AConvergedPixelOfABallTracesItsOwnReflectionRayOnlyWhereItsNeighborsNormalLeavesItsLobe(
+        float roughness,
+        bool ownRays
+    )
+    {
+        // A ball of about 78 px radius: its normal turns by about 0.013 rad per pixel. A mirror's lobe at the roughness
+        // floor is about 0.002 rad wide, so no neighbor's ray lies inside it. A lobe at roughness 0.4 is about 0.16 rad
+        // wide, so every neighbor's does.
+        VulkanRenderer renderer = Tracing();
+        try
+        {
+            RenderSnapshot scene = Gray(0.3f);
+            scene.Instances.Add(
+                Gpu.Instance(
+                    mesh: renderer.CreateMesh(Primitives.Sphere(1f, 64, 32)),
+                    material: renderer.CreateMaterial(WhiteFloor(roughness)),
+                    position: new(0, 0, -4),
+                    scale: Vector3.One,
+                    chainDepth: TestChains.CamerasFrame,
+                    radius: 1
+                )
+            );
+
+            Draw(renderer, scene, frames: 13);
+
+            float[] distance = renderer.ReadDistance();
+            int lit = 0;
+            var blocks = new HashSet<(int X, int Y)>();
+            for (int y = 0; y < Height; y++)
+            for (int x = 0; x < Width; x++)
+                if (distance[y * Width + x] > 0)
+                {
+                    lit++;
+                    blocks.Add((x / 2, y / 2));
+                }
+            int sharing = lit - blocks.Count;
+            int own = renderer.ReadOwnRayCounts().Reflection;
+            if (ownRays)
+                own.Should().BeGreaterThan(sharing * 9 / 10, "a curved mirror's neighbor reflects another direction");
+            else
+                own.Should().BeLessThan(sharing / 10, "a rough ball's lobe holds its neighbor's ray");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
     [Fact]
     public void TwoRenderersThatDrawTheSameFramesGiveTheSameBits()
     {
