@@ -927,7 +927,8 @@ internal struct EnvironmentPrefilterLevels
 /// <summary>
 /// The push constants of environment_prefilter.comp, for the run of levels of the specular map that set 1 of
 /// <see cref="DescriptorLayouts.EnvironmentPrefilterLayout"/> holds (<see cref="PrefilterLevels.LevelsOfDispatch"/>), of
-/// map <see cref="Map"/>. 80 bytes. environment_irradiance.comp reads only <see cref="Map"/>.
+/// map <see cref="Map"/>, of its faces <see cref="FirstFace"/> to <see cref="FirstFace"/> + <see cref="FaceCount"/> − 1.
+/// 88 bytes. environment_irradiance.comp reads only those three.
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct EnvironmentPrefilterPushConstants
@@ -951,6 +952,12 @@ internal struct EnvironmentPrefilterPushConstants
     /// The map whose layers 6 · Map to 6 · Map + 5 of the specular maps or of the irradiance cubes the dispatch writes.
     /// </summary>
     public uint Map;
+
+    /// <summary>The first face, 0 to 5, of the run of faces that the dispatch writes (ARCHITECTURE.md, "The prefilter").</summary>
+    public uint FirstFace;
+
+    /// <summary>The faces of the run, 1 to 6, at most 6 − <see cref="FirstFace"/>.</summary>
+    public uint FaceCount;
 }
 
 /// <summary>

@@ -71,13 +71,13 @@ internal static class PrefilterLevels
 
     /// <summary>
     /// The workgroups of level <paramref name="level"/> of a map of <paramref name="faceSize"/>: one for each
-    /// <see cref="GroupInvocations"/> / <see cref="Lanes"/> texels of its six faces.
+    /// <see cref="GroupInvocations"/> / <see cref="Lanes"/> texels of its <paramref name="faces"/> faces, six or one.
     /// </summary>
-    public static int Workgroups(int level, int faceSize)
+    public static int Workgroups(int level, int faceSize, int faces = CubeFaces.Count)
     {
         int size = faceSize >> level;
         int texelsPerGroup = GroupInvocations / Lanes(level);
-        return (CubeFaces.Count * size * size + texelsPerGroup - 1) / texelsPerGroup;
+        return (faces * size * size + texelsPerGroup - 1) / texelsPerGroup;
     }
 
     /// <summary>The roughness that level <paramref name="level"/> of <paramref name="levels"/> holds, linear in perceptual roughness.</summary>

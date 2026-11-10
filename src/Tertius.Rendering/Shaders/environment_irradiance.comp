@@ -29,6 +29,7 @@ layout(set = 1, binding = 0, rgba16f) uniform writeonly image2DArray irradianceL
 layout(push_constant, std430) uniform PrefilterPush
 {
     layout(offset = 76) uint map;  // m: the dispatch reads cube m and writes layers 6m to 6m + 5
+    uint firstFace;                // the first of the faces that the dispatch writes, whose workgroups cover them exactly
 } prefilter;
 
 // One round of the source: xyz the unit direction ω of a texel's center, w its solid angle, and its light.
@@ -44,8 +45,10 @@ void main()
     uint lane = index % Lanes;
     uint size = uint(imageSize(irradianceLevel0).x);
     uint texel = gl_WorkGroupID.x * (Invocations / Lanes) + index / Lanes;
-    uint layer = texel / (size * size);
-    uint inLayer = texel - layer * size * size;
+    // The texels run face by face, from the dispatch's first face.
+    uint faceIndex = texel / (size * size);
+    uint inLayer = texel - faceIndex * size * size;
+    uint layer = prefilter.firstFace + faceIndex;
     uvec2 xy = uvec2(inLayer % size, inLayer / size);
     vec3 n = normalize(faceRay(layer, (vec2(xy) + 0.5) / float(size)));
 
