@@ -31,6 +31,16 @@ public sealed class GuidedRaysTests
     ];
 
     [Fact]
+    public void ALightPyramidNeedsOneLightForEachPixel()
+    {
+        float[] lights = new float[7 * 5 - 1];
+
+        Action make = () => LightPyramid.Of(lights, width: 7, height: 5);
+
+        make.Should().Throw<ArgumentException>().WithMessage("*needs 35 lights, not 34*");
+    }
+
+    [Fact]
     public void EachCellOfTheLightPyramidHoldsTheLightOfThePixelsUnderIt()
     {
         float[] lights = [.. Enumerable.Range(0, 7 * 5).Select(index => (float)(index % 4))];
