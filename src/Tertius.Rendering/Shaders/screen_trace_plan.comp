@@ -136,14 +136,6 @@ float historyLengthOf(ivec2 pixel, uint kind)
     return kind == KindDiffuse ? slowDiffuseAt(r).a : slowSpecularAt(r).a;
 }
 
-// Whether the block's ray from its chosen pixel c fits the pixel p: c's plane passes p's surface point within the
-// thickness, and their geometric normals lie within 25°.
-bool fits(TracingPixel p, TracingPixel c)
-{
-    return abs(dot(p.point - c.point, c.s.geometricNormal)) <= ThicknessShare * p.viewDepth
-        && dot(p.s.geometricNormal, c.s.geometricNormal) >= SameNormalCosine;
-}
-
 #ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
 // The share of a reflection lobe's width within which a pixel's mirror direction and its block's chosen pixel's must lie
 // for the pixel to take the block's reflection ray (ticket ter-4oow).
@@ -151,14 +143,28 @@ const float LobeFitShare = 0.5;
 
 // Whether the block's reflection ray from its chosen pixel c lies inside the pixel p's own reflection lobe: the two
 // pixels' mirror directions, each its view direction reflected about its lobe normal, lie within LobeFitShare of the
-// reflected lobe's width, 2 atan α, apart. The view direction counts as well as the normal: on a flat mirror at the
-// roughness floor, one pixel's turn of the view moves the mirror direction by most of the lobe's width. The test compares
-// the chord between the directions, which keeps its precision at the roughness floor's lobe of 0.004 rad.
+// reflected lobe's width, 2 atan α, apart (docs/plans/temporal-renderer.md, section 6, "Shared reflection rays by lobe
+// fit"). The chord between the directions keeps its precision at the roughness floor's lobe of 0.004 rad, and up to
+// MaxRoughness it stays within 0.25 % of its angle. The bound is the angle, not its chord through sin, whose absolute
+// error the Vulkan spec allows up to 2^-11, half the bound at the roughness floor.
 bool insideLobe(TracingPixel p, TracingPixel c)
 {
-    return distance(reflect(-p.V, p.normal), reflect(-c.V, c.normal)) <= 2.0 * sin(LobeFitShare * atan(p.alpha));
+    return distance(reflect(-p.V, p.normal), reflect(-c.V, c.normal)) <= 2.0 * LobeFitShare * atan(p.alpha);
 }
 #endif
+
+// Whether the block's ray of the kind from its chosen pixel c fits the pixel p: c's plane passes p's surface point within
+// the thickness, and their geometric normals lie within 25°. With the precise specular history, a reflection ray must
+// also lie inside p's reflection lobe.
+bool fits(TracingPixel p, TracingPixel c, uint kind)
+{
+    bool fit = abs(dot(p.point - c.point, c.s.geometricNormal)) <= ThicknessShare * p.viewDepth
+        && dot(p.s.geometricNormal, c.s.geometricNormal) >= SameNormalCosine;
+#ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
+    fit = fit && (kind != KindReflection || insideLobe(p, c));
+#endif
+    return fit;
+}
 
 void main()
 {
@@ -179,11 +185,7 @@ void main()
             // A pixel that starts the kind gives its block a chosen pixel.
             if (!startsKind(p, kind) || !chosenPixelOf(pixel / 2, kind, chosen, c) || all(equal(chosen, pixel)))
                 continue;
-            bool shares = historyLengthOf(pixel, kind) >= FullRateFrames && fits(p, c);
-#ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
-            shares = shares && (kind != KindReflection || insideLobe(p, c));
-#endif
-            if (shares)
+            if (historyLengthOf(pixel, kind) >= FullRateFrames && fits(p, c, kind))
                 continue;
             if (kind == KindReflection)
             {

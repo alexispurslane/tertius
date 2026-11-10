@@ -663,9 +663,11 @@ public sealed class ScreenTraceRenderTests
         bool ownRays
     )
     {
-        // One pixel of the view turns the mirror direction by about 0.003 rad at 640 × 360. A lobe at roughness 0.2 is
-        // about 0.08 rad wide, so the block's ray lies inside it. The roughness floor's lobe is about 0.004 rad wide, so
-        // a neighbor's mirror direction lies outside the share of it, though the floor's normal is the same.
+        // One pixel of the view turns the mirror direction by about 0.003 rad near the middle of 640 × 360. The share of a
+        // lobe at roughness 0.2 is about 0.04 rad, so the block's ray lies inside it. The share of the roughness floor's
+        // lobe is about 0.002 rad, so a neighbor's mirror direction lies outside it, though the floor's normal is the
+        // same. Toward the image's sides the view turns less, and there the side neighbors share: about a tenth of the
+        // floor's pixels.
         VulkanRenderer renderer = Tracing();
         try
         {
@@ -678,7 +680,7 @@ public sealed class ScreenTraceRenderTests
 
             int converged = renderer.ReadOwnRayCounts().Reflection;
             if (ownRays)
-                converged.Should().BeGreaterThan(reset * 9 / 10, "a flat mirror keeps its sharp image");
+                converged.Should().BeGreaterThan(reset * 3 / 4, "a flat mirror keeps its sharp image");
             else
                 converged.Should().BeLessThan(reset / 10, "a converged pixel of a glossy floor shares its block's ray");
         }
@@ -696,9 +698,9 @@ public sealed class ScreenTraceRenderTests
         bool ownRays
     )
     {
-        // A ball of about 78 px radius: its normal turns by about 0.013 rad per pixel. A mirror's lobe at the roughness
-        // floor is about 0.002 rad wide, so no neighbor's ray lies inside it. A lobe at roughness 0.4 is about 0.16 rad
-        // wide, so every neighbor's does.
+        // A ball of about 78 px radius: its normal turns by about 0.013 rad per pixel, its mirror direction by twice that.
+        // The share of a mirror's lobe at the roughness floor is about 0.002 rad, so no neighbor's ray lies inside it.
+        // The share of a lobe at roughness 0.4 is about 0.16 rad, so every neighbor's does.
         VulkanRenderer renderer = Tracing();
         try
         {

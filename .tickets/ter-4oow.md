@@ -27,3 +27,23 @@ Measurements so far (2026-11-10). Deck trace (scripts/temporal-upscale-timing.js
 **2026-11-10T12:51:57Z**
 
 Not merged (Alexis, 2026-11-10): the rough plate noise 14.02 fails the limit of 7.7, so Alexis decides on the real stills. Survey stills of main and LobeFitShare 0.5 at 1920x1080 with FSR 3.1: FLIP of share 0.5 against main, mean and share above 0.1: reflections-front 0.0049 / 0.08 %, reflections-low 0.0163 / 3.16 %, reflections-edge 0.0034 / 0.02 %, mirror-balls 0.0064 / 0.08 %, mirror-plate 0.0054 / 0.02 %, exit-deck 0.0109 / 0.00 %, exit-floor 0.0085 / 0.00 %. Images in /private/tmp/ter-4oow/decision/.
+
+**2026-11-10T13:23:35Z**
+
+Decision (Alexis, 2026-11-10, after the stills): merge the lobe fit at LobeFitShare 0.5 as built. This decision replaces the acceptance of at most 7.7 W/(m² sr) on the rough plate. Plate noise (scratch tool without the emitter's tube light): rough main 5.53, share 0.5 14.02; smooth main 1.00, share 0.5 2.85. The grain shows on glossy floors seen at a low angle: reflections-low clearly, reflections-front faintly; reflections-edge, mirror-balls, exit-deck and exit-floor show none at normal viewing distance, and mirror-plate barely. Mirrors stay as sharp as on main.
+
+| Still | FLIP share 0.5 vs main: mean, share above 0.1 | FLIP vs reference: main -> 0.5 | Frame median: main -> 0.5 (survey, no clock) |
+|---|---|---|---:|
+| reflections-front | 0.0049, 0.08 % | 0.0560 -> 0.0564 | 14.72 -> 13.17 ms |
+| reflections-low | 0.0163, 3.16 % | 0.0789 -> 0.0813 | 11.87 -> 10.72 ms |
+| reflections-edge | 0.0034, 0.02 % | 0.0756 -> 0.0760 | 10.36 -> 9.32 ms |
+| mirror-balls | 0.0064, 0.08 % | 0.1618 -> 0.1620 | 13.99 -> 11.54 ms |
+| mirror-plate | 0.0054, 0.02 % | 0.0288 -> 0.0302 | 6.51 -> 6.23 ms |
+| exit-deck | 0.0109, 0.00 % | 0.0934 -> 0.0947 | 30.36 -> 23.57 ms |
+| exit-floor | 0.0085, 0.00 % | 0.1196 -> 0.1203 | 26.73 -> 21.89 ms |
+
+No still's survey verdict moved from pass to fail.
+
+**2026-11-10T13:34:22Z**
+
+Review (reviewer subagent, 2026-11-10) and answers. F1 (medium, static): a block that mixes two roughnesses shares rays whose capped weights darken the reflection; not fixed here, because the fix changes the measured rule that Alexis chose to merge as built and needs a new deck trace; recorded as ter-8nhf, and the design doc's false comparison with the original rule is corrected. F2: the Vulkan spec allows sin an absolute error of 2^-11, half the bound at the roughness floor; fixed, the bound is now the angle 2 LobeFitShare atan(alpha), within 0.25 % of its chord up to MaxRoughness. F3: the flat-mirror test's margin was about half a point because the view turns less toward the image's sides; fixed, the bound is 3/4 and the comment names the side bands. F4: the ball test's comment gave shares as widths; fixed. Docs: precise-capped keeps a mirror at its own rays (cap 4); the README of the reference tool and ARCHITECTURE.md's byte-identity claim are corrected (the original variant's SPIR-V of the plan now differs in its bytes, not its rule). Design: the lobe test moved into fits(p, c, kind), so one function decides the fit.
