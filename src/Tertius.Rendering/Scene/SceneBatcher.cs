@@ -1085,14 +1085,13 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
         FarShadows.Choose(scene.LightSpan, cascadedLights);
     }
 
-    /// <summary>The rectangle lights of <paramref name="lights"/>, which the shaders loop over apart from the others.</summary>
-    private static int RectCount(ReadOnlySpan<PreparedLight> lights)
+    /// <summary>The shapes of <paramref name="lights"/>, one bit each, which the shaders loop over one shape at a time.</summary>
+    private static uint Shapes(ReadOnlySpan<PreparedLight> lights)
     {
-        int count = 0;
+        uint shapes = 0;
         foreach (ref readonly PreparedLight light in lights)
-            if (light.Spread is RectFace)
-                count++;
-        return count;
+            shapes |= GpuLight.ShapeOf(light);
+        return shapes;
     }
 
     /// <summary>
@@ -1606,7 +1605,7 @@ internal sealed class SceneBatcher(int cascadedLights, int shadowMapSize, float 
                 X: (uint)scene.LightCount,
                 Y: scene.AirSunLight is { } sun ? (uint)sun : GpuFrameConstants.NoAirSun,
                 Z: 0,
-                W: (uint)RectCount(scene.LightSpan)
+                W: Shapes(scene.LightSpan)
             ),
             RootRotation = new(
                 x: camera.RootRotation.X,
