@@ -7,9 +7,14 @@ It needs NumPy, SciPy and Pillow, which the dev shell gives. The file loads rend
 python3 -I leaves the script's folder out of the import path and the file name holds a dash.
 """
 
+import argparse
 import importlib.util
+import os
+import subprocess
+import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import numpy as np
 
@@ -319,6 +324,56 @@ class Verdicts(unittest.TestCase):
         film = {"flicker": None, "grainFlicker": None, "blotch": None, "level": 0.0}
         self.assertEqual(survey.motion_verdict(film), [survey.NOT_MEASURED])
 
+class TheGpuLock(unittest.TestCase):
+    """Timed runs hold the GPU alone. Untimed renders share it (tools/README.md, "The GPU lock")."""
+
+    def lock_calls(self, call):
+        """The commands of tools/gpu-lock.sh that `call` runs, with every subprocess faked. A fake run writes an empty
+        log where the helper would."""
+        calls = []
+
+        def fake(command, *args, **kwargs):
+            command = [str(c) for c in command]
+            if command[:2] == ["bash", str(survey.ROOT / "tools" / "gpu-lock.sh")]:
+                calls.append(command)
+                log = command[3] if command[2] == "--shared" else command[2]
+                Path(log).write_text("")
+            return subprocess.CompletedProcess(command, 0, "", "")
+
+        with mock.patch.object(survey.subprocess, "run", fake), mock.patch.object(survey, "free_gb", lambda: 100.0), \
+                mock.patch.dict(os.environ, {survey.HOLDS_LOCK: ""}):
+            call()
+        return calls
+
+    def test_an_untimed_render_shares_the_gpu_and_a_timed_one_holds_it_alone(self):
+        with tempfile.TemporaryDirectory() as folder:
+            for timed, shared in ((False, True), (True, False)):
+                with self.subTest(timed=timed):
+                    out = Path(folder) / f"timed-{timed}"
+                    calls = self.lock_calls(lambda: survey.render(out, script(), binary=Path("demo"), timed=timed))
+                    self.assertEqual(len(calls), 1)
+                    self.assertEqual(calls[0][2] == "--shared", shared)
+
+    def test_a_chunk_shares_the_gpu_unless_it_times_views(self):
+        with tempfile.TemporaryDirectory() as folder:
+            args = argparse.Namespace(out=folder, no_build=True, parts="timing,still,motion", only=None, chunk=1000,
+                                      exposure="4.08", clock_bin=None)
+            calls = self.lock_calls(lambda: survey.run_chunks(args))
+            parts = {c[c.index("--parts") + 1]: c[2] == "--shared" for c in calls}
+            self.assertEqual(parts, {"timing": False, "still": True, "motion": True})
+
+
+    def test_a_run_inside_a_take_of_the_lock_renders_in_this_process_and_does_not_queue_behind_itself(self):
+        # On 2026-11-11 a caller that held the lock started run with its default chunks. run queued behind the caller,
+        # and the queue stalled for 11 minutes (t1-1zic).
+        with tempfile.TemporaryDirectory() as folder:
+            args = argparse.Namespace(out=folder, no_build=True, parts="still", only=["no-such-case"], chunk=8,
+                                      exposure="4.08", clock_bin=None)
+            for holds, chunked in (("1", False), ("", True)):
+                with self.subTest(holds=holds), mock.patch.object(survey, "run_chunks", return_value=0) as chunks, \
+                        mock.patch.dict(os.environ, {survey.HOLDS_LOCK: holds}):
+                    survey.run(args)
+                    self.assertEqual(chunks.called, chunked)
 
 if __name__ == "__main__":
     unittest.main()
