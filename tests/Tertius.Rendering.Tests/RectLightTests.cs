@@ -378,6 +378,7 @@ public sealed class RectLightTests
         var random = new Random(7);
         var matte = new MaterialSample(BaseColor: new(1, 1, 1), Metallic: 0, Roughness: 1, Reflectance: 0.5);
         double worst = 0;
+        int shadedAsPoints = 0;
         for (int trial = 0; trial < 4000; trial++)
         {
             double width = 1,
@@ -385,7 +386,8 @@ public sealed class RectLightTests
             Double3 direction = RandomUnit(random);
             if (direction.Y <= 0)
                 direction = new(direction.X, -direction.Y, direction.Z);
-            double distance = 8 * Math.Sqrt(width * width + height * height) / 2;
+            // Just past eight half diagonals, so that the rounding of the turned half sides keeps every face far.
+            double distance = 8.0001 * Math.Sqrt(width * width + height * height) / 2;
             // A turn drawn from four normal components is even over all turns. The faces that turn away from the point
             // take no light and are skipped.
             var rotation = Quaternion.Normalize(
@@ -413,8 +415,10 @@ public sealed class RectLightTests
             double exact = matte.DiffuseColor.X / Math.PI * rect.View.ClippedCosine(Double3.UnitY);
             double headOn = matte.DiffuseColor.X / Math.PI * width * height / (distance * distance);
             worst = Math.Max(worst, Math.Abs(shaded - exact) / headOn);
+            shadedAsPoints++;
         }
 
+        shadedAsPoints.Should().BeGreaterThan(1000, "most faces above the horizon shade as points");
         worst.Should().BeLessThanOrEqualTo(0.011, "eight half diagonals keep a point's error near 1 % of A / d²");
     }
 

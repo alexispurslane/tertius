@@ -106,7 +106,10 @@ internal readonly record struct MaterialSample(Double3 BaseColor, double Metalli
     /// <summary>
     /// The light of a rectangle light toward <paramref name="toView"/> per unit of its face radiance, the C# copy of
     /// rectResponse in lighting.glsl (ARCHITECTURE.md, "Rectangle lights"): c_diff / π times the face's cosine integral cut
-    /// at the horizon, and the compensated specular albedo times the share of the LTC of the lobe that the face covers.
+    /// at the horizon, and the compensated specular albedo times the share of the LTC of the lobe that the face covers. A
+    /// far face (<see cref="RectView.ShadesAsPointOn"/>) gives n · L times its projected solid angle as the cosine
+    /// integral, and on a surface of at least <see cref="RectView.PointRoughness"/> it gives the point light's response
+    /// times that solid angle.
     /// </summary>
     public DirectTerms RectTerms(Double3 normal, Double3 toView, RectView rect, BrdfTables tables, LtcTable ltc)
     {

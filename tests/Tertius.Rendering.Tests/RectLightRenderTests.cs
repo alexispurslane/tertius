@@ -365,8 +365,9 @@ public sealed class RectLightRenderTests
     [Fact]
     public void ARoughSquareShowsTheCSharpPointShineOfAFarRectangleLight()
     {
-        // The rough square of ARoughSquareShowsTheCSharpLtcShineOfARectangleLight, and a panel 0.2 m square in the same
-        // place: 9.5 half diagonals away, so it shines as a point light.
+        // The square of ARoughSquareShowsTheCSharpLtcShineOfARectangleLight at roughness 0.75, clear of the switch at 0.5,
+        // which the G-buffer's 8 bits store halfway between two steps, and a panel 0.2 m square in the same place: 9.5 half
+        // diagonals away, so it shines as a point light.
         var rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.Atan2(-0.6f, -1.2f));
         var toCenter = new Double3(0.6, 0, 1.2);
         RectRenderLight panel = Panel(
@@ -379,7 +380,7 @@ public sealed class RectLightRenderTests
         (Double3 halfWidth, Double3 halfHeight) = HalfSides(panel);
         var metal = new MaterialDesc(
             BaseColor: new(x: 1, y: 1, z: 1, w: 1),
-            Roughness: 0.5f,
+            Roughness: 0.75f,
             Reflectance: 0.5f,
             Model: new StandardShading(Metallic: 1)
         );

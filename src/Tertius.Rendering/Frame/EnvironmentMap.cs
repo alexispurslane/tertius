@@ -30,8 +30,9 @@ internal enum EnvironmentImage
 /// <list type="bullet">
 /// <item>Each face of map i holds the frame that last drew it, in the axes of map i's frame, for the served chain of
 /// <see cref="DrawnFor"/>.</item>
-/// <item>Map i's mips, specular levels and irradiance cube are a pure function of its six faces' level 0, rebuilt in every
-/// drawn frame that draws one of its faces.</item>
+/// <item>Map i's mips are a pure function of its six faces' level 0, rebuilt in every frame that draws one of its faces.
+/// Each face's specular levels and irradiance level 0 are a pure function of the six faces' level 0 as they were stored in
+/// the last frame that drew that face (ARCHITECTURE.md, "The prefilter").</item>
 /// <item>Each face's distance level 0 holds the same draw as its radiance level 0.</item>
 /// <item>Map i's distance levels 1 and up are a pure function of its six faces' distance level 0.</item>
 /// <item>The images hold <see cref="Capacity"/> maps, at least the served maps of every frame since the last growth.</item>

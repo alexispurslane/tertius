@@ -90,7 +90,7 @@ internal sealed unsafe class EnvironmentPrefilterPass : RenderPass
         foreach (EnvironmentFaceDraw face in scene.EnvironmentFaces)
         {
             drawn[face.Map] = true;
-            faces[face.Map] |= (FaceMask)(1 << (int)face.Face);
+            faces[face.Map] |= CubeFaces.Of(face.Face);
             anyDrawn = true;
         }
 

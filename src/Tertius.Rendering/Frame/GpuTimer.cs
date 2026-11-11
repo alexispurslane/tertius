@@ -3,7 +3,8 @@ using Silk.NET.Vulkan;
 namespace Tertius.Rendering;
 
 /// <summary>
-/// Times each pass of the frame graph on the GPU with one timestamp query pool per frame slot, and holds the timings of
+/// Times each pass of the frame graph, or each cost group of the render scale without <see cref="EachPass"/>, on the GPU
+/// with one timestamp query pool per frame slot, and holds the timings of
 /// the last frame whose GPU work finished (ARCHITECTURE.md, "GPU timings"). On a queue that writes no timestamps it
 /// records no queries and holds no timings.
 /// </summary>

@@ -949,7 +949,8 @@ internal struct EnvironmentPrefilterPushConstants
     public uint GroupCount;
 
     /// <summary>
-    /// The map whose layers 6 · Map to 6 · Map + 5 of the specular maps or of the irradiance cubes the dispatch writes.
+    /// The map whose layers, 6 · Map + <see cref="FirstFace"/> on, of the specular maps or of the irradiance cubes the
+    /// dispatch writes.
     /// </summary>
     public uint Map;
 
