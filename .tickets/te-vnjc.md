@@ -16,3 +16,13 @@ Untimed GPU work (stills, films for image metrics, survey splits, GPU tests) wai
 
 tools/test_gpu_lock.py passes with tests for each rule. Three headless stills rendered at once equal a still rendered alone, bit for bit. tools/README.md documents the mode and the gap with old helpers.
 
+
+## Notes
+
+2026-11-11. Design: the shared holders keep the same lock directory, with one record file each in `shared/<ticket>`. Each run takes the GPU only while its ticket is the oldest, so the order is first in, first out across both modes, and the mode of another ticket is never read. Every older helper fails its `mkdir` while shared runs hold the lock, so it waits for them. The one gap left: an older helper never clears a dead shared holder's record. tools/README.md, "The shared mode", says how agents close it.
+
+Tests: `tools/test_gpu_lock.py`, 64 tests in 141 s, and `tools/test_renderer_survey.py`, 51 tests. Both pass. The new lock tests were red first: the old helper read `--shared` as its log.
+
+Bit for bit: the Release demo rendered `/private/tmp/te-vnjc/still.json` (demo-exit, deck camera after 399 ticks, a film of 24 frames, then a still, 1920x1080 headless). One render ran alone, then three ran at once, inside one exclusive take of 48 s. All 24 film frames, the still and `exposure.json` are identical in all four outputs (still SHA-1 `9cebfa79...`). Only `gpu-timings.json` differs, because it holds measured times.
+
+The survey's `run` now also honors `TERTIUS_SURVEY_HOLDS_LOCK=1` with its default chunks. That fixes t1-1zic.
