@@ -950,7 +950,9 @@ def run_chunks(args) -> int:
 
 
 def run(args):
-    if args.chunk > 0:
+    # A caller that holds the GPU lock already renders in this process. A chunk would queue behind the caller and stall
+    # the queue (t1-1zic).
+    if args.chunk > 0 and os.environ.get(HOLDS_LOCK) != "1":
         return run_chunks(args)
     out = Path(args.out).resolve()
     cases = load_cases()

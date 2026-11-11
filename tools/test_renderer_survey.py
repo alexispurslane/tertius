@@ -363,5 +363,17 @@ class TheGpuLock(unittest.TestCase):
             self.assertEqual(parts, {"timing": False, "still": True, "motion": True})
 
 
+    def test_a_run_inside_a_take_of_the_lock_renders_in_this_process_and_does_not_queue_behind_itself(self):
+        # On 2026-11-11 a caller that held the lock started run with its default chunks. run queued behind the caller,
+        # and the queue stalled for 11 minutes (t1-1zic).
+        with tempfile.TemporaryDirectory() as folder:
+            args = argparse.Namespace(out=folder, no_build=True, parts="still", only=["no-such-case"], chunk=8,
+                                      exposure="4.08", clock_bin=None)
+            for holds, chunked in (("1", False), ("", True)):
+                with self.subTest(holds=holds), mock.patch.object(survey, "run_chunks", return_value=0) as chunks, \
+                        mock.patch.dict(os.environ, {survey.HOLDS_LOCK: holds}):
+                    survey.run(args)
+                    self.assertEqual(chunks.called, chunked)
+
 if __name__ == "__main__":
     unittest.main()
