@@ -857,6 +857,7 @@ public sealed class LightAgeHistoryTests(ITestOutputHelper output)
                     Draw(renderer, scene, 4);
 
                     renderer.ScreenTraceSignals.Specular.SampleAge(0).Should().BeNull("its shaders are H13's");
+                    renderer.ScreenTraceSignals.Diffuse.SampleAge(0).Should().BeNull("no record gives the rays an age");
                     renderer.ScreenTraceImages.LightAge(0).Should().BeNull();
                     Gpu.AssertClean(renderer);
                 }

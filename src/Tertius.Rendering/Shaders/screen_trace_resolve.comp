@@ -67,6 +67,7 @@ void main()
         imageStore(diffuseSample, pixel, vec4(0.0));
         imageStore(specularSample, pixel, vec4(0.0));
 #ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
+        imageStore(diffuseSampleAge, pixel, uvec4(0u));
         imageStore(specularSampleAge, pixel, uvec4(0u));
 #endif
 #ifdef TERTIUS_LIGHT_AGE_DIAGNOSTIC
@@ -84,6 +85,11 @@ void main()
     vec3 diffuseLight = diffuseRay.brings ? diffuse.light.rgb * diffuseWeightOf(p, diffuseRay) : vec3(0.0);
     // Capped as the specular sample is: a light at MaxRadiance times a weight of up to 4 passes the largest half float.
     imageStore(diffuseSample, pixel, vec4(min(diffuseLight, vec3(MaxRadiance)), 1.0));
+#ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
+    // The diffuse ray's age code, 0 where it brings no light.
+    uint diffuseCode = diffuseRay.brings ? ageCodeOfRecord(diffuse.ray) : 0u;
+    imageStore(diffuseSampleAge, pixel, uvec4(diffuseCode));
+#endif
 
     // The share of the diffuse ray's estimate in the specular sample: 0 below the hand-over band, 1 above it.
     float handOver = clamp((sqrt(p.alpha) - trace.handOverStart) / (trace.maxRoughness - trace.handOverStart), 0.0, 1.0);
@@ -100,7 +106,7 @@ void main()
     {
         specularLight = handOver * diffuse.light.rgb * specularWeightOf(p, lobes, factors, diffuseRay);
 #ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
-        ageCode = ageCodeOfRecord(diffuse.ray);
+        ageCode = diffuseCode;
 #endif
 #ifdef TERTIUS_LIGHT_AGE_DIAGNOSTIC
         seenCode = seenCodeOfRecord(diffuse.ray);

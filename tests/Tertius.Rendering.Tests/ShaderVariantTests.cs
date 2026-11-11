@@ -93,6 +93,21 @@ public sealed partial class ShaderVariantTests
     public void AnInstrumentationWithoutAnImageHasNoVariant() => HistoryInstrumentation.None.Variant.Should().BeNull();
 
     [Fact]
+    public void EveryShaderOfTheLightAgeVariantIsEmbeddedInIt() =>
+        ShaderVariant
+            .LightAge.Shaders.Select(shader => ShaderVariant.Of(shader, ShaderVariant.LightAge.Suffix))
+            .Should()
+            .OnlyContain(file => Embedded.Contains(file), "the diffuse signal beside the light age takes this variant");
+
+    [Fact]
+    public void EveryEmbeddedLightAgeVariantIsInItsTable() =>
+        Embedded
+            .Where(file => Path.GetFileNameWithoutExtension(file).EndsWith(ShaderVariant.LightAge.Suffix, StringComparison.Ordinal))
+            .Select(file => file.Replace(ShaderVariant.LightAge.Suffix, "", StringComparison.Ordinal))
+            .Should()
+            .BeEquivalentTo(ShaderVariant.LightAge.Shaders, "a shader that the build compiles in the variant reads the age");
+
+    [Fact]
     public void AVariantsFileNameAddsItsSuffixBeforeTheStage() =>
         ShaderVariant
             .Of("screen_trace_resolve.comp", "_lightagediag_precise")
@@ -147,6 +162,15 @@ public sealed class HistoryShaderTests
             .HistoryShader(shader, SpecularHistoryMode.PreciseUncapped, HistoryInstrumentation.ControlTrace)
             .Should()
             .Be(expected);
+
+    [Theory]
+    [InlineData("accumulate_temporal.comp", "accumulate_temporal_lightage.comp")]
+    [InlineData("accumulate_spatial.comp", "accumulate_spatial.comp")]
+    [InlineData("accumulate_diffuse_single_temporal.comp", "accumulate_diffuse_single_temporal.comp")]
+    public void AHalfPrecisionHistoryBesideTheLightAgeTakesTheLightAgeVariantOfItsTemporalDispatchAlone(
+        string shader,
+        string expected
+    ) => TemporalSignal.LightAgeShader(shader).Should().Be(expected);
 
     [Fact]
     public void AShaderOutsideTheTablesTakesThePreciseVariantUnderAnInstrumentation() =>

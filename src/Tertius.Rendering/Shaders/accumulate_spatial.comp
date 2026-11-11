@@ -7,6 +7,42 @@
 #include "accumulate_reflection_guide.glsl"
 #include "meter.glsl"
 
+#ifdef TERTIUS_LIGHT_AGE
+// The light age of this frame's samples (TemporalSignal.SampleAge), which the resolve writes: 0 for no evidence, else the
+// age in frames of the youngest light that the sample's rays hit, plus 1.
+layout(set = 3, binding = 11, r16ui) uniform readonly uimage2D sampleAge;
+#endif
+
+// The least motion on screen, in pixels per frame, that counts as evidence of a change.
+const float LeastMotion = 1.0 / 32.0;
+
+// Whether the pixel's slow history may hold light from before a change (ticket t7-3e22), the evidence on which the clamp
+// acts: its surface moves on screen, or a sample on the same surface over the 3 × 3 pixels saw light younger than the
+// history. In a still view without such evidence, the clamp would only cut the rare bright samples of unchanged light,
+// which darkens the history and, through the anti-lag, shortens it. Without the light age, which only the original
+// specular history lacks, every history counts as changed.
+bool showsChange(ivec2 pixel, SurfaceKey key, float historyLength)
+{
+    vec2 motion = imageLoad(motionTarget, pixel).xy * frame.viewport.xy;
+    if (dot(motion, motion) >= LeastMotion * LeastMotion)
+        return true;
+#ifdef TERTIUS_LIGHT_AGE
+    for (int y = -1; y <= 1; y++)
+        for (int x = -1; x <= 1; x++)
+        {
+            ivec2 neighbor = pixel + ivec2(x, y);
+            if (!insideImages(neighbor) || !sameSurface(key, surfaceKeyAt(neighbor)))
+                continue;
+            uint code = imageLoad(sampleAge, neighbor).r;
+            if (code != 0u && float(code - 1u) < historyLength)
+                return true;
+        }
+    return false;
+#else
+    return true;
+#endif
+}
+
 void main()
 {
     ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
@@ -64,8 +100,8 @@ void main()
     }
 
     // Step 4, the clamp and the anti-lag, only past the fast cap: until then the slow history holds no more frames than the
-    // fast history, so it has no lag to remove.
-    if (historyLength > fastCap)
+    // fast history, so it has no lag to remove. And only on evidence of a change (showsChange).
+    if (historyLength > fastCap && showsChange(pixel, key, historyLength))
     {
         vec3 moments = vec3(0.0);
         vec3 squares = vec3(0.0);

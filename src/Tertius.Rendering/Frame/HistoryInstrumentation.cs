@@ -31,6 +31,13 @@ internal readonly record struct ShaderVariant(string Suffix, string[] Shaders)
     /// <summary>The precise variant's suffix, which every shader of a precise history takes without an instrumented one.</summary>
     public const string PreciseSuffix = "_precise";
 
+    /// <summary>
+    /// The LightAgeShader items of Tertius.Rendering.csproj (ticket t7-3e22): the spatial dispatch of a half-precision
+    /// history whose samples have a light age, the diffuse signal's beside a precise specular history. It clamps only on
+    /// evidence of a change, as the precise variants do.
+    /// </summary>
+    public static readonly ShaderVariant LightAge = new(Suffix: "_lightage", Shaders: ["accumulate_spatial.comp"]);
+
     /// <summary>The file name of <paramref name="shader"/>'s variant, such as composite_precise.frag.</summary>
     public static string Of(string shader, string suffix) =>
         $"{Path.GetFileNameWithoutExtension(shader)}{suffix}{Path.GetExtension(shader)}";

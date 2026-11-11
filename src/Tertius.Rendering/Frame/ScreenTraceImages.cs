@@ -188,7 +188,7 @@ internal sealed class ScreenTraceImages : IDisposable
         OwnLight = CreateImage(extent: extent, format: LightFormat, layers: Kinds, name: "screen trace own light");
         OwnRay = CreateImage(extent: extent, format: RayFormat, layers: Kinds, name: "screen trace own rays");
         OwnRays = [CreateOwnRayList(extent, "reflection"), CreateOwnRayList(extent, "diffuse")];
-        lightAges = Specular.HistoryMode.KeepsLightAge
+        lightAges = Specular.KeepsLightAge
             ?
             [
                 CreateImage(extent: extent, format: LightAgeFormat, layers: 1, name: "screen trace light age 0"),
@@ -243,7 +243,7 @@ internal sealed class ScreenTraceImages : IDisposable
                 type: DescriptorType.StorageBuffer,
                 buffer: OwnRays[kind]
             );
-        // The light-change age after the lists: the last frame's record, this frame's, and the specular sample's age.
+        // The light-change age after the lists: the last frame's record, this frame's, and the two samples' ages.
         if (lightAges.Length != 0)
         {
             layouts.WriteStorageImage(set: set, binding: 19, image: lightAges[1 - parity]);
@@ -253,10 +253,15 @@ internal sealed class ScreenTraceImages : IDisposable
                 binding: 21,
                 image: Specular.SampleAge(0) ?? throw new UnreachableException("The light age makes the sample age.")
             );
+            layouts.WriteStorageImage(
+                set: set,
+                binding: 22,
+                image: Diffuse.SampleAge(0) ?? throw new UnreachableException("The light age makes the sample age.")
+            );
         }
         // The diagnostic of uncovered surfaces, whose first channel the resolve writes.
         if (Specular.UncoveredDiagnostic(0) is { } diagnostic)
-            layouts.WriteStorageImage(set: set, binding: 22, image: diagnostic);
+            layouts.WriteStorageImage(set: set, binding: 23, image: diagnostic);
     }
 
     /// <summary>Writes the sampled images of <paramref name="set"/>: the depth pyramid at bindings 0 and 1, and the light

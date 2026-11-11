@@ -206,8 +206,9 @@ internal sealed class ScreenTraceResolvePass(ScreenTraceKernel kernel, ScreenTra
             context.Barriers.Image(image, ImageUse.StorageCompute);
         context.Barriers.Image(images.Diffuse.Sample(0), ImageUse.StorageCompute, discard: true);
         context.Barriers.Image(images.Specular.Sample(0), ImageUse.StorageCompute, discard: true);
-        if (images.Specular.SampleAge(0) is { } age)
-            context.Barriers.Image(age, ImageUse.StorageCompute, discard: true);
+        foreach (TemporalSignal signal in (TemporalSignal[])[images.Diffuse, images.Specular])
+            if (signal.SampleAge(0) is { } age)
+                context.Barriers.Image(age, ImageUse.StorageCompute, discard: true);
         if (images.Specular.UncoveredDiagnostic(0) is { } diagnostic)
             context.Barriers.Image(diagnostic, ImageUse.StorageCompute, discard: true);
         kernel.Record(context, side: 1);

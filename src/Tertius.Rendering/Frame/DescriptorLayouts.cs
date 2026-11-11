@@ -109,11 +109,11 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
 
     /// <summary>
     /// The storage images that the light-change age of a precise specular history adds to a screen tracer set after its
-    /// lists, at bindings 19 to 21: the last and this frame's light-age records and the specular sample's age, and at
-    /// binding 22 the uncovered-surface diagnostic (<see cref="HistoryInstrumentation.LightAgeDiagnostic"/>).
+    /// lists, at bindings 19 to 22: the last and this frame's light-age records and the specular and the diffuse sample's
+    /// ages, and at binding 23 the uncovered-surface diagnostic (<see cref="HistoryInstrumentation.LightAgeDiagnostic"/>).
     /// </summary>
     private uint ScreenTraceAgeImages =>
-        (HistoryMode.KeepsLightAge ? 3u : 0u)
+        (HistoryMode.KeepsLightAge ? 4u : 0u)
         + (Instrumentation == HistoryInstrumentation.LightAgeDiagnostic ? 1u : 0u);
 
     /// <summary>
@@ -123,8 +123,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     private const uint SignalSets = 8;
 
     /// <summary>
-    /// The storage images of a signal set: nine, with the light-change age of a precise specular history the sample age at
-    /// binding 11, and at binding 12 the instrumentation's image, the uncovered-surface diagnostic or the accumulation
+    /// The storage images of a signal set: nine, with the light-change age of a precise specular history the signal's
+    /// sample age at binding 11, and at binding 12 the instrumentation's image, the uncovered-surface diagnostic or the accumulation
     /// trace. The original history refuses the instrumentation (the constructor).
     /// </summary>
     private uint SignalSetImages =>
@@ -208,8 +208,8 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
 
     /// <param name="glowLevels">The bloom levels, 0 without bloom: the pool holds one glow source set more than that.</param>
     /// <param name="historyMode">
-    /// The renderer's specular history: the light-change age of a precise history adds the light-age records and the
-    /// sample age to the screen tracer set, and the sample age to every signal set.
+    /// The renderer's specular history: the light-change age of a precise history adds the light-age records and the two
+    /// samples' ages to the screen tracer set, and the signal's sample age to every signal set.
     /// </param>
     /// <param name="instrumentation">The renderer's instrumentation of the specular history, which adds its images.</param>
     /// <exception cref="ArgumentException">

@@ -22,8 +22,11 @@ namespace Tertius.Rendering;
 /// in alpha, the specular signal's sample and fast history the hit distance, 0 for a miss, and the diffuse signal's fast
 /// history the deviation of its samples' luminance, which the diffuse filter reads. The sample is a color
 /// attachment of its producer, and every other image stays in the General layout. The signals share the scratch images
-/// (<see cref="SignalScratch"/>). With a precise history, the specular part also owns its sample's light age, which the
-/// resolve writes and the temporal dispatch reads at binding 11 (the light-change age, ticket tiunr-7haj).
+/// (<see cref="SignalScratch"/>). Beside a precise specular history, each part also owns its sample's light age, which the
+/// resolve writes and the dispatches read at binding 11 (the light-change age, ticket tiunr-7haj): the specular temporal
+/// dispatch cuts its history by it, and the spatial dispatch of both signals clamps only on evidence of a change (ticket
+/// t7-3e22). The diffuse signal keeps its half-precision history and takes the light-age variant of its spatial dispatch
+/// (<see cref="ShaderVariant.LightAge"/>).
 /// </para>
 /// <para>Invariants, checked by <see cref="AssertInvariants"/>:</para>
 /// <list type="bullet">
@@ -38,17 +41,17 @@ internal sealed unsafe class TemporalSignal : IDisposable
     public const Format SignalFormat = Format.R16G16B16A16Sfloat;
 
     /// <summary>
-    /// The format of the specular sample's light age with a precise history: 0 for no evidence, else the age in frames
-    /// plus 1.
+    /// The format of a sample's light age beside a precise specular history: 0 for no evidence, else the age in frames plus
+    /// 1.
     /// </summary>
     public const Format SampleAgeFormat = Format.R16Uint;
 
     /// <summary>
-    /// The format of the diagnostic of uncovered surfaces under <see cref="HistoryInstrumentation.LightAgeDiagnostic"/>: r the
-    /// fewest frames seen among the never-changed surfaces that the specular sample's rays hit, or −1 for none, which the
-    /// resolve writes; g the slow history's length just before its blend, after the light-age cut, or −1 without a
-    /// sample; b 1 where the sample holds at least the cut share of the slow history's luminance, else 0; a the length
-    /// before the light-age cut. The temporal dispatch writes g, b and a.
+    /// The format of the diagnostic of uncovered surfaces under <see cref="HistoryInstrumentation.LightAgeDiagnostic"/>:
+    /// r the fewest frames seen among the never-changed surfaces that the specular sample's rays hit, or −1 for none,
+    /// which the resolve writes; g the length whose weight the sample takes in its blend, which for the specular signal
+    /// that alone takes this diagnostic is the slow history's length after the light-age cut, or −1 without a sample; b 1 where the sample holds at least the cut share of the slow
+    /// history's luminance, else 0; a the length before the light-age cut. The temporal dispatch writes g, b and a.
     /// </summary>
     public const Format UncoveredDiagnosticFormat = Format.R32G32B32A32Sfloat;
 
@@ -170,17 +173,38 @@ internal sealed unsafe class TemporalSignal : IDisposable
     /// <summary>The signal's parameter set.</summary>
     public SignalParameters Parameters { get; }
 
-    /// <summary>The specular history's storage and age policy, or original storage for other signals.</summary>
+    /// <summary>
+    /// The slow history's storage: the specular history's mode, or original storage for other signals. Whether the signal's
+    /// samples have a light age is <see cref="KeepsLightAge"/>.
+    /// </summary>
     public SpecularHistoryMode HistoryMode { get; }
 
     /// <summary>The instrumentation of the specular history, or none for other signals.</summary>
     public HistoryInstrumentation Instrumentation { get; }
 
     /// <summary>
-    /// The shader variant whose declared slow-history format matches this signal's storage (<see cref="HistoryShader(string,
-    /// SpecularHistoryMode, HistoryInstrumentation)"/>).
+    /// Whether the signal's samples have a light age (<see cref="SampleAge(int)"/>), the evidence of a light change on which
+    /// its clamp acts: every signal beside a precise specular history, whose screen tracer records the light-change age of
+    /// each pixel.
     /// </summary>
-    public string HistoryShader(string shader) => HistoryShader(shader, HistoryMode, Instrumentation);
+    public bool KeepsLightAge => scratch.HistoryMode.KeepsLightAge;
+
+    /// <summary>
+    /// The shader variant whose declared slow-history format matches this signal's storage (<see cref="HistoryShader(string,
+    /// SpecularHistoryMode, HistoryInstrumentation)"/>), and which reads the light age where the signal keeps it
+    /// (<see cref="LightAgeShader(string)"/>).
+    /// </summary>
+    public string HistoryShader(string shader) =>
+        HistoryMode == SpecularHistoryMode.Original && KeepsLightAge
+            ? LightAgeShader(shader)
+            : HistoryShader(shader, HistoryMode, Instrumentation);
+
+    /// <summary>
+    /// The variant of <paramref name="shader"/> for a half-precision history whose samples have a light age: the
+    /// light-age variant for the shaders that it holds, the spatial dispatch, and the shader itself otherwise.
+    /// </summary>
+    internal static string LightAgeShader(string shader) =>
+        ShaderVariant.LightAge.Shaders.Contains(shader) ? ShaderVariant.Of(shader, ShaderVariant.LightAge.Suffix) : shader;
 
     /// <summary>
     /// The variant of <paramref name="shader"/> for a history of <paramref name="mode"/>. The precise variants keep the
@@ -223,10 +247,10 @@ internal sealed unsafe class TemporalSignal : IDisposable
     public GpuImage ReflectionGuide(int part) => parts[part].ReflectionGuide;
 
     /// <summary>
-    /// The light age of the sample of <paramref name="part"/>, which the resolve writes with a precise specular history
-    /// (<see cref="SampleAgeFormat"/>), or null without it.
+    /// The light age of the sample of <paramref name="part"/>, which the resolve writes beside a precise specular history
+    /// (<see cref="SampleAgeFormat"/>, <see cref="KeepsLightAge"/>), or null without it.
     /// </summary>
-    public GpuImage? SampleAge(int part) => parts[part].Ages is [var age, ..] ? age : null;
+    public GpuImage? SampleAge(int part) => parts[part].SampleAge;
 
     /// <summary>
     /// The diagnostic of uncovered surfaces of <paramref name="part"/> under <see cref="HistoryInstrumentation.LightAgeDiagnostic"/>
@@ -436,36 +460,8 @@ internal sealed unsafe class TemporalSignal : IDisposable
                         CreateImage(extent, $"{Name} distance guide scratch {part}", 0),
                     ]
                     : [],
-                Ages: (HistoryMode.KeepsLightAge, Instrumentation) switch
-                {
-                    (false, _) => [],
-                    (true, not HistoryInstrumentation.LightAgeDiagnostic) => [CreateSampleAge(extent, part)],
-                    (true, HistoryInstrumentation.LightAgeDiagnostic) =>
-                    [
-                        CreateSampleAge(extent, part),
-                        CreateImage(
-                            extent: extent,
-                            imageName: $"{Name} uncovered diagnostic {part}",
-                            extraUsage: 0,
-                            format: UncoveredDiagnosticFormat
-                        ),
-                    ],
-                },
-                Traces: Instrumentation == HistoryInstrumentation.ControlTrace
-                    ?
-                    [
-                        GpuImage.Create(
-                            device: device,
-                            allocator: allocator,
-                            extent: extent,
-                            format: TraceFormat,
-                            usage: ImageUsageFlags.StorageBit | ImageUsageFlags.TransferSrcBit,
-                            mipLevels: 1,
-                            name: $"{Name} accumulation trace {part}",
-                            arrayLayers: TraceLayers
-                        ),
-                    ]
-                    : []
+                Ages: CreateAges(extent, part),
+                Traces: Instrumentation == HistoryInstrumentation.ControlTrace ? [CreateTrace(extent, part)] : []
             );
             for (int parity = 0; parity < 2; parity++)
                 WriteSignalSet(set: sets[part, parity], images: parts[part], part: part, parity: parity);
@@ -493,9 +489,9 @@ internal sealed unsafe class TemporalSignal : IDisposable
             binding: 10,
             image: reflectionDistanceHistory ? images.ReflectionGuideScratch : scratch.Part(part)
         );
-        // The sample age, which only the specular signal's temporal dispatch reads: another signal binds its sample.
-        if (scratch.HistoryMode.KeepsLightAge)
-            layouts.WriteStorageImage(set: set, binding: 11, image: images.Ages is [var age, ..] ? age : images.Sample);
+        // The sample age, which the specular temporal dispatch and both spatial dispatches read.
+        if (images.SampleAge is { } age)
+            layouts.WriteStorageImage(set: set, binding: 11, image: age);
         // The diagnostic of uncovered surfaces, which only the specular signal's temporal dispatch writes.
         if (scratch.Instrumentation == HistoryInstrumentation.LightAgeDiagnostic)
             layouts.WriteStorageImage(
@@ -512,8 +508,48 @@ internal sealed unsafe class TemporalSignal : IDisposable
             );
     }
 
+    /// <summary>
+    /// The light-age images of <paramref name="part"/>: none without the light age, else the sample age, and under the
+    /// diagnostic the diagnostic of uncovered surfaces after it.
+    /// </summary>
+    private GpuImage[] CreateAges(Extent2D extent, int part) =>
+        (KeepsLightAge, Instrumentation) switch
+        {
+            (false, _) => [],
+            (true, not HistoryInstrumentation.LightAgeDiagnostic) => [CreateSampleAge(extent, part)],
+            (true, HistoryInstrumentation.LightAgeDiagnostic) =>
+            [
+                CreateSampleAge(extent, part),
+                CreateImage(
+                    extent: extent,
+                    imageName: $"{Name} uncovered diagnostic {part}",
+                    extraUsage: 0,
+                    format: UncoveredDiagnosticFormat
+                ),
+            ],
+        };
+
+    /// <summary>The sample age of <paramref name="part"/>, which its producer writes as it writes the sample.</summary>
     private GpuImage CreateSampleAge(Extent2D extent, int part) =>
-        CreateImage(extent: extent, imageName: $"{Name} sample age {part}", extraUsage: 0, format: SampleAgeFormat);
+        CreateImage(
+            extent: extent,
+            imageName: $"{Name} sample age {part}",
+            extraUsage: ImageUsageFlags.TransferDstBit,
+            format: SampleAgeFormat
+        );
+
+    /// <summary>The accumulation trace of <paramref name="part"/> (<see cref="TraceLayers"/>).</summary>
+    private GpuImage CreateTrace(Extent2D extent, int part) =>
+        GpuImage.Create(
+            device: device,
+            allocator: allocator,
+            extent: extent,
+            format: TraceFormat,
+            usage: ImageUsageFlags.StorageBit | ImageUsageFlags.TransferSrcBit,
+            mipLevels: 1,
+            name: $"{Name} accumulation trace {part}",
+            arrayLayers: TraceLayers
+        );
 
     /// <summary>
     /// An image of the signal at <paramref name="extent"/>: a storage image, which the read hooks copy out, plus
@@ -576,6 +612,8 @@ internal sealed unsafe class TemporalSignal : IDisposable
         public GpuImage ReflectionGuide => Guides.Length == 0 ? Sample : Guides[0];
 
         public GpuImage ReflectionGuideScratch => Guides[1];
+
+        public GpuImage? SampleAge => Ages is [var age, ..] ? age : null;
 
         public IEnumerable<GpuImage> All => [Sample, Slow, .. Fasts, .. Guides, .. Ages, .. Traces];
 

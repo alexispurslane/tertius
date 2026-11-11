@@ -4,7 +4,8 @@ using Silk.NET.Vulkan;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>The producer of <paramref name="signal"/>: it clears each part to <see cref="Value"/> or uploads
-/// <see cref="Samples"/> per pixel. Uploads stay alive until the pass is disposed.</summary>
+/// <see cref="Samples"/> per pixel, and clears each part's sample age to <see cref="AgeCode"/>. Uploads stay alive until the
+/// pass is disposed.</summary>
 internal sealed unsafe class SamplePass(TemporalSignal signal, DeviceAllocator allocator) : RenderPass
 {
     private readonly List<GpuBuffer> uploads = [];
@@ -12,6 +13,12 @@ internal sealed unsafe class SamplePass(TemporalSignal signal, DeviceAllocator a
     public Vector4 Value { get; set; }
 
     public Func<int, int, Vector4>? Samples { get; set; }
+
+    /// <summary>
+    /// The age code of every sample (TemporalSignal.SampleAge): 0, the default, for no evidence of a light change, as the
+    /// resolve writes it where no ray brings one, else the age in frames of the light that the rays saw, plus 1.
+    /// </summary>
+    public uint AgeCode { get; set; }
 
     /// <summary>The signal whose samples the pass writes.</summary>
     public TemporalSignal Signal => signal;
@@ -21,8 +28,13 @@ internal sealed unsafe class SamplePass(TemporalSignal signal, DeviceAllocator a
     public override void Record(FrameContext context)
     {
         for (int part = 0; part < signal.Parts; part++)
+        {
             context.Barriers.Image(signal.Sample(part), ImageUse.TransferDestination, discard: true);
+            if (signal.SampleAge(part) is { } age)
+                context.Barriers.Image(age, ImageUse.TransferDestination, discard: true);
+        }
         context.Barriers.Flush(context.Vk, context.CommandBuffer);
+        ClearAges(context);
         if (Samples is { } samples)
         {
             Upload(context, samples);
@@ -45,6 +57,29 @@ internal sealed unsafe class SamplePass(TemporalSignal signal, DeviceAllocator a
                 rangeCount: 1,
                 pRanges: &whole
             );
+    }
+
+    /// <summary>Clears each part's sample age to <see cref="AgeCode"/>.</summary>
+    private void ClearAges(FrameContext context)
+    {
+        var code = new ClearColorValue(uint32_0: AgeCode);
+        var whole = new ImageSubresourceRange(
+            aspectMask: ImageAspectFlags.ColorBit,
+            baseMipLevel: 0,
+            levelCount: 1,
+            baseArrayLayer: 0,
+            layerCount: 1
+        );
+        for (int part = 0; part < signal.Parts; part++)
+            if (signal.SampleAge(part) is { } age)
+                context.Vk.CmdClearColorImage(
+                    commandBuffer: context.CommandBuffer,
+                    image: age.Handle,
+                    imageLayout: ImageLayout.TransferDstOptimal,
+                    pColor: &code,
+                    rangeCount: 1,
+                    pRanges: &whole
+                );
     }
 
     private void Upload(FrameContext context, Func<int, int, Vector4> samples)

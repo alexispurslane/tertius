@@ -41,6 +41,10 @@
     <AccumulationTraceShader Include="Shaders/accumulate_temporal.comp;Shaders/accumulate_spatial.comp" />
     <!-- HistoryInstrumentationSelection lists the shaders of the two items above, and ShaderVariantTests checks the
          list against the embedded shaders. -->
+    <!-- The light-age variant (ticket t7-3e22): the diffuse signal's spatial dispatch beside a precise specular history,
+         which keeps its half-precision history and clamps it only on evidence of a change. ShaderVariant.LightAge lists
+         it. -->
+    <LightAgeShader Include="Shaders/accumulate_spatial.comp" />
     <GlslInclude Include="Shaders/*.glsl" />
     <None Include="@(GlslShader);@(GlslInclude)" />
   </ItemGroup>
@@ -128,6 +132,19 @@
     <ItemGroup>
       <_AccumulationTraceSpirv Include="@(AccumulationTraceShader->'$(IntermediateOutputPath)shaders/%(Filename)_trace_precise%(Extension).spv')" />
       <EmbeddedResource Include="@(_AccumulationTraceSpirv)" LogicalName="Tertius.Rendering.Shaders.%(_AccumulationTraceSpirv.Filename)%(_AccumulationTraceSpirv.Extension)" WithCulture="false" />
+    </ItemGroup>
+  </Target>
+  <Target Name="CompileLightAgeShaders" BeforeTargets="BeforeBuild"
+          Inputs="@(LightAgeShader);@(GlslInclude);$(MSBuildProjectFullPath)"
+          Outputs="@(LightAgeShader->'$(IntermediateOutputPath)shaders/%(Filename)_lightage%(Extension).spv')">
+    <MakeDir Directories="$(IntermediateOutputPath)shaders" />
+    <Exec Command="&quot;$(Glslc)&quot; --target-env=vulkan1.3 -O -Werror -DTERTIUS_LIGHT_AGE -I &quot;$(MSBuildProjectDirectory)/Shaders&quot; -o &quot;$(IntermediateOutputPath)shaders/%(LightAgeShader.Filename)_lightage%(LightAgeShader.Extension).spv&quot; &quot;%(LightAgeShader.FullPath)&quot;" />
+  </Target>
+
+  <Target Name="EmbedLightAgeShaders" DependsOnTargets="CompileLightAgeShaders" BeforeTargets="BeforeBuild">
+    <ItemGroup>
+      <_LightAgeSpirv Include="@(LightAgeShader->'$(IntermediateOutputPath)shaders/%(Filename)_lightage%(Extension).spv')" />
+      <EmbeddedResource Include="@(_LightAgeSpirv)" LogicalName="Tertius.Rendering.Shaders.%(_LightAgeSpirv.Filename)%(_LightAgeSpirv.Extension)" WithCulture="false" />
     </ItemGroup>
   </Target>
   <Target Name="EmbedHistorySourceIdentity" BeforeTargets="BeforeBuild">
