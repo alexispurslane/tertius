@@ -545,7 +545,7 @@ The rotation gives each build the same predecessor in most runs. So an effect of
 
 Two locks keep runs apart on this machine: the GPU lock of the timed runs, `/tmp/tertius-gpu-measure.lock`, and the Stryker lock, `/tmp/tertius-stryker.lock`. Each lock is a directory, and `mkdir` makes it for one process only. Both locks use one record format, one release rule and one liveness rule. `tools/gpu-lock.sh` holds them in bash, and `Lock` in `tools/stryker/run.py` holds them in Python.
 
-The holder's record is the file `holder` in the lock directory. Right after its `mkdir`, the holder writes the record into `holder.new` and renames it to `holder`. The record holds four lines:
+The holder's record is the file `holder` in the lock directory. Right after its `mkdir`, the holder writes the record into `holder.new` and renames it to `holder`. A shared holder of the GPU lock writes the same record into a file of its own in the folder `shared` of the lock ("The shared mode"). The record holds four lines:
 
 - `pid=`, the process id of the holder.
 - `start=`, the start time of that process, as `TZ=UTC0 LC_ALL=C ps -o lstart= -p <pid>` gives it, with each run of spaces squeezed to one space. The fixed time zone and locale make every run write and compare the same text.
@@ -565,7 +565,7 @@ In every other case, the holder counts as alive. Two examples are a permission e
 
 A lock is stale when its record names a holder that is gone. The two locks treat a stale lock differently, for this reason:
 
-- The GPU lock has a queue, in which the waiters take turns in the order in which they came. Exactly one waiter, the oldest live one, can clear a stale lock and take it. So the clear is safe, and the next timed run does not wait for a person.
+- The GPU lock has a queue, in which the waiters take turns in the order in which they came. Exactly one waiter, the oldest live one, can clear a stale lock and take it. So the clear is safe, and the next timed run does not wait for a person. In a shared lock, the oldest waiter removes the record of each shared holder that is gone.
 - The Stryker lock has no queue, and its runs take hours. On a stale lock, a run stops and prints the command that removes the lock. A person makes sure that no Stryker run goes on and then removes the lock.
 
 The same rules have two implementations, because the GPU helper must stay plain bash that runs outside the dev shell, and its waiter must not fork more often than before. A Python process for each check would break both. `TheSharedRecord` in `tools/test_gpu_lock.py` keeps the two in step. A record that one lock writes, the other lock judges as the writer does: alive, gone by pid, gone by start, an incomplete record, no record and a holder that `kill -0` cannot signal. The same test also gives both locks records at each edge of the format, such as a carriage return in the label, a last line without its newline, a NUL byte, a pid of other digits and a label that is not UTF-8.
@@ -579,6 +579,12 @@ bash tools/gpu-lock.sh <log> <command> [arguments]
 ```
 
 It waits for the lock and runs the command with its output in the log. The log gets the uptime at the start and the end, and the seconds that the run waited. The exit code is the command's.
+
+A run that measures no time, such as a still, a film for image metrics or a GPU test, takes the shared mode with `--shared` before the log. Call the main checkout's helper by its absolute path, so that an older copy in a worktree does not take the lock (see "The shared mode"):
+
+```bash
+bash /Users/alexispurslane/Development/tertius/tools/gpu-lock.sh --shared <log> <command> [arguments]
+```
 
 The helper takes the lock with `mkdir`, and right after it writes the holder's record ("The record of a machine lock"). The record's label is the log path and the command. A plain `rmdir` of a lock with a record fails, because the directory is not empty. On 2026-11-04 a command line ran `mkdir` of the lock and then `rmdir` after `;`. The `mkdir` failed, and the `rmdir` removed the lock of another run. The record now stops that `rmdir`. If the record cannot be written, or `ps` gives no start time, the helper removes its new lock, does not run the command and exits with 1.
 
@@ -604,20 +610,48 @@ To unblock the waiters, do these steps:
 
 This `rmdir` cannot remove a lock with a record, because such a lock is not empty.
 
-Two environment variables give other paths, for the tests. Their defaults are the real paths:
+### The shared mode
+
+On 2026-11-11, five agents shared the GPU lock, and each run waited about an hour for it. Most takes were untimed: stills, films for image metrics, survey splits and GPU tests. A sample of `ioreg -r -d 1 -c IOAccelerator` every 2 s over such a take gave a mean GPU use of 10 %. So the exclusive lock mostly kept CPU work apart, such as process start, shader compiles, image writes and metric analysis. The shared mode lets such runs hold the GPU side by side. A timed run still holds it alone, because a run beside it changes its time.
+
+The rules of the two modes are these:
+
+- A run without `--shared` is exclusive. It holds the GPU alone. Every timed run is exclusive: `tools/gpu-trace.sh`, `tools/demo-timing.sh`, `tools/fsr3-timing/time-round.sh`, the scripts of `tools/gpu-calibration/` and the timing part of the renderer survey.
+- Up to `TERTIUS_GPU_SHARED_CAP` shared runs hold the GPU at once, 3 by default. A cap that is not a whole number of at least 1 ends the run with exit code 2 before it waits.
+- A shared run never holds the GPU beside an exclusive run.
+- The queue stays first in, first out across both modes. Each run, shared or exclusive, takes the GPU only when its ticket is the oldest ticket of a live waiter. So a shared run that comes after a waiting exclusive run waits behind it, and a stream of shared runs cannot starve a timed run. The shared runs at the head of the queue start one after the other, about 0.1 s apart, until the cap is reached.
+- The log of a shared run holds the line `mode: shared, with up to <cap> shared runs at once`.
+
+A shared run uses the same lock directory. It writes no file `holder` into it. It writes its record into the file `shared/<ticket>` of the lock, through `shared/<ticket>.new`. The first shared run makes the lock and the folder `shared`. A later shared run adds its record while the folder holds fewer files than the cap. At its release, a shared run removes its own record, if the record holds its token. It then removes the folder `shared` with `rmdir`, which fails while the folder holds a record. Only the run whose `rmdir` removed the folder removes the lock, also with `rmdir`. So of several shared runs that end at once, exactly one removes the lock. If the record is not the run's own at the release, the run writes the line `gpu-lock: the lock was not this run's at its release` into its log, as an exclusive run does.
+
+The stale rule covers shared holders too. The oldest waiter reads each record in `shared`, removes the record of each holder that is gone by the liveness rule, and removes the lock when no record stays. A record that lacks its pid, start or token is never removed. A waiter asks `ps` about each holder at most once a second.
+
+The helpers before the shared mode, such as the one in `93e46dd7f` or `8fe7ac7cf`, still run in agents' worktrees. They work beside the current helper in this way:
+
+- An older helper writes a ticket without a mode. The current helper does not read the mode of a ticket, so an older helper's ticket keeps its turn as an exclusive ticket does. No shared run goes past it.
+- An older helper waits while shared runs hold the GPU, because its `mkdir` of the lock fails.
+- An older helper does not know the folder `shared`, so it never clears a shared holder that is gone. If an older helper is the oldest waiter while a dead shared holder's record stays in the lock, every run waits. This is the one gap. Stop the older helper as the steps above say. Then the next waiter removes the dead record.
+- An older helper has no `--shared`. It reads `--shared` as its log and runs the real log path as the command. So the run waits its turn, holds the GPU alone for a moment and ends with an error.
+
+To close the gap and to get the shared mode, call the main checkout's helper by its absolute path, `/Users/alexispurslane/Development/tertius/tools/gpu-lock.sh`, and never a copy in a worktree.
+
+### Variables and tests
+
+Three environment variables give other values, for the tests. Their defaults are the real values:
 
 | Variable | Default |
 |---|---|
 | `TERTIUS_GPU_LOCK` | `/tmp/tertius-gpu-measure.lock` |
 | `TERTIUS_GPU_QUEUE` | `/tmp/tertius-gpu-measure.queue` |
+| `TERTIUS_GPU_SHARED_CAP` | `3` |
 
-`tools/test_gpu_lock.py` tests the record, the release rule, the stale rule, the queue's tickets, the queue's race on a stale lock, the exclusion with the helper of `93e46dd7f` and the record that the helper shares with the Stryker lock. Scripts named `ps` or `mv` in front of `PATH` open the short windows of the take, the release and the clear, so that a test can send a signal or change the lock inside them. Each test uses a new folder under `/private/tmp`, and no test touches the real GPU lock, its queue or the real Stryker lock. It uses the Python standard library only, and it runs in about 65 s:
+`tools/test_gpu_lock.py` tests the record, the release rule, the stale rule, the queue's tickets, the queue's race on a stale lock, the shared mode, the order across both modes, the exclusion with the helpers of `93e46dd7f` and `8fe7ac7cf` and the record that the helper shares with the Stryker lock. Scripts named `ps` or `mv` in front of `PATH` open the short windows of the take, the release and the clear, so that a test can send a signal or change the lock inside them. Each test uses a new folder under `/private/tmp`, and no test touches the real GPU lock, its queue or the real Stryker lock. It uses the Python standard library only, and it runs in about 150 s:
 
 ```bash
 nix develop --command python3 -I tools/test_gpu_lock.py
 ```
 
-Every timing tool takes the lock through the helper: `tools/gpu-trace.sh`, `tools/demo-timing.sh`, `tools/fsr3-timing/time-round.sh` and the scripts of `tools/gpu-calibration/`. No tool holds a copy of the lock's logic.
+Every timing tool takes the lock through the helper: `tools/gpu-trace.sh`, `tools/demo-timing.sh`, `tools/fsr3-timing/time-round.sh` and the scripts of `tools/gpu-calibration/`. The renderer survey takes it in the shared mode for every render that is not timed. No tool holds a copy of the lock's logic.
 
 ## The GPU clock of a timed run
 
@@ -1006,7 +1040,7 @@ The commands do these things:
 
 A case whose result file exists does not run again. So a stopped run goes on where it stopped. To run a case again, delete its result file. A full run on 2026-11-09 took about four hours, most of it in the wait for the GPU lock.
 
-`run` takes the GPU lock once for each chunk of cases, 8 by default (`--chunk`), so that a chunk waits once for the other users of the lock. `--chunk 0` runs in one process and takes the lock for each render. Before each render, the tool samples the GPU's busy share three times with `ioreg` and records it as `gpuBusyBefore`. Another process, such as an Android emulator, can use the GPU while the survey holds the lock. Before a timing run, make sure that no other process uses the GPU heavily. An Android emulator puts the GPU in a slow mode. So if an emulator runs before or during a view's timing, the tool writes no result for that view. When no emulator runs, run the timing part again.
+`run` takes the GPU lock once for each chunk of cases, 8 by default (`--chunk`), so that a chunk waits once for the other users of the lock. `--chunk 0` runs in one process and takes the lock for each render. A chunk of the timing part, and each timed render, holds the GPU alone. Every other chunk and render, also of `split`, takes the shared mode, because its images do not depend on the time (see "The shared mode"). `trace` records through `tools/gpu-trace.sh`, which holds the GPU alone. Before each render, the tool samples the GPU's busy share three times with `ioreg` and records it as `gpuBusyBefore`. Another process, such as an Android emulator, can use the GPU while the survey holds the lock. Before a timing run, make sure that no other process uses the GPU heavily. An Android emulator puts the GPU in a slow mode. So if an emulator runs before or during a view's timing, the tool writes no result for that view. When no emulator runs, run the timing part again.
 
 The run stops before a render when less than 5 GB are free on `/`. A film of 180 frames at 1920 × 1080 takes about 700 MB until the tool measures it, and a switch run of 460 probe frames about 2.6 GB.
 
