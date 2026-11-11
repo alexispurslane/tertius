@@ -724,7 +724,9 @@ public sealed class EnvironmentMapsPerFrameTests
     {
         var all = new List<Half>();
         for (int level = 0; level < PrefilterLevels.Count(EnvironmentScenes.FaceSize); level++)
-            all.AddRange(renderer.ReadEnvironmentFace(map: map, face: face, level: level, image: EnvironmentImage.Specular));
+            all.AddRange(
+                renderer.ReadEnvironmentFace(map: map, face: face, level: level, image: EnvironmentImage.Specular)
+            );
         for (int level = 0; level < IrradianceCube.Levels; level++)
             all.AddRange(
                 renderer.ReadEnvironmentFace(map: map, face: face, level: level, image: EnvironmentImage.Irradiance)
@@ -749,7 +751,10 @@ public sealed class EnvironmentMapsPerFrameTests
                 DomeScene(plane, EnvironmentScenes.Emissive(renderer, new(1, 0, 0)), 2, 1, 0),
                 time: 0
             );
-            Half[][] before = [.. Enumerable.Range(0, CubeFaces.Count).Select(f => FiltersOfFace(renderer, 0, (CubeFace)f))];
+            Half[][] before =
+            [
+                .. Enumerable.Range(0, CubeFaces.Count).Select(f => FiltersOfFace(renderer, 0, (CubeFace)f)),
+            ];
 
             // Frame 1 draws face −X of map 0 alone, in a dome of another color.
             EnvironmentScenes.Still(
@@ -764,7 +769,9 @@ public sealed class EnvironmentMapsPerFrameTests
                 if ((CubeFace)face == CubeFace.NegativeX)
                     after.Should().NotEqual(before[face], "the drawn face's filters take its new light");
                 else
-                    after.Should().Equal(before[face], "face {0} was not drawn, so it keeps its filters", (CubeFace)face);
+                    after
+                        .Should()
+                        .Equal(before[face], "face {0} was not drawn, so it keeps its filters", (CubeFace)face);
             }
         }
         finally
@@ -805,7 +812,11 @@ public sealed class EnvironmentMapsPerFrameTests
             for (int face = 0; face < CubeFaces.Count; face++)
                 FiltersOfFace(turned, 0, (CubeFace)face)
                     .Should()
-                    .Equal(FiltersOfFace(fresh, 0, (CubeFace)face), "face {0} was rebuilt from the same faces", (CubeFace)face);
+                    .Equal(
+                        FiltersOfFace(fresh, 0, (CubeFace)face),
+                        "face {0} was rebuilt from the same faces",
+                        (CubeFace)face
+                    );
         }
         finally
         {

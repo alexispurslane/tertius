@@ -489,7 +489,8 @@ internal sealed unsafe class EnvironmentPrefilterPass : RenderPass
                 Roughness = PrefilterLevels.Roughness(level, map.Levels),
                 Lanes = (uint)PrefilterLevels.Lanes(level),
             };
-            groups += (uint)PrefilterLevels.Workgroups(level: level, faceSize: map.Setting.FaceSize, faces: (int)faces.Count);
+            groups += (uint)
+                PrefilterLevels.Workgroups(level: level, faceSize: map.Setting.FaceSize, faces: (int)faces.Count);
         }
 
         push.GroupCount = groups;

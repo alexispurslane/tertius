@@ -132,11 +132,13 @@ public sealed class GpuTimingTests
     [Fact]
     public void WithoutPassTimestampsTheTimingsHoldOneTimingPerCostGroupThatAddUpToTheSpan()
     {
-        RenderScaleController.CostGroup[] groups = TimingsOfTheThirdFrame(passTimestamps: true)
-            .Passes.ToArray()
-            .Select(pass => RenderScaleController.CostGroupOf(pass.Stage))
-            .Distinct()
-            .ToArray();
+        RenderScaleController.CostGroup[] groups =
+        [
+            .. TimingsOfTheThirdFrame(passTimestamps: true)
+                .Passes.ToArray()
+                .Select(pass => RenderScaleController.CostGroupOf(pass.Stage))
+                .Distinct(),
+        ];
 
         GpuTimings timings = TimingsOfTheThirdFrame(passTimestamps: false);
 

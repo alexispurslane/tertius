@@ -137,10 +137,22 @@ public sealed class RectLightRenderTests
                 6
             ),
             // The cabin lamp's panel 0.7 m beside the center and 0.5 m out, turned to face the center at a slant.
-            "tilted-beside" => (new(0.7, 0.1, 0.5), Quaternion.CreateFromAxisAngle(Vector3.UnitY, -2.2f), 1.2f, 1.2f, 6),
+            "tilted-beside" => (
+                new(0.7, 0.1, 0.5),
+                Quaternion.CreateFromAxisAngle(Vector3.UnitY, -2.2f),
+                1.2f,
+                1.2f,
+                6
+            ),
             // A panel that stands slanted through the square above its center, facing down toward it: only the part in front
             // of the square lights it, and the cut at the horizon decides how much.
-            "through-the-square" => (new(0, 0.3, 0.1), Quaternion.CreateFromAxisAngle(Vector3.UnitX, 1.2f), 1.0f, 0.6f, 6),
+            "through-the-square" => (
+                new(0, 0.3, 0.1),
+                Quaternion.CreateFromAxisAngle(Vector3.UnitX, 1.2f),
+                1.0f,
+                0.6f,
+                6
+            ),
             // A panel 0.3 m by 0.2 m, 2 m in front of the center and facing it: 11 half diagonals away, so it shades as a
             // point light.
             "far-facing-the-square" => (
