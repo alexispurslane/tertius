@@ -717,6 +717,104 @@ public sealed class EnvironmentMapsPerFrameTests
     }
 
     /// <summary>
+    /// Every specular level and every irradiance level of face <paramref name="face"/> of map <paramref name="map"/>, in
+    /// that order.
+    /// </summary>
+    private static Half[] FiltersOfFace(VulkanRenderer renderer, int map, CubeFace face)
+    {
+        var all = new List<Half>();
+        for (int level = 0; level < PrefilterLevels.Count(EnvironmentScenes.FaceSize); level++)
+            all.AddRange(renderer.ReadEnvironmentFace(map: map, face: face, level: level, image: EnvironmentImage.Specular));
+        for (int level = 0; level < IrradianceCube.Levels; level++)
+            all.AddRange(
+                renderer.ReadEnvironmentFace(map: map, face: face, level: level, image: EnvironmentImage.Irradiance)
+            );
+        return [.. all];
+    }
+
+    /// <summary>
+    /// The prefilter spreads over the faces' turns (ARCHITECTURE.md, "The prefilter"): a frame rebuilds the specular levels
+    /// and the irradiance of the faces that it drew, and every other face keeps its own, though a rough lobe or the cosine
+    /// of a texel near the drawn face sees its new light. That face's turn brings the new light into them.
+    /// </summary>
+    [Fact]
+    public void AFrameRebuildsTheFiltersOfOnlyTheFacesThatItDrew()
+    {
+        VulkanRenderer renderer = Renderer();
+        try
+        {
+            MeshId plane = renderer.CreateMesh(Primitives.Plane(1f));
+            EnvironmentScenes.Still(
+                renderer,
+                DomeScene(plane, EnvironmentScenes.Emissive(renderer, new(1, 0, 0)), 2, 1, 0),
+                time: 0
+            );
+            Half[][] before = [.. Enumerable.Range(0, CubeFaces.Count).Select(f => FiltersOfFace(renderer, 0, (CubeFace)f))];
+
+            // Frame 1 draws face −X of map 0 alone, in a dome of another color.
+            EnvironmentScenes.Still(
+                renderer,
+                DomeScene(plane, EnvironmentScenes.Emissive(renderer, new(0, 1, 0)), 2, 1, 0),
+                time: Step
+            );
+
+            for (int face = 0; face < CubeFaces.Count; face++)
+            {
+                Half[] after = FiltersOfFace(renderer, 0, (CubeFace)face);
+                if ((CubeFace)face == CubeFace.NegativeX)
+                    after.Should().NotEqual(before[face], "the drawn face's filters take its new light");
+                else
+                    after.Should().Equal(before[face], "face {0} was not drawn, so it keeps its filters", (CubeFace)face);
+            }
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    /// <summary>
+    /// A face's filters, rebuilt on their own, are the bits that a refresh of all six faces gives: after two turns of the
+    /// faces in an unchanged scene, each face's last rebuild saw every neighbor's new light, so the map equals a fresh one.
+    /// </summary>
+    [Fact]
+    public void AfterTwoTurnsOfTheFacesEveryFacesFiltersAreTheBitsOfARefresh()
+    {
+        VulkanRenderer turned = Renderer();
+        VulkanRenderer fresh = Renderer();
+        try
+        {
+            MeshId turnedPlane = turned.CreateMesh(Primitives.Plane(1f));
+            MaterialId green = EnvironmentScenes.Emissive(turned, new(0, 1, 0));
+            EnvironmentScenes.Still(
+                turned,
+                DomeScene(turnedPlane, EnvironmentScenes.Emissive(turned, new(1, 0, 0)), 0),
+                time: 0
+            );
+            // One map, one face per frame: twelve frames are two turns.
+            for (int frame = 1; frame <= 2 * CubeFaces.Count; frame++)
+                EnvironmentScenes.Still(turned, DomeScene(turnedPlane, green, 0), time: frame * Step);
+
+            MeshId freshPlane = fresh.CreateMesh(Primitives.Plane(1f));
+            EnvironmentScenes.Still(
+                fresh,
+                DomeScene(freshPlane, EnvironmentScenes.Emissive(fresh, new(0, 1, 0)), 0),
+                time: 0
+            );
+
+            for (int face = 0; face < CubeFaces.Count; face++)
+                FiltersOfFace(turned, 0, (CubeFace)face)
+                    .Should()
+                    .Equal(FiltersOfFace(fresh, 0, (CubeFace)face), "face {0} was rebuilt from the same faces", (CubeFace)face);
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(turned);
+            Gpu.DisposeAndAssertClean(fresh);
+        }
+    }
+
+    /// <summary>
     /// A matte surface inside a dome of green that a growth of the maps from two to three made, in the camera's frame, as
     /// the frames that follow the growth show it. Every frame slot reads the new irradiance cubes.
     /// </summary>

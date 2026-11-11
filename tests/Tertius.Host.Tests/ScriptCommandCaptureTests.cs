@@ -684,6 +684,36 @@ public sealed class ScriptCommandCaptureTests : IDisposable
     }
 
     [Theory]
+    [InlineData(new string[0], true)]
+    [InlineData(new[] { "--pass-timestamps", "on" }, true)]
+    [InlineData(new[] { "--pass-timestamps", "off" }, false)]
+    public void ThePassTimestampsOptionTurnsTheHeadlessRenderersPassStampsOffAndOnKeepsThem(
+        string[] passTimestamps,
+        bool kept
+    )
+    {
+        string script = ScriptFile(
+            """{ "scene": "lit-box", "window": { "width": 160, "height": 90 }, "steps": [ { "do": "capture", "name": "front" } ] }"""
+        );
+        var settings = new List<bool>();
+
+        int code = ScriptCommand.Run(
+            args: ["--script", script, "--headless", "--out", Out, .. passTimestamps],
+            scenes: [LitBoxScene],
+            output: output,
+            error: error,
+            createRenderer: options =>
+            {
+                settings.Add(options.PassTimestamps);
+                return VulkanRenderer.CreateHeadless(options);
+            }
+        );
+
+        code.Should().Be(ScriptCommand.Ok, error.ToString());
+        settings.Should().ContainSingle().Which.Should().Be(kept, "a headless run is a measured run unless told otherwise");
+    }
+
+    [Theory]
     [InlineData(new string[0], false, 2)]
     [InlineData(new[] { "--in-flight", "1" }, false, 1)]
     [InlineData(new[] { "--in-flight", "2" }, true, 2)]

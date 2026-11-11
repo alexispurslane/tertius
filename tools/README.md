@@ -730,6 +730,8 @@ On a driver whose GPU timestamps latch late, such as MoltenVK, the console hides
 
 Individual-pass comparisons appear only when neither report has `stampsLatchLate: true` or a nonempty `warning`. If either report identifies unreliable individual times, the comparison omits all individual-pass rows, including for a comparison with an ordinary driver. It retains frame and range rows, explains the omission and shows the reports' warnings. No driver name detection is added. Legacy reports without these fields keep their individual-pass comparisons; reports without `runs` still compare normally:
 
+A headless run writes a GPU timestamp after each pass, so the timing tools and the trace get each pass's time. A window writes one stamp after each cost group of the render scale, five per frame (ARCHITECTURE.md, "GPU timings"). On MoltenVK each stamp is an encoder of its own and costs GPU time. To time a run with the window's stamps, add `--pass-timestamps off`. Its `gpu-timings.json` then names the four cost groups, such as `at the render size`, in place of the passes. Compare the frame spans of two runs with `on` and `off` to measure what the stamps cost.
+
 A headless run waits for each captured frame, so its GPU idles between frames. At 1280 × 720, the deck then runs far below the top clock. The demo option `--in-flight 2` sets `FramesInFlight` to 2 and keeps captures in flight. `--in-flight 1` sets one frame and waits for its capture. Without the option, both defaults stay unchanged. Two frames keep work on the GPU, as a window does, and the film's images and exposures stay the same. Make the 120 frames of the deck from frame 399 with `gpu-trace.py trim` (see "GPU calibration"), and time them:
 
 ```bash

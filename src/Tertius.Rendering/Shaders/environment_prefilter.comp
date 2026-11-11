@@ -54,6 +54,8 @@ layout(push_constant, std430) uniform PrefilterPush
     uint levelCount;          // 1 to MaxLevels
     uint groupCount;          // the workgroups of the levels, which the grid's rows may pass by a few
     uint map;                 // m
+    uint firstFace;           // the first of the faces that the dispatch writes
+    uint faceCount;           // how many faces it writes, 1 to 6 − firstFace
 } prefilter;
 
 // Sample i of the level: xyz the direction l in the axes of n (tangent, bitangent, n), so z is n·l, and w the level of the
@@ -127,9 +129,11 @@ void main()
     uint slot = index / level.lanes;
     uint levelTexels = level.levelSize * level.levelSize;
     uint texel = (group - level.firstGroup) * (Invocations / level.lanes) + slot;
-    bool inLevel = texel < 6u * levelTexels;
-    uint layer = texel / max(levelTexels, 1u);
-    uint inLayer = texel - layer * levelTexels;
+    // The texels run face by face, from the dispatch's first face.
+    bool inLevel = texel < prefilter.faceCount * levelTexels;
+    uint faceIndex = texel / max(levelTexels, 1u);
+    uint inLayer = texel - faceIndex * levelTexels;
+    uint layer = prefilter.firstFace + faceIndex;
     uvec2 xy = uvec2(inLayer % level.levelSize, inLayer / level.levelSize);
     uint mapLayer = 6u * prefilter.map + layer;
     vec3 ray = faceRay(layer, (vec2(xy) + 0.5) / float(level.levelSize));

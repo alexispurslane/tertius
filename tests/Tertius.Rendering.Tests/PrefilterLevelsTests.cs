@@ -216,4 +216,21 @@ public sealed class PrefilterLevelsTests
     [Fact]
     public void TheLevelOfASampleNeverFallsBelowZero() =>
         PrefilterLevels.SampleLod(pdf: 1e9f, samples: 64, faceSize: 128).Should().Be(0f);
+
+    [Theory]
+    [InlineData(2, 1, 1)]
+    [InlineData(48, 4, 2)]
+    [InlineData(63, 0, 6)]
+    public void TheFiltersOfOneRunOfDrawnFacesWriteJustThatRun(int mask, int first, int count) =>
+        EnvironmentPrefilterPass
+            .FaceRun((FaceMask)mask)
+            .Should()
+            .Be(((uint)first, (uint)count), "a frame's turn draws faces next to each other");
+
+    [Fact]
+    public void TheFiltersOfDrawnFacesThatWrapAroundTheLastFaceWriteAllSix() =>
+        EnvironmentPrefilterPass
+            .FaceRun(FaceMask.NegativeZ | FaceMask.PositiveX)
+            .Should()
+            .Be((0u, 6u), "one dispatch must cover both, and the run from +X to −Z holds every face");
 }

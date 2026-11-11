@@ -276,6 +276,43 @@ public sealed class RenderScaleTests
         controller.AssertInvariants();
     }
 
+    [Fact]
+    public void TheCostGroupsGiveTheControllerTheSameScaleAsEveryPass()
+    {
+        var eachPass = new RenderScaleController(FrameTimeTarget.Default);
+        var grouped = new RenderScaleController(FrameTimeTarget.Default);
+        for (long frame = 0; frame < 80; frame++)
+        {
+            float scale = eachPass.Next(frame);
+            grouped.Next(frame).Should().Be(scale, "a window without pass timestamps keeps the measured scale");
+            GpuTimings timings = Timings(frame: frame, scale: scale, renderCost: 24 + frame % 7, outputWait: 1);
+            eachPass.Measure(timings);
+            PassTiming[] groups = timings
+                .Passes.ToArray()
+                .GroupBy(pass => RenderScaleController.CostGroupOf(pass.Stage))
+                .Select(group =>
+                    new PassTiming(RenderScaleController.NameOf(group.Key), group.Sum(pass => pass.Milliseconds))
+                    {
+                        Stage = group.Last().Stage,
+                    }
+                )
+                .ToArray();
+            grouped.Measure(timings with { Passes = groups });
+        }
+    }
+
+    [Theory]
+    [InlineData("EnvironmentPrefilter", "BeforeRenderSize")]
+    [InlineData("GBuffer", "AtRenderSize")]
+    [InlineData("Exposure", "AtRenderSize")]
+    [InlineData("Upscale", "AfterRenderSize")]
+    [InlineData("ToneMap", "Output")]
+    public void EachStageBelongsToTheCostGroupThatTheControllerWeighsItIn(string stage, string group) =>
+        RenderScaleController
+            .CostGroupOf(Enum.Parse<FrameGraph.Stage>(stage))
+            .Should()
+            .Be(Enum.Parse<RenderScaleController.CostGroup>(group));
+
     private static GpuTimings Timings(long frame, float scale, double renderCost, double outputWait) =>
         new(
             frame,

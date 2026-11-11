@@ -65,7 +65,8 @@ internal static class Gpu
         SubsurfaceSetting subsurface = default,
         bool capturesInFlight = false,
         ScreenTraceSetting screenTrace = default,
-        int warmUpFrames = RendererOptions.DefaultWarmUpFrames
+        int warmUpFrames = RendererOptions.DefaultWarmUpFrames,
+        bool passTimestamps = true
     ) =>
         VulkanRenderer.CreateHeadless(
             new()
@@ -87,6 +88,7 @@ internal static class Gpu
                 CapturesInFlight = capturesInFlight,
                 ScreenTrace = screenTrace,
                 WarmUpFrames = warmUpFrames,
+                PassTimestamps = passTimestamps,
             }
         );
 
