@@ -157,12 +157,38 @@ public sealed class GpuTimingTests
             .BeApproximately(timings.SpanMilliseconds, 1e-9, "the groups split the span between them");
     }
 
-    /// <summary>The timings of the first frame that reports any, of the test scene, with or without pass timestamps.</summary>
-    private static GpuTimings TimingsOfTheThirdFrame(bool passTimestamps)
+    [Fact]
+    public void WithoutPassTimestampsAGroupWhoseLastPassIsSkippedStillEndsWithItsOwnStamp()
+    {
+        string last = TimingsOfTheThirdFrame(passTimestamps: true)
+            .Passes.ToArray()
+            .Last(pass => RenderScaleController.CostGroupOf(pass.Stage) == RenderScaleController.CostGroup.AtRenderSize)
+            .Pass;
+
+        GpuTimings timings = TimingsOfTheThirdFrame(passTimestamps: false, skipped: last);
+
+        timings
+            .Passes.ToArray()
+            .Select(pass => pass.Pass)
+            .Should()
+            .Contain(
+                RenderScaleController.NameOf(group: RenderScaleController.CostGroup.AtRenderSize),
+                "the pass before the skipped {0} ends the group and takes its stamp",
+                last
+            );
+    }
+
+    /// <summary>
+    /// The timings of the first frame that reports any, of the test scene, with or without pass timestamps, with the pass
+    /// named <paramref name="skipped"/> skipped.
+    /// </summary>
+    private static GpuTimings TimingsOfTheThirdFrame(bool passTimestamps, string? skipped = null)
     {
         VulkanRenderer renderer = TimedRenderer(passTimestamps: passTimestamps);
         try
         {
+            if (skipped is not null)
+                renderer.Graph.Skipped.Add(skipped);
             RenderSnapshot snapshot = TestScene.Create(renderer).Snapshot();
             for (int i = 0; i < 3; i++)
                 renderer.Render(snapshot, 1f);

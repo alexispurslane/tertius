@@ -2,10 +2,10 @@ diff --git a/src/Tertius.Host/ScriptCommand.Options.cs b/src/Tertius.Host/Script
 index 2fdc522..07e51c5 100644
 --- a/src/Tertius.Host/ScriptCommand.Options.cs
 +++ b/src/Tertius.Host/ScriptCommand.Options.cs
-@@ -107,6 +107,9 @@ public static partial class ScriptCommand
-                 options.EnvironmentMap = new NoEnvironmentMap();
-             if (SubsurfaceOff)
+@@ -112,6 +112,9 @@ public static partial class ScriptCommand
                  options.Subsurface = new NoSubsurface();
+             if (PassTimestampsOff)
+                 options.PassTimestamps = false;
 +            // PROBE (tools/renderer-survey): a fixed exposure in stops from TERTIUS_PROBE_EXPOSURE.
 +            if (Environment.GetEnvironmentVariable("TERTIUS_PROBE_EXPOSURE") is { Length: > 0 } stops)
 +                options.Exposure = new FixedExposure(float.Parse(stops, System.Globalization.CultureInfo.InvariantCulture));

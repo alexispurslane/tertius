@@ -110,13 +110,22 @@ public sealed class RectLightRenderTests
 
     /// <summary>A panel in front of the matte square by name.</summary>
     public static TheoryData<string> MattePanels =>
-        ["facing-the-square", "tilted-beside", "through-the-square", "far-facing-the-square"];
+        [
+            "facing-the-square",
+            "tilted-beside",
+            "through-the-square",
+            "far-facing-the-square",
+            "nearer-than-eight-half-diagonals",
+            "far-across-the-horizon",
+        ];
 
     /// <summary>
-    /// The panel of <see cref="MattePanels"/> by its name: from the square's center to its center, in m, its turn, and its
-    /// width and height in m.
+    /// The panel of <see cref="MattePanels"/> by its name: from the square's center to its center, in m, its turn, its
+    /// width and height in m, and its power in W.
     /// </summary>
-    private static (Double3 ToCenter, Quaternion Rotation, float Width, float Height) MattePanelNamed(string name) =>
+    private static (Double3 ToCenter, Quaternion Rotation, float Width, float Height, float Power) MattePanelNamed(
+        string name
+    ) =>
         name switch
         {
             // A panel 0.8 m by 0.5 m, 0.6 m in front of the center, facing it.
@@ -124,20 +133,41 @@ public sealed class RectLightRenderTests
                 new(0, 0, 0.6),
                 Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI),
                 0.8f,
-                0.5f
+                0.5f,
+                6
             ),
             // The cabin lamp's panel 0.7 m beside the center and 0.5 m out, turned to face the center at a slant.
-            "tilted-beside" => (new(0.7, 0.1, 0.5), Quaternion.CreateFromAxisAngle(Vector3.UnitY, -2.2f), 1.2f, 1.2f),
+            "tilted-beside" => (new(0.7, 0.1, 0.5), Quaternion.CreateFromAxisAngle(Vector3.UnitY, -2.2f), 1.2f, 1.2f, 6),
             // A panel that stands slanted through the square above its center, facing down toward it: only the part in front
             // of the square lights it, and the cut at the horizon decides how much.
-            "through-the-square" => (new(0, 0.3, 0.1), Quaternion.CreateFromAxisAngle(Vector3.UnitX, 1.2f), 1.0f, 0.6f),
+            "through-the-square" => (new(0, 0.3, 0.1), Quaternion.CreateFromAxisAngle(Vector3.UnitX, 1.2f), 1.0f, 0.6f, 6),
             // A panel 0.3 m by 0.2 m, 2 m in front of the center and facing it: 11 half diagonals away, so it shades as a
             // point light.
             "far-facing-the-square" => (
                 new(0, 0, 2),
                 Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI),
                 0.3f,
-                0.2f
+                0.2f,
+                6
+            ),
+            // The same panel 4.2 half diagonals in front of the center: nearer than the far faces, so it keeps the integral
+            // over its face, which a point light there misses by about 3.8 %.
+            "nearer-than-eight-half-diagonals" => (
+                new(0, 0, 0.757),
+                Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI),
+                0.3f,
+                0.2f,
+                6
+            ),
+            // The same panel 11 half diagonals off to the side and 0.05 m above the square's plane, facing the center with its
+            // width across the plane: a third of its face lies below the square's horizon, so it keeps the integral, which
+            // takes only the part above. The light comes in at a grazing angle, so the panel sends 30 times the power.
+            "far-across-the-horizon" => (
+                new(2, 0, 0.05),
+                Quaternion.CreateFromAxisAngle(Vector3.UnitY, -MathF.PI / 2),
+                0.3f,
+                0.2f,
+                180
             ),
             _ => throw new ArgumentOutOfRangeException(nameof(name), name, "No such panel."),
         };
@@ -146,11 +176,11 @@ public sealed class RectLightRenderTests
     [MemberData(nameof(MattePanels))]
     public void ARectangleLightLightsAMatteSquareAsTheCSharpRectangleDoes(string name)
     {
-        (Double3 toCenter, Quaternion rotation, float width, float height) = MattePanelNamed(name);
+        (Double3 toCenter, Quaternion rotation, float width, float height, float power) = MattePanelNamed(name);
         RectRenderLight panel = Panel(
             position: new Vector3(0, 0, -SquareDistance) + toCenter.ToVector3(),
             rotation: rotation,
-            power: 6,
+            power: power,
             width: width,
             height: height
         );
