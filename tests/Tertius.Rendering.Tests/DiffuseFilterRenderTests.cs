@@ -58,7 +58,7 @@ public sealed class DiffuseFilterRenderTests
             );
         TemporalSignal signal = renderer.CreateSignal(parameters: Parameters, name: "test", parts: 1);
         var sample = new SamplePass(signal, renderer.Allocator);
-        DiffuseFilter filter = renderer.CreateDiffuseFilter(signal);
+        DiffuseFilter filter = renderer.CreateDiffuseFilter(signal, DiffuseFilterKernel.Wide);
         renderer.Graph.Add(FrameGraph.Stage.DirectLight, sample);
         renderer.Graph.Add(FrameGraph.Stage.DirectLight, new AccumulatePass(signal));
         if (filtered)

@@ -46,7 +46,7 @@ public sealed class DiffuseFilterSwitchTests
         Environment.SetEnvironmentVariable(Switch, "sometimes");
         try
         {
-            Action select = () => DiffuseFilter.SwitchedOn();
+            Action select = () => DiffuseFilter.Selected();
 
             select.Should().Throw<ArgumentException>().WithMessage("*TERTIUS_DIFFUSE_FILTER*");
         }
