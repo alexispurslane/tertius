@@ -286,30 +286,48 @@ internal sealed unsafe class TemporalSignal : IDisposable
     /// </summary>
     public void Accumulate(FrameContext context)
     {
-        for (int step = 0; step < Steps; step++)
-        {
-            QueueStep(context, step);
-            DispatchStep(context, step);
-        }
-    }
-
-    /// <summary>The accumulation's dispatches: the temporal one and the spatial one of each part, in that order.</summary>
-    public int Steps => 2 * parts.Length;
-
-    /// <summary>
-    /// Queues the barriers before dispatch <paramref name="step"/> of <see cref="Steps"/> into the frame's batch, which the
-    /// next dispatch of the frame flushes. A pass may queue another pass's barriers beside them, so that both dispatches
-    /// follow one barrier and run side by side (<see cref="FilteredAccumulatePass"/>).
-    /// </summary>
-    public void QueueStep(FrameContext context, int step)
-    {
+        Contract.Requires(context.Targets == targets && FitsTargets());
         int parity = context.History.Parity;
         BarrierBatch barriers = context.Barriers;
-        int part = step / 2;
-        PartImages images = parts[part];
-        GpuImage scratched = scratch.Part(part, HistoryMode);
-        if (step % 2 == 1)
+        barriers.Image(targets.Distance, ImageUse.SampledCompute);
+        barriers.Image(targets.Normal, ImageUse.SampledCompute);
+        barriers.Image(targets.Shading, ImageUse.SampledCompute);
+        barriers.Image(surfaces.Test, ImageUse.StorageCompute);
+        barriers.Image(targets.Motion, ImageUse.StorageCompute);
+
+        // The closed form's material, and the last frame's surfaces of the reflected point's surface test.
+        barriers.Image(targets.BaseColor, ImageUse.SampledCompute);
+        barriers.Image(targets.Specular, ImageUse.SampledCompute);
+        barriers.Image(targets.Emissive, ImageUse.SampledCompute);
+        barriers.Image(surfaces.Last(parity), ImageUse.SampledCompute);
+        barriers.Image(surfaces.LastDepth(parity), ImageUse.SampledCompute);
+        barriers.Buffer(context.Exposure.Buffer, BufferUse.ShaderRead);
+        for (int part = 0; part < parts.Length; part++)
         {
+            PartImages images = parts[part];
+            GpuImage scratched = scratch.Part(part, HistoryMode);
+            if (!reflectionDistanceHistory && HistoryMode != SpecularHistoryMode.Original)
+                barriers.Image(scratch.Part(part), ImageUse.StorageCompute);
+            barriers.Image(images.Sample, ImageUse.StorageCompute);
+            foreach (GpuImage age in images.Ages)
+                barriers.Image(age, ImageUse.StorageCompute);
+            foreach (GpuImage trace in images.Traces)
+                barriers.Image(trace, ImageUse.StorageCompute);
+            barriers.Image(images.Slow, ImageUse.StorageCompute);
+            if (!singleDiffuseHistory)
+                barriers.Image(images.LastFast(parity), ImageUse.StorageCompute);
+            // Discarded: the temporal dispatch writes every pixel of each.
+            if (!singleDiffuseHistory)
+                barriers.Image(images.Fast(parity), ImageUse.StorageCompute, discard: true);
+            if (reflectionDistanceHistory)
+            {
+                barriers.Image(images.ReflectionGuide, ImageUse.StorageCompute);
+                barriers.Image(images.ReflectionGuideScratch, ImageUse.StorageCompute, discard: true);
+            }
+            // After the last signal's spatial dispatch, which read it.
+            barriers.Image(scratched, ImageUse.StorageCompute, discard: true);
+            Dispatch(context: context, pipeline: temporal, set: sets[part, parity]);
+
             // The spatial dispatch reads the neighbors' results of the temporal one.
             barriers.Image(scratched, ImageUse.StorageCompute);
             if (!reflectionDistanceHistory && HistoryMode != SpecularHistoryMode.Original)
@@ -324,55 +342,9 @@ internal sealed unsafe class TemporalSignal : IDisposable
                 barriers.Image(images.ReflectionGuideScratch, ImageUse.StorageCompute);
                 barriers.Image(images.ReflectionGuide, ImageUse.StorageCompute, discard: true);
             }
-            return;
+            Dispatch(context: context, pipeline: spatial, set: sets[part, parity]);
         }
-
-        if (step == 0)
-        {
-            Contract.Requires(context.Targets == targets && FitsTargets());
-            barriers.Image(targets.Distance, ImageUse.SampledCompute);
-            barriers.Image(targets.Normal, ImageUse.SampledCompute);
-            barriers.Image(targets.Shading, ImageUse.SampledCompute);
-            barriers.Image(surfaces.Test, ImageUse.StorageCompute);
-            barriers.Image(targets.Motion, ImageUse.StorageCompute);
-
-            // The closed form's material, and the last frame's surfaces of the reflected point's surface test.
-            barriers.Image(targets.BaseColor, ImageUse.SampledCompute);
-            barriers.Image(targets.Specular, ImageUse.SampledCompute);
-            barriers.Image(targets.Emissive, ImageUse.SampledCompute);
-            barriers.Image(surfaces.Last(parity), ImageUse.SampledCompute);
-            barriers.Image(surfaces.LastDepth(parity), ImageUse.SampledCompute);
-            barriers.Buffer(context.Exposure.Buffer, BufferUse.ShaderRead);
-        }
-        if (!reflectionDistanceHistory && HistoryMode != SpecularHistoryMode.Original)
-            barriers.Image(scratch.Part(part), ImageUse.StorageCompute);
-        barriers.Image(images.Sample, ImageUse.StorageCompute);
-        foreach (GpuImage age in images.Ages)
-            barriers.Image(age, ImageUse.StorageCompute);
-        foreach (GpuImage trace in images.Traces)
-            barriers.Image(trace, ImageUse.StorageCompute);
-        barriers.Image(images.Slow, ImageUse.StorageCompute);
-        if (!singleDiffuseHistory)
-            barriers.Image(images.LastFast(parity), ImageUse.StorageCompute);
-        // Discarded: the temporal dispatch writes every pixel of each.
-        if (!singleDiffuseHistory)
-            barriers.Image(images.Fast(parity), ImageUse.StorageCompute, discard: true);
-        if (reflectionDistanceHistory)
-        {
-            barriers.Image(images.ReflectionGuide, ImageUse.StorageCompute);
-            barriers.Image(images.ReflectionGuideScratch, ImageUse.StorageCompute, discard: true);
-        }
-        // After the last signal's spatial dispatch, which read it.
-        barriers.Image(scratched, ImageUse.StorageCompute, discard: true);
     }
-
-    /// <summary>Records dispatch <paramref name="step"/> of <see cref="Steps"/>, after <see cref="QueueStep"/>.</summary>
-    public void DispatchStep(FrameContext context, int step) =>
-        Dispatch(
-            context: context,
-            pipeline: step % 2 == 0 ? temporal : spatial,
-            set: sets[step / 2, context.History.Parity]
-        );
 
     /// <summary>
     /// Recreates the images at the size of the targets that the signal binds, and rewrites every set. The device must be
@@ -622,34 +594,6 @@ internal sealed unsafe class TemporalSignal : IDisposable
 /// The accumulation of a signal as a pass of the frame graph, named "accumulate" and the signal's name: after its
 /// producer, whose samples it reads.
 /// </summary>
-/// <summary>
-/// The diffuse filter's dispatches with the specular signal's accumulation between them: each step queues the barriers of
-/// both, then records the filter's dispatch and the accumulation's, which no barrier separates, so that the GPU can run them
-/// side by side. The two read and write no image of each other (ARCHITECTURE.md, "The screen tracer").
-/// </summary>
-internal sealed class FilteredAccumulatePass(DiffuseFilter filter, TemporalSignal specular) : RenderPass
-{
-    public override string Name => "filter indirect diffuse and accumulate indirect specular";
-
-    public override void Record(FrameContext context)
-    {
-        int steps = Math.Max(DiffuseFilter.Steps, specular.Steps);
-        for (int step = 0; step < steps; step++)
-        {
-            bool filters = step < DiffuseFilter.Steps,
-                accumulates = step < specular.Steps;
-            if (filters)
-                filter.QueueStep(context, step);
-            if (accumulates)
-                specular.QueueStep(context, step);
-            if (filters)
-                filter.DispatchStep(context, step);
-            if (accumulates)
-                specular.DispatchStep(context, step);
-        }
-    }
-}
-
 internal sealed class AccumulatePass(TemporalSignal signal) : RenderPass
 {
     // Made once, because the timer reads the name in every frame, which allocates nothing.

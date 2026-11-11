@@ -13,7 +13,6 @@
 layout(set = 3, binding = 0, rgba16f) uniform readonly image2D filterInput;    // rgb the light, a the deviation
 layout(set = 3, binding = 1, rgba16f) uniform writeonly image2D filterOutput;
 layout(set = 3, binding = 2, rgba16f) uniform image2D slowHistory;             // rgb the light, a the length
-layout(set = 3, binding = 4, rgba32f) uniform readonly image2D filterGuide;    // guideAt of each pixel
 
 void main()
 {
@@ -21,29 +20,24 @@ void main()
     if (!insideFilter(pixel))
         return;
     vec4 centerLight = imageLoad(filterInput, pixel);
-    vec4 centerGuide = imageLoad(filterGuide, pixel);
-    if (centerGuide.w <= 0.0)
+    if (!filteredAt(pixel))
     {
         imageStore(filterOutput, pixel, centerLight);
         return;
     }
 
-    FilterTap center = filterTapAt(pixel, centerGuide, centerLight);
+    FilterTap center = filterTapAt(pixel, centerLight);
     vec3 moved = vec3(0.0);
     float kept = 1.0;
     float varianceSum = 0.0;
     for (int y = -2; y <= 2; y++)
         for (int x = -2; x <= 2; x++)
         {
-            // A tap outside the images or on a pixel that the filter does not take moves nothing.
-            ivec2 neighbor = pixel + parameters.step * ivec2(x, y);
-            if (x == 0 && y == 0 || !insideFilter(neighbor))
-                continue;
-            vec4 guide = imageLoad(filterGuide, neighbor);
-            if (guide.w <= 0.0)
+            ivec2 neighbor = tapPixel(pixel, x, y);
+            if (neighbor.x < 0 || x == 0 && y == 0)
                 continue;
             vec4 light = imageLoad(filterInput, neighbor);
-            float share = tapWeight(center, filterTapAt(neighbor, guide, light), x, y);
+            float share = tapWeight(center, filterTapAt(neighbor, light), x, y);
             moved += share * (light.rgb - centerLight.rgb);
             kept -= share;
             varianceSum += share * share * light.a * light.a;

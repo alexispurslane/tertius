@@ -1,7 +1,6 @@
 #version 460
 // The variance dispatch of the diffuse filter (diffuse_filter.glsl): one invocation per pixel writes the slow history's
-// light and the standard deviation of the luminance of the pixel's samples, the input of the first wavelet dispatch, and
-// the pixel's guide, which every wavelet dispatch's taps read. A
+// light and the standard deviation of the luminance of the pixel's samples, the input of the first wavelet dispatch. A
 // history of at least YoungFrames frames takes the deviation that the temporal dispatch keeps in the fast history's alpha.
 // A younger one estimates it from the fast histories of the same surface around it, raised by YoungFrames over its length,
 // as the paper does, because a few samples give no temporal estimate.
@@ -11,7 +10,6 @@
 layout(set = 3, binding = 1, rgba16f) uniform writeonly image2D filterOutput;  // rgb the light, a the deviation
 layout(set = 3, binding = 2, rgba16f) uniform readonly image2D slowHistory;    // rgb the light, a the length
 layout(set = 3, binding = 3, rgba16f) uniform readonly image2D fastHistory;    // this frame's: a the deviation
-layout(set = 3, binding = 4, rgba32f) uniform writeonly image2D filterGuide;   // guideAt of each pixel
 
 // The length below which a history estimates its deviation from its neighbors: the paper's four frames.
 const float YoungFrames = 4.0;
@@ -50,9 +48,7 @@ void main()
     if (!insideFilter(pixel))
         return;
     vec4 slow = imageLoad(slowHistory, pixel);
-    vec4 guide = guideAt(pixel);
-    imageStore(filterGuide, pixel, guide);
-    if (guide.w <= 0.0)
+    if (!filteredAt(pixel))
     {
         imageStore(filterOutput, pixel, vec4(slow.rgb, 0.0));
         return;
