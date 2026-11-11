@@ -1,6 +1,6 @@
 ---
 id: te-vnjc
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-11-11T20:31:56Z
