@@ -1,11 +1,11 @@
 ---
 id: ter-hek6
 status: open
-deps: []
+deps: [ter-hxhl]
 links: [ter-gi1v]
 created: 2026-11-11T18:40:24Z
 type: task
-priority: 2
+priority: 4
 assignee: Alexis Purslane
 parent: ter-8hyd
 ---
@@ -27,3 +27,9 @@ Points to settle when it is built:
 
 On the deck, the reflection rays cost about half of their 2.65 ms. The rough reflection noise on the plate and in reflections-low rises by no more than the square root of 2, with no regular pattern in a still under FSR. Alexis accepts the trade in the heavy-view decision.
 
+
+## Notes
+
+**2026-11-11T18:45:51Z**
+
+Alexis, 2026-11-11: do not cut reflection rays until the other frame-time cuts land: the frame-time cuts (t6-h5e3), the thinner filter (ter-hxhl) and the light budget per tile (ter-69s8). Reflection rays matter for the look and take only 2.65 of the deck's about 24 ms. Revisit this ticket only if the heavy views still miss after those cuts.
