@@ -95,12 +95,13 @@ diff --git a/src/Tertius.Rendering/ShaderConstants.cs b/src/Tertius.Rendering/Sh
 index deae64b..1975791 100644
 --- a/src/Tertius.Rendering/ShaderConstants.cs
 +++ b/src/Tertius.Rendering/ShaderConstants.cs
-@@ -113,6 +113,8 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
+@@ -113,7 +113,9 @@ internal readonly record struct ShaderConstants(bool EnvironmentMap)
              (MainViewId, VkBool(values.MainView)),
              (NeighborLimitPrototypeId, VkBool(values.NeighborLimitPrototype)),
              (ReflectionSharingPrototypeId, VkBool(values.ReflectionSharingPrototype)),
+             (TileCornerMeansId, VkBool(values.TileCornerMeans)),
 +            // PROBE (tools/renderer-survey): probeSignal of composite_pass.glsl.
-+            (11u, uint.TryParse(Environment.GetEnvironmentVariable("TERTIUS_PROBE_SIGNAL"), out uint probeSignal) ? probeSignal : 0u),
++            (12u, uint.TryParse(Environment.GetEnvironmentVariable("TERTIUS_PROBE_SIGNAL"), out uint probeSignal) ? probeSignal : 0u),
          ];
          for (int i = 0; i < rows.Length; i++)
          {
@@ -108,8 +109,8 @@ index deae64b..1975791 100644
      /// The number of constants: one per field of <see cref="ShaderConstants"/>, the subsurface setting's being its taps per
      /// side. <see cref="ShaderConstants.Specialization"/> writes one row per constant, and a row past this count throws.
      /// </summary>
--    public const int Count = 10;
-+    public const int Count = 11;
+-    public const int Count = 11;
++    public const int Count = 12;
  
      public SpecializationValues Data;
      public SpecializationEntries Entries;
@@ -125,7 +126,7 @@ index 7251102..56c2a9e 100644
 +// PROBE (tools/renderer-survey): TERTIUS_PROBE_SIGNAL shows one light signal alone. 0 all, 1 the direct light with the
 +// emission, the sky and an impostor's baked light, 2 the bounce light (indirect diffuse), 3 the reflections (indirect
 +// specular).
-+layout(constant_id = 11) const int probeSignal = 0;
++layout(constant_id = 12) const int probeSignal = 0;
  #ifdef SCATTER_OUTPUT
  // The diffuse image: the pass writes every one of its pixels.
  layout(location = 1) out vec4 outDiffuse;
