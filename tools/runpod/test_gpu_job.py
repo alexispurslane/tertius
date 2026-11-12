@@ -57,7 +57,11 @@ class FakeRunpod:
     def billed_today(self):
         return self.today
 
+    submit_error = None
+
     def submit(self, endpoint, body):
+        if self.submit_error:
+            raise self.submit_error
         self.submitted.append((endpoint, body))
         return f"job-{len(self.submitted)}"
 
@@ -243,6 +247,27 @@ class AuditLog(Queue):
         self.assertEqual(len(unsent), 1)
         self.assertAlmostEqual(unsent[0]["costUsd"], self.worst(840))
 
+    def test_a_cancelled_job_costs_its_worst_case_because_the_cancel_does_not_stop_its_commands(self):
+        api = FakeRunpod(final={"status": "CANCELLED", "executionTime": 10_000})
+        self.submit(api)
+        line, = self.log_lines()
+        self.assertAlmostEqual(line["costUsd"], line["worstCaseUsd"])
+
+    def test_a_job_that_runpod_rejects_costs_nothing_and_leaves_nothing_in_flight(self):
+        api = FakeRunpod()
+        api.submit_error = urllib.error.HTTPError("url", 409, "Conflict", {}, None)
+        with self.assertRaises(urllib.error.HTTPError):
+            self.submit(api)
+        self.assertEqual(gpu_job.in_flight(self.state), [])
+        line, = self.log_lines()
+        self.assertEqual((line["result"], line["costUsd"]), ("rejected", 0.0))
+
+    def test_a_job_in_flight_with_an_id_is_settled_at_its_worst_case_when_it_expires(self):
+        self.pending("stuck", job="job-stuck", when=NOW - datetime.timedelta(hours=4), expires=3600)
+        self.submit(FakeRunpod(statuses={"job-stuck": {"status": "IN_QUEUE"}}))
+        stuck, = [line for line in self.log_lines() if line.get("jobId") == "job-stuck"]
+        self.assertAlmostEqual(stuck["costUsd"], self.worst(840))
+
     def test_a_cancelled_job_without_an_execution_time_costs_its_worst_case(self):
         api = FakeRunpod(final={"status": "CANCELLED"})
         self.assertEqual(self.submit(api), "CANCELLED")
@@ -299,10 +324,23 @@ class Endpoint(unittest.TestCase):
                                        ("ep1", {"workers": {"max": 0}}), ("ep1", {"workers": {"max": 6}})],
                          "a worker of the old image would refuse every job, so all workers stop and start again")
 
+    def test_an_interrupted_image_change_still_allows_six_workers_again(self):
+        api = FakeRunpod()
+
+        def interrupted(endpoint):
+            raise KeyboardInterrupt
+        api.workers = interrupted
+        with tempfile.TemporaryDirectory() as state, self.assertRaises(KeyboardInterrupt):
+            gpu_job.use_image(self.config, api, "b" * 40, state=Path(state), pullable=lambda image: True,
+                              poll_seconds=0)
+        self.assertEqual(api.updated[-1], ("ep1", {"workers": {"max": 6}}))
+
     def test_an_image_change_waits_until_no_job_is_in_flight(self):
         api = FakeRunpod()
         with tempfile.TemporaryDirectory() as state:
-            gpu_job.write_pending(Path(state), "running", {"jobId": "job-1", "worstCaseUsd": 0.1})
+            gpu_job.write_pending(Path(state), "running", {"jobId": "job-1", "worstCaseUsd": 0.1, "endpoint": "ep1",
+                                                           "expires": "2999-01-01T00:00:00+00:00"})
+            api.statuses["job-1"] = {"status": "IN_PROGRESS"}
             with self.assertRaises(gpu_job.NoBase):
                 gpu_job.use_image(self.config, api, "b" * 40, state=Path(state), pullable=lambda image: True,
                                   poll_seconds=0)

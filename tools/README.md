@@ -141,7 +141,7 @@ python3 -I tools/runpod/gpu_job.py submit --agent <your name> \
 - Each `--tree NAME=REF` becomes the folder `NAME` in the job's work folder. It holds the baked commit's files plus the diff from the baked commit to `REF`. Commit your change first, because the diff comes from commits. The commit need not be pushed.
 - Each `--run` command runs in the work folder, in the dev shell, offline. The first command that fails ends the job.
 - `--timeout` gives the seconds of all commands together, a positive number. It is at most `job_seconds` of the configuration, 840 s. The handler stops the commands at that limit and still sends back the log and the files.
-- Run the script in the background, because a job can wait minutes for a worker. If the script gets Ctrl-C, SIGTERM or SIGHUP, it cancels the job and waits for its final status. A cancel does not stop a command that already runs: on 2026-11-12 a job of `sleep 200`, cancelled after about 30 s, billed 181 s. The job's own `--timeout` is what bounds it, so keep that limit close to the real need.
+- Run the script in the background, because a job can wait minutes for a worker. If the script gets Ctrl-C, SIGTERM or SIGHUP, it cancels the job and waits for its final status. A cancel does not stop a command that already runs: on 2026-11-12 a job of `sleep 200`, cancelled after about 30 s, reported 181 s of execution time. The job's own `--timeout` is what bounds it, so the log counts a cancelled job at its worst case. Keep that limit close to the real need.
 - `<folder>` gets the files of the `--output` globs and `result.json`. That file holds each command's exit code and time, the end of the log, and the files that passed the size limit of 8 MB.
 
 The script exits with 0 if every command succeeded. A job runs on the commit that the endpoint's image baked. The image's tag is that commit, and the script reads it from the endpoint before each job. If main moves far from it, point the endpoint at a newer image ("Make the image and the endpoint"), because each job then sends a large diff and compiles more.
@@ -166,7 +166,7 @@ The state folder `~/.local/state/tertius/gpu-jobs/` holds two stores:
 - `pending/` holds one file per job in flight, with its worst case and, after Runpod accepts the job, its id.
 - `jobs.jsonl` holds one JSON line per settled job, a refusal too. The line holds the time, the agent, the trees with their refs and commits, the commands, the job's id, the GPU seconds, the cost, the result and the exit codes.
 
-When a job ends, the script moves it from `pending/` to the log in one step under the lock. If the script stops first, for example from a lost network or a kill, the job stays in `pending/` and counts at its worst case. The next run of the script asks Runpod for that job's final status and settles it. A job that Runpod no longer knows costs its worst case. A job without an id counts until its queue time and its timeout pass, and then the log records it as `lost` at its worst case.
+When a job ends, the script moves it from `pending/` to the log in one step under the lock. If the script stops first, for example from a lost network or a kill, the job stays in `pending/` and counts at its worst case. The next run of the script asks Runpod for that job's final status and settles it. A job that Runpod no longer knows costs its worst case. A job counts until its queue time and its timeout pass. If Runpod reports no end by then, the log records it as `lost` at its worst case. If `/run` answers with an HTTP error, Runpod made no job, and the log records it as `rejected` at no cost.
 
 ### Make the image and the endpoint
 
@@ -212,7 +212,7 @@ The deck of the Mac trace (`/private/tmp/tertius-sweep-20261111/trace/deck-maind
 ### Rules for a job's commands
 
 - A command runs as `bash -c '<command>'` inside the dev shell. Its text is in that shell's command line. So `pkill -f <pattern>` with a pattern from the command stops the command itself.
-- A process that a command starts in the background, such as a clock log, stops when the command ends. Start and use it in the same command.
+- A process that a command starts in the background, such as a clock log, stops when the command ends. Start and use it in the same command. This also stops dotnet's build servers, so join two builds into one command with `&&` to keep the compiler warm.
 - The commands see none of the worker's `RUNPOD_*` variables.
 - If a command fails, the Runpod SDK marks the whole job FAILED. The audit log and `result.json` keep the handler's own result (`failed`, `timed out` or `refused`), and `result.json` keeps Runpod's status as `runpodStatus`.
 - The worker's image has no `bc`. Use `date +%s%N` and shell arithmetic for a time.

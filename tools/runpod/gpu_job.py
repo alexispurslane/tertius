@@ -169,18 +169,23 @@ def public_image(image: str) -> bool:
 def use_image(config: Config, api, commit: str, *, state: Path, pullable=public_image, poll_seconds: float = 10.0):
     """Point the endpoint at the image of `commit`, then stop all its workers and allow them again. Runpod replaces a
     worker of the old image only over time, and until then that worker takes jobs and refuses each one, because its
-    baked commit differs. The stop would end a running job too, so the change waits for an empty pending/."""
+    baked commit differs. The stop would end a running job too, so the change needs an empty pending/, and it holds
+    the lock, so no job starts during it. The maximum comes back from endpoint_request, its one store."""
     image = f"{config.image_repository}:{commit}"
     if not COMMIT.match(commit) or not pullable(image):
         raise NoBase(f"{image} is not a public image; the workflow gpu-image builds it (tools/README.md)")
-    if in_flight(state):
-        raise NoBase("jobs are in flight; change the image when they have ended")
-    most = api.endpoint(config.endpoint)["workers"]["max"]
-    api.update_endpoint(config.endpoint, {"image": image})
-    api.update_endpoint(config.endpoint, {"workers": {"max": 0}})
-    while api.workers(config.endpoint):
-        time.sleep(poll_seconds)
-    api.update_endpoint(config.endpoint, {"workers": {"max": most}})
+    with locked(state):
+        settle_lost(config, state, api, datetime.datetime.now(datetime.timezone.utc))
+        if in_flight(state):
+            raise NoBase("jobs are in flight; change the image when they have ended")
+        api.update_endpoint(config.endpoint, {"image": image})
+        api.update_endpoint(config.endpoint, {"workers": {"max": 0}})
+        try:
+            while api.workers(config.endpoint):
+                time.sleep(poll_seconds)
+        finally:
+            most = endpoint_request(config, commit)["workers"]["max"]
+            api.update_endpoint(config.endpoint, {"workers": {"max": most}})
 
 
 def execution_seconds(config: Config, seconds: int) -> int:
@@ -230,7 +235,10 @@ def append_log(state: Path, line: dict):
 def write_pending(state: Path, name: str, line: dict):
     folder = state / "pending"
     folder.mkdir(parents=True, exist_ok=True)
-    (folder / f"{name}.json").write_text(json.dumps({**line, "name": name}))
+    # A temporary file and a rename, so that a signal during the write cannot leave half a file.
+    temporary = folder / f".{name}.tmp"
+    temporary.write_text(json.dumps({**line, "name": name}))
+    os.replace(temporary, folder / f"{name}.json")
 
 
 def in_flight(state: Path) -> list:
@@ -251,24 +259,27 @@ def settle(state: Path, pending: dict, ending: dict) -> bool:
 
 def ending(config: Config, worst: float, status: dict) -> dict:
     """The settled part of a job's line, from Runpod's final status. A status without an execution time, such as a
-    job cancelled in the queue or one whose result Runpod no longer keeps, costs its worst case."""
+    job whose result Runpod no longer keeps, costs its worst case. So does a cancelled job: Runpod's cancel does not
+    stop a running handler, which bills until the job's own limit."""
     output = status.get("output") if isinstance(status.get("output"), dict) else {}
     # The SDK marks a job FAILED when the handler's result names an error, such as a failed command, so the handler's
     # own status wins whenever the job returned one.
     result = output.get("status") or ("failed" if status["status"] == "COMPLETED" else status["status"])
     gpu_seconds = status.get("executionTime", 0) / 1000
+    measured = "executionTime" in status and status["status"] != "CANCELLED"
     return {"jobId": status.get("id"), "gpuSeconds": gpu_seconds, "delaySeconds": status.get("delayTime", 0) / 1000,
-            "costUsd": cost_usd(config, gpu_seconds) if "executionTime" in status else worst, "result": result,
+            "costUsd": cost_usd(config, gpu_seconds) if measured else worst, "result": result,
             "exitCodes": [step["exitCode"] for step in output.get("steps", [])],
             "error": output.get("error") or status.get("error")}
 
 
 def settle_lost(config: Config, state: Path, api, now: datetime.datetime):
-    """Under the lock: settle each job in flight that ended while no run waited for it. A job without an id past its
-    expiry may have run, so it costs its worst case. A job that Runpod no longer knows costs its worst case too."""
+    """Under the lock: settle each job in flight that ended while no run waited for it. A job past its expiry whose
+    end Runpod does not report may have run, so it costs its worst case. So does a job that Runpod no longer knows."""
     for pending in in_flight(state):
+        expired = datetime.datetime.fromisoformat(pending["expires"]) <= now
         if pending.get("jobId") is None:
-            if datetime.datetime.fromisoformat(pending["expires"]) <= now:
+            if expired:
                 settle(state, pending, {"gpuSeconds": None, "costUsd": pending["worstCaseUsd"], "result": "lost"})
             continue
         try:
@@ -279,6 +290,9 @@ def settle_lost(config: Config, state: Path, api, now: datetime.datetime):
             status = {"id": pending["jobId"], "status": "UNKNOWN"}
         if status["status"] in FINAL | {"UNKNOWN"}:
             settle(state, pending, ending(config, pending["worstCaseUsd"], status))
+        elif expired:
+            # Past its queue time and its timeout, Runpod ran it or dropped it; its status no longer tells which.
+            settle(state, pending, {"gpuSeconds": None, "costUsd": pending["worstCaseUsd"], "result": "lost"})
 
 
 def refusal(config: Config, state: Path, api, worst: float, now: datetime.datetime) -> str | None:
@@ -344,7 +358,14 @@ def submit(request: Request, *, config: Config, api, state: Path, repo: Path, no
     body = {"input": {"base": base, "trees": trees, "commands": request.commands, "outputs": request.outputs,
                       "seconds": seconds},
             "policy": {"executionTimeout": execution * 1000, "ttl": QUEUE_SECONDS * 1000}}
-    pending["jobId"] = api.submit(config.endpoint, body)
+    try:
+        pending["jobId"] = api.submit(config.endpoint, body)
+    except urllib.error.HTTPError as error:
+        # Runpod answered and made no job, so it bills nothing. A timeout or a lost connection stays ambiguous.
+        with locked(state):
+            settle(state, pending, {"gpuSeconds": 0.0, "costUsd": 0.0, "result": "rejected",
+                                    "error": f"/run answered {error.code} {error.reason}"})
+        raise
     with locked(state):
         write_pending(state, pending["name"], pending)
     out(f"job {pending['jobId']} sent to endpoint {config.endpoint}; worst case ${worst:.2f}")
