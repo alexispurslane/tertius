@@ -108,10 +108,10 @@ public sealed class Fsr3HostTests
         MaxPerStageDescriptorSampledImages = 16,
     };
 
-    // The limits of a device that has room for every pass of FSR.
+    // The limits of a device that has room for every pass of FSR and for its clear step.
     private static readonly PhysicalDeviceLimits RoomyLimits = LeastLimits with
     {
-        MaxPerStageDescriptorStorageImages = 7,
+        MaxPerStageDescriptorStorageImages = 15,
     };
 
     // The constants that AMD's host computes with its math library's tangent, cosine and sine.
@@ -260,7 +260,7 @@ public sealed class Fsr3HostTests
     }
 
     [Fact]
-    public void EveryFrameClearsAmdsImagesWithAmdsValuesInAmdsOrder()
+    public void EveryClearOfAmdsOnAnImageThatTheClearStepDoesNotZeroIsATransferClearWithAmdsValueInAmdsOrder()
     {
         // AMD's discard jobs do nothing in its Vulkan backend (ffx_vk.cpp, executeGpuJobs), so the host records none.
         foreach (Fsr3Golden.Sequence sequence in Fsr3Golden.Values.Sequences)
@@ -268,22 +268,66 @@ public sealed class Fsr3HostTests
             for (int index = 0; index < sequence.Frames.Length; index++)
             {
                 Fsr3Golden.Frame golden = sequence.Frames[index];
-                IEnumerable<(string Target, Vector4 Color)> amds = golden
-                    .Jobs.Where(job => job.Kind == "clear")
-                    .Select(job =>
-                        (
-                            Target: job.Target!,
-                            Color: new Vector4(x: job.Color![0], y: job.Color[1], z: job.Color[2], w: job.Color[3])
-                        )
-                    );
+                IEnumerable<(string Target, Vector4 Color)> amds = AmdsClears(golden)
+                    .Where(clear => !ZeroedNames.Contains(clear.Target));
 
                 Fsr3Upscaler
                     .Clears(firstExecution: index == 0, reset: golden.Reset, odd: index % 2 == 1)
                     .Select(clear => (Target: $"FSR3UPSCALER_{clear.Target}", clear.Color))
                     .Should()
-                    .Equal(amds, $"AMD's clears of frame {index} of {sequence.Name}");
+                    .Equal(amds, $"AMD's transfer clears of frame {index} of {sequence.Name}");
             }
         }
+    }
+
+    [Fact]
+    public void EveryFrameOfAmdsWritesZerosIntoEachImageThatTheClearStepZeroesAndNoOtherValue()
+    {
+        foreach (Fsr3Golden.Sequence sequence in Fsr3Golden.Values.Sequences)
+        {
+            for (int index = 0; index < sequence.Frames.Length; index++)
+            {
+                (string Target, Vector4 Color)[] zeroed =
+                [
+                    .. AmdsClears(sequence.Frames[index]).Where(clear => ZeroedNames.Contains(clear.Target)),
+                ];
+
+                // A reset frame clears the luminance pyramid twice.
+                zeroed
+                    .Select(clear => clear.Target)
+                    .Distinct()
+                    .Should()
+                    .BeEquivalentTo(ZeroedNames, $"AMD clears each of them in frame {index} of {sequence.Name}");
+                zeroed
+                    .Select(clear => clear.Color)
+                    .Should()
+                    .AllSatisfy(color => color.Should().Be(Vector4.Zero, "the clear step writes zeros only"));
+            }
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void AFrameAfterTheFirstWithoutAResetClearsNoImageWithATransfer(bool odd) =>
+        // Each transfer clear is a render pass of its own under MoltenVK, so a steady frame clears in the clear step only.
+        Fsr3Upscaler.Clears(firstExecution: false, reset: false, odd: odd).Should().BeEmpty();
+
+    [Fact]
+    public void TheClearStepBindsAStorageImageAtEachBindingThatItsCompiledModuleDeclares()
+    {
+        // glslc's optimizer strips the names, so the GPU test of the clear step pins which image each binding holds.
+        byte[] spirv = ShaderLibrary.LoadSpirv(ShaderLibrary.EngineShaders, Fsr3Upscaler.ClearStepShader);
+
+        Fsr3Bindings
+            .ClearStep.Should()
+            .AllSatisfy(binding => binding.Type.Should().Be(DescriptorType.StorageImage))
+            .And.Subject.Select(binding => binding.Binding)
+            .Should()
+            .BeEquivalentTo(
+                Spirv.BindingNumbers(spirv),
+                "the bindings that glslc kept in the module of the clear step"
+            );
     }
 
     [Fact]
@@ -320,10 +364,12 @@ public sealed class Fsr3HostTests
             Fsr3Slot.SpdMip3,
             Fsr3Slot.SpdMip4,
             Fsr3Slot.SpdMip5,
+            Fsr3Slot.SpdMip6,
+            Fsr3Slot.SpdMip12,
             Fsr3Slot.SpdAtomic,
         ];
 
-        slots.Select(Fsr3Bindings.SpdLevel).Should().Equal(null, 0u, 1u, 2u, 3u, 4u, 5u, null);
+        slots.Select(Fsr3Bindings.SpdLevel).Should().Equal(null, 0u, 1u, 2u, 3u, 4u, 5u, 6u, 12u, null);
     }
 
     [Fact]
@@ -345,7 +391,16 @@ public sealed class Fsr3HostTests
     }
 
     [Fact]
-    public void ADeviceWhoseComputeStageSeesSevenStorageImagesAndTheSpecsLeastOfTheOthersCanRunEveryPass()
+    public void ADeviceWhoseComputeStageSeesFewerStorageImagesThanTheClearStepBindsIsRefused()
+    {
+        // The clear step binds the reconstructed depth, the atomic counter and 13 levels of the luminance pyramid.
+        Action check = () => CheckLimits(RoomyLimits with { MaxPerStageDescriptorStorageImages = 14 });
+
+        check.Should().Throw<NotSupportedException>().WithMessage("*15 storage images*");
+    }
+
+    [Fact]
+    public void ADeviceWhoseComputeStageSeesFifteenStorageImagesAndTheSpecsLeastOfTheOthersCanRunEveryPass()
     {
         Action check = () => CheckLimits(RoomyLimits);
 
@@ -409,6 +464,29 @@ public sealed class Fsr3HostTests
         check.Should().Throw<ArgumentOutOfRangeException>();
     }
 
+    [Theory]
+    [InlineData(16384u, false)]
+    [InlineData(16383u, true)]
+    public void ALargestRenderSizeIsRefusedWhenItsLuminancePyramidHasMoreLevelsThanTheClearStepBinds(
+        uint width,
+        bool accepted
+    )
+    {
+        // A longer side of 16,384 pixels gives the pyramid at half of it 14 levels, one more than the clear step's 13.
+        Action check = () =>
+            Fsr3Upscaler.CheckArguments(
+                limits: RoomyLimits,
+                maxRenderSize: new(width, 48),
+                outputSize: new(96, 72),
+                framesInFlight: 2
+            );
+
+        if (accepted)
+            check.Should().NotThrow();
+        else
+            check.Should().Throw<ArgumentOutOfRangeException>().WithMessage("*14 levels*");
+    }
+
     [Fact]
     public void ALargestRenderSizeOneOfWhoseSidesIsOnePixelIsRefused()
     {
@@ -448,6 +526,23 @@ public sealed class Fsr3HostTests
                 .Equal(golden, $"AMD's images of {sequence.Name}");
         }
     }
+
+    // AMD's names of the images that the clear step zeroes in every frame.
+    private static readonly string[] ZeroedNames =
+    [
+        .. Fsr3Upscaler.ZeroedEachFrame.Select(image => $"FSR3UPSCALER_{image}"),
+    ];
+
+    // AMD's clears of a frame, in AMD's order.
+    private static IEnumerable<(string Target, Vector4 Color)> AmdsClears(Fsr3Golden.Frame golden) =>
+        golden
+            .Jobs.Where(job => job.Kind == "clear")
+            .Select(job =>
+                (
+                    Target: job.Target!,
+                    Color: new Vector4(x: job.Color![0], y: job.Color[1], z: job.Color[2], w: job.Color[3])
+                )
+            );
 
     // The descriptor type of a variable of AMD's passes by its name's prefix (ffx_fsr3upscaler_callbacks_glsl.h): r_ for
     // a sampled image, rw_ for a storage image, cb for a constant buffer and s_ for a sampler.

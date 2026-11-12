@@ -2,7 +2,7 @@
 id: ter-2zga
 status: open
 deps: []
-links: []
+links: [te-r7nt]
 created: 2026-11-12T07:03:49Z
 type: task
 priority: 1
