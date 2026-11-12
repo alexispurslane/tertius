@@ -1054,7 +1054,7 @@ Every render runs at the budget's configuration: the Release demo, headless, wit
 
 ### The cases
 
-`tools/renderer-survey/cases.json` lists the cases, and the tool reads nothing else about them. A case names a frame of a script, counted from 0 over the script's captures and film frames, as `gpu-trace.py trim` counts them. A case can also name a scene, a camera and the ticks before the view, for a moment that no script captures, such as the station bay when the sunbeam crosses it. The file has six lists:
+`tools/renderer-survey/cases.json` lists the cases, and the tool reads nothing else about them. A case names a frame of a script, counted from 0 over the script's captures and film frames, as `gpu-trace.py trim` counts them. A case can also name a scene, a camera and the ticks before the view, for a moment that no script captures, such as the station bay when the sunbeam crosses it. The file has eight lists:
 
 | List | What each case gives | Build |
 |---|---|---|
@@ -1063,6 +1063,8 @@ Every render runs at the budget's configuration: the Release demo, headless, wit
 | `switches` | Lamps that switch off and on again | Probe |
 | `lags` | Lights that move, such as the bay's sun | Probe |
 | `walks` | A walk of the person, then a stop | Probe |
+| `stands` | A stand film: a view without a change, one light signal, against its own end level | Probe |
+| `climbs` | Continued stills of fixed states, one light signal, with the diffuse filter and without it | Probe |
 | `skip` | A script that the survey leaves out, with the reason | None |
 
 To add a scene, add a case to the file. A new script in `scripts/` needs at least one still case or a `skip` entry.
@@ -1082,7 +1084,7 @@ nix develop --command python3 -I tools/renderer-survey.py sheet /private/tmp/ter
 The commands do these things:
 
 1. `probe-build` builds the probe demo into `<out>/probe-bin`. It extracts `git archive HEAD` into a temporary folder, applies `tools/renderer-survey/probe.patch`, and builds without the analyzers. The probe never enters `src`. If the patch no longer applies to a later `HEAD`, update the patch.
-2. `run` builds the Release demo, renders each case, measures its images and deletes them. It keeps the shown still, the reference, and the first, middle and last frames of each film in `<out>/images`. It writes one result file per case into `<out>/results/<part>/<name>.json`. `--parts` selects the parts (default `timing,still,motion,switch,lag,walk`), and `--only` selects cases by name.
+2. `run` builds the Release demo, renders each case, measures its images and deletes them. It keeps the shown still, the reference, and the first, middle and last frames of each film in `<out>/images`. It writes one result file per case into `<out>/results/<part>/<name>.json`. `--parts` selects the parts (default `timing,still,motion,switch,lag,walk,stand,climb`), and `--only` selects cases by name.
 3. `trace` records a GPU trace without counters (`tools/gpu-trace.sh --no-counters`) of the timing film of each of the slowest views.
 4. `report` prints the tables with the verdicts, in Markdown.
 5. `sheet` writes `<out>/contact-sheet.png`, one labeled still of every view.
@@ -1117,7 +1119,36 @@ The probe parts use the probe demo with a fixed exposure (`--exposure`, 4.08 sto
 - A lag case renders a film of moving lights, and stills of 132 draws of the same states at its sample frames. The lag is the film's difference from the still divided by the film's change per draw, so it is in draws. It counts only regions whose light changes by more than 10 % in 60 draws.
 - A walk case stands for `stand` frames, walks the person forward for `walk` frames, stops, and then films `after` frames. A control run walks right after the case's head ticks without drawing, so the person stands where the walk ends, to about 1e-14 m. The control then draws through the same world ticks. The settle is the draws after the stop until every region stays within 5 % of the control's frame at the same tick. So a change of the world's light in the window counts in neither run. In the orbit cabin, the sunlit sill strips change the bounce light at world tick 303 (ticket ter-g3tk), inside the old window. The stand of 180 frames lets the control's own start after the load settle before the window. It also moves the window to ticks 361 to 560, after the tick-303 change. The control still counts, because a slow tail of that change, or a later change of the world's light, shows in both runs.
 
+- A stand case (part `stand`) is the stand film of ticket `ter-g3tk`: the cabin walk's view without the walk, as in `/private/tmp/g3tk/run_dgate.sh`. It shows one light signal alone, `signal`, with the probe's `TERTIUS_PROBE_SIGNAL`. It renders a still, then `film` frames one tick apart, then `end` stills right after the last frame, which continue the film's history. Film frame k shows world tick `ticks` + k + 1. A region's end level is the mean of the last half of the end stills. The result gives each region's excess over its end level for each window of 40 film draws: the window's mean light over the end level, less 1. It gives each region's settle against its end level, 5 %, from the film's first frame (`settleDraws`) and from the frame that shows world tick `settleTick` (`settleDrawsAfterTick`). It also keeps the region means of every frame (`film`). The verdict reads only the settle of the case's `region` after `settleTick`. `cabin-stand` films 600 frames of the bounce light from tick 61, and its verdict is acceptance 7 of `docs/plans/bounce-light-confidence.md`: r11, the centre cell, settles within 60 draws after tick 306. In the orbit cabin, the sun turns against the ship at ticks 300 to 306. Its sunlit sill strips are thinner than a render pixel, and the bounce light that they give falls by 35 to 40 %. Regions r10 and r12 wander by about 5 % with that sampling fault, so they do not decide the verdict.
+- A climb case (part `climb`) is the climb test of ticket `ter-g3tk`, the script `/private/tmp/g3tk/look/seeds.json`. For each world tick of `states`, it renders `stills` continued stills of 33 draws, `t<tick>-s00` and on, of one light signal alone. Each state's first still comes 6 or more ticks after the last drawn frame, so it starts a new history. The case renders twice, one run after the other: with the renderer's diffuse filter, and with `TERTIUS_DIFFUSE_FILTER=off` ("The diffuse filter's switch"). A region's plateau is the mean of its unfiltered stills from still 5 on, draw 198 to 396; the light without the filter reached its plateau by about draw 132 in take T2a of `t0-f7zv`. A region's peak share is its largest light over the filtered stills of a state, over its plateau, and its last share takes the last filtered still. The result keeps the region means of every still of both runs. A case can fix its own exposure with `exposure`, in place of `--exposure`. `cabin-climb` uses 3.15 stops, as the takes of `ter-g3tk` and T2a did, so its light compares with their notes. Its verdict is the target of acceptance 11: the band, r11, peaks at most 10 % above its plateau, at both ticks 300 and 306. The required check of acceptance 11 compares two builds: the candidate's peak share must not exceed the control's. Main's clamp loses part of the band's light, so a share and not the band's light compares two builds. The filter-off run also changes the light that the rays read at their hits. So the plateau is not the single-bounce reference of take T2b, which needs another probe patch.
+
 A light that is still outside the tolerance at the last frame of its window has no settle count. The result file then holds `null`, and the report prints "not settled within N draws", with N the window's length. Such a case fails. Before 2026-11-09, the tool gave the window's length as the count. So a value of 100 in the first survey means "not settled within 100 draws".
+
+### The stand and the climb on the GPU workbench
+
+The stand and the climb measure light, not time, so they run on the GPU workbench too (`tools/runpod/WORKBENCH.md`). Compare the numbers of two builds inside one job only, because determinism holds per computer. A job sends back at most 8 MB, so it sends back the result files only: the stand's result is about 150 KB, the climb's about 15 KB. The parts render one image at a time. Four 1920 × 1080 renders at once ran out of memory on the workbench's 16 GB card.
+
+The worker's tree is a partial clone without `docs/`, so `probe-build`, which archives `HEAD`, does not suit it. The job applies the probe patch to its throwaway tree in place, builds the probe into `out/probe-bin`, and runs the parts with `TERTIUS_SURVEY_HOLDS_LOCK=1`, because the worker has no GPU lock. Without `ioreg`, the GPU's busy share stays unknown, which the two parts do not read:
+
+```bash
+python3 -I tools/runpod/gpu_job.py submit --agent <your name> --tree t=HEAD \
+    --run 'set -o pipefail; cd t && patch -p1 --forward -i tools/renderer-survey/probe.patch && dotnet build src/Tertius.Demo -c Release -nologo -v:q -p:RunAnalyzers=false -p:TreatWarningsAsErrors=false -o ../out/probe-bin | tail -3' \
+    --run 'cd t && TERTIUS_SURVEY_HOLDS_LOCK=1 python3 -I tools/renderer-survey.py run ../out --parts stand,climb --no-build' \
+    --output 'out/results/*/*.json' --timeout 600 --out /tmp/<your name>/stand-climb
+nix develop --command python3 -I tools/renderer-survey.py report /tmp/<your name>/stand-climb/out
+```
+
+`set -o pipefail` makes a failed build end the job. Without it, the pipe through `tail` hides the failure, and the job renders with no probe. For a candidate and its control in one job, name two trees, give each its own output folder, such as `../out-main`, and run the parts once for each. With `--output` globs for both folders, the job sends back both.
+
+On the Mac, the two parts run as the other probe parts do, under the shared GPU lock:
+
+```bash
+nix develop --command python3 -I tools/renderer-survey.py probe-build /private/tmp/tertius-stand
+nix develop --command python3 -I tools/renderer-survey.py run /private/tmp/tertius-stand --parts stand,climb --no-build
+nix develop --command python3 -I tools/renderer-survey.py report /private/tmp/tertius-stand
+```
+
+The stand's 600 probe frames take about 3.5 GB until the tool measures them.
 
 ### The split by light signal
 
