@@ -37,6 +37,37 @@ changed = _load("changed", "stryker/changed.py")
 config = _load("config", "stryker/config.py")
 compare = _load("compare", "stryker/compare.py")
 run = _load("run", "stryker/run.py")
+cloud = _load("cloud", "stryker/cloud.py")
+
+
+class TheCloudRun(unittest.TestCase):
+    """tools/stryker/cloud.py runs one module per CPU worker and prints the table of changed.py over all of them."""
+
+    def result(self, module, problems=(), official=True):
+        return {"rows": [{"id": f"{module}-1", "result": "killed"}], "unmutated": [[f"src/{module}.cs", 3]],
+                "evidence": [f"{module}: evidence"], "problems": list(problems), "settings": "concurrency 1",
+                "official": official, "load": [1.0]}
+
+    def test_the_merged_run_keeps_every_modules_rows_in_the_order_of_the_official_run(self):
+        run = cloud.merged({"Physics": self.result("Physics"), "Core": self.result("Core")}, {})
+        self.assertEqual([row["id"] for row in run["rows"]], ["Core-1", "Physics-1"])
+        self.assertEqual(run["unmutated"], [("src/Core.cs", 3), ("src/Physics.cs", 3)])
+        self.assertEqual(run["problems"], [])
+
+    def test_a_module_whose_job_gave_no_results_makes_the_run_not_valid(self):
+        run = cloud.merged({"Core": self.result("Core")}, {"Simulation": "exit code 1"})
+        self.assertEqual(len(run["problems"]), 1)
+        self.assertIn("Simulation", run["problems"][0])
+
+    def test_one_modules_calibration_settings_make_the_whole_run_unofficial(self):
+        run = cloud.merged({"Core": self.result("Core"), "Physics": self.result("Physics", official=False)}, {})
+        self.assertFalse(run["official"])
+
+    def test_the_job_deepens_its_shallow_tree_and_runs_one_module_from_the_merge_base(self):
+        command = cloud.job_command("a" * 40, "Simulation", ["Program.cs"])
+        self.assertIn("--unshallow", command)
+        self.assertTrue(command.endswith(f"changed.py {'a' * 40} ../out/Simulation --modules Simulation "
+                                         "--exclude Program.cs"))
 
 
 class ReadingADiff(unittest.TestCase):
