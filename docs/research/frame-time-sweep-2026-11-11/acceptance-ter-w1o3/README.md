@@ -12,7 +12,7 @@ A reflection ray of the screen tracer walks the depth image in steps. The step c
 | Stills of the hair scenes, on the M1 Max | 15 captures: the mean changes by at most 0.231 %, and no fault shows |
 | A film with a moving camera, on the M1 Max | 180 frames: the mean of a frame changes by at most 0.017 % |
 | Stills on Linux, on the RTX 2000 Ada | 2 captures: the mean changes by at most 0.018 % |
-| The tests | Checked: 10,778 passed. Release: 10,765 passed. No test failed |
+| The tests after the merge of main | Checked: 10,780 passed. Release: 10,767 passed. No test failed |
 
 A level is one step of the 255 steps of an 8-bit color channel. The mean of a capture is the mean of its luminance in linear light.
 
@@ -130,7 +130,29 @@ hair-bent-cards        front                     +0.018     8.61    0.044    0.0
 
 Both stills show their lit scene. The scene `doorway` is the one that a cap of 64 breaks. Together with the timing job, this closes item 3 of the ticket.
 
+## After the merge of main
+
+During the build, main gained a change of the reflection resolve (ticket `ter-xo83`, commit `220e1b546`). The resolve is the pass that turns the rays' results into the reflected light of each pixel. The branch took main at `b1ce2701b` by a merge, commit `9e8256255`. Two more workbench jobs compared that main with the merged branch.
+
+| Check on the merged code | Result |
+|---|---|
+| GPU time of the deck's frame, five runs per tree | 8.865 ms to 8.652 ms: 0.213 ms less, 2.4 %, and every run differs |
+| The pass `reflection rays` | 0.895 ms to 0.680 ms |
+| 9 stills of `doorway`, `mirror-balls` and `hair-rugs` at 1280 × 720 | The mean changes by at most 0.116 % |
+| Every suite in Checked | 10,780 passed, 26 skipped, none failed (`tests/checked8.lock.log`) |
+| Every suite in Release | 10,767 passed, 26 skipped, none failed (`tests/release8.lock.log`) |
+
+The gain is the same as before the merge. The stills agree with the M1 Max results above (`workbench/stills2-capdiff.txt`):
+
+- The four captures of `doorway` change by 0.000 % in the mean, and by at most 7 levels at one pixel.
+- In `hair-rugs`, 0.993 % of the pixels of `low` change by more than 4 levels. The M1 Max gave 0.956 %.
+- The capture `plate` of `mirror-balls` changes by +0.116 % in the mean. The capture is nearly black. Only 0.01 % of its pixels change, by at most 14 levels.
+
+The byte comparison of the branch's build belongs to the code before this merge. After the merge, the resolve differs from the scratch binary's, so the frames differ too.
+
 ## The tests
+
+The first four items ran on the code before the merge of main. The table above holds the suite runs after it.
 
 - The test `TheRendererOptionsDefaultToTheDesignsTracerAndThirtyTwoWarmUpDraws` of `ScreenTraceSettingTests` names the new default. It failed first with "Expected options.ScreenTrace to be ... ReflectionSteps = 128 ..., but found ... ReflectionSteps = 256". It passed after the change.
 - The change adds no other test. `ScreenWalkBoundaryTests` and `ScreenRayTests` test the cap itself with explicit step counts. The default value is a measured trade, and the options test pins it.
@@ -155,6 +177,7 @@ All three mutants died, so a test runs the changed line and pins its value. No m
 |---|---|
 | `workbench/ab-report.txt`, `workbench/ab/` | The report of the timing job, its result and the timings of its ten runs |
 | `workbench/stills-result.json`, `workbench/stills-capdiff.txt` | The result of the stills job, with its log, and the comparison of its two pairs |
+| `workbench/ab2-report.txt`, `workbench/ab2/`, `workbench/stills2-*` | The timing job and the stills job on the code after the merge of main |
 | `take7.sh`, `take7.jobs`, `take7.lock.log`, `take7-idle.txt` | The timed take on the M1 Max and the table of its traces |
 | `stills-wide-w3a.jobs`, `stills-wide-w3b.jobs`, `stills-wide-w3id.jobs` | The job lists of the image tests, each with its lock log |
 | `hairscripts/`, `bigscripts/` | The demo scripts of the hair scenes and of the larger render sizes |

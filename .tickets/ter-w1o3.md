@@ -54,3 +54,14 @@ Mutants. The one changed code line is in Rendering, so the official Stryker run 
 | C03 | src/Tertius.Rendering/ScreenTraceSetting.cs:32 | the cap of 64 steps, which breaks the doorway floor | killed | ScreenTraceSettingTests.TheRendererOptionsDefaultToTheDesignsTracerAndThirtyTwoWarmUpDraws |
 
 3 rows: killed 3, timeout 0, survived 0, no-coverage 0, build-failed 0, no-tests 0, no-mutant 0, removed 0.
+
+**2026-11-12T15:57:59Z**
+
+The merge, 2026-11-12. During the build, main gained a change of the reflection resolve (ticket `ter-xo83`). The branch took main at b1ce2701b by a merge, commit 9e8256255. The checks ran again on that code:
+
+- A second workbench job, five runs per tree: 8.865 ms to 8.652 ms, 0.213 ms less (2.4 %), and every run differs.
+- Nine Linux stills of `doorway`, `mirror-balls` and `hair-rugs`: the mean changes by at most 0.116 %, in a nearly black capture.
+- Every suite in Checked: 10,780 passed, 0 failed, 26 skipped.
+- Every suite in Release: 10,767 passed, 0 failed, 26 skipped.
+
+Main then held more commits, which change the GPU job tools and no engine code. The four workbench jobs counted $0.20 in total. The acceptance record has the section "After the merge of main".
