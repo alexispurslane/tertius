@@ -85,7 +85,7 @@ RELATIVE_FLOOR = 0.01
 # most its share of the image.
 FLICKER_CAP = 0.5
 
-# A settle: the light stays within this share of its final value.
+# A settle: the light stays within this share of its control.
 SETTLE_TOLERANCE = 0.05
 # The goal of epic ter-8hyd: updates settle within about 60 draws.
 SETTLE_GOAL = 60
@@ -311,19 +311,49 @@ def lag_scripts(case: dict) -> tuple[dict, dict]:
     return film, stills
 
 
+# A walk case's settle compares the film after the stop with a control that stands where the walk ends, frame by frame
+# at the same world ticks, as a switch compares with its lamps-off control. So a change of the world's light in the
+# window, such as the orbit cabin's sunlit sill strips at tick 303 (ticket ter-g3tk), shows in both and does not count
+# as the walk's settle. The control walks right after the head ticks without drawing, which puts the person at the same
+# place to 1e-14 m, and then draws the walk's stand and window: the stand gives its own start after the load time to
+# settle.
+
+
+def walk_key(case: dict, kind: str) -> dict:
+    return {"do": "post", "to": {"kind": "topic", "name": "input"}, "event": "InputEvent",
+            "payload": {"kind": kind, "code": case["key"]}}
+
+
 def walk_script(case: dict) -> dict:
-    def key(kind):
-        return {"do": "post", "to": {"kind": "topic", "name": "input"}, "event": "InputEvent",
-                "payload": {"kind": kind, "code": case["key"]}}
     return scene_script(case["scene"], case["camera"], case["ticks"], [
         {"do": "capture", "name": "still"},
-        {"do": "film", "name": "f", "frames": 60, "every": 1},
-        key("keyDown"),
+        {"do": "film", "name": "f", "frames": case["stand"], "every": 1},
+        walk_key(case, "keyDown"),
         {"do": "film", "name": "g", "frames": case["walk"], "every": 1},
-        key("keyUp"),
+        walk_key(case, "keyUp"),
         {"do": "film", "name": "h", "frames": case["after"], "every": 1},
-        *captures("end", 5),
     ])
+
+
+def walk_control_script(case: dict) -> dict:
+    return scene_script(case["scene"], case["camera"], case["ticks"], [
+        walk_key(case, "keyDown"),
+        *run_step(case["walk"]),
+        walk_key(case, "keyUp"),
+        {"do": "capture", "name": "still"},
+        {"do": "film", "name": "c", "frames": case["stand"] + case["after"], "every": 1},
+    ])
+
+
+def walk_control_frame(case: dict, frame: int) -> int:
+    """The control's film frame at the world ticks of frame `frame` of the walk's film after the stop."""
+    return case["stand"] + frame
+
+
+def walk_settle(after: list, control: list) -> list:
+    """Each region's settle draws: the walk's frames after the stop against the control's frames at the same ticks."""
+    return [settle_draws([row[r] for row in after], [row[r] for row in control], 0, len(after))
+            for r in range(len(after[0]))]
 
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -905,18 +935,20 @@ def run_lag(out: Path, case: dict, args):
 
 def run_walk(out: Path, case: dict, args):
     binary = probe_binary(out)
-    work = out / "work" / "walk" / case["name"]
-    render(work, walk_script(case), binary=binary, env={"TERTIUS_PROBE_EXPOSURE": args.exposure, **STILL_CONTINUES},
-           extra=PROBE_OPTIONS)
+    work = out / "work" / "walk" / f"{case['name']}-walk"
+    env = {"TERTIUS_PROBE_EXPOSURE": args.exposure}
+    render(work, walk_script(case), binary=binary, env=env, extra=PROBE_OPTIONS)
     after = probe_series(work, "h-*.png")
-    final = region_means(probe_luminance(work / "end-s04.png"))
     during = probe_series(work, "g-*.png")
     shutil.rmtree(work)
-    draws = []
-    for r in range(len(final)):
-        draws.append(settle_draws([row[r] for row in after], [final[r]] * len(after), 0, len(after)))
+    work = out / "work" / "walk" / f"{case['name']}-control"
+    render(work, walk_control_script(case), binary=binary, env=env, extra=PROBE_OPTIONS)
+    film = probe_series(work, "c-*.png")
+    control = [film[walk_control_frame(case, k)] for k in range(len(after))]
+    shutil.rmtree(work)
+    draws = walk_settle(after, control)
     result = {"scene": case["scene"], "settleDraws": slowest_settle(draws), "settleDrawsWhole": draws[0],
-              "regionDraws": draws, "window": len(after), "after": after, "during": during, "final": final}
+              "regionDraws": draws, "window": len(after), "after": after, "during": during, "control": control}
     result["failed"] = settle_verdict(result["settleDraws"])
     save(out, "walk", case["name"], result)
     return result
