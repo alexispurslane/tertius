@@ -69,10 +69,9 @@ HANDLER = "tools/runpod/handler.py"
 # The paths whose files the image bakes into its dev shell. A commit that changes one of them needs another image.
 # The workflow gpu-image lists them too, to build an image when they change on main.
 SHELL_PATHS = handler.SHELL_PATHS
-# The script's endpoints: tertius-gpu-<12 characters of the image's commit>, one per image, and the first endpoint,
-# which has the bare name. The script deletes no other endpoint.
-ENDPOINT_PREFIX = "tertius-gpu"
-OURS = re.compile(rf"^{ENDPOINT_PREFIX}(-[0-9a-f]{{12}})?$")
+# The script's endpoints: tertius-<kind>-<12 characters of the image's commit>, one per kind and image, and the first
+# endpoint, which has the bare name tertius-gpu. The script deletes no other endpoint.
+OURS = re.compile(r"^tertius-(gpu|cpu)(-[0-9a-f]{12})?$")
 # The hidden refs that publish the jobs' commits: refs/gpu-jobs/<UTC day>/<agent>/<commit>. Not a branch or a tag, so
 # no clone fetches them. A ref goes after REF_DAYS days, long after its job's queue time and timeout.
 JOB_REFS = "refs/gpu-jobs"
@@ -81,14 +80,18 @@ JOB_REFS = "refs/gpu-jobs"
 MAIN = "refs/remotes/origin/main"
 REF_DAYS = 3
 COMMIT = re.compile(r"^[0-9a-f]{40}$")
-# The endpoint runs on the RTX 2000 Ada only, so that the timings of different jobs come from one kind of card. The
-# 16 GB pool also holds these three, and a card that Runpod adds to the pool later becomes eligible.
+# The machines of each kind. A GPU endpoint runs on the RTX 2000 Ada only, so that the timings of different jobs come
+# from one kind of card. The 16 GB pool also holds these three, and a card that Runpod adds to the pool later becomes
+# eligible. A CPU endpoint runs on compute-optimized workers of 2 vCPUs, for Stryker and the CPU-only test projects
+# (Alexis's decision of 2026-11-12, ticket t8-yd4j).
 POOL = "AMPERE_16"
 OTHER_CARDS = ["NVIDIA RTX A4000", "NVIDIA RTX A4500", "NVIDIA RTX 4000 Ada Generation"]
-# Each endpoint of an image runs at most this many workers at once.
-WORKERS = 6
+HARDWARE = {"gpu": {"gpu": {"pools": [POOL], "excludedTypes": OTHER_CARDS}},
+            "cpu": {"cpu": {"id": "cpu3c", "vcpuCount": 2}}}
 # Runpod's quota of the account: the maximums of all its endpoints together may not pass this (its error of
-# 2026-11-12). So a new endpoint beside an old one gets what the quota leaves, and its six once the old one goes.
+# 2026-11-12). The kinds' workers in endpoint.json leave headroom under it, so that a new endpoint of an image switch
+# fits beside a busy old one. A new endpoint gets what the quota leaves, at most its kind's workers, and the script
+# never lowers another endpoint to make room.
 WORKER_QUOTA = 10
 # Container disk in GB: the image's files, plus each tree's checkout with its build outputs.
 DISK_GB = 60
@@ -99,25 +102,35 @@ class Refused(Exception):
 
 
 @dataclass(frozen=True)
-class Config:
-    """image_repository: the images, each tagged with the commit that it baked. repository: the public repository that
-    the workers fetch the trees' commits from. rate_per_second: the price of a worker in USD per second. daily_cap_usd
-    and total_cap_usd: the caps, per UTC day and in total. job_seconds: the most time that the commands of one job get.
-    endpoint_timeout_seconds: the endpoint's execution timeout, the hard bound per job, at least job_seconds plus the
-    handler's margin. The live endpoint is not here: Runpod's list of endpoints is its one store, and the script finds
-    it by its image."""
+class Kind:
+    """The settings of one kind of worker. rate_per_second: the price of a worker in USD per second. workers: the
+    kind's share of the account's quota, the most workers that its endpoints run at once. job_seconds: the most time
+    that the commands of one job get. endpoint_timeout_seconds: the endpoint's execution timeout, the hard bound per
+    job, at least job_seconds plus the handler's margin."""
 
-    image_repository: str
-    repository: str
     rate_per_second: float
-    daily_cap_usd: float
-    total_cap_usd: float
+    workers: int
     job_seconds: int
     endpoint_timeout_seconds: int
 
+
+@dataclass(frozen=True)
+class Config:
+    """image_repository: the images, each tagged with the commit that it baked. repository: the public repository that
+    the workers fetch the trees' commits from. daily_cap_usd and total_cap_usd: the caps, per UTC day and in total, for
+    all kinds together. kinds: gpu and cpu, each a Kind. The live endpoints are not here: Runpod's list of endpoints is
+    their one store, and the script finds each by its name and image."""
+
+    image_repository: str
+    repository: str
+    daily_cap_usd: float
+    total_cap_usd: float
+    kinds: dict
+
     @staticmethod
     def load(path: Path = CONFIG_FILE) -> "Config":
-        return Config(**json.loads(path.read_text()))
+        fields = json.loads(path.read_text())
+        return Config(**{**fields, "kinds": {name: Kind(**kind) for name, kind in fields["kinds"].items()}})
 
 
 @dataclass
@@ -128,6 +141,7 @@ class Request:
     outputs: list
     seconds: int
     out: Path
+    kind: str = "gpu"
 
 
 class RunpodApi:
@@ -164,7 +178,15 @@ class RunpodApi:
         self.call("POST", f"{JOB_API}/{endpoint}/cancel/{job}")
 
     def endpoints(self) -> list:
-        return self.call("GET", f"{ACCOUNT_API}/serverless")["endpoints"]
+        """Every endpoint of the account: the list comes in pages."""
+        found, url = [], f"{ACCOUNT_API}/serverless"
+        while url:
+            reply = self.call("GET", url)
+            found += reply["endpoints"]
+            cursor = (reply.get("pagination") or {}).get("nextCursor")
+            url = f"{ACCOUNT_API}/serverless?cursor={cursor}" if (reply.get("pagination") or {}).get("hasNextPage") \
+                and cursor else None
+        return found
 
     def create_endpoint(self, body: dict) -> dict:
         return self.call("POST", f"{ACCOUNT_API}/serverless", body)
@@ -310,93 +332,101 @@ def ours(api) -> list:
     return [endpoint for endpoint in api.endpoints() if OURS.match(endpoint.get("name", ""))]
 
 
+def kind_of(endpoint: dict) -> str:
+    return OURS.match(endpoint["name"]).group(1)
+
+
 def refuse_if_stopped(endpoints: list):
-    """Refuse while the watchdog or the orchestrator holds an endpoint at 0 workers."""
+    """Refuse while the watchdog or the orchestrator holds an endpoint of the script's at 0 workers, of either kind."""
     ids = [endpoint["id"] for endpoint in endpoints if endpoint["workers"]["max"] == 0]
     if ids:
         raise Refused(f"the endpoint {', '.join(ids)} is stopped at 0 workers; the orchestrator restarts it")
 
 
-def free_workers(endpoints: list, beside: str | None = None) -> int:
-    """How many workers the account's quota leaves beside the endpoint `beside`, over all endpoints of the account."""
-    return WORKER_QUOTA - sum(endpoint["workers"]["max"] for endpoint in endpoints if endpoint["id"] != beside)
+def free_workers(endpoints: list, most: int, beside: str | None = None) -> int:
+    """How many workers an endpoint can have beside the endpoint `beside`: what the account's quota leaves beside all
+    other endpoints, at most `most`, its kind's workers."""
+    return min(most, WORKER_QUOTA - sum(endpoint["workers"]["max"] for endpoint in endpoints
+                                        if endpoint["id"] != beside))
 
 
-def grow(api, live: str):
-    """Give the live endpoint its WORKERS once the quota leaves room: an endpoint made beside an old one got less. One
-    read of all endpoints gives both the stop and the room."""
+def grow(api, live: str, most: int):
+    """Give the live endpoint its kind's workers once the quota leaves room: an endpoint made beside an old one got
+    less. One read of all endpoints gives both the stop and the room."""
     endpoints = api.endpoints()
     refuse_if_stopped([endpoint for endpoint in endpoints if OURS.match(endpoint.get("name", ""))])
     mine = next((endpoint for endpoint in endpoints if endpoint["id"] == live), None)
     if mine is None:
         raise Refused(f"the endpoint {live} went away during the routing")
-    most = min(WORKERS, free_workers(endpoints, beside=live))
+    most = free_workers(endpoints, most, beside=live)
     if most > mine["workers"]["max"]:
         api.update_endpoint(live, {"workers": {"max": most}})
 
 
-def route(config: Config, api, state: Path, images: list) -> tuple:
-    """Under the lock, after the jobs in flight are settled: the endpoint that runs the job and its image, in three
-    steps.
+def route(config: Config, api, state: Path, images: list, kind: str) -> tuple:
+    """Under the lock, after the jobs in flight are settled: the endpoint of `kind` that runs the job and its image, in
+    three steps. Each step looks only at the endpoints of `kind`, apart from the account's quota.
 
-    1. Every endpoint of the script's goes that does not run the best of `images`, no job in flight names, and no
-       worker runs on. So idle old endpoints give their workers back to the quota first.
-    2. If no endpoint runs the best image, the script creates one with the workers that the quota leaves. While it
-       leaves none, the job runs on the endpoint of the best image that has one, or is refused.
-    3. The live endpoint grows to its WORKERS once the quota leaves room.
+    1. Every endpoint of the kind goes that does not run the best of `images`, no job in flight names, and no worker
+       runs on. So idle old endpoints give their workers back to the quota first.
+    2. If no endpoint of the kind runs the best image, the script creates one with the workers that the quota leaves,
+       at most the kind's workers. While it leaves none, the job runs on the kind's endpoint of the best image that has
+       one, or is refused.
+    3. The live endpoint grows to the kind's workers once the quota leaves room.
 
-    An endpoint at 0 workers was stopped by the watchdog or by hand, so then no job runs and nothing is deleted. The
-    watchdog does not take the lock, so every read of the list applies that rule: the first, one before each deletion,
-    one after a creation and one before the growth. A stop that one of them sees removes this run's new endpoint again.
-    The rule narrows the race with the watchdog but cannot close it (README.md, "The dev shell, the image and the
-    endpoint")."""
+    An endpoint of either kind at 0 workers was stopped by the watchdog or by hand, so then no job runs and nothing is
+    deleted. The watchdog does not take the lock, so every read of the list applies that rule: the first, one before
+    each deletion, one after a creation and one before the growth. A stop that one of them sees removes this run's new
+    endpoint again. The rule narrows the race with the watchdog but cannot close it (README.md, "The dev shell, the
+    image and the endpoint")."""
+    most = config.kinds[kind].workers
     endpoints = ours(api)
     refuse_if_stopped(endpoints)
     best = f"{config.image_repository}:{images[0]}"
     busy = {pending["endpoint"] for pending in in_flight(state)}
     for endpoint in endpoints:
-        if endpoint["image"] == best or endpoint["id"] in busy or any(
+        if kind_of(endpoint) != kind or endpoint["image"] == best or endpoint["id"] in busy or any(
                 worker.get("status") == "RUNNING" for worker in api.workers(endpoint["id"])):
             continue
         refuse_if_stopped(ours(api))
         api.delete_endpoint(endpoint["id"])
     endpoints = ours(api)
     refuse_if_stopped(endpoints)
-    running = {endpoint["image"]: endpoint["id"] for endpoint in endpoints}
+    running = {endpoint["image"]: endpoint["id"] for endpoint in endpoints if kind_of(endpoint) == kind}
     if best in running:
-        grow(api, running[best])
+        grow(api, running[best], most)
         return running[best], images[0]
-    room = free_workers(api.endpoints())
+    room = free_workers(api.endpoints(), most)
     if room < 1:
         image = next((image for image in images if f"{config.image_repository}:{image}" in running), None)
         if image is None:
-            raise Refused(f"the other endpoints hold the account's whole worker quota of {WORKER_QUOTA}, so no "
+            raise Refused(f"the other endpoints hold the account's whole worker quota of {WORKER_QUOTA}, so no {kind} "
                           f"endpoint of {images[0]} fits until their jobs end")
         return running[f"{config.image_repository}:{image}"], image
-    request = endpoint_request(config, images[0])
-    request["workers"]["max"] = min(WORKERS, room)
+    request = endpoint_request(config, kind, images[0])
+    request["workers"]["max"] = room
     created = api.create_endpoint(request)["id"]
     try:
         refuse_if_stopped(ours(api))
-        grow(api, created)
+        grow(api, created, most)
     except (Refused, OSError):
         api.delete_endpoint(created)
         raise
     return created, images[0]
 
 
-def execution_seconds(config: Config, seconds: int) -> int:
+def execution_seconds(kind: Kind, seconds: int) -> int:
     """The job's execution timeout: its commands' time plus the handler's margin, within the endpoint's timeout."""
-    return min(config.endpoint_timeout_seconds, min(seconds, config.job_seconds) + HANDLER_MARGIN_SECONDS)
+    return min(kind.endpoint_timeout_seconds, min(seconds, kind.job_seconds) + HANDLER_MARGIN_SECONDS)
 
 
-def cost_usd(config: Config, execution: float) -> float:
+def cost_usd(kind: Kind, execution: float) -> float:
     """What a job of `execution` seconds bills at most: the same model for the worst case and for the logged cost."""
-    return (execution + START_ALLOWANCE_SECONDS + IDLE_SECONDS) * config.rate_per_second
+    return (execution + START_ALLOWANCE_SECONDS + IDLE_SECONDS) * kind.rate_per_second
 
 
-def worst_case_usd(config: Config, seconds: int) -> float:
-    return cost_usd(config, execution_seconds(config, seconds))
+def worst_case_usd(kind: Kind, seconds: int) -> float:
+    return cost_usd(kind, execution_seconds(kind, seconds))
 
 
 # The script keeps two stores. jobs.jsonl holds one line per settled job: its cost is known, or it was refused. The
@@ -484,7 +514,7 @@ def settle(state: Path, pending: dict, ending: dict) -> bool:
     return True
 
 
-def ending(config: Config, worst: float, status: dict) -> dict:
+def ending(kind: Kind, worst: float, status: dict) -> dict:
     """The settled part of a job's line, from Runpod's final status. A status without an execution time, such as a
     job whose result Runpod no longer keeps, costs its worst case. So does a cancelled job: Runpod's cancel does not
     stop a running handler, which bills until the job's own limit."""
@@ -495,7 +525,7 @@ def ending(config: Config, worst: float, status: dict) -> dict:
     gpu_seconds = status.get("executionTime", 0) / 1000
     measured = "executionTime" in status and status["status"] != "CANCELLED"
     return {"jobId": status.get("id"), "gpuSeconds": gpu_seconds, "delaySeconds": status.get("delayTime", 0) / 1000,
-            "costUsd": cost_usd(config, gpu_seconds) if measured else worst, "result": result,
+            "costUsd": cost_usd(kind, gpu_seconds) if measured else worst, "result": result,
             "exitCodes": [step["exitCode"] for step in output.get("steps", [])],
             "error": output.get("error") or status.get("error")}
 
@@ -519,7 +549,7 @@ def settle_lost(config: Config, state: Path, api, now: datetime.datetime):
                 continue
             status = {"id": pending["jobId"], "status": "UNKNOWN"}
         if status["status"] in FINAL | {"UNKNOWN"}:
-            settle(state, pending, ending(config, pending["worstCaseUsd"], status))
+            settle(state, pending, ending(config.kinds[pending.get("kind", "gpu")], pending["worstCaseUsd"], status))
         elif expired:
             # Past its queue time and its timeout, Runpod ran it or dropped it; its status no longer tells which.
             settle(state, pending, {"gpuSeconds": None, "costUsd": pending["worstCaseUsd"], "result": "lost"})
@@ -587,10 +617,12 @@ def submit(request: Request, *, config: Config, api, registry, github, scan=scan
     now = now or (lambda: datetime.datetime.now(datetime.timezone.utc))
     name = uuid.uuid4().hex
     with owning(state, name):
-        seconds = min(request.seconds, config.job_seconds)
-        execution = execution_seconds(config, seconds)
-        worst = worst_case_usd(config, seconds)
-        pending = {"time": now().isoformat(), "agent": request.agent, "endpoint": None, "image": None,
+        kind = config.kinds[request.kind]
+        seconds = min(request.seconds, kind.job_seconds)
+        execution = execution_seconds(kind, seconds)
+        worst = worst_case_usd(kind, seconds)
+        pending = {"time": now().isoformat(), "agent": request.agent, "kind": request.kind, "endpoint": None,
+                   "image": None,
                    "trees": {tree: {"ref": ref} for tree, ref in request.trees.items()},
                    "commands": request.commands, "outputs": request.outputs, "worstCaseUsd": worst, "jobId": None,
                    "expires": (now() + datetime.timedelta(seconds=QUEUE_SECONDS + execution)).isoformat(), "name": name}
@@ -613,7 +645,7 @@ def submit(request: Request, *, config: Config, api, registry, github, scan=scan
                 reason = refusal(config, state, api, worst, now())
                 if reason is not None:
                     raise Refused(reason)
-                pending["endpoint"], pending["image"] = route(config, api, state, images)
+                pending["endpoint"], pending["image"] = route(config, api, state, images, request.kind)
                 write_pending(state, name, pending)
         except (Refused, subprocess.CalledProcessError, OSError, ValueError, KeyError) as error:
             # Before the record of the job in flight, nothing was published or sent. A failed git command, registry or
@@ -649,7 +681,7 @@ def submit(request: Request, *, config: Config, api, registry, github, scan=scan
         except subprocess.CalledProcessError as error:
             out(f"the old hidden refs stay for now: {text(error.stderr)}")
         status = wait(api, pending["endpoint"], pending["jobId"], poll_seconds)
-        settled = ending(config, worst, status)
+        settled = ending(kind, worst, status)
         with locked(state):
             settle(state, pending, settled)
         write_outputs(request.out, status, settled["result"])
@@ -694,14 +726,13 @@ def write_outputs(folder: Path, status: dict, result: str):
         indent=2) + "\n")
 
 
-def endpoint_request(config: Config, commit: str) -> dict:
-    """The endpoint of one image. It bounds the spending by itself too: it keeps no minimum of workers, runs at most
-    six at once, and stops each job at the execution timeout."""
-    return {"name": f"{ENDPOINT_PREFIX}-{commit[:12]}", "type": "QUEUE", "image": f"{config.image_repository}:{commit}", "disk": DISK_GB,
-            "flashboot": "FLASHBOOT", "scaling": {"type": "QUEUE_DELAY", "queueDelay": 4},
-            "workers": {"min": 0, "max": WORKERS, "idleTimeout": IDLE_SECONDS},
-            "timeout": config.endpoint_timeout_seconds * 1000,
-            "gpu": {"pools": [POOL], "excludedTypes": OTHER_CARDS}}
+def endpoint_request(config: Config, kind: str, commit: str) -> dict:
+    """The endpoint of one kind and image. It bounds the spending by itself too: it keeps no minimum of workers, runs at
+    most the kind's share at once, and stops each job at the kind's execution timeout."""
+    return {"name": f"tertius-{kind}-{commit[:12]}", "type": "QUEUE", "image": f"{config.image_repository}:{commit}",
+            "disk": DISK_GB, "flashboot": "FLASHBOOT", "scaling": {"type": "QUEUE_DELAY", "queueDelay": 4},
+            "workers": {"min": 0, "max": config.kinds[kind].workers, "idleTimeout": IDLE_SECONDS},
+            "timeout": config.kinds[kind].endpoint_timeout_seconds * 1000, **HARDWARE[kind]}
 
 
 def key_file() -> Path | None:
@@ -726,20 +757,25 @@ def interrupt(signum, frame):
 def main(argv: list) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     commands = parser.add_subparsers(dest="command", required=True)
-    job = commands.add_parser("submit", help="run one job on the endpoint")
+    job = commands.add_parser("submit", help="run one job on an endpoint of its kind")
     job.add_argument("--agent", required=True, help="who sends the job, for the audit log")
     job.add_argument("--tree", action="append", required=True, metavar="NAME=REF",
                      help="a tree in the job's work folder: the commit of REF")
     job.add_argument("--run", action="append", default=[], metavar="CMD", help="a command, run in the dev shell")
     job.add_argument("--output", action="append", default=[], metavar="GLOB", help="files to send back")
-    job.add_argument("--timeout", type=positive, default=None, help="seconds for all commands; at most the config's")
+    job.add_argument("--kind", choices=["gpu", "cpu"], default="gpu",
+                     help="gpu: the RTX 2000 Ada (the default); cpu: 2 vCPUs, for Stryker and the CPU-only tests")
+    job.add_argument("--timeout", type=positive, default=None,
+                     help="seconds for all commands; at most the kind's job_seconds in endpoint.json")
     job.add_argument("--out", type=Path, required=True, help="folder for the output files and result.json")
-    commands.add_parser("endpoint-request", help="print the request that creates the endpoint of an image, and send "
-                        "nothing").add_argument("commit", help="the full commit that the image baked")
+    request = commands.add_parser("endpoint-request", help="print the request that creates the endpoint of a kind and "
+                                  "an image, and send nothing")
+    request.add_argument("commit", help="the full commit that the image baked")
+    request.add_argument("--kind", choices=["gpu", "cpu"], default="gpu")
     args = parser.parse_args(argv)
     config = Config.load()
     if args.command == "endpoint-request":
-        print(json.dumps(endpoint_request(config, args.commit), indent=2))
+        print(json.dumps(endpoint_request(config, args.kind, args.commit), indent=2))
         return 0
     key = key_file()
     if key is None:
@@ -747,7 +783,7 @@ def main(argv: list) -> int:
         return 2
     trees = dict(tree.split("=", 1) for tree in args.tree)
     request = Request(agent=args.agent, trees=trees, commands=args.run, outputs=args.output,
-                      seconds=args.timeout or config.job_seconds, out=args.out)
+                      seconds=args.timeout or config.kinds[args.kind].job_seconds, out=args.out, kind=args.kind)
     repo = Path(git(Path.cwd(), "rev-parse", "--show-toplevel").decode().strip())
     # An agent's tool stops a command with SIGTERM, and a closed terminal sends SIGHUP. Both cancel as Ctrl-C does.
     signal.signal(signal.SIGTERM, interrupt)

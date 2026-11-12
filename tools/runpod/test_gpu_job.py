@@ -24,10 +24,19 @@ spec.loader.exec_module(gpu_job)
 
 NOW = datetime.datetime(2026, 11, 12, 12, 0, tzinfo=datetime.timezone.utc)
 RATE = 0.00016
+CPU_RATE = 0.00002
 QUOTA = 10  # the account's workers, summed over the maximums of all its endpoints
 REPOSITORY = "ghcr.io/x/tertius-gpu"
 SHELL_FILES = {"flake.nix": "{ outputs = _: { }; }\n", "flake.lock": "{}\n", "native/joltc.nix": "joltc\n"}
 HANDLER = {"tools/runpod/handler.py": "PROTOCOL = 2\n"}
+
+
+def config(repository="https://github.com/x/tertius.git"):
+    return gpu_job.Config(image_repository=REPOSITORY, repository=repository, daily_cap_usd=10.0, total_cap_usd=30.0,
+                          kinds={"gpu": gpu_job.Kind(rate_per_second=RATE, workers=6, job_seconds=840,
+                                                     endpoint_timeout_seconds=900),
+                                 "cpu": gpu_job.Kind(rate_per_second=CPU_RATE, workers=4, job_seconds=7140,
+                                                     endpoint_timeout_seconds=7200)})
 
 
 class FakeRunpod:
@@ -153,9 +162,7 @@ class Queue(unittest.TestCase):
         self.base = self.commit({**SHELL_FILES, **HANDLER, "a.txt": "base\n"})
         self.on_main(self.base)
         self.state = root / "state"
-        self.config = gpu_job.Config(image_repository=REPOSITORY, repository="https://github.com/x/tertius.git",
-                                     rate_per_second=RATE, daily_cap_usd=10.0, total_cap_usd=30.0, job_seconds=840,
-                                     endpoint_timeout_seconds=900)
+        self.config = config()
         self.out = root / "out"
         self.findings = []
         self.scanned = []
@@ -186,8 +193,9 @@ class Queue(unittest.TestCase):
         """Main as the repository last saw it on GitHub."""
         self.git("update-ref", gpu_job.MAIN, sha)
 
-    def endpoint(self, commit, id="ep1", most=6):
-        return {"id": id, "name": "tertius-gpu", "image": f"{REPOSITORY}:{commit}", "workers": {"min": 0, "max": most}}
+    def endpoint(self, commit, id="ep1", most=6, kind=None):
+        name = f"tertius-{kind}-{commit[:12]}" if kind else "tertius-gpu"
+        return {"id": id, "name": name, "image": f"{REPOSITORY}:{commit}", "workers": {"min": 0, "max": most}}
 
     def api(self, **options):
         options.setdefault("endpoints", [self.endpoint(self.base)])
@@ -197,10 +205,12 @@ class Queue(unittest.TestCase):
         self.scanned.append(list(shas))
         return list(self.findings)
 
-    def submit(self, api, *, trees=None, commands=("echo hi",), seconds=None, outputs=(), images=None, github=None):
+    def submit(self, api, *, trees=None, commands=("echo hi",), seconds=None, outputs=(), images=None, github=None,
+               kind="gpu"):
         self.github = github or FakeGitHub()
         request = gpu_job.Request(agent="agent-7", trees=trees or {"main": self.base}, commands=list(commands),
-                                  outputs=list(outputs), seconds=seconds or self.config.job_seconds, out=self.out)
+                                  outputs=list(outputs), seconds=seconds or self.config.kinds[kind].job_seconds,
+                                  out=self.out, kind=kind)
         return gpu_job.submit(request, config=self.config, api=api, registry=FakeRegistry(images or [self.base]),
                               github=self.github, scan=self.scan, state=self.state, repo=self.repo,
                               now=lambda: NOW, poll_seconds=0, out=lambda *_: None)
@@ -248,8 +258,8 @@ class Requests(Queue):
         self.submit(api, seconds=5000)
         endpoint, body = api.submitted[0]
         self.assertEqual(endpoint, "ep1")
-        self.assertLessEqual(body["input"]["seconds"], self.config.job_seconds)
-        self.assertLessEqual(body["policy"]["executionTimeout"], self.config.endpoint_timeout_seconds * 1000)
+        self.assertLessEqual(body["input"]["seconds"], self.config.kinds["gpu"].job_seconds)
+        self.assertLessEqual(body["policy"]["executionTimeout"], self.config.kinds["gpu"].endpoint_timeout_seconds * 1000)
 
     def test_the_output_files_of_a_job_are_written_under_its_out_folder(self):
         output = FakeRunpod().final["output"]
@@ -614,13 +624,62 @@ class AuditLog(Queue):
         self.assertEqual(self.log_lines()[0]["exitCodes"], [2])
 
 
+class Kinds(Queue):
+    """A job runs on GPU workers or on CPU workers. Each kind has its own endpoints, workers, price and time limit,
+    under the same caps and audit log."""
+
+    def test_a_cpu_job_runs_on_the_cpu_endpoint_of_its_image_with_four_workers_beside_the_gpu_endpoint(self):
+        api = self.api()
+        self.assertEqual(self.submit(api, kind="cpu"), "ok")
+        created, = api.created
+        self.assertTrue(created["name"].startswith("tertius-cpu-"))
+        self.assertNotIn("gpu", created)
+        self.assertEqual(api.submitted[0][0], "ep-new-1")
+        self.assertEqual({live["id"]: live["workers"]["max"] for live in api.live}, {"ep1": 6, "ep-new-1": 4})
+
+    def test_a_cpu_job_counts_the_cpu_price(self):
+        self.submit(self.api(), kind="cpu")
+        line, = self.log_lines()
+        self.assertEqual(line["kind"], "cpu")
+        self.assertAlmostEqual(line["costUsd"], (50.0 + gpu_job.START_ALLOWANCE_SECONDS + gpu_job.IDLE_SECONDS) * CPU_RATE)
+        self.assertAlmostEqual(line["worstCaseUsd"], (7140 + gpu_job.HANDLER_MARGIN_SECONDS
+                                                     + gpu_job.START_ALLOWANCE_SECONDS + gpu_job.IDLE_SECONDS) * CPU_RATE)
+
+    def test_a_cpu_job_gets_the_longer_time_limit_of_the_cpu_endpoint(self):
+        api = self.api()
+        self.submit(api, kind="cpu", seconds=5000)
+        body = api.submitted[0][1]
+        self.assertEqual(body["input"]["seconds"], 5000)
+        self.assertEqual(body["policy"]["executionTimeout"], (5000 + gpu_job.HANDLER_MARGIN_SECONDS) * 1000)
+
+    def test_a_gpu_image_switch_keeps_the_cpu_endpoints_four_and_runs_on_the_busy_old_gpu_endpoint(self):
+        newer = self.commit({**SHELL_FILES, "tools/runpod/handler.py": "PROTOCOL = 2\n# a fix on main\n"})
+        self.on_main(newer)
+        self.pending("running", job="job-running", endpoint="ep1")
+        api = self.api(endpoints=[self.endpoint(self.base), self.endpoint(self.base, id="ep-cpu", most=4, kind="cpu")],
+                       statuses={"job-running": {"status": "IN_PROGRESS"}})
+        self.assertEqual(self.submit(api, trees={"main": newer}, images=[self.base, newer]), "ok")
+        self.assertEqual((api.submitted[0][0], api.created, api.updated, api.deleted), ("ep1", [], [], []))
+
+    def test_a_route_of_one_kind_leaves_the_endpoints_of_the_other_kind_alone(self):
+        newer = self.commit({**SHELL_FILES, "tools/runpod/handler.py": "PROTOCOL = 2\n# a fix on main\n"})
+        self.on_main(newer)
+        api = self.api(endpoints=[self.endpoint(self.base)])
+        self.submit(api, trees={"main": newer}, images=[self.base, newer], kind="cpu")
+        self.assertEqual(api.deleted, [], "the idle GPU endpoint of the older image waits for a GPU job")
+        self.assertEqual(api.submitted[0][0], "ep-new-1")
+
+    def test_a_stopped_cpu_endpoint_refuses_gpu_jobs_too(self):
+        api = self.api(endpoints=[self.endpoint(self.base), self.endpoint(self.base, id="ep-cpu", most=0, kind="cpu")])
+        self.assertEqual(self.submit(api), "refused")
+        self.assertIn("0 workers", self.log_lines()[-1]["error"])
+
+
 class EndpointRequest(unittest.TestCase):
     """The endpoint that the script creates bounds the spending by itself too."""
 
-    def test_the_endpoint_runs_at_most_six_workers_with_the_execution_timeout_on_the_rtx_2000_ada_only(self):
-        config = gpu_job.Config(image_repository=REPOSITORY, repository="r", rate_per_second=RATE,
-                                daily_cap_usd=10.0, total_cap_usd=30.0, job_seconds=840, endpoint_timeout_seconds=900)
-        body = gpu_job.endpoint_request(config, "a" * 40)
+    def test_the_gpu_endpoint_runs_at_most_six_workers_with_the_execution_timeout_on_the_rtx_2000_ada_only(self):
+        body = gpu_job.endpoint_request(config(), "gpu", "a" * 40)
         self.assertEqual(body["workers"]["max"], 6)
         self.assertEqual(body["workers"]["min"], 0, "no worker runs, and bills, without a job")
         self.assertEqual(body["timeout"], 900_000)
@@ -628,7 +687,15 @@ class EndpointRequest(unittest.TestCase):
         self.assertNotIn("NVIDIA RTX 2000 Ada Generation", body["gpu"]["excludedTypes"])
         self.assertEqual(len(body["gpu"]["excludedTypes"]), 3, "the pool's other three cards are excluded")
         self.assertEqual(body["image"], f"{REPOSITORY}:{'a' * 40}")
-        self.assertTrue(body["name"].startswith(gpu_job.ENDPOINT_PREFIX))
+        self.assertEqual(body["name"], f"tertius-gpu-{'a' * 12}")
+
+    def test_the_cpu_endpoint_runs_at_most_four_compute_optimized_workers_of_two_vcpus(self):
+        body = gpu_job.endpoint_request(config(), "cpu", "a" * 40)
+        self.assertEqual((body["workers"]["min"], body["workers"]["max"]), (0, 4))
+        self.assertEqual(body["timeout"], 7_200_000)
+        self.assertEqual(body["cpu"], {"id": "cpu3c", "vcpuCount": 2})
+        self.assertNotIn("gpu", body)
+        self.assertEqual(body["name"], f"tertius-cpu-{'a' * 12}")
 
 
 if __name__ == "__main__":
