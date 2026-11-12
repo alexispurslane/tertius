@@ -1,6 +1,7 @@
-# The image of the Runpod GPU worker (tools/README.md, "GPU jobs on Runpod"). It builds tools/runpod/Dockerfile from
-# the files of one commit and pushes it to ghcr.io/<owner>/tertius-gpu:<commit>. A push to main that changes the
-# dev shell or the worker builds it, and so does a push of a tag gpu-image-*, for any commit, or a manual run.
+# The image of the Runpod GPU worker (tools/runpod/README.md). It builds tools/runpod/Dockerfile from the files of one
+# commit and pushes it to ghcr.io/<owner>/tertius-gpu:<commit>. A push to main that changes the dev shell or the
+# image's own files builds it, and so does a push of a tag gpu-image-*, for any commit, or a manual run. Other changes
+# need no image: a job fetches its commits and builds them in the image's dev shell.
 name: gpu-image
 
 on:
@@ -10,7 +11,10 @@ on:
       - flake.nix
       - flake.lock
       - native/**
-      - tools/runpod/**
+      - tools/runpod/Dockerfile
+      - tools/runpod/provision.sh
+      - tools/runpod/handler.py
+      - tools/runpod/worker.py
       - .github/workflows/gpu-image.yml
     tags: ["gpu-image-*"]
   workflow_dispatch:
@@ -45,8 +49,7 @@ jobs:
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: echo "$TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
 
-      # The context is the commit's files from git archive: a job's patch must apply to exactly these files, so the
-      # checkout's .git folder and anything else stay out.
+      # The context is the commit's files from git archive, so the checkout's .git folder and anything else stay out.
       - name: Build and push
         run: |
           set -euo pipefail
