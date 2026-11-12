@@ -778,12 +778,9 @@ void shapeLight(bool fiber, bool tinted, uint shape, ShadingInput s, SurfaceLobe
         if (!lightPath(i, fiber, tinted, shape, s, p))
             continue;
         float visibility = pathVisibility(i, p, s.position, shadowMaps);
-        if (visibility > 0.0)
-        {
-            DirectTerms terms = pathLight(i, fiber, shape, s, lobes, V, p);
-            sum.diffuse += terms.diffuse * visibility;
-            sum.specular += terms.specular * visibility;
-        }
+        // THROWAWAY DIAGNOSTIC (ter-8esk): each light's visibility in its own channel, plus 10 for a light that passes.
+        if (i < 3u)
+            sum.specular[i] += visibility + 10.0;
     }
 }
 

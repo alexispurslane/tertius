@@ -39,6 +39,13 @@ internal sealed unsafe class DirectLightProbe : RenderPass
         return probe;
     }
 
+    public static DirectLightProbe SpecularPartsOn(VulkanRenderer renderer)
+    {
+        var probe = new DirectLightProbe(renderer, "specular_parts_probe.frag");
+        renderer.Graph.Add(FrameGraph.Stage.Composite, probe);
+        return probe;
+    }
+
     public static DirectLightProbe ViewRaysOn(VulkanRenderer renderer)
     {
         var probe = new DirectLightProbe(renderer, "upscale_view_ray_probe.frag");
