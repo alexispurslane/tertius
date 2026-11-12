@@ -363,14 +363,17 @@ public sealed class LocalShadowRenderTests
         }
     }
 
-    [Fact]
-    public void TheShadowsEdgeRampsInProportionToTheReceiversPlaceWithNoSubTexelSteps()
+    [Theory]
+    [InlineData(LocalShadowReads.NineGathers)]
+    [InlineData(LocalShadowReads.SixteenCornerMeans)]
+    public void TheShadowsEdgeRampsInProportionToTheReceiversPlaceWithNoSubTexelSteps(LocalShadowReads reads)
     {
         // The filter weighs the 5 × 5 texels from the tap's first texel by (1 − f, 1, 1, 1, f) along each axis, with f
         // the place of the lookup within its texel. Across a straight edge of a caster, the lit share of a pixel is then
         // (lit texels + f) / 4, a straight line of the pixel's place in the tile. A filter that rounds f to the device's
         // sub-texel precision (at least 4 bits in Vulkan) gives a staircase of steps of 1/4 of that precision instead.
-        VulkanRenderer renderer = Renderer(new LocalShadowAtlas(Tiles: 8, TileSize: 64));
+        // Both ways to read the texels apply f themselves, so both hold the line on every device.
+        VulkanRenderer renderer = Renderer(new LocalShadowAtlas(Tiles: 8, TileSize: 64) { Reads = reads });
         try
         {
             var kit = Kit.Create(renderer);
@@ -426,15 +429,17 @@ public sealed class LocalShadowRenderTests
     }
 
     [Theory]
-    [InlineData(0f)]
-    [InlineData(90f)]
-    public void TheShadowsEdgeRampsInOneStraightLineAllTheWayToFullyLit(float turnDegrees)
+    [InlineData(0f, LocalShadowReads.NineGathers)]
+    [InlineData(90f, LocalShadowReads.NineGathers)]
+    [InlineData(0f, LocalShadowReads.SixteenCornerMeans)]
+    [InlineData(90f, LocalShadowReads.SixteenCornerMeans)]
+    public void TheShadowsEdgeRampsInOneStraightLineAllTheWayToFullyLit(float turnDegrees, LocalShadowReads reads)
     {
         // The lit share of a pixel across a straight edge is (lit texels + f) / 4 from fully shadowed to fully lit, one
         // straight line of the pixel's place. Each of the 5 texels of the filter along an axis has its own weight, so a
-        // gather whose texels took each other's weights bends the line where the edge crosses those texels. The scene
+        // read whose texels took each other's weights bends the line where the edge crosses those texels. The scene
         // turns by 0° and 90° about the vertical, so that the edge crosses each axis of the tile.
-        VulkanRenderer renderer = Renderer(new LocalShadowAtlas(Tiles: 8, TileSize: 64));
+        VulkanRenderer renderer = Renderer(new LocalShadowAtlas(Tiles: 8, TileSize: 64) { Reads = reads });
         try
         {
             double[] shares = SharesAcrossTurnedEdge(renderer, turnDegrees);
@@ -465,15 +470,17 @@ public sealed class LocalShadowRenderTests
     }
 
     [Theory]
-    [InlineData(0f)]
-    [InlineData(90f)]
-    public void TheHalfLitMiddleOfTheShadowsEdgeLiesUnderTheCastersEdge(float turnDegrees)
+    [InlineData(0f, LocalShadowReads.NineGathers)]
+    [InlineData(90f, LocalShadowReads.NineGathers)]
+    [InlineData(0f, LocalShadowReads.SixteenCornerMeans)]
+    [InlineData(90f, LocalShadowReads.SixteenCornerMeans)]
+    public void TheHalfLitMiddleOfTheShadowsEdgeLiesUnderTheCastersEdge(float turnDegrees, LocalShadowReads reads)
     {
         // The filter weighs the texels around the lookup symmetrically, so the floor straight under the caster's edge sees
         // half the light. A filter that read its texels one texel off would move the whole edge by a texel, about 9 cm
         // here and about 90 pixels. The scene turns by 0° and 90° about the vertical, so that the edge crosses each axis
         // of the tile.
-        VulkanRenderer renderer = Renderer(new LocalShadowAtlas(Tiles: 8, TileSize: 64));
+        VulkanRenderer renderer = Renderer(new LocalShadowAtlas(Tiles: 8, TileSize: 64) { Reads = reads });
         try
         {
             double[] shares = SharesAcrossTurnedEdge(renderer, turnDegrees);
@@ -492,6 +499,66 @@ public sealed class LocalShadowRenderTests
         {
             Gpu.DisposeAndAssertClean(renderer);
         }
+    }
+
+    [Theory]
+    [InlineData(LocalShadowReads.NineGathers, false)]
+    [InlineData(LocalShadowReads.SixteenCornerMeans, true)]
+    public void ARendererMakesItsShadersWithItsAtlasReads(LocalShadowReads reads, bool cornerMeans)
+    {
+        // Both ways to read a tile give the same image, so only the constant of the shaders tells which one they run.
+        VulkanRenderer renderer = Renderer(new LocalShadowAtlas(Tiles: 8, TileSize: 64) { Reads = reads });
+        try
+        {
+            renderer.ShadingConstants.TileCornerMeans.Should().Be(cornerMeans);
+            renderer.FaceConstants.TileCornerMeans.Should().Be(cornerMeans, "an environment face reads a tile the same way");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void WithoutLocalShadowsTheShadersKeepTheirDefaultReads()
+    {
+        VulkanRenderer renderer = Renderer(new NoLocalShadows());
+        try
+        {
+            renderer.ShadingConstants.TileCornerMeans.Should().BeFalse("no shader reads a tile without an atlas");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void BothWaysToReadATileGiveTheSameShadow()
+    {
+        // The nine gathers and the sixteen corner means weigh the same 5 × 5 texels by the same weights, so a device shows
+        // the same image whichever of them its driver takes. Only the order of the additions differs, which a half float
+        // of the HDR image holds to one or two of its steps, about 0.1 % each.
+        float[] Image(LocalShadowReads reads)
+        {
+            VulkanRenderer renderer = Renderer(new LocalShadowAtlas(Tiles: 8, TileSize: 64) { Reads = reads });
+            try
+            {
+                renderer.Render(SpotOverABox(Kit.Create(renderer)), 1f);
+                return renderer.ReadHdr();
+            }
+            finally
+            {
+                Gpu.DisposeAndAssertClean(renderer);
+            }
+        }
+
+        float[] gathers = Image(LocalShadowReads.NineGathers);
+        float[] means = Image(LocalShadowReads.SixteenCornerMeans);
+
+        gathers.Max().Should().BeGreaterThan(0.2f, "the spot light lights the floor beside the box");
+        double worst = gathers.Zip(means, (a, b) => Math.Abs(a - b) / Math.Max(Math.Max(a, b), 1e-3)).Max();
+        worst.Should().BeLessThan(3e-3, "both filters compute the same weighted sum of the same comparisons");
     }
 
     /// <summary>

@@ -1,3 +1,5 @@
+using Silk.NET.Vulkan;
+
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
@@ -38,6 +40,45 @@ public sealed class LocalShadowSettingTests
             { "tiles of 64 texels", Atlas with { TileSize = LocalShadowSetting.MinTileSize } },
             { "tiles of 4,096 texels", Atlas with { TileSize = LocalShadowSetting.MaxTileSize } },
         };
+
+    [Fact]
+    public void AnAtlasLeavesTheChoiceOfItsReadsToTheDriver()
+    {
+        Atlas.Reads.Should().Be(LocalShadowReads.ForDriver, "the faster way to read a tile differs by driver");
+    }
+
+    [Fact]
+    public void OnMoltenVkATileIsReadAsSixteenCornerMeans()
+    {
+        VulkanRenderer
+            .TileReadsFor(LocalShadowReads.ForDriver, DriverId.Moltenvk)
+            .Should()
+            .Be(
+                LocalShadowReads.SixteenCornerMeans,
+                "Apple's shader compiler holds the 36 values of nine gathers at once, and the direct pass pays for them"
+            );
+    }
+
+    [Theory]
+    [InlineData(DriverId.NvidiaProprietary)]
+    [InlineData(DriverId.MesaRadv)]
+    [InlineData(DriverId.IntelOpenSourceMesa)]
+    [InlineData(DriverId.MesaLlvmpipe)]
+    public void OnEveryOtherDriverATileIsReadAsNineGathers(DriverId driver)
+    {
+        VulkanRenderer
+            .TileReadsFor(LocalShadowReads.ForDriver, driver)
+            .Should()
+            .Be(LocalShadowReads.NineGathers, "a gather is the cheapest way to four comparisons where each read costs");
+    }
+
+    [Theory]
+    [InlineData(LocalShadowReads.NineGathers, DriverId.Moltenvk)]
+    [InlineData(LocalShadowReads.SixteenCornerMeans, DriverId.NvidiaProprietary)]
+    public void AnAtlasThatNamesItsReadsKeepsThemOnEveryDriver(LocalShadowReads reads, DriverId driver)
+    {
+        VulkanRenderer.TileReadsFor(reads, driver).Should().Be(reads, "a named choice is not the driver's to change");
+    }
 
     [Fact]
     public void TheDefaultValueOfTheSettingIsNoLocalShadows()
