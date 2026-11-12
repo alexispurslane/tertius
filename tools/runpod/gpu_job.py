@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
-"""Tool code (tools/README.md, "GPU jobs on Runpod"): the one script through which an agent runs a GPU job on the
-Runpod serverless endpoint, within the spending caps.
+"""Tool code (tools/runpod/README.md): the one script through which an agent runs a GPU job on a Runpod serverless
+endpoint, within the spending caps.
 
     python3 -I tools/runpod/gpu_job.py submit --agent NAME --tree main=main --tree branch=HEAD \\
         --run 'cd branch && dotnet build src/Tertius.Demo -c Release' --output 'branch/out/*.json' --out DIR
 
-Each tree is a copy of the source that the image baked, plus the binary diff from that commit to the tree's ref. The
-script refuses a job before it sends it when the job's worst case would pass the daily cap or the total cap. It counts
-the jobs of the audit log, the jobs in flight and Runpod's billed total. It writes one line per job, refusals too, to
-the audit log, and the job's output files and result under --out.
+Each tree is the commit of its ref. The script scans the commits that GitHub does not hold yet for secrets, pushes
+each one to a hidden ref of the public repository, and sends the job to the endpoint whose image has the commits' dev
+shell, which it creates when none has. A worker fetches each commit by its id. The script refuses a job before it
+sends it when the job's worst case would pass the daily cap or the total cap. It counts the jobs of the audit log, the
+jobs in flight and Runpod's billed total. It writes one line per job, refusals too, to the audit log, and the job's
+output files and result under --out.
 
 The API key stays in its file, which ~/.config/tertius/runpod-key-file names. The script reads it for each request
 and never prints it.
@@ -51,9 +53,18 @@ HANDLER_MARGIN_SECONDS = 60
 # A job that waits longer than this in the queue expires unrun.
 QUEUE_SECONDS = 2 * 3600
 FINAL = {"COMPLETED", "FAILED", "CANCELLED", "TIMED_OUT"}
-# A patch leaves out the docs and the tickets: no build or run reads them, and research files made the diff of one
-# hour of main 16.7 MB, past the job's input limit of 10 MB. A tree keeps the image's copy of them.
-PATCH_PATHS = [".", ":(exclude)docs", ":(exclude).tickets"]
+# The handler protocol that this script speaks: the shape of a job's input. An image whose handler speaks another one
+# is never used (tools/runpod/handler.py keeps the same number).
+PROTOCOL = 2
+HANDLER = "tools/runpod/handler.py"
+# The paths whose files the image bakes into its dev shell. A commit that changes one of them needs another image.
+SHELL_PATHS = ["flake.nix", "flake.lock", "native"]
+# The script's endpoints are the ones whose names start with this, one per image.
+ENDPOINT_PREFIX = "tertius-gpu"
+# The hidden refs that publish the jobs' commits: refs/gpu-jobs/<UTC day>/<agent>/<commit>. Not a branch or a tag, so
+# no clone fetches them. A ref goes after REF_DAYS days, long after its job's queue time and timeout.
+JOB_REFS = "refs/gpu-jobs"
+REF_DAYS = 3
 COMMIT = re.compile(r"^[0-9a-f]{40}$")
 # The endpoint runs on the RTX 2000 Ada only, so that the timings of different jobs come from one kind of card. The
 # 16 GB pool also holds these three, and a card that Runpod adds to the pool later becomes eligible.
@@ -63,20 +74,21 @@ OTHER_CARDS = ["NVIDIA RTX A4000", "NVIDIA RTX A4500", "NVIDIA RTX 4000 Ada Gene
 DISK_GB = 60
 
 
-class NoBase(Exception):
-    """The endpoint's image names no baked commit, or the named image is not public."""
+class Refused(Exception):
+    """The job cannot run as it is, and the script sends nothing. The message says why and what fixes it."""
 
 
 @dataclass(frozen=True)
 class Config:
-    """endpoint: the Runpod endpoint id. image_repository: the images, each tagged with the commit that it baked.
-    rate_per_second: the price of a worker in USD per second. daily_cap_usd and total_cap_usd: the caps, per UTC day
-    and in total. job_seconds: the most time that the commands of one job get. endpoint_timeout_seconds: the
-    endpoint's execution timeout, the hard bound per job, at least job_seconds plus the handler's margin. The baked
-    commit is not here: the endpoint's image tag is its one store."""
+    """image_repository: the images, each tagged with the commit that it baked. repository: the public repository that
+    the workers fetch the trees' commits from. rate_per_second: the price of a worker in USD per second. daily_cap_usd
+    and total_cap_usd: the caps, per UTC day and in total. job_seconds: the most time that the commands of one job get.
+    endpoint_timeout_seconds: the endpoint's execution timeout, the hard bound per job, at least job_seconds plus the
+    handler's margin. The live endpoint is not here: Runpod's list of endpoints is its one store, and the script finds
+    it by its image."""
 
-    endpoint: str
     image_repository: str
+    repository: str
     rate_per_second: float
     daily_cap_usd: float
     total_cap_usd: float
@@ -132,66 +144,136 @@ class RunpodApi:
     def cancel(self, endpoint: str, job: str):
         self.call("POST", f"{JOB_API}/{endpoint}/cancel/{job}")
 
-    def endpoint(self, endpoint: str) -> dict:
-        return self.call("GET", f"{ACCOUNT_API}/serverless/{endpoint}")
+    def endpoints(self) -> list:
+        return self.call("GET", f"{ACCOUNT_API}/serverless")["endpoints"]
 
     def create_endpoint(self, body: dict) -> dict:
         return self.call("POST", f"{ACCOUNT_API}/serverless", body)
 
-    def update_endpoint(self, endpoint: str, body: dict) -> dict:
-        return self.call("PATCH", f"{ACCOUNT_API}/serverless/{endpoint}", body)
+    def delete_endpoint(self, endpoint: str):
+        self.call("DELETE", f"{ACCOUNT_API}/serverless/{endpoint}")
 
     def workers(self, endpoint: str) -> list:
         return self.call("GET", f"{ACCOUNT_API}/serverless/{endpoint}/workers")["workers"]
 
 
-def baked_commit(config: Config, api) -> str:
-    """The commit that the endpoint's image baked, from the image's tag."""
-    image = api.endpoint(config.endpoint).get("image") or ""
-    repository, _, tag = image.rpartition(":")
-    if repository != config.image_repository or not COMMIT.match(tag):
-        raise NoBase(f"the endpoint runs {image!r}, not {config.image_repository}:<commit>; "
-                     f"run gpu_job.py use-image <commit>")
-    return tag
+class Registry:
+    """The public image registry, read without a login, as Runpod pulls from it."""
 
+    def __init__(self, image_repository: str):
+        self.host, _, self.name = image_repository.partition("/")
 
-def public_image(image: str) -> bool:
-    """Whether the registry serves the image's manifest without a login, as Runpod pulls it."""
-    host, _, rest = image.partition("/")
-    name, _, tag = rest.rpartition(":")
-    try:
-        with urllib.request.urlopen(f"https://{host}/token?scope=repository:{name}:pull", timeout=30) as reply:
+    def images(self) -> list:
+        """The commits that have an image: the tags that are full commit ids."""
+        with urllib.request.urlopen(f"https://{self.host}/token?scope=repository:{self.name}:pull", timeout=30) as reply:
             token = json.loads(reply.read())["token"]
-        request = urllib.request.Request(f"https://{host}/v2/{name}/manifests/{tag}", method="HEAD", headers={
-            "Authorization": f"Bearer {token}",
-            "Accept": "application/vnd.oci.image.index.v1+json, application/vnd.oci.image.manifest.v1+json, "
-                      "application/vnd.docker.distribution.manifest.v2+json"})
-        with urllib.request.urlopen(request, timeout=30):
-            return True
-    except urllib.error.HTTPError:
-        return False
+        url, tags = f"https://{self.host}/v2/{self.name}/tags/list?n=1000", []
+        while url:
+            request = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
+            with urllib.request.urlopen(request, timeout=30) as reply:
+                tags += json.loads(reply.read()).get("tags") or []
+                link = re.search(r"<([^>]+)>;\s*rel=\"next\"", reply.headers.get("Link") or "")
+            url = f"https://{self.host}{link.group(1)}" if link else None
+        return [tag for tag in tags if COMMIT.match(tag)]
 
 
-def use_image(config: Config, api, commit: str, *, state: Path, pullable=public_image, poll_seconds: float = 10.0):
-    """Point the endpoint at the image of `commit`, then stop all its workers and allow them again. Runpod replaces a
-    worker of the old image only over time, and until then that worker takes jobs and refuses each one, because its
-    baked commit differs. The stop would end a running job too, so the change needs an empty pending/, and it holds
-    the lock, so no job starts during it. The maximum comes back from endpoint_request, its one store."""
-    image = f"{config.image_repository}:{commit}"
-    if not COMMIT.match(commit) or not pullable(image):
-        raise NoBase(f"{image} is not a public image; the workflow gpu-image builds it (tools/README.md)")
-    with locked(state):
-        settle_lost(config, state, api, datetime.datetime.now(datetime.timezone.utc))
-        if in_flight(state):
-            raise NoBase("jobs are in flight; change the image when they have ended")
-        api.update_endpoint(config.endpoint, {"image": image})
-        api.update_endpoint(config.endpoint, {"workers": {"max": 0}})
-        try:
-            while api.workers(config.endpoint):
-                time.sleep(poll_seconds)
-        finally:
-            most = endpoint_request(config, commit)["workers"]["max"]
-            api.update_endpoint(config.endpoint, {"workers": {"max": most}})
+class GitHub:
+    """The public repository's hidden refs of the jobs. Reads go to the public URL, and writes go over SSH with the
+    Mac's own key. --no-verify skips the repository's pre-push hook, which is for branches, not for these refs."""
+
+    def __init__(self, repo: Path, repository: str):
+        self.repo = repo
+        self.url = repository
+        self.push_url = re.sub(r"^https://github\.com/", "git@github.com:", repository)
+
+    def push(self, sha: str, ref: str):
+        git(self.repo, "push", "-q", "--no-verify", self.push_url, f"{sha}:{ref}")
+
+    def refs(self) -> list:
+        listing = git(self.repo, "ls-remote", self.url, f"{JOB_REFS}/*").decode()
+        return [line.split("\t")[1] for line in listing.splitlines() if "\t" in line]
+
+    def delete(self, refs: list):
+        if refs:
+            git(self.repo, "push", "-q", "--no-verify", self.push_url, *[f":{ref}" for ref in refs])
+
+
+def scan(repo: Path, shas: list) -> list:
+    """The secrets in the commits of `shas` that GitHub does not hold yet: gitleaks' findings, redacted, and the Runpod
+    key's own text. Each finding names its rule, file and commit, never the secret."""
+    new = git(repo, "rev-list", *shas, "--not", "--remotes=origin").decode().split()
+    if not new:
+        return []
+    log_opts = " ".join([*shas, "--not", "--remotes=origin"])
+    report = subprocess.run(["nix", "shell", "nixpkgs#gitleaks", "--command", "gitleaks", "git", str(repo),
+                             "--log-opts", log_opts, "--redact", "--no-banner", "--report-format", "json",
+                             "--report-path", "-", "--exit-code", "0", "--log-level", "error"],
+                            check=True, capture_output=True, text=True).stdout
+    findings = [f"{leak['RuleID']} in {leak['File']} of {leak['Commit'][:12]}" for leak in json.loads(report or "[]")]
+    key = key_file()
+    if key is not None and key.exists():
+        text = key.read_text().strip().encode()
+        patch = git(repo, "log", "-p", "--format=commit %H", *shas, "--not", "--remotes=origin")
+        if text and text in patch:
+            findings.append("the Runpod API key's text in one of the new commits")
+    return findings
+
+
+def shell_of(repo: Path, sha: str) -> tuple:
+    """The dev shell of a commit: the object ids of the paths that the image bakes into it. Two commits with the same
+    ids have the same shell."""
+    return tuple(git_maybe(repo, "rev-parse", "--verify", "-q", f"{sha}:{path}") for path in SHELL_PATHS)
+
+
+def protocol_of(repo: Path, sha: str) -> int:
+    """The handler protocol that the image of a commit speaks; 0 for a handler without one."""
+    text = git_maybe(repo, "show", f"{sha}:{HANDLER}")
+    found = re.search(r"^PROTOCOL = (\d+)$", text, re.MULTILINE)
+    return int(found.group(1)) if found else 0
+
+
+def have(repo: Path, config: Config, sha: str) -> bool:
+    """Whether the commit is here, fetched from the public repository if it was not."""
+    if git_maybe(repo, "cat-file", "-t", sha) == "commit":
+        return True
+    git_maybe(repo, "fetch", "-q", "--no-tags", config.repository, sha)
+    return git_maybe(repo, "cat-file", "-t", sha) == "commit"
+
+
+def image_for(config: Config, registry, repo: Path, shell: tuple, sha: str) -> str:
+    """The commit of the newest image that has the shell and speaks this script's protocol. The newest by commit time,
+    and of two at the same second the one with more history, so that a handler fix replaces its parent's image."""
+    fitting = [image for image in registry.images() if have(repo, config, image)
+               and protocol_of(repo, image) == PROTOCOL and shell_of(repo, image) == shell]
+    if not fitting:
+        raise Refused(f"no image has the dev shell of {sha}: build {config.image_repository}:{sha} with the workflow "
+                      f"gpu-image first (tools/runpod/README.md, \"A new dev shell\")")
+    return max(fitting, key=lambda image: (int(git(repo, "show", "-s", "--format=%ct", image)),
+                                           int(git(repo, "rev-list", "--count", image))))
+
+
+def ours(api) -> list:
+    return [endpoint for endpoint in api.endpoints() if endpoint.get("name", "").startswith(ENDPOINT_PREFIX)]
+
+
+def route(config: Config, api, state: Path, image: str) -> str:
+    """Under the lock, after the jobs in flight are settled: the id of the endpoint that runs `image`, created if no
+    endpoint runs it. Every other endpoint of the script's that no job in flight names and no worker runs on goes. An
+    endpoint at 0 workers was stopped by the watchdog or by hand, so then no job runs and nothing changes."""
+    endpoints = ours(api)
+    stopped = [endpoint["id"] for endpoint in endpoints if endpoint["workers"]["max"] == 0]
+    if stopped:
+        raise Refused(f"the endpoint {', '.join(stopped)} is stopped at 0 workers; the orchestrator restarts it")
+    wanted = f"{config.image_repository}:{image}"
+    live = next((endpoint["id"] for endpoint in endpoints if endpoint["image"] == wanted), None)
+    if live is None:
+        live = api.create_endpoint(endpoint_request(config, image))["id"]
+    busy = {pending["endpoint"] for pending in in_flight(state)}
+    for endpoint in endpoints:
+        if endpoint["id"] != live and endpoint["id"] not in busy and not any(
+                worker.get("status") == "RUNNING" for worker in api.workers(endpoint["id"])):
+            api.delete_endpoint(endpoint["id"])
+    return live
 
 
 def execution_seconds(config: Config, seconds: int) -> int:
@@ -320,62 +402,96 @@ def refusal(config: Config, state: Path, api, worst: float, now: datetime.dateti
     return None
 
 
-def patches(request: Request, base: str, repo: Path) -> dict:
-    """Each tree's binary diff from the baked commit to its ref, base64-encoded, and its ref's commit in request.shas."""
-    trees = {}
+def commits(request: Request, repo: Path) -> dict:
+    """Each tree's commit, also kept in request.shas."""
     for name, ref in request.trees.items():
-        sha = git(repo, "rev-parse", "--verify", f"{ref}^{{commit}}").decode().strip()
-        request.shas[name] = sha
-        trees[name] = base64.b64encode(git(repo, "diff", "--binary", base, sha, "--", *PATCH_PATHS)).decode()
-    return trees
+        request.shas[name] = git(repo, "rev-parse", "--verify", f"{ref}^{{commit}}").decode().strip()
+    return dict(request.shas)
+
+
+def job_ref(agent: str, sha: str, now: datetime.datetime) -> str:
+    plain = re.sub(r"[^A-Za-z0-9_-]+", "-", agent).strip("-") or "agent"
+    return f"{JOB_REFS}/{now.astimezone(datetime.timezone.utc).date().isoformat()}/{plain}/{sha}"
+
+
+def prune(github, now: datetime.datetime):
+    """Delete the hidden refs of the days before the last REF_DAYS."""
+    oldest = (now.astimezone(datetime.timezone.utc) - datetime.timedelta(days=REF_DAYS)).date().isoformat()
+    day = re.compile(rf"^{JOB_REFS}/(\d{{4}}-\d{{2}}-\d{{2}})/")
+    github.delete([ref for ref in github.refs() if (found := day.match(ref)) and found.group(1) < oldest])
 
 
 def git(repo: Path, *args) -> bytes:
     return subprocess.run(["git", *args], cwd=repo, check=True, capture_output=True).stdout
 
 
-def submit(request: Request, *, config: Config, api, state: Path, repo: Path, now=None, poll_seconds: float = 5.0,
-           out=print) -> str:
-    """Run one job and return its result: ok, failed, timed out or refused from the handler, refused by the caps, or
+def git_maybe(repo: Path, *args) -> str:
+    """git's output, or "" when git fails, such as for a path that the commit does not have."""
+    done = subprocess.run(["git", *args], cwd=repo, capture_output=True, text=True)
+    return done.stdout.strip() if done.returncode == 0 else ""
+
+
+def submit(request: Request, *, config: Config, api, registry, github, scan=scan, state: Path, repo: Path, now=None,
+           poll_seconds: float = 5.0, out=print) -> str:
+    """Run one job and return its result: ok, failed, timed out or refused from the handler, refused by the script, or
     Runpod's status when the job did not complete. If the script stops before the job's final status, the job stays
     in pending/, with its id once Runpod accepted it, and the next run settles it."""
     now = now or (lambda: datetime.datetime.now(datetime.timezone.utc))
-    base = baked_commit(config, api)
-    trees = patches(request, base, repo)
+    shas = commits(request, repo)
     seconds = min(request.seconds, config.job_seconds)
     execution = execution_seconds(config, seconds)
     worst = worst_case_usd(config, seconds)
-    pending = {"time": now().isoformat(), "agent": request.agent, "endpoint": config.endpoint, "base": base,
-               "trees": {tree: {"ref": ref, "sha": request.shas[tree]} for tree, ref in request.trees.items()},
+    trees = {name: {"sha": sha, "ref": job_ref(request.agent, sha, now())} for name, sha in shas.items()}
+    pending = {"time": now().isoformat(), "agent": request.agent, "endpoint": None, "image": None,
+               "trees": {name: {"ref": request.trees[name], **tree} for name, tree in trees.items()},
                "commands": request.commands, "outputs": request.outputs, "worstCaseUsd": worst, "jobId": None,
                "expires": (now() + datetime.timedelta(seconds=QUEUE_SECONDS + execution)).isoformat(),
                "name": uuid.uuid4().hex}
-    with locked(state):
-        settle_lost(config, state, api, now())
-        reason = refusal(config, state, api, worst, now())
-        if reason is None:
+    try:
+        shells = {shell_of(repo, sha) for sha in shas.values()}
+        if len(shells) > 1:
+            raise Refused(f"the trees have {len(shells)} dev shells, and a job runs in one; give the trees the same "
+                          f"{', '.join(SHELL_PATHS)}")
+        findings = scan(repo, sorted(set(shas.values())))
+        if findings:
+            raise Refused(f"the secrets scan found {'; '.join(findings)}; nothing was published")
+        pending["image"] = image_for(config, registry, repo, shells.pop(), next(iter(shas.values())))
+        with locked(state):
+            settle_lost(config, state, api, now())
+            reason = refusal(config, state, api, worst, now())
+            if reason is not None:
+                raise Refused(reason)
+            pending["endpoint"] = route(config, api, state, pending["image"])
             write_pending(state, pending["name"], pending)
-        else:
-            line = {key: value for key, value in pending.items() if key not in ("name", "expires")}
-            append_log(state, {**line, "gpuSeconds": 0.0, "costUsd": 0.0, "result": "refused", "error": reason})
-    if reason is not None:
+    except Refused as reason:
+        line = {key: value for key, value in pending.items() if key not in ("name", "expires")}
+        with locked(state):
+            append_log(state, {**line, "gpuSeconds": 0.0, "costUsd": 0.0, "result": "refused", "error": str(reason)})
         out(f"refused: {reason}")
         return "refused"
-    body = {"input": {"base": base, "trees": trees, "commands": request.commands, "outputs": request.outputs,
-                      "seconds": seconds},
+    body = {"input": {"protocol": PROTOCOL, "repository": config.repository, "trees": trees,
+                      "commands": request.commands, "outputs": request.outputs, "seconds": seconds},
             "policy": {"executionTimeout": execution * 1000, "ttl": QUEUE_SECONDS * 1000}}
     try:
-        pending["jobId"] = api.submit(config.endpoint, body)
-    except urllib.error.HTTPError as error:
-        # Runpod answered and made no job, so it bills nothing. A timeout or a lost connection stays ambiguous.
+        for tree in trees.values():
+            github.push(tree["sha"], tree["ref"])
+        pending["jobId"] = api.submit(pending["endpoint"], body)
+    except (urllib.error.HTTPError, subprocess.CalledProcessError) as error:
+        # A failed push sends nothing, and Runpod answered /run without a job, so neither bills. A timeout or a lost
+        # connection of /run stays ambiguous, and the job stays in flight until it expires.
+        reason = (f"/run answered {error.code} {error.reason}" if isinstance(error, urllib.error.HTTPError)
+                  else f"the push of the trees' commits failed: {error.stderr.decode(errors='replace').strip()}")
         with locked(state):
-            settle(state, pending, {"gpuSeconds": 0.0, "costUsd": 0.0, "result": "rejected",
-                                    "error": f"/run answered {error.code} {error.reason}"})
+            settle(state, pending, {"gpuSeconds": 0.0, "costUsd": 0.0, "result": "rejected", "error": reason})
         raise
     with locked(state):
         write_pending(state, pending["name"], pending)
-    out(f"job {pending['jobId']} sent to endpoint {config.endpoint}; worst case ${worst:.2f}")
-    status = wait(api, config.endpoint, pending["jobId"], poll_seconds)
+    out(f"job {pending['jobId']} sent to endpoint {pending['endpoint']}; worst case ${worst:.2f}")
+    try:
+        prune(github, now())
+    except subprocess.CalledProcessError as error:
+        out(f"the old hidden refs stay for now: {error.stderr.decode(errors='replace').strip()}")
+    status = wait(api, pending["endpoint"], pending["jobId"], poll_seconds)
     settled = ending(config, worst, status)
     with locked(state):
         settle(state, pending, settled)
@@ -421,10 +537,10 @@ def write_outputs(folder: Path, status: dict, result: str):
         indent=2) + "\n")
 
 
-def endpoint_request(config: Config, commit: str, name: str = "tertius-gpu") -> dict:
-    """The endpoint bounds the spending by itself too: it keeps no minimum of workers, runs at most six at once, and
-    stops each job at the execution timeout."""
-    return {"name": name, "type": "QUEUE", "image": f"{config.image_repository}:{commit}", "disk": DISK_GB,
+def endpoint_request(config: Config, commit: str) -> dict:
+    """The endpoint of one image. It bounds the spending by itself too: it keeps no minimum of workers, runs at most
+    six at once, and stops each job at the execution timeout."""
+    return {"name": f"{ENDPOINT_PREFIX}-{commit[:12]}", "type": "QUEUE", "image": f"{config.image_repository}:{commit}", "disk": DISK_GB,
             "flashboot": "FLASHBOOT", "scaling": {"type": "QUEUE_DELAY", "queueDelay": 4},
             "workers": {"min": 0, "max": 6, "idleTimeout": IDLE_SECONDS},
             "timeout": config.endpoint_timeout_seconds * 1000,
@@ -456,15 +572,13 @@ def main(argv: list) -> int:
     job = commands.add_parser("submit", help="run one job on the endpoint")
     job.add_argument("--agent", required=True, help="who sends the job, for the audit log")
     job.add_argument("--tree", action="append", required=True, metavar="NAME=REF",
-                     help="a tree in the job's work folder: the baked source plus the diff to REF")
+                     help="a tree in the job's work folder: the commit of REF")
     job.add_argument("--run", action="append", default=[], metavar="CMD", help="a command, run in the dev shell")
     job.add_argument("--output", action="append", default=[], metavar="GLOB", help="files to send back")
     job.add_argument("--timeout", type=positive, default=None, help="seconds for all commands; at most the config's")
     job.add_argument("--out", type=Path, required=True, help="folder for the output files and result.json")
-    for name, text in [("endpoint-request", "print the request that creates the endpoint, and send nothing"),
-                       ("create-endpoint", "create the endpoint; write its id into endpoint.json after"),
-                       ("use-image", "point the endpoint at the image of another commit")]:
-        commands.add_parser(name, help=text).add_argument("commit", help="the full commit that the image baked")
+    commands.add_parser("endpoint-request", help="print the request that creates the endpoint of an image, and send "
+                        "nothing").add_argument("commit", help="the full commit that the image baked")
     args = parser.parse_args(argv)
     config = Config.load()
     if args.command == "endpoint-request":
@@ -474,24 +588,6 @@ def main(argv: list) -> int:
     if key is None:
         print(f"no key: write the path of the file that holds the Runpod API key into {KEY_POINTER}", file=sys.stderr)
         return 2
-    api = RunpodApi(key)
-    if args.command == "create-endpoint":
-        if config.endpoint:
-            print(f"{CONFIG_FILE} already names the endpoint {config.endpoint}", file=sys.stderr)
-            return 2
-        if not public_image(endpoint_request(config, args.commit)["image"]):
-            print(f"{config.image_repository}:{args.commit} is not a public image", file=sys.stderr)
-            return 2
-        reply = api.create_endpoint(endpoint_request(config, args.commit))
-        print(json.dumps({"id": reply.get("id"), "name": reply.get("name")}))
-        return 0
-    if not config.endpoint:
-        print(f"{CONFIG_FILE} names no endpoint yet (tools/README.md, \"GPU jobs on Runpod\")", file=sys.stderr)
-        return 2
-    if args.command == "use-image":
-        use_image(config, api, args.commit, state=STATE)
-        print(f"the endpoint {config.endpoint} now runs {config.image_repository}:{args.commit}")
-        return 0
     trees = dict(tree.split("=", 1) for tree in args.tree)
     request = Request(agent=args.agent, trees=trees, commands=args.run, outputs=args.output,
                       seconds=args.timeout or config.job_seconds, out=args.out)
@@ -499,7 +595,8 @@ def main(argv: list) -> int:
     # An agent's tool stops a command with SIGTERM, and a closed terminal sends SIGHUP. Both cancel as Ctrl-C does.
     signal.signal(signal.SIGTERM, interrupt)
     signal.signal(signal.SIGHUP, interrupt)
-    result = submit(request, config=config, api=api, state=STATE, repo=repo)
+    result = submit(request, config=config, api=RunpodApi(key), registry=Registry(config.image_repository),
+                    github=GitHub(repo, config.repository), state=STATE, repo=repo)
     return 0 if result == "ok" else 1
 
 
