@@ -77,17 +77,20 @@ class TheCloudRun(unittest.TestCase):
         self.assertFalse([name for name in cloud.OUTPUTS if "mutation-report" in name or "logs" in name])
         self.assertIn("results.json", cloud.OUTPUTS)
 
-    def test_a_signal_to_the_cloud_run_reaches_every_job_that_it_started(self):
-        class Child:
-            def __init__(self):
-                self.signals = []
+    def test_a_signal_to_the_cloud_run_reaches_every_job_that_it_started_and_only_once(self):
+        jobs = cloud.Jobs()
+        with open(os.devnull, "w") as log:
+            child = jobs.start([sys.executable, "-c", "import time; time.sleep(30)"], log)
+            self.assertNotEqual(os.getpgid(child.pid), os.getpgid(0),
+                                "a Ctrl-C to the run's group must not reach the job a second time")
+            jobs.stop(15)
+            self.assertEqual(child.wait(timeout=10), -15)
 
-            def send_signal(self, signum):
-                self.signals.append(signum)
-
-        children = [Child(), Child()]
-        cloud.forward(children, 15)
-        self.assertEqual([child.signals for child in children], [[15], [15]])
+    def test_a_job_that_would_start_after_a_signal_does_not_start(self):
+        jobs = cloud.Jobs()
+        jobs.stop(15)
+        with open(os.devnull, "w") as log:
+            self.assertIsNone(jobs.start([sys.executable, "-c", "pass"], log))
 
     def test_the_job_deepens_its_shallow_tree_and_runs_one_module_from_the_merge_base(self):
         command = cloud.job_command("a" * 40, "Simulation", ["Program.cs"])

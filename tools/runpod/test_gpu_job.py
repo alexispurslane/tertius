@@ -12,6 +12,7 @@ import base64
 import datetime
 import importlib.util
 import json
+import signal
 import subprocess
 import tempfile
 import unittest
@@ -579,6 +580,31 @@ class AuditLog(Queue):
         unsent = [line for line in self.log_lines() if line["agent"] == "other"]
         self.assertEqual(len(unsent), 1)
         self.assertAlmostEqual(unsent[0]["costUsd"], self.worst(840))
+
+    def test_a_second_signal_during_the_cancel_does_not_lose_the_cancel(self):
+        class Api:
+            def __init__(self):
+                self.calls, self.handlers = [], None
+
+            def status(self, endpoint, job):
+                self.calls.append("status")
+                if self.calls == ["status"]:
+                    raise KeyboardInterrupt
+                return {"status": "CANCELLED"}
+
+            def cancel(self, endpoint, job):
+                self.calls.append("cancel")
+                self.handlers = [signal.getsignal(number) for number in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)]
+
+        before = [signal.getsignal(number) for number in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)]
+        api = Api()
+        try:
+            self.assertEqual(gpu_job.wait(api, "ep1", "job-1", 0.0)["status"], "CANCELLED")
+        finally:
+            for number, handler in zip((signal.SIGINT, signal.SIGTERM, signal.SIGHUP), before):
+                signal.signal(number, handler)
+        self.assertEqual(api.calls, ["status", "cancel", "status"])
+        self.assertEqual(api.handlers, [signal.SIG_IGN] * 3, "a second Ctrl-C or SIGTERM must not cut the cancel short")
 
     def test_a_cancelled_job_costs_its_worst_case_because_the_cancel_does_not_stop_its_commands(self):
         api = self.api(final={"status": "CANCELLED", "executionTime": 10_000})

@@ -79,21 +79,44 @@ def unusable(out: Path):
     return None
 
 
-def forward(children: list, signum: int):
-    """Sends the signal to each job's gpu_job.py, which cancels its job at Runpod and exits."""
-    for child in children:
-        child.send_signal(signum)
+class Jobs:
+    """The gpu_job.py processes of this run, and the signal that stopped the run, if any. Each process starts in a
+    session of its own, so a Ctrl-C or a signal to the run's process group reaches it once, through `stop`, and not a
+    second time while it cancels its job. One lock spans each start and the stop, so no job starts after a stop."""
+
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.children = []
+        self.stopped = None
+
+    def start(self, command: list, log):
+        """The started gpu_job.py process, or None after a stop."""
+        with self.lock:
+            if self.stopped is not None:
+                return None
+            child = subprocess.Popen(command, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+            self.children.append(child)
+            return child
+
+    def stop(self, signum: int):
+        """Sends the signal to each job's gpu_job.py, which cancels its job at Runpod and exits."""
+        with self.lock:
+            self.stopped = signum
+            for child in self.children:
+                child.send_signal(signum)
 
 
-def run_job(module: str, args, head: str, base: str, out: Path, ended: dict, children: list):
+def run_job(module: str, args, head: str, base: str, out: Path, ended: dict, jobs: Jobs):
     folder = out / module
     command = [sys.executable, "-I", str(GPU_JOB), "submit", "--agent", args.agent, "--kind", "cpu",
                "--tree", f"t={head}", "--run", job_command(base, module, args.exclude), "--out", str(out / "jobs" / module)]
     for name in OUTPUTS:
         command += ["--output", "out/" + name.format(module=module)]
     with (out / f"{module}.job.log").open("w") as log:
-        child = subprocess.Popen(command, stdout=log, stderr=subprocess.STDOUT)
-        children.append(child)
+        child = jobs.start(command, log)
+        if child is None:
+            print("not started: the run was stopped", file=log)
+            return
         ended[module] = child.wait()
     landed = out / "jobs" / module / "out"
     folder.mkdir(parents=True, exist_ok=True)
@@ -134,10 +157,10 @@ def main() -> int:
     print(f"Stryker on {', '.join(modules)}, one CPU worker each; the jobs' logs are {out}/<module>.job.log",
           file=sys.stderr, flush=True)
     started = time.monotonic()
-    ended, children = {}, []
+    ended, jobs = {}, Jobs()
     for signum in (signal.SIGTERM, signal.SIGHUP, signal.SIGINT):
-        signal.signal(signum, lambda number, _frame: forward(children, number))
-    threads = [threading.Thread(target=run_job, args=(module, args, head, base, out, ended, children))
+        signal.signal(signum, lambda number, _frame: jobs.stop(number))
+    threads = [threading.Thread(target=run_job, args=(module, args, head, base, out, ended, jobs))
                for module in modules]
     for thread in threads:
         thread.start()

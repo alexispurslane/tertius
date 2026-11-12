@@ -705,7 +705,8 @@ def submit(request: Request, *, config: Config, api, registry, github, scan=scan
 
 def wait(api, endpoint: str, job: str, poll_seconds: float) -> dict:
     """The job's final status. Ctrl-C, SIGTERM or SIGHUP cancels the job and still waits for its final status, which
-    holds its cost."""
+    holds its cost. The cancel then ignores those signals, so a second one cannot cut it short and leave the job
+    running to its limit."""
     try:
         while True:
             status = api.status(endpoint, job)
@@ -713,6 +714,8 @@ def wait(api, endpoint: str, job: str, poll_seconds: float) -> dict:
                 return status
             time.sleep(poll_seconds)
     except KeyboardInterrupt:
+        for number in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+            signal.signal(number, signal.SIG_IGN)
         api.cancel(endpoint, job)
         while True:
             status = api.status(endpoint, job)
