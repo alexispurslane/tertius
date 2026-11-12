@@ -367,10 +367,15 @@ public sealed class Fsr3UpscalerTests
             frames.Add(bench.ReadOutput());
         }
 
+        // THROWAWAY DIAGNOSTIC (t8-pkag)
+        File.AppendAllText(
+            "/tmp/linux-diag.txt",
+            $"fsr frames={frames.Count} nonfinite={frames.Sum(f => f.Count(v => !float.IsFinite(v.X) || !float.IsFinite(v.Y) || !float.IsFinite(v.Z) || !float.IsFinite(v.W)))} max={frames.Max(f => f.Max(v => Math.Max(v.X, Math.Max(v.Y, v.Z)))):R} min={frames.Min(f => f.Min(v => Math.Min(v.X, Math.Min(v.Y, v.Z)))):R}\n"
+        );
         // From the left: the tenth frame of the still pattern, then the first three frames of the inverted pattern.
         ReferenceImages.Verify(
             actual: Panels(frames, OutputSize),
-            referencePath: Path.Combine(ReferenceImages.Folder, "fsr3-pattern.png")
+            referencePath: ReferenceImages.ReferencePath("fsr3-pattern", bench.Device.Driver)
         );
     }
 

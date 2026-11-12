@@ -954,12 +954,15 @@ public sealed class EnvironmentPrefilterTests
 
             renderer.Render(snapshot, 1f);
 
+            // Within one half-float step of 1, 2^-10 above and 2^-11 below: a driver can round the float result toward
+            // zero when it stores the half-float cube, as NVIDIA's does (ticket t8-6qne). A weight that the sum misses or
+            // counts twice moves a texel by far more than 0.1 %.
             Half[] cube = CubeFaces0(renderer);
             for (int i = 0; i < cube.Length; i++)
                 if (i % 4 != 3)
                     ((float)cube[i])
                         .Should()
-                        .Be(1f, "texel {0} of a uniform map of 1 at face size {1}", i / 4, faceSize);
+                        .BeApproximately(1f, 1f / 1024, "texel {0} of a uniform map of 1 at face size {1}", i / 4, faceSize);
         }
         finally
         {

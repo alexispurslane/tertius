@@ -561,7 +561,25 @@ public sealed class SphereLightRenderTests
             RenderSnapshot snapshot = PointLights();
             AddSpheresOnAFloor(renderer, snapshot);
 
-            ReferenceImages.Verify(renderer: renderer, snapshot: snapshot, name: "sphere-light-radius-zero");
+            try
+            {
+                ReferenceImages.Verify(renderer: renderer, snapshot: snapshot, name: "sphere-light-radius-zero");
+            }
+            finally
+            {
+                // THROWAWAY DIAGNOSTIC (t8-pkag)
+                float[] hdr = renderer.ReadHdr();
+                float[] normals = renderer.ReadNormals();
+                var lines = new System.Text.StringBuilder();
+                lines.Append($"sphere hdr={hdr.Length / 4} nonfinite={hdr.Count(v => !float.IsFinite(v))} max={hdr.Where(float.IsFinite).Max():R} normals={normals.Length / 4} nonfinite={normals.Count(v => !float.IsFinite(v))}\n");
+                for (int y = 150; y <= 159; y++)
+                for (int x = 262; x <= 276; x++)
+                {
+                    int at = 4 * (y * Width + x);
+                    lines.Append($"px {x} {y} hdr={hdr[at]:R},{hdr[at + 1]:R},{hdr[at + 2]:R} n={normals[at]:R},{normals[at + 1]:R},{normals[at + 2]:R},{normals[at + 3]:R}\n");
+                }
+                File.AppendAllText("/tmp/linux-diag.txt", lines.ToString());
+            }
         }
         finally
         {
