@@ -1,6 +1,6 @@
 ---
 id: ter-xo83
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-11-12T10:23:35Z
