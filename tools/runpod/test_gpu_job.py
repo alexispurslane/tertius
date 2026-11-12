@@ -329,6 +329,17 @@ class DevShells(Queue):
         self.submit(api, trees={"main": shell}, images=[self.base, shell])
         self.assertEqual({live["id"]: live["workers"]["max"] for live in api.live}, {"ep2": 6})
 
+    def test_a_job_runs_on_an_older_fitting_endpoint_while_the_quota_has_no_room_for_the_newest_image(self):
+        middle = self.commit({**SHELL_FILES, "tools/runpod/handler.py": "PROTOCOL = 2\n# fix 1\n"})
+        newest = self.commit({**SHELL_FILES, "tools/runpod/handler.py": "PROTOCOL = 2\n# fix 2\n"})
+        self.on_main(newest)
+        self.pending("running", job="job-running", endpoint="ep1")
+        api = self.api(endpoints=[self.endpoint(self.base), self.endpoint(middle, id="ep2", most=4)],
+                       statuses={"job-running": {"status": "IN_PROGRESS"}})
+        self.assertEqual(self.submit(api, trees={"main": newest}, images=[self.base, middle, newest]), "ok")
+        self.assertEqual((api.submitted[0][0], api.created), ("ep2", []))
+        self.assertEqual(self.log_lines()[-1]["image"], middle)
+
     def test_a_job_is_refused_when_other_endpoints_hold_the_whole_worker_quota(self):
         shell = self.commit({**SHELL_FILES, **HANDLER, "flake.lock": "{ newer }\n"})
         self.pending("running", job="job-running", endpoint="ep1")

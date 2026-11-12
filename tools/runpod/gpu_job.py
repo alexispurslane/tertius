@@ -281,9 +281,9 @@ def have(repo: Path, config: Config, sha: str) -> bool:
     return git_maybe(repo, "cat-file", "-t", sha) == "commit"
 
 
-def image_for(config: Config, registry, repo: Path, shell: tuple, shas: list, main: str) -> str:
-    """The commit of the image that runs the job, among the images that have the shell and speak this script's
-    protocol. A branch's own image comes first: one that the job's commits descend from and that main does not hold,
+def images_for(config: Config, registry, repo: Path, shell: tuple, shas: list, main: str) -> list:
+    """The commits of the images that can run the job, the best first, among the images that have the shell and speak
+    this script's protocol. A branch's own image comes first: one that the job's commits descend from and that main does not hold,
     built from the branch's tag. Otherwise the newest image of main, so that all jobs of main's images share one
     endpoint. An image of another branch never runs the job. The newest by commit time, and of two at the same second
     the one with more history."""
@@ -298,8 +298,8 @@ def image_for(config: Config, registry, repo: Path, shell: tuple, shas: list, ma
         raise Refused(f"no image has the dev shell of {shas[0]} and the handler protocol {PROTOCOL}: build "
                       f"{config.image_repository}:{shas[0]} with the workflow gpu-image first (tools/runpod/README.md, "
                       f"\"A new dev shell\").{unread}")
-    return max(own or on_main, key=lambda image: (int(git(repo, "show", "-s", "--format=%ct", image)),
-                                                  int(git(repo, "rev-list", "--count", image))))
+    return sorted(own or on_main, key=lambda image: (int(git(repo, "show", "-s", "--format=%ct", image)),
+                                                     int(git(repo, "rev-list", "--count", image))), reverse=True)
 
 
 def ancestor(repo: Path, older: str, newer: str) -> bool:
@@ -328,22 +328,27 @@ def grow(api, live: str):
         api.update_endpoint(live, {"workers": {"max": most}})
 
 
-def route(config: Config, api, state: Path, image: str) -> str:
-    """Under the lock, after the jobs in flight are settled: the id of the endpoint that runs `image`, created if no
-    endpoint runs it. Every other endpoint of the script's that no job in flight names and no worker runs on goes. An
-    endpoint at 0 workers was stopped by the watchdog or by hand, so then no job runs and nothing is deleted. The
+def route(config: Config, api, state: Path, images: list) -> tuple:
+    """Under the lock, after the jobs in flight are settled: the endpoint that runs the best of `images`, created if
+    no endpoint runs it, and that image. While the worker quota leaves no room for a new endpoint, the job runs on the
+    endpoint of the best image that has one. Every other endpoint of the script's that no job in flight names and no
+    worker runs on goes. An endpoint at 0 workers was stopped by the watchdog or by hand, so then no job runs and nothing is deleted. The
     watchdog does not take the lock, so every read of the list applies that rule: the first, one after a creation and
     one before each deletion. A stop that one of them sees removes this run's new endpoint again."""
     endpoints = ours(api)
     refuse_if_stopped(endpoints)
-    wanted = f"{config.image_repository}:{image}"
-    live = next((endpoint["id"] for endpoint in endpoints if endpoint["image"] == wanted), None)
+    running = {endpoint["image"]: endpoint["id"] for endpoint in endpoints}
+    image = images[0]
+    live = running.get(f"{config.image_repository}:{image}")
     created = None
-    if live is None:
-        room = WORKER_QUOTA - sum(endpoint["workers"]["max"] for endpoint in api.endpoints())
-        if room < 1:
+    room = WORKER_QUOTA - sum(endpoint["workers"]["max"] for endpoint in api.endpoints()) if live is None else 0
+    if live is None and room < 1:
+        image = next((image for image in images if f"{config.image_repository}:{image}" in running), None)
+        if image is None:
             raise Refused(f"the other endpoints hold the account's whole worker quota of {WORKER_QUOTA}, so no "
-                          f"endpoint of {image} fits until their jobs end")
+                          f"endpoint of {images[0]} fits until their jobs end")
+        live = running[f"{config.image_repository}:{image}"]
+    if live is None:
         request = endpoint_request(config, image)
         request["workers"]["max"] = min(WORKERS, room)
         live = created = api.create_endpoint(request)["id"]
@@ -361,7 +366,7 @@ def route(config: Config, api, state: Path, image: str) -> str:
         if created is not None:
             api.delete_endpoint(created)
         raise
-    return live
+    return live, image
 
 
 def execution_seconds(config: Config, seconds: int) -> int:
@@ -584,14 +589,14 @@ def submit(request: Request, *, config: Config, api, registry, github, scan=scan
             findings = scan(repo, github.new_commits(sorted(set(shas.values()))))
             if findings:
                 raise Refused(f"the secrets scan found {'; '.join(findings)}; nothing was published")
-            pending["image"] = image_for(config, registry, repo, shells.pop(), list(shas.values()),
+            images = images_for(config, registry, repo, shells.pop(), list(shas.values()),
                                          git(repo, "rev-parse", "--verify", MAIN).decode().strip())
             with locked(state):
                 settle_lost(config, state, api, now())
                 reason = refusal(config, state, api, worst, now())
                 if reason is not None:
                     raise Refused(reason)
-                pending["endpoint"] = route(config, api, state, pending["image"])
+                pending["endpoint"], pending["image"] = route(config, api, state, images)
                 write_pending(state, name, pending)
         except (Refused, subprocess.CalledProcessError, OSError, ValueError, KeyError) as error:
             # Before the record of the job in flight, nothing was published or sent. A failed git command, registry or
