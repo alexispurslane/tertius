@@ -962,7 +962,13 @@ public sealed class EnvironmentPrefilterTests
                 if (i % 4 != 3)
                     ((float)cube[i])
                         .Should()
-                        .BeApproximately(1f, 1f / 1024, "texel {0} of a uniform map of 1 at face size {1}", i / 4, faceSize);
+                        .BeApproximately(
+                            1f,
+                            1f / 1024,
+                            "texel {0} of a uniform map of 1 at face size {1}",
+                            i / 4,
+                            faceSize
+                        );
         }
         finally
         {

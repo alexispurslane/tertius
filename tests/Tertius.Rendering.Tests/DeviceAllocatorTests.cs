@@ -366,11 +366,11 @@ public sealed unsafe class DeviceAllocatorTests
 
         Action allocate = () =>
             allocator.Allocate(
-            requirements: Requirements(Kilobytes64, typeBits: NvidiaBufferTypes),
-            usage: MemoryUsage.Upload,
-            linear: true,
-            name: "staging"
-        );
+                requirements: Requirements(Kilobytes64, typeBits: NvidiaBufferTypes),
+                usage: MemoryUsage.Upload,
+                linear: true,
+                name: "staging"
+            );
 
         allocate.Should().Throw<VulkanException>().Which.Result.Should().Be(Result.ErrorOutOfDeviceMemory);
         memory.Live.Should().BeEmpty();

@@ -222,7 +222,9 @@ public sealed class AccumulatorRenderTests
             // Within one half-float step of 1.25, 2^-10: a driver can round the float result toward zero when it stores
             // the half-float history, as NVIDIA's does (ticket t8-en95). Without the clamp the value is 1.0625, 192 steps
             // away.
-            light.X.Should().BeApproximately(1.25f, 1f / 1024, "the clamp moves the slow history to the fast history's mean");
+            light
+                .X.Should()
+                .BeApproximately(1.25f, 1f / 1024, "the clamp moves the slow history to the fast history's mean");
             length.Should().BeApproximately(11.2f, 0.01f, "the anti-lag shortens the history by the clamp's move");
         }
         finally
