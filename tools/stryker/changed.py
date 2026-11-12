@@ -28,6 +28,9 @@ MAX_TIMEOUT_SHARE of the mutants that ran ended in a timeout. A mutant timed out
 MAX_TIMEOUT_LOAD_PER_CORE times the cores. Stryker marked a test Dubious. A build replaced Stryker's mutated assembly
 during the run (run.py). The exit code is also 1 if Stryker failed.
 
+--modules runs only the named modules, for example one module per CPU worker of tools/stryker/cloud.py, which runs
+this script in the cloud and prints the same table over the modules' results.json.
+
 --head <commit> measures a merged range, for example a ticket's commits from its base: the files must be the same in the
 working tree as at <commit>. --exclude leaves files out by name, for example one that changed since. --concurrency (1 to
 4) and --additional-timeout are for a calibration only, and a run with them is not official. tools/stryker/compare.py
@@ -222,6 +225,58 @@ def _places(numbers):
     return ','.join(f'{a}-{b}' if a != b else str(a) for a, b in changed_lines.runs(numbers))
 
 
+def print_hand_files(lines, removed):
+    """Print the changed code outside the official run, for the agent's tools/mutate.py list."""
+    hand = hand_files(lines.keys() | removed.keys())
+    if hand:
+        print('Changed code outside the official run, for the tools/mutate.py list: '
+              + '; '.join(rel + (f':{_places(lines[rel])}' if rel in lines else '')
+                          + (f' (removed lines at {", ".join(str(n) for n, _ in removed[rel])})' if rel in removed else '')
+                          for rel in hand))
+
+
+def planned(root, base, head, exclude, removed, modules=MODULES):
+    """module -> its mutate patterns, for each module of modules with changed lines or removed lines."""
+    plans = {}
+    for module in modules:
+        mutate_patterns = config.mutate_patterns(root, module, base, head, exclude, None)
+        if mutate_patterns or removed_rows(removed, {module}, exclude):
+            plans[module] = mutate_patterns
+    return plans
+
+
+def settings_text(concurrency, additional_timeout):
+    official = (concurrency, additional_timeout) == (config.CONCURRENCY, config.ADDITIONAL_TIMEOUT_MS)
+    return official, (f'concurrency {concurrency} at nice 20 with {config.test_threads(concurrency)} xunit threads '
+                      f'per test host, timeout-ratio {config.TIMEOUT_RATIO}, additional-timeout '
+                      f'{additional_timeout} ms, timeout share at most {MAX_TIMEOUT_SHARE:.0%}, timeouts count up to a '
+                      f'1-minute load of {MAX_TIMEOUT_LOAD_PER_CORE} per core')
+
+
+def print_report(rows, unmutated, notes, problems, settings, official, load, wall_seconds, out):
+    """Print the table, the lines without a mutant, the evidence and the validity of a run, and write
+    <out>/results.json. The exit code: 1 if the run is not valid."""
+    mutation_table.print_table(rows)
+    if unmutated:
+        files = {}
+        for rel, line in unmutated:
+            files.setdefault(rel, []).append(line)
+        print('Changed code lines without any Stryker mutant, to judge for the tools/mutate.py list: '
+              + ', '.join(f'{rel}:{_places(numbers)}' for rel, numbers in files.items()))
+    for note in notes:
+        print(note)
+    load_text = f'1-minute load mean {sum(load) / len(load):.1f}, max {max(load):.1f}' if load else 'no load samples'
+    print(f'wall time {wall_seconds:.0f} s; {load_text}; {settings}'
+          + ('' if official else ' (calibration settings: not an official run)'))
+    Path(out).mkdir(parents=True, exist_ok=True)
+    (Path(out) / 'results.json').write_text(json.dumps(
+        {'rows': rows, 'unmutated': unmutated, 'evidence': notes, 'problems': problems, 'settings': settings,
+         'official': official, 'load': load}, indent=1) + '\n')
+    for p in problems:
+        print(f'NOT VALID: {p}', file=sys.stderr)
+    return 1 if problems else 0
+
+
 def main():
     parser = argparse.ArgumentParser(description='The official Stryker run on the changed lines outside rendering.')
     parser.add_argument('base', help='the branch or commit that the changes start from, for example main')
@@ -230,6 +285,8 @@ def main():
     parser.add_argument('--exclude', nargs='*', default=[], help='file names to leave out, for example Program.cs')
     parser.add_argument('--concurrency', type=int, default=config.CONCURRENCY, help='calibration only, 1 to 4')
     parser.add_argument('--additional-timeout', type=int, default=config.ADDITIONAL_TIMEOUT_MS, help='calibration only')
+    parser.add_argument('--modules', nargs='+', choices=MODULES, default=list(MODULES),
+                        help='run only these modules (default: all three)')
     args = parser.parse_args()
     try:
         config.test_threads(args.concurrency)
@@ -241,21 +298,12 @@ def main():
     root = changed_lines.repo_root()
     out = Path(args.out).resolve()
     lines, removed = changed_lines.changed_and_removed(root, args.base, ['src', 'analyzers'], args.head, CODE_SUFFIXES)
-    hand = hand_files(lines.keys() | removed.keys())
-    if hand:
-        print('Changed code outside the official run, for the tools/mutate.py list: '
-              + '; '.join(rel + (f':{_places(lines[rel])}' if rel in lines else '')
-                          + (f' (removed lines at {", ".join(str(n) for n, _ in removed[rel])})' if rel in removed else '')
-                          for rel in hand))
-    plans = {}
-    for module in MODULES:
-        mutate_patterns = config.mutate_patterns(root, module, args.base, args.head, args.exclude, None)
-        if mutate_patterns or removed_rows(removed, {module}, args.exclude):
-            plans[module] = mutate_patterns
+    print_hand_files(lines, removed)
+    plans = planned(root, args.base, args.head, args.exclude, removed, args.modules)
     if not plans:
-        print(f'No changed C# lines in {", ".join(MODULES)}.')
+        print(f'No changed C# lines in {", ".join(args.modules)}.')
         return
-    official = (args.concurrency, args.additional_timeout) == (config.CONCURRENCY, config.ADDITIONAL_TIMEOUT_MS)
+    official, settings = settings_text(args.concurrency, args.additional_timeout)
     stop_on_signals()
     rows, notes, all_problems, unmutated, load = [], [], [], [], []
     started = time.monotonic()
@@ -287,28 +335,7 @@ def main():
             all_problems += [f'{module}: {p}' for p in problems(module_rows, found, max(result['load'], default=None))]
             rows += module_rows
     rows += removed_rows(removed, set(plans), args.exclude)
-    mutation_table.print_table(rows)
-    if unmutated:
-        files = {}
-        for rel, line in unmutated:
-            files.setdefault(rel, []).append(line)
-        print('Changed code lines without any Stryker mutant, to judge for the tools/mutate.py list: '
-              + ', '.join(f'{rel}:{_places(numbers)}' for rel, numbers in files.items()))
-    for note in notes:
-        print(note)
-    settings = (f'concurrency {args.concurrency} at nice 20 with {config.test_threads(args.concurrency)} xunit threads '
-                f'per test host, timeout-ratio {config.TIMEOUT_RATIO}, additional-timeout '
-                f'{args.additional_timeout} ms, timeout share at most {MAX_TIMEOUT_SHARE:.0%}, timeouts count up to a '
-                f'1-minute load of {MAX_TIMEOUT_LOAD_PER_CORE} per core')
-    load_text = f'1-minute load mean {sum(load) / len(load):.1f}, max {max(load):.1f}' if load else 'no load samples'
-    print(f'wall time {time.monotonic() - started:.0f} s; {load_text}; {settings}'
-          + ('' if official else ' (calibration settings: not an official run)'))
-    (out / 'results.json').write_text(json.dumps(
-        {'rows': rows, 'unmutated': unmutated, 'evidence': notes, 'problems': all_problems, 'settings': settings,
-         'official': official, 'load': load}, indent=1) + '\n')
-    for p in all_problems:
-        print(f'NOT VALID: {p}', file=sys.stderr)
-    if all_problems:
+    if print_report(rows, unmutated, notes, all_problems, settings, official, load, time.monotonic() - started, out):
         sys.exit(1)
 
 
