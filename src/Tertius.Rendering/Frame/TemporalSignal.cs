@@ -33,7 +33,9 @@ namespace Tertius.Rendering;
 /// dispatch writes and the spatial dispatch reads within one accumulation: the block test's evidence of a change
 /// (docs/plans/bounce-light-confidence.md, section 8), where the signal's <see cref="HistoryConfidence"/> runs it. Beside a
 /// precise history, a reflection part also owns its retained deviation, two R16F images by parity
-/// (<see cref="DeviationImage"/>), which its block test of drops pools (section 6).
+/// (<see cref="DeviationImage"/>), which its block test of drops pools (section 6). Every part with a fast history also
+/// owns its own-sample mean, two images by parity at the slow history's precision (<see cref="OwnMean"/>), which the
+/// block test compares with the fast history (section 8).
 /// </para>
 /// <para>Invariants, checked by <see cref="AssertInvariants"/>:</para>
 /// <list type="bullet">
@@ -64,9 +66,10 @@ internal sealed unsafe class TemporalSignal : IDisposable
     public const Format UncoveredDiagnosticFormat = Format.R32G32B32A32Sfloat;
 
     /// <summary>
-    /// The format of the block sums: per block of 8 × 8 pixels the sums over its streams of the difference of the fast and
-    /// the slow history's luminance, of its predicted variance, the count of streams, and the sum of the slow history's
-    /// luminance (accumulate_blocks.glsl). Single floats, because a window adds up to 49 texels of up to 16 streams each.
+    /// The format of the block sums: per block of 8 × 8 pixels the sums over its streams of the difference of the fast
+    /// history's luminance and the own-sample mean (<see cref="OwnMean"/>), of its predicted variance, the count of
+    /// streams, and the sum of the own-sample mean (accumulate_blocks.glsl). Single floats, because a window adds up to
+    /// 49 texels of up to 16 streams each.
     /// </summary>
     public const Format BlockSumsFormat = Format.R32G32B32A32Sfloat;
 
@@ -329,6 +332,16 @@ internal sealed unsafe class TemporalSignal : IDisposable
     public GpuImage? DeviationImage(int part, int parity) => parts[part].Deviation(parity);
 
     /// <summary>
+    /// The own-sample mean of <paramref name="part"/> that the frame of <paramref name="parity"/> writes, in
+    /// pre-exposed luminance at the slow history's precision, or null under the single-history prototype, whose shaders
+    /// keep none. It is the
+    /// luminance mean of the pixel's own samples with the slow history's weight, which neither the clamp nor the
+    /// diffuse filter moves; the block test compares the fast history with it, and its evidence restarts it at the fast
+    /// history (docs/plans/bounce-light-confidence.md, section 8).
+    /// </summary>
+    public GpuImage? OwnMean(int part, int parity) => parts[part].OwnMean(parity);
+
+    /// <summary>
     /// The diagnostic of uncovered surfaces of <paramref name="part"/> under <see cref="HistoryInstrumentation.LightAgeDiagnostic"/>
     /// (<see cref="UncoveredDiagnosticFormat"/>), or null without it. Only the capture tool and the tests read it.
     /// </summary>
@@ -438,11 +451,21 @@ internal sealed unsafe class TemporalSignal : IDisposable
         barriers.Image(scratch.Part(part, HistoryMode), ImageUse.StorageCompute, discard: true);
         // Discarded: with the block test, the temporal dispatch writes every texel, and without it no dispatch reads one.
         barriers.Image(images.BlockSums, ImageUse.StorageCompute, discard: true);
-        if (images.Deviation(1 - parity) is { } lastDeviation)
-            barriers.Image(lastDeviation, ImageUse.StorageCompute);
-        // Discarded: the temporal dispatch writes every pixel of it.
-        if (images.Deviation(parity) is { } deviation)
-            barriers.Image(deviation, ImageUse.StorageCompute, discard: true);
+        BeforeTemporal(barriers: barriers, last: images.Deviation(1 - parity), current: images.Deviation(parity));
+        BeforeTemporal(barriers: barriers, last: images.OwnMean(1 - parity), current: images.OwnMean(parity));
+    }
+
+    /// <summary>
+    /// The barriers of an image pair by parity before the temporal dispatch, which reads <paramref name="last"/>, the
+    /// last draw's, and writes every pixel of <paramref name="current"/>, so its content is discarded. A part without the
+    /// pair has neither.
+    /// </summary>
+    private static void BeforeTemporal(BarrierBatch barriers, GpuImage? last, GpuImage? current)
+    {
+        if (last is not null)
+            barriers.Image(last, ImageUse.StorageCompute);
+        if (current is not null)
+            barriers.Image(current, ImageUse.StorageCompute, discard: true);
     }
 
     /// <summary>
@@ -454,6 +477,9 @@ internal sealed unsafe class TemporalSignal : IDisposable
         PartImages images = parts[part];
         barriers.Image(scratch.Part(part, HistoryMode), ImageUse.StorageCompute);
         barriers.Image(images.BlockSums, ImageUse.StorageCompute);
+        // The spatial dispatch restarts the temporal dispatch's mean where it finds evidence.
+        if (images.OwnMean(parity) is { } ownMean)
+            barriers.Image(ownMean, ImageUse.StorageCompute);
         if (!reflectionDistanceHistory && HistoryMode != SpecularHistoryMode.Original)
             barriers.Image(scratch.Part(part), ImageUse.StorageCompute);
         if (!singleDiffuseHistory)
@@ -566,6 +592,7 @@ internal sealed unsafe class TemporalSignal : IDisposable
                 Deviations: KeepsDeviationImage
                     ? [CreateDeviation(extent, part, 0), CreateDeviation(extent, part, 1)]
                     : [],
+                OwnMeans: singleDiffuseHistory ? [] : [CreateOwnMean(extent, part, 0), CreateOwnMean(extent, part, 1)],
                 BlockSums: CreateImage(
                     extent: BlocksOf(extent),
                     imageName: $"{Name} block sums {part}",
@@ -614,18 +641,22 @@ internal sealed unsafe class TemporalSignal : IDisposable
         // The reflections' retained deviation, which only their precise temporal dispatch reads and writes: another signal
         // binds its sample.
         if (layouts.HistoryMode.KeepsRetainedDeviation)
-        {
-            layouts.WriteStorageImage(
+            WritePair(
                 set: set,
-                binding: DescriptorLayouts.LastDeviationBinding,
-                image: images.Deviation(1 - parity) ?? images.Sample
+                bindings: (Last: DescriptorLayouts.LastDeviationBinding, Current: DescriptorLayouts.DeviationBinding),
+                pair: images.Deviations,
+                parity: parity,
+                placeholder: images.Sample
             );
-            layouts.WriteStorageImage(
-                set: set,
-                binding: DescriptorLayouts.DeviationBinding,
-                image: images.Deviation(parity) ?? images.Sample
-            );
-        }
+        // The own-sample mean, which the shaders of every signal with a fast history declare: the single-history
+        // prototype's shaders declare none, so it binds its sample.
+        WritePair(
+            set: set,
+            bindings: (Last: DescriptorLayouts.LastOwnMeanBinding, Current: DescriptorLayouts.OwnMeanBinding),
+            pair: images.OwnMeans,
+            parity: parity,
+            placeholder: images.Sample
+        );
         // The accumulation trace, which only the specular signal's dispatches write: another signal binds its sample.
         if (scratch.Instrumentation == HistoryInstrumentation.ControlTrace)
             layouts.WriteStorageImage(
@@ -633,6 +664,22 @@ internal sealed unsafe class TemporalSignal : IDisposable
                 binding: 12,
                 image: images.Traces is [var trace] ? trace : images.Sample
             );
+    }
+
+    /// <summary>
+    /// Writes an image pair by parity, <paramref name="pair"/>: the last draw's at <c>bindings.Last</c> and this draw's at
+    /// <c>bindings.Current</c>, or <paramref name="placeholder"/> at both where the part has no such pair.
+    /// </summary>
+    private void WritePair(
+        DescriptorSet set,
+        (uint Last, uint Current) bindings,
+        GpuImage[] pair,
+        int parity,
+        GpuImage placeholder
+    )
+    {
+        layouts.WriteStorageImage(set: set, binding: bindings.Last, image: pair is [] ? placeholder : pair[1 - parity]);
+        layouts.WriteStorageImage(set: set, binding: bindings.Current, image: pair is [] ? placeholder : pair[parity]);
     }
 
     /// <summary>
@@ -663,6 +710,17 @@ internal sealed unsafe class TemporalSignal : IDisposable
             imageName: $"{Name} retained deviation {part}.{parity}",
             extraUsage: 0,
             format: DeviationFormat
+        );
+
+    /// <summary>The own-sample mean of <paramref name="part"/> that the frame of <paramref name="parity"/>
+    /// writes.</summary>
+    private GpuImage CreateOwnMean(Extent2D extent, int part, int parity) =>
+        CreateImage(
+            extent: extent,
+            imageName: $"{Name} own-sample mean {part}.{parity}",
+            extraUsage: 0,
+            // The slow history's precision, so that the mean of a long history keeps the small steps that it keeps.
+            format: HistoryMode == SpecularHistoryMode.Original ? Format.R16Sfloat : Format.R32Sfloat
         );
 
     /// <summary>The sample age of <paramref name="part"/>, which its producer writes as it writes the sample.</summary>
@@ -737,6 +795,7 @@ internal sealed unsafe class TemporalSignal : IDisposable
         GpuImage[] Guides,
         GpuImage[] Ages,
         GpuImage[] Deviations,
+        GpuImage[] OwnMeans,
         GpuImage BlockSums,
         GpuImage[] Traces
     )
@@ -756,8 +815,11 @@ internal sealed unsafe class TemporalSignal : IDisposable
         /// <summary>The reflections' retained deviation that the frame of <paramref name="parity"/> writes, if any.</summary>
         public GpuImage? Deviation(int parity) => Deviations.Length == 0 ? null : Deviations[parity];
 
+        /// <summary>The own-sample mean that the frame of <paramref name="parity"/> writes, if any.</summary>
+        public GpuImage? OwnMean(int parity) => OwnMeans.Length == 0 ? null : OwnMeans[parity];
+
         public IEnumerable<GpuImage> All =>
-            [Sample, Slow, .. Fasts, .. Guides, .. Ages, .. Deviations, BlockSums, .. Traces];
+            [Sample, Slow, .. Fasts, .. Guides, .. Ages, .. Deviations, .. OwnMeans, BlockSums, .. Traces];
 
         /// <summary>Whether every image has <paramref name="extent"/>.</summary>
         public bool Fit(Extent2D extent) =>
@@ -767,6 +829,7 @@ internal sealed unsafe class TemporalSignal : IDisposable
             && AllFit(Guides, extent)
             && AllFit(Ages, extent)
             && AllFit(Deviations, extent)
+            && AllFit(OwnMeans, extent)
             && AllFit(Traces, extent)
             && SameExtent(BlockSums.Extent, BlocksOf(extent));
 

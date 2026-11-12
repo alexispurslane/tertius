@@ -1,15 +1,16 @@
 #version 460
-// The temporal dispatch of an accumulation (docs/plans/temporal-renderer.md, section 8, "The model", steps 1 and 2): one
-// invocation per pixel reprojects the last frame's slow and fast histories through the surface test, rescales them by the
-// exposure ratio and blends the sample in. The specular signal also tests the reflected point's place and that place's
-// hit distances (section 8, "The specular signal's own tests"). It writes the slow history into the scratch image, so that
-// the spatial dispatch reads the neighbors' results while it writes the slow history, and this frame's fast history. The
-// diffuse signal's fast history keeps in alpha the retained deviation: the standard deviation of the luminance of the
-// samples that the slow history averages, weighted as it weighs them (docs/plans/bounce-light-confidence.md, section 6).
-// The clamp's box and the diffuse filter read it. The reflections keep theirs in an image of their own beside a precise
-// history, because their fast history's alpha holds the hit distance. With the block test, each workgroup also sums its
-// block's differences of the fast and the slow history into its texel of the block sums, which the spatial dispatch tests
-// (section 8).
+// The temporal dispatch of an accumulation (docs/plans/temporal-renderer.md, section 8, "The model", steps 1 and 2):
+// one invocation per pixel reprojects the last frame's slow and fast histories through the surface test, rescales them
+// by the exposure ratio and blends the sample in. The specular signal also tests the reflected point's place and that
+// place's hit distances (section 8, "The specular signal's own tests"). It writes the slow history into the scratch
+// image, so that the spatial dispatch reads the neighbors' results while it writes the slow history, and this frame's
+// fast history. The diffuse signal's fast history keeps in alpha the retained deviation: the standard deviation of the
+// luminance of the samples that the slow history averages, weighted as it weighs them
+// (docs/plans/bounce-light-confidence.md, section 6). The clamp's box and the diffuse filter read it. The reflections
+// keep theirs in an image of their own beside a precise history, because their fast history's alpha holds the hit
+// distance. The dispatch also blends the own-sample mean, the luminance mean of the pixel's own samples with the slow
+// history's weight. With the block test, each workgroup sums its block's differences of the fast history and the
+// own-sample mean into its texel of the block sums, which the spatial dispatch tests (section 8).
 #extension GL_GOOGLE_include_directive : require
 #include "accumulate.glsl"
 #define ACCUMULATE_BLOCK_SUMS
@@ -99,6 +100,7 @@ Reprojection reflectedReprojectionOf(vec2 place, uint bits, float hitDistance)
 HISTORY_READER(lastFastAt, lastFast)
 HISTORY_READER(lastSlowAt, slowHistory)
 HISTORY_READER(lastReflectionGuideAt, reflectionGuide)
+HISTORY_READER(lastOwnMeanAt, lastOwnMean)
 
 #ifdef TERTIUS_PRECISE_SPECULAR_HISTORY
 // The reflections' retained deviation beside a precise history (TemporalSignal.DeviationImage): the last draw's and this
@@ -282,6 +284,7 @@ vec4 accumulateAt(ivec2 pixel)
         imageStore(scratch, pixel, vec4(0.0));
         imageStore(fastHistory, pixel, vec4(0.0));
         storeRetainedDeviation(pixel, 0.0);
+        imageStore(ownMeanHistory, pixel, vec4(0.0));
         if (reflectionSharingPrototype && parameters.light == SpecularLight)
             imageStore(reflectionGuideScratch, pixel, vec4(0.0));
 #ifdef TERTIUS_ACCUMULATION_TRACE
@@ -307,6 +310,8 @@ vec4 accumulateAt(ivec2 pixel)
     vec4 lastFast4 = lastFastAt(r);
     vec3 fast = lastFast4.rgb;
     float deviation = retainedDeviationAt(r, lastFast4);
+    // The own-sample mean, reprojected as the retained deviation.
+    float ownMean = lastOwnMeanAt(r).r;
     vec2 guide = vec2(0.0);
     if (reflectionSharingPrototype && parameters.light == SpecularLight)
         guide = lastReflectionGuideAt(r).rg;
@@ -345,6 +350,7 @@ vec4 accumulateAt(ivec2 pixel)
         slow.rgb = exposed(slow.rgb, ratio);
         fast = exposed(fast, ratio);
         deviation = min(deviation * ratio, MaxRadiance);
+        ownMean = min(ownMean * ratio, MaxRadiance);
     }
 
 #ifdef TERTIUS_LIGHT_AGE
@@ -396,6 +402,9 @@ vec4 accumulateAt(ivec2 pixel)
         // The weight 1 / length, written as a step toward the sample, so that a sample equal to the history leaves it
         // exact. A length of 1 takes the sample itself.
         slow.rgb = historyLength <= 1.0 ? sampled : slow.rgb + (sampled - slow.rgb) / historyLength;
+        // The own-sample mean takes the slow history's weight, and neither the clamp nor the diffuse filter moves it.
+        float sampledLuminance = luminance(sampled);
+        ownMean = historyLength <= 1.0 ? sampledLuminance : ownMean + (sampledLuminance - ownMean) / historyLength;
         if (reflectionSharingPrototype && parameters.light == SpecularLight)
         {
             vec2 sampledGuide = reflectionDistanceSample(hitDistance);
@@ -407,6 +416,7 @@ vec4 accumulateAt(ivec2 pixel)
     imageStore(scratch, pixel, vec4(slow.rgb, historyLength));
     imageStore(fastHistory, pixel, vec4(fast, parameters.light == SpecularLight ? hitDistance : deviation));
     storeRetainedDeviation(pixel, deviation);
+    imageStore(ownMeanHistory, pixel, vec4(ownMean));
     if (reflectionSharingPrototype && parameters.light == SpecularLight)
         imageStore(reflectionGuideScratch, pixel, vec4(guide, 0.0, 0.0));
     // A pixel contributes to the block test where the clamp acts: past the fast cap, a history averages more draws than
@@ -414,7 +424,7 @@ vec4 accumulateAt(ivec2 pixel)
     float fastLength = fastCapOf(cap);
     if (historyLength <= fastLength)
         return vec4(0.0);
-    return blockShareOf(luminance(fast), luminance(slow.rgb), deviation, historyLength, fastLength);
+    return blockShareOf(luminance(fast), ownMean, deviation, historyLength, fastLength);
 }
 
 // Every invocation reaches the block test's barriers: a pixel outside the images or of the sky contributes nothing.

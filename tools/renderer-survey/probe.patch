@@ -198,7 +198,7 @@ diff --git a/src/Tertius.Rendering/Shaders/accumulate_blocks.glsl b/src/Tertius.
 index 63f8aebf2..532854ce3 100644
 --- a/src/Tertius.Rendering/Shaders/accumulate_blocks.glsl
 +++ b/src/Tertius.Rendering/Shaders/accumulate_blocks.glsl
-@@ -33,6 +33,12 @@ const float BlockSigmas = 4.0;
+@@ -39,6 +39,12 @@ const float BlockSigmas = 4.0;
  // The measured over the predicted deviation of a stream's difference, which the hits' reuse of filtered light can raise.
  const float BlockNoiseScale = 1.0;
  
@@ -211,17 +211,17 @@ index 63f8aebf2..532854ce3 100644
  // Set 3, binding 13: the block sums, RGBA32F, one texel per block (TemporalSignal.BlockSums).
  #ifdef ACCUMULATE_BLOCK_SUMS
  layout(set = 3, binding = 13, rgba32f) uniform writeonly image2D blockSums;
-@@ -53,7 +59,8 @@ float differenceShare(float wf, float ws)
- // length L after the blend, `deviation` its retained deviation σr after the update.
- vec4 blockShareOf(float fastLuminance, float slowLuminance, float deviation, float historyLength, float fastLength)
+@@ -68,7 +74,8 @@ float differenceShare(float wf, float ws)
+ // update.
+ vec4 blockShareOf(float fastLuminance, float ownMean, float deviation, float historyLength, float fastLength)
  {
 -    float kappa = differenceShare(1.0 / fastLength, 1.0 / historyLength) * BlockNoiseScale;
 +    float kappa = differenceShare(1.0 / fastLength, 1.0 / historyLength)
 +        * probeConstant(parameters.probeNoiseScale, BlockNoiseScale);
-     return vec4(fastLuminance - slowLuminance, kappa * kappa * deviation * deviation, 1.0, slowLuminance);
+     return vec4(fastLuminance - ownMean, kappa * kappa * deviation * deviation, 1.0, ownMean);
  }
  
-@@ -105,9 +112,11 @@ bool windowFires(vec4 window, float changeShare, float retainedSigmas)
+@@ -120,9 +127,11 @@ bool windowFires(vec4 window, float changeShare, float retainedSigmas)
      float sumV = window.y;
      float n = window.z;
      float sumS = window.w;

@@ -1,9 +1,10 @@
 #version 460
-// The spatial dispatch of an accumulation (docs/plans/temporal-renderer.md, section 8, steps 3 to 5): one invocation per
-// pixel fixes a short history from its neighbors in the scratch image, clamps the slow history into the box of this
+// The spatial dispatch of an accumulation (docs/plans/temporal-renderer.md, section 8, steps 3 to 5): one invocation
+// per pixel fixes a short history from its neighbors in the scratch image, clamps the slow history into the box of this
 // frame's fast history around the pixel, shortens the length by the clamp's move, and writes the slow history. Where a
 // window of the pixel's block finds evidence of a change (accumulate_blocks.glsl), the box drops its widening for this
-// draw and the length falls to the fast cap (docs/plans/bounce-light-confidence.md, section 8).
+// draw, the length falls to the fast cap and the own-sample mean restarts at the fast history
+// (docs/plans/bounce-light-confidence.md, section 8).
 #extension GL_GOOGLE_include_directive : require
 #include "accumulate.glsl"
 #define ACCUMULATE_BLOCK_WINDOWS
@@ -104,10 +105,13 @@ void accumulateAt(ivec2 pixel, bool evidence)
         storeTrace(pixel, 6, vec4(mean, lag));
         storeTrace(pixel, 7, vec4(sigma, 0.0));
 #endif
-        // Evidence of a change restarts the history from the fast window, which already holds the change.
+        // Evidence of a change restarts the history and the own-sample mean from the fast window, which already holds
+        // the change. A mean that blended on from the old light would stay apart from the fast history and fire again.
         historyLength = evidence
             ? fastCap
             : max(fastCap, historyLength * (1.0 - min(1.0, lag / parameters.antiLagShare)));
+        if (evidence)
+            imageStore(ownMeanHistory, pixel, vec4(luminance(imageLoad(fastHistory, pixel).rgb)));
         slow = clamped;
     }
 
