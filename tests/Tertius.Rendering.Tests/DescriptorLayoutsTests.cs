@@ -139,6 +139,31 @@ public sealed class DescriptorLayoutsTests
             );
     }
 
+    /// <summary>
+    /// Each frame in flight adds a frame set and a deform set to the shared pool, so the pool's size of each descriptor
+    /// type grows by what those two layouts take. A driver that counts each type, such as RADV, refuses a set past the
+    /// pool's size of a type, while MoltenVK gives it (ARCHITECTURE.md, "Descriptor pools").
+    /// </summary>
+    [Theory]
+    [InlineData(DescriptorType.UniformBuffer)]
+    [InlineData(DescriptorType.StorageBuffer)]
+    [InlineData(DescriptorType.Sampler)]
+    [InlineData(DescriptorType.SampledImage)]
+    [InlineData(DescriptorType.StorageImage)]
+    public void EachFrameInFlightGrowsTheSharedPoolByWhatItsFrameSetAndDeformSetTake(DescriptorType type)
+    {
+        using var device = VulkanDevice.Create(validation: true, surfaceExtensions: [], createSurface: null);
+        using var two = new DescriptorLayouts(device: device, framesInFlight: 2, glowLevels: 0);
+        using var three = new DescriptorLayouts(device: device, framesInFlight: 3, glowLevels: 0);
+
+        (three.SharedPoolSizeOf(type) - two.SharedPoolSizeOf(type))
+            .Should()
+            .Be(
+                two.SizeOf(two.FrameSet, type) + two.SizeOf(two.DeformSet, type),
+                $"the third frame's frame set and deform set take that many descriptors of {type} from the shared pool"
+            );
+    }
+
     [Fact]
     public void TheDeformLayoutsComputeStageSeesSixStorageBuffers()
     {

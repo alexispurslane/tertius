@@ -10,6 +10,10 @@ namespace Tertius.Rendering.Tests;
 [Collection(GpuCollection.Name)]
 public sealed class ReflectionBlueNoiseTests
 {
+    /// <summary>The size of the glossy floor's view, in pixels.</summary>
+    private const int FloorWidth = 96,
+        FloorHeight = 64;
+
     /// <summary>The probe's image after one frame of a renderer of the given size.</summary>
     private static float[] Probe(string shader, int width, int height)
     {
@@ -131,14 +135,12 @@ public sealed class ReflectionBlueNoiseTests
             );
     }
 
-    [Fact]
-    public void AReflectionRayTakesItsDirectionFromTheMaskAndNotFromPcg3d()
+    /// <summary>The probe's image after one frame of a glossy floor under the sun.</summary>
+    private static float[] FloorProbe(string shader)
     {
-        const int width = 96,
-            height = 64;
         VulkanRenderer renderer = Gpu.Headless(
-            width: width,
-            height: height,
+            width: FloorWidth,
+            height: FloorHeight,
             screenTrace: ScreenTrace.Default,
             warmUpFrames: 0
         );
@@ -146,23 +148,45 @@ public sealed class ReflectionBlueNoiseTests
         {
             RenderSnapshot scene = Gpu.Snapshot(new(0.3f, 1f, 0.4f), starIrradiance: 3);
             scene.Instances.Add(ReflectionTesting.Floor(renderer, ReflectionTesting.Mirror(roughness: 0.3f)));
-            var probe = ScreenTraceProbe.On(renderer, "reflection_draw_probe.comp");
+            var probe = ScreenTraceProbe.On(renderer, shader);
             renderer.Render(scene, 1f);
-            float[] values = probe.Read();
-
-            int[] starting = [.. Enumerable.Range(0, width * height).Where(pixel => values[4 * pixel + 2] == 1)];
-            starting.Length.Should().BeGreaterThan(width * height / 4, "the glossy floor fills the lower half of the view");
-            starting
-                .Should()
-                .OnlyContain(pixel => values[4 * pixel] == 1, "each reflection ray takes the direction of the mask's numbers");
-            starting
-                .Count(pixel => values[4 * pixel + 1] == 1)
-                .Should()
-                .BeLessThan(starting.Length / 10, "pcg3d's numbers alone give another direction at almost every pixel");
+            return probe.Read();
         }
         finally
         {
             Gpu.DisposeAndAssertClean(renderer);
         }
+    }
+
+    [Fact]
+    public void AReflectionRayTakesItsDirectionFromTheMaskAndNotFromPcg3d()
+    {
+        float[] values = FloorProbe("reflection_draw_probe.comp");
+
+        int[] starting = [.. Enumerable.Range(0, FloorWidth * FloorHeight).Where(pixel => values[4 * pixel + 2] == 1)];
+        starting.Length.Should().BeGreaterThan(FloorWidth * FloorHeight / 4, "the glossy floor fills the lower half of the view");
+        starting
+            .Should()
+            .OnlyContain(pixel => values[4 * pixel] == 1, "each reflection ray takes the direction of the mask's numbers");
+        starting
+            .Count(pixel => values[4 * pixel + 1] == 1)
+            .Should()
+            .BeLessThan(starting.Length / 10, "pcg3d's numbers alone give another direction at almost every pixel");
+    }
+
+    [Fact]
+    public void ABlocksReflectionRayReadsTheMaskAtTheBlockAndNotAtItsChosenPixel()
+    {
+        float[] values = FloorProbe("reflection_block_draw_probe.comp");
+
+        int[] choosing = [.. Enumerable.Range(0, FloorWidth * FloorHeight).Where(at => values[4 * at + 2] == 1)];
+        choosing.Length.Should().BeGreaterThan(FloorWidth * FloorHeight / 16, "the glossy floor fills the lower half of the blocks");
+        choosing
+            .Should()
+            .OnlyContain(at => values[4 * at] == 1, "each block's ray reads the mask at its block, so neighboring blocks take neighboring cells");
+        choosing
+            .Count(at => values[4 * at + 1] == 1)
+            .Should()
+            .BeLessThan(choosing.Length / 4, "the chosen pixel's cell holds other bytes at almost every block");
     }
 }
