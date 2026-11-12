@@ -13,6 +13,7 @@ ARCHITECTURE.md is the binding design, and the code and `tools/README.md` say ho
 - When the ticket closes, merge its branch into main in this checkout, and leave the checkout on main. Other sessions commit ticket notes in this checkout, and the user wants those on main.
 - Use git, not jj. This overrides the jj rule in the user's other agent configuration.
 - Push main to `origin` without asking, at least after each epic merges. The user decided on 2026-10-24 that a regular push is better than none.
+- `origin` fetches from GitHub, the primary home since 2026-11-12. It pushes to GitHub, then to the knot, a push mirror (tools/README.md, "The remotes: GitHub and the knot mirror"). If a push fails on one URL, push again.
 - The last step of every ticket that changes the engine updates ARCHITECTURE.md to match the code, before the merge. It is part of the public engine docs.
 - At the end of every piece of work that shows on screen, send the user two to four screenshots of the rendered game. The user often follows from a phone and cannot run the game. Take them with a headless run of the real renderer, `dotnet run --project src/Tertius.Demo -- --script scripts/<name>.json --headless --out <folder>`. Look at each image first, and give each a one-line caption.
 - Read the Jolt pitfalls in project memory, `~/.claude/projects/-Users-alexispurslane-Development-tertius/memory/tertius-jolt-pitfalls.md`, before you touch Jolt interop. A subagent gets no memory, so it reads that file. The double-precision Jolt library comes from `native/joltc.nix`.
