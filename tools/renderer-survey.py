@@ -1277,20 +1277,37 @@ def probe_series(work: Path, pattern: str) -> list:
     return rows
 
 
+# The environment variable that limits a call of run_switch to some of a case's runs, by label, comma-separated, such
+# as "switch" or "off,on". One switch run is 460 film frames, so the three runs of a case do not fit in one workbench
+# job of 840 s. Each run's series is kept in <out>/series/switch/<case>-<label>.json, and a run whose series is kept does
+# not render again. The call that finds all three series measures them; one that does not returns None.
+SWITCH_RUNS = "TERTIUS_SURVEY_SWITCH_RUNS"
+
+
 def run_switch(out: Path, case: dict, args):
-    binary = probe_binary(out)
     series = {}
+    wanted = os.environ.get(SWITCH_RUNS)
     for label, env in switch_runs(case).items():
+        kept = out / "series" / "switch" / f"{case['name']}-{label}.json"
+        if kept.exists():
+            series[label] = json.loads(kept.read_text())
+            continue
+        if wanted and label not in wanted.split(","):
+            continue
         work = out / "work" / "switch" / f"{case['name']}-{label}"
-        render(work, switch_script(case), binary=binary, env={"TERTIUS_PROBE_EXPOSURE": args.exposure, **env},
-               extra=PROBE_OPTIONS)
+        render(work, switch_script(case), binary=probe_binary(out),
+               env={"TERTIUS_PROBE_EXPOSURE": args.exposure, **env}, extra=PROBE_OPTIONS)
         series[label] = probe_series(work, "f-*.png")
+        kept.parent.mkdir(parents=True, exist_ok=True)
+        kept.write_text(json.dumps(series[label]))
         if label == "switch":
             frames = sorted(work.glob("f-*.png"))
             images = out / "images" / "switch"
             for k in (SWITCH_OFF - 1, SWITCH_OFF + 8, SWITCH_ON - 1, SWITCH_ON + 8):
                 keep_png(frames[k], images / f"{case['name']}-{k:03d}.png")
         shutil.rmtree(work)
+    if len(series) < len(switch_runs(case)):
+        return None
     off_draws, on_draws = [], []
     regions = changed_regions(series["off"][SWITCH_ON - 1], series["on"][SWITCH_ON - 1])
     for r in regions:
@@ -1497,6 +1514,9 @@ def run(args):
             print(f"{part} {case['name']} ...", flush=True)
             try:
                 result = runner(out, case, args)
+                if result is None:
+                    print(f"{part} {case['name']}: some runs kept, not measured yet", flush=True)
+                    continue
                 print(f"{part} {case['name']}: " + json.dumps({k: v for k, v in result.items()
                                                                 if not isinstance(v, (list, dict)) or k == "failed"}),
                       flush=True)

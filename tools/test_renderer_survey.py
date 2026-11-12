@@ -125,6 +125,58 @@ class Switches(unittest.TestCase):
         self.assertEqual(film["frames"] - survey.SWITCH_ON, 100)
 
 
+SWITCH = {"name": "cabin", "scene": "s", "camera": "person", "ticks": 60, "select": "z:-12:4", "sun": "on"}
+
+
+class SwitchRunsInParts(unittest.TestCase):
+    """A switch case's three runs can render in separate calls, such as separate workbench jobs of at most 840 s: each
+    call keeps the series of its runs, and the call that finds all three measures them."""
+
+    def render(self, calls):
+        def render(out, built, *, binary, env=None, extra=(), **kwargs):
+            calls.append(env)
+            out.mkdir(parents=True)
+            frames = built["steps"][-1]["frames"]
+            for k in range(frames):
+                probe_png(out / f"f-{k:06d}.png", 1.0)
+            return out.parent / f"{out.name}.log"
+        return render
+
+    def test_a_call_limited_to_some_runs_renders_only_those_keeps_their_series_and_saves_no_result(self):
+        calls = []
+        with tempfile.TemporaryDirectory() as folder, mock.patch.object(survey, "render", self.render(calls)), \
+                mock.patch.object(survey, "probe_binary", lambda out: Path("probe")), \
+                mock.patch.dict(os.environ, {survey.SWITCH_RUNS: "off"}):
+            result = survey.run_switch(Path(folder), SWITCH, argparse.Namespace(exposure="4.08"))
+            kept = sorted(p.name for p in (Path(folder) / "series" / "switch").iterdir())
+            saved = (Path(folder) / "results" / "switch" / "cabin.json").exists()
+        self.assertIsNone(result)
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0]["TERTIUS_PROBE_LAMP_OFF"], "0-100000000", "the run that holds the lamps off")
+        self.assertEqual(kept, ["cabin-off.json"])
+        self.assertFalse(saved)
+
+    def test_a_call_that_finds_all_three_series_kept_measures_them_without_a_binary(self):
+        calls = []
+        with tempfile.TemporaryDirectory() as folder:
+            kept = Path(folder) / "series" / "switch"
+            kept.mkdir(parents=True)
+            frames = survey.SWITCH_FRAMES
+            for label, value in (("switch", 1.0), ("off", 0.5), ("on", 1.0)):
+                (kept / f"cabin-{label}.json").write_text(json.dumps([[value] * (1 + survey.GRID ** 2)] * frames))
+
+            def no_binary(out):
+                raise SystemExit("no binary")
+
+            with mock.patch.object(survey, "render", self.render(calls)), \
+                    mock.patch.object(survey, "probe_binary", no_binary):
+                result = survey.run_switch(Path(folder), SWITCH, argparse.Namespace(exposure="4.08"))
+            saved = (Path(folder) / "results" / "switch" / "cabin.json").exists()
+        self.assertEqual(calls, [])
+        self.assertTrue(saved)
+        self.assertEqual(len(result["series"]["off"]), frames)
+
+
 WALK = {"scene": "s", "camera": "person", "ticks": 60, "key": 87, "stand": 180, "walk": 120, "after": 200}
 
 

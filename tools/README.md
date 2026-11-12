@@ -1218,6 +1218,8 @@ python3 -I tools/runpod/gpu_job.py submit --agent <your name> --tree t=HEAD \
 nix develop --command python3 -I tools/renderer-survey.py report /tmp/<your name>/stand-climb/out
 ```
 
+A switch case does not fit in one job. A GPU job gets at most 840 s, and one switch run renders 460 film frames. So `TERTIUS_SURVEY_SWITCH_RUNS` names the runs of a switch case that one call renders, by label, comma-separated: `switch`, `off` and `on`. Each call keeps the series of its runs in `<out>/series/switch/<case>-<label>.json`, and a run whose series is kept does not render again. Return the series with `--output 'out/series/*/*.json'`. Then copy the series of all three runs into one folder, and run the switch part there on the Mac. That call finds the three series, renders nothing and needs no probe build. It writes the result.
+
 `set -o pipefail` makes a failed build end the job. Without it, the pipe through `tail` hides the failure, and the job renders with no probe. For a candidate and its control in one job, name two trees, give each its own output folder, such as `../out-main`, and run the parts once for each. With `--output` globs for both folders, the job sends back both.
 
 On the Mac, the two parts run as the other probe parts do, under the shared GPU lock:
