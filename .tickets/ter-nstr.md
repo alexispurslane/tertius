@@ -58,3 +58,13 @@ Answers to the survivors:
 - S03, equivalent: each level of the pyramid is no larger than the one below, so after the first level that a texel lies outside, the loop stores nothing more.
 - C11, judgment call: the copy-source usage serves only the tests' readback of FSR's images. Without it the read still works on MoltenVK and shows only as a validation message, which these tests do not assert.
 - S07, judgment call: the mutant stores one texel past the reconstructed depth's edge. The Vulkan spec leaves that store undefined without the robustness features, Metal drops it, and no test on this driver can see it.
+
+**2026-11-12T10:53:08Z**
+
+Coverage of the changed lines (FSR tests, Debug): 99/101 lines, 15/16 branches. The two uncovered lines each throw UnreachableException, which only a bug reaches.
+
+Timing on the deck (scripts/temporal-upscale-timing.json, Release, 1920 x 1080, 1,296 MHz, exclusive GPU lock, /private/tmp/tertius-nstr/time). Window-like runs (--in-flight 2, --pass-timestamps off), five alternating rounds on stock MoltenVK: medians main 23.141, 23.207, 23.184, 23.213, 23.422 ms; branch 23.101, 23.201, 23.154, 23.206, 23.238 ms. Median of the round medians 23.207 against 23.201 ms, median difference -0.03 ms, within the noise. Median p95 23.708 against 23.734 ms. Patched MoltenVK (ter-2zga), two rounds: -0.18 and -0.02 ms. With a time stamp after each pass (the Metal trace runs): GPU timer median 24.431 against 24.201 ms. Metal System Trace: FSR 22 -> 10 encoders, idle before FSR 0.42 -> 0.26 ms; frame 140 -> 128 encoders, idle per frame 2.41 -> 2.23 ms. So the clears' encoders are gone, but in a window-like run most of their cost overlapped other GPU work: the frame gains about 0.03 ms on stock, not the estimated 0.23 to 0.30 ms.
+
+Images: the 67 frames of scripts/temporal-upscale-validation.json (deck, glass and exterior stills and films) and the 16-spot lamp hall are byte-identical to main d418c984d.
+
+Final tests on the merged code: Checked 10,770 passed, Release 10,757 passed, 0 failed.

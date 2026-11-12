@@ -275,7 +275,7 @@ internal sealed unsafe class Fsr3Upscaler : IDisposable
     public static IReadOnlyList<Fsr3Image> ZeroedEachFrame { get; } =
         [Fsr3Image.ReconstructedPrevNearestDepth, Fsr3Image.SpdAtomicCounter, Fsr3Image.SpdMips];
 
-    /// <summary>The shader of the clear step.</summary>
+    /// <summary>The embedded SPIR-V of the clear step, one compute dispatch that zeroes <see cref="ZeroedEachFrame"/>.</summary>
     internal const string ClearStepShader = "fsr_clear.comp";
 
     /// <summary>
@@ -767,20 +767,8 @@ internal sealed unsafe class Fsr3Upscaler : IDisposable
             Fsr3Slot.ShadingChange => Image(Fsr3Image.ShadingChange),
             Fsr3Slot.NewLocks => Image(Fsr3Image.NewLocks),
             Fsr3Slot.DilatedReactiveMasks => Image(Fsr3Image.DilatedReactiveMasks),
-            Fsr3Slot.SpdMips
-            or Fsr3Slot.SpdMip0
-            or Fsr3Slot.SpdMip1
-            or Fsr3Slot.SpdMip2
-            or Fsr3Slot.SpdMip3
-            or Fsr3Slot.SpdMip4
-            or Fsr3Slot.SpdMip5
-            or Fsr3Slot.SpdMip6
-            or Fsr3Slot.SpdMip7
-            or Fsr3Slot.SpdMip8
-            or Fsr3Slot.SpdMip9
-            or Fsr3Slot.SpdMip10
-            or Fsr3Slot.SpdMip11
-            or Fsr3Slot.SpdMip12 => Image(Fsr3Image.SpdMips),
+            // The whole luminance pyramid, then each of its levels, which follow it in Fsr3Slot.
+            >= Fsr3Slot.SpdMips and <= Fsr3Slot.SpdMip12 => Image(Fsr3Image.SpdMips),
             Fsr3Slot.SpdAtomic => Image(Fsr3Image.SpdAtomicCounter),
             Fsr3Slot.FrameInfo => Image(Fsr3Image.FrameInfo),
             Fsr3Slot.ExposureBuffer
